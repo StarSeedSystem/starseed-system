@@ -98,3 +98,12 @@ aplica Alex.** Se comprueba también si `library_public_items` existe en el proy
 Cada tarea toca como mucho 3 archivos y 120 líneas por archivo. Las escribe el enjambre; Claude dirige y
 verifica en localhost: clic derecho sobre un widget, un ajuste, un fondo y una herramienta de la Protomolécula;
 probar, aplicar, deshacer y publicar una variación con una cuenta de prueba.
+
+## 8. Variaciones de identidad (añadido el 2026-10-19)
+
+Además de los elementos de la interfaz, la identidad gráfica tiene sus propias familias: `animacion:`, `transicion:`,
+`elemento-3d:`, `tipografia:`, `composicion:`, `icono:` y `sonido:` (y `tema:` para paletas y registros). Se crean en el
+estudio audiovisual con fundamentos, ejemplos y referencias (`memory/diseno/estudio-audiovisual/references/variaciones-de-identidad.md`),
+pasan por **aprobación** (borrador → propuesta → aprobada → publicada; en MetaGenesis aprueba Alex, en PoliGenesis
+democrático se vota) y solo entonces se publican como variaciones públicas de su clave. Tareas en
+`cola-diseno-alex-1019.json` (DSN1019I adaptadores de movimiento y 3D, DSN1019J aprobación, DSN1019K importador).

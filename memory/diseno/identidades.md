@@ -126,3 +126,21 @@ Si un token ya existe, se usa antes que un hexadecimal suelto
 - **Propósito/público:** concentración, escritura y superficies suaves de baja tensión.
 - **Paleta/tipo:** `#faf5ff`, `#e9d5ff`, `#d8b4fe`, `#9333ea`; Outfit 1× (`src/lib/themes/curated-presets.ts:426-446`).
 - **Material/movimiento:** niebla radial, cristal 14, orbes, pulso, 300 ms y fade; motivo nube. No bajar contraste por mantener la suavidad (`src/lib/themes/curated-presets.ts:433-454`).
+
+## Decisiones de Alex 2026-10-19
+
+Fuente: chat de Cowork del 2026-10-19. Detalle y valores en `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md`.
+
+- **Usar todas las variantes, cada una donde mejor encaje** (entre el ADN del 2026-10-06 y el sistema de Claude Design
+  «StarSeed Design System»):
+  - Tipografía: Satoshi para lo editorial y premium (solo por su CSS de Fontshare, licencia ITF), Rajdhani para lo técnico
+    y las cifras, Inter para el cuerpo, Quicksand para lo orgánico y JetBrains Mono para el código; como mucho tres por pieza.
+  - Sombras: una sola en la interfaz de uso; brillo multicapa solo en la pieza protagonista de cada vista.
+  - Fondos: noche `#0A0F1D` como base, vacío profundo `#001F3F` para lo cósmico, Astraura y XR, nieve para documentos y los
+    degradados Claridad, Profundidad, Natural y Cristal donde su registro lo pida.
+- **Composición centrada:** los elementos con preferencia centrada en su ventana y cada ventana centrada en la pantalla,
+  usando el espacio de forma inteligente para cada aparato (teléfono, tableta, escritorio, pantalla grande, XR y vídeo). Los
+  controles persistentes siguen llegando desde los bordes.
+- **Variaciones de identidad:** animaciones, transiciones, elementos 3D animados, tipografía, paletas, composición, iconos y
+  sonido, con fundamentos, ejemplos desarrollados y referencias estudiadas de varios medios (se mide el patrón y se crea uno
+  propio). Lo que Alex aprueba pasa a la Librería como variaciones públicas de su elemento.

@@ -1,5 +1,7 @@
 /* StarSeed OS · Trinity Liquid Crystal · tokens de marca (ADN 2026-10-06) */
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Quicksand:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+/* Satoshi (ITF Free Font License): solo por su CSS alojado, nunca con archivos propios. */
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap');
 :root {
   --ss-zenith: #007FFF;          /* azul eléctrico · 25 % */
   --ss-horizonte: #10B981;       /* verde esmeralda · 25 % */
@@ -18,7 +20,9 @@
   --ss-mundo-sociedad: #CD77F8; --ss-mundo-os: #25D1F4; --ss-mundo-cafe: #F5B91A;
   --ss-mundo-estudio: #F471F4; --ss-mundo-fundacion: #34D77F; --ss-mundo-audiomorphic: #2DD29B;
   --ss-neon-lima: #39FF14; --ss-oro-brunido: #D4AF37; --ss-vacio-profundo: #001F3F;
-  --ss-font-titular: 'Rajdhani', 'Inter', system-ui, sans-serif;
+  --ss-font-display: 'Satoshi', 'Rajdhani', 'Inter', system-ui, sans-serif; /* editorial y premium */
+  --ss-font-titular: 'Rajdhani', 'Inter', system-ui, sans-serif;               /* técnico, cifras, HUD */
+  --ss-font-organica: 'Quicksand', 'Inter', system-ui, sans-serif;            /* Natural, Materia Viva */
   --ss-font-cuerpo: 'Inter', system-ui, sans-serif;
   --ss-font-codigo: 'JetBrains Mono', ui-monospace, monospace;
   --ss-radio-sm: 4px; --ss-radio-md: 12px; --ss-radio-lg: 24px; --ss-radio-xl: 42px; --ss-radio-pildora: 9999px;
@@ -28,6 +32,20 @@
   --ss-ease-genesis: cubic-bezier(0.22, 0.9, 0.3, 1);
   --ss-dur-rapido: 140ms; --ss-dur-organico: 220ms; --ss-dur-normal: 240ms;
   --ss-aureo: 1.618;
+  /* Sombras: simple en interfaz de uso; brillo multicapa solo en la pieza protagonista (propuesta). */
+  --ss-sombra-md: 0 4px 6px rgba(0,0,0,0.1);
+  --ss-sombra-lg: 0 10px 15px rgba(0,0,0,0.1);
+  --ss-sombra-brillo: 0 0 32px rgba(0,127,255,0.35), 0 12px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.15);
+  --ss-borde-luz: inset 0 1px 0 rgba(255,255,255,0.15);
+  /* Fondos de los temas (sistema de Claude Design) */
+  --ss-fondo-claridad: radial-gradient(ellipse 100% 80% at 15% 0%, #f0ebff 0%, #fafafa 45%, #eff6ff 100%);
+  --ss-fondo-profundidad: linear-gradient(135deg, #0a0118 0%, #0f0a2e 45%, #04091e 75%, #000810 100%);
+  --ss-fondo-natural: radial-gradient(ellipse 80% 60% at 25% 80%, #0a2210 0%, #0d1a0e 50%, #050c06 100%);
+  --ss-fondo-cristal: linear-gradient(135deg, #020618 0%, #0a1628 35%, #080420 65%, #060220 100%);
+  /* Composición centrada */
+  --ss-medida-lectura: 65ch;
+  --ss-ancho-ventana: min(100% - 32px, 1186px);
+  --ss-diana-min: 44px;
 }
 @media (prefers-reduced-motion: reduce) {
   :root { --ss-dur-rapido: 0ms; --ss-dur-organico: 0ms; --ss-dur-normal: 0ms; }

@@ -21,9 +21,13 @@ contrastes medidos). Después lee lo que la pieza necesite:
 | es un formato concreto (intro, explicativo, short, conferencia, página animada, 3D, gráfica, cartel) | `references/formatos-y-guiones.md` |
 | usa recursos, modelos o servicios de terceros (música, voces, iconos, animaciones, fuentes) | `references/licencias-y-guardas.md` |
 | lleva un diagrama o una gráfica | `references/diagramas-starseed.md` |
+| necesita aplicar fundamentos de diseño (composición, color, tipografía, movimiento, transiciones, 3D, sonido) | `references/fundamentos-diseno.md` |
+| crea variaciones de la identidad (animaciones, transiciones, elementos 3D, tipos, paletas, composición) a partir de referencias, o las lleva a la Librería | `references/variaciones-de-identidad.md` |
 
 Recursos listos en `assets/`: `starseed-simbolo.png` (símbolo oficial, 1000×1497), `tokens.css` y
-`tokens.json` (variables de la marca para HTML, HyperFrames, artefactos y Figma).
+`tokens.json` (variables de la marca para HTML, HyperFrames, artefactos y Figma). Ejemplos que funcionan en
+`examples/`: `siembra.html` (animación del símbolo), `transiciones.html` (las cuatro transiciones de la marca)
+y `cristal-3d.html` (retícula cristalina 3D con Three.js); todos centrados y con movimiento reducido.
 
 ## Flujo de trabajo
 
@@ -53,13 +57,22 @@ Recursos listos en `assets/`: `starseed-simbolo.png` (símbolo oficial, 1000×14
 - Base de vídeo y escenas: **noche** `#0A0F1D` con la Trinity (zenith `#007FFF`, horizonte `#10B981`,
   lógica `#FFBF00`) y el anchor `#DC143C` como acento escaso. Base clara: **nieve** `#F8F9FA` con las
   variantes de texto oscurecidas. Los contrastes medidos están en `adn-y-tokens.md` §3: respétalos.
-- Tipografía: Rajdhani (titulares), Inter (cuerpo), JetBrains Mono (solo lo técnico). Como mucho 3 tamaños
-  por escena; titular/cuerpo con proporción de 6 o más; ningún texto por debajo de 28 px a 1080p.
+- Tipografía, cada una donde mejor encaja (`adn-y-tokens.md` §4): Satoshi para lo editorial y premium
+  (solo por su CSS de Fontshare), Rajdhani para lo técnico y las cifras, Inter para el cuerpo, Quicksand para
+  lo orgánico y JetBrains Mono para el código. Como mucho 3 familias y 3 tamaños por escena; titular/cuerpo
+  con proporción de 6 o más; ningún texto por debajo de 28 px a 1080p.
+- **Composición centrada:** cada elemento con preferencia centrada en su ventana y cada ventana centrada en
+  la pantalla, usando el espacio de forma inteligente para cada aparato (`adn-y-tokens.md` §7b). Los
+  controles llegan desde los bordes.
+- Sombra simple en la interfaz de uso y brillo multicapa solo en la pieza protagonista; noche como base,
+  vacío profundo para lo cósmico y los degradados de los temas donde encajen (`adn-y-tokens.md` §5).
 - Firmas: paneles que entran desde el perímetro en proporción áurea (1:1.618); acciones en píldora (radio
   mayor de 16 px); un degradado radial de acento que cubra un 15 % del cuadro.
 - Jugada rara, una sola vez por pieza: una línea de horizonte cruza la Trinity sin tocar el centro (1:2).
-- Prohibido: ruido decorativo, controles o texto persistente en el centro sagrado, sombras múltiples,
+- Prohibido: ruido decorativo, controles persistentes tapando el centro, brillo multicapa en interfaz de uso,
   animar dimensiones (anima `transform` y `opacity`), destellos de más de 3 por segundo.
+- Cada pieza nueva propone también sus **variaciones** (sobria, expresiva, experimental) con fundamentos,
+  referencias y ficha (`variaciones-de-identidad.md`); lo que Alex aprueba pasa a la Librería.
 - El símbolo (vesica piscis, ojo y diamante) no se deforma, no se recolorea fuera de sus colores y respira:
   aparece por siembra (punto → dos círculos → ojo → diamante), nunca de golpe.
 

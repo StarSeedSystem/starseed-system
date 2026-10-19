@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Transiciones StarSeed</title>
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  html, body { margin: 0; min-height: 100%; }
+  body { background: var(--ss-noche); color: var(--ss-nieve); font-family: var(--ss-font-cuerpo);
+         display: grid; place-items: center; padding: 32px 16px; box-sizing: border-box; }
+  main { width: min(100%, 960px); display: grid; gap: 32px; justify-items: center; }
+  h1 { margin: 0; font: 600 clamp(28px, 5vw, 48px)/1 var(--ss-font-titular); text-align: center; }
+  .rejilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; width: min(100%, 720px); margin-inline: auto; }
+  @media (max-width: 560px) { .rejilla { grid-template-columns: 1fr; } }
+  .caja { position: relative; overflow: hidden; height: 200px; border-radius: var(--ss-radio-lg);
+          background: var(--ss-noche-alta); border: 1px solid rgba(248,249,250,.12); display: grid; place-items: center; }
+  .caja h2 { position: absolute; z-index: 2; top: 12px; left: 16px; margin: 0; font: 500 14px/20px var(--ss-font-cuerpo); color: var(--ss-bruma); }
+  .panel { width: 60%; height: 56px; border-radius: var(--ss-radio-pildora); background: var(--ss-zenith); }
+  .tarjeta { width: 72px; height: 48px; border-radius: var(--ss-radio-md); background: var(--ss-horizonte); }
+  .escena-b { position: absolute; inset: 0; background: var(--ss-logica); clip-path: inset(0 0 0 0); }
+  #barrido-horizonte h2 { color: var(--ss-noche); }
+  .linea { position: absolute; left: 0; right: 0; top: 66%; height: 2px; background: var(--ss-nieve); transform-origin: left; }
+  button { min-height: 44px; padding: 0 24px; border-radius: var(--ss-radio-pildora); border: 0;
+           background: var(--ss-zenith); color: var(--ss-noche); font: 600 16px/1 var(--ss-font-cuerpo); cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cuatro transiciones de la marca</h1>
+  <div class="rejilla">
+    <section class="caja" id="entrada-cardinal"><h2>Entrada cardinal</h2><div class="panel"></div></section>
+    <section class="caja" id="fundido-desenfoque"><h2>Fundido con desenfoque</h2><div class="panel"></div></section>
+    <section class="caja" id="elemento-compartido"><h2>Elemento compartido</h2><div class="tarjeta"></div></section>
+    <section class="caja" id="barrido-horizonte"><h2>Barrido de horizonte</h2><div class="escena-b"></div><div class="linea"></div></section>
+  </div>
+  <button type="button" id="repetir">Repetir</button>
+</main>
+<script>
+  // WAAPI, solo transform, opacity, filter y clip-path; curvas y tiempos de assets/tokens.css.
+  const reducido = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const glide = "cubic-bezier(0.16, 1, 0.3, 1)", organico = "cubic-bezier(0.22, 1, 0.36, 1)";
+  const d = (ms) => (reducido ? 1 : ms);
+  function reproducir() {
+    document.querySelector("#entrada-cardinal .panel").animate(
+      [{ transform: "translateY(24px) scale(.98)", opacity: 0 }, { transform: "translateY(-2px)", opacity: 1, offset: .8 }, { transform: "none", opacity: 1 }],
+      { duration: d(720), easing: glide, fill: "both" });
+    document.querySelector("#fundido-desenfoque .panel").animate(
+      [{ filter: "blur(8px)", opacity: 0 }, { filter: "blur(0)", opacity: 1 }],
+      { duration: d(600), easing: organico, fill: "both" });
+    document.querySelector("#elemento-compartido .tarjeta").animate(
+      [{ transform: "scale(1)" }, { transform: "scale(2.6, 3.2)" }],
+      { duration: d(640), easing: glide, fill: "both", direction: "alternate", iterations: 2 });
+    const linea = document.querySelector("#barrido-horizonte .linea");
+    linea.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: d(700), easing: glide, fill: "both" });
+    document.querySelector("#barrido-horizonte .escena-b").animate(
+      [{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0 0 0)" }],
+      { duration: d(700), delay: d(300), easing: glide, fill: "both" });
+  }
+  document.getElementById("repetir").addEventListener("click", reproducir);
+  reproducir();
+</script>
+</body>
+</html>

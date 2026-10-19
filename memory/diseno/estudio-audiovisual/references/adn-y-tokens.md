@@ -63,21 +63,46 @@ Para cualquier par nuevo: `python3 scripts/comprobar_adn.py --par "#RRGGBB" "#RR
 
 ## 4. Tipografía
 
-| Rol | Familia | Respaldo | Uso |
+Decisión de Alex (2026-10-19): se usan todas, cada una donde mejor encaja. Como mucho tres familias por pieza.
+
+| Rol | Familia | Respaldo | Dónde encaja |
 |---|---|---|---|
-| titular | Rajdhani (500–700) | Inter | títulos, cifras grandes, rótulos de escena |
+| display editorial | Satoshi (500–900) | Rajdhani, Inter | manifiestos, carteles, portadas, títulos de vídeo de marca, conferencias: lo que debe sentirse premium y humano |
+| titular técnico | Rajdhani (500–700) | Inter | interfaz del OS, cifras grandes, rótulos de escena, Genesis, Astraura, datos y HUD |
 | cuerpo | Inter (300 aire, 400 lectura) | system-ui, sans-serif | textos, subtítulos, interfaz |
+| orgánico | Quicksand (400–700) | Inter | tema Natural, Materia Viva, Fundación y ecología |
 | código | JetBrains Mono | monospace | código, comandos, datos técnicos |
 
-Las tres son SIL Open Font License. Escala para vídeo a 1080p (propuesta que cumple p2–p4): cuerpo 32 px,
-rótulo 56 px, titular 192 px (proporción 6). En conferencia 16:9: cuerpo 28–32 px, titular 168–192 px.
-Base de la interfaz del OS: 16 px.
+Licencias: Rajdhani, Inter, Quicksand y JetBrains Mono son SIL Open Font License. **Satoshi es ITF Free Font
+License**: uso libre personal y comercial, pero sus archivos nunca se empaquetan ni se suben; se carga con su
+CSS de Fontshare (`https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap`) en páginas, en el OS
+y al renderizar vídeo; donde no se puede cargar (artefactos de Claude), se usa Rajdhani.
+
+Escala para vídeo a 1080p (propuesta que cumple p2–p4): cuerpo 32 px, rótulo 56 px, titular 192 px
+(proporción 6). En conferencia 16:9: cuerpo 28–32 px, titular 168–192 px. Base de la interfaz del OS: 16 px.
 
 ## 5. Forma, material y movimiento
 
 - **Radios del tema** (`theme_params.json`): 4, 12, 24, 42 px y píldora 9999 px. Acciones siempre en píldora.
-- **Cristal líquido:** desenfoque de fondo (16 px por defecto en el OS, 10 px en Genesis), opacidad 0.6,
-  un borde fino de luz. Una sola sombra por elemento.
+- **Cristal líquido:** desenfoque de fondo (16 px por defecto en el OS, 10 px en Genesis; 20 px con
+  saturación 180 % en el sistema anterior para piezas destacadas), opacidad 0.6, un borde fino de luz arriba
+  (`inset 0 1px 0 rgba(255,255,255,0.15)`).
+- **Sombras, las dos (decisión de Alex, 2026-10-19):**
+  - *Sombra simple* (`shadow-md` o `shadow-lg`, una sola) en toda la interfaz de uso: listas, formularios,
+    paneles, chats, tablas. Lee mejor y pesa menos.
+  - *Brillo multicapa* (resplandor ambiente del color del registro + sombra direccional + brillo especular
+    interior) solo en piezas destacadas: widget de cristal enfocado, tarjeta protagonista, portada, cartel,
+    título de vídeo y renders 3D. Propuesta: `0 0 32px rgba(0,127,255,0.35), 0 12px 24px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.15)`. Nunca sobre texto denso ni en más de un elemento por vista.
+- **Fondos, todos en su sitio:**
+  - noche `#0A0F1D`: base de la interfaz oscura y del vídeo;
+  - vacío profundo `#001F3F`: escenas cósmicas, Astraura, XR y explicaciones de la red y del universo;
+  - nieve `#F8F9FA`: documentos y páginas claras;
+  - degradados de los temas del sistema anterior: Claridad `radial-gradient(ellipse 100% 80% at 15% 0%,
+    #f0ebff 0%, #fafafa 45%, #eff6ff 100%)`, Profundidad `linear-gradient(135deg, #0a0118 0%, #0f0a2e 45%,
+    #04091e 75%, #000810 100%)`, Natural `radial-gradient(ellipse 80% 60% at 25% 80%, #0a2210 0%, #0d1a0e 50%,
+    #050c06 100%)`, Cristal `linear-gradient(135deg, #020618 0%, #0a1628 35%, #080420 65%, #060220 100%)`.
+  Sobre cualquier fondo vivo o degradado, velo bajo el texto para mantener 4.5:1.
 - **Curvas reales del OS:** `--ease-organic` `cubic-bezier(0.22, 1, 0.36, 1)`, `--ease-glide`
   `cubic-bezier(0.16, 1, 0.3, 1)`, curva de Genesis `cubic-bezier(0.22, 0.9, 0.3, 1)`.
 - **Duraciones reales de interfaz:** 140 ms (rápido), 220 ms (orgánico), 240 ms (normal); presets entre
@@ -115,8 +140,28 @@ registro baja el contraste de un texto por debajo de 4.5:1, gana el contraste.
 - Firmas: paneles cardinales desde el perímetro (1:1.618), acciones en píldora (radio > 16 px), degradado
   radial de acento con 15 % de cobertura.
 - Jugada rara: una línea de horizonte cruza la Trinity sin tocar el centro (1:2). Una vez por pieza.
-- Prohibido: hexadecimales sueltos, ruido decorativo, controles en el centro, sombras múltiples, animar
-  dimensiones.
+- Prohibido: hexadecimales sueltos, ruido decorativo, controles persistentes tapando el centro (el contenido
+  sí va centrado, ver §7b), brillo multicapa en interfaz de uso, animar dimensiones.
+
+## 7b. Composición centrada y espacio inteligente por aparato
+
+Decisión de Alex (2026-10-19): **los elementos se colocan con preferencia centrada en su ventana y en la
+pantalla**, aprovechando el espacio de forma inteligente según el aparato. Encaja con el paradigma perimetral:
+el contenido se centra y las barras de control llegan desde los bordes.
+
+| Aparato | Cómo se usa el espacio |
+|---|---|
+| Teléfono (vertical) | una columna centrada con márgenes de `space-md`; ventanas como hojas centradas que suben desde abajo; acciones principales en la zona del pulgar (abajo), dianas de 44 px o más; respeta las zonas seguras de la pantalla |
+| Tableta | contenido centrado de hasta dos columnas; paneles laterales que entran desde el borde y se superponen sin empujar el centro |
+| Escritorio | ventanas que abren centradas, con ancho de lectura de 65 caracteres para texto y rejillas centradas para tarjetas; la Trinity en los bordes |
+| Pantalla grande, proyector o TV | composición centrada en la zona segura de títulos, texto de 28 px o más a 1080p, nada importante pegado a los bordes |
+| XR | paneles centrados en el campo de visión a distancia cómoda de lectura; los controles, en arco a los lados |
+| Vídeo 16:9 | título y sujeto en el centro óptico; rótulos en el tercio inferior centrados o alineados al margen de seguridad |
+| Vídeo 9:16 | banda central para texto y sujeto; arriba y abajo libres para la interfaz de cada red |
+
+Reglas: centrar no es amontonar (aire de `space-xl` a `space-3xl` alrededor del bloque central); la proporción
+áurea reparte lo que rodea al centro; si el contenido no cabe centrado, se apila en una columna centrada en vez
+de desbordar.
 
 ## 8. Los sistemas de diseño de StarSeed en Claude
 
@@ -138,8 +183,9 @@ registro baja el contraste de un texto por debajo de 4.5:1, gana el contraste.
   Cristal) y ocho paletas de widgets de cristal; iconos Lucide de 1.5–2 px; llamadas a la acción «Crear»,
   «Explorar», «Contribuir», «Manifestar»; conceptos como nombres propios (La Semilla, El Fruto, La Cosecha,
   Cuenta Soberana, Exocórtex).
-- **Decisiones abiertas** (hasta que Alex decida, manda el ADN): titular en Satoshi o Rajdhani (ADN:
-  Rajdhani); sombras en varias capas o una (ADN: una); fondo `#001F3F` o noche `#0A0F1D` (ADN: noche).
+- **Decisiones de Alex (2026-10-19):** se usan las dos opciones de cada diferencia, cada una donde mejor
+  encaja (Satoshi y Rajdhani en §4; sombra simple y brillo multicapa, y los dos fondos, en §5) y la
+  composición es centrada y adaptable por aparato (§7b).
 
 ## 9. Nota sobre el comprobador del repo
 

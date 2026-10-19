@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Siembra del símbolo</title>
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Siembra: punto → dos círculos (vesica piscis) → ojo → diamante, centrado en su ventana. 2,4 s. */
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--ss-noche); color: var(--ss-nieve); font-family: var(--ss-font-cuerpo);
+         display: grid; place-items: center; }
+  .escena { display: grid; place-items: center; gap: 32px; }
+  svg { width: min(60vmin, 420px); height: auto; overflow: visible; }
+  .punto   { fill: var(--ss-logica); transform-origin: 200px 200px; animation: brotar 400ms var(--ss-ease-organic) both; }
+  .circulo { fill: none; stroke-width: 6; transform-origin: 200px 200px; opacity: 0; }
+  .izq { stroke: var(--ss-zenith);    animation: abrir-izq 700ms var(--ss-ease-glide) 350ms both; }
+  .der { stroke: var(--ss-horizonte); animation: abrir-der 700ms var(--ss-ease-glide) 350ms both; }
+  .ojo { fill: var(--ss-nieve); transform-origin: 200px 200px; animation: mirar 500ms var(--ss-ease-organic) 1050ms both; }
+  .pupila { fill: var(--ss-noche); transform-origin: 200px 200px; animation: mirar 400ms var(--ss-ease-organic) 1250ms both; }
+  .diamante { fill: none; stroke: var(--ss-logica); stroke-width: 3; stroke-dasharray: 420; stroke-dashoffset: 420;
+              animation: trazar 800ms var(--ss-ease-glide) 1500ms both; }
+  .respira { transform-origin: 200px 200px; animation: respirar 5s var(--ss-ease-organic) 2400ms infinite alternate; }
+  h1 { margin: 0; font-family: var(--ss-font-titular); font-weight: 600; font-size: clamp(32px, 6vw, 56px);
+       letter-spacing: .02em; opacity: 0; animation: aparecer 600ms var(--ss-ease-organic) 2000ms both; }
+  button { min-height: 44px; padding: 0 24px; border-radius: var(--ss-radio-pildora); border: 1px solid rgba(248,249,250,.2);
+           background: transparent; color: var(--ss-nieve); font: 600 16px/1 var(--ss-font-cuerpo); cursor: pointer; }
+  @keyframes brotar { from { transform: scale(0); } 60% { transform: scale(1.4); } to { transform: scale(1); opacity: 0; } }
+  @keyframes abrir-izq { from { opacity: 0; transform: translateX(40px) scale(.2); } to { opacity: 1; transform: none; } }
+  @keyframes abrir-der { from { opacity: 0; transform: translateX(-40px) scale(.2); } to { opacity: 1; transform: none; } }
+  @keyframes mirar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  @keyframes trazar { to { stroke-dashoffset: 0; } }
+  @keyframes respirar { from { transform: scale(1); } to { transform: scale(1.03); } }
+  @keyframes aparecer { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; }
+  }
+</style>
+</head>
+<body>
+<main class="escena" aria-label="Animación de la siembra del símbolo StarSeed">
+  <svg viewBox="0 0 400 400" role="img" aria-label="Símbolo StarSeed">
+    <g class="respira">
+      <circle class="punto" cx="200" cy="200" r="10"/>
+      <circle class="circulo izq" cx="160" cy="200" r="80"/>
+      <circle class="circulo der" cx="240" cy="200" r="80"/>
+      <ellipse class="ojo" cx="200" cy="200" rx="34" ry="22"/>
+      <circle class="pupila" cx="200" cy="200" r="11"/>
+      <path class="diamante" d="M200 92 L262 200 L200 308 L138 200 Z"/>
+    </g>
+  </svg>
+  <h1>StarSeed</h1>
+  <button type="button" onclick="location.reload()">Repetir</button>
+</main>
+</body>
+</html>
