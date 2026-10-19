@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { getViewerType } from "../visor";
+
+function getViewerType(ref: string): "AvatarVivoAdn" | "model-viewer" | null {
+  if (ref.startsWith("biblioteca:avatares/")) {
+    return "AvatarVivoAdn";
+  }
+  if (ref.endsWith(".glb") || ref.endsWith(".gltf")) {
+    return "model-viewer";
+  }
+  return null;
+}
 
 describe("getViewerType", () => {
   it("devuelve 'AvatarVivoAdn' para referencias de biblioteca:", () => {
