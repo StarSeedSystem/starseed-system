@@ -1,0 +1,8 @@
+{
+  "type": "openbot",
+  "default": "allowlist_only",
+  "denylist": [],
+  "metadata": {
+    "cloud": false
+  }
+}
