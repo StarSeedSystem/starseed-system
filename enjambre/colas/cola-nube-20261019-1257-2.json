@@ -1,0 +1,50 @@
+{
+ "ola": "oracle-20261019",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "HFR1018E",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Vídeo HTML · operaciones de la Protomolécula → órdenes del SDK de HyperFrames",
+   "archivos": [
+    "src/lib/video-html/operaciones-sdk.ts",
+    "src/lib/video-html/__tests__/operaciones-sdk.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO, sin importar el SDK: traduce `Operacion` de src/lib/protomolecula/tipos.ts (parámetro de un átomo video-html = `elementoId::propiedad`) a órdenes con la forma de `comp.dispatch` del SDK: { type: \"setText\", target, value }, { type: \"setStyle\", target, styles }, { type: \"setTiming\", target, start, duration }, { type: \"setAttribute\", target, name, value } y { type: \"setVariableValue\", id, value }. Rechaza con motivo las que tocarían una animación GSAP (setGsapTween, addGsapTween…) y propiedades no permitidas (on*, src con javascript:). Pruebas por tipo. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "HFR1018C"
+   ]
+  },
+  {
+   "id": "ADN1019B",
+   "ola": "Ola 1019A · ADN de diseño: comprobador de verdad (las 8 pruebas medidas, no aprobadas a ciegas)",
+   "titulo": "check.py reales: StarSeed OS, Astraura y Genesis",
+   "archivos": [
+    "memory/diseno/adn/starseed-os/check.py",
+    "memory/diseno/adn/astraura/check.py",
+    "memory/diseno/adn/genesis/check.py"
+   ],
+   "depende": [],
+   "prompt": "Sustituye cada check.py por un envoltorio de menos de 20 líneas que añade `scripts/puente` al path (ruta relativa desde su carpeta) y llama a `adn_comprobar.main()` con su carpeta. Comprueba con `python3 scripts/puente/test_diseno_adn.py`. Contexto: los seis `memory/diseno/adn/*/check.py` imprimen «aprobado» en todas las pruebas sin medir nada (lo vio Claude el 2026-10-19). Referencia de cómo medir: `memory/diseno/estudio-audiovisual/scripts/comprobar_adn.py`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; Python sin dependencias nuevas; una prueba que no se puede medir con las métricas recibidas sale como «pN: manual (motivo)», nunca «aprobado»; comentarios en español con acentos.",
+   "revisor_quitadas": [
+    "ADN1019A"
+   ]
+  },
+  {
+   "id": "ADN1019C",
+   "ola": "Ola 1019A · ADN de diseño: comprobador de verdad (las 8 pruebas medidas, no aprobadas a ciegas)",
+   "titulo": "check.py reales: Café, Audiomorphic y Materia Viva",
+   "archivos": [
+    "memory/diseno/adn/cafe/check.py",
+    "memory/diseno/adn/audiomorphic/check.py",
+    "memory/diseno/adn/materia-viva/check.py"
+   ],
+   "depende": [],
+   "prompt": "Igual que ADN1019B para estas tres carpetas. Contexto: los seis `memory/diseno/adn/*/check.py` imprimen «aprobado» en todas las pruebas sin medir nada (lo vio Claude el 2026-10-19). Referencia de cómo medir: `memory/diseno/estudio-audiovisual/scripts/comprobar_adn.py`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; Python sin dependencias nuevas; una prueba que no se puede medir con las métricas recibidas sale como «pN: manual (motivo)», nunca «aprobado»; comentarios en español con acentos.",
+   "revisor_quitadas": [
+    "ADN1019A"
+   ]
+  }
+ ]
+}
