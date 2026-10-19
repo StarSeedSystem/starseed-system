@@ -4468,6 +4468,7 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTRTCOL1012Bdsbbbbbbbbbbbb` — no escribió nada
 
+<<<<<<< HEAD
 ## 2026-10-19 18:47 · mg-oracle-1019-1149
 
 **Lo que se pidió.** Nodo de MetaGenesis: órdenes «desconectar
@@ -4512,6 +4513,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-10-20 17:42 · mg-oracle-1020-0802
 
 **Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+=======
+## 2026-10-19 20:55 · mg-oracle-1019-1251
+
+**Lo que se pidió.** Laya · privacidad que solo sube (nunca baja)
 
 **Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
 
@@ -4527,3 +4532,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTS1010-EV-ORACLE-1acf` — no escribió nada
 - `VGM1016H` — otra cosa: sin decisión en 0 h; rama ola/VGM1016H conservada
+- 3 tareas se fueron por lo mismo — otra cosa (RTLYS1018E, RTRTRTRTCOL1012Bdsbbbbbbbbbbb, GCA1019P). Es 75 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RTLYS1018E` — otra cosa: sin decisión en 0 h; rama ola/RTLYS1018E conservada
+- `RTRTRTRTCOL1012Bdsbbbbbbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTCOL1012Bdsbbbbbbbbbbb conservada
+- `GCA1019P` — otra cosa: sin decisión en 0 h; rama ola/GCA1019P conservada
+>>>>>>> 93f1d225 (chore(memoria): aprendizaje de la ola mg-oracle-1019-1251)
