@@ -22,6 +22,7 @@ import {
 import { construirContexto } from "@/lib/mando/astra-contexto";
 import { claveDe } from "@/lib/mando/modelos-disponibles";
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { prestarClave, usarClave } from '@/lib/genesis/conectores/boveda-servidor';
 
 const RAÍZ = raizDelProyecto();
 const CARPETA_ASTRA = path.join(RAÍZ, "starseed_memory_root", "astra");
@@ -115,11 +116,19 @@ export async function auditar(
   const inicio = Date.now();
   const modelo = opciones?.modelo ?? "gpt-6-astra";
   const maxTokens = opciones?.maxTokens ?? 4000;
-
-  // 1. Clave
-  const clave = await claveDe("STARSEED_PASARELA_OPENAI_KEY", "OPENAI_API_KEY");
-  if (!clave) {
-    return { ok: false, motivo: "sin clave de OpenAI en esta neurona (STARSEED_PASARELA_OPENAI_KEY)" };
+   // 1. Lend and use OpenAI key via boveda-servidor
+   let clave: string | null = null;
+   let errMsg: string | null = null;
+   // Lend key from ambito to ambito (no-op but follows pattern)
+   const prestado = await prestarClave(ambito, ambito, {});
+   if (!prestado.ok) {
+      return { ok: false, motivo: prestado.error };
+   }
+   await usarClave(ambito, "openai", async (valor) => {
+     clave = valor;
+   });
+   if (!clave) {
+     return { ok: false, motivo: "No se pudo obtener la clave de OpenAI" };
   }
 
   // 2. Contexto
