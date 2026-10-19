@@ -8,36 +8,41 @@ const nativoFetch = globalThis.fetch;
 describe("TunelMetaGenesisEstado", () => {
   let llamadas: { url: string; init?: RequestInit }[] = [];
 
-  beforeEach(() => {
-    llamadas.length = 0;
-    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      llamadas.push({ url, init });
-      
-      if (url.includes("/api/mando/tunel-metagenesis")) {
-        // Simular respuesta del API
-        return {
-          ok: true,
-          json: async () => ({
-            cargado: true,
-            pid: 12345,
-            ultimasLineas: [
-              "Línea 1 https://ejemplo.trycloudflare.com",
-              "Línea 2 sin URL",
-              "Línea 3 https://otro.trycloudflare.com/path"
-            ],
-            medidoEn: new Date().toISOString()
-          })
-        } as Response;
-      }
-      
-      // Respuesta por defecto para otros endpoints
-      return {
-        ok: true,
-        json: async () => ({})
-      } as Response;
-    };
-  });
+   beforeEach(() => {
+     llamadas.length = 0;
+     // Ensure document is visible for the component to fetch initially
+     Object.defineProperty(document, 'visibilityState', {
+       value: 'visible',
+       configurable: true
+     });
+     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+       const url = String(input);
+       llamadas.push({ url, init });
+       
+       if (url.includes("/api/mando/tunel-metagenesis")) {
+         // Simular respuesta del API
+         return {
+           ok: true,
+           json: async () => ({
+             cargado: true,
+             pid: 12345,
+             ultimasLineas: [
+               "Línea 1 https://ejemplo.trycloudflare.com",
+               "Línea 2 sin URL",
+               "Línea 3 https://otro.trycloudflare.com/path"
+             ],
+             medidoEn: new Date().toISOString()
+           })
+         } as Response;
+       }
+       
+       // Respuesta por defecto para otros endpoints
+       return {
+         ok: true,
+         json: async () => ({})
+       } as Response;
+     };
+   });
 
   afterEach(() => {
     cleanup();
