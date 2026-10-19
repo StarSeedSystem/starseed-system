@@ -36,17 +36,16 @@ function obtenerVariablesDeFuente(fuente: CatalogSource): Record<string, string>
   const vars: Record<string, string> = {};
   if (!fuente.requiresKey) return vars;
   
-  switch (fuente.providerId) {
-    case 'groq': vars.GROQ_API_KEY = 'GROQ_API_KEY'; break;
-    case 'cerebras': vars.CEREBRAS_API_KEY = 'CEREBRAS_API_KEY'; break;
-    case 'openrouter': vars.OPENROUTER_API_KEY = 'OPENROUTER_API_KEY'; break;
-    case 'google': vars.GOOGLE_API_KEY = 'GOOGLE_API_KEY'; break;
-    case 'mistral': vars.MISTRAL_API_KEY = 'MISTRAL_API_KEY'; break;
-    case 'nvidia': vars.NVIDIA_API_KEY = 'NVIDIA_API_KEY'; break;
-    case 'openai-compatible': vars.OPENAI_COMPATIBLE_API_KEY = 'OPENAI_COMPATIBLE_API_KEY'; break;
-    case 'ollama': variables.OLLAMA_HOST = 'OLLAMA_HOST'; break;
-    default: if (fuente.requiresKey) vars.API_KEY = 'API_KEY';
-  }
+   switch (fuente.providerId as string) {
+     case 'groq': vars.GROQ_API_KEY = 'GROQ_API_KEY'; break;
+     case 'cerebras': vars.CEREBRAS_API_KEY = 'CEREBRAS_API_KEY'; break;
+     case 'openrouter': vars.OPENROUTER_API_KEY = 'OPENROUTER_API_KEY'; break;
+     case 'google': vars.GOOGLE_API_KEY = 'GOOGLE_API_KEY'; break;
+     case 'mistral': vars.MISTRAL_API_KEY = 'MISTRAL_API_KEY'; break;
+     case 'nvidia': vars.NVIDIA_API_KEY = 'NVIDIA_API_KEY'; break;
+     case 'ollama': vars.OLLAMA_HOST = 'OLLAMA_HOST'; break;
+     default: if (fuente.requiresKey) vars.API_KEY = 'API_KEY';
+   }
   return vars;
 }
 

@@ -113,6 +113,8 @@ import { AgentBindMenu } from "@/components/agents/AgentBindMenu";
 import { SaveToLibrary } from "@/components/library/save-to-library";
 // Navegador VIVO de THE HUGGING BAY (descubrimiento inteligente de modelos).
 import { HuggingBayBrowser } from "@/components/library/huggingbay-browser";
+import { vinculoDe, instalableEnAmbito, type VinculoPaquete } from "@/lib/library/vincular";
+import { FREE_CATALOG, type CatalogSource } from "@/ai/astraura/free-catalog";
 
 /* ───────────────────────── Metadatos por kind ───────────────────────── */
 
@@ -135,21 +137,40 @@ export const KIND_META: Record<PackageKind, { label: string; plural: string; ico
 };
 
 /** Qué hace EXACTAMENTE instalar cada kind (transparencia en la ficha). */
-const EFFECT_EXPLAIN: Record<PackageKind, string> = {
-  "ai-source": "Activa esta fuente en Astraura (Aurora podrá elegirla). Si necesita clave, te llevamos a conseguirla GRATIS y se pega en Ajustes → Inteligencia. Desinstalar la deshabilita de nuevo.",
-  design: "Añade su clase de material al registro de diseño (starseed.library.design.v1) y avisa a la capa de materiales del OS para vestir las superficies. Desinstalar la quita.",
-  animation: "Añade su clase de animación al registro de diseño (starseed.library.design.v1); la capa de movimiento del OS la aplica. Desinstalar la quita.",
-  function: "Registra la skill en starseed.library.functions.v1 para que tus cerebros de Aurora la usen. Desinstalar la quita.",
-  repo: "Añade otro repo de paquetes (JSON con shape LibraryRepo) como fuente de esta Biblioteca.",
-  app: "Registra la app en tu sistema (starseed.library.installed.v1, sincronizado con tu cuenta) y abre su ruta real del OS.",
-  widget: "Registra el widget en tu sistema y abre la superficie del OS donde vive.",
-  page: "Registra la página en tu sistema y abre su ruta real.",
-  publication: "Registra el flujo en tu sistema y abre el compositor de publicaciones.",
-  board: "Registra la pizarra en tu sistema y abre el lienzo colaborativo.",
-  research: "Registra la investigación en tu sistema y abre su superficie real.",
-  project: "Registra el proyecto en tu sistema y abre su superficie real.",
-  agent: "Registra la definición del agente (persona + capacidades) en tu biblioteca personal de agentes: podrás configurarlo y atarlo al cerebro de cualquier superficie del OS. Desinstalar no borra vínculos ya creados.",
-};
+function getEffectExplain(pkg: LibraryPackage): string {
+  // Map of explanations for kinds other than ai-source
+  const baseExplanations: Record<Exclude<PackageKind, "ai-source">, string> = {
+    design: "Añade su clase de material al registro de diseño (starseed.library.design.v1) y avisa a la capa de materiales del OS para vestir las superficies. Desinstalar la quita.",
+    animation: "Añade su clase de animación al registro de diseño (starseed.library.design.v1); la capa de movimiento del OS la aplica. Desinstalar la quita.",
+    function: "Registra la skill en starseed.library.functions.v1 para que tus cerebros de Aurora la usen. Desinstalar la quita.",
+    repo: "Añade otro repo de paquetes (JSON con shape LibraryRepo) como fuente de esta Biblioteca.",
+    app: "Registra la app en tu sistema (starseed.library.installed.v1, sincronizado con tu cuenta) y abre su ruta real del OS.",
+    widget: "Registra el widget en tu sistema y abre la superficie del OS donde vive.",
+    page: "Registra la página en tu sistema y abre su ruta real.",
+    publication: "Registra el flujo en tu sistema y abre el compositor de publicaciones.",
+    board: "Registra la pizarra en tu sistema y abre el lienzo colaborativo.",
+    research: "Registra la investigación en tu sistema y abre su superficie real.",
+    project: "Registra el proyecto en tu sistema y abre su superficie real.",
+    agent: "Registra la definición del agente (persona + capacidades) en tu biblioteca personal de agentes: podrás configurarlo y atarlo al cerebro de cualquier superficie del OS. Desinstalar no borra vínculos ya creados.",
+  };
+  if (pkg.kind === "ai-source") {
+    const vinculo = vinculoDe(pkg, FREE_CATALOG);
+    let explanation = `Activa esta fuente en Astraura (Aurora podrá elegirla). `;
+    if (vinculo.requiereClave) {
+      explanation += `Si necesita clave, te llevamos a conseguirla GRATIS y se pega en Ajustes → Inteligencia. `;
+    } else {
+      explanation += `No requiere clave. `;
+    }
+    explanation += `Desinstalar la deshabilita de nuevo. `;
+    if (Object.keys(vinculo.variables).length > 0) {
+      explanation += `Variables de entorno requeridas: ${Object.keys(vinculo.variables).join(", ")}. `;
+    }
+    explanation += `Opción ID: ${vinculo.opcionId}.`;
+    return explanation;
+  }
+  // @ts-ignore: we know pkg.kind is not ai-source here
+  return baseExplanations[pkg.kind];
+}
 
 /** Mapa nombre-lucide → componente (fallback defensivo: Package). */
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -522,37 +543,47 @@ function useStoreActions() {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const doInstall = useCallback(async (pkg: LibraryPackage) => {
-    setBusyId(pkg.id);
-    const res = await install(pkg);
-    setBusyId(null);
-    // Señal de instalación (personalización de recomendaciones). No bloquea.
-    if (res.ok) {
-      import("@/ai/astraura/autonomy").then((m) => m.recordSignal("installs", pkg.id)).catch(() => {});
-    }
-    if (!res.ok) {
-      toast.error(pkg.name, { description: res.message });
-      return;
-    }
-    if (res.action === "external" && res.href) {
-      // Fuente IA con clave: abrimos dónde conseguirla y ofrecemos Ajustes.
-      try { window.open(res.href, "_blank", "noopener,noreferrer"); } catch { /* popup bloqueado */ }
-      toast.success(pkg.name, {
-        description: res.message,
-        action: { label: "Ajustes → Inteligencia", onClick: () => router.push("/settings?tab=ai") },
-      });
-      return;
-    }
-    if (res.action === "route" && res.href) {
-      const href = res.href;
-      toast.success(pkg.name, {
-        description: res.message,
-        action: { label: "Abrir", onClick: () => { recordUsage(pkg.id); router.push(href); } },
-      });
-      return;
-    }
-    toast.success(pkg.name, { description: res.message });
-  }, [router]);
+   const doInstall = useCallback(async (pkg: LibraryPackage) => {
+     setBusyId(pkg.id);
+      // Compute vinculadas y ambito
+      const vinculadas = allPackages()
+        .filter((installedPkg: LibraryPackage) => installedPkg.id in getInstalledMap())
+        .map((installedPkg: LibraryPackage) => vinculoDe(installedPkg, FREE_CATALOG));
+     const ambito = { id: "personal", tipo: "persona", visibilidad: "privado" };
+     if (!instalableEnAmbito(pkg, ambito, vinculadas)) {
+       setBusyId(null);
+       toast.error(pkg.name, { description: "Este paquete no puede instalarse en tu ámbito actual." });
+       return;
+     }
+     const res = await install(pkg);
+     setBusyId(null);
+     // Señal de instalación (personalización de recomendaciones). No bloquea.
+     if (res.ok) {
+       import("@/ai/astraura/autonomy").then((m) => m.recordSignal("installs", pkg.id)).catch(() => {});
+     }
+     if (!res.ok) {
+       toast.error(pkg.name, { description: res.message });
+       return;
+     }
+     if (res.action === "external" && res.href) {
+       // Fuente IA con clave: abrimos dónde conseguirla y ofrecemos Ajustes.
+       try { window.open(res.href, "_blank", "noopener,noreferrer"); } catch { /* popup bloqueado */ }
+       toast.success(pkg.name, {
+         description: res.message,
+         action: { label: "Ajustes → Inteligencia", onClick: () => router.push("/settings?tab=ai") },
+       });
+       return;
+     }
+     if (res.action === "route" && res.href) {
+       const href = res.href;
+       toast.success(pkg.name, {
+         description: res.message,
+         action: { label: "Abrir", onClick: () => { recordUsage(pkg.id); router.push(href); } },
+       });
+       return;
+     }
+     toast.success(pkg.name, { description: res.message });
+   }, [router]);
 
   const doUninstall = useCallback(async (id: string, name?: string) => {
     setBusyId(id);
@@ -1011,7 +1042,7 @@ function PackageDetailSheet({
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               <Settings2 className="h-3.5 w-3.5" /> Qué hará al instalar
             </p>
-            <p className="text-xs leading-relaxed text-gray-300">{EFFECT_EXPLAIN[pkg.kind]}</p>
+             <p className="text-xs leading-relaxed text-gray-300">{getEffectExplain(pkg)}</p>
             <pre className="max-h-40 overflow-auto rounded-lg bg-black/50 p-3 text-[10px] leading-relaxed text-cyan-200/90">
 {payloadPretty}
             </pre>
