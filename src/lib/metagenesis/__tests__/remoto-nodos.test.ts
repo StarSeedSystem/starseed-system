@@ -121,16 +121,16 @@ describe("resumen del bus", () => {
         expect(resumirBus(filas, AHORA).lider).toBe("oracle-a1-bbbbbb");
     });
 
-    it("una orden sin respuesta en 15 min se da por caducada; un líder en seco se avisa", () => {
-        const filas = [
-            fila("mg_orden", { nonce: "nonce-vieja-001", accion: "continuar", para: "lider" }, 16 * 60_000),
-            fila("mg_lider", { nodo: "mac-aaaaaa", termino: 1, puntos: 500 }),
-            latido("mac-aaaaaa", "mac", 500, { modo: "seco" }),
-        ];
-        const e = resumirBus(filas, AHORA);
-        expect(e.ordenes[0].estado).toBe("caducada");
-        expect(textoEstadoOrden("caducada")).toBe("nadie la recogió a tiempo");
-     expect(e.liderSeco).toBe(true);
+     it("una orden sin respuesta en 15 min se da por caducada; un líder en seco se avisa", () => {
+         const filas = [
+             fila("mg_orden", { nonce: "nonce-vieja-001", accion: "continuar", para: "lider" }, 16 * 60_000),
+             fila("mg_lider", { nodo: "mac-aaaaaa", termino: 1, puntos: 500 }),
+              latido("mac-aaaaaa", "mac", 500, { modo: "seco" })
+         ];
+         const e = resumirBus(filas, AHORA);
+         expect(e.ordenes[0].estado).toBe("caducada");
+         expect(textoEstadoOrden("caducada")).toBe("nadie la recogió a tiempo");
+         expect(e.liderSeco).toBe(true);
          expect(fraseDelMando(e)).toMatch(/modo de prueba/);
      });
 
