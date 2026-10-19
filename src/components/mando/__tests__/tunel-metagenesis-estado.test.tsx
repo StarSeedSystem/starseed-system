@@ -158,4 +158,31 @@ describe("TunelMetaGenesisEstado", () => {
     
     vi.useRealTimers();
   });
+
+  it("muestra el encabezado «Últimas líneas» y conserva la ruta tras [túnel] cuando hay líneas", async () => {
+    render(<TunelMetaGenesisEstado />);
+    await await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
+    expect(screen.getByText(/Últimas líneas:/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Línea 3 \[túnel\]\/path/i)).toBeInTheDocument();
+  });
+
+  it("no muestra el encabezado «Últimas líneas» cuando no hay líneas", async () => {
+    // Sobrescribir el mock para devolver servicio sin líneas
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      llamadas.push({ url: String(input), init });
+      return {
+        ok: true,
+        json: async () => ({
+          cargado: false,
+          pid: null,
+          ultimasLineas: [],
+          medidoEn: new Date().toISOString()
+        })
+      } as Response;
+    };
+
+    render(<TunelMetaGenesisEstado />);
+    await screen.findByText(/Túnel de MetaGenesis: parado/i);
+    expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
+  });
 });
