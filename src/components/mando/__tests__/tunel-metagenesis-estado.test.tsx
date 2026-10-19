@@ -39,11 +39,13 @@ describe("TunelMetaGenesisEstado", () => {
     };
   });
 
-  afterEach(() => {
-    cleanup();
-    globalThis.fetch = nativoFetch;
-    vi.clearAllMocks();
-  });
+afterEach(() => {
+  cleanup();
+  globalThis.fetch = nativoFetch;
+  vi.clearAllMocks();
+  // Restore document.visibilityState modified by tests
+  delete document.visibilityState;
+});
 
   it("muestra estado de carga inicialmente", async () => {
     render(<TunelMetaGenesisEstado />);
@@ -129,33 +131,75 @@ describe("TunelMetaGenesisEstado", () => {
     vi.useRealTimers();
   });
 
-  it("no realiza fetch cuando la página no está visible", async () => {
-    vi.useFakeTimers();
-    
-    // Simular que la página está oculta
-    Object.defineProperty(document, 'visibilityState', {
-      value: 'hidden',
-      configurable: true
+   it("no realiza fetch cuando la página no está visible", async () => {
+     vi.useFakeTimers();
+     
+     // Simular que la página está oculta
+     Object.defineProperty(document, 'visibilityState', {
+       value: 'hidden',
+       configurable: true
+     });
+     
+     render(<TunelMetaGenesisEstado />);
+     
+     // Esperar el efecto inicial
+     await act(async () => {
+       await Promise.resolve();
+     });
+     
+     let llamadasIniciales = llamadas.length;
+     
+     // Avanzar 60 segundos
+     await act(async () => {
+       vi.advanceTimersByTime(60_000);
+     });
+     
+     // Debe seguir teniendo el mismo número de llamadas (no se hizo fetch por estar oculto)
+     let llamadasDespuesEspera = llamadas.length;
+     expect(llamadasDespuesEspera).toBe(llamadasIniciales);
+     
+     vi.useRealTimers();
+   });
+
+    it("muestra el encabezado «Últimas líneas» solo cuando hay líneas y conserva la ruta tras [túnel]", async () => {
+      // Con el túnel activo y líneas, el encabezado aparece y la ruta se conserva
+      render(<TunelMetaGenesisEstado />);
+      
+      // Esperar a que aparezca el texto del estado activo
+      await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
+      
+      // Verificar que el encabezado de últimas líneas aparece
+      expect(screen.getByText(/Últimas líneas:/i)).toBeInTheDocument();
+      
+      // Verificar que las URLs fueron tachadas en las líneas y se conserva la ruta
+      expect(await screen.findByText(/Línea 1 \[túnel\]/i)).toBeInTheDocument();
+      expect(await screen.findByText(/Línea 2 sin URL/i)).toBeInTheDocument();
+      expect(await screen.findByText(/Línea 3 \[túnel\]\/path/i)).toBeInTheDocument();
+
+      cleanup();
+
+      // Ahora con el servicio parado y sin líneas: el encabezado no debe mostrarse
+      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        llamadas.push({ url: String(input), init });
+        return {
+          ok: true,
+          json: async () => ({
+            cargado: false,
+            pid: null,
+            ultimasLineas: [],
+            medidoEn: new Date().toISOString()
+          })
+        } as Response;
+      };
+
+      render(<TunelMetaGenesisEstado />);
+      
+      // Esperar a que se haga la primera llamada
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+      
+      expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
     });
-    
-    render(<TunelMetaGenesisEstado />);
-    
-    // Esperar el efecto inicial
-    await act(async () => {
-      await Promise.resolve();
-    });
-    
-    let llamadasIniciales = llamadas.length;
-    
-    // Avanzar 60 segundos
-    await act(async () => {
-      vi.advanceTimersByTime(60_000);
-    });
-    
-    // Debe seguir teniendo el mismo número de llamadas (no se hizo fetch por estar oculto)
-    let llamadasDespuesEspera = llamadas.length;
-    expect(llamadasDespuesEspera).toBe(llamadasIniciales);
-    
-    vi.useRealTimers();
-  });
-});
+ });
