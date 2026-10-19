@@ -38,36 +38,20 @@ export function LottieVista({
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     const handleChange = () => setIsReducedMotion(mediaQuery.matches);
-    
-    // Establecer estado inicial
     setIsReducedMotion(mediaQuery.matches);
-    
-    // Escuchar cambios
     mediaQuery.addEventListener('change', handleChange);
-    
-    return () => {
-      mediaQuery.removeEventListener('change', handleChange);
-    };
+    return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
   // Detectar visibilidad del componente (Intersection Observer)
   useEffect(() => {
     if (!lottieRef.current) return;
-    
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsVisible(entry.isIntersecting);
-      },
-      {
-        threshold: 0.1, // 10% visible
-      }
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { threshold: 0.1 }
     );
-    
     observer.observe(lottieRef.current);
-    
-    return () => {
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, [lottieRef]);
 
   return (
@@ -82,7 +66,6 @@ export function LottieVista({
       }}
     >
       {isReducedMotion ? (
-        // Mostrar primer fotograma cuando se prefiere reducir movimiento
         <div
           style={{
             width: '100%',
@@ -97,19 +80,14 @@ export function LottieVista({
           Animación (movimiento reducido)
         </div>
       ) : (
-        // Reproducir animación normalmente cuando está visible
         <DotLottieReact
           src={src}
           autoplay={isVisible && autoplay}
           loop={loop}
           speed={speed}
           style={{ width: '100%', height: '100%' }}
-          // El componente dotlottie-react ya maneja pausado automáticamente cuando no está en viewport
-          // pero añadimos nuestro propio control por si acaso
         />
       )}
-      
-      {/* Mostrar licencia y autor si están disponibles */}
       {!isReducedMotion && (license || author) && (
         <div
           style={{
@@ -117,8 +95,8 @@ export function LottieVista({
             bottom: '0.5rem',
             left: '0.5rem',
             fontSize: '0.75rem',
-            color: 'rgba(0, 0, 0, 0.7)',
-            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+            color: 'rgba(0,0,0,0.7)',
+            backgroundColor: 'rgba(255,255,255,0.8)',
             padding: '0.25rem 0.5rem',
             borderRadius: '0.25rem',
             backdropFilter: 'blur(2px)',
