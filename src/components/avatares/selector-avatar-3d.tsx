@@ -52,7 +52,20 @@ export default function SelectorAvatar3d({
   // Estado para fuentes cargadas asincronicamente
   const [fuenteActual, setFuenteActual] = useState<FuenteAvatar | null>(null);
   const [fuentesFixed, setFuentesFixed] = useState<Map<string, FuenteAvatar>>(new Map());
-  const [fuentesPlantilla, setFuentesPlantilla] = useState<Map<string, FuenteAvatar>>(new Map());
+   const [fuentesPlantilla, setFuentesPlantilla] = useState<Map<string, FuenteAvatar>>(new Map());
+  const fixedOpciones = [
+    { id: "orbe-gris", label: "Orbe gris", ref: "orbe-gris" },
+    { id: "vrm-persona", label: "Persona VRM", ref: "vrm-persona" }
+  ];
+
+  const plantillaOpciones = PLANTILLAS_AVATAR.map(p => ({
+    id: p.id,
+    label: p.nombre,
+    ref: refDePlantilla(p.id),
+    tonoAura: p.tonoAura,
+    autor: p.autor
+  }));
+
 
   useEffect(() => {
     async function loadAllFuentes() {
