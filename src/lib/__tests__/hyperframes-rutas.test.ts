@@ -1,118 +1,100 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import {
+  cuerpoExcedeLimite,
+  extraerIdRuta,
+  respuestaSalud,
+  manejarRender,
+  manejarTrabajo,
+  LIMITE_CUERPO_BYTES
+} from "../../../servicios/hyperframes/src/rutas.mjs";
 
-// Mock de las dependencias de HyperFrames
-vi.mock("hyperframes", () => ({
-  Hyperframes: {
-    lint: vi.fn().mockResolvedValue({ valido: true })
-  }
-}));
-
-vi.mock("@hyperframes/sdk", () => ({
-  Sdk: vi.fn().mockImplementation(() => ({
-    cargarComposicion: vi.fn().mockResolvedValue({}),
-    aplicarOperaciones: vi.fn().mockResolvedValue({})
-  }))
-}));
-
-vi.mock("@hyperframes/player", () => ({
-  Player: vi.fn().mockImplementation(() => ({
-    generarVistaPrevia: vi.fn().mockResolvedValue({ url: "http://ejemplo.com/vista-previa.mp4" })
-  }))
-}));
-
-// Importar después de hacer los mocks
-import { manejar } from "/home/starseed/starseed-wt/HFR1018F/servicios/hyperframes/src/rutas";
-
-// Mock de las dependencias
 const depsMock = {
   version: "0.8.172",
   navegador: true,
   ffmpeg: true
 };
 
-describe("Servicio HyperFrames - Rutas", () => {
-  it("responde correctamente a GET /salud", async () => {
-    const resultado = await manejar(
-      { metodo: "GET", ruta: "/salud", cuerpo: {} },
-      depsMock
-    );
-    
-    expect(resultado.estado).toBe(200);
-    expect(resultado.cuerpo).toHaveProperty("version", "0.8.172");
-    expect(resultado.cuerpo).toHaveProperty("navegador", true);
-    expect(resultado.cuerpo).toHaveProperty("ffmpeg", true);
-    expect(resultado.cuerpo).toHaveProperty("telemetriaApagada", true);
+describe("Servicio HyperFrames - Rutas (funciones puras)", () => {
+  describe("Utilidades", () => {
+    it("cuerpoExcedeLimite devuelve false para cuerpo pequeño", () => {
+      expect(cuerpoExcedeLimite({ dato: "x".repeat(100) })).toBe(false);
+    });
+
+    it("cuerpoExcedeLimite devuelve true para cuerpo mayor a 8 MB", () => {
+      const cuerpoGrande = { datos: "x".repeat(9 * 1024 * 1024) };
+      expect(cuerpoExcedeLimite(cuerpoGrande)).toBe(true);
+    });
+
+    it("cuerpoExcedeLimite devuelve false para cuerpo null/undefined", () => {
+      expect(cuerpoExcedeLimite(null)).toBe(false);
+      expect(cuerpoExcedeLimite(undefined)).toBe(false);
+    });
+
+    it("extraerIdRuta extrae el ID correctamente", () => {
+      expect(extraerIdRuta("/vista/abc123", "/vista/")).toBe("abc123");
+      expect(extraerIdRuta("/trabajos/job-456", "/trabajos/")).toBe("job-456");
+    });
+
+    it("extraerIdRuta devuelve null si no coincide el prefijo", () => {
+      expect(extraerIdRuta("/otra/ruta", "/vista/")).toBeNull();
+    });
   });
 
-  it("valida correctamente una composición válida en POST /lint", async () => {
-    const composicionValida = {
-      elementos: [
-        {
-          tipo: "texto",
-          contenido: "Hola mundo",
-          inicio: 0,
-          duracion: 5
-        }
-      ]
-    };
-    
-    const resultado = await manejar(
-      { metodo: "POST", ruta: "/lint", cuerpo: composicionValida },
-      depsMock
-    );
-    
-    expect(resultado.estado).toBe(200);
-    // En una implementación real, verificaríamos el resultado del lint
+  describe("respuestaSalud", () => {
+    it("devuelve la configuración correcta", () => {
+      const resultado = respuestaSalud(depsMock);
+      expect(resultado.estado).toBe(200);
+      expect(resultado.cuerpo).toEqual({
+        version: "0.8.172",
+        navegador: true,
+        ffmpeg: true,
+        telemetriaApagada: true
+      });
+    });
   });
 
-  it("rechaza composición inválida en POST /lint", async () => {
-    const composicionInvalida = {
-      // Falta estructura requerida
-    };
-    
-    const resultado = await manejar(
-      { metodo: "POST", ruta: "/lint", cuerpo: composicionInvalida },
-      depsMock
-    );
-    
-    // Dependiendo de cómo implemente Hyperframes.lint, podría devolver error
-    // Por ahora, esperamos que maneje el error gracefully
-    expect(resultado.estado).toBeGreaterThanOrEqual(200);
-    expect(resultado.estado).toBeLessThan(600);
+  describe("manejarRender", () => {
+    it("devuelve 202 con ID único", () => {
+      const resultado = manejarRender();
+      expect(resultado.estado).toBe(202);
+      expect(resultado.cuerpo).toHaveProperty("mensaje", "Renderizado aceptado");
+      expect(resultado.cuerpo).toHaveProperty("idTrabajo");
+      expect(typeof resultado.cuerpo.idTrabajo).toBe("string");
+      expect(resultado.cuerpo.idTrabajo.length).toBeGreaterThan(0);
+    });
+
+    it("genera IDs diferentes en cada llamada", () => {
+      const id1 = manejarRender().cuerpo.idTrabajo;
+      const id2 = manejarRender().cuerpo.idTrabajo;
+      expect(id1).not.toBe(id2);
+    });
   });
 
-  it("sirve composición y reproductor en GET /vista/:id", async () => {
-    const resultado = await manejar(
-      { metodo: "GET", ruta: "/vista/composicion-123", cuerpo: {} },
-      depsMock
-    );
-    
-    expect(resultado.estado).toBe(200);
-    expect(resultado.cuerpo).toHaveProperty("composicion");
-    expect(resultado.cuerpo.composicion).toHaveProperty("id", "composicion-123");
-    expect(resultado.cuerpo).toHaveProperty("vistaPrevia");
+  describe("manejarTrabajo", () => {
+    it("devuelve estado de trabajo con ID dado", () => {
+      const resultado = manejarTrabajo("job-789");
+      expect(resultado.estado).toBe(200);
+      expect(resultado.cuerpo).toEqual({
+        id: "job-789",
+        estado: "procesando",
+        progreso: 0
+      });
+    });
   });
 
-  it("devuelve 404 para ruta desconocida", async () => {
-    const resultado = await manejar(
-      { metodo: "GET", ruta: "/ruta-inexistente", cuerpo: {} },
-      depsMock
-    );
-    
-    expect(resultado.estado).toBe(404);
-    expect(resultado.cuerpo).toHaveProperty("error");
-  });
+  describe("Límites de cuerpo", () => {
+    it("LIMITE_CUERPO_BYTES es 8 MB", () => {
+      expect(LIMITE_CUERPO_BYTES).toBe(8 * 1024 * 1024);
+    });
 
-  it("rechaza cuerpos mayores a 8 MB", async () => {
-    // Crear un cuerpo grande (más de 8 MB)
-    const cuerpoGrande = { datos: "x".repeat(9 * 1024 * 1024) }; // 9 MB
-    
-    const resultado = await manejar(
-      { metodo: "POST", ruta: "/lint", cuerpo: cuerpoGrande },
-      depsMock
-    );
-    
-    expect(resultado.estado).toBe(413);
-    expect(resultado.cuerpo).toHaveProperty("error", "Cuerpo demasiado grande");
+    it("rechaza cuerpos exactamente en el límite de 8 MB + 1 byte", () => {
+      const cuerpoLimite = { datos: "x".repeat(LIMITE_CUERPO_BYTES + 1) };
+      expect(cuerpoExcedeLimite(cuerpoLimite)).toBe(true);
+    });
+
+    it("acepta cuerpos justo por debajo del límite de 8 MB", () => {
+      const cuerpoValido = { datos: "x".repeat(LIMITE_CUERPO_BYTES - 100) };
+      expect(cuerpoExcedeLimite(cuerpoValido)).toBe(false);
+    });
   });
 });

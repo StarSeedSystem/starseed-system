@@ -1,7 +1,3 @@
-import { Hyperframes } from "hyperframes";
-import { Sdk } from "@hyperframes/sdk";
-import { Player } from "@hyperframes/player";
-
 const LIMITE_CUERPO_BYTES = 8 * 1024 * 1024;
 
 function cuerpoExcedeLimite(cuerpo) {
@@ -26,43 +22,6 @@ export function respuestaSalud(deps) {
   };
 }
 
-export async function manejarLint(cuerpo) {
-  try {
-    const resultado = await Hyperframes.lint(cuerpo);
-    return { estado: 200, cuerpo: resultado };
-  } catch (error) {
-    return { estado: 400, cuerpo: { error: error.message } };
-  }
-}
-
-export async function manejarEditar(cuerpo) {
-  try {
-    const sdk = new Sdk();
-    const composicion = await sdk.cargarComposicion(cuerpo.composicion);
-    const resultado = await sdk.aplicarOperaciones(composicion, cuerpo.operaciones);
-    return { estado: 200, cuerpo: resultado };
-  } catch (error) {
-    return { estado: 400, cuerpo: { error: error.message } };
-  }
-}
-
-export async function manejarVista(id, deps) {
-  try {
-    const composicion = {
-      id,
-      elementos: [],
-      duracion: 5,
-      resolucion: "1280x720",
-      fps: 24
-    };
-    const reproductor = new Player();
-    const vistaPrevia = await reproductor.generarVistaPrevia(composicion);
-    return { estado: 200, cuerpo: { composicion, vistaPrevia } };
-  } catch {
-    return { estado: 404, cuerpo: { error: "Composición no encontrada" } };
-  }
-}
-
 export function manejarRender() {
   const idTrabajo = crypto.randomUUID();
   return {
@@ -78,32 +37,90 @@ export function manejarTrabajo(id) {
   };
 }
 
-export const RUTAS = {
-  "GET:/salud": ({ deps }) => respuestaSalud(deps),
-  "POST:/lint": ({ cuerpo }) => manejarLint(cuerpo),
-  "POST:/editar": ({ cuerpo }) => manejarEditar(cuerpo),
-  "GET:/vista/": ({ ruta, deps }) => {
-    const id = extraerIdRuta(ruta, "/vista/");
-    return id ? manejarVista(id, deps) : { estado: 404, cuerpo: { error: "ID inválido" } };
-  },
-  "POST:/render": () => manejarRender(),
-  "GET:/trabajos/": ({ ruta }) => {
-    const id = extraerIdRuta(ruta, "/trabajos/");
-    return id ? manejarTrabajo(id) : { estado: 404, cuerpo: { error: "ID inválido" } };
+function crearRutas(hyperframesMod, sdkMod, playerMod) {
+  const { Hyperframes } = hyperframesMod;
+  const { Sdk } = sdkMod;
+  const { Player } = playerMod;
+
+  async function manejarLint(cuerpo) {
+    try {
+      const resultado = await Hyperframes.lint(cuerpo);
+      return { estado: 200, cuerpo: resultado };
+    } catch (error) {
+      return { estado: 400, cuerpo: { error: error.message } };
+    }
   }
-};
+
+  async function manejarEditar(cuerpo) {
+    try {
+      const sdk = new Sdk();
+      const composicion = await sdk.cargarComposicion(cuerpo.composicion);
+      const resultado = await sdk.aplicarOperaciones(composicion, cuerpo.operaciones);
+      return { estado: 200, cuerpo: resultado };
+    } catch (error) {
+      return { estado: 400, cuerpo: { error: error.message } };
+    }
+  }
+
+  async function manejarVista(id) {
+    try {
+      const composicion = {
+        id,
+        elementos: [],
+        duracion: 5,
+        resolucion: "1280x720",
+        fps: 24
+      };
+      const reproductor = new Player();
+      const vistaPrevia = await reproductor.generarVistaPrevia(composicion);
+      return { estado: 200, cuerpo: { composicion, vistaPrevia } };
+    } catch {
+      return { estado: 404, cuerpo: { error: "Composición no encontrada" } };
+    }
+  }
+
+  return {
+    "GET:/salud": ({ deps }) => respuestaSalud(deps),
+    "POST:/lint": ({ cuerpo }) => manejarLint(cuerpo),
+    "POST:/editar": ({ cuerpo }) => manejarEditar(cuerpo),
+    "GET:/vista/": ({ ruta }) => {
+      const id = extraerIdRuta(ruta, "/vista/");
+      return id ? manejarVista(id) : { estado: 404, cuerpo: { error: "ID inválido" } };
+    },
+    "POST:/render": () => manejarRender(),
+    "GET:/trabajos/": ({ ruta }) => {
+      const id = extraerIdRuta(ruta, "/trabajos/");
+      return id ? manejarTrabajo(id) : { estado: 404, cuerpo: { error: "ID inválido" } };
+    }
+  };
+}
+
+let _rutasCache = null;
+
+function obtenerRutas() {
+  if (_rutasCache) return _rutasCache;
+  const hyperframesMod = import("hyperframes");
+  const sdkMod = import("@hyperframes/sdk");
+  const playerMod = import("@hyperframes/player");
+  _rutasCache = Promise.all([hyperframesMod, sdkMod, playerMod]).then(([h, s, p]) =>
+    crearRutas(h, s, p)
+  );
+  return _rutasCache;
+}
 
 export async function manejar({ metodo, ruta, cuerpo }, deps) {
   if (cuerpoExcedeLimite(cuerpo)) {
     return { estado: 413, cuerpo: { error: "Cuerpo demasiado grande" } };
   }
 
+  const rutas = await obtenerRutas();
+
   const claveExacta = `${metodo}:${ruta}`;
-  if (RUTAS[claveExacta]) {
-    return RUTAS[claveExacta]({ metodo, ruta, cuerpo, deps });
+  if (rutas[claveExacta]) {
+    return rutas[claveExacta]({ metodo, ruta, cuerpo, deps });
   }
 
-  for (const [patron, handler] of Object.entries(RUTAS)) {
+  for (const [patron, handler] of Object.entries(rutas)) {
     if (patron.endsWith("/") && ruta.startsWith(patron)) {
       return handler({ metodo, ruta, cuerpo, deps });
     }
@@ -111,3 +128,5 @@ export async function manejar({ metodo, ruta, cuerpo }, deps) {
 
   return { estado: 404, cuerpo: { error: "Ruta no encontrada" } };
 }
+
+export { cuerpoExcedeLimite, extraerIdRuta, LIMITE_CUERPO_BYTES };
