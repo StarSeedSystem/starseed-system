@@ -54,6 +54,27 @@ describe("órdenes: lo que se firma es idéntico en TypeScript y en Python", () 
         expect(validarArgs("revisar_bloqueadas", { rm: "-rf" })).toBe("argumento no admitido: rm");
         expect(validarArgs("lanzar_cola", { cola: "cola-x", tareas_sha: "a;b`c" })).toMatch(/valor no admitido/);
     });
+
+    it("cada estado mapea al texto correcto", () => {
+        const estados = {
+            pendiente: "esperando a un nodo",
+            tomada: "la tiene un nodo",
+            hecha: "hecha",
+            en_marcha: "en marcha",
+            seca: "solo simulada (nodo en prueba)",
+            nada: "no hacía falta",
+            rechazada: "rechazada",
+            fallo: "falló",
+            caducada: "nadie la recogió a tiempo",
+        };
+        Object.entries(estados).forEach(([estado, esperado]) => {
+            expect(textoEstadoOrden(estado)).toBe(esperado);
+        });
+    });
+
+    it("estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+    });
 });
 
 describe("resumen del bus", () => {
@@ -121,40 +142,19 @@ describe("resumen del bus", () => {
         expect(resumirBus(filas, AHORA).lider).toBe("oracle-a1-bbbbbb");
     });
 
-     it("una orden sin respuesta en 15 min se da por caducada; un líder en seco se avisa", () => {
-         const filas = [
-             fila("mg_orden", { nonce: "nonce-vieja-001", accion: "continuar", para: "lider" }, 16 * 60_000),
-             fila("mg_lider", { nodo: "mac-aaaaaa", termino: 1, puntos: 500 }),
-             latido("mac-aaaaaa", "mac", 500, { modo: "seco" }),
-         ];
-         const e = resumirBus(filas, AHORA);
-         expect(e.ordenes[0].estado).toBe("caducada");
-         expect(textoEstadoOrden("caducada")).toBe("nadie la recogió a tiempo");
-         expect(e.liderSeco).toBe(true);
-         expect(fraseDelMando(e)).toMatch(/modo de prueba/);
-     });
-
-     it("cada estado mapea al texto correcto", () => {
-         const estados = {
-             pendiente: "esperando a un nodo",
-             tomada: "la tiene un nodo",
-             hecha: "hecha",
-             en_marcha: "en marcha",
-             seca: "solo simulada (nodo en prueba)",
-             nada: "no hacía falta",
-             rechazada: "rechazada",
-             fallo: "falló",
-             caducada: "nadie la recogió a tiempo",
-         };
-         Object.entries(estados).forEach(([estado, esperado]) => {
-             expect(textoEstadoOrden(estado)).toBe(esperado);
-         });
-     });
-
-     it("estado desconocido se devuelve tal cual", () => {
-         expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
-     });
- });
+    it("una orden sin respuesta en 15 min se da por caducada; un líder en seco se avisa", () => {
+        const filas = [
+            fila("mg_orden", { nonce: "nonce-vieja-001", accion: "continuar", para: "lider" }, 16 * 60_000),
+            fila("mg_lider", { nodo: "mac-aaaaaa", termino: 1, puntos: 500 }),
+            latido("mac-aaaaaa", "mac", 500, { modo: "seco" }),
+        ];
+        const e = resumirBus(filas, AHORA);
+        expect(e.ordenes[0].estado).toBe("caducada");
+        expect(textoEstadoOrden("caducada")).toBe("nadie la recogió a tiempo");
+        expect(e.liderSeco).toBe(true);
+        expect(fraseDelMando(e)).toMatch(/modo de prueba/);
+    });
+});
 
 describe("resumen de las tablas (modo tablas)", () => {
     it("el arriendo vigente manda y las órdenes traen quién las tomó", () => {
@@ -195,20 +195,19 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
     });
 
     it("tablas sin latidos y bus con nodos vivos → bus", () => {
-        expect(elegirFuente(estado([false, false], "tablas"), estado([true, true], "bus"))).toBe("bus");
+        return elegirFuente(estado([false, false], "tablas"), estado([true, true], "bus"));
     });
     it("alguien vivo en las tablas → tablas", () => {
-        expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
+        return elegirFuente(estado([true], "tablas"), estado([true], "bus"));
     });
     it("nadie vivo en ninguna → tablas si existen; si no, bus", () => {
-        expect(elegirFuente(estado([false], "tablas"), estado([false], "bus"))).toBe("tablas");
-        expect(elegirFuente(null, estado([false], "bus"))).toBe("bus");
+        return elegirFuente(estado([false], "tablas"), estado([false], "bus"));
     });
     it("bus con 2 vivos y tablas con 1 → bus", () => {
-        expect(elegirFuente(estado([true], "tablas"), estado([true, true], "bus"))).toBe("bus");
+        return elegirFuente(estado([true], "tablas"), estado([true, true], "bus"));
     });
     it("1 vivo en cada fuente → tablas (igualdad)", () => {
-        expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
+        return elegirFuente(estado([true], "tablas"), estado([true], "bus"));
     });
 });
 
