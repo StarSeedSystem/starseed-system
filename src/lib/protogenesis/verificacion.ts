@@ -5,7 +5,7 @@
  */
 
 import type { Paso } from "./encargo";
-import type { Computo } from "@/lib/protomolecula/tipos";
+import type { Computo } from "../protomolecula/tipos";
 
 export interface Resultado {
   formato: string;
