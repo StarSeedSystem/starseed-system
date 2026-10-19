@@ -107,9 +107,64 @@ describe("estructura del catálogo", () => {
         expect(a.fuente.startsWith("github"), `${h.id}: filtro solo en GitHub`).toBe(true);
         expect(() => new RegExp(a.filtro as string), h.id).not.toThrow();
       }
-      if (a.ultimaVersion) expect(a.ultimaVersion.length, h.id).toBeLessThan(80);
-    }
+       if (a.ultimaVersion) expect(a.ultimaVersion.length, h.id).toBeLessThan(80);
+     }
+   });
+
+  it("hyperframes entry has correct properties", () => {
+    const h = herramientaPorId("hyperframes")!;
+    expect(h).toBeDefined();
+    expect(h.id).toBe("hyperframes");
+    expect(h.nombre).toBe("HyperFrames");
+    expect(h.categoria).toBe("video-composicion");
+    expect(h.tipo).toBe("libreria");
+    expect(h.origen).toBe("github");
+    expect(h.descripcion).toBe("Librería para generar vídeo desde HTML/CSS y otros medios mediante una API de JavaScript o CLI.");
+    expect(h.licencia).toBe("Apache-2.0");
+    expect(h.codigo).toBe("https://github.com/heygen-com/hyperframes");
+    expect(h.web).toBe("https://hyperframes.heygen.com");
+    expect(h.medios).toEqual({ web: "embebible", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true });
+    expect(h.integracion).toBe("servicio-local");
+    expect(h.formatos).toEqual({ entrada: ["html", "css", "mp4", "png", "mp3", "json"], salida: ["mp4", "webm", "mov", "gif", "png", "hls"] });
+    expect(h.control).toEqual({ via: ["cli", "js"], notas: "Una IA puede escribir el JSON directamente." });
+    expect(h.actualizacion).toEqual({ fuente: "npm", ref: "hyperframes", ultimaVersion: "0.8.172", fechaVersion: "2026-10-18" });
+    expect(h.ia).toEqual(["genera-video-desde-html"]);
+    expect(h.estado).toBe("integrable");
+    expect(h.motivo).toBe("Servicio local en una neurona con recursos; el OS lo llama por HTTP o línea de órdenes y le pasa solo parámetros.");
+    expect(h.verificado).toBe("2026-10-18");
+    expect(h.avisos).toEqual([
+      "Telemetría apagada siempre (HYPERFRAMES_NO_TELEMETRY=1)",
+      "MusicGen solo personal",
+      "Sin GSAP en el editor del OS"
+    ]);
   });
+
+  it("hyperframes-studio entry has correct properties", () => {
+    const h = herramientaPorId("hyperframes-studio")!;
+    expect(h).toBeDefined();
+    expect(h.id).toBe("hyperframes-studio");
+    expect(h.nombre).toBe("HyperFrames Studio");
+    expect(h.categoria).toBe("video-composicion");
+    expect(h.tipo).toBe("app");
+    expect(h.origen).toBe("github");
+    expect(h.descripcion).toBe("Editor visual para HyperFrames que permite crear animaciones mediante una interfaz gráfica. Nota: depende de GSAP, cuya licencia prohíbe su uso en herramientas de edición visual.");
+    expect(h.licencia).toBe("LicenseRef-Hyperframes-Studio");
+    expect(h.codigo).toBe("https://github.com/heygen-com/hyperframes");
+    expect(h.web).toBe("https://hyperframes.heygen.com");
+    expect(h.medios).toEqual({ web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: false });
+    expect(h.integracion).toBe("solo-enlace");
+    expect(h.formatos).toEqual({ entrada: ["html", "css", "mp4", "png", "mp3", "json"], salida: ["mp4", "webm", "mov", "gif", "png", "hls"] });
+    expect(h.control).toEqual({ via: ["cli", "js"], notas: "Una IA puede escribir el JSON directamente." });
+    expect(h.actualizacion).toEqual({ fuente: "npm", ref: "@hyperframes/studio", ultimaVersion: null, fechaVersion: null });
+    expect(h.ia).toEqual([]);
+    expect(h.estado).toBe("solo-enlace");
+    expect(h.motivo).toBe("depende de GSAP, cuya licencia prohíbe editores visuales de animación");
+    expect(h.verificado).toBe("2026-10-18");
+    expect(h.avisos).toEqual([
+      "Dependencia de GSAP con licencia que prohíbe editores de animación visual"
+    ]);
+  });
+
 
   it("ningún texto lleva claves ni rutas del disco", () => {
     const texto = JSON.stringify(todas);

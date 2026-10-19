@@ -1385,13 +1385,63 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     actualizacion: { fuente: "npm", ref: "editly", ultimaVersion: "0.14.2", fechaVersion: "2022-12-23" },
     ia: ["genera-montaje-desde-json"],
     estado: "integrable", motivo: "Servicio local en una neurona con recursos; el OS lo llama por HTTP o línea de órdenes y le pasa solo parámetros.",
-    verificado: "2026-10-10",
-    avisos: [
-      "Necesita FFmpeg instalado en el servicio.",
-    ],
-  },
-  {
-    id: "remotion", nombre: "Remotion", categoria: "video-composicion", tipo: "app", origen: "github",
+     verificado: "2026-10-10",
+     avisos: [
+       "Necesita FFmpeg instalado en el servicio.",
+     ],
+   },
+   // hyperframes
+   {
+     id: "hyperframes",
+     nombre: "HyperFrames",
+     categoria: "video-composicion",
+     tipo: "libreria",
+     origen: "github",
+     descripcion: "Librería para generar vídeo desde HTML/CSS y otros medios mediante una API de JavaScript o CLI.",
+     licencia: "Apache-2.0",
+     codigo: "https://github.com/heygen-com/hyperframes",
+     web: "https://hyperframes.heygen.com",
+     medios: { web: "embebible", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
+     integracion: "servicio-local",
+     formatos: { entrada: ["html", "css", "mp4", "png", "mp3", "json"], salida: ["mp4", "webm", "mov", "gif", "png", "hls"] },
+     control: { via: ["cli", "js"], notas: "Una IA puede escribir el JSON directamente." },
+     actualizacion: { fuente: "npm", ref: "hyperframes", ultimaVersion: "0.8.172", fechaVersion: "2026-10-18" },
+     ia: ["genera-video-desde-html"],
+     estado: "integrable",
+     motivo: "Servicio local en una neurona con recursos; el OS lo llama por HTTP o línea de órdenes y le pasa solo parámetros.",
+     verificado: "2026-10-18",
+     avisos: [
+       "Telemetría apagada siempre (HYPERFRAMES_NO_TELEMETRY=1)",
+       "MusicGen solo personal",
+       "Sin GSAP en el editor del OS"
+     ]
+   },
+   // hyperframes-studio
+   {
+     id: "hyperframes-studio",
+     nombre: "HyperFrames Studio",
+     categoria: "video-composicion",
+     tipo: "app",
+     origen: "github",
+     descripcion: "Editor visual para HyperFrames que permite crear animaciones mediante una interfaz gráfica. Nota: depende de GSAP, cuya licencia prohíbe su uso en herramientas de edición visual.",
+     licencia: "LicenseRef-Hyperframes-Studio",
+     codigo: "https://github.com/heygen-com/hyperframes",
+     web: "https://hyperframes.heygen.com",
+     medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: false },
+     integracion: "solo-enlace",
+     formatos: { entrada: ["html", "css", "mp4", "png", "mp3", "json"], salida: ["mp4", "webm", "mov", "gif", "png", "hls"] },
+     control: { via: ["cli", "js"], notas: "Una IA puede escribir el JSON directamente." },
+     actualizacion: { fuente: "npm", ref: "@hyperframes/studio", ultimaVersion: null, fechaVersion: null },
+     ia: [],
+     estado: "solo-enlace",
+     motivo: "depende de GSAP, cuya licencia prohíbe editores visuales de animación",
+     verificado: "2026-10-18",
+     avisos: [
+       "Dependencia de GSAP con licencia que prohíbe editores de animación visual"
+     ]
+   },
+   {
+     id: "remotion", nombre: "Remotion", categoria: "video-composicion", tipo: "app", origen: "github",
     descripcion: "Crea vídeos programando con React. Su licencia no es de código abierto: las empresas de más de tres personas necesitan licencia de pago.",
     licencia: "LicenseRef-Remotion", codigo: "https://github.com/remotion-dev/remotion", web: "https://www.remotion.dev",
     medios: { web: "embebible", android: true, ios: true, macos: true, windows: true, linux: true, servidor: true },
