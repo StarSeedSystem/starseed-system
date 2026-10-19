@@ -27,6 +27,7 @@ const NOMBRADAS = [
   "hubs", "tldraw", "bonsai-bim", "web-midi", "web-hid", "web-serial", "gamepad-api", "web-bluetooth", "osc-js",
   "ble-ritmo-cardiaco", "health-connect", "healthkit", "gadgetbridge", "oura-api", "polar-accesslink", "garmin-health-api",
   "withings-api", "fitbit-google-health",
+  "hyperframes", "hyperframes-studio",
 ];
 
 const FUENTES = ["github-releases", "github-tags", "npm", "pypi", "flathub", "web"];
