@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botonesNeurona, type NeuronaColmena } from "@/lib/metagenesis/colmena";
+import { botonesNeurona, type NeuronaColmena, ordenDesconectar, ordenContenedor } from "@/lib/metagenesis/colmena";
 
 describe("colmena-botones · botones de una neurona (rescatado de rama nube)", () => {
     it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
@@ -85,4 +85,36 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
             confirmar: true 
         });
     });
+
+    // Additional test cases from the original task that are not already covered:
+    it("muestra información de tarea a medias cuando existe", () => {
+        // Test that when there's work in progress, the disconnect button's explanation mentions the work
+        const b = botonesNeurona({
+            nodo: "mac-a1b2c3",
+            vivo: true,
+            so: "macos",
+            enCurso: 1, // One task in progress
+            contenedor: null
+        });
+        // Should show information about work in progress in the explanation
+        expect(b.desconectar.explica).toContain("1 agente");
+        // Should require confirmation when there's work in progress
+        expect(b.desconectar.confirmar).toBe(true);
+    });
+
+    it("envía orden desconectar al hacer clic en el botón", () => {
+        // Test the ordenDesconectar function directly
+        const orden = ordenDesconectar("mac-a1b2c3");
+        expect(orden).toEqual({ accion: "desconectar", para: "mac-a1b2c3", args: {} });
+    });
+
+    it("envía orden contenedor al hacer clic en el botón", () => {
+        // Test the ordenContenedor function directly
+        const orden = ordenContenedor("mac-a1b2c3", true, 2);
+        expect(orden).toEqual({ accion: "contenedor", para: "mac-a1b2c3", args: { activo: true, trabajadores: 2 } });
+    });
+
+    // Note: "muestra la línea de información bajo el nombre del nodo" is UI-specific
+    // and not applicable to the pure botonesNeurona function we're testing here.
+    // This would require testing the actual ColmenaBotones component when it exists.
 });

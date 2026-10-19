@@ -173,6 +173,8 @@ describe('crearSalas', () => {
     expect(salas.presencia(tema1)).toBe(1);
     salas.salir(c2);
     expect(salas.presencia(tema1)).toBe(0);
+    salas.salir(c2);
+    expect(salas.presencia(tema1)).toBe(0);
   });
 
   it('debería devolver el tema de una conexión', () => {
