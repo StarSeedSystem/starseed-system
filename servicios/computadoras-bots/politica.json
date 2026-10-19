@@ -4,5 +4,10 @@
   "denylist": [],
   "metadata": {
     "cloud": false
-  }
+  },
+  "allowlist": [
+    "starseed-os.vercel.app",
+    "astraura-nube.vercel.app",
+    "astraura-nube-334237619848.us-central1.run.app"
+  ]
 }
