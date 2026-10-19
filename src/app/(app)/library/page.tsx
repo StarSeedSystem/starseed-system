@@ -86,8 +86,9 @@ import {
   Rocket,
   Landmark,
   Sprout,
-  CalendarDays,
-  Loader2,
+   CalendarDays,
+   Loader2,
+   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -116,6 +117,7 @@ import { InstallOfficialSection } from "@/components/library/install-official-se
 import { STARSEED_APP_LISTINGS } from "@/data/starseed-apps-listings";
 import { articles, courses, files } from "@/lib/data";
 import { samplePages } from "@/data/sample-entities";
+import { ReferenciasPanel } from '@/components/library/referencias/referencias-panel';
 
 // ── Interconexión aditiva (Módulo 8) ──
 import { useSavedLibrary, type SavedResource } from "@/lib/library-store";
@@ -162,7 +164,7 @@ type AssetType = "FILE" | "FOLDER" | "LIBRARY" | "PROGRAM" | "PAGE" | "CONCEPT";
 type ResourceType = "todos" | "articulos" | "cursos" | "documentos" | "comunidades";
 type SortMode = "recientes" | "valorados" | "populares";
 /** Pestañas de nivel superior (la tienda viva + la colección de siempre). */
-type LibraryTab = "instalar-starseed" | "destacado" | "categorias" | "repos" | "comunidad" | "coleccion" | "disenos" | "instalado";
+type LibraryTab = "instalar-starseed" | "destacado" | "categorias" | "repos" | "comunidad" | "coleccion" | "disenos" | "referencias" | "instalado";
 /** Pestañas internas de «Mi colección» (la Biblioteca anterior, intacta). */
 type CollectionTab = "explorar" | "personal" | "fuentes" | "updates";
 
@@ -1666,8 +1668,11 @@ function LibraryContent() {
           </TabsTrigger>
           <TabsTrigger value="disenos" className="gap-1.5 data-[state=active]:bg-violet-500/15 data-[state=active]:text-violet-200 cursor-pointer">
             <Palette className="w-4 h-4" /> Diseños
-          </TabsTrigger>
-          <TabsTrigger value="instalado" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+           </TabsTrigger>
+           <TabsTrigger value="referencias" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+             <Sparkles className="w-4 h-4" /> Referencias
+           </TabsTrigger>
+           <TabsTrigger value="instalado" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
             <PackageCheck className="w-4 h-4" /> Instalado
           </TabsTrigger>
         </TabsList>
@@ -1693,9 +1698,14 @@ function LibraryContent() {
         {/* ── DISEÑOS: archivos .ssdesign.json del sistema/red/biblioteca (Adenda 72 C1) ── */}
         <TabsContent value="disenos" className="mt-6">
           <DesignsLibraryPanel />
-        </TabsContent>
+         </TabsContent>
 
-        {/* ── MI COLECCIÓN: la Biblioteca de siempre, intacta ── */}
+         {/* ── REFERENCIAS E INSPIRACIÓN: panel con pestañas por tema, buscador y filtros ── */}
+         <TabsContent value="referencias" className="mt-6">
+           <ReferenciasPanel />
+         </TabsContent>
+
+         {/* ── MI COLECCIÓN: la Biblioteca de siempre, intacta ── */}
         <TabsContent value="coleccion" className="mt-6">
           <Tabs value={collectionTab} onValueChange={(v) => setCollectionTab(v as CollectionTab)} className="w-full">
             <TabsList className="flex flex-wrap h-auto gap-1 bg-black/30 border border-white/10 p-1 rounded-2xl">
