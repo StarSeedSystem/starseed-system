@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { politicaPorDefecto, decidirPolitica, sanearPolitica, type CapaActualizacion } from "../politica";
 
 describe("politicaPorDefecto", () => {
@@ -118,6 +119,8 @@ describe("sanearPolitica", () => {
     expect(r.datos).toEqual({ modo: "automatica-todas" });
   });
 =======
+=======
+>>>>>>> 93bd64f5 (salvavidas · S1010-ACT2c: trabajo del agente antes de las puertas (tsc / vitest))
 import { politicaPorDefecto, TipoEntidad, decidirPolitica, ContextoDecision, Decision, sanearPolitica, resumenPolitica, PoliticaSistema, PoliticaCapa, CapaActualizacion } from "../politica";
 
 describe("politicaPorDefecto", () => {
@@ -153,5 +156,8 @@ describe("sanearPolitica", () => {
   it("preserva modos no programados", () => { const r = sanearPolitica({ datos: { modo: "automatica-todas" }, interfaz: { modo: "automatica-esta" }, sw: { modo: "manual" } }); expect(r.datos).toEqual({ modo: "automatica-todas" }); expect(r.interfaz).toEqual({ modo: "automatica-esta" }); expect(r.sw).toEqual({ modo: "manual" }); expect(r.servicios).toEqual({ modo: "manual" }); });
   it("ignora ventana en no programado", () => { const r = sanearPolitica({ datos: { modo: "automatica-todas", ventana: { desdeH: 0, hastaH: 23 } } }); expect(r.datos).toEqual({ modo: "automatica-todas" }); });
   it("resumen", () => { expect(resumenPolitica(politicaPorDefecto("perfil-privado"))).toBe("3 capas automáticas · 3 con aviso"); expect(resumenPolitica(politicaPorDefecto("os"))).toBe("3 capas automáticas · 1 programada · 2 con aviso"); });
+<<<<<<< HEAD
+>>>>>>> 93bd64f5 (salvavidas · S1010-ACT2c: trabajo del agente antes de las puertas (tsc / vitest))
+=======
 >>>>>>> 93bd64f5 (salvavidas · S1010-ACT2c: trabajo del agente antes de las puertas (tsc / vitest))
 });

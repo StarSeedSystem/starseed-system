@@ -2,6 +2,7 @@ import { CAPAS_ORDEN, type CapaActualizacion } from "./manifiesto";
 export { type CapaActualizacion } from "./manifiesto";
 export type ModoPolitica = "automatica-todas" | "automatica-esta" | "programada" | "manual";
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 export interface PoliticaCapa {
   modo: ModoPolitica;
@@ -87,6 +88,10 @@ export function sanearPolitica(x: unknown): PoliticaSistema {
 =======
 export interface PoliticaCapa { modo: ModoPolitica; ventana?: { desdeH: number; hastaH: number }; }
 export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>;
+=======
+export interface PoliticaCapa { modo: ModoPolitica; ventana?: { desdeH: number; hastaH: number }; }
+export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>;
+>>>>>>> 93bd64f5 (salvavidas · S1010-ACT2c: trabajo del agente antes de las puertas (tsc / vitest))
 export type TipoEntidad = "perfil-privado" | "perfil" | "pagina-publica" | "pagina" | "grupo-jerarquico" | "grupo" | "grupo-democratico" | "comunidad" | "estudio" | "evento" | "os";
 export type Decision = "aplicar" | "avisar" | "esperar";
 export interface ContextoDecision { ahoraH: number; esNeuronaElegida: boolean; aprobada?: boolean; requiereAprobacion?: boolean; }
@@ -125,5 +130,8 @@ export function sanearPolitica(x: unknown): PoliticaSistema {
       out[capa]={modo:"programada", ventana:{desdeH:ventana.desdeH, hastaH:ventana.hastaH}};
     } else { out[capa]={modo:modo as ModoPolitica}; }
   } return out;
+<<<<<<< HEAD
+>>>>>>> 93bd64f5 (salvavidas · S1010-ACT2c: trabajo del agente antes de las puertas (tsc / vitest))
+=======
 >>>>>>> 93bd64f5 (salvavidas · S1010-ACT2c: trabajo del agente antes de las puertas (tsc / vitest))
 }
