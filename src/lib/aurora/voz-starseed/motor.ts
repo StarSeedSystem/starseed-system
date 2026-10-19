@@ -57,6 +57,8 @@ import {
 } from "@/lib/voces/emociones";
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
+import { motoresPermitidos } from "./licencia-voz";
+import { Licencias, CapasPrefs, Contexto } from "@/lib/modelos/preferencias-capas";
 
 /** Identificador público del motor único, para registros y paneles. */
 export const VOZ_STARSEED_ID = "starseed.voz-unica.v1";
@@ -67,6 +69,12 @@ export type ContextoVoz = "rito" | "conversacion" | "aviso" | "lectura" | "imagi
 /** Clave donde se guarda el nivel elegido por el usuario; "auto" = decidir por hardware. */
 const CLAVE_NIVEL = "starseed.voz.nivel";
 export type PreferenciaNivel = NivelVoz | "auto";
+
+interface Motor {
+    id: string;
+    claseLicencia: Licencias;
+    condicionCumplida?: boolean;
+}
 
 const NIVELES_VALIDOS: PreferenciaNivel[] = ["auto", "estudio", "alta", "nube", "ligera", "minima"];
 
@@ -217,13 +225,57 @@ export function nivelActual(): NivelVoz | null {
 /**
  * Resuelve el nivel concreto a usar: el que pidió el usuario si es válido para
  * este equipo; si no, el mejor que el hardware pueda sostener en este momento.
+ * Además, filtra los niveles según las restricciones de licencia y el contexto de uso.
  */
 async function resolverNivel(explicito?: NivelVoz): Promise<NivelVoz> {
     const caps: Capacidades = await detectarCapacidades();
     const auto = nivelPara(caps);
-    if (explicito) return explicito;
     const preferencia = nivelPreferido();
-    return preferencia === "auto" ? auto : preferencia;
+    const nivelBase: NivelVoz = explicito
+        ? explicito
+        : preferencia === "auto"
+        ? auto
+        : preferencia;
+
+    // Mapeamos los niveles a objetos de motor para aplicar filtrado por licencia
+    const nivelAMotor: Record<NivelVoz, Motor> = {
+        estudio: { id: "omnivoice", claseLicencia: "personal", condicionCumplida: false },
+        alta: { id: "omnivoice", claseLicencia: "personal", condicionCumplida: false },
+        nube: { id: "nube", claseLicencia: "libre", condicionCumplida: false },
+        ligera: { id: "kokoro", claseLicencia: "libre", condicionCumplida: false },
+        minima: { id: "minima", claseLicencia: "libre", condicionCumplida: false },
+    };
+
+    // Obtención de capas de licencia y contexto de uso.
+    // TODO: Obtener estos valores desde el estado real de la neurona o la configuración de voz.
+    // Por ahora, usamos valores por defecto para demostrar la conexión.
+    const capasLicencia: CapasPrefs = {}; // sin restricciones
+    const contextoUso: Contexto = "personal"; // contexto personal por defecto
+
+    // Filtramos los niveles permitidos según licencia y contexto
+    const { permitidos } = motoresPermitidos(
+        Object.values(nivelAMotor),
+        contextoUso,
+        capasLicencia
+    );
+
+    // Construimos un conjunto de IDs de niveles permitidos
+    const idsPermitidos = new Set(permitidos.map(m => m.id));
+
+    // Orden de niveles de más alto a más bajo
+    const orden: NivelVoz[] = ["estudio", "alta", "nube", "ligera", "minima"];
+    // Encontrar el nivel permitido más alto que no supere el nivelBase
+    // Primero encontramos el índice del nivelBase en el orden.
+    const baseIndex = orden.indexOf(nivelBase);
+    // Recorrer desde el nivelBase hacia abajo (índices menores o iguales) hasta encontrar uno permitido.
+    for (let i = baseIndex; i >= 0; i--) {
+        const nivel = orden[i];
+        if (idsPermitidos.has(nivelAMotor[nivel].id)) {
+            return nivel;
+        }
+    }
+    // Si ninguno está permitido (debería ocurrir raramente), retornamos el mínimo como respaldo
+    return "minima";
 }
 
 /**
