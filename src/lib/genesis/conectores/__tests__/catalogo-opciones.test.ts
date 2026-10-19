@@ -92,14 +92,15 @@ describe('fusionarCatalogos', () => {
     }
   });
 
-  it('should set enlaceClave from free.getKeyUrl', () => {
-    const result = fusionarCatalogos(PROVEEDORES_CATALOGO, FREE_CATALOG);
-    for (const free of FREE_CATALOG) {
-      const opcion = result.find(o => o.id === free.id);
-      expect(opcion).toBeDefined();
-      expect(opcion?.enlaceClave).toBe(free.getKeyUrl);
-    }
-  });
+    it('should set enlaceClave from free.getKeyUrl', () => {
+      const result = fusionarCatalogos(PROVEEDORES_CATALOGO, FREE_CATALOG);
+      for (const free of FREE_CATALOG) {
+        const opcion = result.find(o => o.id === free.id);
+        expect(opcion).toBeDefined();
+        const expected = free.getKeyUrl ?? null;
+        expect(opcion?.enlaceClave).toBe(expected);
+      }
+    });
 
   it('should set variables from proveedores.variables', () => {
     const result = fusionarCatalogos(PROVEEDORES_CATALOGO, FREE_CATALOG);

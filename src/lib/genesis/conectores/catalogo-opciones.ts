@@ -1,5 +1,5 @@
-import { ProveedorInfo } from '@/lib/mando/proveedores-catalog';
-import { CatalogSource } from '@/ai/astraura/free-catalog';
+import { ProveedorInfo } from '../../mando/proveedores-catalogo';
+import { CatalogSource } from '../../../ai/astraura/free-catalog';
 
 export type Papel = string;
 
@@ -59,7 +59,7 @@ export function fusionarCatalogos(
       },
       requiereCuenta: prov.requiereCuenta,
       enlaceAlta: prov.panelClaves === '' ? null : prov.panelClaves,
-      enlaceClave: free ? free.getKeyUrl : null,
+       enlaceClave: free ? free.getKeyUrl ?? null : null,
       variables: prov.variables,
       privacidad: 'desconocida',
       licencia: null,
@@ -88,7 +88,7 @@ export function fusionarCatalogos(
       },
       requiereCuenta: free.requiresKey,
       enlaceAlta: null,
-      enlaceClave: free.getKeyUrl,
+       enlaceClave: free.getKeyUrl ?? null,
       variables: [],
       privacidad: free.privacy === 'local'
         ? 'local'
