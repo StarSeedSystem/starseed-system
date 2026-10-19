@@ -4458,3 +4458,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+
+## 2026-10-19 15:12 · mg-oracle-1019-0800
+
+**Lo que se pidió.** Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar
+
+**Resultado.** 3 de 4 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTCOL1012Bdsbbbbbbbbbbbb` — no escribió nada
