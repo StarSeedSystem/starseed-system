@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import PanelVinculos from "../panel-vinculos";
-import { siguienteAprender, vinculoAprendido, CURVA_LINEAL } from "@/lib/protomolecula/vinculos-control";
+import { siguienteAprender, vinculoAprendido, aplicarCurva } from "@/lib/protomolecula/vinculos-control";
 import { decidir } from "@/lib/protomolecula/permisos";
+import { conectarGamepad } from "@/lib/protomolecula/adaptador-gamepad";
 import type { Autor, CandidatoParametro } from "@/lib/protomolecula/tipos";
 
 const autorPersona: Autor = { tipo: "persona", id: "u1", nombre: "Ana" };
@@ -27,16 +28,17 @@ describe("PanelVinculos", () => {
   };
 
   it("muestra parámetro y botón Aprender", () => {
-    render(<PanelVinculos {...baseProps} />);
-    expect(screen.getByText("Brillo")).toBeTruthy();
-    expect(screen.getByText("Aprender")).toBeTruthy();
+    const { getByText } = render(<PanelVinculos {...baseProps} />);
+    expect(getByText("Brillo")).toBeTruthy();
+    expect(getByText("Aprender")).toBeTruthy();
+    cleanup();
   });
 
   it("aprende: iniciar y confirmar crea vínculo", () => {
     const alCrear = vi.fn();
-    render(<PanelVinculos {...baseProps} alCrear={alCrear} />);
-    fireEvent.click(screen.getByText("Aprender"));
-    // simula detección externa vía estado interno no accesible; comprobamos flujo puro
+    const { getByText } = render(<PanelVinculos {...baseProps} alCrear={alCrear} />);
+    fireEvent.click(getByText("Aprender"));
+    cleanup();
     const estado0 = { fase: "inactivo" as const };
     const e1 = siguienteAprender(estado0, { tipo: "empezar", objetivo: candidato.ref, ahora: 0 });
     const e2 = siguienteAprender(e1, { tipo: "entrada", fuente: { tipo: "gamepad", control: "eje", numero: 0, indice: 0 }, bruto: 0.1, ahora: 1 });
@@ -67,16 +69,14 @@ describe("PanelVinculos", () => {
   });
 
   it("eje con zona muerta aplica curva", () => {
-    const { aplicarCurva } = require("@/lib/protomolecula/vinculos-control");
     const curva = { forma: "lineal" as const, invertir: false, zonaMuerta: 0.2, suavizado: 0 };
-    const y = aplicarCurva(0.1, curva, true);
-    expect(y).toBe(0);
-    const y2 = aplicarCurva(0.5, curva, true);
-    expect(y2).toBeGreaterThan(0);
+    const y = aplicarCurva(0.45, curva, true);
+    expect(y).toBe(0.5);
+    const y2 = aplicarCurva(0.9, curva, true);
+    expect(y2).toBeGreaterThan(0.5);
   });
 
   it("sin gamepad no emite", () => {
-    const { conectarGamepad } = require("@/lib/protomolecula/adaptador-gamepad");
     const emit = vi.fn();
     const stop = conectarGamepad(() => [], (cb) => 1, () => {}, emit);
     expect(emit).not.toHaveBeenCalled();
@@ -84,9 +84,10 @@ describe("PanelVinculos", () => {
   });
 
   it("muestra avisos de próximamente para HID/Serie/OSC", () => {
-    render(<PanelVinculos {...baseProps} />);
-    expect(screen.getByText(/HID: próximamente/)).toBeTruthy();
-    expect(screen.getByText(/Serie: próximamente/)).toBeTruthy();
-    expect(screen.getByText(/OSC: próximamente/)).toBeTruthy();
+    const { getByText } = render(<PanelVinculos {...baseProps} />);
+    expect(getByText(/HID: próximamente/)).toBeTruthy();
+    expect(getByText(/Serie: próximamente/)).toBeTruthy();
+    expect(getByText(/OSC: próximamente/)).toBeTruthy();
+    cleanup();
   });
 });
