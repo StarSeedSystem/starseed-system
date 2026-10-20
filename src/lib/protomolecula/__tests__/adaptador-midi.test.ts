@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { analizarMensaje, conectarMidi, hayMidi, pedirAccesoMidi, SIN_MIDI, SIN_PERMISO, type EntradaMidi, type EventoMensajeMidi } from "../adaptador-midi";
-import { MensajeControl } from "../almacen-vinculos";
 import { cargarVinculos, claveVinculos, crearEnrutador, guardarVinculos, type OpcionesEnrutador, type MensajeControl } from "../almacen-vinculos";
 import { crearControlador } from "../controlador";
 import { limpiarRegistro, registrarAtomo } from "../registro-atomos";
@@ -44,7 +43,7 @@ describe("conectarMidi", () => {
   it("entrega cada mensaje con el nombre del aparato (o su id si no lo tiene)", () => {
     const a = entrada("in-1", "nanoKONTROL2"), b = entrada("in-2", null), recibidos: MensajeControl[] = [];
     conectarMidi(acceso(a, b), (m) => recibidos.push(m)); a.enviar(0xb0, 7, 64); b.enviar(0x90, 36, 100); a.enviar(0xf8, 0, 0);
-    expect(recibidos.map((m) => m.fuente.dispositivo)).toEqual(["nanoKONTROL2", "in-2"]);
+    expect(recibidos.map((m) => m.fuente.tipo === "midi" ? m.fuente.dispositivo : undefined)).toEqual(["nanoKONTROL2", "in-2"]);
   });
   it("altas y bajas: escucha lo que se enchufa y suelta lo que se desenchufa", () => {
     const a = entrada("in-1", "A"), b = entrada("in-2", "B"), ac = acceso(a), nombres: string[][] = [];
