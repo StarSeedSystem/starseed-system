@@ -91,6 +91,7 @@ describe("TunelMetaGenesisEstado", () => {
 
   it("no realiza fetch cuando la página no está visible", async () => {
     vi.useFakeTimers();
+    const originalVisibility = document.visibilityState;
     Object.defineProperty(document, 'visibilityState', {
       value: 'hidden',
       configurable: true
@@ -105,6 +106,10 @@ describe("TunelMetaGenesisEstado", () => {
     });
     expect(calls.length).toBe(initial);
     vi.useRealTimers();
+    Object.defineProperty(document, 'visibilityState', {
+      value: originalVisibility,
+      configurable: true
+    });
   });
 
   it("cancela URLs trycloudflare en una línea", async () => {
