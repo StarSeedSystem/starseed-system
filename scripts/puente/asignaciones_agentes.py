@@ -55,13 +55,24 @@ def _leer_json(ruta: str) -> Dict[str, Any]:
     try:
         if os.path.exists(ruta):
             with open(ruta, "r", encoding="utf-8") as f:
-                return json.load(f)
+                datos = json.load(f)
+                if not datos:
+                    return {}
+                if isinstance(datos, dict):
+                    # Convertir None a dict vacío para claves que deben ser dict
+                    if datos.get("por_papel") is None:
+                        datos["por_papel"] = {}
+                    if datos.get("por_director") is None:
+                        datos["por_director"] = {}
+                    return datos
     except (json.JSONDecodeError, OSError):
         pass
     return {}
 
 def _obtener_valor(diccionario: Dict[str, Any], clave: str, predeterminado: Any) -> Any:
     """Obtiene un valor del diccionario, de lo contrario devuelve el valor predeterminado."""
+    if not diccionario or clave not in diccionario:
+        return predeterminado
     return diccionario.get(clave, predeterminado)
 
 def leer_asignaciones_agentes(
