@@ -303,10 +303,13 @@ class Piramide(unittest.TestCase):
         os.environ["STARSEED_JEV"] = "1"
         os.environ["OPENROUTER_API_KEY"] = "clave-de-prueba"
         jev._anotar_uso({"usage": {"cost": 5.0}}, 0.1)
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
         try:
             r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
             self.assertIsNone(r)
         finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
             os.environ.pop("OPENROUTER_API_KEY", None)
 
     def test_forzar_openrouter_salta_el_local(self):
@@ -315,25 +318,40 @@ class Piramide(unittest.TestCase):
         original = m.disponible
         m.disponible = lambda: (llamado.append(1), original())[1]
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.4}})
-        r = jev.decidir(
-            {"a": 1}, {"q": {"type": "noul", "instructions": "?"}}, medio="openrouter"
-        )
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            r = jev.decidir(
+                {"a": 1}, {"q": {"type": "noul", "instructions": "?"}}, medio="openrouter"
+            )
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
         self.assertEqual(r["medio"], "openrouter")
         self.assertEqual(llamado, [])
 
     def test_forzar_local_no_cae_al_de_pago(self):
         _local_falso(respuesta=None)
         jev.TRANSPORTE = _transporte_que_explota
-        self.assertIsNone(
-            jev.decidir(
-                {"a": 1}, {"q": {"type": "noul", "instructions": "?"}}, medio="local"
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            self.assertIsNone(
+                jev.decidir(
+                    {"a": 1}, {"q": {"type": "noul", "instructions": "?"}}, medio="local"
+                )
             )
-        )
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
 
     def test_sin_modulo_local_sigue_funcionando_openrouter(self):
         _sin_motor_local()  # «sin módulo»: que el import falle, no que cargue el BitNet real
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.5}})
-        r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
         self.assertEqual(r["medio"], "openrouter")
 
     def test_caché_false_todo_funciona_y_anota_uso(self):
