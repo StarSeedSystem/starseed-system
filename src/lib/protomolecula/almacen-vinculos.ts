@@ -2,7 +2,7 @@
  * Protomolécula · ALMACÉN DE VÍNCULOS y ENRUTADOR de mandos (F6, contrato §4.4). Persistencia local por molécula
  * (`starseed.protomolecula.vinculos.v1:<moleculaId>`), almacén inyectado y try/catch como `almacen-moleculas.ts`.
  * `crearEnrutador`: cada mensaje busca sus vínculos por `claveFuente`, pasa por `procesar` (con el `EstadoVinculo`
- * de cada uno) y la operación va a `controlador.mover` (origen `midi`). Mientras se aprende, los mandos no mueven nada.
+ * de cada uno) y la operación va a `controlador.mover` (origen se infiere de la fuente). Mientras se aprende, los mandos no mueven nada.
  */
 import type { AlmacenLocal } from "./almacen-moleculas";
 import type { Controlador, ResultadoMover } from "./controlador";
@@ -60,7 +60,7 @@ export function guardarVinculos(a: AlmacenLocal | null, moleculaId: string, vs: 
 export interface RutaMando { vinculoId: string; resultado: ResultadoMover }
 export type Confirmacion = { ok: true; vinculo: Vinculo } | { ok: false; motivo: string };
 export interface Enrutador {
-  recibir(m: MensajeMidi): RutaMando[];
+  recibir(m: MensajeControl): RutaMando[];
   aprender(objetivo: ParametroRef, esperaMs?: number): EstadoAprender;
   tic(): EstadoAprender; cancelar(): EstadoAprender; estadoAprender(): EstadoAprender; confirmar(): Confirmacion;
   vinculos(): Vinculo[]; fijarVinculos(vs: Vinculo[]): void;
@@ -81,7 +81,7 @@ export function crearEnrutador(o: OpcionesEnrutador): Enrutador {
     for (const id of [...estados.keys()]) if (!lista.some((v) => v.id === id)) estados.delete(id);
     o.alCambiarVinculos?.(lista);
   };
-  function recibir(m: MensajeMidi): RutaMando[] {
+  function recibir(m: MensajeControl): RutaMando[] {
     if (aprendiendo.fase === "escuchando" || aprendiendo.fase === "detectado") {
       paso({ tipo: "entrada", fuente: m.fuente, bruto: m.bruto, ahora: o.ahora() });
       return [];
