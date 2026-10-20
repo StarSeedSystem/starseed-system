@@ -360,6 +360,33 @@ class TestLaOrdenSeEjecutaDeVerdad(unittest.TestCase):
         self.assertIn("FALLA valor", out)
 
 
+class TestUnGuionValeIgualEnCadaPython(unittest.TestCase):
+    """(2026-10-20) En la Mac (Python 3.14) unittest sale con rc 5 y «NO TESTS RAN» cuando un
+    archivo no tiene métodos test_; en el contenedor (3.11), con rc 0. La prueba-guion que pasa
+    tiene que valer lo mismo en los dos; la que falla (sys.exit(1)) y el rc 5 de pytest, no."""
+
+    UT = ["env", "PYTHONPATH=x", "python3", "-m", "unittest", "-q", "scripts/puente/test_guion_x.py"]
+    PT = ["env", "PYTHONPATH=x", "python3", "-m", "pytest", "-q", "scripts/puente/test_x.py"]
+    SALIDA_312 = "1/1 pruebas en verde.\n\n----------------------------------------------------------------------\nRan 0 tests in 0.000s\n\nNO TESTS RAN\n"
+
+    def test_rc_5_de_unittest_con_cero_pruebas_es_verde(self):
+        rc, out = enjambre._juzgar_pasada_python(self.UT, enjambre.PLAZO_PUERTA_PY_S, 5, self.SALIDA_312)
+        self.assertEqual(rc, 0)
+        self.assertIn("1/1 pruebas en verde", out)
+
+    def test_el_guion_que_falla_sigue_tumbando(self):
+        rc, _ = enjambre._juzgar_pasada_python(self.UT, enjambre.PLAZO_PUERTA_PY_S, 1, "FALLA valor\n")
+        self.assertEqual(rc, 1)
+
+    def test_rc_5_de_pytest_no_se_toca(self):
+        rc, _ = enjambre._juzgar_pasada_python(self.PT, enjambre.PLAZO_PUERTA_PY_S, 5, "no tests ran in 0.01s\n")
+        self.assertEqual(rc, 5)
+
+    def test_rc_5_sin_la_firma_de_unittest_no_se_toca(self):
+        rc, _ = enjambre._juzgar_pasada_python(self.UT, enjambre.PLAZO_PUERTA_PY_S, 5, "otra cosa\n")
+        self.assertEqual(rc, 5)
+
+
 class TestUnTimeoutDeLaTareaNoEsDelMedio(unittest.TestCase):
     """(2026-10-20, AV1011G-d1, revisor) `_primera_linea_error` trataba TODO TIMEOUT como del medio,
     y el revisor reintenta lo «del medio» sin gastar intento. Con la puerta por alcance, las

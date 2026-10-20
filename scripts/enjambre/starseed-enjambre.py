@@ -4558,11 +4558,19 @@ def _juzgar_pasada_python(orden, plazo, rc, out):
     importarse y salen con `sys.exit(1)` si algo falla (scripts/puente/test_telegram_puente.py: 16
     comprobaciones, 0 «tests»). El verde vacío de verdad —funciones `def test_…` bajo unittest— se
     evita antes, eligiendo pytest para esos archivos (`alcance_pruebas.necesita_pytest`).
+
+    Desde Python 3.12, ese mismo «Ran 0 tests» sale con rc 5 y «NO TESTS RAN» (la Mac va con 3.14;
+    el contenedor, con 3.11 y rc 0). Un guion que falla sale con `sys.exit(1)` al importarse, o sea
+    rc 1: el rc 5 de unittest solo dice «no hubo métodos test_», así que vale lo mismo que en 3.11.
+    El rc 5 de PYTEST («no tests collected») NO se toca: ahí sí es un verde vacío.
     """
     pruebas = [a for a in orden if str(a).endswith(".py")]
     if rc == 124 and plazo == PLAZO_PUERTA_PY_S and out.startswith("TIMEOUT "):
         resto = out.split("\n", 1)[1] if "\n" in out else ""
         return rc, "TIMEOUT-TAREA %ss %s\n%s" % (plazo, " ".join(pruebas), resto)
+    if rc == 5 and not _usa_pytest(orden) and "unittest" in [str(a) for a in orden] \
+            and "Ran 0 tests" in out and "NO TESTS RAN" in out:
+        return 0, out
     return rc, out
 
 
