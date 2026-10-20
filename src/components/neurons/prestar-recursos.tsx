@@ -1,6 +1,5 @@
 "use client";
 
-<<<<<<< HEAD
 import { useState, useEffect, useRef } from "react";
 import { aOferta, type NeuronPrestarPrefs, type NeuronMedidas } from "@/lib/neurons/prestar";
 import { detectCapabilities, type NeuronCapabilities } from "@/lib/neurons/neurons";
@@ -194,10 +193,10 @@ export function PrestarRecursosPanel() {
   const computeOffer = () => {
     if (!caps) return null;
     const medidas: NeuronMedidas = {
-      nodoId: caps.nodoId ?? "",
-      medio: caps.medio ?? "navegador",
-      ramLibreMb: caps.ramLibreMb ?? 0,
-      cpu: caps.cpu ?? 0,
+      nodoId: caps.nodoId ?? caps.syncDeviceId ?? "",
+      medio: caps.medio ?? caps.platform ?? "navegador",
+      ramLibreMb: caps.ramLibreMb ?? (caps.memoryGb ? caps.memoryGb * 1024 : 0),
+      cpu: caps.cpu ?? caps.cores ?? 0,
     };
     return aOferta(prefs, medidas);
   };
@@ -324,13 +323,3 @@ export function PrestarRecursosPanel() {
 }
 
 export default PrestarRecursosPanel;
-=======
-import { useState } from "react";
-import { aOferta, type NeuronPrestarPrefs, type NeuronMedidas } from "@/lib/neurons/prestar";
-import { cn } from "@/lib/utils";
-
-export function PrestarRecursosPanel() {
-  // TODO: Implement panel
-  return <div>Prestar Recursos Panel</div>;
-}
->>>>>>> ac1ea80ec (salvavidas · APM1017Y: trabajo del agente antes de las puertas (tsc / vitest))
