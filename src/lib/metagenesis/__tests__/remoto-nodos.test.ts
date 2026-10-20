@@ -163,6 +163,29 @@ describe("resumen de las tablas (modo tablas)", () => {
     });
 });
 
+describe("textoEstadoOrden: cada estado mapea al texto correcto", () => {
+    it("cada estado mapea al texto correcto", () => {
+        const estados = {
+            pendiente: "esperando a un nodo",
+            tomada: "la tiene un nodo",
+            hecha: "hecha",
+            en_marcha: "en marcha",
+            seca: "solo simulada (nodo en prueba)",
+            nada: "no hacía falta",
+            rechazada: "rechazada",
+            fallo: "falló",
+            caducada: "nadie la recogió a tiempo",
+        };
+        Object.entries(estados).forEach(([estado, esperado]) => {
+            expect(textoEstadoOrden(estado)).toBe(esperado);
+        });
+    });
+
+    it("estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+    });
+});
+
 describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
     const estado = (vivos: boolean[], modo: "bus" | "tablas") => ({
         modo, lider: null, termino: 0, autonomia: null, medidores: {}, decisiones: [], ordenes: [],
