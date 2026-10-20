@@ -4505,3 +4505,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `VST1018C` — los tipos no compilan: 1 errores tsc (rama ola/VST1018C conservada)
 - `RTS1010-MGR3d-d1c` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTS1010-MGR3d-d1c conservada)
+
+## 2026-10-20 17:42 · mg-oracle-1020-0802
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (RTRTRTRTS1010-EV-ORACLE-1abbbbbbb, VST1018Gb). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTRTS1010-EV-ORACLE-1abbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTS1010-EV-ORACLE-1abbbbbbb conservada
+- `RTCOL1012Mb` — pruebas en rojo: vitest falla (rama conservada)
+- `VST1018Gb` — otra cosa: ningún proveedor respondió (todos caídos)
