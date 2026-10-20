@@ -4481,6 +4481,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-10-20 00:18 · mg-oracle-1019-1732
 
 **Lo que se pidió.** Ejecutor de acciones tipadas y directiva [[BOT: …]] (traducción a los ejecutores reales)
+## 2026-10-19 16:13 · mg-oracle-1019-0915
+
+**Lo que se pidió.** Relé de estaciones (lógica pura de salas) con pruebas
 
 **Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
 
@@ -4491,3 +4494,8 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTBOT1011Gd` — otra cosa: ningún proveedor respondió (todos caídos)
 - `RTGN1010A-d3b` — no escribió nada
+- nvidia/nvidia/nemotron-3-super-120b-a12b integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `RTS1010-EV-ORACLE-1acf` — no escribió nada
+- `VGM1016H` — otra cosa: sin decisión en 0 h; rama ola/VGM1016H conservada

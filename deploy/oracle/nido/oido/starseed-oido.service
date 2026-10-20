@@ -1,0 +1,25 @@
+[Unit]
+Description=StarSeed · Oracle A1 · Servidor de oído 24/7 (Phonon-2 CPU)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed
+EnvironmentFile=-/home/starseed/.starseed/oidoclaque.env
+ExecStart=/home/starseed/oido/venv/bin/fermion serve phonon-2 --host 127.0.0.1 --port 4470 --threads 2 --api-key $OIDO_CLAVE
+Restart=always
+RestartSec=20
+# Seguridad: escuchar solo en localhost
+# Memoria: reservar suficiente para el modelo y operaciones
+MemoryHigh=1800M
+MemoryMax=2200M
+CPUWeight=400
+Nice=-5
+NoNewPrivileges=true
+ProtectedSystem=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
