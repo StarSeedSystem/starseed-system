@@ -34,7 +34,7 @@ export async function descubrir(base?: string): Promise<DescubrimientoResult> {
       return { vivo: false, motivo: `HTTP ${resp.status}: ${motivo}` };
     }
     const data: DescubrimientoResult = (await resp.json());
-    if (!data.vivo) return { vivo: false, motivo: data.motivo || "Servicio no disponible" };
+    if ("motivo" in data) return { vivo: false, motivo: data.motivo || "Servicio no disponible" };
     return { vivo: true, version: data.version, ofrece: data.ofrece };
   } catch (e: any) {
     if (e.message && (e.message.includes("Timeout") || e.message.includes("HTTP"))) return { vivo: false, motivo: e.message.includes("Timeout") ? "Timeout de conexión (800 ms)" : e.message };
