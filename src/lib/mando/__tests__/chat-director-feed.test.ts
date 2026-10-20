@@ -42,6 +42,7 @@ describe("epochDe", () => {
 describe("rolDeDirector", () => {
     it("clasifica los paneles del contrato", () => {
         expect(rolDeDirector("vigia-medidores")).toBe("verificador");
+        expect(rolDeDirector("vigia-3d")).toBe("verificador"); // el vigía de la Biblioteca (UniMate, Filigree3D, BTC3D)
         expect(rolDeDirector("claude-cowork")).toBe("supervisor");
         expect(rolDeDirector("desatascador")).toBe("restaurador");
         expect(rolDeDirector("gobernador")).toBe("protector");

@@ -1,0 +1,61 @@
+[
+ {
+  "id": "Linzhan/UniMate",
+  "tags": [
+   "pytorch",
+   "motion-generation",
+   "text-to-motion",
+   "character-animation",
+   "skeletal-animation",
+   "flow-matching",
+   "unimate",
+   "arxiv:2609.05415",
+   "en",
+   "dataset:Linzhan/UniML3D",
+   "license:cc-by-nc-4.0",
+   "region:us"
+  ],
+  "downloads": 716,
+  "createdAt": "2026-09-27T19:24:48.000Z"
+ },
+ {
+  "id": "BasinShapers/unimate-webgpu",
+  "tags": [
+   "kaminos",
+   "webgpu",
+   "browser",
+   "motion-generation",
+   "text-to-motion",
+   "skeletal-animation",
+   "unimate",
+   "arxiv:2609.05415",
+   "base_model:Linzhan/UniMate",
+   "base_model:finetune:Linzhan/UniMate",
+   "license:cc-by-nc-4.0",
+   "region:us"
+  ],
+  "downloads": 0,
+  "createdAt": "2026-10-13T06:17:32.000Z"
+ },
+ {
+  "id": "tarn59/UniMate-Weights",
+  "tags": [
+   "pytorch",
+   "tensorboard",
+   "safetensors",
+   "motion-generation",
+   "character-animation",
+   "skeleton",
+   "flow-matching",
+   "diffusion-transformer",
+   "unimate",
+   "text-to-3d",
+   "dataset:Linzhan/UniML3D",
+   "arxiv:2609.05415",
+   "license:mit",
+   "region:us"
+  ],
+  "downloads": 298,
+  "createdAt": "2026-09-19T13:34:28.000Z"
+ }
+]

@@ -1,0 +1,71 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/cer+1fxm3ljO0YQJaoMR28Njea8</id>
+  <title>arXiv Query: search_query=&amp;id_list=2609.34900,2609.39709&amp;start=0&amp;max_results=10</title>
+  <updated>2026-10-20T02:03:37Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=&amp;start=0&amp;max_results=10&amp;id_list=2609.34900,2609.39709" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>10</opensearch:itemsPerPage>
+  <opensearch:totalResults>2</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2609.39709v1</id>
+    <title>BTC3D: Blended Tile Conditioning for Detail-Enhancing Image-to-3D Generation</title>
+    <updated>2026-09-30T13:24:33Z</updated>
+    <link href="https://arxiv.org/abs/2609.39709v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2609.39709v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Recent diffusion-based pipelines have achieved promising progress in image-to-3D synthesis. However, generating high-fidelity details remains challenging, especially when the input image contains rich details. Existing approaches often rely on globally encoded conditioning features, which compress spatial information and limit the model to reproduce fine-grained details. This common design often leads to a phenomenon we term detail attenuation. Moreover, improving image-to-3D synthesis quality typically requires retraining or fine-tuning large diffusion models, which can be computationally expensive and impractical for complex 3D pipelines. In this work, we present Blended Tile Conditioning for image-to-3D generation (BTC3D), a training-free inference time framework that enhances fine-grained detail preservation in image-to-3D diffusion pipelines. To alleviate detail attenuation, we first examine the image feature additivity in image-to-3D models. Based on this property, we introduce a blended tile embedding that extracts local conditioning signals from split image regional patches, allowing the diffusion model to better preserve fine-grained visual details. To integrate the global and local conditioning guidance stably, we propose a dynamic conditioning schedule that gradually increases the influence of tile-level conditioning during later low-noise stages of diffusion. Our proposed method BTC3D operates entirely at inference time and can be seamlessly integrated into existing image-to-3D diffusion pipelines. Experimental results demonstrate that the proposed approach significantly improves texture quality and visual fidelity of the base model while maintaining global structural consistency in a training-free manner.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-09-30T13:24:33Z</published>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Junyu Li</name>
+    </author>
+    <author>
+      <name>Qiuyu Chen</name>
+    </author>
+    <author>
+      <name>Pengcheng Wang</name>
+    </author>
+    <author>
+      <name>Shiqi Yang</name>
+    </author>
+    <author>
+      <name>Alexandra Gomez-Villa</name>
+    </author>
+    <author>
+      <name>Joost van de Weijer</name>
+    </author>
+    <author>
+      <name>Ruilin Li</name>
+    </author>
+    <author>
+      <name>Kai Wang</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2609.34900v1</id>
+    <title>FILIGREE3D: Scaling Sparse Latent Flow Matching for Ultra-High-Resolution Image-to-3D Generation</title>
+    <updated>2026-09-28T11:05:49Z</updated>
+    <link href="https://arxiv.org/abs/2609.34900v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2609.34900v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Scaling image-to-3D generation to ultra-high resolutions requires controlling rapidly growing computational costs without sacrificing fine geometric detail. We present \textbf{Filigree3D}, a sparse latent flow-matching framework that generates 3D geometry from a single image at voxel resolutions up to $2048^3$, with straightforward extensibility to $4096^3$. To make training tractable, we introduce Structure-Aware Sparse Scaling, which combines spatial bounding with alternating local-global attention to constrain token growth while preserving both fine-scale details and long-range structural context. To enhance detail reconstruction, we curate training samples based on their high-resolution geometric gains and inject multi-scale image features into a sparse 3D DiT, effectively coupling structural semantics with fine-grained visual cues. Furthermore, a visibility-aware voxel regularization strategy improves robustness against sparse perturbations and facilitates the completion of unobserved geometry. Under our default configuration, Filigree3D maintains peak GPU memory consumption within practical limits for contemporary hardware, enabling the generation of highly intricate 3D geometry in approximately one minute. Extensive experiments demonstrate that our method yields substantial improvements in overall geometric fidelity and fine-detail preservation compared to existing baselines, validating practical, detail-preserving 3D generation at unprecedented resolutions.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-09-28T11:05:49Z</published>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Hongjie Li</name>
+    </author>
+    <author>
+      <name>Xinran Yang</name>
+    </author>
+    <author>
+      <name>Xiuchao Wu</name>
+    </author>
+    <author>
+      <name>Jiangjing Lyu</name>
+    </author>
+    <author>
+      <name>Chengfei Lv</name>
+    </author>
+  </entry>
+</feed>

@@ -1,0 +1,79 @@
+{
+ "_id": "6ab96d800e32dd23e06fb3ef",
+ "id": "Linzhan/UniMate",
+ "private": false,
+ "library_name": "pytorch",
+ "tags": [
+  "pytorch",
+  "motion-generation",
+  "text-to-motion",
+  "character-animation",
+  "skeletal-animation",
+  "flow-matching",
+  "unimate",
+  "arxiv:2609.05415",
+  "en",
+  "dataset:Linzhan/UniML3D",
+  "license:cc-by-nc-4.0",
+  "region:us"
+ ],
+ "downloads": 716,
+ "likes": 76,
+ "modelId": "Linzhan/UniMate",
+ "author": "Linzhan",
+ "sha": "174fc755ec248d0c98f27759b7a95648e7f05905",
+ "lastModified": "2026-10-07T09:29:23.000Z",
+ "gated": false,
+ "disabled": false,
+ "model-index": null,
+ "config": {},
+ "cardData": {
+  "license": "cc-by-nc-4.0",
+  "language": [
+   "en"
+  ],
+  "library_name": "pytorch",
+  "datasets": [
+   "Linzhan/UniML3D"
+  ],
+  "tags": [
+   "motion-generation",
+   "text-to-motion",
+   "character-animation",
+   "skeletal-animation",
+   "flow-matching",
+   "unimate",
+   "arxiv:2609.05415"
+  ]
+ },
+ "siblings": [
+  {
+   "rfilename": ".gitattributes"
+  },
+  {
+   "rfilename": ".gitignore"
+  },
+  {
+   "rfilename": "LICENSE"
+  },
+  {
+   "rfilename": "README.md"
+  },
+  {
+   "rfilename": "config.json"
+  },
+  {
+   "rfilename": "teaser.png"
+  },
+  {
+   "rfilename": "unimate_mixamo_f60_v2/checkpoints/checkpoint_step_120000.pt"
+  }
+ ],
+ "spaces": [
+  "mrfakename/unimate",
+  "Yosun/unimate-motion-lab",
+  "Yosun/unimate-motion-lab-v2"
+ ],
+ "createdAt": "2026-09-27T19:24:48.000Z",
+ "usedStorage": 67886850156
+}

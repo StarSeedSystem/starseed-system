@@ -1,0 +1,38 @@
+{
+ "id": "2609.05415",
+ "publishedAt": "2026-09-04T00:00:00.000Z",
+ "submittedOnDailyAt": "2026-09-07T00:00:00.000Z",
+ "title": "UniMate: One Unified Model to Animate Diverse Skeletons",
+ "upvotes": 23,
+ "discussionId": "6a9e16a1de5ea82090db6503",
+ "projectPage": "https://linzhanmou.com/unimate/",
+ "githubRepo": "https://github.com/Friedrich-M/UniMate",
+ "githubRepoAddedBy": "user",
+ "ai_summary_model": "thinkingmachines/Inkling-Small",
+ "githubStars": 2018,
+ "linkedModels": [
+  {
+   "id": "Linzhan/UniMate",
+   "downloads": 716,
+   "lastModified": "2026-10-07T09:29:23.000Z"
+  },
+  {
+   "id": "tarn59/UniMate-Weights",
+   "downloads": 298,
+   "lastModified": "2026-09-24T03:05:30.000Z"
+  },
+  {
+   "id": "BasinShapers/unimate-webgpu",
+   "downloads": 0,
+   "lastModified": "2026-10-13T13:17:21.000Z"
+  },
+  {
+   "id": "mlx-community/unimate-uniml3d-f60-v3-bf16",
+   "downloads": 23,
+   "lastModified": "2026-10-14T03:12:53.000Z"
+  }
+ ],
+ "numTotalModels": 5,
+ "numTotalDatasets": 10,
+ "numTotalSpaces": 4
+}

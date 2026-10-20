@@ -101,6 +101,9 @@ _CLASES: Tuple[Tuple[re.Pattern, str], ...] = (
     (re.compile(r"index\.lock|another git process|git process may have crashed", re.I), "medio:cerrojo"),
     (re.compile(r"no se pudo preparar worktree|worktree: ", re.I), "medio:worktree"),
     (re.compile(r"no termin[oó]|se pas[oó] de tiempo|timed? ?out|tiempo agotado", re.I), "medio:tiempo"),
+    # (2026-10-20, AV1011G-d1) La puerta de Python sin pytest en ese python: falta algo en la MÁQUINA.
+    # Antes la nota era «No module named pytest» y casaba con «pytest» → tarea:pruebas (gastaba intento).
+    (re.compile(r"sin pytest instalado|no module named '?pytest|falta pytest", re.I), "medio:dependencias"),
     (re.compile(r"memoria|swap|guardia de memoria|killed|sigkill|oom", re.I), "medio:memoria"),
     (re.compile(r"red ca[ií]da|connection reset|network|getaddrinfo|ECONN", re.I), "medio:red"),
     (re.compile(r"\b429\b|\b402\b|sin cupo|cupo del d[ií]a|rate.?limit|ning[uú]n proveedor|"

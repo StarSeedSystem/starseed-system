@@ -39,7 +39,10 @@ TOKEN_VARS = ("GITHUB_TOKEN", "GH_TOKEN")
 
 # ───────────────────────────── lectura del catálogo TS ─────────────────────────────
 _S = r'"(?:[^"\\]|\\.)*"'
-RE_ID = re.compile(rf"^\s+id:\s*({_S}),\s*nombre:\s*({_S})")
+# El id y el nombre van en la misma línea (`id: "x", nombre: "X",`) o, en las entradas largas, el nombre en
+# la siguiente (`pixelartistry-watertight`: 240 != 241 entradas leídas, 2026-10-20).
+RE_ID = re.compile(rf"^\s+id:\s*({_S}),(?:\s*nombre:\s*({_S}))?")
+RE_NOMBRE = re.compile(rf"^\s+nombre:\s*({_S})")
 RE_LIC = re.compile(rf"^\s+licencia:\s*({_S}),")
 RE_ACT = re.compile(
     rf"^(\s+)actualizacion:\s*\{{\s*fuente:\s*({_S}),\s*ref:\s*({_S}),\s*ultimaVersion:\s*(null|{_S}),"
@@ -74,9 +77,13 @@ def leer_catalogo(texto: str) -> list[Entrada]:
         if m:
             if actual is not None:
                 raise ValueError(f"entrada «{actual['id']}» sin línea actualizacion")
-            actual = {"id": json.loads(m.group(1)), "nombre": json.loads(m.group(2)), "licencia": ""}
+            actual = {"id": json.loads(m.group(1)), "nombre": json.loads(m.group(2)) if m.group(2) else "", "licencia": ""}
             continue
         if actual is None:
+            continue
+        m = RE_NOMBRE.match(linea)
+        if m and not actual["nombre"]:
+            actual["nombre"] = json.loads(m.group(1))
             continue
         m = RE_LIC.match(linea)
         if m and not actual["licencia"]:

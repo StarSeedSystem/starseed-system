@@ -59,6 +59,13 @@ class LecturaTS(unittest.TestCase):
         self.assertIsNone(es[1].version)
         self.assertIsNone(es[1].fecha)
 
+    def test_una_entrada_con_el_nombre_en_otra_linea_tambien_se_lee(self):
+        """pixelartistry-watertight va con `nombre:` debajo del `id:` y el lector la dejaba fuera (240 != 241)."""
+        t = ('  {\n    id: "largo",\n    nombre: "Largo",\n    licencia: "MIT",\n'
+             '    actualizacion: { fuente: "web", ref: "", ultimaVersion: null, fechaVersion: null },\n  },\n')
+        es = ac.leer_catalogo(t)
+        self.assertEqual([(e.id, e.nombre, e.licencia, e.fuente) for e in es], [("largo", "Largo", "MIT", "web")])
+
     def test_entrada_sin_actualizacion_falla_en_alto(self):
         with self.assertRaises(ValueError):
             ac.leer_catalogo('  {\n    id: "a", nombre: "A", categoria: "xr"\n  },\n  {\n    id: "b", nombre: "B", x: 1\n')

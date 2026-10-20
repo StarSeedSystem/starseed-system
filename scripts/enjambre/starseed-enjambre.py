@@ -4335,6 +4335,11 @@ def vitest(cwd, log):
         return rc or rc_extra, (out or "") + "\n" + "\n".join(salidas)
 
 
+#: Lo que dice la puerta de Python cuando faltan los medios para correr unas pruebas (no es un fallo de la
+#: tarea): `revisor_bloqueadas_logica.clase_de_fallo` lo lee como «medio:dependencias» y no gasta intento.
+PREFIJO_SIN_PYTEST = "sin pytest instalado"
+
+
 def _primera_linea_error(salida):
     """Extrae la primera línea relevante de error de la salida de unittest de Python."""
     if not salida:
@@ -4342,11 +4347,40 @@ def _primera_linea_error(salida):
     lineas = [l.strip() for l in (salida or "").splitlines() if l.strip()]
     if not lineas:
         return "error en tests de python"
+    # (2026-10-20, AV1011G-d1) `sh()` escribe «TIMEOUT 120s» cuando agota el plazo. Antes se
+    # saltaba esa línea y se devolvía la primera con «Error:» de las pruebas de OTRAS tareas
+    # que habían llegado a imprimir («director/orden-tareas: OSError: disco lleno»): la nota
+    # culpaba a la tarea de un ruido ajeno y el revisor la clasificaba como `tarea:otro`.
+    # Con la palabra TIMEOUT delante, `clase_de_fallo` la lee como fallo del MEDIO (tiempo).
+    #
+    # (2026-10-20, AV1011G-d1, revisor) …pero SOLO si se agotó la carpeta ENTERA (la suite grande,
+    # que sí depende de lo cargada que esté la máquina). Si se agotaron las pruebas de la propia
+    # tarea —que tardan segundos— lo normal es un bucle o una espera sin plazo DE LA TAREA: llamarlo
+    # «del medio» la reintentaba sin gastar intento, una y otra vez. `_puerta_python` marca ese caso
+    # con «TIMEOUT-TAREA» y aquí se dice como lo que es: fallo de la tarea (clase tarea:pruebas).
     for l in lineas:
+        if l.startswith("TIMEOUT-TAREA "):
+            partes = l.split(" ", 2)
+            plazo = partes[1] if len(partes) > 1 else ""
+            pruebas = [os.path.basename(x) for x in (partes[2].split() if len(partes) > 2 else [])]
+            nombres = ", ".join(pruebas[:2]) + (" y %d más" % (len(pruebas) - 2) if len(pruebas) > 2 else "")
+            return ("las pruebas de la tarea (%s) siguen sin acabar a los %s: fallo de la tarea, no del medio" % (nombres or "?", plazo))[:120]
+    # (2026-10-20, AV1011G-d1, revisor) Las líneas «TIMEOUT …» y las de FAIL/ERROR se leen EN ORDEN, no
+    # unas antes que otras: si la pasada por alcance falla de verdad (FAIL) y la de la carpeta entera
+    # agota los 600 s, la nota decía «TIMEOUT 600s… no es un fallo de la tarea» y el revisor la
+    # reintentaba sin gastar intento, tapando el fallo real. `_puerta_python` pone delante la salida
+    # de las pasadas que fallaron de verdad (ver `_orden_de_salidas`); dentro de una pasada que se
+    # agotó, «TIMEOUT» va ANTES que el ruido que alcanzó a imprimir (lo escribe así `sh`).
+    for l in lineas:
+        if l.startswith("TIMEOUT "):
+            return ("%s: las pruebas de Python no terminaron a tiempo (tiempo agotado, no es un fallo de la tarea)" % l)[:120]
+        if l.startswith(PREFIJO_SIN_PYTEST):
+            return l[:120]
         if any(
             l.startswith(p)
             for p in (
                 "FAIL:",
+                "FAILED ",  # resumen de pytest: «FAILED ruta::prueba - motivo» (antes salía «==== FAILURES ====»)
                 "ERROR:",
                 "SyntaxError:",
                 "ImportError:",
@@ -4364,7 +4398,8 @@ def _primera_linea_error(salida):
     return lineas[0][:120]
 
 
-def orden_de_pruebas(directorio, python_bin="python3"):
+def orden_de_pruebas(directorio, python_bin="python3", archivos=None, raiz=None, corredor="unittest",
+                     pythonpath_previo=None):
     """PURA: con qué se prueba cada directorio. Cada uno con SU corredor, no con el de al lado.
 
     (2026-09-22, MEDIDO) Aquí se iba a la basura el trabajo de la nube entera. Esta puerta
@@ -4380,9 +4415,28 @@ def orden_de_pruebas(directorio, python_bin="python3"):
     que tuviera nada que ver con lo que había hecho. Medido el 22-09: las cinco tareas de la
     cola de la nube de las 10:03 —TK1c, c313_QW4, c313_QW6, RM3, RM4— con el MISMO
     `fallo_tests`, y ocho runs de la nube «success» de 45 minutos que dejaron dos commits.
+
+    (2026-10-20, AV1011G-d1) Con `archivos` solo corren esas pruebas (la puerta por alcance, ver
+    `alcance_pruebas.pruebas_python_a_sumar`); sin ellas, la carpeta entera como siempre. Dos
+    cosas MEDIDAS del modo «por archivo»:
+
+    - `python -m unittest scripts/puente/test_x.py` NO mete la carpeta del test en sys.path (el
+      `discover -s <carpeta>` de siempre sí). De las 52 pruebas de scripts/puente que hacen
+      `import modulo` sin tocar sys.path, 29 daban ModuleNotFoundError: un rojo falso que le
+      tiraba la tarea al revisor. Por eso la orden lleva `PYTHONPATH=<carpeta>` (absoluto si se
+      da `raiz`: una prueba que hace chdir no lo pierde; sumado a `pythonpath_previo`, el PYTHONPATH
+      con el que correrá el hijo —quien llama lo toma de `entorno_hijo()`—: aquí no se lee el entorno).
+    - Una prueba con funciones `def test_…` sueltas (pytest) bajo unittest da «Ran 0 tests … OK»:
+      un verde que no comprobó nada. Con `corredor="pytest"` (lo decide
+      `alcance_pruebas.necesita_pytest`) corre con pytest, que ejecuta también las TestCase.
     """
     if str(directorio).rstrip("/").endswith("scripts/enjambre"):
-        return [python_bin, "-m", "pytest", directorio, "-q"]
+        return [python_bin, "-m", "pytest", *(archivos or [directorio]), "-q"]
+    if archivos:
+        carpeta = os.path.join(raiz, directorio) if raiz else directorio
+        ruta = carpeta + os.pathsep + pythonpath_previo if pythonpath_previo else carpeta
+        modulo = ["pytest", "-q"] if corredor == "pytest" else ["unittest", "-q"]
+        return ["env", "PYTHONPATH=" + ruta, python_bin, "-m", *modulo, *archivos]
     return [
         python_bin,
         "-m",
@@ -4395,13 +4449,180 @@ def orden_de_pruebas(directorio, python_bin="python3"):
     ]
 
 
-def _puerta_python(wt, tid=None, log=None):
-    """Tercera puerta condicional (p321Jc): ejecuta unittest de Python si la tarea tocó algún .py.
+#: Plazos de la puerta de Python (2026-10-20, AV1011G-d1). Las pruebas que la tarea toca caben de
+#: sobra en 120 s; una carpeta ENTERA no: scripts/puente son 2813 pruebas y tardan ~370 s
+#: (medido). El plazo de 120 s sobre la carpeta entera era lo que dejaba sin salida a toda tarea
+#: de Python (rc=124 «TIMEOUT 120s» con un cambio de una línea).
+PLAZO_PUERTA_PY_S = 120
+PLAZO_PUERTA_PY_COMPLETA_S = 600
 
-    - Si entre los archivos que la tarea cambió hay alguno que acabe en .py, ejecuta:
-      python3 -m unittest discover -s scripts/puente -p 'test_*.py'
-      (y si tocó scripts/enjambre/, también ese directorio, pero CON PYTEST: ver
-      `orden_de_pruebas`, que es donde está la razón y el destrozo que causaba).
+
+def _ordenes_puerta_python(wt, py_tocados, python_bin):
+    """Qué correr en la puerta de Python y con qué plazo: [(orden, plazo_s)].
+
+    La decisión vive en `scripts/puente/alcance_pruebas.pruebas_python_a_sumar` (puro y con
+    pruebas): la prueba hermana de cada .py tocado y las que lo importan; la carpeta entera solo
+    si lo tocado lo importan muchas pruebas (p. ej. este orquestador). Un .py sin ninguna prueba
+    solo se comprueba que compila (y la salida lo dice: no se finge una cobertura que no hay).
+    Si no se puede importar el módulo de alcance, se cae a las carpetas enteras de siempre, pero
+    con plazo de carpeta entera: peor cobertura de tiempo, nunca un falso rojo por TIMEOUT.
+
+    Cada orden por alcance lleva `PYTHONPATH=<carpeta>` (absoluto, sobre el worktree) y su corredor:
+    unittest, o pytest para las pruebas de funciones sueltas (ver `orden_de_pruebas`). Medido el
+    2026-10-20 sobre los 208 archivos de prueba de Python del repo, cada uno con su orden real:
+    todos en verde salvo lo que dependía del disco de quien los corría.
+    """
+
+    def carpetas_enteras():
+        dirs = ["scripts/puente"]
+        if any(r.startswith("scripts/enjambre/") for r in py_tocados):
+            dirs.append("scripts/enjambre")
+        return [(orden_de_pruebas(d, python_bin), PLAZO_PUERTA_PY_COMPLETA_S) for d in dirs]
+
+    def listar(carpeta):
+        try:
+            return os.listdir(os.path.join(wt, carpeta))
+        except OSError:
+            return []
+
+    def leer(ruta):
+        try:
+            with open(os.path.join(wt, ruta), encoding="utf-8", errors="replace") as f:
+                return f.read()
+        except OSError:
+            return ""
+
+    try:
+        # El orquestador corre desde la raíz del repo o desde una copia (~/.local/bin): se busca
+        # el módulo en la raíz y, si no, al lado de este archivo.
+        for ruta_puente in (
+            os.path.join(ROOT, "scripts", "puente"),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "puente"),
+        ):
+            if os.path.isfile(os.path.join(ruta_puente, "alcance_pruebas.py")):
+                if ruta_puente not in sys.path:
+                    sys.path.insert(0, ruta_puente)
+                break
+        import alcance_pruebas
+
+        plan = alcance_pruebas.pruebas_python_a_sumar(py_tocados, listar, leer)
+        # Cada archivo de prueba con SU corredor (unittest o pytest): ver `orden_de_pruebas`.
+        reparto = {
+            carpeta: (
+                {"unittest": [], "pytest": list(pruebas)}  # scripts/enjambre es todo pytest
+                if carpeta.rstrip("/").endswith("scripts/enjambre")
+                else alcance_pruebas.repartir_por_corredor(pruebas, leer)
+            )
+            for carpeta, pruebas in plan["por_carpeta"].items()
+        }
+    except Exception:
+        return carpetas_enteras()
+
+    previo = entorno_hijo().get("PYTHONPATH")  # el del hijo que ejecutará la orden (`sh` usa `entorno_hijo`)
+    ordenes = []
+    for carpeta in plan["completas"]:
+        ordenes.append((orden_de_pruebas(carpeta, python_bin), PLAZO_PUERTA_PY_COMPLETA_S))
+    for carpeta in plan["por_carpeta"]:
+        if carpeta in plan["completas"]:
+            continue
+        for corredor in ("unittest", "pytest"):
+            if reparto[carpeta][corredor]:
+                ordenes.append((
+                    orden_de_pruebas(carpeta, python_bin, reparto[carpeta][corredor], raiz=wt, corredor=corredor,
+                                     pythonpath_previo=previo),
+                    PLAZO_PUERTA_PY_S,
+                ))
+    if plan["sin_prueba"]:
+        # ast.parse no escribe nada en el árbol de trabajo (py_compile deja .pyc).
+        comprobar = (
+            "import ast, sys\n"
+            "for f in sys.argv[1:]:\n"
+            "    ast.parse(open(f, encoding='utf-8').read(), f)\n"
+            "print('sin pruebas propias: solo se comprobo que compilan:', ', '.join(sys.argv[1:]))"
+        )
+        ordenes.append(([python_bin, "-c", comprobar] + plan["sin_prueba"], PLAZO_PUERTA_PY_S))
+    return ordenes
+
+
+def _juzgar_pasada_python(orden, plazo, rc, out):
+    """PURA (2026-10-20, AV1011G-d1, revisor): lo que `sh` dijo de UNA pasada de la puerta, dicho
+    como lo que es. Devuelve (rc, salida).
+
+    Si se agotó el plazo de las pruebas DE LA TAREA (`PLAZO_PUERTA_PY_S`): tardan segundos, así que
+    es casi siempre un bucle o una espera sin plazo de la tarea. Se marca «TIMEOUT-TAREA» para que
+    `_primera_linea_error` lo diga como fallo de la tarea; si lo tratara como del medio, el
+    revisor la reintentaría sin gastar intento, sin fin. Solo el plazo de la carpeta ENTERA
+    (`PLAZO_PUERTA_PY_COMPLETA_S`) sigue siendo un fallo del medio.
+
+    A propósito NO se tumba un «Ran 0 tests … OK» de unittest: hay pruebas-guion que comprueban al
+    importarse y salen con `sys.exit(1)` si algo falla (scripts/puente/test_telegram_puente.py: 16
+    comprobaciones, 0 «tests»). El verde vacío de verdad —funciones `def test_…` bajo unittest— se
+    evita antes, eligiendo pytest para esos archivos (`alcance_pruebas.necesita_pytest`).
+    """
+    pruebas = [a for a in orden if str(a).endswith(".py")]
+    if rc == 124 and plazo == PLAZO_PUERTA_PY_S and out.startswith("TIMEOUT "):
+        resto = out.split("\n", 1)[1] if "\n" in out else ""
+        return rc, "TIMEOUT-TAREA %ss %s\n%s" % (plazo, " ".join(pruebas), resto)
+    return rc, out
+
+
+def _usa_pytest(orden):
+    """PURA: ¿esta orden de la puerta corre sus pruebas con pytest (`python -m pytest …`)?"""
+    orden = [str(a) for a in orden]
+    return "-m" in orden[:-1] and orden[orden.index("-m") + 1] == "pytest"
+
+
+def _hay_pytest(python_bin):
+    """¿Puede ESTE python importar pytest? Se pregunta al intérprete que va a correr las pruebas
+    (`python_bin`), no al del orquestador. La puerta de vitest hace lo mismo con `shutil.which`."""
+    try:
+        r = subprocess.run([python_bin, "-c", "import pytest"], capture_output=True, timeout=30,
+                           env=entorno_hijo())
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _nota_sin_pytest(orden):
+    """PURA: la salida de una orden de pytest que no se pudo correr. Empieza por PREFIJO_SIN_PYTEST (lo
+    reconoce `_primera_linea_error` y `clase_de_fallo` la lee como fallo del MEDIO: falta algo en esta
+    máquina, no es un fallo de la tarea) y dice cuántas pruebas se quedaron sin correr."""
+    pruebas = [str(a) for a in orden if str(a).endswith(".py") or str(a).rstrip("/").endswith("scripts/enjambre")]
+    nombres = [os.path.basename(x.rstrip("/")) for x in pruebas]
+    return "%s: no se pudieron correr %d pruebas (%s): falta pytest en este medio, no es un fallo de la tarea" % (
+        PREFIJO_SIN_PYTEST, len(pruebas), ", ".join(nombres[:2]) + (" y %d más" % (len(nombres) - 2) if len(nombres) > 2 else ""))
+
+
+def _orden_de_salidas(resultados):
+    """PURA: [(rc, salida)] de las pasadas → salidas en el orden en que se leerá la nota del fallo.
+    Primero lo que falló DE VERDAD (rc≠0 y no se agotó el plazo ni faltó un medio), luego lo que no
+    se pudo saber por el medio (TIMEOUT, sin pytest) y al final lo que salió bien. El orden de
+    llegada se conserva dentro de cada grupo. Sin esto, un TIMEOUT de la carpeta entera tapaba el
+    FAIL real de las pruebas de la tarea."""
+
+    def grupo(r):
+        rc, out = r
+        if rc == 0:
+            return 2
+        return 1 if (out.startswith("TIMEOUT") or out.startswith(PREFIJO_SIN_PYTEST)) else 0
+
+    return [out for _, out in sorted(resultados, key=grupo)]
+
+
+def _puerta_python(wt, tid=None, log=None):
+    """Tercera puerta condicional (p321Jc): pruebas de Python de lo que la tarea tocó.
+
+    - Si entre los archivos que la tarea cambió hay algún .py, corre SUS pruebas (la hermana de
+      cada módulo y las que lo importan, en su carpeta: scripts/puente, scripts/enjambre,
+      scripts/protomolecula, servicios/…; ver `_ordenes_puerta_python`). La carpeta entera solo
+      si lo tocado lo importan muchas pruebas. Con pytest para scripts/enjambre y unittest para el
+      resto (`orden_de_pruebas`, que es donde está la razón y el destrozo que causaba).
+    - (2026-10-20, AV1011G-d1) Antes corría SIEMPRE `unittest discover -s scripts/puente` con 120 s:
+      la carpeta tarda ~370 s, así que ninguna tarea de Python pasaba y la nota era ruido ajeno.
+    - (2026-10-20, AV1011G-d1, revisor) Si una orden necesita pytest y este python no lo tiene, NO
+      se corre ni se da por buena: la salida dice «sin pytest instalado: no se pudieron correr N
+      pruebas» y la puerta queda en rojo, pero como fallo del MEDIO (no gasta intento de la tarea).
+      Antes la nota era «No module named pytest», que se leía como fallo de la tarea.
     - Se ejecuta sobre el worktree de la tarea (wt).
     - Si python3 no existe o la suite no se puede lanzar, avisa en el canal y no bloquea.
     """
@@ -4410,22 +4631,21 @@ def _puerta_python(wt, tid=None, log=None):
     if not py_tocados:
         return 0, ""
 
-    directorios = ["scripts/puente"]
-    if any(r.startswith("scripts/enjambre/") for r in py_tocados):
-        directorios.append("scripts/enjambre")
-
-    salidas = []
-    rc_total = 0
+    resultados = []
     python_bin = shutil.which("python3") or "python3"
+    ordenes = _ordenes_puerta_python(wt, py_tocados, python_bin)
+    sin_pytest = any(_usa_pytest(o) for o, _ in ordenes) and not _hay_pytest(python_bin)
 
-    for d in directorios:
+    for orden, plazo in ordenes:
+        if sin_pytest and _usa_pytest(orden):
+            resultados.append((1, _nota_sin_pytest(orden)))
+            continue
         try:
-            rc, out = sh(orden_de_pruebas(d, python_bin), cwd=wt, timeout=120, log=log)
-            if rc != 0:
-                rc_total = rc_total or rc
-            salidas.append(out or "")
+            rc, out = sh(orden, cwd=wt, timeout=plazo, log=log)
+            rc, out = _juzgar_pasada_python(orden, plazo, rc, out or "")
+            resultados.append((rc, out or ""))
         except Exception as e:
-            msg = "puerta python no se pudo lanzar en %s: %s" % (d, e)
+            msg = "puerta python no se pudo lanzar (%s): %s" % (" ".join(map(str, orden))[:80], e)
             try:
                 evento("aviso", tid or "", msg)
             except Exception:
@@ -4437,7 +4657,8 @@ def _puerta_python(wt, tid=None, log=None):
                     pass
             return 0, msg
 
-    return rc_total, "\n".join(salidas)
+    rc_total = next((rc for rc, _ in resultados if rc != 0), 0)
+    return rc_total, "\n".join(_orden_de_salidas(resultados))
 
 
 def _norma_ruta(ruta):

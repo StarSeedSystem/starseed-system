@@ -10,17 +10,17 @@ Que los bots/dots de Astraura, y los perfiles, grupos y páginas que elijan un a
 **completamente autopersonalizable en tiempo real**, usando UniMate y lo útil de: image-to-3dlab, Meta Horizon
 Create, Smart Remesh, Filigree3D, BTC3D, Tripo, 3DAIStudio, Hitem3D, Meshy y Hi3D.
 
-## §1 · Lo que hay DE VERDAD en cada enlace (verificado el 2026-10-11)
+## §1 · Lo que hay DE VERDAD en cada enlace (verificado el 2026-10-11; UniMate, Filigree3D y BTC3D corregidos el 2026-10-20 por su vigía, §12)
 
 | Enlace | Qué es | Estado real | Cómo entra en StarSeed |
 |---|---|---|---|
-| **UniMate** (Princeton, SIGGRAPH Asia 2026) | Texto → movimiento para **cualquier esqueleto** (bípedo, cuadrúpedo, ave, pez, insecto, serpiente, objeto articulado), en tiempo real, sin reentrenar por esqueleto. **No** crea ni edita avatares: anima los que ya tienen esqueleto. | Código MIT; **inferencia anunciada pero NO publicada**. Pesos en Hugging Face (`Linzhan/UniMate`, 2026-09-27, ~26 GB con todos los puntos de control, sin licencia declarada). | Motor del nivel «vivo» del movimiento para esqueletos **libres** (criaturas, bots no humanos). Vigía en la Biblioteca: el día que publiquen la inferencia, se crea sola la tarea de instalarlo. Hasta entonces nunca se elige (§4). |
+| **UniMate** (Princeton, SIGGRAPH Asia 2026) | Texto → movimiento para **cualquier esqueleto** (bípedo, cuadrúpedo, ave, pez, insecto, serpiente, objeto articulado), en tiempo real, sin reentrenar por esqueleto. **No** crea ni edita avatares: anima los que ya tienen esqueleto. | **Corregido el 2026-10-20** (README y archivos leídos en la red pública; la fila del 11 decía «inferencia anunciada pero NO publicada» y ya no es verdad). **Código de entrenamiento e inferencia publicado desde el 2026-09-06**, licencia **MIT** (`Friedrich-M/UniMate`; el comando es `python -m unimate.inference.sample --exp_dir <punto de control> [--asset <activo con esqueleto>]` y existe `unimate/inference/sample.py`). Desde el 2026-10-05 trae `rig_preprocess`, que convierte un GLB/glTF/FBX con esqueleto en un activo animable (etiqueta las articulaciones **con un LLM** y se detiene para revisarlas; qué LLM usa y si exige clave **no está comprobado**). Entorno: conda con Python 3.10 y `requirements.txt`; la VRAM de inferencia **no está publicada**. **Pesos** (`Linzhan/UniMate`, puntos de control de prueba desde el 2026-09-27, ~26 GB con todos): licencia **CC BY-NC 4.0, no comercial**; el código es MIT pero los pesos NO. Los datos (UniML3D, ~88 GB) siguen las licencias de sus fuentes (Mixamo, Objaverse-XL y Truebones, esta última bajo su propia licencia comercial). Hay derivados de terceros con licencia sin comprobar: `mlx-community/unimate-uniml3d-f60-v3-bf16` (MLX, Apple Silicon), `BasinShapers/unimate-webgpu` (WebGPU) y `tarn59/UniMate-Weights` (copia de pesos). | Motor del nivel «vivo» del movimiento para esqueletos **libres** (criaturas, bots no humanos). Con pesos no comerciales solo se elige donde ese uso lo permite (§4 y §5) y **no se activa por defecto**. En su primera pasada real el vigía (§13) crea la tarea del adaptador (`VGUNIA`), **propuesta en `olas/propuestas/`** (fuera del enjambre; solo entra si Alex la mueve a `olas/`); mientras el adaptador no esté integrado, `motores.ts` sigue diciendo `pesos-sin-codigo` y no se elige. |
 | **image-to-3dlab** | Imagen → modelo 3D con textura, **en local en Mac Apple Silicon** (32 GB recomendados), con un `.provenance.json` de licencias por resultado. Motores: Hunyuan3D-MLX, TRELLIS.2, Stable Fast 3D. | Funciona hoy. Hunyuan: pesos **sin licencia para la UE, Reino Unido y Corea del Sur**. TRELLIS.2: uso comercial condicionado (DINOv3). SF3D: licencia comunitaria de Stability (tope de ingresos). | Etapa «generar» del taller en neuronas Mac de 32 GB. Adoptamos su idea de **procedencia por resultado**: cada ADN lleva la suya (§2, §5). |
 | **Smart Remesh 3** | Complemento de Blender que limpia mallas de IA (cuadrículas uniformes, paneles duros). | **Cuesta 17 USD** (no es gratis), GPL, sin uso sin ventana documentado. | Opcional si Alex lo compra. Por defecto remallamos con **Instant Meshes** (BSD-3, el mismo motor que usa su modo orgánico) y **QuadriFlow de Blender** sin ventana. |
 | **Pixal3D** (Tencent ARC, SIGGRAPH 2026) | Imagen → modelo 3D con texturas PBR (GLB), llevando cada píxel a su sitio en 3D: el de más detalle de la lista. | Código y pesos **MIT** (Hugging Face `TencentARC/Pixal3D`, ~46 GB con todas las variantes). **Solo NVIDIA** (natten con CUDA), sin Mac; VRAM mínima no publicada, con modo de poca VRAM a 1024. Se apoya en TRELLIS.2 (DINOv3): uso comercial sin comprobar. Tiene un Space público con GPU gratis (ZeroGPU A10G, cuota diaria). | Generador de «calidad» del taller en neuronas NVIDIA; su Space solo como respaldo **remoto** con permiso expreso (§11). |
 | **PixelArtistry Watertight Meshes** | Flujos de ComfyUI: imagen → malla **cerrada** (lista para imprimir) o low-poly con texturas horneadas, con Pixal3D/TRELLIS.2 y los nodos WTiVo, Mesh Quad Reconstruct, LODTailor y CuMesh. | Instalador y flujos **MIT**; nodos GPL-3.0 o MIT. **Solo Windows 10/11 con NVIDIA RTX 20+**; publica los umbrales 6 GB → 1024, 8 GB → 1536, 16 GB → 2048; 32 GB de RAM recomendados. Proyecto muy nuevo (5 commits, sin versiones). | Remallador que cierra en neuronas Windows con NVIDIA; en el resto, cierre por vóxeles de Blender en CPU (también la A1). Sus umbrales de VRAM sustituyen a nuestros supuestos (§11). |
-| **Filigree3D** (arXiv 2609.34900) | Imagen → geometría a resolución 2048³ (hasta 4096³), ~1 min. | Solo artículo, sin código ni pesos enlazados. | Vigía en la Biblioteca. |
-| **BTC3D** (arXiv 2609.39709) | Mejora de detalle sin entrenar para generadores imagen→3D por difusión (teselas mezcladas). | Solo artículo, sin código enlazado. | Vigía; etapa opcional «detallar». |
+| **Filigree3D** (arXiv 2609.34900) | Imagen → geometría a resolución 2048³ (hasta 4096³), ~1 min. | Solo artículo, sin código ni pesos enlazados. Comprobado el 2026-10-20: Hugging Face no tiene el artículo indexado (`api/papers/2609.34900` da 404) ni modelos que lo citen, y el Atom de arXiv (versión del 2026-09-28) no enlaza ningún repositorio. | Vigía en la Biblioteca (§13): el día que aparezca un repositorio con código de inferencia, avisa y crea la tarea. |
+| **BTC3D** (arXiv 2609.39709) | Mejora de detalle sin entrenar para generadores imagen→3D por difusión (teselas mezcladas). | Solo artículo, sin código enlazado. Comprobado el 2026-10-20 igual que Filigree3D (Hugging Face sin indexar, Atom de arXiv del 2026-09-30 sin repositorio). | Vigía (§13); etapa opcional «detallar». |
 | **Meta Horizon Create** | Plataforma cerrada de Meta (AssetGen 2.0, mundos por texto). | Sin API pública ni pesos abiertos. El enlace de X no se pudo abrir. | Solo como referencia de experiencia (crear mundos y objetos hablando); ya lo cubren XR y Protomolécula. |
 | **Meshy** | Servicio de imagen/texto → 3D, rig y animación. | De pago; plan gratis de 100 créditos/mes con salida **CC BY 4.0** (exige atribución). API no confirmada en el plan gratis. | Proveedor externo **opcional**: apagado salvo clave en el entorno y permiso de Alex; la atribución viaja en la procedencia. |
 | **Tripo** | Servicio de imagen/texto → 3D. | De pago; precios y licencia de salida sin comprobar. (Sus modelos abiertos TripoSR/TripoSG ya están en la Protomolécula.) | Igual que Meshy: opcional con clave. |
@@ -90,16 +90,22 @@ invitados: solo vista previa y propuesta.
 ## §8 · Movimiento
 
 El carácter del movimiento del ADN alimenta al **motor único de movimiento** (vivo/fluido/ligero/quieto).
-Kimodo mueve SOMA y SMPL-X; los esqueletos libres usan clips procedurales hasta que UniMate publique su
-inferencia. Preparación conocida de UniMate (de su página): articulaciones en orden de anchura, escala por el
-diámetro de la topología, marco canónico y-arriba con la raíz en el origen mirando a +z, rotaciones relativas a
-la pose de reposo. El adaptador se escribe **cuando** exista su código, no antes.
+Kimodo mueve SOMA y SMPL-X; los esqueletos libres usan clips procedurales **hasta que el adaptador de UniMate
+esté integrado**. Su código de inferencia (MIT) está publicado desde el 2026-09-06, pero sus pesos son CC BY-NC
+4.0 (§1): el adaptador (`servicios/taller-3d/motores/unimate.py`, patrón de `pixelartistry.py`) lo escribe el
+enjambre en la tarea `VGUNIA` que el vigía deja **como propuesta** en su primera pasada real (`olas/propuestas/`, fuera del enjambre: solo entra si Alex la mueve a `olas/`), sin descargar los
+pesos por su cuenta (~26 GB) y sin activarse por defecto. Preparación conocida de UniMate (de su página):
+articulaciones en orden de anchura, escala por el diámetro de la topología, marco canónico y-arriba con la raíz
+en el origen mirando a +z, rotaciones relativas a la pose de reposo; para un esqueleto propio, `rig_preprocess`
+(§1). Pendiente aparte: `motores.ts` y `canalizacion.test.ts` aún fijan el estado `pesos-sin-codigo` del 11 de
+octubre; cuando el adaptador esté integrado necesitan un estado honesto («código publicado, sin adaptador» y
+después «listo»).
 
 ## §9 · Fases (cola `cola-avatares-1011.json`)
 
 AV1011A visor VRM vivo · B editor en tiempo real (deslizadores, voz, MIDI) · C orbe→avatar en los bots ·
 D avatar 3D en perfiles, grupos y páginas (sin migración: el ADN va a la Biblioteca) · E sincronía en escenas y
-XR · F servicio local «taller-3d» · G vigías de UniMate, Filigree3D y BTC3D · H catálogo de la Protomolécula ·
+XR · F servicio local «taller-3d» · G vigías de UniMate, Filigree3D y BTC3D (§13) · H catálogo de la Protomolécula ·
 I proveedores externos opcionales (apagados) · J propuestas y votos de avatar en grupos · L plantillas iniciales
 CC0 (como mucho 10 modelos y 30 MB) · K integración y verificación.
 
@@ -107,7 +113,10 @@ CC0 (como mucho 10 modelos y 30 MB) · K integración y verificación.
 
 - Comprar Smart Remesh (17 USD) o quedarnos con Instant Meshes + QuadriFlow (gratis).
 - Activar Meshy o Tripo (de pago; nada se activa sin su clave y su palabra).
-- Si alguna neurona con GPU NVIDIA se suma (para riggear con UniRig y, cuando salga, UniMate).
+- Si alguna neurona con GPU NVIDIA se suma (para riggear con UniRig y para UniMate, cuyo código ya está publicado).
+- Si UniMate entra con pesos **CC BY-NC 4.0** (uso no comercial): la tarea `VGUNIA` nace como **propuesta**
+  (`starseed_memory_root/olas/propuestas/`, con su motivo en `reservada`) y el aviso trae la orden exacta para
+  encolarla (`mv -n <propuesta> <olas>/`, con rutas absolutas). Encolarla es el visto bueno de Alex y después sigue el camino normal del enjambre; nadie del enjambre lee esa carpeta. Mientras siga ahí, cada aviso nuevo repite la orden; si más tarde los pesos pasan a uso libre, no se encola sola.
 
 ## §11 · Generación 3D local optimizada por destino (`optimizacion.ts`) — Pixal3D + image-to-3dlab
 
@@ -194,3 +203,39 @@ Falta (cada punto es una tarea propia): ADN en la ficha pública de perfil, grup
 `profiles.avatar_3d` legado de la Adenda 219: un GLB por URL), bajada del almacén a otros aparatos, tipo de ítem «avatar»
 en la Biblioteca real (`entity-library`), propuesta y votación en grupos (AV1011J), ADN en los bots (AV1011C) y en la
 escena compartida XR (AV1011E).
+
+## §13 · Vigías de la Biblioteca (AV1011G · `scripts/protomolecula/vigias_3d*.py`)
+
+Quién avisa cuando UniMate, Filigree3D o BTC3D cambian, sin que nadie tenga que acordarse de mirar.
+
+- **Qué mira** (todo público, sin claves y sin la API REST de GitHub, que da 403): README, LICENSE y sondas de
+  archivo en `raw.githubusercontent.com`; modelo, artículo y modelos que citan el artículo en
+  `huggingface.co/api`; y el Atom de arXiv (un solo lote). Cada respuesta es `ok`, `no-existe` (un 404 es una
+  respuesta) o `sin-datos` (red caída, 403, 429, 5xx): **lo que no se pudo leer no se compara ni se inventa**.
+- **Con qué lo compara**: con lo que el contrato da por sabido (`vigias_3d_datos.LINEA_BASE`, §1 del 11 de
+  octubre), no con el estado de hoy. Por eso la primera pasada real da dos novedades verdaderas de UniMate
+  (código publicado y pesos CC BY-NC 4.0).
+- **Qué hace con una novedad**: un aviso al Chat Director (`director_chat.publicar`, de `vigia-3d`), **una sola
+  vez** por novedad (estado en `~/.starseed/vigia-3d.json`; si el chat falla no se marca y se reintenta). Si el
+  código pasa a estar publicado deja una tarea en `starseed_memory_root/olas/cola-<mmdd>-vigia-3d-<id>.json`
+  (id fijo `VG<UNI|FIL|BTC>A`, 3 archivos: adaptador, prueba y README del taller 3D), idempotente, y con
+  `aprobacion: true` y `reservada: "<motivo>"` salvo que los pesos sean de uso libre o con atribución. **Una tarea
+  reservada no entra en ninguna cola viva** (2026-10-20): `aprobacion` sola solo retiene la rama en la puerta del
+  orquestador, la resolución automática o el aprobador pueden soltarla y la nube no la mira. Por eso se deja como
+  PROPUESTA en `olas/propuestas/cola-<nombre>.json` (el orquestador, la nube y el aprobador solo leen
+  `olas/cola-*.json`) y el aviso dice cómo encolarla. Con pesos libres o con atribución va directa a `olas/`.
+- **Cómo decide que el código está publicado** (`vigias_3d_fuentes.senales_readme`): una sonda (el archivo de
+  inferencia existe) manda sobre cualquier «coming soon» olvidado; sin sonda vale un **comando de inferencia**
+  (`python …infer|sample|demo|predict|generate…`, con o sin variables delante; no cuentan `pytest`, `train`,
+  `data`, `eval`, `setup`, `run_training.py`…) o una casilla **marcada** que nombra la inferencia. Solo cuenta
+  como «pendiente» lo que habla de inferencia, una demo o el código en general: «Training code will be
+  released», «- [ ] Release training code», un «TODO» suelto o los pesos pendientes no la anulan. Si el
+  README trae la prueba **y** dice que la inferencia está pendiente, no se afirma ni se niega: el aviso dice
+  «señales contradictorias», cita el comando y la línea pendiente, no crea la tarea y se repite solo si
+  cambia (cuando se aclare, la novedad «código publicado» crea la tarea).
+- **Cuándo corre**: una pasada cada ~20 h (`--forzar` la salta). `--en-seco` mira la red pero no escribe nada.
+  Uso: `python3 scripts/protomolecula/vigias_3d.py [--en-seco] [--forzar] [--solo unimate] [--json]`.
+- **Pendiente** (no es de esta tarea): colgarlo del vigilante diario del enjambre
+  (`scripts/puente/vigilante-enjambre.py`); la primera pasada real en la Mac crea el aviso y la tarea de UniMate.
+- **Pruebas**: respuestas reales grabadas el 2026-10-20 en `scripts/protomolecula/grabaciones_vigias_3d/`;
+  las variantes inventadas están marcadas «SINTÉTICO» en `falso_vigias_3d.py`.

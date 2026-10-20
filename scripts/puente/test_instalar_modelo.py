@@ -32,8 +32,11 @@ def test_instalacion_exitosa():
                 f.write("contenido de prueba")
             return True
         
-        # Ejecutar instalación
-        exito = instalar(entrada, destino_dir, descargar_mock, sha_esperado)
+        # Ejecutar instalación. El instalador exige 3 GB libres: se fija el espacio para que la prueba no
+        # dependa del disco de quien la corre (en un contenedor con 1 GB libres daba rojo sin culpa de nadie).
+        con_espacio = Mock(f_frsize=4096, f_bavail=(10 * 1024**3) // 4096)
+        with patch("instalar_modelo.os.statvfs", return_value=con_espacio):
+            exito = instalar(entrada, destino_dir, descargar_mock, sha_esperado)
         assert exito, "La instalación debería ser exitosa"
         
         # Verificar que el archivo se instaló

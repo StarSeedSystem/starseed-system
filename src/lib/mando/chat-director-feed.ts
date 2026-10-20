@@ -48,7 +48,7 @@ export function epochDe(t: string): number {
 /** Panel del Director al que suena un autor: verificador, supervisor, restaurador… */
 export function rolDeDirector(quien: string, tipo?: string): string {
     const q = (typeof quien === "string" ? quien : "").toLowerCase();
-    if (["vigia", "vigia-medidores", "revision-opus", "director-opus", "verificar"].includes(q)) return "verificador";
+    if (["vigia", "vigia-medidores", "vigia-3d", "revision-opus", "director-opus", "verificar"].includes(q)) return "verificador";
     if (["director", "director-orquestacion", "astra"].includes(q) || q.startsWith("claude")) return "supervisor";
     if (["vigilante", "reconstruir", "curar", "desatascador"].includes(q)) return "restaurador";
     if (["guardia", "gobernador", "vigia-consumo", "freno"].includes(q)) return "protector";

@@ -60,6 +60,10 @@ class ClaseDeFallo(unittest.TestCase):
         self.assertEqual(L.clase_de_fallo("tsc no terminó (se pasó de tiempo): la puerta…"), "medio:tiempo")
         self.assertEqual(L.clase_de_fallo("worktree: no se pudo preparar worktree; rama conservada"), "medio:worktree")
         self.assertEqual(L.clase_de_fallo("429 sin cupo del día"), "medio:proveedor")
+        # (AV1011G-d1) Sin pytest en el python de la puerta: falta algo en la máquina, no es de la tarea.
+        self.assertEqual(L.clase_de_fallo("sin pytest instalado: no se pudieron correr 2 pruebas (a.py)"), "medio:dependencias")
+        self.assertEqual(L.clase_de_fallo("python3: No module named pytest"), "medio:dependencias")
+        self.assertEqual(L.clase_de_fallo("FAIL: test_pytest_algo (m.T)"), "tarea:pruebas")  # un test que nombra pytest sigue siendo de la tarea
         self.assertEqual(L.clase_de_fallo("tsc sigue con 2 errores; rama conservada"), "tarea:tsc")
         self.assertEqual(L.clase_de_fallo("ningún modelo tocó archivos"), "tarea:sin_cambios")
         self.assertEqual(L.clase_de_fallo(""), "tarea:otro")
