@@ -45,11 +45,11 @@ const interfacesBat = (): string[] => [seccion("interface", "bat0", [["proto", "
   ["bridge_loop_avoidance", "1"], ["distributed_arp_table", "1"]]),
   seccion("interface", "bat0_hardif_mesh", [["proto", "batadv_hardif"], ["master", "bat0"], ["mtu", "1536"]])];
 
-/** Genera la configuración completa de la malla incluyendo la puerta de internet opcional (§8.1).
- * Si no se especifica tipo de puerta, genera la configuración básica de malla sin gateway. */
+/** Genera la configuración completa de la malla (§8). Incluye la puerta de internet opcional (§8.1)
+ * si la configuración incluye los parámetros de puerta. */
 export function uciMalla(e: CfgUciMalla): UciMalla {
   const country = validar(e), { troncal: t, cliente: c } = e;
-  const unaRadio = t.banda === "2g"; // troncal en 2,4 GHz = una sola radio: el AP compara su canal
+  const unaRadio = t.banda === "2g"; // troncal en 2,4 GHz = una sola radio: el AP comparte su canal
   // txpower es potencia en el conector: igualarla a la PIRE legal supone una antena de 0 dBi.
   const radios = [seccion("wifi-device", "radio_troncal", [["type", "mac80211"], ["band", t.banda], ["channel", t.canal],
     ["htmode", htmode(t.banda, t.anchoMhz)], ["country", country], ["txpower", Math.floor(t.pireDbm)]])];
@@ -59,27 +59,18 @@ export function uciMalla(e: CfgUciMalla): UciMalla {
     ["encryption", "sae"], ["key", e.claveMalla], ["mesh_fwding", "0"], ["network", "bat0_hardif_mesh"]]);
   const ap = seccion("wifi-iface", "ap0", [["device", unaRadio ? "radio_troncal" : "radio_cliente"], ["mode", "ap"],
     ["ssid", c.ssid], ["encryption", "sae-mixed"], ["key", c.clave], ["network", "lan"]]);
-  const networkBase = [...interfacesBat(), seccion("device", "br_lan", [["name", "br-lan"], ["type", "bridge"]], ["bat0"])];
-  // Integra la puerta de internet si el tipo de puerta está definido
-  let network = networkBase;
-  if (e.tipo) {
-    const cfgPuerta = {tipo: e.tipo, apn: e.apn, protocolo: e.protocolo, dispositivo: e.dispositivo, ssidExterno: e.ssidExterno, claveExterna: e.claveExterna, bajadaKbps: e.bajadaKbps, subidaKbps: e.subidaKbps};
-    const resultadoPuerta = uciPuerta(cfgPuerta);
-    network = `${networkBase}\n\n${resultadoPuerta.network}`;
-  } else {
-    network = networkBase.join("\n");
-  }
+  const network = [...interfacesBat(), seccion("device", "br_lan", [["name", "br-lan"], ["type", "bridge"]], ["bat0"])];
   const wireless = `${[...radios, malla, ap].join("\n\n")}\n`;
-  return { wireless, network: `${network}\n` };
+  return { wireless, network: `${network.join("\n\n")}\n` };
 }
 
-/** `uciClientePuerta()` configura bat0 en modo client.
+/** `uciClientePuerta()` configura bat0 en modo client (§8.1).
  * En BATMAN_V, `gw_sel_class` es la mejora mínima en kbit/s para cambiar de puerta. */
 export const uciClientePuerta = (): string =>
   seccion('interface', 'bat0', [['proto', 'batadv'], ['gw_mode', 'client'], ['gw_sel_class', '5000']]) +
   '\n# en BATMAN_V, gw_sel_class es la mejora mínima en kbit/s para cambiar de puerta\n';
 
-/** `guionGuardianTope(e)` genera el guion sh para /etc/starseed/guardian-puerta.sh + línea de cron cada 5 min.
+/** `guionGuardianTope(e)` genera el guion sh para /etc/starseed/guardian-puerta.sh + línea de cron cada 5 min (§8.1).
  * Suma rx+tx de /sys/class/net/<if>/statistics, guarda el último bruto y acumula por mes en /etc/starseed/uso-puerta-AAAAMM
  * (si el bruto baja, fue un reinicio: suma el bruto); al llegar a tope × (1 − reserva) hace `batctl gw_mode client`
  * y lo anota con `logger`; con el mes nuevo vuelve a `batctl gw_mode server <bw>`. Ninguna clave en comentarios. */
@@ -141,7 +132,7 @@ uci -q delete network.bat0; uci -q delete network.bat0_hardif_mesh
 uci -q del_list "network.$B.ports=bat0"; uci add_list "network.$B.ports=bat0"; uci commit network
 cat >> /etc/config/network <<'STARSEED_FIN'
 
-${uciMalla(cfg).network}
+${interfacesBat().join("\n\n")}
 STARSEED_FIN
 # 5. Vuelta atrás: a mano cuando quieras, y sola en 5 minutos si no confirmas (como «aplicar» de LuCI)
 printf '%s\n' 'cp /etc/config/wireless.antes-starseed /etc/config/wireless' 'cp /etc/config/network.antes-starseed /etc/config/network' \
