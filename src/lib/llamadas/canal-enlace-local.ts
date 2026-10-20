@@ -3,6 +3,8 @@
 import type { EnlaceLocalVivo } from "@/lib/malla/registro-enlaces-locales";
 import type { MetaPresencia, SenalLlamada } from "./tipos";
 import type { ConexionCanal, EstadoCanal } from "./senalizacion";
+import { sanearMeta } from "./presencia";
+import { sanearSenal } from "./negociacion";
 
 const REPETICION_MS = 10_000;
 const CADUCIDAD_MS = 30_000;
@@ -12,9 +14,24 @@ type MensajeCanal =
     | { t: "llc.senal"; s: string; senal: SenalLlamada }
     | { t: "llc.fuera"; s: string; id: string };
 
+/** Lo que llega por el enlace es DATO DEL OTRO APARATO: se lee sin fiarse de ningún campo. */
+interface MensajeEntrante {
+    t?: unknown;
+    s?: unknown;
+    meta?: unknown;
+    senal?: unknown;
+    id?: unknown;
+}
+
+/** Id de par usable: texto no vacío y de largo razonable (el mismo criterio que `sanearSenal`). */
+function idDePar(v: unknown): v is string {
+    return typeof v === "string" && v.length > 0 && v.length <= 120;
+}
+
 /**
  * Canal de señalización de llamadas sobre un enlace local punto a punto.
- * Nunca lanza: todo envío o parseo va protegido.
+ * Nunca lanza: todo envío o parseo va protegido. Lo que manda el otro aparato (presencia y
+ * señales) se sanea igual que en el canal de Supabase antes de entregarlo al motor.
  */
 export function abrirCanalLlamadaPorEnlace(
     enlace: EnlaceLocalVivo,
@@ -81,17 +98,30 @@ export function abrirCanalLlamadaPorEnlace(
     const baja = enlace.alMensaje((data) => {
         if (cerrado || typeof data !== "string") return;
         try {
-            const msg = JSON.parse(data) as MensajeCanal;
+            const msg = JSON.parse(data) as MensajeEntrante | null;
             if (!msg || typeof msg.t !== "string" || !msg.t.startsWith("llc.") || msg.s !== sesionId) return;
             if (msg.t === "llc.pres") {
-                metaOtro = msg.meta;
+                // Nadie puede presentarse con un id inválido ni con el mío (se haría pasar por mí).
+                const idOtro = (msg.meta as { id?: unknown } | null | undefined)?.id;
+                if (!idDePar(idOtro) || idOtro === clave || idOtro === miMeta?.id) return;
+                const limpia = sanearMeta(msg.meta, idOtro);
+                if (!limpia) return;
+                const eraNuevo = !metaOtro || metaOtro.id !== limpia.id;
+                metaOtro = limpia;
                 recibidaOtro = Date.now();
                 avisarPresencia();
+                // Quien llega tarde ve a quien ya estaba al instante, sin esperar al latido de 10 s.
+                // Una respuesta por cada presencia nueva: no hay rebote (el otro ya nos conoce).
+                if (eraNuevo && miMeta) mandar({ t: "llc.pres", s: sesionId, meta: miMeta });
             } else if (msg.t === "llc.senal") {
+                const senal = sanearSenal(msg.senal);
+                if (!senal) return;
                 oyentesSenal.forEach((cb) => {
-                    try { cb(msg.senal); } catch { /* oyente defectuoso */ }
+                    try { cb(senal); } catch { /* oyente defectuoso */ }
                 });
             } else if (msg.t === "llc.fuera") {
+                // Solo retira a quien se va de verdad: una pestaña vieja no borra a la nueva.
+                if (!metaOtro || msg.id !== metaOtro.id) return;
                 metaOtro = null;
                 avisarPresencia();
             }

@@ -98,10 +98,28 @@ llamada. Con el Wi-Fi sin salida a internet (o el punto de acceso de un móvil s
 
 ## 6 · Pendiente (con motivo)
 
-- **Llamadas del chat por el enlace local**: el motor de llamadas (`src/lib/llamadas/motor.ts`) señaliza
-  por canales privados de Supabase Realtime y el timbre nace de un mensaje del chat; sin internet ninguna
-  de las dos cosas existe. Hace falta una `ConexionCanal` sobre el transporte universal y un timbre por
-  el enlace local. Hoy, sin internet, se llama desde «Vincular sin internet» (llamada directa real).
+- **Llamadas del chat por el enlace local** (el motor ya puede; falta cablearlo): `MotorLlamada`
+  (`src/lib/llamadas/motor.ts`) admite la opción `canalesDirectos: () => ConexionCanal[]`. Cada enlace
+  local abierto es un canal más (marca `directo`; hoy el único `ConexionCanal` que no es de Supabase es
+  `abrirCanalLlamadaPorEnlace`, en `canal-enlace-local.ts`, tema `directo:<sesionId>`). Qué hace y qué no:
+  - Con enlaces y sin `tema`, **no abre ningún canal de Supabase**; con `tema`, conviven. Sin ninguno de
+    los dos, `entrar()` falla con un motivo que lo dice («Vincula un aparato desde “Vincular sin
+    internet” o revisa tu conexión»). Sin la opción, el motor se comporta exactamente como antes.
+  - Hasta 7 enlaces (`MAX_DIRECTOS`; el resto se suelta). El tope de canales **privados** (`MAX_CANALES`)
+    no cuenta los directos ni los expulsa. Si cae el único enlace avisa «El enlace directo … se ha caído»;
+    si falla ICE por un enlace dice que los dos aparatos tienen que estar en la misma red.
+  - **Solo misma red local**: el llamador debe pasar `iceServers: []` y no hay TURN. Con varios enlaces la
+    topología es **en estrella** (quien tiene los enlaces ve a todos; los extremos no se ven entre sí).
+  - La presencia y las señales que llegan por el enlace se **sanean** igual que en Supabase (`sanearMeta`,
+    `sanearSenal`): id de par válido y distinto del propio, avatar solo https/ruta/data de imagen, y un
+    «fuera» solo retira a quien de verdad se va. Quien llega tarde recibe la presencia del que ya estaba
+    al instante (no espera el latido de 10 s).
+  - **Falta** (otra tarea, ≥ 3 archivos de interfaz y store): que `acciones.ts` pase `canalesDirectos`
+    (`enlacesLocalesVivos()` + `abrirCanalLlamadaPorEnlace`) cuando no haya red hacia Supabase, un
+    identificador de sala que no exija el uuid de `temaLlamada`, el timbre por el enlace local y el
+    texto «por enlace directo (misma red)» en la ventana de la llamada. Hasta entonces, sin internet,
+    se llama desde «Vincular sin internet» (llamada directa 1:1 real, que seguirá conviviendo para el
+    1:1 simple).
 - **Estaciones y capas de Astraura por el transporte universal**: `src/lib/estaciones/malla.ts` y
   `astraura-por-malla.ts`/`ia-por-malla.ts` siguen con su camino; tienen que pasar a `enviarMensaje` /
   `alRecibirMensaje` (canales `estacion`, `astraura`). Otra área trabaja hoy en estaciones.

@@ -15,6 +15,11 @@
  *    presencia es la unión de todos y cada señal va por el canal donde está su destinatario.
  *    Si el servidor no deja entrar en ningún canal privado, la llamada termina diciéndolo
  *    (nunca se cae a un canal público);
+ *  · enlaces directos (opcional, `canalesDirectos`): señalización por enlaces locales ya
+ *    abiertos con otros aparatos, sin Supabase. Cada enlace es un canal más (con la marca
+ *    `directo`) y conviven con los privados. Solo conectan aparatos de la misma red local
+ *    (sin servidores ICE), y con varios enlaces la topología es en estrella: los extremos no
+ *    se ven entre sí. Sin la opción, el comportamiento es exactamente el de siempre;
  *  · hablante activo (AnalyserNode + histéresis) y calidad por par (getStats cada 4 s).
  *
  * Imperativo y sin React: la interfaz se suscribe con `suscribir()` y lee `estado()` (una foto
@@ -53,6 +58,12 @@ export interface OpcionesMotor {
      * llamada, o cuando otro participante avisa de mudanza). Sin él no hay mudanzas.
      */
     resolverTema?: () => Promise<string | null>;
+    /**
+     * Enlaces directos con otros aparatos (sin Supabase): una `ConexionCanal` por enlace, que el
+     * motor pide UNA vez al entrar y suelta al colgar. Con ellos y sin `tema`, no se abre el
+     * canal de Supabase. Más de `MAX_PARTICIPANTES - 1` no caben: el excedente se suelta.
+     */
+    canalesDirectos?: () => ConexionCanal[];
     /** Llamadas 1:1: al irse la otra persona, cuelga solo. */
     colgarAlQuedarSolo?: boolean;
     intervaloStatsMs?: number;
@@ -78,10 +89,15 @@ interface CanalMotor {
     tema: string;
     presencia: MetaPresencia[];
     bajas: (() => void)[];
+    /** true si va por un enlace local con otro aparato (sin Supabase). */
+    directo: boolean;
 }
 
-/** Como mucho estos canales a la vez (miembros + enlace público + uno en mudanza). */
+/** Como mucho estos canales PRIVADOS a la vez (miembros + enlace público + uno en mudanza). */
 const MAX_CANALES = 3;
+
+/** Cada enlace directo trae como mucho a una persona: con 7 enlaces ya estamos los 8. */
+const MAX_DIRECTOS = MAX_PARTICIPANTES - 1;
 
 interface Par {
     id: string;
@@ -571,7 +587,53 @@ export class MotorLlamada {
     private abrirCanal(tema: string | null): CanalMotor | null {
         const conn = abrirCanalLlamada(this.sesionId, { clave: this.miId, tema });
         if (!conn) return null;
-        const c: CanalMotor = { conn, tema: conn.tema ?? tema ?? `llamada:${this.sesionId}`, presencia: [], bajas: [] };
+        return this.registrarCanal(conn, conn.tema ?? tema ?? `llamada:${this.sesionId}`, false);
+    }
+
+    /**
+     * Abre los enlaces directos que pide `canalesDirectos`. Una fábrica rota no tumba la
+     * llamada (se sigue con las demás) y lo que pase de `MAX_DIRECTOS` se suelta sin usar.
+     */
+    private abrirDirectos(): CanalMotor[] {
+        const fabrica = this.opc.canalesDirectos;
+        if (!fabrica) return [];
+        let conexiones: ConexionCanal[] = [];
+        try {
+            const r = fabrica();
+            conexiones = Array.isArray(r) ? r.filter((x): x is ConexionCanal => !!x) : [];
+        } catch {
+            conexiones = [];
+        }
+        for (const sobra of conexiones.slice(MAX_DIRECTOS)) {
+            try {
+                sobra.soltar();
+            } catch {
+                /* noop */
+            }
+        }
+        const abiertos: CanalMotor[] = [];
+        for (const conn of conexiones.slice(0, MAX_DIRECTOS)) {
+            try {
+                abiertos.push(this.registrarCanal(conn, conn.tema || `directo:${this.sesionId}`, true));
+            } catch {
+                // Falló a medias al engancharlo: se quita del motor y se suelta el enlace.
+                const medio = this.canales.find((x) => x.conn === conn);
+                if (medio) this.soltarCanal(medio);
+                else {
+                    try {
+                        conn.soltar();
+                    } catch {
+                        /* noop */
+                    }
+                }
+            }
+        }
+        return abiertos;
+    }
+
+    /** Engancha un canal (privado o directo) al motor: presencia, señales, suscripción y estado. */
+    private registrarCanal(conn: ConexionCanal, tema: string, directo: boolean): CanalMotor {
+        const c: CanalMotor = { conn, tema, presencia: [], bajas: [], directo };
         this.canales.push(c);
         c.bajas.push(
             conn.onPresencia((p) => {
@@ -591,6 +653,17 @@ export class MotorLlamada {
         conn.publicar(this.meta());
         if (typeof conn.estado === "function" && conn.estado() === "denegado") queueMicrotask(() => this.alDenegarCanal(c));
         return c;
+    }
+
+    /** ¿Todos los canales abiertos son enlaces directos? (sin ninguno no hay «solo directos»). */
+    private soloDirectos(): boolean {
+        return this.canales.length > 0 && this.canales.every((c) => c.directo);
+    }
+
+    /** ¿La ruta hacia esta persona es un enlace directo? */
+    private viaDirecta(id: string): boolean {
+        const c = this.rutaPar.get(id) ?? this.canales.find((x) => x.presencia.some((p) => p.id === id));
+        return !!c?.directo;
     }
 
     private soltarCanal(c: CanalMotor) {
@@ -618,21 +691,29 @@ export class MotorLlamada {
         if (ok) {
             c.conn.publicar(this.meta());
             const fase = this.e.fase === "conectando" || this.e.fase === "preparando" ? (this.presentes.length ? "en-curso" : "esperando") : this.e.fase;
-            this.set({ fase, aviso: this.e.aviso === AVISO_RECONEXION ? null : this.e.aviso });
+            const avisoDeConexion = this.e.aviso === AVISO_RECONEXION || this.e.aviso === AVISO_ENLACE_CAIDO;
+            this.set({ fase, aviso: avisoDeConexion ? null : this.e.aviso });
         } else if (!this.canales.some((x) => x.conn.suscrito())) {
-            this.set({ aviso: AVISO_RECONEXION });
+            this.set({ aviso: this.soloDirectos() ? AVISO_ENLACE_CAIDO : AVISO_RECONEXION });
         }
     }
 
-    /** El servidor no deja entrar en un canal privado. Sin ninguno que valga, se termina y se dice. */
+    /**
+     * El servidor no deja entrar en un canal privado (o un enlace directo se niega). Sin ninguno
+     * que valga, se termina y se dice; nunca se cae a un canal público.
+     */
     private alDenegarCanal(c: CanalMotor) {
         if (this.cerrado || !this.canales.includes(c)) return;
         this.soltarCanal(c);
         if (!this.canales.length) {
-            this.terminar("error", MENSAJE_CANAL_PRIVADO);
+            this.terminar("error", c.directo ? MENSAJE_ENLACE_RECHAZADO : MENSAJE_CANAL_PRIVADO);
             return;
         }
-        this.set({ aviso: "Uno de los canales de esta llamada ya no admite entrar (quizá se revocó el enlace público). Seguís conectados por el otro." });
+        this.set({
+            aviso: c.directo
+                ? "Un enlace directo ya no admite esta llamada. Seguís conectados por el otro canal."
+                : "Uno de los canales de esta llamada ya no admite entrar (quizá se revocó el enlace público). Seguís conectados por el otro.",
+        });
         this.alCambiarPresencia(this.presenciaUnida());
     }
 
@@ -656,7 +737,9 @@ export class MotorLlamada {
             this.temaActual = tema;
             if (avisar) this.enviar({ tipo: "mudanza", de: this.miId });
             if (this.canales.some((c) => c.tema === tema)) return true;
-            if (this.canales.length >= MAX_CANALES) this.soltarCanal(this.canales[0]);
+            // El límite es de canales PRIVADOS: un enlace directo nunca se suelta por esto.
+            const privados = this.canales.filter((c) => !c.directo);
+            if (privados.length >= MAX_CANALES) this.soltarCanal(privados[0]);
             return !!this.abrirCanal(tema);
         })();
         this.revisando = p;
@@ -666,18 +749,23 @@ export class MotorLlamada {
         return p;
     }
 
-    /** Entra en el canal de la llamada (tras `prepararMedios`). */
+    /**
+     * Entra en la llamada (tras `prepararMedios`): abre los enlaces directos, si los hay, y el
+     * canal privado de Supabase salvo que haya directos y ningún `tema` (sin servidor).
+     */
     entrar(): boolean {
         if (this.cerrado) return false;
         if (this.canales.length) return true;
         this.unido = Date.now();
-        const c = this.abrirCanal(this.opc.tema ?? null);
-        if (!c) {
-            this.set({ fase: "error", motivoFin: "No se pudo conectar con el servidor de la llamada. Revisa tu conexión y vuelve a intentarlo." });
+        const directos = this.abrirDirectos();
+        const quierePrivado = directos.length === 0 || !!this.opc.tema;
+        const privado = quierePrivado ? this.abrirCanal(this.opc.tema ?? null) : null;
+        if (!this.canales.length) {
+            this.set({ fase: "error", motivoFin: this.opc.canalesDirectos ? MENSAJE_SIN_ENLACE : MENSAJE_SIN_SERVIDOR });
             return false;
         }
-        if (!this.temaActual) this.temaActual = c.tema;
-        this.set({ fase: c.conn.suscrito() ? "esperando" : "conectando" });
+        if (privado && !this.temaActual) this.temaActual = privado.tema;
+        this.set({ fase: this.canales.some((c) => c.conn.suscrito()) ? "esperando" : "conectando" });
         this.arrancarTemporizadores();
         return true;
     }
@@ -933,9 +1021,11 @@ export class MotorLlamada {
                 par.conexion = "fallida";
                 const nombre = this.presentes.find((p) => p.id === par.id)?.nombre ?? "una persona";
                 this.set({
-                    aviso: this.conTurn
-                        ? `No se pudo conectar con ${nombre}. Probad a salir y volver a entrar.`
-                        : `No se pudo conectar con ${nombre}. ${AVISO_SIN_TURN}`,
+                    aviso: this.viaDirecta(par.id)
+                        ? `No se pudo conectar con ${nombre} por el enlace directo. Los dos aparatos tienen que estar en la misma red para llamar sin servidor.`
+                        : this.conTurn
+                          ? `No se pudo conectar con ${nombre}. Probad a salir y volver a entrar.`
+                          : `No se pudo conectar con ${nombre}. ${AVISO_SIN_TURN}`,
                 });
                 break;
             }
@@ -1184,3 +1274,9 @@ export class MotorLlamada {
 }
 
 const AVISO_RECONEXION = "Reconectando con el servidor de la llamada…";
+const AVISO_ENLACE_CAIDO = "El enlace directo con el otro aparato se ha caído. Esperando a que vuelva…";
+const MENSAJE_SIN_SERVIDOR = "No se pudo conectar con el servidor de la llamada. Revisa tu conexión y vuelve a intentarlo.";
+const MENSAJE_SIN_ENLACE =
+    "No hay ningún enlace abierto con otro aparato ni conexión con el servidor de la llamada. " +
+    "Vincula un aparato desde «Vincular sin internet» o revisa tu conexión.";
+const MENSAJE_ENLACE_RECHAZADO = "El enlace directo con el otro aparato ya no admite esta llamada. Vuelve a vincular el aparato e inténtalo de nuevo.";

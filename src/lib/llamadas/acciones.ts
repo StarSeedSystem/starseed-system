@@ -27,8 +27,6 @@ import { obtenerIceServidores } from "@/lib/llamadas/ice";
 import { temaLlamada } from "@/lib/llamadas/temas";
 import { olvidarTemaSesion, resolverTemaSesion } from "@/lib/llamadas/resolver-tema";
 import { sanearNombre, urlAvatarSegura } from "@/lib/llamadas/presencia";
-import { enlacesLocalesVivos } from "@/lib/malla/registro-enlaces-locales";
-import { abrirCanalLlamadaPorEnlace } from "@/lib/llamadas/canal-enlace-local";
 import {
     agregarTimbre,
     leerLlamadas,
@@ -86,13 +84,6 @@ function mensajeCrear(error: string | null): string {
     if (clase === "no-desplegada") return MENSAJE_SESION["no-desplegada"].titulo + ". " + MENSAJE_SESION["no-desplegada"].detalle;
     if (clase === "prohibida") return "No tienes permiso para abrir una llamada en este chat.";
     return "No se pudo abrir la llamada. Revisa tu conexión y vuelve a intentarlo.";
-}
-
-/** Devuelve un array de canales directos para los enlaces locales vivos. */
-function canalesDirectosPara(sesionId: string, yo: Identidad) {
-    return enlacesLocalesVivos().map(enlace =>
-        abrirCanalLlamadaPorEnlace(enlace, sesionId, clavePestana(yo.base))
-    );
 }
 
 /** Empieza una llamada en un chat: sesión → aviso en el chat → ventana de llamada. */
