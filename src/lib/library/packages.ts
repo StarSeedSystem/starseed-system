@@ -625,6 +625,144 @@ export const STARSEED_CORE_REPO: LibraryRepo = {
  *     enlace en la biblioteca y lo abre; honesto sobre que es servicio/servidor
  *     o repo de referencia, no algo que finjamos correr en el navegador.
  */
+
+/**
+ * Builds fondos-shaders repo: el wrapper repositorio de https://github.com/shader-effects-inc/shaders
+ * con la ficha de "fondos-shaders" (kind repo) y 4 sets oficiales StarSeed de diseño de fondos.
+ */
+function buildFondosShadersPackages(): LibraryPackage[] {
+  const fondosShaders: LibraryPackage = {
+    id: "fondos-shaders",
+    kind: "repo",
+    name: "Fondos con Shaders",
+    description: "más de 200 efectos WebGPU para fondos por capas; editor, presets y secciones de shaders.com no incluidos",
+    icon: "Layers",
+    tags: ["shaders", "fondos", "webgpu", "efectos", "libre"],
+    version: "1.0.0",
+    author: "shader-effects-inc",
+    sourceRepoId: "fondos-shaders",
+    free: true,
+    payload: {
+      categoria: "fondos",
+      claseLicencia: "libre",
+      githubRepo: "shader-effects-inc/shaders",
+    },
+  };
+
+  const disenoSets: LibraryPackage[] = [
+    {
+      id: "diseno-cosmos-violeta",
+      kind: "design",
+      name: "Cosmos violeta",
+      description: "Degradado profundo de violeta estelar con gradiente de centro brillante y efecto de nebula sutil para un fondo cósmico inmersivo.",
+      icon: "Sparkles",
+      tags: ["diseno", "cosmos", "violeta", "estelar", "nebula"],
+      version: "1.0.0",
+      author: "StarSeed",
+      sourceRepoId: "fondos-shaders",
+      free: true,
+      payload: {
+        materialClass: "ss-cosmic-deep",
+        setFondo: {
+          components: [
+            { type: "MeshGradient", id: "bg-gradient", props: { colors: ["#4a0e6a", "#2d1b69", "#1a237e"], direction: "radial" }, children: [] },
+            { type: "Aurora", id: "aurora-violeta", props: { intensity: 0.7, speed: 0.5 }, children: [] },
+            { type: "Nebula", id: "nebula-fondo", props: { density: 0.3, speed: 0.2 }, children: [] },
+            { type: "SolidColor", id: "color-base", props: { color: "#0a0a0a", opacity: 1.0 }, children: [] },
+          ],
+          structureVersion: 1,
+        },
+      },
+    },
+    {
+      id: "diseno-aurora-suave",
+      kind: "design",
+      name: "Aurora suave",
+      description: "Transición de gradiente suave de verde azulado a índigo con textura sutil de aurora boreal para un ambiente relajante y calmado.",
+      icon: "Activity",
+      tags: ["diseno", "aurora", "suave", "natural", "verde-azulado"],
+      version: "1.0.0",
+      author: "StarSeed",
+      sourceRepoId: "fondos-shaders",
+      free: true,
+      payload: {
+        materialClass: "ss-aurora-soft",
+        setFondo: {
+          components: [
+            { type: "MeshGradient", id: "bg-gradient", props: { colors: ["#00b4d8", "#0077b6", "#03045e"] }, children: [] },
+            { type: "Aurora", id: "aurora-principal", props: { intensity: 0.5, speed: 0.3 }, children: [] },
+            { type: "LinearGradient", id: "gradiente-fondo", props: { direction: "diagonal", opacity: 0.8 }, children: [] },
+            { type: "FilmGrain", id: "grano-textura", props: { intensity: 0.1 }, children: [] },
+          ],
+          structureVersion: 1,
+        },
+      },
+    },
+    {
+      id: "diseno-vidrio-cuarzo",
+      kind: "design",
+      name: "Vidrio de cuarzo",
+      description: "Fondo translúcido de vidrio de cuarzo con efecto de refracción de luz y reflectividad especular para una estética moderna y elegante.",
+      icon: "Gem",
+      tags: ["diseno", "vidrio", "cuarzo", "translúcido", "moderno"],
+      version: "1.0.0",
+      author: "StarSeed",
+      sourceRepoId: "fondos-shaders",
+      free: true,
+      payload: {
+        materialClass: "ss-quartz-glass",
+        setFondo: {
+          components: [
+            { type: "MeshGradient", id: "gradiente-cuarzo", props: { colors: ["#f0f8ff", "#e0f7fa", "#b2dfdb"] }, children: [] },
+            { type: "Glass", id: "vidrio-efecto", props: { reflectivity: 0.7, refraction: 0.3 }, children: [] },
+            { type: "LinearGradient", id: "gradiente-fondo", props: { direction: "vertical", opacity: 0.9 }, children: [] },
+            { type: "SolidColor", id: "sombra-base", props: { color: "#1a1a1a", opacity: 0.5 }, children: [] },
+          ],
+          structureVersion: 1,
+        },
+      },
+    },
+    {
+      id: "diseno-semilla-dorada",
+      kind: "design",
+      name: "Semilla dorada",
+      description: "Base cálida de oro brillante con gradiente dorado irisado y efecto de partículas para una vibra lujosa y prospera.",
+      icon: "Gem",
+      tags: ["diseno", "oro", "brillante", "irisado", "prosperidad"],
+      version: "1.0.0",
+      author: "StarSeed",
+      sourceRepoId: "fondos-shaders",
+      free: true,
+      payload: {
+        materialClass: "ss-golden-seed",
+        setFondo: {
+          components: [
+            { type: "MeshGradient", id: "gradiente-oro", props: { colors: ["#ffd700", "#ffb300", "#ff8f00"] }, children: [] },
+            { type: "FilmGrain", id: "textura-particulas", props: { intensity: 0.3 }, children: [] },
+            { type: "SolidColor", id: "brillo-base", props: { color: "#1a1a1a", opacity: 0.8 }, children: [] },
+            { type: "LinearGradient", id: "brillo-secundario", props: { direction: "horizontal", opacity: 0.5 }, children: [] },
+          ],
+          structureVersion: 1,
+        },
+      },
+    },
+  ];
+
+  return [fondosShaders, ...disenoSets];
+}
+
+/* ═══════════════════ REPO BUILTIN «fondos-shaders» ═══════════════════ */
+/**
+ * Fondos con Shaders: el repo wrapper de los efectos WebGPU externos (shader-effects-inc/shaders)
+ * con la ficha de Shaders (kind repo) y 4 sets oficiales StarSeed de diseño de fondos (kind design)
+ * para su instalación desde la Biblioteca.
+ */
+export const FONDO_SHADER_REPO: LibraryRepo = {
+  id: "fondos-shaders",
+  name: "Fondos con Shaders",
+  builtin: true,
+  packages: buildFondosShadersPackages(),
+};
 const LABS_PACKAGES: LibraryPackage[] = [
   /* ── SmolLM3 en el navegador (WebGPU · sin clave) ── */
   {
@@ -2069,7 +2207,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
@@ -2097,21 +2235,22 @@ export async function addRepoByUrl(url: string): Promise<InstallResult & { repo?
     } finally {
       clearTimeout(timer);
     }
-    const repo = validateRepoShape(data, clean);
-    if (!repo) {
-      return { ok: false, message: "El JSON no tiene el shape LibraryRepo (id, name, packages[])." };
-    }
-    if (
-      repo.id === STARSEED_CORE_REPO.id ||
-      repo.id === STARSEED_LABS_REPO.id ||
-      repo.id === STARSEED_IA_TOOLS_REPO.id ||
-      repo.id === STARSEED_AGENTS_REPO.id ||
-      repo.id === STARSEED_THEMES_REPO.id ||
-      repo.id === STARSEED_DESIGN_ELEMENTS_REPO.id ||
-      repo.id === MINE_REPO_ID
-    ) {
-      return { ok: false, message: `Ese id de repo está reservado (${repo.id}).` };
-    }
+  const repo = validateRepoShape(data, clean);
+  if (!repo) {
+    return { ok: false, message: "El JSON no tiene el shape LibraryRepo (id, name, packages[])." };
+  }
+  if (
+    repo.id === STARSEED_CORE_REPO.id ||
+    repo.id === STARSEED_LABS_REPO.id ||
+    repo.id === STARSEED_IA_TOOLS_REPO.id ||
+    repo.id === STARSEED_AGENTS_REPO.id ||
+    repo.id === STARSEED_THEMES_REPO.id ||
+    repo.id === STARSEED_DESIGN_ELEMENTS_REPO.id ||
+    repo.id === MINE_REPO_ID ||
+    repo.id === FONDO_SHADER_REPO.id
+  ) {
+    return { ok: false, message: `Ese id de repo está reservado (${repo.id}).` };
+  }
     const others = readExternalRepos().filter((r) => r.id !== repo.id);
     writeJson(REPOS_KEY, [...others, repo]);
     emitLibraryEvent();
