@@ -4505,3 +4505,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `VST1018C` — los tipos no compilan: 1 errores tsc (rama ola/VST1018C conservada)
 - `RTS1010-MGR3d-d1c` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTS1010-MGR3d-d1c conservada)
+
+## 2026-10-20 11:18 · mg-oracle-1020-0323
+
+**Lo que se pidió.** CI en rojo
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1014-C715AA-d1d` — los tipos no compilan: 1 errores tsc (rama ola/MGP1014-C715AA-d1d conservada)
+- `RTRTS1010-EV-ORACLE-1acbbbbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTS1010-EV-ORACLE-1acbbbbbbbbb conservada
+- `RTSUC1018Eb` — no escribió nada
