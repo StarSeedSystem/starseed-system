@@ -8,36 +8,41 @@ const nativoFetch = globalThis.fetch;
 describe("TunelMetaGenesisEstado", () => {
   let llamadas: { url: string; init?: RequestInit }[] = [];
 
-  beforeEach(() => {
-    llamadas.length = 0;
-    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      llamadas.push({ url, init });
-      
-      if (url.includes("/api/mando/tunel-metagenesis")) {
-        // Simular respuesta del API
+    beforeEach(() => {
+      llamadas.length = 0;
+      // Ensure document is visible for the component to fetch initially
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'visible',
+        configurable: true
+      });
+      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        llamadas.push({ url, init });
+        
+        if (url.includes("/api/mando/tunel-metagenesis")) {
+          // Simular respuesta del API
+          return {
+            ok: true,
+            json: async () => ({
+              cargado: true,
+              pid: 12345,
+              ultimasLineas: [
+                "Línea 1 https://ejemplo.trycloudflare.com",
+                "Línea 2 sin URL",
+                "Línea 3 https://otro.trycloudflare.com/path"
+              ],
+              medidoEn: new Date().toISOString()
+            })
+          } as Response;
+        }
+        
+        // Respuesta por defecto para otros endpoints
         return {
           ok: true,
-          json: async () => ({
-            cargado: true,
-            pid: 12345,
-            ultimasLineas: [
-              "Línea 1 https://ejemplo.trycloudflare.com",
-              "Línea 2 sin URL",
-              "Línea 3 https://otro.trycloudflare.com/path"
-            ],
-            medidoEn: new Date().toISOString()
-          })
+          json: async () => ({})
         } as Response;
-      }
-      
-      // Respuesta por defecto para otros endpoints
-      return {
-        ok: true,
-        json: async () => ({})
-      } as Response;
-    };
-  });
+      };
+    });
 
   afterEach(() => {
     cleanup();
@@ -129,33 +134,64 @@ describe("TunelMetaGenesisEstado", () => {
     vi.useRealTimers();
   });
 
-  it("no realiza fetch cuando la página no está visible", async () => {
-    vi.useFakeTimers();
-    
-    // Simular que la página está oculta
-    Object.defineProperty(document, 'visibilityState', {
-      value: 'hidden',
-      configurable: true
+    it("no realiza fetch cuando la página no está visible", async () => {
+      vi.useFakeTimers();
+      
+      // Simular que la página está oculta
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'hidden',
+        configurable: true
+      });
+      
+      render(<TunelMetaGenesisEstado />);
+      
+      // Esperar el efecto inicial
+      await act(async () => {
+        await Promise.resolve();
+      });
+      
+      let llamadasIniciales = llamadas.length;
+      
+      // Avanzar 60 segundos
+      await act(async () => {
+        vi.advanceTimersByTime(60_000);
+      });
+      
+      // Debe seguir teniendo el mismo número de llamadas (no se hizo fetch por estar oculto)
+      let llamadasDespuesEspera = llamadas.length;
+      expect(llamadasDespuesEspera).toBe(llamadasIniciales);
+      
+      vi.useRealTimers();
     });
-    
-    render(<TunelMetaGenesisEstado />);
-    
-    // Esperar el efecto inicial
-    await act(async () => {
-      await Promise.resolve();
+
+    it("muestra el encabezado «Últimas líneas» solo cuando hay líneas y conserva la ruta tras [túnel]", async () => {
+      // Con el túnel activo y líneas (usando el mock predeterminado de beforeEach)
+      render(<TunelMetaGenesisEstado />);
+      await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
+      // El encabezado aparece
+      expect(screen.getByText(/Últimas líneas:/i)).toBeInTheDocument();
+      // Se muestra una línea con path (y el dominio reemplazado)
+      expect(await screen.findByText(/Línea 3 \[túnel\]\/path/i)).toBeInTheDocument();
+
+      // Cambiar el mock para simular servicio parado y sin líneas
+      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        llamadas.push({ url: String(input), init });
+        return {
+          ok: true,
+          json: async () => ({
+            cargado: false,
+            pid: null,
+            ultimasLineas: [],
+            medidoEn: new Date().toISOString()
+          })
+        } as Response;
+      };
+
+      // Limpiar y volver a renderizar con el nuevo mock
+      cleanup();
+      render(<TunelMetaGenesisEstado />);
+      await screen.findByText(/Túnel de MetaGenesis: parado/i);
+      // El encabezado no debe mostrarse
+      expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
     });
-    
-    let llamadasIniciales = llamadas.length;
-    
-    // Avanzar 60 segundos
-    await act(async () => {
-      vi.advanceTimersByTime(60_000);
-    });
-    
-    // Debe seguir teniendo el mismo número de llamadas (no se hizo fetch por estar oculto)
-    let llamadasDespuesEspera = llamadas.length;
-    expect(llamadasDespuesEspera).toBe(llamadasIniciales);
-    
-    vi.useRealTimers();
-  });
 });
