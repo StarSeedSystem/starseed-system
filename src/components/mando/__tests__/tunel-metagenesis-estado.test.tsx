@@ -50,7 +50,45 @@ describe("TunelMetaGenesisEstado", () => {
     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
   });
 
-  it("muestra túnel activo cuando el servicio está cargado", async () => {
+   it("muestra túnel activo cuando el servicio está cargado", async () => {
+
+     // Renderizar y esperar a que se haga la primera llamada y se procese el resultado
+     render(<TunelMetaGenesisEstado />);
+     
+     // Esperar a que aparezca el texto del estado activo
+     await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
+ 
+     // Verificar que las URLs fueron tachadas en las líneas
+     expect(await screen.findByText(/Línea 1 \[túnel\]/i)).toBeInTheDocument();
+     expect(await screen.findByText(/Línea 2 sin URL/i)).toBeInTheDocument();
+     expect(await screen.findByText(/Línea 3 \[túnel\]/i)).toBeInTheDocument();
++   },
++   
++   it("cancela todos los URLs trycloudflare en una línea", async () => {
++     const originalFetch = globalThis.fetch;
++     globalThis.fetch = async (input) => {
++       const url = String(input);
++       if (url.includes("/api/mando/tunel-metagenesis")) {
++         return {
++           ok: true,
++           json: async () => ({
++             cargado: true,
++             pid: 54321,
++             ultimasLineas: ["Línea 4 https://a.trycloudflare.com y https://b.trycloudflare.com"],
++             medidoEn: new Date().toISOString()
++           })
++         } as Response;
++       }
++       return { ok: true, json: async () => ({}) } as Response;
++     };
++ 
++     render(<TunelMetaGenesisEstado />);
++     expect(await screen.findByText(/Línea 4 \[túnel\]/i)).toBeInTheDocument();
++     expect(await screen.findByText(/y \[túnel\]/i)).toBeInTheDocument();
++     globalThis.fetch = originalFetch;
+   });
+ 
+   it("muestra túnel parado cuando el servicio no está cargado", async () => {
     // Renderizar y esperar a que se haga la primera llamada y se procese el resultado
     render(<TunelMetaGenesisEstado />);
     
