@@ -1,124 +1,72 @@
 "use client";
 
-/**
- * Habilidades para agentes de Genesis y PoliGenesis
- * ---------------------------------------------------
- * Selecciona las habilidades útiles para un papel o director por routing y etiquetas
- * en tamaño tarjeta, resumen o completo según la capa del modelo elegido
- * 
- * @param papel - El papel que realiza la tarea (escritor, revisor, chat, visión, voz, imagen, código)
- * @param ambito - El ámbito de ejecución (cuenta, neurona, perfil, grupo, página, etc.)
- * @param opciones - Opciones que incluyen capacidades y habilidades desactivadas
- * @returns Array de IDs de habilidades seleccionadas
- */
+import { SkillCapability } from "@/ai/astraura/skills";
+
+export type CapaModelo = "tarjeta" | "resumen" | "completa";
+
+function recortarTexto(texto: string, capa: CapaModelo): string {
+  if (capa === "tarjeta") {
+    const palabras = texto.split(/\s+/);
+    const recortado = palabras.slice(0, 60).join(" ");
+    return recortado.length < texto.length ? recortado + "..." : recortado;
+  }
+  if (capa === "resumen") {
+    const palabras = texto.split(/\s+/);
+    const recortado = palabras.slice(0, 250).join(" ");
+    return recortado.length < texto.length ? recortado + "..." : recortado;
+  }
+  return texto;
+}
+
 export function habilidadesPara(
   papel: string,
   ambito: string,
   opciones: {
-    capacidades: import("@/ai/astraura/skills.ts").SkillCapability[];
+    capacidades: SkillCapability[];
     desactivadas: string[];
-  }
-): string[] {
+  },
+  capa: CapaModelo = "completa"
+): SkillCapability[] {
   const { capacidades, desactivadas } = opciones;
-  const habilidadesSeleccionadas: string[] = [];
-
-  // Filtrar habilidades desactivadas
   const habilidadesActivas = capacidades.filter(
-    (habilidad) => !desactivadas.includes(habilidad.id)
+    (h) => !desactivadas.includes(h.id)
   );
-
-  // Seleccionar habilidades según el papel
+  const seleccionadas: SkillCapability[] = [];
   for (const habilidad of habilidadesActivas) {
-    // Verificar si la habilidad tiene el routing o etiquetas apropiadas para este papel
-    const deberíaIncluir = evaluarHabilidadParaPapel(
-      habilidad,
-      papel,
-      ambito
-    );
-
-    if (deberíaIncluir) {
-      habilidadesSeleccionadas.push(habilidad.id);
+    if (evaluarHabilidadParaPapel(habilidad, papel, ambito)) {
+      seleccionadas.push({
+        ...habilidad,
+        systemPrompt: recortarTexto(habilidad.systemPrompt, capa),
+      });
     }
   }
-
-  return habilidadesSeleccionadas;
+  return seleccionadas;
 }
 
-/**
- * Evalúa si una habilidad es apropiada para un papel específico
- */
 function evaluarHabilidadParaPapel(
-  habilidad: import("@/ai/astraura/skills.ts").SkillCapability,
+  habilidad: SkillCapability,
   papel: string,
   ambito: string
 ): boolean {
   const routing = habilidad.routing;
-
-  // Si no hay routing definido, incluir por defecto para cualquier papel
-  if (!routing) {
-    return true;
-  }
-
-  // Si el routing está vacío, incluir para cualquier papel
-  if (!routing.preferStrong && !routing.web && !routing.vision && !routing.planning) {
-    return true;
-  }
-
-  // Verificar routing para el papel específico
+  if (!routing) return true;
+  if (!routing.preferStrong && !routing.web && !routing.vision && !routing.planning) return true;
   switch (papel) {
     case "escritor":
-      // Los escritores pueden usar habilidades con preferStrong, web, vision o planning
-      if (routing.preferStrong || routing.web || routing.vision || routing.planning) {
-        return true;
-      }
-      break;
-
+      return !!(routing.preferStrong || routing.web || routing.vision || routing.planning);
     case "revisor":
-      // Los revisores pueden usar habilidades con preferStrong, vision o web
-      if (routing.preferStrong || routing.vision || routing.web) {
-        return true;
-      }
-      break;
-
+      return !!(routing.preferStrong || routing.vision || routing.web);
     case "chat":
-      // Los chats pueden usar habilidades con preferStrong, web, vision o planning
-      if (routing.preferStrong || routing.web || routing.vision || routing.planning) {
-        return true;
-      }
-      break;
-
+      return !!(routing.preferStrong || routing.web || routing.vision || routing.planning);
     case "visión":
-      // Los de visión pueden usar habilidades con vision, preferStrong o web
-      if (routing.vision || routing.preferStrong || routing.web) {
-        return true;
-      }
-      break;
-
+      return !!(routing.vision || routing.preferStrong || routing.web);
     case "voz":
-      // Los de voz pueden usar cualquier habilidad (la voz es específica del modelo)
       return true;
-
     case "imagen":
-      // Los de imagen pueden usar habilidades con preferStrong
-      if (routing.preferStrong) {
-        return true;
-      }
-      break;
-
+      return !!routing.preferStrong;
     case "código":
-      // Los de código pueden usar habilidades con preferStrong, web o planning
-      if (routing.preferStrong || routing.web || routing.planning) {
-        return true;
-      }
-      break;
-
+      return !!(routing.preferStrong || routing.web || routing.planning);
     default:
-      // Para roles no reconocidos, incluir si hay routing.preferStrong
-      if (routing.preferStrong) {
-        return true;
-      }
-      break;
+      return !!routing.preferStrong;
   }
-
-  return false;
 }
