@@ -5,7 +5,7 @@ Módulo para transcodificar videos a HLS con varias calidades.
 
 import shutil
 import subprocess
-from typing import List, Callable
+from typing import List, Callable, Any
 
 
 def ordenes_escalera(

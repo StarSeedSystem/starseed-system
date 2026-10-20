@@ -3,8 +3,11 @@
 Tests para el módulo de transcodificación HLS.
 """
 import os
+import sys
 import unittest
 from unittest.mock import patch, MagicMock
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from scripts.puente.servir_transcodificar import ordenes_escalera, transcodificar
 
