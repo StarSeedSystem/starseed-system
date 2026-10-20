@@ -484,3 +484,26 @@ que solo importan esos dos módulos y sus pruebas (489 pruebas de los dos lados 
 existe, la tarea se para y lo pide — nunca se crea un `tipos.ts` mínimo con el mismo nombre.
 El actualizador del catálogo del enjambre (leía `repositorio:`, campo que el catálogo real no tiene) se guardó
 en `.transfer/conflictos-1010d/` de la Mac; queda `scripts/protomolecula/actualizar_catalogo.py` del contrato.
+
+## La orbe 4D (2026-10-20): un «bot de diseño 4D» con geometría sagrada
+
+Petición de Alex: la orbe debe ser 4D, autotransformable e inteligente, diseñada por Claude con los
+fundamentos de StarSeed y de la Protomolécula. Geometría sagrada animada que se transforma como el jitterbug
+y el teseracto de sus referencias, pero más fluida y con más color, textura, transparencia, figuras y giros
+que responden al uso. Además: carga y autotransformación hacia cualquier diseño 3D generado; arrastrarla a
+**su** zona para apagarla, igual que la orbe de Astraura.
+
+| Pieza | Archivo | Qué hace |
+|---|---|---|
+| Geometría (pura) | `src/lib/protomolecula/orbe4d/geometria.ts` | Jitterbug de Fuller con 8 triángulos rígidos: equilibrio vectorial → icosaedro (1/φ) → octaedro → estrella del gran icosaedro → los 4 planos hexagonales. Teseracto girado en 4D (planos xw, yw, zw) y proyectado. Merkaba que gira en sentidos opuestos, sólidos platónicos (caras por envolvente convexa), matriz isotrópica de frecuencia 2 (55 puntos: la base de la rejilla de 64 tetraedros), esfera de Fibonacci, flor de la vida (19) y cubo de Metatrón (13 centros, 78 líneas). |
+| Coreografía (pura) | `orbe4d/coreografia.ts` | Registro de color por contexto (ruta del OS → Trinity, Protomolécula, Astraura, Genesis, malla, Audiomorphic, exploración; crear = alquimia), estilos sobria/expresiva/experimental (89/144/233 partículas, permanencias de 21/13/8 s, transición de φ s), forma por modo, energía (atención, voz, arrastre; techo φ²), periodos de Fibonacci y curva orgánica de la marca. |
+| Eventos (puros) | `orbe4d/eventos.ts` | `starseed:protomolecula-orbe-estado` (`cargando`, `creando`, `pensando`, `listo`, `forma`, `estilo`, `transformar`), validado; la orbe llama a `preventDefault()` cuando lo atiende. Zona propia de apagado: el borde izquierdo (Horizon, la creación). |
+| Motor | `orbe4d/motor.ts` (three.js, importado a demanda) | Halo φ, flor de la vida, líneas gruesas en dos capas para fundir formas, núcleo dual a 1/φ² en sentido contrario, caras de cristal líquido iridiscente con barrido de luz cada 8 s, partículas que fluyen por las aristas y viajan entre formas con retraso áureo, siembra al encender y siembra inversa al apagar, Metatrón que se dibuja con la carga (en bucle si no hay avance), GLB → muestreo de 377 puntos + red cristalina + malla de cristal. Calidad autoadaptable con histéresis (89/55 partículas, sin caras ni halo si los cuadros van lentos); 30 cps en reposo, 60 con interacción; nada con la pestaña oculta; sin bucle con movimiento reducido. |
+| Componente | `src/components/protomolecula/orbe-protomolecula.tsx` + `panel-orbe.tsx` | Arrastre con captura del puntero, zona de apagado con «Suelta para apagar la Protomolécula», aviso con «Deshacer», panel de cristal (geometría automática o fija, estilo, abrir lienzo, controles completos, apagar), teclado (Intro abre, Suprimir apaga, Escape cierra). Escucha `abrir`, `cerrar`, activar/desactivar (con `detail.activada`), `aurora:speak`, `starseed:sync:apply` y la actividad de los controladores de la Protomolécula. |
+| Taller 3D | `src/lib/avatares/adaptadores/use-generar-3d.ts` | Mientras genera avisa `cargando` con su avance; al guardar avisa `transformar` con el GLB: la orbe toma la forma del diseño. |
+
+Preferencias sincronizadas con la cuenta: `starseed.protomolecula.orbe.enabled.v1` (ya estaba) y
+`starseed.protomolecula.orbe.estilo.v1`. El botón del lienzo de creación y las acciones de Astraura
+`activar · desactivar · alternar · cerrar` son las tareas PMO1020A–C del enjambre; PMO1020D quedó dentro de
+esta orbe. Pruebas: `orbe4d/__tests__/geometria.test.ts`, `coreografia.test.ts` y
+`components/protomolecula/__tests__/orbe-protomolecula.test.tsx`.

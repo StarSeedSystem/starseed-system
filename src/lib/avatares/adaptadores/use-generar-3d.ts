@@ -15,6 +15,7 @@ import { MOTORES_3D } from "../adn/motores";
 import { capacidadesDe, planOptimizacion, siguienteIntento, type Destino3D, type Hierro, type PlanOptimizacion } from "../adn/optimizacion";
 import { motivoDenegacion } from "./espacio-hf";
 import { elegirNeurona, type NeuronaTaller } from "./reparto-taller";
+import { avisarOrbe } from "@/lib/protomolecula/orbe4d/eventos";
 
 export interface Contexto3D {
   destino: Destino3D;
@@ -96,6 +97,8 @@ export async function generar3d(img: Blob, op: OpcionesGenerar3D, prep: Preparac
   const uso = usoPermitido({ procedencia: r.procedencia }, { region: c.region, comercial: c.comercial });
   const g = await deps.guardar({ titulo: op.titulo, destino: c.destino, glb: r.glb, lods: r.lods, procedencia: r.procedencia, atribuciones: uso.atribuciones });
   if (!g.ok) return { fase: "error", motivo: `Se generó, pero no se pudo guardar en la Biblioteca: ${g.motivo}` };
+  // La orbe 4D de la Protomolécula se transforma en el diseño recién generado (si está encendida).
+  avisarOrbe({ estado: "transformar", modelo: r.glb, titulo: op.titulo });
   const faltan = prep.plan.pasos.filter((s) => !s.saltada && !s.motor && s.etapa !== "detallar").map((s) => s.etapa);
   const avisos = [...uso.motivos, ...(g.aviso ? [g.aviso] : []), ...(r.lods.length ? [] : ["Sin niveles de detalle: el optimizador del taller (A1) aún no los hizo; se guarda el GLB tal cual."]),
     ...(faltan.length ? [`Queda pendiente: ${faltan.join(", ")} (no hay motor para eso en esta neurona).`] : [])];
@@ -110,8 +113,14 @@ export function useGenerar3d(c: Contexto3D, deps: Dependencias3D) {
   const generar = useCallback(async (img: Blob, op: OpcionesGenerar3D) => {
     if (ocupado.current) return;
     ocupado.current = true;
-    try { setEstado(await generar3d(img, op, preparado, c, deps, setEstado)); }
-    catch (e) { setEstado({ fase: "error", motivo: `Falló la generación: ${e instanceof Error ? e.message : "error desconocido"}.` }); }
+    // Mientras genera, la orbe de la Protomolécula enseña la carga (cubo de Metatrón que se dibuja).
+    const conOrbe = (e: Estado3D) => {
+      setEstado(e);
+      if (e.fase === "generando") avisarOrbe({ estado: "cargando", progreso: e.progreso === null ? undefined : e.progreso / 100, etiqueta: e.etapa });
+      if (e.fase === "error") avisarOrbe({ estado: "listo" });
+    };
+    try { conOrbe(await generar3d(img, op, preparado, c, deps, conOrbe)); }
+    catch (e) { conOrbe({ fase: "error", motivo: `Falló la generación: ${e instanceof Error ? e.message : "error desconocido"}.` }); }
     finally { ocupado.current = false; }
   }, [preparado, c, deps]);
   const reiniciar = useCallback(() => setEstado({ fase: "lista" }), []);

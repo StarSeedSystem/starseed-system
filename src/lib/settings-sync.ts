@@ -116,6 +116,7 @@ export const SYNCED_KEYS = [
     "starseed.aurora.fab.enabled.v1", // botón/orbe flotante de Aurora visible por defecto (ON) en todo el OS
     "starseed.aurora.intro.v1",       // onboarding de Aurora ya realizado (preguntas de preferencias)
     "starseed.protomolecula.orbe.enabled.v1", // orbe de la Protomolécula activada por defecto (junto a la de Astraura)
+    "starseed.protomolecula.orbe.estilo.v1",  // estilo de la orbe 4D de la Protomolécula: sobria · expresiva · experimental
     // ── Centro de Configuración de Aurora y Astraura (Adenda 67 · P1) ─────────
     "starseed.aurora.setup.v1",            // estado del centro de configuración (hecho / pospuesto)
     "starseed.aurora.senses.v1",           // config por sentido (motor/fuente/memoria/herramientas/tono)

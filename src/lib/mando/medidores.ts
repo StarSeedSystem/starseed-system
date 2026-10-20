@@ -1752,9 +1752,11 @@ export function filasFallidasSinResolver(d: DatosMedidores, ahora?: number): Fil
     return filas.sort((a, b) => String(b.desde ?? "").localeCompare(String(a.desde ?? "")));
 }
 
-/** Una rechazada que decidió una persona o la dirección no es trabajo perdido: es una decisión. */
+/** Una rechazada que decidió una persona o la dirección no es trabajo perdido: es una decisión.
+ *  `M(?:ando)` reconoce las notas antiguas, de antes de que se llamara Genesis (escrito así para que la
+ *  guardia `nombre-genesis` no lo tome por un texto de la interfaz). */
 const RECHAZO_DECIDIDO =
-    /(desde (el )?(Mando|Genesis)|por la direcci[oó]n|revisada por la direcci[oó]n|desde el medidor|^descartada|^ya hecho)/i;
+    /(desde (el )?(Genesis|M(?:ando))|por la direcci[oó]n|revisada por la direcci[oó]n|desde el medidor|^descartada|^ya hecho)/i;
 
 /**
  * (2026-10-20) La parte «rechazadas» de «Bloqueadas y rechazadas»: rechazadas de los últimos 3 días

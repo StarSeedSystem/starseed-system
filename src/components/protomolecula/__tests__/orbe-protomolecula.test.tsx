@@ -1,213 +1,131 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
+import { PROTO_ORB_ABRIR_EVENT, PROTO_ORB_FAB_EVENT, PROTO_ORB_FAB_KEY, PROTO_ORB_POS_KEY } from "@/lib/protomolecula/orbe-bus";
+import { PROTO_ORB_CERRAR_EVENT, PROTO_ORB_ESTADO_EVENT, PROTO_ORB_ESTILO_KEY } from "@/lib/protomolecula/orbe4d/eventos";
+
+// El motor three.js no corre en jsdom: se sustituye por uno de mentira que apunta lo que le piden.
+const motor = vi.hoisted(() => ({
+  fijarEstilo: vi.fn(), fijarRegistro: vi.fn(), fijarModo: vi.fn(), fijarForma: vi.fn(), fijarProgreso: vi.fn(),
+  transformarEn: vi.fn(async () => true), fijarAtencion: vi.fn(), fijarArrastre: vi.fn(), voz: vi.fn(), pulso: vi.fn(),
+  apagar: vi.fn(async () => undefined), redimensionar: vi.fn(), formaActual: vi.fn(() => "merkaba"), destruir: vi.fn(),
+}));
+const crear = vi.hoisted(() => vi.fn((..._a: unknown[]) => motor));
+vi.mock("@/lib/protomolecula/orbe4d/motor", () => ({ crearMotor: crear }));
+vi.mock("@/lib/protomolecula/controlador-activo", () => ({ controladorActivo: () => null }));
+vi.mock("@/components/protomolecula/panel-protomolecula", () => ({ PanelProtomoleculaAutonomo: () => <p>panel completo</p> }));
+const empujar = vi.fn();
+vi.mock("next/navigation", () => ({ usePathname: () => "/escritorios", useRouter: () => ({ push: empujar }) }));
+
 import { OrbeProtomolecula } from "../orbe-protomolecula";
-import { render, screen, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { PROTO_ORB_ABRIR_EVENT, PROTO_ORB_FAB_EVENT } from "@/lib/protomolecula/orbe-bus";
 
-// Mock localStorage
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value;
-    },
-    removeItem: (key: string) => {
-      delete store[key];
-    },
-    clear: () => {
-      store = {};
-    },
-  };
-})();
+const orbe = () => screen.getByRole("button", { name: /Protomolécula: orbe de creación/ });
 
-Object.defineProperty(window, "localStorage", {
-  value: localStorageMock,
-});
+async function montar() {
+  const r = render(<OrbeProtomolecula />);
+  await waitFor(() => expect(crear).toHaveBeenCalled());
+  return r;
+}
 
-Object.defineProperty(window, "innerWidth", {
-  value: 800,
-  writable: true,
-});
-Object.defineProperty(window, "innerHeight", {
-  value: 600,
-  writable: true,
-});
-
-const TAMANO_ORBE = 56; // from orbe-bus.ts? we don't have the actual value, but we can use the same as in the component
-
-describe("OrbeProtomolecula", () => {
+describe("Orbe 4D de la Protomolécula", () => {
   beforeEach(() => {
-    localStorageMock.clear();
-    // Reset mocks
+    window.localStorage.clear();
     vi.clearAllMocks();
+    Object.defineProperty(window, "innerWidth", { value: 800, configurable: true, writable: true });
+    Object.defineProperty(window, "innerHeight", { value: 600, configurable: true, writable: true });
+    window.localStorage.setItem(PROTO_ORB_POS_KEY, JSON.stringify({ x: 400, y: 300 }));
   });
-
-  afterEach(() => {
-    localStorageMock.clear();
-  });
+  afterEach(() => { cleanup(); window.localStorage.clear(); });
 
   it("apagada no pinta nada", () => {
-    // Set activada to false
-    localStorageMock.setItem("starseed.protomolecula.orbe.enabled.v1", "false");
-    
-    // Render component
+    window.localStorage.setItem(PROTO_ORB_FAB_KEY, "false");
     const { container } = render(<OrbeProtomolecula />);
-    expect(container.firstChild).toBeNull();
+    expect(container.querySelector("canvas")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Protomolécula/ })).toBeNull();
   });
 
-  it("un clic sin movimiento abre el panel", async () => {
-    // Set activada to true
-    localStorageMock.setItem("starseed.protomolecula.orbe.enabled.v1", "true");
-    localStorageMock.setItem("starseed.protomolecula.orbe.pos.v1", JSON.stringify({x: 100, y: 100}));
-    
-    // Render component
-    const { container } = render(<OrbeProtomolecula />);
-    const orbe = container.firstChild as HTMLElement;
-    expect(orbe).not.toBeNull();
-    expect(orbe.getAttribute("aria-expanded")).toBe("false");
-
-    // Click without moving (less than 5px threshold)
-    await userEvent.click(orbe);
-    
-    // Panel should open
-    expect(orbe.getAttribute("aria-expanded")).toBe("true");
-    // The panel is rendered as a sibling div? In the component, the panel is conditionally rendered after the orbe div.
-    // We can look for the panel text.
-    const panelElements = Array.from(container.querySelectorAll("div"));
-    const panelTextEl = panelElements.find(el => el.textContent?.includes("Panel Protomolécula"));
-    expect(panelTextEl).not.toBeUndefined();
-    expect(panelTextEl?.textContent).toContain("Panel Protomolécula");
+  it("encendida monta el lienzo 4D y el registro del contexto", async () => {
+    const { container } = await montar();
+    expect(container.querySelector("canvas")).not.toBeNull();
+    expect(crear.mock.calls[0][1]).toMatchObject({ registro: "trinity", estilo: "expresiva", tamano: 112 });
   });
 
-  it("un arrastre guarda la posición y no abre", async () => {
-    // Set activada to true
-    localStorageMock.setItem("starseed.protomolecula.orbe.enabled.v1", "true");
-    localStorageMock.setItem("starseed.protomolecula.orbe.pos.v1", JSON.stringify({x: 100, y: 100}));
-    
-    // Render component
-    const { container } = render(<OrbeProtomolecula />);
-    const orbe = container.firstChild as HTMLElement;
-    expect(orbe).not.toBeNull();
-
-    // Simulate pointer down, then move more than 5px, then up
-    fireEvent.pointerDown(orbe, { clientX: 100, clientY: 100 });
-    fireEvent.pointerMove(orbe, { clientX: 110, clientY: 110 });
-    fireEvent.pointerUp(orbe, { clientX: 110, clientY: 110 });
-    
-    // Position should have been updated (saved to localStorage)
-    const savedPos = localStorageMock.getItem("starseed.protomolecula.orbe.pos.v1");
-    expect(savedPos).not.toBeNull();
-    const posObj = JSON.parse(savedPos!);
-    expect(posObj.x).toBe(110); // initial x 100 + dx 10
-    expect(posObj.y).toBe(110); // initial y 100 + dy 10
-    
-    // Panel should not open (because it was a drag)
-    expect(orbe.getAttribute("aria-expanded")).toBe("false");
-    // Ensure panel is not rendered
-    const panelElements = Array.from(container.querySelectorAll("div"));
-    const panelTextEl = panelElements.find(el => el.textContent?.includes("Panel Protomolécula"));
-    expect(panelTextEl).toBeUndefined();
+  it("un toque sin movimiento abre el panel; Escape lo cierra", async () => {
+    await montar();
+    fireEvent.pointerDown(orbe(), { pointerId: 1, button: 0, clientX: 420, clientY: 320 });
+    fireEvent.pointerUp(orbe(), { pointerId: 1, button: 0, clientX: 421, clientY: 320 });
+    expect(await screen.findByRole("dialog", { name: "Protomolécula" })).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("Escape cierra", async () => {
-    // Set activada to true
-    localStorageMock.setItem("starseed.protomolecula.orbe.enabled.v1", "true");
-    localStorageMock.setItem("starseed.protomolecula.orbe.pos.v1", JSON.stringify({x: 100, y: 100}));
-    
-    // Render component
-    const { container } = render(<OrbeProtomolecula />);
-    const orbe = container.firstChild as HTMLElement;
-    expect(orbe).not.toBeNull();
-    
-    // Open the panel by clicking
-    await userEvent.click(orbe);
-    expect(orbe.getAttribute("aria-expanded")).toBe("true");
-    let panelElements = Array.from(container.querySelectorAll("div"));
-    let panelTextEl = panelElements.find(el => el.textContent?.includes("Panel Protomolécula"));
-    expect(panelTextEl).not.toBeUndefined();
-    
-    // Press Escape
-    await userEvent.keyboard("{Escape}");
-    
-    // Panel should close
-    expect(orbe.getAttribute("aria-expanded")).toBe("false");
-    // Re-query after Escape
-    panelElements = Array.from(container.querySelectorAll("div"));
-    panelTextEl = panelElements.find(el => el.textContent?.includes("Panel Protomolécula"));
-    expect(panelTextEl).toBeUndefined();
+  it("«abrir» de Astraura queda atendido (cancelado) y abre el panel; «cerrar» lo cierra", async () => {
+    await montar();
+    let atendido = false;
+    act(() => { atendido = !window.dispatchEvent(new CustomEvent(PROTO_ORB_ABRIR_EVENT, { cancelable: true, detail: {} })); });
+    expect(atendido).toBe(true);
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    act(() => { window.dispatchEvent(new CustomEvent(PROTO_ORB_CERRAR_EVENT)); });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("el evento de abrir lo abre", async () => {
-    // Set activada to true
-    localStorageMock.setItem("starseed.protomolecula.orbe.enabled.v1", "true");
-    localStorageMock.setItem("starseed.protomolecula.orbe.pos.v1", JSON.stringify({x: 100, y: 100}));
-    
-    // Render component
-    const { container } = render(<OrbeProtomolecula />);
-    const orbe = container.firstChild as HTMLElement;
-    expect(orbe).not.toBeNull();
-    expect(orbe.getAttribute("aria-expanded")).toBe("false");
-    
-    // Dispatch the custom event for opening
-    const openEvent = new Event(PROTO_ORB_ABRIR_EVENT);
-    window.dispatchEvent(openEvent);
-    
-    // Wait for update
-    await vi.waitFor(() => {
-      expect(orbe.getAttribute("aria-expanded")).toBe("true");
-    });
-    
-    const panelElements = Array.from(container.querySelectorAll("div"));
-    const panelTextEl = panelElements.find(el => el.textContent?.includes("Panel Protomolécula"));
-    expect(panelTextEl).not.toBeUndefined();
-    expect(panelTextEl?.textContent).toContain("Panel Protomolécula");
+  it("arrastrarla a SU zona del borde izquierdo la apaga (con siembra inversa) y se puede deshacer", async () => {
+    await montar();
+    fireEvent.pointerDown(orbe(), { pointerId: 2, button: 0, clientX: 420, clientY: 320 });
+    fireEvent.pointerMove(orbe(), { pointerId: 2, clientX: 300, clientY: 310 });
+    expect(screen.getByText("Arrastra aquí para apagar la Protomolécula")).toBeTruthy();
+    fireEvent.pointerMove(orbe(), { pointerId: 2, clientX: 40, clientY: 300 });
+    expect(screen.getByText("Suelta para apagar la Protomolécula")).toBeTruthy();
+    fireEvent.pointerUp(orbe(), { pointerId: 2, clientX: 40, clientY: 300 });
+    await waitFor(() => expect(motor.apagar).toHaveBeenCalled());
+    expect(window.localStorage.getItem(PROTO_ORB_FAB_KEY)).toBe("false");
+    await waitFor(() => expect(screen.queryByRole("button", { name: /orbe de creación/ })).toBeNull());
+    fireEvent.click(await screen.findByRole("button", { name: "Deshacer" }));
+    expect(window.localStorage.getItem(PROTO_ORB_FAB_KEY)).toBe("true");
+    expect(await screen.findByRole("button", { name: /orbe de creación/ })).toBeTruthy();
   });
 
-  it("evento de storage actualiza activada y desmonta si se apaga", async () => {
-    // Set activada to true
-    localStorageMock.setItem("starseed.protomolecula.orbe.enabled.v1", "true");
-    localStorageMock.setItem("starseed.protomolecula.orbe.pos.v1", JSON.stringify({x: 100, y: 100}));
-    
-    // Render component
-    const { container } = render(<OrbeProtomolecula />);
-    const orbe = container.firstChild as HTMLElement;
-    expect(orbe).not.toBeNull();
-    
-    // Change activada to false via storage event
-    localStorageMock.setItem("starseed.protomolecula.orbe.enabled.v1", "false");
-    const storageEvent = new StorageEvent("storage", {
-      key: "starseed.protomolecula.orbe.enabled.v1",
-      oldValue: "true",
-      newValue: "false",
-    });
-    window.dispatchEvent(storageEvent);
-    
-    // Wait for update
-    await vi.waitFor(() => {
-      expect(container.firstChild).toBeNull();
-    });
+  it("soltarla fuera de la zona solo la mueve y guarda la posición", async () => {
+    await montar();
+    fireEvent.pointerDown(orbe(), { pointerId: 3, button: 0, clientX: 420, clientY: 320 });
+    fireEvent.pointerMove(orbe(), { pointerId: 3, clientX: 520, clientY: 220 });
+    fireEvent.pointerUp(orbe(), { pointerId: 3, clientX: 520, clientY: 220 });
+    expect(motor.apagar).not.toHaveBeenCalled();
+    expect(JSON.parse(window.localStorage.getItem(PROTO_ORB_POS_KEY) || "{}")).toEqual({ x: 500, y: 200 });
   });
 
-  it("evento de focus vuelve a leer activada", async () => {
-    // Start with activada false
-    localStorageMock.setItem("starseed.protomolecula.orbe.enabled.v1", "false");
-    
-    // Render component
-    const { container } = render(<OrbeProtomolecula />);
-    expect(container.firstChild).toBeNull();
-    
-    // Change activada to true in localStorage
-    localStorageMock.setItem("starseed.protomolecula.orbe.enabled.v1", "true");
-    // Dispatch focus event
-    window.dispatchEvent(new Event("focus"));
-    
-    // Wait for component to mount
-    await vi.waitFor(() => {
-      expect(container.firstChild).not.toBeNull();
-    });
-    
-    const orbe = container.firstChild as HTMLElement;
-    expect(orbe.getAttribute("aria-label")).toBe("Protomolécula");
+  it("se apaga y se enciende desde fuera (botón del lienzo de creación o Astraura) por el evento", async () => {
+    await montar();
+    act(() => { window.dispatchEvent(new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: { activada: false } })); });
+    await waitFor(() => expect(screen.queryByRole("button", { name: /orbe de creación/ })).toBeNull());
+    expect(motor.apagar).toHaveBeenCalled();
+    act(() => { window.dispatchEvent(new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: { activada: true } })); });
+    expect(await screen.findByRole("button", { name: /orbe de creación/ })).toBeTruthy();
+  });
+
+  it("obedece a los estados del OS: forma, estilo, carga y transformación hacia un modelo", async () => {
+    await montar();
+    const avisar = (detail: unknown) => act(() => { window.dispatchEvent(new CustomEvent(PROTO_ORB_ESTADO_EVENT, { detail, cancelable: true })); });
+    avisar({ estado: "forma", forma: "teseracto" });
+    await waitFor(() => expect(motor.fijarForma).toHaveBeenCalledWith("teseracto"));
+    avisar({ estado: "estilo", estilo: "experimental" });
+    await waitFor(() => expect(motor.fijarEstilo).toHaveBeenCalledWith("experimental"));
+    expect(window.localStorage.getItem(PROTO_ORB_ESTILO_KEY)).toBe("experimental");
+    avisar({ estado: "cargando", progreso: 0.4 });
+    expect(motor.fijarProgreso).toHaveBeenCalledWith(0.4);
+    expect(motor.fijarModo).toHaveBeenCalledWith("cargando");
+    const puntos = new Float32Array([0, 0, 1, 1, 0, 0, 0, 1, 0, -1, 0, 0]);
+    avisar({ estado: "transformar", modelo: puntos });
+    await waitFor(() => expect(motor.transformarEn).toHaveBeenCalledWith(puntos));
+    avisar({ estado: "inventado" });
+    avisar({ estado: "forma", forma: "../../etc" });
+    await waitFor(() => expect(motor.fijarForma).toHaveBeenLastCalledWith(null));
+  });
+
+  it("con teclado: Enter abre el panel y Suprimir la apaga", async () => {
+    await montar();
+    fireEvent.keyDown(orbe(), { key: "Enter" });
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    fireEvent.keyDown(orbe(), { key: "Delete" });
+    await waitFor(() => expect(motor.apagar).toHaveBeenCalled());
   });
 });
