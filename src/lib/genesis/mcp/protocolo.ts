@@ -1,16 +1,12 @@
 /**
- * Protocolo MCP (HTTP, JSON-RPC 2.0) puro para Genesis abierto.
+ * Protocolo MCP (HTTP, JSON-RPC 2.0) para Genesis abierto.
  * Contrato: architecture/genesis-conectores-abiertos.md §7.
  */
-
 export interface HerramientaMcp {
   nombre: string;
   descripcion: string;
   esquema: Record<string, unknown>;
-  ejecutar: (
-    argumentos: Record<string, unknown>,
-    contexto?: unknown
-  ) => Promise<{ contenido: Array<{ tipo: "texto"; texto: string }>; esError?: boolean }>;
+  ejecutar: (args: Record<string, unknown>, ctx?: unknown) => Promise<{ contenido: Array<{ tipo: "texto"; texto: string }>; esError?: boolean }>;
 }
 
 export interface PeticionJsonRpc {
@@ -53,16 +49,22 @@ export async function atenderMcp(
 
   const p = peticion as PeticionJsonRpc;
 
-  if (p.jsonrpc !== "2.0") {
-    return respuestaError(p.id, -32600, "Versión JSON-RPC no soportada");
-  }
-
   switch (p.method) {
     case "initialize":
-      return atenderInitialize(p.id);
+      return respuestaExito(p.id, {
+        protocolVersion: "2024-11-05",
+        capabilities: { tools: {} },
+        serverInfo: { name: "starseed-genesis", version: "0.1.0" },
+      });
     
-    case "tools/list":
-      return atenderToolsList(p.id, herramientas);
+    case "tools/list": {
+      const listadas = herramientas.map((h) => ({
+        name: h.nombre,
+        description: h.descripcion,
+        inputSchema: h.esquema,
+      }));
+      return respuestaExito(p.id, { tools: listadas });
+    }
     
     case "tools/call":
       return atenderToolsCall(p.id, p.params, herramientas, contexto);
@@ -75,59 +77,15 @@ export async function atenderMcp(
 function esPeticionValida(peticion: unknown): peticion is PeticionJsonRpc {
   if (typeof peticion !== "object" || peticion === null) return false;
   const p = peticion as Record<string, unknown>;
-  if (typeof p.jsonrpc !== "string" || p.jsonrpc !== "2.0") return false;
-  if (typeof p.method !== "string") return false;
-  return true;
+  return typeof p.jsonrpc === "string" && p.jsonrpc === "2.0" && typeof p.method === "string";
 }
 
-function respuestaError(
-  id: string | number | null | undefined,
-  codigo: number,
-  mensaje: string,
-  datos?: unknown
-): RespuestaErrorJsonRpc {
-  return {
-    jsonrpc: "2.0",
-    id: id ?? null,
-    error: { code: codigo, message: mensaje, data: datos },
-  };
+function respuestaError(id: string | number | null | undefined, codigo: number, mensaje: string): RespuestaErrorJsonRpc {
+  return { jsonrpc: "2.0", id: id ?? null, error: { code: codigo, message: mensaje } };
 }
 
-function respuestaExito(
-  id: string | number | null | undefined,
-  resultado: unknown
-): RespuestaExitoJsonRpc {
-  return {
-    jsonrpc: "2.0",
-    id: id ?? null,
-    result: resultado,
-  };
-}
-
-async function atenderInitialize(id: string | number | null | undefined): Promise<RespuestaJsonRpc> {
-  return respuestaExito(id, {
-    protocolVersion: "2024-11-05",
-    capabilities: {
-      tools: {},
-    },
-    serverInfo: {
-      name: "starseed-genesis",
-      version: "0.1.0",
-    },
-  });
-}
-
-async function atenderToolsList(
-  id: string | number | null | undefined,
-  herramientas: HerramientaMcp[]
-): Promise<RespuestaJsonRpc> {
-  const herramientasListadas = herramientas.map((h) => ({
-    name: h.nombre,
-    description: h.descripcion,
-    inputSchema: h.esquema,
-  }));
-  
-  return respuestaExito(id, { tools: herramientasListadas });
+function respuestaExito(id: string | number | null | undefined, resultado: unknown): RespuestaExitoJsonRpc {
+  return { jsonrpc: "2.0", id: id ?? null, result: resultado };
 }
 
 async function atenderToolsCall(
@@ -140,15 +98,12 @@ async function atenderToolsCall(
     return respuestaError(id, -32602, "Parámetros inválidos");
   }
 
-  const paramsObj = params as Record<string, unknown>;
-  const nombreHerramienta = paramsObj.name;
-  const argumentos = paramsObj.arguments;
-
-  if (typeof nombreHerramienta !== "string" || typeof argumentos !== "object" || argumentos === null) {
+  const { name, arguments: argumentos } = params as { name: unknown; arguments: unknown };
+  if (typeof name !== "string" || typeof argumentos !== "object" || argumentos === null) {
     return respuestaError(id, -32602, "Parámetros inválidos");
   }
 
-  const herramienta = herramientas.find((h) => h.nombre === nombreHerramienta);
+  const herramienta = herramientas.find((h) => h.nombre === name);
   if (!herramienta) {
     return respuestaError(id, -32602, "Herramienta no encontrada");
   }
@@ -158,9 +113,6 @@ async function atenderToolsCall(
     return respuestaExito(id, resultado);
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : "Error desconocido";
-    return respuestaExito(id, {
-      content: [{ type: "text", text: `Error: ${mensaje}` }],
-      isError: true,
-    });
+    return respuestaExito(id, { contenido: [{ tipo: "texto", texto: `Error: ${mensaje}` }], esError: true });
   }
 }
