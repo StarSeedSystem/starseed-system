@@ -10,7 +10,7 @@ Que los bots/dots de Astraura, y los perfiles, grupos y páginas que elijan un a
 **completamente autopersonalizable en tiempo real**, usando UniMate y lo útil de: image-to-3dlab, Meta Horizon
 Create, Smart Remesh, Filigree3D, BTC3D, Tripo, 3DAIStudio, Hitem3D, Meshy y Hi3D.
 
-## §1 · Lo que hay DE VERDAD en cada enlace (verificado el 2026-10-11; UniMate, Filigree3D y BTC3D corregidos el 2026-10-20 por su vigía, §12)
+## §1 · Lo que hay DE VERDAD en cada enlace (verificado el 2026-10-11; UniMate, Filigree3D y BTC3D corregidos el 2026-10-20 por su vigía, §13)
 
 | Enlace | Qué es | Estado real | Cómo entra en StarSeed |
 |---|---|---|---|
