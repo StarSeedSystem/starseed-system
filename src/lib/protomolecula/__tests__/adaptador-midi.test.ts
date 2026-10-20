@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { analizarMensaje, conectarMidi, hayMidi, pedirAccesoMidi, SIN_MIDI, SIN_PERMISO, type EntradaMidi, type EventoMensajeMidi, type MensajeMidi } from "../adaptador-midi";
-import { cargarVinculos, claveVinculos, crearEnrutador, guardarVinculos, type OpcionesEnrutador } from "../almacen-vinculos";
+import { analizarMensaje, conectarMidi, hayMidi, pedirAccesoMidi, SIN_MIDI, SIN_PERMISO, type EntradaMidi, type EventoMensajeMidi } from "../adaptador-midi";
+import { MensajeControl } from "../almacen-vinculos";
+import { cargarVinculos, claveVinculos, crearEnrutador, guardarVinculos, type OpcionesEnrutador, type MensajeControl } from "../almacen-vinculos";
 import { crearControlador } from "../controlador";
 import { limpiarRegistro, registrarAtomo } from "../registro-atomos";
 import { CURVA_LINEAL, type FuenteControl, type Vinculo } from "../vinculos-control";
@@ -21,7 +22,7 @@ const ref: ParametroRef = { atomoId: "at-1", parametroId: "vol" };
 const PARAMS: Record<string, Parametro> = { vol: { id: "vol", nombre: "Volumen", tipo: "numero", min: 0, max: 10, paso: 1 }, mudo: { id: "mudo", nombre: "Silencio", tipo: "booleano" } };
 const cc = (numero: number, canal = 1, dispositivo?: string): FuenteControl => ({ tipo: "midi", mensaje: "cc", canal, numero, dispositivo });
 const vin = (fuente: FuenteControl, o: Partial<Vinculo> = {}): Vinculo => ({ id: "v1", fuente, objetivo: ref, modo: "absoluto", curva: { ...CURVA_LINEAL }, activo: true, creadoPor: "ana", ...o });
-const msg = (b: number[]): MensajeMidi => analizarMensaje(b, "nanoKONTROL2") ?? { fuente: { tipo: "midi", mensaje: "cc", canal: 99 }, bruto: -1 };
+const msg = (b: number[]): MensajeControl => analizarMensaje(b, "nanoKONTROL2") ?? { fuente: { tipo: "midi", mensaje: "cc", canal: 99 }, bruto: -1 };
 let reloj = 1000, n = 0;
 const montar = (vinculos: Vinculo[], extra: Partial<OpcionesEnrutador> = {}) => {
   const ops: Operacion[] = [], en = crearEnrutador({ vinculos, parametroDe: (r) => PARAMS[r.parametroId], autor: { tipo: "persona", id: "ana" }, ahora: () => reloj, nuevoId: () => `id-${++n}`,
@@ -41,7 +42,7 @@ describe("analizarMensaje: bytes → fuente y valor bruto", () => {
 });
 describe("conectarMidi", () => {
   it("entrega cada mensaje con el nombre del aparato (o su id si no lo tiene)", () => {
-    const a = entrada("in-1", "nanoKONTROL2"), b = entrada("in-2", null), recibidos: MensajeMidi[] = [];
+    const a = entrada("in-1", "nanoKONTROL2"), b = entrada("in-2", null), recibidos: MensajeControl[] = [];
     conectarMidi(acceso(a, b), (m) => recibidos.push(m)); a.enviar(0xb0, 7, 64); b.enviar(0x90, 36, 100); a.enviar(0xf8, 0, 0);
     expect(recibidos.map((m) => m.fuente.dispositivo)).toEqual(["nanoKONTROL2", "in-2"]);
   });
