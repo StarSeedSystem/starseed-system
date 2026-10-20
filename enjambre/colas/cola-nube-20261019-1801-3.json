@@ -1,0 +1,84 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "FSH1018B",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Fondos · capas `shader` y `difusion` con posición, tamaño, rotación y máscara (versión 4 con migración)",
+   "archivos": [
+    "src/lib/appearance/background-layers.ts",
+    "src/lib/appearance/__tests__/background-layers-shader.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Amplía `LayerKind` con \"shader\" (campo `preset: { components, structureVersion? }`) y \"difusion\" (campo `difusion: { modo: \"transparente\"|\"desenfoque\"|\"blanco\"|\"negro\"|\"tono\", tono?, desenfoquePx 0–80, opacidad 0–1, textura: \"ninguna\"|\"grano\"|\"papel\"|\"escarcha\" }`). Toda capa gana `transform?: { x, y, escala, rotacion, ancho, alto }` (0–1 relativos) y `mascara?: \"ninguna\"|\"radial\"|\"lineal\"`. Sube `BG_LAYERS_VERSION` a 4 y amplía `normalizeLayers`/`migrateBackgroundLayers` sin romper configs viejas; añade las dos entradas a `LAYER_CATALOG`. Pruebas de normalización, migración y valores fuera de rango. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "FSH1018D",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Fondos · catálogo automático de efectos desde `shaders/registry` (se actualiza con cada versión)",
+   "archivos": [
+    "src/lib/appearance/catalogo-shaders.ts",
+    "src/lib/appearance/__tests__/catalogo-shaders.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`construirCatalogo(registro: ShaderMetadata[])` PURO agrupa por categoría con nombres en español, marca `requiereCamara` (WebcamTexture, ObjectTracker), `interactivo` (Cursor*), `necesitaHijo` (requiresChild) y `pesado` (Fog, Smoke*, ReactionDiffusion, Boids, Particles*, Water, Godrays), y saca los props editables desde propsMetadata. `cargarCatalogo()` hace el import dinámico de `shaders/registry` en cliente. Pruebas con un registro de ejemplo. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018A",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · catálogo de puntos de decisión de Astraura (qué pregunta, en qué capa y qué hacer si duda)",
+   "archivos": [
+    "src/lib/astraura/laya/puntos-decision.ts",
+    "src/lib/astraura/laya/__tests__/puntos-decision.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Datos + validación PURA de la tabla §4: cada `PuntoDecision` = { id (reflejo.herramienta, plan.dificultad, respuesta.basta, basico.consenso, habilidad.elegir, publicar.moderar, privacidad.subir, voz.tono, video.intencion, enjambre.medio), capa, preguntas: Record<string, PreguntaLaya> (forma nativa de Laya: { type, instructions, criteria? } con textos en español), umbral (0–1, por defecto 0,6), plazoMsPorMedio: { a1, mac, navegador, malla }, siDuda: \"escalar\"|\"confirmar\"|\"regla\"|\"revisar\", privacidad: \"puede-salir\"|\"solo-propias\" }. `validarPuntos()` comprueba ids únicos, umbrales en rango y que choice tenga criterios. Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018H",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya en navegador y apps (laya-ts con WebGPU → WASM): cuándo se carga y cuándo se pregunta fuera",
+   "archivos": [
+    "src/lib/astraura/laya/laya-navegador.ts",
+    "src/lib/astraura/laya/__tests__/laya-navegador.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `planLayaLocal(perfilMedio)` → { cargar: boolean, modelo: \"multilingual-int8\"|\"multilingual\"|null, motivo } según capas-autoadaptables §4: visita web nunca (va por la malla); PWA con WebGPU y ≥ 2 GB de almacenamiento persistente y ≥ 4 GB de memoria; app nativa si cabe en su presupuesto; batería < 20 % o pestaña oculta → no. Mientras `vendor/laya-ts` y el modelo exportado (tarea O) no existan, devuelve cargar:false con ese motivo. Pruebas por medio. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018J",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Habilidades · tarjetas de productividad (interrogar un plan, traspaso, enseñar, escribir para agentes)",
+   "archivos": [
+    "src/ai/astraura/habilidades/productividad.ts",
+    "src/ai/astraura/habilidades/__tests__/productividad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Igual que ingenieria-a.ts con grill-me, grilling, handoff, teach, to-questionnaire, wait-what y writing-for-agents de vendor/habilidades/mattpocock-skills/productivity/. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "SUC1018C",
+   "ola": "Ola 1018S · Sucesoras del ultracode: lo que los revisores Opus dejaron por cablear o arreglar",
+   "titulo": "Bots · el ejecutor pinta y retira las capas sobre la pantalla (BOT1011V)",
+   "archivos": [
+    "src/lib/astraura-bots/adaptadores/ejecutor-acciones.ts",
+    "src/lib/astraura-bots/__tests__/ejecutor-capas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Integrado `capa-pantalla.ts` (`normalizarCapa`, `apilar`, `retirar`, `retirarDeBot`) y el componente `capa-pantalla-bot.tsx`. En el ejecutor, la acción de capa (`uiSpec`, resaltar, nota, flecha) pasa por `normalizarCapa`, se apila (máx. 8 por bot) en el almacén de capas que lee el componente (evento o almacén existente; no inventes otro si ya hay uno) y su deshacer es `{retirar: id}`. Pruebas de normalizar, apilar y deshacer. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; pruebas sin red; nunca valores de claves; textos y comentarios en español con acentos; lee antes el contrato del área y CLAUDE.md (trampa 11: nada de `node:*` en código de cliente).",
+   "dependencias_ya_en_main": [
+    "SUC1018B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "FSH1018B",
+   "LYS1018A",
+   "FSH1018D",
+   "LYS1018J",
+   "SUC1018C",
+   "LYS1018H"
+  ]
+ }
+}
