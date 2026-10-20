@@ -8,6 +8,9 @@ pero ya nadie lo iba a traer. Este guion lo trae por el MISMO camino comprobado 
 
     python3 scripts/puente/rescatar_archivadas.py COL1012A COL1012B …   (en ese orden)
     python3 scripts/puente/rescatar_archivadas.py --seco COL1012A …      (solo dice qué haría)
+
+(2026-10-20) Si ninguna ref se llama como la tarea —ramas con nombre de run o del A1 con varias
+tareas—, se busca la que lleva su commit de integración («Ola … · ID: …»).
 """
 import json
 import os
@@ -24,6 +27,26 @@ def ultima_archivada(tid, refs):
     """PURA: la ref archivada más reciente cuyo nombre acaba en `-<tid>` (las del A1) o `/ola/<tid>`."""
     propias = [r for r in refs if r.endswith("-" + tid) or r.endswith("/ola/" + tid)]
     return sorted(propias)[-1] if propias else None
+
+
+def ref_por_asunto(tid, lineas):
+    """PURA: entre líneas «ref\tasunto» (commits de ramas archivadas), la ref más reciente con la
+    integración («ola») de `tid`. Para las ramas con nombre de run (`nube/39264258239`) o las del A1
+    que llevaban varias tareas (2026-10-20: TIP1013A y CB1013T se archivaron con la de otra tarea)."""
+    refs = set()
+    for linea in lineas:
+        ref, _, asunto = linea.partition("\t")
+        if ref and T.tid_de_asunto(asunto) == ("ola", tid):
+            refs.add(ref.strip())
+    return sorted(refs)[-1] if refs else None
+
+
+def archivada_por_asunto(tid):
+    """La ref archivada que integra `tid` aunque su nombre no lo diga (un solo `git log`)."""
+    _, salida = T._git(["log", "--source", "--glob=refs/archivo/nube/*", "--not", "main", "--fixed-strings",
+                        "--grep", "· %s: " % tid, "--format=%S\t%s"])
+    ref = ref_por_asunto(tid, salida.splitlines())
+    return ref[len("refs/"):] if ref and ref.startswith("refs/archivo/") else ref
 
 
 def fila_de(ref, tid):
@@ -56,7 +79,7 @@ def main(argv):
     refs = [r for r in salida.splitlines() if r.strip()]
     hechas = []
     for tid in ids:
-        ref = ultima_archivada(tid, refs)
+        ref = ultima_archivada(tid, refs) or archivada_por_asunto(tid)
         if not ref:
             print("%-20s sin rama archivada" % tid, flush=True)
             continue
@@ -77,10 +100,10 @@ def main(argv):
             hechas.append(tid)
         elif not del_medio:
             T._actualizar_progreso({tid: {"estado": "pendiente", "nota": (
-                "rescate: su trabajo está en %s (archivada por error el 12-10) y en la Mac no pasa: %s"
+                "rescate: su trabajo está en %s (archivada por error) y en la Mac no pasa: %s"
                 % (ref, detalle[:300]))}})
     if hechas and not seco:
-        T._avisar("Rescatadas a main %d tarea(s) que se archivaron por error el 12-10 (comprobadas en carpeta aparte): %s."
+        T._avisar("Rescatadas a main %d tarea(s) que se archivaron por error (comprobadas en carpeta aparte): %s."
                   % (len(hechas), ", ".join(hechas)))
     return 0
 
