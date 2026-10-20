@@ -209,7 +209,6 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
         expect(ACCIONES.contenedor.args).toEqual(["activo", "trabajadores"]);
     });
 
-    });
     it("cada estado mapea al texto correcto", () => {
         const estados = {
             pendiente: "esperando a un nodo",
