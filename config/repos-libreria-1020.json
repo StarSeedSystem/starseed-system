@@ -1,0 +1,258 @@
+{
+ "ola": "Ola 1020R · 14 repos del visionario en la Librería autoactualizable e integradas por área",
+ "fecha": "2026-10-20",
+ "principio": "Toda publicación de la Librería declara su upstream y su CANAL de actualización (releases o commits). El vigía las consulta en vivo y marca 'hay actualización' por versión real, no por texto.",
+ "canales": {
+  "releases": "GET api.github.com/repos/<repo>/releases/latest → tag_name (y assets[].name). Para apps con binarios/versión semántica.",
+  "commits": "GET api.github.com/repos/<repo>/commits?per_page=1 → sha (ya soportado). Para repos sin releases o que avanzan por commit.",
+  "tags": "GET api.github.com/repos/<repo>/tags?per_page=1 → name. Respaldo cuando no hay releases pero sí etiquetas."
+ },
+ "excluida": {
+  "repo": "zhaoxuya520/reverse-skill",
+  "motivo": "Paquete de ingeniería inversa / pruebas de penetración (herramientas ofensivas). No se instala ni se integra por seguridad; no se trabaja con herramientas de intrusión aunque el fin sea legítimo."
+ },
+ "paquetes": [
+  {
+   "id": "lib-wordcraft",
+   "repo": "storytold/wordcraft",
+   "nombre": "WordCraft",
+   "kind": "app",
+   "canal": "releases",
+   "assets": [
+    "\\.wasm$",
+    "wordcraft.*(dmg|msi|AppImage|tar)"
+   ],
+   "licencia": "Apache-2.0",
+   "area": [
+    "Documentos",
+    "Protomolecula"
+   ],
+   "ruta_os": "/documentos",
+   "que_es": "Procesador de textos open source en Rust (lee y escribe .docx, corre en navegador por WASM).",
+   "claude": "no",
+   "nota": "Editor de documentos de StarSeed; integrar la build WASM en /documentos y en la Protomolécula.",
+   "aviso": "Proyecto joven con versiones casi diarias: fijar la versión por SHA/tag antes de alojar o depender de un build."
+  },
+  {
+   "id": "lib-artemis",
+   "repo": "google/artemis",
+   "nombre": "ARTEMIS",
+   "kind": "ai-source",
+   "canal": "commits",
+   "licencia": "Apache-2.0",
+   "area": [
+    "Astraura",
+    "Genesis"
+   ],
+   "externalUrl": "https://github.com/google/artemis",
+   "que_es": "Automatiza teléfonos Android reales desde lenguaje natural; trae servidor MCP.",
+   "claude": "mcp",
+   "nota": "Conector MCP para que Astraura/Genesis manejen Android; requiere teléfono/emulador y Python. Medir antes."
+  },
+  {
+   "id": "lib-openterminal",
+   "repo": "ErTasselli/OpenTerminal",
+   "nombre": "OpenTerminal",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "MIT",
+   "area": [
+    "Economia",
+    "widgets-libres"
+   ],
+   "externalUrl": "https://github.com/ErTasselli/OpenTerminal",
+   "que_es": "Panel estilo terminal de mercados con datos públicos gratuitos, sin claves.",
+   "claude": "no",
+   "nota": "App/widget de finanzas en el OS; datos sin clave."
+  },
+  {
+   "id": "lib-anatomy",
+   "repo": "wheresryan22/anatomy",
+   "nombre": "Anatomy",
+   "kind": "function",
+   "canal": "releases",
+   "licencia": "MIT",
+   "area": [
+    "Estudio",
+    "Protomolecula",
+    "Biblioteca"
+   ],
+   "skillId": "anatomy",
+   "que_es": "Skill de Claude que explica una idea construyéndola como figura isométrica interactiva (SVG/WebGL/3D).",
+   "claude": "skill",
+   "nota": "Es skill de agente: se instala en el Claude Code de la Mac y se ofrece en el estudio audiovisual."
+  },
+  {
+   "id": "lib-solidcraft",
+   "repo": "tangency-labs/solidcraft",
+   "nombre": "SolidCraft",
+   "kind": "app",
+   "canal": "releases",
+   "assets": [
+    "solidcraft.*(msi|dmg|AppImage)",
+    "\\.wasm$"
+   ],
+   "licencia": "Apache-2.0",
+   "area": [
+    "Protomolecula",
+    "StarSeed XR"
+   ],
+   "externalUrl": "https://github.com/tangency-labs/solidcraft",
+   "que_es": "CAD 3D paramétrico open source en Rust (escritorio/web) con servidor MCP para agentes.",
+   "claude": "mcp",
+   "nota": "Modelado 3D paramétrico para la Protomolécula; su MCP deja que los agentes modelen.",
+   "aviso": "Proyecto joven con versiones casi diarias: fijar la versión por SHA/tag antes de alojar o depender de un build."
+  },
+  {
+   "id": "lib-xerj",
+   "repo": "xerj-org/xerj",
+   "nombre": "XERJ",
+   "kind": "ai-source",
+   "canal": "releases",
+   "licencia": "Apache-2.0",
+   "area": [
+    "Astraura",
+    "Genesis",
+    "cerebros"
+   ],
+   "externalUrl": "https://github.com/xerj-org/xerj",
+   "que_es": "Búsqueda de datos para IA con autoindexado (RAG/índice vivo).",
+   "claude": "mcp",
+   "nota": "Motor de búsqueda de datos para los cerebros y la memoria; medir encaje con la puerta de datos.",
+   "aviso": "Proyecto joven con versiones casi diarias: fijar la versión por SHA/tag antes de alojar o depender de un build."
+  },
+  {
+   "id": "lib-itsaplan",
+   "repo": "croffasia/itsaplan",
+   "nombre": "It's a Plan",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "AGPL-3.0",
+   "area": [
+    "Genesis",
+    "MetaGenesis"
+   ],
+   "externalUrl": "https://github.com/croffasia/itsaplan",
+   "que_es": "Gestión de proyectos e incidencias autoalojada con agentes IA (REST + webhooks + MCP).",
+   "claude": "mcp",
+   "nota": "AGPL-3.0: autoalojado y comercial permitidos; si se modifica y se ofrece en red, hay que publicar el código. Mantener separado del repo del OS."
+  },
+  {
+   "id": "lib-unsloth",
+   "repo": "unslothai/unsloth",
+   "nombre": "Unsloth",
+   "kind": "ai-source",
+   "canal": "commits",
+   "licencia": "Apache-2.0",
+   "area": [
+    "capas-astraura",
+    "colmena-contenedores"
+   ],
+   "externalUrl": "https://github.com/unslothai/unsloth",
+   "que_es": "App local para correr y entrenar LLMs y modelos de difusión (GGUF, MLX).",
+   "claude": "no",
+   "nota": "Capa de modelos/entrenamiento local; nodo con GPU. Medir antes de encender."
+  },
+  {
+   "id": "lib-gods-eye",
+   "repo": "bilawalsidhu/gods-eye-view",
+   "nombre": "God's Eye View",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "MIT (código); datos y modelos de terceros NO MIT, varios CC-BY-NC",
+   "area": [
+    "mapas",
+    "StarSeed XR"
+   ],
+   "externalUrl": "https://github.com/bilawalsidhu/gods-eye-view",
+   "que_es": "Globo 3D fotorrealista con datos espaciales reales en vivo (aviones, barcos, satélites, sismos) y control por voz.",
+   "claude": "no",
+   "nota": "Para los MAPAS del OS (el visionario lo pidió para mapas).",
+   "aviso": "El código es MIT, pero trae datos empaquetados y en vivo con licencia propia: TeleGeography (cables submarinos) es CC-BY-NC-SA 3.0 y las imágenes Vantor/GeoPera CC-BY-NC 4.0 — NO para uso comercial. En StarSeed se usa como app externa (externalUrl); si algún día se aloja su build, quitar antes esos datasets NC y respetar ODbL/atribución del resto (DATA_SOURCES.md)."
+  },
+  {
+   "id": "lib-detectron2",
+   "repo": "facebookresearch/detectron2",
+   "nombre": "Detectron2",
+   "kind": "ai-source",
+   "canal": "commits",
+   "licencia": "Apache-2.0",
+   "area": [
+    "avatares-3d",
+    "generacion-imagenes",
+    "Protomolecula"
+   ],
+   "externalUrl": "https://github.com/facebookresearch/detectron2",
+   "que_es": "Plataforma de detección y segmentación de objetos (visión por computador).",
+   "claude": "no",
+   "nota": "Visión para avatares 3D, segmentación de imágenes y Protomolécula; nodo Python/torch. Medir antes.",
+   "aviso": "Apache-2.0 (código). Los PESOS de los model zoo tienen licencias propias por modelo: elegir solo pesos de uso libre; algunos datasets de entrenamiento son solo-investigación."
+  },
+  {
+   "id": "lib-ods",
+   "repo": "Osmantic/ODS",
+   "nombre": "ODS · Osmantic Deployment System",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "Apache-2.0 (+ Pixel source-available)",
+   "area": [
+    "colmena-contenedores",
+    "Oracle A1"
+   ],
+   "externalUrl": "https://github.com/Osmantic/ODS",
+   "que_es": "Convierte un PC/Mac/Linux en un servidor de IA privado (homelab).",
+   "claude": "no",
+   "nota": "Para la colmena/nodos. El subpaquete vendor/pixel tiene licencia propia (uso personal y comercial dentro de ODS): no empaquetar Pixel aparte."
+  },
+  {
+   "id": "lib-wechaty",
+   "repo": "wechaty/wechaty",
+   "nombre": "Wechaty",
+   "kind": "ai-source",
+   "canal": "tags",
+   "licencia": "Apache-2.0",
+   "area": [
+    "Hermes",
+    "Astraura",
+    "mensajeria"
+   ],
+   "externalUrl": "https://github.com/wechaty/wechaty",
+   "que_es": "SDK de RPA conversacional para chatbots omnicanal.",
+   "claude": "no",
+   "nota": "Omnicanal para Hermes/Astraura; medir qué canales aporta frente a Telegram."
+  },
+  {
+   "id": "lib-airllm",
+   "repo": "lyogavin/airllm",
+   "nombre": "AirLLM",
+   "kind": "ai-source",
+   "canal": "releases",
+   "licencia": "Apache-2.0",
+   "area": [
+    "capas-astraura",
+    "colmena-contenedores"
+   ],
+   "externalUrl": "https://github.com/lyogavin/airllm",
+   "que_es": "Inferencia de LLMs enormes (70B+) en una sola GPU de 4 GB sin cuantizar.",
+   "claude": "no",
+   "nota": "Capa de capacidad para modelos grandes en hardware modesto; nodo con GPU. Medir antes."
+  },
+  {
+   "id": "lib-mesh2motion",
+   "repo": "Mesh2Motion/mesh2motion-app",
+   "nombre": "Mesh2Motion",
+   "kind": "app",
+   "canal": "commits",
+   "licencia": "MIT (código); assets 3D CC0",
+   "area": [
+    "avatares-3d",
+    "Protomolecula"
+   ],
+   "externalUrl": "https://github.com/Mesh2Motion/mesh2motion-app",
+   "que_es": "Importa un modelo 3D y le asigna y exporta animaciones automáticamente.",
+   "claude": "no",
+   "aviso": "Verificado 2026-10-20: código MIT, assets (modelos/rigs/animaciones) CC0. Sin releases aún → canal commits."
+  }
+ ],
+ "licencias_verificadas": "2026-10-20 vía api.github.com/repos/<r>/license y LICENSE"
+}
