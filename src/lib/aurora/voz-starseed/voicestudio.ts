@@ -99,25 +99,25 @@ export async function descubrir(baseUrl = "http://127.0.0.1:3900"): Promise<Desc
         version: data.version,
         ofrece: data.ofrece,
       };
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if (error.name === "AbortError") {
-        return {
-          vivo: false,
-          motivo: "Timeout de conexión (800 ms)",
-        };
-      }
-      return {
-        vivo: false,
-        motivo: "Error de red: no se pudo conectar al servicio",
-      };
-    }
-  } catch (error) {
-    return {
-      vivo: false,
-      motivo: "Error de red: no se pudo conectar al servicio",
-    };
-  }
+     } catch (error: unknown) {
+       clearTimeout(timeoutId);
+       if (error && typeof error === 'object' && 'name' in error && error.name === "AbortError") {
+         return {
+           vivo: false,
+           motivo: "Timeout de conexión (800 ms)",
+         };
+       }
+       return {
+         vivo: false,
+         motivo: "Error de red: no se pudo conectar al servicio",
+       };
+     }
+   } catch (error: unknown) {
+     return {
+       vivo: false,
+       motivo: "Error de red: no se pudo conectar al servicio",
+     };
+   }
 }
 
 export async function voces(baseUrl = "http://127.0.0.1:3900"): Promise<string[]> {

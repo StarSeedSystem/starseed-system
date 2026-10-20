@@ -21,16 +21,15 @@ describe("voicestudio service", () => {
     });
   });
 
-  it("debe retornar vivo:false con motivo cuando el servicio responde con error", async () => {
-    const { fetch } = crearFetchMock([
-      {
-        url: "http://127.0.0.1:3900/.well-known/voicestudio-speech",
-        status: 500,
-        ok: false,
-        body: "Internal Server Error",
-        statusText: "Internal Server Error",
-      },
-    ]);
+   it("debe retornar vivo:false con motivo cuando el servicio responde con error", async () => {
+     const { fetch } = crearFetchMock([
+       {
+         url: "http://127.0.0.1:3900/.well-known/voicestudio-speech",
+         status: 500,
+         ok: false,
+         body: "Internal Server Error",
+       },
+     ]);
     vi.stubGlobal("fetch", fetch);
     const resultado = await descubrir();
     expect(resultado).toEqual({
@@ -114,17 +113,16 @@ describe("voicestudio service", () => {
     expect(resultado).toEqual(["alloy", "echo", "fable"]);
   });
 
-  it("debe lanzar un error cuando el servicio responde con error HTTP", async () => {
-    const { fetch } = crearFetchMock([
-      {
-        url: "http://127.0.0.1:3900/v1/audio/transcriptions",
-        status: 422,
-        ok: false,
-        body: "Unprocessable Entity",
-        statusText: "Unprocessable Entity",
-        method: "POST",
-      },
-    ]);
+   it("debe lanzar un error cuando el servicio responde con error HTTP", async () => {
+     const { fetch } = crearFetchMock([
+       {
+         url: "http://127.0.0.1:3900/v1/audio/transcriptions",
+         status: 422,
+         ok: false,
+         body: "Unprocessable Entity",
+         method: "POST",
+       },
+     ]);
     vi.stubGlobal("fetch", fetch);
     const params = {};
     await expect(transcribir(undefined, params)).rejects.toThrow("Error 422: Unprocessable Entity");
