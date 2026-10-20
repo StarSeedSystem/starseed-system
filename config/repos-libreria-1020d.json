@@ -1,0 +1,377 @@
+{
+ "ola": "Ola 1020U · 4.ª tanda: flujos de imagen (ComfyUI), servidores propios (Coolify), agentes (OpenHands, Harness², OpenRig), traducción (LibreTranslate), archivo de la Biblioteca (ArchiveBox), envíos por la malla (LocalSend), galerías (gallery-dl) y PDF en todo medio (Stirling-PDF)",
+ "fecha": "2026-10-20",
+ "principio": "Mismo contrato que las tres tandas anteriores (repos-libreria-1020, 1020b y 1020c): canal declarado, instalar no descarga ni lanza servidores, fichas honestas y preinstalación solo cuando instalar solo registra la ficha, el enlace o el conector. Nuevo en esta tanda: cada paquete pesado declara sus `requisitos` y lo coloca la bolsa de recursos (la malla local y las capas de conciencia de los servidores), nunca la neurona que lo pide por su cuenta.",
+ "regla_capacidad": "Alex, 2026-10-20: lo que requiere más capacidad (RAM, tarjeta gráfica) lo autoadministran la malla local y las capas de conciencia de servidores públicos, incluidos los de Oracle, Cloud Run y cualquier otro. Detalle en architecture/repos-libreria-1020d.md §3.",
+ "duplicadas": {
+  "coollabsio/coolify": "ya existía como iatool-coolify (enlace); aquí se profundiza: conector de los servidores de las capas de conciencia, en solo lectura primero",
+  "OpenHands/OpenHands": "ya existía como iatool-openhands con la URL vieja (All-Hands-AI/OpenHands); se corrige la URL y se profundiza con el conector del Agent Server",
+  "Comfy-Org/ComfyUI": "ya estaba en la generación de imágenes, la Protomolécula, el servicio local (puerto 8188) y el registro de integraciones con la URL vieja (comfyanonymous/ComfyUI); se pasa a la canónica y se arreglan los flujos",
+  "Stirling-Tools/Stirling-PDF": "ya existía como iatool-stirling-pdf (sembrado por defecto) con cliente de unir, a imagen y a texto; aquí se profundiza: editar PDF desde todo medio donde se abra, con las operaciones que la instancia tenga"
+ },
+ "excluidas": [],
+ "paquetes": [
+  {
+   "id": "lib-comfyui",
+   "repo": "Comfy-Org/ComfyUI",
+   "nombre": "ComfyUI",
+   "kind": "ai-source",
+   "canal": "releases",
+   "licencia": "GPL-3.0",
+   "area": [
+    "imagenes",
+    "astraura",
+    "protomolecula",
+    "publicaciones",
+    "mensajes",
+    "agentes"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Motor de difusión por nodos con API local (flujos en JSON: /prompt, /history, /view, /ws, /object_info, /system_stats). Corre en NVIDIA, AMD, Intel y Apple Silicon; también en CPU, muy lento.",
+   "nota": "Es el motor de los FLUJOS de imagen de Astraura, la Protomolécula, las publicaciones y los mensajes: plantillas de flujo por formato (1:1, 4:5, 9:16, 16:9), variaciones y escalado, como datos (nunca código). El adaptador actual manda {prompt: texto} a /prompt, que un ComfyUI de verdad rechaza (pide el grafo del flujo): se arregla en IMG1020A-C.",
+   "aviso": "Instalar el servidor y los modelos es manual y lo coloca la bolsa: la Mac de 8 GB solo con modelos pequeños y nunca con el enjambre escribiendo; el A1 no tiene GPU (solo cola lenta sin prisa). Los nodos personalizados de terceros ejecutan código: ninguno sin revisar.",
+   "requisitos": {
+    "ram_gb": 8,
+    "vram_gb": 4,
+    "gpu": "recomendada",
+    "docker": "opcional",
+    "arquitecturas": [
+     "amd64",
+     "arm64"
+    ],
+    "so": [
+     "linux",
+     "macos",
+     "windows"
+    ],
+    "fuente": "ficha de motores de src/lib/imagenes/modelos.ts (desde 4 GB de VRAM + 8 GB de RAM con streaming de pesos); arm64 verificado en Apple Silicon, en Linux arm64 sin verificar; cada modelo suma lo suyo"
+   }
+  },
+  {
+   "id": "lib-coolify",
+   "repo": "coollabsio/coolify",
+   "nombre": "Coolify",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "Apache-2.0",
+   "area": [
+    "servidores",
+    "capas-de-conciencia",
+    "cerebros",
+    "grupos",
+    "comunidades",
+    "genesis"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Plataforma autoalojada para desplegar apps, bases de datos y servicios (280+ de un clic) en tus propios servidores por SSH: VPS, máquinas propias o Raspberry Pi. API REST en /api/v1 con token Bearer.",
+   "nota": "Administrador de los servidores Linux de las capas de conciencia (el A1, servidores de personas, grupos y comunidades): la bolsa decide DÓNDE va un servicio pesado y Coolify lo despliega allí. Primero en solo lectura (equipo, servidores); desplegar llega cuando se verifiquen sus rutas exactas en la referencia de la API.",
+   "aviso": "El instalador es un guion (`curl … | bash`) que instala Docker y toma el servidor: solo con la palabra de Alex y nunca en la Mac. El panel jamás se expone a internet (túnel o red privada); la API la enciende un administrador y conviene la lista de IP permitidas. Token por integración, solo en variable de entorno.",
+   "requisitos": {
+    "ram_gb": null,
+    "vram_gb": null,
+    "gpu": "no",
+    "docker": "la instala",
+    "arquitecturas": [
+     "amd64",
+     "arm64"
+    ],
+    "so": [
+     "linux"
+    ],
+    "fuente": "la portada no da cifras de RAM (sin medir); cita Raspberry Pi como servidor válido"
+   }
+  },
+  {
+   "id": "lib-openhands",
+   "repo": "OpenHands/OpenHands",
+   "nombre": "OpenHands",
+   "kind": "tool",
+   "canal": "releases",
+   "licencia": "MIT",
+   "area": [
+    "agentes",
+    "genesis",
+    "astraura",
+    "protomolecula"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Plataforma de agentes de desarrollo que escriben código, lo ejecutan y navegan dentro de un sandbox (Docker). Su Agent Server (en OpenHands/software-agent-sdk, MIT) da una API REST/WebSocket y un cliente TypeScript para el navegador.",
+   "nota": "Un MEDIO más para los agentes de todo tipo: conversaciones de agente en un sandbox de un servidor de las capas de conciencia (el A1 tiene Docker y 12 GB), con nuestros proveedores. Para el enjambre solo entra como escritor tras la prueba de edición real con contexto de tamaño real (regla §20 de la orquestación).",
+   "aviso": "El cliente del Agent Server se escribe cuando se verifique su referencia de API (hoy solo consta que existe: nada inventado). Docker obligatorio; el sandbox se ejecuta con la red limitada a la lista de dominios del agente. No se usa nada de su versión empresarial.",
+   "requisitos": {
+    "ram_gb": null,
+    "vram_gb": null,
+    "gpu": "no",
+    "docker": "necesaria",
+    "arquitecturas": [
+     "amd64"
+    ],
+    "so": [
+     "linux",
+     "macos"
+    ],
+    "fuente": "sin medir: se mide en el A1 (arm64 sin verificar) antes de abrirlo a nadie"
+   }
+  },
+  {
+   "id": "lib-harness2",
+   "repo": "google-research/harness2",
+   "nombre": "Harness²",
+   "kind": "link",
+   "canal": "commits",
+   "licencia": "Apache-2.0",
+   "area": [
+    "agentes",
+    "genesis",
+    "claude"
+   ],
+   "efecto": "CATALOGO",
+   "preinstalar": "siempre",
+   "claude": "si",
+   "que_es": "Marco de investigación que mejora el ARNÉS de un agente (prompt de sistema, barreras, memoria, guía de herramientas, subagentes, habilidades, scripts y plugins) sin tocar los pesos: propone cambios, los prueba ejecutándolos y compone el mejor; guarda lo aprendido para tareas siguientes. Ejecutores: OpenCode (por defecto) o Codex.",
+   "nota": "Es la misma idea que el protocolo común de los agentes (contexto_agente.py) y el mismo ejecutor que el enjambre (OpenCode): referencia para que Genesis refine el arnés de cada rol con pruebas, no a ojo. La demo sin credenciales (`harness2-demo`, editores deterministas) puede probarse en Linux.",
+   "aviso": "Código de investigación, no es un producto oficial de Google, sin versiones. Con modelos pide Vertex AI, y la facturación de Google está desactivada desde el 2026-09-25: no se ejecuta con modelos sin la palabra de Alex. Su ejecutor tiene la red SIN restringir y Codex corre sin sandbox: solo dentro de un sandbox con lista de dominios (OpenShell).",
+   "requisitos": {
+    "ram_gb": null,
+    "vram_gb": null,
+    "gpu": "no",
+    "docker": "solo para WorkBuddy-Bench",
+    "arquitecturas": [
+     "amd64"
+    ],
+    "so": [
+     "linux"
+    ],
+    "fuente": "README: Linux, Python 3.12 con uv; con modelos, Node 20+ y la CLI de Google Cloud; arquitectura sin indicar (arm64 sin verificar)"
+   }
+  },
+  {
+   "id": "lib-libretranslate",
+   "repo": "LibreTranslate/LibreTranslate",
+   "nombre": "LibreTranslate",
+   "kind": "tool",
+   "canal": "tags",
+   "licencia": "AGPL-3.0",
+   "area": [
+    "traduccion",
+    "astraura",
+    "agentes",
+    "perfiles",
+    "mensajes",
+    "publicaciones",
+    "paginas",
+    "os"
+   ],
+   "efecto": "FUNCIONAL",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "API de traducción automática autoalojada y sin conexión, con modelos de Argos Translate (sin Google ni Azure): /translate, /detect, /languages, /translate_file y /health. Se instala con pip (Python ≥ 3.8) o Docker; GPU opcional (CUDA 12.4.1).",
+   "nota": "Motor de la capa de traducción de todo el OS: clic derecho «Traducir» en cualquier texto, traducir la página activa entera y traducir automáticamente en el idioma de cada perfil (páginas, mensajes, publicaciones, agentes y Astraura). Antes que el servidor va el traductor del propio navegador cuando existe (en el aparato, sin red); después, Astraura para lo que Argos no cubre.",
+   "aviso": "AGPL-3.0: se usa tal cual; si se modifica y se ofrece por red, su código modificado se publica. La instancia pública libretranslate.com es de pago con clave: no se usa por defecto. Lo privado (mensajes, documentos personales) solo se traduce en el aparato, en neuronas de la misma cuenta o en servidores del cerebro, nunca en un servidor ajeno. Cada idioma es un modelo que descargar: --load-only con los idiomas que se usen.",
+   "requisitos": {
+    "ram_gb": null,
+    "vram_gb": null,
+    "gpu": "opcional",
+    "docker": "opcional",
+    "arquitecturas": [
+     "amd64"
+    ],
+    "so": [
+     "linux",
+     "macos",
+     "windows"
+    ],
+    "fuente": "la guía de instalación no da cifras de RAM (sin medir) ni arquitecturas: arm64 sin verificar; se mide en el A1 con --load-only"
+   }
+  },
+  {
+   "id": "lib-archivebox",
+   "repo": "ArchiveBox/ArchiveBox",
+   "nombre": "ArchiveBox",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "MIT",
+   "area": [
+    "biblioteca",
+    "libreria",
+    "cerebros",
+    "publicaciones",
+    "archivos"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Archivo web autoalojado: guarda cada URL como HTML original, SingleFile, captura PNG, PDF, WARC, texto del artículo y metadatos; de vídeos y audio, el medio y los subtítulos; de repos de código, un clon git. Formatos estándar en carpetas normales y SQLite. CLI, interfaz web, API de Python (beta) y API REST (alfa).",
+   "nota": "El archivo de la Biblioteca y la Librería: cada fuente externa que cita una ficha, una publicación o un cerebro queda guardada con su copia, para que la Biblioteca no se pudra cuando el enlace muera. No es un gestor de archivos (eso es el Finder del OS): es la memoria de lo que se enlaza.",
+   "aviso": "Por defecto también manda cada URL a archive.org: se apaga (SAVE_ARCHIVE_DOT_ORG=False) para que nada privado salga. Nunca archiva con las cookies o sesiones de nadie en un servidor compartido. Rama 0.9 en candidata (rc). Ejecuta JavaScript de las páginas al archivar: dentro de su contenedor.",
+   "requisitos": {
+    "ram_gb": null,
+    "vram_gb": null,
+    "gpu": "no",
+    "docker": "recomendada (Compose trae todo)",
+    "arquitecturas": [
+     "amd64",
+     "arm64"
+    ],
+    "so": [
+     "linux",
+     "macos"
+    ],
+    "fuente": "README: Ubuntu, macOS o Docker; amd64 o arm64; usa Chrome, wget y yt-dlp (RAM sin medir); el disco crece con el archivo"
+   }
+  },
+  {
+   "id": "lib-localsend",
+   "repo": "localsend/localsend",
+   "nombre": "LocalSend",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "Apache-2.0",
+   "area": [
+    "malla",
+    "archivos",
+    "mensajes",
+    "neuronas",
+    "servidores"
+   ],
+   "efecto": "FUNCIONAL",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "App para enviar archivos y mensajes a aparatos cercanos por la red local, sin internet ni servidores de terceros: API REST sobre HTTPS con certificado propio de cada aparato, descubrimiento por multidifusión (224.0.0.167:53317) y puerto 53317. Windows, macOS, Linux, Android, iOS y Fire OS; hay CLI.",
+   "nota": "Su protocolo abierto (v2, localsend/protocol) entra como un transporte más de los envíos de la malla: una neurona StarSeed con app nativa o un servidor de las capas de conciencia habla LocalSend con cualquier móvil u ordenador que lo tenga, y lo recibido pasa por el mismo motor de archivos de la malla (oferta, hash, destino: aparato, cerebro o Biblioteca). Fuera de la red local siguen los transportes de StarSeed (WebRTC, relé cifrado, volúmenes por bandas).",
+   "aviso": "Solo red local y solo app nativa o servidor: un navegador no puede escuchar multidifusión ni abrir un servidor HTTPS. Nunca se desactiva el cifrado para ganar velocidad. Su descarga «por navegador» va en HTTP sin cifrar: no se usa. El PIN se respeta y lo privado solo va a aparatos de la cuenta o con vínculo consentido.",
+   "requisitos": {
+    "ram_gb": null,
+    "vram_gb": null,
+    "gpu": "no",
+    "docker": "no",
+    "arquitecturas": [
+     "amd64",
+     "arm64"
+    ],
+    "so": [
+     "linux",
+     "macos",
+     "windows",
+     "android",
+     "ios"
+    ],
+    "fuente": "README: app ligera; pide el puerto 53317 TCP y UDP abierto y el aislamiento de punto de acceso apagado en el router"
+   }
+  },
+  {
+   "id": "lib-gallery-dl",
+   "repo": "mikf/gallery-dl",
+   "nombre": "gallery-dl",
+   "kind": "tool",
+   "canal": "commits",
+   "licencia": "GPL-2.0",
+   "area": [
+    "biblioteca",
+    "cerebros",
+    "archivos",
+    "agentes"
+   ],
+   "efecto": "HERRAMIENTA-AGENTE",
+   "preinstalar": "manual",
+   "claude": "no",
+   "que_es": "Programa de terminal que descarga galerías y colecciones de imágenes de muchos sitios (con nombres de archivo configurables; vídeo con yt-dlp). Inicia sesión con usuario y clave, cookies (también sacadas del navegador) u OAuth según el sitio. El desarrollo se ha mudado a Codeberg.",
+   "nota": "NO guarda ni replica entornos: descarga imágenes de sitios web. Sirve para traer las galerías PROPIAS de una persona (sus cuentas de Flickr, DeviantArt, Mastodon, Tumblr…) a su cerebro o a la Biblioteca. Guardar, duplicar, replicar y compartir entornos completos del OS lo hace el paquete de sistema ampliado (ENT1020A).",
+   "aviso": "Usa credenciales y cookies del navegador: solo en la neurona de la propia persona, jamás en un servidor compartido ni por un agente sin su permiso. Respeta las condiciones de cada sitio y los derechos de autor. Canal: el de GitHub ya no es el principal; la autoactualización pasa a Codeberg con GDL1020A.",
+   "requisitos": {
+    "ram_gb": null,
+    "vram_gb": null,
+    "gpu": "no",
+    "docker": "opcional",
+    "arquitecturas": [
+     "amd64",
+     "arm64"
+    ],
+    "so": [
+     "linux",
+     "macos",
+     "windows"
+    ],
+    "fuente": "README: Python 3.8+ y Requests; ligero"
+   }
+  },
+  {
+   "id": "lib-stirling-pdf",
+   "repo": "Stirling-Tools/Stirling-PDF",
+   "nombre": "Stirling-PDF",
+   "kind": "tool",
+   "canal": "releases",
+   "licencia": "MIT (salvo app/proprietary, app/saas, engine y las carpetas proprietary, desktop, saas, cloud, portal y portal-saas del editor, con licencia propia)",
+   "area": [
+    "pdf",
+    "archivos",
+    "protomolecula",
+    "astraura",
+    "publicaciones",
+    "agentes"
+   ],
+   "efecto": "FUNCIONAL",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Plataforma de edición de PDF de núcleo abierto (open-core) con más de 50 herramientas: editar, unir, dividir, firmar, tachar datos, convertir, OCR y comprimir. Escritorio, navegador o servidor propio con API REST para casi todas las herramientas; procesa sin servicios externos.",
+   "nota": "El editor de PDF de todo medio donde se abra uno (vista de archivos, publicaciones, Protomolécula, Astraura y los agentes): el OS ofrece solo las operaciones que la instancia colocada por la bolsa tenga de verdad (lee su descripción de API) y guarda el resultado como versión nueva, nunca encima del original.",
+   "aviso": "Solo la parte MIT: nada de las carpetas con licencia propia ni de las funciones de empresa. Un PDF privado solo va a una instancia del aparato, de la cuenta o del cerebro. Requisitos de RAM y arquitecturas sin medir: se miden en el A1 antes de abrirlo a nadie.",
+   "requisitos": {
+    "ram_gb": null,
+    "vram_gb": null,
+    "gpu": "no",
+    "docker": "recomendada",
+    "arquitecturas": [
+     "amd64"
+    ],
+    "so": [
+     "linux",
+     "macos",
+     "windows"
+    ],
+    "fuente": "README: Docker en el puerto 8080, escritorio o Kubernetes; RAM sin medir; arm64 sin verificar"
+   }
+  },
+  {
+   "id": "lib-openrig",
+   "repo": "mvschwarz/openrig",
+   "nombre": "OpenRig",
+   "kind": "tool",
+   "canal": "tags",
+   "licencia": "Apache-2.0",
+   "area": [
+    "agentes",
+    "genesis",
+    "claude"
+   ],
+   "efecto": "HERRAMIENTA-AGENTE",
+   "preinstalar": "manual",
+   "claude": "si",
+   "que_es": "Arnés que envuelve los arneses: equipos de agentes de código (Claude Code y Codex; también Pi por RPC) definidos en YAML, que arrancan con una orden, viven en sesiones de tmux a las que uno se engancha, se recuperan tras un reinicio y se guardan y restauran con instantáneas. CLI `rig`, interfaz de terminal, servidor MCP y demonio HTTP (Hono + SQLite). En desarrollo activo (v0.6.x).",
+   "nota": "Para los agentes de todo tipo y para nosotros en Claude: equipos persistentes de Claude Code con recuperación tras reinicio. Sus ideas (equipo como datos, instantánea y restauración de un equipo entero, recuperar sesiones tras reiniciar) son las que necesitan el relevo y la colmena de Genesis; no sustituye al orquestador del enjambre (que escribe con modelos gratuitos, no con Claude Code ni Codex).",
+   "aviso": "Toca la configuración de la máquina: `~/.tmux.conf`, `~/.claude.json`, `~/.codex/config.toml`, `.claude/settings.local.json` del proyecto y las carpetas de habilidades, y añade ganchos ejecutables y entradas de confianza; el propio proyecto avisa de que no garantiza conservarlos ni deshacerlos: copia de seguridad antes. Sus puestos de núcleo dan a Codex acceso total sin preguntar (`danger-full-access -a never`) y el equipo `workshop` salta los permisos: solo equipos de proyecto con permisos estrechos. Nunca sobre el repo principal con el enjambre escribiendo (un solo escritor en el árbol de trabajo). Sus ganchos mandan eventos al demonio local (sin el texto de los prompts).",
+   "requisitos": {
+    "ram_gb": null,
+    "vram_gb": null,
+    "gpu": "no",
+    "docker": "opcional",
+    "arquitecturas": [
+     "amd64",
+     "arm64"
+    ],
+    "so": [
+     "linux",
+     "macos"
+    ],
+    "fuente": "README: Node.js 22 o 24, tmux, macOS o Linux (Windows por WSL2) y Claude Code o Codex con sesión iniciada; ligero"
+   }
+  }
+ ],
+ "licencias_verificadas": "2026-10-20 en github.com y en las documentaciones oficiales (docs.libretranslate.com, coolify.io/docs); la API de GitHub no estaba disponible en esta sesión"
+}
