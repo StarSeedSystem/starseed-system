@@ -135,12 +135,16 @@ for u in "$NODO"/systemd/*.service "$NODO"/systemd/*.timer; do
   [ -f "$u" ] || continue
   n=$(basename "$u")
   # Un servicio que necesita un archivo que este paquete no trae no se instala (MetaGeminis y el
-  # nodo de MetaGenesis solo existen cuando el paquete los lleva).
-  req=$(sed -n 's/^# requiere: //p' "$u" | head -1)
-  if [ -n "$req" ] && [ ! -e "$req" ]; then
+  # nodo de MetaGenesis solo existen cuando el paquete los lleva). Cada línea `# requiere: <ruta>` cuenta:
+  # basta con que falte UNA (Genesis pide a la vez su build en /opt y el Node de /usr/local/bin).
+  falta=""
+  while IFS= read -r req; do
+    [ -n "$req" ] && [ ! -e "$req" ] && { falta="$req"; break; }
+  done < <(sed -n 's/^# requiere: //p' "$u")
+  if [ -n "$falta" ]; then
     systemctl disable --now "$n" >/dev/null 2>&1 || true
     rm -f "/etc/systemd/system/$n"
-    echo "  $n: no se instala (falta $req)"
+    echo "  $n: no se instala (falta $falta)"
     continue
   fi
   install -m 644 "$u" "/etc/systemd/system/$n"

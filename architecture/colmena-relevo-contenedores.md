@@ -163,7 +163,90 @@ El líder reparte sin duplicar, porque las asignaciones constan y la Mac salta l
 1. **Servicio `starseed-genesis` en el A1:**
    - ejecuta `next start` sobre la build que el guardián acaba de dar por **verde**, nunca sobre una roja;
    - lo publica Caddy en el mismo nombre HTTPS que ya usa;
-   - lleva `STARSEED_MANDO=1` y **nunca** `STARSEED_LOCAL=1`.
+   - lleva `STARSEED_MANDO=1` y **nunca** `STARSEED_LOCAL=1`;
+   - lleva además `STARSEED_PUBLICO=1` (2026-10-20, COL1012Md-d1): detrás de Caddy todo lo que ve Next llega
+     desde el bucle local, así que «viene de localhost» no prueba nada. Con esa variable
+     `esPeticionDeEstaMaquina` y `esDespliegueLocal` responden siempre «no» y cada petición exige sesión y
+     pertenencia a MetaGenesis (un SSRF desde una ruta del servidor o cualquier proceso del A1 no entra);
+   - la unidad es `deploy/oracle/nodo/systemd/starseed-genesis.service`: `127.0.0.1:9002`, `Restart=always`,
+     `MemoryMax=3G`, endurecida (`ProtectHome=yes`, `ProtectSystem=strict`, sin capacidades, solo las llamadas al
+     sistema de un servicio normal). Solo se instala si existen **todas** las rutas de sus líneas `# requiere:`
+     (`preparar-a1.sh` las comprueba una a una): la build `/opt/starseed/genesis/.next/BUILD_ID` y el Node de
+     `/usr/local/bin/node` (el mismo que usa la puerta de datos). Sin build verde o sin ese Node no hay
+     servicio, y el registro dice cuál falta (en vez de un servicio roto reiniciándose con 203/EXEC).
+     (Decisión consciente, revisión de COL1012Md-d1: el prompt original de la tarea decía «no toques
+     `preparar-a1.sh`», pero soportar varias líneas `# requiere:` es lo mínimo para que esta unidad exija a la vez
+     la build y el Node. Es un cambio acotado a ese bucle, probado con `set -euo pipefail`; la tarea del paso de
+     despliegue debe partir de él y no revertirlo.)
+   - `Restart=always` porque `next start` termina con código 0 ante un SIGTERM que no venga de `systemctl`
+     (otro proceso, un `pkill`): con `on-failure` esa salida limpia no se relanzaría. Un reinicio de la máquina
+     no depende de esto (la unidad está habilitada y arranca igual).
+   - **Quién puede tocar el código que se sirve** (revisión de COL1012Md-d1): Genesis es lo único del A1 expuesto
+     a internet, y por él pasan las cookies y los Bearer de los miembros. En el mismo A1 corre `starseed-medio`
+     como usuario `starseed`, y ese ejecuta código no confiable (agentes con modelos gratuitos y shell, pruebas
+     sobre ramas de la nube). Por eso Genesis **no** corre como `starseed`:
+     - `DynamicUser=yes`: usuario efímero propio, sin shell y sin grupo en común con `starseed` (el enjambre no
+       puede matarlo, mandarle señales ni leer su memoria);
+     - el código es de **root y de solo lectura** para el servicio: `/opt/starseed/genesis` es `root:root 755`,
+       sin `ReadWritePaths`. Lo único que escribe `next start` es su caché, en `/var/cache/starseed-genesis`
+       (`CacheDirectory=`); el despliegue deja `.next/cache` como **enlace simbólico** a esa carpeta;
+     - el despliegue **copia siempre** (`cp -a` o `rsync -a`) y deja `root:root`. **Nunca** un enlace físico
+       (hardlink) ni un enlace simbólico hacia el árbol del guardián: un enlace físico comparte inodo con
+       `~/starseed-system/node_modules`, así que editar el archivo desde el home de `starseed` lo editaría
+       también en `/opt`, y `ProtectHome` no protege de eso;
+     - `/etc/starseed/genesis.env` es `root:root 600`: lo lee PID 1 al arrancar la unidad (antes de cambiar de
+       usuario), y no hace falta que lo lea nadie más. Hoy no guarda nada que el servicio necesite en ejecución.
+   - el guardián cuida la cuota de Supabase (cada verificación es una petición; el presupuesto diario es de
+     25.000) en tres capas, y **solo hasta donde cada una llega**:
+     1. un `Bearer` malformado o caducado responde 401 sin llamar a Supabase, y un token que Supabase rechazó
+        con claridad se recuerda 10 s (un fallo de red o un 429 nunca se recuerda);
+     2. desde una misma IP (`X-Real-IP` de Caddy), tras 20 rechazos de Supabase en un minuto (token o cookie)
+        se responde **429** con `Retry-After` sin volver a preguntar; los visitantes sin sesión y los fallos del
+        medio no cuentan. Lo ya verificado hace menos de 60 s sigue pasando aunque la IP esté frenada, tanto un
+        `Bearer` como la sesión por cookie del navegador (`genesis.<host>`, el camino principal): se recuerda por la
+        huella sha256 de sus cookies `sb-…-auth-token` (nunca el valor) y se mira antes del freno, así que un
+        miembro tras la misma IP que un atacante (casa o móvil con CGNAT, oficina) sigue entrando. Una sesión
+        nueva o caducada desde una IP frenada sí recibe 429 hasta que acabe la ventana;
+     3. **no cubre** a quien reparte los intentos entre muchas IPs: un JWT falso bien formado con `exp` futuro
+        cuesta una petición por IP hasta el freno. Cerrarlo del todo exige verificar la firma en local (JWKS).
+     Prueba obligatoria de arriba: `src/lib/mando/__tests__/guardian-caddy-a1.test.ts`.
+   - `/api/voz/motores` pasa por `guardianMando` como el resto de `/api/mando/*` (antes solo miraba
+     `STARSEED_MANDO=1` y publicada habría dejado reiniciar el motor de voz a cualquiera). Efecto a tener
+     presente: en el **modo ligero** de una neurona (`STARSEED_LOCAL=1` sin `STARSEED_MANDO`) esa ruta pasa de
+     404 a **abierta** para la propia máquina y para miembros con sesión. El panel de motores distingue 401
+     («Necesitas iniciar sesión…») y 403 («Solo los miembros de MetaGenesis…») y ya no se queda en «Leyendo…».
+
+   **Riesgo residual que esta unidad no resuelve** (para `COL1012Md-d2`): el puerto `127.0.0.1:9002` es TCP, y
+   cuando Genesis está caído (`StartLimit` agotado, reinicio de un despliegue) cualquier proceso del A1,
+   `starseed-medio` incluido, puede ocuparlo y recoger lo que Caddy le mande (cookies y Bearer). Una unidad
+   de systemd no lo impide sola. Salidas reales: un `.socket` de root con `systemd-socket-proxyd` y
+   `PrivateNetwork=`/`JoinsNamespaceOf=` para que el puerto interno no sea alcanzable desde otros procesos; o un
+   socket Unix hacia Caddy (Next no lo ofrece sin servidor propio). Mientras tanto: caída corta
+   (`RestartSec=10`) y despliegue con `restart`, no con `stop` + `start`.
+
+   **Lo que queda para completarlo** (partes siguientes y la Mac, no esta unidad):
+   - `COL1012Md-d2`: bloque `genesis.{$STARSEED_HOST}` en `Caddyfile.nodo` con `header_up X-Real-IP {remote_host}`
+     y **sin** quitar la cabecera `Cookie` (la ruta de la puerta de datos sí lo hace, `servicios/puerta-datos/src/caddy.mjs`; copiarla rompería la sesión).
+     **Caddy solo debe proxificar las rutas que Genesis necesita** (`/genesis`, `/api/mando/*`, el inicio de
+     sesión y `/_next/*`) y responder 404 al resto, o hacer antes un inventario de las rutas sin sesión: el
+     servicio publica la app Next entera, y hay rutas que hoy se apoyan en «no estoy en la Mac» (por ejemplo
+     `/api/agent-reach/[capability]` lanza `/usr/local/bin/agent-reach` con una URL que pone quien llama, sin
+     sesión; hoy ese binario no existe en el A1, pero nada lo impide en el futuro).
+   - `COL1012Md-d3`: `scripts/puente/test_genesis_a1.py` (sin modo local, X-Real-IP presente, solo 127.0.0.1;
+     y que la unidad conserve `DynamicUser=yes`, sin `ReadWritePaths` sobre `/opt/starseed/genesis`).
+   - Paso de despliegue en `oracle_a1.py`: **copiar** (`cp -a`/`rsync -a`, nunca enlaces) `.next`, `public`,
+     `package.json`, la config de Next y `node_modules` a `/opt/starseed/genesis` solo con el guardián en
+     verde, dejarlo `root:root 755`, enlazar `.next/cache` a `/var/cache/starseed-genesis`, `systemctl
+     reset-failed` y reinicio; y en `preparar-a1.sh` crear esa carpeta (`root:root`, ya no `starseed:starseed`).
+   - La build del A1 debe llevar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` **en el entorno
+     del `next build` del paso de despliegue**: Next las incrusta al compilar (en el paquete del servidor y en
+     el del navegador), y hoy el guardián compila sin ellas. Ponerlas en `genesis.env` y reiniciar **no
+     cambia nada**; sin ellas compiladas el login no funcionaría (el guardián respondería 401).
+   - Alex: añadir `https://genesis.<host>` a las URLs de redirección permitidas de Supabase. Y, si quiere, crear
+     `/etc/starseed/genesis.env` (`root:root 600`) para variables de ejecución que algún día haga falta.
+   - Pendiente de decisión: el texto «Conectado a MetaGenesis en la Mac» pasa a ser falso sirviendo desde el A1
+     (propuesta: un campo `donde` en el latido a partir de `STARSEED_DONDE`). El motor de MetaGenesis tiene
+     `CHECK id = 1`: un segundo motor en el A1 exige su propia migración y la palabra de Alex.
 2. **Espejo del estado.** En cada ciclo, la Mac le deja al A1 por SSH su `olas/` (progreso, colas, medios,
    colas de los últimos días y la cola de los registros, sin secretos). Genesis del A1 enseña:
    - la verdad de la Mac de hace pocos minutos;

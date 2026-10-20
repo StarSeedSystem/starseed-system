@@ -8,12 +8,21 @@
  *  · POST — `{ "tamano": "Q4_K_M" | "Q8_0" }` reinicia el demonio local con
  *           ese modelo y espera a que vuelva a estar sano.
  *
- * ⚠️ Seguridad (copiada del patrón de /api/mando/estado):
- *  · SOLO LOCAL: si NODE_ENV es production y no hay STARSEED_MANDO=1 → 404.
+ * ⚠️ Seguridad (la misma puerta que /api/mando/*):
+ *  · `guardianMando`: 404 si la consola está apagada (production sin STARSEED_MANDO=1); en la propia
+ *    máquina pasa sin sesión; desde cualquier otro sitio —Genesis publicado en el A1 tras Caddy
+ *    (2026-10-20 · COL1012Md)— exige sesión de un miembro de MetaGenesis. Antes esta ruta solo miraba
+ *    STARSEED_MANDO=1, y publicada habría dejado a cualquiera reiniciar el motor de voz.
+ *  · CAMBIO DE COMPORTAMIENTO a tener presente: en el modo ligero de una neurona (STARSEED_LOCAL=1 sin
+ *    STARSEED_MANDO) esta ruta respondía 404 en producción y ahora queda ABIERTA para el bucle local (la
+ *    propia máquina, sin sesión) y para miembros de MetaGenesis con sesión, igual que /api/mando/*. Es lo
+ *    que el panel promete («solo en esta neurona»), pero antes no ocurría. Con STARSEED_PUBLICO=1 (el A1)
+ *    nada es local: siempre sesión.
  *  · El POST valida `tamano` contra la lista blanca (400 si no encaja).
  *  · NUNCA devuelve rutas absolutas del disco: solo nombres de archivo.
  */
 
+import { guardianMando } from "@/lib/mando/guardian";
 import {
     TAMANOS_VALIDOS,
     leerMotores,
@@ -24,23 +33,16 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Mismo candado que Genesis: la ruta no existe fuera de local. */
-function mandoHabilitado(): boolean {
-    return process.env.NODE_ENV !== "production" || process.env.STARSEED_MANDO === "1";
-}
-
-export async function GET(): Promise<Response> {
-    if (!mandoHabilitado()) {
-        return new Response("Not Found", { status: 404 });
-    }
+export async function GET(peticion: Request): Promise<Response> {
+    const veto = await guardianMando(peticion);
+    if (veto) return veto;
     const estado = await leerMotores();
     return Response.json(estado, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(peticion: Request): Promise<Response> {
-    if (!mandoHabilitado()) {
-        return new Response("Not Found", { status: 404 });
-    }
+    const veto = await guardianMando(peticion);
+    if (veto) return veto;
 
     let cuerpo: unknown;
     try {

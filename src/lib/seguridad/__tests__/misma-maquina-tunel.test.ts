@@ -5,7 +5,7 @@
  * la puerta de la Mac (`tunel_metagenesis.py`) las reenvía tal cual.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { esPeticionDeEstaMaquina } from "../misma-maquina";
+import { esPeticionDeEstaMaquina, estaPublicado } from "../misma-maquina";
 
 const TUNEL = "ala-bosque-rio.trycloudflare.com";
 
@@ -50,5 +50,49 @@ describe("petición por el túnel de MetaGenesis", () => {
     it("la propia Mac sí es local", () => {
         expect(esPeticionDeEstaMaquina(peticion({ host: "localhost:9002" }))).toBe(true);
         expect(esPeticionDeEstaMaquina(peticion({ host: "127.0.0.1:9002", "x-forwarded-for": "127.0.0.1" }))).toBe(true);
+    });
+});
+
+/**
+ * (2026-10-20 · COL1012Md) Genesis en el A1 va tras Caddy: el proceso de Next solo ve conexiones desde el
+ * bucle local, así que «viene de localhost» no prueba nada. El servicio declara `STARSEED_PUBLICO=1` y
+ * entonces NADA es de esta máquina.
+ */
+describe("servidor publicado tras un proxy (STARSEED_PUBLICO=1)", () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("sin la variable, la Mac sigue igual: localhost es local y estaPublicado es falso", () => {
+        expect(estaPublicado()).toBe(false);
+        expect(esPeticionDeEstaMaquina(peticion({ host: "localhost:9002" }))).toBe(true);
+    });
+
+    it("con la variable, una petición de bucle local puro ya no es de esta máquina", () => {
+        vi.stubEnv("STARSEED_PUBLICO", "1");
+        expect(estaPublicado()).toBe(true);
+        expect(esPeticionDeEstaMaquina(peticion({ host: "localhost:9002" }))).toBe(false);
+        expect(esPeticionDeEstaMaquina(peticion({ host: "127.0.0.1:9002", "x-forwarded-for": "127.0.0.1" }))).toBe(false);
+    });
+
+    it("lo que entrega Caddy (Host público, X-Real-IP, X-Forwarded-*) tampoco, como antes", () => {
+        vi.stubEnv("STARSEED_PUBLICO", "1");
+        expect(
+            esPeticionDeEstaMaquina(
+                peticion({
+                    host: "genesis.nodo.example",
+                    "x-real-ip": "203.0.113.9",
+                    "x-forwarded-for": "203.0.113.9",
+                    "x-forwarded-host": "genesis.nodo.example",
+                    "x-forwarded-proto": "https",
+                }),
+            ),
+        ).toBe(false);
+    });
+
+    it("solo el valor «1» publica: «0», vacío o «true» no cambian nada", () => {
+        for (const valor of ["0", "", "true", "si"]) {
+            vi.stubEnv("STARSEED_PUBLICO", valor);
+            expect(estaPublicado()).toBe(false);
+            expect(esPeticionDeEstaMaquina(peticion({ host: "localhost:9002" }))).toBe(true);
+        }
     });
 });

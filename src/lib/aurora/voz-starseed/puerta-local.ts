@@ -16,6 +16,7 @@
  */
 
 import { createClient } from "@/utils/supabase/server";
+import { estaPublicado } from "@/lib/seguridad/misma-maquina";
 
 /** Sufijos y nombres de host que identifican un despliegue en la propia neurona. */
 const HOSTS_LOCALES = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
@@ -41,11 +42,15 @@ function hostSinPuerto(host: string | null): string | null {
  *  - `STARSEED_LOCAL=1` fuerza modo local explícitamente;
  *  - o el host (`x-forwarded-host` si existe, si no `host`) es localhost,
  *    127.0.0.1, [::1] o termina en `.local`, con o sin puerto.
- * NUNCA es local en Vercel (`VERCEL=1` manda sobre todo lo demás).
+ * NUNCA es local en Vercel (`VERCEL=1` manda sobre todo lo demás) ni en un servidor publicado detrás
+ * de un proxy (`STARSEED_PUBLICO=1`, el servicio de Genesis en el A1: ahí todo llega desde el bucle
+ * local y ni el host ni `STARSEED_LOCAL` pueden abrir la puerta sin sesión).
  */
 export function esDespliegueLocal(req: Request): boolean {
     // En Vercel nunca se abre la puerta: ahí la autenticación es obligatoria.
     if (process.env.VERCEL === "1") return false;
+    // (2026-10-20 · COL1012Md) Publicado tras Caddy: nada es local, ni con el host ni con STARSEED_LOCAL.
+    if (estaPublicado()) return false;
     // (2026-10-10) Lo que llega por un túnel (Cloudflare) o por un proxy desde otra IP NUNCA es
     // local, aunque la Mac tenga STARSEED_LOCAL=1: un túnel abierto dejaba pasar sin sesión la voz,
     // los proxies de IA con claves compartidas y Jev a quien tuviera su URL.

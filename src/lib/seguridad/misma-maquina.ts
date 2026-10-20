@@ -11,12 +11,24 @@
  *   · no trae cabeceras de túnel o proxy externo (Cloudflare `cf-connecting-ip`, `cf-ray`,
  *     `x-real-ip` de un proxy, `forwarded` con otra IP);
  *   · si trae `x-forwarded-for` (Next lo rellena con la IP del socket), es de bucle local;
- *   · nunca en Vercel.
+ *   · nunca en Vercel;
+ *   · nunca en un servidor PUBLICADO (`STARSEED_PUBLICO=1`, ver abajo).
  *
  * Puro sobre `Request` (sin Node): lo pueden importar rutas de cualquier runtime.
  */
 
 const BUCLE = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+/**
+ * (2026-10-20 · COL1012Md) ¿Este proceso está publicado en internet detrás de un proxy (Caddy en el A1)?
+ * Lo declara el servicio con `STARSEED_PUBLICO=1`. POR QUÉ hace falta: detrás de un proxy todo lo que
+ * ve Next llega desde el bucle local, así que «viene de localhost» deja de significar «es el dueño
+ * sentado delante»: un SSRF desde una ruta del propio servidor, o cualquier proceso del A1, entraría
+ * sin sesión. Publicado, nada es «de esta máquina»: siempre sesión. En la Mac (sin la variable) no cambia.
+ */
+export function estaPublicado(): boolean {
+  return process.env.STARSEED_PUBLICO === "1";
+}
 
 function hostSinPuerto(h: string | null): string {
   const s = (h ?? "").trim().toLowerCase();
@@ -35,6 +47,7 @@ function ipDeBucle(ip: string): boolean {
 
 export function esPeticionDeEstaMaquina(req: Request): boolean {
   if (process.env.VERCEL === "1") return false;
+  if (estaPublicado()) return false;
   const h = req.headers;
   if (!BUCLE.has(hostSinPuerto(h.get("host")))) return false;
   const reenviadoHost = h.get("x-forwarded-host");

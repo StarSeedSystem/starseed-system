@@ -9,8 +9,9 @@
  * modelo» que llama a `POST /api/voz/motores` y muestra los segundos que tardó
  * el reinicio. Debajo, los cuatro niveles de «Voz StarSeed» disponibles.
  *
- * En producción la ruta responde 404 (candado por diseño): el panel lo
- * muestra como «no disponible» en lugar de un error técnico.
+ * La ruta pasa por la puerta común de Genesis (`guardianMando`): 404 si la consola está apagada (el panel lo
+ * muestra como «no disponible» en lugar de un error técnico), 401 sin sesión y 403 si la cuenta no es miembro
+ * de MetaGenesis (2026-10-20 · COL1012Md, Genesis publicado en el A1): cada uno con su propio texto.
  */
 
 import { useEffect, useState } from "react";
@@ -47,6 +48,22 @@ interface EstadoMotoresPanel {
 interface Aviso {
     tipo: "ok" | "error";
     texto: string;
+    /**
+     * De dónde viene el aviso. «lectura»: lo dejó un GET fallido, y un GET que luego va bien lo borra.
+     * «accion»: es el resultado de «Cargar este modelo» (éxito o fallo del reinicio) y se queda en pantalla
+     * aunque la lectura de después vaya bien: es justo lo que el panel promete enseñar.
+     */
+    origen: "lectura" | "accion";
+}
+
+/**
+ * Lo que se le dice a la persona cuando la puerta de Genesis cierra la ruta con 401 o 403. Con cualquier otro
+ * estado devuelve null (no es un asunto de acceso). Pura y sin red, para poder probarla.
+ */
+export function textoSinAcceso(status: number): string | null {
+    if (status === 401) return "Necesitas iniciar sesión para ver y cambiar los motores de voz.";
+    if (status === 403) return "Solo los miembros de MetaGenesis pueden ver y cambiar los motores de voz.";
+    return null;
 }
 
 /** Formatea bytes como MB con un decimal. */
@@ -69,13 +86,20 @@ export function PanelMotores() {
                 return;
             }
             if (!r.ok) {
-                setAviso({ tipo: "error", texto: "El lector de motores respondió con un error." });
+                setEstado(null);
+                setAviso({
+                    tipo: "error",
+                    texto: textoSinAcceso(r.status) ?? "El lector de motores respondió con un error.",
+                    origen: "lectura",
+                });
                 return;
             }
+            // Solo se borra el aviso que dejó una lectura fallida: el resultado de una acción se conserva.
+            setAviso((a) => (a?.origen === "lectura" ? null : a));
             setNoDisponible(false);
             setEstado((await r.json()) as EstadoMotoresPanel);
         } catch {
-            setAviso({ tipo: "error", texto: "No se pudo contactar con el servidor local." });
+            setAviso({ tipo: "error", texto: "No se pudo contactar con el servidor local.", origen: "lectura" });
         }
     };
 
@@ -94,6 +118,11 @@ export function PanelMotores() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ tamano }),
             });
+            const sinAcceso = textoSinAcceso(r.status);
+            if (sinAcceso) {
+                setAviso({ tipo: "error", texto: sinAcceso, origen: "accion" });
+                return;
+            }
             const datos = (await r.json().catch(() => null)) as
                 | { ok: boolean; modelo: string; segundos: number }
                 | null;
@@ -101,6 +130,7 @@ export function PanelMotores() {
                 setAviso({
                     tipo: "ok",
                     texto: `«${datos.modelo}» cargado en ${datos.segundos} s.`,
+                    origen: "accion",
                 });
             } else {
                 setAviso({
@@ -108,10 +138,11 @@ export function PanelMotores() {
                     texto: datos
                         ? `No se pudo cargar «${datos.modelo}» (faltan archivos o el demonio no arrancó).`
                         : "El reinicio del demonio falló.",
+                    origen: "accion",
                 });
             }
         } catch {
-            setAviso({ tipo: "error", texto: "No se pudo reiniciar el demonio de voz." });
+            setAviso({ tipo: "error", texto: "No se pudo reiniciar el demonio de voz.", origen: "accion" });
         } finally {
             setCargando(null);
             await recargar();
@@ -127,6 +158,18 @@ export function PanelMotores() {
     }
 
     if (!estado) {
+        // Sin estado y con un aviso, la lectura falló: se dice qué pasa (y se puede reintentar) en vez de
+        // dejar «Leyendo…» para siempre.
+        if (aviso) {
+            return (
+                <div className="space-y-3 py-10 text-center">
+                    <p role="status" className="text-sm text-destructive">{aviso.texto}</p>
+                    <Button type="button" variant="outline" size="sm" onClick={() => void recargar()} className="cursor-pointer">
+                        <RefreshCw className="mr-1.5 h-4 w-4" /> Reintentar
+                    </Button>
+                </div>
+            );
+        }
         return (
             <p className="py-10 text-center text-sm text-muted-foreground">
                 Leyendo el estado de los motores…

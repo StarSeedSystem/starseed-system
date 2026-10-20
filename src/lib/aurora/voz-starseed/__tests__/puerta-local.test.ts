@@ -84,3 +84,21 @@ describe("esDespliegueLocal · túneles (2026-10-10)", () => {
         }
     });
 });
+
+describe("esDespliegueLocal · servidor publicado tras un proxy (2026-10-20 · COL1012Md)", () => {
+    it("con STARSEED_PUBLICO=1 ni localhost ni *.local ni STARSEED_LOCAL abren la puerta sin sesión", () => {
+        vi.stubEnv("STARSEED_PUBLICO", "1");
+        expect(esDespliegueLocal(peticionConHost("localhost:9002"))).toBe(false);
+        expect(esDespliegueLocal(peticionConHost("127.0.0.1:9002"))).toBe(false);
+        expect(esDespliegueLocal(peticionConHost("macbook.local:9002"))).toBe(false);
+        vi.stubEnv("STARSEED_LOCAL", "1");
+        expect(esDespliegueLocal(peticionConHost("genesis.nodo.example"))).toBe(false);
+        expect(esDespliegueLocal(peticionConHost("localhost:9002"))).toBe(false);
+    });
+
+    it("sin STARSEED_PUBLICO (la Mac) todo queda como estaba", () => {
+        expect(esDespliegueLocal(peticionConHost("localhost:9002"))).toBe(true);
+        vi.stubEnv("STARSEED_PUBLICO", "0");
+        expect(esDespliegueLocal(peticionConHost("localhost:9002"))).toBe(true);
+    });
+});
