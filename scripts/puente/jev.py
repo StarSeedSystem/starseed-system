@@ -322,6 +322,8 @@ def decidir_con_laya(estado, preguntas, timeout=1.5, url=None):
     """
     if conversando():
         return None
+    if os.environ.get("STARSEED_LAYA") in ("0", "no", "false"):
+        return None
     endpoint = url or os.environ.get("STARSEED_LAYA_URL", LAYA_URL)
     cuerpo = {"state": estado, "questions": preguntas}
     try:
