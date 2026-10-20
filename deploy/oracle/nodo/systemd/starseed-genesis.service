@@ -1,6 +1,4 @@
 [Unit]
-<<<<<<< HEAD
-<<<<<<< HEAD
 Description=StarSeed · Genesis (sala de control) en el A1: siempre en línea, tras Caddy y con sesión (COL1012Md)
 After=network-online.target
 Wants=network-online.target
@@ -35,7 +33,7 @@ Wants=network-online.target
 # fuera del usuario `starseed`, o su carpeta escribible por él, ese código podría reescribir el JS que se
 # sirve (el guardián incluido), mandarle señales o leer su entorno. Por eso:
 #   · Identidad propia: DynamicUser=yes. systemd crea un usuario efímero solo para este servicio, sin
-#     shell y sin ningún grupo en común con `starseed`; el enjambre no puede ni matarlo ni leer su memoria.
+#     shell and sin ningún grupo en común con `starseed`; el enjambre no puede ni matarlo ni leer su memoria.
 #   · El código es de ROOT y de solo lectura para el servicio: /opt/starseed/genesis es root:root 755, sin
 #     ReadWritePaths. Lo único que escribe `next start` es su caché, que vive en /var/cache/starseed-genesis
 #     (CacheDirectory= la crea y es la única ruta escribible); el paso de despliegue deja `.next/cache`
@@ -147,28 +145,3 @@ UMask=0027
 
 [Install]
 WantedBy=multi-user.target
-=======
-=======
->>>>>>> e78264e10 (Rescate de las ramas de la nube · RTCOL1012M: Rescate de pruebas · Genesis en el A1: servido por Caddy con sesión, sobre la build en verde del guardián)
-Description=StarSeed · nodo de Genesis (OPO1011) en el A1: siempre encendido
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=starseed
-Group=starseed
-WorkingDirectory=/home/starseed/starseed-system
-Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system STARSEED_MANDO=1 PYTHONUNBUFFERED=1
-ExecStart=/home/starseed/.local/bin/next start -p 9002 -H 127.0.0.1
-Restart=on-failure
-RestartSec=60
-MemoryMax=3G
-Nice=5
-
-[Install]
-<<<<<<< HEAD
-WantedBy=multi-user.target
->>>>>>> e78264e10 (Rescate de las ramas de la nube · RTCOL1012M: Rescate de pruebas · Genesis en el A1: servido por Caddy con sesión, sobre la build en verde del guardián)
-=======
-WantedBy=multi-user.target
->>>>>>> e78264e10 (Rescate de las ramas de la nube · RTCOL1012M: Rescate de pruebas · Genesis en el A1: servido por Caddy con sesión, sobre la build en verde del guardián)

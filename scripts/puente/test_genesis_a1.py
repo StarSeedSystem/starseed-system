@@ -19,12 +19,12 @@ class TestGenesisA1(unittest.TestCase):
     def test_servicio_usar_execstart_de_next(self):
         ruta_servicio = os.path.join(self.ruta_base, "systemd", "starseed-genesis.service")
         contenido = obtener_texto_archivo(ruta_servicio)
-        self.assertIn("ExecStart=/home/starseed/.local/bin/next start -p 9002 -H 127.0.0.1", contenido)
+        self.assertIn("ExecStart=/usr/local/bin/node /opt/starseed/genesis/node_modules/next/dist/bin/next start -p 9002 -H 127.0.0.1", contenido)
 
     def test_servicio_tiene_los_max_memory_y_user_correcto(self):
         ruta_servicio = os.path.join(self.ruta_base, "systemd", "starseed-genesis.service")
         contenido = obtener_texto_archivo(ruta_servicio)
-        self.assertIn("User=starseed", contenido)
+        self.assertIn("DynamicUser=yes", contenido)
         self.assertIn("MemoryMax=3G", contenido)
 
     def test_caddyfile_no_menciona_starseed_local(self):
