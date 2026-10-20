@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // @vitest-environment-options {"url": "https://starseed-os.vercel.app/metagenesis"}
 /**
  * Los botones «Desconectar» y «Usar como contenedor» de la tarjeta de cada neurona (COL1012I).
@@ -677,4 +678,3 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         fireEvent.click(await screen.findByTestId("mg-orden-revisar_bloqueadas"));
         await waitFor(() => expect(enviarOrden).toHaveBeenCalledWith("revisar_bloqueadas", "lider"));
     });
-});
