@@ -4491,3 +4491,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTBOT1011Gd` — otra cosa: ningún proveedor respondió (todos caídos)
 - `RTGN1010A-d3b` — no escribió nada
+
+## 2026-10-20 09:19 · mg-oracle-1020-0219
+
+**Lo que se pidió.** starseed-genesis
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- google/gemini-3.6-flash no integró ninguna de sus 2 tareas.
+- freellmapi/auto integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `VST1018C` — los tipos no compilan: 1 errores tsc (rama ola/VST1018C conservada)
+- `RTS1010-MGR3d-d1c` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTS1010-MGR3d-d1c conservada)
