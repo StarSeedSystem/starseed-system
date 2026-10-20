@@ -153,7 +153,7 @@ describe("«Bloqueadas» con las fallidas y rechazadas sin resolver", () => {
             // Rechazada automática reciente sin sucesora: trabajo que se pierde.
             R1: { estado: "rechazada", t: HOY, nota: "no toco NINGUNO de los 3 archivos que declaraba (rama ola/R1 conservada)" },
             // Rechazos que fueron decisiones: no son un problema.
-            R2: { estado: "rechazada", t: HOY, nota: "rechazada desde el Mando; rama ola/R2 conservada" },
+            R2: { estado: "rechazada", t: HOY, nota: "rechazada desde Genesis; rama ola/R2 conservada" },
             R3: { estado: "rechazada", t: HOY, nota: "revisada por la dirección (2026-10-08): no aporta" },
             // Rechazada sin fecha o vieja: no se puede decir que sea de estos días.
             R4: { estado: "rechazada", nota: "no toco NINGUNO" },
