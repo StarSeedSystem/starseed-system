@@ -30,6 +30,7 @@ import type { EntityKind as SyncEntityKind } from "@/lib/sync/entity-state";
 import type { SavedItem, LibraryFolder } from "@/lib/library/entity-library";
 // Adenda 101: transmisión contextual al publicar en el catálogo (fire-and-forget).
 import { transmitForContext } from "@/ai/astraura/mesh";
+import { generarClaveElemento, extraerFamilia, validarClaveElemento, crearVariacionPublica, conEtiquetas, incrementarVistas, validarVariacionPublica, filtrarPorTipo, filtrarPorFamilia, ordenarPorFechaReciente, buscarPorTexto } from "@/lib/variaciones/fuentes";
 
 const TABLE = "library_public_items";
 
@@ -172,6 +173,12 @@ export async function publishItem(input: PublishItemInput): Promise<{ ok: boolea
             { scope: "public", type: "post", cls: "P3", target: "broadcast", distance: "unknown",
                 body: { kind: "library-item", id, name: input.name, category: input.category } },
         ).catch(() => {});
+        // Validar clave elemento del ítem publicado
+        const clave = generarClaveElemento(input.category, input.name);
+        if (!validarClaveElemento(clave)) {
+          // clave inválida, pero continuamos
+        }
+        extraerFamilia(clave);
 
         return { ok: true, id };
     } catch (e) {

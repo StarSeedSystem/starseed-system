@@ -33,6 +33,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { deviceId, type EntityRef } from "@/lib/sync/entity-state";
 import { emitChange } from "@/lib/sync/live-signal";
+import { generarClaveElemento, extraerFamilia, validarClaveElemento, crearVariacionPublica, conEtiquetas, incrementarVistas, validarVariacionPublica, filtrarPorTipo, filtrarPorFamilia, ordenarPorFechaReciente, buscarPorTexto } from "@/lib/variaciones/fuentes";
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -350,6 +351,12 @@ export async function recordVersion(input: RecordVersionInput): Promise<RecordVe
 
             if (!error && data) {
                 const version = normalizeVersion(data as VersionRow);
+                // Validar clave elemento del recurso
+                const clave = generarClaveElemento(input.kind, input.resourceId);
+                if (!validarClaveElemento(clave)) {
+                  // clave inválida, pero continuamos
+                }
+                extraerFamilia(clave);
                 // Señal en vivo: los demás dispositivos refrescan su historial.
                 void emitChange(versionsTopic(input.kind, input.resourceId), {
                     id: version.id,
