@@ -1,0 +1,292 @@
+{
+ "ola": "Ola 1020T · 3.ª tanda: 15 repos más para agentes, Astraura, Protomolécula, educación, mensajes, backend y servidores propios",
+ "fecha": "2026-10-20",
+ "principio": "Mismo contrato que las dos tandas anteriores (repos-libreria-1020 y 1020b): canal declarado, instalar no descarga ni lanza servidores, fichas honestas y preinstalación solo cuando instalar solo registra la ficha, el enlace o el conector.",
+ "duplicadas": {
+  "unslothai/unsloth": "ya está en la 1.ª tanda (lib-unsloth)",
+  "go-vikunja/vikunja": "ya está en la 2.ª tanda; Alex lo amplía a proyectos y tareas personales o públicas",
+  "penpot/penpot": "ya existía como iatool-penpot; aquí se profundiza (conector + MCP + átomo de la Protomolécula)"
+ },
+ "excluidas": [
+  {
+   "repo": "Kritt-ai/open-kritt",
+   "motivo": "Herramienta de investigación ofensiva de doble uso: orquesta agentes que compilan objetivos, ejecutan pruebas y construyen pruebas de concepto de exploits; sin autenticación y con agentes como root con internet. Misma regla que reverse-skill: no se instala ni se integra herramienta de intrusión. La seguridad del OS va por defensa (tirreno, OpenShell, auditoría de dependencias)."
+  }
+ ],
+ "paquetes": [
+  {
+   "id": "lib-openworker",
+   "repo": "andrewyng/openworker",
+   "nombre": "OpenWorker",
+   "kind": "tool",
+   "canal": "releases",
+   "licencia": "MIT",
+   "area": [
+    "agentes",
+    "astraura",
+    "claude"
+   ],
+   "efecto": "CATALOGO",
+   "preinstalar": "siempre",
+   "claude": "si",
+   "que_es": "Compañero de trabajo con IA de escritorio (Tauri, macOS y Windows) que entrega trabajo terminado: revisión de código, auditorías, documentos y automatizaciones, con tus propias claves, MCP y aprobaciones.",
+   "nota": "Referencia de gobernanza de agentes (aprobaciones, auditoría) para Genesis y app de escritorio opcional para la neurona Mac; no sustituye al enjambre.",
+   "aviso": "Beta abierta; ejecuta comandos y toca archivos: solo con aprobaciones y sandbox; instalador de Windows sin firmar."
+  },
+  {
+   "id": "lib-trail-code",
+   "repo": "trailhq/Trail-Code",
+   "nombre": "Trail Code",
+   "kind": "tool",
+   "canal": "tags",
+   "licencia": "MIT",
+   "area": [
+    "agentes",
+    "genesis",
+    "claude"
+   ],
+   "efecto": "HERRAMIENTA-AGENTE",
+   "preinstalar": "manual",
+   "claude": "si",
+   "que_es": "CLI y MCP que dan a los agentes de código un mapa local del repositorio (funciones y quién las llama, con tree-sitter, sin modelo) y aprendizajes guardados en markdown.",
+   "nota": "Ahorra tokens a los agentes del enjambre y a Claude al consultar el mapa en vez de re-explorar (regla de economía de tokens); complementa al grafo de GitNexus.",
+   "aviso": "Telemetría activada por defecto: instalar con DO_NOT_TRACK=1 o `trail telemetry disable`; fijar versión (npm va por delante de las etiquetas)."
+  },
+  {
+   "id": "lib-img2threejs",
+   "repo": "img2threejs/img2threejs",
+   "nombre": "img2threejs",
+   "kind": "tool",
+   "canal": "releases",
+   "licencia": "Apache-2.0",
+   "area": [
+    "protomolecula",
+    "avatares-3d",
+    "agentes",
+    "claude"
+   ],
+   "efecto": "HERRAMIENTA-AGENTE",
+   "preinstalar": "manual",
+   "claude": "si",
+   "que_es": "Skill para agentes de código que reconstruye un objeto de una imagen como modelo three.js procedural (primitivas, shaders, geometría), con puertas de calidad.",
+   "nota": "Un agente convierte una imagen en un módulo three.js ligero que el visor 3D de la Protomolécula carga como código (sin mallas pesadas).",
+   "aviso": "Caro en tokens y de calidad variable: para objetos sencillos y con revisión humana."
+  },
+  {
+   "id": "lib-openwhispr",
+   "repo": "OpenWhispr/openwhispr",
+   "nombre": "OpenWhispr",
+   "kind": "tool",
+   "canal": "releases",
+   "licencia": "MIT",
+   "area": [
+    "voz",
+    "astraura"
+   ],
+   "efecto": "CATALOGO",
+   "preinstalar": "siempre",
+   "claude": "si",
+   "que_es": "Dictado por voz de escritorio (tecla global, pega en el cursor) con transcripción local (Whisper, Parakeet) o en la nube con tu clave; API y MCP para notas y transcripciones.",
+   "nota": "Herramienta de la neurona Mac para dictar a cualquier app y referencia de modelos de voz locales para Astraura; dentro del navegador manda la voz propia del OS.",
+   "aviso": "Permisos sensibles de micrófono y accesibilidad (simula pegado global)."
+  },
+  {
+   "id": "lib-paperclip",
+   "repo": "paperclipai/paperclip",
+   "nombre": "Paperclip",
+   "kind": "app",
+   "canal": "tags",
+   "licencia": "MIT",
+   "area": [
+    "agentes",
+    "genesis"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "manual",
+   "claude": "si",
+   "que_es": "Servidor Node con interfaz que organiza un equipo de agentes como una empresa: organigrama, objetivos, tareas, presupuestos y pulsos; adaptadores para Claude Code, Codex, Gemini CLI y HTTP.",
+   "nota": "Solapa con Genesis: útil como contraste de presupuestos por agente y como «oficina» para Hermes y los agentes de Astraura si Alex lo quiere en el A1.",
+   "aviso": "Telemetría activada por defecto (PAPERCLIP_TELEMETRY_DISABLED=1); los agentes corren con permisos del usuario."
+  },
+  {
+   "id": "lib-magnitude",
+   "repo": "magnitudedev/magnitude",
+   "nombre": "Magnitude",
+   "kind": "ai-source",
+   "canal": "releases",
+   "licencia": "Apache-2.0",
+   "area": [
+    "astraura",
+    "capas",
+    "agentes"
+   ],
+   "efecto": "CATALOGO",
+   "preinstalar": "manual",
+   "claude": "si",
+   "que_es": "Motor de inferencia local que ajusta sus kernels a tu hardware para servir modelos abiertos con API compatible con OpenAI (app de escritorio + CLI).",
+   "nota": "Candidato a motor local alternativo a Ollama para las capas autoadaptables de Astraura; antes, medirlo con el banco de pruebas de capas. El antiguo agente de navegador vive en magnitudedev/browser-agent (inactivo desde febrero de 2026).",
+   "aviso": "Repositorio que cambió de propósito; cifras de rendimiento propias; binarios externos."
+  },
+  {
+   "id": "lib-artcraft",
+   "repo": "storytold/artcraft",
+   "nombre": "ArtCraft",
+   "kind": "link",
+   "canal": "releases",
+   "licencia": "MIT OR Apache-2.0 (código) · marca y logos reservados",
+   "area": [
+    "protomolecula"
+   ],
+   "efecto": "CATALOGO",
+   "preinstalar": "manual",
+   "claude": "no",
+   "que_es": "«IDE para artistas»: composición 2D/3D, escenas con actores y cámaras, imagen a malla y edición con lienzo sobre proveedores de generación (la mayoría de pago).",
+   "nota": "Referencia de flujos para la Protomolécula (escenografía 3D antes de generar, posado, capas). Sus apps libres ya integradas son WordCraft, PhotoCraft y VectorCraft.",
+   "aviso": "Marca reservada; su repositorio incluye activos de terceros sin licencia (efectos de sonido, memes, Mixamo): no se reutiliza ningún activo; depende de proveedores de pago."
+  },
+  {
+   "id": "lib-penpot",
+   "repo": "penpot/penpot",
+   "nombre": "Penpot",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "MPL-2.0",
+   "area": [
+    "protomolecula",
+    "diseno",
+    "grupos",
+    "comunidades",
+    "agentes",
+    "claude"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "si",
+   "que_es": "Plataforma de diseño abierta con colaboración en tiempo real, tokens de diseño, estándares abiertos, plugins y servidor MCP oficial; autoalojable con Docker (imágenes arm64).",
+   "nota": "Diseño de carteles, interfaces y sistemas de diseño para grupos y comunidades; su MCP deja a Astraura y a Claude leer y crear diseños desde la Fragua de Interfaces; átomo de diseño en la Protomolécula. Profundiza la ficha iatool-penpot que ya existía.",
+   "aviso": "Servidor pesado (PostgreSQL + Valkey + exportador); el MCP actúa sobre la pestaña abierta y ejecuta código de plugins: con cuidado."
+  },
+  {
+   "id": "lib-pocketbase",
+   "repo": "pocketbase/pocketbase",
+   "nombre": "PocketBase",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "MIT",
+   "area": [
+    "servidores",
+    "neuronas",
+    "cerebros",
+    "grupos",
+    "backend"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "si",
+   "que_es": "Backend en un solo binario Go: SQLite embebido con tiempo real, usuarios, archivos, panel y API REST con SDK de JavaScript; arm64 oficial.",
+   "nota": "Backend ligero por persona, cerebro, neurona o grupo con servidor propio; Supabase sigue siendo el backend central del OS.",
+   "aviso": "Antes de 1.0: puede romper compatibilidad entre versiones; SQLite de un solo escritor."
+  },
+  {
+   "id": "lib-openmaic",
+   "repo": "THU-MAIC/OpenMAIC",
+   "nombre": "OpenMAIC",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "MIT",
+   "area": [
+    "educacion",
+    "grupos",
+    "cerebros",
+    "astraura"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "si",
+   "que_es": "Convierte un tema o un documento en un aula interactiva con varios agentes: diapositivas, cuestionarios, simulaciones y proyectos por equipos, con profesores y compañeros de IA.",
+   "nota": "Redes educativas del OS (personales y de grupo): un servidor por grupo de estudio en el A1 y, más adelante, aulas incrustadas con sus paquetes @openmaic/renderer y @openmaic/dsl.",
+   "aviso": "Su modo multiusuario aún no aísla usuarios (lo avisa su README): una instancia por grupo de confianza."
+  },
+  {
+   "id": "lib-chatwoot",
+   "repo": "chatwoot/chatwoot",
+   "nombre": "Chatwoot",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "MIT (excepto enterprise/, propietaria)",
+   "area": [
+    "mensajes",
+    "paginas",
+    "comunidades"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "si",
+   "que_es": "Plataforma de atención: chat en vivo, correo y bandeja omnicanal para equipos, con API REST, webhooks, bots y widget.",
+   "nota": "Buzón público de páginas, partidos y comunidades para quien escribe desde fuera. Los mensajes privados y públicos entre miembros siguen en la mensajería propia del OS (malla P2P, cifrado); Chatwoot no es mensajería social.",
+   "aviso": "Mínimo 4 GB de RAM (Postgres + Redis + Sidekiq); la carpeta enterprise/ es propietaria y no se activa."
+  },
+  {
+   "id": "lib-excalidraw",
+   "repo": "excalidraw/excalidraw",
+   "nombre": "Excalidraw",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "MIT",
+   "area": [
+    "pizarras",
+    "protomolecula",
+    "notas",
+    "cerebros"
+   ],
+   "efecto": "FUNCIONAL",
+   "preinstalar": "siempre",
+   "claude": "si",
+   "que_es": "Pizarra de estilo dibujado a mano, colaborativa y cifrada, publicada como componente React (@excalidraw/excalidraw) con exportación a SVG, PNG y JSON.",
+   "nota": "Pizarra y notas dibujadas dentro de la Protomolécula y de los cerebros, guardando la escena en la cuenta; los agentes generan diagramas en su formato o desde Mermaid.",
+   "aviso": "Componente pesado: se carga solo al abrir la pizarra; la colaboración en vivo va por la sincronía propia del OS."
+  },
+  {
+   "id": "lib-nextcloud",
+   "repo": "nextcloud/all-in-one",
+   "nombre": "Nextcloud (All-in-One)",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "AGPL-3.0",
+   "area": [
+    "servidores",
+    "archivos",
+    "grupos",
+    "comunidades",
+    "cerebros"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Instalador oficial de Nextcloud en Docker (arm64): archivos, calendario, contactos, Talk y copias de seguridad, administrado desde un contenedor maestro.",
+   "nota": "Servidor propio de archivos y colaboración para grupos y comunidades (una instancia compartida, no una por neurona: es pesado); el OS lo usa por WebDAV/OCS. El código del servidor es nextcloud/server.",
+   "aviso": "El contenedor maestro accede al socket de Docker; con todos los servicios activos pesa mucho para el A1: Office y búsqueda apagados."
+  },
+  {
+   "id": "lib-supra-tex",
+   "repo": "Supra-3D/SUPRA-Tex",
+   "nombre": "SUPRA-Tex",
+   "kind": "ai-source",
+   "canal": "commits",
+   "licencia": "MIT (pesos de completado) + Qwen Research License (adaptador de materiales, no comercial); código aún sin publicar",
+   "area": [
+    "avatares-3d",
+    "protomolecula",
+    "astraura",
+    "xr"
+   ],
+   "efecto": "CATALOGO",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Generación de recursos 3D con textura PBR muy alineada desde una sola imagen (GLB con color, metálico y rugosidad) y texturizado de mallas existentes.",
+   "nota": "Etapa de texturizado del taller 3D de la Protomolécula, Astraura y la creación AR/VR cuando publiquen la inferencia; hoy hay pesos y una demo en Hugging Face Spaces.",
+   "aviso": "Sin código de inferencia todavía («Inference code will follow»); el adaptador de materiales es de licencia no comercial: no para usos comerciales."
+  }
+ ],
+ "licencias_verificadas": "2026-10-20 en github.com, raw.githubusercontent.com y npm (la API de GitHub no estaba disponible en esta sesión)"
+}
