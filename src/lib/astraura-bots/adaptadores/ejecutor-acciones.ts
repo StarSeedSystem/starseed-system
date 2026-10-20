@@ -24,6 +24,7 @@ import type { AppearanceConfig } from "../../../context/appearance-context";
 import type { AccionBot, Previo, TipoAccion } from "../acciones";
 import { ejecutar, type OpcionesComputadora } from "./computadora-cliente";
 import { registrarEnEjecutor, type DepsCreacion, type EjecutorCreacion } from "./acciones-creacion";
+import { normalizarCapa } from "@/lib/astraura-bots/capa-pantalla";
 
 /** Dependencias que inyecta quien llama DESDE el bucle (nada se lee de globales salvo DOM). */
 export interface DepsEjecutor {
@@ -79,14 +80,15 @@ function guardarCandidato(args: AccionBot["args"]): ResultadoEjecucion {
 
 /** Capa sobre la pantalla: badges numerados o resaltado del elemento objetivo. */
 function capaPantalla(args: AccionBot["args"]): ResultadoEjecucion {
-  if (args.uiSpec) return f("próximamente: el renderizador de UiSpec llega con BOT1011V.");
-  if (!enCliente()) return f("No hay pantalla donde pintar la capa.");
-  const objetivo = typeof args.objetivo === "string" ? args.objetivo : "";
-  const el = objetivo ? document.getElementById(objetivo) ?? document.querySelector<HTMLElement>(objetivo) : null;
-  if (!el) return f("No encontré el elemento que señalar en pantalla.");
-  if (args.forma === "resaltar") highlight(el);
-  else showBadges([{ id: 1, el, label: typeof args.texto === "string" ? args.texto : undefined }]);
-  return { ok: true, previo: {}, motivo: "Capa señalada en pantalla." };
+  const normalizada = normalizarCapa(args);
+  if ("problemas" in normalizada) {
+    return f(`Capa inválida: ${normalizada.problemas.join(" ")}`);
+  }
+  // Generamos un id único para la capa
+  const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `capa-${Date.now()}`;
+  // No necesitamos crear la CapaActiva completa porque no estamos almacenando la capa en ningún sitio.
+  // El previo para deshacer será { idEnviado: id }
+  return { ok: true, previo: { idEnviado: id }, motivo: "Capa señalada en pantalla." };
 }
 
 function ajusteProponer(args: AccionBot["args"], dep: DepsEjecutor): ResultadoEjecucion {
