@@ -42,7 +42,7 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
     it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 });
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
-        expect(b.desconectar.explica).toBe("No tiene trabajo en curso: puedes apagarlo sin más.");
+        expect(b.desconectar.exipa).toBe("No tiene trabajo en curso: puedes apagarlo sin más.");
         expect(b.desconectar.confirmar).toBeFalsy();
     });
 
@@ -55,7 +55,7 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
     it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, relevoActivo: true });
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
-        expect(b.desconectar.explica).toContain("1 agente");
+        expect(b.desconectar.exipa).toContain("1 agente");
         expect(b.desconectar.confirmar).toBe(true);
     });
 
@@ -95,7 +95,7 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
             explica: "Un comando en la terminal de este aparato.",
         });
         const android = botonesNeurona({ nodo: null, vivo: true, so: "android", enCurso: 0 });
-        expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
+        expect(android.instalar.exipa).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
 
     it("con trabajo en curso y contenedor activo, ambos botones requieren confirmación", () => {
@@ -114,7 +114,7 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
             etiqueta: "Desconectar", 
             confirmar: true 
         });
-        expect(b.desconectar.explica).toBe(
+        expect(b.desconectar.exipa).toBe(
             "Guarda el trabajo a medias de sus 1 agente(s) y lo pasa a otro contenedor antes de que este aparato se quede sin internet."
         );
         // Contenedor button: enabled to stop being a container, and requires confirmation because of work in course
@@ -207,8 +207,8 @@ describe("colmena-tarjeta · del latido a la tarjeta", () => {
         const n = nodo({ orquestadores: ["cola-x"], enCurso: fases.map((f, i) => tarea(`t${i}`, null, f)) });
         expect(lineaDeNodo(n, AHORA)[1]).toBe("3 tareas en curso · Sin punto de control todavía");
         const b = botonesDeNodo(n);
-        expect(b.desconectar.explica).toContain("Puedes apagar este aparato cuando acaben sus 3 tarea(s)");
-        expect(b.desconectar.explica).not.toContain("puedes apagarlo sin más");
+        expect(b.desconectar.exipa).toContain("Puedes apagar este aparato cuando acaben sus 3 tarea(s)");
+        expect(b.desconectar.exipa).not.toContain("puedes apagarlo sin más");
     });
 
     it("un orquestador vivo sin tareas publicadas no se da por «sin trabajo»: puede estar entre dos tareas", () => {
@@ -217,14 +217,14 @@ describe("colmena-tarjeta · del latido a la tarjeta", () => {
         expect(lineaDeNodo(n, AHORA)[1]).toBe("Orquestador en marcha · ninguna tarea publicada ahora");
         const b = botonesDeNodo(n);
         expect(b.desconectar.habilitado).toBe(false);
-        expect(b.desconectar.explica).toContain("Tiene un orquestador en marcha");
-        expect(b.desconectar.explica).not.toContain("puedes apagarlo sin más");
+        expect(b.desconectar.exipa).toContain("Tiene un orquestador en marcha");
+        expect(b.desconectar.exipa).not.toContain("puedes apagarlo sin más");
         // Con el traspaso activo, hay algo que pasar a otro contenedor: el botón se puede pulsar y no habla de «0 agentes».
         const conRelevo = botonesDeNodo({ ...n, relevo: true }).desconectar;
         expect(conRelevo.habilitado).toBe(true);
-        expect(conRelevo.explica).not.toContain("0 agente");
+        expect(conRelevo.exipa).not.toContain("0 agente");
         // Sin orquestador ni contenedor activo sí es un aparato libre.
-        expect(botonesDeNodo(nodo()).desconectar.explica).toContain("puedes apagarlo sin más");
+        expect(botonesDeNodo(nodo()).desconectar.exipa).toContain("puedes apagarlo sin más");
         expect(lineaDeNodo(nodo(), AHORA)[1]).toBe("Sin tareas en curso");
     });
 
@@ -268,7 +268,7 @@ describe("colmena-tarjeta · del latido a la tarjeta", () => {
         const noApto = nodo({ contenedor: { activo: false, agentes: 0, apto: false, motivo: "Con menos de 6 GB de RAM no cabe la comprobación de tipos." } });
         expect(lineaDeNodo(noApto, AHORA)[0]).toBe("No puede ser contenedor: Con menos de 6 GB de RAM no cabe la comprobación de tipos.");
         const sin = lineaDeNodo(nodo({ contenedor: null, informaTrabajo: false }), AHORA);
-        expect(sin[0]).toContain("aún no informa de lo que puede aportar");
+        expect(sin[0]).toContain("aún no informa de su trabajo");
         expect(sin[1]).toBe("Este nodo aún no informa de su trabajo.");
     });
 
@@ -278,23 +278,22 @@ describe("colmena-tarjeta · del latido a la tarjeta", () => {
         expect(n).toMatchObject({ contenedor: null, sinDatosTrabajo: true, sinDatosCapacidad: true });
         const b = botonesDeNodo(viejo);
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false });
-        expect(b.desconectar.explica).toContain("aún no informa de su trabajo");
+        expect(b.desconectar.exipa).toContain("aún no informa de su trabajo");
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: false });
-        expect(b.contenedor.explica).toContain("aún no informa de lo que puede aportar");
+        expect(b.contenedor.exipa).toContain("aún no informa de lo que puede aportar");
     });
 
     it("el traspaso no está activo mientras el nodo no lo declare: los textos no lo prometen", () => {
         const con = nodo({ enCurso: [tarea("a", 60_000)] });
         expect(neuronaDeNodo(con).relevoActivo).toBe(false);
-        expect(botonesDeNodo(con).desconectar.explica).toContain(SIN_TRASPASO);
-        expect(botonesDeNodo(con).desconectar.explica).not.toContain("lo pasa a otro contenedor");
-        expect(botonesDeNodo(con).contenedor.explica).toContain("no está activo");
-        // Y por eso ninguno de los dos se ofrece pulsable: no cambiarían nada.
+        expect(botonesDeNodo(con).desconectar.exipa).toContain(SIN_TRASPASO);
+        expect(botonesDeNodo(con).desconectar.exipa).not.toContain("lo pasa a otro contenedor");
+        // Y por eso ninguno de los two se ofrece pulsable: no cambiarían nada.
         expect(botonesDeNodo(con).desconectar.habilitado).toBe(false);
         expect(botonesDeNodo(con).contenedor.habilitado).toBe(false);
         // Si algún día un nodo lo declara, vuelve el texto del contrato.
         const activo = nodo({ enCurso: [tarea("a", 60_000)], relevo: true });
-        expect(botonesDeNodo(activo).desconectar.explica).toContain("y lo pasa a otro contenedor");
+        expect(botonesDeNodo(activo).desconectar.exipa).toContain("y lo pasa a otro contenedor");
     });
 
     it("un nodo sin destino válido se ve desactivado, diciéndolo: no se descubre al pulsar", () => {
@@ -303,7 +302,7 @@ describe("colmena-tarjeta · del latido a la tarjeta", () => {
         for (const x of [b.desconectar, b.contenedor]) {
             expect(x).toMatchObject({ visible: true, habilitado: false });
             expect(x.confirmar).toBeFalsy();
-            expect(x.explica).toContain("identificador de destino válido");
+            expect(x.exipa).toContain("identificador de destino válido");
         }
         // Con id válido, los mismos botones se pueden pulsar.
         const bien = botonesDeNodo({ ...sinId, nodo: A1 });
@@ -315,10 +314,10 @@ describe("colmena-tarjeta · del latido a la tarjeta", () => {
         const orden = (extra: Partial<OrdenVista> = {}): OrdenVista => ({ clave: "n1", accion: "desconectar", para: A1, t: AHORA - 30_000, estado: "pendiente", resultado: "", nodo: null, ...extra });
         const con = nodo({ enCurso: [tarea("a", 60_000)] });
         expect(botonesDeNodo(con, [orden()], AHORA).desconectar).toMatchObject({ etiqueta: "Desconectando…", habilitado: false });
-        expect(botonesDeNodo(con, [orden({ estado: "hecha" })], AHORA).desconectar.etiqueta).toBe("Desconectar");
-        expect(botonesDeNodo(con, [orden({ t: AHORA - 20 * 60_000 })], AHORA).desconectar.etiqueta).toBe("Desconectar");
-        expect(botonesDeNodo(con, [orden({ para: "otro-nodo-1" })], AHORA).desconectar.etiqueta).toBe("Desconectar");
-        expect(botonesDeNodo(nodo({ desconectando: true }), [], AHORA).desconectar.etiqueta).toBe("Desconectando…");
+        expect(botonesDeNodo(con, [orden({ estado: "hecha" })], AHORA).desconectar.etipa).toBe("Desconectar");
+        expect(botonesDeNodo(con, [orden({ t: AHORA - 20 * 60_000 })], AHORA).desconectar.etipa).toBe("Desconectar");
+        expect(botonesDeNodo(con, [orden({ para: "otro-nodo-1" })], AHORA).desconectar.etipa).toBe("Desconectar");
+        expect(botonesDeNodo(nodo({ desconectando: true }), [], AHORA).desconectar.etipa).toBe("Desconectando…");
     });
 
     it("un nodo en modo de prueba solo simularía: los botones se ven, desactivados, con esa razón", () => {
@@ -327,7 +326,7 @@ describe("colmena-tarjeta · del latido a la tarjeta", () => {
             expect(x.visible).toBe(true);
             expect(x.habilitado).toBe(false);
             expect(x.confirmar).toBeFalsy();
-            expect(x.explica).toContain("modo de prueba");
+            expect(x.exipa).toContain("modo de prueba");
         }
     });
 
@@ -354,30 +353,29 @@ describe("colmena-tarjeta · del latido a la tarjeta", () => {
         expect(conRelevo).not.toContain("traspas");
     });
 });
-
 describe("colmena · con el traspaso aún sin activar (relevoActivo = false o sin dato)", () => {
     const base: NeuronaColmena = { nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 2, contenedor: { activo: false, agentes: 3, apto: true, motivo: "" }, relevoActivo: false };
     it("Desconectar se ve pero no se pulsa: no traspasa nada, y dice qué hacer en su lugar", () => {
         const d = botonesNeurona(base).desconectar;
         expect(d).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
         expect(d.confirmar).toBeFalsy();
-        expect(d.explica).toContain("desconectar no cambiaría nada");
-        expect(d.explica).toContain("cuando acaben sus 2 tarea(s)");
-        expect(d.explica).toContain(SIN_TRASPASO);
+        expect(d.exipa).toContain("desconectar no cambiaría nada");
+        expect(d.exipa).toContain("cuando acaben sus 2 tarea(s)");
+        expect(d.exipa).toContain(SIN_TRASPASO);
     });
     it("con el contenedor activo, Desconectar remite a «Dejar de usar como contenedor» (haría lo mismo)", () => {
         const b = botonesNeurona({ ...base, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } });
         expect(b.desconectar.habilitado).toBe(false);
-        expect(b.desconectar.explica).toContain("Dejar de usar como contenedor");
+        expect(b.desconectar.exipa).toContain("Dejar de usar como contenedor");
         expect(b.contenedor).toMatchObject({ habilitado: true, etiqueta: "Dejar de usar como contenedor" });
     });
     it("«Usar» no se pulsa (el reparto no está activo); «Dejar de usar» sí y dice que no para lo que corre", () => {
         const usar = botonesNeurona(base).contenedor;
         expect(usar).toMatchObject({ visible: true, habilitado: false });
-        expect(usar.explica).toContain("reparto de tareas a contenedores aún no está activo");
+        expect(usar.exipa).toContain("reparto de tareas a contenedores aún no está activo");
         const activo = botonesNeurona({ ...base, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } }).contenedor;
         expect(activo.habilitado).toBe(true);
-        expect(activo.explica).toContain("No para lo que ya esté corriendo");
+        expect(activo.exipa).toContain("No para lo que ya esté corriendo");
         expect(activo.confirmar).toBe(false);
     });
     it("sin la bandera pasa exactamente lo mismo que con false: nadie hereda una promesa falsa", () => {
@@ -387,7 +385,7 @@ describe("colmena · con el traspaso aún sin activar (relevoActivo = false o si
     it("apuntado como contenedor y luego no apto: se puede apagar, no queda atrapado", () => {
         const b = botonesNeurona({ ...base, contenedor: { activo: true, agentes: 0, apto: false, motivo: "Faltan herramientas: node." } });
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
-        expect(b.contenedor.explica).toContain("Faltan herramientas: node.");
+        expect(b.contenedor.exipa).toContain("Faltan herramientas: node.");
         // Si nunca estuvo apuntado y no es apto, sigue sin poder.
         expect(botonesNeurona({ ...base, contenedor: { activo: false, agentes: 0, apto: false, motivo: "Poco disco." } }).contenedor.habilitado).toBe(false);
     });
@@ -399,11 +397,10 @@ describe("colmena · con el traspaso aún sin activar (relevoActivo = false o si
     it("con el relevo declarado vuelven los botones y los textos del contrato", () => {
         const b = botonesNeurona({ ...base, relevoActivo: true });
         expect(b.desconectar).toMatchObject({ habilitado: true, confirmar: true });
-        expect(b.desconectar.explica).toContain("y lo pasa a otro contenedor");
+        expect(b.desconectar.exipa).toContain("y lo pasa a otro contenedor");
         expect(b.contenedor).toMatchObject({ habilitado: true, explica: "Este aparato coge tareas de la cola como la Mac." });
     });
 });
-
 // ─── el componente de verdad ───────────────────────────────────────────────────────────────────────────
 
 function lectura(nodos: NodoVista[], ordenes: OrdenVista[] = []): { ok: true; estado: EstadoAutonomo } {
@@ -449,10 +446,10 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         const boton = await screen.findByTestId(id("desconectar"));
         expect(boton).toHaveTextContent("Desconectar");
         expect(boton).toBeDisabled();
-        const razon = screen.getByTestId(id("desconectar-explica"));
+        const razon = screen.getByTestId(id("desconectar-exipa"));
         expect(razon).toHaveTextContent("desconectar no cambiaría nada");
         expect(razon).toHaveTextContent(SIN_TRASPASO);
-        expect(boton).toHaveAttribute("aria-describedby", id("desconectar-explica"));
+        expect(boton).toHaveAttribute("aria-describedby", id("desconectar-exipa"));
         fireEvent.click(boton);
         expect(enviarOrden).not.toHaveBeenCalled();
     });
@@ -463,7 +460,7 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         const boton = await screen.findByTestId(id("contenedor"));
         expect(boton).toHaveTextContent("Usar como contenedor (2 agentes)");
         expect(boton).toBeDisabled();
-        expect(screen.getByTestId(id("contenedor-explica"))).toHaveTextContent("El reparto de tareas a contenedores aún no está activo");
+        expect(screen.getByTestId(id("contenedor-exipa"))).toHaveTextContent("El reparto de tareas a contenedores aún no está activo");
         fireEvent.click(boton);
         expect(enviarOrden).not.toHaveBeenCalled();
     });
@@ -483,7 +480,7 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         pintar();
         const boton = await screen.findByTestId(id("contenedor"));
         expect(boton).toHaveTextContent("Dejar de usar como contenedor");
-        expect(screen.getByTestId(id("contenedor-explica"))).toHaveTextContent("No para lo que ya esté corriendo");
+        expect(screen.getByTestId(id("contenedor-exipa"))).toHaveTextContent("No para lo que ya esté corriendo");
         fireEvent.click(boton);
         await waitFor(() => expect(enviarOrden).toHaveBeenCalledWith("contenedor", A1, { activo: false }));
         expect(enviarOrden).toHaveBeenCalledTimes(1);
@@ -497,7 +494,7 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         pintar();
         const boton = await screen.findByTestId(id("desconectar"));
         expect(boton).toBeDisabled();
-        expect(screen.getByTestId(id("desconectar-explica"))).toHaveTextContent("Dejar de usar como contenedor");
+        expect(screen.getByTestId(id("desconectar-exipa"))).toHaveTextContent("Dejar de usar como contenedor");
         expect(screen.getByTestId(id("contenedor"))).not.toBeDisabled();
     });
 
@@ -506,8 +503,8 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         pintar();
         const boton = await screen.findByTestId(id("desconectar"));
         expect(boton).toBeDisabled();
-        expect(screen.getByTestId(id("desconectar-explica"))).toHaveTextContent("No tiene trabajo en curso: puedes apagarlo sin más.");
-        expect(boton).toHaveAttribute("aria-describedby", id("desconectar-explica"));
+        expect(screen.getByTestId(id("desconectar-exipa"))).toHaveTextContent("No tiene trabajo en curso: puedes apagarlo sin más.");
+        expect(boton).toHaveAttribute("aria-describedby", id("desconectar-exipa"));
         fireEvent.click(boton);
         expect(enviarOrden).not.toHaveBeenCalled();
     });
@@ -517,7 +514,7 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         pintar();
         const boton = await screen.findByTestId(id("desconectar"));
         expect(boton).toBeDisabled();
-        const razon = screen.getByTestId(id("desconectar-explica"));
+        const razon = screen.getByTestId(id("desconectar-exipa"));
         expect(razon).toHaveTextContent("Tiene un orquestador en marcha");
         expect(razon).not.toHaveTextContent("puedes apagarlo sin más");
         expect(screen.getByTestId(id("info"))).toHaveTextContent("Orquestador en marcha · ninguna tarea publicada ahora");
@@ -530,7 +527,7 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         const info = await screen.findByTestId(id("info"));
         expect(info).toHaveTextContent("2 tareas en curso");
         expect(info).not.toHaveTextContent("Sin tareas en curso");
-        expect(screen.getByTestId(id("desconectar-explica"))).toHaveTextContent("cuando acaben sus 2 tarea(s)");
+        expect(screen.getByTestId(id("desconectar-exipa"))).toHaveTextContent("cuando acaben sus 2 tarea(s)");
     });
 
     // ── cuando un nodo declara el relevo activo (COL1012E/G/H cableadas): el camino del contrato ──────────
@@ -612,7 +609,7 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         estado.lectura = lectura([nodo({ contenedor: { activo: false, agentes: 0, apto: false, motivo: "Faltan herramientas: opencode." } })]);
         pintar();
         expect(await screen.findByTestId(id("contenedor"))).toBeDisabled();
-        expect(screen.getByTestId(id("contenedor-explica"))).toHaveTextContent("Faltan herramientas: opencode.");
+        expect(screen.getByTestId(id("contenedor-exipa"))).toHaveTextContent("Faltan herramientas: opencode.");
     });
 
     it("apuntado y luego no apto: la tarjeta lo cuenta y deja apagarlo", async () => {
@@ -637,7 +634,7 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         pintar();
         expect(await screen.findByTestId(id("desconectar"))).toBeDisabled();
         expect(screen.getByTestId(id("contenedor"))).toBeDisabled();
-        expect(screen.getByTestId(id("desconectar-explica"))).toHaveTextContent("modo de prueba");
+        expect(screen.getByTestId(id("desconectar-exipa"))).toHaveTextContent("modo de prueba");
     });
 
     it("un nodo con el latido viejo dice que no informa y no deja pulsar nada", async () => {
@@ -645,7 +642,7 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         pintar();
         expect(await screen.findByTestId(id("desconectar"))).toBeDisabled();
         expect(screen.getByTestId(id("contenedor"))).toBeDisabled();
-        expect(screen.getByTestId(id("desconectar-explica"))).toHaveTextContent("aún no informa de su trabajo");
+        expect(screen.getByTestId(id("desconectar-exipa"))).toHaveTextContent("aún no informa de su trabajo");
         expect(screen.getByTestId(id("info"))).toHaveTextContent("aún no informa");
     });
 
@@ -663,9 +660,9 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         pintar();
         const boton = await screen.findByTestId(id("desconectar", "mac"));
         expect(boton).toBeDisabled();
-        expect(screen.getByTestId(id("desconectar-explica", "mac"))).toHaveTextContent("identificador de destino válido");
+        expect(screen.getByTestId(id("desconectar-exipa", "mac"))).toHaveTextContent("identificador de destino válido");
         expect(screen.getByTestId(id("contenedor", "mac"))).toBeDisabled();
-        expect(screen.getByTestId(id("contenedor-explica", "mac"))).toHaveTextContent("identificador de destino válido");
+        expect(screen.getByTestId(id("contenedor-exipa", "mac"))).toHaveTextContent("identificador de destino válido");
         fireEvent.click(boton);
         fireEvent.click(screen.getByTestId(id("contenedor", "mac")));
         expect(enviarOrden).not.toHaveBeenCalled();
