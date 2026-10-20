@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "HFR1018K",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Superficies · ventana «Estudio de vídeo» (dashboard, escritorio, pizarra y flotante)",
+   "archivos": [
+    "src/components/video/estudio-video-ventana.tsx",
+    "src/components/dashboard/widget-registry.tsx",
+    "src/components/video/__tests__/estudio-video-ventana.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente con: lista de capas/clips y línea de tiempo simple (de los atributos data-*), panel de propiedades que emite órdenes de operaciones-sdk.ts, vista previa con `<hyperframes-player>` servido por el servicio local (si no hay servicio: mensaje claro y botón «Abrir en otra neurona»), aviso cuando la composición trae GSAP. Regístralo en widget-registry.tsx como widget `estudio-video` (lo usan dashboard, escritorio y pizarra; solo añadir la entrada). Estética del OS. Prueba con Testing Library. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "HFR1018C"
+   ],
+   "dependencias_ya_en_main": [
+    "HFR1018E"
+   ]
+  }
+ ]
+}
