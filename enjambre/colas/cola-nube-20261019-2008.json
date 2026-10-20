@@ -1,0 +1,53 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "GCA1019Hb",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "MetaGenesis usa el mismo mecanismo: lector de asignaciones en Python",
+   "archivos": [
+    "scripts/puente/asignaciones_agentes.py",
+    "scripts/puente/test_asignaciones_agentes.py"
+   ],
+   "depende": [],
+   "prompt": "Funciones puras que leen `starseed_memory_root/mando/asignaciones-agentes.json` (mismo formato que `asignaciones.ts`), validan y devuelven la cadena de modelos por papel o director, con respaldo a los valores actuales (`MODELOS` y `STARSEED_OPUS_DIRECTOR`) si falta el archivo. No modifiques `starseed-enjambre.py` ni `motores_director.py`; deja en el docstring cómo llamarlo desde ellos. Pruebas. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261020-014906-GCA1019H`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261020-014906-GCA1019H:refs/remotes/origin/nube/a1-20261020-014906-GCA1019H\"` y `git cherry-pick --no-commit 43540b2482ca 562451def53c`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/asignaciones_agentes.py, scripts/puente/test_asignaciones_agentes.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GCA1019F"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261020-014906-GCA1019H"
+  },
+  {
+   "id": "FSH1018Ab",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Biblioteca · ficha de Shaders y categoría «Fondos» con los sets oficiales de StarSeed",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/__tests__/fondos-shaders.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Añade la ficha `fondos-shaders` (`kind: \"repo\"`, githubRepo shader-effects-inc/shaders, licencia MIT, payload.categoria \"fondos\", payload.claseLicencia \"libre\", descripción: «más de 200 efectos WebGPU para fondos por capas; editor, presets y secciones de shaders.com no incluidos») y 4 sets oficiales `kind: \"design\"` hechos por StarSeed (Cosmos violeta, Aurora suave, Vidrio de cuarzo, Semilla dorada) con su preset JSON (components con type de componentes que existan en el paquete: MeshGradient, Aurora, Nebula, Glass, FilmGrain, SolidColor, LinearGradient…) en `payload.setFondo`. Prueba: ids únicos y presets con types válidos. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261020-014906-FSH1018A`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261020-014906-FSH1018A:refs/remotes/origin/nube/a1-20261020-014906-FSH1018A\"` y `git cherry-pick --no-commit 0227f5e21803 919a6e21fa84`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/fondos-shaders.test.ts, src/lib/library/packages.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261020-014906-FSH1018A",
+   "dependencias_ya_en_main": [
+    "HFR1018B"
+   ]
+  },
+  {
+   "id": "GCA1019Wb",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Habilidades de la Biblioteca para los agentes de Genesis y PoliGenesis",
+   "archivos": [
+    "src/lib/genesis/conectores/habilidades-agente.ts",
+    "src/lib/genesis/conectores/__tests__/habilidades-agente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `habilidadesPara(papel, ambito, { capacidades: SkillCapability[] de src/ai/astraura/skills.ts, desactivadas })` elige las habilidades útiles por papel o director (por `routing` y etiquetas) en tamaño tarjeta, resumen o completa según la capa del modelo elegido (`architecture/laya-y-habilidades.md`). Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261020-014906`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261020-014906:refs/remotes/origin/nube/a1-20261020-014906\"` y `git cherry-pick --no-commit 2db82356e545 2686ba8ec300 97387d6891ef eeac68bbc713 efc2ae918298`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/lib/genesis/conectores/__tests__/habilidades-agente.test.ts, src/lib/genesis/conectores/habilidades-agente.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GCA1019F"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261020-014906"
+  }
+ ]
+}
