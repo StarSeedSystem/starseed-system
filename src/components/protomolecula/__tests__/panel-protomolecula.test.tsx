@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { manejarAccionProtomolecula } from "@/lib/protomolecula/accion-agente";
 import { PREFIJO_MOLECULA, guardarMolecula } from "@/lib/protomolecula/almacen-moleculas";
@@ -8,7 +8,10 @@ import { controladorActivo, limpiarControladores, listarControladores } from "@/
 import { AVISO_SALUD } from "@/lib/protomolecula/permisos";
 import { limpiarRegistro, registrarAtomo, type DefinicionAtomo } from "@/lib/protomolecula/registro-atomos";
 import { reiniciarSesiones } from "@/lib/protomolecula/sesion-molecula";
-import type { Molecula, Operacion, Rol } from "@/lib/protomolecula/tipos";
+import type { Molecula, Operacion, Rol, Autor } from "@/lib/protomolecula/tipos";
+
+const autor: Autor = { tipo: "persona", id: "panel" };
+const ctrlBase = controlador();
 
 import { PanelProtomolecula, PanelProtomoleculaAutonomo } from "../panel-protomolecula";
 
@@ -283,6 +286,16 @@ describe("PanelProtomoleculaAutonomo · sesión, guardado y recuperación", () =
     expect(campoVolumen().value).toBe("-5");
     expect(within(historial()).getByText(/astraura, agente/)).toBeDefined();
   });
+
+const ctrlBase = controlador();
+
+it("llama limpiarRegistro al desmontar", async () => {
+    const modulo = await import("@/lib/protomolecula/registro-atomos");
+    const spy = vi.spyOn(modulo, "limpiarRegistro");
+    const { unmount } = render(<PanelProtomolecula controlador={ctrlBase as any} autor={autor} />);
+    unmount();
+    expect(spy).toHaveBeenCalled();
+});
 
   it("un id que no existe se dice, no se inventa una molécula", async () => {
     render(<PanelProtomoleculaAutonomo moleculaId="zzz" />);

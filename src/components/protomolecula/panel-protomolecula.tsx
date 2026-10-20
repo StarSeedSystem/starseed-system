@@ -8,11 +8,11 @@
  * dashboard: sin título, dictado ni historial, pero con «Añadir herramienta», parámetros y pendientes
  * (un widget vacío sin forma de llenarlo sería un callejón sin salida).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { Controlador } from "@/lib/protomolecula/controlador";
 import { AVISO_SALUD } from "@/lib/protomolecula/permisos";
-import { candidatosDe } from "@/lib/protomolecula/registro-atomos";
+import { candidatosDe, limpiarRegistro } from "@/lib/protomolecula/registro-atomos";
 import type { EstadoGuardado } from "@/lib/protomolecula/sesion-molecula";
 import type { Ambito, Autor } from "@/lib/protomolecula/tipos";
 
@@ -38,6 +38,9 @@ export interface PanelProtomoleculaProps {
 
 export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, compacto = false, guardado }: PanelProtomoleculaProps) {
   const estado = useEstadoControl(ctl);
+  useEffect(() => {
+    return () => { limpiarRegistro(); };
+}, []);
   const [aviso, setAviso] = useState<string | null>(null);
   if (!estado) return null;
 
