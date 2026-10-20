@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "GCA1019E",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Escalera local más potente primero, por tarea y por ámbito",
+   "archivos": [
+    "src/lib/genesis/conectores/escalera.ts",
+    "src/lib/genesis/conectores/__tests__/escalera.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elegirCandidatos({ tarea: { papel, privado, tamano }, ofertas: OfertaContexto[], catalogo: OpcionCatalogo[], vinculadas: Set<string>, preferencias: { permitirPago: boolean, topeDiario: number|null, prohibidos: string[] } })` → lista ordenada { candidatoId, peldano: 1..6, motivo }. Peldaños del contrato §2: Astraura en la neurona y neuronas de la cuenta y servidores del cerebro (capa más potente que quepa, por `potencia.ts`), otros modelos locales del contexto, bolsa de la malla (nunca si privado), contenedores del contexto, proveedores gratis vinculados, de pago solo con permiso. Prueba: lo privado no baja del peldaño 2; sin permiso nunca hay pago; el motivo siempre dice por qué. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos. Datos REALES para las pruebas y los valores por defecto: `starseed_memory_root/genesis/medidas-locales.json` (Ollama del A1: lectura y escritura en tokens/s por modelo). Un modelo local que lee a menos de ~50 tokens/s no puede ser escritor con prompts de ~22.000 tokens: la potencia lo baja de peldaño para ese papel aunque sea local.",
+   "dependencias_ya_en_main": [
+    "GCA1019A",
+    "GCA1019B",
+    "GCA1019C"
+   ]
+  },
+  {
+   "id": "GCA1019O",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Plantilla de contenedor en GitHub Actions para cualquier persona",
+   "archivos": [
+    "deploy/genesis-contenedor/github-actions.yml",
+    "deploy/genesis-contenedor/README.md",
+    "scripts/puente/test_plantilla_contenedor.py"
+   ],
+   "depende": [],
+   "prompt": "Workflow que una persona copia en SU repositorio: se lanza por `workflow_dispatch` y `schedule`, pide trabajo a su ámbito con `STARSEED_MOTOR_TOKEN` (secreto del repo), corre una tarea con el orquestador del OS y devuelve el resultado; telemetría apagada; permisos mínimos. README en español: crear el repo, pegar el token, límites del plan gratuito de GitHub (enlace a su documentación oficial, sin inventar cifras). La prueba valida el YAML (claves, permisos, sin secretos en claro). Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019B"
+   ]
+  }
+ ]
+}
