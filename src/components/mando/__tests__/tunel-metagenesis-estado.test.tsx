@@ -3,19 +3,17 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { TunelMetaGenesisEstado } from "../tunel-metagenesis-estado";
 
-const nativoFetch = globalThis.fetch;
+const nativeFetch = globalThis.fetch;
 
 describe("TunelMetaGenesisEstado", () => {
-  let llamadas: { url: string; init?: RequestInit }[] = [];
+  let calls: { url: string; init?: RequestInit }[] = [];
 
   beforeEach(() => {
-    llamadas.length = 0;
+    calls.length = 0;
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      llamadas.push({ url, init });
-      
+      calls.push({ url, init });
       if (url.includes("/api/mando/tunel-metagenesis")) {
-        // Simular respuesta del API
         return {
           ok: true,
           json: async () => ({
@@ -30,170 +28,100 @@ describe("TunelMetaGenesisEstado", () => {
           })
         } as Response;
       }
-      
-      // Respuesta por defecto para otros endpoints
-      return {
-        ok: true,
-        json: async () => ({})
-      } as Response;
+      return { ok: true, json: async () => ({}) } as Response;
     };
   });
 
   afterEach(() => {
     cleanup();
-    globalThis.fetch = nativoFetch;
+    globalThis.fetch = nativeFetch;
     vi.clearAllMocks();
   });
 
-  it("muestra estado de carga inicialmente", async () => {
+  it("muestra estado de carga inicialmente", () => {
     render(<TunelMetaGenesisEstado />);
     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
   });
 
-   it("muestra túnel activo cuando el servicio está cargado", async () => {
-
-     // Renderizar y esperar a que se haga la primera llamada y se procese el resultado
-     render(<TunelMetaGenesisEstado />);
-     
-     // Esperar a que aparezca el texto del estado activo
-     await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
- 
-     // Verificar que las URLs fueron tachadas en las líneas
-     expect(await screen.findByText(/Línea 1 \[túnel\]/i)).toBeInTheDocument();
-     expect(await screen.findByText(/Línea 2 sin URL/i)).toBeInTheDocument();
-     expect(await screen.findByText(/Línea 3 \[túnel\]/i)).toBeInTheDocument();
-+   },
-+   
-+   it("cancela todos los URLs trycloudflare en una línea", async () => {
-+     const originalFetch = globalThis.fetch;
-+     globalThis.fetch = async (input) => {
-+       const url = String(input);
-+       if (url.includes("/api/mando/tunel-metagenesis")) {
-+         return {
-+           ok: true,
-+           json: async () => ({
-+             cargado: true,
-+             pid: 54321,
-+             ultimasLineas: ["Línea 4 https://a.trycloudflare.com y https://b.trycloudflare.com"],
-+             medidoEn: new Date().toISOString()
-+           })
-+         } as Response;
-+       }
-+       return { ok: true, json: async () => ({}) } as Response;
-+     };
-+ 
-+     render(<TunelMetaGenesisEstado />);
-+     expect(await screen.findByText(/Línea 4 \[túnel\]/i)).toBeInTheDocument();
-+     expect(await screen.findByText(/y \[túnel\]/i)).toBeInTheDocument();
-+     globalThis.fetch = originalFetch;
-   });
- 
-   it("muestra túnel parado cuando el servicio no está cargado", async () => {
-    // Renderizar y esperar a que se haga la primera llamada y se procese el resultado
+  it("muestra túnel activo cuando el servicio está cargado", async () => {
     render(<TunelMetaGenesisEstado />);
-    
-    // Esperar a que aparezca el texto del estado activo
-    await await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
-    
-    // Verificar que las URLs fueron tachadas en las líneas
+    await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
     expect(await screen.findByText(/Línea 1 \[túnel\]/i)).toBeInTheDocument();
     expect(await screen.findByText(/Línea 2 sin URL/i)).toBeInTheDocument();
     expect(await screen.findByText(/Línea 3 \[túnel\]/i)).toBeInTheDocument();
   });
 
   it("muestra túnel parado cuando el servicio no está cargado", async () => {
-    // Cambiar el mock para devolver servicio no cargado
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      llamadas.push({ url, init });
-      
+      calls.push({ url, init });
       if (url.includes("/api/mando/tunel-metagenesis")) {
         return {
           ok: true,
-          json: async () => ({
-            cargado: false,
-            pid: null,
-            ultimasLineas: [],
-            medidoEn: new Date().toISOString()
-          })
+          json: async () => ({ cargado: false, pid: null, ultimasLineas: [], medidoEn: new Date().toISOString() })
         } as Response;
       }
-      
-      return {
-        ok: true,
-        json: async () => ({})
-      } as Response;
+      return { ok: true, json: async () => ({}) } as Response;
     };
-    
     render(<TunelMetaGenesisEstado />);
-    
-    // Esperar a que se haga la primera llamada
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 10));
     });
-    
     expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
   });
 
   it("realiza fetch cada 60 segundos cuando el componente está visible", async () => {
     vi.useFakeTimers();
-    
     render(<TunelMetaGenesisEstado />);
-    
-    // Primera llamada inmediata
     await act(async () => {
       await Promise.resolve();
     });
-    
-    let llamadasIniciales = llamadas.length;
-    expect(llamadasIniciales).toBeGreaterThanOrEqual(1);
-    
-    // Avanzar 30 segundos - debería no haber nuevas llamadas
+    const initial = calls.length;
+    expect(initial).toBeGreaterThanOrEqual(1);
     await act(async () => {
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(30000);
     });
-    
-    let llamadasDespues30s = llamadas.length;
-    expect(llamadasDespues30s).toBe(llamadasIniciales);
-    
-    // Avanzar otros 30 segundos (total 60) - debería haber una nueva llamada
+    expect(calls.length).toBe(initial);
     await act(async () => {
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(30000);
     });
-    
-    let llamadasDespues60s = llamadas.length;
-    expect(llamadasDespues60s).toBe(llamadasIniciales + 1);
-    
+    expect(calls.length).toBe(initial + 1);
     vi.useRealTimers();
   });
 
   it("no realiza fetch cuando la página no está visible", async () => {
     vi.useFakeTimers();
-    
-    // Simular que la página está oculta
     Object.defineProperty(document, 'visibilityState', {
       value: 'hidden',
       configurable: true
     });
-    
     render(<TunelMetaGenesisEstado />);
-    
-    // Esperar el efecto inicial
     await act(async () => {
       await Promise.resolve();
     });
-    
-    let llamadasIniciales = llamadas.length;
-    
-    // Avanzar 60 segundos
+    const initial = calls.length;
     await act(async () => {
-      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(60000);
     });
-    
-    // Debe seguir teniendo el mismo número de llamadas (no se hizo fetch por estar oculto)
-    let llamadasDespuesEspera = llamadas.length;
-    expect(llamadasDespuesEspera).toBe(llamadasIniciales);
-    
+    expect(calls.length).toBe(initial);
     vi.useRealTimers();
+  });
+
+  it("cancela URLs trycloudflare en una línea", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      if (url.includes("/api/mando/tunel-metagenesis")) {
+        return {
+          ok: true,
+          json: async () => ({ cargado: true, pid: 54321, ultimasLineas: ["Línea 4 https://a.trycloudflare.com y https://b.trycloudflare.com"], medidoEn: new Date().toISOString() })
+        } as Response;
+      }
+      return { ok: true, json: async () => ({}) } as Response;
+    };
+    render(<TunelMetaGenesisEstado />);
+    expect(await screen.findByText(/Línea 4 \[túnel\]/i)).toBeInTheDocument();
+    expect(await screen.findByText(/y \[túnel\]/i)).toBeInTheDocument();
+    globalThis.fetch = originalFetch;
   });
 });
