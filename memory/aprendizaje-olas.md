@@ -4491,3 +4491,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTBOT1011Gd` — otra cosa: ningún proveedor respondió (todos caídos)
 - `RTGN1010A-d3b` — no escribió nada
+
+## 2026-10-20 03:35 · mg-oracle-1019-1953
+
+**Lo que se pidió.** sin medida
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (CB1013C, APM1017U, TIP1013C, VST1018B). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CB1013C` — otra cosa: ningún proveedor respondió (todos caídos)
+- `APM1017U` — otra cosa: ningún proveedor respondió (todos caídos)
+- `TIP1013C` — otra cosa: ningún proveedor respondió (todos caídos)
+- `VST1018B` — otra cosa: ningún proveedor respondió (todos caídos)
