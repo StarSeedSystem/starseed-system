@@ -304,7 +304,7 @@ consentimiento explícito por neurona.
      contra el origen declarado y `event.source`. Se muestran tal cual: el control es «solo ventana» (§3.2).
   En ambos casos el puente limita tamaño (64 KB por mensaje; 2 MB un `exportar`) y frecuencia (120 mensajes/s por marco), valida el tipo del valor
   contra el parámetro declarado y **ignora tipos desconocidos**.
-  - **El tamaño se mide sobre JSON puro** (objetos planos, listas sin propiedades extra, texto, números finitos, booleanos y `null`; un `undefined` dentro de un objeto se omite).
+  - **El tamaño se mide sobre JSON puro** (objetos planos, listas sin propiedades extra, texto, números finitos, booleanos y `null`; un `undefined` dentro de un objeto se omite, pero su clave sí cuenta: `postMessage` la clona). Un id o una opción que el saneo de `<`/`>` cambiaría se descarta, no se reescribe.
     `postMessage` clona mucho más y `JSON.stringify` lo mediría mal (un `ArrayBuffer` o un `Map` pesarían `{}`), así que `BigInt`, `Map`, `Set`, `Date`,
     `RegExp`, `Blob`, `ArrayBuffer` y vistas de él, instancias de clase, funciones, símbolos, `NaN`/`Infinity` y referencias circulares se **rechazan**
     con su motivo: el binario viaja como texto (base64). Una lista con propiedades que no son índices (`lista.oculto = "…"`) también se rechaza:

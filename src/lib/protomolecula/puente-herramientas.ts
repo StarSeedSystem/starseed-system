@@ -56,7 +56,7 @@ const texto = (v: unknown, max = MAX_TEXTO_GENERAL): string => (typeof v === "st
 export function sanearParametro(bruto: unknown): Parametro | null {
   if (!bruto || typeof bruto !== "object") return null;
   const o = bruto as Record<string, unknown>;
-  const id = texto(o.id, MAX_TEXTO_GENERAL);
+  const id = typeof o.id === "string" && o.id.length <= MAX_TEXTO_GENERAL && sanearTexto(o.id) === o.id ? o.id : ""; // un id que el saneo cambiaría ya no es el de la herramienta
   const nombre = texto(o.nombre, MAX_TEXTO_GENERAL);
   if (!id || !nombre || !TIPOS_VALIDOS.includes(o.tipo as TipoParametro)) return null;
   const p: Parametro = { id, nombre, tipo: o.tipo as TipoParametro };
@@ -65,8 +65,8 @@ export function sanearParametro(bruto: unknown): Parametro | null {
   if (p.min !== undefined && p.max !== undefined && p.min >= p.max) return null; // mismo criterio que registrarAtomo
   if (typeof o.paso === "number" && Number.isFinite(o.paso) && o.paso > 0) p.paso = o.paso;
   if (typeof o.unidad === "string" && UNIDADES.includes(o.unidad)) p.unidad = o.unidad as Parametro["unidad"]; // solo las que sabe dictar el núcleo
-  // Una opción que no cabe se DESCARTA, no se recorta: recortadas, dos opciones distintas serían una y el OS ofrecería un texto que la herramienta no reconoce.
-  if (Array.isArray(o.opciones)) p.opciones = Array.from(new Set(o.opciones.filter((x): x is string => typeof x === "string" && x.length <= MAX_TEXTO_OPCION).map((x) => texto(x)))).slice(0, MAX_OPCIONES);
+  // Una opción que no cabe o que el saneo cambiaría («L->R») se DESCARTA: recortada o sin sus < >, dos opciones distintas serían una y el OS ofrecería un texto que la herramienta no reconoce.
+  if (Array.isArray(o.opciones)) p.opciones = Array.from(new Set(o.opciones.filter((x): x is string => typeof x === "string" && x.length <= MAX_TEXTO_OPCION && sanearTexto(x) === x))).slice(0, MAX_OPCIONES);
   if (Array.isArray(o.sinonimos)) p.sinonimos = o.sinonimos.filter((x): x is string => typeof x === "string").map((x) => texto(x));
   return p;
 }
@@ -98,7 +98,7 @@ function pesoJson(v: unknown): number | null {
     const json = JSON.stringify(v, function (this: Record<string, unknown>, k: string, valor: unknown) {
       const x = this[k]; // el valor ORIGINAL: `valor` ya pasó por toJSON (una Date llegaría como texto)
       if (x === null || typeof x === "string" || typeof x === "boolean" || Number.isFinite(x)) return valor;
-      if (x === undefined && !Array.isArray(this)) return void (omitidas += new TextEncoder().encode(k).length);
+      if (x === undefined && !Array.isArray(this)) return void (omitidas += new TextEncoder().encode(k).length + 4); // «"k":,» sin el valor
       if (typeof x === "object" && (Array.isArray(x) ? Object.keys(x).length === x.length : plano(x))) return valor;
       throw new TypeError("no es JSON puro");
     });

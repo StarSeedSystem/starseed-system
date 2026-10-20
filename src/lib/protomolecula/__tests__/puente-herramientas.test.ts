@@ -171,13 +171,14 @@ describe("procesarMensaje · topes", () => {
     expect(r.entrada).toBeNull();
     expect(r.motivo).toContain("64 KB");
   });
-  it("la clave de una entrada undefined cuenta: postMessage la clona aunque JSON la omita", () => {
+  it("la clave de una entrada undefined cuenta: postMessage la clona aunque JSON la omita (raíz, anidada y exportar)", () => {
     const m = marcoDe();
-    const datos: Record<string, unknown> = { ...hola };
-    datos["k".repeat(70 * 1024)] = undefined; // 70 KB de clave que JSON.stringify no escribiría
-    const r = procesarMensaje(ev(m, datos), m, 0, limite());
-    expect(r.entrada).toBeNull();
-    expect(r.motivo).toContain("64 KB");
+    const clave = "k".repeat(70 * 1024); // 70 KB de clave que JSON.stringify no escribiría
+    const raiz: Record<string, unknown> = { ...hola, [clave]: undefined };
+    const anidada = { ...hola, parametros: [{ id: "a", nombre: "A", tipo: "numero", [clave]: undefined }] };
+    for (const datos of [raiz, anidada]) expect(procesarMensaje(ev(m, datos), m, 0, limite()).motivo).toContain("64 KB");
+    const exportar = { ...hola, tipo: "exportar", formato: "wav", datos: { [`${clave}`.repeat(31)]: undefined } }; // ~2,2 MB de clave
+    expect(procesarMensaje(ev(m, exportar), m, 0, limite()).motivo).toContain("2 MB");
   });
   it("exportar por encima de 2 MB se rechaza", () => {
     const m = marcoDe();
@@ -349,9 +350,10 @@ describe("procesarMensaje · lo que declara el hola se acota como en el registro
     const repetidos = [{ id: "a", nombre: "A", tipo: "numero" }, { id: "a", nombre: "Otra", tipo: "booleano" }];
     expect(declarar({ parametros: repetidos })?.parametros).toEqual([{ id: "a", nombre: "A", tipo: "numero" }]);
   });
-  it("como mucho 32 opciones, y los nombres, ids y sinónimos de 80", () => {
+  it("como mucho 32 opciones, nombres y sinónimos de 80, y un id de más de 80 descarta el parámetro", () => {
     const opciones = Array.from({ length: 200 }, (_, i) => `o${i}`);
-    const p = sanearParametro({ id: "i".repeat(500), nombre: "n".repeat(500), tipo: "opcion", opciones, sinonimos: ["s".repeat(500)] });
+    expect(sanearParametro({ id: "i".repeat(MAX_TEXTO_GENERAL + 1), nombre: "N", tipo: "numero" })).toBeNull();
+    const p = sanearParametro({ id: "i".repeat(MAX_TEXTO_GENERAL), nombre: "n".repeat(500), tipo: "opcion", opciones, sinonimos: ["s".repeat(500)] });
     expect(p?.id).toHaveLength(MAX_TEXTO_GENERAL);
     expect(p?.nombre).toHaveLength(MAX_TEXTO_GENERAL);
     expect(p?.opciones).toEqual(opciones.slice(0, MAX_OPCIONES));
@@ -366,27 +368,29 @@ describe("procesarMensaje · lo que declara el hola se acota como en el registro
     const mezcla = [...Array.from({ length: 10 }, (_, i) => larga(`${i}`)), ...Array.from({ length: 50 }, (_, i) => `o${i}`)];
     expect(sanearParametro({ id: "m", nombre: "M", tipo: "opcion", opciones: mezcla })?.opciones).toEqual(Array.from({ length: MAX_OPCIONES }, (_, i) => `o${i}`));
   });
-  it("las opciones repetidas cuentan una vez, también las que solo se distinguían por < o >", () => {
+  it("las opciones repetidas cuentan una vez y las que llevan < o > se descartan, no se funden con otra", () => {
     expect(sanearParametro({ id: "m", nombre: "M", tipo: "opcion", opciones: ["a", "a", "a<b>", "ab", "c"] })?.opciones).toEqual(["a", "ab", "c"]);
+    expect(sanearParametro({ id: "m", nombre: "M", tipo: "opcion", opciones: ["L->R", "R->L", "L-R"] })?.opciones).toEqual(["L-R"]);
   });
   it("quita < y > de todo lo que declara un tercero, con el mismo saneo del registro", () => {
     const bruto = {
-      id: "<b>vol</b>", nombre: "<script>Volumen</script>", tipo: "opcion", opciones: ["<svg>a", "b"], sinonimos: ["<i>nivel</i>"], unidad: "Hz",
+      id: "vol", nombre: "<script>Volumen</script>", tipo: "opcion", opciones: ["<svg>a", "b"], sinonimos: ["<i>nivel</i>"], unidad: "Hz",
     };
     const entrada = declarar({ nombre: "<img src=x onerror=alert(1)>Sinte", parametros: [bruto] });
     expect(JSON.stringify(entrada)).not.toMatch(/[<>]/);
     expect(entrada?.nombre).toBe("img src=x onerror=alert(1)Sinte");
-    const delRegistro = sanearDefinicion({ herramientaId: "x", nombre: "N", categoria: "audio", integracion: "iframe-aislado", control: "total", parametros: [bruto] })?.parametros[0];
-    expect(delRegistro).toBeDefined();
     const [p] = entrada?.parametros as Parametro[];
-    expect(p).toMatchObject({ id: delRegistro?.id, nombre: delRegistro?.nombre, opciones: delRegistro?.opciones, sinonimos: delRegistro?.sinonimos });
-    expect(p.id).toBe("bvol/b");
+    expect(p.opciones).toEqual(["b"]); // «<svg>a» se descarta: sin sus < > sería otra opción
+    // Lo que deja pasar el puente, el registro lo admite TAL CUAL (su mismo saneo no le cambia nada).
+    const delRegistro = sanearDefinicion({ herramientaId: "x", nombre: "N", categoria: "audio", integracion: "iframe-aislado", control: "total", parametros: [p] })?.parametros[0];
+    expect(delRegistro).toMatchObject({ id: p.id, nombre: p.nombre, opciones: p.opciones, sinonimos: p.sinonimos });
+    expect(sanearParametro({ id: "<b>vol</b>", nombre: "V", tipo: "numero" })).toBeNull(); // un id con < > no es el de la herramienta
     expect(sanearParametro({ id: "x", nombre: "<>", tipo: "numero" })).toBeNull(); // sin nombre tras el saneo no hay parámetro
     expect(sanearParametro({ id: "<>", nombre: "X", tipo: "numero" })).toBeNull();
   });
   it("un hola aceptado SIEMPRE lo admite el registro, aunque declare más de lo permitido (dentro de los 64 KB del mensaje)", () => {
     const parametro = (i: number, texto: number, opciones: number, largoOpcion: number) => ({
-      id: `${i}-`.padEnd(texto, "i"), nombre: "n".repeat(texto), tipo: "opcion", min: 0, max: 1, unidad: "Hz", sinonimos: ["s".repeat(texto)],
+      id: `${i}-`.padEnd(Math.min(texto, MAX_TEXTO_GENERAL), "i"), nombre: "n".repeat(texto), tipo: "opcion", min: 0, max: 1, unidad: "Hz", sinonimos: ["s".repeat(texto)],
       opciones: Array.from({ length: opciones }, (_, j) => `${j}-`.padEnd(largoOpcion, "o")),
     });
     const casos = [
