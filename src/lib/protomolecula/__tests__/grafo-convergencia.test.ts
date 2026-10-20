@@ -112,6 +112,14 @@ describe("datos que no cuadran", () => {
     const d = grafo(["A", "A", "B"], [ar("A", "B")]);
     expect(d).toMatchObject({ orden: ["A", "B"], avisos: ["El átomo A está repetido: cuenta una vez."] });
   });
+  it('arista a un átomo que no está en la molécula: se ignora con aviso', () => {
+    const atomos = [at('a', 'visor')];
+    const d = analizarConvergencia(atomos, [ar('a', 'fantasma')], definicion, sinRutas);
+    expect(d.ok).toBe(true);
+    expect(d.incompatibles).toHaveLength(0);
+    expect(d.avisos.some((a) => a.includes('apunta a un átomo que no está'))).toBe(true);
+    expect(d.orden).toEqual(['a']);
+  });
   it("es puro: solo importa de ./tipos o ./registro-atomos, sin React", () => {
     const src = readFileSync(path.join(__dirname, "..", "grafo-convergencia.ts"), "utf8");
     for (const m of src.matchAll(/from ["']([^"']+)["']/g)) expect(m[1]).toMatch(/^\.\/(tipos|registro-atomos)$/);
