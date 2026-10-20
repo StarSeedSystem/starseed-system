@@ -1,6 +1,5 @@
 "use client";
 
-<<<<<<< HEAD
 import { useState, useEffect, useRef } from "react";
 import { aOferta, type NeuronPrestarPrefs, type NeuronMedidas } from "@/lib/neurons/prestar";
 import { detectCapabilities, type NeuronCapabilities } from "@/lib/neurons/neurons";
@@ -186,7 +185,9 @@ export function PrestarRecursosPanel() {
       if (!alive) return;
       setCaps(c);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const computeOffer = () => {
@@ -204,7 +205,7 @@ export function PrestarRecursosPanel() {
     if (app === "__CLEAR__") {
       setPrefs((p) => ({ ...p, apps: [] }));
     } else {
-      setPrefs((p) => ({ ...p, apps: [...p.apps, app] }));
+      setPrefs((p) => ({ ...p, apps: [...p.apps, app] })));
     }
   };
 
@@ -305,9 +306,7 @@ export function PrestarRecursosPanel() {
             <ToggleButton
               label="Solo prestar mientras carga"
               checked={prefs.topes.soloCargando}
-              onChange={(v) =>
-                setPrefs((p) => ({ ...p, topes: { ...p.topes, soloCargando: v } }))
-              }
+              onChange={(v) => setPrefs((p) => ({ ...p, topes: { ...p.topes, soloCargando: v } }))}
               explanation="Solo presta recursos cuando el dispositivo está enchufado y cargando."
             />
           </div>
@@ -324,13 +323,3 @@ export function PrestarRecursosPanel() {
 }
 
 export default PrestarRecursosPanel;
-=======
-import { useState } from "react";
-import { aOferta, type NeuronPrestarPrefs, type NeuronMedidas } from "@/lib/neurons/prestar";
-import { cn } from "@/lib/utils";
-
-export function PrestarRecursosPanel() {
-  // TODO: Implement panel
-  return <div>Prestar Recursos Panel</div>;
-}
->>>>>>> ac1ea80ec (salvavidas · APM1017Y: trabajo del agente antes de las puertas (tsc / vitest))
