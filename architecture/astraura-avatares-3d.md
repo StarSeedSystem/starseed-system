@@ -151,3 +151,46 @@ de VRAM de `resolucionPara` ahora son los publicados por PixelArtistry. Cola: `c
 - **Esqueleto**: los Spaces públicos de UniRig estaban en error; sin NVIDIA no hay rig automático gratis. Las
   plantillas VRM ya lo traen; a lo generado se le pone cuando haya una neurona con NVIDIA.
 - Cola: `cola-espacios-publicos-1011.json`.
+
+## §12 · Almacén del ADN (AV1011D · `adaptadores/almacen-adn.ts`, `selector-avatar-3d.tsx`)
+
+Qué hay de verdad (2026-10-20, rescate RTAV1011Dd-d1) y qué no:
+
+- **Dónde vive**: `localStorage` de ESTE aparato, clave `starseed.avatar.adn.v1`, un mapa `{ "biblioteca:<id>": entrada }`.
+  La clave es SIEMPRE el id del ADN (`refDeAdn`), nunca la malla base: dos dueños que eligen la misma plantilla
+  conservan cada uno el suyo. Una entrada antigua guardada por su malla se recoloca al volver a guardarla.
+- **Revisión (§2)**: gana la más alta. Guardar una revisión más vieja que la guardada lanza un error que se puede enseñar;
+  no hay copia en memoria, cada lectura va al almacén, así que una revisión nueva se ve al releer. Un id que ya es de
+  otro dueño no se pisa.
+- **Visibilidad**: se sella DENTRO del ADN y en la entrada (siempre coinciden); un ADN «publico» enseña las atribuciones de
+  licencia de lo que lleva (§5). **«grupo» y «publico» hoy solo ETIQUETAN: no se publica ni se comparte nada.** Los ADN
+  nuevos nacen «privado»; al cambiar de avatar el selector conserva la visibilidad que el ADN ya tenía (puede ser «publico»,
+  p. ej. uno importado) y la interfaz todavía no deja elegirla.
+- **Tope**: 24 avatares guardados (`MAX_ADN_GUARDADOS`), con un error honesto al llegar (no se expulsa nada en
+  silencio). Razón: el almacén entero se espeja a la cuenta en `user_settings.prefs`, y esa columna llegó a 2,8 MB una vez.
+  Si el aparato no deja escribir (lleno o bloqueado) se lanza un error: nunca se dice «guardado» si no lo está.
+- **Cuenta**: el espejo es de ida (guardar y quitar). La clave **no baja** a otros aparatos (no está en `SYNCED_KEYS`,
+  ver `persistencia-entre-medios.md` §6.4); hacerlo pide una fusión por entrada (mayor `rev`, empate por `savedAt`), no
+  «última escritura gana» de la clave entera.
+- **Pendiente, por aparato y no por cuenta**: el almacén es de TODO el aparato y el espejo sube el mapa entero. Si dos cuentas
+  comparten aparato, el ADN «privado» de una acaba en `user_settings.prefs` de la otra. Antes de la fase de sincronía hay que
+  filtrar el espejo a los dueños de la cuenta activa (su perfil, sus bots y sus entidades) o separar la clave por usuario.
+- **Ids**: los ADN nuevos llevan `adn-<UUID>` (`nuevoIdAdn`, con respaldo sin `crypto.randomUUID`), únicos entre aparatos y
+  personas para cuando lleguen a la Biblioteca real o al catálogo público.
+- **Revisión y recolocación**: una entrada antigua (guardada por su malla) pasa por las mismas comprobaciones de revisión y
+  dueño que la entrada actual antes de recolocarse; no se pisa nada a ciegas.
+- **Recordar por dueño**: `adnActualDeDueno({ tipo, id })` devuelve el ADN guardado más reciente de un perfil, bot, grupo,
+  comunidad o página. El selector parte siempre de lo guardado (no de lo pintado) y, al cambiar de avatar, reutiliza el id,
+  sube la revisión y conserva la visibilidad.
+- **Selector** (`SelectorAvatar3d`): props de perfil (`profileId`) o de entidad (`entityId` + `entityKind` + `rol` + `gobierno`).
+  En perfil, `esPropio` es obligatorio: quien lo monte dice si quien mira es la dueña (en la ficha de otra persona solo se
+  ve). Sin `rol` en una entidad solo se ve, con el motivo de `decidirCambioAvatar` (§7) y sin prometer la propuesta/voto
+  (AV1011J, que no existe). Ofrece la orbe y las 6 plantillas CC0 (§9-L). Se suscribe a los cambios del almacén (`suscribirCambiosAdn`: esta pestaña y las demás del aparato): si otra instancia
+  cambia el avatar del dueño, se ve sin volver a montarlo. **Todavía no está montado en ninguna ruta.**
+- **Dos linajes de «ADN»**: `AdnAvatar` (este contrato) y el `adnDeSer` de los seres de Genesis son conceptos distintos;
+  `Cuerpo.forma` `"ser-genesis"` y `"avatar-3d"` son caminos distintos y no se fusionan.
+
+Falta (cada punto es una tarea propia): ADN en la ficha pública de perfil, grupo y página (hoy los perfiles pintan el
+`profiles.avatar_3d` legado de la Adenda 219: un GLB por URL), bajada del almacén a otros aparatos, tipo de ítem «avatar»
+en la Biblioteca real (`entity-library`), propuesta y votación en grupos (AV1011J), ADN en los bots (AV1011C) y en la
+escena compartida XR (AV1011E).

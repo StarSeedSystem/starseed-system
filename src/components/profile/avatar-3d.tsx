@@ -21,7 +21,6 @@
 
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { removeAdnFromLibrary } from "@/lib/avatares/adaptadores/almacen-adn";
 
 export interface Avatar3D {
     url: string;
@@ -242,11 +241,7 @@ export function EditorAvatar3D({ value, onChange, onSubir }: {
                             </label>
                         )}
                         <input value={a.url} onChange={(e) => set({ url: e.target.value.trim(), formato: formatoDe(e.target.value) })} placeholder="o pega la URL de un .glb" className="min-w-[160px] flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] outline-none focus:border-cyan-400/50" />
-                        {a.url && <button type="button" onClick={() => {
-                            const ref = a.url.startsWith("biblioteca:") || a.url.startsWith("genesis:") ? a.url : `biblioteca:${a.url}`;
-                            void removeAdnFromLibrary(ref);
-                            set({ url: "" });
-                        }} className="text-[10.5px] text-rose-300/80 hover:text-rose-200">Quitar</button>}
+                        {a.url && <button type="button" onClick={() => set({ url: "" })} className="text-[10.5px] text-rose-300/80 hover:text-rose-200">Quitar</button>}
                     </div>
                 </div>
             </div>

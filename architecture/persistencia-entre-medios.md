@@ -179,6 +179,14 @@ seguridad, se deja local hasta decidirlo), `starseed.astraura.signals.v1`, `star
 `starseed.sharing.local.v1`. Para cada una: leer su tipo de valor, confirmar que no lleva secretos y medir
 su tamaño **antes** de añadirla (la columna `prefs` llegó a 2,8 MB por dos espejos y todo se atascó).
 
+`starseed.avatar.adn.v1` (ADN de los avatares 3D, AV1011D) **se espeja a la cuenta pero NO se sincroniza de vuelta**: se
+sube con `mergeUserPrefs` al guardar y al quitar, y no está en `SYNCED_KEYS`, así que otro aparato de la misma cuenta no
+lo recibe. Lleva un tope de 24 entradas (≤ 8 KB cada una). Falta una fusión por entrada (mayor `rev`, empate por
+`savedAt`) antes de registrarla; con «última escritura gana» de la clave entera se perdería el ADN de otro aparato.
+Además el almacén es de todo el aparato (no separa cuentas) y el espejo sube el mapa entero: con dos cuentas en un aparato el
+ADN «privado» de una acabaría en las preferencias de la otra; hay que filtrarlo por dueños de la cuenta activa antes de la
+fase de sincronía. Contrato: `astraura-avatares-3d.md` §12.
+
 ## 7. Guardián de consumo y estado degradado
 
 - `senalEsencial(timeoutMs = 8000)` (`lib/consumo/guardian.ts`) marca una lectura como **esencial**: no la
