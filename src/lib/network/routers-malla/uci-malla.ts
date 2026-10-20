@@ -64,6 +64,11 @@ export function uciMalla(e: CfgUciMalla): UciMalla {
   return { wireless, network: `${network.join("\n\n")}\n` };
 }
 
+/** `uciPuerta(e)` genera la configuración UCI para una puerta de internet (§8.1): móvil (4G/5G), Wi-Fi externo,
+ * USB teléfono o cable. Devuelve {network, firewall} con la interfaz wwan, bat0 en modo server con gw_bandwidth,
+ * y zona firewall wwan con masq y forwarding desde lan. Re-exportada desde uci-puerta. */
+export { uciPuerta };
+
 /** `uciClientePuerta()` configura bat0 en modo client (§8.1). Re-exportada desde uci-puerta.
  * En BATMAN_V, `gw_sel_class` es la mejora mínima en kbit/s para cambiar de puerta. */
 export { uciClientePuerta };
