@@ -5,20 +5,23 @@ import { AMBITOS, METRICAS_SALUD, ORIGENES, PALABRAS_UNIDAD, ROLES, esAmbito, es
 
 /** Guardia del núcleo: puro (sin React, red ni node:*), ≤ 200 líneas por archivo, sin claves ni ejecución de código. */
 const NUCLEO = ["tipos", "parametros", "dictado", "vinculos-control", "permisos"];
+/** Otros módulos puros que se rigen por la MISMA guardia (aparte de NUCLEO para no pisar su lista): el puente OS⇄herramienta. */
+const PUROS_DEL_PUENTE = ["puente-herramientas"];
+const PUROS = [...NUCLEO, ...PUROS_DEL_PUENTE];
 const leer = (n: string) => readFileSync(path.join(__dirname, "..", `${n}.ts`), "utf8");
 
 describe("núcleo puro de la Protomolécula", () => {
-  it.each(NUCLEO)("%s.ts: ≤ 200 líneas", (n) => {
+  it.each(PUROS)("%s.ts: ≤ 200 líneas", (n) => {
     expect(leer(n).split("\n").length).toBeLessThanOrEqual(200);
   });
-  it.each(NUCLEO)("%s.ts: sin React, red, node:* ni ejecución de código", (n) => {
+  it.each(PUROS)("%s.ts: sin React, red, node:* ni ejecución de código", (n) => {
     const src = leer(n);
     expect(src).not.toMatch(/from ["'](react|next|node:|fs|path|child_process)/);
     expect(src).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket|localStorage|document|window)\b\s*[.(]/);
     expect(src).not.toMatch(/\beval\s*\(|new Function\s*\(|import\s*\(/);
     expect(src).not.toMatch(/sk-[A-Za-z0-9]{10}|gsk_|Bearer\s/);
   });
-  it.each(NUCLEO)("%s.ts: las únicas dependencias son del propio núcleo, de salas y de alcance-memoria", (n) => {
+  it.each(PUROS)("%s.ts: las únicas dependencias son del propio núcleo, de salas y de alcance-memoria", (n) => {
     const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
     for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/(salas\/sala|nucleo\/alcance-memoria)$)/);
   });

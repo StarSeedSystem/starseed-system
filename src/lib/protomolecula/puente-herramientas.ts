@@ -3,7 +3,8 @@
  * Módulo puro: el `window` y el reloj se inyectan; nada de node:* ni de red.
  */
 
-import type { Parametro, TipoParametro } from "./tipos";
+import { MAX_NOMBRE, MAX_OPCIONES, MAX_PARAMETROS, MAX_TEXTO_GENERAL, MAX_TEXTO_OPCION, sanearTexto } from "./registro-atomos";
+import { PALABRAS_UNIDAD, type Parametro, type TipoParametro } from "./tipos";
 
 export const VERSION_PUENTE = 1 as const;
 
@@ -39,6 +40,8 @@ export interface EntradaPuente { tipo: TipoHerramientaAOS; canal: string; [clave
 const TOPE_JSON = 64 * 1024;
 const TOPE_EXPORTAR = 2 * 1024 * 1024;
 export const MENSAJES_POR_SEGUNDO = 120;
+/** Los topes de lo que declara un `hola` son LOS DEL REGISTRO (se importan de allí): un `hola` aceptado nunca lo rechaza `registrarAtomo`. */
+const UNIDADES: readonly string[] = ["", ...Object.keys(PALABRAS_UNIDAD)];
 
 /** Token de 16 bytes (128 bits) en hexadecimal; en producción se inyecta `crypto.getRandomValues`. */
 export function crearToken(aleatorio: (n: number) => Uint8Array): string {
@@ -46,22 +49,25 @@ export function crearToken(aleatorio: (n: number) => Uint8Array): string {
 }
 
 const TIPOS_VALIDOS: readonly TipoParametro[] = ["numero", "entero", "booleano", "opcion", "disparo"];
-const texto = (v: unknown, max = 200): string => (typeof v === "string" ? v.slice(0, max) : "");
+/** Texto declarado por un tercero: sin < ni > (el mismo `sanearTexto` del registro) y acotado. */
+const texto = (v: unknown, max = MAX_TEXTO_GENERAL): string => (typeof v === "string" ? sanearTexto(v).slice(0, max) : "");
 
 /** Equivalente de `sanearDefinicion` para solo parámetros (registro-atomos no lo exporta). */
 export function sanearParametro(bruto: unknown): Parametro | null {
   if (!bruto || typeof bruto !== "object") return null;
   const o = bruto as Record<string, unknown>;
-  const id = texto(o.id, 80);
-  const nombre = texto(o.nombre, 120);
+  const id = texto(o.id, MAX_TEXTO_GENERAL);
+  const nombre = texto(o.nombre, MAX_TEXTO_GENERAL);
   if (!id || !nombre || !TIPOS_VALIDOS.includes(o.tipo as TipoParametro)) return null;
   const p: Parametro = { id, nombre, tipo: o.tipo as TipoParametro };
   if (typeof o.min === "number" && Number.isFinite(o.min)) p.min = o.min;
   if (typeof o.max === "number" && Number.isFinite(o.max)) p.max = o.max;
+  if (p.min !== undefined && p.max !== undefined && p.min >= p.max) return null; // mismo criterio que registrarAtomo
   if (typeof o.paso === "number" && Number.isFinite(o.paso) && o.paso > 0) p.paso = o.paso;
-  if (typeof o.unidad === "string") p.unidad = texto(o.unidad, 24) as Parametro["unidad"];
-  if (Array.isArray(o.opciones)) p.opciones = o.opciones.filter((x): x is string => typeof x === "string").map((x) => texto(x, 80)).slice(0, 64);
-  if (Array.isArray(o.sinonimos)) p.sinonimos = o.sinonimos.filter((x): x is string => typeof x === "string").map((x) => texto(x, 80));
+  if (typeof o.unidad === "string" && UNIDADES.includes(o.unidad)) p.unidad = o.unidad as Parametro["unidad"]; // solo las que sabe dictar el núcleo
+  // Una opción que no cabe se DESCARTA, no se recorta: recortadas, dos opciones distintas serían una y el OS ofrecería un texto que la herramienta no reconoce.
+  if (Array.isArray(o.opciones)) p.opciones = Array.from(new Set(o.opciones.filter((x): x is string => typeof x === "string" && x.length <= MAX_TEXTO_OPCION).map((x) => texto(x)))).slice(0, MAX_OPCIONES);
+  if (Array.isArray(o.sinonimos)) p.sinonimos = o.sinonimos.filter((x): x is string => typeof x === "string").map((x) => texto(x));
   return p;
 }
 
@@ -74,7 +80,33 @@ function valorRespetaTipo(p: Parametro | undefined, valor: unknown): boolean {
   return false; // «disparo» no se cambia: se dispara
 }
 
-const bytes = (v: unknown): number => new TextEncoder().encode(JSON.stringify(v)).length;
+/** Un objeto «plano»: prototipo nulo o raíz (Object.prototype, también el de otro marco). Map, Set, Date, RegExp, Blob, ArrayBuffer y las clases quedan fuera. */
+const plano = (x: object): boolean => {
+  const p = Object.getPrototypeOf(x);
+  return p === null || Object.getPrototypeOf(p) === null;
+};
+
+/**
+ * Bytes UTF-8 del JSON del mensaje, o null si NO es JSON puro (objetos planos, listas, texto, números finitos, booleanos y null).
+ * `postMessage` clona mucho más (BigInt, Map, Set, Date, ArrayBuffer, Blob, referencias circulares…) y `JSON.stringify` lo mediría
+ * mal (un Map pesa «{}»; un Uint8Array, seis veces su tamaño): se rechaza en vez de medir algo que no es el mensaje. El binario va como texto (base64).
+ * Un `undefined` dentro de un objeto se omite como en JSON, pero su CLAVE cuenta (postMessage la clona); en una lista no vale. Una lista con propiedades que no son índices (`l.oculto = "…"`) se rechaza: `postMessage` las clona con su peso y `JSON.stringify` las ignora.
+ */
+function pesoJson(v: unknown): number | null {
+  let omitidas = 0;
+  try {
+    const json = JSON.stringify(v, function (this: Record<string, unknown>, k: string, valor: unknown) {
+      const x = this[k]; // el valor ORIGINAL: `valor` ya pasó por toJSON (una Date llegaría como texto)
+      if (x === null || typeof x === "string" || typeof x === "boolean" || Number.isFinite(x)) return valor;
+      if (x === undefined && !Array.isArray(this)) return void (omitidas += new TextEncoder().encode(k).length);
+      if (typeof x === "object" && (Array.isArray(x) ? Object.keys(x).length === x.length : plano(x))) return valor;
+      throw new TypeError("no es JSON puro");
+    });
+    return json === undefined ? null : new TextEncoder().encode(json).length + omitidas;
+  } catch {
+    return null;
+  }
+}
 const mal = (estado: EstadoLimite, motivo: string) => ({ entrada: null, estado, motivo });
 
 export function procesarMensaje(
@@ -83,7 +115,8 @@ export function procesarMensaje(
   ahora: number,
   estado: EstadoLimite
 ): { entrada: EntradaPuente | null; estado: EstadoLimite; motivo?: string } {
-  if (ev.source !== marco.ventana) return mal(estado, "La ventana que habla no es la del marco");
+  // Un marco sin ventana (aún no montado o ya desmontado) no identifica a nadie: `null === null` no es una prueba de identidad.
+  if (marco.ventana == null || ev.source !== marco.ventana) return mal(estado, "La ventana que habla no es la del marco");
   if (marco.origenEsperado === null ? ev.origin !== "null" : ev.origin !== marco.origenEsperado)
     return mal(estado, "Origen del mensaje distinto del esperado");
   const d = ev.data;
@@ -93,12 +126,14 @@ export function procesarMensaje(
     return mal(estado, "Falta la cabecera del protocolo");
   if (datos.canal !== marco.token) return mal(estado, "El canal no coincide con el token del marco");
   const tipo = datos.tipo as string;
-  if (!(TIPOS_HERRAMIENTA_A_OS as readonly string[]).includes(tipo)) return mal(estado, `Tipo ignorado: ${tipo}`);
+  if (!(TIPOS_HERRAMIENTA_A_OS as readonly string[]).includes(tipo)) return mal(estado, `Tipo ignorado: ${tipo.slice(0, 40)}`); // el tipo viene sin acotar: no se devuelve entero
   if (ahora >= estado.proximaRecarga) estado = { fichas: MENSAJES_POR_SEGUNDO, proximaRecarga: ahora + 1000 };
   if (estado.fichas <= 0) return mal(estado, "Límite de frecuencia: más de 120 mensajes por segundo");
   estado = { ...estado, fichas: estado.fichas - 1 };
   const tope = tipo === "exportar" ? TOPE_EXPORTAR : TOPE_JSON;
-  if (bytes(datos) > tope) return mal(estado, `El mensaje supera el tope de ${tope === TOPE_JSON ? "64 KB" : "2 MB"}`);
+  const peso = pesoJson(datos);
+  if (peso === null) return mal(estado, "El mensaje no es JSON puro (solo objetos planos, listas, texto, números finitos, booleanos y null; el binario va en base64)");
+  if (peso > tope) return mal(estado, `El mensaje supera el tope de ${tope === TOPE_JSON ? "64 KB" : "2 MB"}`);
 
   switch (tipo) {
     case "hola": {
@@ -107,15 +142,21 @@ export function procesarMensaje(
       let parametros: Parametro[] | undefined;
       if (m.parametros !== undefined) {
         if (!Array.isArray(m.parametros)) return mal(estado, "«parametros» debe ser una lista");
-        parametros = m.parametros.map(sanearParametro).filter((p): p is Parametro => p !== null);
+        parametros = [];
+        for (const bruto of m.parametros) {
+          const p = sanearParametro(bruto);
+          if (p && !parametros.some((q) => q.id === p.id)) parametros.push(p); // ids únicos, como en el registro
+          if (parametros.length >= MAX_PARAMETROS) break;
+        }
       }
-      return { entrada: { tipo: "hola", canal: m.canal, nombre: m.nombre, parametros }, estado };
+      const nombre = m.nombre === undefined ? undefined : texto(m.nombre, MAX_NOMBRE);
+      return { entrada: { tipo: "hola", canal: m.canal, nombre, parametros }, estado };
     }
     case "cambio": {
       const m = datos as unknown as MensajeCambio;
       if (typeof m.parametroId !== "string" || !m.parametroId) return mal(estado, "«parametroId» debe ser texto no vacío");
       const declarado = marco.parametros?.find((p) => p.id === m.parametroId);
-      if (marco.parametros && !declarado) return mal(estado, `Parámetro no declarado: ${m.parametroId}`);
+      if (marco.parametros && !declarado) return mal(estado, `Parámetro no declarado: ${m.parametroId.slice(0, 80)}`);
       if (declarado && !valorRespetaTipo(declarado, m.valor))
         return mal(estado, `El valor no respeta el tipo «${declarado.tipo}» de «${m.parametroId}»`);
       return { entrada: { tipo: "cambio", canal: m.canal, parametroId: m.parametroId, valor: m.valor }, estado };

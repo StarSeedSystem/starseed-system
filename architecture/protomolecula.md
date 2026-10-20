@@ -304,6 +304,22 @@ consentimiento explícito por neurona.
      contra el origen declarado y `event.source`. Se muestran tal cual: el control es «solo ventana» (§3.2).
   En ambos casos el puente limita tamaño (64 KB por mensaje; 2 MB un `exportar`) y frecuencia (120 mensajes/s por marco), valida el tipo del valor
   contra el parámetro declarado y **ignora tipos desconocidos**.
+  - **El tamaño se mide sobre JSON puro** (objetos planos, listas sin propiedades extra, texto, números finitos, booleanos y `null`; un `undefined` dentro de un objeto se omite).
+    `postMessage` clona mucho más y `JSON.stringify` lo mediría mal (un `ArrayBuffer` o un `Map` pesarían `{}`), así que `BigInt`, `Map`, `Set`, `Date`,
+    `RegExp`, `Blob`, `ArrayBuffer` y vistas de él, instancias de clase, funciones, símbolos, `NaN`/`Infinity` y referencias circulares se **rechazan**
+    con su motivo: el binario viaja como texto (base64). Una lista con propiedades que no son índices (`lista.oculto = "…"`) también se rechaza:
+    `postMessage` las clona con todo su peso y `JSON.stringify` las ignora, así que pasarían el tope sin medirse. Un marco sin ventana
+    (`contentWindow` nulo) no identifica a nadie.
+  - **Lo que declara un `hola` se acota con los topes del registro** (`registro-atomos.ts`, los mismos para el puente y para `registrarAtomo`): 64
+    parámetros con ids únicos, nombre e ids de 80 caracteres, 32 opciones de 40, sinónimos de 80, `min < max` y solo las unidades de `PALABRAS_UNIDAD`;
+    un `hola` aceptado por el puente nunca lo rechaza el registro. **Sin HTML:** el nombre, los ids, los nombres, las opciones y los sinónimos pasan por el
+    mismo `sanearTexto` del registro (quita `<` y `>`). Una opción de más de 40 caracteres se **descarta**, no se recorta (recortadas, dos opciones
+    distintas serían una y el OS ofrecería un texto que la herramienta no reconoce), y las repetidas cuentan una vez.
+  - **Los átomos propios (`vista: documento`) hablan este mismo protocolo** y una prueba de contrato (`atomos/contrato-puente.test.ts`) ejecuta cada
+    documento con un navegador simulado y le habla solo con `mensajeParaMarco`. El documento manda `hola` con **sus parámetros** (el OS pinta los
+    controles de ahí, y la prueba exige que el puente devuelva los 11 y que el registro los admita) y, si no puede crear el audio (sin Web Audio,
+    política del navegador, sandbox), manda `error` con el motivo en vez de `listo`: el OS siempre puede decirle a la persona por qué no suena. En el sintetizador, `sonando` sostiene el tono al volumen elegido y
+    `nota` es una envolvente (`ataque` → `liberacion`) que no cambia `sonando`: el estado que ve el OS es siempre el del documento.
 - Las páginas-envoltorio propias cargan su librería con versión fijada y **SRI**; sin SHA verificado, el átomo queda «próximamente: falta SHA»
   (misma regla que las capas de Astraura).
 - `lanzar-externo` de una app nativa o un servicio local: **siempre confirmación**, jamás lo arranca una IA sola. Lista blanca de binarios.

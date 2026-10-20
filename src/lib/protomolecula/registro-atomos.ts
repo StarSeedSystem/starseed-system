@@ -67,11 +67,12 @@ export interface DefinicionAtomo {
 const REGISTRO = new Map<string, DefinicionAtomo>();
 
 const ID_HERRAMIENTA_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
-const MAX_NOMBRE = 80;
-const MAX_PARAMETROS = 64;
-const MAX_OPCIONES = 32;
-const MAX_TEXTO_OPCION = 40;
-const MAX_TEXTO_GENERAL = 80;
+/** Topes del registro; el puente (`puente-herramientas.ts`) los reutiliza para acotar lo que declara un `hola`. */
+export const MAX_NOMBRE = 80;
+export const MAX_PARAMETROS = 64;
+export const MAX_OPCIONES = 32;
+export const MAX_TEXTO_OPCION = 40;
+export const MAX_TEXTO_GENERAL = 80;
 
 function validarIdHerramienta(id: string): string | null {
   if (!ID_HERRAMIENTA_RE.test(id)) {
@@ -164,7 +165,8 @@ export function puedeAnadirse(def: DefinicionAtomo): { ok: true } | { ok: false;
   return registrarAtomo(def);
 }
 
-function sanearTexto(t: string): string {
+/** Quita < y > y acota a `MAX_TEXTO_GENERAL`; también lo usa el puente para lo que declara un tercero. */
+export function sanearTexto(t: string): string {
   return t.replace(/[<>]/g, "").slice(0, MAX_TEXTO_GENERAL);
 }
 

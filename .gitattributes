@@ -1,0 +1,6 @@
+# Archivos de solo-añadir que el enjambre escribe al cerrar cada ola: todas las ramas de la nube
+# los tocan al final, así que el cherry-pick de traer_nube chocaba siempre que main había avanzado
+# (agotaba REPARACIONES_MAX sin llegar a probar el código). `union` conserva las líneas de los dos lados.
+# Solo para archivos que se AÑADEN al final; los que se regeneran enteros (PUENTE-DE-MANDO.md,
+# memory/workflow-actual.md…) NO deben ir aquí: duplicarían el texto.
+memory/aprendizaje-olas.md merge=union
