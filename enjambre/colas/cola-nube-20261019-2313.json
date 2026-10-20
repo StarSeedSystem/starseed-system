@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "CB1013S",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Ajustes del cerebro: diálogo y pestaña Medios (capacidades y almacenamiento)",
+   "archivos": [
+    "src/components/cerebro/ajustes-cerebro-dialog.tsx",
+    "src/components/cerebro/ajustes-medios.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §8 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Sustituye `ajustes-cerebro-dialog.tsx` manteniendo `AjustesCerebroDialogProps { open; onOpenChange; cerebro; cerebros; onHecho? }` y el default. Arriba el selector «Aplicar a»: cerebro completo, una memoria (nombres de `brain_memory_files` de este cerebro) o una carpeta (ids de `starseed.brain.<id>.memoryRoots`). Pestañas: Medios, Seguridad y privacidad, Vinculación y sincronización. Guardar con `saveBrain({ ...cerebro, config: conAjustes(...) })` y `onHecho()`. `ajustes-medios.tsx` (`export function AjustesMedios(...)`): por cada `CAPACIDADES`, un selector con 'auto' + `cerebro.servers` + neuronas de `listNeurons()` (src/lib/neurons/neurons.ts); almacenamiento con los destinos de `getMemoryDestinations(cerebro)` (src/lib/brains/memory-destinations.ts: local, StarSeed, externos y P2P) que, en el nivel cerebro, se guardan con `setMemoryDestinations` (se aplica de verdad) y una línea por destino explicando adónde va cada dato con `destinosDe()` de src/lib/malla/cristal/destinos-almacen.ts si encaja su firma. Junto a cada ajuste, la marca de `APLICACION` («se aplica ya» / «solo se guarda por ahora»).",
+   "revisor_quitadas": [
+    "CB1013R"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013T"
+   ]
+  }
+ ]
+}
