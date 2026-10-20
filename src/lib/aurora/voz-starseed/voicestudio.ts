@@ -23,7 +23,7 @@ export function normalizarBase(base?: string): string {
 }
 
 export async function descubrir(base?: string): Promise<DescubrimientoResult> {
-  const url = new URL("/.well-known/voicestudio-speech", normalizarBase(base)).toString();
+  const url = new URL("/.well-known/voicestudio-speech", normalizarBase(base)).toString;
   const timeout = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error("Timeout de conexión (800 ms)")), 800);
   });
@@ -33,9 +33,9 @@ export async function descubrir(base?: string): Promise<DescubrimientoResult> {
       const motivo = await resp.text();
       return { vivo: false, motivo: `HTTP ${resp.status}: ${motivo}` };
     }
-    const data = (await resp.json()) as DescubrimientoResult;
+    const data: DescubrimientoResult = (await resp.json());
     if (!data.vivo) return { vivo: false, motivo: data.motivo || "Servicio no disponible" };
-    return { vivo: true, version: data.version, ofrece: data.ofere };
+    return { vivo: true, version: data.version, ofrece: data.ofrece };
   } catch (e: any) {
     if (e.message && e.message.includes("Timeout")) return { vivo: false, motivo: "Timeout de conexión (800 ms)" };
     return { vivo: false, motivo: "Error de red: no se pudo conectar al servicio" };
@@ -77,7 +77,7 @@ export async function hablar(base: string | undefined, params: HablarParams): Pr
 }
 
 export async function transcribir(base: string | undefined, audio: ArrayBuffer, idioma: string): Promise<string> {
-  const url = new URL("/v1/audio/transcriptions", normalizarBase(base)).toString();
+  const url = new URL("/v1/audio/transcriptions", normalizarBase(base)).toString;
   const resp = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
