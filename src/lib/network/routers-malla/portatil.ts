@@ -114,3 +114,7 @@ export function resumenSinSim(r: RouterPortatil): string {
     ? `${base} Su SIM queda disponible solo como puerta a internet opcional.`
     : base;
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> 4f886aadb (salvavidas · TIP1013A: trabajo del agente antes de las puertas (tsc / vitest))
