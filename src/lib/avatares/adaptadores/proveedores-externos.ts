@@ -17,8 +17,10 @@ export type ProveedorExterno = "meshy" | "tripo";
 export const PROVEEDORES_EXTERNOS: readonly ProveedorExterno[] = ["meshy", "tripo"];
 export const VARIABLE_CLAVE: Record<ProveedorExterno, string> = { meshy: "MESHY_API_KEY", tripo: "TRIPO_API_KEY" };
 export const VARIABLE_PERMISO = "AVATARES_EXTERNOS_PERMITIDOS";
-/** Gastan créditos de pago: un tope por persona y otro total, por día (protegen la cuenta de Alex). */
+/** Gastan créditos de pago: un tope por persona y otro total, cada 24 h (protegen la cuenta de Alex). */
 export const TOPE_DIARIO = { persona: 2, total: 20 } as const;
+/** Ventana FIJA de 24 h desde el primer uso de cada clave (no un día civil): así la mide `rateLimit`. */
+export const VENTANA_TOPE_MS = 24 * 60 * 60 * 1000;
 export const MIMES_EXTERNOS = ["image/png", "image/jpeg"] as const;
 export const MODELO = { meshy: "meshy-6", tripo: "v3.1-20260211" } as const;
 const API_MESHY = "https://api.meshy.ai/openapi/v1/image-to-3d", API_TRIPO = "https://openapi.tripo3d.ai/v3";
@@ -47,6 +49,19 @@ export function capacidadesExternas(entorno: Entorno): Requisito3D[] {
 /** La tabla del taller sin los motores de clave externa que no estén disponibles (ni los desconocidos). */
 export function motoresDisponibles(entorno: Entorno, motores: readonly Motor3D[] = MOTORES_3D): Motor3D[] {
   return motores.filter((m) => !m.necesita.includes("clave-externa") || (esProveedor(m.id) && !motivoNoDisponible(m.id, entorno)));
+}
+/** Lo que necesita el tope de un limitador (`rateLimit` de seguridad lo cumple): se inyecta para que esta lógica no importe `node:crypto`. */
+export type Limitador = (clave: string, tope: number, ventanaMs: number) => { allowed: boolean; remaining: number; retryAfterSec: number };
+export type Reserva = { ok: true; quedan: number } | { ok: false; motivo: string; reintentarSeg: number };
+/** Reserva UN cupo de pago: primero el de la persona y después el total del OS. Se consume ANTES de llamar al proveedor (si este falla,
+ * el cupo se gasta sin gastar créditos) y, si el total deniega, el cupo personal ya descontado no se devuelve: es conservador a propósito.
+ * La clave de persona lleva su propio prefijo para que ninguna identidad pueda chocar con la del total. */
+export function reservarTope(limitar: Limitador, quien: string): Reserva {
+  const propio = limitar(`avatares-externo:persona:${quien}`, TOPE_DIARIO.persona, VENTANA_TOPE_MS);
+  if (!propio.allowed) return { ok: false, motivo: `Has llegado a tu tope (${TOPE_DIARIO.persona} modelos con servicios de pago cada 24 h).`, reintentarSeg: propio.retryAfterSec };
+  const total = limitar("avatares-externo:total", TOPE_DIARIO.total, VENTANA_TOPE_MS);
+  if (!total.allowed) return { ok: false, motivo: `Se llegó al tope de todo el OS (${TOPE_DIARIO.total} cada 24 h): protege los créditos de la cuenta.`, reintentarSeg: total.retryAfterSec };
+  return { ok: true, quedan: propio.remaining };
 }
 export const procedenciaExterna = (p: ProveedorExterno): Procedencia | null => { const m = MOTORES_3D.find((x) => x.id === p); return m ? procedenciaDe(m) : null; };
 export function motivoImagen(img: Imagen): string | null {

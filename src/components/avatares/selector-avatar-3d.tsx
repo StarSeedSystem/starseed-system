@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +12,17 @@ import { AdnAvatar } from "@/lib/avatares/adn/adn";
 import { PLANTILLAS_AVATAR, adnDePlantilla, refDePlantilla } from "@/lib/avatares/plantillas";
 import { AvatarVivo } from "@/components/avatares/avatar-vivo";
 import { getFuenteParaRef, type FuenteAvatar } from "@/lib/avatares/adaptadores/resolver-ref-biblioteca";
+
+/** Las listas de opciones son CONSTANTES de módulo: dentro del componente eran arrays nuevos en cada render y, usados como
+ * dependencias del efecto de carga, lo relanzaban sin fin (cada vuelta hacía setState con Maps nuevos). */
+const OPCIONES_FIJAS = [{ id: "orbe-gris", label: "Orbe gris", ref: "orbe-gris" }] as const;
+const OPCIONES_PLANTILLA = PLANTILLAS_AVATAR.map((p) => ({
+  id: p.id, label: p.nombre, ref: refDePlantilla(p.id), tonoAura: p.tonoAura, autor: p.autor, bytesVrm: p.bytesVrm,
+}));
+/** Peso en MB decimales (como las sumas de `plantillas.ts`): es lo que gasta quien lo baje con datos móviles. */
+const pesoMb = (bytes: number): string => `${(bytes / 1e6).toFixed(1).replace(".", ",")} MB`;
+/** Lo único que se lee de los metadatos guardados de un perfil o entidad. */
+interface MetaAvatar { avatar_3d?: { ref?: string } }
 
 interface SelectorAvatar3dProps {
   profileId?: string;
@@ -53,49 +64,36 @@ export default function SelectorAvatar3d({
   const [fuenteActual, setFuenteActual] = useState<FuenteAvatar | null>(null);
   const [fuentesFixed, setFuentesFixed] = useState<Map<string, FuenteAvatar>>(new Map());
    const [fuentesPlantilla, setFuentesPlantilla] = useState<Map<string, FuenteAvatar>>(new Map());
-  const fixedOpciones = [
-    { id: "orbe-gris", label: "Orbe gris", ref: "orbe-gris" },
-    { id: "vrm-persona", label: "Persona VRM", ref: "vrm-persona" }
-  ];
 
-  const plantillaOpciones = PLANTILLAS_AVATAR.map(p => ({
-    id: p.id,
-    label: p.nombre,
-    ref: refDePlantilla(p.id),
-    tonoAura: p.tonoAura,
-    autor: p.autor
-  }));
-
-
+  // Las fuentes de las opciones no dependen de nada del estado: se leen UNA sola vez al montar (el resolutor ya comparte la
+  // lectura de la carpeta entre todas). Si el componente se desmonta antes de terminar, no se guarda nada.
   useEffect(() => {
-    async function loadAllFuentes() {
-      // Cargar fuentes fijas
-      const fixedMap = new Map<string, FuenteAvatar>();
-      for (const op of fixedOpciones) {
-        const fu = await getFuenteParaRef(op.ref);
-        fixedMap.set(op.id, fu);
+    let vivo = true;
+    (async () => {
+      try {
+        const fijas = new Map<string, FuenteAvatar>();
+        for (const op of OPCIONES_FIJAS) fijas.set(op.id, await getFuenteParaRef(op.ref));
+        const plantillas = new Map<string, FuenteAvatar>();
+        for (const op of OPCIONES_PLANTILLA) plantillas.set(op.id, await getFuenteParaRef(op.ref));
+        if (!vivo) return;
+        setFuentesFixed(fijas);
+        setFuentesPlantilla(plantillas);
+      } catch (error) {
+        console.error("Error al cargar las fuentes de las opciones de avatar:", error);
       }
-      setFuentesFixed(fixedMap);
+    })();
+    return () => { vivo = false; };
+  }, []);
 
-      // Cargar fuentes de plantillas
-      const plantillaMap = new Map<string, FuenteAvatar>();
-      for (const op of plantillaOpciones) {
-        const fu = await getFuenteParaRef(op.ref);
-        plantillaMap.set(op.id, fu);
-      }
-      setFuentesPlantilla(plantillaMap);
-
-      // Cargar fuente actual
-      if (currentAdnRef) {
-        const fu = await getFuenteParaRef(currentAdnRef);
-        setFuenteActual(fu);
-      }
-    }
-
-    if (currentAdnRef || fixedOpciones.length > 0 || plantillaOpciones.length > 0) {
-      loadAllFuentes();
-    }
-  }, [currentAdnRef, fixedOpciones, plantillaOpciones]);
+  // La fuente del avatar actual sí cambia con la referencia elegida.
+  useEffect(() => {
+    if (!currentAdnRef) return;
+    let vivo = true;
+    getFuenteParaRef(currentAdnRef)
+      .then((fu) => { if (vivo) setFuenteActual(fu); })
+      .catch((error) => console.error("Error al cargar la fuente del avatar actual:", error));
+    return () => { vivo = false; };
+  }, [currentAdnRef]);
 
   const handleAdnChange = useCallback(
     async (ref: string) => {
@@ -135,13 +133,13 @@ export default function SelectorAvatar3d({
 
   const buscarMetadataDePerfil = (id: string) => {
     try {
-      return JSON.parse(localStorage.getItem(`starseed.profile.metadata.${id}`) || "{}") as any;
+      return JSON.parse(localStorage.getItem(`starseed.profile.metadata.${id}`) || "{}") as MetaAvatar;
     } catch { return null; }
   };
 
   const buscarMetadatosDeEntidad = (id: string) => {
     try {
-      return JSON.parse(localStorage.getItem(`starseed.entity.metadata.${id}`) || "{}") as any;
+      return JSON.parse(localStorage.getItem(`starseed.entity.metadata.${id}`) || "{}") as MetaAvatar;
     } catch { return null; }
   };
 
@@ -239,7 +237,7 @@ export default function SelectorAvatar3d({
         <>
           <h4 className="font-medium">Cambiar avatar</h4>
           <div className="grid grid-cols-2 gap-3">
-            {fixedOpciones.map(opcion => {
+            {OPCIONES_FIJAS.map(opcion => {
               const esActivo = opcion.ref === currentAdnRef;
               const fuente = fuentesFixed.get(opcion.id) ?? { tipo: "procedural", svg: "" };
               return (
@@ -249,13 +247,7 @@ export default function SelectorAvatar3d({
                   disabled={loading}
                   aria-pressed={esActivo}
                   aria-label={`Elegir ${opcion.label}`}
-                  onClick={() => {
-                    if (opcion.id === "orbe-gris") {
-                      handleAdnChange(getDefaultAdnRef());
-                    } else if (opcion.id === "vrm-persona") {
-                      handleAdnChange("vrm-persona");
-                    }
-                  }}
+                  onClick={() => handleAdnChange(getDefaultAdnRef())}
                   className={cn(
                     "cursor-pointer",
                     "p-3 rounded-lg border transition-all",
@@ -268,11 +260,7 @@ export default function SelectorAvatar3d({
                     <AvatarVivo fuente={fuente} tamano={40} className="w-16 mx-auto mb-2 rounded-full" />
                   ) : (
                     <div
-                      className={`aspect-square w-16 mx-auto mb-2 rounded-full bg-gradient-to-br ${
-                        opcion.id === "orbe-gris"
-                          ? "from-gray-400 to-gray-600"
-                          : "from-blue-400 to-purple-600"
-                      }`}
+                      className="aspect-square w-16 mx-auto mb-2 rounded-full bg-gradient-to-br from-gray-400 to-gray-600"
                       aria-hidden="true"
                     />
                   )}
@@ -288,7 +276,7 @@ export default function SelectorAvatar3d({
               Avatares VRM de la colección Numinia Digital Goods (licencia CC0, servidos por la Biblioteca).
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {plantillaOpciones.map(opcion => {
+              {OPCIONES_PLANTILLA.map(opcion => {
                 const esActivo = opcion.ref === currentAdnRef;
                 const fuente = fuentesPlantilla.get(opcion.id) ?? { tipo: "procedural", svg: "" };
                 return (
@@ -320,6 +308,7 @@ export default function SelectorAvatar3d({
                     <p className="text-xs text-muted-foreground">
                       {opcion.autor} · CC0
                     </p>
+                    <p className="text-xs text-muted-foreground">{pesoMb(opcion.bytesVrm)}</p>
                   </button>
                 );
               })}

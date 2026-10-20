@@ -11,23 +11,23 @@
  *                                              tarea lista, el GLB: lo baja el servidor, así la URL firmada del
  *                                              proveedor no llega al cliente ni a un avatar (solo `biblioteca:`).
  *
- * Seguridad: sesión obligatoria salvo en la propia neurona (`esDespliegueLocal`); tope diario por persona y otro
- * total (`rateLimit`, en memoria por instancia: primera barrera, no un tope global exacto). La imagen SALE a un
- * tercero: exige `permiso: true` y, si hay personas, su consentimiento. Las claves nunca se devuelven ni se registran.
+ * Seguridad: sesión obligatoria salvo en la propia neurona (`esDespliegueLocal`); tope por persona y otro total, cada 24 h
+ * desde el primer uso de cada clave (`reservarTope` sobre `rateLimit`, en memoria por instancia: primera barrera, no un
+ * tope global exacto). La imagen SALE a un tercero: exige `permiso: true` y, si hay personas, su consentimiento. Las
+ * claves nunca se devuelven ni se registran.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 import {
-  TOPE_DIARIO, capacidadesExternas, consultarTarea, crearTarea, esProveedor, esUrlDescarga, estadoProveedores,
-  motivoImagen, motivoNoDisponible, procedenciaExterna, type Imagen,
+  capacidadesExternas, consultarTarea, crearTarea, esProveedor, esUrlDescarga, estadoProveedores,
+  motivoImagen, motivoNoDisponible, procedenciaExterna, reservarTope, type Imagen,
 } from "@/lib/avatares/adaptadores/proveedores-externos";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const DIA_MS = 24 * 60 * 60 * 1000;
 const MAX_CUERPO = 12 * 1024 * 1024;
 const NOMBRE = { meshy: "Meshy", tripo: "Tripo" } as const;
 
@@ -109,12 +109,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const malImagen = imagen ? motivoImagen(imagen) : "Falta la imagen (data URL en base64).";
   if (malImagen || !imagen) return noDisponible(malImagen ?? "Falta la imagen.", 400);
 
-  const propio = rateLimit(`avatares-externo:${quien}`, TOPE_DIARIO.persona, DIA_MS);
-  if (!propio.allowed) return limitado(`Has llegado a tu tope de hoy (${TOPE_DIARIO.persona} modelos con servicios de pago).`, propio.retryAfterSec);
-  const total = rateLimit("avatares-externo:total", TOPE_DIARIO.total, DIA_MS);
-  if (!total.allowed) return limitado(`Se llegó al tope de hoy de todo el OS (${TOPE_DIARIO.total}): protege los créditos de la cuenta.`, total.retryAfterSec);
+  const reserva = reservarTope(rateLimit, quien);
+  if (!reserva.ok) return limitado(reserva.motivo, reserva.reintentarSeg);
 
   const r = await crearTarea(proveedor, imagen, entorno);
   if (!r.ok) return noDisponible(r.motivo, 502);
-  return NextResponse.json({ disponible: true, proveedor, tarea: r.valor, procedencia: procedenciaExterna(proveedor), quedanHoy: propio.remaining });
+  return NextResponse.json({ disponible: true, proveedor, tarea: r.valor, procedencia: procedenciaExterna(proveedor), quedanHoy: reserva.quedan });
 }
