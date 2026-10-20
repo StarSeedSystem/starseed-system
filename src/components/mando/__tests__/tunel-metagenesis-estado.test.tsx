@@ -267,27 +267,22 @@ describe("TunelMetaGenesisEstado", () => {
     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
-    });
-
-    // Should not show the últimos líneas section
-    expect(screen.queryByText("Últimas líneas:")).not.toBeInTheDocument();
-
-    // Restore the original fetch mock (so afterEach can restore nativoFetch)
-    globalThis.fetch = originalFetch;
-    // Restore the original visibilityState
-    if (originalVisibilityState !== undefined) {
-      try {
-        delete document.visibilityState;
-      } catch (e) {
-        // ignore
-      }
-      Object.defineProperty(document, 'visibilityState', {
-        value: originalVisibilityState,
-        configurable: true
-      });
-    }
-  });
+       expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
+     });
+ 
+     // Should not show the últimos líneas section
+     expect(screen.queryByText("Últimas líneas:")).not.toBeInTheDocument();
+ 
+     // Restore the original fetch mock (so afterEach can restore nativoFetch)
+     globalThis.fetch = originalFetch;
+     // Restore the original visibilityState
+     if (originalVisibilityState !== undefined) {
+       Object.defineProperty(document, 'visibilityState', {
+         value: originalVisibilityState,
+         configurable: true
+       });
+     }
+   });
 
   it("tachar trycloudflare URLs in the client", async () => {
     const data = {
@@ -332,27 +327,22 @@ describe("TunelMetaGenesisEstado", () => {
     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
 
     // Wait for the data to be fetched and displayed
-    await waitFor(() => {
-      expect(screen.getByText(/Túnel de MetaGenesis: activo \(pid 12345\)/i)).toBeInTheDocument();
-      expect(screen.getByText("Últimas líneas:")).toBeInTheDocument();
-      expect(screen.getByText("Visita [túnel]")).toBeInTheDocument();
-      expect(screen.getByText("Otro [túnel]/path")).toBeInTheDocument();
-      expect(screen.getByText("Sin cambio: https://example.com")).toBeInTheDocument();
-    });
-
-    // Restore the original fetch mock (so afterEach can restore nativoFetch)
-    globalThis.fetch = originalFetch;
-    // Restore the original visibilityState
-    if (originalVisibilityState !== undefined) {
-      try {
-        delete document.visibilityState;
-      } catch (e) {
-        // ignore
-      }
-      Object.defineProperty(document, 'visibilityState', {
-        value: originalVisibilityState,
-        configurable: true
-      });
-    }
-  });
+     await waitFor(() => {
+       expect(screen.getByText(/Túnel de MetaGenesis: activo \(pid 12345\)/i)).toBeInTheDocument();
+       expect(screen.getByText("Últimas líneas:")).toBeInTheDocument();
+       expect(screen.getByText("Visita [túnel]")).toBeInTheDocument();
+       expect(screen.getByText("Otro [túnel]/path")).toBeInTheDocument();
+       expect(screen.getByText("Sin cambio: https://example.com")).toBeInTheDocument();
+     });
+ 
+     // Restore the original fetch mock (so afterEach can restore nativoFetch)
+     globalThis.fetch = originalFetch;
+     // Restore the original visibilityState
+     if (originalVisibilityState !== undefined) {
+       Object.defineProperty(document, 'visibilityState', {
+         value: originalVisibilityState,
+         configurable: true
+       });
+     }
+   });
 });
