@@ -46,7 +46,7 @@
      "macos",
      "windows"
     ],
-    "fuente": "ficha de motores de src/lib/imagenes/modelos.ts (desde 4 GB de VRAM + 8 GB de RAM con streaming de pesos); arm64 verificado en Apple Silicon, en Linux arm64 sin verificar; cada modelo suma lo suyo"
+    "fuente": "medido en el A1 (CPU arm64, sin GPU): ComfyUI 0.42.1 + SD 1.5 en fp32 ocupa 4,1 GB y una imagen de 512 px con 12 pasos tarda más de 10 min: solo cola sin prisa"
    }
   },
   {
@@ -110,13 +110,14 @@
     "gpu": "no",
     "docker": "necesaria",
     "arquitecturas": [
-     "amd64"
+     "amd64",
+     "arm64"
     ],
     "so": [
      "linux",
      "macos"
     ],
-    "fuente": "sin medir: se mide en el A1 (arm64 sin verificar) antes de abrirlo a nadie"
+    "fuente": "imagen ghcr.io/openhands/agent-server:1.7.1-python con arm64 (comprobado el 2026-10-20; 4,4 GB de disco); RAM en uso por medir"
    }
   },
   {
@@ -180,14 +181,15 @@
     "gpu": "opcional",
     "docker": "opcional",
     "arquitecturas": [
-     "amd64"
+     "amd64",
+     "arm64"
     ],
     "so": [
      "linux",
      "macos",
      "windows"
     ],
-    "fuente": "la guía de instalación no da cifras de RAM (sin medir) ni arquitecturas: arm64 sin verificar; se mide en el A1 con --load-only"
+    "fuente": "imagen Docker libretranslate/libretranslate multiarquitectura (amd64 y arm64, comprobado el 2026-10-20); medido en el A1: v1.9.6, 711 MiB con es, en, pt, fr, de e it"
    }
   },
   {
@@ -223,7 +225,7 @@
      "linux",
      "macos"
     ],
-    "fuente": "README: Ubuntu, macOS o Docker; amd64 o arm64; usa Chrome, wget y yt-dlp (RAM sin medir); el disco crece con el archivo"
+    "fuente": "README: Ubuntu, macOS o Docker; amd64 o arm64; medido en el A1: v0.9.73, una página en 1 min 16 s"
    }
   },
   {
@@ -328,14 +330,15 @@
     "gpu": "no",
     "docker": "recomendada",
     "arquitecturas": [
-     "amd64"
+     "amd64",
+     "arm64"
     ],
     "so": [
      "linux",
      "macos",
      "windows"
     ],
-    "fuente": "README: Docker en el puerto 8080, escritorio o Kubernetes; RAM sin medir; arm64 sin verificar"
+    "fuente": "imagen Docker stirlingtools/stirling-pdf multiarquitectura (comprobado el 2026-10-20); medido en el A1: v3.2.0, 1,4 GiB y arranque en frío de 109 s"
    }
   },
   {

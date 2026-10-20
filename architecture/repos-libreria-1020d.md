@@ -46,9 +46,9 @@ canal de versiones debe leer la canónica). No hay excluidas en esta tanda.
   entero (id|secreto); la API la enciende un administrador y puede llevar lista de IP. Desplegar, arrancar y parar
   servicios llegan cuando se verifiquen sus rutas exactas en la referencia: nada inventado. El instalador toma el
   servidor (Docker incluido): solo con la palabra de Alex, nunca en la Mac, y el panel nunca expuesto a internet.
-- **OpenHands como medio de agentes, no como escritor del enjambre.** Su Agent Server existe (REST/WebSocket,
-  cliente TypeScript en `OpenHands/software-agent-sdk`, MIT), pero sus rutas no se han verificado: hoy entra la
-  ficha y el conector; el cliente, cuando se lea la referencia. Para escribir en el enjambre tendría que pasar la
+- **OpenHands como medio de agentes, no como escritor del enjambre.** Su Agent Server (REST/WebSocket, en
+  `OpenHands/software-agent-sdk`, MIT) quedó instalado y verificado en el A1 (§7): su descripción de API real está en
+  `docs/referencias/openhands-agent-server-1.7.1-openapi.json` y el cliente (OHS1020A) usa solo lo que hay ahí. Para escribir en el enjambre tendría que pasar la
   prueba de edición real con contexto de tamaño real, como cualquier escritor.
 - **Harness² es una referencia, no un servicio.** Hace lo que el protocolo común de los agentes quiere hacer con
   pruebas: proponer cambios al arnés (prompt, barreras, memoria, herramientas, habilidades), probarlos y quedarse
@@ -153,6 +153,8 @@ primero) para los idiomas o contextos que Argos no cubre. Cada traducción dice 
   TRD1020D (preferencias por perfil), TRD1020E (menú del clic derecho con registro de entradas, compartido con
   Variaciones públicas), TRD1020G (traducir selección, párrafo y página con «Ver original»), TRD1020F
   (herramientas `traducir` y `editar_pdf` de los agentes).
+- **Servicios instalados:** CNX1020A (direcciones de los servicios del A1 por el túnel de la Mac, solo en localhost),
+  OHS1020A (cliente del Agent Server de OpenHands con su API verificada).
 - **Archivo, envíos, entornos y PDF:** ARC1020A (plan de archivo de las fuentes de la Biblioteca), LSD1020A
   (protocolo LocalSend v2 puro), LSD1020B (LocalSend como enlace de la malla en la app nativa y los servidores),
   ENT1020A (entorno completo: guardar, duplicar, replicar y compartir), PDF1020A (cliente de Stirling-PDF según lo
@@ -164,3 +166,32 @@ Instalar servidores es descargar programas: LibreTranslate, Stirling-PDF y Archi
 RAM y arquitectura), ComfyUI en el A1 (cola lenta) o en la Mac (modelos pequeños, sin enjambre), Coolify en un
 servidor Linux que no sea el que escribe el enjambre, el Agent Server de OpenHands en el A1, la demo de Harness² en
 un sandbox, LocalSend en los aparatos de Alex y OpenRig (con copia de la configuración de Claude y Codex antes). Una por una y con su medida antes de abrirla a nadie.
+
+## 7. Instalado y medido (2026-10-20, con la palabra de Alex)
+
+Alex aprobó instalar «donde mejor sea útil». Medido antes: la Mac estaba con la presión de memoria en aviso (8 GB,
+4 GB de swap) y el A1 con 4,5 GB libres mientras el enjambre compilaba; Cloud Run sigue sin facturación. Así quedó:
+
+| Dónde | Qué | Cómo vive | Medido |
+|---|---|---|---|
+| A1 · 127.0.0.1:5000 | LibreTranslate 1.9.6 (Docker) | bajo demanda | es, en, pt, fr, de, it; 711 MiB; traducir 2 frases desde la Mac en 2,8 s |
+| A1 · 127.0.0.1:8180 | Stirling-PDF 3.2.0 (Docker) | bajo demanda | 1,4 GiB; arranque en frío 109 s; 319 rutas; rotar un PDF de 2 páginas en 0,29 s |
+| A1 · 127.0.0.1:8001 | ArchiveBox 0.9.73 (Docker) | bajo demanda | archive.org, índice público y medios apagados (`ARCHIVEDOTORG_ENABLED`, `PUBLIC_INDEX`, `PUBLIC_SNAPSHOTS`, `YTDLP_ENABLED`); una página en 1 min 16 s con PDF, captura, SingleFile y HTML |
+| A1 · 127.0.0.1:8188 | ComfyUI 0.42.1 en CPU + SD 1.5 (fp32, 4,27 GB) | bajo demanda, tope 6 GB | arranque 22 s; 4,1 GB en uso; una imagen de 512 px con 12 pasos en 713 s: solo cola sin prisa |
+| A1 · 127.0.0.1:8010 | OpenHands Agent Server 1.7.1 (Docker, arm64) | bajo demanda | sano en 14 s; 375 MiB en reposo; 36 rutas (conversaciones, eventos, ejecutar, pausar, confirmación) |
+| Mac | túnel `com.starseed.tunel-servicios-a1` (launchd, solo 127.0.0.1) | siempre | 5100→LibreTranslate (el 5000 de la Mac es de AirPlay), 8180, 8001, 8188, 8010 |
+| Mac | LocalSend 1.18.2 | app | — |
+| Mac | OpenRig 0.6.13 | CLI; demonio y equipos SIN arrancar | `rig setup --no-herdr --no-ghostty`: creó `~/.tmux.conf` y comprobó Claude Code y Codex; copia previa en `~/.starseed/copias/openrig-2026-10-20/` |
+| contenedor de la nube | demo de Harness² (sin credenciales) | efímero | 2 tareas, 28 ejecuciones, 32 llamadas del editor; la biblioteca de mejoras creció de una tarea a la siguiente |
+
+**Bajo demanda** = cada servicio escucha con un socket de systemd en 127.0.0.1; la primera petición lo enciende solo si
+`starseed-cabe` ve memoria suficiente (LibreTranslate 1,5 GB, Stirling-PDF 1,5 GB, ArchiveBox 1,2 GB, ComfyUI 4,5 GB,
+OpenHands 2,5 GB) y se apaga solo a los 15 min sin uso (`systemd-socket-proxyd --exit-idle-time`). Todos con
+`OOMScoreAdjust=900` y tope de memoria: si falta, cae el servicio, nunca el enjambre. Unidades:
+`starseed-<servicio>.socket`, `starseed-<servicio>.service` (puerta) y `starseed-<servicio>-app.service`.
+
+**No instalado, con su motivo:** Coolify (no hay un servidor Linux libre: el A1 escribe el enjambre y su Caddy ocupa
+los puertos 80 y 443 que Coolify toma); Cloud Run (facturación de Google desactivada desde el 2026-09-25: volver a
+activarla es decisión aparte); ComfyUI en la Mac (memoria en aviso). OpenRig no arranca su demonio ni sus equipos de
+núcleo: gastarían la cuota de Claude y Codex y memoria de la Mac; se encienden con `rig daemon start` cuando Alex quiera.
+Deshacer OpenRig: devolver los archivos de la copia y borrar `~/.tmux.conf`.
