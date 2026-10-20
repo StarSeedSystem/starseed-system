@@ -118,3 +118,5 @@ export default function PanelVinculos({
     </div>
   );
 }
+// Montaje en PanelProtomolecula lo hace tarea sucesora
+
