@@ -4519,3 +4519,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1abbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTS1010-EV-ORACLE-1abbbbbbb conservada
 - `RTCOL1012Mb` — pruebas en rojo: vitest falla (rama conservada)
 - `VST1018Gb` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-20 21:10 · mg-oracle-1020-1330
+
+**Lo que se pidió.** Acciones de creación: Protomolécula y StarSeed XR desde el bot
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTBOT1011Td, RTRTRTRTCOL1012Bdsbbbbbc-d3d, RTMR1012Dd, RTS1010-MGR2d-d1c). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTBOT1011Td` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTRTRTCOL1012Bdsbbbbbc-d3d` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTMR1012Dd` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTS1010-MGR2d-d1c` — otra cosa: ningún proveedor respondió (todos caídos)
