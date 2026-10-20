@@ -25,7 +25,7 @@ const ARCRAFT_ESPERADAS = ["photocraft", "vectorcraft", "filmcraft", "lightcraft
 const NOMBRADAS = [
   "ardour", "audacity", "tenacity", "surge-xt", "cardinal", "puredata", "webpd", "faustwasm", "tonejs", "strudel",
   "hubs", "tldraw", "bonsai-bim", "web-midi", "web-hid", "web-serial", "gamepad-api", "web-bluetooth", "osc-js",
-  "ble-ritmo-cardiaco", "health-connect", "healthkit", "gadgetbridge", "ouraika", "polar-accesslink", "garmin-health-api",
+  "ble-ritmo-cardiaco", "health-connect", "healthkit", "gadgetbridge", "oura-api", "polar-accesslink", "garmin-health-api",
   "withings-api", "fitbit-google-health",
 ];
 
