@@ -18,8 +18,16 @@ import { toPrettyJson } from "@/lib/network/netjson";
 import {
   compatibilidad,
   type EntradaTabla,
-  type ResultadoCompatibilidad,
 } from "@/lib/network/routers-malla/compatibilidad-openwrt";
+import {
+  TIPOS_PORTATIL,
+  compatibilidadPortatil,
+  coordinacionPortatil,
+  resumenSinSim,
+  type ResultadoPortatil,
+  type TipoPortatil,
+  type RouterPortatil,
+} from "@/lib/network/routers-malla/portatil";
 import {
   getNetworkConfig,
   setNetworkConfig,
@@ -61,21 +69,40 @@ function CompatibilidadOpenwrt() {
   const [modelo, setModelo] = useState("");
   const [version, setVersion] = useState("");
   const [deOperador, setDeOperador] = useState(false);
-  const [resultado, setResultado] = useState<ResultadoCompatibilidad | null>(null);
+  const [tipoPortatil, setTipoPortatil] = useState<TipoPortatil | "">("");
+  const [resultado, setResultado] = useState<(ResultadoPortatil & { extra?: string }) | null>(null);
 
   const comprobar = () => {
     if (!fabricante.trim() || !modelo.trim()) return;
-    setResultado(
-      compatibilidad(
-        {
-          fabricante,
-          modelo,
-          version: version.trim() || undefined,
-          deOperador,
-        },
-        TABLA_HARDWARE,
-      ),
-    );
+    const modeloRouter = {
+      fabricante,
+      modelo,
+      version: version.trim() || undefined,
+      deOperador,
+    };
+    if (tipoPortatil === "") {
+      // Router fijo: delega por completo en la tabla de OpenWrt (§8).
+      setResultado(compatibilidad(modeloRouter, TABLA_HARDWARE));
+      return;
+    }
+    // Portátil (§8.1): vía «portatil», con resumen honesto si no lleva SIM.
+    const portatil: RouterPortatil = {
+      id: `${fabricante}-${modelo}`.toLowerCase(),
+      tipo: tipoPortatil,
+      bateriaPct: null,
+      cargando: false,
+      modem:
+        tipoPortatil === "mifi-operador"
+          ? { generacion: "4g", conSim: false }
+          : null,
+    };
+    const r = compatibilidadPortatil({ ...modeloRouter, tipo: tipoPortatil }, TABLA_HARDWARE);
+    // Aquí no se ve la batería del portátil: la coordinación cuenta como con corriente.
+    const extra =
+      tipoPortatil === "mifi-operador"
+        ? `${resumenSinSim(portatil)} Coordinación de malla: ${coordinacionPortatil(portatil)}/6 (batería no visible: cuenta como con corriente).`
+        : `Coordinación de malla: ${coordinacionPortatil(portatil)}/6 (batería no visible: cuenta como con corriente).`;
+    setResultado({ ...r, extra });
   };
 
   return (
@@ -113,6 +140,16 @@ function CompatibilidadOpenwrt() {
           />
           Es el router que me dio mi operador
         </label>
+        <select
+          className="cursor-pointer rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-[12px] text-white/70"
+          value={tipoPortatil}
+          onChange={(e) => setTipoPortatil(e.target.value as TipoPortatil | "")}
+        >
+          <option value="">Router fijo</option>
+          <option value={TIPOS_PORTATIL[0]}>Router de viaje (base OpenWrt)</option>
+          <option value={TIPOS_PORTATIL[1]}>Router de viaje (otro sistema)</option>
+          <option value={TIPOS_PORTATIL[2]}>MiFi de operador</option>
+        </select>
         <button
           onClick={comprobar}
           className="cursor-pointer rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10"
@@ -142,6 +179,9 @@ function CompatibilidadOpenwrt() {
             ))}
           </ol>
           <p className="text-[12px] text-rose-300/90">{resultado.aviso}</p>
+          {resultado.extra && (
+            <p className="text-[12px] text-white/45">{resultado.extra}</p>
+          )}
         </div>
       )}
     </div>
