@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { aOferta, type NeuronPrestarPrefs, type NeuronMedidas } from "@/lib/neurons/prestar";
+import { MedioNodo } from "@/lib/network/capacidades-nodo";
 import { detectCapabilities, type NeuronCapabilities } from "@/lib/neurons/neurons";
 import { cn } from "@/lib/utils";
 
@@ -192,11 +193,12 @@ export function PrestarRecursosPanel() {
 
   const computeOffer = () => {
     if (!caps) return null;
+    const c = caps as unknown as Record<string, unknown>;
     const medidas: NeuronMedidas = {
-      nodoId: caps.nodoId ?? caps.syncDeviceId ?? "",
-      medio: caps.medio ?? caps.platform ?? "navegador",
-      ramLibreMb: caps.ramLibreMb ?? (caps.memoryGb ? caps.memoryGb * 1024 : 0),
-      cpu: caps.cpu ?? caps.cores ?? 0,
+      nodoId: (c.nodoId as string) ?? (c.syncDeviceId as string) ?? "",
+      medio: (c.medio as MedioNodo) ?? (c.platform as MedioNodo) ?? "navegador",
+      ramLibreMb: (c.ramLibreMb as number) ?? ((c.memoryGb as number) ? (c.memoryGb as number) * 1024 : 0),
+      cpu: (c.cpu as number) ?? (c.cores as number) ?? 0,
     };
     return aOferta(prefs, medidas);
   };
