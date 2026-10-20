@@ -1,5 +1,6 @@
 "use client";
 
+<<<<<<< HEAD
 import { useState, useEffect, useRef } from "react";
 import { aOferta, type NeuronPrestarPrefs, type NeuronMedidas } from "@/lib/neurons/prestar";
 import { detectCapabilities, type NeuronCapabilities } from "@/lib/neurons/neurons";
@@ -323,3 +324,13 @@ export function PrestarRecursosPanel() {
 }
 
 export default PrestarRecursosPanel;
+=======
+import { useState } from "react";
+import { aOferta, type NeuronPrestarPrefs, type NeuronMedidas } from "@/lib/neurons/prestar";
+import { cn } from "@/lib/utils";
+
+export function PrestarRecursosPanel() {
+  // TODO: Implement panel
+  return <div>Prestar Recursos Panel</div>;
+}
+>>>>>>> ac1ea80ec (salvavidas · APM1017Y: trabajo del agente antes de las puertas (tsc / vitest))
