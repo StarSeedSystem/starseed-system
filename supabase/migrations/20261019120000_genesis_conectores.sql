@@ -2,6 +2,9 @@
 -- Migración para las tablas de génesis conectores: bóveda, asignaciones, motores, tokens externos y llamadas
 -- Tablas con RLS: lectura y escritura solo para miembros del ámbito con el permiso de src/lib/mando/permisos.ts
 -- Nadie lee cifrado desde el cliente
+-- Revisada por Claude el 2026-10-20 antes de aplicarla: «nadie lee cifrado desde el cliente» ahora es verdad
+-- (el cliente no puede leer las columnas cifrado ni iv; las descifra solo el servidor), la bóveda y los
+-- tokens no viajan por Realtime, y borrar una cuenta no choca con «creada_por»/«actualizado_por».
 
 -- Tabla genesis_boveda: almacena credenciales cifradas por ámbito
 create table if not exists public.genesis_boveda (
@@ -11,7 +14,7 @@ create table if not exists public.genesis_boveda (
   cifrado bytea not null,
   iv bytea not null,
   huella text not null check (char_length(huella) <= 255),
-  creada_por uuid not null references auth.users(id) on delete set null,
+  creada_por uuid references auth.users(id) on delete set null,
   prestada_por uuid references auth.users(id) on delete set null,
   tope integer not null default 0 check (tope >= 0),
   caduca timestamptz,
@@ -26,7 +29,7 @@ create table if not exists public.genesis_asignaciones (
   ambito_id uuid not null references mando_ambitos(id) on delete cascade,
   clave text not null check (char_length(clave) <= 100),
   cadena jsonb not null,
-  actualizado_por uuid not null references auth.users(id) on delete set null,
+  actualizado_por uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -275,7 +278,10 @@ create policy genesis_llamadas_eliminar on public.genesis_llamadas
   using (public.mando_capacidad(ambito_id, 'chatear'));
 
 -- Conceder permisos apropiados
-grant select on public.genesis_boveda to authenticated;
+-- Sin las columnas cifrado ni iv: el cliente ve la huella, el proveedor y los topes, nunca el secreto.
+revoke select on public.genesis_boveda from authenticated, anon;
+grant select (id, ambito_id, proveedor, huella, creada_por, prestada_por, tope, caduca, revocada_en, created_at, updated_at)
+  on public.genesis_boveda to authenticated;
 grant insert, update, delete on public.genesis_boveda to authenticated;
 
 grant select on public.genesis_asignaciones to authenticated;
@@ -292,19 +298,11 @@ grant insert on public.genesis_llamadas to authenticated;
 
 -- Añadir las tablas a la publicación de Supabase Realtime
 do $$ begin
-  alter publication supabase_realtime add table public.genesis_boveda;
-exception when duplicate_object then null; when undefined_object then null;
-end $$;
-do $$ begin
   alter publication supabase_realtime add table public.genesis_asignaciones;
 exception when duplicate_object then null; when undefined_object then null;
 end $$;
 do $$ begin
   alter publication supabase_realtime add table public.genesis_motores_registro;
-exception when duplicate_object then null; when undefined_object then null;
-end $$;
-do $$ begin
-  alter publication supabase_realtime add table public.genesis_tokens_externos;
 exception when duplicate_object then null; when undefined_object then null;
 end $$;
 do $$ begin
