@@ -143,10 +143,10 @@ class Jev(unittest.TestCase):
             jev.si_no({"x": 1}, "?")
             jev.si_no({"x": 1}, "?")
             self.assertEqual(len(jev.TRANSPORTE.recibido), 1)
+            jev.si_no({"x": 2}, "?")
+            self.assertEqual(len(jev.TRANSPORTE.recibido), 2)
         finally:
             os.environ.pop("STARSEED_LAYA_URL", None)
-        jev.si_no({"x": 2}, "?")
-        self.assertEqual(len(jev.TRANSPORTE.recibido), 2)
 
     def test_error_de_red_es_none_no_excepcion(self):
         # Make laya-local fail by pointing to a non-existent port
@@ -188,21 +188,27 @@ class Jev(unittest.TestCase):
         self.assertFalse(jev.presupuesto_ok("2026-09-20"))  # pasado el techo, se calla
 
     def test_sin_presupuesto_el_transporte_real_no_se_llama(self):
-        llamadas = []
-        real = jev._transporte_real
-        jev._transporte_real = lambda cuerpo: (
-            llamadas.append(cuerpo) or {"answers": {"q": {"noul": 0.5}}}
-        )
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
         try:
-            os.environ["STARSEED_JEV"] = "1"
-            os.environ["OPENROUTER_API_KEY"] = "clave-de-prueba"
-            jev._anotar_uso({"usage": {"cost": 5.0}}, 0.1)  # techo del mes reventado
-            self.assertIsNone(
-                jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+            llamadas = []
+            real = jev._transporte_real
+            jev._transporte_real = lambda cuerpo: (
+                llamadas.append(cuerpo) or {"answers": {"q": {"noul": 0.5}}}
             )
+            try:
+                os.environ["STARSEED_JEV"] = "1"
+                os.environ["OPENROUTER_API_KEY"] = "clave-de-prueba"
+                jev._anotar_uso({"usage": {"cost": 5.0}}, 0.1)  # techo del mes reventado
+                self.assertIsNone(
+                    jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+                )
+                self.assertEqual(len(llamadas), 0)
+            finally:
+                jev._transporte_real = real
+                os.environ.pop("OPENROUTER_API_KEY", None)
         finally:
-            jev._transporte_real = real
-            os.environ.pop("OPENROUTER_API_KEY", None)
+            os.environ.pop("STARSEED_LAYA_URL", None)
 
     def test_resumen_incluye_hoy_y_mes(self):
         jev._anotar_uso(
