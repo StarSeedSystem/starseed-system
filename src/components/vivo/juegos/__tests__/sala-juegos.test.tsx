@@ -64,8 +64,7 @@ function escapeRegExp(s: string): string {
 
 function textoContienePalabra(texto: string | null, palabra: string): boolean {
     if (!texto || !palabra) return false;
-    const r = new RegExp("\\b" + escapeRegExp(palabra) + "\\b");
-    return r.test(texto);
+    return texto.includes(palabra);
 }
 
 async function elegirJuego(sala: Sala, juego: string) {
