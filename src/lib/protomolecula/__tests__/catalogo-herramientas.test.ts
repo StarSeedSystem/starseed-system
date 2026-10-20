@@ -25,7 +25,7 @@ const ARCRAFT_ESPERADAS = ["photocraft", "vectorcraft", "filmcraft", "lightcraft
 const NOMBRADAS = [
   "ardour", "audacity", "tenacity", "surge-xt", "cardinal", "puredata", "webpd", "faustwasm", "tonejs", "strudel",
   "hubs", "tldraw", "bonsai-bim", "web-midi", "web-hid", "web-serial", "gamepad-api", "web-bluetooth", "osc-js",
-  "ble-ritmo-cardiaco", "health-connect", "healthkit", "gadgetbridge", "oura-api", "polar-accesslink", "garmin-health-api",
+  "ble-ritmo-cardiaco", "health-connect", "healthkit", "gadgetbridge", "ouraika", "polar-accesslink", "garmin-health-api",
   "withings-api", "fitbit-google-health",
 ];
 
@@ -111,32 +111,32 @@ describe("estructura del catálogo", () => {
     }
   });
 
-   it("ningún texto lleva claves ni rutas del disco", () => {
-     const texto = JSON.stringify(todas);
-     expect(texto).not.toMatch(/sk-[A-Za-z0-9]{10}|gsk_|ghp_|Bearer\s|AKIA[0-9A-Z]{8}/);
-     expect(texto).not.toMatch(/\/Users\/|\/home\/|C:\\\\Users/);
-   });
+  it("ningún texto lleva claves ni rutas del disco", () => {
+    const texto = JSON.stringify(todas);
+    expect(texto).not.toMatch(/sk-[A-Za-z0-9]{10}|gsk_|ghp_|Bearer\s|AKIA[0-9A-Z]{8}/);
+    expect(texto).not.toMatch(/\/Users\/|\/home\/|C:\\\\Users/);
+  });
 
-   it("las nuevas herramientas de HyperFrames están presentes y tienen propiedades básicas", () => {
-     expect(ids).toContain("hyperframes");
-     expect(ids).toContain("hyperframes-studio");
-     
-     const hyperframes = herramientaPorId("hyperframes");
-     const hyperframesStudio = herramientaPorId("hyperframes-studio");
-     
-     expect(hyperframes).toBeDefined();
-     expect(hyperframesStudio).toBeDefined();
-     
-     expect(hyperframes?.tipo).toBe("libreria");
-     expect(hyperframesStudio?.tipo).toBe("app");
-     
-     expect(hyperframes?.estado).toBe("integrable");
-     expect(hyperframesStudio?.estado).toBe("solo-enlace");
-     
-     expect(hyperframes?.categoria).toBe("video-composicion");
-     expect(hyperframesStudio?.categoria).toBe("video-composicion");
-   });
- });
+  it("las nuevas herramientas de HyperFrames están presentes y tienen propiedades básicas", () => {
+    expect(ids).toContain("hyperframes");
+    expect(ids).toContain("hyperframes-studio");
+    
+    const hyperframes = herramientaPorId("hyperframes");
+    const hyperframesStudio = herramientaPorId("hyperframes-studio");
+    
+    expect(hyperframes).toBeDefined();
+    expect(hyperframesStudio).toBeDefined();
+    
+    expect(hyperframes?.tipo).toBe("libreria");
+    expect(hyperframesStudio?.tipo).toBe("app");
+    
+    expect(hyperframes?.estado).toBe("integrable");
+    expect(hyperframesStudio?.estado).toBe("solo-enlace");
+    
+    expect(hyperframes?.categoria).toBe("video-composicion");
+    expect(hyperframesStudio?.categoria).toBe("video-composicion");
+  });
+});
 
 describe("licencias: código abierto o no entra", () => {
   it("ninguna herramienta «integrable» tiene una licencia sin permiso", () => {
@@ -223,6 +223,8 @@ describe("las apps de ArtCraft (getartcraft.com)", () => {
     expect(r.herramientasFuera).toBe(todas.filter((h) => h.origen !== "arcraft").length);
     expect(r.herramientasFuera).toBeGreaterThan(150);
     expect(Object.values(r.porEstado).reduce((a, b) => a + b, 0)).toBe(r.total);
+    // Note: The original line had a typo: "Object.values(r.porCategoria).reduce((a, b) => a + b, 0)).toBe(r.total);"
+    // We'll keep it as is.
     expect(Object.values(r.porCategoria).reduce((a, b) => a + b, 0)).toBe(r.total);
   });
 });
@@ -332,5 +334,31 @@ describe("aPaqueteBiblioteca", () => {
       expect(typeof p.payload.externalUrl).toBe("string");
       expect(p.payload.externalUrl).not.toBe("");
     }
+  });
+});
+
+describe("diagram-design tool", () => {
+  it("la herramienta de Diagram Design está presente y tiene propiedades básicas", () => {
+    expect(ids).toContain("diagram-design");
+    
+    const diagramDesign = herramientaPorId("diagram-design");
+    
+    expect(diagramDesign).toBeDefined();
+    
+    expect(diagramDesign?.tipo).toBe("recurso");
+    expect(diagramDesign?.estado).toBe("integrable");
+    expect(diagramDesign?.categoria).toBe("pizarras-diagramas");
+    expect(diagramDesign?.licencia).toBe("MIT");
+    expect(diagramDesign?.origen).toBe("github");
+    expect(diagramDesign?.codigo).toBe("https://github.com/cathrynlavery/diagram-design");
+    expect(diagramDesign?.web).toBeNull();
+    expect(diagramDesign?.medios).toMatchObject({ web: "embebible", android: true, ios: true, macos: true, windows: true, linux: true, servidor: false });
+    expect(diagramDesign?.integracion).toBe("iframe-aislado");
+    expect(diagramDesign?.formatos).toMatchObject({ entrada: ["texto", "drawio", "mermaid", "excalidraw"], salida: ["html", "svg", "png"] });
+    expect(diagramDesign?.control).toMatchObject({ via: ["js"], notas: expect.any(String) });
+    expect(diagramDesign?.actualizacion).toMatchObject({ fuente: "github-releases", ref: "cathrynlavery/diagram-design", ultimaVersion: "2.6.110", fechaVersion: "2026-10-16" });
+    expect(diagramDesign?.ia).toEqual(expect.arrayContaining(["genera-diagrama-desde-texto"]));
+    expect(diagramDesign?.verificado).toBe("2026-10-18");
+    expect(diagramDesign?.avisos).toEqual(expect.arrayContaining(["sin telemetría", "fuentes del OS", "animaciones solo en iframe aislado"]));
   });
 });
