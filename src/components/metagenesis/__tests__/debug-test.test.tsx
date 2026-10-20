@@ -11,7 +11,7 @@ describe("debug", () => {
         console.log("expla3:", b.desconectar.explica);
         // Check all properties
         for (const key of keys) {
-            console.log(`${key}:`, (b.desconectar as Record<string, unknown>)[key]);
+            console.log(`${key}:`, (b.desconectar as unknown as Record<string, unknown>)[key]);
         }
         expect(true).toBe(true);
     });
