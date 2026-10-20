@@ -3,7 +3,7 @@ import { sugeridas, fusionarConAmbito, Director, Preferencias, Asignacion } from
 import { OpcionCatalogo, Papel } from "../catalogo-opciones";
 
 describe("sugeridas", () => {
-  it("should return local Astraura first followed by free catalog options", () => {
+    it("debe devolver primero las opciones locales de Astraura seguido de las opciones gratuitas del catálogo", () => {
     // Mock catalog with some free and some paid options
     const catalogo: OpcionCatalogo[] = [
       {
@@ -67,7 +67,7 @@ describe("sugeridas", () => {
     ]);
   });
 
-  it("should not include paid options from the catalog", () => {
+    it("no debe incluir opciones de pago del catálogo", () => {
     const catalogo: OpcionCatalogo[] = [
       {
         id: "paid1",
@@ -94,14 +94,14 @@ describe("sugeridas", () => {
     expect(result).toEqual(["local-opt1"]);
   });
 
-  it("should handle empty localAstraura and empty catalog", () => {
+    it("debe manejar localAstraura vacío y catálogo vacío", () => {
     const result = sugeridas([], []);
     expect(result).toEqual([]);
   });
 });
 
 describe("fusionarConAmbito", () => {
-  it("should give priority to delAmbito and remove duplicates from sugeridas", () => {
+    it("debe dar prioridad a delAmbito y eliminar duplicados de sugeridas", () => {
     const sugeridas = ["sug1", "sug2", "sug3"];
     const delAmbito = ["del1", "sug2", "del2"];
 
@@ -127,7 +127,7 @@ describe("fusionarConAmbito", () => {
     ]);
   });
 
-  it("should discard IDs not present in the catalog", () => {
+    it("debe desechar los IDs que no estén presentes en el catálogo", () => {
     const sugeridas = ["sug1", "unknown1", "sug2"];
     const delAmbito = ["del1", "unknown2"];
 
@@ -147,7 +147,7 @@ describe("fusionarConAmbito", () => {
     expect(result).toEqual(["del1", "sug1", "sug2"]);
   });
 
-  it("should handle empty arrays", () => {
+    it("debe manejar arreglos vacíos", () => {
     const result = fusionarConAmbito([], [], []);
     expect(result).toEqual([]);
   });
