@@ -67,17 +67,25 @@ export function fusionarConAmbito(
   const alcanceSet = new Set(delAmbito);
   // Comenzamos con las asignaciones del ámbito
   const combinado: string[] = [...delAmbito];
-    // Luego añadimos las sugeridas que no estén ya en el ámbito
-    for (const id of sugeridas) {
-      if (!alcanceSet.has(id)) {
-        combinado.push(id);
-        alcanceSet.add(id); // para evitar duplicados dentro de las sugeridas también
-      }
+  // Luego añadimos las sugeridas que no estén ya en el ámbito
+  for (const id of sugeridas) {
+    if (!alcanceSet.has(id)) {
+      combinado.push(id);
+      alcanceSet.add(id); // para evitar duplicados dentro de las sugeridas también
     }
+  }
 
   // Paso 2: validar contra el catálogo - solo mantener los IDs que existen en el catálogo
   const catalogoIds = new Set(catalogo.map(opcion => opcion.id));
-  const validos = combinado.filter(id => catalogoIds.has(id));
+  const validos: string[] = [];
+  for (const id of combinado) {
+    if (catalogoIds.has(id)) {
+      validos.push(id);
+    } else {
+      // Aviso: ID desconocido descartado
+      console.warn(`[genesis/conectores] fusionarConAmbito: ID "${id}" no encontrado en el catálogo, se descarta`);
+    }
+  }
 
   return validos;
 }
