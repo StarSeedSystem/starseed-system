@@ -1,3 +1,5 @@
+import { guardarClave, prestarClave, usarClave, revocar } from "./boveda-servidor";
+
 /**
  * Fusión de proveedores-catalogo y free-catalog para crear un catálogo único de opciones.
  * 

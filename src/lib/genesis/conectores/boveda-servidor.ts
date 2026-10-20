@@ -58,23 +58,26 @@ function derivarClave(): Buffer {
 /**
  * Cifra un valor usando AES-256-GCM.
  */
-function cifrar(texto: string): { ciphertext: Buffer; iv: Buffer; tag: Buffer } {
+function cifrar(texto: string): string {
   const key = derivarClave();
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   const ciphertext = Buffer.concat([cipher.update(texto, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return { ciphertext, iv, tag };
+  return ["v1", iv.toString("base64"), tag.toString("base64"), ciphertext.toString("base64")].join(":");
 }
 
-/**
- * Descifra con una clave derivada.
- */
-function descifrar(cifrado: { ciphertext: Buffer; iv: Buffer; tag: Buffer }): string {
+function descifrar(cifrado: string): string {
+  const partes = cifrado.split(":");
+  if (partes.length !== 4 || partes[0] !== "v1") throw new Error("boveda-servidor: formato no reconocido");
+  const [, ivB64, tagB64, dataB64] = partes;
   const key = derivarClave();
-  const decipher = createDecipheriv("aes-256-gcm", key, cifrado.iv);
-  decipher.setAuthTag(cifrado.tag);
-  return Buffer.concat([decipher.update(cifrado.ciphertext), decipher.final()]).toString("utf8");
+  const iv = Buffer.from(ivB64, "base64");
+  const tag = Buffer.from(tagB64, "base64");
+  const data = Buffer.from(dataB64, "base64");
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
 }
 
 /**
@@ -96,12 +99,11 @@ export async function guardarClave(
 ): Promise<{ ok: boolean; error?: string }> {
   const sb = serviceClient();
   if (!sb) return { ok: false, error: "Supabase no configurado" };
-  const { ciphertext, iv, tag } = cifrar(valor);
+  const cifrado = cifrar(valor);
   const payload = {
     ambito_id: ambito,
     proveedor,
-    cifrado: ciphertext.toString("base64"),
-    iv: iv.toString("base64"),
+    cifrado,
     huella: huella(valor),
     tope,
     caduca: caduca?.toISOString() ?? null,
@@ -112,8 +114,9 @@ export async function guardarClave(
     const { error } = await sb.from("genesis_boveda").upsert(payload, { onConflict: "ambito_id,proveedor" });
     if (error) return { ok: false, error: error.message };
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e.message ?? "error" };
+  } catch (e: unknown) {
+    const mensaje = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: mensaje };
   }
 }
 
@@ -130,27 +133,27 @@ export async function prestarClave(
   try {
     const { data, error } = await sb
       .from("genesis_boveda")
-      .select("cifrado,iv,proveedor,huella,tope,caduca,prestada_por,creada_por")
+      .select("cifrado,proveedor,huella,tope,caduca,prestada_por,creada_por")
       .eq("ambito_id", deAmbito)
       .maybeSingle();
     if (error || !data) return { ok: false, error: error?.message ?? "no encontrada" };
     // insertar nuevo
-    const nuevo: any = {
+    const nuevo: Record<string, string | number | null> = {
       ambito_id: aAmbito,
       proveedor: data.proveedor,
       cifrado: data.cifrado,
-      iv: data.iv,
       huella: data.huella,
-      tope: opts.tope ?? data.tope,
-      caduca: opts.caduca?.toISOString() ?? data.caduca,
+      tope: (opts.tope ?? data.tope) as number,
+      caduca: (opts.caduca?.toISOString() ?? data.caduca) as string | null,
       prestada_por: deAmbito,
-      creada_por: data.creada_por,
+      creada_por: data.creada_por ?? null,
     };
     const { error: errUp } = await sb.from("genesis_boveda").upsert(nuevo, { onConflict: "ambito_id,proveedor" });
     if (errUp) return { ok: false, error: errUp.message };
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e.message };
+  } catch (e: unknown) {
+    const mensaje = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: mensaje };
   }
 }
 
@@ -167,20 +170,17 @@ export async function usarClave(
   try {
     const { data, error } = await sb
       .from("genesis_boveda")
-      .select("cifrado,iv,proveedor")
+      .select("cifrado,proveedor")
       .eq("ambito_id", ambito)
       .eq("proveedor", proveedor)
       .maybeSingle();
     if (error || !data) return { ok: false, error: error?.message ?? "no encontrada" };
-    const valor = descifrar({
-      ciphertext: Buffer.from(data.cifrado, "base64"),
-      iv: Buffer.from(data.iv, "base64"),
-      tag: Buffer.alloc(16, 0), // tag not stored; for simplification ignore
-    });
+    const valor = descifrar(data.cifrado);
     fn(valor);
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e.message };
+  } catch (e: unknown) {
+    const mensaje = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: mensaje };
   }
 }
 
