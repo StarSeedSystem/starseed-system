@@ -205,7 +205,7 @@ export function PrestarRecursosPanel() {
     if (app === "__CLEAR__") {
       setPrefs((p) => ({ ...p, apps: [] }));
     } else {
-      setPrefs((p) => ({ ...p, apps: [...p.apps, app] })));
+      setPrefs((p) => ({ ...p, apps: [...p.apps, app] }));
     }
   };
 
