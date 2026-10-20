@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "PG1013G",
+   "ola": "Ola 1013P · ProtoGenesis: la génesis multiagéntica de cada molécula (Genesis · PoliGenesis · MetaGenesis)",
+   "titulo": "ProtoGenesis: almacén de encargos de la cuenta",
+   "archivos": [
+    "src/lib/protogenesis/almacen-encargos.ts",
+    "src/lib/protogenesis/__tests__/almacen-encargos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/protogenesis.md (léelo entero) y architecture/protomolecula.md §3, §7 y §8. Tipos de la Protomolécula SIEMPRE de src/lib/protomolecula/tipos.ts (Molecula, Ambito, Operacion, Cambio, EstadoValores, Computo, ReferenciaEntidad). Mismo patrón que src/lib/protomolecula/almacen-moleculas.ts (almacén inyectado `AlmacenLocal`, `almacenNavegador()` con try/catch). Clave `starseed.protogenesis.encargos.v1`. Exporta `interface RegistroEncargo {encargo: Encargo; plan: Plan | null; estados: Record<string, EstadoPaso>; asignaciones: Array<{paso: string; agente: string}>; actualizadoEn: number}`, `guardarEncargo`, `cargarEncargos(a, moleculaId?)` (más reciente primero, como mucho 50 por molécula), `borrarEncargo`. Un registro corrupto se ignora sin romper los demás. Pruebas con un almacén en memoria.",
+   "revisor_quitadas": [
+    "PG1013B"
+   ],
+   "dependencias_ya_en_main": [
+    "PG1013A"
+   ]
+  }
+ ]
+}
