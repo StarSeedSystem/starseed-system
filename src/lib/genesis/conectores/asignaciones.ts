@@ -67,6 +67,7 @@ export function fusionarConAmbito(
   const alcanceSet = new Set(delAmbito);
   // Comenzamos con las asignaciones del ámbito
   const combinado: string[] = [...delAmbito];
+<<<<<<< HEAD
   // Luego añadimos las sugeridas que no estén ya en el ámbito
   for (const id of sugeridas) {
     if (!alcanceSet.has(id)) {
@@ -86,6 +87,19 @@ export function fusionarConAmbito(
       console.warn(`[genesis/conectores] fusionarConAmbito: ID "${id}" no encontrado en el catálogo, se descarta`);
     }
   }
+=======
+    // Luego añadimos las sugeridas que no estén ya en el ámbito
+    for (const id of sugeridas) {
+      if (!alcanceSet.has(id)) {
+        combinado.push(id);
+        alcanceSet.add(id); // para evitar duplicados dentro de las sugeridas también
+      }
+    }
+
+  // Paso 2: validar contra el catálogo - solo mantener los IDs que existen en el catálogo
+  const catalogoIds = new Set(catalogo.map(opcion => opcion.id));
+  const validos = combinado.filter(id => catalogoIds.has(id));
+>>>>>>> c333d6b1a (salvavidas · GCA1019F: trabajo del agente antes de las puertas (tsc / vitest))
 
   return validos;
 }
