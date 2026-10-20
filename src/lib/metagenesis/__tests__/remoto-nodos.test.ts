@@ -54,6 +54,27 @@ describe("órdenes: lo que se firma es idéntico en TypeScript y en Python", () 
         expect(validarArgs("revisar_bloqueadas", { rm: "-rf" })).toBe("argumento no admitido: rm");
         expect(validarArgs("lanzar_cola", { cola: "cola-x", tareas_sha: "a;b`c" })).toMatch(/valor no admitido/);
     });
+
+    it("cada estado mapea al texto correcto", () => {
+        const estados = {
+            pendiente: "esperando a un nodo",
+            tomada: "la tiene un nodo",
+            hecha: "hecha",
+            en_marcha: "en marcha",
+            seca: "solo simulada (nodo en prueba)",
+            nada: "no hacía falta",
+            rechazada: "rechazada",
+            fallo: "falló",
+            caducada: "nadie la recogió a tiempo",
+        };
+        Object.entries(estados).forEach(([estado, esperado]) => {
+            expect(textoEstadoOrden(estado)).toBe(esperado);
+        });
+    });
+
+    it("estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+    });
 });
 
 describe("resumen del bus", () => {
