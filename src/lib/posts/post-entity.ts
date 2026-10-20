@@ -25,6 +25,7 @@
 
 import { createClient } from "@/utils/supabase/client";
 import { onTableChange } from "@/lib/realtime/realtime";
+import { generarClaveElemento, extraerFamilia, validarClaveElemento, crearVariacionPublica, conEtiquetas, incrementarVistas, validarVariacionPublica, filtrarPorTipo, filtrarPorFamilia, ordenarPorFechaReciente, buscarPorTexto } from "@/lib/variaciones/fuentes";
 
 // ----------------------------- Tipos ----------------------------------------
 
@@ -207,6 +208,15 @@ export async function loadPost(id: string): Promise<PostEntity | null> {
     if (error || !data) return null;
 
     const post = normalize(data);
+
+    // Validar references.elemento para notas
+    if (post.type === "note") {
+      const ref = post.content?.references?.elemento;
+      if (ref) {
+        validarClaveElemento(ref);
+        extraerFamilia(ref);
+      }
+    }
 
     // Resolver/enriquecer autor desde `os_profiles` (directorio público real:
     // user_id/username/display_name/avatar_url). `author_name` (columna de

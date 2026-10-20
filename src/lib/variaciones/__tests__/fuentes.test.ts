@@ -136,7 +136,7 @@ describe("fuentes.ts - Funciones de variaciones públicas", () => {
   });
 
   it("filtrarPorTipo debería devolver solo variaciones del tipo especificado", () => {
-    const variaciones = [
+    const variaciones: VariacionPublica[] = [
       variacionBase,
       { ...variacionBase, tipo: "nota", elemento: "widget:clima#nota1" },
       { ...variacionBase, tipo: "repo", elemento: "widget:clima#repo1" }
