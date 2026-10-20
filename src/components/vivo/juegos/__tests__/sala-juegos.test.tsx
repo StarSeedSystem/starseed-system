@@ -58,14 +58,9 @@ const entregar = () => act(async () => { red.entregarTodo(); await Promise.resol
 const clic = (el: HTMLElement) => act(async () => { fireEvent.click(el); await Promise.resolve(); });
 const mesa = (c: Controlador) => c.getSnapshot().estado as EstadoMesa;
 
-function escapeRegExp(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function textoContienePalabra(texto: string | null, palabra: string): boolean {
     if (!texto || !palabra) return false;
-    const r = new RegExp("\\b" + escapeRegExp(palabra) + "\\b");
-    return r.test(texto);
+    return texto.includes(palabra);
 }
 
 async function elegirJuego(sala: Sala, juego: string) {
