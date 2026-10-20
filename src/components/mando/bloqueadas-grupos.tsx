@@ -9,6 +9,11 @@
  *   · Transformadas hoy — qué hizo el revisor automático con cada tarea quieta y por qué.
  *   · Necesitan a Alex — UNA pregunta con sus botones (rehacer / descartar).
  * Lo que queda («atascadas») sigue en `BloqueadasPanel`, con sus botones de siempre.
+ *
+ * (2026-10-20) Este componente es LA vista de «Bloqueadas»: lo pintan el medidor del pulso y la
+ * sección «Bloqueadas y rechazadas» de Ramificación con el mismo detalle (`/api/mando/medidores?
+ * clave=bloqueadas`), así que no pueden decir cosas distintas. Las cadenas salen a su propio
+ * medidor («En cadena», `CadenasBloqueadas`) y entran las fallidas o rechazadas sin resolver.
  */
 
 import { useCallback, useState } from "react";
@@ -36,7 +41,16 @@ function Cifra({ valor, texto, tono }: { valor: number; texto: string; tono: str
     );
 }
 
-export function BloqueadasGrupos({ detalle, alHecho }: { detalle: DetalleMedidor; alHecho?: () => void }) {
+export function BloqueadasGrupos({
+    detalle,
+    alHecho,
+    alVer,
+}: {
+    detalle: DetalleMedidor;
+    alHecho?: () => void;
+    /** Si se da (Ramificación), el id de cada ficha abre la tarea en el árbol. */
+    alVer?: (id: string) => void;
+}) {
     const r: ResumenBloqueadas | undefined = detalle.bloqueadas;
     const [enviando, setEnviando] = useState<string | null>(null);
     const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
@@ -67,8 +81,9 @@ export function BloqueadasGrupos({ detalle, alHecho }: { detalle: DetalleMedidor
         [alHecho],
     );
 
-    const operativas = detalle.filas.filter((f) => !f.historica);
+    const operativas = detalle.filas.filter((f) => !f.historica && f.grupo !== "cadena");
     const atascadas: FilaMedidor[] = operativas.filter((f) => (f.grupo ?? "atascada") === "atascada");
+    const sinResolver: FilaMedidor[] = operativas.filter((f) => f.grupo === "sin-resolver");
     const idsConocidos = detalle.filas.map((x) => x.id);
 
     return (
@@ -77,7 +92,11 @@ export function BloqueadasGrupos({ detalle, alHecho }: { detalle: DetalleMedidor
                 <p className="flex flex-wrap items-center justify-center gap-1.5" data-testid="bloqueadas-cifras">
                     <Cifra valor={r.atascadas} texto="atascadas" tono="border-rose-400/30 bg-rose-500/10 text-rose-100" />
                     <Cifra valor={r.alex} texto="te necesitan" tono="border-amber-400/30 bg-amber-500/10 text-amber-100" />
-                    <Cifra valor={r.enCadena} texto="en cadena" tono="border-cyan-300/30 bg-cyan-500/10 text-cyan-100" />
+                    <Cifra
+                        valor={r.sinResolver ?? 0}
+                        texto="fallidas o rechazadas sin resolver"
+                        tono="border-orange-400/30 bg-orange-500/10 text-orange-100"
+                    />
                     <Cifra
                         valor={r.transformadasHoy}
                         texto="transformadas hoy"
@@ -90,6 +109,12 @@ export function BloqueadasGrupos({ detalle, alHecho }: { detalle: DetalleMedidor
                               ? `El revisor automático no pasa desde las ${hora(r.revisorDesde)}: lo vigila la autocuración.`
                               : "El revisor automático aún no ha pasado por esta máquina."}
                     </span>
+                    {r.enCadena ? (
+                        <span className="w-full text-center text-[10px] text-cyan-100/60" data-testid="bloqueadas-en-cadena-aparte">
+                            Aparte, {r.enCadena} en cadena: esperan a otra tarea que avanza y se desbloquean solas
+                            (medidor «En cadena»).
+                        </span>
+                    ) : null}
                 </p>
             ) : null}
 
@@ -138,31 +163,22 @@ export function BloqueadasGrupos({ detalle, alHecho }: { detalle: DetalleMedidor
                     </h4>
                     <BloqueadasPanel
                         items={atascadas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))}
+                        alVer={alVer}
                         alHecho={alHecho}
                     />
                 </div>
             ) : null}
 
-            {r && r.cadenas.length ? (
-                <div data-testid="bloqueadas-cadenas">
-                    <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-200/80">
-                        En cadena · esperan a otra que avanza
+            {sinResolver.length ? (
+                <div data-testid="bloqueadas-sin-resolver">
+                    <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-orange-200/80">
+                        Fallidas o rechazadas sin resolver · últimos 3 días
                     </h4>
-                    <ul className="grid gap-1.5 md:grid-cols-2">
-                        {r.cadenas.map((c) => (
-                            <li key={c.raiz} className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
-                                <details>
-                                    <summary className="cursor-pointer select-none text-[11px] text-white/80">
-                                        <b className="tabular-nums">{c.n ?? c.esperan.length}</b> esperan a{" "}
-                                        <b className="text-cyan-100">{c.raiz}</b>
-                                        {c.titulo_raiz && c.titulo_raiz !== c.raiz ? ` · ${c.titulo_raiz}` : ""}
-                                        {c.va_por ? <span className="text-white/50">, que va por: {c.va_por}</span> : null}
-                                    </summary>
-                                    <p className="mt-1.5 text-[10px] leading-relaxed text-white/45">{c.esperan.join(" · ")}</p>
-                                </details>
-                            </li>
-                        ))}
-                    </ul>
+                    <BloqueadasPanel
+                        items={sinResolver.map((f) => itemDesdeFilaMedidor(f, idsConocidos))}
+                        alVer={alVer}
+                        alHecho={alHecho}
+                    />
                 </div>
             ) : null}
 
@@ -201,8 +217,49 @@ export function BloqueadasGrupos({ detalle, alHecho }: { detalle: DetalleMedidor
             ) : null}
 
             {!r && operativas.length ? (
-                <BloqueadasPanel items={operativas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))} alHecho={alHecho} />
+                <BloqueadasPanel items={operativas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))} alVer={alVer} alHecho={alHecho} />
             ) : null}
         </section>
+    );
+}
+
+/**
+ * (2026-10-20) El medidor «En cadena»: las esperas normales, agrupadas por la tarea a la que
+ * esperan. No llevan botones: se desbloquean solas cuando su dependencia llega a main.
+ */
+export function CadenasBloqueadas({ detalle }: { detalle: DetalleMedidor }) {
+    const r = detalle.bloqueadas;
+    const titulos = new Map(detalle.filas.map((f) => [f.id, f.titulo]));
+    if (!r?.cadenas.length) {
+        return <p className="mc-centrado mt-2 text-[11px] leading-relaxed text-white/45">{detalle.vacio}</p>;
+    }
+    return (
+        <div className="mt-2 text-left" data-testid="bloqueadas-cadenas">
+            <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-200/80">
+                En cadena · esperan a otra que avanza
+            </h4>
+            <ul className="grid gap-1.5 md:grid-cols-2">
+                {r.cadenas.map((c) => (
+                    <li key={c.raiz} className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+                        <details>
+                            <summary className="cursor-pointer select-none text-[11px] text-white/80">
+                                <b className="tabular-nums">{c.n ?? c.esperan.length}</b> esperan a{" "}
+                                <b className="text-cyan-100">{c.raiz}</b>
+                                {c.titulo_raiz && c.titulo_raiz !== c.raiz ? ` · ${c.titulo_raiz}` : ""}
+                                {c.va_por ? <span className="text-white/50">, que va por: {c.va_por}</span> : null}
+                            </summary>
+                            <ul className="mt-1.5 grid gap-0.5 text-[10px] leading-relaxed text-white/50">
+                                {c.esperan.map((id) => (
+                                    <li key={id}>
+                                        <span className="font-mono text-white/70">{id}</span>
+                                        {titulos.get(id) && titulos.get(id) !== id ? ` · ${titulos.get(id)}` : ""}
+                                    </li>
+                                ))}
+                            </ul>
+                        </details>
+                    </li>
+                ))}
+            </ul>
+        </div>
     );
 }

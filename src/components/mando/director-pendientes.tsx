@@ -72,7 +72,7 @@ export function DirectorPendientes({ pendientes }: { pendientes: ResumenPendient
           </div>
           <div>
             <p className="text-xl font-black text-foreground/90">{pendientes.bloqueadas.length}</p>
-            <p className="text-[10px] text-muted-foreground/70">bloqueadas</p>
+            <p className="text-[10px] text-muted-foreground/70">esperan a otra</p>
           </div>
           <div>
             <p className="text-xl font-black text-foreground/90">{pendientes.sinCambios}</p>
@@ -94,13 +94,15 @@ export function DirectorPendientes({ pendientes }: { pendientes: ResumenPendient
 
         {pendientes.bloqueadas.length > 0 ? (
           <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
-            <p className="text-xs font-semibold text-foreground/80">Bloqueadas</p>
+            {/* (2026-10-20) No se llama «Bloqueadas»: cuenta las de las colas de origen que esperan a
+                otra tarea. «Bloqueadas» (lo parado) es el medidor del pulso, el mismo de la cabecera. */}
+            <p className="text-xs font-semibold text-foreground/80">Esperan a otra tarea</p>
             <ul className="flex flex-col gap-1">
               {pendientes.bloqueadas.map((b) => <FilaBloqueada key={b.id} bloqueada={b} />)}
             </ul>
           </div>
         ) : (
-          <p className="text-[11px] text-muted-foreground/60">nada bloqueado</p>
+          <p className="text-[11px] text-muted-foreground/60">ninguna espera a otra</p>
         )}
 
         {pendientes.fallosDetalle.length > 0 ? (

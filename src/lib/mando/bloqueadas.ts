@@ -10,8 +10,14 @@
  *   · «Transformadas hoy» — lo que el revisor automático hizo y por qué (scripts/puente/revisor_bloqueadas.py).
  *   · «Necesitan a Alex» — UNA decisión con sus botones (rehacer / descartar).
  *   · «Atascadas»       — lo que nadie ha movido todavía: lo único que de verdad es un problema.
+ *   · «Sin resolver»    — (2026-10-20) fallidas y rechazadas de los últimos 3 días que nadie ha
+ *                         retomado: la misma regla que el medidor «Fallidas».
  *
- * La pastilla cuenta atascadas + las que necesitan a Alex; las esperas van en el texto de al lado.
+ * (2026-10-20) Alex, varias veces: «es diferente la info de Bloqueadas y rechazadas en Ramificación
+ * que el medidor del pulso». Eran dos cálculos: la sección contaba lo que tenía rama en las 4 olas
+ * cargadas (2 rechazadas viejas) y el medidor toda espera (178). Ahora hay UN cálculo: la pastilla,
+ * el medidor y la sección de Ramificación enseñan las mismas filas (atascadas + te necesitan + sin
+ * resolver) y las esperas de una cadena van en su propio medidor, «En cadena».
  */
 
 import type { FilaMedidor } from "./medidores";
@@ -57,7 +63,8 @@ export interface EstadoRevisorBloqueadas {
     resumen?: string;
 }
 
-export type GrupoBloqueada = "cadena" | "alex" | "atascada";
+/** «sin-resolver»: fallida o rechazada reciente que nadie ha retomado (no espera a otra tarea). */
+export type GrupoBloqueada = "cadena" | "alex" | "atascada" | "sin-resolver";
 
 /** Una foto del revisor más vieja que esto ya no describe el presente. */
 export const REVISOR_FRESCO_MS = 15 * 60 * 1000;
@@ -90,16 +97,21 @@ export function grupoDeFila(
 }
 
 export interface ResumenBloqueadas {
-    /** El número de la pastilla: lo que de verdad está parado (atascadas + decisiones de Alex). */
+    /** El número de la pastilla y de Ramificación: atascadas + decisiones de Alex + sin resolver. */
     valor: number;
     enCadena: number;
     atascadas: number;
     alex: number;
+    /** (2026-10-20) Fallidas y rechazadas de 3 días sin resolver, y cuántas ya tienen quién las rehaga. */
+    sinResolver: number;
+    sinResolverEnMarcha: number;
     transformadasHoy: number;
     /** Texto corto para debajo de la pastilla. */
     pastilla: string;
-    /** Frase completa para la cabecera del panel. */
+    /** Frase completa para la cabecera del panel (solo lo que está parado). */
     texto: string;
+    /** Frase del medidor «En cadena»: «N esperan a M tareas que avanzan · se desbloquean solas». */
+    textoCadena: string;
     cadenas: CadenaRevisor[];
     transformadas: TransformadaRevisor[];
     preguntas: (PreguntaAlex & { id: string })[];
@@ -129,16 +141,45 @@ function cadenasDeFilas(filas: FilaMedidor[]): CadenaRevisor[] {
         .sort((a, b) => (b.n ?? 0) - (a.n ?? 0) || a.raiz.localeCompare(b.raiz));
 }
 
+/** ¿La fila sin resolver ya tiene quién la rehaga (una sucesora viva o la escalera del director)? */
+export function enReparacion(f: Pick<FilaMedidor, "porque">): boolean {
+    return /^la rehace |escalera/.test(String(f.porque ?? ""));
+}
+
+const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
+
+/**
+ * Reparte las filas en grupos y cuenta. `sinResolver` son las fallidas y rechazadas recientes que
+ * nadie ha retomado (`filasSinResolver` en `medidores.ts`); una que ya esté entre las filas de
+ * espera NO se cuenta dos veces: manda la fila de espera.
+ */
 export function resumirBloqueadas(
     filas: FilaMedidor[],
     revisor: EstadoRevisorBloqueadas | null | undefined,
     ahora: number,
+    sinResolver: FilaMedidor[] = [],
 ): { resumen: ResumenBloqueadas; filas: (FilaMedidor & { grupo: GrupoBloqueada })[] } {
     const operativas = filas.filter((f) => !f.historica);
-    const conGrupo = filas.map((f) => ({ ...f, grupo: f.historica ? ("atascada" as const) : grupoDeFila(f, revisor, ahora) }));
+    const vistas = new Set(filas.map((f) => f.id));
+    const extra = sinResolver.filter((f) => {
+        if (vistas.has(f.id)) return false;
+        vistas.add(f.id);
+        return true;
+    });
+    // Una fallida por la que el revisor ya pregunta a Alex cuenta como «te necesita», no dos veces.
+    const conGrupo: (FilaMedidor & { grupo: GrupoBloqueada })[] = [
+        ...filas.map((f) => ({ ...f, grupo: f.historica ? ("atascada" as const) : grupoDeFila(f, revisor, ahora) })),
+        ...extra.map((f) => ({
+            ...f,
+            historica: false,
+            grupo: revisor?.necesitan_alex?.[f.id] ? ("alex" as const) : ("sin-resolver" as const),
+        })),
+    ];
     const enCadena = conGrupo.filter((f) => !f.historica && f.grupo === "cadena");
     const alexFilas = conGrupo.filter((f) => !f.historica && f.grupo === "alex");
     const atascadas = conGrupo.filter((f) => !f.historica && f.grupo === "atascada");
+    const noResueltas = conGrupo.filter((f) => f.grupo === "sin-resolver");
+    const enMarcha = noResueltas.filter(enReparacion).length;
     const fresco = revisorFresco(revisor, ahora);
     const hoy = hoyLocal(ahora);
     const transformadas = (revisor?.transformadas_hoy ?? [])
@@ -152,19 +193,34 @@ export function resumirBloqueadas(
             ? revisor.cadenas.filter((c) => c.esperan?.some((id) => enCadena.some((f) => f.id === id)) || !operativas.length)
             : cadenasDeFilas(enCadena);
     const nAlex = idsAlex.size;
-    const valor = atascadas.length + nAlex;
+    const valor = atascadas.length + nAlex + noResueltas.length;
     const partes: string[] = [];
-    if (atascadas.length) partes.push(`${atascadas.length} atascada${atascadas.length === 1 ? "" : "s"}`);
-    if (nAlex) partes.push(`${nAlex} te necesita${nAlex === 1 ? "" : "n"}`);
-    if (enCadena.length)
-        partes.push(`${enCadena.length} en cadena (esperan a ${cadenas.length} raíz${cadenas.length === 1 ? "" : "es"} que avanza${cadenas.length === 1 ? "" : "n"})`);
-    if (transformadas.length) partes.push(`${transformadas.length} transformada${transformadas.length === 1 ? "" : "s"} hoy`);
-    const texto = partes.join(" · ") || "ninguna tarea quieta: todo avanza o está hecho";
-    const pastilla = valor
-        ? `${enCadena.length ? `${enCadena.length} en cadena · ` : ""}ábrelo para ver por qué`
-        : enCadena.length
-          ? `${enCadena.length} en cadena, avanzan solas`
-          : "ninguna esperando";
+    if (atascadas.length) partes.push(plural(atascadas.length, "atascada", "atascadas"));
+    if (nAlex) partes.push(plural(nAlex, "te necesita", "te necesitan"));
+    if (noResueltas.length)
+        partes.push(
+            `${plural(noResueltas.length, "fallida o rechazada sin resolver", "fallidas o rechazadas sin resolver")}${
+                enMarcha ? ` (${enMarcha} ya con quién la rehaga)` : ""
+            }`,
+        );
+    // El primer número del texto es el de la pastilla: lo leen así MetaGenesis y el vigía
+    // (`nodo_metagenesis_logica._numero`). Con más de un tipo de problema va delante el total.
+    if (partes.length > 1) partes[0] = `${valor} parada${valor === 1 ? "" : "s"}: ${partes[0]}`;
+    if (transformadas.length) partes.push(plural(transformadas.length, "transformada hoy", "transformadas hoy"));
+    const raices = plural(cadenas.length, "tarea que avanza", "tareas que avanzan");
+    const textoCadena = enCadena.length
+        ? `${enCadena.length} ${enCadena.length === 1 ? "espera" : "esperan"} a ${raices} · ${
+              enCadena.length === 1 ? "se desbloquea sola" : "se desbloquean solas"
+          } cuando su dependencia llega a main`
+        : "ninguna tarea espera a otra";
+    const texto =
+        (valor ? partes.join(" · ") : ["nada parado", ...partes].join(" · ")) +
+        (enCadena.length ? ` · ${enCadena.length} en cadena, en su propio medidor` : "");
+    const cortas: string[] = [];
+    if (atascadas.length) cortas.push(plural(atascadas.length, "atascada", "atascadas"));
+    if (nAlex) cortas.push(plural(nAlex, "te necesita", "te necesitan"));
+    if (noResueltas.length) cortas.push(`${noResueltas.length} sin resolver`);
+    const pastilla = valor ? `${cortas.join(" · ")} · ábrelo para ver por qué` : "nada parado";
     return {
         filas: conGrupo,
         resumen: {
@@ -172,9 +228,12 @@ export function resumirBloqueadas(
             enCadena: enCadena.length,
             atascadas: atascadas.length,
             alex: nAlex,
+            sinResolver: noResueltas.length,
+            sinResolverEnMarcha: enMarcha,
             transformadasHoy: transformadas.length,
             pastilla,
             texto,
+            textoCadena,
             cadenas,
             transformadas,
             preguntas,

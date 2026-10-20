@@ -58,18 +58,22 @@ describe("bloqueadas · grupos", () => {
         expect(resumen.atascadas).toBe(1);
         expect(resumen.alex).toBe(1);
         expect(resumen.valor).toBe(2);
-        expect(resumen.texto).toContain("2 en cadena");
-        expect(resumen.pastilla).toContain("2 en cadena");
+        expect(resumen.texto).toContain("2 en cadena, en su propio medidor");
+        // (2026-10-20) La pastilla habla solo de lo parado; las esperas tienen la suya («En cadena»).
+        expect(resumen.pastilla).toBe("1 atascada · 1 te necesita · ábrelo para ver por qué");
+        expect(resumen.textoCadena).toContain("2 esperan a 1 tarea que avanza");
         expect(conGrupo.find((f) => f.id === "A")?.grupo).toBe("cadena");
         // Solo las de HOY y sin el «priorizar» de la cola, lo más reciente primero.
         expect(resumen.transformadas.map((t) => t.tid)).toEqual(["PM1010F0K"]);
         expect(resumen.revisorAlDia).toBe(true);
     });
 
-    it("con todo en cadena la pastilla dice 0 y que avanzan solas", () => {
+    it("con todo en cadena la pastilla dice 0 y que no hay nada parado", () => {
         const { resumen } = resumirBloqueadas([espera("A"), espera("B")], { ...revisor, necesitan_alex: {} }, AHORA);
         expect(resumen.valor).toBe(0);
-        expect(resumen.pastilla).toBe("2 en cadena, avanzan solas");
+        expect(resumen.pastilla).toBe("nada parado");
+        expect(resumen.texto.startsWith("nada parado")).toBe(true);
+        expect(resumen.textoCadena).toContain("se desbloquean solas");
     });
 
     it("sin revisor fresco las cadenas salen de las fichas", () => {
@@ -117,7 +121,88 @@ describe("medidor «Bloqueadas» con el revisor", () => {
         );
         expect(d.bloqueadas?.enCadena).toBe(1);
         expect(d.bloqueadas?.valor).toBe(0);
-        expect(d.filas[0].grupo).toBe("cadena");
-        expect(d.resumen).toContain("1 en cadena");
+        // (2026-10-20) La espera no está en «Bloqueadas»: está en «En cadena».
+        expect(d.filas).toHaveLength(0);
+        expect(d.vacio).toContain("1 en cadena");
+        const c = detalleDeMedidor(
+            "en-cadena",
+            {
+                progreso: { PM1010F0A: { estado: "pendiente" } },
+                ejecutables: [{ id: "A", titulo: "a", esperaA: ["PM1010F0A"] } as never],
+                revisorBloqueadas: { ...revisor, necesitan_alex: {} },
+            },
+            AHORA,
+        );
+        expect(c.filas.map((f) => [f.id, f.grupo])).toEqual([["A", "cadena"]]);
+        expect(c.resumen).toContain("1 espera a");
+    });
+});
+
+/**
+ * (2026-10-20) Alex: «es diferente la info de Bloqueadas y rechazadas en Ramificación que el medidor
+ * del pulso». Un solo cálculo: lo parado (atascadas, te necesitan, fallidas o rechazadas sin resolver)
+ * en «Bloqueadas»; las esperas, en «En cadena».
+ */
+describe("«Bloqueadas» con las fallidas y rechazadas sin resolver", () => {
+    const HOY = "2026-10-10 03:00";
+    const base = {
+        progreso: {
+            // Fallida reciente con sucesora viva: está sin resolver, pero ya con quién la rehaga.
+            F1: { estado: "sin_cambios", t: HOY, nota: "sin cambios" },
+            F1b: { estado: "en_curso", t: HOY },
+            // Rechazada automática reciente sin sucesora: trabajo que se pierde.
+            R1: { estado: "rechazada", t: HOY, nota: "no toco NINGUNO de los 3 archivos que declaraba (rama ola/R1 conservada)" },
+            // Rechazos que fueron decisiones: no son un problema.
+            R2: { estado: "rechazada", t: HOY, nota: "rechazada desde el Mando; rama ola/R2 conservada" },
+            R3: { estado: "rechazada", t: HOY, nota: "revisada por la dirección (2026-10-08): no aporta" },
+            // Rechazada sin fecha o vieja: no se puede decir que sea de estos días.
+            R4: { estado: "rechazada", nota: "no toco NINGUNO" },
+            R5: { estado: "rechazada", t: "2026-10-01 10:00", nota: "no toco NINGUNO" },
+            // Rechazada cuya sucesora ya está integrada: resuelta.
+            R6: { estado: "rechazada", t: HOY, nota: "no toco NINGUNO" },
+            R6b: { estado: "commit", t: HOY },
+            // Un atasco de los de siempre.
+            B1: { estado: "bloqueante", t: HOY, nota: "agotó" },
+        },
+    };
+
+    it("cuenta lo parado una sola vez y deja fuera las decisiones", () => {
+        const d = detalleDeMedidor("bloqueadas", base, AHORA);
+        expect(d.filas.map((f) => f.id).sort()).toEqual(["B1", "F1", "R1"]);
+        expect(d.bloqueadas?.valor).toBe(3);
+        expect(d.bloqueadas?.sinResolver).toBe(2);
+        expect(d.bloqueadas?.sinResolverEnMarcha).toBe(1);
+        expect(d.filas.find((f) => f.id === "F1")?.grupo).toBe("sin-resolver");
+        expect(d.filas.find((f) => f.id === "F1")?.porque).toContain("la rehace F1b");
+        expect(d.resumen).toContain("2 fallidas o rechazadas sin resolver (1 ya con quién la rehaga)");
+        // El primer número del texto es el total: así lo leen MetaGenesis y el vigía.
+        expect(d.resumen.startsWith("3 paradas: 1 atascada")).toBe(true);
+        expect(d.bloqueadas?.pastilla).toBe("1 atascada · 2 sin resolver · ábrelo para ver por qué");
+    });
+
+    it("las fallidas de «Bloqueadas» son exactamente las del medidor «Fallidas»", () => {
+        const b = detalleDeMedidor("bloqueadas", base, AHORA);
+        const f = detalleDeMedidor("fallidas", base, AHORA);
+        const enBloqueadas = b.filas.filter((x) => x.grupo === "sin-resolver" && x.estado !== "rechazada");
+        expect(enBloqueadas.map((x) => x.id)).toEqual(f.filas.map((x) => x.id));
+    });
+
+    it("una tarea que ya está entre las esperas no se cuenta otra vez como fallida", () => {
+        const filas: FilaMedidor[] = [{ id: "F1", titulo: "f", estado: "bloqueante", acciones: [] }];
+        const { resumen, filas: todas } = resumirBloqueadas(filas, null, AHORA, [
+            { id: "F1", titulo: "f", estado: "sin cambios", acciones: [] },
+        ]);
+        expect(todas).toHaveLength(1);
+        expect(resumen.valor).toBe(1);
+        expect(resumen.sinResolver).toBe(0);
+    });
+
+    it("una fallida por la que el revisor pregunta a Alex cuenta como «te necesita», una sola vez", () => {
+        const { resumen } = resumirBloqueadas([], { ...revisor, necesitan_alex: { F9: { pregunta: "¿?" } } }, AHORA, [
+            { id: "F9", titulo: "f", estado: "fallo tsc", acciones: [] },
+        ]);
+        expect(resumen.alex).toBe(1);
+        expect(resumen.sinResolver).toBe(0);
+        expect(resumen.valor).toBe(1);
     });
 });

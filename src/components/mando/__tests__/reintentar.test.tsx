@@ -1,3 +1,4 @@
+import { detalleDeMedidor } from "@/lib/mando/medidores";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -160,37 +161,52 @@ describe("Reintento Inteligente · Componentes UI", () => {
         await waitFor(() => expect(onHecho).toHaveBeenCalled());
     });
 
-    it("el panel global muestra el resumen de veredictos y llama a la ruta sin ids al confirmar", async () => {
+    it("«Bloqueadas y rechazadas» enseña el MISMO número y la MISMA lista que el medidor del pulso", async () => {
+        // (2026-10-20) Alex: «es diferente la info de Bloqueadas y rechazadas en Ramificación que el
+        // medidor del pulso». La sección ya no calcula: pinta el detalle del medidor.
+        const datos = {
+            progreso: {
+                B1: { estado: "bloqueante", t: "2026-10-20 03:00", nota: "agotó" },
+                F1: { estado: "fallo_tsc", t: "2026-10-20 03:00", nota: "tsc rojo" },
+                A0: { estado: "pendiente" },
+            },
+            ejecutables: [{ id: "A1", titulo: "a1", esperaA: ["A0"] } as never],
+        };
+        const ahora = Date.parse("2026-10-20T05:00:00");
+        const medidor = detalleDeMedidor("bloqueadas", datos, ahora);
+        // Una rechazada vieja con rama en el árbol: antes salía aquí y no en el pulso.
+        const ola = crearOlaFake([crearTareaFake("DR0927-1", "rechazada")]);
+
         const llamadas: Array<{ url: string; cuerpo: unknown }> = [];
         globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-            const url = String(input);
-            llamadas.push({ url, cuerpo: JSON.parse(String(init?.body ?? "{}")) });
-            return new Response(
-                JSON.stringify({ reintentadas: ["T1b"], descartadas: [{ id: "T2", motivo: "m" }], esperando: [] }),
-                { status: 200 }
-            );
+            llamadas.push({ url: String(input), cuerpo: JSON.parse(String(init?.body ?? "{}")) });
+            return new Response(JSON.stringify({ reintentadas: ["B1"], descartadas: [], esperando: [] }), { status: 200 });
         }) as typeof fetch;
-
-        const tareas = [
-            crearTareaFake("T1", "rechazada"),
-            crearTareaFake("T2", "sustituida"),
-        ];
-        const ola = crearOlaFake(tareas);
         const onHecho = vi.fn();
 
-        render(<SeccionBloqueadasReintentos olas={[ola]} onVer={() => {}} onHecho={onHecho} />);
+        render(<SeccionBloqueadasReintentos olas={[ola]} onVer={() => {}} onHecho={onHecho} detalle={medidor} />);
 
-        expect(screen.getByTestId("resumen-veredictos")).toBeInTheDocument();
+        expect(screen.getByTestId("bloqueadas-valor")).toHaveTextContent(String(medidor.bloqueadas?.valor));
+        expect(medidor.bloqueadas?.valor).toBe(2);
+        expect(screen.getByTestId("desglose-bloqueadas")).toHaveTextContent(medidor.resumen);
+        const seccion = screen.getByTestId("seccion-bloqueadas-reintentos");
+        expect(seccion).toHaveTextContent("B1");
+        expect(seccion).toHaveTextContent("F1");
+        expect(seccion).not.toHaveTextContent("DR0927-1");
+        // La espera viva no está en la lista: se nombra y va a «En cadena».
+        expect(screen.getByTestId("bloqueadas-en-cadena-aparte")).toHaveTextContent("1 en cadena");
 
-        const botonGlobal = screen.getByRole("button", { name: "Reintentar todas las que sirvan" });
-        fireEvent.click(botonGlobal);
-
-        const botonSi = await screen.findByRole("button", { name: "sí" });
-        fireEvent.click(botonSi);
-
+        fireEvent.click(screen.getByRole("button", { name: "Reintentar todas las que sirvan" }));
+        fireEvent.click(await screen.findByRole("button", { name: "sí" }));
         await waitFor(() => expect(llamadas).toHaveLength(1));
         expect(llamadas[0]?.url).toContain("/api/mando/reintentar");
         expect(llamadas[0]?.cuerpo).toEqual({});
         await waitFor(() => expect(onHecho).toHaveBeenCalled());
+    });
+
+    it("sin nada parado ni en cadena la sección no se pinta", () => {
+        const vacio = detalleDeMedidor("bloqueadas", { progreso: {} });
+        render(<SeccionBloqueadasReintentos olas={[]} onVer={() => {}} onHecho={() => {}} detalle={vacio} />);
+        expect(screen.queryByTestId("seccion-bloqueadas-reintentos")).toBeNull();
     });
 });

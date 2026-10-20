@@ -114,7 +114,7 @@ describe("DirectorPendientes", () => {
     expect(screen.getByText("ningún fallo")).toBeInTheDocument();
   });
 
-  it("nada bloqueado es honesto", () => {
+  it("ninguna espera es honesto", () => {
     const pendientes: ResumenPendientes = {
       listas: 3,
       bloqueadas: [],
@@ -125,6 +125,6 @@ describe("DirectorPendientes", () => {
       fallosDetalle: [{ id: "P2", estado: "fallo_tsc", nota: "" }],
     };
     render(<DirectorPendientes pendientes={pendientes} />);
-    expect(screen.getByText("nada bloqueado")).toBeInTheDocument();
+    expect(screen.getByText("ninguna espera a otra")).toBeInTheDocument();
   });
 });

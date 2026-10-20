@@ -22,8 +22,8 @@ import { DisenadorOla } from "@/components/mando/disenador-ola";
 import { Switch } from "@/components/ui/switch";
 import { escuchar as escucharAsistente, tomarTareaPendiente } from "@/lib/mando/asistente-cliente";
 import type { ConfigEnjambre } from "@/lib/mando/ajustes-tipos";
-import { BloqueadasPanel, itemDesdeRamaTarea } from "@/components/mando/bloqueadas-panel";
-import { contarVeredictos } from "@/lib/mando/reintento-inteligente";
+import { BloqueadasGrupos } from "@/components/mando/bloqueadas-grupos";
+import type { DetalleMedidor } from "@/lib/mando/medidores";
 
 import type { FotoEnjambre, LatidoTarea } from "@/lib/mando/tipos";
 import type { AlcanceRama, ImpactoRama, RamaOla, RamaTarea, Ramificacion } from "@/lib/mando/ramificacion";
@@ -1037,61 +1037,60 @@ export function BotonReintentoIndividual({
     );
 }
 
+/**
+ * «Bloqueadas y rechazadas» de Procesos › Ramificación multiagéntica.
+ *
+ * (2026-10-20) Alex, varias veces: «es diferente la info de Bloqueadas y rechazadas en Ramificación
+ * que el medidor del pulso de bloqueadas». Lo era: esta sección contaba lo que tenía rama en las 4-5
+ * olas cargadas (medido: 2 rechazadas del 6-8 de octubre) y el medidor toda espera (178). Ya no
+ * calcula nada: lee el MISMO medidor (`/api/mando/medidores?clave=bloqueadas`) y pinta el MISMO
+ * componente (`BloqueadasGrupos`), así que el número y la lista son los del pulso por construcción.
+ * Las esperas normales de una cadena no están aquí: van en el medidor «En cadena».
+ */
 export function SeccionBloqueadasReintentos({
     olas,
     onVer,
     onHecho,
+    detalle: detalleDado,
 }: {
     olas: RamaOla[];
     onVer: (id: string) => void;
     onHecho: () => void;
+    /** Para pruebas: el detalle ya leído. Sin él se lee del medidor y se relee con cada recarga. */
+    detalle?: DetalleMedidor | null;
 }) {
     const [confirmando, setConfirmando] = useState(false);
     const [enviando, setEnviando] = useState(false);
     const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
+    const [leido, setLeido] = useState<DetalleMedidor | null>(null);
+    const [errorLectura, setErrorLectura] = useState<string | null>(null);
+    const detalle = detalleDado !== undefined ? detalleDado : leido;
 
-    const elegibles = useMemo(() => {
-        const todas = olas.flatMap((o) => o.tareas);
-        const estados = new Set([
-            "bloqueada",
-            "rechazada",
-            "bloqueante",
-            "fallo_tests",
-            "sin_cambios",
-            "interrumpida",
-        ]);
-        return todas.filter(
-            (t) => estados.has(t.estado) || t.estado.startsWith("fallo") || Boolean(t.bloqueadaPor)
-        );
-    }, [olas]);
+    const leer = useCallback(async () => {
+        if (detalleDado !== undefined) return;
+        try {
+            const r = await fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" });
+            const d = (await r.json().catch(() => null)) as { detalle?: DetalleMedidor } | null;
+            if (!r.ok || !d?.detalle) {
+                setErrorLectura(`El medidor «Bloqueadas» no respondió (${r.status}).`);
+                return;
+            }
+            setLeido(d.detalle);
+            setErrorLectura(null);
+        } catch {
+            setErrorLectura("El medidor «Bloqueadas» no respondió.");
+        }
+    }, [detalleDado]);
 
-    // Los veredictos del SERVIDOR (ver BotonReintentoIndividual): aquí solo se cuentan.
-    const resumen = useMemo(() => {
-        return contarVeredictos(elegibles.map((t) => t.veredicto));
-    }, [elegibles]);
+    // Se relee cada vez que el árbol se recarga (las olas cambian de referencia): mismo ritmo que él.
+    useEffect(() => {
+        void leer();
+    }, [leer, olas]);
 
-    // (2026-09-22, Alex: «aparece diferente numero de tareas bloqueadas del medidor del
-    // pulso a las bloqueadas y rechazadas de la ventana emergente»). Los dos números son
-    // correctos y cuentan cosas distintas: el medidor «Bloqueadas» cuenta SOLO las que
-    // esperan a otra tarea, y esta sección cuenta además las rechazadas, los fallos y las
-    // `sin_cambios`. Un total a secas al lado de otro total a secas parece una
-    // contradicción, así que aquí se enseña DE QUÉ está hecho el número.
-    const desglose = useMemo(() => {
-        const partes: { etiqueta: string; n: number }[] = [];
-        const cuenta = (pred: (e: string) => boolean) =>
-            elegibles.filter((t) => pred(String(t.estado ?? ""))).length;
-        const bloq = cuenta((e) => e === "bloqueada" || e === "bloqueante");
-        const rech = cuenta((e) => e === "rechazada");
-        const fallos = cuenta((e) => e.startsWith("fallo") || e === "interrumpida");
-        const sinCambios = cuenta((e) => e === "sin_cambios");
-        const resto = elegibles.length - bloq - rech - fallos - sinCambios;
-        if (bloq) partes.push({ etiqueta: "esperan a otra tarea", n: bloq });
-        if (rech) partes.push({ etiqueta: "rechazadas", n: rech });
-        if (fallos) partes.push({ etiqueta: "con fallos", n: fallos });
-        if (sinCambios) partes.push({ etiqueta: "sin cambios", n: sinCambios });
-        if (resto > 0) partes.push({ etiqueta: "otras", n: resto });
-        return partes;
-    }, [elegibles]);
+    const hecho = useCallback(() => {
+        void leer();
+        onHecho();
+    }, [leer, onHecho]);
 
     const reintentarTodas = useCallback(async () => {
         setEnviando(true);
@@ -1119,7 +1118,7 @@ export function SeccionBloqueadasReintentos({
                     ok: true,
                     texto: `${reint} reintentadas · ${desc} descartadas · ${esp} esperando`,
                 });
-                onHecho();
+                hecho();
             }
         } catch {
             setResultado({ ok: false, texto: "Error al ejecutar el reintento global." });
@@ -1127,9 +1126,18 @@ export function SeccionBloqueadasReintentos({
             setEnviando(false);
             setConfirmando(false);
         }
-    }, [onHecho]);
+    }, [hecho]);
 
-    if (elegibles.length === 0) return null;
+    if (!detalle) {
+        return errorLectura ? (
+            <p className="text-[11px] text-rose-300/80" data-testid="seccion-bloqueadas-error">
+                {errorLectura} No se enseña otra cifra en su lugar.
+            </p>
+        ) : null;
+    }
+    const r = detalle.bloqueadas;
+    const valor = r?.valor ?? detalle.filas.filter((f) => !f.historica).length;
+    if (valor === 0 && !r?.enCadena && !r?.transformadasHoy) return null;
 
     return (
         <section
@@ -1140,55 +1148,46 @@ export function SeccionBloqueadasReintentos({
                 <div>
                     <h4 className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-amber-200">
                         <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden />
-                        Bloqueadas y rechazadas · {elegibles.length}
+                        Bloqueadas y rechazadas · <span data-testid="bloqueadas-valor">{valor}</span>
                     </h4>
-                    {desglose.length ? (
-                        <p className="mt-0.5 text-[10px] text-amber-100/60" data-testid="desglose-bloqueadas">
-                            {desglose.map((p) => `${p.n} ${p.etiqueta}`).join(" · ")}
-                            {/* La frase anterior decía que el pulso «cuenta solo las primeras» y
-                                era falsa: esta lista son las que tienen rama o veredicto AQUÍ, y
-                                el pulso cuenta toda tarea que espera a otra, incluidas las de
-                                colas sin lanzar (que no tienen rama). Por eso los dos números no
-                                coinciden y no tienen por qué: cuentan cosas distintas. (2026-09-22) */}
-                            {" — aquí solo lo que tiene rama o veredicto en esta máquina; el medidor «Bloqueadas» del pulso cuenta toda tarea que espera a otra, incluidas las de colas sin lanzar"}
-                        </p>
-                    ) : null}
-                    <p className="mt-0.5 text-xs font-mono text-amber-100/80" data-testid="resumen-veredictos">
-                        {resumen.resumenTexto}
+                    <p className="mt-0.5 text-[10px] text-amber-100/60" data-testid="desglose-bloqueadas">
+                        {detalle.resumen} — el mismo dato que el medidor «Bloqueadas» del pulso.
                     </p>
                 </div>
-                <div>
-                    {!confirmando ? (
-                        <button
-                            type="button"
-                            disabled={enviando}
-                            onClick={() => setConfirmando(true)}
-                            className="cursor-pointer rounded-md border border-amber-400/40 bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Reintentar todas las que sirvan
-                        </button>
-                    ) : (
-                        <span className="flex items-center gap-2 text-xs">
-                            <span className="text-white/80">¿Reintentar todas las que sirvan?</span>
+                {valor > 0 ? (
+                    <div>
+                        {!confirmando ? (
                             <button
                                 type="button"
                                 disabled={enviando}
-                                onClick={() => void reintentarTodas()}
-                                className="cursor-pointer rounded-md bg-amber-500/40 px-2.5 py-1 font-medium text-white hover:bg-amber-500/60 disabled:opacity-50"
+                                onClick={() => setConfirmando(true)}
+                                className="cursor-pointer rounded-md border border-amber-400/40 bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                                {enviando ? "enviando…" : "sí"}
+                                Reintentar todas las que sirvan
                             </button>
-                            <button
-                                type="button"
-                                disabled={enviando}
-                                onClick={() => setConfirmando(false)}
-                                className="cursor-pointer rounded-md border border-white/10 px-2 py-1 text-white/70 hover:bg-white/5"
-                            >
-                                no
-                            </button>
-                        </span>
-                    )}
-                </div>
+                        ) : (
+                            <span className="flex items-center gap-2 text-xs">
+                                <span className="text-white/80">¿Reintentar todas las que sirvan?</span>
+                                <button
+                                    type="button"
+                                    disabled={enviando}
+                                    onClick={() => void reintentarTodas()}
+                                    className="cursor-pointer rounded-md bg-amber-500/40 px-2.5 py-1 font-medium text-white hover:bg-amber-500/60 disabled:opacity-50"
+                                >
+                                    {enviando ? "enviando…" : "sí"}
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={enviando}
+                                    onClick={() => setConfirmando(false)}
+                                    className="cursor-pointer rounded-md border border-white/10 px-2 py-1 text-white/70 hover:bg-white/5"
+                                >
+                                    no
+                                </button>
+                            </span>
+                        )}
+                    </div>
+                ) : null}
             </div>
             {resultado ? (
                 <p
@@ -1198,16 +1197,7 @@ export function SeccionBloqueadasReintentos({
                     {resultado.texto}
                 </p>
             ) : null}
-            {/* La lista propia se retiró (Ola 1005Z · BLQ1005C): la ÚNICA lista de
-                bloqueadas es `BloqueadasPanel`, compartida con el medidor del pulso,
-                con el cambio automático editable y la API única `/api/mando/reintentar`. */}
-            <BloqueadasPanel
-                items={elegibles.map((t) =>
-                    itemDesdeRamaTarea(t, olas.flatMap((o) => o.tareas.map((x) => x.id)))
-                )}
-                alVer={onVer}
-                alHecho={onHecho}
-            />
+            <BloqueadasGrupos detalle={detalle} alVer={onVer} alHecho={hecho} />
         </section>
     );
 }

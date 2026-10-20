@@ -100,7 +100,8 @@ describe("accionesDeBloqueada (contrato §3)", () => {
     });
 
     it("una tarea en el progreso y otra solo en la cola no se marcan como sin salida", () => {
-        const d = detalleDeMedidor("bloqueadas", {
+        // (2026-10-20) Espera viva → medidor «En cadena».
+        const d = detalleDeMedidor("en-cadena", {
             progreso: { B1: { estado: "bloqueada", nota: "dependencia no integrada: R1, R2" } },
             fila: [
                 { id: "B1", estado: "bloqueada", dependenciasPendientes: ["R1", "R2"] },

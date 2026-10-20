@@ -85,10 +85,15 @@ const progreso = {
 };
 
 describe("detalleDeMedidor · bloqueadas", () => {
-    it("lista las bloqueadas con su porqué y ofrece descartar la lista entera", () => {
+    it("reparte las bloqueadas entre «Bloqueadas» y «En cadena» sin perder ni repetir ninguna", () => {
         const d = detalleDeMedidor("bloqueadas", { progreso });
-        expect(d.filas.map((f) => f.id).sort()).toEqual(["A0", "A1", "B1", "C1"]);
-        expect(d.acciones.some((a) => a.clase === "descartar-todas" && a.destructiva)).toBe(true);
+        const c = detalleDeMedidor("en-cadena", { progreso });
+        // (2026-10-20) A1 espera a A0, que sigue viva: es una espera en cadena, no un problema.
+        expect(c.filas.map((f) => f.id)).toEqual(["A1"]);
+        expect(d.filas.map((f) => f.id).sort()).toEqual(["A0", "B1", "C1"]);
+        // «Descartar todas» ya no se ofrece: nunca se pintaba y descartaría trabajo que se rehace.
+        expect(d.acciones.some((a) => a.clase === "descartar-todas")).toBe(false);
+        expect(c.acciones.some((a) => a.clase === "descartar-todas")).toBe(false);
     });
 
     it("una integrada nunca aparece entre las bloqueadas", () => {
@@ -621,8 +626,8 @@ describe("las dependencias se miden con la regla del orquestador (cadenas)", () 
         expect(dependenciasQueFaltan(["A"], { A: { estado: "commit" } })).toEqual([]);
     });
 
-    it("lo que «Listas» manda a «Bloqueadas» está en «Bloqueadas», con quién la rehace", () => {
-        const d = detalleDeMedidor("bloqueadas", {
+    it("lo que «Listas» deja esperando está en «En cadena», con quién la rehace", () => {
+        const d = detalleDeMedidor("en-cadena", {
             fila: [],
             ejecutables: [{ id: "PRD1005U", titulo: "Genesis muestra los puentes", esperaA: ["PRD1005S"] }],
             progreso: { PRD1005S: { estado: "sustituida" }, PRD1005Sc: { estado: "en_curso" }, PRD1005U: { estado: "pendiente" } },
@@ -632,8 +637,9 @@ describe("las dependencias se miden con la regla del orquestador (cadenas)", () 
         expect(fila?.estado).toBe("bloqueada");
         expect(fila?.porque).toContain("siguen vivas");
         expect(JSON.stringify(fila?.ficha)).toContain("la rehace PRD1005Sc");
-        // (2026-10-10, OPB1011) Las esperas vivas se cuentan como «en cadena», no como bloqueo.
-        expect(d.resumen).toContain("1 en cadena");
+        // (2026-10-10, OPB1011) Las esperas vivas se cuentan como «en cadena», no como bloqueo; y
+        // (2026-10-20) van en su propio medidor.
+        expect(d.resumen).toContain("1 espera a 1 tarea que avanza");
     });
 
     it("«Listas» no ofrece lo que el orquestador no cogería (RM7 con RM6 rehaciéndose)", () => {

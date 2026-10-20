@@ -1241,12 +1241,17 @@ export async function POST(peticion: Request): Promise<Response> {
     }
 
     const ahora = new Date().toISOString().slice(0, 16).replace("T", " ");
-    const objetivo =
-        accion === "descartar-todas"
-            ? detalleDeMedidor(clave as ClaveMedidor, { progreso: entradas }).filas.map((f) => f.id)
-            : id
-              ? [id]
-              : [];
+    // (2026-10-20) «Descartar todas» solo donde el medidor la ofrece: sin esta comprobación, un POST a
+    // «en-cadena» descartaría de golpe todas las esperas normales de una cadena.
+    const detalleTodas =
+        accion === "descartar-todas" ? detalleDeMedidor(clave as ClaveMedidor, { progreso: entradas }) : null;
+    if (detalleTodas && !detalleTodas.acciones.some((a) => a.clase === "descartar-todas")) {
+        return Response.json(
+            { error: `El medidor «${clave}» no ofrece «Descartar todas»: se descarta una a una.` },
+            { status: 400 },
+        );
+    }
+    const objetivo = detalleTodas ? detalleTodas.filas.map((f) => f.id) : id ? [id] : [];
 
     if (objetivo.length === 0) {
         return Response.json({ error: "No hay ninguna tarea a la que aplicar esto." }, { status: 400 });

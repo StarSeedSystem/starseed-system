@@ -265,7 +265,9 @@ const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
     agentes: ["trabajo", 2],
     listas: ["trabajo", 3],
     bloqueadas: ["trabajo", 4],
-    fallidas: ["trabajo", 5],
+    // (2026-10-20) Las esperas de una cadena, al lado de «Bloqueadas» y en su propio medidor.
+    "en-cadena": ["trabajo", 5],
+    fallidas: ["trabajo", 6],
     integradas: ["entrega", 0],
     "sin-publicar": ["entrega", 1],
     "Tu visto bueno": ["entrega", 2],
@@ -916,6 +918,9 @@ export function CentroMando() {
         bloqueadas: number | null;
         /** (2026-10-10, OPB1011) «N en cadena · …»: las esperas no cuentan en el número. */
         bloqueadasResumen?: string | null;
+        /** (2026-10-20) Las esperas de una cadena: salen del MISMO detalle que «Bloqueadas». */
+        enCadena?: number | null;
+        enCadenaResumen?: string | null;
         agentes: number | null;
         agentesResumen: string | null;
         /** Tareas que alguien está haciendo AHORA, aquí y en la nube. Ver `cargarMedidoresResumen`. */
@@ -974,6 +979,8 @@ export function CentroMando() {
             let listas: number | null = null;
             let bloqueadas: number | null = null;
             let bloqueadasResumen: string | null = null;
+            let enCadena: number | null = null;
+            let enCadenaResumen: string | null = null;
             let agentes: number | null = null;
             let agentesResumen: string | null = null;
             let enCurso: number | null = null;
@@ -1017,6 +1024,12 @@ export function CentroMando() {
                     // decisiones de Alex); las esperas de una cadena van en su texto, no en el número.
                     bloqueadas = dataBloqueadas.detalle.bloqueadas.valor;
                     bloqueadasResumen = dataBloqueadas.detalle.bloqueadas.pastilla;
+                    // (2026-10-20) «En cadena» sale del mismo cálculo: no hace falta otra lectura.
+                    const r = dataBloqueadas.detalle.bloqueadas;
+                    enCadena = r.enCadena;
+                    enCadenaResumen = r.enCadena
+                        ? `esperan a ${r.cadenas.length} que avanza${r.cadenas.length === 1 ? "" : "n"} · se desbloquean solas`
+                        : "ninguna espera a otra";
                 } else if (dataBloqueadas.detalle?.filas) {
                     // Contamos solo las tareas operativas (no históricas) para coincidir con el total del detalle
                     bloqueadas = dataBloqueadas.detalle.filas.filter((f) => !f.historica).length;
@@ -1139,6 +1152,8 @@ export function CentroMando() {
                 listas,
                 bloqueadas,
                 bloqueadasResumen,
+                enCadena,
+                enCadenaResumen,
                 agentes,
                 agentesResumen,
                 enCurso,
@@ -2004,7 +2019,19 @@ export function CentroMando() {
                                     medidoresResumen?.bloqueadas !== undefined &&
                                     medidoresResumen.bloqueadas > 0
                                         ? "ábrelo para ver por qué"
-                                        : "ninguna esperando"),
+                                        : "nada parado"),
+                            },
+                            {
+                                // (2026-10-20) Alex: «las en cadena en su propio medidor». No es un
+                                // problema (tono normal): esperan a otra tarea que avanza.
+                                clave: "en-cadena" as const,
+                                titulo: "En cadena",
+                                valor:
+                                    medidoresResumen?.enCadena !== null && medidoresResumen?.enCadena !== undefined
+                                        ? String(medidoresResumen.enCadena)
+                                        : "—",
+                                tono: "normal" as TonoMedidor,
+                                detalle: medidoresResumen?.enCadenaResumen ?? "esperan a otra tarea que avanza",
                             },
                             {
                                 clave: "sin-publicar" as const,
@@ -2279,7 +2306,11 @@ export function CentroMando() {
                                                     </button>
                                                 ) : null}
                                             </div>
-                                            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                                            <ul
+                                                className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${
+                                                    deEste.length === 7 ? "lg:grid-cols-7" : "lg:grid-cols-6"
+                                                }`}
+                                            >
                                                 {deEste.map((m) => (
                                                     <li key={m.titulo}>
                                                         <PastillaMedidor

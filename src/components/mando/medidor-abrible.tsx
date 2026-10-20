@@ -23,7 +23,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 
 import { BloqueadasPanel, itemDesdeFilaMedidor } from "@/components/mando/bloqueadas-panel";
-import { BloqueadasGrupos } from "@/components/mando/bloqueadas-grupos";
+import { BloqueadasGrupos, CadenasBloqueadas } from "@/components/mando/bloqueadas-grupos";
 import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 
@@ -742,7 +742,11 @@ export function PanelMedidor({
                 </p>
             ) : null}
 
-            {datos ? (clave === "bloqueadas" ? (
+            {datos && clave === "en-cadena" ? (
+                // (2026-10-20) Las esperas normales de una cadena, en su propio medidor y agrupadas
+                // por la tarea a la que esperan: no son un problema, se desbloquean solas.
+                <CadenasBloqueadas detalle={datos} />
+            ) : datos ? (clave === "bloqueadas" ? (
                 // (Ola 1005Z · BLQ1005C) El medidor «Bloqueadas» ya no pinta la lista
                 // genérica: la ÚNICA lista de bloqueadas es `BloqueadasPanel`, con la
                 // causa, el cambio automático editable y los botones de reparar/escalar

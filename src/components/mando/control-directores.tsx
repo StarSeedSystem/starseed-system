@@ -43,6 +43,28 @@ function Medidor({ etiqueta, valor, tono }: { etiqueta: string; valor: number | 
 export function ControlDirectores() {
     const [datos, setDatos] = useState<RespuestaDirector | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // (2026-10-20) «Bloqueadas» y «en cadena» salen del MISMO medidor que el pulso y Ramificación:
+    // contar aquí `estado === "bloqueada"` de las colas era un tercer número para la misma pregunta.
+    const [bloq, setBloq] = useState<{ valor: number; enCadena: number } | null>(null);
+
+    useEffect(() => {
+        let vivo = true;
+        const leer = async () => {
+            try {
+                const r = await fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" });
+                const d = (await r.json().catch(() => null)) as {
+                    detalle?: { bloqueadas?: { valor?: number; enCadena?: number } };
+                } | null;
+                const b = d?.detalle?.bloqueadas;
+                if (vivo) setBloq(r.ok && b && typeof b.valor === "number" ? { valor: b.valor, enCadena: b.enCadena ?? 0 } : null);
+            } catch {
+                if (vivo) setBloq(null);
+            }
+        };
+        void leer();
+        const id = setInterval(() => void leer(), INTERVALO_MS);
+        return () => { vivo = false; clearInterval(id); };
+    }, []);
 
     useEffect(() => {
         let vivo = true;
@@ -79,12 +101,13 @@ export function ControlDirectores() {
     return (
         <div className="flex flex-col gap-3" data-testid="control-directores">
             {error ? <p className="text-xs text-rose-400/80">{error}</p> : null}
-            <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/30 bg-black/20 p-3 text-center sm:grid-cols-3 xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/30 bg-black/20 p-3 text-center sm:grid-cols-4 xl:grid-cols-7">
                 <Medidor etiqueta="vivos" valor={datos.agentes.vivos} />
                 <Medidor etiqueta="esperando aprobación" valor={datos.agentes.esperandoAprobacion} />
                 <Medidor etiqueta="colgados" valor={datos.agentes.colgados} tono="text-rose-400" />
                 <Medidor etiqueta="listas" valor={datos.pendientes.listas} />
-                <Medidor etiqueta="bloqueadas" valor={datos.pendientes.bloqueadas.length} />
+                <Medidor etiqueta="bloqueadas" valor={bloq ? bloq.valor : "—"} tono={bloq?.valor ? "text-amber-300" : undefined} />
+                <Medidor etiqueta="en cadena" valor={bloq ? bloq.enCadena : "—"} />
                 <Medidor etiqueta="proveedores" valor={`${proveedoresVivos}/${datos.proveedores.length}`} />
             </div>
 

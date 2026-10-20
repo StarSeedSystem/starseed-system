@@ -50,7 +50,11 @@ export type ClaveMedidor =
     | "creditos"
     // (2026-10-09) «Fallidas 0» con PT1009Cb en fallo_tsc: la pastilla contaba solo la ola
     // activa. Este medidor cuenta lo que ha fallado HOY y nadie ha resuelto todavía.
-    | "fallidas";
+    | "fallidas"
+    // (2026-10-20) Alex: «es diferente la info de Bloqueadas y rechazadas en Ramificación que el
+    // medidor del pulso» y «las en cadena deben ir en su propio medidor». Las esperas normales de
+    // una cadena salen de «Bloqueadas» y van aquí: se desbloquean solas.
+    | "en-cadena";
 
 export type ClaseAccion =
     | "descartar"
@@ -1696,6 +1700,294 @@ export function resumenTokensConLatidos(latidos?: DatosMedidores["latidos"]): { 
     return { texto, escribiendo, sinLatidos };
 }
 
+/** Una fecha de `progreso.json` («2026-10-20 02:48» o ISO) en milisegundos; NaN si no la hay. */
+function msDe(t: unknown): number {
+    return Date.parse(String(t ?? "").replace(" ", "T"));
+}
+
+/**
+ * (2026-10-09) Lo que falló en los últimos 3 días y sigue sin resolver: ni está en main ni lo ha
+ * cumplido una sucesora de su cadena. Con quién lo retoma, para que un fallo no sea un número rojo
+ * sin dueño. (2026-10-20) Sale a función para que «Fallidas» y «Bloqueadas» usen la MISMA regla.
+ */
+export function filasFallidasSinResolver(d: DatosMedidores, ahora?: number): FilaMedidor[] {
+    const titulo = (id: string) => d.titulos[id] || id;
+    const FALLO = /^(fallo.*|sin_cambios|conflicto|interrumpida)$/;
+    const limite = (ahora ?? Date.now()) - 3 * 24 * 3600 * 1000;
+    const ids = Object.keys(d.progreso);
+    const enMain = (id: string) => typeof d.asuntosDeMain === "string" && idIntegradoEnAsuntos(id, d.asuntosDeMain);
+    const filas: FilaMedidor[] = [];
+    for (const [id, v] of Object.entries(d.progreso)) {
+        const est = String(v?.estado ?? "");
+        if (!FALLO.test(est) || enMain(id)) continue;
+        const t = msDe(v?.t);
+        if (Number.isFinite(t) && t < limite) continue;
+        const sucesoras = sucesorasDe(id, ids);
+        if (sucesoras.some((k) => INTEGRADOS.has(d.progreso[k]?.estado ?? "") || enMain(k))) continue;
+        // (2026-10-09) Lo que el director ya resolvió (la retiró por copia de algo integrado,
+        // la rechazó) no es una fallida sin dueño aunque el vigilante aún no lo haya aplicado.
+        const decidida = d.correcciones?.[id];
+        if (decidida && /^(sustituida|rechazada|commit|hecho)$/.test(decidida.estado ?? "")) continue;
+        const viva = sucesoras.find((k) => !MUERTOS_CADENA.has(d.progreso[k]?.estado ?? ""));
+        const nota = decidida?.nota && decidida.estado !== est ? decidida.nota : String(v?.nota ?? "");
+        const intento = /reintento gratuito (\d+)\/(\d+)/.exec(nota);
+        const codex = /escalada a Codex[^·]*/.exec(nota);
+        filas.push({
+            id,
+            titulo: titulo(id) !== id ? titulo(id) : "sin título en su cola",
+            estado: est.replace(/_/g, " "),
+            desde: v?.t,
+            porque: viva
+                ? `la rehace ${viva} (${d.progreso[viva]?.estado || "pendiente"})`
+                : intento
+                  ? `la escalera del director la reintenta (intento ${intento[1]} de ${intento[2]}) · ${nota.slice(0, 120)}`
+                  : codex
+                    ? `la escalera del director la pasa a un modelo capaz: ${codex[0].trim()}`
+                    : decidida?.estado === "bloqueante"
+                      ? `necesita una persona: ${nota.replace(/^director:\s*/, "").slice(0, 140)}`
+                      : nota.slice(0, 160) || "sin nota",
+            acciones: accionesDeBloqueada({ estado: est }),
+        });
+    }
+    return filas.sort((a, b) => String(b.desde ?? "").localeCompare(String(a.desde ?? "")));
+}
+
+/** Una rechazada que decidió una persona o la dirección no es trabajo perdido: es una decisión. */
+const RECHAZO_DECIDIDO =
+    /(desde (el )?(Mando|Genesis)|por la direcci[oó]n|revisada por la direcci[oó]n|desde el medidor|^descartada|^ya hecho)/i;
+
+/**
+ * (2026-10-20) La parte «rechazadas» de «Bloqueadas y rechazadas»: rechazadas de los últimos 3 días
+ * (con fecha: sin fecha no se puede decir que sean de estos días) que no están en main, que ninguna
+ * sucesora ha cumplido y que NO fueron una decisión (Alex, la dirección o un descarte a mano). Hoy
+ * eso son, sobre todo, las de «no tocó ninguno de los archivos que declaraba»: trabajo que se pierde.
+ */
+export function filasRechazadasSinResolver(d: DatosMedidores, ahora?: number): FilaMedidor[] {
+    const titulo = (id: string) => d.titulos[id] || id;
+    const limite = (ahora ?? Date.now()) - 3 * 24 * 3600 * 1000;
+    const ids = Object.keys(d.progreso);
+    const enMain = (id: string) => typeof d.asuntosDeMain === "string" && idIntegradoEnAsuntos(id, d.asuntosDeMain);
+    const filas: FilaMedidor[] = [];
+    for (const [id, v] of Object.entries(d.progreso)) {
+        if (v?.estado !== "rechazada" || enMain(id)) continue;
+        const t = msDe(v?.t);
+        if (!Number.isFinite(t) || t < limite) continue;
+        const nota = String(v?.nota ?? "");
+        if (RECHAZO_DECIDIDO.test(nota)) continue;
+        const decidida = d.correcciones?.[id];
+        if (decidida && /^(sustituida|commit|hecho)$/.test(decidida.estado ?? "")) continue;
+        const sucesoras = sucesorasDe(id, ids);
+        if (sucesoras.some((k) => INTEGRADOS.has(d.progreso[k]?.estado ?? "") || enMain(k))) continue;
+        const viva = sucesoras.find((k) => !MUERTOS_CADENA.has(d.progreso[k]?.estado ?? ""));
+        filas.push({
+            id,
+            titulo: titulo(id) !== id ? titulo(id) : "sin título en su cola",
+            estado: "rechazada",
+            desde: v?.t,
+            porque: viva
+                ? `la rehace ${viva} (${d.progreso[viva]?.estado || "pendiente"})`
+                : `rechazada sin decisión de nadie y sin sucesora: ${nota.slice(0, 140) || "sin nota"}`,
+            acciones: accionesDeBloqueada({ estado: "rechazada" }),
+        });
+    }
+    return filas.sort((a, b) => String(b.desde ?? "").localeCompare(String(a.desde ?? "")));
+}
+
+/** Fallidas + rechazadas sin resolver, lo más reciente primero (sin repetir id). */
+export function filasSinResolver(d: DatosMedidores, ahora?: number): FilaMedidor[] {
+    const vistas = new Set<string>();
+    return [...filasFallidasSinResolver(d, ahora), ...filasRechazadasSinResolver(d, ahora)]
+        .filter((f) => (vistas.has(f.id) ? false : (vistas.add(f.id), true)))
+        .sort((a, b) => String(b.desde ?? "").localeCompare(String(a.desde ?? "")));
+}
+
+/**
+ * (2026-10-20) UN solo cálculo para «Bloqueadas», «En cadena» y la sección «Bloqueadas y
+ * rechazadas» de Ramificación (que lee este mismo medidor). Antes había dos: la sección contaba lo
+ * que tenía rama en las olas cargadas y el medidor toda espera, y Alex veía 2 en un sitio y 178 en
+ * el otro para la misma pregunta.
+ */
+function repartoDeBloqueadas(d: DatosMedidores, ahora?: number) {
+    const titulo = (id: string) => d.titulos[id] || id;
+    // (2026-10-05, BLQ1005B) Una dependencia que está en CUALQUIER cola viva aunque
+    // aún no tenga entrada en progreso NO es un fantasma: va a arrancar. Se enseña
+    // como «en cola» en vez de «NO EXISTE», que era el diagnóstico que mandaba
+    // reparar bloqueos que se resuelven solos.
+    const vivaEnCola = (id: string) =>
+        Boolean(d.fila?.some((t) => t.id === id)) || d.ejecutables.some((t) => t.id === id);
+    // (2026-10-08) El estado de una dependencia es el de su CADENA (`cadenas.ts`, la regla
+    // del orquestador): «RM6 sustituida» con RM6b rehaciéndola es una espera viva, no una
+    // muerta; y una sucesora ya integrada la cumple.
+    const estadoPropio = (id: string) =>
+        d.progreso[id]?.estado ?? (vivaEnCola(id) ? "en cola" : undefined);
+    const idsConocidos = [
+        ...Object.keys(d.progreso),
+        ...(d.fila?.map((t) => t.id) ?? []),
+        ...d.ejecutables.map((t) => t.id),
+    ];
+    const enCadena = (id: string) => estadoDeDependencia(id, estadoPropio, idsConocidos);
+    const estadoDeBloqueadas = (id: string) => {
+        const r = enCadena(id);
+        return r.via ? r.estado : estadoPropio(id);
+    };
+    const viaDe = (id: string) => enCadena(id).via;
+    const idsBloqueadosOperativos = d.fila
+        ? obtenerIdsBloqueados(d.fila, d.latidos)
+        : null;
+
+    const todasBloqueadasProgreso = Object.entries(d.progreso)
+        .filter(([, v]) => v?.estado === "bloqueada" || v?.estado === "bloqueante");
+
+    const filasOperativas: FilaMedidor[] = [];
+    const filasHistoricas: FilaMedidor[] = [];
+
+    if (idsBloqueadosOperativos !== null && d.fila) {
+        const idsProgresoProcesados = new Set<string>();
+
+        for (const [id, v] of todasBloqueadasProgreso) {
+            if (idsBloqueadosOperativos.has(id)) {
+                idsProgresoProcesados.add(id);
+                const b =
+                    v.estado === "bloqueante"
+                        ? null
+                        : fichaDeBloqueada(v.nota, estadoDeBloqueadas, titulo, v, viaDe);
+                filasOperativas.push({
+                    id,
+                    titulo: titulo(id),
+                    estado: b?.muerta ? "bloqueada sin salida" : v.estado,
+                    porque:
+                        v.estado === "bloqueante"
+                            ? "agotó los reintentos gratuitos: necesita una persona"
+                            : (b?.veredicto ?? porqueBloqueada(v.nota, estadoDeBloqueadas)),
+                    desde: v.t,
+                    ficha: b?.ficha,
+                    historial: d.historiales?.[id]?.slice(0, 4),
+                    acciones: accionesDeBloqueada({
+                    estado: b?.muerta ? "bloqueada sin salida" : v.estado,
+                    ficha: b?.ficha,
+                }),
+                    historica: false,
+                });
+            } else if (!d.fila.some((t) => t.id === id)) {
+                filasHistoricas.push({
+                    id,
+                    titulo: titulo(id),
+                    estado: `${v.estado} (ola cerrada)`,
+                    porque:
+                        v.estado === "bloqueante"
+                            ? "de ola cerrada · agotó reintentos"
+                            : `de ola cerrada · ${porqueBloqueada(v.nota, estadoDeBloqueadas)}`,
+                    desde: v.t,
+                    acciones: accionesDeTarea(v.estado),
+                    historica: true,
+                });
+            }
+        }
+
+        for (const id of idsBloqueadosOperativos) {
+            if (!idsProgresoProcesados.has(id)) {
+                const tareaFila = d.fila.find((t) => t.id === id);
+                const pend = tareaFila?.dependenciasPendientes ?? [];
+                // Misma ficha que las demás: se construye una nota con la forma que
+                // `dependenciaDeNota` entiende, para no tener DOS maneras de decir
+                // lo mismo (que es como llegamos a tres números distintos).
+                const b = pend.length
+                    ? fichaDeBloqueada(`dependencia no integrada: ${pend.join(", ")}`, estadoDeBloqueadas, titulo, {
+                          estado: "bloqueada",
+                      }, viaDe)
+                    : null;
+                filasOperativas.push({
+                    id,
+                    titulo: titulo(id),
+                    estado: b?.muerta ? "bloqueada sin salida" : "bloqueada",
+                    porque: b?.veredicto ?? "bloqueada en cola activa, sin dependencia anotada",
+                    ficha: b?.ficha,
+                    historial: d.historiales?.[id]?.slice(0, 4),
+                    acciones: accionesDeBloqueada({
+                        estado: b?.muerta ? "bloqueada sin salida" : "bloqueada",
+                        ficha: b?.ficha,
+                    }),
+                    historica: false,
+                });
+            }
+        }
+    } else {
+        // Camino de respaldo, sin cola activa que consultar. (2026-09-22) Aquí
+        // faltaba la ficha, y por eso este camino daba MENOS información que el
+        // otro para la misma tarea: una tercera manera de contar lo mismo, que es
+        // exactamente el problema que estamos cerrando. Las dos ramas dicen ya lo
+        // mismo; lo detectaron dos pruebas, no una revisión.
+        for (const [id, v] of todasBloqueadasProgreso) {
+            const b =
+                v.estado === "bloqueante" ? null : fichaDeBloqueada(v.nota, estadoDeBloqueadas, titulo, v, viaDe);
+            filasOperativas.push({
+                id,
+                titulo: titulo(id),
+                estado: b?.muerta ? "bloqueada sin salida" : v.estado,
+                porque:
+                    v.estado === "bloqueante"
+                        ? "agotó los reintentos gratuitos: necesita una persona"
+                        : (b?.veredicto ?? porqueBloqueada(v.nota, estadoDeBloqueadas)),
+                desde: v.t,
+                ficha: b?.ficha,
+                historial: d.historiales?.[id]?.slice(0, 4),
+                acciones: accionesDeBloqueada({
+                    estado: b?.muerta ? "bloqueada sin salida" : v.estado,
+                    ficha: b?.ficha,
+                }),
+                historica: false,
+            });
+        }
+    }
+
+    // (2026-10-08) Lo que «Listas» manda aquí («N más esperan a otra tarea: están en
+    // Bloqueadas») tiene que ESTAR aquí. PRD1005U esperaba a PRD1005S (la rehace
+    // PRD1005Sc) desde una cola que no es la activa: «Listas» decía 4 y «Bloqueadas» 3.
+    const yaEnFilas = new Set([...filasOperativas, ...filasHistoricas].map((f) => f.id));
+    for (const t of d.ejecutables) {
+        if (!t.esperaA?.length || yaEnFilas.has(t.id)) continue;
+        if (typeof d.asuntosDeMain === "string" && idIntegradoEnAsuntos(t.id, d.asuntosDeMain)) continue;
+        yaEnFilas.add(t.id);
+        const entrada = d.progreso[t.id];
+        const b = fichaDeBloqueada(`dependencia no integrada: ${t.esperaA.join(", ")}`, estadoDeBloqueadas, titulo, {
+            ...(entrada ?? {}),
+            estado: entrada?.estado || "pendiente",
+        }, viaDe);
+        filasOperativas.push({
+            id: t.id,
+            titulo: t.titulo || titulo(t.id),
+            estado: b.muerta ? "bloqueada sin salida" : "bloqueada",
+            porque: b.veredicto,
+            desde: entrada?.t,
+            ficha: b.ficha,
+            historial: d.historiales?.[t.id]?.slice(0, 4),
+            acciones: accionesDeBloqueada({ estado: b.muerta ? "bloqueada sin salida" : "bloqueada", ficha: b.ficha }),
+            historica: false,
+        });
+    }
+
+    filasOperativas.sort((a, b) => a.id.localeCompare(b.id));
+    filasHistoricas.sort((a, b) => a.id.localeCompare(b.id));
+
+    const totalOperativas = filasOperativas.length;
+    const totalHistoricas = filasHistoricas.length;
+    const listas = filasOperativas.filter((f) => f.porque?.includes("puede desbloquearse")).length;
+    // (2026-09-22) Las que esperan a algo que no va a llegar. Son las que hay que
+    // mirar HOY: las demás se desbloquean solas cuando su dependencia termine.
+    const sinSalida = filasOperativas.filter((f) => f.estado === "bloqueada sin salida").length;
+
+    // (2026-10-10, OPB1011) Alex: «hay demasiadas tareas bloqueadas». Eran 40 ESPERAS de dos
+    // cadenas. Las filas se reparten en «en cadena», «necesitan a Alex» y «atascadas», y la
+    // pastilla cuenta solo lo que de verdad está parado (`bloqueadas.ts`).
+    const repartidas = resumirBloqueadas(
+        [...filasOperativas, ...filasHistoricas],
+        d.revisorBloqueadas ?? null,
+        ahora ?? Date.now(),
+        filasSinResolver(d, ahora),
+    );
+    return { repartidas, totalOperativas, totalHistoricas, listas, sinSalida };
+}
+
 /** El detalle completo de un medidor: filas, porqués y acciones. */
 export function detalleDeMedidor(
     clave: ClaveMedidor,
@@ -1708,210 +2000,45 @@ export function detalleDeMedidor(
 
     switch (clave) {
         case "bloqueadas": {
-            // (2026-10-05, BLQ1005B) Una dependencia que está en CUALQUIER cola viva aunque
-            // aún no tenga entrada en progreso NO es un fantasma: va a arrancar. Se enseña
-            // como «en cola» en vez de «NO EXISTE», que era el diagnóstico que mandaba
-            // reparar bloqueos que se resuelven solos.
-            const vivaEnCola = (id: string) =>
-                Boolean(d.fila?.some((t) => t.id === id)) || d.ejecutables.some((t) => t.id === id);
-            // (2026-10-08) El estado de una dependencia es el de su CADENA (`cadenas.ts`, la regla
-            // del orquestador): «RM6 sustituida» con RM6b rehaciéndola es una espera viva, no una
-            // muerta; y una sucesora ya integrada la cumple.
-            const estadoPropio = (id: string) =>
-                d.progreso[id]?.estado ?? (vivaEnCola(id) ? "en cola" : undefined);
-            const idsConocidos = [
-                ...Object.keys(d.progreso),
-                ...(d.fila?.map((t) => t.id) ?? []),
-                ...d.ejecutables.map((t) => t.id),
-            ];
-            const enCadena = (id: string) => estadoDeDependencia(id, estadoPropio, idsConocidos);
-            const estadoDeBloqueadas = (id: string) => {
-                const r = enCadena(id);
-                return r.via ? r.estado : estadoPropio(id);
-            };
-            const viaDe = (id: string) => enCadena(id).via;
-            const idsBloqueadosOperativos = d.fila
-                ? obtenerIdsBloqueados(d.fila, d.latidos)
-                : null;
-
-            const todasBloqueadasProgreso = Object.entries(d.progreso)
-                .filter(([, v]) => v?.estado === "bloqueada" || v?.estado === "bloqueante");
-
-            const filasOperativas: FilaMedidor[] = [];
-            const filasHistoricas: FilaMedidor[] = [];
-
-            if (idsBloqueadosOperativos !== null && d.fila) {
-                const idsProgresoProcesados = new Set<string>();
-
-                for (const [id, v] of todasBloqueadasProgreso) {
-                    if (idsBloqueadosOperativos.has(id)) {
-                        idsProgresoProcesados.add(id);
-                        const b =
-                            v.estado === "bloqueante"
-                                ? null
-                                : fichaDeBloqueada(v.nota, estadoDeBloqueadas, titulo, v, viaDe);
-                        filasOperativas.push({
-                            id,
-                            titulo: titulo(id),
-                            estado: b?.muerta ? "bloqueada sin salida" : v.estado,
-                            porque:
-                                v.estado === "bloqueante"
-                                    ? "agotó los reintentos gratuitos: necesita una persona"
-                                    : (b?.veredicto ?? porqueBloqueada(v.nota, estadoDeBloqueadas)),
-                            desde: v.t,
-                            ficha: b?.ficha,
-                            historial: d.historiales?.[id]?.slice(0, 4),
-                            acciones: accionesDeBloqueada({
-                            estado: b?.muerta ? "bloqueada sin salida" : v.estado,
-                            ficha: b?.ficha,
-                        }),
-                            historica: false,
-                        });
-                    } else if (!d.fila.some((t) => t.id === id)) {
-                        filasHistoricas.push({
-                            id,
-                            titulo: titulo(id),
-                            estado: `${v.estado} (ola cerrada)`,
-                            porque:
-                                v.estado === "bloqueante"
-                                    ? "de ola cerrada · agotó reintentos"
-                                    : `de ola cerrada · ${porqueBloqueada(v.nota, estadoDeBloqueadas)}`,
-                            desde: v.t,
-                            acciones: accionesDeTarea(v.estado),
-                            historica: true,
-                        });
-                    }
-                }
-
-                for (const id of idsBloqueadosOperativos) {
-                    if (!idsProgresoProcesados.has(id)) {
-                        const tareaFila = d.fila.find((t) => t.id === id);
-                        const pend = tareaFila?.dependenciasPendientes ?? [];
-                        // Misma ficha que las demás: se construye una nota con la forma que
-                        // `dependenciaDeNota` entiende, para no tener DOS maneras de decir
-                        // lo mismo (que es como llegamos a tres números distintos).
-                        const b = pend.length
-                            ? fichaDeBloqueada(`dependencia no integrada: ${pend.join(", ")}`, estadoDeBloqueadas, titulo, {
-                                  estado: "bloqueada",
-                              }, viaDe)
-                            : null;
-                        filasOperativas.push({
-                            id,
-                            titulo: titulo(id),
-                            estado: b?.muerta ? "bloqueada sin salida" : "bloqueada",
-                            porque: b?.veredicto ?? "bloqueada en cola activa, sin dependencia anotada",
-                            ficha: b?.ficha,
-                            historial: d.historiales?.[id]?.slice(0, 4),
-                            acciones: accionesDeBloqueada({
-                                estado: b?.muerta ? "bloqueada sin salida" : "bloqueada",
-                                ficha: b?.ficha,
-                            }),
-                            historica: false,
-                        });
-                    }
-                }
-            } else {
-                // Camino de respaldo, sin cola activa que consultar. (2026-09-22) Aquí
-                // faltaba la ficha, y por eso este camino daba MENOS información que el
-                // otro para la misma tarea: una tercera manera de contar lo mismo, que es
-                // exactamente el problema que estamos cerrando. Las dos ramas dicen ya lo
-                // mismo; lo detectaron dos pruebas, no una revisión.
-                for (const [id, v] of todasBloqueadasProgreso) {
-                    const b =
-                        v.estado === "bloqueante" ? null : fichaDeBloqueada(v.nota, estadoDeBloqueadas, titulo, v, viaDe);
-                    filasOperativas.push({
-                        id,
-                        titulo: titulo(id),
-                        estado: b?.muerta ? "bloqueada sin salida" : v.estado,
-                        porque:
-                            v.estado === "bloqueante"
-                                ? "agotó los reintentos gratuitos: necesita una persona"
-                                : (b?.veredicto ?? porqueBloqueada(v.nota, estadoDeBloqueadas)),
-                        desde: v.t,
-                        ficha: b?.ficha,
-                        historial: d.historiales?.[id]?.slice(0, 4),
-                        acciones: accionesDeBloqueada({
-                            estado: b?.muerta ? "bloqueada sin salida" : v.estado,
-                            ficha: b?.ficha,
-                        }),
-                        historica: false,
-                    });
-                }
-            }
-
-            // (2026-10-08) Lo que «Listas» manda aquí («N más esperan a otra tarea: están en
-            // Bloqueadas») tiene que ESTAR aquí. PRD1005U esperaba a PRD1005S (la rehace
-            // PRD1005Sc) desde una cola que no es la activa: «Listas» decía 4 y «Bloqueadas» 3.
-            const yaEnFilas = new Set([...filasOperativas, ...filasHistoricas].map((f) => f.id));
-            for (const t of d.ejecutables) {
-                if (!t.esperaA?.length || yaEnFilas.has(t.id)) continue;
-                if (typeof d.asuntosDeMain === "string" && idIntegradoEnAsuntos(t.id, d.asuntosDeMain)) continue;
-                yaEnFilas.add(t.id);
-                const entrada = d.progreso[t.id];
-                const b = fichaDeBloqueada(`dependencia no integrada: ${t.esperaA.join(", ")}`, estadoDeBloqueadas, titulo, {
-                    ...(entrada ?? {}),
-                    estado: entrada?.estado || "pendiente",
-                }, viaDe);
-                filasOperativas.push({
-                    id: t.id,
-                    titulo: t.titulo || titulo(t.id),
-                    estado: b.muerta ? "bloqueada sin salida" : "bloqueada",
-                    porque: b.veredicto,
-                    desde: entrada?.t,
-                    ficha: b.ficha,
-                    historial: d.historiales?.[t.id]?.slice(0, 4),
-                    acciones: accionesDeBloqueada({ estado: b.muerta ? "bloqueada sin salida" : "bloqueada", ficha: b.ficha }),
-                    historica: false,
-                });
-            }
-
-            filasOperativas.sort((a, b) => a.id.localeCompare(b.id));
-            filasHistoricas.sort((a, b) => a.id.localeCompare(b.id));
-
-            const totalOperativas = filasOperativas.length;
-            const totalHistoricas = filasHistoricas.length;
-            const listas = filasOperativas.filter((f) => f.porque?.includes("puede desbloquearse")).length;
-            // (2026-09-22) Las que esperan a algo que no va a llegar. Son las que hay que
-            // mirar HOY: las demás se desbloquean solas cuando su dependencia termine.
-            const sinSalida = filasOperativas.filter((f) => f.estado === "bloqueada sin salida").length;
-
-            // (2026-10-10, OPB1011) Alex: «hay demasiadas tareas bloqueadas». Eran 40 ESPERAS de dos
-            // cadenas. Las filas se reparten en «en cadena», «necesitan a Alex» y «atascadas», y la
-            // pastilla cuenta solo lo que de verdad está parado (`bloqueadas.ts`).
-            const repartidas = resumirBloqueadas(
-                [...filasOperativas, ...filasHistoricas],
-                d.revisorBloqueadas ?? null,
-                ahora ?? Date.now(),
-            );
-            const todasFilas: FilaMedidor[] = repartidas.filas;
-
-            // (2026-09-22, Alex: «aparece diferente numero de tareas bloqueadas del medidor
-            // a las bloqueadas y rechazadas de la ventana emergente»). Y es cierto, pero no
-            // es el mismo dato: este medidor cuenta SOLO las que esperan a otra tarea
-            // (`bloqueada`/`bloqueante`), y el panel de Ramificación cuenta además las
-            // rechazadas, los fallos y las `sin_cambios`. Dos preguntas distintas con
-            // etiquetas parecidas parecen una contradicción, así que aquí se dice EN VOZ
-            // ALTA qué se está contando y dónde están las otras.
-            let resumenText = "";
-            if (totalOperativas === 0) {
-                resumenText = totalHistoricas > 0 ? `0 esperando · ${totalHistoricas} de olas cerradas` : "nada esperando";
-            } else {
-                resumenText = `${repartidas.resumen.texto}${sinSalida > 0 ? ` · ${sinSalida} SIN SALIDA` : ""}${
-                    listas > 0 ? ` · ${listas} ya pueden desbloquearse` : ""
-                }${totalHistoricas > 0 ? ` · ${totalHistoricas} de olas cerradas` : ""} · las rechazadas y los fallos van en Ramificación`;
-            }
-
+            const { repartidas, totalHistoricas, sinSalida } = repartoDeBloqueadas(d, ahora);
+            // Solo lo que está PARADO: atascadas, te necesitan y fallidas o rechazadas sin resolver.
+            // Las esperas de una cadena van en «En cadena» (se desbloquean solas).
+            const todasFilas = repartidas.filas.filter((f) => f.grupo !== "cadena");
+            const r = repartidas.resumen;
+            const resumenText =
+                r.valor === 0 && totalHistoricas === 0
+                    ? r.texto
+                    : `${r.texto}${sinSalida > 0 ? ` · ${sinSalida} SIN SALIDA` : ""}${
+                          totalHistoricas > 0 ? ` · ${totalHistoricas} de olas cerradas` : ""
+                      }`;
             return {
                 clave,
                 titulo: "Bloqueadas",
                 resumen: resumenText,
                 filas: todasFilas,
                 historicas: totalHistoricas,
-                bloqueadas: repartidas.resumen,
-                acciones: todasFilas.length
-                    ? [{ clase: "descartar-todas", texto: "Descartar todas", destructiva: true }]
-                    : [],
-                vacio: "Ninguna tarea espera a otra: lo que queda o está en marcha o está hecho.",
+                bloqueadas: r,
+                // «Descartar todas» se quita: nunca se pintaba aquí y, con las fallidas dentro,
+                // descartaría trabajo que una sucesora está rehaciendo.
+                acciones: [],
+                vacio: r.enCadena
+                    ? `Nada parado. ${r.enCadena} en cadena: se desbloquean solas (medidor «En cadena»).`
+                    : "Nada parado: lo que queda o está en marcha o está hecho.",
+            };
+        }
+
+        case "en-cadena": {
+            const { repartidas, listas } = repartoDeBloqueadas(d, ahora);
+            const filas = repartidas.filas.filter((f) => f.grupo === "cadena");
+            const r = repartidas.resumen;
+            return {
+                clave,
+                titulo: "En cadena",
+                resumen: `${r.textoCadena}${listas > 0 ? ` · ${listas} ya pueden desbloquearse` : ""}`,
+                filas,
+                bloqueadas: r,
+                acciones: [IR_A("Ver la ramificación", "procesos")],
+                vacio: "Ninguna tarea espera a otra: nada en cadena.",
             };
         }
 
@@ -2141,47 +2268,7 @@ export function detalleDeMedidor(
         }
 
         case "fallidas": {
-            // (2026-10-09) Lo que falló en los últimos 3 días y sigue sin resolver: ni está en
-            // main ni lo ha cumplido una sucesora de su cadena. Con quién lo retoma, para que
-            // un fallo no sea un número rojo sin dueño.
-            const FALLO = /^(fallo.*|sin_cambios|conflicto|interrumpida)$/;
-            const limite = (ahora ?? Date.now()) - 3 * 24 * 3600 * 1000;
-            const ids = Object.keys(d.progreso);
-            const enMain = (id: string) => typeof d.asuntosDeMain === "string" && idIntegradoEnAsuntos(id, d.asuntosDeMain);
-            const filas: FilaMedidor[] = [];
-            for (const [id, v] of Object.entries(d.progreso)) {
-                const est = String(v?.estado ?? "");
-                if (!FALLO.test(est) || enMain(id)) continue;
-                const t = Date.parse(String(v?.t ?? "").replace(" ", "T"));
-                if (Number.isFinite(t) && t < limite) continue;
-                const sucesoras = sucesorasDe(id, ids);
-                if (sucesoras.some((k) => INTEGRADOS.has(d.progreso[k]?.estado ?? "") || enMain(k))) continue;
-                // (2026-10-09) Lo que el director ya resolvió (la retiró por copia de algo integrado,
-                // la rechazó) no es una fallida sin dueño aunque el vigilante aún no lo haya aplicado.
-                const decidida = d.correcciones?.[id];
-                if (decidida && /^(sustituida|rechazada|commit|hecho)$/.test(decidida.estado ?? "")) continue;
-                const viva = sucesoras.find((k) => !MUERTOS_CADENA.has(d.progreso[k]?.estado ?? ""));
-                const nota = decidida?.nota && decidida.estado !== est ? decidida.nota : String(v?.nota ?? "");
-                const intento = /reintento gratuito (\d+)\/(\d+)/.exec(nota);
-                const codex = /escalada a Codex[^·]*/.exec(nota);
-                filas.push({
-                    id,
-                    titulo: titulo(id) !== id ? titulo(id) : "sin título en su cola",
-                    estado: est.replace(/_/g, " "),
-                    desde: v?.t,
-                    porque: viva
-                        ? `la rehace ${viva} (${d.progreso[viva]?.estado || "pendiente"})`
-                        : intento
-                          ? `la escalera del director la reintenta (intento ${intento[1]} de ${intento[2]}) · ${nota.slice(0, 120)}`
-                          : codex
-                            ? `la escalera del director la pasa a un modelo capaz: ${codex[0].trim()}`
-                            : decidida?.estado === "bloqueante"
-                              ? `necesita una persona: ${nota.replace(/^director:\s*/, "").slice(0, 140)}`
-                              : nota.slice(0, 160) || "sin nota",
-                    acciones: accionesDeBloqueada({ estado: est }),
-                });
-            }
-            filas.sort((a, b) => String(b.desde ?? "").localeCompare(String(a.desde ?? "")));
+            const filas = filasFallidasSinResolver(d, ahora);
             return {
                 clave,
                 titulo: "Fallidas sin resolver",
@@ -2851,6 +2938,7 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     "creditos",
     "listas",
     "bloqueadas",
+    "en-cadena",
     "sin-publicar",
     "proveedores",
     "memoria",

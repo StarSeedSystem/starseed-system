@@ -80,7 +80,8 @@ describe("el medidor de bloqueadas dice QUÉ cuenta", () => {
         const d = detalleDeMedidor("bloqueadas", datos);
         // (2026-10-10, OPB1011) Esperan a algo que no va a llegar: son «atascadas», no esperas en cadena.
         expect(d.resumen).toContain("2 atascadas");
-        expect(d.resumen).toContain("Ramificación");
+        // (2026-10-20) Ya no manda a mirar «Ramificación»: la sección de allí lee este mismo medidor.
+        expect(d.resumen).not.toContain("Ramificación");
     });
 
     it("cuenta aparte las que no tienen salida", () => {
