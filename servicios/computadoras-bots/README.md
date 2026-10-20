@@ -15,8 +15,8 @@ Cada bot de Astraura requiere un entorno de ejecución aislado para interactuar 
 ### 1. Preparar el entorno
 Crea un archivo `.env` (no versionado) en esta carpeta:
 ```bash
-SUPERVISOR_TOKEN=tu_token_seguro_aqui
-COMPUTER_TOKEN=tu_token_seguro_aqui
+SUPERVISOR_TOKEN=<tu_token_seguro_aqui>
+COMPUTER_TOKEN=<tu_token_seguro_aqui>
 ```
 
 ### 2. Desplegar
