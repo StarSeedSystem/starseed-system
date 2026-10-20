@@ -4477,3 +4477,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTCOL1012Ae` — no escribió nada
 - `PG1013F` — otra cosa: sin decisión en 0 h; rama ola/PG1013F conservada
+
+## 2026-10-20 00:18 · mg-oracle-1019-1732
+
+**Lo que se pidió.** Ejecutor de acciones tipadas y directiva [[BOT: …]] (traducción a los ejecutores reales)
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- freellmapi/auto integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `RTBOT1011Gd` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTGN1010A-d3b` — no escribió nada
