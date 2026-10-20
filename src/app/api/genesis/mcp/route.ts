@@ -1,50 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { atenderMcp } from "@/lib/genesis/mcp/protocolo";
+import { atenderMcp, type HerramientaMcp } from "@/lib/genesis/mcp/protocolo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
-  const url = new URL(req.url);
-  const method = url.searchParams.get("method");
-  const id = url.searchParams.get("id") || "1";
-  const params = url.searchParams.get("params")
-    ? JSON.parse(url.searchParams.get("params") || "{}")
-    : undefined;
-
-  let peticion: any;
-
-  if (method === "initialize") {
-    peticion = { jsonrpc: "2.0", id: id, method: "initialize" };
-  } else if (method === "tools/list") {
-    peticion = { jsonrpc: "2.0", id: id, method: "tools/list" };
-  } else if (method === "tools/call") {
-    const name = url.searchParams.get("name") || "";
-    const args = url.searchParams.get("arguments")
-      ? JSON.parse(url.searchParams.get("arguments") || "{}")
-      : {};
-    peticion = {
-      jsonrpc: "2.0",
-      id: id,
-      method: "tools/call",
-      params: { name, arguments: args },
-    };
-  } else {
-    return NextResponse.json(
-      { ok: false, error: "Método no especificado" },
-      { status: 400 }
-    );
-  }
-
-  const { herramientas } = await import("../mcp/protocolo");
-  // Nota: herramientas se inyectarán en tiempo de ejecución
-
-  // Para esta conexión provisional, usamos herramientas falsas para compatibilidad
-  const herramientasFalsas = [
+function herramientasPredeterminadas(): HerramientaMcp[] {
+  return [
     {
       nombre: "estado",
       descripcion: "Obtiene el estado del sistema",
-      esquema: { type: "object", properties: {} } as Record<string, unknown>,
+      esquema: { type: "object", properties: {} },
       ejecutar: async () => ({
         contenido: [{ tipo: "texto", texto: "ok" }],
       }),
@@ -52,15 +17,40 @@ export async function GET(req: NextRequest) {
     {
       nombre: "tareas_listar",
       descripcion: "Lista tareas",
-      esquema: { type: "object", properties: { limite: { type: "number" } } } as Record<string, unknown>,
+      esquema: { type: "object", properties: { limite: { type: "number" } } },
       ejecutar: async (args: Record<string, unknown>) => ({
         contenido: [{ tipo: "texto", texto: `tareas con límite ${args.limite ?? 10}` }],
       }),
     },
   ];
+}
+
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const method = url.searchParams.get("method");
+  const id: string | number = url.searchParams.get("id") || "1";
+
+  let peticion: unknown;
+
+  if (method === "initialize") {
+    peticion = { jsonrpc: "2.0", id, method: "initialize" };
+  } else if (method === "tools/list") {
+    peticion = { jsonrpc: "2.0", id, method: "tools/list" };
+  } else if (method === "tools/call") {
+    const name = url.searchParams.get("name") || "";
+    const argsStr = url.searchParams.get("arguments") || "{}";
+    const args: Record<string, unknown> = JSON.parse(argsStr);
+    peticion = { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } };
+  } else {
+    return NextResponse.json(
+      { jsonrpc: "2.0", error: { code: -32600, message: "Método no especificado" } },
+      { status: 400 }
+    );
+  }
 
   const contexto = undefined;
-  const respuesta = await atenderMcp(peticion, { herramientas: herramientasFalsas, contexto });
+  const herramientas = herramientasPredeterminadas();
+  const respuesta = await atenderMcp(peticion, { herramientas, contexto });
 
   return NextResponse.json(respuesta);
 }
@@ -69,7 +59,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { method, id, params } = body;
 
-  let peticion: any;
+  let peticion: unknown;
 
   if (method === "initialize") {
     peticion = { jsonrpc: "2.0", id, method: "initialize" };
@@ -79,33 +69,14 @@ export async function POST(req: NextRequest) {
     peticion = { jsonrpc: "2.0", id, method: "tools/call", params };
   } else {
     return NextResponse.json(
-      { ok: false, error: "Método no soportado" },
+      { jsonrpc: "2.0", error: { code: -32600, message: "Método no soportado" } },
       { status: 400 }
     );
   }
 
   const contexto = undefined;
-  const { herramientas } = await import("../mcp/protocolo");
-  const herramientasFalsas = [
-    {
-      nombre: "estado",
-      descripcion: "Obtiene el estado del sistema",
-      esquema: { type: "object", properties: {} } as Record<string, unknown>,
-      ejecutar: async () => ({
-        contenido: [{ tipo: "texto", texto: "ok" }],
-      }),
-    },
-    {
-      nombre: "tareas_listar",
-      descripcion: "Lista tareas",
-      esquema: { type: "object", properties: { limite: { type: "number" } } } as Record<string, unknown>,
-      ejecutar: async (args: Record<string, unknown>) => ({
-        contenido: [{ tipo: "texto", texto: `tareas con límite ${args.limite ?? 10}` }],
-      }),
-    },
-  ];
-
-  const respuesta = await atenderMcp(peticion, { herramientas: herramientasFalsas, contexto });
+  const herramientas = herramientasPredeterminadas();
+  const respuesta = await atenderMcp(peticion, { herramientas, contexto });
 
   return NextResponse.json(respuesta);
 }
