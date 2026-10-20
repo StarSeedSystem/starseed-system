@@ -24,28 +24,41 @@ export function normalizarBase(base?: string): string {
 
 export async function descubrir(base?: string): Promise<DescubrimientoResult> {
   const url = new URL("/.well-known/voicestudio-speech", normalizarBase(base)).toString();
-  const resp = await fetch(url);
-  if (!resp.ok) {
-    const motivo = await resp.text();
-    return { vivo: false, motivo: `HTTP ${resp.status}: ${motivo}` };
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error("Timeout de conexión (800 ms)")), 800);
+  });
+  try {
+    const resp = await Promise.race([fetch(url), timeout]);
+    if (!resp.ok) {
+      const motivo = await resp.text();
+      return { vivo: false, motivo: `HTTP ${resp.status}: ${motivo}` };
+    }
+    const data = (await resp.json()) as DescubrimientoResult;
+    if (!data.vivo) return { vivo: false, motivo: data.motivo || "Servicio no disponible" };
+    return { vivo: true, version: data.version, ofrece: data.ofere };
+  } catch (e: any) {
+    if (e.message && e.message.includes("Timeout")) return { vivo: false, motivo: "Timeout de conexión (800 ms)" };
+    return { vivo: false, motivo: "Error de red: no se pudo conectar al servicio" };
   }
-  const data = (await resp.json()) as DescubrimientoResult;
-  if (!data.vivo) return { vivo: false, motivo: data.motivo || "Servicio no disponible" };
-  return { vivo: true, version: data.version, ofrece: data.ofere };
 }
 
 export async function voces(base?: string): Promise<string[]> {
   const url = new URL("/v1/audio/voices", normalizarBase(base)).toString();
-  const resp = await fetch(url);
-  if (!resp.ok) {
-    const txt = await resp.text();
-    throw new Error(`Error ${resp.status}: ${txt}`);
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`Error ${resp.status}: ${txt}`);
+    }
+    const data = await resp.json();
+    if (!Array.isArray(data.voices)) {
+      throw new Error("Formato de respuesta inesperado");
+    }
+    return data.voices.map((v: { id: string }) => v.id);
+  } catch (e: any) {
+    if (e.message?.includes("Error")) throw e;
+    throw new Error("Error de red: no se pudo conectar al servicio");
   }
-  const data = await resp.json();
-  if (!Array.isArray(data.voices)) {
-    throw new Error("Formato de respuesta inesperado");
-  }
-  return data.voices.map((v: { id: string }) => v.id);
 }
 
 export async function hablar(base: string | undefined, params: HablarParams): Promise<Uint8Array> {
