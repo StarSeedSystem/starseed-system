@@ -1,11 +1,6 @@
-<<<<<<< HEAD
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { sugeridas, fusionarConAmbito, Director, Preferencias, Asignacion } from "../asignaciones";
 import { OpcionCatalogo, Papel } from "../catalogo-opciones";
-=======
-import { describe, it, expect } from "vitest";
-import { sugeridas, fusionarConAmbito, OpcionCatalogo, Papel, Director, Preferencias, Asignacion } from "../asignaciones";
->>>>>>> c333d6b1a (salvavidas · GCA1019F: trabajo del agente antes de las puertas (tsc / vitest))
 
 describe("sugeridas", () => {
   it("should return local Astraura first followed by free catalog options", () => {
@@ -156,7 +151,6 @@ describe("fusionarConAmbito", () => {
     const result = fusionarConAmbito([], [], []);
     expect(result).toEqual([]);
   });
-<<<<<<< HEAD
 
   it("should warn when discarding unknown IDs from delAmbito and sugeridas", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -179,6 +173,4 @@ describe("fusionarConAmbito", () => {
 
     warnSpy.mockRestore();
   });
-=======
->>>>>>> c333d6b1a (salvavidas · GCA1019F: trabajo del agente antes de las puertas (tsc / vitest))
 });
