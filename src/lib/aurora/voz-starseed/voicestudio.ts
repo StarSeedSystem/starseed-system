@@ -37,7 +37,7 @@ export async function descubrir(base?: string): Promise<DescubrimientoResult> {
     if (!data.vivo) return { vivo: false, motivo: data.motivo || "Servicio no disponible" };
     return { vivo: true, version: data.version, ofrece: data.ofrece };
   } catch (e: any) {
-    if (e.message && (e.message.includes("Timeout") || e.message.includes("404") || e.message.includes("500"))) return { vivo: false, motivo: e.message.includes("Timeout") ? "Timeout de conexión (800 ms)" : e.message };
+    if (e.message && (e.message.includes("Timeout") || e.message.includes("HTTP"))) return { vivo: false, motivo: e.message.includes("Timeout") ? "Timeout de conexión (800 ms)" : e.message };
     return { vivo: false, motivo: "Error de red: no se pudo conectar al servicio" };
   }
 }
@@ -56,7 +56,7 @@ export async function voces(base?: string): Promise<string[]> {
     }
     return data.voices.map((v: { id: string }) => v.id);
   } catch (e: any) {
-    if (e.message === "Formato de respuesta inesperado") throw e;
+    if (e.message.startsWith("Error ")) throw e;
     throw new Error("Error de red: no se pudo conectar al servicio");
   }
 }
