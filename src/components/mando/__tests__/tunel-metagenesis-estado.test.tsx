@@ -161,11 +161,7 @@ describe("TunelMetaGenesisEstado", () => {
     } finally {
       // Restore the original visibilityState
       if (originalVisibilityState !== undefined) {
-        try {
-          delete document.visibilityState;
-        } catch (e) {
-          // ignore
-        }
+
         Object.defineProperty(document, 'visibilityState', {
           value: originalVisibilityState,
           configurable: true
