@@ -59,7 +59,7 @@ describe("TunelMetaGenesisEstado", () => {
     
     // Verificar que las URLs fueron tachadas en las líneas
     expect(await screen.findByText(/Línea 1 \[túnel\]/i)).toBeInTheDocument();
-    expect(await screen.findByText(/Línea 2 sin URL/i)).toBeInTheDocument();
+    await await screen.findByText(/Línea 2 sin URL/i);
     expect(await screen.findByText(/Línea 3 \[túnel\]/i)).toBeInTheDocument();
   });
 
@@ -132,29 +132,41 @@ describe("TunelMetaGenesisEstado", () => {
   it("no realiza fetch cuando la página no está visible", async () => {
     vi.useFakeTimers();
     
+    // Store the original visibilityState
+    const originalVisibilityState = Object.getOwnPropertyDescriptor(document, 'visibilityState')?.value;
     // Simular que la página está oculta
     Object.defineProperty(document, 'visibilityState', {
       value: 'hidden',
       configurable: true
     });
     
-    render(<TunelMetaGenesisEstado />);
-    
-    // Esperar el efecto inicial
-    await act(async () => {
-      await Promise.resolve();
-    });
-    
-    let llamadasIniciales = llamadas.length;
-    
-    // Avanzar 60 segundos
-    await act(async () => {
-      vi.advanceTimersByTime(60_000);
-    });
-    
-    // Debe seguir teniendo el mismo número de llamadas (no se hizo fetch por estar oculto)
-    let llamadasDespuesEspera = llamadas.length;
-    expect(llamadasDespuesEspera).toBe(llamadasIniciales);
+    try {
+      render(<TunelMetaGenesisEstado />);
+      
+      // Esperar el efecto inicial
+      await act(async () => {
+        await Promise.resolve();
+      });
+      
+      let llamadasIniciales = llamadas.length;
+      
+      // Avanzar 60 segundos
+      await act(async () => {
+        vi.advanceTimersByTime(60_000);
+      });
+      
+      // Debe seguir teniendo el mismo número de llamadas (no se hizo fetch por estar oculto)
+      let llamadasDespuesEspera = llamadas.length;
+      expect(llamadasDespuesEspera).toBe(llamadasIniciales);
+    } finally {
+      // Restore the original visibilityState
+      if (originalVisibilityState !== undefined) {
+        Object.defineProperty(document, 'visibilityState', {
+          value: originalVisibilityState,
+          configurable: true
+        });
+      }
+    }
     
     vi.useRealTimers();
   });
@@ -188,6 +200,7 @@ describe("TunelMetaGenesisEstado", () => {
     };
 
     render(<TunelMetaGenesisEstado />);
+    console.log("visibilityState:", document.visibilityState);
     console.log("llamadas after render:", llamadas);
     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
 
@@ -232,6 +245,7 @@ describe("TunelMetaGenesisEstado", () => {
     };
 
     render(<TunelMetaGenesisEstado />);
+    console.log("visibilityState:", document.visibilityState);
     console.log("llamadas after render:", llamadas);
     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
 
@@ -239,7 +253,7 @@ describe("TunelMetaGenesisEstado", () => {
       expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
     });
 
-    // Should not show the últimas líneas section
+    // Should not show the últimos líneas section
     expect(screen.queryByText("Últimas líneas:")).not.toBeInTheDocument();
 
     // Restore the original fetch mock
