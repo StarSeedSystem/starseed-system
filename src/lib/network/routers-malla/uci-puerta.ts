@@ -1,4 +1,44 @@
-/** Guion sh para /etc/starseed/guardian-puerta.sh y el cron asociado. */
+/** UCI de puertas a internet en routers malla (§8.1 «Routers portátiles»: SIM/Wi‑Fi/USB/cable).
+ * Puro: sin red, disco ni `node:*`. Sangría con tabulador pegado. */
+
+export type TipoPuerta = 'movil-4g' | 'movil-5g' | 'wifi-externa' | 'usb-telefono' | 'cable';
+
+export interface CfgPuerta {
+  tipo: TipoPuerta; apn?: string; protocolo?: 'qmi' | 'mbim' | 'ncm'; dispositivo?: string;
+  ssidExterno?: string; claveExterna?: string; bajadaKbps: number; subidaKbps: number;
+}
+
+const q = (v: string | number): string => `'${String(v).replace(/'/g, "'\\''")}'`;
+const seccion = (tipo: string, nombre: string, ops: Array<[string, string | number]>): string =>
+  [`config ${tipo} ${q(nombre)}`, ...ops.map(([k, v]) => `    option ${k} ${q(v)}`)].join("\n");
+
+export function uciPuerta(e: CfgPuerta): { network: string; firewall: string } {
+  const isMovil = e.tipo === 'movil-4g' || e.tipo === 'movil-5g';
+  let net = '';
+  if (isMovil) {
+    net = seccion('interface', 'wwan', [['proto', e.protocolo ?? 'qmi'], ['device', e.dispositivo ?? '/dev/cdc-wdm0'],
+      ['apn', e.apn ?? ''], ['pdptype', 'ipv4v6']]);
+  } else if (e.tipo === 'wifi-externa') {
+    net = seccion('wifi-iface', 'puerta', [['device', 'radio_troncal'], ['mode', 'sta'],
+      ['network', 'wwan'], ['ssid', e.ssidExterno ?? ''], ['encryption', 'sae-mixed'], ['key', e.claveExterna ?? '']]) +
+      '\n\n' + seccion('interface', 'wwan', [['proto', 'dhcp']]);
+  } else if (e.tipo === 'usb-telefono') {
+    net = seccion('interface', 'wwan', [['proto', 'dhcp'], ['device', 'usb0']]);
+  } else {
+    net = seccion('interface', 'wan', [['proto', 'dhcp']]);
+  }
+  const bat = seccion('interface', 'bat0', [['proto', 'batadv'], ['gw_mode', 'server'],
+    ['gw_bandwidth', `${e.bajadaKbps}kbit/${e.subidaKbps}kbit`]]);
+  const firewall = seccion('zone', 'wwan', [['name', 'wwan'], ['network', 'wwan'], ['input', 'REJECT'],
+    ['output', 'ACCEPT'], ['forward', 'REJECT'], ['masq', '1'], ['mtu_fix', '1']]) + '\n\n' +
+    seccion('forwarding', 'lan_to_wwan', [['src', 'lan'], ['dest', 'wwan']]);
+  return { network: `${net}\n\n${bat}\n`, firewall: `${firewall}\n` };
+}
+
+export const uciClientePuerta = (): string =>
+  seccion('interface', 'bat0', [['proto', 'batadv'], ['gw_mode', 'client'], ['gw_sel_class', '5000']]) +
+  '\n# en BATMAN_V, gw_sel_class es la mejora mínima en kbit/s para cambiar de puerta\n';
+
 export function guionGuardianTope(e: {
   interfaz: string; topeMb: number; reservaPct: number; bajadaKbps: number; subidaKbps: number;
 }): string {

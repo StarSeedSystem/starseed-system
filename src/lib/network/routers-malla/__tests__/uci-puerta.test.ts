@@ -12,7 +12,7 @@ describe('uciPuerta', () => {
 
   it('genera firewall', () => {
     const { firewall } = uciPuerta({ tipo: 'movil-4g', bajadaKbps: 5000, subidaKbps: 1000 });
-    expect(firewall).toContain("option zone 'wwan'");
+    expect(firewall).toContain("config zone 'wwan'");
     expect(firewall).toContain("option masq '1'");
   });
 });
