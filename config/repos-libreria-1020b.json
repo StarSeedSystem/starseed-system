@@ -1,0 +1,299 @@
+{
+ "ola": "Ola 1020S · 2.ª tanda: 14 repos más en la Librería autoactualizable, preinstaladas con criterio e integradas por área",
+ "fecha": "2026-10-20",
+ "principio": "Igual que la 1.ª tanda (config/repos-libreria-1020.json): cada publicación declara su upstream y su CANAL; instalar no descarga ni lanza servidores; la ficha dice qué hace de verdad. «preinstalar»: «siempre» = se siembra para todas las cuentas (defaults-seed) porque su efecto es solo registrar la ficha, el enlace o el conector; «manual» = herramientas que ejecutan código, tocan datos sensibles o se instalan en la máquina de Alex: solo con decisión expresa.",
+ "efectos": {
+  "FUNCIONAL": "corre dentro del OS",
+  "CONECTOR": "servidor que se aloja (A1 o Mac); el OS habla con su API y el endpoint se pega en el Hub de Conectores",
+  "HERRAMIENTA-AGENTE": "CLI, skill o MCP para Claude, Genesis y Astraura",
+  "CATALOGO": "ficha, enlace y seguimiento de versiones"
+ },
+ "excluidas": [
+  {
+   "repo": "Vikunja-Self-Hosted/Vikunja-Task-Management",
+   "motivo": "No es Vikunja: repositorio sin código (3 commits, 0 estrellas) con README de relleno SEO y un botón de descarga hacia un dominio ajeno. Probable señuelo. Se usa el original go-vikunja/vikunja y este enlace queda bloqueado."
+  }
+ ],
+ "paquetes": [
+  {
+   "id": "lib-ruview",
+   "repo": "ruvnet/RuView",
+   "nombre": "RuView",
+   "kind": "tool",
+   "canal": "tags",
+   "patron_tag": "^ruview-harness-",
+   "licencia": "MIT",
+   "area": [
+    "malla",
+    "sentidos",
+    "agentes"
+   ],
+   "efecto": "HERRAMIENTA-AGENTE",
+   "preinstalar": "manual",
+   "claude": "si",
+   "que_es": "Sensado por WiFi con placas ESP32 (información del canal): presencia, ocupación, respiración, pulso, actividad y pose sin cámara. Servidor en Rust, paquetes Python/npm, comandos /ruview-* y servidor MCP.",
+   "nota": "No es una red P2P: es un «radar» de radiofrecuencia. Entra como herramienta de agentes (MCP) y como capa opcional de sensado de la malla, solo con consentimiento explícito de quienes estén en el espacio y con los datos en la neurona.",
+   "aviso": "Beta y con riesgo de vigilancia: nunca activado por defecto, nunca sin consentimiento, nada de datos de salud fuera de la neurona. Sus releases numéricas son instantáneas de CI: seguir solo las etiquetas ruview-harness-*."
+  },
+  {
+   "id": "lib-vikunja",
+   "repo": "go-vikunja/vikunja",
+   "nombre": "Vikunja",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "AGPL-3.0-or-later",
+   "area": [
+    "grupos",
+    "comunidades",
+    "paginas",
+    "gobernanza",
+    "cerebros",
+    "proyectos"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Gestor de tareas y proyectos autoalojable (binario Go o Docker, ARM64) con API REST OpenAPI, equipos, listas, tableros y vistas.",
+   "nota": "Tareas y proyectos de redes, grupos, comunidades, páginas, publicaciones, área ejecutiva, recursos colectivos, grupos de estudio, proyectos personales y cerebros: un proyecto de Vikunja por entidad. Las decisiones democráticas siguen en la gobernanza del OS; Vikunja ejecuta lo decidido.",
+   "aviso": "AGPL: si se modifica y se sirve, se publica el cambio. Funciones Pro de pago fuera. Servidor en el A1 (cabe) levantado por Alex."
+  },
+  {
+   "id": "lib-celld",
+   "repo": "denoland/celld",
+   "nombre": "celld",
+   "kind": "tool",
+   "canal": "releases",
+   "licencia": "Apache-2.0",
+   "area": [
+    "protomolecula",
+    "astraura",
+    "servidores"
+   ],
+   "efecto": "CATALOGO",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Demonio que ejecuta Workers y Durable Objects en máquinas propias: cada objeto es un SQLite replicado a un bucket que controla quien lo aloja.",
+   "nota": "Candidato para estados compartidos por sala (sesiones de la Protomolécula, salas de Astraura) cuando madure; hoy solo ficha y seguimiento de versiones.",
+   "aviso": "Muy joven (v0.1.0) y sin TLS entre nodos: solo en red privada cifrada; quien tenga el bucket administra la flota."
+  },
+  {
+   "id": "lib-sentry",
+   "repo": "getsentry/sentry",
+   "nombre": "Sentry",
+   "kind": "ai-source",
+   "canal": "releases",
+   "licencia": "FSL-1.1-Apache-2.0",
+   "area": [
+    "genesis",
+    "neuronas",
+    "seguridad"
+   ],
+   "efecto": "CATALOGO",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Plataforma de seguimiento de errores, trazas y rendimiento con SDK abiertos para muchos lenguajes.",
+   "nota": "La autorreparación de cada neurona, cerebro, perfil, cuenta, página y proceso la hace Genesis: recoge los errores con el formato del SDK de Sentry (sin datos personales), los agrupa y lanza la reparación. El servidor de Sentry no se autoaloja (pide 16 GB + 16 GB de swap).",
+   "aviso": "FSL no es código abierto OSI y prohíbe usos que compitan con Sentry. Los eventos de error pueden llevar datos personales: siempre con limpieza previa."
+  },
+  {
+   "id": "lib-windmill",
+   "repo": "windmill-labs/windmill",
+   "nombre": "Windmill",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "AGPL-3.0 (núcleo) + Apache-2.0 (SDK) + propietario (Enterprise)",
+   "area": [
+    "genesis",
+    "astraura",
+    "automatizacion",
+    "grupos"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "si",
+   "que_es": "Convierte scripts (Python, TypeScript, Go, Bash, SQL…) en flujos, trabajos programados, webhooks e interfaces; API REST, SDK y CLI wmill.",
+   "nota": "Motor de flujos deterministas y trabajos programados que Genesis y Astraura disparan por API (ETL, avisos de grupos, automatizaciones de comunidades). No sustituye a Genesis.",
+   "aviso": "Ejecuta código: nunca expuesto a internet; Postgres + un worker por vCPU (1-2 GB cada uno). Comprobar imagen ARM64 antes del A1."
+  },
+  {
+   "id": "lib-metabase",
+   "repo": "metabase/metabase",
+   "nombre": "Metabase",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "AGPL-3.0 + licencia comercial",
+   "area": [
+    "datos",
+    "gobernanza",
+    "economia",
+    "genesis"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Analítica y paneles: preguntas sin SQL, editor SQL, gráficos, alertas y API REST.",
+   "nota": "Gráficos e información verificable sobre una réplica de solo lectura de la base del OS (gobernanza, uso, economía), cada gráfico con su consulta a la vista.",
+   "aviso": "JVM pesada: en el A1 con Postgres propio para sus metadatos; roles de solo lectura y sin datos personales en la réplica; el embebido avanzado es de pago."
+  },
+  {
+   "id": "lib-trilium",
+   "repo": "TriliumNext/Trilium",
+   "nombre": "Trilium Notes",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "AGPL-3.0-or-later",
+   "area": [
+    "notas",
+    "perfiles",
+    "cerebros",
+    "grupos",
+    "comunidades",
+    "archivos",
+    "paginas"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Notas jerárquicas para grandes bases de conocimiento: editor, código, cifrado por nota, lienzo, mapas de relaciones, scripting y ETAPI (API REST).",
+   "nota": "Almacén de notas personales y de archivos; Astraura y los cerebros leen y escriben por ETAPI. Para grupos y comunidades, una instancia por grupo o las páginas propias del OS.",
+   "aviso": "Pensado para una persona por instancia; la sincronización cambió tras 0.90.4."
+  },
+  {
+   "id": "lib-tirreno",
+   "repo": "tirrenotechnologies/tirreno",
+   "nombre": "tirreno",
+   "kind": "app",
+   "canal": "releases",
+   "licencia": "AGPL-3.0",
+   "area": [
+    "seguridad",
+    "cuentas",
+    "gobernanza"
+   ],
+   "efecto": "CONECTOR",
+   "preinstalar": "manual",
+   "claude": "no",
+   "que_es": "Seguridad y prevención de fraude dentro de la aplicación: toma de cuentas, relleno de credenciales, bots y abuso, con reglas y panel.",
+   "nota": "Protege cuentas y votaciones de la democracia directa (cuentas falsas, bots). Es central: no protege la malla P2P.",
+   "aviso": "Recibe IP, correos y huellas de aparato: solo con aviso de privacidad, mínimo de datos y alojado por StarSeed; no se activa sin la decisión de Alex."
+  },
+  {
+   "id": "lib-politica-privacidad",
+   "repo": "nisrulz/app-privacy-policy-generator",
+   "nombre": "Generador de políticas de privacidad",
+   "kind": "link",
+   "canal": "releases",
+   "licencia": "AGPL-3.0",
+   "area": [
+    "seguridad",
+    "grupos",
+    "comunidades",
+    "paginas"
+   ],
+   "efecto": "CATALOGO",
+   "preinstalar": "siempre",
+   "claude": "no",
+   "que_es": "Web que genera políticas de privacidad y términos para apps (estilos simple, sin seguimiento o RGPD).",
+   "nota": "Enlace desde grupos, comunidades y páginas para redactar sus avisos de privacidad. No es seguridad técnica: es cumplimiento.",
+   "aviso": "Los textos no son asesoramiento jurídico; no cubren la malla P2P ni la IA del OS."
+  },
+  {
+   "id": "lib-digup",
+   "repo": "ARahim3/DigUp",
+   "nombre": "DigUp",
+   "kind": "tool",
+   "canal": "releases",
+   "licencia": "MIT",
+   "area": [
+    "buscadores",
+    "cerebros",
+    "agentes"
+   ],
+   "efecto": "HERRAMIENTA-AGENTE",
+   "preinstalar": "manual",
+   "claude": "si",
+   "que_es": "Buscador local por significado en fotos, PDF, documentos, audio, vídeo y código, con EmbeddingGemma en el equipo (Apple Silicon) y CLI digup.",
+   "nota": "Para Claude y los agentes locales del Mac: buscar por significado en los archivos propios. Para los cerebros del OS es una referencia de diseño (embeddings locales + SQLite), no una pieza embebible.",
+   "aviso": "Solo Apple Silicon (Windows/Linux en beta); modelo de 865 MB; los índices contienen información sensible."
+  },
+  {
+   "id": "lib-moli",
+   "repo": "lexmount/moli",
+   "nombre": "Moli",
+   "kind": "tool",
+   "canal": "releases",
+   "licencia": "Apache-2.0 OR MIT",
+   "area": [
+    "astraura",
+    "agentes",
+    "internet"
+   ],
+   "efecto": "HERRAMIENTA-AGENTE",
+   "preinstalar": "manual",
+   "claude": "si",
+   "que_es": "Navegador sin interfaz en Rust para agentes de IA: ejecuta JavaScript y entrega Markdown y árbol semántico; CLI, CDP, WebDriver y skills.",
+   "nota": "Internet ligero para Astraura y los agentes de Genesis (moli serve en el A1), siempre dentro de un sandbox con lista de dominios permitidos.",
+   "aviso": "Ejecuta JavaScript ajeno y el contenido puede llevar inyección de instrucciones contra los agentes: sandbox y red limitada; verificar el instalador antes de ejecutarlo."
+  },
+  {
+   "id": "lib-openshell",
+   "repo": "NVIDIA/OpenShell",
+   "nombre": "OpenShell",
+   "kind": "tool",
+   "canal": "releases",
+   "licencia": "Apache-2.0",
+   "area": [
+    "agentes",
+    "seguridad",
+    "genesis",
+    "astraura"
+   ],
+   "efecto": "HERRAMIENTA-AGENTE",
+   "preinstalar": "manual",
+   "claude": "si",
+   "que_es": "Sandboxes para agentes autónomos con políticas declarativas de sistema de archivos, procesos, red e inferencia; corre Claude Code, Codex u OpenCode dentro.",
+   "nota": "Privacidad y seguridad de los agentes del enjambre y de Astraura: cada agente con código o internet dentro de un sandbox con salida de red por política (junto a Moli).",
+   "aviso": "Alfa (cambios incompatibles); telemetría activada por defecto: instalar con OPENSHELL_TELEMETRY_ENABLED=false."
+  },
+  {
+   "id": "lib-coucou",
+   "repo": "Louis-CFM/coucou",
+   "nombre": "Coucou",
+   "kind": "tool",
+   "canal": "releases",
+   "licencia": "MIT (código) · nombre, personaje, icono y sonidos con derechos reservados",
+   "area": [
+    "claude",
+    "genesis"
+   ],
+   "efecto": "CATALOGO",
+   "preinstalar": "manual",
+   "claude": "si",
+   "que_es": "App compañera (notch del Mac, Windows, Linux, iPhone, Android) que muestra las sesiones de Claude Code, Codex, Cursor o Gemini y permite aprobar permisos desde el móvil.",
+   "nota": "Para la supervisión de Alex sobre las sesiones de Claude: ver qué espera aprobación. No forma parte del OS.",
+   "aviso": "Instala hooks en la configuración de Claude Code y puede aprobar permisos de ejecución a distancia: se instala solo con la decisión expresa de Alex, revisando el cambio."
+  },
+  {
+   "id": "lib-dbx",
+   "repo": "t8y2/dbx",
+   "nombre": "DBX",
+   "kind": "tool",
+   "canal": "releases",
+   "licencia": "Apache-2.0",
+   "area": [
+    "neuronas",
+    "servidores",
+    "capas-de-conciencia",
+    "agentes",
+    "genesis"
+   ],
+   "efecto": "HERRAMIENTA-AGENTE",
+   "preinstalar": "manual",
+   "claude": "si",
+   "que_es": "Cliente de bases de datos (MySQL, PostgreSQL, SQLite, Redis, MongoDB, DuckDB, ClickHouse, Qdrant…) con CLI, servidor MCP y versión web.",
+   "nota": "Inspección de las bases locales de servidores, neuronas y capas de conciencia desde Claude y los agentes (MCP) y como panel web en el A1. No crea bases «inteligentes»: las inspecciona.",
+   "aviso": "El MCP tiene modo «Acceso total» que escribe y borra: siempre en solo lectura; su IA integrada puede enviar esquemas a la nube (solo Ollama es local)."
+  }
+ ],
+ "licencias_verificadas": "2026-10-20 en github.com (barra lateral, LICENSE y páginas de releases; la API de GitHub no estaba disponible en esta sesión)"
+}
