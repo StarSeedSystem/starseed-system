@@ -5,11 +5,12 @@
  * de cada uno) y la operación va a `controlador.mover` (origen `midi`). Mientras se aprende, los mandos no mueven nada.
  */
 import type { AlmacenLocal } from "./almacen-moleculas";
-import type { MensajeMidi } from "./adaptador-midi";
 import type { Controlador, ResultadoMover } from "./controlador";
 import type { Autor, Parametro, ParametroRef } from "./tipos";
 import { claveFuente, esDiscreto, estadoInicial, procesar, siguienteAprender, vinculoAprendido } from "./vinculos-control";
 import type { EstadoAprender, EstadoVinculo, EventoAprender, FuenteControl, Vinculo } from "./vinculos-control";
+
+export interface MensajeControl { fuente: FuenteControl; bruto: number }
 
 export const PREFIJO_VINCULOS = "starseed.protomolecula.vinculos.v1:";
 export const MAX_VINCULOS = 256;
