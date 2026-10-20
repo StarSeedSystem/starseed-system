@@ -34,8 +34,8 @@ function validar(e: CfgUciMalla): string {
   if (!wpa.test(e.claveMalla) || !wpa.test(e.cliente.clave)) throw new Error("Las claves: de 8 a 63 caracteres ASCII imprimibles");
   // La banda acaba dentro del guion sh: solo pasan las tres conocidas (un JSON guardado podría traer otra cosa)
   if (!Object.keys(PREFIJO).includes(e.troncal.banda)) throw new Error("La banda de la troncal debe ser 2g, 5g o 6g");
-  for (const [b, c] of [[e.troncal.banda, e.troncal.canal], ["2g", e.cliente.canal]] as Array<[BandaWifi, number]>)
-    if (!Number.isInteger(c) || c < CANALES[b][0] || c > CANALES[b][1]) throw new Error(`El canal ${c} no existe en ${b}`);
+  for (const item of [[e.troncal.banda, e.troncal.canal], ["2g", e.cliente.canal]] as Array<[BandaWifi, number]>)
+    if (!Number.isInteger(item[1]) || item[1] < CANALES[item[0]][0] || item[1] > CANALES[item[0]][1]) throw new Error(`El canal ${item[1]} no existe en ${item[0]}`);
   if (!(e.troncal.pireDbm >= 0 && e.troncal.pireDbm <= 36)) throw new Error("La PIRE de la troncal: de 0 a 36 dBm");
   return pais;
 }
@@ -64,34 +64,16 @@ export function uciMalla(e: CfgUciMalla): UciMalla {
   return { wireless, network: `${network.join("\n\n")}\n` };
 }
 
-/** `uciClientePuerta()` configura bat0 en modo client (§8.1).
+/** `uciClientePuerta()` configura bat0 en modo client (§8.1). Re-exportada desde uci-puerta.
  * En BATMAN_V, `gw_sel_class` es la mejora mínima en kbit/s para cambiar de puerta. */
-export const uciClientePuerta = (): string =>
-  seccion('interface', 'bat0', [['proto', 'batadv'], ['gw_mode', 'client'], ['gw_sel_class', '5000']]) +
-  '\n# en BATMAN_V, gw_sel_class es la mejora mínima en kbit/s para cambiar de puerta\n';
+export { uciClientePuerta };
 
 /** `guionGuardianTope(e)` genera el guion sh para /etc/starseed/guardian-puerta.sh + línea de cron cada 5 min (§8.1).
  * Suma rx+tx de /sys/class/net/<if>/statistics, guarda el último bruto y acumula por mes en /etc/starseed/uso-puerta-AAAAMM
  * (si el bruto baja, fue un reinicio: suma el bruto); al llegar a tope × (1 − reserva) hace `batctl gw_mode client`
- * y lo anota con `logger`; con el mes nuevo vuelve a `batctl gw_mode server <bw>`. Ninguna clave en comentarios. */
-export function guionGuardianTope(e: {interfaz: string; topeMb: number; reservaPct: number; bajadaKbps: number; subidaKbps: number}): string {
-  const topeBytes = e.topeMb * 1024 * 1024;
-  const reserva = e.reservaPct / 100;
-  const umbralBytes = Math.floor(topeBytes * (1 - reserva));
-  return `#!/bin/sh
-# StarSeed: guardián de puerta ${e.interfaz} (tope ${e.topeMB}MB, reserva ${e.reservaPct}%)
-DIR=/etc/starseed; [ -d "$DIR" ] || mkdir -p "$DIR"
-MES=$(date +%Y%m); ARCH=$DIR/uso-puerta-$MES
-VAL=$(cat /sys/class/net/${e.interfaz}/statistics/rx_bytes 2>/dev/null) || exit 0
-BRUTO=$VAL; [ -f "$ARCH" ] && PREV=$(cat "$ARCH") && [ "$VAL" -ge "$PREV" ] && ACUM=$(($(cat "$ARCH.acum" 2>/dev/null || echo 0) + VAL - PREV)) || ACUM=$VAL
-echo "$BRUTO" > "$ARCH"; echo "$ACUM" > "$ARCH.acum"
-if [ "$ACUM" -ge ${umbralBytes} ]; then
-  batctl gw_mode client; logger "StarSeed: tope ${e.topeMB}MB alcanzado en ${e.interfaz}, desactivando gw server"
-else
-  batctl gw_mode server ${e.bajadaKbps}kbit/${e.subidaKbps}kbit
-fi
-`;
-}
+ * y lo anota con `logger`; con el mes nuevo vuelve a `batctl gw_mode server <bw>`. Ninguna clave en comentarios.
+ * Re-exportada desde uci-puerta. */
+export { guionGuardianTope };
 
 /** Guion sh para pegar por SSH: copia, comprobaciones, paquetes, configuración y vuelta atrás sola en 5 min. */
 export function guionAplicar(cfg: CfgUciMalla): string {
