@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """Tests for governor_generico.py — PURE FUNCTIONS."""
 import os
 import unittest
@@ -59,15 +60,80 @@ class TestDeSysctl(unittest.TestCase):
         resultado = de_sysctl(texto)
         self.assertAlmostEqual(resultado, 1024.0, places=1)  # 1 GB en MB
     
+=======
+#!/usr/bin/env python3
+"""Pruebas para gobernador_generico.py"""
+
+import unittest
+from gobernador_generico import (
+    de_meminfo, de_sysctl, de_bateria_linux, de_pmset,
+    _version_a_numero, herramientas, medir
+)
+
+
+class TestGobernadorGenerico(unittest.TestCase):
+    
+    def test_meminfo_valido(self):
+        texto = """MemTotal:       8065216 kB
+MemAvailable:   2048000 kB"""
+        resultado = de_meminfo(texto)
+        self.assertIsNotNone(resultado)
+        if resultado is not None:
+            self.assertEqual(resultado["total_mb"], 7876)  # 8065216 // 1024
+            self.assertEqual(resultado["disponible_mb"], 2000)  # 2048000 // 1024
+
+    def test_meminfo_sin_memavailable(self):
+        texto = """MemTotal:       4026928 kB
+MemFree:        1000000 kB"""
+        resultado = de_meminfo(texto)
+        self.assertIsNotNone(resultado)
+        if resultado is not None:
+            self.assertEqual(resultado["total_mb"], 3932)  # 4026928 // 1024
+            self.assertIsNone(resultado["disponible_mb"])
+
+    def test_meminfo_vacio(self):
+        texto = ""
+        resultado = de_meminfo(texto)
+        self.assertIsNone(resultado)
+
+    def test_meminfo_formato_diferente(self):
+        texto = """MemTotal:   1024000 kB
+MemAvailable:  512000 kB"""
+        resultado = de_meminfo(texto)
+        self.assertIsNotNone(resultado)
+        if resultado is not None:
+            self.assertEqual(resultado["total_mb"], 1000)  # 1024000 // 1024
+            self.assertEqual(resultado["disponible_mb"], 500)  # 512000 // 1024
+
+    def test_sysctl_valido(self):
+        texto = "hw.memsize: 17179869184"
+        resultado = de_sysctl(texto)
+        self.assertIsNotNone(resultado)
+        if resultado is not None:
+            self.assertAlmostEqual(resultado, 16384.0, places=1)  # 16 GB en MB
+
+    def test_sysctl_valor_pequeno(self):
+        texto = "hw.memsize: 1073741824"
+        resultado = de_sysctl(texto)
+        self.assertIsNotNone(resultado)
+        if resultado is not None:
+            self.assertAlmostEqual(resultado, 1024.0, places=1)  # 1 GB en MB
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_sysctl_sin_valor(self):
         texto = "hw.memsize: "
         resultado = de_sysctl(texto)
         self.assertIsNone(resultado)
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_sysctl_linea_vacia(self):
         texto = ""
         resultado = de_sysctl(texto)
         self.assertIsNone(resultado)
+<<<<<<< HEAD
     
     def test_sysctl_otras_lineas(self):
         texto = """hw.ncpu: 8
@@ -80,6 +146,18 @@ hw.cachelinesize: 64"""
 class TestDeBateriaLinux(unittest.TestCase):
     """Tests for de_bateria_linux function."""
     
+=======
+
+    def test_sysctl_otras_lineas(self):
+        texto = """hw.ncpu: 8
+hw.memsize: 17179869184
+hw.pagesize: 4096"""
+        resultado = de_sysctl(texto)
+        self.assertIsNotNone(resultado)
+        if resultado is not None:
+            self.assertAlmostEqual(resultado, 16384.0, places=1)
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_bateria_cargando(self):
         lineas = [
             "/sys/class/power_supply/BAT0/capacity: 76",
@@ -88,7 +166,11 @@ class TestDeBateriaLinux(unittest.TestCase):
         resultado = de_bateria_linux(lineas)
         self.assertEqual(resultado["nivel"], 0.76)
         self.assertTrue(resultado["cargando"])
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_bateria_descargando(self):
         lineas = [
             "/sys/class/power_supply/BAT0/capacity: 45",
@@ -97,7 +179,11 @@ class TestDeBateriaLinux(unittest.TestCase):
         resultado = de_bateria_linux(lineas)
         self.assertEqual(resultado["nivel"], 0.45)
         self.assertFalse(resultado["cargando"])
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_bateria_completa(self):
         lineas = [
             "/sys/class/power_supply/BAT0/capacity: 100",
@@ -106,7 +192,11 @@ class TestDeBateriaLinux(unittest.TestCase):
         resultado = de_bateria_linux(lineas)
         self.assertEqual(resultado["nivel"], 1.0)
         self.assertTrue(resultado["cargando"])  # Full se considera cargando
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_bateria_solo_capacity(self):
         lineas = [
             "/sys/class/power_supply/BAT0/capacity: 30"
@@ -114,7 +204,11 @@ class TestDeBateriaLinux(unittest.TestCase):
         resultado = de_bateria_linux(lineas)
         self.assertEqual(resultado["nivel"], 0.3)
         self.assertNotIn("cargando", resultado)
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_bateria_solo_status(self):
         lineas = [
             "/sys/class/power_supply/BAT0/status: Charging"
@@ -122,12 +216,20 @@ class TestDeBateriaLinux(unittest.TestCase):
         resultado = de_bateria_linux(lineas)
         self.assertNotIn("nivel", resultado)
         self.assertTrue(resultado["cargando"])
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_bateria_vacia(self):
         lineas = []
         resultado = de_bateria_linux(lineas)
         self.assertEqual(resultado, {})
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_bateria_valores_invalidos(self):
         lineas = [
             "/sys/class/power_supply/BAT0/capacity: no_es_un_numero",
@@ -136,6 +238,7 @@ class TestDeBateriaLinux(unittest.TestCase):
         resultado = de_bateria_linux(lineas)
         self.assertEqual(resultado, {})
 
+<<<<<<< HEAD
 
 class TestDePmset(unittest.TestCase):
     """Tests for de_pmset function."""
@@ -168,19 +271,52 @@ class TestDePmset(unittest.TestCase):
         self.assertNotIn("nivel", resultado)
         self.assertTrue(resultado["cargando"])
     
+=======
+    def test_pmset_cargando(self):
+        texto = """Now drawing from 'AC Power'
+Charge: 80%"""
+        resultado = de_pmset(texto)
+        self.assertTrue(resultado["cargando"])
+        self.assertEqual(resultado["porcentaje"], 0.8)
+
+    def test_pmset_descargando(self):
+        texto = """Now drawing from 'Battery Power'
+Charge: 20%"""
+        resultado = de_pmset(texto)
+        self.assertFalse(resultado["cargando"])
+        self.assertEqual(resultado["porcentaje"], 0.2)
+
+    def test_pmset_cargado(self):
+        texto = """Now drawing from 'AC Power'
+Charge: 100%"""
+        resultado = de_pmset(texto)
+        self.assertTrue(resultado["cargando"])
+        self.assertEqual(resultado["porcentaje"], 1.0)
+
+    def test_pmset_sin_porcentaje(self):
+        texto = """Now drawing from 'Battery Power'"""
+        resultado = de_pmset(texto)
+        self.assertFalse(resultado["cargando"])
+        self.assertNotIn("porcentaje", resultado)
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_pmset_vacio(self):
         texto = ""
         resultado = de_pmset(texto)
         self.assertEqual(resultado, {})
 
+<<<<<<< HEAD
 
 class TestVersionConversion(unittest.TestCase):
     """Tests for _version_a_numero function."""
     
+=======
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_version_estandar(self):
         self.assertEqual(_version_a_numero("20.19.0"), (20, 19, 0))
         self.assertEqual(_version_a_numero("18.5.3"), (18, 5, 3))
         self.assertEqual(_version_a_numero("1.0.0"), (1, 0, 0))
+<<<<<<< HEAD
     
     def test_version_con_menos_partes(self):
         self.assertEqual(_version_a_numero("20.19"), (20, 19, 0))
@@ -201,6 +337,28 @@ class TestVersionConversion(unittest.TestCase):
 class TestHerramientas(unittest.TestCase):
     """Tests for herramientas function."""
     
+=======
+
+    def test_version_con_menos_partes(self):
+        self.assertEqual(_version_a_numero("20.19"), (20, 19, 0))
+        self.assertEqual(_version_a_numero("18"), (18, 0, 0))
+
+    def test_version_con_mas_partes(self):
+        self.assertEqual(_version_a_numero("[ip]"), (0, 0, 0))  # No hay dígitos iniciales
+        self.assertEqual(_version_a_numero("[ip].5"), (0, 5, 0))  # Primer bloque no tiene dígitos, segundo tiene 5
+        # Según mi implementación, extraigo solo los dígitos iniciales de cada parte
+        # Para "[ip]", no hay dígitos iniciales, así que esa parte contribuye con nada
+        # Para "[ip].5", la primera parte no tiene dígitos iniciales, la segunda tiene 5
+        # Entonces obtenemos (0, 5, 0) después de rellenar con ceros
+
+    def test_version_con_caracteres_no_numericos(self):
+        self.assertEqual(_version_a_numero("v20.19.0-beta"), (20, 19, 0))
+        self.assertEqual(_version_a_numero("20.19.0-alpha"), (20, 19, 0))
+
+    def test_version_vacia(self):
+        self.assertEqual(_version_a_numero(""), (0, 0, 0))
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_herramientas_todas_validas(self):
         versiones = {
             "git": "2.40.1",
@@ -213,7 +371,11 @@ class TestHerramientas(unittest.TestCase):
         self.assertTrue(resultado["node"])
         self.assertTrue(resultado["python3"])
         self.assertTrue(resultado["opencode"])
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_herramientas_node_insuficiente(self):
         versiones = {
             "git": "2.40.1",
@@ -226,7 +388,11 @@ class TestHerramientas(unittest.TestCase):
         self.assertFalse(resultado["node"])  # Debería ser False
         self.assertTrue(resultado["python3"])
         self.assertTrue(resultado["opencode"])
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_herramientas_node_exacto_minimo(self):
         versiones = {
             "git": "2.40.1",
@@ -236,7 +402,11 @@ class TestHerramientas(unittest.TestCase):
         }
         resultado = herramientas(versiones)
         self.assertTrue(resultado["node"])  # Debería ser True
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_herramientas_faltantes(self):
         versiones = {
             "git": "2.40.1",
@@ -249,7 +419,11 @@ class TestHerramientas(unittest.TestCase):
         self.assertFalse(resultado["node"])
         self.assertTrue(resultado["python3"])
         self.assertFalse(resultado["opencode"])
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_herramientas_cadenas_vacias(self):
         versiones = {
             "git": "",
@@ -263,11 +437,14 @@ class TestHerramientas(unittest.TestCase):
         self.assertFalse(resultado["python3"])
         self.assertTrue(resultado["opencode"])
 
+<<<<<<< HEAD
 
 class TestMedir(unittest.TestCase):
     """Tests for medir function."""
     
     @unittest.skipIf(not hasattr(os, 'geteuid'), "Requires os.geteuid")
+=======
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_medir_estructura_basica(self):
         """Verifica que medir devuelva un diccionario con las claves esperadas."""
         resultado = medir()
@@ -293,7 +470,11 @@ class TestMedir(unittest.TestCase):
         for herramienta in herramientas_esperadas:
             self.assertIn(herramienta, resultado["herramientas"])
             self.assertIsInstance(resultado["herramientas"][herramienta], bool)
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fdaa3702a (salvavidas · RTCOL1012Lb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_medir_so_valido(self):
         """Verifica que el SO detectado sea uno de los esperados."""
         resultado = medir()
