@@ -96,12 +96,14 @@ export function analizarConvergencia(atomos: AtomoGrafo[], aristas: Arista[], de
   }
   const sucesores = lista.map((): number[] => []), grados = lista.map(() => 0);
   const unicas = new Set<string>(); let sueltas = 0;
+let sueltasDesdeDesconocido = 0;
   for (const { de, a } of aristas) {
     const i = indice.get(de), j = indice.get(a);
-    if (i === undefined || j === undefined) {
-      sueltas++; avisar(`La conexión ${de} → ${a} apunta a un átomo que no está (${i === undefined ? de : a}): se ignora.`);
-      continue;
-    }
+if (i === undefined || j === undefined) {
+  if (i === undefined) sueltasDesdeDesconocido++;
+  sueltas++; avisar(`La conexión ${de} → ${a} apunta a un átomo que no está (${i === undefined ? de : a}): se ignora.`);
+  continue;
+}
     if (unicas.has(`${i}>${j}`)) continue;
     unicas.add(`${i}>${j}`); sucesores[i].push(j); grados[j]++;
     evaluarArista({ de, a }, lista[i], lista[j], definicion, rutaDe, d, avisar);
@@ -113,6 +115,6 @@ export function analizarConvergencia(atomos: AtomoGrafo[], aristas: Arista[], de
   const enCiclo = new Set(ciclos.flat());
   const esperan = lista.filter((at) => !d.orden.includes(at.id) && !enCiclo.has(at.id)).map((at) => at.id);
   if (esperan.length > 0) avisar(`Sin orden porque dependen de un ciclo: ${esperan.join(", ")}.`);
-  d.ok = ciclos.length === 0 && d.incompatibles.length === 0 && sueltas === 0;
+  d.ok = ciclos.length === 0 && d.incompatibles.length === 0 && sueltasDesdeDesconocido === 0;
   return d;
 }
