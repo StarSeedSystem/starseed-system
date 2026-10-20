@@ -4519,3 +4519,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1abbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTS1010-EV-ORACLE-1abbbbbbb conservada
 - `RTCOL1012Mb` — pruebas en rojo: vitest falla (rama conservada)
 - `VST1018Gb` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-20 22:22 · mg-oracle-1020-1516
+
+**Lo que se pidió.** Genesis en el A1: servido por Caddy con sesión, sobre la build en verde del guardián
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (RTCOL1012Mc, VST1018Gc). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012Mc` — otra cosa: ningún proveedor respondió (todos caídos)
+- `VST1018Gc` — otra cosa: ningún proveedor respondió (todos caídos)
