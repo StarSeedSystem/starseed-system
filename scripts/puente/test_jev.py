@@ -67,73 +67,98 @@ class Jev(unittest.TestCase):
 
     def test_apagado_devuelve_none_sin_tocar_nada(self):
         self.assertFalse(jev.activo())
-        self.assertIsNone(
-            jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
-        )
-        self.assertIsNone(jev.si_no({"a": 1}, "?"))
-        self.assertIsNone(jev.elegir({"a": 1}, "?", {"x": "", "y": ""}))
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            self.assertIsNone(
+                jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+            )
+            self.assertIsNone(jev.si_no({"a": 1}, "?"))
+            self.assertIsNone(jev.elegir({"a": 1}, "?", {"x": "", "y": ""}))
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
 
     def test_si_no_lee_la_forma_medida(self):
-        jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.44}})
-        self.assertAlmostEqual(jev.si_no({"texto": "hola"}, "¿importa?"), 0.44)
-        cuerpo = jev.TRANSPORTE.recibido[0]
-        self.assertEqual(cuerpo["model"], jev.MODELO)
-        self.assertEqual(cuerpo["questions"]["q"]["type"], "noul")
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.44}})
+            self.assertAlmostEqual(jev.si_no({"texto": "hola"}, "¿importa?"), 0.44)
+            cuerpo = jev.TRANSPORTE.recibido[0]
+            self.assertEqual(cuerpo["model"], jev.MODELO)
+            self.assertEqual(cuerpo["questions"]["q"]["type"], "noul")
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
 
     def test_elegir_y_puntuar(self):
-        jev.TRANSPORTE = _falso(
-            {
-                "q": {
-                    "type": "choice",
-                    "choice": "descartar",
-                    "probabilities": {
-                        "descartar": 0.65,
-                        "reintentar": 0.29,
-                        "esperar": 0.06,
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            jev.TRANSPORTE = _falso(
+                {
+                    "q": {
+                        "type": "choice",
+                        "choice": "descartar",
+                        "probabilities": {
+                            "descartar": 0.65,
+                            "reintentar": 0.29,
+                            "esperar": 0.06,
+                        },
+                        "confidence": 0.47,
                     },
-                    "confidence": 0.47,
-                },
-            }
-        )
-        opcion, probs, conf = jev.elegir(
-            {"t": "RS3b"},
-            "¿qué hacer?",
-            {"descartar": "", "reintentar": "", "esperar": ""},
-        )
-        self.assertEqual(opcion, "descartar")
-        self.assertAlmostEqual(probs["reintentar"], 0.29)
-        self.assertAlmostEqual(conf, 0.47)
-        jev.TRANSPORTE = _falso(
-            {
-                "q": {
-                    "type": "score",
-                    "score": 1.64,
-                    "probabilities": {"0": 0.13, "1": 0.1, "2": 0.77},
-                    "confidence": 0.46,
                 }
-            }
-        )
-        punt, _, _ = jev.puntuar({"t": "RS3b"}, "prioridad", ["baja", "media", "alta"])
-        self.assertAlmostEqual(punt, 1.64)
-        self.assertEqual(
-            jev.TRANSPORTE.recibido[0]["questions"]["q"]["criteria"],
-            ["baja", "media", "alta"],
-        )
+            )
+            opcion, probs, conf = jev.elegir(
+                {"t": "RS3b"},
+                "¿qué hacer?",
+                {"descartar": "", "reintentar": "", "esperar": ""},
+            )
+            self.assertEqual(opcion, "descartar")
+            self.assertAlmostEqual(probs["reintentar"], 0.29)
+            self.assertAlmostEqual(conf, 0.47)
+            jev.TRANSPORTE = _falso(
+                {
+                    "q": {
+                        "type": "score",
+                        "score": 1.64,
+                        "probabilities": {"0": 0.13, "1": 0.1, "2": 0.77},
+                        "confidence": 0.46,
+                    }
+                }
+            )
+            punt, _, _ = jev.puntuar({"t": "RS3b"}, "prioridad", ["baja", "media", "alta"])
+            self.assertAlmostEqual(punt, 1.64)
+            self.assertEqual(
+                jev.TRANSPORTE.recibido[0]["questions"]["q"]["criteria"],
+                ["baja", "media", "alta"],
+            )
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
 
     def test_la_misma_pregunta_no_se_paga_dos_veces(self):
-        jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.9}})
-        jev.si_no({"x": 1}, "?")
-        jev.si_no({"x": 1}, "?")
-        self.assertEqual(len(jev.TRANSPORTE.recibido), 1)
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.9}})
+            jev.si_no({"x": 1}, "?")
+            jev.si_no({"x": 1}, "?")
+            self.assertEqual(len(jev.TRANSPORTE.recibido), 1)
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
         jev.si_no({"x": 2}, "?")
         self.assertEqual(len(jev.TRANSPORTE.recibido), 2)
 
     def test_error_de_red_es_none_no_excepcion(self):
-        def roto(cuerpo):
-            raise OSError("sin red")
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            def roto(cuerpo):
+                raise OSError("sin red")
 
-        jev.TRANSPORTE = roto
-        self.assertIsNone(jev.si_no({"x": 1}, "?"))
+            jev.TRANSPORTE = roto
+            self.assertIsNone(jev.si_no({"x": 1}, "?"))
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
 
     def test_zona_con_umbrales(self):
         self.assertEqual(jev.zona(0.95), "si")
@@ -163,26 +188,21 @@ class Jev(unittest.TestCase):
         self.assertFalse(jev.presupuesto_ok("2026-09-20"))  # pasado el techo, se calla
 
     def test_sin_presupuesto_el_transporte_real_no_se_llama(self):
-        # Make laya-local fail by pointing to a non-existent port
-        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        llamadas = []
+        real = jev._transporte_real
+        jev._transporte_real = lambda cuerpo: (
+            llamadas.append(cuerpo) or {"answers": {"q": {"noul": 0.5}}}
+        )
         try:
-            llamadas = []
-            real = jev._transporte_real
-            jev._transporte_real = lambda cuerpo: (
-                llamadas.append(cuerpo) or {"answers": {"q": {"noul": 0.5}}}
+            os.environ["STARSEED_JEV"] = "1"
+            os.environ["OPENROUTER_API_KEY"] = "clave-de-prueba"
+            jev._anotar_uso({"usage": {"cost": 5.0}}, 0.1)  # techo del mes reventado
+            self.assertIsNone(
+                jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
             )
-            try:
-                os.environ["STARSEED_JEV"] = "1"
-                os.environ["OPENROUTER_API_KEY"] = "clave-de-prueba"
-                jev._anotar_uso({"usage": {"cost": 5.0}}, 0.1)  # techo del mes reventado
-                self.assertIsNone(
-                    jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
-                )
-            finally:
-                jev._transporte_real = real
-                os.environ.pop("OPENROUTER_API_KEY", None)
         finally:
-            os.environ.pop("STARSEED_LAYA_URL", None)
+            jev._transporte_real = real
+            os.environ.pop("OPENROUTER_API_KEY", None)
 
     def test_resumen_incluye_hoy_y_mes(self):
         jev._anotar_uso(
@@ -229,7 +249,12 @@ class Piramide(unittest.TestCase):
         """La objeción de la revisión: disponible NO es lo mismo que respondió."""
         _local_falso(respuesta=None)
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.3}})
-        r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
         self.assertEqual(r["medio"], "openrouter")
         self.assertEqual(len(jev.TRANSPORTE.recibido), 1)
 
@@ -241,13 +266,23 @@ class Piramide(unittest.TestCase):
 
         m.decidir = rompe
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.6}})
-        r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
         self.assertEqual(r["medio"], "openrouter")
 
     def test_el_intento_fallido_se_anota_en_local_sin_respuesta(self):
         _local_falso(respuesta=None)
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.3}})
-        jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
         with open(jev.USO, encoding="utf-8") as f:
             uso = json.load(f)
         self.assertEqual(uso.get("local_sin_respuesta"), 1)
@@ -255,7 +290,12 @@ class Piramide(unittest.TestCase):
     def test_local_caido_cae_a_openrouter(self):
         _local_falso(disponible=False)
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.5}})
-        r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
         self.assertEqual(r["medio"], "openrouter")
 
     def test_sin_local_y_presupuesto_agotado_es_none(self):
