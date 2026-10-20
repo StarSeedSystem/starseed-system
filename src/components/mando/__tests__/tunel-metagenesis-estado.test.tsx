@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitetest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { TunelMetaGenesisEstado } from "../tunel-metagenesis-estado";
@@ -58,9 +58,9 @@ describe("TunelMetaGenesisEstado", () => {
     await await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
     
     // Verificar que las URLs fueron tachadas en las líneas
-    await await screen.findByText(/Línea 1 \[túnel\]/i));
+    await await screen.findByText(/Línea 1 \[túnel\]/i)
     await await screen.findByText(/Línea 2 sin URL/i);
-    await await screen.findByText(/Línea 3 \[túnel\]/i));
+    await await screen.findByText(/Línea 3 \[túnel\]/i)
   });
 
   it("muestra túnel parado cuando el servicio no está cargado", async () => {
@@ -281,6 +281,73 @@ describe("TunelMetaGenesisEstado", () => {
 
     // Should not show the últimos líneas section
     expect(screen.queryByText("Últimas líneas:")).not.toBeInTheDocument();
+
+    // Restore the original fetch mock (so afterEach can restore nativoFetch)
+    globalThis.fetch = originalFetch;
+    // Restore the original visibilityState
+    if (originalVisibilityState !== undefined) {
+      try {
+        delete document.visibilityState;
+      } catch (e) {
+        // ignore
+      }
+      Object.defineProperty(document, 'visibilityState', {
+        value: originalVisibilityState,
+        configurable: true
+      });
+    }
+  });
+
+  it("tachar trycloudflare URLs in the client", async () => {
+    const data = {
+      cargado: true,
+      pid: 12345,
+      ultimasLineas: [
+        "Visita https://mi-tunel.trycloudflare.com",
+        "Otro https://otro.trycloudflare.com/path",
+        "Sin cambio: https://example.com",
+      ],
+      medidoEn: new Date().toISOString(),
+    };
+    // Save the current fetch mock
+    const originalFetch = globalThis.fetch;
+    // Save the original visibilityState
+    const originalVisibilityState = Object.getOwnPropertyDescriptor(document, 'visibilityState')?.value;
+    // Set visibilityState to visible to ensure the initial fetch is made
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'visible',
+      configurable: true
+    });
+    // Override globalThis.fetch for this specific call only
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      llamadas.push({ url, init });
+      
+      if (url.includes("/api/mando/tunel-metagenesis")) {
+        return {
+          ok: true,
+          json: async () => data, // Synchronous function returning data directly
+        } as Response;
+      }
+      
+      // Respuesta por defecto para otros endpoints
+      return {
+        ok: true,
+        json: async () => ({})
+      } as Response;
+    };
+
+    render(<TunelMetaGenesisEstado />);
+    expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
+
+    // Wait for the data to be fetched and displayed
+    await waitFor(() => {
+      expect(screen.getByText(/Túnel de MetaGenesis: activo \(pid 12345\)/i)).toBeInTheDocument();
+      expect(screen.getByText("Últimas líneas:")).toBeInTheDocument();
+      expect(screen.getByText("Visita [túnel]")).toBeInTheDocument();
+      expect(screen.getByText("Otro [túnel]/path")).toBeInTheDocument();
+      expect(screen.getByText("Sin cambio: https://example.com")).toBeInTheDocument();
+    });
 
     // Restore the original fetch mock (so afterEach can restore nativoFetch)
     globalThis.fetch = originalFetch;
