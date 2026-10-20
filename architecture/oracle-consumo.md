@@ -72,6 +72,27 @@ CPU p95 < 20 %, red < 20 % y, solo en A1, memoria < 20 %. El medidor calcula con
   (una a la vez y como mucho una por minuto).
 - A mano: `python3 scripts/puente/medidor_oracle.py medir [--forzar] [--json] [--salida RUTA]` y
   `… ver`. Con `--salida` no se toca `~/.starseed` ni se avisa a nadie (para probar).
+- **El nodo del A1 viaja con el consumo** (OPO1011): `medir_si_toca` añade `nodo` =
+  `nodo_resumen(~/.starseed/oracle.json)`, el resumen de lo que deja `oracle_nodo.py estado`. Sin URLs
+  ni IPs ni el `error` crudo del A1 (ssh puede traer la dirección). Claves que entrega y que lee la
+  tarjeta (`leerConsumoOracle`, TS): `vivo`, `fase`, `leido`, `servicios_ok`, `servicios_total`,
+  `servicios_caidos` (tope 6; un servicio sin nombre sale «sin nombre»), `guardian` (`ok`, `minutos`,
+  `sha` de 8, `rojos` con tope 4; un paso sin nombre sale «?»; `null` si el guardián aún no pasó),
+  `cpu_1h`, `mem_ahora`, `horas_sobre_umbral` (≥ 20 %, solo horas con número) y `horas_medidas`; además
+  `latido`, `cpu_p95_local` (el p95 de 7 días medido en el propio A1; aún sin consumir en la tarjeta) y
+  `guardian.t`. Solo viajan números de verdad (nunca NaN, infinito ni `true`: `json.load` los acepta y
+  `JSON.parse` de la tarjeta rechazaría el archivo entero) y marcas de tiempo que sean una época
+  (número) o un texto que `_fecha` entienda como fecha ISO (`datetime.fromisoformat`, 40 caracteres como
+  mucho); un dict, una lista o un texto cualquiera en `latido`, `leido` o `guardian.t` —también una IP
+  como `140.1.2.3` o `10.0.0.5:22`— se descarta (`null`), así que nada que pueda llevar una URL o una IP
+  pasa al resumen (lo fija `test_una_ip_no_pasa_por_marca_de_tiempo`).
+  **Se mide aislado:** un `oracle.json` con una forma que no se entiende (`servicios`, `horas` o `pasos`
+  que no son listas) se lee como vacío (`_lista`) y, si el resumen aun así fallara, se anota
+  `errores[{parte: "nodo"}]`, `ok` pasa a `false` (la tarjeta dice «Lectura parcial» y por qué) **sin
+  perder el gasto, el freno ni el margen**. **Excepción a la regla de arriba:** el nodo NO hereda la
+  última lectura buena con `obsoleto: true`, porque la tarjeta no puede pintar un nodo como viejo y un
+  «vivo» antiguo se leería como actual; queda `null` y el fallo se dice en `errores[parte=nodo]`.
+  La pastilla de crédito no recibe ese error: el estado de un servidor no es un crédito.
 - **Avisos al Chat Director** (`avisos_de_cambio`, de `director-nube`, tarea `OC1010`): UNO por
   cambio, no en cada pasada — se enciende o se levanta el freno (gasto > 0), o el riesgo de
   reclamación pasa a `aviso`/`alto` o vuelve a `no`. Solo desde el archivo de verdad.
@@ -85,6 +106,11 @@ CPU p95 < 20 %, red < 20 % y, solo en A1, memoria < 20 %. El medidor calcula con
   los errores legibles, «Actualizar ahora» y el enlace a la consola
   (<https://cloud.oracle.com/?region=mx-queretaro-1>). Lee `GET /api/mando/oracle/consumo` cada
   2 min con la pestaña visible. Ruta solo con `guardianMando`.
+- **Genesis › Servidor 1.58 › Oracle Always Free** (`panel-servidor.tsx` →
+  `oracle-consumo-resumen.tsx`): además del gasto y la reclamación, un chip «Nodo A1 · n/m servicios»
+  (o «sin latido») con el tono de la fila `nodo` de `vistaOracle` y el detalle (fase, guardián de main,
+  servicios caídos, CPU medida) en su título. Solo aparece si el medidor trae `nodo`; usa los mismos datos
+  (`useConsumoOracle`), sin peticiones nuevas.
 - **Pastillas de créditos de Genesis** (las de Claude y Codex): el adaptador `oracle_cli` añade el
   medidor `oracle` a `~/.starseed/medidores-credito.json` con ventanas `gasto`, `salida` y
   `objetos`, saldo = crédito restante de la prueba y extras `freno`, `riesgo_reclamacion`,
@@ -110,9 +136,13 @@ CPU p95 < 20 %, red < 20 % y, solo en A1, memoria < 20 %. El medidor calcula con
 
 ## 6. Pruebas
 
-- `scripts/puente/test_medidor_oracle.py` (20, unittest; datos con la forma real y sin ids).
+- `scripts/puente/test_medidor_oracle.py` (41, unittest; datos con la forma real y sin ids; el nodo se
+  lee de un `oracle.json` temporal, nunca del real). Incluye el **contrato Python → TS**: el resumen se
+  alimenta con la salida real de `oracle_nodo.resumen_para_oracle_json`, fija el conjunto exacto de
+  claves y comprueba que `oracle-consumo-tipos.ts` solo lee claves que el medidor entrega.
 - `scripts/puente/test_medios_disponibles.py` (+2), `test_contexto_agente.py` (+3).
-- `src/lib/mando/__tests__/oracle-consumo-tipos.test.ts` (9) y
-  `src/components/mando/__tests__/medidor-oracle.test.tsx` (3).
+- `src/lib/mando/__tests__/oracle-consumo-tipos.test.ts` (12),
+  `src/components/mando/__tests__/medidor-oracle.test.tsx` (3) y
+  `src/components/mando/__tests__/oracle-consumo-resumen.test.tsx` (6, con el chip del nodo y el tono de las insignias).
 - Verificación real en la Mac (2026-10-10): `medir --forzar --salida .transfer/oracle-1010/…`
   → `ok: true`, sin errores, 10,8 s, sin ningún `ocid` en el JSON.

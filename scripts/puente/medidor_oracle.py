@@ -105,6 +105,32 @@ def _p95(valores: list[float]) -> float | None:
     return v[min(len(v) - 1, int(round(0.95 * (len(v) - 1))))]
 
 
+def _lista(valor) -> list:
+    """PURA: la lista tal cual, o vacía si no es una lista (precedente: oracle_nube._publico).
+    `x or []` no protege de un número, un booleano o un texto en un archivo escrito a mano."""
+    return valor if isinstance(valor, list) else []
+
+
+def _numero(valor) -> float | None:
+    """PURA: el número tal cual, o None. Más estricto que `_num`: solo vale un número de verdad (ni un
+    texto como «50» ni `True`, que Python cuenta como int) y, por pasar por `_num`, tampoco NaN ni
+    infinito, que `json.load` acepta y que `JSON.parse` de la tarjeta rechaza entero."""
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+        return None
+    return _num(valor)
+
+
+def _marca(valor):
+    """PURA: la marca de tiempo del archivo del nodo: una época (número) o un texto que `_fecha` entiende
+    como fecha ISO («2026-10-10T10:00:00Z»), de 40 caracteres como mucho. Se conserva el texto tal cual.
+    Un dict, una lista, una URL o una IP («140.1.2.3», «10.0.0.5:22») no son fechas: en el resumen no
+    viaja nada que pueda llevar una URL o una IP."""
+    n = _numero(valor)
+    if n is not None:
+        return n
+    return valor if isinstance(valor, str) and len(valor) <= 40 and _fecha(valor) is not None else None
+
+
 def ocultar(valor):
     """Defensa final: ningún OCID ni clave de id sale nunca de aquí."""
     if isinstance(valor, str):
@@ -543,27 +569,31 @@ def nodo_resumen(oracle_json: dict | None) -> dict | None:
     n = d.get("nodo") if isinstance(d.get("nodo"), dict) else None
     if not n:
         return None
-    servicios = [x for x in d.get("servicios") or [] if isinstance(x, dict)]
+    servicios = [x for x in _lista(d.get("servicios")) if isinstance(x, dict)]
     g = n.get("guardian") if isinstance(n.get("guardian"), dict) else {}
     carga = n.get("carga") if isinstance(n.get("carga"), dict) else {}
-    horas = [h for h in n.get("horas") or [] if isinstance(h, dict) and isinstance(h.get("cpu"), (int, float))]
+    cpus = [c for c in (_numero(h.get("cpu")) for h in _lista(n.get("horas")) if isinstance(h, dict))
+            if c is not None]
     return {
         "vivo": bool(n.get("vivo")),
-        "latido": n.get("latido"),
-        "leido": n.get("leido"),
+        "latido": _marca(n.get("latido")),
+        "leido": _marca(n.get("leido")),
         "fase": str(n.get("fase") or "")[:20],
         "servicios_ok": sum(1 for x in servicios if x.get("ok")),
         "servicios_total": len(servicios),
-        "servicios_caidos": [str(x.get("titulo") or x.get("nombre"))[:40] for x in servicios if not x.get("ok")][:6],
-        "guardian": ({"ok": bool(g.get("ok")), "t": g.get("t"), "minutos": g.get("minutos"),
-                      "sha": str(g.get("sha") or "")[:8], "rojos": [str(p.get("paso")) for p in g.get("pasos") or []
-                                                                     if isinstance(p, dict) and not p.get("ok")][:4]}
+        # un servicio caído sin nombre se dice «sin nombre», nunca la cadena «None»
+        "servicios_caidos": [str(x.get("titulo") or x.get("nombre") or "sin nombre")[:40]
+                             for x in servicios if not x.get("ok")][:6],
+        "guardian": ({"ok": bool(g.get("ok")), "t": _marca(g.get("t")), "minutos": _numero(g.get("minutos")),
+                      "sha": str(g.get("sha") or "")[:8],
+                      "rojos": [str(p.get("paso") or "?") for p in _lista(g.get("pasos"))
+                                if isinstance(p, dict) and not p.get("ok")][:4]}
                      if g.get("t") else None),
-        "cpu_1h": carga.get("cpu_1h"),
-        "mem_ahora": carga.get("mem_ahora"),
-        "cpu_p95_local": carga.get("cpu_p95_7d"),
-        "horas_sobre_umbral": sum(1 for h in horas if h["cpu"] >= UMBRAL_PCT),
-        "horas_medidas": len(horas),
+        "cpu_1h": _numero(carga.get("cpu_1h")),
+        "mem_ahora": _numero(carga.get("mem_ahora")),
+        "cpu_p95_local": _numero(carga.get("cpu_p95_7d")),
+        "horas_sobre_umbral": sum(1 for c in cpus if c >= UMBRAL_PCT),
+        "horas_medidas": len(cpus),
     }
 
 
@@ -660,7 +690,16 @@ def medir_si_toca(cada_min: float = CADA_MIN, forzar: bool = False, ruta: str = 
             doc = medir(correr, ahora, previo)
             # (OPO1011) El nodo del A1 (servicios, guardián de main, carga medida allí) viaja con el
             # consumo para que la tarjeta de MetaGenesis y los agentes lo vean junto al riesgo.
-            doc["nodo"] = nodo_resumen(leer_archivo(ESTADO_ORACLE))
+            # Cada parte se mide aislada (oracle-consumo.md §3): un oracle.json con una forma que no
+            # entiendo no puede costar la medición de Oracle, de la que cuelgan el freno, los medios
+            # y el contexto de los agentes. Se omite el nodo y se dice en `errores`.
+            try:
+                doc["nodo"] = nodo_resumen(leer_archivo(ESTADO_ORACLE))
+            except Exception:  # noqa: BLE001 — el nodo no tumba la medición
+                doc["nodo"] = None
+                doc["ok"] = False
+                doc.setdefault("errores", []).append(
+                    {"parte": "nodo", "error": "nodo: el estado del A1 (oracle.json) tiene una forma que no entiendo; se omite."})
             guardar(doc, ruta)
             # Los avisos van al Chat Director solo desde el archivo de verdad (no en pruebas ni con --salida).
             if publicar is None and os.path.expanduser(ruta) == SALIDA:
@@ -710,7 +749,9 @@ def a_medidor(doc: dict) -> dict:
               "reclamable_desde": (a1 or {}).get("reclamable_desde"),
               "a1_estado": (doc.get("computo") or {}).get("a1_estado"),
               "margen_apto": bool((doc.get("margen") or {}).get("apto"))}
-    errores = doc.get("errores") or []
+    # La pastilla es de CRÉDITO: el estado del nodo no es un crédito, así que su fallo (parte «nodo»)
+    # se ve en la tarjeta de Consumo y no se cuela en el texto de la pastilla.
+    errores = [e for e in doc.get("errores") or [] if e.get("parte") != "nodo"]
     return {"id": "oracle", "proveedor": "oracle", "nombre": "Oracle Cloud · Always Free", "tipo": "saldo",
             "plan": "prueba gratuita hasta %s" % str(prueba.get("fin") or "")[:10] if prueba.get("activa") else "Always Free",
             "ventanas": ventanas, "saldo": saldo, "extras": extras, "fuente": "CLI de Oracle (oci)",

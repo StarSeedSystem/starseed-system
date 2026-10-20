@@ -1,13 +1,26 @@
 "use client";
 
-import { Cloud, TriangleAlert } from "lucide-react";
+import { Cloud, Server, TriangleAlert } from "lucide-react";
 import { useConsumoOracle } from "./medidor-consumo";
 import { vistaOracle } from "@/lib/mando/oracle-consumo-tipos";
+import type { TonoConsumo } from "@/lib/mando/consumo-tipos";
+
+/** El mismo mapa de tonos para la insignia de reclamación y el chip del nodo. */
+function claseTono(tono: TonoConsumo): string {
+  if (tono === "peligro") return "bg-rose-400/20 text-rose-200";
+  if (tono === "aviso") return "bg-amber-400/20 text-amber-200";
+  // «sin medir» no es «todo bien»: en gris, no en verde (p. ej. «Sin métricas de uso»)
+  if (tono === "neutro") return "bg-white/10 text-white/60";
+  return "bg-emerald-400/20 text-emerald-200";
+}
 
 export default function OracleConsumoResumen() {
   const { datos } = useConsumoOracle();
   const v = datos ? vistaOracle(datos, Date.now()) : null;
   const gasto = v?.filas.find((f) => f.id === "gasto");
+  // El estado real del servidor (servicios caídos, guardián en rojo, sin latido) llega en los mismos
+  // datos del medidor: solo hay chip si el medidor trae nodo (nada inventado, ninguna petición nueva).
+  const nodo = v?.filas.find((f) => f.id === "nodo");
 
   if (!v) {
     return (
@@ -21,8 +34,18 @@ export default function OracleConsumoResumen() {
       <span className="font-medium">Oracle · Always Free</span>
       <span className="text-[10px] text-white/50">{v.estado.texto}</span>
       <span className="font-mono">{gasto ? gasto.valor : "—"}</span>
+      {nodo && (
+        <span
+          data-testid="oracle-resumen-nodo"
+          title={nodo.detalle}
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${claseTono(nodo.tono)}`}
+        >
+          <Server className="h-3 w-3" aria-hidden />
+          {`Nodo A1 · ${nodo.valor}`}
+        </span>
+      )}
       {v.reclamacion && (
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${v.reclamacion.tono === "peligro" ? "bg-rose-400/20 text-rose-200" : v.reclamacion.tono === "aviso" ? "bg-amber-400/20 text-amber-200" : "bg-emerald-400/20 text-emerald-200"}`}>
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${claseTono(v.reclamacion.tono)}`}>
           <TriangleAlert className="h-3 w-3" aria-hidden />
           {v.reclamacion.texto}
         </span>

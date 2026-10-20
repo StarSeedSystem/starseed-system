@@ -168,12 +168,53 @@ def sucesores_en_cadena(tid, progreso):
                   and k.startswith(base) and k[-1] in "bcdefghijklmnopqrstuvwxyz")
 
 
+def es_rescate(tid):
+    """PURA: ¿es una tarea de rescate de pruebas (`RT…`, de revisar_ramas_nube)? Mismo criterio que
+    `revisar_ramas_nube.profundidad_rescate` (que cuenta los `RT` de delante)."""
+    return (tid or "").startswith("RT")
+
+
+#: Cierre de la reparación de una tarea normal.
+CIERRE_REPARACION = "Deja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles."
+#: (2026-10-20) Cierre de la reparación de un RESCATE (`%s` = los archivos propios de la tarea). Su
+#: prompt original ya admite `NO APLICA` (paso 4), pero «con pruebas nuevas» se lo quitaba a la
+#: sucesora, y RTOPO1011T1 (cuyos casos ya estaban en main, dos veces) acabó «bloqueada» tras b, c y d.
+#: HIPÓTESIS coherente con el código (no se vieron los logs de las puertas de esos intentos): el
+#: cierre no dejaba salida, y además la rama final llevaba archivos de otras tareas.
+#: Decir `NO APLICA` no basta, y deshacer solo la carpeta tampoco: el orquestador da una tarea por
+#: «sin cambios» únicamente si `git status --porcelain` sale vacío Y la rama no lleva commits por
+#: delante de main (`starseed-enjambre.py`: con `main..HEAD` > 0 y diff dice «la rama ya lleva N
+#: commit(s)… salto a las puertas» y la trata como una escritura). Y el vigilante guarda un punto de
+#: control de todo trabajo a medias cada ~20 s (COL1012D, `commit_salvavidas`: `git add -A` + commit en
+#: `ola/<id>`), así que a los pocos segundos del `cherry-pick --no-commit` del paso 1 el trabajo de la
+#: nube ya está COMMITEADO en HEAD: `reset --hard HEAD` no deshace nada (porcelain vacío, pero
+#: `main..HEAD` = 1). Por eso se vuelve a `main` (`reset --hard main`, que quita también esos commits) y
+#: los archivos ajenos se devuelven con `checkout main --`, no con `checkout HEAD --`.
+CIERRE_REPARACION_RESCATE = (
+    "Si la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde "
+    "`NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo "
+    "el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también "
+    "los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard "
+    "HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git "
+    "rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; "
+    "si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, "
+    "la pasa por las puertas y vuelve a pedir reparación.\n"
+    "Si aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta "
+    "tarea (%s): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la "
+    "rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- "
+    "<ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: "
+    "el punto de control ya puede llevar la versión de la nube)."
+)
+
+
 def tarea_reparacion(original, nuevo_id, rama, shas, archivos, motivo):
     """PURA: la sucesora que continúa desde la rama de la nube."""
     t = {k: v for k, v in (original or {}).items()
          if k not in ("estado", "nota", "motivo", "modelo", "rama_nube", "origen")}
     prompt = str(t.get("prompt") or "").split("\n## CONTINÚA DESDE LA NUBE")[0].rstrip()
     ref = "refs/remotes/origin/%s" % rama
+    cierre = (CIERRE_REPARACION_RESCATE % (", ".join(str(a) for a in t.get("archivos") or []) or "—")
+              if es_rescate(nuevo_id) else CIERRE_REPARACION)
     t.update(
         id=nuevo_id,
         origen="nube-reparar",
@@ -190,8 +231,8 @@ def tarea_reparacion(original, nuevo_id, rama, shas, archivos, motivo):
             "2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: "
             "corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n"
             "3. Archivos que tocó: %s.\n"
-            "Deja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles."
-        ) % (prompt, rama, motivo, rama, ref, " ".join(shas), ", ".join(archivos) or "—"),
+            "%s"
+        ) % (prompt, rama, motivo, rama, ref, " ".join(shas), ", ".join(archivos) or "—", cierre),
     )
     return t
 

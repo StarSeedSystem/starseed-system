@@ -114,3 +114,31 @@ pruebas (`RSC1006A`–`RSC1006N`) y la cadena del radar compartido regenerada (`
 6. **Un arreglo de una línea en un `.sh` no tiene puerta.** `SP092912` era correcto y se quedó
    bloqueado porque la revisión no tenía prueba que reconocer; `test_guiones_parsean.py` sí
    comprueba que parsea: esa es la prueba para los guiones.
+7. **Un rescate cuyo resultado correcto es `NO APLICA` no se reabre como reparación** (2026-10-20,
+   `RTOPO1011T1`). Hecho comprobado: sus tres casos de prueba ya estaban en main, dos veces e
+   idénticos (la respuesta correcta era `NO APLICA`), y la cadena acabó «bloqueada» tras b, c y d
+   (tope de `REPARACIONES_MAX`). **No se vieron los logs de las puertas de b/c/d, así que el motivo
+   exacto de cada rojo es hipótesis**; dos causas posibles, coherentes con el código y que pueden sumarse:
+   (a) `traer_nube.tarea_reparacion` cerraba toda sucesora con «deja tsc y las pruebas en verde, con
+   pruebas nuevas», que no deja salida y contradice el paso 4 del rescate; (b) arrastre de una rama ajena:
+   la rama final llevaba 9 archivos y solo 1 era de la tarea (el resto venía de continuar desde una rama
+   del A1 con el nombre de otra tarea, `RTS1010-EV-ORACLE-2c`), un indicio, no una prueba.
+   Medido en `progreso.json`: 218 rescates → 15 integrados; **rescates de rescates (`RTRT…`) → 0 de 144**
+   (no se midió el caso de las reparaciones de rescates de primera mano).
+   Arreglo ÚNICO y transversal (no por tarea): si el id empieza por `RT`, la continuación cierra con
+   «si la rama no aporta nada que main no tenga, responde `NO APLICA: <motivo>` y para»
+   (`CIERRE_REPARACION_RESCATE`). **Ojo: decir `NO APLICA` no basta, y dejar la carpeta limpia tampoco.**
+   El orquestador no busca esa frase y no mira solo `git status --porcelain`: además, si la rama lleva
+   commits por delante de main con diff (`git rev-list --count main..HEAD` > 0), dice «la rama ya lleva
+   N commit(s)… salto a las puertas» y la trata como una escritura (`starseed-enjambre.py`, ~7569). Y el
+   vigilante guarda un punto de control de todo trabajo a medias cada ~20 s (COL1012D,
+   `commit_salvavidas`: `git add -A` + commit en `ola/<id>`), así que a los segundos del paso 1
+   (`cherry-pick --no-commit`) el trabajo de la nube ya está COMMITEADO en HEAD y `git reset --hard HEAD`
+   no deshace nada (porcelain vacío, `main..HEAD` = 1; reproducido en git y fijado en
+   `test_traer_nube.py`). Por eso el cierre manda `git reset -q --hard main` ANTES de responder y
+   comprobar las DOS cosas (porcelain vacío y `main..HEAD` = 0); y, para quedarse solo con los archivos de
+   la tarea, devolver los ajenos con `git checkout main -- <ruta>`, no con `HEAD`. (La primera versión
+   de este arreglo decía «solo cuenta `git status --porcelain`» y `reset --hard HEAD`: una premisa falsa
+   que el revisor desmontó.)
+   Propuesto, sin aplicar (cambia lo que ve Alex en Bloqueadas): archivar un `RT…` tras su primera
+   reparación en vez de marcarlo «bloqueada».

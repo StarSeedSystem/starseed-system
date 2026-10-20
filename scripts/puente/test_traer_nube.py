@@ -2,7 +2,10 @@
 """Traer la nube (2026-10-05): traer lo integrado, reparar lo que quedó a medias y preguntar
 antes de borrar lo que repararlo sería contraproducente."""
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -123,6 +126,121 @@ class Sucesor(unittest.TestCase):
         # Repararla otra vez no apila dos bloques de continuación.
         t2 = T.tarea_reparacion(t, "LC1004Be", "nube/4", ["def"], [], "otra vez")
         self.assertEqual(t2["prompt"].count("## CONTINÚA DESDE LA NUBE"), 1)
+
+    def test_reparar_un_rescate_deja_la_salida_no_aplica(self):
+        # RTOPO1011T1b/c/d: la sucesora de un rescate pedía «pruebas nuevas» aunque lo correcto era
+        # NO APLICA (los casos ya estaban en main) y la cadena acababa «bloqueada».
+        rescate = {"id": "RTOPO1011T1", "titulo": "Rescate de pruebas", "archivos": ["a.py", "test_a.py"],
+                   "prompt": "4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para."}
+        t = T.tarea_reparacion(rescate, "RTOPO1011T1b", "nube/9", ["abc123"], ["a.py", "otra_tarea.py"], "no pasó")
+        cierre = t["prompt"].split("## CONTINÚA DESDE LA NUBE")[1]
+        self.assertIn("`NO APLICA: <motivo>`", cierre)
+        self.assertIn("no inventes trabajo", t["prompt"])
+        self.assertNotIn("con pruebas nuevas para lo que arregles", t["prompt"])
+        # lo demás de la continuación no cambia (traer la rama, combinar a mano, propósito)
+        self.assertIn("git cherry-pick --no-commit abc123", t["prompt"])
+        self.assertIn("PROPÓSITO", t["prompt"])
+        # una tarea normal conserva su cierre, y no admite NO APLICA en la continuación
+        normal = T.tarea_reparacion({"id": "LC1004B", "prompt": "Haz X."}, "LC1004Bb", "nube/9", ["abc"], [], "no pasó")
+        self.assertIn("con pruebas nuevas para lo que arregles", normal["prompt"])
+        self.assertNotIn("NO APLICA", normal["prompt"])
+
+    def test_un_no_aplica_vuelve_a_main_para_que_cuente_como_sin_cambios(self):
+        # El orquestador da «sin cambios» SOLO con `git status --porcelain` vacío Y `main..HEAD` = 0
+        # (starseed-enjambre.py: con commits por delante y diff «salto a las puertas»). Y el vigilante
+        # (COL1012D) commitea el cherry-pick --no-commit del paso 1 en segundos, así que `reset --hard
+        # HEAD` no deshacía nada: había que volver a `main`.
+        rescate = {"id": "RTOPO1011T1", "archivos": ["a.py", "test_a.py"], "prompt": "Rescata."}
+        t = T.tarea_reparacion(rescate, "RTOPO1011T1b", "nube/9", ["abc123"], ["a.py", "otra_tarea.py"], "no pasó")
+        cierre = t["prompt"].split("## CONTINÚA DESDE LA NUBE")[1]
+        self.assertIn("`git reset -q --hard main`", cierre)
+        self.assertIn("`git status --porcelain`", cierre)
+        self.assertIn("`git rev-list --count main..HEAD`", cierre)
+        self.assertIn("da 0", cierre)
+        # el literal erróneo (el que no quita los puntos de control) ya no es la orden: solo se nombra para
+        # decir que no basta
+        self.assertNotIn("`git reset -q --hard HEAD`", cierre)
+        self.assertIn("`reset --hard HEAD` no basta", cierre)
+        # la orden de deshacer va ANTES de decir NO APLICA y el paso 1 que la hace necesaria sigue ahí
+        self.assertIn("ANTES de responderlo", cierre)
+        self.assertLess(cierre.index("git cherry-pick --no-commit"), cierre.index("git reset -q --hard main"))
+        self.assertLess(cierre.index("git reset -q --hard main"), cierre.index("git rev-list --count main..HEAD"))
+        # solo se queda con los archivos propios de la tarea (no los de otra que trajo el cherry-pick)
+        self.assertIn("(a.py, test_a.py)", cierre)
+        self.assertIn("devuélvelos a como estaban en main", cierre)
+        # los archivos ajenos que ya existían vuelven a la versión de MAIN, no a la de HEAD (que tras el
+        # punto de control ya lleva la de la nube)
+        self.assertIn("`git checkout main -- <ruta>`", cierre)
+        self.assertNotIn("git checkout HEAD -- <ruta>", cierre)
+        # una tarea normal no recibe nada de esto
+        normal = T.tarea_reparacion({"id": "LC1004B", "archivos": ["x.py"], "prompt": "Haz X."},
+                                    "LC1004Bb", "nube/9", ["abc"], [], "no pasó")
+        for texto in ("git reset -q --hard", "git status --porcelain", "git rev-list --count", "ANTES de responderlo"):
+            self.assertNotIn(texto, normal["prompt"])
+
+    @unittest.skipUnless(shutil.which("git"), "hace falta git")
+    def test_la_receta_del_cierre_deja_la_rama_en_main_con_git_real(self):
+        # Reproduce lo que pasa de verdad: el paso 1 deja el trabajo de la nube preparado
+        # (`cherry-pick --no-commit`), el vigilante lo commitea como punto de control y entonces
+        # `reset --hard HEAD` NO deja la rama como main (porcelain vacío, pero `main..HEAD` = 1), mientras
+        # que la receta del cierre (`reset --hard main`) sí: porcelain vacío Y `main..HEAD` = 0.
+        def git(cwd, *a):
+            r = subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                                "-c", "init.defaultBranch=main", *a], cwd=cwd, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return r.stdout.strip()
+
+        def escenario():
+            d = tempfile.mkdtemp()
+            self.addCleanup(shutil.rmtree, d, True)
+            git(d, "init", "-q")
+            for nombre in ("a.py", "otra.py"):
+                with open(os.path.join(d, nombre), "w") as f:
+                    f.write("main\n")
+            git(d, "add", "-A")
+            git(d, "commit", "-qm", "main")
+            git(d, "checkout", "-qb", "nube")
+            with open(os.path.join(d, "a.py"), "w") as f:
+                f.write("nube\n")
+            with open(os.path.join(d, "otra.py"), "w") as f:
+                f.write("nube\n")
+            with open(os.path.join(d, "nuevo.py"), "w") as f:
+                f.write("nube\n")
+            git(d, "add", "-A")
+            git(d, "commit", "-qm", "trabajo de la nube")
+            sha = git(d, "rev-parse", "HEAD")
+            git(d, "checkout", "-qb", "ola/RT1", "main")
+            git(d, "cherry-pick", "--no-commit", sha)                       # paso 1
+            git(d, "add", "-A")                                             # punto de control (COL1012D)
+            git(d, "commit", "-qm", "salvavidas")
+            self.assertEqual(git(d, "rev-list", "--count", "main..HEAD"), "1")
+            return d
+
+        # lo que decía el cierre antes: no deshace el commit del punto de control
+        d = escenario()
+        git(d, "reset", "-q", "--hard", "HEAD")
+        self.assertEqual(git(d, "status", "--porcelain"), "")
+        self.assertEqual(git(d, "rev-list", "--count", "main..HEAD"), "1")
+        # la receta de ahora
+        d = escenario()
+        git(d, "reset", "-q", "--hard", "main")
+        self.assertEqual(git(d, "status", "--porcelain"), "")
+        self.assertEqual(git(d, "rev-list", "--count", "main..HEAD"), "0")
+        self.assertFalse(os.path.exists(os.path.join(d, "nuevo.py")))
+        # y el otro camino: quedarse con una sola tarea, devolviendo los ajenos a MAIN (no a HEAD)
+        d = escenario()
+        git(d, "rm", "-rqf", "--ignore-unmatch", "--", "nuevo.py")
+        git(d, "checkout", "main", "--", "otra.py")
+        with open(os.path.join(d, "otra.py")) as f:
+            self.assertEqual(f.read(), "main\n")
+        # el siguiente punto de control quitará de la rama lo ajeno (nuevo.py y la versión de la nube de otra.py)
+        self.assertEqual(sorted(git(d, "diff", "--cached", "--name-only").splitlines()), ["nuevo.py", "otra.py"])
+
+    def test_es_rescate_por_el_prefijo_rt(self):
+        self.assertTrue(T.es_rescate("RTOPO1011T1b"))
+        self.assertTrue(T.es_rescate("RTRTX1"))
+        self.assertFalse(T.es_rescate("LC1004B"))
+        self.assertFalse(T.es_rescate(None))
 
 
 class Informe(unittest.TestCase):
