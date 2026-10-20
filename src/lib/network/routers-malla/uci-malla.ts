@@ -1,7 +1,8 @@
 /** Routers como titanio de la malla (§8 «Tras OpenWrt» de architecture/malla-cristalina-sio2.md): UCI de 802.11s +
- * batman-adv (BATMAN_V) y el guion sh que lo aplica por SSH. Puro: sin red, disco ni `node:*`. Pide OpenWrt 23.05 o
+ * batman-adv (BATMAN_V) y el guion sh que lo aplica por SSH. Puro: sin red, sin disco ni `node:*`. Pide OpenWrt 23.05 o
  * 24.10 (opkg, wpad-mesh-mbedtls, radios con `band`, puente `config device` br-lan); las de apk aún no. SIN PROBAR
  * en un router real: solo vitest sobre el texto. Sangría con espacios: un tabulador pegado dispara el autocompletado. */
+import { uciPuerta, uciClientePuerta, guionGuardianTope } from './uci-puerta';
 
 export type BandaWifi = "2g" | "5g" | "6g";
 export interface TroncalUci { banda: BandaWifi; canal: number; anchoMhz: number; pireDbm: number }
