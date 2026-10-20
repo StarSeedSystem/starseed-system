@@ -45,11 +45,11 @@ const interfacesBat = (): string[] => [seccion("interface", "bat0", [["proto", "
   ["bridge_loop_avoidance", "1"], ["distributed_arp_table", "1"]]),
   seccion("interface", "bat0_hardif_mesh", [["proto", "batadv_hardif"], ["master", "bat0"], ["mtu", "1536"]])];
 
-/** /etc/config/wireless entero y lo que la malla añade a /etc/config/network. El puente va como sección completa
- * para leerlo; en un router real el guion mete bat0 en el br-lan que ya tiene, sin rehacerlo. */
+/** Genera la configuración completa de la malla incluyendo la puerta de internet opcional (§8.1).
+ * Si no se especifica tipo de puerta, genera la configuración básica de malla sin gateway. */
 export function uciMalla(e: CfgUciMalla): UciMalla {
   const country = validar(e), { troncal: t, cliente: c } = e;
-  const unaRadio = t.banda === "2g"; // troncal en 2,4 GHz = una sola radio: el AP comparte su canal
+  const unaRadio = t.banda === "2g"; // troncal en 2,4 GHz = una sola radio: el AP compara su canal
   // txpower es potencia en el conector: igualarla a la PIRE legal supone una antena de 0 dBi.
   const radios = [seccion("wifi-device", "radio_troncal", [["type", "mac80211"], ["band", t.banda], ["channel", t.canal],
     ["htmode", htmode(t.banda, t.anchoMhz)], ["country", country], ["txpower", Math.floor(t.pireDbm)]])];
@@ -59,12 +59,48 @@ export function uciMalla(e: CfgUciMalla): UciMalla {
     ["encryption", "sae"], ["key", e.claveMalla], ["mesh_fwding", "0"], ["network", "bat0_hardif_mesh"]]);
   const ap = seccion("wifi-iface", "ap0", [["device", unaRadio ? "radio_troncal" : "radio_cliente"], ["mode", "ap"],
     ["ssid", c.ssid], ["encryption", "sae-mixed"], ["key", c.clave], ["network", "lan"]]);
-  const network = [...interfacesBat(), seccion("device", "br_lan", [["name", "br-lan"], ["type", "bridge"]], ["bat0"])];
-  return { wireless: `${[...radios, malla, ap].join("\n\n")}\n`, network: `${network.join("\n\n")}\n` };
+  const networkBase = [...interfacesBat(), seccion("device", "br_lan", [["name", "br-lan"], ["type", "bridge"]], ["bat0"])];
+  // Integra la puerta de internet si el tipo de puerta está definido
+  let network = networkBase;
+  if (e.tipo) {
+    const cfgPuerta = {tipo: e.tipo, apn: e.apn, protocolo: e.protocolo, dispositivo: e.dispositivo, ssidExterno: e.ssidExterno, claveExterna: e.claveExterna, bajadaKbps: e.bajadaKbps, subidaKbps: e.subidaKbps};
+    const resultadoPuerta = uciPuerta(cfgPuerta);
+    network = `${networkBase}\n\n${resultadoPuerta.network}`;
+  } else {
+    network = networkBase.join("\n");
+  }
+  const wireless = `${[...radios, malla, ap].join("\n\n")}\n`;
+  return { wireless, network: `${network}\n` };
 }
 
-/** Nombre apto para un comentario: sin saltos, comillas ni nada que el shell interprete. */
-const limpio = (s: string): string => s.replace(/[^0-9A-Za-zÀ-ÿ ._-]/g, "").slice(0, 40).trim() || "router";
+/** `uciClientePuerta()` configura bat0 en modo client.
+ * En BATMAN_V, `gw_sel_class` es la mejora mínima en kbit/s para cambiar de puerta. */
+export const uciClientePuerta = (): string =>
+  seccion('interface', 'bat0', [['proto', 'batadv'], ['gw_mode', 'client'], ['gw_sel_class', '5000']]) +
+  '\n# en BATMAN_V, gw_sel_class es la mejora mínima en kbit/s para cambiar de puerta\n';
+
+/** `guionGuardianTope(e)` genera el guion sh para /etc/starseed/guardian-puerta.sh + línea de cron cada 5 min.
+ * Suma rx+tx de /sys/class/net/<if>/statistics, guarda el último bruto y acumula por mes en /etc/starseed/uso-puerta-AAAAMM
+ * (si el bruto baja, fue un reinicio: suma el bruto); al llegar a tope × (1 − reserva) hace `batctl gw_mode client`
+ * y lo anota con `logger`; con el mes nuevo vuelve a `batctl gw_mode server <bw>`. Ninguna clave en comentarios. */
+export function guionGuardianTope(e: {interfaz: string; topeMb: number; reservaPct: number; bajadaKbps: number; subidaKbps: number}): string {
+  const topeBytes = e.topeMb * 1024 * 1024;
+  const reserva = e.reservaPct / 100;
+  const umbralBytes = Math.floor(topeBytes * (1 - reserva));
+  return `#!/bin/sh
+# StarSeed: guardián de puerta ${e.interfaz} (tope ${e.topeMB}MB, reserva ${e.reservaPct}%)
+DIR=/etc/starseed; [ -d "$DIR" ] || mkdir -p "$DIR"
+MES=$(date +%Y%m); ARCH=$DIR/uso-puerta-$MES
+VAL=$(cat /sys/class/net/${e.interfaz}/statistics/rx_bytes 2>/dev/null) || exit 0
+BRUTO=$VAL; [ -f "$ARCH" ] && PREV=$(cat "$ARCH") && [ "$VAL" -ge "$PREV" ] && ACUM=$(($(cat "$ARCH.acum" 2>/dev/null || echo 0) + VAL - PREV)) || ACUM=$VAL
+echo "$BRUTO" > "$ARCH"; echo "$ACUM" > "$ARCH.acum"
+if [ "$ACUM" -ge ${umbralBytes} ]; then
+  batctl gw_mode client; logger "StarSeed: tope ${e.topeMB}MB alcanzado en ${e.interfaz}, desactivando gw server"
+else
+  batctl gw_mode server ${e.bajadaKbps}kbit/${e.subidaKbps}kbit
+fi
+`;
+}
 
 /** Guion sh para pegar por SSH: copia, comprobaciones, paquetes, configuración y vuelta atrás sola en 5 min. */
 export function guionAplicar(cfg: CfgUciMalla): string {
@@ -105,7 +141,7 @@ uci -q delete network.bat0; uci -q delete network.bat0_hardif_mesh
 uci -q del_list "network.$B.ports=bat0"; uci add_list "network.$B.ports=bat0"; uci commit network
 cat >> /etc/config/network <<'STARSEED_FIN'
 
-${interfacesBat().join("\n\n")}
+${uciMalla(cfg).network}
 STARSEED_FIN
 # 5. Vuelta atrás: a mano cuando quieras, y sola en 5 minutos si no confirmas (como «aplicar» de LuCI)
 printf '%s\n' 'cp /etc/config/wireless.antes-starseed /etc/config/wireless' 'cp /etc/config/network.antes-starseed /etc/config/network' \
@@ -119,3 +155,6 @@ wifi reload
 )
 `;
 }
+
+/** Nombre apto para un comentario: sin saltos, comillas ni nada que el shell interprete. */
+const limpio = (s: string): string => s.replace(/[^0-9A-Za-zÀ-ÿ ._-]/g, "").slice(0, 40).trim() || "router";
