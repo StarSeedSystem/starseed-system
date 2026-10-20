@@ -12,8 +12,9 @@
  */
 
 import { useSyncExternalStore } from "react";
-import { importarPrivada, llaveCasaConId, publicaDePrivada } from "./cripto-estacion";
+import { importarPrivada, llaveCasaConId, publicaDePrivada, temaPrivado, temaPublico } from "./cripto-estacion";
 import { crearCanalInternet, engancharEnlacesLocales } from "./canales-estacion";
+import { crearCanalRele, leerUrlRele } from "./canal-rele";
 import { guardarControlImportado, llaveDe, registroDe } from "./llaves-locales";
 import { MotorSonido, type EstadoMotor } from "./motor-estacion";
 import { SesionEnVivo, type CanalEstacion, type FotoSesion } from "./sesion-en-vivo";
@@ -132,6 +133,16 @@ class EstacionGlobal {
       return { ok: false, motivo: "Se cambió de estación mientras conectaba." };
     }
     if (internet) sesion.agregarCanal(internet);
+    // Relé propio (opcional y aditivo): solo si hay dirección configurada y válida. No sustituye a
+    // Supabase; lo que llegue por los dos caminos es idempotente (`aplicarAccion` une por `n`).
+    const urlRele = leerUrlRele();
+    let rele: CanalEstacion | null = null;
+    if (urlRele) {
+      const temaRele = ficha.privada && token ? await temaPrivado(ficha.id, token) : temaPublico(ficha.id);
+      if (this.sesion !== sesion) return { ok: false, motivo: "Se cambió de estación mientras conectaba." };
+      rele = crearCanalRele(temaRele, { url: urlRele });
+      sesion.agregarCanal(rele);
+    }
     const bajaLocal = await engancharEnlacesLocales(
       (c) => sesion.agregarCanal(c),
       (c) => sesion.quitarCanal(c),
@@ -142,7 +153,11 @@ class EstacionGlobal {
     this.bajas.push(this.latirFila(sesion));
     this.recordar(this.href);
     this.cargando = false;
-    if (!internet) this.error = "Sin conexión a internet: solo por enlaces locales (si los hay).";
+    if (!internet) {
+      this.error = rele
+        ? "Supabase Realtime no está disponible en este aparato: solo el relé propio y los enlaces locales (si los hay)."
+        : "Sin conexión a internet: solo por enlaces locales (si los hay).";
+    };
     this.emitir();
     return { ok: true };
   }

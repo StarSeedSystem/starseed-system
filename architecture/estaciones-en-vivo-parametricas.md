@@ -23,6 +23,8 @@ al instante exacto. Cabe en cualquier antena.
 | Llaves, firma, id autocertificado, cifrado de privadas | `src/lib/estaciones/cripto-estacion.ts` | sí (WebCrypto) |
 | Sesión conectada (sobres, firmas, lotes, papeles) | `src/lib/estaciones/sesion-en-vivo.ts` | sí (canales inyectados) |
 | Canales reales: Supabase Realtime + enlaces locales P2P | `src/lib/estaciones/canales-estacion.ts` | no |
+| Canal por el relé propio (cliente WebSocket, opcional) | `src/lib/estaciones/canal-rele.ts` | sí (WebSocket inyectable) |
+| Lógica de salas del servidor del relé | `servicios/estaciones-rele/salas.mjs` | sí |
 | Motor de sonido programado + latencia de salida | `src/lib/estaciones/motor-estacion.ts` | tramos/mapeo sí |
 | Estación global de la pestaña (suena en todo el OS) | `src/lib/estaciones/estacion-global.ts` | no |
 | Crear y publicar una sesión | `src/lib/estaciones/crear-sesion.ts` | no |
@@ -34,7 +36,7 @@ al instante exacto. Cabe en cualquier antena.
 | Ruta | `src/app/(app)/estaciones/vivo/[sesion]/page.tsx` | — |
 | Para el repo de Omnifrecuencias | `integraciones-de-codigo/omnifrecuencias/` (módulo, componente, INSTRUCCIONES.md) | — |
 
-Pruebas: `src/lib/estaciones/__tests__/{reloj-comun,transmision-parametrica,sesion-en-vivo,motor-y-puente,integracion-omnifrecuencias}.test.ts`
+Pruebas: `src/lib/estaciones/__tests__/{reloj-comun,transmision-parametrica,sesion-en-vivo,canales-estacion,canal-rele,rele-salas,motor-y-puente,integracion-omnifrecuencias}.test.ts`
 y `src/components/estaciones/__tests__/{formato-en-vivo,panel-en-vivo,nueva-estacion-en-vivo}.test.*`.
 
 ## 1. Modelo
@@ -133,14 +135,62 @@ Sobre: `{"t":"est","s":id,"e":evento,"d":json | "x":cifrado,"f":firma}`. Eventos
   - **local**: cada enlace P2P emparejado sin internet vivo en la pestaña (`registro-enlaces-locales.ts`, el
     mismo del transporte universal). Coste cero y ± menos de 1 ms. Las estaciones van por ahí sin tocar el
     transporte universal (que es punto a punto con acuses y no sirve para difundir con hora exacta).
+  - **rele**: WebSocket a un servidor de salas propio, opcional y aditivo (§4.3). Sin dirección configurada no
+    existe.
+- Los oyentes de la foto (`oyentesDe`, `sesion-en-vivo.ts`): internet y relé llevan a las MISMAS personas por dos
+  caminos, así que se toma el MAYOR de los dos (sumarlos contaría doble a quien está en ambos y el directorio
+  enseñaría una cifra inflada); los enlaces locales son aparatos emparejados aparte y se SUMAN. Si el relé solo ve
+  a una parte del público, el máximo se queda corto, nunca se pasa.
 
 ### 4.1 Coste en mensajes de Realtime (Supabase Free: 2 M/mes)
 
 Cada mensaje de difusión cuenta una vez por cada conectado que lo recibe. Con N conectados y en régimen
 (rondas cada 5 min): preguntas ≈ 36·N²/h, respuestas ≤ 36·N²/h (en lote suelen ser menos), latidos 120·N/h.
 N = 10 → ≈ 8 400/h (≈ 238 h de estación al mes en el plan gratuito); N = 30 → ≈ 68 000/h (≈ 29 h/mes). Al
-entrar cada persona: unas 16·N. Por enlaces locales no cuesta nada. Para audiencias grandes: tarea
-`EV-ORACLE` (servidor de estaciones en Oracle con respuestas de hora uno a uno).
+entrar cada persona: unas 16·N. Por enlaces locales no cuesta nada. Para audiencias grandes: el relé propio (§4.3, tarea
+`EV-ORACLE`): no cuenta mensajes de Realtime. Hoy existe el cliente y la lógica de salas; el servidor aún no.
+
+### 4.3 Relé propio (cliente `canal-rele.ts`, RTS1010-EV-ORACLE-2d · 2026-10-20)
+
+Tercer canal de la estación, **opcional y aditivo**: nunca sustituye a Supabase. Existe para no gastar la cuota
+de Realtime (2 M de mensajes al mes) con audiencias grandes.
+
+- **Se activa** con `NEXT_PUBLIC_ESTACIONES_RELE_URL` (`wss://host[:puerto]`, sin ruta, credenciales ni parámetros;
+  `ws://` solo en `localhost`/`127.0.0.1`). Sin la variable, o con un valor no válido, no se crea canal y el panel
+  no pinta nada: no hay conexión que fingir. `estacion-global.ts` lo engancha en `sintonizar`, tras Supabase y
+  antes de `arrancar()`, con el MISMO tema (`temaPublico`/`temaPrivado`).
+- **Protocolo con el servidor** (contrato que debe cumplir ORACLE-1b): el cliente abre
+  `<base>/ws?tema=<tema codificado>`. El servidor solo reparte, a los demás de la misma sala, textos que
+  empiezan por `{"t":"est"` y miden como mucho 40 000 (`servicios/estaciones-rele/salas.mjs`: temas
+  `^estacion-(vivo|p):[A-Za-z0-9_:-]{8,80}$`, 200 salas, 500 por sala). Cada vez que cambia la sala manda a cada conectado
+  `{"t":"rele","n":N}` con N = conectados contándole a él; el cliente muestra N − 1 y NO entrega ese mensaje a la
+  sesión. Cierres que el cliente entiende: 1008 (sala rechazada: tema no válido o sala llena), 1009 (mensaje
+  demasiado grande), 1013 (saturado); cualquier otro código se muestra tal cual.
+- **Estado honesto** (`estadoCanalRele()`, el que lee el panel): `conectando` → `abierto` → `error` con motivo
+  (`no se pudo abrir o se cortó la conexión con el relé (código 1006); reintenta en 2 s`, `sin respuesta del relé en
+  10 s`, `este navegador no trae WebSocket`, `la dirección del relé no es válida`) → `cerrado`. Tras una caída
+  se queda en `error` hasta que abra (no parpadea). Un relé caído no oculta que Supabase funciona: cada canal es
+  su propia línea del panel. Los oyentes que da son `null` mientras no hay presencia o está caído.
+- **Reconexión**: espera 1, 2, 4… s con tope de 30 s; una conexión que aguanta abierta 10 s o más vuelve a
+  esperar 1 s (una que cae al instante, no: no martillea al servidor). `cerrar()` frena todo.
+- **Doble entrega inocua**: lo que llega por Supabase y por el relé es idempotente (`aplicarAccion` y
+  `fusionarEstados` unen por `n`); probado en `sesion-en-vivo.test.ts`. Los pings de hora salen por cada canal con
+  su propio id, así que cada camino mide el suyo.
+- **Seguridad**: el relé NO es de confianza. Solo ve sobres firmados (ECDSA P-256) y, en las privadas, cifrados
+  (AES-GCM con el token); el cliente verifica lo que llega por él igual que lo que llega por Supabase. Privacidad:
+  el tema va en la URL y, en una privada, es el derivado del token de 128 bits; **el servidor y Caddy no deben
+  registrar la query ni guardar mensajes**.
+- **Lo que falta** (no se afirma que funcione de punta a punta hasta que exista): (1) el servidor WebSocket
+  (ORACLE-1b) y su servicio en `deploy/oracle/compose-a1.yml` + Caddyfile (hoy solo está la lógica de salas);
+  (2) añadir el host del relé a `connect-src` de `src-tauri/tauri.conf.json` cuando se conozca (la CSP web ya
+  permite `wss:`; en la app nativa el canal fallaría con «código 1006» hasta entonces); (3) paridad en el kit
+  `integraciones-de-codigo/starseed-link` (su copia de canales es solo Supabase): **no hacer el relé exclusivo
+  hasta tenerla**; (4) probar de extremo a extremo una estación de Genesis/MetaGenesis/PoliGenesis con el relé
+  activo y anotarlo aquí. Un relé por comunidad/página/entidad (registro de «servidores propios») queda como
+  idea: hoy la dirección es una por despliegue.
+- **Trampa evitada**: había un `src/lib/estaciones/salas.ts` huérfano cuyo regex de id (`^[A-Z0-9]{8,}$`)
+  rechazaba ~50 % de los ids reales (los que llevan `-` o `_`) (huellas base64url de 22 caracteres que pueden llevar `-` y `_`). Se
+  borró. La lógica de salas correcta es `servicios/estaciones-rele/salas.mjs`.
 
 ## 5. Sonido en todo el OS
 

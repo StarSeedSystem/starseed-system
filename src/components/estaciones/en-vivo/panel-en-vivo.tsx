@@ -12,7 +12,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Copy, ExternalLink, Headphones, KeyRound, Lock, Pause, Play, Radio, RotateCcw, Square,
-  Timer, Volume2, VolumeX, Waves, Orbit, Wifi, WifiOff, Cable,
+  Timer, Volume2, VolumeX, Waves, Orbit, Wifi, WifiOff, Cable, Server,
 } from "lucide-react";
 import { estacionGlobal, useEstacionGlobal } from "@/lib/estaciones/estacion-global";
 import { registroDe } from "@/lib/estaciones/llaves-locales";
@@ -23,6 +23,7 @@ import {
   type FaseSesion,
 } from "@/lib/estaciones/transmision-parametrica";
 import { estadoCanalInternet, type EstadoCanalEstacion } from "@/lib/estaciones/canales-estacion";
+import { estadoCanalRele } from "@/lib/estaciones/canal-rele";
 import { formatearMs, textoReloj } from "./formato-en-vivo";
 import { BotonFondoAudiomorphic } from "./boton-fondo-audiomorphic";
 
@@ -45,16 +46,31 @@ function tieneEstado(c: CanalFoto): c is CanalFoto & { estado: () => EstadoCanal
 }
 
 /**
- * Fase y motivo del canal (S1010-ES2): de su propio `estado()` si lo trae; si es el de internet,
- * del canal vivo de la pestaña (la foto de la sesión solo copia tipo, etiqueta y abierto); si no, null.
+ * Fase y motivo del canal (S1010-ES2): de su propio `estado()` si lo trae; si es el de internet o el
+ * del relé propio, del canal vivo de la pestaña (la foto de la sesión solo copia tipo, etiqueta y
+ * abierto); si no, null.
  */
 function estadoDeCanal(c: CanalFoto): EstadoCanalEstacion | null {
   try {
     if (tieneEstado(c)) return c.estado();
-    return c.tipo === "internet" ? estadoCanalInternet() : null;
+    if (c.tipo === "internet") return estadoCanalInternet();
+    if (c.tipo === "rele") return estadoCanalRele();
+    return null;
   } catch {
     return null;
   }
+}
+
+/** Lo que se dice si un canal en error no trae motivo: nombra al canal que falla, no a otro. */
+const SIN_MOTIVO: Record<string, string> = {
+  internet: "Supabase Realtime no dio motivo",
+  rele: "el relé propio no dio motivo",
+};
+
+function IconoCanal({ tipo }: { tipo: string }) {
+  if (tipo === "internet") return <Wifi className="h-4 w-4" aria-hidden />;
+  if (tipo === "rele") return <Server className="h-4 w-4" aria-hidden />;
+  return <Cable className="h-4 w-4" aria-hidden />;
 }
 
 const boton =
@@ -202,11 +218,11 @@ export function PanelEnVivo({ href }: { href: string }) {
                 const abierto = e ? e.fase === "abierto" : c.abierto;
                 return (
                   <li key={`${c.etiqueta}-${i}`} className={`flex items-center gap-2 ${e?.fase === "error" ? "flex-wrap" : ""}`}>
-                    {c.tipo === "internet" ? <Wifi className="h-4 w-4" aria-hidden /> : <Cable className="h-4 w-4" aria-hidden />}
+                    <IconoCanal tipo={c.tipo} />
                     <span className="truncate">{c.etiqueta}</span>
                     {e?.fase === "error" ? (
                       <span role="status" className="basis-full break-words pl-6 text-xs text-amber-200/90">
-                        sin conexión: {e.motivo ?? "Supabase Realtime no dio motivo"}
+                        sin conexión: {e.motivo ?? SIN_MOTIVO[c.tipo] ?? "el canal no dio motivo"}
                       </span>
                     ) : (
                       <span className={`ml-auto text-xs ${abierto ? "text-emerald-300" : "text-white/45"}`}>

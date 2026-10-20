@@ -48,7 +48,11 @@ import {
   type TipoAccion,
 } from "./transmision-parametrica";
 
-export type TipoCanal = "internet" | "local";
+/**
+ * internet → Supabase Realtime · rele → relé propio (WebSocket, `canal-rele.ts`) · local → enlace P2P.
+ * Internet y relé son DOS caminos hacia el MISMO público de red: ver `oyentesDe` (no se suman).
+ */
+export type TipoCanal = "internet" | "local" | "rele";
 
 export interface CanalEstacion {
   tipo: TipoCanal;
@@ -266,7 +270,7 @@ export class SesionEnVivo {
   }
 
   foto(): FotoSesion {
-    const oy = this.canales.map((c) => c.oyentes?.() ?? null).filter((n): n is number => typeof n === "number");
+    const oy = oyentesDe(this.canales);
     return {
       ficha: this.ficha,
       estado: this.estado,
@@ -275,7 +279,7 @@ export class SesionEnVivo {
       control: !!this.llave,
       referencia: this.referencia,
       canales: this.canales.map((c) => ({ tipo: c.tipo, etiqueta: c.etiqueta, abierto: safe(() => c.abierto(), false) })),
-      oyentes: oy.length ? oy.reduce((a, b) => a + b, 0) : null,
+      oyentes: oy,
       anfitrionVisto: this.llave ? this.reloj.horaLocal() : this.anfitrionVisto,
       descartados: this.descartados,
     };
@@ -529,6 +533,25 @@ export class SesionEnVivo {
       }
     }
   }
+}
+
+/**
+ * Otros conectados a la estación. Internet y relé llevan a las MISMAS personas por dos caminos:
+ * sumarlos contaría dos veces a quien está en los dos y el directorio (`latirFila`) enseñaría una
+ * cifra inflada, así que de la red se toma el MAYOR (si el relé solo ve a una parte, se queda corto,
+ * nunca se pasa). Los enlaces locales son aparatos emparejados aparte: esos sí se suman. Null si
+ * ningún canal informa de presencia.
+ */
+export function oyentesDe(canales: readonly CanalEstacion[]): number | null {
+  let red: number | null = null;
+  let locales: number | null = null;
+  for (const c of canales) {
+    const n = safe(() => c.oyentes?.() ?? null, null);
+    if (typeof n !== "number" || !Number.isFinite(n)) continue;
+    if (c.tipo === "local") locales = (locales ?? 0) + n;
+    else red = red === null ? n : Math.max(red, n);
+  }
+  return red === null && locales === null ? null : (red ?? 0) + (locales ?? 0);
 }
 
 function safe<T>(fn: () => T, porDefecto: T): T {

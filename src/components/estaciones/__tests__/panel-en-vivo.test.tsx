@@ -3,6 +3,8 @@
  * botones que mandan a todos solo a quien tiene el control.
  * S1010-ES2: el canal de internet dice por qué no conecta (fase y motivo saneado), sin red real:
  * el cliente de Supabase es de mentira y los temporizadores, inyectados.
+ * RTS1010-EV-ORACLE-2d: el canal del relé propio enseña SU estado y SU motivo (no el de Supabase), y
+ * si cae el relé se sigue viendo que Supabase funciona.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
@@ -79,6 +81,7 @@ vi.mock("@/lib/estaciones/llaves-locales", () => ({ registroDe: () => (control ?
 
 import { PanelEnVivo } from "../en-vivo/panel-en-vivo";
 import { crearCanalInternet, estadoCanalInternet } from "@/lib/estaciones/canales-estacion";
+import { crearCanalRele, estadoCanalRele } from "@/lib/estaciones/canal-rele";
 
 /** Temporizador como el del navegador: con un `this` que no sea el global, «Illegal invocation». */
 function relojFalso() {
@@ -203,6 +206,69 @@ describe("PanelEnVivo", () => {
       canales = [{ ...INTERNET, abierto: false }];
       render(<PanelEnVivo href={HREF} />);
       expect(screen.getByRole("status").textContent).toMatch(/^sin conexión: Unauthorized/);
+    });
+  });
+  describe("canal del relé propio", () => {
+    const RELE: CanalMock = { tipo: "rele", etiqueta: "Relé propio (WebSocket)", abierto: false };
+    const cerrar: (() => void)[] = [];
+    afterEach(() => cerrar.splice(0).forEach((c) => c()));
+
+    class FalsoWS {
+      static instancias: FalsoWS[] = [];
+      readyState = 0;
+      onopen: (() => void) | null = null;
+      onmessage: ((ev: MessageEvent<unknown>) => void) | null = null;
+      onclose: ((ev?: CloseEvent) => void) | null = null;
+      constructor(public url: string) {
+        FalsoWS.instancias.push(this);
+      }
+      send(): void {}
+      close(): void {}
+    }
+    const WS = FalsoWS as unknown as typeof WebSocket;
+
+    it("un relé en error dice su motivo con su nombre, sin mentar a Supabase", () => {
+      canales = [INTERNET, { ...RELE, estado: () => ({ fase: "error", motivo: "se cortó la conexión con el relé (código 1006); reintenta en 2 s" }) }];
+      render(<PanelEnVivo href={HREF} />);
+      const aviso = screen.getByText(/sin conexión: se cortó la conexión con el relé/);
+      expect(aviso.getAttribute("role")).toBe("status");
+      expect(aviso.textContent).not.toMatch(/Supabase/);
+      expect(screen.getByText("Relé propio (WebSocket)")).toBeTruthy();
+      expect(screen.getByText("abierto")).toBeTruthy(); // Supabase sigue abierto y se ve
+    });
+
+    it("un relé en error sin motivo no atribuye el fallo a Supabase", () => {
+      canales = [{ ...RELE, estado: () => ({ fase: "error", motivo: null }) }];
+      render(<PanelEnVivo href={HREF} />);
+      expect(screen.getByRole("status").textContent).toBe("sin conexión: el relé propio no dio motivo");
+    });
+
+    it("canal real: conectando…, abierto y, al caerse, «sin conexión» con el código de cierre mientras Supabase sigue abierto", () => {
+      FalsoWS.instancias = [];
+      const reloj = relojFalso();
+      const canal = crearCanalRele("estacion-vivo:abcdefghijklmnopqrstuv", { url: "wss://rele.x", WebSocketImpl: WS, poner: reloj.poner, quitar: reloj.quitar });
+      cerrar.push(() => canal.cerrar());
+      canales = [INTERNET, { ...RELE }]; // la foto real no copia estado()
+      const { rerender } = render(<PanelEnVivo href={HREF} />);
+      expect(screen.getByText("conectando…")).toBeTruthy();
+      expect(estadoCanalRele()).toEqual({ fase: "conectando", motivo: null });
+
+      FalsoWS.instancias[0].readyState = 1;
+      FalsoWS.instancias[0].onopen?.();
+      canales = [INTERNET, { ...RELE, abierto: true }];
+      rerender(<PanelEnVivo href={HREF} />);
+      expect(screen.getAllByText("abierto")).toHaveLength(2);
+
+      FalsoWS.instancias[0].readyState = 3;
+      FalsoWS.instancias[0].onclose?.({ code: 1006 } as CloseEvent);
+      canales = [INTERNET, { ...RELE }];
+      rerender(<PanelEnVivo href={HREF} />);
+      expect(screen.getByRole("status").textContent).toBe(
+        "sin conexión: no se pudo abrir o se cortó la conexión con el relé (código 1006); reintenta en 1 s",
+      );
+      expect(screen.getAllByText("abierto")).toHaveLength(1); // Supabase
+      canal.cerrar();
+      expect(estadoCanalRele()).toBeNull();
     });
   });
 });
