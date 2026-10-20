@@ -4469,6 +4469,7 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTCOL1012Bdsbbbbbbbbbbbb` — no escribió nada
 
 ## 2026-10-19 18:47 · mg-oracle-1019-1149
+## 2026-10-19 12:47 · mg-oracle-1019-0543
 
 **Lo que se pidió.** Nodo de MetaGenesis: órdenes «desconectar
 
@@ -4491,3 +4492,5 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTBOT1011Gd` — otra cosa: ningún proveedor respondió (todos caídos)
 - `RTGN1010A-d3b` — no escribió nada
+- `RTCOL1012Ae` — pruebas en rojo: vitest falla (rama conservada)
+- `RTS1010-EV-ORACLE-2` — otra cosa: sin decisión en 0 h; rama ola/RTS1010-EV-ORACLE-2 conservada

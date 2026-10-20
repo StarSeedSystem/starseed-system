@@ -126,6 +126,19 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         });
     });
 });
+    it("con contenedor activo y sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } });
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
+        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
+    });
+
+    it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente", () => {
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1 });
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
+        expect(b.desconectar.explica).toContain("1 tarea");
+        expect(b.desconectar.confirmar).toBeFalsy();
+    });
+
 // ─── el traductor latido → tarjeta (puro) ──────────────────────────────────────────────────────────────
 
 const A1 = "oracle-a1-bbbbbb";
