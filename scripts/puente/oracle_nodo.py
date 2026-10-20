@@ -117,6 +117,9 @@ CLAVES_A1 = (
     # es una de las claves de proveedor que reparte (como en la Mac).
     "FREELLMAPI_KEY", "HF_TOKEN", "STARSEED_PASARELA_FREELLMAPI_URL", "STARSEED_PASARELA_FREELLMAPI_KEY",
     "STARSEED_PASARELA_FREELLMAPI_MODELOS", "STARSEED_PASARELA_FREELLMAPI_RPM",
+    # (2026-10-20) Mistral (modo Free de Studio, sin tarjeta) y Cerebras (si algún día existe la
+    # clave): los dos están en el mapa del lanzador del A1 (`a1_freellmapi.py`) pero no viajaban.
+    "MISTRAL_API_KEY", "CEREBRAS_API_KEY",
 )
 ARCHIVOS_ENV = ("~/.starseed/env", "~/.hermes/.env", os.path.join(RAIZ, ".env.local"))
 NOMBRE_CLAVE_BITNET = "STARSEED_ORACLE_BITNET_KEY"
