@@ -584,6 +584,13 @@ const CORE_FUNCTION_PACKAGES: LibraryPackage[] = [
     author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, comingSoon: true,
     payload: { skillId: "starseed-live-translate" },
   },
+  {
+    id: "fn-diagram-design", kind: "function", name: "Diseño de Diagramas",
+    description: "Skill de Astraura que crea diagramas en HTML+SVG con 45 tipos, estilo editorial y marca personal. Incluye animaciones y perfiles de marca.",
+    icon: "Layout", tags: ["skill", "aurora", "diagramas"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true,
+    payload: { skillId: "starseed-diagram-design" },
+  },
 ];
 
 /** Repos añadibles como paquete (mecanismo Cydia de «fuentes»). */
