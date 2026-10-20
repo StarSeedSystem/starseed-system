@@ -4491,3 +4491,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTBOT1011Gd` — otra cosa: ningún proveedor respondió (todos caídos)
 - `RTGN1010A-d3b` — no escribió nada
+
+## 2026-10-20 05:36 · mg-oracle-1019-2138
+
+**Lo que se pidió.** Nodo de MetaGenesis: órdenes «desconectar
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTCOL1012Ae, RTCOL1012Be, GCA1019V, APM1017B). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012Ae` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCOL1012Be` — otra cosa: ningún proveedor respondió (todos caídos)
+- `GCA1019V` — otra cosa: ningún proveedor respondió (todos caídos)
+- `APM1017B` — otra cosa: ningún proveedor respondió (todos caídos)
