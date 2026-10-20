@@ -35,8 +35,12 @@ import {
     fraseDelMando,
     textoEstadoOrden,
     type AccionOrden,
+    type ArgsOrden,
     type NodoVista,
+    type OrdenVista,
 } from "@/lib/metagenesis/remoto-nodos";
+import type { Boton } from "@/lib/metagenesis/colmena";
+import { avisoDeOrdenANodo, botonesDeNodo, lineaDeNodo, ordenDeBoton, porQueNoSePuedeMandar, type ClaveBoton } from "@/lib/metagenesis/colmena-tarjeta";
 import { textoHace } from "@/lib/metagenesis/remoto";
 import { onTableChange } from "@/lib/realtime/realtime";
 
@@ -64,8 +68,53 @@ function Chip({ children, tono = "neutro" }: { children: ReactNode; tono?: "neut
     return <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${clases}`}>{children}</span>;
 }
 
-function TarjetaNodo({ n }: { n: NodoVista }) {
+interface PropsTarjeta {
+    n: NodoVista;
+    ahora: number;
+    ordenes: readonly OrdenVista[];
+    /** Clave `accion:destino` de la orden que espera la segunda pulsación, o null. */
+    confirmando: string | null;
+    /** Clave de la orden que se está enviando, o null. */
+    enviando: string | null;
+    onOrden: (clave: ClaveBoton, n: NodoVista) => void;
+}
+
+/** Un botón de la colmena de una neurona: ficha de `botonesNeurona`, razón visible (también en móvil, donde no hay `title`). */
+function BotonColmena({ n, clave, b, confirmando, enviando, onOrden }: Pick<PropsTarjeta, "n" | "confirmando" | "enviando" | "onOrden"> & { clave: ClaveBoton; b: Boton }) {
+    if (!b.visible) return null;
+    const id = `mg-nodo-${n.nodo}-${clave}`;
+    const clavePendiente = `${clave}:${n.nodo}`;
+    const pidiendo = confirmando === clavePendiente;
+    // La razón se ve en pantalla (en el móvil no hay `title`) cuando el botón está desactivado, pide confirmar o el
+    // traspaso entre contenedores aún no está activo: entonces TODO lo que hace el botón lleva su aviso.
+    const verExplica = !b.habilitado || pidiendo || n.relevo !== true;
+    return (
+        <div className="flex min-w-0 flex-col gap-1">
+            <Button
+                size="sm"
+                variant={pidiendo ? "destructive" : "outline"}
+                className="min-h-9 cursor-pointer gap-1.5 whitespace-normal text-left text-xs"
+                disabled={!b.habilitado || enviando !== null}
+                title={b.explica}
+                aria-describedby={verExplica ? `${id}-explica` : undefined}
+                onClick={() => onOrden(clave, n)}
+                data-testid={id}
+            >
+                {enviando === clavePendiente ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden /> : null}
+                {pidiendo ? "¿Seguro? Pulsa otra vez" : b.etiqueta}
+            </Button>
+            {verExplica ? (
+                <p id={`${id}-explica`} className="text-[11px] leading-snug text-white/55" data-testid={`${id}-explica`}>
+                    {b.explica}
+                </p>
+            ) : null}
+        </div>
+    );
+}
+
+function TarjetaNodo({ n, ahora, ordenes, confirmando, enviando, onOrden }: PropsTarjeta) {
     const trabajo = Object.entries(n.trabajo).filter(([, v]) => v !== null);
+    const botones = botonesDeNodo(n, ordenes, ahora);
     return (
         <li
             data-testid="mg-nodo"
@@ -103,6 +152,17 @@ function TarjetaNodo({ n }: { n: NodoVista }) {
                     </Chip>
                 ))}
             </div>
+            <div className="mt-2 space-y-0.5 text-xs text-white/65" data-testid={`mg-nodo-${n.nodo}-info`}>
+                {lineaDeNodo(n, ahora).map((linea) => (
+                    <p key={linea}>{linea}</p>
+                ))}
+            </div>
+            {botones.desconectar.visible || botones.contenedor.visible ? (
+                <div className="mt-2 flex flex-wrap items-start gap-2" role="group" aria-label={`Colmena de ${n.etiqueta}`}>
+                    <BotonColmena n={n} clave="desconectar" b={botones.desconectar} confirmando={confirmando} enviando={enviando} onOrden={onOrden} />
+                    <BotonColmena n={n} clave="contenedor" b={botones.contenedor} confirmando={confirmando} enviando={enviando} onOrden={onOrden} />
+                </div>
+            ) : null}
         </li>
     );
 }
@@ -111,8 +171,9 @@ export function MetaGenesisAutonoma() {
     const [acceso, setAcceso] = useState<"comprobando" | "si" | "no">("comprobando");
     const [lectura, setLectura] = useState<LecturaAutonoma | null>(null);
     const [cargando, setCargando] = useState(false);
-    const [enviando, setEnviando] = useState<AccionOrden | null>(null);
-    const [confirmando, setConfirmando] = useState<AccionOrden | null>(null);
+    // Clave `accion:destino` (las del líder, `accion:lider`): así «Desconectar» de un nodo no confirma el de otro.
+    const [enviando, setEnviando] = useState<string | null>(null);
+    const [confirmando, setConfirmando] = useState<string | null>(null);
     const [aviso, setAviso] = useState<{ tono: "verde" | "rosa"; texto: string } | null>(null);
     const [ahora, setAhora] = useState(() => Date.now());
     const enVuelo = useRef(false);
@@ -165,27 +226,60 @@ export function MetaGenesisAutonoma() {
     }, [acceso, leer]);
 
     const mandar = useCallback(
-        async (accion: AccionOrden) => {
-            if (ACCIONES[accion].confirmar && confirmando !== accion) {
-                setConfirmando(accion);
+        async (o: { accion: AccionOrden; para: string; args?: ArgsOrden; confirmar: boolean; aviso: string }) => {
+            const clave = `${o.accion}:${o.para}`;
+            if (o.confirmar && confirmando !== clave) {
+                setConfirmando(clave);
                 return;
             }
             setConfirmando(null);
-            setEnviando(accion);
+            setEnviando(clave);
             setAviso(null);
             try {
-                const r = await enviarOrden(accion, "lider");
-                setAviso(
-                    r.ok
-                        ? { tono: "verde", texto: `Orden «${ACCIONES[accion].etiqueta}» enviada: la recoge el medio que dirige en menos de 2 min.` }
-                        : { tono: "rosa", texto: r.motivo },
-                );
+                // A un nodo concreto van sus argumentos; al líder, como siempre, solo la acción y el destino.
+                const r = o.args ? await enviarOrden(o.accion, o.para, o.args) : await enviarOrden(o.accion, o.para);
+                setAviso(r.ok ? { tono: "verde", texto: o.aviso } : { tono: "rosa", texto: r.motivo });
                 if (r.ok) void leer();
             } finally {
                 setEnviando(null);
             }
         },
         [confirmando, leer],
+    );
+
+    const pedirAlLider = useCallback(
+        (accion: AccionOrden) =>
+            mandar({
+                accion,
+                para: "lider",
+                confirmar: !!ACCIONES[accion].confirmar,
+                aviso: `Orden «${ACCIONES[accion].etiqueta}» enviada: la recoge el medio que dirige en menos de 2 min.`,
+            }),
+        [mandar],
+    );
+
+    /** Un botón de la tarjeta de una neurona: la orden sale del propio nodo (nunca «lider») y pide confirmación si hay trabajo. */
+    const pedirANodo = useCallback(
+        (clave: ClaveBoton, n: NodoVista, ordenes: readonly OrdenVista[]) => {
+            const boton = botonesDeNodo(n, ordenes, Date.now())[clave];
+            // Defensa: el botón desactivado no se pulsa, así que aquí solo se llega si el latido cambió entre el
+            // dibujo y el clic (el nodo pasó a prueba, el reparto dejó de estar activo…). Se dice por qué, no se manda.
+            const orden = ordenDeBoton(clave, n);
+            const porque = porQueNoSePuedeMandar(clave, n, ordenes, Date.now());
+            if (porque || !orden) {
+                setConfirmando(null);
+                setAviso({ tono: "rosa", texto: porque ?? "Esta orden ya no está disponible para este nodo: su estado cambió." });
+                return;
+            }
+            return mandar({
+                accion: orden.accion,
+                para: orden.para,
+                args: orden.args,
+                confirmar: boton.confirmar === true,
+                aviso: avisoDeOrdenANodo(boton.etiqueta.replace(/ \(\d+ agentes?\)$/, ""), n.etiqueta, n.relevo === true),
+            });
+        },
+        [mandar],
     );
 
     if (acceso !== "si") return null;
@@ -231,7 +325,15 @@ export function MetaGenesisAutonoma() {
                 <>
                     <ul className="mt-3 grid gap-2 md:grid-cols-2" aria-label="Medios de MetaGenesis">
                         {estado.nodos.map((n) => (
-                            <TarjetaNodo key={n.nodo} n={n} />
+                            <TarjetaNodo
+                                key={n.nodo}
+                                n={n}
+                                ahora={ahora}
+                                ordenes={estado.ordenes}
+                                confirmando={confirmando}
+                                enviando={enviando}
+                                onOrden={(clave, nodo) => void pedirANodo(clave, nodo, estado.ordenes)}
+                            />
                         ))}
                         {!estado.nodos.length ? (
                             <li className="rounded-xl border border-dashed border-white/15 p-3 text-xs text-white/55">
@@ -277,14 +379,14 @@ export function MetaGenesisAutonoma() {
                                     <Button
                                         key={a}
                                         size="sm"
-                                        variant={confirmando === a ? "destructive" : "outline"}
+                                        variant={confirmando === `${a}:lider` ? "destructive" : "outline"}
                                         className="h-8 cursor-pointer gap-1.5 text-xs"
                                         disabled={enviando !== null}
                                         title={ACCIONES_DEL_LIDER[a].explica}
-                                        onClick={() => void mandar(a)}
+                                        onClick={() => void pedirAlLider(a)}
                                         data-testid={`mg-orden-${a}`}
                                     >
-                                        {enviando === a ? (
+                                        {enviando === `${a}:lider` ? (
                                             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                                         ) : a === "pausar" ? (
                                             <PauseCircle className="h-3.5 w-3.5" aria-hidden />
@@ -293,7 +395,7 @@ export function MetaGenesisAutonoma() {
                                         ) : (
                                             <Wrench className="h-3.5 w-3.5" aria-hidden />
                                         )}
-                                        {confirmando === a ? "¿Seguro? Pulsa otra vez" : ACCIONES_DEL_LIDER[a].etiqueta}
+                                        {confirmando === `${a}:lider` ? "¿Seguro? Pulsa otra vez" : ACCIONES_DEL_LIDER[a].etiqueta}
                                     </Button>
                                 ))}
                             </div>

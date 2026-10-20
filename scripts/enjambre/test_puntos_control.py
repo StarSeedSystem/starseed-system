@@ -41,9 +41,12 @@ class RevisarTest(unittest.TestCase):
             tareas = [{"id": "A3", "fase": fase, "cambios": True}]
             self.assertEqual(pc.revisar(tareas, 1000.0, self.guardar), [], fase)
 
-    def test_reparando_tambien_es_fase_con_trabajo(self):
-        tareas = [{"id": "A4", "fase": "reparando", "cambios": True}]
+    def test_completando_tambien_es_fase_con_trabajo(self):
+        """«completando» es la segunda pasada de escritura del orquestador (existe); «reparando» nunca se emite."""
+        tareas = [{"id": "A4", "fase": "completando", "cambios": True}]
         self.assertEqual(pc.revisar(tareas, 50.0, self.guardar), ["A4"])
+        for fase in ("reparando", "corrigiendo"):
+            self.assertEqual(pc.revisar([{"id": "A6", "fase": fase, "cambios": True}], 50.0, self.guardar), [], fase)
 
     def test_vigilante_solo_cada_300s_por_tarea(self):
         # Con punto reciente no toca; con punto viejo sí.

@@ -6438,14 +6438,15 @@ def _barrer_tsc_huerfanos():
 
 def revisar_puntos_control(ahora: float) -> None:
     """COL1012D: un punto de control cada 5 min por tarea con trabajo a medias. La decisión
-    (+300 s, fase de escritura o reparación, hay cambios) la da puntos_control/colmena_logica;
+    (+300 s, fase de escritura, hay cambios) la da puntos_control/colmena_logica;
     `guardar` es el commit_salvavidas que ya existe (sin tocar su mensaje) + `anotar`."""
     if _puntos_control is None:
         return
     puntos = _puntos_control.cargar(RUTA_PUNTOS)
     tareas = []
     for tid, d in list(LATIDOS.items()):
-        if d.get("fase") not in ("escribiendo", "reparando", "corrigiendo"):
+        # Las fases de escritura salen de colmena_logica (una sola fuente): «escribiendo» y «completando».
+        if d.get("fase") not in _puntos_control.colmena.FASES_CON_TRABAJO:
             continue
         try:
             wt = worktree(tid)

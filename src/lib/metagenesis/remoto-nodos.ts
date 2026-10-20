@@ -73,8 +73,17 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     reanudar: { etiqueta: "Reanudar autonomía", explica: "El líder vuelve a decidir solo.", args: [] },
     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
     // Colmena (COL1012): van a un ID de nodo concreto, nunca a «lider»/«todos» (igual que el nodo Python).
-    desconectar: { etiqueta: "Desconectar", explica: "Quita al nodo del enjambre de MetaGenesis.", confirmar: true, args: [] },
-    contenedor: { etiqueta: "Usar como contenedor", explica: "El nodo actúa como contenedor para otros mediadores.", args: ["activo", "trabajadores"] },
+    desconectar: {
+        etiqueta: "Desconectar",
+        explica: "Deja de ofrecer este aparato como contenedor y avisa de que se desconecta. El traspaso del trabajo a otro contenedor aún no está activo.",
+        confirmar: true,
+        args: [],
+    },
+    contenedor: {
+        etiqueta: "Usar como contenedor",
+        explica: "Apunta si este aparato se ofrece como contenedor de agentes (con cuántos). El nodo lo guarda y lo publica en su latido.",
+        args: ["activo", "trabajadores"],
+    },
 };
 
 /** Las acciones del nodo NO se ofrecen en «Pedir algo al que dirige»: van en la tarjeta de cada neurona. */
@@ -221,13 +230,34 @@ export interface NodoVista {
     enCurso: TareaEnCurso[];
     /** Estado de contenedor del latido (`trabajadores` pasa a llamarse `agentes`, como en colmena.ts); null si no lo apuntó. */
     contenedor: ContenedorNodo | null;
+    /** RAM total, núcleos y carga del aparato (Cerebros › Procesos los lee con `hardwareDesdeNodo`). Opcionales: un latido viejo no los trae. */
+    ram_total_mb?: number | null;
+    nucleos?: number | null;
+    carga?: number | null;
+    /** El nodo recibió «Desconectar» hace poco (el latido lo enseña un rato, no para siempre). */
+    desconectando?: boolean;
+    /** El nodo declara que el traspaso de trabajo entre contenedores está activo; sin dato, no lo está. */
+    relevo?: boolean;
+    /** El latido trae `en_curso` como lista (aunque vacía): false = este nodo aún no informa de su trabajo (latido viejo o su medida falló). */
+    informaTrabajo?: boolean;
 }
 
 const boolDe = (x: unknown): boolean => x === true;
 
+/**
+ * PURA. Un campo de la colmena del latido: el nodo Python los publica dentro de `salud` (donde mide todo lo
+ * demás) y el contrato los describe en el latido; se lee primero la raíz y, si falta, `salud`.
+ */
+function campoDe(d: Record<string, unknown>, clave: string): unknown {
+    if (clave in d) return d[clave];
+    const salud = d.salud;
+    return salud && typeof salud === "object" ? (salud as Record<string, unknown>)[clave] : undefined;
+}
+
 /** PURA. Un `en_curso` del latido a lo que se pinta, sin fiarse de lo que venga. */
 function enCursoDe(d: Record<string, unknown>): TareaEnCurso[] {
-    const lista = Array.isArray(d.en_curso) ? (d.en_curso as Array<Record<string, unknown>>) : [];
+    const bruto = campoDe(d, "en_curso");
+    const lista = Array.isArray(bruto) ? (bruto as Array<Record<string, unknown>>) : [];
     return lista
         .map((t) => {
             const p = (t?.punto ?? null) as Record<string, unknown> | null;
@@ -245,7 +275,7 @@ function enCursoDe(d: Record<string, unknown>): TareaEnCurso[] {
 
 /** PURA. El `contenedor` del latido (§3: {activo, trabajadores, apto, motivo}), o null si falta. */
 function contenedorDe(d: Record<string, unknown>): ContenedorNodo | null {
-    const c = d.contenedor as Record<string, unknown> | null;
+    const c = campoDe(d, "contenedor") as Record<string, unknown> | null;
     if (!c || typeof c !== "object") return null;
     // El latido dice `trabajadores`; la pantalla y colmena.ts lo llaman `agentes`. Se aceptan ambos.
     return { activo: boolDe(c.activo), agentes: num(c.trabajadores) ?? num(c.agentes) ?? 0, apto: boolDe(c.apto), motivo: txt(c.motivo, 160) };
@@ -326,6 +356,12 @@ function nodoDeLatido(d: Record<string, unknown>, ts: number, ahora: number, lid
         trabajo: Object.fromEntries(Object.entries(trabajo).map(([k, v]) => [k, num(v)])),
         enCurso: enCursoDe(d),
         contenedor: contenedorDe(d),
+        ram_total_mb: num(salud.ram_total_mb),
+        nucleos: num(salud.nucleos),
+        carga: num(salud.carga),
+        desconectando: boolDe(campoDe(d, "desconectando")),
+        relevo: boolDe(campoDe(d, "relevo")),
+        informaTrabajo: Array.isArray(campoDe(d, "en_curso")),
     };
 }
 

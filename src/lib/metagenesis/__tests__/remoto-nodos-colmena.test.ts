@@ -4,6 +4,8 @@
  * Contrato: architecture/colmena-relevo-contenedores.md §3.
  */
 import { describe, it, expect } from "vitest";
+import { hardwareDesdeNodo } from "@/lib/cerebros/procesos";
+import { botonesDeNodo, lineaDeNodo } from "@/lib/metagenesis/colmena-tarjeta";
 import {
     ACCIONES,
     ACCIONES_DEL_LIDER,
@@ -116,5 +118,65 @@ describe("latido: en_curso y contenedor (§3)", () => {
         const e = resumirBus([latido({ nodo: "nodo-a1", ts: AHORA / 1000, en_curso: largas })], AHORA);
         expect(e.nodos[0].enCurso).toHaveLength(8);
         expect(e.nodos[0].enCurso.every((t) => t.id.length > 0)).toBe(true);
+    });
+});
+
+describe("latido tal como lo publica el nodo Python: la colmena va DENTRO de `salud`", () => {
+    const latido = (datos: Record<string, unknown>): FilaBus => ({ id: 1, t: new Date(AHORA - 60_000).toISOString(), tipo: "mg_latido", datos });
+    const salud = {
+        ram_libre_mb: 4000,
+        ram_total_mb: 8192,
+        nucleos: 8,
+        carga: 1.5,
+        disco_gb: 100,
+        en_curso: [{ id: "col1012d", fase: "escribiendo", punto: { rama: "ola/col1012d", sha: "abc123", t: (AHORA - 5 * 60_000) / 1000 } }],
+        contenedor: { activo: false, agentes: 3, apto: true, motivo: "3 agente(s) por la memoria y los núcleos." },
+        desconectando: false,
+        relevo: false,
+    };
+
+    it("lee en_curso, contenedor y la capacidad de `salud` (si no, la tarjeta no vería nada de un nodo real)", () => {
+        const e = resumirBus([latido({ nodo: "nodo-a1", medio: "oracle-a1", ts: (AHORA - 60_000) / 1000, salud })], AHORA);
+        const n = e.nodos[0];
+        expect(n.enCurso.map((t) => t.id)).toEqual(["col1012d"]);
+        expect(n.contenedor).toEqual({ activo: false, agentes: 3, apto: true, motivo: "3 agente(s) por la memoria y los núcleos." });
+        expect(n).toMatchObject({ ram_total_mb: 8192, nucleos: 8, carga: 1.5, desconectando: false, relevo: false, informaTrabajo: true });
+    });
+
+    it("de ese latido salen la línea y los botones de la tarjeta, con el último punto en segundos", () => {
+        const e = resumirBus([latido({ nodo: "nodo-a1", medio: "oracle-a1", ts: (AHORA - 60_000) / 1000, salud })], AHORA);
+        const n = e.nodos[0];
+        expect(lineaDeNodo(n, AHORA)).toEqual(["3 agentes · puede ser contenedor", "1 tarea en curso · Último punto de control hace 5 min"]);
+        // `relevo:false` en el latido: ninguno de los dos botones cambiaría nada, así que se ven y no se pueden pulsar.
+        const b = botonesDeNodo(n, [], AHORA);
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false });
+        expect(b.contenedor).toMatchObject({ visible: true, habilitado: false, etiqueta: "Usar como contenedor (3 agentes)" });
+        // Un nodo que declara el relevo activo sí los ofrece.
+        const e2 = resumirBus([latido({ nodo: "nodo-a1", medio: "oracle-a1", ts: (AHORA - 60_000) / 1000, salud: { ...salud, relevo: true } })], AHORA);
+        const b2 = botonesDeNodo(e2.nodos[0], [], AHORA);
+        expect(b2.desconectar).toMatchObject({ habilitado: true, confirmar: true });
+        expect(b2.contenedor).toMatchObject({ habilitado: true, etiqueta: "Usar como contenedor (3 agentes)" });
+    });
+
+    it("la raíz del latido manda sobre `salud` (el contrato también la describe así)", () => {
+        const e = resumirBus([latido({ nodo: "nodo-a1", ts: AHORA / 1000, en_curso: [], salud })], AHORA);
+        expect(e.nodos[0].enCurso).toEqual([]);
+    });
+
+    it("`en_curso` publicado como null (la medida falló) no se confunde con «sin trabajo»", () => {
+        const e = resumirBus([latido({ nodo: "nodo-a1", ts: AHORA / 1000, salud: { ...salud, en_curso: null, contenedor: null } })], AHORA);
+        expect(e.nodos[0]).toMatchObject({ enCurso: [], contenedor: null, informaTrabajo: false });
+        expect(botonesDeNodo(e.nodos[0], [], AHORA).desconectar.habilitado).toBe(false);
+    });
+
+    it("un latido sin la colmena (nodo viejo) no inventa nada", () => {
+        const e = resumirBus([latido({ nodo: "nodo-a1", ts: AHORA / 1000, salud: { disco_gb: 10 } })], AHORA);
+        expect(e.nodos[0]).toMatchObject({ enCurso: [], contenedor: null, informaTrabajo: false, relevo: false, desconectando: false });
+    });
+
+    it("Cerebros › Procesos recibe por fin la RAM total, los núcleos y la carga de cada nodo", () => {
+        const e = resumirBus([latido({ nodo: "nodo-a1", medio: "oracle-a1", ts: AHORA / 1000, salud })], AHORA);
+        const h = hardwareDesdeNodo(e.nodos[0], AHORA);
+        expect(h).toMatchObject({ id: "nodo-a1", ramTotalMb: 8192, ramUsadaMb: 8192 - 4000, nucleos: 8, carga: 1.5 });
     });
 });

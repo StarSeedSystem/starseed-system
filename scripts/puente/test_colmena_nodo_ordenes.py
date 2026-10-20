@@ -14,6 +14,7 @@ import json
 import time
 import tempfile
 import shutil
+from unittest.mock import patch
 
 import nodo_metagenesis as NM
 import nodo_metagenesis_logica as L
@@ -96,50 +97,66 @@ class TestNodoContenedor(unittest.TestCase):
 
 
 class TestNodoDesconectar(unittest.TestCase):
+    """«Desconectar» dice lo que hace de verdad: apaga el contenedor, marca la desconexión y cuenta lo que
+    tenía a medias. NO promete traspaso (COL1012E/G/H no están cableados) ni inventa tareas."""
+
     def setUp(self):
-        global CARPETA_TEMP
-        if not os.path.isdir(CARPETA_TEMP):
-            CARPETA_TEMP = tempfile.mkdtemp(prefix="nodo-test-")
-        self.addCleanup(limpiar_temp)
-    def test_desconectar_activa_guardar_todo_y_baja(self):
+        self.tmp = tempfile.mkdtemp(prefix="desc-test-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.carpeta = os.path.join(self.tmp, "nodo")
+        self.raiz = os.path.join(self.tmp, "repo")
+        self.olas = os.path.join(self.raiz, "starseed_memory_root", "olas")
+        os.makedirs(self.olas)
+
+    def desconectar(self, cola="cola-x.json"):
+        import nodo_metagenesis_medio as M
         nodo = NM.Nodo(seco=False, sin_red=True, memoria={}, persistir=False,
                        huella="test-huella-777", llave="llave-test-777777")
-        import nodo_metagenesis_medio as M
-        M.CARPETA = CARPETA_TEMP
-        ruta_c = os.path.join(M.CARPETA, "contenedor.json")
-        ruta_d = os.path.join(M.CARPETA, "desconectando.json")
-        ruta_olas = os.path.join(M.raiz_repo(), "starseed_memory_root", "olas")
-        ruta_guardar = os.path.join(ruta_olas, "control-guardartodo.json")
-        # Asegurar que no hay archivos previos del test anterior
-        for r in (ruta_c, ruta_d, ruta_guardar):
-            if os.path.exists(r):
-                os.remove(r)
-        # Crear un archivo contenedor previo para que `desconectar` lo desactive
-        with open(ruta_c, "w", encoding="utf-8") as f:
+        with patch.object(M, "CARPETA", self.carpeta), patch.object(M, "colas_vivas", return_value=[cola] if cola else []):
+            return nodo._ejecutar({"clave": "test-desc", "accion": "desconectar", "nodo": nodo.yo,
+                                   "motivo": "prueba desconectar", "args": {}, "espera_s": 0},
+                                  "neurona", self.raiz, False, None)
+
+    def test_desconectar_apaga_el_contenedor_y_marca_la_desconexion(self):
+        os.makedirs(self.carpeta)
+        with open(os.path.join(self.carpeta, "contenedor.json"), "w", encoding="utf-8") as f:
             json.dump({"activo": True, "trabajadores": 2}, f)
-        estado, texto = nodo._ejecutar({"clave": "test-desc", "accion": "desconectar",
-                                       "nodo": nodo.yo, "motivo": "prueba desconectar",
-                                       "args": {}, "espera_s": 0},
-                                      "neurona", M.raiz_repo(), False, None)
-        # `desconectar` debe devolver `hecha` (o `seca` en modo `seco`).
-        self.assertIn("hecha", estado)
-        # El archivo `contenedor.json` debe estar inactivo
-        self.assertTrue(os.path.exists(ruta_c))
-        with open(ruta_c, "r", encoding="utf-8") as f:
-            datos = json.load(f)
-        self.assertEqual(datos.get("activo"), False)
-        # El archivo `desconectando.json` debe existir
-        self.assertTrue(os.path.exists(ruta_d))
-        with open(ruta_d, "r", encoding="utf-8") as f:
-            datos_d = json.load(f)
-        self.assertTrue(datos_d.get("desconectando"))
-        # El archivo `control-guardartodo.json` debe existir (simula `guardar_todo`)
-        self.assertTrue(os.path.exists(ruta_guardar))
-        with open(ruta_guardar, "r", encoding="utf-8") as f:
-            datos_g = json.load(f)
-        self.assertEqual(datos_g.get("accion"), "guardar_todo")
-        # El mensaje debe mencionar `traspaso`
-        self.assertIn("traspaso", texto)
+        antes = time.time()
+        estado, texto = self.desconectar()
+        self.assertEqual(estado, "hecha")
+        with open(os.path.join(self.carpeta, "contenedor.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["activo"], False)
+        with open(os.path.join(self.carpeta, "desconectando.json"), encoding="utf-8") as f:
+            marca = json.load(f)
+        self.assertTrue(marca["desconectando"])
+        self.assertGreaterEqual(marca["t"], antes)
+        # Nadie lee una orden «guardar_todo» ni la espera: ya no se finge escribirla.
+        self.assertFalse(os.path.exists(os.path.join(self.olas, "control-guardartodo.json")))
+
+    def test_desconectar_cuenta_lo_real_y_no_promete_traspaso(self):
+        with open(os.path.join(self.olas, "latidos-cola-x.json"), "w", encoding="utf-8") as f:
+            json.dump({"tareas": {"T1": {"fase": "escribiendo"}, "T2": {"fase": "completando"}, "T3": {"fase": "tsc"},
+                                  "T4": {"fase": "integrando"}, "T5": {"fase": "hecho"}}}, f)
+        with open(os.path.join(self.olas, "puntos-control.json"), "w", encoding="utf-8") as f:
+            json.dump({"T1": {"rama": "ola/T1", "sha": "abc", "t": 1.0}}, f)
+        estado, texto = self.desconectar()
+        self.assertEqual(estado, "hecha")
+        self.assertIn("4 tarea(s) en curso, 1 con punto de control en este aparato", texto)
+        self.assertIn("el traspaso a otro contenedor aún no está activo", texto)
+        self.assertNotIn("tarea-ejemplo", texto)
+        self.assertNotIn("traspaso con", texto)
+
+    def test_desconectar_sin_trabajo_dice_cero(self):
+        estado, texto = self.desconectar(cola=None)
+        self.assertEqual(estado, "hecha")
+        self.assertIn("0 tarea(s) en curso, 0 con punto de control", texto)
+
+    def test_el_latido_ve_la_desconexion_un_rato(self):
+        import nodo_metagenesis_medio as M
+        self.desconectar()
+        with patch.object(M, "CARPETA", self.carpeta):
+            self.assertTrue(M.desconectando_ahora(time.time()))
+            self.assertFalse(M.desconectando_ahora(time.time() + 3600))
 
     def test_desconectar_seco(self):
         nodo = NM.Nodo(seco=True, sin_red=True, memoria={}, persistir=False,

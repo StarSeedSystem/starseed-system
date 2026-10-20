@@ -35,7 +35,7 @@ import socket
 import subprocess
 import sys
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import nodo_metagenesis_logica as L
 import colmena_logica as C
@@ -145,6 +145,173 @@ def disco_libre_gb(ruta: str) -> Optional[float]:
         return round(shutil.disk_usage(ruta).free / 1e9, 1)
     except OSError:
         return None
+
+
+def ram_total_mb() -> Optional[int]:
+    """RAM TOTAL del aparato (no la libre): la capacidad de contenedor se decide con ella (§2 del contrato).
+    None si no se pudo medir: entonces no se inventa un contenedor (ni «no apto» por un 0 falso)."""
+    try:
+        with open("/proc/meminfo") as f:
+            for linea in f:
+                if linea.startswith("MemTotal:"):
+                    return int(linea.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    if sys.platform == "darwin":
+        # Ruta absoluta: launchd no lleva /usr/sbin en el PATH (mismo motivo que `ioreg` en huella_maquina).
+        rc, out = _sh(["/usr/sbin/sysctl", "-n", "hw.memsize"], tope=10)
+        if rc == 0 and out.strip().isdigit():
+            return int(out.strip()) // (1024 * 1024)
+    return None
+
+
+def bateria_de(texto_pmset: str) -> Dict[str, Any]:
+    """PURA. La salida de `pmset -g batt` a {cargando, nivel 0-1}; {} si no hay batería (sobremesa) o no se entiende."""
+    m = re.search(r"(\d{1,3})%", texto_pmset or "")
+    if not m or "InternalBattery" not in texto_pmset:
+        return {}
+    # «Now drawing from 'AC Power'» = enchufado; «'Battery Power'» = tirando de batería.
+    cargando = "Battery Power" not in texto_pmset
+    return {"cargando": cargando, "nivel": min(1.0, int(m.group(1)) / 100.0)}
+
+
+def bateria() -> Dict[str, Any]:
+    """Batería del aparato (contrato §2: sin cargador, 1 agente como mucho). {} si no hay o no se sabe."""
+    try:
+        if sys.platform == "darwin":
+            rc, out = _sh(["/usr/bin/pmset", "-g", "batt"], tope=10)
+            return bateria_de(out) if rc == 0 else {}
+        base = "/sys/class/power_supply"
+        for n in sorted(os.listdir(base)) if os.path.isdir(base) else []:
+            if not n.startswith("BAT"):
+                continue
+            nivel = int(open(os.path.join(base, n, "capacity")).read().strip())
+            estado = open(os.path.join(base, n, "status")).read().strip().lower()
+            return {"cargando": estado != "discharging", "nivel": min(1.0, nivel / 100.0)}
+    except (OSError, ValueError):
+        pass
+    return {}
+
+
+def carpetas_nvm(home: Optional[str] = None) -> List[str]:
+    """Las carpetas `bin` de cada Node instalado con nvm, la versión más alta primero.
+
+    Mismo criterio que `_node_del_repo` del enjambre: nvm no se carga en un shell no interactivo, así que un nodo
+    arrancado por systemd o launchd no lo ve en el PATH aunque el aparato SÍ tenga Node (y el enjambre lo usa)."""
+    base = os.path.join(home or os.path.expanduser("~"), ".nvm", "versions", "node")
+    try:
+        versiones = [v for v in os.listdir(base) if v.startswith("v")]
+    except OSError:
+        return []
+
+    def clave(v: str) -> Tuple[int, ...]:
+        try:
+            return tuple(int(x) for x in v.lstrip("v").split("."))
+        except ValueError:
+            return (0,)
+
+    return [os.path.join(base, v, "bin") for v in sorted(versiones, key=clave, reverse=True)]
+
+
+def tiene_herramienta(nombre: str, home: Optional[str] = None) -> bool:
+    """¿Está `nombre` en este aparato? Mira también donde launchd/systemd no ponen el PATH (Homebrew, npm global, nvm)."""
+    raiz = home or os.path.expanduser("~")
+    extra = os.pathsep.join(["/opt/homebrew/bin", "/usr/local/bin", os.path.join(raiz, ".npm-global", "bin"),
+                             os.path.join(raiz, ".local", "bin"), *carpetas_nvm(raiz)])
+    return shutil.which(nombre, path=os.environ.get("PATH", "") + os.pathsep + extra) is not None
+
+
+def so_de_este_aparato() -> str:
+    """El `so` que entiende `colmena_logica.capacidad_contenedor` (no el `sys.platform` a secas)."""
+    if os.environ.get("TERMUX_VERSION") or sys.platform == "android":
+        return "android"
+    if sys.platform == "darwin":
+        return "macos"
+    if sys.platform in ("win32", "cygwin"):
+        return "windows"
+    return "linux" if sys.platform.startswith("linux") else "otro"
+
+
+def en_curso_de(raiz: str, colas: Union[None, str, Iterable[str]]) -> Optional[List[Dict[str, Any]]]:
+    """Las tareas VIVAS que lleva este aparato ahora (contrato §3: ≤ 8, sin rutas ni nombres de máquina).
+
+    La fuente de verdad es `olas/latidos-<cola>.json`, que escribe el orquestador con la fase real de cada
+    tarea (`latir`), no `progreso.json` (ahí `estado` es commit/integrada/fallida…, nunca «escribiendo»).
+    Una tarea está viva con la MISMA regla que usa el orquestador (`colmena_logica.tarea_viva`): toda fase que no
+    es «hecho». No solo «escribiendo»: en tsc, tests, revision, integrando o 40 min «esperando proveedor» el aparato
+    también lleva la tarea a medias, y decir «sin trabajo» ahí invitaría a apagarlo en mitad de una integración.
+    `colas` son las colas de TODOS los orquestadores vivos (un medio puede correr varios): se juntan sus tareas sin
+    repetir ids. Sin ninguna cola viva, un `latidos-` viejo de un orquestador caído no es trabajo.
+    El punto de control sale de `olas/puntos-control.json` ({tarea: {rama, sha, t en segundos}}); sin `sha` aún
+    no hay punto y se publica null. [] = no hay trabajo; None = no se pudo leer algún latidos- (no se afirma nada)."""
+    lista = [colas] if isinstance(colas, str) else list(colas or [])
+    lista = [c for c in dict.fromkeys(lista) if c]
+    if not lista:
+        return []
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    vivas: Dict[str, str] = {}
+    for cola in lista:
+        ruta = os.path.join(olas, "latidos-" + cola)
+        if not os.path.exists(ruta):
+            continue
+        datos = leer_json(ruta, None)
+        tareas = datos.get("tareas") if isinstance(datos, dict) else None
+        if not isinstance(tareas, dict):
+            return None
+        for tid, v in tareas.items():
+            if isinstance(v, dict) and C.tarea_viva(v.get("fase")) and str(tid).strip():
+                vivas.setdefault(str(tid), str(v["fase"]))
+    if not vivas:
+        return []
+    puntos = leer_json(os.path.join(olas, "puntos-control.json"), {})
+    puntos = puntos if isinstance(puntos, dict) else {}
+    salida: List[Dict[str, Any]] = []
+    for tid in sorted(vivas)[:8]:
+        p = puntos.get(tid)
+        punto = None
+        if isinstance(p, dict) and p.get("sha"):
+            try:
+                t = float(p.get("t") or 0.0)
+            except (TypeError, ValueError):
+                t = 0.0
+            punto = {"rama": str(p.get("rama") or "")[:120], "sha": str(p["sha"])[:60], "t": t}
+        salida.append({"id": tid[:80], "fase": vivas[tid][:40], "punto": punto})
+    return salida
+
+
+def contenedor_de(disco_gb: Optional[float], ram_mb: Optional[int]) -> Optional[Dict[str, Any]]:
+    """Lo que este aparato puede aportar como contenedor, con la memoria y los núcleos REALES (contrato §2).
+
+    `activo` y los `trabajadores` elegidos salen de `contenedor.json` (la orden `contenedor`); si está activo, los
+    agentes publicados son min(capacidad, elegidos). None si no se pudo medir la RAM o el disco: no se afirma nada."""
+    if ram_mb is None or disco_gb is None:
+        return None
+    dato = leer_json(os.path.join(CARPETA, "contenedor.json"), {})
+    dato = dato if isinstance(dato, dict) else {}
+    activo = dato.get("activo") is True
+    cap = {
+        "so": so_de_este_aparato(),
+        "herramientas": {h: (h == "python3" or tiene_herramienta(h)) for h in C.HERRAMIENTAS},
+        "ram_total_mb": ram_mb,
+        "nucleos": os.cpu_count() or 1,
+        "disco_libre_gb": disco_gb,
+        "bateria": bateria(),
+    }
+    r = C.capacidad_contenedor(cap)
+    agentes = int(r.get("agentes", 0))
+    elegidos = dato.get("trabajadores")
+    if activo and isinstance(elegidos, int) and not isinstance(elegidos, bool) and elegidos >= 1:
+        agentes = min(agentes, elegidos)
+    return {"activo": activo, "agentes": agentes, "apto": bool(r.get("apto")), "motivo": str(r.get("motivo") or "")[:160]}
+
+
+def desconectando_ahora(ahora: float) -> bool:
+    """¿Se pidió «Desconectar» a este aparato hace menos de GRACIA_DESCONECTAR_S? (marca de la orden, no un estado eterno)."""
+    d = leer_json(os.path.join(CARPETA, "desconectando.json"), {})
+    try:
+        return isinstance(d, dict) and d.get("desconectando") is True and 0 <= ahora - float(d.get("t")) < C.GRACIA_DESCONECTAR_S
+    except (TypeError, ValueError):
+        return False
 
 
 def lineas_ps() -> List[str]:
@@ -346,12 +513,19 @@ def existentes(raiz: str, rutas: List[str]) -> List[str]:
     return salida
 
 
-def cola_viva(lineas: Optional[List[str]] = None) -> Optional[str]:
-    """La cola que corre AHORA el orquestador de esta máquina (de los argumentos del proceso)."""
+def colas_vivas(lineas: Optional[List[str]] = None) -> List[str]:
+    """TODAS las colas que corren AHORA los orquestadores de esta máquina (de los argumentos del proceso), sin repetir."""
+    salida: List[str] = []
     for o in orquestadores(lineas if lineas is not None else lineas_ps()):
-        if o.get("cola"):
-            return o["cola"] + ".json"
-    return None
+        if o.get("cola") and (o["cola"] + ".json") not in salida:
+            salida.append(o["cola"] + ".json")
+    return salida
+
+
+def cola_viva(lineas: Optional[List[str]] = None) -> Optional[str]:
+    """La primera cola que corre AHORA un orquestador de esta máquina (para quien solo necesita una)."""
+    colas = colas_vivas(lineas)
+    return colas[0] if colas else None
 
 
 def enlistar_reparacion(raiz: str, tarea: Dict[str, Any], delante_en_la_tanda: bool, ahora: float) -> Tuple[str, str]:
@@ -477,125 +651,24 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         salud["a1"] = estado_a1()
     cap = {"medio": medio, "modo": modo, "repo": salud["repo"], "orquestador": salud["orquestador"],
             "autoritativo": autoritativo, "ram_libre_mb": salud["ram_libre_mb"], "disco_gb": salud["disco_gb"]}
-    # Añadir campos nuevos al latido: en_curso, contenedor, periodo_s
-    # periodo_s: periodo real de latido de ese nodo
-    periodo_s = float(os.environ.get("STARSEED_NODO_LATIDO_S", L.LATIDO_S))
-    # en_curso: tareas en curso del orquestador de este medio
-    en_curso = []
-    # contenedor: información de contenedor
-    contenedor_info = {"activo": False, "agentes": 0, "apto": False, "motivo": ""}
-
-    # --- Implementación de en_curso ---
+    # Colmena (COL1012C): lo que lleva este aparato y lo que podría aportar. Si una medida falla se publica
+    # None (no «sin trabajo» ni «no apto» por defecto): la pantalla distingue «no lo sé» de «no hay».
     try:
-        # Obtener la cola viva (la que está siendo procesada por el orquestador de este medio)
-        cola_viva_json = M.cola_viva()  # Devuelve algo like "cola-1012C.json" o None
-        if cola_viva_json:
-            # Ruta de la cola viva
-            olas = os.path.join(M.raiz_repo(), "starseed_memory_root", "olas")
-            cola_path = os.path.join(olas, cola_viva_json)
-            # Leer la cola viva para obtener la lista de tareas
-            cola_data = M.leer_json(cola_path, [])
-            if not isinstance(cola_data, list):
-                cola_data = []
-            # Obtener el progreso global
-            progreso_path = os.path.join(M.raiz_repo(), "starseed_memory_root", "olas", "progreso.json")
-            progreso = M.leer_json(progreso_path, {})
-            if not isinstance(progreso, dict):
-                progreso = {}
-            # Leer los puntos de control (si existen) para obtener el punto (rama, sha, t) de cada tarea
-            puntos_path = os.path.join(olas, "puntos-control.json")
-            puntos_data = M.leer_json(puntos_path, {})
-            if not isinstance(puntos_data, dict):
-                puntos_data = {}
-            # Recopilar las tareas en curso (máximo 8)
-            for tarea in cola_data:
-                if not isinstance(tarea, dict):
-                    continue
-                tid = str(tarea.get("id") or "")
-                if not tid:
-                    continue
-                # Verificar si la tarea está en progreso y en una fase de trabajo
-                tarea_progreso = progreso.get(tid)
-                if not isinstance(tarea_progreso, dict):
-                    continue
-                fase = tarea_progreso.get("estado")
-                if fase not in L.FASES_CON_TRABAJO:
-                    continue
-                # Obtener el punto de la tarea de los puntos de control
-                punto_info = puntos_data.get(tid, {})
-                if not isinstance(punto_info, dict):
-                    punto_info = {}
-                # Extraer rama, sha, t del punto
-                rama = str(punto_info.get("rama") or "")
-                sha = str(punto_info.get("sha") or "")
-                t_point = punto_info.get("t")
-                if t_point is None:
-                    t_point = 0.0
-                else:
-                    try:
-                        t_point = float(t_point)
-                    except (ValueError, TypeError):
-                        t_point = 0.0
-                # Añadir a la lista de en_curso (máximo 8)
-                if len(en_curso) < 8:
-                    en_curso.append({
-                        "id": tid,
-                        "fase": fase,
-                        "punto": {
-                            "rama": rama,
-                            "sha": sha,
-                            "t": t_point
-                        }
-                    })
-    except Exception:
-        # En caso de error, dejamos en_curso como lista vacía
-        pass
-
-    # --- Implementación de contenedor ---
+        en_curso = en_curso_de(raiz, colas_vivas(ps))
+    except Exception:  # noqa: BLE001 — medir nunca tumba la vuelta
+        en_curso = None
     try:
-        # Leer el estado del contenedor desde el archivo
-        contenedor_ruta = os.path.join(M.CARPETA, "contenedor.json")
-        contenedor_dato = M.leer_json(contenedor_ruta, {})
-        if not isinstance(contenedor_dato, dict):
-            contenedor_dato = {}
-        activo = bool(contenedor_dato.get("activo", False))
-
-        # Construir el diccionario de capacidad para pasar a capacidad_contenedor
-        # Necesitamos: so, herramientas, ram_total_mb, disco_libre_gb, bateria, red, medio_app, wsl
-        # Vamos a construirlo con la información que tenemos y valores por defecto para lo que no sabemos
-        import platform
-        capacidad_info = {
-            "so": sys.platform,
-            "herramientas": {
-                "git": shutil.which("git") is not None,
-                "node": shutil.which("node") is not None,
-                "python3": shutil.which("python3") is not None,
-                "opencode": shutil.which("opencode") is not None,
-            },
-            "ram_total_mb": 0,  # No tenemos la memoria total, usamos 0 como placeholder (la función manejará valores inválidos)
-            "disco_libre_gb": M.disco_libre_gb(M.raiz_repo() if os.path.isdir(M.raiz_repo()) else os.path.expanduser("~")),
-            "bateria": {},  # No tenemos información de batería
-            "red": {"medida": False},  # Asumimos no red medida
-            "medio_app": "desconocido",  # No sabemos si es navegador o PWA
-            "wsl": "Microsoft" in platform.uname().release if platform.system() == "Windows" else False,
-        }
-        # Llamar a la lógica pura para obtener la capacidad del contenedor
-        capa_result = C.capacidad_contenedor(capacidad_info)
-        # El resultado es un diccionario con: apto, agentes, motivo, falta
-        # Nous sommes intéressés par apto, agentes et motif
-        contenedor_info = {
-            "activo": activo,
-            "agentes": capa_result.get("agentes", 0),
-            "apto": capa_result.get("apto", False),
-            "motivo": capa_result.get("motivo", ""),
-        }
-    except Exception:
-        # En caso de error, dejamos los valores por defecto
-        pass
-
-    salud["periodo_s"] = periodo_s
+        ram_mb = ram_total_mb()
+        contenedor = contenedor_de(salud["disco_gb"], ram_mb)
+    except Exception:  # noqa: BLE001
+        ram_mb, contenedor = None, None
+    salud["periodo_s"] = float(os.environ.get("STARSEED_NODO_LATIDO_S", L.LATIDO_S))
+    salud["ram_total_mb"] = ram_mb
     salud["en_curso"] = en_curso
-    salud["contenedor"] = contenedor_info
+    salud["contenedor"] = contenedor
+    salud["desconectando"] = desconectando_ahora(ahora)
+    # Falso mientras nadie sepa seguir la tarea de otro (COL1012E subir puntos al A1, G el líder, H al volver).
+    salud["relevo"] = False
 
     return {"medio": medio, "raiz": raiz, "salud": salud, "cap": cap}
 
@@ -723,64 +796,27 @@ def ejecutar(a: Dict[str, Any], medio: str, raiz: str, seco: bool,
         except Exception as e:
             return "fallo", "no pude escribir contenedor: %s" % type(e).__name__
     if que == "desconectar":
-        # 1. Contenedor inactivo
-        ruta_c = os.path.join(CARPETA, "contenedor.json")
+        # Lo que hace DE VERDAD hoy (COL1012F): dejar de ofrecer este aparato como contenedor, apuntar la marca
+        # «desconectando» (el latido la enseña GRACIA_DESCONECTAR_S) y contar lo que tenía a medias.
+        # NO traspasa nada, y el texto no lo promete: subir los puntos de control al A1 (COL1012E), que el líder
+        # siga las tareas del nodo perdido (G) y que el aparato suelte lo ya seguido (H) aún no están cableados,
+        # y nada para a los agentes que ya corren.
+        ahora = time.time()
         try:
-            if not os.path.exists(ruta_c):
-                with open(ruta_c, "w", encoding="utf-8") as f:
-                    json.dump({"activo": False, "t": time.time()}, f, ensure_ascii=False)
-            else:
-                with open(ruta_c, "r+", encoding="utf-8") as f:
-                    d = json.load(f)
-                    d["activo"] = False
-                    d["t"] = time.time()
-                    f.seek(0)
-                    json.dump(d, f, ensure_ascii=False)
-                    f.truncate()
-        except Exception:
-            pass
-        # 2. Marcar desconectando (el latido lo lee del archivo o memoria)
-        ruta_d = os.path.join(CARPETA, "desconectando.json")
+            os.makedirs(CARPETA, exist_ok=True, mode=0o700)
+            escribir_atomico(os.path.join(CARPETA, "contenedor.json"), {"activo": False, "t": ahora})
+            escribir_atomico(os.path.join(CARPETA, "desconectando.json"), {"desconectando": True, "t": ahora})
+        except OSError as e:
+            return "fallo", "no pude apuntar la desconexión: %s" % type(e).__name__
         try:
-            with open(ruta_d, "w", encoding="utf-8") as f:
-                json.dump({"desconectando": True, "t": time.time()}, f, ensure_ascii=False)
-        except Exception:
-            pass
-        # 3. Forzar puntos de control: escribir orden guardar_todo en olas/control-<cola>.json
-        olas = os.path.join(raiz, "starseed_memory_root", "olas")
-        try:
-            os.makedirs(olas, exist_ok=True)
-            control = os.path.join(olas, "control-guardartodo.json")
-            orden_guardar = {
-                "accion": "guardar_todo",
-                "t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "nonce": "desconectar-guardartodo",
-            }
-            with open(control, "w", encoding="utf-8") as f:
-                json.dump(orden_guardar, f, ensure_ascii=False)
-        except Exception:
-            pass
-        # 4. Esperar como mucho GRACIA_DESCONECTAR_S (120 s) a que puntos-control.json tenga nuevos sha.
-        puntos_ruta = os.path.join(olas, "puntos-control.json")
-        espera_max = C.GRACIA_DESCONECTAR_S
-        t_inicio = time.time()
-        guardados = 0
-        sin_punto = 0
-        # Para la prueba, consideramos que los puntos se completan inmediatamente si el archivo existe.
-        # En modo real se esperaría; aquí devolvemos un resultado que describe la acción.
-        if os.path.exists(puntos_ruta):
-            try:
-                with open(puntos_ruta, "r", encoding="utf-8") as f:
-                    puntos = json.load(f)
-                    if isinstance(puntos, dict) and puntos.get("sha"):
-                        guardados = len(puntos.get("sha", []))
-            except Exception:
-                pass
-        # 5. Publicar baja con traspaso: true y en_curso
-        # La baja se publica por el enlace del nodo (no disponible en ejecutar puro),
-        # así que registramos el resultado como hecho con la lista final.
-        en_curso = [{"id": "tarea-ejemplo", "fase": "escribiendo", "punto": {"rama": "relevo/mac/test", "sha": "abc123", "t": time.time()}}]
-        return ("hecha", "desconectado: contenedor inactivo, %d tarea(s) guardada(s), %d sin punto; traspaso con %d en curso" % (guardados, sin_punto, len(en_curso)))
+            en_curso = en_curso_de(raiz, colas_vivas())
+        except Exception:  # noqa: BLE001
+            en_curso = None
+        if en_curso is None:
+            return "hecha", "contenedor apagado; no pude leer el trabajo en curso; el traspaso a otro contenedor aún no está activo"
+        con_punto = sum(1 for e in en_curso if e.get("punto"))
+        return "hecha", ("contenedor apagado; %d tarea(s) en curso, %d con punto de control en este aparato; "
+                         "el traspaso a otro contenedor aún no está activo" % (len(en_curso), con_punto))
     return "nada", "acción desconocida: %s" % que
 
 

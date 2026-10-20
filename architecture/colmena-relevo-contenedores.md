@@ -293,3 +293,27 @@ Nada más: el resto lo hacen el enjambre y los directores.
   - aparece como sucesora en otro medio con su rama `relevo/…`;
   - se integra sin repetir lo hecho.
 - **Medidor «Agentes» de Genesis:** el total y el desglose por medio, incluidos los aparatos nuevos.
+
+## §10 · Estado real (2026-10-20, COL1012I) · «basta de ilusiones»
+
+Lo que existe de verdad y lo que no, para que ningún texto prometa más:
+
+| Pieza | Estado |
+|---|---|
+| Botones **Desconectar** y **Usar como contenedor** en la tarjeta de cada nodo de `/metagenesis` | **Hecho, y honestos.** `src/components/metagenesis/metagenesis-autonoma.tsx` + el traductor puro `src/lib/metagenesis/colmena-tarjeta.ts`. La orden viaja firmada al **id del nodo** (nunca a `lider` ni `todos`). **Mientras `relevo` no sea `true`** (sin dato cuenta como no activo), los dos botones se ven pero **no se pulsan**, con su razón escrita en la tarjeta: Desconectar no traspasa nada (apagar la oferta ya lo hace «Dejar de usar como contenedor», que sí se puede), y «Usar como contenedor» solo escribiría una marca que el líder no lee. Un nodo caído enseña «Según su último latido (hace X)»; un nodo sin destino válido, sus botones desactivados con esa razón. |
+| Latido con `en_curso`, `contenedor`, `ram_total_mb`, `nucleos`, `desconectando`, `relevo` | **Hecho**, publicado dentro de `salud` (`scripts/puente/nodo_metagenesis_medio.py`, `medir`). La pantalla lee primero la raíz del latido y, si falta, `salud`. |
+| `en_curso` | Sale de `olas/latidos-<cola>.json` de **cada** orquestador vivo del aparato (puede haber varios; se juntan sin repetir ids, tope 8), no de `progreso.json` (ahí `estado` es commit/integrada/fallida…). **Cuenta toda tarea cuya fase no sea «hecho»**, la misma regla del orquestador (`colmena_logica.tarea_viva`): también tsc, tests, revision, integrando, «esperando proveedor/cupo», porque apagar el aparato ahí corta trabajo. Las fases de **escritura** (las que llevan trabajo sin commit y piden punto de control) son solo `escribiendo` y `completando` (`FASES_CON_TRABAJO`); «reparando» y «corrigiendo» no existen. Punto de control de `olas/puntos-control.json`; **`t` en segundos**. Con un orquestador vivo y ninguna tarea publicada la tarjeta no dice «sin trabajo»: puede estar entre dos tareas. |
+| Capacidad de contenedor | Con la RAM **total**, los núcleos, la batería y las herramientas reales del aparato. Si una medida falla se publica `null`, no «no apto». |
+| Orden `contenedor` | Escribe `contenedor.json` y el latido lo publica. **El líder todavía no reparte tareas a un contenedor por esto** (COL1012G/H): por eso la tarjeta no ofrece «Usar como contenedor» y la línea de información dice «Apuntado como contenedor (hasta N agentes) · el reparto de tareas aún no está activo», nunca «contenedor activo». |
+| Orden `desconectar` | Apaga el contenedor, marca `desconectando` durante `GRACIA_DESCONECTAR_S` y cuenta lo que tenía a medias. **No traspasa nada ni para a los agentes.** |
+| Punto de control cada 5 min (COL1012D) | **Hecho**, pero queda en el disco del aparato: **subirlo al A1 (COL1012E) no está hecho**. |
+| `plan_relevo`, `al_volver`, `debe_desconectarse_solo` (COL1012G/H) | Solo en el núcleo puro y sus pruebas; **nadie los llama**. |
+| `salud.relevo` | Falso hasta que E, G y H estén cableadas. Es la llave de los botones: con `true` (y solo entonces) se activan Desconectar y Usar como contenedor con los textos del contrato; con `false` o sin dato no hablan de traspaso ni de reparto. |
+| Botón en Neuronas, «esta neurona» (COL1012J) | **Pendiente.** El bloque de `neuronas-panel.tsx` con «aún no implementada» es inalcanzable (`nodo` es null). Reutilizará `neuronaDeNodo` y `ordenDeBoton`. |
+
+Reglas de la tarjeta, con su prueba en `src/components/metagenesis/__tests__/colmena-botones.test.tsx`:
+un latido viejo (el nodo publicaba «no apto» sin motivo y `en_curso` siempre vacío) no se toma por verdad y los
+botones se ven desactivados diciendo que hay que actualizar ese nodo; un nodo en modo de prueba no puede recibir
+la orden; la razón de un botón desactivado se ve en pantalla (en el móvil no hay `title`); la confirmación es de
+un solo nodo (`accion:destino`); nunca se enseñan ids de tarea, ramas ni sha.
+

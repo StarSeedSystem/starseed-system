@@ -17,7 +17,7 @@ import {
     resumirTablas,
     validarArgs,
     esAccion,
-    esDestino,
+    esDestinoPara,
     type AccionOrden,
     type ArgsOrden,
     type EstadoAutonomo,
@@ -135,7 +135,8 @@ export async function leerEstadoAutonomo(ahora = Date.now()): Promise<LecturaAut
 /** Manda una orden al líder (o a un medio/nodo concreto). */
 export async function enviarOrden(accion: AccionOrden, para = "lider", args: ArgsOrden = {}): Promise<EnvioOrden> {
     if (!esAccion(accion)) return { ok: false, motivo: "Acción no admitida." };
-    if (!esDestino(para)) return { ok: false, motivo: "Destino no válido." };
+    // Desconectar y contenedor solo van a un id de nodo (el servidor y el nodo ya rechazan «lider» y «todos»): se dice aquí, sin viaje.
+    if (!esDestinoPara(accion, para)) return { ok: false, motivo: "Destino no válido." };
     const mal = validarArgs(accion, args);
     if (mal) return { ok: false, motivo: mal };
     try {

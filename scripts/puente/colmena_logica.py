@@ -18,11 +18,26 @@ DISCO_BASE_GB = 5.0
 DISCO_POR_AGENTE_GB = 0.1
 TOPE_AGENTES = 4
 HERRAMIENTAS = ("git", "node", "python3", "opencode")
-FASES_CON_TRABAJO = ("escribiendo", "reparando", "corrigiendo")
+#: Las fases en las que un agente ESCRIBE en su worktree (las dos que emite `latir` del orquestador: la primera
+#: pasada y «completando», la segunda del mismo modelo). Solo ahí hay trabajo a medias que sacar con un punto de
+#: control. «reparando» y «corrigiendo» NO existen: el orquestador nunca las emite.
+FASES_CON_TRABAJO = ("escribiendo", "completando")
+#: Única fase que cierra una tarea: el `finally` del orquestador la deja en «hecho».
+FASE_CERRADA = "hecho"
 #: Para seguir la tarea de otro: primero lo que nunca se apaga, al final lo efímero.
 PREFERENCIA = {"oracle-a1": 0, "mac": 1, "neurona": 1, "nube-cowork": 2, "gh-actions": 3}
 NUBE_COMPARTIDA = ("gh-actions", "nube-cowork")
 MAX_ARCHIVOS_GH = 3
+
+
+def tarea_viva(fase: Any) -> bool:
+    """PURA. ¿Esta fase de `latidos-<cola>.json` es una tarea viva en este aparato?
+
+    La misma regla que el orquestador (`_datos_tareas_del_medio`): viva es toda fase que no es vacía ni «hecho».
+    También lo son tsc, tests, revision, integrando, «esperando proveedor» o «esperando cupo»: el aparato las lleva
+    a medias (una integración con el cerrojo tomado, 40 min esperando proveedor) aunque ningún agente esté
+    escribiendo en ese instante. Apagarlo en cualquiera de ellas corta trabajo."""
+    return isinstance(fase, str) and fase.strip() != "" and fase != FASE_CERRADA
 
 
 def _num(x: Any, defecto: float = 0.0) -> float:

@@ -194,12 +194,17 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
 describe("ACCIONES: etiquetas y argumentos correctos", () => {
     it("tienen las etiquetas y argumentos correctos", () => {
         expect(ACCIONES.desconectar.etiqueta).toBe("Desconectar");
-        expect(ACCIONES.desconectar.explica).toBe("Quita al nodo del enjambre de MetaGenesis.");
+        // Honesto: no lo «quita del enjambre» (no lo hace) ni promete traspaso (COL1012E/G/H aún no están cableados).
+        expect(ACCIONES.desconectar.explica).toBe(
+            "Deja de ofrecer este aparato como contenedor y avisa de que se desconecta. El traspaso del trabajo a otro contenedor aún no está activo.",
+        );
         expect(ACCIONES.desconectar.confirmar).toBe(true);
         expect(ACCIONES.desconectar.args).toEqual([]);
 
         expect(ACCIONES.contenedor.etiqueta).toBe("Usar como contenedor");
-        expect(ACCIONES.contenedor.explica).toBe("El nodo actúa como contenedor para otros mediadores.");
+        expect(ACCIONES.contenedor.explica).toBe(
+            "Apunta si este aparato se ofrece como contenedor de agentes (con cuántos). El nodo lo guarda y lo publica en su latido.",
+        );
         expect(ACCIONES.contenedor.confirmar).toBeUndefined();
         expect(ACCIONES.contenedor.args).toEqual(["activo", "trabajadores"]);
     });

@@ -49,6 +49,8 @@ const MAC: NeuronaColmena = {
     so: "macos",
     enCurso: 3,
     contenedor: { activo: true, agentes: 3, apto: true, motivo: "" },
+    // El texto del contrato (traspaso a otro contenedor) solo es verdad con el relevo cableado: aquí se prueba ese caso.
+    relevoActivo: true,
 };
 
 describe("colmena · botones de una neurona", () => {
@@ -77,6 +79,32 @@ describe("colmena · botones de una neurona", () => {
         expect(b.contenedor.visible).toBe(false);
         expect(b.instalar).toMatchObject({ visible: true, explica: "En Windows se instala dentro de WSL2." });
         expect(botonesNeurona({ nodo: null, vivo: true, so: "ios", enCurso: 0 }).instalar.visible).toBe(false);
+    });
+});
+
+describe("colmena · sin la bandera del relevo se asume que NO está activo (basta de ilusiones)", () => {
+    const sinBandera: NeuronaColmena = { nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 3, contenedor: { activo: false, agentes: 3, apto: true, motivo: "" } };
+    it("Desconectar no promete traspaso y no es pulsable: no cambiaría nada", () => {
+        const b = botonesNeurona(sinBandera);
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false });
+        expect(b.desconectar.explica).toContain("traspaso del trabajo a otro contenedor aún no está activo");
+        expect(b.desconectar.explica).not.toContain("lo pasa a otro contenedor");
+    });
+    it("Usar como contenedor tampoco es pulsable: el líder aún no reparte tareas por esa marca", () => {
+        const b = botonesNeurona(sinBandera);
+        expect(b.contenedor).toMatchObject({ visible: true, habilitado: false, etiqueta: "Usar como contenedor (3 agentes)" });
+        expect(b.contenedor.explica).toContain("reparto de tareas a contenedores aún no está activo");
+    });
+    it("Dejar de usar sí se puede (cambia algo real) y no pide confirmar: no para lo que corre", () => {
+        const b = botonesNeurona({ ...sinBandera, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } });
+        expect(b.contenedor).toMatchObject({ habilitado: true, etiqueta: "Dejar de usar como contenedor" });
+        expect(b.contenedor.confirmar).toBe(false);
+        expect(b.contenedor.explica).toContain("No para lo que ya esté corriendo");
+    });
+    it("con el relevo declarado, vuelve el comportamiento del contrato", () => {
+        const b = botonesNeurona({ ...sinBandera, relevoActivo: true });
+        expect(b.desconectar).toMatchObject({ habilitado: true, confirmar: true });
+        expect(b.contenedor.habilitado).toBe(true);
     });
 });
 

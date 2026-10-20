@@ -83,11 +83,19 @@ class PuntosDeControl(unittest.TestCase):
         self.assertTrue(C.debe_guardar_punto(t, AHORA))
 
     def test_el_primero_al_momento(self):
-        self.assertTrue(C.debe_guardar_punto({"fase": "reparando", "cambios": True}, AHORA))
+        self.assertTrue(C.debe_guardar_punto({"fase": "completando", "cambios": True}, AHORA))
 
     def test_sin_cambios_o_fuera_de_escritura_no(self):
         self.assertFalse(C.debe_guardar_punto({"fase": "escribiendo", "cambios": False}, AHORA))
         self.assertFalse(C.debe_guardar_punto({"fase": "tsc", "cambios": True}, AHORA))
+
+    def test_tarea_viva_es_toda_fase_que_no_esta_cerrada(self):
+        """La misma regla que el orquestador: viva = fase que no es vacía ni «hecho» (tsc e integrando también cuentan)."""
+        for fase in ("escribiendo", "completando", "tsc", "tests", "revision", "integrando",
+                     "esperando proveedor", "esperando cupo", "esperando-memoria", "esperando aprobación"):
+            self.assertTrue(C.tarea_viva(fase), fase)
+        for fase in (None, "", "  ", "hecho", 7, ["escribiendo"]):
+            self.assertFalse(C.tarea_viva(fase), repr(fase))
 
 
 def latido(t, en_curso=(), periodo=300):
