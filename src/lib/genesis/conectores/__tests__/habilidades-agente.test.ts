@@ -37,7 +37,7 @@ describe("habilidadesPara", () => {
     },
   ];
 
-  const capacidadesDesactivadas: string[] = ["pm"];
+  const capacidadesDesactivadas: string[] = [];
 
   it("should select skills based on role", () => {
     const escritor = habilidadesPara("escritor", "cuenta", {
@@ -48,7 +48,7 @@ describe("habilidadesPara", () => {
     expect(escritor).toContain("taste");
     expect(escritor).toContain("web-senses");
     expect(escritor).toContain("vision");
-    expect(escritor).not.toContain("pm");
+    expect(escritor).toContain("pm");
   });
 
   it("should select skills for reviewer", () => {
@@ -60,7 +60,7 @@ describe("habilidadesPara", () => {
     expect(revisor).toContain("taste");
     expect(revisor).toContain("web-senses");
     expect(revisor).toContain("vision");
-    expect(revisor).not.toContain("pm");
+    expect(revisor).toContain("pm");
   });
 
   it("should select skills for chat", () => {

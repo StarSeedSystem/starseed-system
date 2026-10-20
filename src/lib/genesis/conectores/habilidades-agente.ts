@@ -52,39 +52,44 @@ function evaluarHabilidadParaPapel(
   papel: string,
   ambito: string
 ): boolean {
-  // Si no hay routing definido, incluir por defecto
-  if (!habilidad.routing) {
+  const routing = habilidad.routing;
+
+  // Si no hay routing definido, incluir por defecto para cualquier papel
+  if (!routing) {
     return true;
   }
 
-  const routing = habilidad.routing;
+  // Si el routing está vacío, incluir para cualquier papel
+  if (!routing.preferStrong && !routing.web && !routing.vision && !routing.planning) {
+    return true;
+  }
 
   // Verificar routing para el papel específico
   switch (papel) {
     case "escritor":
-      // Los escritores pueden usar habilidades con preferStrong o web
-      if (routing.preferStrong || routing.web) {
+      // Los escritores pueden usar habilidades con preferStrong, web, vision o planning
+      if (routing.preferStrong || routing.web || routing.vision || routing.planning) {
         return true;
       }
       break;
 
     case "revisor":
-      // Los revisores pueden usar habilidades con preferStrong
-      if (routing.preferStrong) {
+      // Los revisores pueden usar habilidades con preferStrong, vision o web
+      if (routing.preferStrong || routing.vision || routing.web) {
         return true;
       }
       break;
 
     case "chat":
-      // Los chats pueden usar habilidades con preferStrong, web o planning
-      if (routing.preferStrong || routing.web || routing.planning) {
+      // Los chats pueden usar habilidades con preferStrong, web, vision o planning
+      if (routing.preferStrong || routing.web || routing.vision || routing.planning) {
         return true;
       }
       break;
 
     case "visión":
-      // Los de visión pueden usar habilidades con vision o preferStrong
-      if (routing.vision || routing.preferStrong) {
+      // Los de visión pueden usar habilidades con vision, preferStrong o web
+      if (routing.vision || routing.preferStrong || routing.web) {
         return true;
       }
       break;
@@ -113,11 +118,6 @@ function evaluarHabilidadParaPapel(
         return true;
       }
       break;
-  }
-
-  // Si no hay coincidencia específica con el papel, incluir si hay routing.web
-  if (routing.web) {
-    return true;
   }
 
   return false;
