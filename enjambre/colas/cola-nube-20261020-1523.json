@@ -1,0 +1,33 @@
+{
+ "ola": "nube-20261020",
+ "tareas": [
+  {
+   "id": "RLB1020G1",
+   "titulo": "Hub de Conectores · Vikunja, Trilium, Metabase y Windmill autoalojados",
+   "archivos": [
+    "src/lib/connectors/registry.ts",
+    "src/lib/connectors/__tests__/registry-1020b.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Añade a `BUILTIN_CONNECTORS` (src/lib/connectors/registry.ts), con el MISMO patrón que `searxng-selfhost` y `crawl4ai-local`, cuatro conectores autoalojables: `vikunja-selfhost` (category \"custom\", tareas y proyectos de grupos, comunidades, páginas y cerebros; authType \"apiKey\": token de API de Vikunja; configHint \"http://<tu A1 o tu Mac>:3456/api/v1\"; repo https://github.com/go-vikunja/vikunja), `trilium-etapi` (category \"memory\", notas de perfiles, grupos y archivos por ETAPI; authType \"apiKey\": token ETAPI; configHint \"http://<host>:8080/etapi\"), `metabase-selfhost` (category \"custom\", gráficos e información verificable sobre una réplica de solo lectura; authType \"apiKey\"; configHint \"http://<host>:3000/api\"), `windmill-selfhost` (category \"dev\", flujos y trabajos programados que Genesis dispara; authType \"apiKey\"; configHint \"http://<host>:8000/api\"). Todos kind \"oss\", status \"available\", free true, recommended false, icono lucide adecuado y descripción honesta con su licencia (AGPL) y dónde se aloja. Prueba: ids únicos en todo el registro y los 4 presentes con repo de GitHub. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área"
+  },
+  {
+   "id": "RLB1020J",
+   "titulo": "Genesis · errores con formato de evento de Sentry, sin datos personales y con huella, para la autocuración",
+   "archivos": [
+    "src/lib/mando/errores-neurona.ts",
+    "src/lib/mando/__tests__/errores-neurona.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Alex quiere autorreparación de errores de cada neurona, cerebro, perfil, cuenta, página, proceso y creación de contenido; el servidor de Sentry no cabe (16 GB + swap) y su FSL no es abierta, así que Genesis lo hace con el FORMATO de evento del SDK de Sentry. Crea `src/lib/mando/errores-neurona.ts`, PURO: `normalizarError(e, contexto)` → evento estilo Sentry {event_id, timestamp, level, platform, exception:{values:[{type, value, stacktrace:{frames}}]}, tags:{ambito, neurona, proceso}, fingerprint} donde ambito ∈ neurona|cerebro|perfil|cuenta|pagina|proceso|contenido; `limpiarDatosPersonales(evento)` quita o enmascara correos, teléfonos, IP, tokens (`sk-`, `gsk_`, `Bearer …`, `eyJ…`) y rutas de usuario (`/Users/<nombre>`); `huella(evento)` agrupa por tipo + primer marco propio + ámbito; `agrupar(eventos)` → {huella, veces, primero, ultimo, ejemplo}. Sin red y sin enviar nada a terceros. Pruebas: limpia cada tipo de dato personal; dos errores iguales con mensajes de distinto id comparten huella; uno de otro ámbito no. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1020-121122.json": [
+   "RLB1020G1",
+   "RLB1020J"
+  ]
+ }
+}
