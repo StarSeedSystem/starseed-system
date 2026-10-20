@@ -23,8 +23,6 @@ export const MAX_DIRECTIVAS = 5;
 const MARCA = "[[BOT:";
 const CIERRE = "]]";
 
-/** Igual que las rutas «ruta» de `validarAccion`: una directiva jamás apunta fuera del OS. */
-
 /** Localiza el cierre `}` equilibrado del JSON que empieza en `desde` (respetando comillas). */
 function cierreJson(texto: string, desde: number): number {
   let profundidad = 0;
@@ -61,6 +59,17 @@ export function extraerDirectivas(texto: string): DirectivasExtraidas {
     partes.push(resto.slice(0, ini));
     const desdeJson = ini + MARCA.length;
     const finJson = cierreJson(resto, desdeJson);
+    const siguiente = resto.indexOf(MARCA, desdeJson);
+    // Un bloque roto (una comilla o una llave de más) no se traga las directivas que vienen
+    // detrás: si su JSON no cierra antes de la siguiente marca, se descarta SOLO ese bloque y se
+    // sigue: el bloque acaba en su primer `]]` (la voz de detrás se conserva) o, sin él, en la
+    // siguiente marca. Una marca dentro de un texto de la acción cuenta como rotura: no se ejecuta.
+    if (siguiente >= 0 && (finJson < 0 || finJson > siguiente)) {
+      problemas.push("Directiva sin cierre antes de la siguiente: se descarta solo ese bloque.");
+      const cierre = resto.indexOf(CIERRE, desdeJson);
+      resto = resto.slice(cierre >= 0 && cierre < siguiente ? cierre + CIERRE.length : siguiente);
+      continue;
+    }
     if (finJson < 0) {
       problemas.push("Directiva sin cierre: se descarta el resto del bloque.");
       resto = "";

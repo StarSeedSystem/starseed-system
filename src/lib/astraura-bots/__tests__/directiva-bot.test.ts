@@ -64,4 +64,33 @@ describe("extraerDirectivas", () => {
     expect(r.acciones).toEqual([]);
     expect(r.problemas.some((p) => p.includes("sin cierre"))).toBe(true);
   });
+
+  // Rescate RTBOT1011Gd (casos de la rama archivada de BOT1011G, adaptados a la API de hoy).
+  it("dos directivas pegadas, sin texto entre ellas, salen las dos", () => {
+    const r = extraerDirectivas(`${navega("/dashboard")}[[BOT: {"tipo":"abrir-app","args":{"app":"nexus"}}]]`);
+    expect(r.acciones.map((a) => a.tipo)).toEqual(["navegar", "abrir-app"]);
+    expect(r.problemas).toEqual([]);
+    expect(r.limpio).toBe("");
+  });
+
+  it("un bloque roto en medio se descarta solo y no se traga la directiva siguiente", () => {
+    const roto = `[[BOT: {"tipo":"navegar","args":{"ruta":"/x"}"]]`;
+    const r = extraerDirectivas(`Voy ${navega("/dashboard")} luego ${roto} y ${navega("/cerebro")} fin.`);
+    expect(r.acciones).toEqual([
+      { tipo: "navegar", args: { ruta: "/dashboard" } },
+      { tipo: "navegar", args: { ruta: "/cerebro" } },
+    ]);
+    expect(r.problemas.some((p) => p.includes("sin cierre antes de la siguiente"))).toBe(true);
+    expect(r.limpio).toBe("Voy luego y fin.");
+  });
+
+  it("una marca dentro del texto de una acción cuenta como rotura: no se ejecuta", () => {
+    const r = extraerDirectivas(`[[BOT: {"tipo":"notificar","args":{"texto":"di [[BOT: hola"}}]]`);
+    expect(r.acciones).toEqual([]);
+    expect(r.problemas.length).toBeGreaterThan(0);
+  });
+
+  it("un texto vacío vuelve vacío, sin acciones ni problemas", () => {
+    expect(extraerDirectivas("")).toEqual({ limpio: "", acciones: [], problemas: [] });
+  });
 });
