@@ -1,6 +1,6 @@
 import type { Bot, Dueno } from "../tipos";
 import { createClient } from "@/utils/supabase/client";
-interface BotSync extends Bot { actualizado: number; }
+export interface BotSync extends Bot { actualizado: number; }
 function esBotValido(b: unknown): b is BotSync {
   if (!b || typeof b !== "object" || Array.isArray(b)) return false;
   const bt = b as BotSync;
@@ -10,7 +10,7 @@ function esBotValido(b: unknown): b is BotSync {
     const v = bt.personalidad[r];
     if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1) return false;
   }
-  { forma, tono, escala } = bt.cuerpo;
+   const { forma, tono, escala } = bt.cuerpo;
   if (!forma || !["orbe", "avatar-2d", "avatar-3d", "vrm", "ser-genesis"].includes(forma) || typeof tono !== "number" || !Number.isFinite(tono) || tono < 0 || tono > 360 || typeof escala !== "number" || !Number.isFinite(escala) || escala < 0.5 || escala > 2) return false;
   const sentidos = ["pantalla", "captura-pantalla", "archivos", "red", "correo", "terminal", "camara", "microfono", "sensores", "ubicacion", "portapapeles", "aparatos"];
   for (const s of bt.sentidosHabilitados) {
