@@ -262,7 +262,7 @@ describe("transcribir", () => {
       },
     ]);
     vi.stubGlobal("fetch", fetch);
-    const resultado = await transcribir(undefined, params);
+    const resultado = await transcribir(undefined, params.audio, params.idioma);
     expect(resultado).toBe("Hola mundo");
   });
 
@@ -278,7 +278,7 @@ describe("transcribir", () => {
       },
     ]);
     vi.stubGlobal("fetch", fetch);
-    await expect(transcribir(undefined, params)).rejects.toThrow("Error 422: Unprocessable Entity");
+    await expect(transcribir(undefined, params.audio, params.idioma)).rejects.toThrow("Error 422: Unprocessable Entity");
   });
 
   it("debe lanzar un error de red cuando falla el fetch", async () => {
@@ -286,6 +286,6 @@ describe("transcribir", () => {
       throw new TypeError("Failed to fetch");
     });
     vi.stubGlobal("fetch", fetchMock);
-    await expect(transcribir(undefined, params)).rejects.toThrow("Error de red: no se pudo conectar al servicio");
+    await expect(transcribir(undefined, params.audio, params.idioma)).rejects.toThrow("Error de red: no se pudo conectar al servicio");
   });
 });
