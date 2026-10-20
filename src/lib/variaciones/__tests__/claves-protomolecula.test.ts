@@ -5,8 +5,8 @@ import {
   claveDeMolecula,
   atributosClave
 } from '../claves-protomolecula'
-import { CATALOGO_PROTOMOLECULA } from '../../protomolecula/catalogo-herramientas.ts'
-import { listarAtomos } from '../../protomolecula/registro-atomos.ts'
+import { CATALOGO_PROTOMOLECULA } from '../../protomolecula/catalogo-herramientas'
+import { listarAtomos } from '../../protomolecula/registro-atomos'
 
 // Obtener un id de herramienta válido del catálogo (sabemos que el catálogo no está vacío)
 const validToolId = CATALOGO_PROTOMOLECULA.length > 0 ? CATALOGO_PROTOMOLECULA[0].id : 'photocraft'

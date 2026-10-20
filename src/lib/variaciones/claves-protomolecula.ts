@@ -1,7 +1,7 @@
 // src/lib/variaciones/claves-protomolecula.ts
-import type { HerramientaProto } from '@/lib/protomolecula/catalogo-herramientas.ts'
-import { CATALOGO_PROTOMOLECULA } from '@/lib/protomolecula/catalogo-herramientas.ts'
-import { obtenerAtomo } from '@/lib/protomolecula/registro-atomos.ts'
+import type { HerramientaProto } from '@/lib/protomolecula/catalogo-herramientas'
+import { CATALOGO_PROTOMOLECULA } from '@/lib/protomolecula/catalogo-herramientas'
+import { obtenerAtomo } from '@/lib/protomolecula/registro-atomos'
 import type { ClaveElemento } from './clave-elemento'
 import { leerClave } from './clave-elemento'
 

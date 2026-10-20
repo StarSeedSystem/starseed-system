@@ -6,7 +6,7 @@
  * historial) y emite UNA `Operacion` al soltar; el campo numérico emite una
  * `exacta` al pulsar Enter o salir (una sola vez por valor tecleado).
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { Zap } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { formatearValor, valorActual } from "@/lib/protomolecula/parametros";
+import { claveDeAtomo, atributosClave } from "@/lib/variaciones/claves-protomolecula";
 import type {
   Autor,
   CandidatoParametro,
@@ -183,17 +184,34 @@ export function PanelParametros({
   }
   return (
     <div className="flex w-full max-w-2xl flex-col gap-5" aria-label="Panel de parámetros">
-      {[...grupos.entries()].map(([nombreGrupo, cs]) => (
-        <section key={nombreGrupo} aria-label={nombreGrupo} className="flex flex-col gap-3">
-          <h3 className="text-sm font-medium text-muted-foreground">{nombreGrupo}</h3>
-          {cs.map((c) => (
-            <div key={`${c.ref.atomoId}::${c.ref.parametroId}`} className="flex items-center gap-3">
-              <span className="w-40 shrink-0 text-sm">{c.parametro.nombre}</span>
-              <Control c={c} ctx={ctx} />
-            </div>
-          ))}
-        </section>
-      ))}
+      {[...grupos.entries()].map(([nombreGrupo, cs]) => {
+        // Generate data-ss-elemento attribute for atom sections
+         const elementoAttrs = useMemo(() => {
+          let clave = null;
+          // For atom sections, use claveDeAtomo with the atom ID
+          if (nombreGrupo) {
+            clave = claveDeAtomo(nombreGrupo);
+          }
+          return clave ? atributosClave(clave) : {};
+        }, [nombreGrupo]);
+
+        return (
+          <section 
+            key={nombreGrupo} 
+            aria-label={nombreGrupo} 
+            className="flex flex-col gap-3"
+            {...elementoAttrs}
+          >
+            <h3 className="text-sm font-medium text-muted-foreground">{nombreGrupo}</h3>
+            {cs.map((c) => (
+              <div key={`${c.ref.atomoId}::${c.ref.parametroId}`} className="flex items-center gap-3">
+                <span className="w-40 shrink-0 text-sm">{c.parametro.nombre}</span>
+                <Control c={c} ctx={ctx} />
+              </div>
+            ))}
+          </section>
+        );
+      })}
     </div>
   );
 }
