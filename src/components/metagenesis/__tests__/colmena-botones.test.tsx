@@ -55,7 +55,7 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
     it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, relevoActivo: true });
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
-        expect(b.desconectar.explica).toContain("1 agente");
+        expect(b.desconectar.explica).toContain("Guarda el trabajo a medias de sus Guarda el trabajo a medias de sus 1 agente(s)(s));
         expect(b.desconectar.confirmar).toBe(true);
     });
 

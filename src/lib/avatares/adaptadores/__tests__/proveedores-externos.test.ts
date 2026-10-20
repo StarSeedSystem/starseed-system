@@ -120,6 +120,7 @@ describe("consultarTarea: una sola petición por llamada", () => {
     expect(vacio.llamadas).toHaveLength(0);
   });
 });
+<<<<<<< HEAD
 
 /* ── Casos añadidos (RTAV1011Ld). Todos usan el módulo REAL; ninguno reimplementa su lógica. ──
  * Descartados a propósito, porque main cambió el contrato: «tripo: no disponible» (Tripo ya está implementado) y el cuerpo con
@@ -358,3 +359,95 @@ describe("tope de modelos de pago: reservarTope con un limitador inyectado", () 
     expect(reservarTope(rateLimit, "reloj")).toEqual({ ok: true, quedan: 1 });
   });
 });
+=======
+<<<<<<< HEAD
+=======
+
+// Additional test cases for motivoDescarte from cloud branch
+describe("motivoDescarte", () => {
+  const meshMotor = MOTORES_3D.find(m => m.id === "meshy") as Motor3D;
+  const tripoMotor = MOTORES_3D.find(m => m.id === "tripo") as Motor3D;
+
+  const basePeticion: PeticionPlan = {
+    partida: "imagen",
+    esqueleto: "soma30",
+    capacidades: ["cpu"] as const, // start with only cpu
+    region: null,
+    comercial: false,
+    permitirDePago: false,
+    detallar: false,
+    prioridad: "rapidez",
+    cerrada: false,
+  };
+
+  it("sin permiso ni clave: no disponible", () => {
+    // For Meshy, which requires "clave-externa", and we have neither permiso para pagar ni clave
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy"); // The motor's nombre es "Meshy (servicio)"
+    expect(motivo).toContain("no está permitido");
+  });
+
+  it("solo clave, sin permiso: no disponible", () => {
+    // We have the key (so capacidades includes "clave-externa") but no permiso para pagar
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+    expect(motivo).toContain("no está permitido");
+  });
+
+  it("solo permiso, sin clave: no disponible", () => {
+    // We have permiso para pagar but not the key
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+    expect(motivo).toContain("clave-externa");
+  });
+
+  it("permiso+clave: disponible y se ofrece «clave-externa»", () => {
+    // We have both permiso para pagar and the key
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).toBeNull();
+  });
+
+  // Additional test cases from the list that are pure and match this function
+
+  it("tripo: «no disponible» sin llamar a la red", () => {
+    // For Tripo, which also requires "clave-externa", without the key it should be unavailable
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(tripoMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Tripo");
+    expect(motivo).toContain("no está permitido");
+  });
+
+  // We can also test that when we have both, Tripo is available
+  it("tripo con permiso y clave: disponible", () => {
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(tripoMotor, p);
+    expect(motivo).toBeNull();
+  });
+
+  // Test for a motor that does not require clave-externa, like espacio-hf (which requires espacio-hf)
+  // But note: espacio-hf is a motor that requires "espacio-hf"
+  const espacioMotor = MOTORES_3D.find(m => m.id === "pixal3d-espacio") as Motor3D;
+  it("espacio-hf: sin permiso para espacio-hf: no disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(espacioMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Pixal3D");
+    expect(motivo).toContain("espacio-hf");
+  });
+
+  it("espacio-hf: con permiso para espacio-hf: disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu", "espacio-hf"] as const };
+    const motivo = motivoDescarte(espacioMotor, p);
+    expect(motivo).toBeNull();
+  });
+});
+>>>>>>> cf4cc263 (salvavidas · RTRTRTRTRTRTCOL1012Bdsbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
+>>>>>>> b6b6630c (salvavidas · RTRTRTRTRTRTCOL1012Bdsbbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
