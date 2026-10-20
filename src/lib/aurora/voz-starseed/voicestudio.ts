@@ -56,6 +56,7 @@ export async function voces(base?: string): Promise<string[]> {
     }
     return data.voices.map((v: { id: string }) => v.id);
   } catch (e: any) {
+    if (e.message === "Formato de respuesta inesperado") throw e;
     if (e.message.startsWith("Error ")) throw e;
     throw new Error("Error de red: no se pudo conectar al servicio");
   }
