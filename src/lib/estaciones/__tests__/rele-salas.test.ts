@@ -184,5 +184,26 @@ describe('crearSalas', () => {
     expect(salas.temaDe(conexion)).toBe(tema);
     salas.salir(conexion);
     expect(salas.temaDe(conexion)).toBeUndefined();
+   });
+
+
+  it('debería aceptar temas con guiones y guiones bajos', () => {
+    const salas = crearSalas();
+    const tema = 'estacion-vivo:ABC_DEF-123';
+    const conexion = {};
+    const result = salas.entrar(tema, conexion);
+    expect(result.ok).toBe(true);
+   });
+
+
+  it('debería aceptar el mismo objeto conexion repetidamente', () => {
+    const salas = crearSalas();
+    const tema = 'estacion-vivo:TemaTest';
+    const conexion = {};
+    const first = salas.entrar(tema, conexion);
+    const second = salas.entrar(tema, conexion);
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(salas.presencia(tema)).toBe(1);
   });
 });
