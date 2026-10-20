@@ -61,7 +61,7 @@ export function conectarGamepad(
         if (!id || !vivos.has(id)) prev.delete(k);
       }
     }
-    alCambiarDispositivos?.([...vivos]);
+    alCambiarDispositivos?.(Array.from(vivos));
     rafId = requestAnimationFrame(leer);
   };
 
