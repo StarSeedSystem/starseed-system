@@ -7,7 +7,7 @@
  * MetaGenesis). SOP: architecture/genesis-personas-poligenesis.md
  */
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { ShieldCheck } from "lucide-react";
 import { useAppearance } from "@/context/appearance-context";
@@ -15,6 +15,7 @@ import { puertosDelOs, contextoDeMiCuenta } from "@/lib/genesis/puertos-os";
 import type { Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
+import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 
 const AMBITO: Ambito = { tipo: "persona" };
 
@@ -53,6 +54,17 @@ export function MiGenesis() {
     );
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
+    const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+
+    useEffect(() => {
+        const almacen = almacenNavegador();
+        if (almacen) {
+            const lista = cargarEncargos(almacen); // Without moleculaId, we get all, but we want to limit per molecule? The function already limits to 50 per molecule internally.
+            setEncargos(lista);
+        } else {
+            setEncargos([]); // No access to storage
+        }
+    }, []);
 
     return (
         <section className="space-y-4" data-testid="mi-genesis">
@@ -73,8 +85,36 @@ export function MiGenesis() {
                 atajos={(anadir, ctx) => <AtajosGenesis anadir={anadir} ctx={ctx} />}
             />
             <section id="bots" aria-label="Mis bots">
-              <h2 className="text-base font-semibold">Mis bots</h2>
-              <SeccionBotsGenesis />
+                <h2 className="text-base font-semibold">Mis bots</h2>
+                <SeccionBotsGenesis />
+            </section>
+            <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
+                <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
+                {encargos === null ? (
+                    <p className="text-[11px] text-white/50">Cargando encargos…</p>
+                ) : encargos.length === 0 ? (
+                    <p className="text-[11px] text-white/60">
+                        Aún no tienes encargos. Crea uno desde el panel de ProtoGenesis.
+                    </p>
+                ) : (
+                    <ul className="space-y-1">
+                        {encargos.map((encargo) => (
+                            <li key={encargo.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
+                                <div className="flex-1">
+                                    <span className="block truncate">{encargo.encargo.intencion}</span>
+                                    {encargo.plan ? (
+                                        <span className="text-[10px] text-white/45">Con plan: {encargo.plan.pasos.length} pasos</span>
+                                    ) : (
+                                        <span className="text-[10px] text-white/45">Sin plan</span>
+                                    )}
+                                </div>
+                                <span className="text-[10px] text-white/45">
+                                    {encargo.actualizadoEn ? new Date(encargo.actualizadoEn).toLocaleString() : ""}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </section>
         </section>
     );

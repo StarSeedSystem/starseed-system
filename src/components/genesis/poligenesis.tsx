@@ -21,6 +21,7 @@ import { misEntidades, modoDe, proponer, propuestaAprobada, propuestasDe, type E
 import { decidirAplicacion, type Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
+import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 
 const SUGERENCIAS = ["Actualiza la descripción para presentar mejor al grupo", "Cambia el color de acento a verde esmeralda", "Crea un agente público que dé la bienvenida a quien llega"];
 
@@ -32,6 +33,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
     const [propuestas, setPropuestas] = useState<PropuestaGenesis[]>([]);
     const [aplicadas, setAplicadas] = useState<Set<string>>(new Set());
     const [aplicando, setAplicando] = useState<string | null>(null);
+    const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
     const puertos = useMemo(() => puertosDelOs(), []);
 
     useEffect(() => {
@@ -58,6 +60,14 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
         setModo(null);
         void modoDe(entidad).then(setModo);
         void cargarPropuestas();
+        // Load encargos for this entity
+        const almacen = almacenNavegador();
+        if (almacen && entidad) {
+            const lista = cargarEncargos(almacen, entidad.id); // Pass the entity's id as moleculaId
+            setEncargos(lista);
+        } else {
+            setEncargos([]); // No access to storage or no entidad
+        }
     }, [entidad, cargarPropuestas]);
 
     const cargarContexto = useCallback(async () => {
@@ -187,6 +197,35 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     </ul>
                 </section>
             ) : null}
+            {/* Nuevo section for ProtoGenesis encargos */}
+            {encargos !== null && (
+                <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis para esta entidad">
+                    <h2 className="text-base font-semibold">ProtoGenesis de esta entidad</h2>
+                    {encargos.length === 0 ? (
+                        <p className="text-[11px] text-white/60">
+                            Aún no hay encargos para esta entidad.
+                        </p>
+                    ) : (
+                        <ul className="space-y-1">
+                            {encargos.map((encargo) => (
+                                <li key={encargo.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
+                                    <div className="flex-1">
+                                        <span className="block truncate">{encargo.encargo.intencion}</span>
+                                        {encargo.plan ? (
+                                            <span className="text-[10px] text-white/45">Con plan: {encargo.plan.pasos.length} pasos</span>
+                                        ) : (
+                                            <span className="text-[10px] text-white/45">Sin plan</span>
+                                        )}
+                                    </div>
+                                    <span className="text-[10px] text-white/45">
+                                        {encargo.actualizadoEn ? new Date(encargo.actualizadoEn).toLocaleString() : ""}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </section>
+            )}
         </section>
     );
 }
