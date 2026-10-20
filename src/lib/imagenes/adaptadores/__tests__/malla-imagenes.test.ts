@@ -26,13 +26,28 @@ describe("malla-imagenes adaptador - funciones puras", () => {
       expect(inferirTipoGPU(disp)).toBe("apple");
     });
 
+    it("debe devolver 'apple' para plataforma macOS", () => {
+      const disp = { plataforma: "macOS" };
+      expect(inferirTipoGPU(disp)).toBe("apple");
+    });
+
     it("debe devolver 'nvidia' para plataforma windows", () => {
       const disp = { plataforma: "windows" };
       expect(inferirTipoGPU(disp)).toBe("nvidia");
     });
 
+    it("debe devolver 'nvidia' para plataforma linux", () => {
+      const disp = { plataforma: "linux" };
+      expect(inferirTipoGPU(disp)).toBe("nvidia");
+    });
+
     it("debe devolver 'ninguna' para plataforma desconocida", () => {
       const disp = { plataforma: "desconocida" };
+      expect(inferirTipoGPU(disp)).toBe("ninguna");
+    });
+
+    it("debe devolver 'ninguna' para plataforma undefined", () => {
+      const disp = { plataforma: undefined };
       expect(inferirTipoGPU(disp)).toBe("ninguna");
     });
   });
@@ -57,6 +72,10 @@ describe("malla-imagenes adaptador - funciones puras", () => {
     it("debe devolver 2 para 'desconocida'", () => {
       expect(convertirRamClaseAGB("desconocida")).toBe(2);
     });
+
+    it("debe devolver 2 para undefined", () => {
+      expect(convertirRamClaseAGB(undefined)).toBe(2);
+    });
   });
 
   describe("inferirMotores", () => {
@@ -72,6 +91,12 @@ describe("malla-imagenes adaptador - funciones puras", () => {
       const motores = inferirMotores(disp);
       expect(motores).toContain("comfyui");
       expect(motores).toContain("diffusers");
+    });
+
+    it("debe devolver exactamente sdcpp y onnx-web cuando no hay GPU", () => {
+      const disp = { plataforma: "android" }; // Esto hará que inferirTipoGPU devuelva ninguna
+      const motores = inferirMotores(disp);
+      expect(motores).toEqual(["sdcpp", "onnx-web"]);
     });
   });
 
