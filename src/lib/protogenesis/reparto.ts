@@ -92,6 +92,7 @@ export function repartirPasos(
     }
   }
   return asignaciones;
+}
 // Calcula el progreso del plan.
 // @returns Objeto con:
 //   - hechos: número de pasos con estado 'hecho'
@@ -117,7 +118,6 @@ export function progreso(
         }
       }
       if (bloqueado) bloqueados++;
-    }
   }
   return { hechos, total, enCurso, bloqueados };
 }
