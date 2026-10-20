@@ -4477,3 +4477,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTCOL1012Ae` — no escribió nada
 - `PG1013F` — otra cosa: sin decisión en 0 h; rama ola/PG1013F conservada
+
+## 2026-10-20 01:49 · mg-oracle-1019-1822
+
+**Lo que se pidió.** más de 200 efectos WebGPU para fondos por capas; editor, presets y secciones de shaders.com no incluidos
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (FSH1018A, RTRTCOL1012Bdsbbbbbbbbbbc). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `FSH1018A` — otra cosa: ningún proveedor respondió (todos caídos)
+- `GCA1019H` — pruebas en rojo: vitest falla (rama conservada)
+- `RTRTCOL1012Bdsbbbbbbbbbbc` — otra cosa: ningún proveedor respondió (todos caídos)
