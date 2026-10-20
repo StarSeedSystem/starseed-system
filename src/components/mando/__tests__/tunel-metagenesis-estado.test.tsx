@@ -206,32 +206,27 @@ describe("TunelMetaGenesisEstado", () => {
       } as Response;
     };
 
-    render(<TunelMetaGenesisEstado />);
-    expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
-
-    // Wait for the data to be fetched and displayed
-    await waitFor(() => {
-      expect(screen.getByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i)).toBeInTheDocument();
-      expect(screen.getByText("Últimas líneas:")).toBeInTheDocument();
-      expect(screen.getByText("Linea 1")).toBeInTheDocument();
-      expect(screen.getByText("Linea 2")).toBeInTheDocument();
-    });
-
-    // Restore the original fetch mock (so afterEach can restore nativoFetch)
-    globalThis.fetch = originalFetch;
-    // Restore the original visibilityState
-    if (originalVisibilityState !== undefined) {
-      try {
-        delete document.visibilityState;
-      } catch (e) {
-        // ignore
-      }
-      Object.defineProperty(document, 'visibilityState', {
-        value: originalVisibilityState,
-        configurable: true
-      });
-    }
-  });
+     render(<TunelMetaGenesisEstado />);
+     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
+ 
+     // Wait for the data to be fetched and displayed
+     await waitFor(() => {
+       expect(screen.getByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i)).toBeInTheDocument();
+       expect(screen.getByText("Últimas líneas:")).toBeInTheDocument();
+       expect(screen.getByText("Linea 1")).toBeInTheDocument();
+       expect(screen.getByText("Linea 2")).toBeInTheDocument();
+     });
+ 
+     // Restore the original fetch mock (so afterEach can restore nativoFetch)
+     globalThis.fetch = originalFetch;
+     // Restore the original visibilityState
+     if (originalVisibilityState !== undefined) {
+       Object.defineProperty(document, 'visibilityState', {
+         value: originalVisibilityState,
+         configurable: true
+       });
+     }
+   });
 
   it("displays stopped state when tunnel is not running", async () => {
     const data = {
