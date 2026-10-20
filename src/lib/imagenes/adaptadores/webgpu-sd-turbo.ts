@@ -10,6 +10,7 @@
  */
 
 import type { GeneradorTab } from "../../../ai/astraura/media/proveedor-neuronas";
+import { registrarGeneradorTab } from "../../../ai/astraura/media/proveedor-neuronas";
 import * as ort from 'onnxruntime-web';
 // Importamos el tokenizer desde @xenova/transformers
 import { AutoTokenizer } from '@xenova/transformers';
@@ -35,6 +36,9 @@ const sigma = 14.6146;
 const gamma = 0;
 const vae_scaling_factor = 0.18215;
 
+// Cached generator to avoid multiple registrations
+let generadorTabCache: GeneradorTab | null = null;
+
 /**
  * Crea y devuelve una función que corresponde al generador de la pestaña (WebGPU) para SD-Turbo.
  * Esta función se encarga de inicializar el modelo en la primera llamada y luego genera imágenes.
@@ -43,20 +47,25 @@ const vae_scaling_factor = 0.18215;
  *          un objeto con una URL de imagen (usable como <img src>) o null si falla.
  */
 export function crearGeneradorTabWebGPUSDTurbo(): GeneradorTab {
-  return async (prompt: string, semilla: number): Promise<{ url?: string; ref?: string } | null> => {
-    // Aseguramos la inicialización (solo se hace una vez)
-    if (promesaInicializacion === null) {
-      promesaInicializacion = inicializar();
-    }
-    await promesaInicializacion;
-    
-    // Si la inicialización falló, generadorTabInterno permanece null
-    if (!generadorTabInterno) {
-      return null;
-    }
-    
-    return generadorTabInterno(prompt, semilla);
-  };
+  if (!generadorTabCache) {
+    generadorTabCache = async (prompt: string, semilla: number): Promise<{ url?: string; ref?: string } | null> => {
+      // Aseguramos la inicialización (solo se hace una vez)
+      if (promesaInicializacion === null) {
+        promesaInicializacion = inicializar();
+      }
+      await promesaInicializacion;
+      
+      // Si la inicialización falló, generadorTabInterno permanece null
+      if (!generadorTabInterno) {
+        return null;
+      }
+      
+      return generadorTabInterno(prompt, semilla);
+    };
+    // Register the generator with the neuronas provider
+    registrarGeneradorTab(generadorTabCache);
+  }
+  return generadorTabCache;
 }
 
 /**
@@ -159,7 +168,7 @@ async function tieneWebGPUConFP16(): Promise<boolean> {
  * Carga los modelos desde la URL base y los almacena en caché.
  * Basado en la función load_models del ejemplo.
  */
-async function cargarModelos(baseUrl: string, modelInfo: typeof models & { [key: string]: { url: string; size: number; opt: ort.InferenceSessionOptions } }): Promise<void> {
+async function cargarModelos(baseUrl: string, modelInfo: { [key: string]: { url: string; size: number; opt: any } }): Promise<void> {
   const cache = await caches.open("onnx-web-sd-turbo");
   let faltan = 0;
   for (const [nombre, info] of Object.entries(modelInfo)) {
@@ -222,7 +231,7 @@ async function obtenerDesdeCacheOCachear(cache: Cache, baseUrl: string, ruta: st
  * @returns Una función que, dada una prompt y una semilla, devuelve una promesa que resuelve a { url?: string; ref?: string } | null
  */
 function crearFuncionGeneradora(
-  opt: ort.InferenceSessionOptions,
+  opt: any,
   sigma: number,
   gamma: number,
   vae_scaling_factor: number,
@@ -258,7 +267,7 @@ function crearFuncionGeneradora(
       const inicioUNet = performance.now();
       const feedUNet = {
         "sample": latentesEscalados,
-        "timestep": new ort.Tensor("int64", [999n], [1]),
+        "timestep": new ort.Tensor("int64", [999], [1]),
         "encoder_hidden_states": ultimoEstadoOculto,
       };
       const resultadoUNet = await models.unet!.run(feedUNet);
@@ -366,7 +375,7 @@ async function tensorAUrlImagen(tensor: ort.Tensor): Promise<string> {
   // Crear un ImageData y luego convertirlo a blob y luego a URL
   // Nota: Esto es una simplificación. En el ejemplo, usan t.toImageData().
   // En ONNX Runtime Web, tenemos el metodo toImageData() en el tensor.
-  const imageData = tensor.toImageData({ tensorLayout: 'NCWH', format: 'RGBA' });
+   const imageData = tensor.toImageData({ tensorLayout: 'NCHW', format: 'RGBA' });
   // Convertir ImageData a blob
   const canvas = document.createElement('canvas');
   canvas.width = ancho;
