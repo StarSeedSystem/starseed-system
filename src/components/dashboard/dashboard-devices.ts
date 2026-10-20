@@ -15,6 +15,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import type { DeviceType } from "./dashboard-types";
+import { esVisorPorUA } from "@/components/xr/shell/sondeo-navegador";
 import type { LucideIcon } from "lucide-react";
 import {
     Smartphone, Tablet, Monitor, Tv, Glasses, Watch, Car, Cpu, Layers,
@@ -119,14 +120,16 @@ function safeSet(key: string, value: unknown): void {
 
 /**
  * Detecta el tipo del dispositivo ACTUAL a partir del entorno (defensivo).
- * Heurística barata; nunca lanza. VR/AR se detecta por WebXR si está presente.
+ * Heurística barata; nunca lanza. «vr» solo para un visor de verdad reconocido por su navegador (Quest, Pico,
+ * Magic Leap…): `navigator.xr` lo traen también Chrome y Edge de escritorio y Android SIN visor, así que ya no
+ * decide. Límite honesto: Vision Pro (el UA dice Mac) y Android XR solo los confirma el sondeo asíncrono
+ * (`sondearNavegador`); mientras tanto se ven como escritorio o móvil.
  */
 export function detectCurrentDeviceType(): DeviceType {
     if (typeof window === "undefined" || typeof navigator === "undefined") return "desktop";
     try {
-        const nav = navigator as Navigator & { xr?: unknown };
-        if (nav.xr) return "vr";
         const ua = navigator.userAgent || "";
+        if (esVisorPorUA(ua)) return "vr";
         const coarse = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
         const w = window.innerWidth || 1024;
         if (/watch/i.test(ua)) return "watch";

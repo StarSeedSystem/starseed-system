@@ -16,7 +16,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import Link from 'next/link';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useId, useMemo } from 'react';
 import { Orbit, Headset, ScanEye, Monitor, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
@@ -25,22 +25,15 @@ import type { StarseedApp } from '../apps/launcher-types';
 import { useLienzoE, px, type LienzoE } from './paquete-e/lienzo';
 import { EncabezadoE, EnlaceE, RaizE, SelloE, estilosE } from './paquete-e/piezas';
 import { PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
+import { useCapacidadesXR } from '@/components/xr/shell/use-capacidades-xr';
 
 const PORTALES = ['immersive', 'sala-xr', 'escena', 'mundo-avatares'] as const;
 type SoporteXR = { comprobando: boolean; vr: boolean; ar: boolean };
 
+/** Qué admite este aparato, del sondeo común de StarSeed XR: con tope de tiempo y atento a un visor que se enchufa. */
 function useSoporteXR(): SoporteXR {
-    const [s, setS] = useState<SoporteXR>({ comprobando: true, vr: false, ar: false });
-    useEffect(() => {
-        let vivo = true;
-        const xr = typeof navigator !== 'undefined' ? (navigator as Navigator & { xr?: { isSessionSupported?: (m: string) => Promise<boolean> } }).xr : undefined;
-        if (!xr?.isSessionSupported) { setS({ comprobando: false, vr: false, ar: false }); return; }
-        Promise.allSettled([xr.isSessionSupported('immersive-vr'), xr.isSessionSupported('immersive-ar')]).then(([vr, ar]) => {
-            if (vivo) setS({ comprobando: false, vr: vr.status === 'fulfilled' && vr.value === true, ar: ar.status === 'fulfilled' && ar.value === true });
-        });
-        return () => { vivo = false; };
-    }, []);
-    return s;
+    const { estado, datos } = useCapacidadesXR();
+    return { comprobando: estado === 'sondeando', vr: datos.vr === true, ar: datos.ar === true };
 }
 
 /** El portal: dos anillos en contragiro y los mundos (sus colores) en órbita. */

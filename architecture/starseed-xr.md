@@ -422,3 +422,23 @@ de `tipos.ts` (`Vec3 = {x,y,z}`), `espacio-trinity.ts` (`activacionMenu`) y `vin
 Ganó el núcleo del contrato (`Vec3` tupla, mapas por acción); la primera versión del enjambre vive en
 `src/lib/xr/entrada-tipos.ts`, que solo importan esos tres módulos y `entrada-xr.test.ts`.
 **Pendiente para la cola:** portar el motor de entrada a `vinculos-xr.ts`/`tipos.ts` y retirar `entrada-tipos.ts`.
+
+## Sondeo del navegador y hook (XR1010Bc · 2026-10-20)
+
+`src/components/xr/shell/sondeo-navegador.ts` (sin React) y `use-capacidades-xr.ts` cumplen la tubería de §3 (c).
+- `sondearNavegador(entorno?)` devuelve el `DatosNavegador` EXACTO del núcleo (las 10 claves; sin extras ni `as`). Nunca lanza,
+  nunca llama a `requestSession` ni lee `WEBGL_debug_renderer_info`. `isSessionSupported` que rechaza o lanza → `false`; sin
+  `navigator.xr` → `vr/ar` `false` (ya comprobado); solo `null` si no hay `window` o el navegador no contesta en 1500 ms
+  (el reloj se limpia siempre). `ofreceSesion` por la FUNCIÓN `offerSession`. WebGL2 se pregunta una vez por carga.
+- `useCapacidadesXR({modo?, contexto?})` → `{estado, datos, capacidades, plan}`, nunca `null`; el estado inicial es igual en
+  servidor y cliente. Re-sondea con `devicechange` y descarta respuestas tardías. **Mientras `estado === "sondeando"` el plan es
+  provisional**: XR1010E/F deben mirar `estado` (y `datos.seguro === false` para el aviso «sin https», que el núcleo casi nunca
+  emite porque `navigator.xr` no existe en contextos inseguros) antes de decir «este aparato no tiene VR».
+- `esVisorPorUA(ua)` (Quest, Pico, Magic Leap…): lo usa `detectCurrentDeviceType` del dashboard. Antes `navigator.xr` bastaba
+  para decir «VR / AR», y lo traen todos los Chrome/Edge de escritorio y Android. Vision Pro (UA de Mac) y Android XR (UA de
+  Android) solo los confirma la sonda asíncrona; hasta entonces se ven como escritorio o móvil.
+- Consumidores hoy: el widget «Espacio inmersivo» (`useSoporteXR`) y el dashboard. **Pendientes de cablear:** XR1010E/F (botón y
+  entrada global), D (almacén), AI (`/xr/diagnostico`), AK (`plataformaDe`), AQ/AR (`use-sesion-xr`, `use-webxr`) y una tarea
+  nueva XR1010AT: `vr-frame.tsx`, `xr-view.tsx` y `multiverse-hub-partes#detectarXR` delegan en el sondeo. Propuestos, no hechos:
+  Biblioteca/Instalar (un visor no ejecuta `.AppImage`), ficha de neurona (`capabilities.xr`) y `perfilDeDatos` para avatares.
+- No probado en un visor real: solo tsc y vitest. Lo valida Alex en `/xr/diagnostico` (XR1010AI).
