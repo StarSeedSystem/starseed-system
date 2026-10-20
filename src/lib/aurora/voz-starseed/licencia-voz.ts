@@ -35,7 +35,10 @@ export function motoresPermitidos(
         const clase = motor.claseLicencia as Licencias;
         
         if (!licenciaPermitida.includes(clase)) {
-            excluidos.push({ id: motor.id, motivo: `Licencia ${clase} no permitida en contexto ${contexto}` });
+            const motivo = clase === "personal" 
+                ? "pesos no comerciales: solo uso personal"
+                : `Licencia ${clase} no permitida en contexto ${contexto}`;
+            excluidos.push({ id: motor.id, motivo });
             continue;
         }
         
