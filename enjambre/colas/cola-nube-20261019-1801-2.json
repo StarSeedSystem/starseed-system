@@ -1,0 +1,90 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "VPU1019L",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Notas, repos externos y fuentes de la Librería por elemento",
+   "archivos": [
+    "src/lib/variaciones/fuentes.ts",
+    "src/lib/variaciones/__tests__/fuentes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Junta para una clave: publicaciones con `references.elemento` (`src/lib/posts/post-entity.ts`), elementos del catálogo público (`public-catalog.ts`), versiones (`src/lib/versions/versions.ts`), repos de la Protomolécula y de `config/referencias-inspiracion.json` con su licencia y clase de uso. Lectores inyectados. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A"
+   ]
+  },
+  {
+   "id": "VPU1019X",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Claves en el DOM: Protomolécula y lienzo universal",
+   "archivos": [
+    "src/lib/variaciones/claves-protomolecula.ts",
+    "src/lib/variaciones/__tests__/claves-protomolecula.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`claveDeHerramienta(id)`, `claveDeAtomo(id)` y `claveDeMolecula(id)` con validación contra `catalogo-herramientas.ts` y `registro-atomos.ts`, y `atributosClave(clave)` para que los componentes del lienzo y de la Protomolécula los pongan. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A"
+   ]
+  },
+  {
+   "id": "DGM1018B",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Protomolécula · ficha de Diagram Design en «pizarras-diagramas»",
+   "archivos": [
+    "src/lib/protomolecula/catalogo-herramientas.ts",
+    "src/lib/protomolecula/__tests__/catalogo-herramientas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Con la forma de la ficha `drawio`: id `diagram-design`, tipo \"recurso\", licencia MIT, integracion \"iframe-aislado\", formatos entrada [texto, drawio, mermaid, excalidraw] salida [html, svg, png], control via [\"js\"], actualizacion github-releases o github-tags de cathrynlavery/diagram-design (versión 2.6.110 del 2026-10-16), ia [\"genera-diagrama-desde-texto\"], estado integrable, verificado 2026-10-18, avisos: sin telemetría; fuentes del OS; animaciones solo en iframe aislado. Amplía la prueba. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "HFR1018A"
+   ]
+  },
+  {
+   "id": "DGM1018C",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · aislar y validar el HTML generado antes de mostrarlo",
+   "archivos": [
+    "src/lib/diagramas/aislar-diagrama.ts",
+    "src/lib/diagramas/__tests__/aislar-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `prepararDiagrama(html, { permitirAnimacion })` → { ok, srcdoc, sandbox, motivos }: exige un solo documento con `<svg>`; quita `<link>`/`@import`/`url(http…)` remotos y cualquier `<iframe>`, `<object>`, `<embed>`, `<form>`, `on*=` y `javascript:`; inserta `<meta http-equiv=\"Content-Security-Policy\">` con default-src 'none', style-src 'unsafe-inline', img-src data:, font-src data: y script-src 'unsafe-inline' SOLO si permitirAnimacion; sandbox = \"allow-scripts\" con animación y \"\" sin ella (nunca allow-same-origin); límite 2 MB. Pruebas con HTML malicioso y con una plantilla de vendor/habilidades/diagram-design/assets. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DGM1018E",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · perfil de marca desde los tokens de tema del perfil, página o grupo (y su fondo)",
+   "archivos": [
+    "src/lib/diagramas/perfil-marca.ts",
+    "src/lib/diagramas/__tests__/perfil-marca.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `perfilDesdeTema(tokens: ThemeTokens, modo, paletaFondo?)` → los tokens que pide la guía de estilo de la skill (vendor/habilidades/diagram-design/references/style-guide.md: papel, tinta, acento, tipografías, trazos) con contraste AA comprobado; `bloquePerfil(perfil)` lo escribe en el formato de cabecera de perfil activo que describe references/profiles.md. Pruebas con un tema claro, uno oscuro y uno con fondo de Shaders. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DGM1018M",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · importar draw.io, Excalidraw y Mermaid a una especificación común",
+   "archivos": [
+    "src/lib/diagramas/importar.ts",
+    "src/lib/diagramas/__tests__/importar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO, siguiendo la idea de los scripts MIT de la skill (drawio_extract.py, excalidraw_extract.py, mermaid_extract.py, acreditados): `desdeDrawio(xml)`, `desdeExcalidraw(json)` y `desdeMermaid(texto)` (flowchart y sequence básicos) → { nodos, aristas, grupos, textos } que se pasa a `diagrama.crear` para redibujarlo con la marca. Entradas de más de 2 MB o con entidades XML externas → rechazo. Pruebas con un ejemplo de cada formato. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "DGM1018C",
+   "DGM1018E",
+   "VPU1019L",
+   "DGM1018M",
+   "DGM1018B",
+   "VPU1019X"
+  ]
+ }
+}
