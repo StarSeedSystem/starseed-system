@@ -83,5 +83,28 @@ describe("teselas (CRDT)", () => {
         expect(hash).toMatch(/^[0-9a-f]{16}$/);
         expect(end - start).toBeLessThan(500);
       });
+
+      it("should compute hash within 100ms for 256 neuronas (performance fix)", () => {
+        const start = Date.now();
+        const neuronas: NeuronaReticula[] = [];
+        for (let i = 0; i < 256; i++) {
+          neuronas.push({
+            id: `neurona${i}`,
+            cuenta: `cuenta${i}`,
+            esRouter: false,
+            capacidad: {
+              ramGb: 8,
+              bateriaPct: null,
+              cargando: false,
+            },
+            medios: ['lora'],
+          });
+        }
+        const teselas = neuronas.map(neurona => crearTesela(neurona, [], 1));
+        const ret = fusionarTodas(teselas);
+        huellaReticula(ret);
+        const elapsed = Date.now() - start;
+        expect(elapsed).toBeLessThan(100);
+      });
     });
 });
