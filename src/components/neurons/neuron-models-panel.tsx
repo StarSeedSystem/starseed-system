@@ -31,6 +31,7 @@ import {
 import { ModelDownloadsPanel } from "@/components/neurons/model-downloads-panel";
 import { NeuronServerConfig } from "@/components/neurons/neuron-server-config";
 import { Astraura158NeuronCard } from "@/components/neurons/astraura-158-neuron-card";
+import { PrestarRecursosPanel } from "@/components/neurons/prestar-recursos";
 
 /**
  * Adenda 149 · PUENTE entre los dos recomendadores: este panel usa
@@ -264,15 +265,20 @@ export function NeuronModelsPanel({ embedded = false }: { embedded?: boolean }) 
         <ModelDownloadsPanel embedded />
       </div>
 
-      {/* Gestión de esta neurona: servidor/receptor, ubicación, memorias, logs (Adenda 114). */}
-      <div className="border-t border-white/10 pt-3">
-        <NeuronServerConfig />
-      </div>
+       {/* Gestión de esta neurona: servidor/receptor, ubicación, memorias, logs (Adenda 114). */}
+       <div className="border-t border-white/10 pt-3">
+         <NeuronServerConfig />
+       </div>
 
-      <p className="px-0.5 text-[10px] leading-snug text-white/35">
-        Selecciones automáticas por defecto según el entorno. Todo es ajustable después en cada chat, personalidad y cerebro.
-        Los modelos de servidor funcionan en cualquier neurona sin instalar nada; los locales requieren la app del OS instalada.
-      </p>
+       {/* Prestar recursos (Ola 1017A · Apps en la malla) */}
+       <div className="border-t border-white/10 pt-3">
+         <PrestarRecursosPanel />
+       </div>
+
+       <p className="px-0.5 text-[10px] leading-snug text-white/35">
+         Selecciones automáticas por defecto según el entorno. Todo es ajustable después en cada chat, personalidad y cerebro.
+         Los modelos de servidor funcionan en cualquier neurona sin instalar nada; los locales requieren la app del OS instalada.
+       </p>
     </div>
   );
 
