@@ -176,6 +176,34 @@ class UniMateHoy(Base):
         self.assertEqual(list(inf["vigias"]), ["btc3d"])
         self.assertFalse([u for u in self.falso.urls() if "UniMate" in u or "2609.05415" in u])
 
+    def test_prompt_de_la_tarea_para_unimate_contiene_instrucciones_esperadas(self):
+        inf = self.pasada()
+        self.assertEqual(len(self.avisos), 1)
+        self.assertEqual(self.colas(), ["propuestas/cola-1020-vigia-3d-unimate.json"])
+        tarea = json.loads((self.olas / self.colas()[0]).read_text("utf-8"))[0]
+        self.assertEqual(tarea["id"], "VGUNIA")
+        self.assertTrue(tarea["aprobacion"])
+        self.assertIn("reservada", tarea)
+        
+        prompt = tarea["prompt"]
+        # Check for fixed strings that should be in the prompt
+        self.assertIn("El vigía de la Biblioteca (scripts/protomolecula/vigias_3d.py) detectó el", prompt)
+        self.assertIn("UniMate ya publicó su código", prompt)
+        self.assertIn("Escribe su adaptador local para el taller 3D, igual que el de PixelArtistry", prompt)
+        self.assertIn("HECHOS LEÍDOS HOY EN LA RED", prompt)
+        self.assertIn("CONTEXTO: etapa «animar» del taller", prompt)
+        self.assertIn("articulaciones en orden de anchura", prompt)  # part of integracion
+        self.assertIn("HAZ: 1) `servicios/taller-3d/motores/unimate.py` con `disponible()` HONESTO", prompt)
+        self.assertIn("Sigue la forma de servicios/taller-3d/motores/pixelartistry.py", prompt)
+        self.assertIn("2) servicios/taller-3d/motores/test_unimate.py con pruebas que NO necesitan GPU ni red", prompt)
+        self.assertIn("3) servicios/taller-3d/motores/README-unimate.md con el paso a paso de instalación y la licencia", prompt)
+        self.assertIn("LICENCIA:", prompt)
+        self.assertIn("REGLAS: comentarios y textos en español", prompt)
+        self.assertIn("Máximo 120 líneas por archivo", prompt)
+        self.assertIn("TAREA RESERVADA PARA ALEX: nació como propuesta porque los pesos no son de uso libre", prompt)
+        self.assertIn("si estás leyendo esto es que él la encoló, y encolarla fue su visto bueno", prompt)
+        self.assertIn("la integración sigue el camino normal del enjambre", prompt)
+
 
 class SinDatos(Base):
     def test_con_la_red_caida_no_se_inventa_nada(self):
