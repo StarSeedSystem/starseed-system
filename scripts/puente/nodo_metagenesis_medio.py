@@ -147,6 +147,7 @@ def disco_libre_gb(ruta: str) -> Optional[float]:
         return None
 
 
+<<<<<<< HEAD
 def ram_total_mb() -> Optional[int]:
     """RAM TOTAL del aparato (no la libre): la capacidad de contenedor se decide con ella (§2 del contrato).
     None si no se pudo medir: entonces no se inventa un contenedor (ni «no apto» por un 0 falso)."""
@@ -312,6 +313,66 @@ def desconectando_ahora(ahora: float) -> bool:
         return isinstance(d, dict) and d.get("desconectando") is True and 0 <= ahora - float(d.get("t")) < C.GRACIA_DESCONECTAR_S
     except (TypeError, ValueError):
         return False
+=======
+def cpu_pct() -> Optional[float]:
+    """Linux: dos lecturas de /proc/stat separadas 0,3 s → % ocupado; macOS u otros: None"""
+    if sys.platform.startswith("linux"):
+        try:
+            with open("/proc/stat") as f:
+                linea = f.readline()
+                if linea.startswith("cpu "):
+                    tiempos1 = list(map(int, linea.split()[1:]))
+                    idle1 = tiempos1[3]  # cuarto valor es idle time
+                    total1 = sum(tiempos1)
+            
+            time.sleep(0.3)
+            
+            with open("/proc/stat") as f:
+                linea = f.readline()
+                if linea.startswith("cpu "):
+                    tiempos2 = list(map(int, linea.split()[1:]))
+                    idle2 = tiempos2[3]
+                    total2 = sum(tiempos2)
+            
+            total_diff = total2 - total1
+            idle_diff = idle2 - idle1
+            
+            if total_diff > 0:
+                return round((total_diff - idle_diff) * 100.0 / total_diff, 1)
+        except OSError:
+            pass
+    return None
+
+
+def ram_total_mb() -> Optional[int]:
+    """Linux: /proc/meminfo MemTotal; macOS: sysctl -n hw.memsize con tope de 2 s"""
+    if sys.platform.startswith("linux"):
+        try:
+            with open("/proc/meminfo") as f:
+                for linea in f:
+                    if linea.startswith("MemTotal:"):
+                        return int(linea.split()[1]) // 1024
+        except OSError:
+            pass
+    elif sys.platform == "darwin":
+        try:
+            # sysctl -n hw.memsize con tope de 2s
+            rc, out = _sh(["sysctl", "-n", "hw.memsize"], tope=2)
+            if rc == 0 and out.strip():
+                bytes_total = int(out.strip())
+                return bytes_total // (1024 * 1024)
+        except (OSError, ValueError):
+            pass
+    return None
+
+
+def disco_total_gb(ruta: str) -> Optional[float]:
+    """shutil.disk_usage"""
+    try:
+        return round(shutil.disk_usage(ruta).total / 1e9, 1)
+    except OSError:
+        return None
+>>>>>>> a342834c (salvavidas · CB1013Q: trabajo del agente antes de las puertas (tsc / vitest))
 
 
 def lineas_ps() -> List[str]:
