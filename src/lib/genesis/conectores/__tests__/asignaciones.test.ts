@@ -151,4 +151,26 @@ describe("fusionarConAmbito", () => {
     const result = fusionarConAmbito([], [], []);
     expect(result).toEqual([]);
   });
+
+  it("should warn when discarding unknown IDs from delAmbito and sugeridas", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const sugeridas = ["sug1", "unknown1", "sug2"];
+    const delAmbito = ["del1", "unknown2"];
+
+    const catalogo: OpcionCatalogo[] = [
+      { id: "del1", nombre: "", tipo: "modelo", papeles: [], gratis: null, requiereCuenta: false, enlaceAlta: null, enlaceClave: null, variables: [], privacidad: "local", licencia: null, verificado: null, fuente: "test" },
+      { id: "sug1", nombre: "", tipo: "modelo", papeles: [], gratis: null, requiereCuenta: false, enlaceAlta: null, enlaceClave: null, variables: [], privacidad: "local", licencia: null, verificado: null, fuente: "test" },
+      { id: "sug2", nombre: "", tipo: "modelo", papeles: [], gratis: null, requiereCuenta: false, enlaceAlta: null, enlaceClave: null, variables: [], privacidad: "local", licencia: null, verificado: null, fuente: "test" }
+    ];
+
+    const result = fusionarConAmbito(sugeridas, delAmbito, catalogo);
+
+    expect(result).toEqual(["del1", "sug1", "sug2"]);
+    expect(warnSpy).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledWith('[genesis/conectores] fusionarConAmbito: ID "unknown2" no encontrado en el catálogo, se descarta');
+    expect(warnSpy).toHaveBeenCalledWith('[genesis/conectores] fusionarConAmbito: ID "unknown1" no encontrado en el catálogo, se descarta');
+
+    warnSpy.mockRestore();
+  });
 });
