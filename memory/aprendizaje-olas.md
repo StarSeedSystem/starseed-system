@@ -4509,6 +4509,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-10-20 17:42 · mg-oracle-1020-0802
 
 **Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+## 2026-10-20 11:18 · mg-oracle-1020-0323
+
+**Lo que se pidió.** CI en rojo
 
 **Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
 
@@ -4519,3 +4522,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1abbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTS1010-EV-ORACLE-1abbbbbbb conservada
 - `RTCOL1012Mb` — pruebas en rojo: vitest falla (rama conservada)
 - `VST1018Gb` — otra cosa: ningún proveedor respondió (todos caídos)
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1014-C715AA-d1d` — los tipos no compilan: 1 errores tsc (rama ola/MGP1014-C715AA-d1d conservada)
+- `RTRTS1010-EV-ORACLE-1acbbbbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTS1010-EV-ORACLE-1acbbbbbbbbb conservada
+- `RTSUC1018Eb` — no escribió nada
