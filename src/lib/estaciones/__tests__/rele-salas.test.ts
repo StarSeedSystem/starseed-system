@@ -86,7 +86,11 @@ describe('rele-salas', () => {
     salas.entrar(tema, emisor)
     salas.entrar(tema, receptor1)
     salas.entrar(tema, receptor2)
+<<<<<<< HEAD
     const texto = '{"t":"est","datos":"hola"}'
+=======
+    const texto = '{\"t\":\"est\",\"datos\":\"hola\"}'
+>>>>>>> 4865a9bab (salvavidas · RTRTS1010-EV-ORACLE-1acbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
     const destino = salas.difundir(emisor, texto)
     expect(destino.length).toBe(2)
     expect(destino.includes(emisor)).toBe(false)
@@ -118,18 +122,30 @@ describe('rele-salas', () => {
     const tema = 'estacion-vivo:Tema112345678'
     const conexion = {}
     salas.entrar(tema, conexion)
+<<<<<<< HEAD
     const textoLargo = '{"t":"est","datos":"esto es muy largo"}'
+=======
+    const textoLargo = '{\"t\":\"est\",\"datos\":\"esto es muy largo\"}' // más de 10 bytes
+>>>>>>> 4865a9bab (salvavidas · RTRTS1010-EV-ORACLE-1acbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
     const destino = salas.difundir(conexion, textoLargo)
     expect(destino.length).toBe(0)
   })
 
+<<<<<<< HEAD
   it('debería descartar texto que no empieza por {"t":"est" en difundir', () => {
+=======
+  it('debería descartar texto que no empieza por {\\"t\\":\\"est\\" en difundir', () => {
+>>>>>>> 4865a9bab (salvavidas · RTRTS1010-EV-ORACLE-1acbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
     const tema = 'estacion-vivo:Tema112345678'
     // Válido
     const salasValidas = crearSalas()
     const conexionValida = {}
     salasValidas.entrar(tema, conexionValida)
+<<<<<<< HEAD
     const textoValido = '{"t":"est","datos":"ok"}'
+=======
+    const textoValido = '{\"t\":\"est\",\"datos\":\"ok\"}'
+>>>>>>> 4865a9bab (salvavidas · RTRTS1010-EV-ORACLE-1acbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
     let destino = salasValidas.difundir(conexionValida, textoValido)
     expect(destino.length).toBe(0) // estamos solos en la sala
     // Vamos a agregar un receptor para probar.
@@ -142,8 +158,13 @@ describe('rele-salas', () => {
     const salasInv = crearSalas()
     const conexionInv = {}
     salasInv.entrar(tema, conexionInv)
+<<<<<<< HEAD
     const textoInvalido1 = '{"t":"otro","datos":"ok"}'
     const textoInvalido2 = '{"t":"est"'
+=======
+    const textoInvalido1 = '{\"t\":\"otro\",\"datos\":\"ok\"}'
+    const textoInvalido2 = '{\"t\":\"est\"' // incompleto
+>>>>>>> 4865a9bab (salvavidas · RTRTS1010-EV-ORACLE-1acbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
     const textoInvalido3 = 'no es json'
     destino = salasInv.difundir(conexionInv, textoInvalido1)
     expect(destino.length).toBe(0)
@@ -185,4 +206,8 @@ describe('rele-salas', () => {
     salas.salir(conexion)
     expect(salas.temaDe(conexion)).toBeUndefined()
   })
+<<<<<<< HEAD
 })
+=======
+})
+>>>>>>> 4865a9bab (salvavidas · RTRTS1010-EV-ORACLE-1acbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
