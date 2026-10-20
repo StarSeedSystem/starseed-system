@@ -2,6 +2,7 @@ export type ContextoPeticion = {
   tipo: 'cuenta' | 'grupo' | 'comunidad' | 'publicacion' | 'estacion';
   id: string;
   privado: boolean;
+  grupos?: string[];
 };
 
 export type Parte = {
@@ -59,7 +60,23 @@ export type PlanResultado = {
  */
 export function planificar(
   peticion: Peticion,
-  ofertas: { nodoId: string; computo: { nucleos: number; ramLibreMb: number; gpu: boolean; vramMb?: number; motores: string[] }; presta: { cuenta: boolean; grupos: string[]; publico: boolean; topes: { cpuPct: number; ramMb: number; discoMb: number; horas?: { inicio: number; fin: number }; soloCargando: boolean } }[]; reglas?: string[] }
+  ofertas: {
+    nodoId: string;
+    computo: { nucleos: number; ramLibreMb: number; gpu: boolean; vramMb?: number; motores: string[] };
+    presta: {
+      cuenta: boolean;
+      grupos: string[];
+      publico: boolean;
+      topes: {
+        cpuPct: number;
+        ramMb: number;
+        discoMb: number;
+        horas?: { inicio: number; fin: number };
+        soloCargando: boolean;
+      };
+    };
+  }[],
+  reglas?: string[]
 ): PlanResultado[] {
   const reglasUsadas = reglas || [
     'privacidad',
@@ -72,90 +89,83 @@ export function planificar(
   ];
 
   return peticion.partes.map((parte, parteIdx) => {
-    // Filtrar ofertas que pasan el filtro de privacidad
-    const ofertasPrivadas = ofertas.filter((o) => {
-      if (parte.clase === 'computo' || parte.clase === 'bytes') {
-        // Privado: solo misma cuenta o servidores del cerebro
-        if (peticion.contexto.privado) {
-          return o.presta.cuenta || o.presta.publico === false;
-        }
-        // No privado: puede ser pública o del grupo
-        return o.presta.publico || o.presta.grupos.some((g) => peticion.contexto.grupos.includes(g));
+    // --- Regla 1: Permisos y privacidad ---
+    const esPrivado = peticion.contexto.privado;
+    let ofertasFiltradas = ofertas.filter((o) => {
+      if (esPrivado) {
+        // Lo privado solo en neuronas de la misma cuenta
+        return o.presta.cuenta || o.presta.publico === false;
       }
-      // Para ventana y relevo, más permisos relajados
-      return true;
+      // No privado: grupo o público
+      return (
+        o.presta.publico ||
+        o.presta.grupos.some((g) => peticion.contexto.grupos?.includes(g) ?? false)
+      );
     });
 
-    if (ofertasPrivadas.length === 0) {
-      return {
-        parteIdx,
-        resultado: {
-          destino: 'local',
-          motivo: `No hay ofertas disponibles para ${parte.clase} (privacidad: ${peticion.contexto.tipo} privada)`,
-        },
-      };
-    }
-
-    // Regla 1 (già aplicada) + Regla 2: latencia
-    let ofertConLatencia = ofertasPrivadas;
+    // --- Regla 2: Tiempo real (latencia) ---
     if (parte.latenciaMaxMs) {
-      ofertConLatencia = ofertasPrivadas.filter((o) => {
-        if (!o.computo) return false;
-        // Simulación simple: usar latencia si está disponible
-        const lat = o.presta.topes.cpuPct; // placeholder - en implementación real vendría de enlaces
-        return lat <= (parte.latenciaMaxMs ?? Infinity);
+      ofertasFiltradas = ofertasFiltradas.filter((o) => {
+        // Simulación: usar cpuPct como proxy de latencia disponible
+        // En implementación real vendría de o.presta.enlaces?.latenciaMs
+        return o.presta.topes.cpuPct <= parte.latenciaMaxMs;
       });
     }
 
-    // Regla 3: energía
-    let ofertEnergia = ofertConLatencia;
-    ofertEnergia = ofertConLatencia.filter((o) => {
-      // Si la oferta tiene batería baja y no está cargando, y no es para la misma cuenta...
-      // Para simplificar: descartar si batería < 20% y no cargando (solo si es privado)
-      if (peticion.contexto.privado) {
-        return !(o.presta.topes.soloCargando === false && o.presta.topes.cpuPct < 20);
+    // --- Regla 3: Energía ---
+    ofertasFiltradas = ofertasFiltradas.filter((o) => {
+      // Nunca una neurona con batería baja sin cargador ni usando a fondo
+      const bateriaBaja = o.presta.topes.cpuPct < 20; // proxy simple
+      const enUso = o.presta.topes.soloCargando === false && o.presta.topes.cpuPct < 30;
+      if (esPrivado) {
+        // Privado: si es de la misma cuenta, permite; si no, restricciones
+        return !bateriaBaja || o.presta.cuenta;
       }
-      return true;
+      return !bateriaBaja;
     });
 
-    // Regla 4: capacidad
-    let ofertCapacidad = ofertEnergia;
-    ofertCapacidad = ofertEnergia.filter((o) => {
+    // --- Regla 4: Capacidad ---
+    ofertasFiltradas = ofertasFiltradas.filter((o) => {
       if (!o.computo) return false;
-      const minRam =parte.necesita.ramMb ?? 0;
+      const minRam = parte.necesita.ramMb ?? 0;
       return o.computo.ramLibreMb >= minRam;
     });
 
-    // Regla 5: coste (primero gratuito y propio)
-    let ofertCoste = ofertCapacidad;
-    ofertCoste = ofertCapacidad.filter((o) => o.presta.cuenta === true);
+    // --- Regla 5: Coste (primero gratuito y propio) ---
+    ofertasFiltradas = ofertasFiltradas.filter((o) => o.presta.cuenta === true);
 
-    // Si después de las reglas quedan varias, usar empate por nodoId (determinista)
-    ofertCoste.sort((a, b) => (a.nodoId > b.nodoId ? 1 : -1));
+    // Empate por nodoId (determinista)
+    ofertasFiltradas.sort((a, b) =>
+      a.nodoId > b.nodoId ? 1 : a.nodoId < b.nodoId ? -1 : 0
+    );
 
     const resultado: ResultadoParte = {
-      destino: 'local' as const,
+      destino: 'local',
       motivo: '',
     };
 
-    if (ofertCoste.length === 0) {
-      // Regla 7: suelo
-      const falta = parte.necesita.ramMb !== undefined ? `${parte.necesita.ramMb} MB de RAM` :
-        parte.necesita.gpu ? 'GPU' :
-          'recursos disponibles';
+    if (ofertasFiltradas.length === 0) {
+      // --- Regla 7: Suelo ---
+      let falta = 'recursos';
+      if (parte.necesita.ramMb !== undefined) {
+        falta = `${parte.necesita.ramMb} MB de RAM`;
+      } else if (parte.necesita.gpu) {
+        falta = 'GPU';
+      }
       resultado.destino = 'local';
       resultado.motivo = `Suelo: no hay recursos suficientes. Falta ${falta}. Abrir en local o web.`;
       return { parteIdx, resultado };
     }
 
-    const elegida = ofertCoste[0];
+    const elegida = ofertasFiltradas[0];
     resultado.destino = elegida.nodoId;
-    resultado.motivo = `Recurso en ${elegida.nodoId} cumple ${parte.clase} con ${elegida.computo?.ramLibreMb ?? 0} MB RAM`;
+    resultado.motivo = `Recurso en ${elegida.nodoId} cumple ${parte.clase} con ${elegida.computo?.ramLibreMb ?? 0} MB RAM libre`;
 
-    // Regla 6: reparto - si hay múltiples partes y la misma oferta no basta para todas,
-    // ramificar. Para una sola parte, no hay reparto.
-    if (peticion.partes.length > 1 && ofertCoste.length > 1) {
-      resultado Fuentes = ofertCoste.map((o) => o.nodoId);
+    // --- Regla 6: Reparto ---
+    // Si hay múltiples partes y la oferta elegida no puede cubrir todas,
+    // ramificar indicando múltiples fuentes
+    if (peticion.partes.length > 1) {
+      resultado.fuentes = ofertasFiltradas.map((o) => o.nodoId);
     }
 
     return { parteIdx, resultado };
