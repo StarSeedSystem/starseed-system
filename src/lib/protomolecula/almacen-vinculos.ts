@@ -87,7 +87,10 @@ export function crearEnrutador(o: OpcionesEnrutador): Enrutador {
       return [];
     }
     // Un vínculo sin aparato («*») vale para el mismo control de cualquier aparato.
-    const claves = [claveFuente(m.fuente), claveFuente({ ...m.fuente, dispositivo: undefined })];
+    const claves = [
+      claveFuente(m.fuente),
+      m.fuente.tipo === "midi" ? claveFuente({ ...m.fuente, dispositivo: undefined }) : claveFuente(m.fuente)
+    ];
     const rutas: RutaMando[] = [];
     for (const v of lista) {
       if (!claves.includes(claveFuente(v.fuente))) continue;

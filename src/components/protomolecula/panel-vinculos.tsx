@@ -3,9 +3,8 @@
 import { useMemo, useState } from "react";
 import { Plug, Trash2 } from "lucide-react";
 import { decidir } from "@/lib/protomolecula/permisos";
-import { siguienteAprender, vinculoAprendido, type EstadoAprender, type EventoAprender } from "@/lib/protomolecula/vinculos-control";
-import type { Autor, CandidatoParametro, Vinculo } from "@/lib/protomolecula/vinculos-control";
-import type { Ambito, Rol } from "@/lib/protomolecula/tipos";
+import { siguienteAprender, vinculoAprendido, type EstadoAprender, type EventoAprender, type Vinculo } from "@/lib/protomolecula/vinculos-control";
+import type { Autor, CandidatoParametro, Ambito, Rol } from "@/lib/protomolecula/tipos";
 
 export interface PanelVinculosProps {
   vinculos: Vinculo[];
