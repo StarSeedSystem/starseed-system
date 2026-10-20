@@ -115,6 +115,7 @@ import { SerendipityLensWidget } from "@/components/dashboard/widgets/gen5/seren
 import { IdeaForgeWidget } from "@/components/dashboard/widgets/gen5/idea-forge-widget";
 import { MeritGalleryWidget } from "@/components/dashboard/widgets/gen5/merit-gallery-widget";
 import { SocietyPulseWidget } from "@/components/dashboard/widgets/gen5/society-pulse-widget";
+import EstudioVideoVentana from "@/components/video/estudio-video-ventana";
 
 // Mapa real interactivo (OpenStreetMap + Leaflet vía CDN)
 const MapWidget = dynamic(
@@ -521,6 +522,8 @@ function cuerpoClasico(
         // ── Protomolécula (ola 1010P) ──
         case 'PROTOMOLECULA':
             return <PanelProtomoleculaAutonomo compacto />;
+        case 'ESTUDIO_VIDEO':
+            return <EstudioVideoVentana widget={widget} onUpdateSettings={onUpdateSettings} />;
 
         default:
             return (
