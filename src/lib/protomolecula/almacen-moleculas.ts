@@ -1,4 +1,6 @@
 import type { Ambito, Molecula } from "./molecula-estado-tipos";
+import type { Molecula as MoleculaNucleo } from "./tipos";
+import { esMoleculaValidaNucleo } from "./bloque-protomolecula";
 
 export interface AlmacenLocal {
   getItem(k: string): string | null;
@@ -11,10 +13,13 @@ export const CLAVE_INDICE = "starseed.protomolecula.indice.v1";
 
 const TAMANO_MAXIMO_BYTES = 256 * 1024;
 
+/** Lo que el almacén guarda: la forma antigua (`molecula-estado-tipos.ts`) o la del núcleo (`tipos.ts`). */
+export type MoleculaGuardada = Molecula | MoleculaNucleo;
+
 export interface ResumenMolecula {
   id: string;
   titulo: string;
-  ambito: Ambito;
+  ambito: Ambito | MoleculaNucleo["ambito"];
   actualizadaEn: number;
 }
 
@@ -54,12 +59,20 @@ export function esMoleculaValida(x: unknown): x is Molecula {
   if (!Array.isArray(x.atomos) || !x.atomos.every(esAtomoValido)) return false;
   if (!esObjetoPlano(x.valores) || !Object.values(x.valores).every(esValorValido)) return false;
   if (!esNumero(x.version) || !esNumero(x.creadaEn) || !esNumero(x.actualizadaEn)) return false;
+  return cabeEnElAlmacen(x);
+}
+
+function cabeEnElAlmacen(x: unknown): boolean {
   try {
-    if (JSON.stringify(x).length > TAMANO_MAXIMO_BYTES) return false;
+    return JSON.stringify(x).length <= TAMANO_MAXIMO_BYTES;
   } catch {
     return false;
   }
-  return true;
+}
+
+/** Lo que el almacén acepta: la forma antigua o la del núcleo, ambas dentro del tope de 256 KB. */
+export function esMoleculaGuardable(x: unknown): x is MoleculaGuardada {
+  return esMoleculaValida(x) || (esMoleculaValidaNucleo(x) && cabeEnElAlmacen(x));
 }
 
 export function almacenNavegador(): AlmacenLocal | null {
@@ -91,8 +104,8 @@ function escribirIndice(a: AlmacenLocal, indice: Indice): void {
   a.setItem(CLAVE_INDICE, JSON.stringify(indice));
 }
 
-export function guardarMolecula(a: AlmacenLocal, m: Molecula): boolean {
-  if (!esMoleculaValida(m)) return false;
+export function guardarMolecula(a: AlmacenLocal, m: MoleculaGuardada): boolean {
+  if (!esMoleculaGuardable(m)) return false;
   try {
     a.setItem(PREFIJO_MOLECULA + m.id, JSON.stringify(m));
     const indice = leerIndice(a);
@@ -104,12 +117,12 @@ export function guardarMolecula(a: AlmacenLocal, m: Molecula): boolean {
   }
 }
 
-export function cargarMolecula(a: AlmacenLocal, id: string): Molecula | null {
+export function cargarMolecula(a: AlmacenLocal, id: string): MoleculaGuardada | null {
   try {
     const crudo = a.getItem(PREFIJO_MOLECULA + id);
     if (crudo === null) return null;
     const parsed: unknown = JSON.parse(crudo);
-    return esMoleculaValida(parsed) ? parsed : null;
+    return esMoleculaGuardable(parsed) ? parsed : null;
   } catch {
     return null;
   }

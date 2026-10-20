@@ -97,7 +97,7 @@ function ControlNumerico({ c, ctx }: { c: CandidatoParametro; ctx: Ctx }) {
   const mostrado = borrador ?? valor;
   const rangoOk = c.parametro.min !== undefined && c.parametro.max !== undefined;
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       {rangoOk && (
         <Slider
           value={[mostrado]}
@@ -187,7 +187,7 @@ export function PanelParametros({
         <section key={nombreGrupo} aria-label={nombreGrupo} className="flex flex-col gap-3">
           <h3 className="text-sm font-medium text-muted-foreground">{nombreGrupo}</h3>
           {cs.map((c) => (
-            <div key={`${c.ref.atomoId}::${c.ref.parametroId}`} className="flex items-center gap-3">
+            <div key={`${c.ref.atomoId}::${c.ref.parametroId}`} className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="w-40 shrink-0 text-sm">{c.parametro.nombre}</span>
               <Control c={c} ctx={ctx} />
             </div>

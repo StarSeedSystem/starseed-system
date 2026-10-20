@@ -3,6 +3,7 @@ import {
   almacenNavegador,
   borrarMolecula,
   cargarMolecula,
+  esMoleculaGuardable,
   esMoleculaValida,
   guardarMolecula,
   listarMoleculas,
@@ -11,6 +12,7 @@ import {
   type AlmacenLocal,
 } from "../almacen-moleculas";
 import type { Molecula } from "../molecula-estado-tipos";
+import type { Molecula as MoleculaNucleo } from "../tipos";
 
 function almacenMemoria(): AlmacenLocal {
   const datos = new Map<string, string>();
@@ -49,6 +51,63 @@ function molecula(par: Partial<Molecula> = {}): Molecula {
     ...par,
   };
 }
+
+function nucleo(par: Partial<MoleculaNucleo> = {}): MoleculaNucleo {
+  return {
+    id: "n1",
+    titulo: "Del núcleo",
+    ambito: "perfil",
+    capas: [{ id: "c1", tipo: "lienzo2d", titulo: "Base", formato: "svg", referencia: null, orden: 1, visible: true, bloqueada: false }],
+    atomos: [{ id: "a1", herramientaId: "sintetizador-web-audio", capaId: "c1", estado: "activo" }],
+    valores: { "a1::volumen": -6 },
+    version: 1,
+    creadaEn: 1000,
+    actualizadaEn: 3000,
+    ...par,
+  };
+}
+
+describe("almacen-moleculas · moléculas del núcleo", () => {
+  it("guarda y carga una molécula real del núcleo (átomo, ámbito perfil y publica, capa del núcleo)", () => {
+    const a = almacenMemoria();
+    for (const ambito of ["perfil", "publica", "grupo"] as const) {
+      const m = nucleo({ id: `n-${ambito}`, ambito });
+      expect(guardarMolecula(a, m)).toBe(true);
+      expect(cargarMolecula(a, m.id)).toEqual(m);
+    }
+  });
+
+  it("la lista mezcla las del núcleo con las antiguas, de más reciente a más antigua", () => {
+    const a = almacenMemoria();
+    guardarMolecula(a, molecula({ id: "vieja", actualizadaEn: 2000 }));
+    guardarMolecula(a, nucleo({ id: "nueva", actualizadaEn: 3000 }));
+    expect(listarMoleculas(a).map((r) => [r.id, r.ambito])).toEqual([["nueva", "perfil"], ["vieja", "personal"]]);
+  });
+
+  it("una molécula del núcleo mal formada se sigue rechazando", () => {
+    const a = almacenMemoria();
+    const sinHerramienta = nucleo({ atomos: [{ id: "a1", estado: "activo" } as never] });
+    const ambitoRaro = nucleo({ ambito: "publico" as never });
+    expect(guardarMolecula(a, sinHerramienta)).toBe(false);
+    expect(guardarMolecula(a, ambitoRaro)).toBe(false);
+    expect(esMoleculaGuardable(null)).toBe(false);
+    expect(esMoleculaGuardable({})).toBe(false);
+    expect(listarMoleculas(a)).toEqual([]);
+  });
+
+  it("el tope de 256 KB también vale para las del núcleo", () => {
+    const a = almacenMemoria();
+    expect(esMoleculaGuardable(nucleo())).toBe(true);
+    expect(esMoleculaGuardable(nucleo({ titulo: "x".repeat(300 * 1024) }))).toBe(false);
+    expect(guardarMolecula(a, nucleo({ titulo: "x".repeat(300 * 1024) }))).toBe(false);
+  });
+
+  it("con el almacén roto, las del núcleo tampoco lanzan", () => {
+    const a = almacenRoto();
+    expect(guardarMolecula(a, nucleo())).toBe(false);
+    expect(cargarMolecula(a, "n1")).toBeNull();
+  });
+});
 
 describe("almacen-moleculas", () => {
   it("guarda y carga una molécula (ida y vuelta)", () => {

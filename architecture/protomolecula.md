@@ -388,13 +388,16 @@ registro-atomos.ts            (PM1010F0B)
 molecula-estado.ts            (PM1010F0A)   funciones puras e inmutables sobre Molecula
   crearMolecula, anadirCapa, anadirAtomo, cambiarEstadoAtomo, fijarValores, aplicarEnMolecula(m, parametroDe, op, ahora)
 
-almacen-moleculas.ts          (PM1010F0C)   persistencia local inyectable (guardar/cargar/listar/borrar, esMoleculaValida)
+almacen-moleculas.ts          (PM1010F0C)   persistencia local inyectable (guardar/cargar/listar/borrar, esMoleculaValida); desde PM1010F0G acepta además la forma del núcleo (esMoleculaGuardable)
 
 controlador.ts                (PM1010F0D)
   crearControlador({molecula, rol, sesion?, ahora, nuevoId}) : Controlador
   Controlador { obtener(); suscribir(f); mover(op); dictar(frase, autor, origen?); confirmar(opId); rechazar(opId);
                 deshacer(autorId); rehacer(autorId); anadirAtomo(herramientaId, titulo?) }
   controlador-activo.ts: registrarControlador(moleculaId, c) → desregistro; controladorActivo(id?); listarControladores()
+sesion-molecula.ts            (PM1010F0G)   DUEÑO del controlador: abrirSesion(id?, deps) / cerrarSesion(id), recuento de referencias por molécula;
+                              carga (o crea «Mi primera molécula»), registra átomos propios y controlador, guarda con 400 ms si cambia la identidad de molecula
+use-molecula.ts               (PM1010F0G)   useMolecula({moleculaId}) → {cargando, error, controlador, estado, guardado}; panel-protomolecula.tsx lo monta en todas las superficies
 
 orbe-bus.ts                   (PM1010F0K)   claves starseed.protomolecula.orbe.{pos,enabled}.v1, eventos, posición por defecto junto a la orbe de Aurora
 puente-herramientas.ts        (PM1010F1A)   protocolo OS⇄marco: hola · cambio · exportar · listo · error / establecer · estado · disparar

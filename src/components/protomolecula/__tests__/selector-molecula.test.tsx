@@ -3,9 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NEW_BLOCK_DEFS, RichBlockEditor } from "@/components/creation/creation-blocks";
 import { CLAVE_INDICE, PREFIJO_MOLECULA, type AlmacenLocal } from "@/lib/protomolecula/almacen-moleculas";
 import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
+import { abrirSesion, cerrarSesion, reiniciarSesiones } from "@/lib/protomolecula/sesion-molecula";
 import { SelectorMolecula, TEXTO_CONFIRMACION, prepararMolecula } from "../selector-molecula";
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); reiniciarSesiones(); });
 
 /** Almacén en memoria: sin disco ni navegador. */
 function almacenMemoria(): AlmacenLocal {
@@ -32,6 +33,19 @@ function molecula(id: string, titulo: string, ambito: string, referencia: { tipo
 const sinReservas = () => "publica" as const;
 
 describe("SelectorMolecula", () => {
+  it("una molécula guardada por la sesión de la Protomolécula (forma del núcleo) se lista y llega al lienzo", () => {
+    const a = almacenMemoria();
+    const nueva = abrirSesion(undefined, { almacen: a, ahora: () => 5, nuevoId: () => "m-sesion" });
+    if (!nueva.ok) throw new Error(nueva.motivo);
+    expect(nueva.sesion.controlador.anadirAtomo("sintetizador-web-audio").ok).toBe(true);
+    cerrarSesion(nueva.sesion.id); // al cerrar la última vista se escribe lo pendiente
+    const alElegir = vi.fn();
+    render(<SelectorMolecula ambitoPost="personal" alElegir={alElegir} almacen={a} ambitoDe={sinReservas} />);
+    fireEvent.click(screen.getByRole("button", { name: /Mi primera molécula/ }));
+    expect(alElegir).toHaveBeenCalledTimes(1);
+    const bloque = leerBloque(alElegir.mock.calls[0][0]);
+    expect(bloque.ok && bloque.valor.atomos.map((x) => x.herramientaId)).toEqual(["sintetizador-web-audio"]);
+  });
   it("lista las moléculas del almacén, la más reciente primero, con su ámbito", () => {
     const a = sembrar(almacenMemoria(), [molecula("vieja", "Bosque", "personal", null, 10), molecula("nueva", "Río", "grupo", null, 99)]);
     render(<SelectorMolecula ambitoPost="grupo" alElegir={vi.fn()} almacen={a} ambitoDe={sinReservas} />);
