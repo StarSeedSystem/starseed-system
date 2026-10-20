@@ -1,0 +1,48 @@
+name: StarSeed OS Motor
+
+# Ejecutar este workflow desde el repositorio del usuario
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'  # Cada 6 horas
+
+jobs:
+  ejecutar-motor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read  # Para checkout del repositorio
+      id-token: write  # Para OIDC si se necesita
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+        
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Instalar dependencias
+        run: npm ci
+        
+      - name: Instalar orquestador de StarSeed OS
+        run: |
+          npm install -g opencode-ai@1.18.33 --no-audit --no-fund --loglevel=error
+          
+      - name: Configurar entorno
+        run: |
+          mkdir -p ~/.starseed ~/.config/opencode
+          echo '{"telemetry":{"enabled":false}}' > ~/.config/opencode/opencode.json
+          
+      - name: Ejecutar motor de StarSeed OS
+        env:
+          STARSEED_MOTOR_TOKEN: ${{ secrets.STARSEED_MOTOR_TOKEN }}
+        run: |
+          # Ejecutar el orquestador con un trabajo de ejemplo
+          # En un caso real, el usuario especificaría qué tarea ejecutar
+          echo "Ejecutando motor de StarSeed OS..."
+          # Este es un placeholder - en la práctica, el usuario configuraría qué tarea ejecutar
+          starseed-enjambre.py --help
+          
