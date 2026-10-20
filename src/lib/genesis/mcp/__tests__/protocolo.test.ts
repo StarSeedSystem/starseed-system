@@ -7,7 +7,7 @@ describe("protocolo MCP", () => {
       nombre: "estado",
       descripcion: "Obtiene el estado del sistema",
       esquema: { type: "object", properties: {} as Record<string, unknown> },
-      ejecutar: async () => ({
+      ejecutar: async (args: Record<string, unknown>, ctx?: unknown) => ({
         contenido: [{ tipo: "texto", texto: "ok" }],
       }),
     },
@@ -15,7 +15,7 @@ describe("protocolo MCP", () => {
       nombre: "tareas_listar",
       descripcion: "Lista tareas",
       esquema: { type: "object", properties: { limite: { type: "number" } } } as Record<string, unknown>,
-      ejecutar: async (args: Record<string, unknown>) => ({
+      ejecutar: async (args: Record<string, unknown>, ctx?: unknown) => ({
         contenido: [{ tipo: "texto", texto: `tareas con límite ${args.limite ?? 10}` }],
       }),
     },
