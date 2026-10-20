@@ -822,15 +822,24 @@ const LABS_PACKAGES: LibraryPackage[] = [
      author: "Rivet", sourceRepoId: "starseed-labs", free: true,
      payload: { externalUrl: "https://github.com/rivet-dev/agentos", note: "patrones de orquestación" },
    },
-   /* ── HyperFrames · editor de vídeo de la Protomolécula ── */
-   {
-     id: "video-hyperframes", kind: "repo", name: "HyperFrames",
-     description: "escribe HTML, sale vídeo; editor de vídeo de la Protomolécula, render en la malla y edición en grupo",
-     icon: "Video",
-     tags: ["vídeo", "edición", "html", "render"], version: "1.0.0",
-     author: "HeyGen", sourceRepoId: "starseed-labs", free: true, featured: true,
-     payload: { categoria: "video", herramientaId: "hyperframes", claseLicencia: "libre", githubRepo: "heygen-com/hyperframes" }
-   }
+    /* ── HyperFrames · editor de vídeo de la Protomolécula ── */
+    {
+      id: "video-hyperframes", kind: "repo", name: "HyperFrames",
+      description: "escribe HTML, sale vídeo; editor de vídeo de la Protomolécula, render en la malla y edición en grupo",
+      icon: "Video",
+      tags: ["vídeo", "edición", "html", "render"], version: "1.0.0",
+      author: "HeyGen", sourceRepoId: "starseed-labs", free: true, featured: true,
+      payload: { categoria: "video", herramientaId: "hyperframes", claseLicencia: "libre", githubRepo: "heygen-com/hyperframes" }
+    },
+    /* ── Diagram Design · habilidad para diagramas 2D/3D/XR ── */
+    {
+      id: "fn-diagram-design", kind: "function", name: "Diagram Design",
+      description: "45 tipos de diagrama en un HTML+SVG con tu marca; en chats, lienzo, pizarra, escritorio, 3D y XR",
+      icon: "Layout",
+      tags: ["diagramas", "svg", "arquitectura", "flujo", "3d"], version: "2.6.110",
+      author: "cathrynlavery", sourceRepoId: "starseed-labs", free: true, featured: true,
+      payload: { skillId: "diagram-design" }
+    }
 ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */
