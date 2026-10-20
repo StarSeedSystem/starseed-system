@@ -28,53 +28,7 @@ export function fusionarBots(
   return { bots: Array.from(botsPorId.values()), actualizado: actualizadoPorId };
 }
 
-export interface PayloadCambio {
-  new?: Bot | null;
-  eventType?: "INSERT" | "UPDATE" | "DELETE" | undefined;
-}
-
-export function suscribirBotsEntidad(
-  entidades: Readonly<{ tipo: string; id: string; cuentaId: string }[]>,
-  cb: (bots: Bot[]) => void
-): () => void {
-  if (entidades.length === 0) return () => {};
-
-  const entityFilters = entidades.map(e =>
-    `(dueno.tipo=eq.${e.tipo},dueno.id=eq.${e.id},dueno.cuentaId=eq.${e.cuentaId})`
-  );
-  const filter = entityFilters.join(' or ');
-
-  let botsCache: Bot[] = [];
-  let actualizadoCache: Record<string, number> = {};
-
-  const handleChange = (payload: PayloadCambio) => {
-    try {
-      const changeBot = payload?.new ?? null;
-      const eventType = payload?.eventType;
-      const ahora = Date.now();
-
-      const remoteBots: Bot[] = changeBot ? [changeBot] : [];
-      const remoteActualizado: Record<string, number> = changeBot
-        ? { [changeBot.id]: ahora } : {};
-
-      const localEnvelope = { bots: botsCache, actualizado: actualizadoCache };
-      const remoteEnvelope = { bots: remoteBots, actualizado: remoteActualizado };
-
-      const merged = fusionarBots(localEnvelope, remoteEnvelope);
-      botsCache = merged.bots;
-      actualizadoCache = merged.actualizado;
-
-      cb([...botsCache]);
-    } catch (e) {
-      console.warn('Error in suscribirBotsEntidad:', e);
-    }
-  };
-
-  return onTableChange("astraura_bots", { filter, event: "*" }, handleChange);
-}
-
-/* `starseed.astraura.bots.orbes.v1` guarda las POSICIONES de las orbes por bot. */
-const CLAVE_ABIERTOS = "starseed.astraura.orbes-abiertos";
+const CLAVE_ABIERTOS = "starseed.astraura.bots.abiertos.v1";
 
 export function abiertosEnEstaNeurona(): string[] {
   if (typeof window === "undefined") return [];
@@ -106,7 +60,7 @@ export function marcarAbierto(botId: string, abierto: boolean): void {
   } catch { /* best effort */ }
 }
 
-/** Migra datos desde la clave anterior `starseed.astraura.bots.abiertos.v1`. */
+/* Migra datos desde la clave antigua `starseed.astraura.bots.abiertos.v1`. */
 export function migrarAbiertosDesdeAntigua(): void {
   if (typeof window === "undefined") return;
   try {

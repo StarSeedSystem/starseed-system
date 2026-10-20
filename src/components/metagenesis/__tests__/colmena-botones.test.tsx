@@ -52,17 +52,17 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
     });
 
-    it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
+    it("con contenedor activo y sin trabajo en curso, el botón de desconectar está deshabilitado (sin relevo activo)", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } });
-        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
     });
 
     it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1 });
-        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
-        expect(b.desconectar.expla).toContain("1 agente");
-        expect(b.desconectar.confirmar).toBe(true);
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
+        expect(b.desconectar.explica).toContain("1 tarea");
+        expect(b.desconectar.confirmar).toBeFalsy();
     });
 
     it("contenedor activo: explica «Termina lo que lleva y no coge más.» y pide confirmar si hay trabajo", () => {
