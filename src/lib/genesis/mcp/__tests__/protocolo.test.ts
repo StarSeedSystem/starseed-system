@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { atenderMcp } from "../protocolo";
+import { atenderMcp, type HerramientaMcp } from "../protocolo";
 
 describe("protocolo MCP", () => {
   const herramientasFalsas = [
@@ -7,7 +7,7 @@ describe("protocolo MCP", () => {
       nombre: "estado",
       descripcion: "Obtiene el estado del sistema",
       esquema: { type: "object", properties: {} as Record<string, unknown> },
-      ejecutar: async (args: Record<string, unknown>, ctx?: unknown) => ({
+      ejecutar: async (args: Record<string, unknown>, ctx?: unknown): Promise<{ contenido: Array<{ tipo: "texto"; texto: string }>; esError?: boolean }> => ({
         contenido: [{ tipo: "texto", texto: "ok" }],
       }),
     },
@@ -15,7 +15,7 @@ describe("protocolo MCP", () => {
       nombre: "tareas_listar",
       descripcion: "Lista tareas",
       esquema: { type: "object", properties: { limite: { type: "number" } } } as Record<string, unknown>,
-      ejecutar: async (args: Record<string, unknown>, ctx?: unknown) => ({
+      ejecutar: async (args: Record<string, unknown>, ctx?: unknown): Promise<{ contenido: Array<{ tipo: "texto"; texto: string }>; esError?: boolean }> => ({
         contenido: [{ tipo: "texto", texto: `tareas con límite ${args.limite ?? 10}` }],
       }),
     },
