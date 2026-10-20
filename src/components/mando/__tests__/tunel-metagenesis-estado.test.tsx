@@ -176,7 +176,7 @@ describe("TunelMetaGenesisEstado", () => {
       if (url.includes("/api/mando/tunel-metagenesis")) {
         return {
           ok: true,
-          json: () => data, // Synchronous function returning data directly
+          json: async () => data, // Asynchronous function returning data
         } as Response;
       }
       
@@ -188,6 +188,7 @@ describe("TunelMetaGenesisEstado", () => {
     };
 
     render(<TunelMetaGenesisEstado />);
+    console.log("llamadas after render:", llamadas);
     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
 
     // Wait for the data to be fetched and displayed
@@ -219,7 +220,7 @@ describe("TunelMetaGenesisEstado", () => {
       if (url.includes("/api/mando/tunel-metagenesis")) {
         return {
           ok: true,
-          json: () => data, // Synchronous function returning data directly
+          json: async () => data, // Asynchronous function returning data
         } as Response;
       }
       
@@ -231,6 +232,7 @@ describe("TunelMetaGenesisEstado", () => {
     };
 
     render(<TunelMetaGenesisEstado />);
+    console.log("llamadas after render:", llamadas);
     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
 
     await waitFor(() => {
