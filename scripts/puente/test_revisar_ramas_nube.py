@@ -95,6 +95,13 @@ class Puras(unittest.TestCase):
         self.assertEqual(R.cadena_viva("RSC1006Qd", p), [])
         self.assertEqual(R.cadena_viva("", p), [])
 
+    def test_profundidad_rescate(self):
+        self.assertEqual(R.profundidad_rescate("OPT1004C"), 0)
+        self.assertEqual(R.profundidad_rescate("RTOPT1004C"), 1)
+        self.assertEqual(R.profundidad_rescate("RTRTRTCOL1012Bdsb"), 3)
+        self.assertEqual(R.profundidad_rescate(""), 0)
+        self.assertGreaterEqual(R.profundidad_rescate(R.id_rescate("OPT1004C", set())), R.TOPE_RESCATE)
+
     def test_id_rescate(self):
         self.assertEqual(R.id_rescate("OPT1004C", set()), "RTOPT1004C")
         self.assertEqual(R.id_rescate("LC1004Bd", set()), "RTLC1004B")

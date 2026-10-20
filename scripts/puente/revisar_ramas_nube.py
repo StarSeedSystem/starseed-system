@@ -53,6 +53,10 @@ OLA_RESCATE = "Rescate de las ramas de la nube"
 MIN_CASOS = 3
 UMBRAL_JEV = 0.8
 TOPE_CODIGO = 9000
+# (2026-10-20) Medido en progreso.json: 218 rescates de primera mano → 15 integrados (7 %);
+# 144 rescates de un rescate (RTRT…, hasta RT×7) → 0 integrados, 102 sustituidos. Un rescate
+# no se rescata otra vez: su rama se archiva igual (refs/archivo), así que nada se pierde.
+TOPE_RESCATE = 1
 PRUEBA = re.compile(r"(\.test\.tsx?$|(^|/)test_[^/]+\.py$)")
 _TS = re.compile(r"^(\s*)(?:it|test)(?:\.each\([^)]*\))?\(\s*([`\"'])(.*?)\2", re.M)
 _PY = re.compile(r"^(\s*)def (test_\w+)", re.M)
@@ -130,6 +134,14 @@ def id_rescate(tid, conocidos):
     """`RT<base>` y, si ya existe, su sucesor (`RT<base>b`, `…c`)."""
     rid = "RT" + T.base_de(tid)
     return rid if rid not in conocidos else T.siguiente_id(rid, conocidos)
+
+
+def profundidad_rescate(tid):
+    """PURA: cuántos `RT` lleva delante (`X1` → 0, `RTX1` → 1, `RTRTX1b` → 2)."""
+    n = 0
+    while (tid or "").startswith("RT" * (n + 1)):
+        n += 1
+    return n
 
 
 CERRADOS = {"sustituida", "descartada", "duplicada", "commit", "hecho", "integrada", "rechazada", "informe"}
@@ -359,6 +371,9 @@ def _revisar(aplicar, borrar):
             if vivos:
                 base, d = "archivar", {}
                 final, motivo = "archivar", "la cadena sigue viva en %s: ella lleva el trabajo" % ", ".join(vivos[:4])
+            elif profundidad_rescate(tid) >= TOPE_RESCATE:
+                base, d = "archivar", {}
+                final, motivo = "archivar", "%s ya es un rescate: no se rescata otra vez (0 de 144 integrados)" % tid
             else:
                 base = regla(n)
                 d = _consultar_jev(tid, titulos_cola.get(tid, ""), casos, base) if (aplicar and n) else {}
