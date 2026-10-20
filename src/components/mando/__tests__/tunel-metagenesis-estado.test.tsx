@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitetest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { TunelMetaGenesisEstado } from "../tunel-metagenesis-estado";
@@ -58,9 +58,9 @@ describe("TunelMetaGenesisEstado", () => {
     await await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
     
     // Verificar que las URLs fueron tachadas en las líneas
-    expect(await screen.findByText(/Línea 1 \[túnel\]/i)).toBeInTheDocument();
+    await await screen.findByText(/Línea 1 \[túnel\]/i));
     await await screen.findByText(/Línea 2 sin URL/i);
-    expect(await screen.findByText(/Línea 3 \[túnel\]/i)).toBeInTheDocument();
+    await await screen.findByText(/Línea 3 \[túnel\]/i));
   });
 
   it("muestra túnel parado cuando el servicio no está cargado", async () => {
@@ -161,14 +161,18 @@ describe("TunelMetaGenesisEstado", () => {
     } finally {
       // Restore the original visibilityState
       if (originalVisibilityState !== undefined) {
+        try {
+          delete document.visibilityState;
+        } catch (e) {
+          // ignore
+        }
         Object.defineProperty(document, 'visibilityState', {
           value: originalVisibilityState,
           configurable: true
         });
       }
+      vi.useRealTimers();
     }
-    
-    vi.useRealTimers();
   });
 
   it("displays active state when tunnel is running", async () => {
@@ -180,6 +184,13 @@ describe("TunelMetaGenesisEstado", () => {
     };
     // Save the current fetch mock
     const originalFetch = globalThis.fetch;
+    // Save the original visibilityState
+    const originalVisibilityState = Object.getOwnPropertyDescriptor(document, 'visibilityState')?.value;
+    // Set visibilityState to visible to ensure the initial fetch is made
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'visible',
+      configurable: true
+    });
     // Override globalThis.fetch for this test
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -200,8 +211,6 @@ describe("TunelMetaGenesisEstado", () => {
     };
 
     render(<TunelMetaGenesisEstado />);
-    console.log("visibilityState:", document.visibilityState);
-    console.log("llamadas after render:", llamadas);
     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
 
     // Wait for the data to be fetched and displayed
@@ -214,6 +223,18 @@ describe("TunelMetaGenesisEstado", () => {
 
     // Restore the original fetch mock (so afterEach can restore nativoFetch)
     globalThis.fetch = originalFetch;
+    // Restore the original visibilityState
+    if (originalVisibilityState !== undefined) {
+      try {
+        delete document.visibilityState;
+      } catch (e) {
+        // ignore
+      }
+      Object.defineProperty(document, 'visibilityState', {
+        value: originalVisibilityState,
+        configurable: true
+      });
+    }
   });
 
   it("displays stopped state when tunnel is not running", async () => {
@@ -225,6 +246,13 @@ describe("TunelMetaGenesisEstado", () => {
     };
     // Save the current fetch mock
     const originalFetch = globalThis.fetch;
+    // Save the original visibilityState
+    const originalVisibilityState = Object.getOwnPropertyDescriptor(document, 'visibilityState')?.value;
+    // Set visibilityState to visible to ensure the initial fetch is made
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'visible',
+      configurable: true
+    });
     // Override globalThis.fetch for this test
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -245,8 +273,6 @@ describe("TunelMetaGenesisEstado", () => {
     };
 
     render(<TunelMetaGenesisEstado />);
-    console.log("visibilityState:", document.visibilityState);
-    console.log("llamadas after render:", llamadas);
     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
 
     await waitFor(() => {
@@ -256,7 +282,19 @@ describe("TunelMetaGenesisEstado", () => {
     // Should not show the últimos líneas section
     expect(screen.queryByText("Últimas líneas:")).not.toBeInTheDocument();
 
-    // Restore the original fetch mock
+    // Restore the original fetch mock (so afterEach can restore nativoFetch)
     globalThis.fetch = originalFetch;
+    // Restore the original visibilityState
+    if (originalVisibilityState !== undefined) {
+      try {
+        delete document.visibilityState;
+      } catch (e) {
+        // ignore
+      }
+      Object.defineProperty(document, 'visibilityState', {
+        value: originalVisibilityState,
+        configurable: true
+      });
+    }
   });
 });
