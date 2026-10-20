@@ -19,6 +19,7 @@ deja como PROPUESTA en `olas/propuestas/cola-<nombre>.json` (esa carpeta no la l
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from datetime import datetime
@@ -187,7 +188,7 @@ def propuesta_escrita(olas: Path, tid: str) -> Path | None:
 def orden_encolar(ruta: str | Path) -> str:
     """La orden exacta para encolar una propuesta: rutas absolutas y entrecomilladas, y `-n` para no pisar nada."""
     import shlex
-    ruta = Path(ruta).resolve()
+    ruta = Path(os.path.abspath(ruta))  # sin resolver enlaces: la ruta que Alex reconoce (en macOS /tmp es un enlace)
     return f"mv -n {shlex.quote(str(ruta))} {shlex.quote(str(ruta.parent.parent))}/"
 
 

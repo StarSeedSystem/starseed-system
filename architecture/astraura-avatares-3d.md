@@ -116,7 +116,7 @@ CC0 (como mucho 10 modelos y 30 MB) · K integración y verificación.
 - Si alguna neurona con GPU NVIDIA se suma (para riggear con UniRig y para UniMate, cuyo código ya está publicado).
 - Si UniMate entra con pesos **CC BY-NC 4.0** (uso no comercial): la tarea `VGUNIA` nace como **propuesta**
   (`starseed_memory_root/olas/propuestas/`, con su motivo en `reservada`) y el aviso trae la orden exacta para
-  encolarla (`mv -n <propuesta> <olas>/`, con rutas absolutas). Encolarla es el visto bueno de Alex y después sigue el camino normal del enjambre; nadie del enjambre lee esa carpeta. Mientras siga ahí, cada aviso nuevo repite la orden; si más tarde los pesos pasan a uso libre, no se encola sola.
+  encolarla (`mv -n <propuesta> <olas>/`, con rutas absolutas). Encolarla es el visto bueno de Alex y después sigue el camino normal del enjambre; nadie del enjambre lee esa carpeta. Si el aviso no llegó (el chat falló), el reintento vuelve a traer la orden; si más tarde los pesos pasan a uso libre, no se encola sola.
 
 ## §11 · Generación 3D local optimizada por destino (`optimizacion.ts`) — Pixal3D + image-to-3dlab
 

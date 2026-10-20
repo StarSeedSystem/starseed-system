@@ -286,7 +286,7 @@ def resumen(informe: dict) -> str:
             estado = "sin repositorio público"
         extra = f" · aviso: {fila['aviso']}" if fila["aviso"] else ""
         if fila["cola"]:
-            seco = "" if fila["cola"].get("escrita", True) else " (en seco: sin escribir)"
+            seco = " (ya estaba)" if fila["cola"].get("ya_estaba") else ("" if fila["cola"].get("escrita", True) else " (en seco: sin escribir)")
             extra += f" · cola: {fila['cola']['estado']} {fila['cola'].get('cola') or ''}".rstrip() + seco
         partes.append(f"{id_}: {estado}{extra}")
     return f"Vigía 3D ({informe['llamadas']} llamadas) · " + " | ".join(partes)
