@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-16 16:53:33 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-20 10:04:21 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,26 +12,21 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola 1010S · Estaciones en vivo: Omnifrecuencias, Audiomorphic y relé en Oracle |
-| Agentes escribiendo | **6** |
-| En esta ola | integradas 8 · en curso 1 · esperando aprobación 0 · pendientes 0 |
-| Últimas 5 olas | en curso 1 · pendientes 0 · integradas 24 |
-| HEAD | `7497e49b Ola 1013P · ProtoGenesis: la génesis multiagéntica de cada molécula (Genesis · Po` |
-| Sin publicar | 126 commits |
+| Ola arriba | Ola Dream 2026-09-23 · lo que el análisis nocturno encontró |
+| Agentes escribiendo | **0** |
+| En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 16 |
+| HEAD | `fadfcb59e Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto` |
+| Sin publicar | 10 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1016-151706.json`, hace 7s)
+## Quién escribe ahora (latido de `cola-auto-1020-082857.json`, hace 767s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `S1010-EV-ORACLE-1acb` | escribiendo | nvidia/nvidia/nemotron-3-super-120 | 6 min | 150 s | 11972 |
-| `RTRTCOL1012Bdsbbbbbbbcbb` | hecho | nvidia/nvidia/nemotron-3-super-120 | 6 min | 385 s | 55316 |
-| `RTMC1012Db` | tsc | nvidia/nvidia/nemotron-3-super-120 | 11 min | 684 s | 277494 |
-| `RTRTRTS1010-EV-ORACLE-1accbbbb` | tsc | freellmapi/auto | 18 min | 1093 s | 61413 |
-| `CB1013Bb-d1b` | hecho | codex/gpt-5.6-sol | 36 min | 2140 s | 617459 |
-| `MGP1014-C715AA-d1b` | hecho | nvidia/nvidia/nemotron-3-super-120 | 51 min | 3038 s | 113406 |
-| `XR1010AAc` | hecho | codex/gpt-5.6-sol | 62 min | 3703 s | 500555 |
-| `MGP1011-1ECCC4d` | hecho | nvidia/nvidia/nemotron-3-super-120 | 77 min | 4603 s | 126998 |
+| `MGP1011-1ECCC4dobjbbbbb` | hecho | codex/gpt-5.6-sol | 13 min | 768 s | 64599 |
+| `GCA1019Fb` | tsc | nvidia/z-ai/glm-5.3 | 32 min | 1625 s | 329288 |
+| `MGP1011-1ECCC4dobjbbbbbb` | hecho |  | 86 min | 5174 s | 0 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
