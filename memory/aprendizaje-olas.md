@@ -4491,3 +4491,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTBOT1011Gd` — otra cosa: ningún proveedor respondió (todos caídos)
 - `RTGN1010A-d3b` — no escribió nada
+
+## 2026-10-17 00:36 · mg-oracle-1016-1630
+
+**Lo que se pidió.** pruebas del puente en rojo
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/nvidia/nemotron-3-super-120b-a12b no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1016-2CE2A9` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-16 23:18:22 [0m > build · auto [0m [0m→ [0mRead CLAUDE.md [0m→ [0mRead arc
+- `MGP1016-5B8110` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/MGP1016-5B8110 conservada)
+- `RTRTRTRTRTRTCOL1012Bdsbbbbbbbb` — los tipos no compilan: 7 errores tsc (rama ola/RTRTRTRTRTRTCOL1012Bdsbbbbbbbb conservada)
