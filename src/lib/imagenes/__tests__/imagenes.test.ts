@@ -126,6 +126,42 @@ describe("paquete base sugerido", () => {
   });
 });
 
+describe("Z-Image-Turbo y permitirPersonal", () => {
+  it("Z-Image-Turbo aparece como rápido libre en PC con 24 GB (sin permiso personal)", () => {
+    const s = paqueteBase(PC24, { comercial: false });
+    const rapido = s.instalar.find((x) => x.papel === "rapido");
+    expect(rapido?.modelo.id).toBe("z-image-turbo");
+    expect(rapido?.motor).toBe("diffusers");
+    expect(rapido?.cuantizacion).toBe("nativa");
+    expect(rapido?.porQue).toMatch(/Modelo libre \(Apache-2\.0\)\./);
+  });
+  it("MAC8 sin permitirPersonal no incluye Qwen-Image-2.1-Turbo", () => {
+    const s = paqueteBase(MAC8, { comercial: false, permitirPersonal: false });
+    expect(s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBeUndefined();
+  });
+  it("MAC8 con permitirPersonal incluye Turbo GGUF como calidad personal", () => {
+    const s = paqueteBase(MAC8, { comercial: false, permitirPersonal: true });
+    const turbo = s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
+    expect(turbo).toBeDefined();
+    expect(turbo!.papel).toBe("calidad");
+    expect(turbo!.motor).toBe("sdcpp");
+    expect(turbo!.cuantizacion).toBe("q4");
+    expect(turbo!.porQue).toMatch(/GGUF personal \(Q3_K_S 2,72 GB\):/);
+  });
+  it("A1 con permitirPersonal usa Q4_K_M (4,2 GB) porque cabe en 20 GB", () => {
+    const s = paqueteBase(A1, { comercial: false, permitirPersonal: true });
+    const turbo = s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
+    expect(turbo?.porQue).toMatch(/Q4_K_M 4,2 GB/);
+  });
+  it("PC24 con permitirPersonal mantiene Z-Image-Turbo rápido y añade Turbo calidad", () => {
+    const s = paqueteBase(PC24, { comercial: false, permitirPersonal: true });
+    expect(s.instalar.find((x) => x.papel === "rapido")?.modelo.id).toBe("z-image-turbo");
+    const turbo = s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
+    expect(turbo).toBeDefined();
+    expect(turbo!.papel).toBe("calidad");
+  });
+});
+
 describe("núcleo puro", () => {
   const DIR = path.join(__dirname, "..");
   const archivos = readdirSync(DIR).filter((f) => f.endsWith(".ts"));

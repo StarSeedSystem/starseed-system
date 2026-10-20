@@ -42,16 +42,18 @@ const GAMA = { alta: 0, media: 1, entrada: 2, navegador: 3 } as const;
 const USO = { libre: 0, atribucion: 1, condicionado: 2, "restringido-region": 3, "no-comercial": 4 } as const;
 
 export function paqueteBase(
-  h: HierroImg, opciones: { comercial: boolean; enLaMalla?: readonly string[] }, catalogo: readonly ModeloImagen[] = MODELOS_IMAGEN,
+  h: HierroImg, opciones: { comercial: boolean; enLaMalla?: readonly string[]; permitirPersonal?: boolean }, catalogo: readonly ModeloImagen[] = MODELOS_IMAGEN,
 ): PaqueteBase {
   const yo: NeuronaImg = {
     id: "esta neurona", capa: "dispositivo", gpu: h.gpu, vramGB: h.vramGB, ramLibreGB: h.ramGB,
     motores: motoresPosibles(h).filter((m) => m !== "onnx-web"), instalados: [], ocupada: false,
   };
+  const permitirPersonal = opciones.permitirPersonal ?? false;
   const malla = new Set(opciones.enLaMalla ?? []);
   const soloCpu = h.gpu === "ninguna";
   const validos = catalogo
     .filter((m) => !(opciones.comercial && m.uso === "no-comercial"))
+    .filter((m) => !(m.id === "qwen-image-2.1-turbo" && !permitirPersonal))
     // En CPU un modelo de gama alta tarda demasiados minutos por imagen: no se sugiere (sigue disponible a mano).
     .filter((m) => !(soloCpu && m.gama === "alta"))
     .map((m) => ({ m, c: cabe(m, yo) }))
@@ -67,7 +69,17 @@ export function paqueteBase(
     if (!x) continue;
     if (malla.has(x.m.id)) { desdeLaMalla.push(`${x.m.nombre}: ya lo ofrece otra neurona tuya; se usa desde allí.`); continue; }
     const gate = x.m.gated ? " Pide aceptar sus términos con una cuenta de Hugging Face." : "";
-    instalar.push({ papel, modelo: x.m, motor: x.c.motor!, cuantizacion: x.c.cuantizacion!, porQue: x.c.motivo + gate });
+    const licenciaNota = x.m.id === "z-image-turbo" ? " Modelo libre (Apache-2.0)." : "";
+    instalar.push({ papel, modelo: x.m, motor: x.c.motor!, cuantizacion: x.c.cuantizacion!, porQue: (x.c.motivo + gate + licenciaNota).trim() });
+  }
+  if (permitirPersonal) {
+    const turbo = catalogo.find((m) => m.id === "qwen-image-2.1-turbo");
+    if (turbo && !instalar.some((s) => s.modelo.id === turbo.id)) {
+      const cuantizacionTurbo: Cuantizacion = h.ramGB >= 20 ? "q4" : "q4";
+      const ggufNota = h.ramGB >= 20 ? "Q4_K_M 4,2 GB" : "Q3_K_S 2,72 GB";
+      const porQueTurbo = `GGUF personal (${ggufNota}): Qwen-Image-2.1-Turbo solo con permitirPersonal.`;
+      instalar.push({ papel: "calidad", modelo: turbo, motor: "sdcpp", cuantizacion: cuantizacionTurbo, porQue: porQueTurbo });
+    }
   }
   if (h.webgpu && !instalar.length) {
     const web = catalogo.find((m) => m.motores.includes("onnx-web"));
