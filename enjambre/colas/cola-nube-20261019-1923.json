@@ -1,0 +1,63 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "RLB1020B",
+   "ola": "repos-libreria-1020",
+   "titulo": "Biblioteca · canal releases en el módulo puro actualizaciones.ts",
+   "archivos": [
+    "src/lib/library/actualizaciones.ts",
+    "src/lib/library/__tests__/actualizaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/repos-libreria-1020.md §1 y §4. Hoy src/lib/library/actualizaciones.ts (módulo PURO, sin fs ni node:*) solo consulta el último commit de GitHub o la ficha de HF. Dale paridad con available-updates.ts añadiendo el canal releases, SIN romper lo existente ni sus pruebas.\n\n1. `urlDeConsulta(upstream, canal?)`: con canal==='releases' devuelve `https://api.github.com/repos/<owner/repo>/releases/latest`; con 'tags' → `/tags?per_page=1`; por defecto (o 'commits') lo de ahora (`/commits?per_page=1`). Mantén la firma retrocompatible (canal opcional; sin canal, igual que hoy).\n2. `leerVersion(upstream, json, canal?)`: releases → { version: tag_name, fecha: published_at }; tags → { version: name, fecha: null }; commits/HF como hoy. Usa esCadena; si no se puede leer, null.\n3. `compararVersiones` sigue igual; como un tag no es un sha, cuando los dos lados son tags iguales debe dar 'igual' y distintos 'hay-actualizacion' (añade comparación de tags normalizados: quita 'v' inicial, compara por igualdad textual; si no son shas ni tags comparables, 'desconocida').\n4. Tests nuevos para releases y tags; deja pasar los tests actuales de commits/HF.\n Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos puros sin `node:*` en cliente; nada de `any`; honestidad radical en cada ficha (qué hace DE VERDAD; botón deshabilitado con `comingSoon:true` si aún no hay efecto); respeta `canal` y licencia de cada entrada; NO incluyas zhaoxuya520/reverse-skill (excluida por seguridad)."
+  },
+  {
+   "id": "RLB1020C",
+   "ola": "repos-libreria-1020",
+   "titulo": "Protomolécula · fichas de solidcraft, detectron2 y mesh2motion",
+   "archivos": [
+    "src/lib/protomolecula/catalogo-herramientas.ts",
+    "src/lib/protomolecula/__tests__/catalogo-herramientas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/repos-libreria-1020.md §3 y §4, y el catálogo config/repos-libreria-1020.json (entradas lib-solidcraft, lib-detectron2, lib-mesh2motion). Añade 3 fichas HerramientaProto a CATALOGO_PROTOMOLECULA (src/lib/protomolecula/catalogo-herramientas.ts), con el MISMO patrón que las fichas existentes (mira photocraft como modelo). Datos VERIFICADOS el 2026-10-20:\n- solidcraft: id 'solidcraft', categoría la de CAD/3D paramétrico que ya exista (si no hay, usa la más cercana de 3D), tipo 'app', licencia 'Apache-2.0', codigo 'https://github.com/tangency-labs/solidcraft', web 'https://solidcraft.io', actualizacion {fuente:'github-releases', ref:'tangency-labs/solidcraft', ultimaVersion:'v0.16.2', fechaVersion:'2026-10-19'}, control.via incluye 'mcp'. Aviso: proyecto joven, fijar SHA.\n- detectron2: id 'detectron2', categoría de visión/segmentación (o la más cercana), tipo 'libreria', licencia 'Apache-2.0', licenciaPesos 'NOASSERTION' (por modelo), codigo 'https://github.com/facebookresearch/detectron2', web 'https://detectron2.readthedocs.io/en/latest/', actualizacion {fuente:'github-tags', ref:'facebookresearch/detectron2', ultimaVersion:'v0.6', fechaVersion:'2021-11-15'}. Aviso: pesos del model zoo con licencias propias; elegir solo libres.\n- mesh2motion: id 'mesh2motion', categoría de 3D/animación, tipo 'app', licencia 'MIT', codigo 'https://github.com/Mesh2Motion/mesh2motion-app', web null, actualizacion {fuente:'github-tags', ref:'Mesh2Motion/mesh2motion-app', ultimaVersion:null, fechaVersion:null}. Aviso: assets CC0; sin releases aún. Rellena medios/integracion/formatos/control/ia/estado/motivo/verificado:'2026-10-20' de forma honesta y conservadora (estado 'integrable' solo si de verdad encaja; si no, 'candidata' con el motivo).\nTest: las 3 ids existen, son únicas, con codigo de GitHub y actualizacion.fuente válida.\n Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos puros sin `node:*` en cliente; nada de `any`; honestidad radical en cada ficha (qué hace DE VERDAD; botón deshabilitado con `comingSoon:true` si aún no hay efecto); respeta `canal` y licencia de cada entrada; NO incluyas zhaoxuya520/reverse-skill (excluida por seguridad)."
+  },
+  {
+   "id": "PG1013Bb",
+   "ola": "Ola 1013P · ProtoGenesis: la génesis multiagéntica de cada molécula (Genesis · PoliGenesis · MetaGenesis)",
+   "titulo": "ProtoGenesis: pasos listos y reparto multiagéntico determinista",
+   "archivos": [
+    "src/lib/protogenesis/reparto.ts",
+    "src/lib/protogenesis/__tests__/reparto.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/protogenesis.md (léelo entero) y architecture/protomolecula.md §3, §7 y §8. Tipos de la Protomolécula SIEMPRE de src/lib/protomolecula/tipos.ts (Molecula, Ambito, Operacion, Cambio, EstadoValores, Computo, ReferenciaEntidad). Exporta `type EstadoPaso = 'pendiente' | 'en-curso' | 'verificando' | 'hecho' | 'fallido' | 'necesita-mano'`, `nivelesDe(plan): string[][]` (niveles topológicos, orden estable por id), `pasosListos(plan, estados: Record<string, EstadoPaso>): Paso[]` (pendientes con todas sus dependencias 'hecho'), `repartirPasos(listos: Paso[], agentes: Array<{id: string; ocupado: boolean; puede?: string[]}>, tope = LIMITES.agentes): Array<{paso: string; agente: string}>`: determinista, un agente libre por paso, como mucho `tope` a la vez, respeta `puede` (lista de átomos que sabe usar; vacía = todos), nunca dos pasos al mismo agente ni un paso a dos. `progreso(plan, estados)` = {hechos, total, enCurso, bloqueados}. Pruebas: tres pasos independientes van a tres agentes a la vez; un paso que espera no sale; tope respetado; mismo resultado con la lista barajada.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261019-135748-PG1013B`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261019-135748-PG1013B:refs/remotes/origin/nube/a1-20261019-135748-PG1013B\"` y `git cherry-pick --no-commit 492938704ce2 123086b73623 c683eeb88cca a19ed075cfc5 c90490e8a105 bdb54f47d4cf 7c7c4be30a65 d179b4dd50ba`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/protogenesis/__tests__/reparto.test.ts, src/lib/protogenesis/encargo.ts, src/lib/protogenesis/reparto.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261019-135748-PG1013B",
+   "dependencias_ya_en_main": [
+    "PG1013A"
+   ]
+  },
+  {
+   "id": "RLB1020A",
+   "ola": "repos-libreria-1020",
+   "titulo": "Biblioteca · repo builtin externo 1020 (14 publicaciones autoactualizables)",
+   "archivos": [
+    "src/lib/library/repos-externos-1020.ts",
+    "src/lib/library/__tests__/repos-externos-1020.test.ts",
+    "src/lib/library/packages.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee entero el contrato architecture/repos-libreria-1020.md (§1-§5) y el catálogo verificado config/repos-libreria-1020.json (14 entradas en `paquetes`; datos reales, NO los cambies).\n\n1. Crea src/lib/library/repos-externos-1020.ts: importa el JSON (import … assert {type:'json'} o require tipado; el proyecto ya importa JSON en otros módulos de library) y mapea cada entrada a LibraryPackage (de ./packages): id, kind=entrada.kind, name=entrada.nombre, description=entrada.que_es + (entrada.aviso? ' — '+entrada.aviso : ''), icon por kind (app→AppWindow, ai-source→BrainCircuit, function→Boxes), tags=[...entrada.area, entrada.canal, entrada.licencia?'lic':''].filter(Boolean), version='1.0.0', author derivado de repo (owner), sourceRepoId='starseed-biblioteca-externa', free=true, comingSoon=true (ninguna tiene efecto de instalación real todavía), payload={ externalUrl: 'https://github.com/'+entrada.repo, githubRepo: entrada.repo, canal: entrada.canal, area: entrada.area, licencia: entrada.licencia, assets: entrada.assets??false, ...(entrada.skillId?{skillId:entrada.skillId}:{}) }. Exporta REPO_EXTERNOS_1020: LibraryRepo = { id:'starseed-biblioteca-externa', name:'Biblioteca externa', builtin:true, packages: [...] }.\n2. En packages.ts, añade REPO_EXTERNOS_1020 a listRepos() (impórtalo; colócalo en `base` junto a los demás builtins). Un solo punto de cambio; no toques nada más de packages.ts.\n3. Test: las 14 ids son únicas; cada paquete tiene payload.externalUrl que empieza por 'https://github.com/' y payload.githubRepo con forma owner/repo; NINGÚN id/repo contiene 'reverse-skill'; lib-anatomy lleva payload.skillId==='anatomy'; lib-gods-eye está en area 'mapas'. available-updates.ts ya autobusca releases con payload.externalUrl: NO dupliques ese motor.\n Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos puros sin `node:*` en cliente; nada de `any`; honestidad radical en cada ficha (qué hace DE VERDAD; botón deshabilitado con `comingSoon:true` si aún no hay efecto); respeta `canal` y licencia de cada entrada; NO incluyas zhaoxuya520/reverse-skill (excluida por seguridad)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "PG1013Bb",
+   "RLB1020B",
+   "RLB1020C",
+   "RLB1020A"
+  ]
+ }
+}
