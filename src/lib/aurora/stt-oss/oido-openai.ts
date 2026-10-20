@@ -6,6 +6,8 @@
  * Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo
  */
 
+import { corregirConGlosario, glosarioBase } from "./glosario-oido";
+
 /**
  * Resultado exitoso de la transcripción.
  */
@@ -130,14 +132,21 @@ export async function transcribirOpenAI(
        };
      }
 
-     const data = await response.json();
-     return {
-       ok: true,
-       texto: data.text,
-       idioma: data.language,
-       motor: "openai", // Fixed string; the test does not check this field
-       ms: Math.max(0, ms), // Ensure non-negative
-     };
+      const data = await response.json();
+      const textoRaw = typeof data.text === "string" ? data.text : "";
+      const idiomaDetectado = typeof data.language === "string" ? data.language : undefined;
+      const idiomaEfectivo = config.idioma || idiomaDetectado || "es";
+      const base = glosarioBase();
+      const extra = config.hotwords ?? [];
+      const glosario = extra.length > 0 ? [...base, ...extra] : base;
+      const { texto: textoCorregido } = corregirConGlosario(textoRaw, glosario, idiomaEfectivo);
+      return {
+        ok: true,
+        texto: textoCorregido,
+        idioma: idiomaDetectado,
+        motor: "openai",
+        ms: Math.max(0, ms),
+      };
    } catch (err) {
      clearTimeout(timeoutId);
      const endTime = now();
