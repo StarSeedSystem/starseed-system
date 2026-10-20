@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { TunelMetaGenesisEstado } from "../tunel-metagenesis-estado";
 
@@ -157,5 +157,90 @@ describe("TunelMetaGenesisEstado", () => {
     expect(llamadasDespuesEspera).toBe(llamadasIniciales);
     
     vi.useRealTimers();
+  });
+
+  it("displays active state when tunnel is running", async () => {
+    const data = {
+      cargado: true,
+      pid: 12345,
+      ultimasLineas: ["Linea 1", "Linea 2"],
+      medidoEn: new Date().toISOString(),
+    };
+    // Save the current fetch mock
+    const originalFetch = globalThis.fetch;
+    // Override globalThis.fetch for this test
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      llamadas.push({ url, init });
+      
+      if (url.includes("/api/mando/tunel-metagenesis")) {
+        return {
+          ok: true,
+          json: () => data, // Synchronous function returning data directly
+        } as Response;
+      }
+      
+      // Respuesta por defecto para otros endpoints
+      return {
+        ok: true,
+        json: async () => ({})
+      } as Response;
+    };
+
+    render(<TunelMetaGenesisEstado />);
+    expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
+
+    // Wait for the data to be fetched and displayed
+    await waitFor(() => {
+      expect(screen.getByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i)).toBeInTheDocument();
+      expect(screen.getByText("Últimas líneas:")).toBeInTheDocument();
+      expect(screen.getByText("Linea 1")).toBeInTheDocument();
+      expect(screen.getByText("Linea 2")).toBeInTheDocument();
+    });
+
+    // Restore the original fetch mock (so afterEach can restore nativoFetch)
+    globalThis.fetch = originalFetch;
+  });
+
+  it("displays stopped state when tunnel is not running", async () => {
+    const data = {
+      cargado: false,
+      pid: null,
+      ultimasLineas: [],
+      medidoEn: new Date().toISOString(),
+    };
+    // Save the current fetch mock
+    const originalFetch = globalThis.fetch;
+    // Override globalThis.fetch for this test
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      llamadas.push({ url, init });
+      
+      if (url.includes("/api/mando/tunel-metagenesis")) {
+        return {
+          ok: true,
+          json: () => data, // Synchronous function returning data directly
+        } as Response;
+      }
+      
+      // Respuesta por defecto para otros endpoints
+      return {
+        ok: true,
+        json: async () => ({})
+      } as Response;
+    };
+
+    render(<TunelMetaGenesisEstado />);
+    expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
+    });
+
+    // Should not show the últimas líneas section
+    expect(screen.queryByText("Últimas líneas:")).not.toBeInTheDocument();
+
+    // Restore the original fetch mock
+    globalThis.fetch = originalFetch;
   });
 });
