@@ -64,33 +64,43 @@ export async function voces(base?: string): Promise<string[]> {
 
 export async function hablar(base: string | undefined, params: HablarParams): Promise<Uint8Array> {
   const url = new URL("/v1/audio/speech", normalizarBase(base)).toString();
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ texto: params.texto, voz: params.voz, formato: params.formato }),
-  });
-  if (!resp.ok) {
-    const txt = await resp.text();
-    throw new Error(`Error ${resp.status}: ${txt}`);
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto: params.texto, voz: params.voz, formato: params.formato }),
+    });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`Error ${resp.status}: ${txt}`);
+    }
+    const blob = await resp.blob();
+    return new Uint8Array(await blob.arrayBuffer());
+  } catch (e: any) {
+    if (e.message.startsWith("Error ")) throw e;
+    throw new Error("Error de red: no se pudo conectar al servicio");
   }
-  const blob = await resp.blob();
-  return new Uint8Array(await blob.arrayBuffer());
 }
 
 export async function transcribir(base: string | undefined, audio: ArrayBuffer, idioma: string): Promise<string> {
   const url = new URL("/v1/audio/transcriptions", normalizarBase(base)).toString();
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ audio, idioma }),
-  });
-  if (!resp.ok) {
-    const txt = await resp.text();
-    throw new Error(`Error ${resp.status}: ${txt}`);
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ audio, idioma }),
+    });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`Error ${resp.status}: ${txt}`);
+    }
+    const data = await resp.json();
+    if (typeof data.text !== "string") {
+      throw new Error("Respuesta de transcripción inválida");
+    }
+    return data.text;
+  } catch (e: any) {
+    if (e.message.startsWith("Error ")) throw e;
+    throw new Error("Error de red: no se pudo conectar al servicio");
   }
-  const data = await resp.json();
-  if (typeof data.text !== "string") {
-    throw new Error("Respuesta de transcripción inválida");
-  }
-  return data.text;
 }
