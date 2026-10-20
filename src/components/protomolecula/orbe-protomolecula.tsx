@@ -299,6 +299,14 @@ export function OrbeProtomolecula() {
   }, [panel.abierto]);
 
   // ── arrastre (mismo concepto que la orbe de Astraura) ─────────────────────
+  /** Soltar en la zona apaga; si la orbe ya descansaba en la zona, hace falta un arrastre de verdad (≥ 80 px)
+   *  para que recolocarla unos píxeles no la apague sin querer. */
+  const soltarApaga = (g: { x0: number; y0: number }, x: number, y: number): boolean => {
+    const v = viewport();
+    const z = zonaApagado(v.ancho, v.alto);
+    if (!dentroDeZona(x, y, z)) return false;
+    return !dentroDeZona(g.x0, g.y0, z) || Math.hypot(x - g.x0, y - g.y0) >= 80;
+  };
   const alBajar = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     gesto.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, px: e.clientX, py: e.clientY, t: performance.now(), movido: false, origen: pos };
@@ -315,8 +323,7 @@ export function OrbeProtomolecula() {
     motor.current?.fijarArrastre((e.clientX - g.px) / dt, (e.clientY - g.py) / dt);
     g.px = e.clientX; g.py = e.clientY; g.t = ahora;
     setPos(limitarPosicion({ x: g.origen.x + dx, y: g.origen.y + dy }, viewport()));
-    const v = viewport();
-    setSobreZona(dentroDeZona(e.clientX, e.clientY, zonaApagado(v.ancho, v.alto)));
+    setSobreZona(soltarApaga(g, e.clientX, e.clientY));
   };
   const alSoltar = (e: React.PointerEvent) => {
     const g = gesto.current;
@@ -325,8 +332,7 @@ export function OrbeProtomolecula() {
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* */ }
     if (!g.movido) { setPanel((p) => ({ abierto: !p.abierto })); return; }
     setArrastrando(false);
-    const v = viewport();
-    if (dentroDeZona(e.clientX, e.clientY, zonaApagado(v.ancho, v.alto))) {
+    if (soltarApaga(g, e.clientX, e.clientY)) {
       setSobreZona(false);
       setPos(g.origen);
       void apagar("zona");

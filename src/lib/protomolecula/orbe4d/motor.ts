@@ -215,8 +215,8 @@ export function crearMotor(canvas: HTMLCanvasElement, op: OpcionesMotor): MotorO
   plano.add(lineasMetatron);
 
   // 3 · estructura: dos capas para la transformación
-  const capaA = crearLineas(CAP_ARISTAS, 1.5);
-  const capaB = crearLineas(CAP_ARISTAS, 1.5);
+  const capaA = crearLineas(CAP_ARISTAS, tamano < 200 ? 1.7 : 1.5);
+  const capaB = crearLineas(CAP_ARISTAS, tamano < 200 ? 1.7 : 1.5);
   raiz.add(capaA, capaB);
   // El núcleo: la forma dual en el centro, a escala 1/φ², girando en sentido contrario (como el cubo
   // interior del teseracto): profundidad, otra figura y otra rotación dentro de la misma orbe.
@@ -556,7 +556,8 @@ export function crearMotor(canvas: HTMLCanvasElement, op: OpcionesMotor): MotorO
     const respira = 1 + 0.03 * Math.sin(fase.tiempo * (dosPi / 5)) + vozNivel * 0.08 + pulsoCrear * 0.05;
     const escalaNueva = semillaEscala * respira * (vieja ? 0.62 + 0.38 * k : 1);
     const escalaVieja = semillaEscala * respira * (1 + 0.15 * k);
-    const brillo = 0.72 + 0.25 * atencion + 0.3 * vozNivel;
+    // En lienzos pequeños (la orbe flotante) un punto más de luz para que se lea sobre cualquier fondo.
+    const brillo = (tamano < 200 ? 0.84 : 0.72) + 0.25 * atencion + 0.3 * vozNivel;
 
     escribirAristas(capaB, nueva, escalaNueva, vieja ? k : 1, brillo);
     if (vieja) escribirAristas(capaA, vieja, escalaVieja, 1 - k, brillo);

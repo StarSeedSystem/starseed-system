@@ -84,6 +84,17 @@ describe("Orbe 4D de la Protomolécula", () => {
     expect(await screen.findByRole("button", { name: /orbe de creación/ })).toBeTruthy();
   });
 
+  it("si ya descansaba en la zona, recolocarla unos píxeles no la apaga", async () => {
+    window.localStorage.setItem(PROTO_ORB_POS_KEY, JSON.stringify({ x: 20, y: 280 }));
+    await montar();
+    fireEvent.pointerDown(orbe(), { pointerId: 4, button: 0, clientX: 48, clientY: 308 });
+    fireEvent.pointerMove(orbe(), { pointerId: 4, clientX: 60, clientY: 330 });
+    expect(screen.getByText("Arrastra aquí para apagar la Protomolécula")).toBeTruthy();
+    fireEvent.pointerUp(orbe(), { pointerId: 4, clientX: 60, clientY: 330 });
+    expect(motor.apagar).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(PROTO_ORB_FAB_KEY)).not.toBe("false");
+  });
+
   it("soltarla fuera de la zona solo la mueve y guarda la posición", async () => {
     await montar();
     fireEvent.pointerDown(orbe(), { pointerId: 3, button: 0, clientX: 420, clientY: 320 });
