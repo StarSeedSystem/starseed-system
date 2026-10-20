@@ -4505,3 +4505,16 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `VST1018C` — los tipos no compilan: 1 errores tsc (rama ola/VST1018C conservada)
 - `RTS1010-MGR3d-d1c` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTS1010-MGR3d-d1c conservada)
+
+## 2026-10-20 19:24 · mg-oracle-1020-1223
+
+**Lo que se pidió.** Dejar que mis otras neuronas usen esta para calcular
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTSUC1018Eb` — no escribió nada
+- `RTS1010-MGR3d-d1d` — otra cosa: ningún proveedor respondió (todos caídos)
