@@ -329,6 +329,72 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     configHint: "http://tu-neurona:8000 (+ ruta en Ajustes → Integraciones)",
   },
 
+  // ── Auto-hospedados (repos-libreria-1020b) ──
+  {
+    id: "vikunja-selfhost",
+    name: "Vikunja (auto-hospedado)",
+    category: "custom",
+    kind: "oss",
+    authType: "apiKey",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "ListChecks",
+    description:
+      "Gestor de tareas y proyectos auto-alojable (Go, licencia AGPL-3.0+). Tareas, proyectos, grupos, comunidades, páginas y cerebros. Se aloja en tu A1 o tu Mac; requiere token de API.",
+    repo: "https://github.com/go-vikunja/vikunja",
+    docsUrl: "https://github.com/go-vikunja/vikunja",
+    configHint: "http://<tu A1 o tu Mac>:3456/api/v1",
+  },
+  {
+    id: "trilium-etapi",
+    name: "Trilium ETAPI (auto-hospedado)",
+    category: "memory",
+    kind: "oss",
+    authType: "apiKey",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "NotebookText",
+    description:
+      "Notas jerárquicas con ETAPI (REST) para perfiles, grupos, cerebros y archivos. Licencia AGPL-3.0+; se aloja en tu servidor.",
+    repo: "https://github.com/TriliumNext/Trilium",
+    docsUrl: "https://github.com/TriliumNext/Trilium",
+    configHint: "http://<host>:8080/etapi",
+  },
+  {
+    id: "metabase-selfhost",
+    name: "Metabase (auto-hospedado)",
+    category: "custom",
+    kind: "oss",
+    authType: "apiKey",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "BarChart3",
+    description:
+      "Analítica y paneles sobre una réplica de solo lectura. Licencia AGPL-3.0 + licencia comercial; auto-hospédalo para gráficos e información verificable.",
+    repo: "https://github.com/metabase/metabase",
+    docsUrl: "https://www.metabase.com/docs/latest",
+    configHint: "http://<host>:3000/api",
+  },
+  {
+    id: "windmill-selfhost",
+    name: "Windmill (auto-hospedado)",
+    category: "dev",
+    kind: "oss",
+    authType: "apiKey",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Zap",
+    description:
+      "Flujos y trabajos programados que Genesis y Astraura disparan (Python/TS/Bash/SQL). Licencia AGPL-3.0 (núcleo) + Apache-2.0 (SDK) + propietario (Enterprise); se aloja en tu servidor.",
+    repo: "https://github.com/windmill-labs/windmill",
+    docsUrl: "https://www.windmill.dev/docs",
+    configHint: "http://<host>:8000/api",
+  },
+
   // ── Redes sociales (P4-8) ──
   {
     id: "postiz",
