@@ -74,7 +74,7 @@ describe("malla-imagenes adaptador - funciones puras", () => {
     });
 
     it("debe devolver 2 para undefined", () => {
-      expect(convertirRamClaseAGB(undefined)).toBe(2);
+      expect(convertirRamClaseAGB(undefined as unknown as string)).toBe(2);
     });
   });
 
