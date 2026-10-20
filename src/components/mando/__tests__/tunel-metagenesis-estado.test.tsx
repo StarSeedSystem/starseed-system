@@ -95,6 +95,8 @@ describe("TunelMetaGenesisEstado", () => {
     });
     
     expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
+    // Should not show the últimas líneas section
+    expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
   });
 
   it("realiza fetch cada 60 segundos cuando el componente está visible", async () => {
@@ -153,9 +155,82 @@ describe("TunelMetaGenesisEstado", () => {
     });
     
     // Debe seguir teniendo el mismo número de llamadas (no se hizo fetch por estar oculto)
-    let llamadasDespuesEspera = llamadas.length;
-    expect(llamadasDespuesEspera).toBe(llamadasIniciales);
-    
-    vi.useRealTimers();
-  });
-});
+      let llamadasDespuesEspera = llamadas.length;
+      expect(llamadasDespuesEspera).toBe(llamadasIniciales);
+      vi.useRealTimers();
+   );
+   it("muestra estado activo con líneas simples cuando el túnel está en ejecución", async () => {
+     const data = {
+       cargado: true,
+       pid: 12345,
+       ultimasLineas: ["Linea 1", "Linea 2"],
+       medidoEn: new Date().toISOString(),
+     };
+     // Override the default mock implementation for this specific call
+     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+       const url = String(input);
+       llamadas.push({ url, init });
+       
+       if (url.includes("/api/mando/tunel-metagenesis")) {
+         return {
+           ok: true,
+           json: async () => data
+         } as Response;
+       }
+       
+       return {
+         ok: true,
+         json: async () => ({})
+       } as Response;
+     };
+     
+     render(<TunelMetaGenesisEstado />);
+     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
+     
+     // Wait for the data to be fetched and displayed
+     await screen.findByText(/Túnel de MetaGenesis: activo \(pid 12345\)/i);
+     expect(screen.getByText(/Últimas líneas:/i)).toBeInTheDocument();
+     expect(await screen.findByText(/Linea 1/i)).toBeInTheDocument();
+     expect(await screen.findByText(/Linea 2/i)).toBeInTheDocument();
+   });
+ );
+
+   it("muestra estado activo con líneas simples cuando el túnel está en ejecución", async () => {
+     const data = {
+       cargado: true,
+       pid: 12345,
+       ultimasLineas: ["Linea 1", "Linea 2"],
+       medidoEn: new Date().toISOString(),
+     };
+     // Override the default mock implementation for this specific call
+     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+       const url = String(input);
+       llamadas.push({ url, init });
+       
+       if (url.includes("/api/mando/tunel-metagenesis")) {
+         return {
+           ok: true,
+           json: async () => data
+         } as Response;
+       }
+       
+       return {
+         ok: true,
+         json: async () => ({})
+       } as Response;
+     };
+     
+     render(<TunelMetaGenesisEstado />);
+     expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
+     
+     // Wait for the data to be fetched and displayed
+     await screen.findByText(/Túnel de MetaGenesis: activo \(pid 12345\)/i);
+     expect(screen.getByText(/Últimas líneas:/i)).toBeInTheDocument();
+     expect(await screen.findByText(/Linea 1/i)).toBeInTheDocument();
+     expect(await screen.findByText(/Linea 2/i)).toBeInTheDocument();
+   });
+ );
+
+
+ );
+);
