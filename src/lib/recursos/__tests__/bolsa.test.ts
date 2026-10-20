@@ -59,7 +59,7 @@ describe('planificar - regla 1: privacidad', () => {
 describe('planificar - regla 2: latencia', () => {
   it('con latenciaMaxMs filtra ofertas con alta latencia', () => {
     const p = basePeticion({ latenciaMaxMs: 30 });
-    const r = planificar(p, [baseOferta({ presta: { topes: { cpuPct: 10 } })]);
+    const r = planificar(p, [baseOferta({ presta: { topes: { cpuPct: 10 } } })]);
     expect(r[0].resultado.motivo).toContain('latencia');
   });
   it('sin latenciaMaxMs no filtra', () => {
