@@ -291,6 +291,15 @@ class Puro(unittest.TestCase):
                "create function f() returns trigger language plpgsql as $$ begin delete from public.t; end $$;")
         self.assertEqual(A.analizar_lote("", {"supabase/migrations/1_t.sql": sql}), [])
 
+    def test_el_evento_de_un_trigger_no_es_un_borrado(self):
+        sql = ("drop trigger if exists r on public.v;\n"
+               "create trigger r after insert or update or delete on public.v\n"
+               "  for each row execute function public.f();\n"
+               "create trigger s before update of titulo, clave on public.w for each row execute function public.g();")
+        self.assertEqual(A.analizar_lote("", {"supabase/migrations/1_v.sql": sql}), [])
+        b = A.analizar_lote("", {"supabase/migrations/1_v.sql": sql + "\ndelete from public.v where true;"})
+        self.assertEqual(len(b), 1)
+
     def test_un_drop_table_si_lo_es(self):
         b = A.analizar_lote("", {"supabase/migrations/1_t.sql": "drop table public.t;"})
         self.assertEqual(len(b), 1)

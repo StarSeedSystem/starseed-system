@@ -66,13 +66,17 @@ def encendido(datos):
 
 # Lo idempotente y lo que solo NOMBRA un borrado no borra nada: recrear una política o un trigger
 # (`drop … if exists` + `create`), `on delete cascade` de una clave foránea, `for delete` de una
-# política o `grant … delete`. Sin esto, TODAS nuestras migraciones (estilo os_canales) parecían
+# política, `grant … delete` o el evento de un trigger. Sin esto, TODAS nuestras migraciones (estilo os_canales) parecían
 # destructivas y ningún lote con una tabla nueva se habría publicado nunca.
 _IDEMPOTENTE = re.compile(
     r"drop\s+(?:policy|trigger|function|view|index)\s+if\s+exists[^;]*;"
     r"|on\s+delete\s+(?:cascade|set\s+null|set\s+default|restrict|no\s+action)"
     r"|for\s+(?:select|insert|update|delete|all)\b"
-    r"|grant\s+[^;]*;|revoke\s+[^;]*;", re.I)
+    r"|grant\s+[^;]*;|revoke\s+[^;]*;"
+    # (2026-10-20) El evento de un trigger («after insert or update or delete on …») dice CUÁNDO
+    # corre, no borra nada: os_variaciones recalcula la media al borrar una valoración.
+    r"|\b(?:before|after|instead\s+of)\s+(?:insert|update|delete|truncate)(?:\s+of\s+[\w\s,]+?)?"
+    r"(?:\s+or\s+(?:insert|update|delete|truncate)(?:\s+of\s+[\w\s,]+?)?)*\s+on\b", re.I)
 
 
 # El cuerpo de una función (`$$ … $$`) es código que corre después, no un borrado al migrar: el
