@@ -1,0 +1,101 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "MGP1011-1ECCC4dobjbbb",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: CI en rojo · objeción del revisor",
+   "archivos": [
+    "src/components/vivo/juegos/__tests__/sala-juegos.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de MGP1011-1ECCC4d, ya integrada (sha 46bd9a86899c) tras 4 intentos con tsc y pruebas en verde. El revisor puso esta objeción y no se resolvió en la cadena:\n\nLa función `textoContienePalabra` usa `\\b` para delimitar palabras, por lo que no detectará la cadena concatenada “Beto${palabra}” (no hay límite de palabr\n\nTu encargo es SOLO resolver esa objeción sobre el código que ya está en main (léelo primero), con su prueba. Tarea original: Puerta de publicación en rojo: CI en rojo\n\n--- encargo original, como contexto ---\nNOTA DE METAGENESIS (2026-10-11 06:03): la autopublicación lleva más de 60 min frenada en 389c0afd por «CI en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n\u001b[39m (s\u001b[33m:\u001b[39m \u001b[33mSala\u001b[39m\u001b[33m,\u001b[39m texto\u001b[33m:\u001b[39m string) \u001b[33m=>\u001b[39m {\n2026-10-11T10:58:19.1397595Z \n2026-10-11T10:58:19.1397978Z \u001b[31m\u001b[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\u001b[22m\u001b[39m\n2026-10-11T10:58:19.1398354Z \n2026-10-11T10:58:19.1492763Z \u001b[2m Test Files \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m829 passed\u001b[39m\u001b[22m\u001b[90m (830)\u001b[39m\n2026-10-11T10:58:19.1522046Z \u001b[2m      Tests \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m9310 passed\u001b[39m\u001b[22m\u001b[90m (9311)\u001b[39m\n2026-10-11T10:58:19.1523056Z \u001b[2m   Start at \u001b[22m 10:53:56\n2026-10-11T10:58:19.1539714Z \u001b[2m   Duration \u001b[22m 262.62s\u001b[2m (transform 35.34s, setup 32.34s, collect 211.95s, tests 210.00s, environment 140.73s, prepare 59.22s)\u001b[22m\n2026-10-11T10:58:19.1540553Z \n2026-10-11T10:58:19.1610310Z \n2026-10-11T10:58:19.1626282Z ##[error]AssertionError: expected 'Sala de juegosDibujo-adivinaABCEn viv…' not to contain 'vela'\n\nExpected: \"vela\"\nReceived: \"Sala de juegosDibujo-adivinaABCEn vivoCambiar de juegoRonda 1 de 3Dibuja AnaTiempo del dibujo1:16La mesa3 de 8AnaAsiento 1 · le tocaBeto (tú)Asiento 2CarlaAsiento 3Marcador del grupo0Ana0Beto0Carla0Adivina aquíLos intentos aparecerán aquí.EnviarCómo funciona y sus límitesQuien dibuja hace de árbitro de su ronda: elige la palabra, compara los intentos\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39300603804`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39300603804:refs/remotes/origin/nube/39300603804\"` y `git cherry-pick --no-commit 41a26cec2c52`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/vivo/juegos/__tests__/sala-juegos.test.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "depende_de": [],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39300603804"
+  },
+  {
+   "id": "RTRTRTRTRTS1010-EV-ORACLE-1ac",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de ",
+   "archivos": [
+    "src/components/movimiento/__tests__/cristal-3d.test.tsx",
+    "src/lib/estaciones/__tests__/rele-salas.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTRTRTRTS1010-EV-ORACLE-1ac («Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas») se hizo en main por otro camino; su rama nube/a1-20261019-222347-DSN1019H queda archivada en `refs/archivo/nube/a1-20261019-222347-DSN1019H` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.86)\n\nTU TAREA (RTRTRTRTRTS1010-EV-ORACLE-1ac · solo estos archivos: src/components/movimiento/__tests__/cristal-3d.test.tsx, src/lib/estaciones/__tests__/rele-salas.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/movimiento/__tests__/cristal-3d.test.tsx\n  it(\"renders without crashing\", () => {\n    const { unmount } = render(<Cristal3D />);\n    expect(unmount).toBeDefined();\n    unmount();\n  });\n\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('debería aceptar temas con guiones y guiones bajos', () => {\n    const salas = crearSalas();\n    const tema = 'estacion-vivo:ABC_DEF-123';\n    const conexion = {};\n    const result = salas.entrar(tema, conexion);\n    expect(result.ok).toBe(true);\n  });\n\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('debería aceptar el mismo objeto conexion repetidamente', () => {\n    const salas = crearSalas();\n    const tema = 'estacion-vivo:TemaTest';\n    const conexion = {};\n    const first = salas.entrar(tema, conexion);\n    const second = salas.entrar(tema, conexion);\n    expect(first.ok).toBe(true);\n    expect(second.ok).toBe(true);\n    expect(salas.presencia(tema)).toBe(1);\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "RTRTRTRTS1010-EV-ORACLE-1ac",
+    "rama": "nube/a1-20261019-222347-DSN1019H"
+   }
+  },
+  {
+   "id": "RTRTRTRTRTS1010-EV-ORACLE-1acb",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de ",
+   "archivos": [
+    "src/lib/estaciones/__tests__/rele-salas.test.ts",
+    "src/lib/library/__tests__/vincular.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTRTRTRTS1010-EV-ORACLE-1ac («Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas») se hizo en main por otro camino; su rama nube/a1-20261019-222347-GCA1019V queda archivada en `refs/archivo/nube/a1-20261019-222347-GCA1019V` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.86)\n\nTU TAREA (RTRTRTRTRTS1010-EV-ORACLE-1acb · solo estos archivos: src/lib/estaciones/__tests__/rele-salas.test.ts, src/lib/library/__tests__/vincular.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('debería aceptar temas con guiones y guiones bajos', () => {\n    const salas = crearSalas();\n    const tema = 'estacion-vivo:ABC_DEF-123';\n    const conexion = {};\n    const result = salas.entrar(tema, conexion);\n    expect(result.ok).toBe(true);\n  });\n\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('debería aceptar el mismo objeto conexion repetidamente', () => {\n    const salas = crearSalas();\n    const tema = 'estacion-vivo:TemaTest';\n    const conexion = {};\n    const first = salas.entrar(tema, conexion);\n    const second = salas.entrar(tema, conexion);\n    expect(first.ok).toBe(true);\n    expect(second.ok).toBe(true);\n    expect(salas.presencia(tema)).toBe(1);\n  });\n\n# src/lib/library/__tests__/vincular.test.ts\n  it(\"deduce vínculo correcto desde catálogo\", () => {\n    const vinc = vinculoDe(paqueteConId, FREE_CATALOG);\n    expect(vinc.requiereClave).toBe(true);\n    expect(vinc.enlaceAlta).toBe(\"https://console.groq.com/keys\");\n    expect(vinc.gratis).toBe(false);\n  });\n\n# src/lib/library/__tests__/vincular.test.ts\n  it(\"devuelve valores por defecto cuando no hay fuente\", () => {\n\n# src/lib/library/__tests__/vincular.test.ts\n  it(\"permite instalar si fuente vinculada\", () => {\n    expect(instalableEnAmbito(paqueteConId, \"pagina\", [\"groq-free\"]))\n      .toBe(true);\n  });\n\n# src/lib/library/__tests__/vincular.test.ts\n  it(\"no permite si fuente no vinculada\", () => {\n    expect(instalableEnAmbito(paqueteConId, \"pagina\", []))\n      .toBe(false);\n  });\n\n# src/lib/library/__tests__/vincular.test.ts\n  it(\"si no hay catalogSourceId, siempre instalable\", () => {\n    const paqueteSinId: LibraryPackage = { ...paqueteConId, payload: {} };\n    expect(instalableEnAmbito(paqueteSinId, \"cuenta\", [])).toBe(true);\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "RTRTRTRTS1010-EV-ORACLE-1ac",
+    "rama": "nube/a1-20261019-222347-GCA1019V"
+   }
+  },
+  {
+   "id": "GCA1019T",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Tokens externos por ámbito",
+   "archivos": [
+    "src/lib/genesis/mcp/tokens-externos.ts",
+    "src/lib/genesis/mcp/__tests__/tokens-externos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO salvo el almacén inyectado: `crearToken(ambito, alcance, caduca)` devuelve el valor UNA vez y guarda solo la huella (SHA-256); `verificarToken(valor)` → { ambito, alcance } | null; caducidad, revocación y contador de usos. Prueba: el valor nunca se guarda; uno revocado o caducado no pasa. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019I"
+   ]
+  },
+  {
+   "id": "GCA1019U",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Ganchos firmados por ámbito",
+   "archivos": [
+    "src/lib/genesis/conectores/ganchos-ambito.ts",
+    "src/lib/genesis/conectores/__tests__/ganchos-ambito.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Amplía la idea de `src/lib/mando/gancho.ts` sin modificarlo: secreto propio por ámbito (guardado en la bóveda), firma `X-StarSeed-Firma: sha256=…` de entrada y de salida, ventana anti-repetición de 5 minutos con marca de tiempo, y destino en el ámbito (no en el disco de la Mac). Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019J"
+   ]
+  },
+  {
+   "id": "VPU1019V",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Validador de variaciones y aislamiento del código",
+   "archivos": [
+    "src/lib/variaciones/validar.ts",
+    "src/lib/variaciones/__tests__/validar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `validarVariacion(v)` comprueba tamaño (≤ 256 KB), que el payload sea JSON plano (sin funciones), que no lleve claves de `SYNCED_KEYS` privadas ni nada que parezca un token o una clave, ni URLs que no sean https; las de tipo código se marcan `requiereAislamiento: true` y solo se abren en iframe `sandbox` sin `allow-same-origin`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "MGP1011-1ECCC4dobjbbb",
+   "GCA1019T",
+   "RTRTRTRTRTS1010-EV-ORACLE-1ac",
+   "RTRTRTRTRTS1010-EV-ORACLE-1acb",
+   "VPU1019V"
+  ]
+ }
+}
