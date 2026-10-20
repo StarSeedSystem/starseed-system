@@ -55,6 +55,7 @@ import { cn, applyAlpha } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
 import { addLayer, normalizeLayers } from "@/lib/appearance/background-layers";
 import { BackgroundLayersPanel } from "./background-layers-panel";
+import { cargarCatalogo } from '@/lib/appearance/catalogo-shaders';
 
 /* ──────────────────────────────────────────────────────────────────────
  * Tipos y catálogos
@@ -71,6 +72,8 @@ type Variant =
     | "ribbons"
     | "petals"
     | "grid-pulse";
+type WebglVariant = "nebula" | "grid" | "waves" | "hex" | "liquid";
+
 
 const VARIANTS: Array<{
     value: Variant;
@@ -138,22 +141,7 @@ const GRADIENT_OPTIONS: GradientOption[] = [
     },
 ];
 
-// Variantes del fondo WebGL 3D (shader). Coinciden con config.background.webglVariant.
-type WebglVariant = "nebula" | "grid" | "waves" | "hex" | "liquid";
 
-const WEBGL_OPTIONS: Array<{
-    value: WebglVariant;
-    label: string;
-    desc: string;
-    colors: string[];
-    Icon: React.ComponentType<{ className?: string }>;
-}> = [
-    { value: "liquid", label: "Liquido 3D", desc: "Gradiente liquido fluido (Spline-like)", colors: ["#F15A22", "#0A0E27", "#7FB8FF"], Icon: Droplets },
-    { value: "nebula", label: "Nebulosa 3D", desc: "Ruido fractal cosmico animado", colors: ["#302b63", "#a855f7", "#22d3ee"], Icon: Aperture },
-    { value: "grid", label: "Rejilla 3D", desc: "Cuadricula con profundidad y warp", colors: ["#0A0E27", "#06B6D4", "#39FF14"], Icon: Grid3x3 },
-    { value: "waves", label: "Olas 3D", desc: "Superficie ondulante metalica", colors: ["#0ea5e9", "#2563eb", "#14b8a6"], Icon: Waves },
-    { value: "hex", label: "Hexagonos", desc: "Teselado hexagonal psicodelico", colors: ["#FFBF00", "#F15A22", "#DC143C"], Icon: Box },
-];
 
 // Colores solidos basicos.
 const SOLID_OPTIONS: Array<{ label: string; value: string }> = [
@@ -550,6 +538,51 @@ export function BackgroundSettings() {
             prevTypeRef.current = config.background.type;
         }
     }, [config.background.type]);
+    const [webglOptions, setWebglOptions] = React.useState<Array<{
+        value: WebglVariant;
+        label: string;
+        desc: string;
+        colors: string[];
+        Icon: React.ComponentType<{ className?: string }>;
+    }> | null>(null);
+
+    React.useEffect(() => {
+        cargarCatalogo().then(catalog => {
+            const mapped: Array<{
+                value: WebglVariant;
+                label: string;
+                desc: string;
+                colors: string[];
+                Icon: React.ComponentType<{ className?: string }>;
+            }> = [];
+            for (const category of Object.values(catalog)) {
+                for (const entry of category) {
+                    const name = entry.name;
+                    const variantMap: Record<string, WebglVariant> = {
+                        liquid: 'liquid',
+                        nebula: 'nebula',
+                        grid: 'grid',
+                        waves: 'waves',
+                        hex: 'hex'
+                    };
+                    const variant = variantMap[name as keyof typeof variantMap];
+                    if (variant !== undefined) {
+                        mapped.push({
+                            value: variant,
+                            label: entry.name,
+                            desc: entry.description,
+                            colors: [],
+                            Icon: Box
+                        });
+                    }
+                }
+            }
+            setWebglOptions(mapped);
+        }).catch(e => {
+            console.error('Failed to load shader catalog', e);
+            setWebglOptions([]);
+        });
+    }, [])
 
     const setLiving = (patch: Partial<typeof living>) => {
         updateConfig({ background: { living: patch } } as any);
@@ -815,12 +848,12 @@ export function BackgroundSettings() {
 
             {/* ── Familia: WebGL 3D (shader, con variante / velocidad / zoom) ── */}
             <div>
-                <h4 className="text-xs font-semibold text-muted-foreground/90 mb-2 flex items-center gap-1.5">
-                    <Box className="w-3.5 h-3.5" /> WebGL 3D
-                    <span className="text-muted-foreground/50 font-normal">({WEBGL_OPTIONS.length} variantes)</span>
-                </h4>
+                 <h4 className="text-xs font-semibold text-muted-foreground/90 mb-2 flex items-center gap-1.5">
+                     <Box className="w-3.5 h-3.5" /> WebGL 3D
+                     <span className="text-muted-foreground/50 font-normal">{((webglOptions ?? []).length)} variantes</span>
+                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {WEBGL_OPTIONS.map(({ value, label, desc, colors, Icon }) => {
+                     {(webglOptions ?? []).map(({ value, label, desc, colors, Icon }) => {
                         const active = isWebgl && webglVariant === value;
                         return (
                             <button
