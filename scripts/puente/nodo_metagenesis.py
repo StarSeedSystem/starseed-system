@@ -116,6 +116,56 @@ def huella_llave(llave: str) -> str:
     return hashlib.sha256(llave.encode("utf-8")).hexdigest()
 
 
+# ─── préstamos de trabajo (CAP1020A) ─────────────────────────────────────────────────────
+
+#: (2026-10-20, CAP1020A) El estado del A1 que deja `oracle_nodo.estado()` en la Mac:
+#: «nodo» → «colas» → «ultima» (la última cola que hizo el A1, con su «fin»). Es de donde sale
+#: «la cola del A1 terminó», que es lo que termina un préstamo.
+ESTADO_ORACLE = os.path.expanduser("~/.starseed/oracle.json")
+#: Cuántos préstamos se quedan en la memoria (los que se podan).
+PRESTAMOS_MAX = 20
+
+
+def cola_terminada(datos: Any) -> Optional[Any]:
+    """PURA: (cola, fin) de la última cola que terminó en el A1, o None si no lo dice.
+
+    (2026-10-20, CAP1020A) UN PRÉSTAMO TERMINA CUANDO TERMINA SU COLA. El estado del A1 lo deja
+    `oracle_nodo.estado()` en `~/.starseed/oracle.json` («nodo» → «colas» → «ultima»); el propio
+    A1 también lo publica en su latido. Se acepta cualquiera de las dos formas."""
+    if not isinstance(datos, dict):
+        return None
+    nodo = datos.get("nodo") if isinstance(datos.get("nodo"), dict) else datos
+    colas = nodo.get("colas") if isinstance(nodo.get("colas"), dict) else {}
+    ultima = colas.get("ultima") if isinstance(colas.get("ultima"), dict) else None
+    if not isinstance(ultima, dict):
+        return None
+    cola = str(ultima.get("cola") or "").strip()
+    try:
+        fin = float(ultima.get("fin"))
+    except (TypeError, ValueError):
+        return None
+    return (cola, fin) if cola else None
+
+
+def podar_prestamos(prestamos: Any, t: float, gracia_s: int = L.GRACIA_ASIGNACION_S,
+                    tope: int = PRESTAMOS_MAX) -> List[Dict[str, Any]]:
+    """PURA: los préstamos que se quedan en la memoria (los últimos `tope` dentro de la gracia).
+
+    (2026-10-20, CAP1020A) Un préstamo terminado conserva su `fin` al podarse: los medidores de
+    resultados lo necesitan para saber que ese trabajo ya no está en marcha."""
+    dentro = []
+    for p in prestamos or []:
+        if not isinstance(p, dict):
+            continue
+        try:
+            ts = float(p.get("ts") or 0)
+        except (TypeError, ValueError):
+            ts = 0.0
+        if t - ts < gracia_s:
+            dentro.append(p)
+    return dentro[-tope:]
+
+
 # ─── el nodo ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -334,6 +384,11 @@ class Nodo:
         if any((l.get("salud") or {}).get("autoritativo") for l in vivos.values()):
             self.mem["ultimo_autoritativo_ts"] = t
 
+        # (2026-10-20, CAP1020A) UN PRÉSTAMO TERMINA CUANDO TERMINA SU COLA: antes de repartir,
+        # se marca `fin` en los préstamos cuya cola el medio ya terminó, para que sus ids
+        # vuelven a estar disponibles.
+        self._cerrar_prestamos_terminados(t, vivos)
+
         # 3. Autocuración propia (líder o no).
         for a in L.autocurar(salud, self.mem, t):
             self._hacer(a, medio, medida["raiz"], informe, publicar=False)
@@ -551,11 +606,60 @@ class Nodo:
                          "seco": self.modo == "seco", "termino": self.mem.get("termino")}, informe)
 
     def _prestadas(self, t: float) -> set:
+        """Ids que están «prestados» a otro medio y NO se pueden repartir otra vez.
+
+        (2026-10-20, CAP1020A) UN PRÉSTAMO TERMINA CUANDO TERMINA SU COLA: un préstamo con `fin`
+        (su cola ya terminó) deja de reservar sus ids, que vuelven al reparto."""
         vigentes = L.ids_asignados_vigentes(self._asignaciones, t)
+        import repartir_nube as RN  # noqa: WPS433 — la misma regla del reparto a la nube
+
         for p in self.mem.get("prestamos") or []:
-            if t - float(p.get("ts") or 0) < L.GRACIA_ASIGNACION_S:
+            if RN.prestamo_vigente(p, t, L.GRACIA_ASIGNACION_S):
                 vigentes.update(str(i) for i in p.get("ids") or [])
         return vigentes
+
+    def _colas_terminadas(self, vivos: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
+        """{cola: fin} de las colas que el A1 (u otro medio) ya terminó.
+
+        (2026-10-20, CAP1020A) Primero, el estado que dejó `oracle_nodo.estado()` en la Mac
+        (`~/.starseed/oracle.json`); después, el latido del propio medio y los de los demás."""
+        import repartir_nube as RN  # noqa: WPS433 — puro, sin efectos colaterales
+
+        salida: Dict[str, float] = {}
+        candidatos = [M.leer_json(ESTADO_ORACLE, {}), (self._medida_salud or {}).get("a1") or {}]
+        for latido in (vivos or {}).values():
+            candidatos.append(((latido or {}).get("salud") or {}).get("a1") or {})
+        for datos in candidatos:
+            par = cola_terminada(datos)
+            if par:
+                salida[RN.nombre_cola(par[0])] = par[1]
+        return salida
+
+    def _cerrar_prestamos_terminados(self, t: float, vivos: Optional[Dict[str, Any]] = None) -> List[str]:
+        """Marca `fin` en los préstamos cuya cola ya terminó (CAP1020A). Devuelve las colas marcadas.
+
+        (2026-10-20, CAP1020A, medido) El A1 terminó su cola `cola-mg-oracle-1020-1223` a las 19:24
+        UTC y se quedó parado, mientras 10 de las 25 tareas listas seguían «prestadas» a él durante
+        6 h: ni la Mac, ni la nube, ni el propio A1 podían cogerlas. Ahora el préstamo se marca con
+        su `fin` y sus ids vuelven al reparto. Los préstamos NO se borran: los medidores de
+        resultados los necesitan."""
+        prestamos = self.mem.get("prestamos") or []
+        if not prestamos:
+            return []
+        terminadas = self._colas_terminadas(vivos)
+        if not terminadas:
+            return []
+        import repartir_nube as RN  # noqa: WPS433 — puro, sin efectos colaterales
+
+        marcados = []
+        for p in prestamos:
+            if not isinstance(p, dict) or p.get("fin"):
+                continue
+            cola = RN.nombre_cola(p.get("cola"))
+            if cola and cola in terminadas:
+                p["fin"] = terminadas[cola]
+                marcados.append(str(p.get("cola")))
+        return marcados
 
     def _prestar(self, tareas: List[Dict[str, Any]], destino: str, motivo: str, informe: Dict[str, Any],
                  t: float) -> None:
@@ -567,8 +671,9 @@ class Nodo:
         if self.modo == "real":
             self.mem.setdefault("prestamos", []).append(
                 {"ids": [x["id"] for x in limpias], "destino": destino, "cola": cola, "ts": t})
-            self.mem["prestamos"] = [p for p in self.mem["prestamos"]
-                                     if t - float(p.get("ts") or 0) < L.GRACIA_ASIGNACION_S][-20:]
+            # (2026-10-20, CAP1020A) Se podan los préstamos viejos; los que ya terminó su cola
+            # conservan su `fin` (los medidores de resultados los siguen contando).
+            self.mem["prestamos"] = podar_prestamos(self.mem["prestamos"], t)
 
     def _reparto(self, a: Dict[str, Any], raiz: str, informe: Dict[str, Any], t: float) -> Dict[str, Any]:
         """La Mac (medio con las colas) presta a un medio ocioso las listas del FINAL de su orden."""
