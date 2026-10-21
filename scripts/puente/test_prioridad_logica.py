@@ -191,6 +191,33 @@ class CapacidadPrimero(unittest.TestCase):
         self.assertFalse(any("techo del sistema" in r for r in razones))
 
 
+class AdelantarTest(unittest.TestCase):
+    """(2026-10-21) La orden de Alex («Asignar esta ya», un texto con la hora) va delante de
+    todo; la marca `True` de las reparaciones de la nube, detrás de la capacidad."""
+
+    CAP = {"id": "CAP", "archivos": ["x.py"], "importancia": "capacidad"}
+    NOR = {"id": "NOR", "archivos": ["src/components/x.tsx"]}
+    REP = {"id": "REP", "archivos": ["src/components/y.tsx"]}
+
+    def test_la_orden_de_alex_va_delante_de_la_capacidad(self):
+        progreso = {"NOR": {"estado": "pendiente", "adelantar": "2026-10-21 03:00:00"}}
+        listas, _ = ordenar([self.CAP, self.NOR], progreso, AHORA)
+        self.assertEqual(["NOR", "CAP"], [t["id"] for t, _p, _r in listas])
+        self.assertIn("Alex la pidió primero desde Genesis", listas[0][2])
+
+    def test_una_reparacion_de_la_nube_no_adelanta_a_la_capacidad(self):
+        progreso = {"REP": {"estado": "pendiente", "adelantar": True}}
+        listas, _ = ordenar([self.REP, self.CAP], progreso, AHORA)
+        self.assertEqual(["CAP", "REP"], [t["id"] for t, _p, _r in listas])
+        self.assertFalse(any("Alex" in r for r in listas[1][2]))
+
+    def test_una_reparacion_de_la_nube_va_antes_que_lo_normal(self):
+        progreso = {"REP": {"estado": "pendiente", "adelantar": True}}
+        listas, _ = ordenar([self.NOR, self.REP], progreso, AHORA)
+        self.assertEqual(["REP", "NOR"], [t["id"] for t, _p, _r in listas])
+        self.assertTrue(any("nube" in r for r in listas[0][2]))
+
+
 class DependenciasDeCadena(unittest.TestCase):
     """(2026-10-09) PRD1005U esperaba a PRD1005S, que integró su sucesora PRD1005Sc: la
     dependencia está cumplida y U no puede quedarse «bloqueada» para siempre."""

@@ -296,17 +296,31 @@ def ordenar(
     # puede perder por acumular horas no es una prioridad. (2026-09-20)
     # (2026-09-23) «Asignar esta ya» desde Genesis escribe `adelantar` en su progreso: esa va
     # delante de TODO, capacidad incluida. Es una orden de Alex, no un peso que se negocia.
-    def _adelantada(tarea):
+    # (2026-10-21) Solo un TEXTO con la hora es esa orden (`asignar_huecos.marcar_adelantada`).
+    # El `True` que pone traer_nube en las reparaciones de la nube no es de Alex: 58 de ellas
+    # (alguna con 10 fallos) pasaban delante de la capacidad diciendo «Alex la pidió primero».
+    # Ahora van detrás de la capacidad y delante de lo normal, y lo dicen tal cual.
+    def _marca(tarea):
         entrada = progreso.get(tarea.get("id")) if tarea.get("id") else None
-        return isinstance(entrada, dict) and bool(entrada.get("adelantar"))
+        return entrada.get("adelantar") if isinstance(entrada, dict) else None
+
+    def _adelantada(tarea):
+        marca = _marca(tarea)
+        return isinstance(marca, str) and bool(marca.strip())
+
+    def _reparacion_nube(tarea):
+        return _marca(tarea) is True
 
     for tarea, _puntos, razones in listas:
         if _adelantada(tarea):
             razones.insert(0, "Alex la pidió primero desde Genesis")
+        elif _reparacion_nube(tarea):
+            razones.insert(0, "repara lo que dejó a medias la nube: va antes que lo normal")
     listas.sort(
         key=lambda x: (
             0 if _adelantada(x[0]) else 1,
             0 if es_de_capacidad(x[0]) else 1,
+            0 if _reparacion_nube(x[0]) else 1,
             -x[1],
             str(x[0].get("id") or ""),
         )
