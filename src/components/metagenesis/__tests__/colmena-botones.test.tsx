@@ -36,57 +36,28 @@ vi.mock("@/lib/realtime/realtime", () => ({ onTableChange: () => () => {} }));
 import { AppearanceProvider } from "@/context/appearance-context";
 import { MetaGenesisAutonoma } from "../metagenesis-autonoma";
 
-<<<<<<< HEAD
 describe("colmena-botones · botones de una neurona (rescatado de rama nube)", () => {
     // Los textos del contrato (traspaso a otro contenedor) solo son verdad con el relevo cableado: estas pruebas
     // lo declaran. Sin la bandera se asume que NO está activo (ver el bloque «sin traspaso» más abajo).
     it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 });
-=======
-describe("colmena-botones · botones de una neurona", () => {
-    it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
-        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 } as NeuronaColmena);
->>>>>>> 0ebdf8b1 (salvavidas · RTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
         expect(b.desconectar.explica).toBe("No tiene trabajo en curso: puedes apagarlo sin más.");
         expect(b.desconectar.confirmar).toBeFalsy();
     });
 
     it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
-<<<<<<< HEAD
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" }, relevoActivo: true });
-=======
-<<<<<<< HEAD
-        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } });
-=======
-        const b = botonesNeurona({
-            nodo: "mac-a1b2c3",
-            vivo: true,
-            so: "macos",
-            enCurso: 0,
-            contenedor: { activo: true, agentes: 3, apto: true, motivo: "" },
-        } as NeuronaColmena);
->>>>>>> 0ebdf8b1 (salvavidas · RTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
->>>>>>> e2124c016 (salvavidas · RTRTCOL1012Bdsbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
     });
 
     it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente", () => {
-<<<<<<< HEAD
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, relevoActivo: true });
-=======
-<<<<<<< HEAD
-        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1 });
-=======
-        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1 } as NeuronaColmena);
->>>>>>> 0ebdf8b1 (salvavidas · RTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
->>>>>>> e2124c016 (salvavidas · RTRTCOL1012Bdsbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
         expect(b.desconectar.explica).toContain("1 agente");
         expect(b.desconectar.confirmar).toBe(true);
     });
-<<<<<<< HEAD
 
     it("contenedor activo: explica «Termina lo que lleva y no coge más.» y pide confirmar si hay trabajo", () => {
         const sin = botonesNeurona({
@@ -154,7 +125,6 @@ describe("colmena-botones · botones de una neurona", () => {
             confirmar: true 
         });
     });
-<<<<<<< HEAD
 });
 // ─── el traductor latido → tarjeta (puro) ──────────────────────────────────────────────────────────────
 
@@ -708,8 +678,3 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         await waitFor(() => expect(enviarOrden).toHaveBeenCalledWith("revisar_bloqueadas", "lider"));
     });
 });
-=======
-=======
->>>>>>> 0ebdf8b1 (salvavidas · RTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
-});
->>>>>>> e2124c016 (salvavidas · RTRTCOL1012Bdsbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
