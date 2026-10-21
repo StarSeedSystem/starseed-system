@@ -4553,3 +4553,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ENT1020A` — los tipos no compilan: 24 errores tsc (rama ola/ENT1020A conservada)
 - `RTFS1013A` — no escribió nada
 - `VZF1015M` — el proveedor dijo que no: ningún proveedor respondió (rate limit)
+
+## 2026-10-21 04:47 · mg-oracle-1020-2224
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (CB1013S, VPU1019W). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTS1010-EV-ORACLE-1accbbbbbb` — los tipos no compilan: 12 errores tsc (rama ola/RTRTRTS1010-EV-ORACLE-1accbbbbbb conservada)
+- `CB1013S` — no escribió nada
+- `VPU1019W` — no escribió nada
