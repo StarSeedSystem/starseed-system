@@ -4539,3 +4539,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTCOL1012Bdsbbbbbbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTCOL1012Bdsbbbbbbbbbbb conservada
 - `GCA1019P` — otra cosa: sin decisión en 0 h; rama ola/GCA1019P conservada
 >>>>>>> 93f1d225 (chore(memoria): aprendizaje de la ola mg-oracle-1019-1251)
+
+## 2026-10-21 03:15 · mg-oracle-1020-1933
+
+**Lo que se pidió.** chore(memoria): aprendizaje de la ola mg-oracle-…
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (GCA1019G, IMN1021L, IMN1021K8, IMN1021K7). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `GCA1019G` — otra cosa: ningún proveedor respondió (todos caídos)
+- `IMN1021L` — otra cosa: ningún proveedor respondió (todos caídos)
+- `IMN1021K8` — otra cosa: ningún proveedor respondió (todos caídos)
+- `IMN1021K7` — otra cosa: ningún proveedor respondió (todos caídos)
