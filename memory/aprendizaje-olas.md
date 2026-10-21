@@ -4568,3 +4568,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1accbbbbbb` — los tipos no compilan: 12 errores tsc (rama ola/RTRTRTS1010-EV-ORACLE-1accbbbbbb conservada)
 - `CB1013S` — no escribió nada
 - `VPU1019W` — no escribió nada
+
+## 2026-10-21 15:48 · mg-oracle-1021-0831
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (RTRTRTRTCOL1012Bdsbbbbbc-d1d, RTGN1010A-d3d-d2d, RTPM1010F0Gc). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTRTCOL1012Bdsbbbbbc-d1d` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTGN1010A-d3d-d2d` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTPM1010F0Gc` — otra cosa: ningún proveedor respondió (todos caídos)
