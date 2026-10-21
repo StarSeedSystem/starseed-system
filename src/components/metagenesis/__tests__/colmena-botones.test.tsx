@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 // @vitest-environment-options {"url": "https://starseed-os.vercel.app/metagenesis"}
 /**
  * Los botones «Desconectar» y «Usar como contenedor» de la tarjeta de cada neurona (COL1012I).
@@ -50,6 +51,8 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
     it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" }, relevoActivo: true });
 =======
+=======
+>>>>>>> 2a0808e5e (salvavidas · RTRTRC1013C: trabajo del agente antes de las puertas (tsc / vitest))
 // @vitest-environment-options {"url": "https://starseed-os.vercel.app"}
 /**
  * BotonesNeurona · los botones que ve una neurona en /metagenesis y en Neuronas.
@@ -80,6 +83,9 @@ describe("botonesNeurona", () => {
             enCurso: 0,
             contenedor: { activo: true, agentes: 3, apto: true, motivo: "" },
         });
+<<<<<<< HEAD
+>>>>>>> 2a0808e5e (salvavidas · RTRTRC1013C: trabajo del agente antes de las puertas (tsc / vitest))
+=======
 >>>>>>> 2a0808e5e (salvavidas · RTRTRC1013C: trabajo del agente antes de las puertas (tsc / vitest))
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
@@ -87,19 +93,26 @@ describe("botonesNeurona", () => {
 
     it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente", () => {
 <<<<<<< HEAD
+<<<<<<< HEAD
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, relevoActivo: true });
 =======
+=======
+>>>>>>> 2a0808e5e (salvavidas · RTRTRC1013C: trabajo del agente antes de las puertas (tsc / vitest))
         const b = botonesNeurona({
             nodo: "mac-a1b2c3",
             vivo: true,
             so: "macos",
             enCurso: 1,
         });
+<<<<<<< HEAD
+>>>>>>> 2a0808e5e (salvavidas · RTRTRC1013C: trabajo del agente antes de las puertas (tsc / vitest))
+=======
 >>>>>>> 2a0808e5e (salvavidas · RTRTRC1013C: trabajo del agente antes de las puertas (tsc / vitest))
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
         expect(b.desconectar.explica).toContain("1 agente");
         expect(b.desconectar.confirmar).toBe(true);
     });
+<<<<<<< HEAD
 <<<<<<< HEAD
 
     it("contenedor activo: explica «Termina lo que lleva y no coge más.» y pide confirmar si hay trabajo", () => {
@@ -721,6 +734,9 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         await waitFor(() => expect(enviarOrden).toHaveBeenCalledWith("revisar_bloqueadas", "lider"));
     });
 });
+=======
+});
+>>>>>>> 2a0808e5e (salvavidas · RTRTRC1013C: trabajo del agente antes de las puertas (tsc / vitest))
 =======
 });
 >>>>>>> 2a0808e5e (salvavidas · RTRTRC1013C: trabajo del agente antes de las puertas (tsc / vitest))
