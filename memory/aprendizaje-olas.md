@@ -4539,3 +4539,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTCOL1012Bdsbbbbbbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTCOL1012Bdsbbbbbbbbbbb conservada
 - `GCA1019P` — otra cosa: sin decisión en 0 h; rama ola/GCA1019P conservada
 >>>>>>> 93f1d225 (chore(memoria): aprendizaje de la ola mg-oracle-1019-1251)
+
+## 2026-10-21 01:28 · mg-oracle-1020-1627
+
+**Lo que se pidió.** Fundamento: contenido único (palabras de Alex) y sus tres preguntas
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `ENT1020A` — los tipos no compilan: 24 errores tsc (rama ola/ENT1020A conservada)
+- `RTFS1013A` — no escribió nada
+- `VZF1015M` — el proveedor dijo que no: ningún proveedor respondió (rate limit)
