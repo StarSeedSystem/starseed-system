@@ -38,12 +38,43 @@ peldaño** (p316J + p316K):
 | 0 | flota gratuita (§5), 2 intentos con proveedores distintos | siempre primero | — |
 | 1 | **Claude más barato** (el `haiku` más reciente del catálogo vivo de Anthropic) | tras 2 intentos gratis fallidos | 20 tareas/día |
 | 2 | **Claude medio** (`sonnet` más reciente) | solo si la tarea es compleja (≥3 archivos, `dificultad: alta`, o revisión bloqueante de diseño) y haiku falló | 5 tareas/día |
-| 3 | Claude caro (`opus`/`fable`) | **nunca solo**: lo pide una persona | — |
+| 3 | Claude caro (`opus`/`fable`) | **nunca solo**: lo pide una persona, o el carril de alta capacidad de abajo | — |
 
 Cuando se agota un tope o una tarea falla en el peldaño 2, el director **para y avisa a Alex** en el canal
 (y por Telegram) con la tarea, lo probado y la decisión que hace falta. Los modelos de pago **no entran
 en la rotación gratuita**: solo se usan cuando la tarea trae `modelo: anthropic/...` explícito, y el
 gasto del día queda en `starseed_memory_root/olas/escalada-gasto.json`.
+
+**Carril de alta capacidad (regla de Alex, 2026-10-21).** Para las tareas muy complicadas de
+cualquier cola —las que piden más detalle técnico y creativo: animación o diseño fino, contratos
+delicados en ≥3 archivos, `capacidad`/`dificultad: alta`, o la escalera de arriba agotada— se
+usan agentes potentes y especializados, del más barato al más caro, y solo los útiles para esa
+tarea:
+
+| orden | quién | coste |
+| --- | --- | --- |
+| 1 | los gratuitos más fuertes y creativos: OpenCode Zen (`glm-5.3-flash-free`, `deepseek-v4.1-flash-free`, `minimax-m3.1-flash-free`, `big-pickle`), NIM (`kimi-k3`), el Gemini más nuevo con cuota gratis | 0 |
+| 2 | Codex / ChatGPT | suscripción |
+| 3 | Antigravity `agy` (Gemini más nuevo) — cuando su modo sin pantalla funcione | suscripción |
+| 4 | agentes **Claude Opus 5.5** en el contenedor de la sesión de dirección (Cowork) | créditos de Claude |
+
+Cómo se opera el peldaño 4:
+- Una tarea cerrada por agente, sobre un árbol igual a main de la Mac (lo que no compila no
+  cuenta: `enjambre/`, `.agent/`, `queue/` pueden faltar).
+- tsc limpio y vitest en verde en el contenedor antes de traerla; se integra con
+  `commit-seguro.py` y «· ID:» en el asunto, para que el reconciliador la cierre.
+- **Cupo:** antes de lanzar, se lee `~/.starseed/limites-claude.json` o claude.ai/settings/usage.
+  Semana < 80 % y sesión < 70 %; como mucho 2 agentes Opus a la vez.
+- Nunca para lo mecánico, que va a la capa 0.
+- El informe de la sesión anota los tokens de cada agente y cuánto subió la semana.
+
+Las candidatas las lista `python3 scripts/puente/alta-capacidad.py` (ola 1021A,
+`cola-alta-capacidad-1021.json`). La escalera marca `alta_capacidad: true` cuando se agota.
+
+**Piloto (2026-10-21):** GUI1021D y GUI1021E, las demos animadas de la guía.
+- Dos agentes Opus, de ~240k y ~280k tokens.
+- 12/12 y 14/14 pruebas, tsc limpio.
+- Commits `72b74dbfe` y `afac01877`.
 
 **Regla de cuotas:** la cuota de Claude se renueva por **ventana de 5 horas** y por **semana**; la
 de ChatGPT/Codex por ventana de horas y semana también; las gratuitas por día o por minuto (§5).
