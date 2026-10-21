@@ -377,5 +377,51 @@ class EvidenciaYArbolLimpio(unittest.TestCase):
             self.assertIsNone(A.arbol_limpio(raiz, "0" * 40, git, destino), "un sha que no existe no da árbol")
 
 
+class FlujosWebhooks(unittest.TestCase):
+    """(FLU1014G) `autopublicar` avisa «publicada» al gancho de Flujos sin frenar nada."""
+
+    def test_publicacion_buena_llama_emitir_una_vez_con_su_sha(self):
+        import unittest.mock as umock
+        import sys
+        mock_pw = umock.MagicMock()
+        mock_pw.emitir = umock.MagicMock(return_value={"enviado": True, "motivo": "ok"})
+        sys.modules["produccion_webhooks"] = mock_pw
+        m = Falso()
+        base = {"fase": "verificando", "sha": SHA, "desde": T0, "asuntos": ["Ola X · CPA1000: algo"]}
+        m.o["estados"] = [{"state": "success", "environment_url": "https://v/1"}]
+        m.o["deploys"] = [{"id": 1}]
+        m.o["http"] = 200
+        e = A.pasada(m, base, T0 + 1200)
+        mock_pw.emitir.assert_called_once()
+        args, kwargs = mock_pw.emitir.call_args
+        self.assertEqual(args[0], "produccion.publicada")
+        datos = args[1]
+        self.assertEqual(datos["sha"], SHA)
+        self.assertIn("medios", datos)
+        self.assertIn("tareas", datos)
+        self.assertEqual(e["fase"], "publicado")
+        self.assertTrue(e.get("aviso_flujos"))
+        self.assertEqual(e.get("motivo"), "ok")
+
+    def test_emitir_que_lanza_no_frena_la_publicacion(self):
+        import unittest.mock as umock
+        mock_pw = umock.MagicMock()
+        mock_pw.emitir.side_effect = RuntimeError("falla simulada")
+        sys.modules["produccion_webhooks"] = mock_pw
+        # Reimportar autopublicar no es necesario: el import interno busca en sys.modules
+        # Pero como `autopublicar` ya cargó su propio código, cuando ejecuta `import produccion_webhooks as pw`
+        # busca en sys.modules y encuentra el mock.
+        m = Falso()
+        base = {"fase": "verificando", "sha": SHA, "desde": T0, "asuntos": ["Ola Y · CPA2000: otra"]}
+        m.o["estados"] = [{"state": "success", "environment_url": "https://v/2"}]
+        m.o["deploys"] = [{"id": 2}]
+        m.o["http"] = 200
+        e = A.pasada(m, base, T0 + 1200)
+        # Aunque `emitir` lanza, la publicación sigue dándose por publicada
+        self.assertEqual(e["fase"], "publicado")
+        self.assertFalse(e.get("aviso_flujos"))
+        self.assertEqual(e.get("motivo"), "emisión falló")
+
+
 if __name__ == "__main__":
     unittest.main()
