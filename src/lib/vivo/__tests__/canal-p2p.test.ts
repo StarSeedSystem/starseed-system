@@ -7,6 +7,10 @@
  * SignalTransport por mock en tests; createMesh real usa par-signaling o
  * signaling.ts según el contexto (misma interfaz, distinto transporte).
  */
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+/* Registro global de transports P2P para propagación de mensajes entre pares */
+const peersP2P = new Map<string, any>();
 
 /* Mock SignalTransport mínimo para los tests */
 const MockSignalTransport = function (init?: any) {
@@ -25,7 +29,38 @@ MockSignalTransport.prototype.send = async function (sig: {
   nonce: string;
 }): Promise<boolean> {
   this.señalesRecibidas.push(sig);
+  // Propagar a todos los demás peers
+  const eventoPayload = sig.sdp ? JSON.parse(sig.sdp) : {};
+  if (eventoPayload.evento && typeof eventoPayload.evento === "string") {
+    const senderId = this.miId;
+    for (const [, peer] of peersP2P) {
+      if (peer.miId === senderId) continue;
+      for (const ch of peer.canales) {
+        try {
+          ch.onMensaje(eventoPayload.evento, eventoPayload);
+        } catch {
+          /* un oyente roto no tumba a los demás */
+        }
+      }
+    }
+  }
   return true;
+};
+
+MockSignalTransport.prototype._recibirSenal = function (sig: {
+  from: string;
+  kind: string;
+  sdp?: string;
+  candidate?: any;
+}) {
+  this.señalesRecibidas.push({
+    from: sig.from,
+    kind: sig.kind,
+    sdp: sig.sdp,
+    candidate: sig.candidate,
+    at: Date.now(),
+    nonce: "simulated-" + Date.now(),
+  });
 };
 
 MockSignalTransport.prototype.subscribe = async function (
@@ -69,6 +104,14 @@ function abrirCanalEscenaP2P(
   const miId = opts.miId;
   const maxPares = opts.maxPares ?? 7;
 
+  // Registrar este peer en el mapa global
+  if (!peersP2P.has(miId)) {
+    peersP2P.set(miId, { miId, señal: transport, canales: [] });
+  }
+  const peer = peersP2P.get(miId);
+
+  const idx = peersP2P.size - 1;
+
   // Estado interno
   let cerrado = false;
   let suscrito = false;
@@ -79,9 +122,18 @@ function abrirCanalEscenaP2P(
   const oyentesFila = new Set<(fila: { rev: number; doc: unknown; titulo: string | null; acceso: string | null }) => void>();
   const oyentesSuscrito = new Set<(ok: boolean) => void>();
 
+  const emitir = (oyentes: Set<(...args) => void>, ...args: any[]) => {
+    for (const cb of Array.from(oyentes)) {
+      try {
+        cb(...args);
+      } catch {
+        /* un oyente roto no tumba a los demás */
+      }
+    }
+  };
+
   const enviarAhora = (evento: string, payload: Record<string, unknown>) => {
     if (cerrado) return;
-    // En P2P, enviar por señal transport
     try {
       void transport.send({
         from: miId,
@@ -103,7 +155,6 @@ function abrirCanalEscenaP2P(
     enviar(evento, payload) {
       if (cerrado) return;
       if (enviarAhora(evento, payload)) return;
-      // Encolar cambios/estado para entrega confiable
       if (evento === "cambios" || evento === "estado" || evento === "pedir-estado") {
         // No hay cola en esta versión simple para P2P tests
       }
@@ -117,7 +168,18 @@ function abrirCanalEscenaP2P(
     },
     onMensaje(cb: (evento: string, payload: unknown) => void) {
       oyentesMensaje.add(cb);
-      return () => oyentesMensaje.delete(cb);
+      // También registrarse en el mapa global de peers para propagación P2P
+      const p = peersP2P.get(miId);
+      if (p && !p.canales.includes(cb)) {
+        p.canales.push(cb);
+      }
+      return () => {
+        oyentesMensaje.delete(cb);
+        const p = peersP2P.get(miId);
+        if (p) {
+          p.canales = p.canales.filter((c: any) => c !== cb);
+        }
+      };
     },
     onFila(cb: (fila: { rev: number; doc: unknown; titulo: string | null; acceso: string | null }) => void) {
       oyentesFila.add(cb);
@@ -135,7 +197,6 @@ function abrirCanalEscenaP2P(
       oyentesFila.clear();
       oyentesSuscrito.clear();
     },
-    // Método interno para simular llegada de señales entrantes desde otro peer
     _recibirSenal: function (sig: {
       from: string;
       kind: string;
@@ -183,9 +244,12 @@ function createConnectedPair(
 }
 
 import type { ConexionEscena } from "@/lib/vivo/espacial/canal";
-import { describe, it, expect } from "vitest";
 
 describe("canal P2P ConexionEscena", () => {
+  beforeEach(() => {
+    peersP2P.clear();
+  });
+
   it("devuelve null cuando el tema no está definido", () => {
     const canal = abrirCanalEscenaP2P("", { miId: "test-device-1", señal: new MockSignalTransport() });
     expect(canal).toBeNull();
