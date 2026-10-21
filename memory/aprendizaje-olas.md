@@ -4517,6 +4517,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-10-19 20:55 · mg-oracle-1019-1251
 
 **Lo que se pidió.** Laya · privacidad que solo sube (nunca baja)
+## 2026-10-20 01:49 · mg-oracle-1019-1822
+
+**Lo que se pidió.** más de 200 efectos WebGPU para fondos por capas; editor, presets y secciones de shaders.com no incluidos
 
 **Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
 
@@ -4539,3 +4542,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTCOL1012Bdsbbbbbbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTCOL1012Bdsbbbbbbbbbbb conservada
 - `GCA1019P` — otra cosa: sin decisión en 0 h; rama ola/GCA1019P conservada
 >>>>>>> 93f1d225 (chore(memoria): aprendizaje de la ola mg-oracle-1019-1251)
+- 2 tareas se fueron por lo mismo — otra cosa (FSH1018A, RTRTCOL1012Bdsbbbbbbbbbbc). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `FSH1018A` — otra cosa: ningún proveedor respondió (todos caídos)
+- `GCA1019H` — pruebas en rojo: vitest falla (rama conservada)
+- `RTRTCOL1012Bdsbbbbbbbbbbc` — otra cosa: ningún proveedor respondió (todos caídos)
