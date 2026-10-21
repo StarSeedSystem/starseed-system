@@ -30,14 +30,26 @@ class ZenGratis(unittest.TestCase):
             self.assertTrue(m.endswith("-free") or m == "opencode/big-pickle", m)
 
     def test_clave_por_entorno_o_auth(self):
-        self.assertTrue(enjambre.hay_clave_zen({"OPENCODE_API_KEY": "x"}, "/no/existe"))
-        self.assertFalse(enjambre.hay_clave_zen({}, "/no/existe"))
+        self.assertTrue(enjambre.hay_clave_zen({"OPENCODE_API_KEY": "x"}, "/no/existe", ()))
+        self.assertFalse(enjambre.hay_clave_zen({}, "/no/existe", ()))
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
             json.dump({"opencode": {"type": "api"}}, f)
         try:
-            self.assertTrue(enjambre.hay_clave_zen({}, f.name))
+            self.assertTrue(enjambre.hay_clave_zen({}, f.name, ()))
         finally:
             os.unlink(f.name)
+
+    def test_clave_en_archivo_de_entorno(self):
+        with tempfile.NamedTemporaryFile("w", delete=False) as f:
+            f.write("OTRA=1\nOPENCODE_API_KEY=abc\n")
+        with tempfile.NamedTemporaryFile("w", delete=False) as g:
+            g.write("OPENCODE_API_KEY=\n")
+        try:
+            self.assertTrue(enjambre.hay_clave_zen({}, "/no/existe", (f.name,)))
+            self.assertFalse(enjambre.hay_clave_zen({}, "/no/existe", (g.name,)))
+        finally:
+            os.unlink(f.name)
+            os.unlink(g.name)
 
 
 if __name__ == "__main__":

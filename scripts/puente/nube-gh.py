@@ -39,6 +39,8 @@ SECRETOS = (
     "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "NVIDIA_API_KEY",
     "OPENROUTER_API_KEY", "XKIRO_API_KEY", "AIHUBMIX_API_KEY", "TOKENROUTER_API_KEY",
     "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY",
+    # (2026-10-21) OpenCode Zen: sus modelos gratuitos escriben en la nube (aprobado por Alex).
+    "OPENCODE_API_KEY",
 )
 
 #: Los dos archivos de entorno de esta maquina. Solo se leen NOMBRES y valores para

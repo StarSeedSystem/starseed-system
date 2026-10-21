@@ -258,12 +258,23 @@ MODELOS_ZEN_GRATIS = [
 ]
 
 
-def hay_clave_zen(entorno=None, ruta_auth=None):
-    """¿Puede opencode usar OpenCode Zen en esta máquina? Clave en el entorno (OPENCODE_API_KEY) o
-    proveedor «opencode» en el auth.json de opencode. Solo mira si existe, nunca lee el valor."""
+ARCHIVOS_CLAVE_ZEN = ("~/.starseed/env", "~/.hermes/.env")
+
+
+def hay_clave_zen(entorno=None, ruta_auth=None, archivos=None):
+    """¿Puede opencode usar OpenCode Zen en esta máquina? Clave en el entorno (OPENCODE_API_KEY), en
+    los archivos de entorno de la máquina (el A1 y la nube la tienen ahí) o proveedor «opencode» en
+    el auth.json de opencode (la Mac, tras `opencode auth login`). Solo mira si existe."""
     entorno = os.environ if entorno is None else entorno
     if str(entorno.get("OPENCODE_API_KEY") or "").strip():
         return True
+    for archivo in (ARCHIVOS_CLAVE_ZEN if archivos is None else archivos):
+        try:
+            with open(os.path.expanduser(archivo), encoding="utf-8") as f:
+                if any(re.match(r"\s*(export\s+)?OPENCODE_API_KEY\s*=\s*\S", l) for l in f):
+                    return True
+        except OSError:
+            pass
     ruta = ruta_auth or os.path.expanduser("~/.local/share/opencode/auth.json")
     try:
         with open(ruta, encoding="utf-8") as f:
@@ -2477,6 +2488,9 @@ _CLAVES_EXTRA = (
     "DEEPSEEK_API_KEY",
     "DEEPSEEK_BASE_URL",
     "XAI_API_KEY",
+    # (2026-10-21) OpenCode Zen: opencode la lee del entorno en el A1 y en la nube (en la Mac
+    # basta su auth.json). Sin esto, la de ~/.starseed/env no llegaba al hijo.
+    "OPENCODE_API_KEY",
     "HF_TOKEN",
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",

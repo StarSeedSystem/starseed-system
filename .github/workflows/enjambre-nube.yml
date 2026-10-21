@@ -159,6 +159,8 @@ jobs:
           STARSEED_PASARELA_GROQ_URL: ${{ vars.STARSEED_PASARELA_GROQ_URL }}
           STARSEED_PASARELA_GROQ_MODELOS: ${{ vars.STARSEED_PASARELA_GROQ_MODELOS }}
           STARSEED_PASARELA_GROQ_RPM: ${{ vars.STARSEED_PASARELA_GROQ_RPM }}
+          # (2026-10-21, aprobado por Alex) OpenCode Zen: modelos gratuitos de opencode como escritores.
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           # (2026-10-21, aprobado por Alex) Groq solo revisa: su tramo gratuito (~8000 tokens/min)
           # no cabe en un prompt de escritura y gpt-oss-20b se colgaba 5-15 min por run sin escribir.
           STARSEED_PASARELA_GROQ_SOLO_REVISOR: "1"
@@ -167,7 +169,8 @@ jobs:
           n=0
           for v in GEMINI_API_KEY GOOGLE_GENERATIVE_AI_API_KEY NVIDIA_API_KEY NVIDIA_SHARED_KEY OPENROUTER_API_KEY \
                    XKIRO_API_KEY AIHUBMIX_API_KEY TOKENROUTER_API_KEY GROQ_API_KEY STARSEED_PASARELA_GROQ_KEY \
-                   STARSEED_PASARELA_GROQ_URL STARSEED_PASARELA_GROQ_MODELOS STARSEED_PASARELA_GROQ_RPM; do
+                   STARSEED_PASARELA_GROQ_URL STARSEED_PASARELA_GROQ_MODELOS STARSEED_PASARELA_GROQ_RPM \
+                   OPENCODE_API_KEY; do
             if [ -n "${!v:-}" ]; then printf '%s=%q\n' "$v" "${!v}" >> ~/.starseed/env; n=$((n+1)); fi
           done
           echo "variables presentes: $n"
