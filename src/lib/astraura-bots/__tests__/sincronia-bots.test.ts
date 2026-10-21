@@ -1,3 +1,7 @@
+// jsdom: los adaptadores de abiertos/migración leen `window.localStorage`;
+// en entorno `node` (el predeterminado de este repo) window no existe y sus
+// pruebas se saltan el código real por la guardia `typeof window`.
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import {
   fusionarBots,
@@ -86,5 +90,29 @@ describe("migración de abiertos", () => {
     marcarAbierto("bot-a", false);
     expect(abiertosEnEstaNeurona()).not.toContain("bot-a");
     window.localStorage.removeItem("starseed.astraura.orbes-abiertos");
+  });
+});
+
+describe("abiertos: casos rescatados al error 23", () => {
+  it("devuelve un array vacío si lo guardado no es un array", () => {
+    window.localStorage.setItem(
+      "starseed.astraura.bots.abiertos.v1",
+      JSON.stringify(["basura-que-no-molesta"])
+    );
+    window.localStorage.setItem("starseed.astraura.orbes-abiertos", '{"no": "es un array"}');
+    expect(abiertosEnEstaNeurona()).toEqual([]);
+  });
+
+  it("no añade el mismo bot dos veces", () => {
+    marcarAbierto("bot-dup", true);
+    marcarAbierto("bot-dup", true);
+    expect(abiertosEnEstaNeurona()).toEqual(["bot-dup"]);
+  });
+
+  it("al quitar un bot conserva los demás abiertos", () => {
+    marcarAbierto("bot-uno", true);
+    marcarAbierto("bot-dos", true);
+    marcarAbierto("bot-uno", false);
+    expect(abiertosEnEstaNeurona()).toEqual(["bot-dos"]);
   });
 });
