@@ -57,6 +57,8 @@ if DIRECTORIO not in sys.path:
 import nodo_metagenesis_bus as B  # noqa: E402
 import nodo_metagenesis_logica as L  # noqa: E402
 import nodo_metagenesis_medio as M  # noqa: E402
+import colmena_logica as C  # noqa: E402
+import traer_nube as T  # noqa: E402
 
 CARPETA = os.path.expanduser(os.environ.get("STARSEED_NODO_DIR") or "~/.starseed/nodo-metagenesis")
 MEMORIA = os.path.join(CARPETA, "memoria.json")
@@ -346,6 +348,46 @@ class Nodo:
             mundo = {"nodos": nodos_plan, "yo": self.yo, "autonomia": bool(self.mem.get("autonomia", True)),
                      "asignaciones": nov.get("asignaciones") or [],
                      "ultimo_autoritativo_ts": self.mem.get("ultimo_autoritativo_ts")}
+            # COL1012G · relevo sin pérdidas
+            try:
+                latidos_dict = {l.get("nodo"): {"t": float(l.get("ts",0)), "periodo_s": float(l.get("periodo_s",300)), "en_curso": l.get("en_curso",[])} for l in nov.get("latidos",[]) if l.get("nodo")}
+                bajas_dict = {b.get("nodo"): {"t": float(b.get("ts",0)), "traspaso": bool(b.get("traspaso"))} for b in nov.get("bajas",[]) if b.get("nodo")}
+                 asignadas_dict = {}
+                 tareas_dict = {}
+                 for a in nov.get("asignaciones",[]):
+                     did = a.get("id")
+                     if did:
+                         asignadas_dict[str(did)] = {"a": a.get("a"), "t": float(a.get("ts",0))}
+                         task_info = a.copy()
+                         if 'id' in task_info:
+                             del task_info['id']
+                         tareas_dict[str(did)] = task_info
+                nodos_info = {}
+                ocupados = {}
+                for n, v in vivos.items():
+                    salud_n = v.get("salud") or {}
+                    medio = v.get("medio") or ""
+                    cont = salud_n.get("contenedor") or {}
+                    nodos_info[n] = {"medio": medio, "vivo": True, "modo": v.get("modo"), "contenedor": cont}
+                    en_curso = v.get("en_curso") or []
+                    ocupados[n] = len(en_curso) if isinstance(en_curso, list) else 0
+                 plan_relevo = C.plan_relevo(latidos_dict, bajas_dict, asignadas_dict, nodos_info, ocupados, tareas_dict, t)
+                for r in plan_relevo:
+                    minutos = int((t - (r.get("punto") or {}).get("t", t)) // 60) if r.get("punto") else None
+                    decision = {"tipo": "mg_decision", "de": r.get("de"), "a": r.get("a"), "id": r.get("id"), "minutos_perdidos": minutos, "motivo": r.get("motivo") or r.get("espera")}
+                    if enlace is not None:
+                        enlace.decision(decision)
+                    informe.setdefault("relevo", []).append(decision)
+                    if r.get("a"):
+                        # Crear sucesora y prestar
+                        original = {}
+                        nuevo_id = T.siguiente_id(str(r.get("id")), [])
+                        rama = f"relevo/{r.get('de')}/{r.get('id')}"
+                        sucesora = T.tarea_reparacion(original, nuevo_id, rama, [], [], str(r.get("motivo") or ""))
+                        # Préstamo simplificado: lanzar cola firmada
+                        self._repartir({"clave":"relevo:"+r.get("id"), "accion":"lanzar_cola", "nodo":r.get("a"), "motivo":"relevo", "args":{"cola":f"cola-relevo-{r.get('a')}", "trabajadores":2, "_tareas":[sucesora]}, "espera_s":0}, informe, t)
+            except Exception:
+                pass
             sin_aut = not any((l.get("salud") or {}).get("autoritativo") for l in vivos.values())
             if sin_aut and enlace is not None and t - float(self.mem.get("ultimo_autoritativo_ts") or t) >= L.RELEVO_MEDIO_S:
                 mundo["colas_portables"] = enlace.ultimas_colas()
