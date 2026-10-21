@@ -285,17 +285,13 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
                     </div>
 
                     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                        <p className="mb-2 text-[11px] font-semibold text-white/80">Motores de voz (catálogo)</p>
-                        <div className="space-y-1.5">
-                            {MOTORES_VOZ.map((m) => (
-                                <div key={m.id} className="flex flex-wrap items-center gap-2 text-[10.5px]">
-                                    <span className="font-medium text-white/85">{m.nombre}</span>
-                                    <span className="text-white/45">· {m.formato}</span>
-                                    <span className={cn("rounded-full border px-1.5 py-px text-[9px]", m.offline ? "border-emerald-400/30 text-emerald-200" : "border-amber-400/30 text-amber-200")}>{m.offline ? "sin internet" : "requiere red"}</span>
-                                    {m.repo && <a href={m.repo} target="_blank" rel="noreferrer" className="text-cyan-300/80 hover:text-cyan-200">repositorio</a>}
-                                </div>
-                            ))}
-                        </div>
+                        <p className="mb-2 text-[11px] font-semibold text-white/80">Licencias de motores de voz</p>
+                        <VozLicencias
+                            voiceStudioAlive={typeof window !== "undefined" && !!(window as { Omniverse?: { voiceStudio?: { isAlive?: boolean } } }).Omniverse?.voiceStudio?.isAlive}
+                            contexto="personal"
+                            neuronaPlataforma="macos"
+                            neuronaRamGB={8}
+                        />
                     </div>
                 </div>
             )}
