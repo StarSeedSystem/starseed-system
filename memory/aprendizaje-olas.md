@@ -4553,3 +4553,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ENT1020A` — los tipos no compilan: 24 errores tsc (rama ola/ENT1020A conservada)
 - `RTFS1013A` — no escribió nada
 - `VZF1015M` — el proveedor dijo que no: ningún proveedor respondió (rate limit)
+
+## 2026-10-21 06:05 · mg-oracle-1020-2256
+
+**Lo que se pidió.** Puerta de publicación en rojo: CI en rojo · objeción del revisor
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (RTMGP1011-1ECCC4dobjbbbbbbb, SP092940, SP092937). Es 75 % de la ola.
+- nvidia/z-ai/glm-5.3 no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTMGP1011-1ECCC4dobjbbbbbbb` — los tipos no compilan: 4 errores tsc (rama ola/RTMGP1011-1ECCC4dobjbbbbbbb conservada)
+- `VZF1015M` — no escribió nada
+- `SP092940` — los tipos no compilan: 3 errores tsc (rama ola/SP092940 conservada)
+- `SP092937` — los tipos no compilan: 1 errores tsc (rama ola/SP092937 conservada)
