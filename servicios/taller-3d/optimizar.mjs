@@ -5,10 +5,11 @@
  * Solo CPU, sin red y un trabajo cada vez (A1 y Mac). Librerías SOLO aquí: `cd servicios/taller-3d && npm install`
  * (glTF Transform y meshoptimizer, MIT; sharp, Apache-2.0, con libvips LGPL-3.0 enlazada aparte: uso comercial libre).
  * Uso: node optimizar.mjs <entrada.glb> <plan.json> <carpeta-salida>  (0 bien · 1 fallo · 2 uso · 3 ocupado) */
-import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import commander from "commander";
 
 export const pesoMB = (bytes) => Math.round((bytes / (1024 * 1024)) * 1000) / 1000;
 /** Problemas del plan, en español claro (lista vacía si vale). */
@@ -32,6 +33,11 @@ export function comprobarGlb(b) {
   if (v.getUint32(4, true) !== 2) throw new Error(`GLB de versión ${v.getUint32(4, true)}: solo se admite glTF 2.0.`);
   if (v.getUint32(8, true) !== b.byteLength) throw new Error("El GLB está cortado o le sobran bytes (su cabecera no cuadra).");
 }
+
+export function escribirManifiesto(manifiesto, ruta) {
+  return writeFile(ruta, JSON.stringify(manifiesto, null, 2));
+}
+
 /** Aplica el plan con `motor` (crearMotorGltf o uno simulado) y `escribir(nombre, datos)`. Todo va en memoria y
  *  solo se escribe si TODOS los niveles caben en `pesoMaxMB`. */
 export async function optimizar({ glb, plan, motor, escribir }) {
