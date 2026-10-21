@@ -75,6 +75,40 @@ class PruebasEmpaquetar(unittest.TestCase):
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
 
+    # Caso rescatado de la rama nube (79159719525): en main no había prueba de que un
+    # archivo que NO es log conserva todas sus líneas aunque pase de LOG_LINEAS, y de que
+    # los dos tipos de log (jsonl y «log» en el nombre) viajan recortados al tope exacto.
+    def test_paquete_completo_preserva_los_no_logs_y_recorta_los_logs(self):
+        seleccion = ["progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+                     "cola-1.json", "evento1.jsonl", "log.txt"]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            olas_dir = os.path.join(tmp_dir, "olas")
+            os.makedirs(olas_dir)
+            # progreso.json/medios.json/puntos-control.json/cola-1.json: una línea de JSON
+            for nombre in ("progreso.json", "medios.json", "puntos-control.json", "cola-1.json"):
+                with open(os.path.join(olas_dir, nombre), "w", encoding="utf-8") as f:
+                    json.dump({"ola": "1012C"} if nombre == "progreso.json" else {"prueba": nombre}, f)
+            # progreso.md: 300 líneas (más que LOG_LINEAS) y no es log: tiene que llegar entero
+            with open(os.path.join(olas_dir, "progreso.md"), "w", encoding="utf-8") as f:
+                f.write("\n".join("Línea %d" % i for i in range(300)))
+            # evento1.jsonl y log.txt: 200 líneas cada uno, justo el recorte de espejo_estado
+            with open(os.path.join(olas_dir, "evento1.jsonl"), "w", encoding="utf-8") as f:
+                for i in range(200):
+                    f.write(json.dumps({"evento": i, "ts": 1000 + i}) + "\n")
+            with open(os.path.join(olas_dir, "log.txt"), "w", encoding="utf-8") as f:
+                f.write("\n".join("línea de registro %d" % i for i in range(200)))
+            salida_dir = os.path.join(tmp_dir, "salida")
+            ruta_tar = empaquetar(seleccion, olas_dir, salida_dir)
+            self.assertTrue(os.path.exists(ruta_tar))
+            with tarfile.open(ruta_tar, "r:gz") as tar:
+                self.assertEqual(set(tar.getnames()), set(seleccion))
+                esperadas_lineas = {"progreso.json": 1, "progreso.md": 300, "medios.json": 1,
+                                    "puntos-control.json": 1, "cola-1.json": 1,
+                                    "evento1.jsonl": 200, "log.txt": 200}
+                for nombre, esperada in esperadas_lineas.items():
+                    self.assertEqual(len(tar.extractfile(nombre).read().decode().splitlines()),
+                                     esperada, "%s: %d líneas de más" % (nombre, esperada))
+
 
 class PruebasEnviarEstado(unittest.TestCase):
     """enviar_estado con ssh falso: freno de 5 min, huella y orden de extracción atómica."""
