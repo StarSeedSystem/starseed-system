@@ -387,14 +387,15 @@ function SandboxedIframeBody({ item, boxed, context }: { item: EmbeddedItem; box
 }
 
 /** Código ejecutable en línea: iframe `srcdoc` con el sandbox MÁS estricto
- *  posible (sólo `allow-scripts`, sin `allow-same-origin`) — el contenido es
- *  HTML/CSS/JS arbitrario escrito por el autor (o generado por Aurora), así que
- *  se ejecuta en un origen opaco sin acceso a cookies/storage del sitio. */
+ *  posible (`SANDBOX_CODIGO`, sólo `allow-scripts`, sin `allow-same-origin`)
+ *  — el contenido es HTML/CSS/JS arbitrario escrito por el autor (o generado
+ *  por Aurora), así que se ejecuta en un origen opaco sin acceso a
+ *  cookies/storage del sitio. */
 function CodeSandboxBody({ item, boxed, context }: { item: EmbeddedItem; boxed: boolean; context: EmbedContext }) {
     return (
         <iframe
             srcDoc={item.content || ""}
-            sandbox="allow-scripts"
+            sandbox={SANDBOX_CODIGO}
             className={cn("border-0 bg-white", fillClass(boxed, context))}
             title={titleOf(item)}
         />
