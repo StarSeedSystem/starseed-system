@@ -190,25 +190,27 @@ export function SocialCrosspost({
           </p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
-            {channels.map((c) => {
-              const on = selected.has(c.id);
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => toggle(c.id)}
-                  className={cn(
-                    "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-                    on
-                      ? "border-sky-400/60 bg-sky-500/20 text-sky-50"
-                      : "border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.07]",
-                  )}
-                >
-                  <span className="max-w-[130px] truncate">{c.name}</span>
-                  <span className="text-white/35">{c.platform}</span>
-                </button>
-              );
-            })}
+          {channels.map((c) => {
+            const on = selected.has(c.id);
+            return (
+              <button
+                key={c.id}
+                role="group"
+                aria-pressed={on}
+                type="button"
+                onClick={() => toggle(c.id)}
+                className={cn(
+                  "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                  on
+                    ? "border-sky-400/60 bg-sky-500/20 text-sky-50"
+                    : "border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.07]",
+                )}
+              >
+                <span className="max-w-[130px] truncate">{c.name}</span>
+                <span className="text-white/35">{c.platform}</span>
+              </button>
+            );
+          })}
           </div>
         )}
 

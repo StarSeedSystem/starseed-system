@@ -184,7 +184,7 @@ export function TipoSelector({ dest, value, onChange, className }: TipoSelectorP
     const tipos = TIPOS_POR_DEST[dest] ?? [];
     if (tipos.length === 0) return null;
     return (
-        <div className={cn("flex flex-wrap gap-1.5", className)}>
+        <div role="radiogroup" aria-label="Tipo" className={cn("flex flex-wrap gap-1.5", className)}>
             {tipos.map((t) => {
                 const Icon = t.icon;
                 const active = value === t.id;
@@ -192,6 +192,8 @@ export function TipoSelector({ dest, value, onChange, className }: TipoSelectorP
                     <button
                         key={t.id}
                         type="button"
+                        role="radio"
+                        aria-checked={active}
                         title={t.desc}
                         onClick={() => onChange(t.id)}
                         className={cn(
