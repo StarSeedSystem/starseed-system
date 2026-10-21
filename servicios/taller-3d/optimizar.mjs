@@ -9,7 +9,6 @@ import { mkdir, readFile, writeFile, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { Command } from "commander";
 
 export const pesoMB = (bytes) => Math.round((bytes / (1024 * 1024)) * 1000) / 1000;
 /** Problemas del plan, en español claro (lista vacía si vale). */
