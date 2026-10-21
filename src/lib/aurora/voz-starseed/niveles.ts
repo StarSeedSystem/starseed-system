@@ -13,77 +13,67 @@
  */
 
 import type { Capacidades } from "./capacidades";
-import { soporteSupertonic } from "./supertonic";
-
-export {
-    soporteSupertonic,
-    nivelParaVoz,
-    crearNivelSuptonicoDefecto,
-    IDIOMAS_SUPERTONIC,
-    type NivelSuptonico,
-    type SoporteSupertonic,
-    type NivelVozSuptonica,
-    type OpcionesNivelVoz,
-} from "./supertonic";
+import { suporteSupertonic } from "./supertonic";
+import { type DescubrimientoResult } from "./voicestudio";
 
 export type NivelVoz = "estudio" | "alta" | "nube" | "ligera" | "minima";
 
 export interface InfoNivel {
-    /** Nombre legible para la interfaz. */
-    etiqueta: string;
-    /** Motor interno que sintetiza en este nivel. */
-    motorInterno: string;
-    /** Requisitos de hardware, en texto. */
-    requisitos: string;
-    /** Memoria que ocupa el modelo, en MB. */
-    ramMB: number;
-    /** Latencia percibida, en texto. */
-    latencia: string;
-    /** Calidad percibida, en texto. */
-    calidad: string;
+  /** Nombre legible para la interfaz. */
+  etiqueta: string;
+  /** Motor interno que sintetiza en este nivel. */
+  motorInterno: string;
+  /** Requisitos de hardware, en texto. */
+  requisitos: string;
+  /** Memoria que ocupa el modelo, en MB. */
+  ramMB: number;
+  /** Latencia percibida, en texto. */
+  latencia: string;
+  /** Calidad percibida, en texto. */
+  calidad: string;
 }
 
 export const NIVELES: Record<NivelVoz, InfoNivel> = {
-    estudio: {
-        etiqueta: "Estudio",
-        motorInterno: "OmniVoice GGUF Q8_0 (demonio local)",
-        requisitos: "Demonio local de voz y 8 GB de RAM o más",
-        ramMB: 1000,
-        latencia: "Baja (local)",
-        calidad: "Máxima, grado de estudio",
-    },
-    alta: {
-        etiqueta: "Alta",
-        motorInterno: "OmniVoice GGUF Q4_K_M (demonio local)",
-        requisitos: "Demonio local de voz",
-        ramMB: 600,
-        latencia: "Baja (local)",
-        calidad: "Alta, casi estudio",
-    },
-    nube: {
-        etiqueta: "Nube",
-        motorInterno: "Gemini TTS o Pollinations (servidor del OS)",
-        requisitos: "Conexión a internet",
-        ramMB: 0,
-        latencia: "Media (1-4 s)",
-        calidad: "Alta y estable",
-    },
-    ligera: {
-        etiqueta: "Ligera",
-        motorInterno: "Kokoro ONNX/WASM (navegador)",
-        requisitos: "Equipo de escritorio con WebGPU o WASM SIMD",
-        ramMB: 120,
-        latencia: "Media (primera carga del modelo)",
-        calidad: "Buena y estable",
-    },
-    minima: {
-        etiqueta: "Mínima",
-        motorInterno: "Voz del sistema operativo",
-        requisitos: "Ninguno: funciona en cualquier equipo",
-        ramMB: 0,
-        latencia: "Inmediata",
-        calidad: "Variable según el sistema",
-    },
+  estudio: {
+    etiqueta: "Estudio",
+    motorInterno: "OmniVoice GGUF Q8_0 (demonio local)",
+    requisitos: "Demonio local de voz y 8 GB de RAM o más",
+    ramMB: 1000,
+    latencia: "Baja (local)",
+    calidad: "Máxima, grado de estudio",
+  },
+  alta: {
+    etiqueta: "Alta",
+    motorInterno: "OmniVoice GGUF Q4_K_M (demonio local)",
+    requisitos: "Demonio local de voz",
+    ramMB: 600,
+    latencia: "Baja (local)",
+    calidad: "Alta, casi estudio",
+  },
+  nube: {
+    etiqueta: "Nube",
+    motorInterno: "Gemini TTS o Pollinations (servidor del OS)",
+    requisitos: "Conexión a internet",
+    ramMB: 0,
+    latencia: "Media (1-4 s)",
+    calidad: "Alta y estable",
+  },
+  ligera: {
+    etiqueta: "Ligera",
+    motorInterno: "Kokoro ONNX/WASM (navegador)",
+    requisitos: "Equipo de escritorio con WebGPU o WASM SIMD",
+    ramMB: 120,
+    latencia: "Media (primera carga del modelo)",
+    calidad: "Buena y estable",
+  },
+  minima: {
+    etiqueta: "Mínima",
+    motorInterno: "Voz del sistema operativo",
+    requisitos: "Ninguno: funciona en cualquier equipo",
+    ramMB: 0,
+    latencia: "Inmediata",
+    calidad: "Variable según el sistema",
+  },
 };
 
 /** Cadena de descenso: cada nivel puede pasar al siguiente. */
@@ -97,12 +87,12 @@ const ORDEN: NivelVoz[] = ["estudio", "alta", "nube", "ligera", "minima"];
  * voz «funcione y suene bien» aunque el demonio esté apagado.
  */
 export function nivelPorDefecto(c: Capacidades): NivelVoz {
-    if (c.daemonLocal && (c.memoriaGB ?? 0) >= 8) return "estudio";
-    if (c.daemonLocal) return "alta";
-    // `navigator.onLine` solo existe en el navegador; el servidor cae a ligera/mínima.
-    if (typeof navigator !== "undefined" && navigator.onLine) return "nube";
-    if (!c.movil && (c.webgpu || c.wasmSimd)) return "ligera";
-    return "minima";
+  if (c.daemonLocal && (c.memoriaGB ?? 0) >= 8) return "estudio";
+  if (c.daemonLocal) return "alta";
+  // `navigator.onLine` solo existe en el navegador; el servidor cae a ligera/mínima.
+  if (typeof navigator !== "undefined" && navigator.onLine) return "nube";
+  if (!c.movil && (c.webgpu || c.wasmSimd)) return "ligera";
+  return "minima";
 }
 
 /**
@@ -114,7 +104,7 @@ export function nivelPorDefecto(c: Capacidades): NivelVoz {
  *  · cualquier otro caso                       → minima
  */
 export function nivelPara(c: Capacidades): NivelVoz {
-    return nivelPorDefecto(c);
+  return nivelPorDefecto(c);
 }
 
 /**
@@ -122,8 +112,8 @@ export function nivelPara(c: Capacidades): NivelVoz {
  * Siempre incluye «minima», la red de seguridad que nunca falla.
  */
 export function nivelesDisponibles(c: Capacidades): NivelVoz[] {
-    const mejor = nivelPara(c);
-    return ORDEN.slice(ORDEN.indexOf(mejor));
+  const mejor = nivelPara(c);
+  return ORDEN.slice(ORDEN.indexOf(mejor));
 }
 
 /**
@@ -131,6 +121,45 @@ export function nivelesDisponibles(c: Capacidades): NivelVoz[] {
  * se está en el mínimo. Cadena: estudio → alta → nube → ligera → minima → null.
  */
 export function siguienteNivel(n: NivelVoz): NivelVoz | null {
-    const i = ORDEN.indexOf(n);
-    return i >= 0 && i < ORDEN.length - 1 ? ORDEN[i + 1] : null;
+  const i = ORDEN.indexOf(n);
+  return i >= 0 && i < ORDEN.length - 1 ? ORDEN[i + 1] : null;
+}
+
+/**
+ * Verifica si un nivel específico está disponible basado en la disponibilidad de VoiceStudio,
+ * memoria disponible y si está siendo servido por otra neurona.
+ */
+export async function puedeUsarEstudio(
+  resultadoDescubrimiento: DescubrimientoResult,
+  memoriaLibresGB: number,
+  servidoPorOtraNeurona: boolean,
+): Promise<boolean> {
+  if (!resultadoDescubrimiento.vivo) return false;
+  return (memoriaLibresGB ?? 0) >= 8 || servidoPorOtraNeurona;
+}
+
+/**
+ * Determina el nivel de voz óptimo considerando la disponibilidad de VoiceStudio,
+ * memoria disponible, y si está siendo servido por otra neurona.
+ */
+export async function determinarNivelConEstudio(
+  capas: Capacidades,
+  resultadoDescubrimiento: DescubrimientoResult,
+  memoriaLibresGB: number,
+  servidoPorOtraNeurona: boolean,
+): Promise<NivelVoz> {
+  const estudioDisponible = await puedeUsarEstudio(
+    resultadoDescubrimiento,
+    memoriaLibresGB,
+    servidoPorOtraNeurona,
+  );
+
+  if (capas.daemonLocal && (capas.memoriaGB ?? 0) >= 8) {
+    if (estudioDisponible) return "estudio";
+    return "alta";
+  }
+  if (capas.daemonLocal) return "alta";
+  if (typeof navigator !== "undefined" && navigator.onLine) return "nube";
+  if (!capas.movil && (capas.webgpu || capas.wasmSimd)) return "ligera";
+  return "minima";
 }
