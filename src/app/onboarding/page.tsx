@@ -29,7 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
   User, Users, LogIn, UserPlus, Palette, BookOpen, Sparkles, Image as ImageIcon,
-  Cpu, Brain, ChevronRight, ChevronLeft, SkipForward, Check, ArrowRight, Leaf, Building, Castle, Eye, Wrench, Server,
+  Cpu, Brain, ChevronRight, ChevronLeft, SkipForward, Check, ArrowRight, Leaf, Building, Castle, Eye, Wrench, Server, ExternalLink,
 } from 'lucide-react';
 
 type AccountKind = 'individual' | 'grupo';
@@ -328,11 +328,11 @@ function StepWalkthrough({ onNext }: any) {
             <h3 className="text-lg font-bold mb-1">{current.label}</h3>
             <p className="text-xs text-muted-foreground mb-3">{current.desc}</p>
             <div className="flex flex-wrap gap-2">
-              <Link href={current.path} target="_blank">
-                <Button variant="outline" size="sm" className="text-xs">
-                  <ArrowRight className="w-3 h-3 mr-1" /> Visitar
-                </Button>
-              </Link>
+  <Link href={current.path} target="_blank" aria-label={`Visitar ${current.label} (se abre en una pestaña nueva)`}>
+    <Button variant="outline" size="sm" className="text-xs">
+      <ArrowRight className="w-3 h-3 mr-1" /> Visitar <ExternalLink className="w-3 h-3 ml-1" aria-hidden="true" />
+    </Button>
+  </Link>
               <Button variant="ghost" size="sm" className="text-xs"
                 onClick={() => currentIdx < WALKTHROUGH_PAGES.length - 1 ? setCurrentIdx((i) => i + 1) : onNext()}>
                 <SkipForward className="w-3 h-3 mr-1" /> Omitir esta
