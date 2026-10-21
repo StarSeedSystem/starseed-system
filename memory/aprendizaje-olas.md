@@ -4539,3 +4539,16 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTCOL1012Bdsbbbbbbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTCOL1012Bdsbbbbbbbbbbb conservada
 - `GCA1019P` — otra cosa: sin decisión en 0 h; rama ola/GCA1019P conservada
 >>>>>>> 93f1d225 (chore(memoria): aprendizaje de la ola mg-oracle-1019-1251)
+## 2026-10-19 17:48 · mg-oracle-1019-1015
+
+**Lo que se pidió.** Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — pruebas en rojo (APM1017G, VZF1015V). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `APM1017G` — pruebas en rojo: vitest falla (rama conservada)
+- `RTRTCOL1012Bdsbbbbbbbbbbc` — no escribió nada
+- `VZF1015V` — pruebas en rojo: vitest falla (rama conservada)
