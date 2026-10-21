@@ -4553,3 +4553,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ENT1020A` — los tipos no compilan: 24 errores tsc (rama ola/ENT1020A conservada)
 - `RTFS1013A` — no escribió nada
 - `VZF1015M` — el proveedor dijo que no: ningún proveedor respondió (rate limit)
+
+## 2026-10-21 04:22 · mg-oracle-1020-2117
+
+**Lo que se pidió.** Puerta de publicación en rojo: CI en rojo · objeción del revisor
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (RTMGP1011-1ECCC4dobjb, MGB1021B). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — pruebas en rojo (MGB1021A, GCA1019O). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTMGP1011-1ECCC4dobjb` — no escribió nada
+- `MGB1021A` — pruebas en rojo: vitest falla (rama conservada)
+- `GCA1019O` — pruebas en rojo: FAILED scripts/puente/test_plantilla_contenedor.py::test_yaml_structure - Ass...
+- `MGB1021B` — no escribió nada
