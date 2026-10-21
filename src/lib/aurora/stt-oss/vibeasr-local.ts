@@ -17,6 +17,8 @@
  *   - Errores honestos y en español, pensados para que Alex sepa qué hacer.
  */
 
+import { corregirConGlosario, glosarioBase } from "./glosario-oido";
+
 /** Estado de instalación y ocupación del oído 1.58 (campo `asr` del status). */
 export interface EstadoOido {
     /** El binario `asr_infer` está compilado y presente. */
@@ -186,8 +188,10 @@ export async function transcribirLocal(
             segundosAudio?: unknown;
             presupuestoMs?: unknown;
         };
+        const textoRaw = typeof datos.texto === "string" ? datos.texto : "";
+        const { texto: textoCorregido } = corregirConGlosario(textoRaw, glosarioBase(), "es");
         return {
-            texto: typeof datos.texto === "string" ? datos.texto : "",
+            texto: textoCorregido,
             segundos: typeof datos.segundos === "number" ? datos.segundos : 0,
             motor: typeof datos.motor === "string" ? datos.motor : "vibeasr-1.58",
             modelo: typeof datos.modelo === "string" ? datos.modelo : "",
