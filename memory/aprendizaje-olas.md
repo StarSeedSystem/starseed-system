@@ -4568,3 +4568,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1accbbbbbb` — los tipos no compilan: 12 errores tsc (rama ola/RTRTRTS1010-EV-ORACLE-1accbbbbbb conservada)
 - `CB1013S` — no escribió nada
 - `VPU1019W` — no escribió nada
+
+## 2026-10-21 16:57 · mg-oracle-1021-0951
+
+**Lo que se pidió.** Gobernador genérico: medir cualquier aparato para la colmena
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (RTCOL1012Lc, RTRTRTRTS1010-EV-ORACLE-1abbbbbbbb, GCA1019Wb). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012Lc` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-21 16:03:21 [0m > build · auto [0m [0m$ [0mgit fetch -q origin "+refs/heads/
+- `RTRTRTRTS1010-EV-ORACLE-1abbbbbbbb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `GCA1019Wb` — otra cosa: ningún proveedor respondió (todos caídos)
