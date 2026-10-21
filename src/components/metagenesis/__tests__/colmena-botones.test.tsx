@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // @vitest-environment-options {"url": "https://starseed-os.vercel.app/metagenesis"}
 /**
  * Los botones «Desconectar» y «Usar como contenedor» de la tarjeta de cada neurona (COL1012I).
@@ -36,10 +35,6 @@ vi.mock("@/lib/realtime/realtime", () => ({ onTableChange: () => () => {} }));
 
 import { AppearanceProvider } from "@/context/appearance-context";
 import { MetaGenesisAutonoma } from "../metagenesis-autonoma";
-=======
-import { describe, expect, it } from "vitest";
-import { botonesNeurona } from "@/lib/metagenesis/colmena";
->>>>>>> 4feb1f052 (salvavidas · RTRTRTCOL1012Bdsbbbbbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
 
 describe("colmena-botones · botones de una neurona (rescatado de rama nube)", () => {
     // Los textos del contrato (traspaso a otro contenedor) solo son verdad con el relevo cableado: estas pruebas
