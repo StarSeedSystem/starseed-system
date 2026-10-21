@@ -17,6 +17,7 @@ class Base(unittest.TestCase):
         experiencias.COPIA_DIR = os.path.join(self._dir, "copia")
         jev.CACHE = os.path.join(self._dir, "cache.json"); jev.USO = os.path.join(self._dir, "uso.json")
         os.environ["STARSEED_JEV"] = "0"
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"  # invalid port to prevent laya-local from responding
         jev.TRANSPORTE = None; razonador.TRANSPORTE_NEEDLE = None; razonador.TRANSPORTE_BITNET = None
         # (2026-10-10) Sin el BitNet real de la Mac: si estaba despierto respondía y el juicio no era None.
         sys.modules["jev_local"] = None
@@ -25,6 +26,7 @@ class Base(unittest.TestCase):
         sys.modules.pop("jev_local", None)
         jev.TRANSPORTE = None; razonador.TRANSPORTE_NEEDLE = None; razonador.TRANSPORTE_BITNET = None
         os.environ.pop("STARSEED_JEV", None)
+        os.environ.pop("STARSEED_LAYA_URL", None)
 
 
 class Reflejo(Base):
@@ -57,6 +59,8 @@ class Reflejo(Base):
 
 class Juicio(Base):
     def test_juicio_con_jev_y_cierre_del_ciclo(self):
+        os.environ["STARSEED_JEV"] = "1"
+        os.environ["OPENROUTER_API_KEY"] = "clave-de-prueba"
         jev.TRANSPORTE = lambda c: {"answers": {"q": {"type": "choice", "choice": "reintentar", "probabilities": {"reintentar": 0.8, "descartar": 0.2}, "confidence": 0.7}}, "usage": {}}
         opcion, probs, conf, eid = razonador.juicio({"tarea": "RS3b"}, "¿qué hacer?", {"reintentar": "…", "descartar": "…"}, dominio="enjambre")
         self.assertEqual(opcion, "reintentar")
