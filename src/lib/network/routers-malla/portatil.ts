@@ -11,6 +11,7 @@ import {
   type ModeloRouter,
   type ResultadoCompatibilidad,
 } from "./compatibilidad-openwrt";
+import { teselaDeRouter } from "../../malla/cristal/titanio";
 
 export const TIPOS_PORTATIL = [
   "viaje-openwrt",

@@ -4,6 +4,7 @@ import { huellaReticula, fusionarTesela, crearTesela } from "./teselas";
 import { cristalizar, temperaturaDe, estadoDe } from "./cristalizacion";
 import { relajarLocal } from "./recocido";
 import { calidadSenal } from "./coste";
+import { esTitanio, temperaturaAmortiguada } from "./titanio";
 
 export function crearMotorCristal(deps: {
   miNeurona: () => NeuronaReticula;
@@ -40,7 +41,21 @@ export function crearMotorCristal(deps: {
         for (const e of historialCalidad[clave]) vals.push(e.calidad);
       }
     }
-    return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0.5;
+    const base = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0.5;
+    // Amortiguar según vecinos titanio presentes en la retícula
+    const vecinosIds = new Set<string>();
+    const vecinosTi = new Set<string>();
+    for (const t of Object.values(reticula.teselas)) {
+      for (const s of t.senales) {
+        if ((s.de === miId || s.a === miId) && s.de !== s.a) {
+          const otro = s.de === miId ? s.a : s.de;
+          vecinosIds.add(otro);
+          const neuronaOtro = Object.values(reticula.teselas).find(tt => tt.neurona.id === otro)?.neurona;
+          if (neuronaOtro && esTitanio(neuronaOtro)) vecinosTi.add(otro);
+        }
+      }
+    }
+    return temperaturaAmortiguada(base, vecinosTi.size, vecinosIds.size);
   };
   const relocal = (cambiadas: string[]) => { cristal = relajarLocal(cristal, reticula, cambiadas); };
   const tempMap = async (ahora: number) => {

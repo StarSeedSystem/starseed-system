@@ -1,6 +1,7 @@
 // Malla cristalina SiO₂ amorfa: tipos puros, sin node:* ni Supabase
 
 import { Punto } from "./triangulacion";
+import { esTitanio, COORDINACION_TITANIO, teselaDeRouter } from "./titanio";
 
 export type { Punto };
 export { delaunay } from "./triangulacion";
@@ -102,13 +103,14 @@ export function esClaseDato(x: unknown): x is ClaseDato {
 }
 
 export function coordinacionDe(n: NeuronaReticula): number {
-  if (n.esRouter === true) return 6;
+  if (esTitanio(n)) return COORDINACION_TITANIO;
   const bat = n.capacidad.bateriaPct;
   if (bat !== null && bat < 20 && !n.capacidad.cargando) return 2;
   if (n.capacidad.ramGb < 2) return 3;
   return COORDINACION_BASE;
 }
 
+export { esTitanio, COORDINACION_TITANIO, teselaDeRouter } from "./titanio";
 export function claveSenal(s: SenalMedida): string {
   const a = s.de < s.a ? s.de : s.a;
   const b = s.de < s.a ? s.a : s.de;
