@@ -4568,3 +4568,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1accbbbbbb` — los tipos no compilan: 12 errores tsc (rama ola/RTRTRTS1010-EV-ORACLE-1accbbbbbb conservada)
 - `CB1013S` — no escribió nada
 - `VPU1019W` — no escribió nada
+
+## 2026-10-21 20:35 · mg-oracle-1021-1133
+
+**Lo que se pidió.** reasignada · medio oracle
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (VAR1021C, FLU1014G, ADN1019C, ADN1019B). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `VAR1021C` — otra cosa: ningún proveedor respondió (todos caídos)
+- `FLU1014G` — otra cosa: ningún proveedor respondió (todos caídos)
+- `ADN1019C` — otra cosa: ningún proveedor respondió (todos caídos)
+- `ADN1019B` — otra cosa: ningún proveedor respondió (todos caídos)
