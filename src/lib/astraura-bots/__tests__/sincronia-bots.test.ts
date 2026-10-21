@@ -108,6 +108,13 @@ describe("abiertos y migración: casos rescatados de la rama de la nube", () => 
     expect(abiertosEnEstaNeurona()).toEqual([]);
   });
 
+  it("devuelve el array guardado tal cual cuando hay datos", () => {
+    limpiarAbiertos();
+    const guardados = ["bot-guardado-1", "bot-guardado-2"];
+    window.localStorage.setItem(CLAVE_NUEVA, JSON.stringify(guardados));
+    expect(abiertosEnEstaNeurona()).toEqual(guardados);
+  });
+
   it("no añade el mismo bot dos veces", () => {
     limpiarAbiertos();
     marcarAbierto("bot-dup", true);
