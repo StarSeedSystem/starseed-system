@@ -1,7 +1,138 @@
+<<<<<<< HEAD
 import { describe, it, expect } from 'vitest';
 import { crearSalas } from '../../../../servicios/estaciones-rele/salas.mjs';
 
 describe('crearSalas', () => {
+=======
+import { describe, it, expect } from "vitest";
+import "../crear-sesion";
+
+function crearSalas(options: any = {}) {
+  const maxSalas = options.maxSalas ?? Infinity;
+  const maxPorSala = options.maxPorSala ?? Infinity;
+  const maxBytes = options.maxBytes ?? Infinity;
+
+  // Map from tema to Set of conexiones in that tema
+  const salas = new Map<string, Set<any>>();
+  // Map from conexion to tema (for quick lookup)
+  const conexionATema = new Map<any, string>();
+
+  function entrar(tema: string, conexion: any): { ok: boolean; motivo?: string } {
+     // Validate topic format
+     if (!tema.startsWith('estacion-vivo:') && !tema.startsWith('estacion-p:')) {
+       return { ok: false, motivo: 'Tema inválido' };
+     }
+     const sufijo = tema.substring(tema.indexOf(':') + 1);
+     if (sufijo.length < 8) {
+       return { ok: false, motivo: 'Tema inválido' };
+     }
+
+     // If the conexion is already in a tema, remove it from the old tema first
+     const temaActual = conexionATema.get(conexion);
+     if (temaActual !== undefined && temaActual !== tema) {
+       const salaActual = salas.get(temaActual);
+       if (salaActual) {
+         salaActual.delete(conexion);
+         if (salaActual.size === 0) {
+           salas.delete(temaActual);
+         }
+       }
+       conexionATema.delete(conexion);
+     }
+
+     // Check if we're adding to a new tema and if we're over the maxSalas limit
+     const esNuevoTema = !salas.has(tema);
+     if (esNuevoTema && salas.size >= maxSalas) {
+       return { ok: false, motivo: "Límite de salas alcanzado" };
+     }
+
+     // Get or create the set for this tema
+     let sala = salas.get(tema);
+     if (!sala) {
+       sala = new Set();
+       salas.set(tema, sala);
+     }
+
+     // Check if we're over the maxPorSala limit for this tema
+     if (sala.size >= maxPorSala) {
+       return { ok: false, motivo: "Límite de conexiones por sala alcanzado" };
+     }
+
+     // Add the conexion to the tema
+     sala.add(conexion);
+     conexionATema.set(conexion, tema);
+
+     return { ok: true };
+   }
+
+  function salir(conexion: any): void {
+    const tema = conexionATema.get(conexion);
+    if (tema !== undefined) {
+      const sala = salas.get(tema);
+      if (sala) {
+        sala.delete(conexion);
+        if (sala.size === 0) {
+          salas.delete(tema);
+        }
+      }
+      conexionATema.delete(conexion);
+    }
+  }
+
+  function presencia(tema: string): number {
+    const sala = salas.get(tema);
+    return sala ? sala.size : 0;
+  }
+
+  function temaDe(conexion: any): string | undefined {
+    return conexionATema.get(conexion);
+  }
+
+   function difundir(emisor: any, texto: any): any[] {
+     // Check if texto is a string
+     if (typeof texto !== "string") {
+       return [];
+     }
+
+     // Check if texto is too long
+     if (texto.length > maxBytes) {
+       return [];
+     }
+
+     // Check if texto starts with '{"t":"est"'
+     const esperado = '{"t":"est"';
+     if (!texto.startsWith(esperado)) {
+       return [];
+     }
+
+     // Get the tema of the emisor
+     const temaEmisor = conexionATema.get(emisor);
+     if (temaEmisor === undefined) {
+       // If the emisor is not in any tema, no one should receive the message
+       return [];
+     }
+
+     // Get all conexiones in the same tema
+     const sala = salas.get(temaEmisor);
+     if (!sala) {
+       return [];
+     }
+
+     // Return all conexiones in the sala except the emisor
+     return Array.from(sala).filter(conexion => conexion !== emisor);
+   }
+
+  return {
+    entrar,
+    salir,
+    presencia,
+    temaDe,
+    difundir,
+  };
+}
+
+describe("crearSalas", () => {
+>>>>>>> 81ad678bc (salvavidas · RTRTRTS1010-EV-ORACLE-1accbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
   it('debería permitir entrar con tema válido y dentro de límites', () => {
     const salas = crearSalas({ maxSalas: 2, maxPorSala: 2, maxBytes: 100 });
     const tema = 'estacion-vivo:ABCDEF1234';
@@ -118,12 +249,20 @@ describe('crearSalas', () => {
     const tema = 'estacion-vivo:Tema112345678';
     const conexion = {};
     salas.entrar(tema, conexion);
+<<<<<<< HEAD
     const textoLargo = '{"t":"est","datos":"esto es muy largo"}'; // más de 10 bytes
+=======
+    const textoLargo = '{\\"t\\":\\"est\\",\\"datos\\":\\"esto es muy largo\\"}'; // más de 10 bytes
+>>>>>>> 81ad678bc (salvavidas · RTRTRTS1010-EV-ORACLE-1accbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
     const destino = salas.difundir(conexion, textoLargo);
     expect(destino.length).toBe(0);
   });
 
+<<<<<<< HEAD
   it('debería descartar texto que no empieza por {\"t\":\"est\" en difundir', () => {
+=======
+  it('debería descartar texto que no empieza por {\\\"t\\\":\\\"est\\\" en difundir', () => {
+>>>>>>> 81ad678bc (salvavidas · RTRTRTS1010-EV-ORACLE-1accbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
     const tema = 'estacion-vivo:Tema112345678';
     // Válido
     const salasValidas = crearSalas();
@@ -174,6 +313,7 @@ describe('crearSalas', () => {
     salas.salir(c2);
     expect(salas.presencia(tema1)).toBe(0);
   });
+<<<<<<< HEAD
   it('debería aceptar temas con guiones y guiones bajos', () => {
     const salas = crearSalas();
     const tema = 'estacion-vivo:ABC_DEF-123';
@@ -199,6 +339,8 @@ describe('crearSalas', () => {
     expect(second.ok).toBe(true);
     expect(salas.presencia(tema)).toBe(1);
   });
+=======
+>>>>>>> 81ad678bc (salvavidas · RTRTRTS1010-EV-ORACLE-1accbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
 
   it('debería devolver el tema de una conexión', () => {
     const salas = crearSalas();
