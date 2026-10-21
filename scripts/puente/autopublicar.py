@@ -587,7 +587,24 @@ def _seguir_vercel(m, est, ahora):
     hist.append({"sha": sha, "resultado": "publicado", "dia": dia, "url": url, "commits": est.get("pendientes")})
     m.avisar("Autopublicación completa: %s en %s · %s commit(s) · Vercel listo y humo en verde (%s)."
              % (sha[:8], WEB, est.get("pendientes"), ", ".join(RUTAS_HUMO)))
-    return con_fase(est, "publicado", "Publicado y verificado en producción.", ahora, historial=hist, sha=sha)
+    aviso_flujos = False
+    motivo = ""
+    try:
+        import produccion_webhooks as pw
+        asuntos = est.get("asuntos") or []
+        tareas_ids = []
+        for a in asuntos:
+            mt = _TAREA.search(a)
+            if mt:
+                tareas_ids.append(mt.group(1))
+        medios = ["web"]
+        res = pw.emitir("produccion.publicada", {"sha": sha, "medios": medios, "tareas": tareas_ids})
+        aviso_flujos = bool(res.get("enviado"))
+        motivo = res.get("motivo") or ""
+    except Exception:
+        aviso_flujos = False
+        motivo = "emisión falló"
+    return con_fase(est, "publicado", "Publicado y verificado en producción.", ahora, historial=hist, sha=sha, aviso_flujos=aviso_flujos, motivo=motivo)
 
 
 def una_pasada(como_json=False):
