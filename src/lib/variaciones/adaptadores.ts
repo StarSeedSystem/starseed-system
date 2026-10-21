@@ -1,6 +1,7 @@
 // Adaptadores para las familias de variaciones públicas
 import { registrarFamilia } from './familias';
 import type { AdaptadorFamilia } from './familias';
+import { validarVariacion } from './validar';
 
 // Crea un adaptador para una familia dada
 function crearAdaptador(familia: string): AdaptadorFamilia<string | number> {
@@ -14,10 +15,16 @@ function crearAdaptador(familia: string): AdaptadorFamilia<string | number> {
       return null;
     },
     validar: (payload) => {
+      // Contrato §5: nada se ejecuta sin validar. Toda validación de familias pasa
+      // por el validador puro (tamaño, JSON plano, privacidad, URLs https).
+      const resultado = validarVariacion(payload);
+      if (!resultado.ok) {
+        return { ok: false, motivos: resultado.motivos };
+      }
       if (typeof payload === 'string' || typeof payload === 'number') {
         return { ok: true, payload };
       }
-      return { ok: false, motivos: ['Payload must be a string or number'] };
+      return { ok: false, motivos: ['El payload debe ser una cadena o un número'] };
     },
     aplicar: (clave, payload: string | number) => ({
       deshacer: () => {

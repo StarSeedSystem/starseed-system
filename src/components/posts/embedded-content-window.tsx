@@ -50,6 +50,7 @@ import { FilePreview, detectFormat, type FileLike } from "@/components/files/fil
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
 import type { MainRatio } from "@/lib/publish/publish";
+import { SANDBOX_CODIGO } from "@/lib/variaciones/validar";
 
 // ───────────────────────────── Tipos públicos ───────────────────────────────
 
