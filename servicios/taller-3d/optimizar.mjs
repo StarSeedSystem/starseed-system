@@ -38,6 +38,19 @@ export function escribirManifiesto(manifiesto, ruta) {
   return writeFile(ruta, JSON.stringify(manifiesto, null, 2));
 }
 
+export function parseArgs(args) {
+  const entradaIndex = args.indexOf("--entrada");
+  const planIndex = args.indexOf("--plan");
+  const salidaIndex = args.indexOf("--salida");
+  if (planIndex === -1) {
+    throw new Error("plan required");
+  }
+  const entrada = entradaIndex !== -1 ? args[entradaIndex + 1] : undefined;
+  const plan = args[planIndex + 1];
+  const salida = salidaIndex !== -1 ? args[salidaIndex + 1] : "salida";
+  return { entrada, plan, salida };
+}
+
 /** Aplica el plan con `motor` (crearMotorGltf o uno simulado) y `escribir(nombre, datos)`. Todo va en memoria y
  *  solo se escribe si TODOS los niveles caben en `pesoMaxMB`. */
 export async function optimizar({ glb, plan, motor, escribir }) {
