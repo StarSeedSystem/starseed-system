@@ -940,13 +940,21 @@ def _mensaje_contexto(tid: str, clase: str, texto: str, foto: Dict[str, Any]) ->
 def orden_ideal(ids: Sequence[str], tareas: Dict[str, Any], progreso: Dict[str, Any],
                 trans: Dict[str, Set[str]]) -> List[str]:
     """Orden de la cola viva: lo empezado/cerrado queda donde está (el orquestador lo lleva en
-    memoria) y lo pendiente va por: pedida por Alex › tramo de capacidad › cuántas desbloquea ›
-    orden original."""
+    memoria) y lo pendiente va por: pedida por Alex › tramo de capacidad › reparación de la nube ›
+    cuántas desbloquea › orden original."""
     try:
         import prioridad_logica as _pl  # el tramo de capacidad es SU regla: no se duplica
         es_cap = _pl.es_de_capacidad
+        por_alex = _pl.pedida_por_alex
+        rep_nube = _pl.es_reparacion_nube
     except Exception:  # pragma: no cover - sin el módulo, sin tramo
         def es_cap(_t):
+            return False
+
+        def por_alex(e):
+            return bool((e or {}).get("adelantar"))
+
+        def rep_nube(_e):
             return False
     pos = {tid: i for i, tid in enumerate(ids)}
     fijas = [i for i in ids if _estado(progreso, i) not in ("", "pendiente")]
@@ -954,9 +962,12 @@ def orden_ideal(ids: Sequence[str], tareas: Dict[str, Any], progreso: Dict[str, 
 
     def clave(i: str):
         e = progreso.get(i) if isinstance(progreso.get(i), dict) else {}
+        # (2026-10-21) Igual que prioridad_logica.ordenar: la orden de Alex (texto con la hora)
+        # › capacidad › reparación de la nube (`adelantar: True`) › lo que desbloquea.
         return (
-            0 if e.get("adelantar") else 1,
+            0 if por_alex(e) else 1,
             0 if es_cap(tareas.get(i) or {}) else 1,
+            0 if rep_nube(e) else 1,
             -len(trans.get(i, ())),
             pos[i],
         )

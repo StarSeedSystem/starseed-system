@@ -576,5 +576,19 @@ class Servicio(unittest.TestCase):
             self.assertFalse(self.R._veto_jev({"tid": "A", "accion": "ya_hecha"}, {"tareas": {}})[0])
 
 
+
+class OrdenIdealAdelantar(unittest.TestCase):
+    """(2026-10-21) La cola viva no pone las reparaciones de la nube delante de la capacidad."""
+
+    def test_capacidad_antes_que_reparacion_y_alex_antes_que_todo(self):
+        import revisor_bloqueadas_logica as L
+        ids = ["NOR", "REP", "CAP", "ALX"]
+        tareas = {"CAP": {"id": "CAP", "importancia": "capacidad"}, "NOR": {"id": "NOR"},
+                  "REP": {"id": "REP"}, "ALX": {"id": "ALX"}}
+        progreso = {"REP": {"estado": "pendiente", "adelantar": True},
+                    "ALX": {"estado": "pendiente", "adelantar": "2026-10-21 03:00:00"},
+                    "CAP": {"estado": "pendiente"}, "NOR": {"estado": "pendiente"}}
+        self.assertEqual(["ALX", "CAP", "REP", "NOR"], L.orden_ideal(ids, tareas, progreso, {}))
+
 if __name__ == "__main__":
     unittest.main()

@@ -243,6 +243,20 @@ def dependencia_cerrada(dep: Any, progreso: Dict[str, Any]) -> bool:
     return False
 
 
+def pedida_por_alex(entrada: Any) -> bool:
+    """«Asignar esta ya» desde Genesis: `adelantar` es un TEXTO con la hora
+    (`asignar_huecos.marcar_adelantada`). Es una orden de Alex y va delante de todo."""
+    marca = entrada.get("adelantar") if isinstance(entrada, dict) else None
+    return isinstance(marca, str) and bool(marca.strip())
+
+
+def es_reparacion_nube(entrada: Any) -> bool:
+    """`adelantar: True` lo pone traer_nube en sus reparaciones. NO es una orden de Alex
+    (2026-10-21: 58 así adelantaban a la capacidad diciendo «Alex la pidió primero»):
+    va detrás de la capacidad y delante de lo normal."""
+    return isinstance(entrada, dict) and entrada.get("adelantar") is True
+
+
 def ordenar(
     tareas: Sequence[Dict[str, Any]],
     progreso: Dict[str, Any],
@@ -300,16 +314,14 @@ def ordenar(
     # El `True` que pone traer_nube en las reparaciones de la nube no es de Alex: 58 de ellas
     # (alguna con 10 fallos) pasaban delante de la capacidad diciendo «Alex la pidió primero».
     # Ahora van detrás de la capacidad y delante de lo normal, y lo dicen tal cual.
-    def _marca(tarea):
-        entrada = progreso.get(tarea.get("id")) if tarea.get("id") else None
-        return entrada.get("adelantar") if isinstance(entrada, dict) else None
+    def _entrada(tarea):
+        return progreso.get(tarea.get("id")) if tarea.get("id") else None
 
     def _adelantada(tarea):
-        marca = _marca(tarea)
-        return isinstance(marca, str) and bool(marca.strip())
+        return pedida_por_alex(_entrada(tarea))
 
     def _reparacion_nube(tarea):
-        return _marca(tarea) is True
+        return es_reparacion_nube(_entrada(tarea))
 
     for tarea, _puntos, razones in listas:
         if _adelantada(tarea):
