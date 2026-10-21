@@ -94,9 +94,11 @@ describe("fichasProtomolecula", () => {
   it("un átomo sin entrada en el catálogo también recibe ficha", () => {
     registrarAtomo(atomo("propio", "vr-ar", { nombre: "Sala propia" }));
     const [f] = fichasProtomolecula({}, []);
+    expect(f.id).toBe("propio");
     expect(f.nombre).toBe("Sala propia");
     expect(f.estado).toBe("integrada");
     expect(f.categoria).toBe("vr-ar");
+    expect(f.categoriaEtiqueta).toBe("VR/AR");
   });
 
   it("un átomo 'proximamente' no se registra (regla del núcleo): sin ficha duplicada", () => {
@@ -120,6 +122,8 @@ describe("fichasProtomolecula", () => {
     ];
     const fichas = fichasProtomolecula({}, catalogo);
     expect(fichas.map((f) => f.id)).toEqual(["imagen", "recurso"]);
+    const grupos = new Set(fichas.map((f) => f.categoria));
+    expect([...grupos]).toEqual(["imagen", "recursos"]);
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
   });
@@ -162,5 +166,44 @@ describe("fichasProtomolecula", () => {
     expect(f.descripcion).toBe("Átomo integrado de Herramienta propia.");
     expect(f.licencia).toBe("MPL-2.0");
     expect(f.enlaces).toEqual({ web: "https://ejemplo.com/propia", repo: "https://github.com/ejemplo/propia" });
+  });
+
+  it("las fichas de átomos de grupos distintos quedan en el orden del contrato", () => {
+    registrarAtomo(atomo("juego-tool", "juegos", { nombre: "Herramienta de Juegos" }));
+    registrarAtomo(atomo("img-tool", "imagen", { nombre: "Herramienta de Imagen" }));
+    registrarAtomo(atomo("ia-tool", "ia", { nombre: "Herramienta de IA" }));
+
+    const resultado = fichasProtomolecula();
+
+    expect(resultado).toHaveLength(3);
+    const pos = (nombre: string) => resultado.findIndex((f) => f.nombre === nombre);
+    const imagen = pos("Herramienta de Imagen");
+    const juegos = pos("Herramienta de Juegos");
+    const ia = pos("Herramienta de IA");
+    expect(imagen).toBeGreaterThan(-1);
+    expect(imagen).toBeLessThan(juegos);
+    expect(juegos).toBeLessThan(ia);
+  });
+
+  it("con átomo, catálogo y versiones a la vez: enlaces del catálogo, licencia de versiones y versión disponible", () => {
+    registrarAtomo(atomo("full-tool", "imagen", { nombre: "Herramienta Completa" }));
+    const catalogo = [herramienta({
+      id: "full-tool",
+      nombre: "Nombre desde Catálogo",
+      descripcion: "Descripción desde el catálogo",
+      web: "https://ejemplo.com",
+      categoria: "conversion-formatos",
+      motivo: "Estado de prueba",
+    })];
+
+    const [f] = fichasProtomolecula({ "full-tool": { version: "2.0.0", licencia: "Apache-2.0" } }, catalogo);
+
+    expect(f.estado).toBe("integrada");
+    expect(f.nombre).toBe("Nombre desde Catálogo");
+    expect(f.descripcion).toBe("Descripción desde el catálogo");
+    expect(f.licencia).toBe("Apache-2.0");
+    expect(f.enlaces.web).toBe("https://ejemplo.com");
+    expect(f.versionDisponible).toBe("2.0.0");
+    expect(f.versionInstalada).toBeUndefined();
   });
 });
