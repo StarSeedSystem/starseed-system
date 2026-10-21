@@ -64,4 +64,52 @@ describe("ejecutorAccion", () => {
 
     expect(resultado).toEqual({ ok: false, previo: {}, motivo: "próximamente: editar páginas llega con BOT1011J1." });
   });
+
+  it("sin computadora dice «próximamente»", async () => {
+    const accion = valida({ tipo: "computadora.ejecutar", args: { orden: "echo hola" } });
+    const deps = makeDeps();
+    (ejecutar as Mock).mockResolvedValueOnce({ ok: false, motivo: "próximamente: falta la computadora del bot (BOT1011L, visto bueno de Alex)" });
+
+    const resultado = await ejecutarAccion(accion, deps);
+
+    expect(resultado.ok).toBe(false);
+    expect(resultado.motivo).toBe("próximamente: falta la computadora del bot (BOT1011L, visto bueno de Alex)");
+    expect(resultado.previo).toEqual({});
+  });
+
+  it("orden secreta se rechaza", async () => {
+    const accion = valida({ tipo: "computadora.ejecutar", args: { orden: "cat /etc/passwd" } });
+    const deps = makeDeps();
+    (ejecutar as Mock).mockResolvedValueOnce({ ok: false, motivo: "La orden lleva algo con forma de clave o de ruta del disco: no sale de tu aparato." });
+
+    const resultado = await ejecutarAccion(accion, deps);
+
+    expect(resultado.ok).toBe(false);
+    expect(resultado.motivo).toBe("La orden lleva algo con forma de clave o de ruta del disco: no sale de tu aparato.");
+    expect(resultado.previo).toEqual({});
+  });
+
+  it("orden sin permiso falla cerrada", async () => {
+    const accion = valida({ tipo: "computadora.ejecutar", args: { orden: "ls" } });
+    const deps = makeDeps();
+    (ejecutar as Mock).mockResolvedValueOnce({ ok: false, motivo: "La terminal de la computadora del bot está apagada: actívala en sus permisos." });
+
+    const resultado = await ejecutarAccion(accion, deps);
+
+    expect(resultado.ok).toBe(false);
+    expect(resultado.motivo).toBe("La terminal de la computadora del bot está apagada: actívala en sus permisos.");
+    expect(resultado.previo).toEqual({});
+  });
+
+  it("computadora falla cerrada con su propio motivo", async () => {
+    const accion = valida({ tipo: "computadora.ejecutar", args: { orden: "echo test" } });
+    const deps = makeDeps();
+    (ejecutar as Mock).mockResolvedValueOnce({ ok: false, motivo: "sin conexión al contenedor" });
+
+    const resultado = await ejecutarAccion(accion, deps);
+
+    expect(resultado.ok).toBe(false);
+    expect(resultado.motivo).toBe("sin conexión al contenedor");
+    expect(resultado.previo).toEqual({});
+  });
 });
