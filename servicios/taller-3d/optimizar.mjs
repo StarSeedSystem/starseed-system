@@ -117,4 +117,22 @@ async function principal([entrada, rutaPlan, salida]) {
   } catch (e) { return console.error(`No se pudo optimizar: ${e.code === "ENOENT" ? `no existe «${e.path}»` : e.message}`), 1; } finally { await rm(cerrojo, { force: true }); }
 }
 // Por la ruta real: lanzado desde el enlace del «bin» (node_modules/.bin) también arranca, en vez de callar.
+
+export function parseArgs(args) {
+  const program = new commander.Command();
+  program
+    .requiredOption("--entrada <path>", "Ruta del GLB de entrada")
+    .requiredOption("--plan <path>", "Ruta del plan JSON")
+    .option("--salida <path>", "Directorio de salida", "salida");
+  program.parse(args);
+  return program.opts();
+}
+
+export function validarPesoMax(lods, pesoMaxMB) {
+  for (const l of lods) {
+    if (l.pesoMB > pesoMaxMB) {
+      throw new Error("pesoMaxMB");
+    }
+  }
+}
 if (process.argv[1] && import.meta.url === pathToFileURL(await realpath(process.argv[1]).catch(() => process.argv[1])).href) process.exitCode = await principal(process.argv.slice(2));
