@@ -1,0 +1,44 @@
+{
+ "ola": "nube-20261021",
+ "tareas": [
+  {
+   "id": "SP092934b",
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "titulo": "Elevar tamaño mínimo de texto en demos",
+   "archivos": [
+    "src/components/onboarding/aurora-guide-demos.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA09292 (rito × ux-accesibilidad-diseno) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/rito--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Corregir tamaño de etiquetas de pétalos ilegibles — Las etiquetas de pétalos usan text-[8px] (≈0.5mm visual). Viola WCAG 1.4.3 (contraste+tamaño) para usuarios con visión reducida.\nCITA: src/components/onboarding/aurora-guide-demos.tsx:159 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Subir etiquetas a text-[11px] mínimo o reemplazar por tooltips accesibles; verificar contraste 4.5:1 contra el fondo.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/onboarding/aurora-guide-demos.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261021-054600`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261021-054600:refs/remotes/origin/nube/a1-20261021-054600\"` y `git cherry-pick --no-commit f9f091681d78`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/aurora-guide-demos.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261021-054600"
+  },
+  {
+   "id": "SP092933b",
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "titulo": "Anunciar apertura en nueva pestaña",
+   "archivos": [
+    "src/app/onboarding/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA09292 (rito × ux-accesibilidad-diseno) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/rito--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Añadir aviso accesible a enlaces externos target=_blank — Link con target=\"_blank\" abre página externa sin aviso ARIA ni notificación. Las usuarias pueden desorientarse al cambiar de contexto sin saberlo.\nCITA: src/app/onboarding/page.tsx:405 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Añadir aria-label que incluya \"(se abre en una pestaña nueva)\" y un indicador visual (icono con aria-hidden) junto al enlace externo.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/app/onboarding/page.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261021-054600`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261021-054600:refs/remotes/origin/nube/a1-20261021-054600\"` y `git cherry-pick --no-commit 6c10d47a271e 1b6cb3f1909f eb865cffb9c9 24920aaa04be`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/onboarding/__tests__/page.test.tsx, src/app/onboarding/page.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261021-054600"
+  },
+  {
+   "id": "SP092932b",
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "titulo": "Sincronizar memoria con el estado real",
+   "archivos": [
+    "memory/laboratorio-astraura.md"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092919 (laboratorio × arquitectura-deuda) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/laboratorio--arquitectura-deuda.md`.\n\nHALLAZGO: Actualizar memoria del laboratorio contradictoria con el código — §8 dice que el laboratorio es invisible y no montado, pero page.tsx lo monta; además afirma que versiones.ts vive solo en ola/L2 y que banco-pruebas no existe. Memoria obsoleta que induce a error al enjambre.\nCITA: memory/laboratorio-astraura.md:107 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Corregir §4, §6 y §8: versiones.ts ya está en main, banco-pruebas existe y es importado, y el laboratorio está montado en una ruta.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO memory/laboratorio-astraura.md, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261021-054600`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261021-054600:refs/remotes/origin/nube/a1-20261021-054600\"` y `git cherry-pick --no-commit f3cd151d60f2 85381fbb989f`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/laboratorio-astraura.md.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261021-054600"
+  }
+ ]
+}
