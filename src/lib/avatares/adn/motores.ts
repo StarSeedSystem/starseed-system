@@ -149,4 +149,18 @@ export const MOTORES_3D: readonly Motor3D[] = [
     licencia: "propia de StarSeed", uso: "libre", esqueletos: TODOS, fuente: "src/lib/avatares/movimiento/motor.ts",
     nota: "Respiración, balanceo y énfasis; en esqueletos libres solo mueve raíz y columna.",
   },
+  // SUPRA-Tex (RLB1020O): local sin código publicado (solo pesos); Space remoto listo.
+  {
+    id: "supra-tex", etapa: "generar", nombre: "SUPRA-Tex (local: pesos sin código publicado)", necesita: ["cuda-16gb"],
+    estado: "pesos-sin-codigo", licencia: "MIT (completado) + Qwen Research License (adaptador de materiales)", uso: "no-comercial",
+    fidelidad: 5, fuente: "https://github.com/Supra-3D/SUPRA-Tex",
+    nota: "Inferencia aún no publicada («Inference code will follow»); estimación de requisito: 16 GB CUDA.",
+  },
+  {
+    id: "supra-tex-espacio", etapa: "generar", nombre: "SUPRA-Tex Space (Hugging Face)", necesita: ["espacio-hf"],
+    estado: "listo", licencia: "MIT (completado) + Qwen Research License (adaptador de materiales)", uso: "no-comercial",
+    fidelidad: 5, remoto: true,
+    fuente: "https://huggingface.co/spaces/Supra-3D/SUPRA-Tex",
+    nota: "Demo pública en Hugging Face Spaces; imagen sale a HF; licencia del adaptador de materiales es no comercial.",
+  },
 ];
