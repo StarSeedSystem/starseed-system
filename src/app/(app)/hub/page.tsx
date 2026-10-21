@@ -1045,7 +1045,7 @@ export default function HubPage() {
                             className={cn("min-h-[40px] px-3 py-1.5 rounded-lg transition-all cursor-pointer", sortBy === 'relevance' ? "bg-primary/20 text-primary border border-primary/20" : "text-muted-foreground")}
                             onClick={() => setSortBy('relevance')}
                         >
-                            Relevancia (IA)
+                            Relevancia
                         </button>
                         <button
                             className={cn("min-h-[40px] px-3 py-1.5 rounded-lg transition-all cursor-pointer", sortBy === 'date' ? "bg-primary/20 text-primary border border-primary/20" : "text-muted-foreground")}
@@ -1226,7 +1226,7 @@ export default function HubPage() {
                                             Urgencia: {rec.urgency}
                                         </Badge>
                                         <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400 bg-emerald-500/10 font-bold px-2.5 py-0.5 rounded-full">
-                                            Relevancia: {rec.relevance}%
+                                            Relevancia ({puntuacionAportacion(rec)}%)
                                         </Badge>
                                     </div>
                                     <h3 className="text-xl font-headline font-bold text-foreground leading-snug group-hover:text-cyan-300 transition-colors pt-1">
