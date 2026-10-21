@@ -118,6 +118,69 @@ def huella_llave(llave: str) -> str:
     return hashlib.sha256(llave.encode("utf-8")).hexdigest()
 
 
+def _segundos(x: Any) -> float:
+    return float(x) if isinstance(x, (int, float)) and not isinstance(x, bool) else 0.0
+
+
+def entradas_de_relevo(nov: Dict[str, Any], vivos: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """Traduce lo que el líder YA lee del bus a las entradas de `colmena_logica.plan_relevo`.
+
+    El latido publica `en_curso`, `periodo_s` y `contenedor` DENTRO de `salud` (contrato §3), así que se
+    leen de ahí y solo se cae a la raíz para los latidos viejos. Las asignaciones del bus llevan `ids`
+    (no `id`): se expanden para que una tarea ya entregada no se vuelva a prestar en la vuelta siguiente."""
+    latidos: Dict[str, Dict[str, Any]] = {}
+    for lat in (nov or {}).get("latidos") or []:
+        if not isinstance(lat, dict) or not lat.get("nodo"):
+            continue
+        salud = lat.get("salud") if isinstance(lat.get("salud"), dict) else {}
+        en_curso = salud.get("en_curso")
+        if not isinstance(en_curso, list):
+            en_curso = lat.get("en_curso") if isinstance(lat.get("en_curso"), list) else []
+        latidos[str(lat["nodo"])] = {
+            "t": _segundos(lat.get("ts")),
+            "periodo_s": _segundos(salud.get("periodo_s") or lat.get("periodo_s")) or 300.0,
+            "en_curso": en_curso,
+        }
+    bajas: Dict[str, Dict[str, Any]] = {}
+    for b in (nov or {}).get("bajas") or []:
+        if isinstance(b, dict) and b.get("nodo"):
+            bajas[str(b["nodo"])] = {"t": _segundos(b.get("ts")), "traspaso": bool(b.get("traspaso"))}
+    asignadas: Dict[str, Dict[str, Any]] = {}
+    for a in (nov or {}).get("asignaciones") or []:
+        if not isinstance(a, dict):
+            continue
+        ts = _segundos(a.get("ts"))
+        destino = a.get("a") or a.get("nodo")
+        ids = a.get("ids") if isinstance(a.get("ids"), list) else [a.get("id")]
+        for tid in ids:
+            if not tid:
+                continue
+            previa = asignadas.get(str(tid)) or {}
+            if ts >= _segundos(previa.get("t")):
+                asignadas[str(tid)] = {"a": destino, "t": ts}
+    nodos: Dict[str, Dict[str, Any]] = {}
+    ocupados: Dict[str, int] = {}
+    for n, v in (vivos or {}).items():
+        salud = v.get("salud") if isinstance(v.get("salud"), dict) else {}
+        en_curso = salud.get("en_curso")
+        if not isinstance(en_curso, list):
+            en_curso = v.get("en_curso") if isinstance(v.get("en_curso"), list) else None
+        nodos[str(n)] = {
+            "medio": str(v.get("medio") or ""),
+            "vivo": True,
+            "modo": v.get("modo"),
+            "desconectando": bool(salud.get("desconectando")),
+            "contenedor": salud.get("contenedor") or {},
+        }
+        if isinstance(en_curso, list):
+            ocupados[str(n)] = len(en_curso)
+        else:
+            # Sin `en_curso` medido no se inventa un hueco: se cuenta lo que diga su trabajo.
+            trabajo = salud.get("trabajo") if isinstance(salud.get("trabajo"), dict) else {}
+            ocupados[str(n)] = int(_segundos(trabajo.get("en_curso")))
+    return {"latidos": latidos, "bajas": bajas, "asignadas": asignadas, "nodos": nodos, "ocupados": ocupados}
+
+
 # ─── el nodo ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -348,46 +411,8 @@ class Nodo:
             mundo = {"nodos": nodos_plan, "yo": self.yo, "autonomia": bool(self.mem.get("autonomia", True)),
                      "asignaciones": nov.get("asignaciones") or [],
                      "ultimo_autoritativo_ts": self.mem.get("ultimo_autoritativo_ts")}
-            # COL1012G · relevo sin pérdidas
-            try:
-                latidos_dict = {l.get("nodo"): {"t": float(l.get("ts",0)), "periodo_s": float(l.get("periodo_s",300)), "en_curso": l.get("en_curso",[])} for l in nov.get("latidos",[]) if l.get("nodo")}
-                bajas_dict = {b.get("nodo"): {"t": float(b.get("ts",0)), "traspaso": bool(b.get("traspaso"))} for b in nov.get("bajas",[]) if b.get("nodo")}
-                 asignadas_dict = {}
-                 tareas_dict = {}
-                 for a in nov.get("asignaciones",[]):
-                     did = a.get("id")
-                     if did:
-                         asignadas_dict[str(did)] = {"a": a.get("a"), "t": float(a.get("ts",0))}
-                         task_info = a.copy()
-                         if 'id' in task_info:
-                             del task_info['id']
-                         tareas_dict[str(did)] = task_info
-                nodos_info = {}
-                ocupados = {}
-                for n, v in vivos.items():
-                    salud_n = v.get("salud") or {}
-                    medio = v.get("medio") or ""
-                    cont = salud_n.get("contenedor") or {}
-                    nodos_info[n] = {"medio": medio, "vivo": True, "modo": v.get("modo"), "contenedor": cont}
-                    en_curso = v.get("en_curso") or []
-                    ocupados[n] = len(en_curso) if isinstance(en_curso, list) else 0
-                 plan_relevo = C.plan_relevo(latidos_dict, bajas_dict, asignadas_dict, nodos_info, ocupados, tareas_dict, t)
-                for r in plan_relevo:
-                    minutos = int((t - (r.get("punto") or {}).get("t", t)) // 60) if r.get("punto") else None
-                    decision = {"tipo": "mg_decision", "de": r.get("de"), "a": r.get("a"), "id": r.get("id"), "minutos_perdidos": minutos, "motivo": r.get("motivo") or r.get("espera")}
-                    if enlace is not None:
-                        enlace.decision(decision)
-                    informe.setdefault("relevo", []).append(decision)
-                    if r.get("a"):
-                        # Crear sucesora y prestar
-                        original = {}
-                        nuevo_id = T.siguiente_id(str(r.get("id")), [])
-                        rama = f"relevo/{r.get('de')}/{r.get('id')}"
-                        sucesora = T.tarea_reparacion(original, nuevo_id, rama, [], [], str(r.get("motivo") or ""))
-                        # Préstamo simplificado: lanzar cola firmada
-                        self._repartir({"clave":"relevo:"+r.get("id"), "accion":"lanzar_cola", "nodo":r.get("a"), "motivo":"relevo", "args":{"cola":f"cola-relevo-{r.get('a')}", "trabajadores":2, "_tareas":[sucesora]}, "espera_s":0}, informe, t)
-            except Exception:
-                pass
+            # COL1012G · relevo sin pérdidas: las tareas a medias de un aparato que se fue siguen en otro.
+            self._relevar(nov, vivos, medida["raiz"], informe, t)
             sin_aut = not any((l.get("salud") or {}).get("autoritativo") for l in vivos.values())
             if sin_aut and enlace is not None and t - float(self.mem.get("ultimo_autoritativo_ts") or t) >= L.RELEVO_MEDIO_S:
                 mundo["colas_portables"] = enlace.ultimas_colas()
@@ -472,6 +497,145 @@ class Nodo:
             if p:
                 pub["resultados"]["publicacion"]["detalle"] = L.motivo_publicacion(p.get("detalle"))[:120]
         return json.loads(L.tachar(json.dumps(pub, ensure_ascii=False)))
+
+    # ── relevo sin pérdidas (COL1012G) ──
+    def _tareas_para_relevo(self, raiz: str, t: float, necesarias: List[str]) -> Dict[str, Dict[str, Any]]:
+        """La tarea ORIGINAL (prompt, archivos, si es privada) de lo que dejó a medias un aparato.
+
+        Se busca en las colas de este disco (el medio autoritativo) y en las colas portables que el
+        aparato publicó en el bus antes de irse (`mg_colas`); sin prompt no se puede crear una sucesora
+        útil. La lectura del bus se cachea 10 min: el líder no gasta una petición por vuelta."""
+        tareas: Dict[str, Dict[str, Any]] = {}
+        if not necesarias:
+            return tareas
+        try:
+            for x in self._candidatos(raiz) or []:
+                if isinstance(x, dict) and x.get("id"):
+                    tareas[str(x["id"])] = x
+        except Exception:  # noqa: BLE001 — sin colas locales se sigue con las portables del bus
+            pass
+        cache = self.mem.get("relevo_colas") if isinstance(self.mem.get("relevo_colas"), dict) else {}
+        portables = cache.get("tareas") if t - _segundos(cache.get("t")) < 600 else None
+        if portables is None and self.enlace is not None:
+            try:
+                portables = self.enlace.ultimas_colas() or []
+                self.mem["relevo_colas"] = {"t": t, "tareas": portables[:40]}
+            except Exception:  # noqa: BLE001 — el relevo no puede tumbar la vuelta del líder
+                portables = []
+        for x in portables or []:
+            if isinstance(x, dict) and x.get("id"):
+                tareas.setdefault(str(x["id"]), x)
+        return tareas
+
+    def _prestar_relevo(self, tid: str, destino: str, tarea: Dict[str, Any], motivo: str,
+                        informe: Dict[str, Any], t: float) -> None:
+        """Presta la tarea por el mismo camino que `repartir`: cola + `lanzar_cola` firmada.
+
+        `tarea_limpia` no conoce `rama_nube` (la rama del punto de control): sin ella el destino no
+        sabría de dónde seguir, así que se devuelve al viaje después de limpiar lo demás."""
+        limpia = L.tarea_limpia(tarea)
+        if tarea.get("rama_nube"):
+            limpia["rama_nube"] = tarea["rama_nube"]
+        cola = "cola-relevo-%s-%s-%s" % (destino.split("-")[0], tid,
+                                         time.strftime("%m%d-%H%M", time.localtime(t)))
+        self._repartir(L.accion("relevo:%s" % tid, "lanzar_cola", destino, motivo,
+                                args={"cola": cola, "trabajadores": 2, "_tareas": [limpia]}, espera_s=0),
+                       informe, t)
+
+    def _asignar_original(self, tid: str, destino: str, t: float) -> None:
+        """Deja constancia de que la tarea ORIGINAL ya se siguió: `plan_relevo` no la repite."""
+        self.mem.setdefault("relevo", {})[tid] = t
+        if self.modo == "real" and self.enlace is not None:
+            try:
+                self.enlace.asignar([tid], destino, t)
+            except Exception:  # noqa: BLE001 — la orden ya salió; se reintenta cuando caduque
+                pass
+
+    def _anotar_relevo(self, r: Dict[str, Any], minutos: Optional[int], resultado: str,
+                       informe: Dict[str, Any], t: float) -> None:
+        """Una decisión POR TAREA en `mg_decision`: de dónde salió, a dónde va, qué se perdió y por qué.
+
+        La firma evita repetir el mismo aviso cada vuelta cuando solo está «esperando»; si cambia el
+        destino o el motivo, sí se anota. El texto lleva los cuatro datos aunque el bus guarde solo
+        `nodo`/`motivo` en sus columnas fijas."""
+        de, a, tid = str(r.get("de") or ""), r.get("a"), str(r.get("id") or "")
+        motivo = str(r.get("motivo") or r.get("espera") or "")
+        firma = "|".join((de, str(a or "espera"), tid, str(minutos), resultado, motivo))
+        vistas = self.mem.get("relevo_visto") if isinstance(self.mem.get("relevo_visto"), dict) else {}
+        if vistas.get(tid) == firma:
+            return
+        vistas[tid] = firma
+        self.mem["relevo_visto"] = dict(list(vistas.items())[-50:])
+        decision = {"ts": t, "accion": "relevo", "nodo": a or "espera", "de": de, "a": a, "id": tid,
+                    "minutos_perdidos": minutos, "resultado": resultado, "seco": self.modo == "seco",
+                    "termino": self.mem.get("termino"),
+                    "motivo": "de %s a %s · %s min perdidos · %s" % (
+                        de or "—", a or "espera", "—" if minutos is None else minutos, motivo)[:200]}
+        informe.setdefault("relevo", []).append(decision)
+        if self.modo == "real" and self.enlace is not None:
+            self.enlace.decision(decision)
+
+    def _relevar(self, nov: Dict[str, Any], vivos: Dict[str, Dict[str, Any]], raiz: str,
+                 informe: Dict[str, Any], t: float) -> None:
+        """El líder sigue las tareas a medias de un aparato que se fue (contrato §3, `plan_relevo`)."""
+        datos = entradas_de_relevo(nov, vivos)
+        perdidos = C.nodos_perdidos(datos["latidos"], datos["bajas"], t)
+        necesarias = [str(e.get("id")) for n in perdidos
+                      for e in (datos["latidos"].get(n) or {}).get("en_curso") or []
+                      if isinstance(e, dict) and e.get("id")]
+        if not necesarias:
+            return
+        tareas = self._tareas_para_relevo(raiz, t, necesarias)
+        # Sin metadatos no se puede saber si es privada: se le prohíbe la nube compartida.
+        para_plan = dict(tareas)
+        for tid in necesarias:
+            para_plan.setdefault(tid, {"id": tid, "privado": True})
+        hechas = {k: v for k, v in (self.mem.get("relevo") or {}).items()
+                  if t - _segundos(v) < L.GRACIA_ASIGNACION_S}
+        self.mem["relevo"] = hechas
+        asignadas = dict(datos["asignadas"])
+        for tid, ts in hechas.items():
+            asignadas.setdefault(tid, {"a": "relevo", "t": ts})
+        plan = C.plan_relevo(datos["latidos"], datos["bajas"], asignadas, datos["nodos"],
+                             datos["ocupados"], para_plan, t)
+        conocidos = set(para_plan) | set(asignadas) | {
+            str(e.get("id")) for l in datos["latidos"].values()
+            for e in l.get("en_curso") or [] if isinstance(e, dict) and e.get("id")}
+        for r in plan:
+            tid = str(r.get("id") or "")
+            if not tid or tid in hechas:
+                continue
+            punto = r.get("punto") if isinstance(r.get("punto"), dict) else None
+            perdida = r.get("perdida_s")
+            minutos = (int(_segundos(perdida) // 60) if perdida is not None
+                       else int((t - _segundos((punto or {}).get("t"))) // 60) if (punto or {}).get("t") else None)
+            original = tareas.get(tid) or {}
+            destino = r.get("a")
+            if not destino:
+                self._anotar_relevo(r, minutos, "espera en el A1; se reintenta cada vuelta", informe, t)
+                continue
+            if not original:
+                self._anotar_relevo(r, minutos, "sin la tarea original no se puede prestar", informe, t)
+                continue
+            if punto:
+                rama = str(punto.get("rama") or "relevo/%s/%s" % (r.get("de"), tid))
+                sha = punto.get("sha")
+                shas = [str(x) for x in sha] if isinstance(sha, list) else ([str(sha)] if sha else [])
+                nuevo = T.siguiente_id(tid, sorted(conocidos))
+                conocidos.add(nuevo)
+                sucesora = T.tarea_reparacion(original, nuevo, rama, shas,
+                                              [str(a) for a in original.get("archivos") or []],
+                                              str(r.get("motivo") or "el aparato dejó la tarea a medias"))
+                self._prestar_relevo(tid, destino, sucesora,
+                                     "relevo de %s (%s)" % (tid, r.get("motivo") or ""), informe, t)
+                self._asignar_original(tid, destino, t)
+                self._anotar_relevo(r, minutos, "sigue como %s desde %s" % (nuevo, rama), informe, t)
+            else:
+                # Sin punto de control no hay trabajo que continuar: la tarea vuelve a la cola tal cual.
+                self._prestar([L.tarea_limpia(original)], destino,
+                              "relevo sin punto de %s: vuelve a la cola" % tid, informe, t)
+                self._asignar_original(tid, destino, t)
+                self._anotar_relevo(r, minutos, "vuelve a la cola tal cual (sin punto de control)", informe, t)
 
     def _hacer(self, a: Dict[str, Any], medio: str, raiz: str, informe: Dict[str, Any], publicar: bool) -> None:
         estado, texto = self._ejecutar(a, medio, raiz, self.modo == "seco", self._rescatador(raiz))
