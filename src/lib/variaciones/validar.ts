@@ -87,9 +87,50 @@ function colectarMotivos(
   vistos: Set<object>,
   profundidad: number
 ): void {
-  // TODO: recorrido recursivo del payload
+  if (motivos.length >= 8) return;
+  if (valor === null) return;
+  const tipo = typeof valor;
+  if (tipo === "function" || tipo === "symbol" || tipo === "undefined" || tipo === "bigint") {
+    motivos.push(`JSON: «${ruta}» es ${tipo}, no serializable en JSON plano`);
+    return;
+  }
+  if (tipo !== "object") {
+    if (tipo === "string") motivos.push(...motivosDeTexto(valor as string, ruta));
+    return;
+  }
+  const objeto = valor as object;
+  if (vistos.has(objeto)) {
+    motivos.push(`JSON: «${ruta}» es circular`);
+    return;
+  }
+  if (profundidad > PROFUNDIDAD_MAXIMA) {
+    motivos.push(`JSON: «${ruta}» está demasiado anidado para JSON plano`);
+    return;
+  }
+  vistos.add(objeto);
+  if (Array.isArray(objeto)) {
+    objeto.forEach((elemento, indice) => {
+      colectarMotivos(elemento, `${ruta}[${indice}]`, motivos, vistos, profundidad + 1);
+    });
+  } else {
+    const proto = Object.getPrototypeOf(objeto);
+    if (proto !== Object.prototype && proto !== null) {
+      motivos.push(`JSON: «${ruta}» no es JSON plano (solo objetos y arreglos simples)`);
+    }
+    for (const clave of Object.keys(objeto as Record<string, unknown>)) {
+      const rutaClave = `${ruta}.${clave}`;
+      if (PATRON_SOSPECHOSA.test(clave) || PATRON_CLAVE_PRIVADA.test(clave) || CLAVES_SYNCED_SIN_PREFIJO.includes(clave)) {
+        motivos.push(`Privacidad: la clave «${clave}» parece un token o es privada (${rutaClave})`);
+      }
+      colectarMotivos((objeto as Record<string, unknown>)[clave], rutaClave, motivos, vistos, profundidad + 1);
+    }
+  }
+  vistos.delete(objeto);
 }
 
 function esDeCodigo(payload: unknown): boolean {
-  // TODO: detección de payload de código
+  if (typeof payload !== "object" || payload === null) return false;
+  return Object.keys(payload as Record<string, unknown>).some((clave) =>
+    CLAVES_DE_CODIGO.has(clave.toLowerCase())
+  );
 }
