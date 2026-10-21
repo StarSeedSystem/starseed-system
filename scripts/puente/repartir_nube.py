@@ -348,28 +348,74 @@ MEMORIA_METAGENESIS = os.path.expanduser("~/.starseed/nodo-metagenesis/memoria.j
 GRACIA_PRESTAMO_S = 6 * 3600
 
 
-def prestadas_vigentes(memoria, ahora_ts, gracia_s=GRACIA_PRESTAMO_S):
-    """PURA: ids que el líder de MetaGenesis prestó a otro medio hace menos de `gracia_s`.
+def nombre_cola(cola):
+    """PURA: el nombre de una cola sin carpeta y sin la extensión.
+
+    (2026-10-20, CAP1020A) El A1 llama a la cola que le presta la Mac `cola-mg-oracle-1020-1223.json`
+    y el préstamo la guarda como `cola-mg-oracle-1020-1223`: para saber si una cola terminó hay que
+    comparar los dos nombres, y para eso tienen que ser el mismo."""
+    nombre = str(cola or "").strip()
+    if "/" in nombre:
+        nombre = nombre.rsplit("/", 1)[-1]
+    if nombre.endswith(".json"):
+        nombre = nombre[:-len(".json")]
+    return nombre
+
+
+def prestamo_vigente(p, ahora_ts, gracia_s=GRACIA_PRESTAMO_S, colas_terminadas=()):
+    """PURA: ¿sigue vivo este préstamo?
+
+    (2026-10-20, CAP1020A) UN PRÉSTAMO TERMINA CUANDO TERMINA SU COLA. Medido el 20-10 a las 13:30
+    (hora de la Mac): el A1 terminó su cola `cola-mg-oracle-1020-1223` a las 19:24 UTC (55 min, 2
+    entregas) y se quedó parado, mientras 10 de las 25 tareas listas seguían «prestadas» a él
+    durante 6 h: ni la Mac, ni la nube, ni el propio A1 podían cogerlas. Un préstamo deja de vivir
+    por tres cosas: que el préstamo lleve `fin` (ya se sabe que terminó), que su cola esté en
+    `colas_terminadas` (el medio la terminó) o que haya pasado la gracia."""
+    if not isinstance(p, dict):
+        return False
+    if p.get("fin"):
+        return False
+    cola = nombre_cola(p.get("cola"))
+    terminadas = {nombre_cola(c) for c in (colas_terminadas or ())}
+    if cola and cola in terminadas:
+        return False
+    try:
+        ts = float(p.get("ts") or 0)
+    except (TypeError, ValueError):
+        ts = 0.0
+    return ahora_ts - ts < gracia_s
+
+
+def prestadas_vigentes(memoria, ahora_ts, gracia_s=GRACIA_PRESTAMO_S, colas_terminadas=()):
+    """PURA: ids que el líder de MetaGenesis prestó a otro medio y el préstamo SIGUE VIVO.
 
     (2026-10-10, CAP1010, medido) MetaGenesis prestó al A1 a las 15:13 S1010-TU-LL1cobj,
     RTOPO1011T1b, S1010-EV-WIDGET y S1010-ES1 sin marcarlas en progreso.json, y la primera
     cesión de la tanda de la Mac mandó tres de ellas también a la nube: el mismo trabajo en dos
-    medios. Lo prestado no se cede ni se reparte."""
+    medios. Lo prestado no se cede ni se reparte.
+
+    (2026-10-20, CAP1020A) UN PRÉSTAMO TERMINA CUANDO TERMINA SU COLA: `prestamo_vigente` corta el
+    préstamo si la cola del medio ya terminó (`colas_terminadas`), si el préstamo lleva `fin` o si
+    pasó la gracia. Lo que se corta NO se borra: los medidores de resultados lo siguen contando."""
     salida = set()
     for p in ((memoria or {}).get("prestamos") or []) if isinstance(memoria, dict) else []:
-        if isinstance(p, dict) and ahora_ts - float(p.get("ts") or 0) < gracia_s:
+        if prestamo_vigente(p, ahora_ts, gracia_s, colas_terminadas):
             salida.update(str(i) for i in p.get("ids") or [])
     return salida
 
 
-def leer_prestadas(ahora_ts=None, ruta=None):
-    """`prestadas_vigentes` de la memoria de MetaGenesis en disco. Nunca lanza."""
+def leer_prestadas(ahora_ts=None, ruta=None, colas_terminadas=()):
+    """`prestadas_vigentes` de la memoria de MetaGenesis en disco. Nunca lanza.
+
+    (2026-10-20, CAP1020A) `colas_terminadas`: las colas que el medio ya terminó (las que el
+    nodo marca con `fin`). Sin ellas, manda el `fin` que el nodo dejó anotado en la memoria."""
     try:
         with open(ruta or MEMORIA_METAGENESIS, encoding="utf-8") as f:
             memoria = json.load(f)
     except (OSError, ValueError):
         return set()
-    return prestadas_vigentes(memoria, time.time() if ahora_ts is None else ahora_ts)
+    return prestadas_vigentes(memoria, time.time() if ahora_ts is None else ahora_ts,
+                              colas_terminadas=colas_terminadas)
 
 
 def ordenes_soltar(cedidas, colas_mac, donde, quien="capacidad", t=None):
