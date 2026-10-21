@@ -137,17 +137,6 @@ async function principal([entrada, rutaPlan, salida]) {
 }
 // Por la ruta real: lanzado desde el enlace del «bin» (node_modules/.bin) también arranca, en vez de callar.
 
-export function parseArgs(args) {
-  const program = new Command();
-program.exitOverride((err) => { throw err; });
-  program
-    .requiredOption("--entrada <path>", "Ruta del GLB de entrada")
-    .requiredOption("--plan <path>", "Ruta del plan JSON")
-    .option("--salida <path>", "Directorio de salida", "salida");
-  program.parse(args);
-  return program.opts();
-}
-
 export function validarPesoMax(lods, pesoMaxMB) {
   for (const l of lods) {
     if (l.pesoMB > pesoMaxMB) {
