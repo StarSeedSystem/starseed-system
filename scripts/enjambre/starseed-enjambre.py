@@ -244,6 +244,45 @@ MODELOS = [
     "llm7/gpt-oss",
 ]
 
+# (2026-10-21) OpenCode Zen: modelos GRATIS del propio opencode (Alex cargó su clave con
+# `opencode auth login`). Verificados con una EDICIÓN REAL en la Mac (CLAUDE.md de 70 KB leído con
+# la herramienta y un archivo nuevo con el dato exacto): glm-5.3-flash-free 39 s,
+# deepseek-v4.1-flash-free 30 s, minimax-m3.1-flash-free 61 s y big-pickle 128 s. Solo los gratuitos
+# («-free» y big-pickle): los demás modelos de Zen (claude-*, gpt-*, gemini-*…) son de pago y NUNCA
+# entran aquí. Y solo donde hay clave de Zen: sin ella opencode falla y la tarea gastaría el intento.
+MODELOS_ZEN_GRATIS = [
+    "opencode/glm-5.3-flash-free",
+    "opencode/deepseek-v4.1-flash-free",
+    "opencode/minimax-m3.1-flash-free",
+    "opencode/big-pickle",
+]
+
+
+def hay_clave_zen(entorno=None, ruta_auth=None):
+    """¿Puede opencode usar OpenCode Zen en esta máquina? Clave en el entorno (OPENCODE_API_KEY) o
+    proveedor «opencode» en el auth.json de opencode. Solo mira si existe, nunca lee el valor."""
+    entorno = os.environ if entorno is None else entorno
+    if str(entorno.get("OPENCODE_API_KEY") or "").strip():
+        return True
+    ruta = ruta_auth or os.path.expanduser("~/.local/share/opencode/auth.json")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            return "opencode" in (json.load(f) or {})
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def con_zen(modelos, hay_clave, tras=1):
+    """PURA. La rotación con los gratuitos de Zen detrás de los `tras` primeros (Gemini directo va
+    delante), sin repetir ninguno. Sin clave, la lista tal cual."""
+    if not hay_clave:
+        return list(modelos)
+    nuevos = [m for m in MODELOS_ZEN_GRATIS if m not in modelos]
+    return list(modelos[:tras]) + nuevos + list(modelos[tras:])
+
+
+MODELOS[:] = con_zen(MODELOS, hay_clave_zen())
+
 # (2026-09-08, Ola 296 · CX2) ESCRITORES DE COSTE CERO: Codex CLI escribe contra la suscripción
 # Pro de ChatGPT de Alex (`~/.codex/auth.json` con `auth_mode: chatgpt`), NO contra créditos de la
 # API (esa cuenta está a cero: 429 `insufficient_quota`). Por eso van los PRIMEROS de la rotación
@@ -5764,7 +5803,7 @@ def asegurar_modelo_opencode(modelo):
         try:
             os.makedirs(os.path.dirname(RUTA_OPENCODE_CFG), exist_ok=True)
         except Exception:
-            return prov in ("openrouter", "google")  # proveedores nativos de opencode
+            return prov in ("openrouter", "google") or (prov == "opencode" and hay_clave_zen())  # proveedores nativos de opencode
     provs = cfg.get("provider") or {}
     refrescado = False
     if prov in provs:
@@ -5781,7 +5820,7 @@ def asegurar_modelo_opencode(modelo):
             provs[prov] = plantilla
             cfg["provider"] = provs
         else:
-            return prov in ("openrouter", "google")
+            return prov in ("openrouter", "google") or (prov == "opencode" and hay_clave_zen())  # nativos de opencode
     modelos = provs[prov].setdefault("models", {})
     if nombre in modelos and not refrescado:
         return True
