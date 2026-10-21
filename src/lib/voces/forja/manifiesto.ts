@@ -434,6 +434,7 @@ export const MODULOS_PROGRAMA: ModuloPrograma[] = [
 
 export const progresoFase = (f: FaseForja): number => {
   const totalHitos = f.hitos.length;
+  if (totalHitos === 0) return 0;
   const hitosHechos = f.hitos.filter(hito => hito.estado === "hecho").length;
   return Math.round((hitosHechos / totalHitos) * 100);
 };
