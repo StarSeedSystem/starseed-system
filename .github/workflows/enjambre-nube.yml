@@ -159,6 +159,9 @@ jobs:
           STARSEED_PASARELA_GROQ_URL: ${{ vars.STARSEED_PASARELA_GROQ_URL }}
           STARSEED_PASARELA_GROQ_MODELOS: ${{ vars.STARSEED_PASARELA_GROQ_MODELOS }}
           STARSEED_PASARELA_GROQ_RPM: ${{ vars.STARSEED_PASARELA_GROQ_RPM }}
+          # (2026-10-21, aprobado por Alex) Groq solo revisa: su tramo gratuito (~8000 tokens/min)
+          # no cabe en un prompt de escritura y gpt-oss-20b se colgaba 5-15 min por run sin escribir.
+          STARSEED_PASARELA_GROQ_SOLO_REVISOR: "1"
         run: |
           : > ~/.starseed/env; chmod 600 ~/.starseed/env
           n=0
@@ -169,6 +172,7 @@ jobs:
           done
           echo "variables presentes: $n"
           if [ "$n" = 0 ]; then echo "::error::sin secretos: pon las claves con scripts/puente/nube-gh.py secretos"; exit 1; fi
+          printf 'STARSEED_PASARELA_GROQ_SOLO_REVISOR=%s\n' "${STARSEED_PASARELA_GROQ_SOLO_REVISOR:-1}" >> ~/.starseed/env
 
       - name: Enjambre
         run: |
