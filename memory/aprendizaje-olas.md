@@ -4568,3 +4568,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1accbbbbbb` — los tipos no compilan: 12 errores tsc (rama ola/RTRTRTS1010-EV-ORACLE-1accbbbbbb conservada)
 - `CB1013S` — no escribió nada
 - `VPU1019W` — no escribió nada
+
+## 2026-10-21 22:18 · mg-oracle-1021-1438
+
+**Lo que se pidió.** Enlace «Gestionar con PoliGenesis
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (RTGN1010A-d3b, RTRTRTRTRTS1010-EV-ORACLE-1acb, SP092930). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTGN1010A-d3b` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTRTRTRTS1010-EV-ORACLE-1acb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `SP092930` — otra cosa: ningún proveedor respondió (todos caídos)
