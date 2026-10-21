@@ -11,29 +11,17 @@ import type { Bot, Sentido, TipoSesion } from "@/lib/astraura-bots/tipos";
 import { DialogoConsentimiento } from "../dialogo-consentimiento";
 
 function bot(origen: Bot["origen"] = "astraura"): Bot {
-  return {
-    id: "bot:luna", nombre: "Luna", origen, gobierno: "jerarquico",
-    dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" },
+  return { id: "bot:luna", nombre: "Luna", origen, gobierno: "jerarquico", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" },
     personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 },
-    cuerpo: { forma: "orbe", tono: 200, escala: 1 }, sentidosHabilitados: [], activo: true,
-  };
+    cuerpo: { forma: "orbe", tono: 200, escala: 1 }, sentidosHabilitados: [], activo: true };
 }
 
 function montar(opciones: { bot?: Bot; sentido?: Sentido; sesion?: TipoSesion; abierto?: boolean } = {}) {
-  const onConceder = vi.fn();
-  const onDenegar = vi.fn();
+  const onConceder = vi.fn(), onDenegar = vi.fn();
   const pedirPermiso = vi.fn(async (permiso: PermisoDispositivo) => ({ permiso, soportado: true, concedido: true }));
-  render(
-    <DialogoConsentimiento
-      bot={opciones.bot ?? bot()}
-      sentido={opciones.sentido ?? "microfono"}
-      sesion={opciones.sesion ?? "privada"}
-      abierto={opciones.abierto ?? true}
-      onConceder={onConceder}
-      onDenegar={onDenegar}
-      pedirPermiso={pedirPermiso}
-    />,
-  );
+  render(<DialogoConsentimiento bot={opciones.bot ?? bot()} sentido={opciones.sentido ?? "microfono"}
+    sesion={opciones.sesion ?? "privada"} abierto={opciones.abierto ?? true}
+    onConceder={onConceder} onDenegar={onDenegar} pedirPermiso={pedirPermiso} />);
   return { onConceder, onDenegar, pedirPermiso };
 }
 
@@ -50,6 +38,21 @@ describe("DialogoConsentimiento", () => {
   it("un bot propio sí puede pedir «hasta que lo quite»", () => {
     montar();
     expect(screen.getByLabelText("Hasta que lo quite")).toBeTruthy();
+  });
+
+  it("a un invitado no se le hereda «hasta que lo quite»", async () => {
+    const user = userEvent.setup();
+    const onConceder = vi.fn();
+    const pedir = async (permiso: PermisoDispositivo) => ({ permiso, soportado: true, concedido: true });
+    const { rerender } = render(<DialogoConsentimiento bot={bot()} sentido="microfono" sesion="privada" abierto
+      onConceder={onConceder} onDenegar={vi.fn()} pedirPermiso={pedir} />);
+    await user.click(screen.getByLabelText("Hasta que lo quite"));
+    rerender(<DialogoConsentimiento bot={bot("externo")} sentido="microfono" sesion="privada" abierto
+      onConceder={onConceder} onDenegar={vi.fn()} pedirPermiso={pedir} />);
+    expect(screen.queryByLabelText("Hasta que lo quite")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Permitir" }));
+    await waitFor(() => expect(onConceder).toHaveBeenCalled());
+    expect(onConceder.mock.calls[0][0]).toMatchObject({ duracion: "sesion" });
   });
 
   it("«No» cierra sin otorgar", async () => {
@@ -103,11 +106,8 @@ describe("DialogoConsentimiento", () => {
   it("si el aparato no concede el permiso no se otorga nada y se dice por qué", async () => {
     const user = userEvent.setup();
     const onConceder = vi.fn();
-    render(
-      <DialogoConsentimiento bot={bot()} sentido="camara" sesion="privada" abierto
-        onConceder={onConceder} onDenegar={vi.fn()}
-        pedirPermiso={async (permiso) => ({ permiso, soportado: true, concedido: false, motivo: "lo negaste en el navegador" })} />,
-    );
+    render(<DialogoConsentimiento bot={bot()} sentido="camara" sesion="privada" abierto onConceder={onConceder}
+      onDenegar={vi.fn()} pedirPermiso={async (permiso) => ({ permiso, soportado: true, concedido: false, motivo: "lo negaste en el navegador" })} />);
     await user.click(screen.getByRole("button", { name: "Permitir" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("lo negaste en el navegador"));
     expect(onConceder).not.toHaveBeenCalled();

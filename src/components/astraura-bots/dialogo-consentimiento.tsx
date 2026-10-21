@@ -36,6 +36,14 @@ export function DialogoConsentimiento({
     return () => document.removeEventListener("keydown", alPulsar);
   }, [abierto, onDenegar]);
 
+  // Cada apertura (u otro bot/sentido) empieza limpia: una elección anterior no se hereda.
+  useEffect(() => {
+    if (!abierto) return;
+    setDuracion("sesion");
+    setExpreso(false);
+    setProblema("");
+  }, [abierto, bot.id, sentido]);
+
   if (!abierto) return null;
 
   const conceder = async () => {
@@ -56,7 +64,9 @@ export function DialogoConsentimiento({
       }
     }
     setOcupado(false);
-    onConceder({ sentido, duracion, expreso: sesion === "publica" && expreso, dispositivo });
+    // Defensa: a un invitado nunca se le otorga «hasta que lo quite», ni por un estado heredado.
+    const elegida: DuracionConsentimiento = esInvitado(bot) && duracion === "siempre" ? "sesion" : duracion;
+    onConceder({ sentido, duracion: elegida, expreso: sesion === "publica" && expreso, dispositivo });
   };
 
   return (
