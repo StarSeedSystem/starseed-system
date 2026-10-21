@@ -209,6 +209,7 @@ export function WidgetRegistry({ widget, onUpdateSettings }: WidgetProps) {
             className="h-full w-full"
             data-widget-fn={fn.kind}
             data-widget-weight={fn.weight}
+            data-ss-elemento={`widget:${widget.widget_type}`}
             style={{ ["--w-fn-accent" as string]: fn.accent }}
         >
             <WidgetStyleOverrideProvider value={styleOverride}>

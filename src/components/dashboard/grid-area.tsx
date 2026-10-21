@@ -446,10 +446,11 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                         const it = porClave.get(widget.layout.i || widget.id);
                         const rol = rolDe({ w: widget.layout.w, h: widget.layout.h });
                         return (
-                            <motion.div
-                                key={widget.layout.i || widget.id}
-                                data-widget-key={widget.layout.i || widget.id}
-                                data-rol={rol}
+                                <motion.div
+                                    key={widget.layout.i || widget.id}
+                                    data-widget-key={widget.layout.i || widget.id}
+                                    data-ss-elemento={`widget:${widget.widget_type}`}
+                                    data-rol={rol}
                                 initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3, delay: Math.min(idx * 0.04, 0.45), ease: [0.22, 1, 0.36, 1] }}
@@ -669,6 +670,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                         <div
                             key={widget.layout.i || widget.id}
                             data-widget-key={widget.layout.i || widget.id}
+                            data-ss-elemento={`widget:${widget.widget_type}`}
                             data-rol={rolDe({ w: widget.layout.w, h: widget.layout.h })}
                             className="relative group h-full"
                             // HTML5 DnD (transferencia entre paneles) solo con ratón.
