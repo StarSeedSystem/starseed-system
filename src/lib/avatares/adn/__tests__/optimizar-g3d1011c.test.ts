@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseArgs, escribirManifiesto, validarPesoMax } from "../../../../../servicios/taller-3d/optimizar.mjs";;
+import { parseArgs, escribirManifiesto, validarPesoMax } from "../../../../../servicios/taller-3d/optimizar.mjs";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { promises as fs } from "node:fs";
