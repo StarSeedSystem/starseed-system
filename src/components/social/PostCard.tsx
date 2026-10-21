@@ -380,6 +380,25 @@ function PostCardShell({
     );
 }
 
+/** Alias anónimo con el que se firma quien no tiene nombre de perfil público. */
+export const ALIAS_COMENTARISTA = "Ciudadano StarSeed";
+
+/**
+ * Nombre PÚBLICO con el que se firma un comentario en el feed.
+ * Solo usa campos de perfil que el usuario mostró al registrarse
+ * (`full_name` / `name` / `display_name`); NUNCA el email: el email es dato
+ * de la Cuenta (privada), no del Perfil (público), y publicarlo expondría un
+ * identificador sensible sin consentimiento. Sin nombre visible se firma con
+ * el alias anónimo. Pura: entrada → salida, sin red ni disco.
+ */
+export function nombrePublicoComentario(meta: Record<string, unknown>): string {
+    for (const clave of ["full_name", "name", "display_name"] as const) {
+        const valor = meta[clave];
+        if (typeof valor === "string" && valor.trim()) return valor;
+    }
+    return ALIAS_COMENTARISTA;
+}
+
 /** Hilo de comentarios reales: lista + composer, conectado a useComments. */
 function CommentThread({
     accent,
@@ -392,7 +411,7 @@ function CommentThread({
     const [sending, setSending] = useState(false);
     const [authHint, setAuthHint] = useState(false);
     const [myUid, setMyUid] = useState<string | null>(null);
-    const [myName, setMyName] = useState<string>("Ciudadano StarSeed");
+    const [myName, setMyName] = useState<string>(ALIAS_COMENTARISTA);
     const mounted = useRef(true);
 
     useEffect(() => {
@@ -404,14 +423,11 @@ function CommentThread({
                 const user = data.session?.user;
                 if (!mounted.current) return;
                 setMyUid(user?.id ?? null);
+                // (2026-09-29 · sueño SA092936) El email ya NO es fallback del
+                // nombre público: confundía Cuenta (privada) con Perfil (público)
+                // y exponía dato sensible sin consentimiento.
                 const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
-                const name =
-                    (typeof meta.full_name === "string" && meta.full_name) ||
-                    (typeof meta.name === "string" && meta.name) ||
-                    (typeof meta.display_name === "string" && meta.display_name) ||
-                    (user?.email ? user.email.split("@")[0] : "") ||
-                    "Ciudadano StarSeed";
-                setMyName(name);
+                setMyName(nombrePublicoComentario(meta));
             } catch {
                 /* sin sesión */
             }
