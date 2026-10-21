@@ -3,7 +3,7 @@
 > Documento de la Ola 230 (commits `64a14d6` L1, `acea347` L2, `b517755` L4, `ffbdf86` L7).
 > Código real: `src/lib/laboratorio/{genoma,versiones,cuantizacion}.ts`, `src/components/laboratorio/inspector-nodo.tsx`,
 > pruebas en `src/lib/__tests__/laboratorio-*.test.ts`.
-> ⚠️ `versiones.ts` (L2) vive hoy **solo en la rama `ola/L2`**, pendiente de fusión a `main`.
+> ⚠️ `versiones.ts` ya está en `main`, fusionado desde la ola `ola/L2`.
 
 ---
 
@@ -94,17 +94,17 @@ Para explorar el mapa hoy se usa el **inspector de nodo** (`src/components/labor
 | Clave | Qué guarda | Fuente |
 |---|---|---|
 | `starseed.laboratorio.genomas.v1` | Mapa `id → Genoma` (todos los genomas, incluido el base) | `genoma.ts` |
-| `starseed.laboratorio.versiones.v1` | Mapa `id → VersionLab` (instantáneas, ramas, métricas) | `versiones.ts` (rama `ola/L2`) |
+| `starseed.laboratorio.versiones.v1` | Mapa `id → VersionLab` (instantáneas, ramas, métricas) | `versiones.ts` (main) |
 
 Ambas se leen/escriben de forma tolerante: JSON corrupto o almacenamiento bloqueado nunca lanzan; a lo sumo se pierde lo del laboratorio, jamás la sesión del OS.
 
 ## 8. Qué falta
 
 1. **Fusionar genomas entre sí**: `duplicarGenoma` clona un genoma, pero no existe mezclar dos genomas (p. ej. la creatividad de uno con el carácter de otro) con resolución de conflictos por capa.
-2. **Entrenar desde el laboratorio**: no hay *runner* que ejecute casos contra un genoma y llene las `metricas` de `VersionLab` (latencia, tokens, aciertos). El contrato está declarado, sin productor aún.
+2. **Entrenar desde el laboratorio**: no hay *runner* que ejecute casos contra un genoma y llene las `metricas` de `VersionLab` (latencia, tokens, aciertos). El contrato está declarado; los casos de prueba están definidos en `CASOS_DE_PRUEBA` de `banco-pruebas.ts`.
 3. **Exportar una versión como modelo cuantizado**: `planPorHardware` decide con qué precisión correría cada medio, pero nada genera aún los pesos exportables (GGUF u otro formato) a partir de una versión.
-4. **Fusionar la rama `ola/L2` a `main`**: `versiones.ts` y sus pruebas existen solo ahí (commit `acea347`).
-5. **Montar la interfaz**: `InspectorNodo` no está montado en ninguna ruta de `src/app` ni registrado en el OmniDock (`dock-config.ts`) o el catálogo de apps — según CLAUDE.md §11, hoy el laboratorio es invisible para el usuario.
+4. **Fusionar la rama `ola/L2` a `main`**: **completado** — `versiones.ts` ya está en `main` y `banco-pruebas` existe e importado en los componentes del laboratorio.
+5. **Montar la interfaz**: el laboratorio está montado en la ruta `/laboratorio` (`src/app/(app)/laboratorio/page.tsx`) y el inspector `InspectorNodo` está registrado y disponible para el usuario.
 6. **El render 3D del mapa** (three.js) y el **banco de pruebas ejecutable** descritos en §6 y §4.
 
 ---
