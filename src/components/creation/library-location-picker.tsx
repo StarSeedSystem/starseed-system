@@ -158,9 +158,11 @@ export function LibraryLocationPicker({ value, onChange, className }: LibraryLoc
                     </p>
                 ) : (
                     <div className="space-y-1 max-h-40 overflow-y-auto pr-0.5">
-                        <button
-                            type="button"
-                            onClick={() => selectFolder(null)}
+<button
+                                type="button"
+                                role="radio"
+                                aria-checked={value?.folderId===null}
+                                onClick={() => selectFolder(null)}
                             className={cn(
                                 "flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer",
                                 (value?.folderId ?? null) === null
@@ -174,10 +176,12 @@ export function LibraryLocationPicker({ value, onChange, className }: LibraryLoc
                         {flatFolders.map(({ folder, depth }) => {
                             const active = value?.folderId === folder.id;
                             return (
-                                <button
-                                    key={folder.id}
-                                    type="button"
-                                    onClick={() => selectFolder(folder.id, folder.name)}
+<button
+                                key={folder.id}
+                                type="button"
+                                role="radio"
+                                aria-checked={value?.folderId === folder.id}
+                                onClick={() => selectFolder(folder.id, folder.name)}
                                     style={{ paddingLeft: `${0.625 + depth * 0.9}rem` }}
                                     className={cn(
                                         "flex w-full items-center gap-2 rounded-lg border py-1.5 pr-2.5 text-left text-xs transition-colors cursor-pointer",

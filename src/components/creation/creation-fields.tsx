@@ -139,7 +139,7 @@ export function DestSelector({
                             «Crear entidades».
                         </p>
                     ) : (
-                        <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                        <div role="radiogroup" aria-label="Selecciona página o grupo propio" className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
                             {own.map((o) => {
                                 const active = ownValue?.entitySlug === o.entitySlug;
                                 const Icon = o.entityType === "group" ? Users2 : BookOpen;
@@ -147,6 +147,8 @@ export function DestSelector({
                                     <button
                                         key={`${o.entityType}-${o.entitySlug}`}
                                         type="button"
+                                        role="radio"
+                                        aria-checked={active}
                                         onClick={() => onOwnChange?.(active ? null : o)}
                                         className={cn(
                                             "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 cursor-pointer",
