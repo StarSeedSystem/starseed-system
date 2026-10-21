@@ -32,6 +32,20 @@ function atomo(herramientaId: string, categoria: CategoriaAtomo = "imagen", extr
   return { herramientaId, nombre: herramientaId, categoria, integracion: "libreria-js", control: "total", parametros: [parametro], entradas: [], salidas: [], ...extra };
 }
 
+function crearAtomoValido(id: string, nombre: string, categoria: CategoriaAtomo = "imagen"): DefinicionAtomo {
+  const parametro: Parametro = { id: "p", nombre: "P", tipo: "numero" };
+  return {
+    herramientaId: id,
+    nombre,
+    categoria,
+    integracion: "libreria-js",
+    control: "total",
+    parametros: [parametro],
+    entradas: [],
+    salidas: [],
+  };
+}
+
 describe("fichasProtomolecula", () => {
   beforeEach(() => limpiarRegistro());
 
@@ -47,8 +61,8 @@ describe("fichasProtomolecula", () => {
     ];
     const fichas = fichasProtomolecula({}, catalogo);
     expect(fichas.map((f) => f.id)).toEqual(["a-imagen", "c-imagen", "b-video"]);
-    const grupos = new Set(fichas.map((f) => f.categoria));
-    expect([...grupos]).toEqual(["imagen", "video"]);
+    const grupos = Array.from(new Set(fichas.map((f) => f.categoria)));
+    expect(grupos).toEqual(["imagen", "video"]);
     for (const ficha of fichas) {
       expect(ORDEN_GRUPOS_PROTO).toContain(ficha.categoria);
       expect(ficha.categoriaEtiqueta.length).toBeGreaterThan(0);
@@ -117,13 +131,13 @@ describe("fichasProtomolecula", () => {
 
   it("los grupos extra del catálogo se ordenan detrás de los diez primeros", () => {
     const catalogo = [
-      herramienta({ id: "recurso", categoria: "recursos-abiertos" }),
-      herramienta({ id: "imagen", categoria: "vector-diseno" }),
+      herramienta({ id: "recurso", nombre: "recurso", categoria: "recursos-abiertos", licencia: "MIT" }),
+      herramienta({ id: "imagen", nombre: "imagen", categoria: "vector-diseno", licencia: "MIT" }),
     ];
     const fichas = fichasProtomolecula({}, catalogo);
     expect(fichas.map((f) => f.id)).toEqual(["imagen", "recurso"]);
-    const grupos = new Set(fichas.map((f) => f.categoria));
-    expect([...grupos]).toEqual(["imagen", "recursos"]);
+    const grupos = Array.from(new Set(fichas.map((f) => f.categoria)));
+    expect(grupos).toEqual(["imagen", "recursos"]);
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
   });
