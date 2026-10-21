@@ -139,3 +139,34 @@ paso y la tarjeta `libreria` usan `libreria-biblioteca`; la tarjeta `/red-mesh` 
 GUI1021A (textos del sistema), GUI1021B (textos de la red), GUI1021C (pasos nuevos en el tour), GUI1021D y GUI1021E
 (demostraciones animadas), GUI1021F (las demostraciones en el tour), GUI1021G (tarjetas de la Guía de la red),
 GUI1021H (aviso de novedades para cuentas que ya vieron la guía).
+
+## 5. La guía completa sin cuenta y en cualquier medio (Alex, 2026-10-21)
+
+«Esa guía de introducción completa debe poder ser ejecutable en cualquier medio desde la ventana de inicio de sesión
+y en Ajustes y en cada ventana que solicite inicio de sesión, incluso sin tener que crear una cuenta.»
+
+Lo que hay hoy: `AuroraGuide` está montada en el layout raíz (todas las rutas salvo `/voces`), pero su panel va en
+`z-[95]` y la pantalla de acceso (`AuthGate`, z 200) y la bienvenida (`WelcomeWindow`, z 210) la tapan; Ajustes ya
+tiene «Ver la guía» (`guide-button-toggle.tsx`), pero solo con sesión; y unas 30 ventanas dicen «Inicia sesión
+para…» con su propio texto suelto y sin ningún acceso a la guía.
+
+- **Una sola puerta:** `src/lib/onboarding/guia-acceso.ts` → `abrirGuia({desde, temaInicial?})` lanza el evento
+  `starseed:open-guide` (el mismo de siempre) con de dónde se abre (`login`, `bienvenida`, `ajustes`, `aviso`,
+  `boton`) y, si se quiere, el tema por el que empezar.
+- **Sin cuenta (modo invitado):** la guía entera funciona: textos, demostraciones animadas y voz si el aparato la tiene
+  (si el puente de Aurora no está cargado, va en texto y lo dice). «Ir» y «Hazlo por mí» se sustituyen por
+  «Disponible al entrar» (detrás está la pantalla de acceso); lo visto se guarda en el aparato y, al entrar con una
+  cuenta, se une a la marca de la cuenta. El último paso ofrece «Crear cuenta», «Entrar» y «Explorar sin cuenta».
+- **Por encima de cualquier ventana de acceso:** abierta desde una de ellas, la guía se pinta por encima (z 240) y al
+  cerrarla se vuelve a la misma ventana, sin perder lo escrito.
+- **Dónde está el botón:** «Conoce StarSeed (sin cuenta)» en `AuthGate` (Entrar y Crear cuenta), en la bienvenida y en
+  el aviso de retomar sesión; en Ajustes, «Ver la guía de introducción» con la lista de temas para empezar por
+  cualquiera; y en cada aviso «Inicia sesión para…», que pasa a ser UN componente común (`AvisoSesion`: el texto, el
+  botón de iniciar sesión y «Conoce StarSeed»). Una guardia impide nuevos avisos sueltos.
+- **Cualquier medio:** web, PWA y app nativa (la misma interfaz), móvil y tableta (diseño adaptable, táctil, teclado,
+  movimiento reducido); en XR, desde los paneles 2D del hub. En sesión inmersiva de WebXR el DOM no se ve: la guía se
+  abre al salir de ella (dicho como tal, no prometido dentro).
+
+Tareas (cola `cola-guias-sin-cuenta-1021.json`): GUI1021I (puerta común y modo invitado, puro), GUI1021J (la guía
+sin cuenta y por encima del acceso), GUI1021K1 y K2 (botones en las ventanas de acceso), GUI1021L (`AvisoSesion`),
+GUI1021M1–M5 (los avisos sueltos pasan al componente común), GUI1021N (guardia), GUI1021O (Ajustes con lista de temas).
