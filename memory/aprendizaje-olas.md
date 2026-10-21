@@ -4527,3 +4527,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTS1010-EV-ORACLE-1acf` — no escribió nada
 - `VGM1016H` — otra cosa: sin decisión en 0 h; rama ola/VGM1016H conservada
+
+## 2026-10-21 01:28 · mg-oracle-1020-1627
+
+**Lo que se pidió.** Fundamento: contenido único (palabras de Alex) y sus tres preguntas
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `ENT1020A` — los tipos no compilan: 24 errores tsc (rama ola/ENT1020A conservada)
+- `RTFS1013A` — no escribió nada
+- `VZF1015M` — el proveedor dijo que no: ningún proveedor respondió (rate limit)
