@@ -8,6 +8,12 @@ import { SelectorMolecula, TEXTO_CONFIRMACION, prepararMolecula } from "../selec
 
 afterEach(() => { cleanup(); reiniciarSesiones(); });
 
+it("should display loading state initially", () => {
+  render(<SelectorMolecule ambitoPost="personal" alElegir={vi.fn()} />);
+  // Initially the component shows a loading message
+  expect(screen.getByText(/cargando tus moléculas/i)).toBeInTheDocument();
+});
+
 /** Almacén en memoria: sin disco ni navegador. */
 function almacenMemoria(): AlmacenLocal {
   const datos = new Map<string, string>();
