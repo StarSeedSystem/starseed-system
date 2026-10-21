@@ -1,0 +1,39 @@
+{
+ "ola": "nube-20261020",
+ "tareas": [
+  {
+   "id": "VST1018F",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Voz · nivel «estudio» y regla instantánea en el motor único",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/niveles.ts",
+    "src/lib/aurora/voz-starseed/motor.ts",
+    "src/lib/aurora/voz-starseed/__tests__/nivel-estudio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En niveles.ts añade el nivel \"estudio\" por encima de \"alta\" (solo si `descubrir()` de voicestudio.ts dijo vivo y la neurona tiene ≥ 8 GB libres o lo sirve otra neurona). En motor.ts añade como mucho 120 líneas: la primera frase de una conversación sale del motor PERMITIDO (licencia-voz.ts) con menor latencia medida (medidas-voz.ts) que tenga la voz de esa persona; «estudio» solo para lectura larga, doblaje y audiolibros; nunca se parte un mensaje entre dos motores. Prueba pura de la elección con medidas falsas. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "VST1018C",
+    "VST1018D"
+   ]
+  },
+  {
+   "id": "VST1018L",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Ajustes → Voz · VoiceStudio, motores nuevos y etiqueta de licencia por motor",
+   "archivos": [
+    "src/components/astraura/voz-licencias.tsx",
+    "src/components/astraura/inteligencia-section.tsx",
+    "src/components/astraura/__tests__/voz-licencias.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente `VozLicencias` que lista los motores de catalogo-voces.ts con su etiqueta (Libre / Con condiciones / Solo personal), si VoiceStudio está vivo en esta neurona (estado pasado por props) y por qué un motor no suena en el contexto actual (motivos de licencia-voz.ts). Estética del panel existente. En inteligencia-section.tsx solo añade el montaje bajo los ajustes de voz. Prueba con Testing Library. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "VST1018C"
+   ],
+   "dependencias_ya_en_main": [
+    "VST1018B"
+   ]
+  }
+ ]
+}
