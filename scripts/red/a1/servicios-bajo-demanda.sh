@@ -35,6 +35,8 @@ ExecStop=$st
 TimeoutStartSec=$((w+30))
 OOMScoreAdjust=900
 Restart=no
+# Al apagarse solo en reposo, docker stop devuelve 137/143 y openhands 1: es su forma normal de parar, no un fallo.
+SuccessExitStatus=1 137 143 SIGINT SIGTERM
 EOF
   sudo tee /etc/systemd/system/starseed-$n.service >/dev/null <<EOF
 [Unit]
