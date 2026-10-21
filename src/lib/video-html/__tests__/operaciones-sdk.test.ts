@@ -1,9 +1,35 @@
 import { describe, it, expect } from "vitest";
-import { operacionASdkOrder, SdkOrder } from "../operaciones-sdk";
+import { operacionASdkOrder, SdkOrder, type SdkOrderOrNull } from "../operaciones-sdk";
 import type { Operacion } from "@/lib/protomolecula/tipos";
+
+const crearOp = (parametroId: string, accion: any): Operacion => ({
+  id: "test-id",
+  objetivo: {
+    atomoId: "test-atomo",
+    parametroId,
+  },
+  accion,
+  autor: { tipo: "persona", id: "test-autor", nombre: "Test Autor" },
+  origen: "mano",
+  t: Date.now(),
+});
 
 describe("operacionASdkOrder", () => {
   const makeOperacion = (parametroId: string, accion: any): Operacion => ({
+    id: "test-id",
+    objetivo: {
+      atomoId: "test-atomo",
+      parametroId,
+    },
+    accion,
+    autor: { tipo: "persona", id: "test-autor", nombre: "Test Autor" },
+    origen: "mano",
+    t: Date.now(),
+  });
+
+  // Helper for archived test cases - recreating legacy test structure
+  // This is not used by the archived tests but kept for reference
+  const createMockOperation = (parametroId: string, accion: any): Operacion => ({
     id: "test-id",
     objetivo: {
       atomoId: "test-atomo",
@@ -79,5 +105,56 @@ describe("operacionASdkOrder", () => {
   it("should throw for invalid parametroId", () => {
     const op = makeOperacion("invalid", { tipo: "exacta", valor: "test" });
     expect(() => operacionASdkOrder(op)).toThrow(/Invalid parametroId format/);
+  });
+
+  // Archived test cases from RTHFR1018E
+  it("texto exacta → setText", () => {
+    const op = crearOp("e1", "innerText", { tipo: "exacta", valor: "Hola" });
+    expect(operacionASdkOrder(op)).toEqual([{ type: "setText", target: "e1", value: "Hola" }]);
+  });
+
+  it("estilo exacta → setStyle", () => {
+    const op = crearOp("e1", "color", { tipo: "exacta", valor: "#f00" });
+    expect(operacionASdkOrder(op)).toEqual([{ type: "setStyle", target: "e1", styles: { color: "#f00" } }]);
+  });
+
+  it("atributo exacta → setAttribute", () => {
+    const op = crearOp("e1", "src", { tipo: "exacta", valor: "https://ejemplo.com" });
+    expect(operacionASdkOrder(op)).toEqual([{ type: "setAttribute", target: "e1", name: "src", value: "https://ejemplo.com" }]);
+  });
+
+  it("variable exacta → setVariableValue", () => {
+    const op = crearOp("e1", "--var", { tipo: "exacta", valor: "42" });
+    expect(operacionASdkOrder(op)).toEqual([{ type: "setVariableValue", target: "e1", id: "--var", value: "42" }]);
+  });
+
+  it("on* → null", () => {
+    const op = crearOp("e1", "onclick", { tipo: "exacta", valor: "alert(1)" });
+    expect(operacionASdkOrder(op)).toBeNull();
+  });
+
+  it("src javascript: → null", () => {
+    const op = crearOp("e1", "src", { tipo: "exacta", valor: "javascript:alert(1)" });
+    expect(operacionASdkOrder(op)).toBeNull();
+  });
+
+  it("propiedad GSAP → null", () => {
+    const op = crearOp("e1", "x", { tipo: "exacta", valor: 100 });
+    expect(operacionASdkOrder(op)).toBeNull();
+  });
+
+  it("relativa → null", () => {
+    const op = crearOp("e1", "opacity", { tipo: "relativa", cantidad: 1, modo: "delta" });
+    expect(operacionASdkOrder(op)).toBeNull();
+  });
+
+  it("alternar → null", () => {
+    const op = crearOp("e1", "disabled", { tipo: "alternar" });
+    expect(operacionASdkOrder(op)).toBeNull();
+  });
+
+  it("disparo → null", () => {
+    const op = crearOp("e1", "play", { tipo: "disparo" });
+    expect(operacionASdkOrder(op)).toBeNull();
   });
 });

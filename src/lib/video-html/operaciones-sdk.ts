@@ -8,7 +8,9 @@ export type SdkOrder =
   | { type: "setAttribute"; target: string; name: string; value: string }
   | { type: "setVariableValue"; id: string; value: ValorParametro };
 
-export function operacionASdkOrder(operacion: Operacion): SdkOrder {
+export type SdkOrderOrNull = SdkOrder | null;
+
+export function operacionASdkOrder(operacion: Operacion): SdkOrderOrNull {
   const { objetivo, accion } = operacion;
   const [elementoId, propiedadPath] = objetivo.parametroId.split("::");
 
@@ -18,20 +20,20 @@ export function operacionASdkOrder(operacion: Operacion): SdkOrder {
 
   // Reject GSAP-related properties
   if (/gsap/i.test(propiedadPath)) {
-    throw new Error(`GSAP properties are not allowed: ${propiedadPath}`);
+    return null;
   }
 
   // Reject non-allowed properties: on* and src with javascript:
   if (/^on/.test(propiedadPath)) {
-    throw new Error(`Properties starting with "on" are not allowed: ${propiedadPath}`);
+    return null;
   }
   if (propiedadPath === "src" && typeof accion === "object" && accion.tipo === "exacta" && typeof accion.valor === "string" && accion.valor.startsWith("javascript:")) {
-    throw new Error(`src attribute with javascript: URL is not allowed`);
+    return null;
   }
 
   // Only support exacta actions for now
   if (accion.tipo !== "exacta") {
-    throw new Error(`Only exacta actions are supported, got: ${accion.tipo}`);
+    return null;
   }
 
   const value = accion.valor;
