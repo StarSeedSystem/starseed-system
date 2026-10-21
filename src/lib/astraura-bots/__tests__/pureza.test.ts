@@ -3,6 +3,16 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { EMOCIONES, RASGOS, SENTIDOS, SENTIDOS_INTIMOS, acotar, esBotDeEntidad, esInvitado, esRol, esSentido } from "../tipos";
 
+const CONECTORES = [
+  "acciones",
+  "bucle",
+  "permisos",
+  "personalidad-adaptable",
+  "reparto-de-modelo",
+  "tipos",
+  "conectores",
+];
+
 /** Guardia del núcleo de bots: puro (sin React, red, DOM, reloj ni node:*), ≤ 200 líneas, sin ejecutar código. */
 const DIR = path.join(__dirname, "..");
 const NUCLEO = readdirSync(DIR).filter((f) => f.endsWith(".ts")).map((f) => f.replace(/\.ts$/, ""));
