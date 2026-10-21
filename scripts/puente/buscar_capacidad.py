@@ -670,7 +670,9 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
                 import atasco_orquestador
 
                 cura = atasco_orquestador.curar(persiste_s=0 if origen == "boton" else atasco_orquestador.PERSISTE_S,
-                                                edad_min_s=120 if origen == "boton" else atasco_orquestador.EDAD_MIN_S)
+                                                # (2026-10-21) 120 s mataba orquestadores que acababan de
+                                                # repartir sus primeras tareas: la misma edad para todos.
+                                                edad_min_s=atasco_orquestador.EDAD_MIN_S)
                 if cura.get("accion") == "reiniciado":
                     hechas.append("orquestador parado reiniciado")
                     sumados += len(cura.get("listas") or [])

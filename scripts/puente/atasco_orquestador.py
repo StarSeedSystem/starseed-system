@@ -80,6 +80,46 @@ def decidir(latido_tareas, cola_tareas, progreso, asuntos=()):
                   % (len(listas), ", ".join(listas[:6]))), listas
 
 
+#: Procesos que solo lanza un orquestador para hacer el trabajo de una tarea.
+MARCAS_TRABAJO = ("opencode", "codex", "tsc", "vitest", "pytest", "unittest", "npm ", "npx ", "node ", "git ")
+
+
+def trabajo_en_hijos(filas, raiz):
+    """PURA. Los pids descendientes de `raiz` que hacen trabajo de una tarea (escribir, tsc, pruebas,
+    git). `filas`: [(pid, ppid, args)] de `ps`.
+
+    (2026-10-21, MEDIDO) Al pulsar «Buscar más capacidad», el botón reinició un orquestador de
+    3 min que ya había arrancado TRA1012Bc-d1 y COL1012G: su archivo de latidos aún no las
+    nombraba y `decidir` lo dio por «parado». Antes, el de las 12:11 llevaba 50 min con un
+    tsc vivo esperando turno. Un proceso hijo trabajando es la prueba más directa de que no
+    está parado, así que manda sobre los latidos."""
+    hijos = {}
+    for pid, ppid, _args in filas or []:
+        hijos.setdefault(ppid, []).append(pid)
+    descendientes, pila = set(), [raiz]
+    while pila:
+        for h in hijos.get(pila.pop(), []):
+            if h not in descendientes:
+                descendientes.add(h)
+                pila.append(h)
+    return sorted(pid for pid, _pp, args in filas or []
+                  if pid in descendientes and any(m in (args or "") + " " for m in MARCAS_TRABAJO))
+
+
+def _filas_ps():
+    try:
+        salida = subprocess.run(["ps", "-axo", "pid=,ppid=,args="], capture_output=True, text=True,
+                                timeout=20).stdout
+    except Exception:
+        return []
+    filas = []
+    for linea in salida.splitlines():
+        partes = linea.split(None, 2)
+        if len(partes) >= 2 and partes[0].isdigit() and partes[1].isdigit():
+            filas.append((int(partes[0]), int(partes[1]), partes[2] if len(partes) > 2 else ""))
+    return filas
+
+
 def _segundos(etime):
     """`ps -o etime` («[[dd-]hh:]mm:ss») a segundos."""
     dias, _, resto = etime.rpartition("-")
@@ -137,6 +177,12 @@ def medir():
         asuntos = []
     atascado, motivo, listas = decidir((latidos or {}).get("tareas") or {}, tareas,
                                        _leer(os.path.join(OLAS, "progreso.json"), {}), asuntos)
+    if atascado:
+        trabajando = trabajo_en_hijos(_filas_ps(), pid)
+        if trabajando:
+            atascado, listas = False, []
+            motivo = "trabaja: %d proceso(s) de tarea vivos (%s)" % (
+                len(trabajando), ", ".join(str(p) for p in trabajando[:4]))
     return {"pid": pid, "edad_s": edad, "cola": os.path.basename(cola or ""), "atascado": atascado,
             "motivo": motivo, "listas": listas}
 

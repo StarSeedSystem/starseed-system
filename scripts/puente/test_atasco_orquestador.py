@@ -84,5 +84,23 @@ class Curar(unittest.TestCase):
         self.assertEqual(A._segundos("01-01:07:49"), 86400 + 3600 + 469)
 
 
+class TrabajoEnHijos(unittest.TestCase):
+    """(2026-10-21) Un orquestador con un hijo trabajando no está parado."""
+
+    FILAS = [(100, 1, "python3 -u starseed-enjambre.py cola-auto.json --workers 3"),
+             (200, 100, "npm exec tsc --noEmit --skipLibCheck"),
+             (201, 200, "node /x/node_modules/.bin/tsc --noEmit"),
+             (300, 100, "/Users/alex/.opencode/bin/opencode run RAIZ…"),
+             (400, 1, "opencode run de otra cosa"),
+             (500, 100, "sleep 5")]
+
+    def test_cuenta_solo_los_descendientes_que_trabajan(self):
+        self.assertEqual(A.trabajo_en_hijos(self.FILAS, 100), [200, 201, 300])
+
+    def test_sin_hijos_no_hay_trabajo(self):
+        self.assertEqual(A.trabajo_en_hijos(self.FILAS, 400), [])
+        self.assertEqual(A.trabajo_en_hijos([], 100), [])
+
+
 if __name__ == "__main__":
     unittest.main()
