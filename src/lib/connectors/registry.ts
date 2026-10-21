@@ -395,6 +395,74 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     configHint: "http://<host>:8000/api",
   },
 
+  /* ── Seguridad y agentes (repos-libreria-1020b · RLB1020G2) ──
+   * Ninguno se activa solo: son fichas honestas de herramientas autoalojadas
+   * que ejecutan código o tocan datos sensibles, cada una con su salvaguarda. */
+  {
+    id: "tirreno-selfhost",
+    name: "tirreno (auto-hospedado)",
+    category: "custom",
+    kind: "oss",
+    authType: "apiKey",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "ShieldCheck",
+    description:
+      "Antifraude de cuentas y votaciones de la democracia directa: toma de cuentas, relleno de credenciales, bots y abuso. Licencia AGPL-3.0. Recibe IP, correos y huellas de aparato: se activa solo con aviso de privacidad y consentimiento, con el mínimo de datos.",
+    repo: "https://github.com/tirrenotechnologies/tirreno",
+    docsUrl: "https://github.com/tirrenotechnologies/tirreno",
+    configHint: "http://<host>:8585",
+  },
+  {
+    id: "moli-serve",
+    name: "Moli (navegador de agentes)",
+    category: "web",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Compass",
+    description:
+      "Navegador sin interfaz en Rust para agentes de IA: ejecuta JavaScript y entrega Markdown y árbol semántico. Licencia Apache-2.0 o MIT. Exige sandbox con lista de dominios permitidos: el contenido web es dato, nunca instrucción.",
+    repo: "https://github.com/lexmount/moli",
+    docsUrl: "https://github.com/lexmount/moli",
+    configHint: "http://127.0.0.1:<puerto de moli serve>",
+  },
+  {
+    id: "dbx-mcp",
+    name: "DBX (bases locales)",
+    category: "dev",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Database",
+    description:
+      "Inspección de las bases locales de servidores, neuronas y capas de conciencia (MySQL, PostgreSQL, SQLite, Redis…) desde los agentes por su servidor MCP. Licencia Apache-2.0. Siempre en modo solo lectura: su modo «Acceso total», que escribe y borra, queda fuera.",
+    repo: "https://github.com/t8y2/dbx",
+    docsUrl: "https://github.com/t8y2/dbx",
+    configHint: "http://127.0.0.1:<puerto del MCP de dbx>",
+  },
+  {
+    id: "openshell-gateway",
+    name: "OpenShell (sandboxes de agentes)",
+    category: "dev",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Box",
+    description:
+      "Sandboxes para agentes autónomos con políticas declarativas de archivos, procesos y red; corre Claude Code, Codex u OpenCode dentro. Licencia Apache-2.0. Alfa (cambios incompatibles): se usa con la telemetría apagada (OPENSHELL_TELEMETRY_ENABLED=false).",
+    repo: "https://github.com/NVIDIA/OpenShell",
+    docsUrl: "https://github.com/NVIDIA/OpenShell",
+    configHint: "http://127.0.0.1:<puerto de OpenShell>",
+  },
+
   // ── Redes sociales (P4-8) ──
   {
     id: "postiz",
