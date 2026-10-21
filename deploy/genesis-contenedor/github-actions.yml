@@ -1,0 +1,19 @@
+name: Genesis Contenedor
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'
+permissions:
+  contents: read
+
+jobs:
+  conectar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ejecutar Genesis
+        env:
+          STARSEED_MOTOR_TOKEN: ${{ secrets.STARSEED_MOTOR_TOKEN }}
+        run: |
+          # TODO: Script de validación y llamada
+          echo "Genesis iniciado"
