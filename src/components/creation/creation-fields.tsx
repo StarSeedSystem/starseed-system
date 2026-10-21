@@ -100,7 +100,7 @@ export function DestSelector({
 
     return (
         <div className={cn("space-y-3", className)}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div role="radiogroup" aria-label="Destino de la publicación" className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {visible.map((d) => {
                     const Icon = d.icon;
                     const active = value === d.id;
@@ -108,6 +108,8 @@ export function DestSelector({
                         <button
                             key={d.id}
                             type="button"
+                            role="radio"
+                            aria-checked={active}
                             onClick={() => onChange(d.id)}
                             className={cn(
                                 "flex flex-col items-start gap-1.5 rounded-2xl border p-3 text-left transition-all duration-200 cursor-pointer",
