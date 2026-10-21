@@ -3,12 +3,12 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 * * * *'
-permissions:
-  contents: read
 
 jobs:
   conectar:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Ejecutar Genesis
