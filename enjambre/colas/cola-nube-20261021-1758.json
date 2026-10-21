@@ -1,0 +1,125 @@
+{
+ "ola": "nube-20261021",
+ "tareas": [
+  {
+   "id": "VPU1019C",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de apariencia: temas, paletas y fondos",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/apariencia.ts",
+    "src/lib/variaciones/adaptadores/__tests__/apariencia.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Con `DesignFile` de `src/lib/design/design-files.ts` (`designToSaveInput`, `designFromSavedItem`): familias tema y fondo; capturar lee el tema o el fondo activo (lector inyectado), aplicar escribe con el escritor inyectado y devuelve deshacer con el estado anterior; ids de `curatedPresets` y `BACKGROUND_REGISTRY`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019D",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de widgets y Dashboard",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/widgets.ts",
+    "src/lib/variaciones/adaptadores/__tests__/widgets.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familia widget: clave `widget:<WidgetType>` (de `src/components/dashboard/dashboard-types.ts`); capturar toma la configuración visual y de opciones del widget (no sus datos personales), aplicar la fusiona con la instancia elegida y devuelve deshacer; respeta `getSizeConstraints` de `src/components/dashboard/widget-manifest.ts`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019E",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de ajustes",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/ajustes.ts",
+    "src/lib/variaciones/adaptadores/__tests__/ajustes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familia ajuste: clave `ajuste:<id>` desde `SETTINGS_SEARCH_INDEX` (`src/components/settings/settings-search.tsx`) y `SETTINGS_INDEX` (`src/components/design-canvas/settings-index.ts`); el payload es un parche de claves permitidas de `SYNCED_KEYS`/`SYNCED_PREFIXES` (`src/lib/settings-sync.ts`) que no sean de cuenta, claves ni privacidad; aplicar guarda con `pushPreferences` inyectado y devuelve deshacer. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019F",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de la Protomolécula: herramientas, átomos y moléculas",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/protomolecula.ts",
+    "src/lib/variaciones/adaptadores/__tests__/protomolecula.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familias herramienta, atomo y molecula: ids de `HerramientaProto` (`catalogo-herramientas.ts`) y de `registro-atomos.ts`; el payload es la configuración del átomo o la molécula (`almacen-moleculas.ts`), nunca el contenido privado del lienzo; aplicar crea una copia nueva en el lienzo con deshacer. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019G",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de Escritorio, dock y apps",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/escritorio.ts",
+    "src/lib/variaciones/adaptadores/__tests__/escritorio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familias escritorio, dock y app: `DockItemConfig` (`src/components/layout/dock-config.ts`), `APP_CATALOG` (`src/components/dashboard/apps/app-catalog.ts`) y la disposición del Escritorio (`desktop-store.ts`) sin nombres de archivos de la persona; aplicar con deshacer. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019H",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de publicaciones y mensajes (estilos del editor)",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/publicaciones.ts",
+    "src/lib/variaciones/adaptadores/__tests__/publicaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familias post y mensaje con parte `#estilo`, `#plantilla` o `#decoracion`: captura estilos y plantillas del editor rico (`src/components/messages/rico/`) y del compositor de publicaciones, nunca el texto ni los destinatarios; aplicar sobre el borrador actual con deshacer. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019J",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Capa de datos de variaciones",
+   "archivos": [
+    "src/lib/variaciones/datos.ts",
+    "src/lib/variaciones/__tests__/datos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Con cliente de Supabase inyectado: `listarVariaciones(clave, {buscar, filtros, orden, pagina})`, `publicarVariacion` (valida con `validar.ts`, guarda autor y `de_variacion`), `valorar`, `registrarUso`. Respaldo sin tabla: devuelve lista vacía y `disponible: false` (nunca falla la ventana). Prueba con un cliente falso. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019I",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019U",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Sugerencias de variaciones con Astraura (local primero)",
+   "archivos": [
+    "src/lib/variaciones/sugerir-astraura.ts",
+    "src/lib/variaciones/__tests__/sugerir-astraura.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`sugerirVariaciones(clave, contexto, deps)` pide al enrutador de Astraura (inyectado; escalera local primero de `genesis-conectores-abiertos.md`) 3 variaciones del payload capturado, las valida con `validar.ts` y con las pruebas del ADN del contexto (`memory/diseno/adn/*/dna.json`, inyectado) y devuelve solo las que pasan, con su motivo. Prueba con modelo falso. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  }
+ ]
+}
