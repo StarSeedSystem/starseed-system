@@ -9,7 +9,7 @@ import { mkdir, readFile, writeFile, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import commander from "commander";
+import { Command } from "commander";
 
 export const pesoMB = (bytes) => Math.round((bytes / (1024 * 1024)) * 1000) / 1000;
 /** Problemas del plan, en español claro (lista vacía si vale). */
@@ -125,7 +125,8 @@ async function principal([entrada, rutaPlan, salida]) {
 // Por la ruta real: lanzado desde el enlace del «bin» (node_modules/.bin) también arranca, en vez de callar.
 
 export function parseArgs(args) {
-  const program = new commander.Command();
+  const program = new Command();
+program.exitOverride((err) => { throw err; });
   program
     .requiredOption("--entrada <path>", "Ruta del GLB de entrada")
     .requiredOption("--plan <path>", "Ruta del plan JSON")
