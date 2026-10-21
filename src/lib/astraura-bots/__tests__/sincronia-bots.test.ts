@@ -93,26 +93,64 @@ describe("migración de abiertos", () => {
   });
 });
 
-describe("abiertos: casos rescatados al error 23", () => {
-  it("devuelve un array vacío si lo guardado no es un array", () => {
-    window.localStorage.setItem(
-      "starseed.astraura.bots.abiertos.v1",
-      JSON.stringify(["basura-que-no-molesta"])
-    );
-    window.localStorage.setItem("starseed.astraura.orbes-abiertos", '{"no": "es un array"}');
+const CLAVE_ANTIGUA = "starseed.astraura.bots.abiertos.v1";
+const CLAVE_NUEVA = "starseed.astraura.orbes-abiertos";
+
+function limpiarAbiertos(): void {
+  window.localStorage.removeItem(CLAVE_ANTIGUA);
+  window.localStorage.removeItem(CLAVE_NUEVA);
+}
+
+describe("abiertos y migración: casos rescatados de la rama de la nube", () => {
+  it("devuelve un array vacío si lo guardado en la clave nueva no es un array", () => {
+    limpiarAbiertos();
+    window.localStorage.setItem(CLAVE_NUEVA, '{"no": "es un array"}');
     expect(abiertosEnEstaNeurona()).toEqual([]);
   });
 
   it("no añade el mismo bot dos veces", () => {
+    limpiarAbiertos();
     marcarAbierto("bot-dup", true);
     marcarAbierto("bot-dup", true);
     expect(abiertosEnEstaNeurona()).toEqual(["bot-dup"]);
   });
 
   it("al quitar un bot conserva los demás abiertos", () => {
+    limpiarAbiertos();
     marcarAbierto("bot-uno", true);
     marcarAbierto("bot-dos", true);
     marcarAbierto("bot-uno", false);
     expect(abiertosEnEstaNeurona()).toEqual(["bot-dos"]);
+  });
+
+  it("quitar un bot que no estaba abierto no rompe nada", () => {
+    limpiarAbiertos();
+    marcarAbierto("bot-ausente", false);
+    expect(abiertosEnEstaNeurona()).toEqual([]);
+  });
+
+  it("migrar sin clave antigua no crea la clave nueva", () => {
+    limpiarAbiertos();
+    migrarAbiertosDesdeAntigua();
+    expect(window.localStorage.getItem(CLAVE_NUEVA)).toBeNull();
+  });
+
+  it("migrar combina lo antiguo con lo que ya hay en la clave nueva", () => {
+    limpiarAbiertos();
+    window.localStorage.setItem(CLAVE_ANTIGUA, JSON.stringify(["antiguo-1", "antiguo-2"]));
+    window.localStorage.setItem(CLAVE_NUEVA, JSON.stringify(["ya-abierto"]));
+    migrarAbiertosDesdeAntigua();
+    const res = JSON.parse(window.localStorage.getItem(CLAVE_NUEVA) ?? "[]");
+    expect(res).toEqual(expect.arrayContaining(["ya-abierto", "antiguo-1", "antiguo-2"]));
+    expect(res).toHaveLength(3);
+  });
+
+  it("migrar ignora una clave antigua que no es un array", () => {
+    limpiarAbiertos();
+    const basura = '{"no": "es un array"}';
+    window.localStorage.setItem(CLAVE_ANTIGUA, basura);
+    migrarAbiertosDesdeAntigua();
+    expect(window.localStorage.getItem(CLAVE_ANTIGUA)).toBe(basura);
+    expect(window.localStorage.getItem(CLAVE_NUEVA)).toBeNull();
   });
 });
