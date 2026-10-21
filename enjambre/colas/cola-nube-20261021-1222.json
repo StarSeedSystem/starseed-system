@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261021",
+ "tareas": [
+  {
+   "ola": "Ola 1010S · Actualizaciones por capas: lo que faltaba",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261016-001431",
+   "id": "S1010-ACT5d-d2",
+   "titulo": "Qué neuronas van atrasadas y por qué (parte 2 de 2)",
+   "archivos": [
+    "src/lib/actualizaciones/__tests__/atrasadas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo /home/claude/starseed-system (Next 15, TypeScript, vitest). REGLAS: módulo PURO (sin React/red/node:*); español; producto = Genesis; máx. 3 archivos y 120 líneas por archivo; sin git ni next build; `npx vitest run src/lib/actualizaciones`. DEPENDE de ACT1 (`CapaActualizacion`, `compararVersiones` de './manifiesto'; si no existe aún, copia local marcada TODO) y de ACT3 (`MotivoEspera`). Contrato: architecture/actualizaciones-por-capas-y-niveles.md §5 «Cada aparato dice qué tiene». CREA src/lib/actualizaciones/atrasadas.ts con: `export type VersionesPorCapa = Partial<Record<CapaActualizacion, string>>; export interface EstadoNeuronaActualizacion { neuronaId: string; nombre: string; online: boolean; versiones: VersionesPorCapa; pospuestaPor?: MotivoEspera; fallo?: string; manual?: boolean }`; `export type MotivoAtraso = \"offline\"|\"pospuesta\"|\"espera-wifi\"|\"fallo\"|\"manual\"|\"sin-motivo\"; export interface Atraso { neuronaId: string; nombre: string; capa: CapaActualizacion; tiene: string | null; deberia: string; motivo: MotivoAtraso; texto: string }`; `export function neuronasAtrasadas(neuronas: readonly EstadoNeuronaActualizacion[], ultima: VersionesPorCapa): Atraso[]` (una fila por neurona y capa donde la versión es menor que `ultima[capa]` por compararVersiones; `tiene` null si no declara versión; motivo por prioridad: fallo > offline > espera-wifi > pospuesta > manual > sin-motivo; `texto` en español, p. ej. «Pixel va atrasada en interfaz (2026.10.01 → 2026.10.10): esperando Wi-Fi»; orden estable por nombre y luego capa). Pruebas ≥ 12 casos: neurona al día no aparece, versión ausente, prioridad de motivos, capa sin `ultima` se ignora, orden.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261016-001431`)\nUn agente de la nube ya avanzó esta tarea (no pasa en el A1: vitest: (\u001b[32m\"po\u001b[39m…\n    \u001b[90m 54| \u001b[39m    \u001b[34mexpect\u001b[39m(\u001b[34mmotivo\u001b[39m({ manual\u001b[33m:\u001b[39m \u001b[35mtrue\u001b[39m }))\u001b[33m.\u001b[39m\u001b[34mtoBe\u001b[39m(\u001b[32m\"manual\"\u001b[39m)\u001b[33m;\u001b[39m\n    \u001b[90m 55| \u001b[39m    \u001b[34mexpect\u001b[39m(\u001b[34mmotivo\u001b[39m({}))\u001b[33m.\u001b[39m\u001b[34mtoBe\u001b[39m(\u001b[32m\"sin-dato\"\u001b[39m)\u001b[33m;\u001b[39m\n    \u001b[90m   | \u001b[39m                       \u001b[31m^\u001b[39m\n    \u001b[90m 56| \u001b[39m    \u001b[34mexpect\u001b[39m(\u001b[34mmotivo\u001b[39m({ versiones\u001b[33m:\u001b[39m { interfaz\u001b[33m:\u001b[39m \u001b[32m\"1\"\u001b[39m } }))\u001b[33m.\u001b[39m\u001b[34mtoBe\u001b[39m(\u001b[32m\"sin-motivo\"\u001b[39m…\n    \u001b[90m 57| \u001b[39m  })\u001b[33m;\u001b[39m\n\n\u001b[31m\u001b[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\u001b[22m\u001b[39m\n\n). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261016-001431:refs/remotes/origin/nube/a1-20261016-001431\"` y `git cherry-pick --no-commit a58b2f9e73b1 5136435d6344 d717ea502b84`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/lib/actualizaciones/__tests__/atrasadas.test.ts, src/lib/actualizaciones/atrasadas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió S1010-ACT5d: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/actualizaciones/__tests__/atrasadas.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "S1010-ACT5d",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "revisor_quitadas": [
+    "S1010-ACT5d-d1"
+   ]
+  }
+ ]
+}
