@@ -1,0 +1,133 @@
+{
+ "ola": "nube-20261021",
+ "tareas": [
+  {
+   "id": "IMN1021K2",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en la ramificación y el diseñador de olas",
+   "archivos": [
+    "src/components/mando/ramificacion-agentes.tsx",
+    "src/components/mando/disenador-ola.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios que digan «sueño(s) profundo(s)» o «Dream» por «imaginación profunda» o «imaginación diaria». Nada de identificadores. Las pruebas existentes deben seguir en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  },
+  {
+   "id": "SP092935",
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "titulo": "Versionar spec en architecture/imaginacion-spec.md",
+   "archivos": [
+    "architecture/imaginacion-spec.md",
+    "src/components/astraura/imaginacion/imaginacion-view.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092925 (astraura × arquitectura-deuda) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/astraura--arquitectura-deuda.md`.\n\nHALLAZGO: Mover especificación de imaginación a repositorio versionado — Spec canónica vive en /tmp/imagination-spec.md, ruta efímera local; contrato implícito no versionado que desaparece al reiniciar la máquina.\nCITA: src/components/astraura/imaginacion/imaginacion-view.tsx:7 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Mover especificación a carpeta architecture/ del repo y actualizar import para leer desde fuente versionada controlada por git.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO architecture/imaginacion-spec.md, src/components/astraura/imaginacion/imaginacion-view.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.",
+   "aprobacion": false,
+   "origen": {
+    "sueno": "SA092925",
+    "area": "astraura",
+    "lente": "arquitectura-deuda",
+    "clave": "mover especificación de imaginación a repositorio versionado"
+   }
+  },
+  {
+   "id": "SP092941",
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "titulo": "Vincular labels e inputs en formularios de creación",
+   "archivos": [
+    "src/components/creation/source-picker.tsx",
+    "src/components/creation/pizarras-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092938 (creacion × ux-accesibilidad-diseno) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/creacion--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Asociar etiquetas a campos con htmlFor e id — Los <label> de URL y Etiqueta no tienen htmlFor ni los Input id; también el textarea de comentario y las opciones de votación carecen de label asociado. Los lectores de pantalla no anuncian el propósito de cada campo.\nCITA: src/components/creation/source-picker.tsx:292 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Añadir id único a cada Input/textarea y htmlFor en su label; donde no haya label visible, usar aria-label fijo.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/creation/source-picker.tsx, src/components/creation/pizarras-panel.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.",
+   "aprobacion": false,
+   "origen": {
+    "sueno": "SA092938",
+    "area": "creacion",
+    "lente": "ux-accesibilidad-diseno",
+    "clave": "asociar etiquetas a campos con htmlfor e id"
+   }
+  },
+  {
+   "id": "RLB1020G2",
+   "titulo": "Hub de Conectores · tirreno, Moli, DBX y OpenShell (seguridad y agentes)",
+   "archivos": [
+    "src/lib/connectors/registry.ts",
+    "src/lib/connectors/__tests__/registry-1020b-seguridad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Añade a `BUILTIN_CONNECTORS` cuatro conectores más con el mismo patrón: `tirreno-selfhost` (category \"custom\", antifraude de cuentas y votaciones; authType \"apiKey\"; configHint \"http://<host>:8585\"; la descripción dice que recibe IP y correos y que se activa solo con aviso de privacidad), `moli-serve` (category \"web\", navegador sin interfaz para agentes; authType \"localEndpoint\"; configHint \"http://127.0.0.1:<puerto de moli serve>\"; la descripción exige sandbox y lista de dominios), `dbx-mcp` (category \"dev\", inspección de bases locales; authType \"localEndpoint\"; la descripción dice «siempre en modo solo lectura»), `openshell-gateway` (category \"dev\", sandboxes para agentes; authType \"localEndpoint\"; la descripción dice alfa y telemetría apagada con OPENSHELL_TELEMETRY_ENABLED=false). kind \"oss\", status \"available\", free true, recommended false. Prueba: ids únicos y las 4 descripciones mencionan su salvaguarda (consentimiento, sandbox, solo lectura, telemetría). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área",
+   "dependencias_ya_en_main": [
+    "RLB1020G1"
+   ]
+  },
+  {
+   "id": "RLB1020H",
+   "titulo": "Vikunja · cliente puro: un proyecto por grupo, comunidad, página o cerebro y tareas desde lo aprobado",
+   "archivos": [
+    "src/lib/conectores-propios/vikunja.ts",
+    "src/lib/conectores-propios/__tests__/vikunja.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Crea `src/lib/conectores-propios/vikunja.ts`, módulo PURO (sin fetch propio: recibe `pedir(url, init) => Promise<Response>` inyectado) que habla la API REST de Vikunja v1: `asegurarProyecto(base, token, entidad)` donde entidad = {tipo: \"red\"|\"grupo\"|\"comunidad\"|\"pagina\"|\"publicacion\"|\"cerebro\"|\"personal\", id, nombre} → busca por título «<tipo> · <nombre> · <id>» y si no existe lo crea (PUT /projects); `tareaDesdeDecision(base, token, proyectoId, decision)` donde decision = {propuestaId, titulo, aprobadaEn, sector?} → crea la tarea (PUT /projects/{id}/tasks) con la descripción enlazando la propuesta. Las decisiones democráticas NO se toman en Vikunja: solo se ejecuta lo ya aprobado en la gobernanza del OS. Errores HTTP → resultado {ok:false, motivo} legible, nunca excepción. Pruebas con un `pedir` falso: crea una vez y reutiliza; 401 da motivo claro; el título lleva tipo, nombre e id. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área",
+   "dependencias_ya_en_main": [
+    "RLB1020G1"
+   ]
+  },
+  {
+   "id": "RLB1020I",
+   "titulo": "Trilium · cliente puro de ETAPI para que los cerebros lean y guarden notas",
+   "archivos": [
+    "src/lib/conectores-propios/trilium.ts",
+    "src/lib/conectores-propios/__tests__/trilium.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Crea `src/lib/conectores-propios/trilium.ts`, módulo PURO con `pedir` inyectado, para la ETAPI de Trilium: `buscarNotas(base, token, consulta, limite=20)` (GET /etapi/notes?search=…), `leerNota(base, token, id)` (contenido en texto plano, con tope de 64 KB), `crearNota(base, token, padreId, titulo, contenido, tipo=\"text\")` (POST /etapi/create-note). Uso: memoria de los cerebros y notas de perfiles, grupos y archivos. Nada de credenciales en el código ni en registros (el token entra por parámetro y nunca se incluye en mensajes de error). Pruebas con `pedir` falso: búsqueda devuelve id y título; el tope de 64 KB corta; el error no filtra el token. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área",
+   "dependencias_ya_en_main": [
+    "RLB1020G1"
+   ]
+  },
+  {
+   "id": "PDF1020A",
+   "ola": "1020U",
+   "titulo": "Stirling-PDF · el cliente ofrece solo las operaciones que la instancia tiene (rotar, dividir, páginas, comprimir, OCR, marca de agua)",
+   "archivos": [
+    "src/lib/integrations/clients/stirling-pdf.ts",
+    "src/lib/integrations/clients/__tests__/stirling-pdf-operaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2. Añade `operacionesDisponibles(cfg)`, que lee la descripción de API de la instancia (`GET {endpoint}/v1/api-docs`) y devuelve las rutas que existen, y un catálogo `OPERACIONES_PDF` con sus campos: rotar (`/api/v1/general/rotate-pdf`, `angle`), dividir (`/api/v1/general/split-pages`, `pageNumbers`), quitar páginas (`/api/v1/general/remove-pages`, `pageNumbers`), reordenar (`/api/v1/general/rearrange-pages`, `pageOrder`), comprimir (`/api/v1/misc/compress-pdf`, `optimizeLevel`), OCR (`/api/v1/misc/ocr-pdf`, `languages`) y marca de agua (`/api/v1/security/add-watermark`, `watermarkType`, `watermarkText`), además de las que ya hay. Verificadas el 2026-10-20 en la instancia del A1 (Stirling-PDF 3.2.0: 319 rutas en /v1/api-docs, todas estas presentes; rotar un PDF de 2 páginas tardó 0,29 s). Aun así se ofrecen SOLO si la instancia que toque las tiene; si no, no aparecen. `ejecutarOperacion(cfg, id, archivo, parametros)` con el `proxyUpload` existente y campo `fileInput`; el código nuevo sin `any`. Pruebas con fetch simulado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "BOT1011D2",
+   "ola": "Ola 1011B · Bots/dots de Astraura: la orbe es el bot (varios bots sincronizados, sentidos con consentimiento e indicador, acciones tipadas, gobierno democrático, computadora por bot, invitados AG-UI y Grok)",
+   "titulo": "La orbe actual expresa la emoción y la personalidad del bot (fusión con la orbe cuántica)",
+   "archivos": [
+    "src/lib/astraura-bots/adaptadores/expresion-orbe.ts",
+    "src/components/aurora/aurora-widget.tsx"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-bots.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §0 son las reglas del área y §15 da los nombres reales del núcleo. El núcleo puro YA está escrito y probado (91 pruebas) y NO se modifica: `src/lib/astraura-bots/{tipos,permisos,personalidad-adaptable,acciones,reparto-de-modelo,bucle}.ts` (ábrelos y usa sus nombres reales). Petición de Alex (2026-10-11): la ORBE flotante de Astraura es el BOT; observa y reacciona a la pantalla, el código, los archivos del cerebro y la red, y crea y modifica en tiempo real con acciones tipadas; cada persona tiene varios bots abiertos y sincronizados (el de su perfil y los de sus grupos/páginas), cada uno con su personalidad, sentidos, permisos y memoria; los bots de grupo se gobiernan democráticamente desde PoliGenesis; Astraura local (Needle 3, Bonsai, BitNet, Jev, Laya) es el predeterminado y las APIs o bots externos (Grok, AG-UI) son invitados; cada bot tiene su computadora aislada en la nube.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/astraura-bots.md` y los seis módulos de `src/lib/astraura-bots/`. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos núcleos) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo de bots en main» para que el director la reencole cuando llegue.\nReglas de la casa (CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea de qué tarea queda pendiente). Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; el código que sintetiza un bot es un CANDIDATO que nunca se ejecuta en el OS (solo se previsualiza en el iframe sandbox sin allow-same-origin de `src/lib/aurora/code-runtime.ts`), y nada apunta al núcleo intocable (`NUCLEO_INTOCABLE` de `acciones.ts`). Toda acción de un bot pasa por `validarAccion` + `decidirAccion` y por el bucle (`avanzar` de `bucle.ts`): jamás se llama a un ejecutor saltándose eso. Todo sentido pasa por `decidirSentido` y su indicador queda visible mientras esté activo. Los bots invitados y los de grupo NUNCA leen memoria personal (`puedeLeerMemoria`). Nada de `node:*` en código que llegue al navegador (un módulo de servidor lleva sus tipos en un archivo aparte que el cliente importa). Claves solo por NOMBRE de variable y en el servidor; en pruebas, cualquier cadena con forma de clave se monta en tiempo de ejecución (`[\"s\",\"k-\"].join(\"\")…`). Pruebas sin red y sin hardware: lo del navegador y Supabase se inyecta o se simula con `vi.mock`; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom. Español claro en toda cadena visible; iconos Lucide, nunca emojis; cursor pointer en lo clicable; transiciones de 150–300 ms; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». NO instales paquetes. El layout raíz no carga nada pesado de forma estática (`next/dynamic` sin SSR o `import()` dentro de un efecto). Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Si cambias un valor persistido o un valor por defecto, migra lo guardado (las cuentas existentes también deben verlo). Un módulo PURO nuevo en la raíz de `src/lib/astraura-bots/` cumple la guardia `__tests__/pureza.test.ts` (sin React, red, DOM, reloj ni `node:*`; ≤ 200 líneas; solo importa del propio núcleo o de `@/lib/nucleo/{alcance-memoria,ui-spec,paquete-sistema}`); lo que use React, Supabase o red va en `src/lib/astraura-bots/adaptadores/` o en `src/components/astraura-bots/`. Honestidad: di que pasan tsc y vitest; no digas que «se ve bien» ni que «funciona»: eso se verifica en Genesis en localhost. Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (BOT1011D2): `expresion-orbe.ts` ('use client'): `useExpresionBot(bot: Bot | null)`: escucha la personalidad activa de Aurora (evento `PERSONALITY_CHANGED_EVENT` de `src/lib/aurora/personalities.ts`) y el ánimo de voz (`subscribeUserVoiceEmotion` de `src/lib/aurora/audio-emotion.ts`, SOLO si `isEmotionalHearingEnabled()`: si no, sin ánimo), calcula `mezclarPersonalidad` → `estadoEmocional` (con el estado anterior para la inercia) → `expresionCuerpo` y lo traduce a `QuantumOrbParams` de `src/lib/aurora/quantum-orb-theme.ts` con una función exportada y probada `aParametrosOrbe(expresion)` (hueShift ← desplazamiento de tono, breath ← pulso, turbulence ← activación, symmetry ← valencia, spikiness bajo en ternura/calma), emitido con `emitQuantumOrbParams` como mucho 4 veces por segundo. En `aurora-widget.tsx` ≤ 8 líneas: llamar a `useExpresionBot` con el bot predeterminado (`leerBots(...)[0]`; sin sesión, `botPredeterminado(\"local\", \"local\")`). Si te cabe, prueba `src/lib/astraura-bots/__tests__/expresion-orbe.test.ts` de `aParametrosOrbe` (≥ 5); si no, déjalo dicho en tu última línea. No toques el render de `quantum-orb.tsx`.",
+   "dependencias_ya_en_main": [
+    "BOT1011Ab",
+    "BOT1011D1",
+    "BOT1011C2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1020-121122.json": [
+   "PDF1020A",
+   "RLB1020G2",
+   "IMN1021K2",
+   "BOT1011D2",
+   "RLB1020H",
+   "RLB1020I",
+   "SP092935",
+   "SP092941"
+  ]
+ }
+}
