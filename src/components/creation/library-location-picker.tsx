@@ -201,6 +201,7 @@ export function LibraryLocationPicker({ value, onChange, className }: LibraryLoc
                     </div>
                 )}
             </div>
+</div>
         </div>
     );
 }
