@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deshacer, validarAccion, type AccionBot } from "../acciones";
 import { MAX_ORBES_VISIBLES } from "../orbes";
-import { disponerTrinity, type EntradaEspacio } from "@/lib/xr/espacio-trinity";
-import type { ContextoVoz } from "@/lib/xr/intenciones-voz";
+import * as xrEspacioTrinity from "@/lib/xr/espacio-trinity";
+import { EntradaEspacio } from "@/lib/xr/espacio-trinity";
+import type { ContextoVoz, ResultadoVoz, TarjetaConfirmacion, entenderVoz } from "@/lib/xr/intenciones-voz";
 
 type Respuesta = { ok: boolean; message: string };
 type Herramienta = { name: string; describe: string; example: string; handler: (args: Record<string, unknown>, ctx: unknown) => Promise<Respuesta> };
@@ -60,6 +61,13 @@ describe("protomolecula.operar", () => {
   });
 });
 describe("xr.intencion", () => {
+   let entenderVozSpy: any = null;
+  afterEach(() => {
+    if (entenderVozSpy) {
+      entenderVozSpy.mockRestore();
+    }
+    entenderVozSpy = null;
+  });
   it("devuelve la tarjeta de entenderVoz y no ejecuta nada (lo confirma la persona)", () => {
     const handler = instalar();
     const r = ejecutarIntencionXR(voz("crea un mundo con cielo de noche e invita al grupo Banda"), ctxVoz);
@@ -76,6 +84,45 @@ describe("xr.intencion", () => {
     const r = ejecutarIntencionXR(voz("invita al grupo Banda"), ctxVoz);
     expect(r).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("mundo") });
     expect(ejecutarIntencionXR(operar(MOVER), ctxVoz)).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("solo traduce «xr.intencion»") });
+  });
+  it("devuelve error de entenderVoz", async () => {
+     const a = voz("frase no entendida");
+     const d = { onStatus: vi.fn() };
+     const intencionesVoz = await import("@/lib/xr/intenciones-voz");
+     const m: ResultadoVoz = { ok: false, razon: "no-entendido", pregunta: "¿Qué quieres decir?", sugerencias: [] };
+    entenderVozSpy = vi.spyOn(intencionesVoz, "entenderVoz").mockReturnValue(m);
+    const r = await ejecutarIntencionXR(a, ctxVoz, d);
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBe("¿Qué quieres decir?");
+    expect(r.previo).toEqual({});
+    expect(r.tarjeta).toBeNull();
+  });
+  it("devuelve tarjeta", async () => {
+     const a = voz("crea un mundo");
+     const d = { onStatus: vi.fn() };
+     const m: ResultadoVoz = { ok: true, pasos: [], confirmar: false, tarjeta: null };
+     const intencionesVoz = await import("@/lib/xr/intenciones-voz");
+     entenderVozSpy = vi.spyOn(intencionesVoz, "entenderVoz").mockReturnValue(m);
+    const r = await ejecutarIntencionXR(a, ctxVoz, d);
+    expect(r.ok).toBe(true);
+    expect(r.motivo).toBe("Tarjeta lista: no se hace nada hasta que la confirmes.");
+    expect(r.previo).toEqual({});
+     expect(r.tarjeta).not.toBeNull();
+      expect(r.tarjeta!.titulo).toBe(TITULO_PROPUESTA_BOT);
+   });
+  it("error frase no válida", async () => {
+    const a = { tipo: "xr.intencion", args: { frase: 123 } as any } as AccionBot;
+    const r = await ejecutarIntencionXR(a, ctxVoz);
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBe("Esta pieza solo traduce «xr.intencion», no «xr.intencion».");
+    expect(r.previo).toEqual({});
+  });
+  it("error frase vacía", async () => {
+    const a = { tipo: "xr.intencion", args: { frase: "" } as any } as AccionBot;
+    const r = await ejecutarIntencionXR(a, ctxVoz);
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBe("No te he oído. Dime qué quieres hacer.");
+    expect(r.previo).toEqual({});
   });
 });
 describe("anclaDeBot", () => {
@@ -94,7 +141,7 @@ describe("anclaDeBot", () => {
   });
   it.each(["de-pie", "sentado"] as const)("%s: ninguna orbe cae dentro de Zenith ni de los laterales", (postura) => {
     const e: EntradaEspacio = { ...ESPACIO_POR_DEFECTO, postura };
-    const { zenith, logic } = disponerTrinity(e).nodos;
+    const { zenith, logic } = xrEspacioTrinity.disponerTrinity(e).nodos;
     for (let i = 0; i < MAX_ORBES_VISIBLES; i++) {
       const [x, , z] = anclaDeBot("b", i, e).posicion;
       const az = Math.abs(grados(Math.atan2(x, -z)));
@@ -105,7 +152,8 @@ describe("anclaDeBot", () => {
   it("con una mano, las orbes van al lado libre (Horizon queda del dominante)", () => {
     const e: EntradaEspacio = { ...ESPACIO_POR_DEFECTO, postura: "una-mano", manoDominante: "derecha" };
     for (let i = 0; i < MAX_ORBES_VISIBLES; i++) expect(anclaDeBot("b", i, e).posicion[0]).toBeLessThan(0);
-  });
+   });
+
 });
 describe("registrarEnEjecutor", () => {
   it("añade los dos ejecutores y el de XR usa el contexto de voz del que llama", async () => {
@@ -114,6 +162,7 @@ describe("registrarEnEjecutor", () => {
     if (!xr || !proto) throw new Error("faltan ejecutores");
     expect([...mapa.keys()].sort()).toEqual(["protomolecula.operar", "xr.intencion"]);
     expect(await xr(voz("llévame a la estación Cumbre"), { ...dep, contextoVoz: ctxVoz })).toMatchObject({ ok: true, tarjeta: { lineas: ["Ir a «Cumbre»"] } });
-    expect((await proto(operar(MOVER), dep)).motivo).toBe(PROXIMAMENTE_PROTOMOLECULA);
+     expect((await proto(operar(MOVER), dep)).motivo).toBe(PROXIMAMENTE_PROTOMOLECULA);
   });
+
 });
