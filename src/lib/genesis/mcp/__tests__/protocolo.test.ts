@@ -129,7 +129,7 @@ describe("protocolo MCP", () => {
     expect(respuesta.id).toBe("5");
     expect("error" in respuesta).toBe(true);
     
-    const error = (respuesta as any).error;
+    const error = (respuesta as RespuestaErrorJsonRpc).error;
     expect(error.code).toBe(-32601);
     expect(error.message).toBe("Método no encontrado");
   });
@@ -146,7 +146,7 @@ describe("protocolo MCP", () => {
     expect(respuesta.id).toBeNull();
     expect("error" in respuesta).toBe(true);
     
-    const error = (respuesta as any).error;
+    const error = (respuesta as RespuestaErrorJsonRpc).error;
     expect(error.code).toBe(-32600);
     expect(error.message).toBe("Solicitud inválida");
   });
@@ -164,7 +164,7 @@ describe("protocolo MCP", () => {
     expect(respuesta.id).toBe("7");
     expect("error" in respuesta).toBe(true);
     
-    const error = (respuesta as any).error;
+    const error = (respuesta as RespuestaErrorJsonRpc).error;
     expect(error.code).toBe(-32602);
   });
 
