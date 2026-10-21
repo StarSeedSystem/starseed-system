@@ -6,6 +6,7 @@ import type {
    EstadoVitreo, Cristal, Puente
  } from "./tipos";
 import { coordinacionDe } from "./tipos";
+import { esTitanio, bonusTroncal, temperaturaAmortiguada } from "./titanio";
 import { delaunay } from "./triangulacion";
 import { senalesDeReticula, huellaReticula } from "./teselas";
 import { posicionesEstimadas } from "./geometria";
@@ -128,8 +129,13 @@ export function cristalizar(
   const candidatos: Array<{a: string; b: string; medio: Medio; coste: number}> = [];
   
   for (const senal of senalesMedidas) {
-    const coste = 1.0 - (typeof senal.rssiDbm === 'number' ? 
+    let coste = 1.0 - (typeof senal.rssiDbm === 'number' ?
       (Math.max(0, Math.min(1, (senal.rssiDbm + 100) / 100))) : 0.5);
+    const neurA = neuronas.find(n => n.id === senal.de);
+    const neurB = neuronas.find(n => n.id === senal.a);
+    const aTi = neurA ? esTitanio(neurA) : false;
+    const bTi = neurB ? esTitanio(neurB) : false;
+    coste += bonusTroncal(senal.medio, aTi, bTi);
     candidatos.push({
       a: senal.de,
       b: senal.a,
@@ -179,7 +185,12 @@ export function cristalizar(
           
           // Coste basado en distancia (0-1, donde 0 es mejor)
           // Normalizar asumiendo máximo 300m (alcance wifi)
-          const coste = Math.min(1, distancia / 300);
+          let coste = Math.min(1, distancia / 300);
+          const neurA = neuronas.find(n => n.id === aId);
+          const neurB = neuronas.find(n => n.id === bId);
+          const aTi = neurA ? esTitanio(neurA) : false;
+          const bTi = neurB ? esTitanio(neurB) : false;
+          coste += bonusTroncal(mejorMedio, aTi, bTi);
           
           candidatos.push({
             a: aId,

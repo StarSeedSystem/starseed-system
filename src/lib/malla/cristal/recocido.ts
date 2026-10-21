@@ -4,6 +4,7 @@ import { coordinacionDe, type Cristal, type NeuronaReticula, type Puente, type R
 import { cristalizar } from './cristalizacion';
 import { costeSenal } from './coste';
 import { huellaReticula, senalesDeReticula } from './teselas';
+import { esTitanio, margenDePuente, temperaturaAmortiguada, MARGEN_TITANIO } from './titanio';
 export interface OpcRelajar { confianza?: Record<string, number>; temperatura?: Record<string, number> }
 const par = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
 const clave = (p: Puente): string => `${par(p.a, p.b)}|${p.medio}`;
@@ -55,8 +56,11 @@ export function relajarLocal(previo: Cristal | null, r: Reticula, cambiadas: str
   const temp = { ...previo.temperatura, ...(opc.temperatura ?? {}) }, prop = cristalizar(r, { ...opc, temperatura: temp });
   const neur = neuronas(r), coste = tasador(r, opc.confianza), limite = limitador(neur, temp);
   // Un titanio (router) lleva siempre la histéresis máxima: fija la red mientras lo demás se mueve.
-  const margen = (p: Puente, e: string): number =>
-    margenHisteresis(neur.get(p.a)?.esRouter || neur.get(p.b)?.esRouter ? 0 : temp[e] ?? 0.5);
+  const margen = (p: Puente, e: string): number => {
+    const aTi = neur.has(p.a) ? esTitanio(neur.get(p.a)!) : false;
+    const bTi = neur.has(p.b) ? esTitanio(neur.get(p.b)!) : false;
+    return margenDePuente(margenHisteresis(temp[e] ?? 0.5), aTi, bTi);
+  };
   const mejora = (n: Puente, v: Puente, m: number): boolean => coste(n, n.coste) < coste(v, Infinity) * (1 - m);
   // Las neuronas que entran en la retícula o salen de ella también cuentan como cambiadas.
   const conocidas = new Set(Object.keys(previo.coordinacion)), todas = [...neur.keys(), ...conocidas];
