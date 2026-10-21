@@ -55,6 +55,10 @@ describe("acciones colmena: desconectar y contenedor", () => {
         expect(validarArgs("contenedor", { activo: false })).toBeNull();
         expect(validarArgs("contenedor", { activo: false, trabajadores: 2 })).toContain("trabajadores solo se permite");
     });
+    it("contenedor con activo false rechaza trabajadores fuera de rango y con rango válido", () => {
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 1 })).toContain("trabajadores solo se permite");
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBe("trabajadores fuera de 1–4");
+    });
 });
 
 describe("esDestinoPara: desconectar/contenedor solo a un id de nodo", () => {
