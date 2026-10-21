@@ -87,3 +87,50 @@ export function compararVersiones(
         ? "igual"
         : "hay-actualizacion";
 }
+
+/* ───────────────────── canal de etiquetas con patrón (RuView) ───────────────────── */
+
+/** Patrón para validar etiquetas de RuView: máximo 80 caracteres, expresión regular válida. */
+function validarPatron(patronTag: string): boolean {
+    if (!patronTag || patronTag.length > 80) return false;
+    try {
+        new RegExp(patronTag);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/** Extrae owner/repo de una URL de GitHub. */
+function extraerRepoGitHub(url: string): string | null {
+    const RE_GITHUB = /^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+?)(?:\/.*)?$/;
+    const match = RE_GITHUB.exec(url);
+    return match ? match[1] : null;
+}
+
+/** Obtiene una lista de etiquetas desde la API de GitHub (hasta 100). */
+async function obtenerEtiquetas(repo: string): Promise<{ name: string; commit: { sha: string } }[]> {
+    const url = `https://api.github.com/repos/${repo}/tags?per_page=100`;
+    const respuesta = await fetch(url);
+    if (!respuesta.ok) return [];
+    const datos = await respuesta.json() as { name: string; commit: { sha: string } }[];
+    return datos;
+}
+
+/** Busca la primera etiqueta cuyo nombre case con el patrón; si no hay, "sin versión". */
+export async function buscarEtiquetaPorPatron(repositorio: string, patronTag: string): Promise<{ version: string; nombre: string } | "sin versión"> {
+    if (!validarPatron(patronTag)) {
+        return "sin versión";
+    }
+    const repo = extraerRepoGitHub(repositorio);
+    if (!repo) {
+        return "sin versión";
+    }
+    const etiquetas = await obtenerEtiquetas(repo);
+    const patron = new RegExp(patronTag);
+    const etiquetagFind = etiquetas.find(etiqueta => patron.test(etiqueta.name));
+    if (!etiquetagFind) {
+        return "sin versión";
+    }
+    return { version: etiquetagFind.commit.sha.slice(0, 7), nombre: etiquetagFind.name };
+}

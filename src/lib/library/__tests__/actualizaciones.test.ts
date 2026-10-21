@@ -1,10 +1,11 @@
 // Pruebas del módulo puro de actualizaciones de la Biblioteca (JV12 · Ola 360).
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
     urlDeConsulta,
     leerVersion,
     compararVersiones,
+    buscarEtiquetaPorPatron,
 } from "../actualizaciones";
 
 describe("urlDeConsulta", () => {
@@ -68,5 +69,50 @@ describe("compararVersiones", () => {
     it("falta un dato → «desconocida»", () => {
         expect(compararVersiones(undefined, "a1b2c3d")).toBe("desconocida");
         expect(compararVersiones("a1b2c3d", null)).toBe("desconocida");
+    });
+});
+
+describe("buscarEtiquetaPorPatron (canal de etiquetas con patrón de RuView)", () => {
+    it("busca la primera etiqueta ruview-harness-… saltando v3263", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve([
+                { name: "v1.0.0", commit: { sha: "abc123def" } },
+                { name: "v2.0.0", commit: { sha: "def456ghi" } },
+                { name: "ruview-harness-v3264-test", commit: { sha: "ghi789jkl" } },
+                { name: "ruview-harness-v3265-test", commit: { sha: "jkl012mno" } },
+            ]),
+        }));
+        const resultado = await buscarEtiquetaPorPatron("https://github.com/ruvnet/RuView", "^ruview-harness-");
+        expect(resultado).toEqual({ version: "ghi789j", nombre: "ruview-harness-v3264-test" });
+    });
+
+    it("patrón inválido no rompe (devuelve «sin versión»)", async () => {
+        const resultado = await buscarEtiquetaPorPatron("https://github.com/ruvnet/RuView", "[");
+        expect(resultado).toBe("sin versión");
+    });
+
+    it("sin patrón permanece igual (sin consulta)", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve([
+                { name: "v1.0.0", commit: { sha: "abc123def" } },
+                { name: "v2.0.0", commit: { sha: "def456ghi" } },
+            ]),
+        }));
+        const resultado = await buscarEtiquetaPorPatron("https://github.com/ruvnet/RuView", "");
+        expect(resultado).toBe("sin versión");
+    });
+
+    it("sin coincidencias devuelve «sin versión»", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve([
+                { name: "v1.0.0", commit: { sha: "abc123def" } },
+                { name: "v2.0.0", commit: { sha: "def456ghi" } },
+            ]),
+        }));
+        const resultado = await buscarEtiquetaPorPatron("https://github.com/ruvnet/RuView", "^ruview-harness-");
+        expect(resultado).toBe("sin versión");
     });
 });
