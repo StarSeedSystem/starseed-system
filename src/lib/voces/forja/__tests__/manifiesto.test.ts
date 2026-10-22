@@ -41,25 +41,33 @@ describe("Manifiesto de la Forja de Voz 1.58", () => {
     });
   });
 
-  test("progresoFase de una fase con 2 de 4 hechos es 50", () => {
-    const fase: FaseForja = {
-      id: 1,
-      nombre: "programa único",
-      descripcion: "fusionar con criterio el código de varios modelos abiertos en UN programa de voz propio",
-      hitos: [
-        { id: "hito1", titulo: "Hito 1", estado: "hecho" },
-        { id: "hito2", titulo: "Hito 2", estado: "hecho" },
-        { id: "hito3", titulo: "Hito 3", estado: "pendiente" },
-        { id: "hito4", titulo: "Hito 4", estado: "pendiente" }
-      ]
-    };
-    expect(progresoFase(fase)).toBe(50);
-  });
-
   test("progresoForja está entre 0 y 100", () => {
     const progreso = progresoForja();
     expect(progreso).toBeGreaterThanOrEqual(0);
     expect(progreso).toBeLessThanOrEqual(100);
+  });
+
+  test("progresoFase de fase vacía (sin hitos) es 0", () => {
+    const fase: FaseForja = {
+      id: 1,
+      nombre: "programa único",
+      descripcion: "algo",
+      hitos: []
+    };
+    expect(progresoFase(fase)).toBe(0);
+  });
+
+  test("progresoFase de fase con hitos parciales", () => {
+    const fase: FaseForja = {
+      id: 1,
+      nombre: "programa único",
+      descripcion: "algo",
+      hitos: [
+        { id: "hito1", titulo: "Hito 1", estado: "hecho" },
+        { id: "hito2", titulo: "Hito 2", estado: "en-curso" }
+      ]
+    };
+    expect(progresoFase(fase)).toBe(50);
   });
 
   test("todos los repos empiezan por https://github.com/", () => {
