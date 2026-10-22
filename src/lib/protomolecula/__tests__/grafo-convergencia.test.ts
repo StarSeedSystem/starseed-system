@@ -74,6 +74,16 @@ describe("formatos: directo, por conversión o incompatible", () => {
     expect(d).toMatchObject({ ok: true, incompatibles: [], conversiones: [] });
     expect(rutaDe).not.toHaveBeenCalled();
   });
+  it("se recorta el espacio sobrante: « .PNG » y « png » casan directos, sin conversiones", () => {
+    const rutaDe = vi.fn<RutaDe>(() => null);
+    const conRuido = new Map<string, DefinicionAtomo>([
+      ["gen", def("gen", [], [" .PNG "], "Generador")],
+      ["visor", def("visor", [" png "], [], "Visor")],
+    ]);
+    const d = analizarConvergencia([at("a", "gen"), at("b", "visor")], [ar("a", "b")], (id) => conRuido.get(id), rutaDe);
+    expect(d).toMatchObject({ ok: true, incompatibles: [], conversiones: [] });
+    expect(rutaDe).not.toHaveBeenCalled();
+  });
   it("conversión de dos pasos con un rutaDe falso: la arista va a conversiones con su ruta", () => {
     const rutaDe = vi.fn<RutaDe>((de, a) => (de === "obj" && a === "glb" ? ["OBJ", "gltf", "glb"] : null));
     const d = analizarConvergencia([at("m", "modelador"), at("e", "escena")], [ar("m", "e")], definicion, rutaDe);
