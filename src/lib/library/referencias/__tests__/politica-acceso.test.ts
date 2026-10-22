@@ -101,6 +101,19 @@ describe('canalPara', () => {
     expect(resultado.cacheMaxMs).toBe(0)
   })
 
+  it('debe tratar todas las acciones de manera similar para permisos básicos', () => {
+    const conectado = new Set<string>(['mcp-oficial'])
+    const acciones = ['buscar', 'leer-pagina', 'instalar']
+    const resultados = acciones.map((accion) => canalPara(entradaBase, { accion, conectado, ahora }))
+
+    for (const resultado of resultados) {
+      expect(resultado.canal).toBe('mcp-oficial')
+      expect(resultado.permitido).toBe(true)
+      expect(resultado.pausaMs).toBe(0)
+      expect(resultado.cacheMaxMs).toBe(0)
+    }
+  })
+
   it('debe ignorar mayúsculas/minúsculas en canal sitemap', () => {
     const conectado = new Set<string>()
     const entradaConSitemapMayusculas: EntradaReferencia = {
