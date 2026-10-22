@@ -21,6 +21,8 @@ import {
 import type { ModoAvatar } from "@/lib/vivo/espacial/avatares";
 import { dependenciasReales } from "@/lib/vivo/espacial/dependencias";
 import { ejecutarGuardia } from "@/components/xr/shell/guardia-privacidad";
+import { abrirCanalEscenaElegido, type ConexionEscena } from "@/lib/vivo/espacial/canal";
+import type { Alcanzabilidad, Sala } from "@/lib/salas/sala";
 
 async function resolverIdentidad(): Promise<IdentidadEscena> {
     try {
@@ -40,6 +42,21 @@ function claveDe(f: FuenteEscena | null): string {
     return f.tipo === "espacio" ? `e:${f.id}` : `l:${f.sesionId}`;
 }
 
+/** Sala mínima de la escena para que `elegirTransporte` pueda decidir el camino (§3 h). */
+function salaDeEscena(clave: string): Sala {
+    return { id: clave, tipo: "escena3d", titulo: "Escena compartida", visibilidad: "grupo", transporte: "malla-p2p", miembros: {}, creadaEn: 0 };
+}
+
+/**
+ * Lo que hay disponible AHORA: internet sí, servidor privado no y malla aún no (falta la lista de
+ * pares y la señalización del grupo). Con `malla:false` la elección sigue cayendo en el canal de
+ * Supabase de siempre; cuando la malla esté cableada, `elegirTransporte` pedirá `malla-p2p` sola.
+ */
+function alcanzabilidadDeEscena(): Alcanzabilidad {
+    const internet = typeof navigator === "undefined" ? true : navigator.onLine;
+    return { internet, servidorPrivado: false, malla: false };
+}
+
 const nada = () => () => {};
 
 export function useSesionEscena(
@@ -56,21 +73,31 @@ export function useSesionEscena(
         void resolverIdentidad().then((identidad) => {
             if (!viva) return;
             const depsBase = dependenciasReales();
+            const protegerCanal = (c: ConexionEscena | null): ConexionEscena | null =>
+                c
+                    ? ejecutarGuardia(c, {
+                          destino: "sala-publica" as any,
+                          consentimientos: () => [],
+                          ahora: () => Date.now(),
+                          alBloquear: (v) => {
+                              // Nunca se registra el contenido bloqueado; solo se notifica por nombre de variable.
+                              console.warn(`[XR guardia] bloqueado ${v.clase}: ${v.motivo}`);
+                          },
+                      })
+                    : null;
             const depsConGuardia: typeof depsBase = {
                 ...depsBase,
-                abrirCanal: (tema: string, clave: string, filaId: string | null) => {
-                    const c = depsBase.abrirCanal?.(tema, clave, filaId) ?? null;
-                    if (!c) return null;
-                    return ejecutarGuardia(c, {
-                        destino: "sala-publica" as any,
-                        consentimientos: () => [],
-                        ahora: () => Date.now(),
-                        alBloquear: (v) => {
-                            // Nunca se registra el contenido bloqueado; solo se notifica por nombre de variable.
-                            console.warn(`[XR guardia] bloqueado ${v.clase}: ${v.motivo}`);
-                        },
-                    });
-                },
+                // La escena se abre por donde toca: `abrirCanalEscenaElegido` decide con `elegirTransporte`
+                // (malla P2P si procede) y cae en el canal de siempre cuando aún no hay malla.
+                abrirCanal: (tema: string, clave: string, filaId: string | null) =>
+                    protegerCanal(
+                        abrirCanalEscenaElegido(salaDeEscena(clave), alcanzabilidadDeEscena(), {
+                            tema,
+                            clave,
+                            filaId,
+                            abrirCanal: (t, k, f) => depsBase.abrirCanal?.(t, k, f) ?? null,
+                        }),
+                    ),
             };
             abierta = abrirSesionEscena({ fuente, identidad, modo: modoInicial, deps: depsConGuardia });
             setSesion(abierta);
