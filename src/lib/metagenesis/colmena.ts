@@ -135,6 +135,7 @@ export function botonesNeurona(n: NeuronaColmena): { desconectar: Boton; contene
                   : n.orquestadorVivo
                     ? "Tiene un orquestador en marcha aunque ahora no publique tareas: puede estar entre dos. Páralo antes de apagar este aparato."
                     : "No tiene trabajo en curso: puedes apagarlo sin más.",
+            confirmar: false,
         };
     } else if (n.nodo && n.vivo) {
         const trabajo = n.enCurso > 0 || !!c?.activo || n.orquestadorVivo === true;
