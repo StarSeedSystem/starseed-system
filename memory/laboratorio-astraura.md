@@ -3,7 +3,7 @@
 > Documento de la Ola 230 (commits `64a14d6` L1, `acea347` L2, `b517755` L4, `ffbdf86` L7).
 > Código real: `src/lib/laboratorio/{genoma,versiones,cuantizacion}.ts`, `src/components/laboratorio/inspector-nodo.tsx`,
 > pruebas en `src/lib/__tests__/laboratorio-*.test.ts`.
-> ⚠️ `versiones.ts` (L2) vive hoy **solo en la rama `ola/L2`**, pendiente de fusión a `main`.
+> ⚠️ `versiones.ts` ya está en `main`, fusionado desde la ola `ola/L2`.
 
 ---
 
@@ -35,7 +35,7 @@ Un genoma (`Genoma`) es una lista de nodos (`NodoGenoma`: `id`, `capa`, `nombre`
 
 `validarGenoma()` también comprueba ids repetidos y enlaces hacia nodos inexistentes (errores), y devuelve `{valido, errores, avisos}`.
 
-## 3. Versiones: crear, ramificar, comparar y promover (`src/lib/laboratorio/versiones.ts`, rama `ola/L2`)
+## 3. Versiones: crear, ramificar, comparar y promover (`src/lib/laboratorio/versiones.ts`, en `main`)
 
 Una `VersionLab` es una **instantánea congelada del genoma** (clon profundo), con `padre` (para ramas), `nota` y un contrato de métricas (`latenciaMs`, `tokens`, `aciertos`, `notas`).
 
@@ -48,7 +48,7 @@ Una `VersionLab` es una **instantánea congelada del genoma** (clon profundo), c
 
 ## 4. El banco de pruebas y su aislamiento
 
-El banco de pruebas hoy es **el armazón de versiones**: instantáneas aisladas, ramas, diffs y el contrato de métricas. Editar el genoma activo jamás altera una versión guardada; comparar es gratis y reversible.
+El banco de pruebas son **dos piezas**: el armazón de versiones (instantáneas aisladas, ramas, diffs y el contrato de métricas) y `src/lib/laboratorio/banco-pruebas.ts`, que con `ejecutarBanco(genoma)` corre `CASOS_DE_PRUEBA` de forma determinista (sin red, sin escribir en el OS) y produce latencia y aciertos por caso; lo usan `laboratorio-astraura.tsx` y `comparador-versiones.tsx`. Además `/api/laboratorio/ejecutar` mide un prompt contra un motor real (sesión + rate-limit). Editar el genoma activo jamás altera una versión guardada; comparar es gratis y reversible.
 
 **Qué NO toca del OS (aislamiento verificado en el código):**
 - **Sin red ni Supabase**: ningún `fetch`, ningún cliente, ninguna tabla. Nada viaja fuera del navegador.
@@ -56,7 +56,7 @@ El banco de pruebas hoy es **el armazón de versiones**: instantáneas aisladas,
 - **Sin datos del usuario**: no lee cuentas, perfiles, corpus ni memoria raíz reales (solo los *nodos del genoma* que los representan).
 - **Sin escrituras peligrosas**: `leerAlmacen`/`escribirAlmacen` tragan sus propios errores (JSON roto → empezar de cero; almacenamiento bloqueado → ignorar). El laboratorio nunca rompe la sesión del OS.
 
-**Pendiente del banco:** la ejecución real de casos de prueba (un *runner* que corra el genoma contra casos y produzca las métricas de `VersionLab`). El contrato ya está declarado; falta quien lo llene.
+**Pendiente del banco:** ampliar los casos y llevar las métricas medidas con motor real al contrato de `VersionLab`; hoy `ejecutarBanco` razona sobre los nodos del genoma, no sobre pesos.
 
 ## 5. Cuantización y adaptación por hardware (`src/lib/laboratorio/cuantizacion.ts`)
 
@@ -80,7 +80,7 @@ La **ternaria 1,58 bits es la precisión propia del sistema** — pesos `{-1, 0,
 
 ## 6. El mapa 3D del genoma — cómo leerlo
 
-El genoma está pensado como un mapa de **cáscaras concéntricas**. Las reglas de lectura (definidas en `CAPAS` + `enlaces`; el render 3D propiamente dicho aún no existe, ver §8):
+El genoma está pensado como un mapa de **cáscaras concéntricas**. Las reglas de lectura (definidas en `CAPAS` + `enlaces`; el render lo hace `src/components/laboratorio/mapa-genoma-3d.tsx`, cargado de forma perezosa en `laboratorio-astraura.tsx`):
 
 - **Cada cáscara es una capa**: el **Núcleo (0) al centro**, el **Contexto (8) al borde**. Cuanto más cerca del centro, más fundamental y más lenta de cambiar; cuanto más afuera, más viva y reescrita. La mutabilidad es, literalmente, el ritmo al que late cada cáscara.
 - **Cada color identifica la capa** (ver tabla de §2): azul cielo `#38BDF8` = lo matemático; ámbar `#F59E0B` = el propósito; rojo `#EF4444` = los reflejos; verde `#10B981` = lo aprendido; violeta `#A855F7` = lo creativo; rosa `#EC4899` = los medios; amarillo `#EAB308` = los datos; naranja `#F97316` = el carácter; cian `#06B6D4` = el momento presente.
@@ -94,18 +94,18 @@ Para explorar el mapa hoy se usa el **inspector de nodo** (`src/components/labor
 | Clave | Qué guarda | Fuente |
 |---|---|---|
 | `starseed.laboratorio.genomas.v1` | Mapa `id → Genoma` (todos los genomas, incluido el base) | `genoma.ts` |
-| `starseed.laboratorio.versiones.v1` | Mapa `id → VersionLab` (instantáneas, ramas, métricas) | `versiones.ts` (rama `ola/L2`) |
+| `starseed.laboratorio.versiones.v1` | Mapa `id → VersionLab` (instantáneas, ramas, métricas) | `versiones.ts` (main) |
 
 Ambas se leen/escriben de forma tolerante: JSON corrupto o almacenamiento bloqueado nunca lanzan; a lo sumo se pierde lo del laboratorio, jamás la sesión del OS.
 
 ## 8. Qué falta
 
 1. **Fusionar genomas entre sí**: `duplicarGenoma` clona un genoma, pero no existe mezclar dos genomas (p. ej. la creatividad de uno con el carácter de otro) con resolución de conflictos por capa.
-2. **Entrenar desde el laboratorio**: no hay *runner* que ejecute casos contra un genoma y llene las `metricas` de `VersionLab` (latencia, tokens, aciertos). El contrato está declarado, sin productor aún.
+2. **Entrenar desde el laboratorio**: `ejecutarBanco` ya mide casos sobre un genoma, pero nada entrena ni ajusta pesos desde el laboratorio, y no está claro que las `metricas` de `VersionLab` se llenen con las mediciones del motor real.
 3. **Exportar una versión como modelo cuantizado**: `planPorHardware` decide con qué precisión correría cada medio, pero nada genera aún los pesos exportables (GGUF u otro formato) a partir de una versión.
-4. **Fusionar la rama `ola/L2` a `main`**: `versiones.ts` y sus pruebas existen solo ahí (commit `acea347`).
-5. **Montar la interfaz**: `InspectorNodo` no está montado en ninguna ruta de `src/app` ni registrado en el OmniDock (`dock-config.ts`) o el catálogo de apps — según CLAUDE.md §11, hoy el laboratorio es invisible para el usuario.
-6. **El render 3D del mapa** (three.js) y el **banco de pruebas ejecutable** descritos en §6 y §4.
+4. ~~Fusionar la rama `ola/L2` a `main`~~ — hecho: `versiones.ts` y `banco-pruebas.ts` están en `main`.
+5. ~~Montar la interfaz~~ — hecho: `/laboratorio` (`src/app/(app)/laboratorio/page.tsx` → `LaboratorioAstraura` → `InspectorNodo`), registrado en el OmniDock (`dock-config.ts`) y en `app-catalog.ts`.
+6. ~~Render 3D y banco ejecutable~~ — existen (`mapa-genoma-3d.tsx`, `banco-pruebas.ts`); queda mejorarlos, no crearlos.
 
 ---
 
