@@ -4568,3 +4568,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1accbbbbbb` — los tipos no compilan: 12 errores tsc (rama ola/RTRTRTS1010-EV-ORACLE-1accbbbbbb conservada)
 - `CB1013S` — no escribió nada
 - `VPU1019W` — no escribió nada
+
+## 2026-10-22 10:24 · mg-oracle-1022-0241
+
+**Lo que se pidió.** Estado del túnel de MetaGenesis en Ajustes › Accesos (Genesis de la Mac)
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTS1010-MGR3d-d1d, RTMR1012Dd, RTBOT1011Td, RTWT1011Ad). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTS1010-MGR3d-d1d` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTMR1012Dd` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTBOT1011Td` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTWT1011Ad` — otra cosa: ningún proveedor respondió (todos caídos)
