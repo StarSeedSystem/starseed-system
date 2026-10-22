@@ -4074,6 +4074,72 @@ def repo_es_python(cwd):
     return not os.path.exists(os.path.join(cwd, "tsconfig.json"))
 
 
+def _tsc_remoto_posible(cwd):
+    """PURA salvo os.path. En la Mac, la puerta de una tarea se le puede pedir al A1 (TRA1012B).
+
+    En main NO: la verificación final tiene que compilar de verdad. `main..HEAD` estaría vacío,
+    el A1 contestaría «no había nada que comprobar» y daríamos por verde una puerta que no corrió.
+    """
+    try:
+        if os.path.realpath(cwd) == os.path.realpath(ROOT):
+            return False
+    except OSError:
+        return False
+    return (
+        (os.environ.get("STARSEED_MEDIO") or "").strip() == "mac"
+        and os.path.isfile(os.path.join(ROOT, "scripts", "puente", "comprobar_en_a1.py"))
+    )
+
+
+def errores_de_remoto(detalle):
+    """PURA. Las líneas «error TS» del A1, con el mismo formato que usa el tsc local.
+
+    Si el rojo no trae ninguna (por ejemplo, falló el vitest relacionado), se devuelve el
+    detalle entero: la reparación necesita saber qué falló, no un «rojo» mudo.
+    """
+    encontrados = []
+    prefijo = "en el A1: tsc: "
+    for linea in str(detalle or "").splitlines():
+        if "error TS" not in linea:
+            continue
+        if linea.startswith(prefijo):
+            linea = linea[len(prefijo):]
+        encontrados.append(linea)
+    return encontrados or [str(detalle or "el A1 no dio el visto bueno")[:600]]
+
+
+def _tsc_en_a1(cwd):
+    """('verde'|'rojo', errores, '') si el A1 da veredicto; ('medio', [], motivo) si no.
+
+    Nunca lanza: un fallo de importación, de git o del SSH es del MEDIO, y entonces la puerta
+    sigue en la Mac como siempre. El motivo ya viene tachado por `comprobar_en_a1` (sin IP).
+    """
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        from comprobar_en_a1 import comprobar
+
+        rc_base, base = sh(["git", "rev-parse", "main"], cwd=cwd, timeout=10)
+        rc_shas, salida_shas = sh(["git", "rev-list", "main..HEAD"], cwd=cwd, timeout=10)
+        rc_camb, salida_camb = sh(
+            ["git", "diff", "--name-only", "main...HEAD"], cwd=cwd, timeout=10
+        )
+        base = (base or "").strip()
+        shas = [s.strip() for s in (salida_shas or "").splitlines() if s.strip()]
+        cambiados = [c.strip() for c in (salida_camb or "").splitlines() if c.strip()]
+        if rc_base or rc_shas or rc_camb or not base or not shas:
+            return "medio", [], "el worktree no tiene commits sobre main"
+        ok, detalle, del_medio = comprobar(base, shas, cambiados, timeout=900, cwd=cwd)
+        if del_medio:
+            return "medio", [], str(detalle or "sin respuesta del A1")
+        if ok:
+            return "verde", [], ""
+        return "rojo", errores_de_remoto(detalle), ""
+    except Exception:  # noqa: BLE001 — cualquier duda cae al tsc local, nunca tumba la puerta
+        return "medio", [], "el A1 no está disponible"
+
+
 def tsc(cwd, log):
     if repo_es_python(cwd):
         # Compilación de los .py cambiados respecto a main (o todos los del diff sin commit).
@@ -4098,6 +4164,26 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
+    inicio = time.time()
+    tid = os.path.basename(os.path.normpath(cwd)) or "-"
+    motivo_a1 = ""
+    if _tsc_remoto_posible(cwd):
+        estado, errores, motivo = _tsc_en_a1(cwd)
+        if estado != "medio":
+            evento(
+                "aviso",
+                tid,
+                "puerta tsc en A1 (%s, %d errores, %.1fs)"
+                % (
+                    "verde" if estado == "verde" else "rojo",
+                    len(errores),
+                    time.time() - inicio,
+                ),
+            )
+            return (0 if estado == "verde" else 1), errores
+        motivo_a1 = motivo
+    donde_local = "Mac" if (os.environ.get("STARSEED_MEDIO") or "").strip() == "mac" else "local"
+    inicio_mac = time.time()
     env = ENV_TSC
     for intento in range(2):
         with SEM_PESADO, cerrojo("pesado"):
@@ -4111,16 +4197,30 @@ def tsc(cwd, log):
         errores = [l for l in out.splitlines() if "error TS" in l]
         motivo = tsc_sin_terminar(rc, out, errores)
         if not motivo:
+            texto = "puerta tsc en %s (%s, %d errores, %.1fs)" % (
+                donde_local,
+                "verde" if rc == 0 else "rojo",
+                len(errores),
+                time.time() - inicio_mac,
+            )
+            evento("aviso", tid, texto + ("; el A1 no pudo: " + motivo_a1 if motivo_a1 else ""))
             return rc, errores
         if intento == 0:
             # Una segunda vuelta con más montón si fue la memoria, tras dejar respirar a la Mac.
             if "memoria" in motivo:
                 env = dict(ENV_TSC, NODE_OPTIONS="--max-old-space-size=%d" % max(3584, TSC_HEAP_MB))
             time.sleep(30)
-    return rc, [
+    errores = [
         "%s (%s): la puerta no da el visto bueno sin un tsc completo"
         % (TSC_SIN_TERMINAR, motivo)
     ]
+    texto = "puerta tsc en %s (rojo, %d errores, %.1fs)" % (
+        donde_local,
+        len(errores),
+        time.time() - inicio_mac,
+    )
+    evento("aviso", tid, texto + ("; el A1 no pudo: " + motivo_a1 if motivo_a1 else ""))
+    return rc, errores
 
 
 #: (2026-10-04) Un tsc que MUERE no es un tsc limpio. La puerta contaba las líneas «error TS»
