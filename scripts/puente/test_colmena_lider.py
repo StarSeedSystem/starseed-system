@@ -122,3 +122,80 @@ class RelevoDelLider(unittest.TestCase):
         # La segunda vuelta no repite la orden mientras la asignación siga vigente.
         n._relevar(nov, vivos, "/no/existe", informe, AHORA + 120)
         self.assertEqual(len(enlace.ordenes), 1)
+
+    def test_un_a1_que_calla_20_min_se_releva_sin_baja(self):
+        enlace = EnlaceFalso()
+        n = nodo_lider(enlace, [tarea("T2")])
+        a1 = latido("a1", AHORA - 1200, "oracle-a1",
+                    [{"id": "T2", "fase": "tsc", "punto": punto("relevo/a1/T2", "def5678")}])
+        nov = {"latidos": [a1, latido("mac-1", AHORA - 30, "mac")], "bajas": [], "asignaciones": []}
+        vivos = {x["nodo"]: x for x in nov["latidos"]}
+        informe = {"acciones": [], "ordenes": [], "avisos": []}
+        n._relevar(nov, vivos, "/no/existe", informe, AHORA)
+        self.assertEqual(enlace.ordenes[0]["para"], "mac-1")
+        self.assertEqual(enlace.ordenes[0]["tareas"][0]["rama_nube"], "relevo/a1/T2")
+        self.assertEqual(informe["relevo"][0]["de"], "a1")
+
+    def test_tarea_privada_no_va_a_la_nube_compartida(self):
+        enlace = EnlaceFalso()
+        n = nodo_lider(enlace, [tarea("P1", privado=True)])
+        nov = {"latidos": [latido("mac-1", AHORA - 3600, "mac",
+                                  [{"id": "P1", "fase": "escribiendo", "punto": punto("relevo/mac-1/P1")}]),
+                           latido("gh", AHORA - 30, "gh-actions", agentes=4)],
+               "bajas": [{"nodo": "mac-1", "ts": AHORA - 5, "traspaso": True}],
+               "asignaciones": []}
+        vivos = {x["nodo"]: x for x in nov["latidos"]}
+        informe = {"acciones": [], "ordenes": [], "avisos": []}
+        n._relevar(nov, vivos, "/no/existe", informe, AHORA)
+        self.assertEqual(enlace.ordenes, [])
+        self.assertIsNone(informe["relevo"][0]["a"])
+        self.assertIn("espera", informe["relevo"][0]["resultado"])
+        # La misma espera no se anota dos veces (una decisión por tarea).
+        n._relevar(nov, vivos, "/no/existe", informe, AHORA + 120)
+        self.assertEqual(len(informe["relevo"]), 1)
+
+    def test_sin_metadatos_tampoco_adivina_y_espera(self):
+        enlace = EnlaceFalso()
+        n = nodo_lider(enlace, [])
+        nov = {"latidos": [latido("mac-1", AHORA - 3600, "mac",
+                                  [{"id": "X1", "fase": "escribiendo", "punto": punto("relevo/mac-1/X1")}]),
+                           latido("gh", AHORA - 30, "gh-actions", agentes=4)],
+               "bajas": [{"nodo": "mac-1", "ts": AHORA - 5, "traspaso": True}],
+               "asignaciones": []}
+        vivos = {x["nodo"]: x for x in nov["latidos"]}
+        informe = {"acciones": [], "ordenes": [], "avisos": []}
+        n._relevar(nov, vivos, "/no/existe", informe, AHORA)
+        self.assertEqual(enlace.ordenes, [])
+
+    def test_si_la_orden_no_sale_no_se_marca_como_seguida(self):
+        enlace = EnlaceFalso()
+        n = nodo_lider(enlace, [tarea("T4")])
+        n.secreto = ""  # sin secreto no se puede firmar la orden
+        nov = {"latidos": [latido("mac-1", AHORA - 3600, "mac",
+                                  [{"id": "T4", "fase": "escribiendo", "punto": punto("relevo/mac-1/T4")}]),
+                           latido("a1", AHORA - 30, "oracle-a1")],
+               "bajas": [{"nodo": "mac-1", "ts": AHORA - 5, "traspaso": True}],
+               "asignaciones": []}
+        vivos = {x["nodo"]: x for x in nov["latidos"]}
+        informe = {"acciones": [], "ordenes": [], "avisos": []}
+        n._relevar(nov, vivos, "/no/existe", informe, AHORA)
+        self.assertEqual(enlace.asignaciones, [])
+        self.assertNotIn("T4", n.mem.get("relevo") or {})
+        self.assertIn("se reintenta", informe["relevo"][0]["resultado"])
+
+    def test_sin_punto_de_control_la_tarea_vuelve_a_la_cola_tal_cual(self):
+        enlace = EnlaceFalso()
+        original = tarea("T3")
+        n = nodo_lider(enlace, [original])
+        nov = {"latidos": [latido("mac-1", AHORA - 3600, "mac", [{"id": "T3", "fase": "escribiendo"}]),
+                           latido("a1", AHORA - 30, "oracle-a1")],
+               "bajas": [{"nodo": "mac-1", "ts": AHORA - 5, "traspaso": True}],
+               "asignaciones": []}
+        vivos = {x["nodo"]: x for x in nov["latidos"]}
+        informe = {"acciones": [], "ordenes": [], "avisos": []}
+        n._relevar(nov, vivos, "/no/existe", informe, AHORA)
+        enviada = enlace.ordenes[0]["tareas"][0]
+        self.assertEqual(enviada["id"], "T3")
+        self.assertEqual(enviada["prompt"], original["prompt"])
+        self.assertNotIn("rama_nube", enviada)
+        self.assertIn("vuelve a la cola", informe["relevo"][0]["resultado"])

@@ -118,7 +118,6 @@ def huella_llave(llave: str) -> str:
     return hashlib.sha256(llave.encode("utf-8")).hexdigest()
 
 
-<<<<<<< HEAD
 # ─── préstamos de trabajo (CAP1020A) ─────────────────────────────────────────────────────
 
 #: (2026-10-20, CAP1020A) El estado del A1 que deja `oracle_nodo.estado()` en la Mac:
@@ -167,7 +166,6 @@ def podar_prestamos(prestamos: Any, t: float, gracia_s: int = L.GRACIA_ASIGNACIO
         if t - ts < gracia_s:
             dentro.append(p)
     return dentro[-tope:]
-=======
 def _segundos(x: Any) -> float:
     return float(x) if isinstance(x, (int, float)) and not isinstance(x, bool) else 0.0
 
@@ -229,7 +227,6 @@ def entradas_de_relevo(nov: Dict[str, Any], vivos: Dict[str, Dict[str, Any]]) ->
             trabajo = salud.get("trabajo") if isinstance(salud.get("trabajo"), dict) else {}
             ocupados[str(n)] = int(_segundos(trabajo.get("en_curso")))
     return {"latidos": latidos, "bajas": bajas, "asignadas": asignadas, "nodos": nodos, "ocupados": ocupados}
->>>>>>> 816820f2e (salvavidas · COL1012Gb: trabajo del agente antes de las puertas (tsc / vitest))
 
 
 # ─── el nodo ─────────────────────────────────────────────────────────────────────────────
@@ -584,19 +581,24 @@ class Nodo:
         return tareas
 
     def _prestar_relevo(self, tid: str, destino: str, tarea: Dict[str, Any], motivo: str,
-                        informe: Dict[str, Any], t: float) -> None:
+                        informe: Dict[str, Any], t: float) -> bool:
         """Presta la tarea por el mismo camino que `repartir`: cola + `lanzar_cola` firmada.
 
         `tarea_limpia` no conoce `rama_nube` (la rama del punto de control): sin ella el destino no
-        sabría de dónde seguir, así que se devuelve al viaje después de limpiar lo demás."""
+        sabría de dónde seguir, así que se devuelve al viaje después de limpiar lo demás. Devuelve si
+        la orden salió de verdad: si no, la tarea NO se marca como seguida y se reintenta."""
         limpia = L.tarea_limpia(tarea)
         if tarea.get("rama_nube"):
             limpia["rama_nube"] = tarea["rama_nube"]
         cola = "cola-relevo-%s-%s-%s" % (destino.split("-")[0], tid,
                                          time.strftime("%m%d-%H%M", time.localtime(t)))
+        antes = len(informe.get("acciones") or [])
         self._repartir(L.accion("relevo:%s" % tid, "lanzar_cola", destino, motivo,
                                 args={"cola": cola, "trabajadores": 2, "_tareas": [limpia]}, espera_s=0),
                        informe, t)
+        acciones = informe.get("acciones") or []
+        resultado = str((acciones[antes] if len(acciones) > antes else {}).get("resultado") or "")
+        return resultado.startswith("pedido a ")
 
     def _asignar_original(self, tid: str, destino: str, t: float) -> None:
         """Deja constancia de que la tarea ORIGINAL ya se siguió: `plan_relevo` no la repite."""
@@ -616,7 +618,7 @@ class Nodo:
         `nodo`/`motivo` en sus columnas fijas."""
         de, a, tid = str(r.get("de") or ""), r.get("a"), str(r.get("id") or "")
         motivo = str(r.get("motivo") or r.get("espera") or "")
-        firma = "|".join((de, str(a or "espera"), tid, str(minutos), resultado, motivo))
+        firma = "|".join((de, str(a or "espera"), tid, resultado, motivo))
         vistas = self.mem.get("relevo_visto") if isinstance(self.mem.get("relevo_visto"), dict) else {}
         if vistas.get(tid) == firma:
             return
@@ -651,7 +653,8 @@ class Nodo:
         self.mem["relevo"] = hechas
         asignadas = dict(datos["asignadas"])
         for tid, ts in hechas.items():
-            asignadas.setdefault(tid, {"a": "relevo", "t": ts})
+            if ts >= _segundos((asignadas.get(tid) or {}).get("t")):
+                asignadas[tid] = {"a": "relevo", "t": ts}
         plan = C.plan_relevo(datos["latidos"], datos["bajas"], asignadas, datos["nodos"],
                              datos["ocupados"], para_plan, t)
         conocidos = set(para_plan) | set(asignadas) | {
@@ -682,16 +685,21 @@ class Nodo:
                 sucesora = T.tarea_reparacion(original, nuevo, rama, shas,
                                               [str(a) for a in original.get("archivos") or []],
                                               str(r.get("motivo") or "el aparato dejó la tarea a medias"))
-                self._prestar_relevo(tid, destino, sucesora,
-                                     "relevo de %s (%s)" % (tid, r.get("motivo") or ""), informe, t)
-                self._asignar_original(tid, destino, t)
-                self._anotar_relevo(r, minutos, "sigue como %s desde %s" % (nuevo, rama), informe, t)
+                if self._prestar_relevo(tid, destino, sucesora,
+                                        "relevo de %s (%s)" % (tid, r.get("motivo") or ""), informe, t):
+                    self._asignar_original(tid, destino, t)
+                    self._anotar_relevo(r, minutos, "sigue como %s desde %s" % (nuevo, rama), informe, t)
+                else:
+                    self._anotar_relevo(r, minutos, "no salió la orden; se reintenta", informe, t)
             else:
                 # Sin punto de control no hay trabajo que continuar: la tarea vuelve a la cola tal cual.
-                self._prestar([L.tarea_limpia(original)], destino,
-                              "relevo sin punto de %s: vuelve a la cola" % tid, informe, t)
-                self._asignar_original(tid, destino, t)
-                self._anotar_relevo(r, minutos, "vuelve a la cola tal cual (sin punto de control)", informe, t)
+                if self._prestar_relevo(tid, destino, original,
+                                        "relevo sin punto de %s: vuelve a la cola" % tid, informe, t):
+                    self._asignar_original(tid, destino, t)
+                    self._anotar_relevo(r, minutos, "vuelve a la cola tal cual (sin punto de control)",
+                                        informe, t)
+                else:
+                    self._anotar_relevo(r, minutos, "no salió la orden; se reintenta", informe, t)
 
     def _hacer(self, a: Dict[str, Any], medio: str, raiz: str, informe: Dict[str, Any], publicar: bool) -> None:
         estado, texto = self._ejecutar(a, medio, raiz, self.modo == "seco", self._rescatador(raiz))
