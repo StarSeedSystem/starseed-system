@@ -24,7 +24,8 @@ describe("TunelMetaGenesisEstado", () => {
             ultimasLineas: [
               "Línea 1 https://ejemplo.trycloudflare.com",
               "Línea 2 sin URL",
-              "Línea 3 https://otro.trycloudflare.com/path"
+              "Línea 3 https://otro.trycloudflare.com/path",
+              "Línea 4 sin cambio https://example.com"
             ],
             medidoEn: new Date().toISOString()
           })
@@ -61,6 +62,8 @@ describe("TunelMetaGenesisEstado", () => {
     expect(await screen.findByText(/Línea 1 \[túnel\]/i)).toBeInTheDocument();
     expect(await screen.findByText(/Línea 2 sin URL/i)).toBeInTheDocument();
     expect(await screen.findByText(/Línea 3 \[túnel\]/i)).toBeInTheDocument();
+    // Una URL que no es de trycloudflare se deja intacta
+    expect(await screen.findByText(/Línea 4 sin cambio https:\/\/example\.com/i)).toBeInTheDocument();
   });
 
   it("muestra túnel parado cuando el servicio no está cargado", async () => {
@@ -95,6 +98,8 @@ describe("TunelMetaGenesisEstado", () => {
     });
     
     expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
+    // Sin líneas de log no debe aparecer la sección de últimas líneas
+    expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
   });
 
   it("realiza fetch cada 60 segundos cuando el componente está visible", async () => {
