@@ -69,6 +69,7 @@ describe("claveDeAtomo", () => {
 describe("claveDeMolecula", () => {
   it("devuelve null para un id vacío o sin pieza registrada", () => {
     expect(claveDeMolecula("")).toBeNull();
+    expect(claveDeMolecula(" ")).toBeNull();
     expect(claveDeMolecula("molecula-inventada")).toBeNull();
   });
 
@@ -115,6 +116,12 @@ describe("atributosClave", () => {
     });
     expect(atributosClave("atomo:video-html#panel")).toEqual({
       "data-ss-elemento": "atomo:video-html#panel",
+    });
+    expect(atributosClave("molecula:video-html#cuerpo")).toEqual({
+      "data-ss-elemento": "molecula:video-html#cuerpo",
+    });
+    expect(atributosClave("apariencia.radio:tema-oscuro")).toEqual({
+      "data-ss-elemento": "apariencia.radio:tema-oscuro",
     });
   });
 
