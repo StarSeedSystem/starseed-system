@@ -102,6 +102,7 @@ describe("fichasProtomolecula", () => {
   it("un átomo 'proximamente' no se registra (regla del núcleo): sin ficha duplicada", () => {
     const r = registrarAtomo(atomo("pendiente", "audio", { proximamente: "falta el puente nativo" }));
     expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toBe("falta el puente nativo");
     expect(fichasProtomolecula()).toEqual([]);
   });
 
@@ -121,5 +122,45 @@ describe("fichasProtomolecula", () => {
     expect(fichas.map((f) => f.id)).toEqual(["imagen", "recurso"]);
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
+  });
+
+  it("toma nombre, descripción y ambos enlaces del catálogo", () => {
+    const catalogo = [herramienta({
+      id: "catalogo-x",
+      nombre: "Nombre del catálogo",
+      descripcion: "Descripción detallada del catálogo.",
+      categoria: "raster-pintura",
+      web: "https://ejemplo.com/catalogo-x",
+    })];
+    const [f] = fichasProtomolecula({}, catalogo);
+    expect(f.nombre).toBe("Nombre del catálogo");
+    expect(f.descripcion).toBe("Descripción detallada del catálogo.");
+    expect(f.enlaces.web).toBe("https://ejemplo.com/catalogo-x");
+    expect(f.enlaces.repo).toBe("https://github.com/ejemplo/catalogo-x");
+  });
+
+  it("la licencia de versiones manda sobre la del catálogo y la del átomo", () => {
+    const catalogo = [herramienta({ id: "licencias", categoria: "audio-edicion", licencia: "GPL-3.0" })];
+    registrarAtomo(atomo("licencias", "audio", { ficha: { licencia: "BSD-3-Clause" } }));
+
+    const [conVersion] = fichasProtomolecula({ licencias: { licencia: "Apache-2.0" } }, catalogo);
+    expect(conVersion.licencia).toBe("Apache-2.0");
+
+    const [sinVersion] = fichasProtomolecula({}, catalogo);
+    expect(sinVersion.licencia).toBe("GPL-3.0");
+  });
+
+  it("un átomo propio lleva su ficha (licencia y enlaces) y la descripción de integración", () => {
+    registrarAtomo(atomo("propio-ficha", "imagen", {
+      nombre: "Herramienta propia",
+      ficha: { licencia: "MPL-2.0", web: "https://ejemplo.com/propia", repo: "https://github.com/ejemplo/propia" },
+    }));
+
+    const [f] = fichasProtomolecula();
+
+    expect(f.categoriaEtiqueta).toBe("Imagen");
+    expect(f.descripcion).toBe("Átomo integrado de Herramienta propia.");
+    expect(f.licencia).toBe("MPL-2.0");
+    expect(f.enlaces).toEqual({ web: "https://ejemplo.com/propia", repo: "https://github.com/ejemplo/propia" });
   });
 });
