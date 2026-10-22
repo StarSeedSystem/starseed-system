@@ -40,7 +40,8 @@ class TestInstalarTrabajador(unittest.TestCase):
             "'ram_total_mb': %d, 'disco_libre_gb': 50.0, 'herramientas': {h: True for h in ('git', 'node', 'python3', 'opencode')}}\n" % ram_mb)
     def correr(self, *args, entrada=None, **env):
         """Con `entrada`, el guion llega por la entrada estándar, como con «curl … | bash -s -- …»."""
-        e = dict({"PATH": self.bin, "HOME": self.home, "FALSO_LOG": self.log, "PYTHONPATH": self.mods, "PYTHONDONTWRITEBYTECODE": "1", "LANG": "C.UTF-8"}, **env)
+        e = dict({"PATH": self.bin, "HOME": self.home, "FALSO_LOG": self.log, "PYTHONPATH": self.mods, "PYTHONDONTWRITEBYTECODE": "1", "LANG": "C.UTF-8",
+                  "STARSEED_UNIDAD_SISTEMA": os.path.join(self.tmp.name, "sin-unidad-metagenesis.service")}, **env)
         orden, kw = ([BASH, "-s", "--"], {"input": entrada}) if entrada is not None else ([BASH, SCRIPT], {"stdin": subprocess.DEVNULL})
         r = subprocess.run(orden + list(args), env=e, capture_output=True, text=True, encoding="utf-8",
                            timeout=60, start_new_session=True, cwd=self.tmp.name, **kw)

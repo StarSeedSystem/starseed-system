@@ -4568,3 +4568,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1accbbbbbb` — los tipos no compilan: 12 errores tsc (rama ola/RTRTRTS1010-EV-ORACLE-1accbbbbbb conservada)
 - `CB1013S` — no escribió nada
 - `VPU1019W` — no escribió nada
+
+## 2026-10-22 01:14 · mg-oracle-1021-1740
+
+**Lo que se pidió.** espera
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — pruebas en rojo (MGP1014-561AD5c, CB1013Gc). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1014-561AD5c` — pruebas en rojo: vitest falla (rama conservada)
+- `CB1013Gc` — pruebas en rojo: vitest falla (rama conservada)
+- `RTRC1013Cd-d2c` — otra cosa: red caída: $ opencode run --model openrouter/cohere/north-mini-code:free · 2026-10-22 00:14:19 [0m > build · cohere/north-mini-code:free [
