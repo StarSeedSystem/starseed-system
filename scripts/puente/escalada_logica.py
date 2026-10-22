@@ -105,7 +105,8 @@ def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None, c
         ahora: str 'YYYY-MM-DD HH:MM:SS' (por defecto: se ignora y se genera si es None)
 
     Devuelve:
-        dict con campos {estado, modelo, cuenta, motivo}
+        dict con campos {estado, modelo, cuenta, motivo} y, cuando la escalera
+        se agota, además alta_capacidad True (carril de alta capacidad, memoria §0),
         o None si el estado no es recuperable.
 
     El estado devuelto puede ser 'pendiente' (seguir reintentando) o
@@ -135,6 +136,7 @@ def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None, c
             "modelo": None,
             "cuenta": None,
             "motivo": "escalada agotada tras %d intentos (%s): requiere una persona" % (n, resumen),
+            "alta_capacidad": True,
         }
 
     nivel = niveles[n]
@@ -265,6 +267,13 @@ def aplicar(progreso, tid, paso, ahora):
     # Si es bloqueante, no incrementar intentos_auto
     if paso["estado"] == "bloqueante":
         entrada["intentos_auto"] -= 1
+
+    # Carril de alta capacidad (memoria §0): quien agota la escalera queda marcado;
+    # un reintento posterior (el paso vuelve a «pendiente») quita la marca.
+    if paso.get("alta_capacidad"):
+        entrada["alta_capacidad"] = True
+    elif paso["estado"] == "pendiente":
+        entrada.pop("alta_capacidad", None)
 
     return p
 

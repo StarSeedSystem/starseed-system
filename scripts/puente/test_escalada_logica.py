@@ -468,3 +468,43 @@ class PeldanoCodex(unittest.TestCase):
     def test_codex_0_quita_el_peldano(self):
         cfg = {"escalada": dict(self.CFG["escalada"], codex=0)}
         self.assertNotIn("codex", E.niveles_de(cfg, True))
+
+
+class TestAltaCapacidad(unittest.TestCase):
+    """(2026-10-21, memoria §0) Al agotarse la escalera, la tarea queda marcada
+    para el carril de alta capacidad; un reintento posterior quita la marca."""
+
+    CFG = {"escalada": {"activa": False, "niveles": ["libre"] * 2}}
+
+    def test_escalera_agotada_marca_el_paso_y_la_entrada(self):
+        paso = siguiente_paso(
+            {"estado": "fallo", "intentos_auto": 2}, {}, self.CFG, "2026-10-21", []
+        )
+        self.assertEqual("bloqueante", paso["estado"])
+        self.assertIn("escalada agotada", paso["motivo"])
+        self.assertTrue(paso.get("alta_capacidad"))
+        nuevo = aplicar(
+            {"T": {"estado": "fallo", "intentos_auto": 2}}, "T", paso, "2026-10-21 10:00:00"
+        )
+        self.assertTrue(nuevo["T"].get("alta_capacidad"))
+        self.assertEqual(nuevo["T"]["intentos_auto"], 2)
+
+    def test_reintento_posterior_quita_la_marca(self):
+        entrada = {
+            "estado": "bloqueante",
+            "intentos_auto": 2,
+            "nota": "director: escalada agotada tras 2 intentos (libre×2): requiere una persona",
+            "alta_capacidad": True,
+        }
+        paso = siguiente_paso(entrada, {}, self.CFG, "2026-10-21", [], codex_ok=True)
+        self.assertEqual("pendiente", paso["estado"])
+        nuevo = aplicar({"T": dict(entrada)}, "T", paso, "2026-10-21 11:00:00")
+        self.assertNotIn("alta_capacidad", nuevo["T"])
+
+    def test_bloqueante_sin_agotarse_no_lleva_la_marca(self):
+        paso = siguiente_paso(
+            {"estado": "fallo", "intentos_auto": 2}, {}, {}, "2026-10-21", []
+        )
+        self.assertEqual("bloqueante", paso["estado"])
+        self.assertIn("desactivada", paso["motivo"])
+        self.assertNotIn("alta_capacidad", paso)
