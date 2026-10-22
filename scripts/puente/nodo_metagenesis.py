@@ -243,6 +243,7 @@ class Nodo:
                  huella: Optional[str] = None, rescate: Optional[Callable[..., Any]] = None,
                  chat: Optional[Callable[[str], None]] = None, llave: Optional[str] = None,
                  candidatos: Optional[Callable[[str], List[Dict[str, Any]]]] = None,
+                 tareas_locales: Optional[Callable[[str], List[Any]]] = None,
                  enlistar: Optional[Callable[..., Any]] = None,
                  existentes: Optional[Callable[[str, List[str]], List[str]]] = None,
                  solo_leer: bool = False, puerta: Any = None):
