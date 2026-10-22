@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { anuncio } from "../disponibilidad";
 import {
   Banda,
   Manifiesto,
@@ -169,6 +170,40 @@ describe("volumen.ts", () => {
 
       const resultado = elegirFuentes(MANIFIESTO_EJEMPLO, 0, tenedores, ofertas);
       expect(resultado.length).toBe(0);
+    });
+
+    it("usa los anuncios vivos para quedarse solo con quien tiene la banda", () => {
+      const tenedores: Tenedor[] = [
+        { id: "tenedor-1", indice: 0, velocidad: 10, permitted: true },
+        { id: "tenedor-2", indice: 0, velocidad: 20, permitted: true },
+      ];
+      const anuncios = anuncio(MANIFIESTO_EJEMPLO.id, {
+        nodoId: "tenedor-2",
+        total: MANIFIESTO_EJEMPLO.bandas.length,
+        indices: [0],
+        t: 1000,
+      });
+
+      const resultado = elegirFuentes(MANIFIESTO_EJEMPLO, 0, tenedores, [], anuncios, 1000);
+      expect(resultado.map((f) => f.id)).toEqual(["tenedor-2"]);
+      expect(elegirFuentes(MANIFIESTO_EJEMPLO, 0, tenedores, [], anuncios, 40_000)).toEqual([]);
+    });
+
+    it("descarta anuncios que pasan del tope de un mensaje", () => {
+      const tenedores: Tenedor[] = [
+        { id: "tenedor-1", indice: 0, velocidad: 10, permitted: true },
+      ];
+      const enorme = JSON.stringify({
+        elemento: MANIFIESTO_EJEMPLO.id,
+        nodoId: "tenedor-1",
+        t: 1000,
+        total: 3,
+        desde: 0,
+        bits: 1,
+        mapa: "x" + "A".repeat(1024),
+      });
+
+      expect(elegirFuentes(MANIFIESTO_EJEMPLO, 0, tenedores, [], [enorme], 1000)).toEqual([]);
     });
   });
 });

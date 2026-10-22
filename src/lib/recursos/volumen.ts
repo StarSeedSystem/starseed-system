@@ -1,5 +1,11 @@
 // Volúmenes por bandas para apps en la malla (architecture/apps-en-la-malla.md §7)
 // Puro: sin node:* ni APIs del navegador concretas
+import {
+  TOPE_MENSAJE_BYTES,
+  indicesABits,
+  fusionar,
+  quienTiene,
+} from "./disponibilidad";
 
 export interface Banda {
   indice: number;
@@ -77,16 +83,39 @@ export interface Tenedor {
   permitted: boolean; // si está permitido por privacidad para compartir
 }
 
-export function elegirFuentes(m: Manifiesto, bandaNumero: number, tenedores: Tenedor[], ofertas: Oferta[]): Oferta[] {
+export function elegirFuentes(
+  m: Manifiesto,
+  bandaNumero: number,
+  tenedores: Tenedor[],
+  ofertas: Oferta[],
+  anuncios?: readonly string[],
+  ahora = Date.now(),
+): Oferta[] {
+  // La banda pedida tiene que existir en el manifiesto, según su mapa compacto.
+  const presentes = indicesABits(m.bandas.length, m.bandas.map((b) => b.indice));
+  if (bandaNumero < 0 || bandaNumero >= presentes.total) return [];
+  if ((presentes.bytes[bandaNumero >> 3] & (1 << (bandaNumero & 7))) === 0) return [];
+
+  // Si hay anuncios vivos, manda quién dice tener la banda; los mensajes que
+  // pasan del tope de 1 KB se descartan antes de fusionarlos.
+  const anunciados = anuncios === undefined ? null : new Set(
+    quienTiene(
+      fusionar(anuncios.filter((texto) => new TextEncoder().encode(texto).length <= TOPE_MENSAJE_BYTES)),
+      m.id,
+      bandaNumero,
+      ahora,
+    ),
+  );
+
   // Combinar tenedores y ofertas en una lista única de fuentes
   const fuentes: Oferta[] = [
     // Convertir tenedores a ofertas (asumiendo que si son tenedores y permitted, pueden ofrecer)
     ...tenedores
-      .filter(t => t.indice === bandaNumero && t.permitted)
+      .filter(t => t.indice === bandaNumero && t.permitted && (!anunciados || anunciados.has(t.id)))
       .map(t => ({ id: t.id, indice: t.indice, velocidad: t.velocidad, permitted: t.permitted })),
     // Filtrar ofertas por el número de banda y permiso
     ...ofertas
-      .filter(o => o.indice === bandaNumero && o.permitted)
+      .filter(o => o.indice === bandaNumero && o.permitted && (!anunciados || anunciados.has(o.id)))
   ];
   
   // Ordenar por velocidad descending (de la más rápida a la más lenta)
