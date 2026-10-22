@@ -13,6 +13,16 @@
  * de imágenes de una neurona no está encendido, la pestaña no tiene el generador WebGPU registrado,
  * los Spaces de Hugging Face aún no se llaman desde aquí). Nunca se instala ni se descarga nada, nunca
  * se sondea Supabase (las capacidades llegan con el latido de `listNeurons`, con su caché de 5 min).
+ *
+ * La capa «malla» (RTIMG1011F) corre por el RELÉ `capacidad.*` (§6 de `architecture/apps-en-la-malla.md`):
+ * un `capacidad.pedir` tipo «imagen» a la neurona elegida del plan, por el espacio `CAPACIDAD_MALLA_NS`
+ * con el tope `CAPACIDAD_MALLA_MAX_BYTES`. El cliente del relé (`pedirCapacidad`, de
+ * `src/lib/network/capacidad-por-malla.ts`) valida con `esMensajeCapacidadMalla`,
+ * lee con `parseCapacidadMallaMensaje` y reensambla los `capacidad.trozo` con
+ * `unirTrozosOrdenados` (llegan en desorden). La ejecución va en
+ * `src/lib/imagenes/adaptadores/malla-imagenes.ts` (`pedirGeneracionMalla`); sin servidores de
+ * capacidad detrás (tarea F, «servir capacidades») el pedido falla con su motivo y la galería
+ * sustituye esa opción por la siguiente: el relé es un candidato, no un contrato.
  */
 import { planImagen, type CapaImg, type NeuronaImg, type OpcionImagen, type PeticionImagen } from "@/lib/imagenes/plan";
 import { modeloPorId, MOTORES_IMG, type CapacidadImg, type MotorImg } from "@/lib/imagenes/modelos";
@@ -179,6 +189,8 @@ export type EjecutarOpcion = (
 ) => Promise<{ url?: string; ref?: string; segundos: number } | null>;
 
 const TIMEOUT_LOCAL_MS = 180000;
+/** El relé `capacidad.*` es un candidato: sin respuesta del peer en este plazo, la opción se descarta. */
+const TIMEOUT_MALLA_MS = 15000;
 
 async function fetchJsonLocal(url: string, body: unknown): Promise<unknown | null> {
   if (typeof fetch === "undefined" || !/^https?:\/\//i.test(url)) return null;
@@ -254,7 +266,24 @@ export async function ejecutarOpcionReal(
   }
   if (op.motor === "espacio-hf") return null; // El cliente de Spaces aún no está conectado: descarte honesto.
   if (op.motor === "externo") return null; // Los servicios de pago se piden con tu clave aparte.
-  // Capas locales (dispositivo/neurona/malla): el servicio de imágenes de IMG1011A en esa neurona.
+  // Capa «malla» (RTIMG1011F): la generación va por el relé `capacidad.*` a esa neurona.
+  if (op.capa === "malla") {
+    const r = await (
+      await import("@/lib/imagenes/adaptadores/malla-imagenes")
+    ).pedirGeneracionMalla(
+      op.neuronaId ?? "",
+      {
+        prompt,
+        modelo: op.modelo?.id ?? null,
+        semilla: op.semilla,
+        ...(op.modelo?.pasos ? { pasos: op.modelo.pasos } : {}),
+      },
+      { timeoutMs: TIMEOUT_MALLA_MS },
+    );
+    if (!r.ok || (!r.url && !r.ref)) return null;
+    return { ...(r.url ? { url: r.url } : {}), ...(r.ref ? { ref: r.ref } : {}), segundos: tardado() };
+  }
+  // Capas locales (dispositivo/neurona): el servicio de imágenes de IMG1011A en esa neurona.
   const endpoint = endpointsPorNeurona[op.neuronaId ?? ""];
   if (!endpoint || !op.modelo) return null;
   const data = await fetchJsonLocal(`${endpoint.replace(/\/+$/, "")}/imagen`, {
