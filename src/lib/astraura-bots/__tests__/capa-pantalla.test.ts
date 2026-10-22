@@ -71,6 +71,15 @@ describe("normalizarCapa · rechazos", () => {
 });
 
 describe("apilar y retirar", () => {
+  it("con menos de 8 añade al final sin tocar las demás y conserva la capa tal cual", () => {
+    const antes = [capa("a1"), capa("b1", "bot-b")];
+    const nueva: CapaActiva = { forma: "flecha", objetivo: "boton-enviar", texto: "Envía aquí", id: "a2", botId: "bot-a", nombreBot: "Bot A" };
+    const despues = apilar(antes, nueva);
+    expect(despues).toHaveLength(3);
+    expect(despues[2]).toBe(nueva);
+    expect(despues.slice(0, 2)).toEqual(antes);
+    expect(antes).toHaveLength(2);
+  });
   it(`como mucho ${MAX_CAPAS_POR_BOT} capas por bot: la novena retira la más vieja de ESE bot`, () => {
     let capas: CapaActiva[] = [capa("ajena", "bot-b")];
     for (let i = 1; i <= MAX_CAPAS_POR_BOT + 1; i++) capas = apilar(capas, capa(`c${i}`));
