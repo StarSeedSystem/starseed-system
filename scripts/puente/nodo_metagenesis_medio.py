@@ -21,6 +21,12 @@ probados (nada de un segundo orquestador peleando con el vigilante):
     final; y `enlistar_reparacion` (cola `cola-metagenesis-<fecha>` y, si nadie más la coge, delante
     en la tanda viva).
 
+  · Alimentar (CAP1018Ab, 2026-10-22): la orden `repartir` con `modo: "alimentar"` añade tareas al
+    FINAL del archivo de su COLA VIVA (atómica, sin repetir ids) — su orquestador, el único que hay,
+    las coge al reeler la cola; nunca se lanza una segunda cola. Y el latido publica
+    `salud.cola_viva` (trabajando, esperando, libres, sin_nuevas_s) leído de `latidos-<cola>.json`,
+    que es lo que el líder mira para saber si un medio con orquestador vivo tiene trabajadores ociosos.
+
 Todo lo que se lanza va desacoplado (no bloquea el latido) y deja su registro en
 `/tmp/starseed-nodo-<acción>.log`. En modo SECO nada de esto se ejecuta: se dice qué se haría.
 Solo biblioteca estándar. Nunca se imprime una clave ni el nombre de la máquina.
@@ -528,6 +534,80 @@ def cola_viva(lineas: Optional[List[str]] = None) -> Optional[str]:
     return colas[0] if colas else None
 
 
+# ─── su cola viva (CAP1018Ab) ────────────────────────────────────────────────────────────
+
+#: Un id de tarea válido (los de las colas del enjambre: «CAP1018Ab», «p316G»…); el `id_valido` de
+#: la lógica es de NODOS (minúsculas) y no vale aquí.
+_RE_TAREA = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
+
+
+#: Fases de TRABAJO de la cola viva (las que emite `latir`). Las demás vivas («esperando
+#: proveedor», «esperando cupo», «esperando aprobación»…) cuentan como esperando.
+FASES_TRABAJO_COLA = ("escribiendo", "completando", "tsc", "tests", "revision", "integrando")
+
+
+
+def resumen_cola_viva(latidos_data: Any, trabajadores: int, sin_nuevas_s: Optional[float]) -> Dict[str, Any]:
+    """PURA. Resumen de la COLA VIVA para el latido (CAP1018Ab): lo mira el líder con
+    `nodo_metagenesis_logica.medio_alimentable` para alimentar a un medio con orquestador vivo y
+    trabajadores ociosos en vez de dejarlo 40 min parado. `trabajando` son las fases de escritura,
+    tsc, pruebas, revisión e integración; `esperando` las otras vivas; `libres` = trabajadores −
+    trabajando; `sin_nuevas_s` llega leído del disco y se publica tal cual (None: no se pudo medir).
+    «hecho» (fase cerrada) no cuenta ni como una ni como otra."""
+    tareas = (latidos_data or {}).get("tareas") if isinstance(latidos_data, dict) else {}
+    tareas = tareas if isinstance(tareas, dict) else {}
+    trabajando = esperando = 0
+    for v in tareas.values():
+        fase = v.get("fase") if isinstance(v, dict) else None
+        if not C.tarea_viva(fase):
+            continue
+        if fase in FASES_TRABAJO_COLA:
+            trabajando += 1
+        else:
+            esperando += 1
+    libres = max(0, (trabajadores if isinstance(trabajadores, int) and not isinstance(trabajadores, bool)
+                     and trabajadores > 0 else 0) - trabajando)
+    return {"trabajando": trabajando, "esperando": esperando, "libres": libres, "sin_nuevas_s": sin_nuevas_s}
+
+
+def trabajadores_de_cola(lineas: List[str], cola: str) -> Optional[int]:
+    """El `--workers` con el que se lanzó el orquestador de `cola` (las mismas líneas de `ps` que
+    lee `orquestadores`, que solo se guarda pid y cola). None si no se ve: el resumen no inventa
+    cifras. Con la forma corta `-w` también vale."""
+    buscada = cola if cola.endswith(".json") else cola + ".json"
+    for linea in lineas or []:
+        partes = linea.strip().split(None, 1)
+        if len(partes) < 2 or not partes[0].isdigit() or not _RE_ORQ.match(partes[1]):
+            continue
+        tokens = partes[1].split()
+        if not any(t.rsplit("/", 1)[-1] == buscada for t in tokens):
+            continue
+        m = re.search(r"(?:--workers|-w)[= ]([0-9]{1,2})\b", partes[1])
+        return int(m.group(1)) if m else None
+    return None
+
+
+def resumen_cola_viva_de(raiz: str, lineas: List[str], ahora: float) -> Optional[Dict[str, Any]]:
+    """La cola viva de ESTA máquina como dict para su latido. Las cuentas salen de
+    `latidos-<cola>.json` (lo que su orquestador lleva a medias, con su fase real) y `sin_nuevas_s`
+    del mtime de SU archivo de cola: el orquestador lo relee al cambiar (`releer_cola_si_cambio`),
+    así que ese mtime es la última vez que recibió tareas nuevas. None: aquí no hay orquestador
+    vivo (a nadie se alimenta y no se finge lo contrario)."""
+    cola = cola_viva(lineas)
+    if not cola:
+        return None
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    latidos = leer_json(os.path.join(olas, "latidos-" + cola), None)
+    if not isinstance(latidos, dict):
+        latidos = {}
+    try:
+        sin_nuevas = max(0.0, ahora - os.path.getmtime(os.path.join(olas, cola)))
+    except OSError:
+        sin_nuevas = None
+    trabajadores = trabajadores_de_cola(lineas, cola) or 2
+    return resumen_cola_viva(latidos, trabajadores, sin_nuevas)
+
+
 def enlistar_reparacion(raiz: str, tarea: Dict[str, Any], delante_en_la_tanda: bool, ahora: float) -> Tuple[str, str]:
     """Deja una tarea de reparación de MetaGenesis en su cola fuente (`olas/cola-metagenesis-<fecha>.json`,
     que lee el vigilante) y, si nadie más la va a coger, DELANTE en la tanda viva (el orquestador relee
@@ -561,6 +641,51 @@ def enlistar_reparacion(raiz: str, tarea: Dict[str, Any], delante_en_la_tanda: b
                 escribir_atomico(rv, dv)
                 texto += " y delante en la tanda viva (%s)" % viva[:-5]
     return "hecha", texto
+
+
+def alimentar_cola_viva(args: Dict[str, Any], raiz: str,
+                        lineas: Optional[List[str]] = None) -> Tuple[str, str]:
+    """La orden `repartir` con `modo: "alimentar"` (CAP1018Ab, parte 2) alimenta la cola VIVA de este
+    medio: añade las tareas al final de SU archivo de cola, de forma atómica (tmp + os.replace) y
+    sin repetir ids (ni en la cola ni en el progreso). JAMÁS si aquí no hay orquestador vivo: eso
+    sería lanzar una segunda cola, que `CLAUDE.md` prohíbe (UN orquestador por medio). No se lanza
+    nada: su orquestador relee la cola al cambiar el mtime (`releer_cola_si_cambio`) y las coge."""
+    cola = cola_viva(lineas)
+    if not cola:
+        return "nada", "sin orquestador vivo en este medio: no se alimenta nada"
+    try:
+        tope = max(1, min(8, int(args.get("tope") or 4)))
+    except (TypeError, ValueError):
+        tope = 4
+    crudas = args.get("_tareas") or args.get("tareas")
+    crudas = crudas if isinstance(crudas, list) else []
+    nuevas = [dict(t) for t in crudas
+              if isinstance(t, dict) and _RE_TAREA.match(str(t.get("id") or ""))]
+    if not nuevas:
+        return "nada", "la orden de alimentar no traía tareas utilizables"
+    ruta = os.path.join(raiz, "starseed_memory_root", "olas", cola)
+    d = leer_json(ruta, None)
+    lista = d if isinstance(d, list) else (d or {}).get("tareas") if isinstance(d, dict) else None
+    if not isinstance(lista, list):
+        return "fallo", "no se pudo leer la cola viva %s" % cola
+    ids = {str(t.get("id")) for t in lista if isinstance(t, dict) and t.get("id")}
+    progreso = leer_json(os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json"), {})
+    if isinstance(progreso, dict):
+        ids |= {str(k) for k in progreso}
+    añadidas: List[Dict[str, Any]] = []
+    for t in nuevas:
+        tid = str(t.get("id"))
+        if tid in ids:
+            continue
+        ids.add(tid)
+        añadidas.append(t)
+        if len(añadidas) >= tope:
+            break
+    if not añadidas:
+        return "nada", "todas ya estaban en la cola viva o en el progreso (nada que alimentar)"
+    escribir_atomico(ruta, lista + añadidas if isinstance(d, list) else dict(d, tareas=lista + añadidas))
+    return "hecha", "%d tarea(s) añadida(s) a la cola viva %s (modo alimentar): su orquestador las coge al reeler la cola" % (
+        len(añadidas), cola)
 
 
 def nube_pausada() -> bool:
@@ -658,6 +783,10 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
     except Exception:  # noqa: BLE001 — medir nunca tumba la vuelta
         en_curso = None
     try:
+        resumen_cola = resumen_cola_viva_de(raiz, ps, ahora)
+    except Exception:  # noqa: BLE001 — medir nunca tumba la vuelta
+        resumen_cola = None
+    try:
         ram_mb = ram_total_mb()
         contenedor = contenedor_de(salud["disco_gb"], ram_mb)
     except Exception:  # noqa: BLE001
@@ -665,6 +794,7 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
     salud["periodo_s"] = float(os.environ.get("STARSEED_NODO_LATIDO_S", L.LATIDO_S))
     salud["ram_total_mb"] = ram_mb
     salud["en_curso"] = en_curso
+    salud["cola_viva"] = resumen_cola
     salud["contenedor"] = contenedor
     salud["desconectando"] = desconectando_ahora(ahora)
     # Falso mientras nadie sepa seguir la tarea de otro (COL1012E subir puntos al A1, G el líder, H al volver).
@@ -769,6 +899,8 @@ def ejecutar(a: Dict[str, Any], medio: str, raiz: str, seco: bool,
                 pass
         return ("hecha", "detenido(s) %d orquestador(es) de %s" % (len(pids), cola)) if pids else (
             "nada", "no había orquestador con %s" % cola)
+    if que == "repartir" and str(args.get("modo") or "") == "alimentar":
+        return alimentar_cola_viva(args, raiz, lineas_ps())
     if que == "liberar_disco":
         if medio == "mac":
             return "nada", "en la Mac limpia la autocuración de Genesis (lista blanca)"
