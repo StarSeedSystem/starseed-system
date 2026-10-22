@@ -25,6 +25,8 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { elegirTransporte, type Alcanzabilidad, type Sala } from "@/lib/salas/sala";
+import { abrirCanalEscenaP2P, type OpcionesCanalP2P } from "./canal-p2p";
 
 export type EventoEscena = "pose" | "cambios" | "arrastre" | "pedir-estado" | "estado";
 export const EVENTOS_ESCENA: readonly EventoEscena[] = ["pose", "cambios", "arrastre", "pedir-estado", "estado"];
@@ -240,4 +242,33 @@ export function abrirCanalEscena(tema: string, clave: string, filaId: string | n
             }
         },
     };
+}
+
+export interface DepsCanalElegido {
+    /** Tema del canal (`temaEscena` o `temaSalaLlamada`). */
+    tema: string;
+    /** Clave de presencia única de esta pestaña. */
+    clave: string;
+    /** Fila de `os_spaces` a vigilar; null en salas efímeras. */
+    filaId?: string | null;
+    /** Opciones de la malla (sin `respaldo`: por defecto, este mismo canal de Supabase). */
+    p2p?: OpcionesCanalP2P;
+    /** Canal de siempre, inyectable en pruebas; por defecto `abrirCanalEscena`. */
+    abrirCanal?: (tema: string, clave: string, filaId: string | null) => ConexionEscena | null;
+}
+
+/**
+ * Abre la escena por donde toca: `elegirTransporte` decide; la malla P2P si es `malla-p2p`
+ * (o un `servidor-privado` sin internet) y el canal de Supabase de siempre en cualquier otro
+ * caso o si la malla no está disponible. `abrirCanalEscena` no cambia.
+ */
+export function abrirCanalEscenaElegido(sala: Sala, alcance: Alcanzabilidad, deps: DepsCanalElegido): ConexionEscena | null {
+    const { transporte } = elegirTransporte(sala, alcance);
+    const abrirRespaldo = () => (deps.abrirCanal ?? abrirCanalEscena)(deps.tema, deps.clave, deps.filaId ?? null);
+    const quiereMalla = transporte === "malla-p2p" || (transporte === "servidor-privado" && !alcance.internet);
+    if (quiereMalla && deps.p2p) {
+        const p2p = abrirCanalEscenaP2P(deps.tema, { ...deps.p2p, respaldo: deps.p2p.respaldo ?? abrirRespaldo });
+        if (p2p) return p2p;
+    }
+    return abrirRespaldo();
 }
