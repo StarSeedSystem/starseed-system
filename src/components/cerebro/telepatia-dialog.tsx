@@ -68,6 +68,23 @@ const FORMULARIO: Formulario = {
 
 const SELECT = "h-9 w-full cursor-pointer rounded-md border border-white/15 bg-black/40 px-2 text-sm text-white";
 
+/** Nombre legible de cada tipo de entidad que devuelve `misEntidades()`. */
+const TIPO_ENTIDAD: Record<string, string> = { grupo: "Grupo", comunidad: "Comunidad", pagina: "Página" };
+
+/**
+ * Vesica piscis: dos dominios que se solapan y una zona común.
+ * Aquí son los dos cerebros y el vínculo: solo se comparte lo que ambos tocan.
+ * Capa decorativa, sin eventos y con poco peso visual.
+ */
+function MarcaVesica({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 120 60" className={className} aria-hidden focusable="false">
+      <circle cx="46" cy="30" r="22" fill="none" stroke="currentColor" strokeWidth="1" />
+      <circle cx="74" cy="30" r="22" fill="none" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  );
+}
+
 function nuevoId(): string {
   try {
     return crypto.randomUUID();
@@ -185,7 +202,14 @@ export default function TelepatiaDialog({ open, onOpenChange, cerebro, cerebros,
     setOcupado(v.id);
     setError(null);
     const guardado = await guardarLista(vinculos.filter((x) => x.id !== v.id));
-    if (guardado) setAvisos(["Vínculo quitado de este cerebro. Lo que ya se copió en la otra parte se conserva."]);
+    if (guardado) {
+      setAvisos([
+        "Vínculo quitado de este cerebro. Lo que ya se copió en la otra parte se conserva.",
+        ...(v.destino.tipo === "cuenta"
+          ? ["El token de la cuenta externa sigue vivo: revócalo en Cuenta → Externos y APIs."]
+          : []),
+      ]);
+    }
     setOcupado(null);
   }
 
@@ -193,15 +217,22 @@ export default function TelepatiaDialog({ open, onOpenChange, cerebro, cerebros,
     setOcupado(v.id);
     setError(null);
     setAvisos([]);
-    const resultado = await aplicarVinculoTelepatia(v, cerebro, { cerebros, entidades });
-    if (resultado.errores.length) setError(resultado.errores.join(" "));
-    if (resultado.avisos.length) setAvisos(resultado.avisos);
-    if (resultado.token) setToken(resultado.token);
-    if (resultado.ok) {
-      const ahora = new Date().toISOString();
-      setVinculos((lista) => lista.map((x) => (x.id === v.id ? { ...x, ultimaSync: ahora } : x)));
+    try {
+      // La lista viva manda: así una sincronización no borra un vínculo recién creado.
+      const cerebroConLista = { ...cerebro, config: { ...cerebro.config, telepatia: vinculos } };
+      const resultado = await aplicarVinculoTelepatia(v, cerebroConLista, { cerebros, entidades });
+      if (resultado.errores.length) setError(resultado.errores.join(" "));
+      if (resultado.avisos.length) setAvisos(resultado.avisos);
+      if (resultado.token) setToken(resultado.token);
+      if (resultado.ok) {
+        const ahora = new Date().toISOString();
+        setVinculos((lista) => lista.map((x) => (x.id === v.id ? { ...x, ultimaSync: ahora } : x)));
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo sincronizar este vínculo.");
+    } finally {
+      setOcupado(null);
     }
-    setOcupado(null);
     onHecho?.();
   }
 
@@ -238,31 +269,35 @@ export default function TelepatiaDialog({ open, onOpenChange, cerebro, cerebros,
     setOcupado("nuevo");
     setError(null);
     setAvisos([]);
-    const config = conVinculo(cerebro.config, vinculo);
+    const config = conVinculo({ ...cerebro.config, telepatia: vinculos }, vinculo);
     const cerebroConVinculo = { ...cerebro, config };
-    const guardado = await saveBrain(cerebroConVinculo);
-    if (!guardado) {
-      setError("No se pudo guardar el vínculo en este cerebro.");
-      setOcupado(null);
-      return;
-    }
-    const listaConVinculo = normalizarVinculos(config);
-    setVinculos(listaConVinculo);
+    try {
+      const guardado = await saveBrain(cerebroConVinculo);
+      if (!guardado) {
+        setError("No se pudo guardar el vínculo en este cerebro.");
+        return;
+      }
+      const listaConVinculo = normalizarVinculos(config);
+      setVinculos(listaConVinculo);
 
-    const resultado = await aplicarVinculoTelepatia(vinculo, cerebroConVinculo, { cerebros, entidades });
-    if (resultado.token) setToken(resultado.token);
-    if (resultado.errores.length) setError(resultado.errores.join(" "));
-    if (resultado.avisos.length) setAvisos(resultado.avisos);
-    if (destino.tipo === "cuenta" && !resultado.ok) {
-      const revertido = await saveBrain({ ...cerebro, config: sinVinculo(cerebro.config, vinculo.id) });
-      if (revertido) setVinculos(normalizarVinculos(cerebro.config));
-    } else if (resultado.ok) {
-      const ahora = new Date().toISOString();
-      setVinculos(listaConVinculo.map((x) => (x.id === vinculo.id ? { ...x, ultimaSync: ahora } : x)));
-      setForm(FORMULARIO);
-      setPaso(1);
+      const resultado = await aplicarVinculoTelepatia(vinculo, cerebroConVinculo, { cerebros, entidades });
+      if (resultado.token) setToken(resultado.token);
+      if (resultado.errores.length) setError(resultado.errores.join(" "));
+      if (resultado.avisos.length) setAvisos(resultado.avisos);
+      if (destino.tipo === "cuenta" && !resultado.ok) {
+        const revertido = await saveBrain({ ...cerebro, config: sinVinculo(config, vinculo.id) });
+        if (revertido) setVinculos(normalizarVinculos(sinVinculo(config, vinculo.id)));
+      } else if (resultado.ok) {
+        const ahora = new Date().toISOString();
+        setVinculos(listaConVinculo.map((x) => (x.id === vinculo.id ? { ...x, ultimaSync: ahora } : x)));
+        setForm(FORMULARIO);
+        setPaso(1);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo crear el vínculo.");
+    } finally {
+      setOcupado(null);
     }
-    setOcupado(null);
     onHecho?.();
   }
 
@@ -281,7 +316,10 @@ export default function TelepatiaDialog({ open, onOpenChange, cerebro, cerebros,
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
+        <DialogHeader className="relative">
+          <div className="pointer-events-none absolute right-0 top-0 hidden w-28 text-violet-300 opacity-20 sm:block" aria-hidden>
+            <MarcaVesica className="h-auto w-full" />
+          </div>
           <DialogTitle className="flex items-center gap-2">
             <Orbit className="h-5 w-5 text-violet-400" aria-hidden />
             <span className="break-words">Telepatía · «{cerebro.name}»</span>
@@ -415,7 +453,7 @@ export default function TelepatiaDialog({ open, onOpenChange, cerebro, cerebros,
                     <optgroup label="Mis grupos, comunidades y páginas">
                       {entidades.map((e) => (
                         <option key={`${e.tipo}:${e.id}`} value={`${e.tipo}:${e.id}`}>
-                          {e.tipo === "pagina" ? "Página" : "Grupo o comunidad"} · {e.nombre}
+                          {TIPO_ENTIDAD[e.tipo] ?? "Grupo o comunidad"} · {e.nombre}
                         </option>
                       ))}
                     </optgroup>
@@ -523,9 +561,14 @@ export default function TelepatiaDialog({ open, onOpenChange, cerebro, cerebros,
                     </select>
                   </div>
                   <label htmlFor="telepatia-auto" className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input id="telepatia-auto" type="checkbox" className="h-4 w-4 cursor-pointer accent-violet-500" checked={form.auto} onChange={(e) => cambiar({ auto: e.target.checked })} />
+                    <input id="telepatia-auto" type="checkbox" className="h-4 w-4 cursor-pointer accent-violet-500" checked={!form.auto} onChange={(e) => cambiar({ auto: !e.target.checked })} />
                     Sincronizar solo
                   </label>
+                  <p className="text-xs leading-relaxed text-white/50">
+                    {form.auto
+                      ? "La sincronización automática queda guardada, pero hoy solo se sincroniza al pulsar «Sincronizar ahora»."
+                      : "Mientras esté marcado, no se copia nada entre los cerebros hasta que pulses «Sincronizar ahora»."}
+                  </p>
                   <div className="space-y-1.5">
                     <Label htmlFor="telepatia-expira" className="text-xs text-white/60">Caducidad (opcional)</Label>
                     <Input id="telepatia-expira" type="date" min={hoy} className="border-white/15 bg-black/40" value={form.expira} onChange={(e) => cambiar({ expira: e.target.value })} />

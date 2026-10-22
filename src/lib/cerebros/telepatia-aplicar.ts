@@ -73,6 +73,35 @@ function escribirPref(brainId: string, clave: string, valor: unknown): boolean {
   }
 }
 
+/**
+ * Lee las configuraciones de un cerebro: las del CEREBRO (base de datos) y las
+ * de este aparato (preferencias `starseed.brain.<id>.<clave>`).
+ * Lo que no está guardado no se inventa: no aparece.
+ */
+function leerConfiguraciones(cerebro: Brain, claves: string[]): Record<string, unknown> {
+  const valores: Record<string, unknown> = {};
+  for (const clave of claves) {
+    if (esConfiguracionDelCerebro(clave)) {
+      const lista = cerebro.includes?.personalities;
+      if (Array.isArray(lista) && lista.length > 0) valores[clave] = lista;
+      continue;
+    }
+    const valor = leerPref(cerebro.id, clave);
+    if (valor !== undefined) valores[clave] = valor;
+  }
+  return valores;
+}
+
+/** Escribe una configuración en el destino y dice si se pudo. */
+async function escribirConfiguracion(clave: string, valor: unknown, destino: Brain): Promise<boolean> {
+  if (esConfiguracionDelCerebro(clave)) {
+    const lista = Array.isArray(valor) ? valor.map((v) => String(v)) : [];
+    const guardado = await saveBrain({ ...destino, includes: { ...destino.includes, personalities: lista } });
+    return Boolean(guardado);
+  }
+  return escribirPref(destino.id, clave, valor);
+}
+
 async function guardarUltimaSync(cerebro: Brain, vinculo: VinculoTelepatico): Promise<string | null> {
   const config = conVinculo(cerebro.config, { ...vinculo, ultimaSync: new Date().toISOString() });
   const guardado = await saveBrain({ ...cerebro, config });
@@ -94,14 +123,9 @@ async function sincronizarCerebros(
 
   const archivosCerebro = await listMemoryFiles(cerebro.id);
   const archivosOtro = await listMemoryFiles(otro.id);
-  const prefsCerebro: Record<string, unknown> = {};
-  const prefsOtro: Record<string, unknown> = {};
-  for (const clave of vinculo.alcance.configuraciones) {
-    const deCerebro = leerPref(cerebro.id, clave);
-    const deOtro = leerPref(otro.id, clave);
-    if (deCerebro !== undefined) prefsCerebro[clave] = deCerebro;
-    if (deOtro !== undefined) prefsOtro[clave] = deOtro;
-  }
+  const claves = clavesDeAlcance(vinculo);
+  const prefsCerebro = leerConfiguraciones(cerebro, claves);
+  const prefsOtro = leerConfiguraciones(otro, claves);
 
   const plan = planSincronizacion(
     vinculo,
@@ -117,6 +141,7 @@ async function sincronizarCerebros(
 
   const mapaCerebro = new Map(archivosCerebro.map((a) => [a.name, a]));
   const mapaOtro = new Map(archivosOtro.map((a) => [a.name, a]));
+  let cambiosEnEsteAparato = false;
 
   for (const op of plan) {
     if (op.tipo === "carpeta") {
@@ -124,15 +149,16 @@ async function sincronizarCerebros(
       continue;
     }
     if (op.tipo === "config") {
-      const desde = op.de === "origen" ? cerebro.id : otro.id;
-      const hacia = op.a === "destino" ? otro.id : cerebro.id;
-      const valor = leerPref(desde, op.nombre);
+      const desde = op.de === "origen" ? cerebro : otro;
+      const hacia = op.a === "destino" ? otro : cerebro;
+      const valor = op.de === "origen" ? prefsCerebro[op.nombre] : prefsOtro[op.nombre];
       if (valor === undefined) {
-        r.avisos.push(`La configuración «${op.nombre}» no está guardada en este aparato; no se copió.`);
-      } else if (escribirPref(hacia, op.nombre, valor)) {
+        r.avisos.push(`La configuración «${op.nombre}» no está guardada en «${desde.name}»; no se copió.`);
+      } else if (await escribirConfiguracion(op.nombre, valor, hacia)) {
         r.operaciones += 1;
+        if (!esConfiguracionDelCerebro(op.nombre)) cambiosEnEsteAparato = true;
       } else {
-        r.errores.push(`No se pudo guardar la configuración «${op.nombre}» en este aparato.`);
+        r.errores.push(`No se pudo guardar la configuración «${op.nombre}» en «${hacia.name}».`);
       }
       continue;
     }
@@ -154,6 +180,14 @@ async function sincronizarCerebros(
     });
     if (guardado) r.operaciones += 1;
     else r.errores.push(`No se pudo copiar la memoria «${op.nombre}».`);
+  }
+
+  if (cambiosEnEsteAparato) {
+    // Las preferencias del cerebro viajan a la cuenta: sin esto, el otro aparato no las ve.
+    const subida = await pushPreferences();
+    if (!subida.ok) {
+      r.avisos.push("Se copió en este aparato, pero no se pudo subir a tu cuenta: la otra neurona aún no lo ve.");
+    }
   }
 
   if (r.errores.length === 0) {
@@ -208,19 +242,21 @@ async function crearCuentaExterna(
   const dias = vinculo.expiraEn
     ? Math.max(1, Math.ceil((Date.parse(vinculo.expiraEn) - Date.now()) / 86_400_000))
     : null;
+  const ambito = ambitoExterno(vinculo, cerebro.id);
+  const incluyeMemorias = vinculo.alcance.completo || vinculo.alcance.memorias.length > 0;
   try {
     const respuesta = await fetch("/api/externos/vinculos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         accion: "crear",
-        ambitoTipo: "cerebro",
-        ambitoId: cerebro.id,
+        ambitoTipo: ambito.ambitoTipo,
+        ambitoId: ambito.ambitoId,
         nombre: vinculo.destino.id,
         permisos: {
           leer: true,
           escribir: vinculo.acceso === "escribir",
-          memoria: true,
+          memoria: incluyeMemorias,
           hablar: false,
           herramientas: false,
         },
@@ -244,7 +280,12 @@ async function crearCuentaExterna(
   return r;
 }
 
-/** Aplica un vínculo según su destino. Devuelve el token solo para cuentas externas. */
+/**
+ * Aplica un vínculo según su destino. Devuelve el token solo para cuentas externas.
+ *
+ * Con una cuenta externa, el token se entrega UNA vez (al crear el vínculo). Por eso,
+ * un vínculo que ya se entregó no crea otro: avisa de que el token no se puede volver a leer.
+ */
 export async function aplicarVinculoTelepatia(
   vinculo: VinculoTelepatico,
   cerebro: Brain,
@@ -261,7 +302,17 @@ export async function aplicarVinculoTelepatia(
     if (!otro) return { ...vacio(), ok: false, errores: ["No se encontró el cerebro de destino."] };
     return sincronizarCerebros(vinculo, cerebro, otro);
   }
-  if (vinculo.destino.tipo === "cuenta") return crearCuentaExterna(vinculo, cerebro);
+  if (vinculo.destino.tipo === "cuenta") {
+    if (vinculo.ultimaSync) {
+      return {
+        ...vacio(),
+        avisos: [
+          "El token de la cuenta externa ya se entregó y no se vuelve a mostrar. Para compartir otra cosa, crea otro vínculo.",
+        ],
+      };
+    }
+    return crearCuentaExterna(vinculo, cerebro);
+  }
   const entidad = opciones.entidades.find((e) => e.id === vinculo.destino.id && e.tipo === vinculo.destino.tipo);
   if (!entidad) return { ...vacio(), ok: false, errores: ["No se encontró el grupo, la comunidad o la página de destino."] };
   return registrarPermiso(vinculo, cerebro, entidad);

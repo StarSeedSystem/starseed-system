@@ -13,6 +13,9 @@ import {
   accesoEnPalabras,
   estadoConMotivo,
   etiquetaConfiguracion,
+  clavesDeAlcance,
+  ambitoExterno,
+  esConfiguracionDelCerebro,
   type VinculoTelepatico,
 } from '../telepatia';
 
@@ -296,5 +299,52 @@ describe('etiquetaConfiguracion', () => {
 
   it('devuelve la clave si no la conoce', () => {
     expect(etiquetaConfiguracion('otra')).toBe('otra');
+  });
+});
+
+describe('clavesDeAlcance', () => {
+  it('con el cerebro completo comparte todas las configuraciones', () => {
+    const v = { ...vinculoBase, alcance: { completo: true, memorias: [], carpetas: [], configuraciones: [] } };
+    expect(clavesDeAlcance(v)).toEqual([...CONFIGURACIONES_TELEPATIA]);
+  });
+
+  it('con alcance elegido comparte solo las elegidas', () => {
+    expect(clavesDeAlcance(vinculoBase)).toEqual(['servers']);
+  });
+
+  it('no inventa configuraciones que no están en la lista del contrato', () => {
+    const v = { ...vinculoBase, alcance: { completo: false, memorias: [], carpetas: [], configuraciones: ['servers'] } };
+    for (const clave of clavesDeAlcance(v)) {
+      expect(CONFIGURACIONES_TELEPATIA).toContain(clave as (typeof CONFIGURACIONES_TELEPATIA)[number]);
+    }
+  });
+});
+
+describe('esConfiguracionDelCerebro', () => {
+  it('las personalidades incluidas viven en el cerebro, no en el aparato', () => {
+    expect(esConfiguracionDelCerebro('includes.personalities')).toBe(true);
+    expect(esConfiguracionDelCerebro('servers')).toBe(false);
+  });
+});
+
+describe('ambitoExterno', () => {
+  it('el cerebro completo se comparte como cerebro', () => {
+    const v = { ...vinculoBase, alcance: { completo: true, memorias: [], carpetas: [], configuraciones: [] } };
+    expect(ambitoExterno(v, 'b1')).toEqual({ ambitoTipo: 'cerebro', ambitoId: 'b1' });
+  });
+
+  it('una sola memoria se comparte como memoria', () => {
+    const v = { ...vinculoBase, alcance: { completo: false, memorias: ['memory.md'], carpetas: [], configuraciones: [] } };
+    expect(ambitoExterno(v, 'b1')).toEqual({ ambitoTipo: 'memoria', ambitoId: 'memory.md' });
+  });
+
+  it('una sola carpeta se comparte como carpeta', () => {
+    const v = { ...vinculoBase, alcance: { completo: false, memorias: [], carpetas: ['c1'], configuraciones: [] } };
+    expect(ambitoExterno(v, 'b1')).toEqual({ ambitoTipo: 'carpeta', ambitoId: 'c1' });
+  });
+
+  it('varias cosas juntas se comparten como cerebro', () => {
+    const v = { ...vinculoBase, alcance: { completo: false, memorias: ['a', 'b'], carpetas: [], configuraciones: [] } };
+    expect(ambitoExterno(v, 'b1')).toEqual({ ambitoTipo: 'cerebro', ambitoId: 'b1' });
   });
 });
