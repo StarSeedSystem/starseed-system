@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261022",
+ "tareas": [
+  {
+   "id": "ALT1021Cb",
+   "ola": "1021A",
+   "importancia": "capacidad",
+   "titulo": "Carril de alta capacidad · `alta-capacidad.py` lista las candidatas y el cupo de Claude para la dirección",
+   "archivos": [
+    "scripts/puente/alta-capacidad.py",
+    "scripts/puente/test_alta_capacidad_cli.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (regla de Alex, 2026-10-21): «para tareas muy complicadas … que requieran más capacidad de detalle en su producción y desarrollo técnico y creativo puedes utilizar agentes potentes más especializados (Claude Opus 5.5 en un contenedor en la nube, los más nuevos de Gemini y ChatGPT, o los gratuitos más potentes) supervisando los créditos para no agotarlos». Es el «carril de alta capacidad» de `memory/orquestacion-economica.md` §0. Hoy lo opera a mano la sesión de dirección (Cowork); estas tareas le dan una lista honesta de qué tareas lo necesitan y si hay cupo de Claude para ellas. Piloto medido: GUI1021D/E (dos agentes Opus, ~240k y ~280k tokens, 12/12 y 14/14 pruebas, tsc limpio).\n\nCrea `scripts/puente/alta-capacidad.py` (ejecutable, sin dependencias nuevas): lee `starseed_memory_root/olas/progreso.json`, las colas fuente (usa el MISMO cargador de colas que ya usa `scripts/puente/revisor_bloqueadas.py` o `reconciliar_progreso.py`; no escribas otro) y `limites_claude.leer()`. Con `alta_capacidad_logica` imprime: una línea de cupo («Cupo de Claude: sí/no · motivo»), y debajo las candidatas (id · título · estado · intentos) y cuáles elegiría ahora con `--en-marcha N` (por defecto 0). Con `--json` devuelve lo mismo como objeto {cupo:{ok,motivo}, candidatas:[…], elegidas:[…]}. Solo lee: no toca `progreso.json` ni lanza agentes.\n\nPruebas en `scripts/puente/test_alta_capacidad_cli.py`: con un directorio temporal de colas y progreso falsos (inyecta las rutas por variables de entorno o argumentos, como hacen los otros scripts del puente) comprueba la salida `--json`. Corre `python3 -m unittest scripts/puente/test_alta_capacidad_cli.py` y lee su resumen entero.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39851179807`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39851179807:refs/remotes/origin/nube/39851179807\"` y `git cherry-pick --no-commit 6f398885dff1 bd95d7f72f62`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/alta-capacidad.py, scripts/puente/test_alta_capacidad_cli.py, scripts/puente/test_alta_capacidad_nube.py, scripts/puente/test_alta_capacidad_nube_logica.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "ALT1021Ab"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39851179807"
+  }
+ ]
+}
