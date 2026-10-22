@@ -4074,7 +4074,80 @@ def repo_es_python(cwd):
     return not os.path.exists(os.path.join(cwd, "tsconfig.json"))
 
 
-def tsc(cwd, log):
+def _comprobar_a1():
+    """Carga perezosa de `comprobar` de scripts/puente/comprobar_en_a1.py (TRA1012A): la Mac
+    habla con el A1 por SSH y le deja paquetes git. Se importa tarde para no pagar el módulo
+    ni su red fuera de la Mac, y para que las pruebas inyecten una función falsa."""
+    global _COMPROBAR_A1
+    if _COMPROBAR_A1 is None:
+        carpeta = os.path.join(ROOT, "scripts", "puente")
+        if carpeta not in sys.path:
+            sys.path.insert(0, carpeta)
+        _COMPROBAR_A1 = __import__("comprobar_en_a1").comprobar
+    return _COMPROBAR_A1
+
+
+#: Caché del medio remoto (TRA1012Bc-d1); las pruebas la sustituyen por una función falsa.
+_COMPROBAR_A1 = None
+
+#: Dónde corrió la ÚLTIMA puerta tsc de este hilo («A1» o «Mac») y cuánto tardó. Cada tarea
+#: vive en un hilo: un hilo-local en vez de un module-global porque dos puertas pueden solaparse
+#: (la del A1 no toma el cerrojo de la Mac) y el evento de la puerta lo lee tras la llamada.
+_TSC_NOTA = threading.local()
+
+
+def _nota_tsc(medio, segundos=0.0):
+    _TSC_NOTA.medio, _TSC_NOTA.segundos = medio, segundos
+
+
+def nota_tsc():
+    """El medio y los segundos de la última puerta tsc (para el evento de la puerta)."""
+    return (
+        getattr(_TSC_NOTA, "medio", "Mac"),
+        round(float(getattr(_TSC_NOTA, "segundos", 0.0) or 0.0), 1),
+    )
+
+
+def _error_ts_de(linea):
+    """PURA. Una línea «…tsc: src/x.ts(1,1): error TS2304: …» limpiada como la imprimiría tsc."""
+    salida = re.match(r"^.*?(\S+\(\d+,\d+\): error TS.*)$", str(linea))
+    return salida.group(1).strip() if salida else str(linea).strip()
+
+
+def pedir_tsc_al_a1(cwd):
+    """Pide la puerta tsc de esta tarea (rama `ola/<id>` ya activa en `cwd`) al A1 de Oracle
+    (TRA1012Bc-d1). `base` es el main del worktree, `shas` los commits de la tarea y
+    `cambiados` los archivos del diff; el worktree entero viaja en un paquete git cuyo
+    prerrequisito es el main que el A1 ya tiene. Devuelve (rc, errores, medio, segundos):
+    con `medio` «A1» el veredicto es válido (verde o rojo, en el mismo formato de «error TS»
+    que la Mac para que la reparación automática entienda igual) y NO debe correr el tsc
+    local; con «Mac» el A1 no pudo (ocupado, sin respuesta) y se cae al tsc de siempre."""
+    comienzo = time.time()
+    base = sh(["git", "rev-parse", "main"], cwd=cwd, timeout=10)[1].strip()
+    shas = [
+        s.strip()
+        for s in sh(["git", "rev-list", "main..HEAD"], cwd=cwd, timeout=10)[1].splitlines()
+        if s.strip()
+    ]
+    _, diff = sh(["git", "diff", "--name-only", "main...HEAD"], cwd=cwd, timeout=10)
+    cambiados = [c.strip() for c in diff.splitlines() if c.strip()]
+    ok, detalle, del_medio = _comprobar_a1()(
+        base, shas, cambiados, timeout=900, cwd=cwd
+    )
+    medio = "Mac" if del_medio else "A1"
+    rojo = medio == "A1" and not ok
+    errores = []
+    if rojo:
+        # Mismo formato que la Mac: líneas «error TS» con su ruta(posición), con el prefijo
+        # del detalle del A1 recortado, para que la reparación automática las entienda igual.
+        errores = [_error_ts_de(l) for l in str(detalle).splitlines() if "error TS" in l]
+        errores = [e for e in errores if e]
+        if not errores:
+            errores = [str(detalle)]
+    return (1 if rojo else 0), errores, medio, time.time() - comienzo
+
+
+def tsc(cwd, log, tid=None):
     if repo_es_python(cwd):
         # Compilación de los .py cambiados respecto a main (o todos los del diff sin commit).
         rc0, cambiados = sh(
@@ -4098,6 +4171,33 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
+    # (TRA1012Bc-d1) La Mac de 8 GB paga cada tsc completo ~3,2-3,7 GB y 5-15 min con la swap
+    # llena; el A1 de Oracle (12 GB, siempre encendido) tarda ~20 s-4 min con el guardián.
+    # Solo la puerta de una TAREA viaja al A1 (tid): la verificación final sobre main no, que
+    # allí no hay nada que comprobar y devolvería un verde que no hizo nada.
+    if (
+        tid
+        and os.environ.get("STARSEED_MEDIO") == "mac"
+        and os.path.isfile(
+            os.path.join(ROOT, "scripts", "puente", "comprobar_en_a1.py")
+        )
+    ):
+        try:
+            rc, errores, medio, segundos = pedir_tsc_al_a1(cwd)
+            _nota_tsc(medio, segundos)
+            if medio == "A1":
+                return rc, errores
+            # del medio (A1 ocupado, sin respuesta) → se paga en la Mac como siempre y la
+            # nota queda en «Mac»: abajo corre el tsc local.
+        except Exception as e:  # noqa: BLE001
+            _nota_tsc("Mac")
+            evento(
+                "aviso",
+                tid,
+                "tsc en el A1 imposible (%s): se comprueba en la Mac"
+                % re.sub(r"\b10\.\d+\.\d+\.\d+\b", "A1", str(e))[:120],
+            )
+    # Local tsc ejecución (original logic or fallback from A1 medium failure)
     env = ENV_TSC
     for intento in range(2):
         with SEM_PESADO, cerrojo("pesado"):
@@ -7946,7 +8046,7 @@ def ejecutar(t, intento=1):
     _puerta_cableado(tid, t, wt, log, modelo_ok)
     # puerta tsc + reparación
     latir(tid, "tsc", modelo=modelo_ok)
-    rc, errs = tsc(wt, log)
+    rc, errs = tsc(wt, log, tid=tid)
     errores_antes = len(errs)
     # Un tsc que no terminó no se «repara» escribiendo código: se para con su motivo.
     tsc_roto = bool(errs) and str(errs[0]).startswith(TSC_SIN_TERMINAR)
@@ -7962,13 +8062,16 @@ def ejecutar(t, intento=1):
             timeout=900,
             tid=tid,
         )
-        rc, errs = tsc(wt, log)
+        rc, errs = tsc(wt, log, tid=tid)
+    medio_tsc, segundos_tsc = nota_tsc()
     paso(
         tid,
         "tsc",
         errores_antes=errores_antes,
         errores_despues=len(errs),
         reparado=bool(errores_antes and not errs),
+        medio=medio_tsc,
+        tsc_s=segundos_tsc,
     )
     if errs:
         set_estado(
