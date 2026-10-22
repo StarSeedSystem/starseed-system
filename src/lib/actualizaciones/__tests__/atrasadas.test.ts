@@ -218,3 +218,69 @@ describe("neuronasAtrasadas", () => {
     expect(atrasos).toHaveLength(0);
   });
 });
+
+// ─── Casos rescatados de la rama nube (comportamientos que main no cubría) ──────────────────────────────
+describe("neuronasAtrasadas · casos rescatados de rama nube", () => {
+  /** Los seis niveles publicados el mismo día, como el manifiesto de fecha. */
+  const COMPLETA: VersionesPorCapa = {
+    datos: "2026.10.10",
+    interfaz: "2026.10.10",
+    sw: "2026.10.10",
+    servicios: "2026.10.10",
+    modelos: "2026.10.10",
+    nativa: "2026.10.10",
+  };
+
+  const neuron = (versiones: VersionesPorCapa, extra: Partial<EstadoNeuronaActualizacion> = {}): EstadoNeuronaActualizacion => ({
+    neuronaId: "n1",
+    nombre: "Neurona",
+    online: true,
+    versiones,
+    ...extra,
+  });
+
+  it("una capa sin `ultima` no se informa aunque la neurona declare una versión más vieja", () => {
+    const { datos: _sinDatos, ...ultimaSinDatos } = COMPLETA;
+    const atrasos = neuronasAtrasadas([neuron({ datos: "2026.10.01" })], ultimaSinDatos);
+    expect(atrasos).toHaveLength(5);
+    for (const a of atrasos) {
+      expect(a.capa).not.toBe("datos");
+      expect(a.motivo).toBe("sin-motivo");
+    }
+  });
+
+  it("una versión más moderna que `ultima` no es atraso", () => {
+    const atrasos = neuronasAtrasadas([neuron({ datos: "2026.10.15" })], COMPLETA);
+    expect(atrasos.some((a) => a.capa === "datos")).toBe(false);
+    // Las demás capas siguen sin versión declarada y sí se informan.
+    expect(atrasos).toHaveLength(5);
+  });
+
+  it("offline y sin versión declarada: gana «offline» sobre «sin-motivo»", () => {
+    const atrasos = neuronasAtrasadas([{ neuronaId: "n1", nombre: "Neurona", online: false, versiones: {} }], COMPLETA);
+    expect(atrasos).toHaveLength(6);
+    expect(atrasos.every((a) => a.motivo === "offline")).toBe(true);
+  });
+
+  it("orden estable: mismo nombre se desempata por neuronaId", () => {
+    const atrasada = (neuronaId: string, nombre: string): EstadoNeuronaActualizacion => ({
+      neuronaId,
+      nombre,
+      online: true,
+      versiones: { datos: "2026.10.01", interfaz: "2026.10.01" },
+    });
+    const atrasos = neuronasAtrasadas(
+      [atrasada("2", "Beta"), atrasada("1", "Alpha"), atrasada("3", "Alpha")],
+      { datos: "2026.10.10", interfaz: "2026.10.10" },
+    );
+    expect(atrasos).toHaveLength(6);
+    expect(atrasos.map((a) => `${a.neuronaId}/${a.capa}`)).toEqual([
+      "1/datos",
+      "1/interfaz",
+      "3/datos",
+      "3/interfaz",
+      "2/datos",
+      "2/interfaz",
+    ]);
+  });
+});
