@@ -508,6 +508,28 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
     ],
   },
 
+  // ── Notas jerárquicas (RLB1020I) ──────────────────────────────
+  {
+    id: "trilium-etapi",
+    label: "Trilium ETAPI (notas)",
+    category: "memory",
+    capabilities: [
+      "Notas jerárquicas de perfiles, grupos, comunidades, archivos y cerebros",
+      "Búsqueda por texto, lectura en texto plano y creación de notas vía ETAPI",
+      "Consumo real desde Astraura para la memoria de los cerebros",
+    ],
+    defaultEndpoint: "http://localhost:8080",
+    needsKey: true,
+    docsUrl: "https://github.com/TriliumNext/Trilium",
+    freeHostingHint:
+      "Auto-hospeda TriliumNext con Docker en tu neurona o CasaOS (puerto 8080) y genera un token ETAPI en Opciones → ETAPI. El endpoint es la raíz de la instancia, sin `/etapi`: el cliente añade las rutas de la API.",
+    actions: [
+      { id: "buscar", label: "Buscar notas", description: "Busca notas por texto y devuelve su id y título." },
+      { id: "leer", label: "Leer nota", description: "Lee el contenido en texto plano de una nota por su id." },
+      { id: "crear", label: "Crear nota", description: "Crea una nota hija bajo un padre con título, contenido y tipo." },
+    ],
+  },
+
   // ── Respaldo de bases de datos (P4-7) ─────────────────────────
   {
     id: "databasement",

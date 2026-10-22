@@ -30,6 +30,7 @@
 import type { IntegrationConfig, IntegrationResult } from "./types";
 import { getIntegration, loadIntegrationConfig } from "./registry";
 import { runIntegration } from "./run";
+import { TOPE_CONTENIDO_BYTES } from "../conectores-propios/trilium";
 import { resolveProvider, modeForCategory, type ProviderCategory } from "../../ai/astraura/provider-resolution";
 
 export interface AuroraIntegrationTool {
@@ -181,6 +182,25 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
     integrationId: "openviking",
     actionId: "persist_memory",
     category: "memory",
+  },
+  // ── Trilium ETAPI — notas de perfiles, grupos, archivos y cerebros ──
+  {
+    name: "trilium_buscar",
+    description: "Busca notas en Trilium (perfiles, grupos, comunidades, archivos, cerebros). Entrada: { consulta, limite? }.",
+    integrationId: "trilium-etapi",
+    actionId: "buscar",
+  },
+  {
+    name: "trilium_leer",
+    description: `Lee una nota de Trilium por su id en texto plano (hasta ${TOPE_CONTENIDO_BYTES / 1024} KB; avisa si se trunca). Entrada: { id }.`,
+    integrationId: "trilium-etapi",
+    actionId: "leer",
+  },
+  {
+    name: "trilium_crear",
+    description: "Crea una nota hija en Trilium bajo un padre. Entrada: { padreId, titulo, contenido, tipo? }.",
+    integrationId: "trilium-etapi",
+    actionId: "crear",
   },
   // ── qm — memoria vectorial local cuantizada (1.58-bit embeddings, 100% local) ──
   {
