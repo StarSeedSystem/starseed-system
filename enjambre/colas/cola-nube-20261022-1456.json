@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261022",
+ "tareas": [
+  {
+   "id": "ESP1011B",
+   "ola": "Ola 1011H · Versiones públicas (Spaces de Hugging Face) mientras no haya computadora con NVIDIA: 3D con Pixal3D/TRELLIS.2 e imágenes con FLUX schnell/Qwen-Image, desde el navegador de cada persona",
+   "titulo": "Ajustes: «Versiones públicas» y cuenta de Hugging Face opcional",
+   "archivos": [
+    "src/components/espacios/ajustes-espacios.tsx",
+    "src/lib/espacios/permiso-espacios.ts",
+    "src/lib/espacios/__tests__/permiso-espacios.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATOS: `architecture/astraura-avatares-3d.md` §11.2 (decisión de Alex del 2026-10-11) y `architecture/astraura-imagenes.md` §3. Léelos ENTEROS. Núcleos puros YA probados que NO se modifican: `src/lib/avatares/adn/` (motores `pixal3d-espacio` y `trellis2-espacio`, requisito `espacio-hf`, `capacidadesDe` con `permiteEspacioHf`) y `src/lib/imagenes/` (campo `espacio` del catálogo, capa `espacio` y `PeticionImagen.espacios` en `planImagen`). Reglas: los Spaces se llaman DESDE EL NAVEGADOR de cada persona (cada quien gasta su cuota de Hugging Face: ZeroGPU 2 min/día sin cuenta, 5 con cuenta gratis, 40 con PRO), nunca con una cuota compartida desde nuestro servidor; el token de Hugging Face de cada persona, si lo pone, se guarda solo en su aparato (`src/lib/safe-storage.ts`) y nunca viaja a nuestros servidores ni a registros; con imagen de referencia, permiso; fotos de personas, consentimiento siempre; «basta de ilusiones»: si un Space está dormido, lleno o cambió su API, se dice y se pasa a la siguiente opción del plan; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Pruebas vitest sin red (Spaces simulados). Al terminar, resumen honesto.\n\nTAREA: Sección en los ajustes de Astraura: interruptor «Usar versiones públicas (Spaces de Hugging Face)» con explicación clara (qué sale del aparato, a quién, cuánto da la cuota gratis) y campo opcional para el token de Hugging Face de la persona, con enlace directo a https://huggingface.co/settings/tokens y explicación de qué es (una llave de solo lectura de su cuenta). `permiso-espacios.ts`: el permiso vive por cuenta en las preferencias sincronizadas que ya existen (sin migraciones); por defecto apagado y se pregunta UNA vez al primer uso; para la cuenta de Alex queda encendido porque él lo decidió el 2026-10-11 (identifícala como ya lo haga el OS para su cuenta de administración, sin escribir su correo en el código). Las fotos de personas piden además un consentimiento por imagen. Devuelve `permiteEspacioHf` para `capacidadesDe` y la lista `espacios` para `planImagen`. Pruebas.",
+   "dependencias_ya_en_main": [
+    "ESP1011A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "ESP1011B"
+  ]
+ }
+}
