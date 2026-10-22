@@ -10,7 +10,7 @@
  *      memoria (src/lib/brains/memory-types.ts), para que cualquier módulo
  *      pregunte "¿qué tipo uso para esto?" sin heurísticas propias.
  *   2) `autoUpdate(event)` — Aurora ESCUCHA eventos existentes del OS
- *      (chat, sync, Biblioteca), los acumula con DEBOUNCE, y genera/actualiza
+ *      (chat, Biblioteca; la sincronización NO escribe memoria), los acumula con DEBOUNCE, y genera/actualiza
  *      memorias sola llamando a `astrauraChat` (router gratis-primero +
  *      enrutado por dificultad YA existente — no se reimplementa aquí).
  *
@@ -26,7 +26,7 @@
  */
 
 import { listBrains, saveBrain, type Brain } from "@/lib/brains/brains";
-import { listMemoryFiles, saveMemoryFile, type MemoryFile } from "@/lib/cerebro/memory-files";
+import { escribirAgrupado, listMemoryFiles, saveMemoryFile, type MemoryFile } from "@/lib/cerebro/memory-files";
 import { memoryTypeById, seedContentFor } from "@/lib/brains/memory-types";
 import { writeMemoryContentResilient } from "@/lib/brains/memory-offline";
 import { astrauraChat } from "@/ai/astraura/router";
@@ -180,7 +180,34 @@ export function autoUpdate(event: MemoryIntelligenceEvent): void {
   }
 }
 
+/**
+ * Ficheros ya leídos (cerebro|tipo → fichero, con el contenido que esta pestaña
+ * le ha ido añadiendo). `brain_memory_files` se lee la primera vez y cuando
+ * llega un cambio de verdad de memoria/cerebros, no en cada actualización.
+ */
+const fileCache = new Map<string, MemoryFile>();
+
+/** Olvida los ficheros leídos: la próxima actualización vuelve a leerlos. */
+export function invalidateMemoryFileCache(): void {
+  fileCache.clear();
+}
+
+/** ¿Es una clave sincronizada de memoria o de cerebros? (`starseed.brain.*`, `*memory*`). */
+export function isMemorySyncKey(key: string): boolean {
+  const k = (key || "").toLowerCase();
+  return k.startsWith("starseed.brain.") || k.includes("memory") || k.includes("memoria");
+}
+
 async function findOrCreateTypeFile(brainId: string, typeId: string): Promise<MemoryFile | null> {
+  const cacheKey = `${brainId}|${typeId}`;
+  const cached = fileCache.get(cacheKey);
+  if (cached) return cached;
+  const file = await readOrCreateTypeFile(brainId, typeId);
+  if (file) fileCache.set(cacheKey, file);
+  return file;
+}
+
+async function readOrCreateTypeFile(brainId: string, typeId: string): Promise<MemoryFile | null> {
   try {
     const files = await listMemoryFiles(brainId);
     const t = memoryTypeById(typeId);
@@ -247,7 +274,11 @@ async function flushBuffer(): Promise<void> {
       if (getBrainMemoryMode(brain) !== "write") continue;
       const file = await findOrCreateTypeFile(brain.id, primaryType);
       if (!file) continue;
-      await writeMemoryContentResilient(file, `${file.content}${dated}`);
+      const next = `${file.content}${dated}`;
+      // La siguiente actualización se apila sobre esta aunque aún no haya salido.
+      fileCache.set(`${brain.id}|${primaryType}`, { ...file, content: next });
+      // Como mucho una escritura cada 5 min por fichero (y lo pendiente al cerrar).
+      escribirAgrupado(file.id, next, (content) => writeMemoryContentResilient(file, content));
     }
   } catch {
     /* nunca lanza: Astraura sigue funcionando aunque falle la memoria automática */
@@ -264,8 +295,8 @@ let syncHandler: ((e: Event) => void) | null = null;
 
 /**
  * Suscribe `autoUpdate` a los eventos existentes del OS: chat de Aurora
- * (`aurora:conversation`), Biblioteca (`starseed:library`) y sincronización
- * genérica (`starseed:sync:apply`). Llamar UNA vez (p.ej. desde el efecto de
+ * (`aurora:conversation`) y Biblioteca (`starseed:library`). La sincronización
+ * genérica (`starseed:sync:apply`) solo invalida los ficheros leídos. Llamar UNA vez (p.ej. desde el efecto de
  * montaje de AuroraProvider); idempotente y SSR-safe.
  */
 export function startMemoryIntelligenceAutoUpdate(): void {
@@ -293,12 +324,14 @@ export function startMemoryIntelligenceAutoUpdate(): void {
   libraryHandler = () => {
     autoUpdate({ source: "library", text: "Cambio reciente en la Biblioteca del usuario.", hintTypes: ["knowledge"] });
   };
+  // Una sincronización aplicada NO es un recuerdo (CON1011B): escribir memoria
+  // aquí volvía a sincronizarse y disparaba otro `starseed:sync:apply`, un
+  // bucle de ~1 GET + 1 PATCH por minuto con la pestaña quieta. Solo se olvidan
+  // los ficheros leídos si cambió de verdad algo de memoria/cerebros.
   syncHandler = (e: Event) => {
     try {
-      const detail = (e as CustomEvent<{ keys?: string[] }>).detail;
-      const keys = detail?.keys ?? [];
-      if (keys.length === 0) return;
-      autoUpdate({ source: "sync", text: `Sincronización aplicada: ${keys.join(", ")}` });
+      const keys = (e as CustomEvent<{ keys?: string[] }>).detail?.keys ?? [];
+      if (keys.some(isMemorySyncKey)) invalidateMemoryFileCache();
     } catch {
       /* */
     }
@@ -341,6 +374,8 @@ export function stopMemoryIntelligenceAutoUpdate(): void {
   libraryHandler = null;
   syncHandler = null;
   started = false;
+  fileCache.clear();
+  buffer = [];
   if (flushTimer) {
     clearTimeout(flushTimer);
     flushTimer = null;
