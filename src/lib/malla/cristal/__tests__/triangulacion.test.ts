@@ -78,4 +78,24 @@ describe("triangulación y proyección", () => {
     ];
     expect(delaunay(p1)).toEqual(delaunay(p2));
   });
+
+  it("elimina los puntos duplicados y se queda con el id menor", () => {
+    const puntos: Punto[] = [
+      { id: "b", x: 0, y: 0 },
+      { id: "a", x: 0, y: 0 },
+      { id: "c", x: 1, y: 0 },
+    ];
+    expect(delaunay(puntos)).toEqual([["a", "c"]]);
+  });
+
+  it("un pentágono convexo da 7 aristas", () => {
+    const puntos: Punto[] = [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 1, y: 0 },
+      { id: "c", x: 2, y: 1 },
+      { id: "d", x: 1, y: 2 },
+      { id: "e", x: 0, y: 1 },
+    ];
+    expect(delaunay(puntos).length).toBe(7);
+  });
 });

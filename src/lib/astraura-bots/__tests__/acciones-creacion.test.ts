@@ -77,6 +77,36 @@ describe("xr.intencion", () => {
     expect(r).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("mundo") });
     expect(ejecutarIntencionXR(operar(MOVER), ctxVoz)).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("solo traduce «xr.intencion»") });
   });
+  it("la tarjeta llega con el aviso de que nada se hace hasta que la confirmes", () => {
+    const onStatus = vi.fn();
+    const r = ejecutarIntencionXR(voz("crea un mundo"), ctxVoz, { onStatus });
+    expect(r.ok).toBe(true);
+    expect(r.motivo).toBe("Tarjeta lista: no se hace nada hasta que la confirmes.");
+    expect(r.previo).toEqual({});
+    expect(r.tarjeta?.titulo).toBe(TITULO_PROPUESTA_BOT);
+    expect(onStatus).toHaveBeenCalledWith("Esperando tu confirmación…");
+  });
+  it("una transcripción vacía se pregunta, no se inventa", () => {
+    const onStatus = vi.fn();
+    const a: AccionBot = { tipo: "xr.intencion", args: { frase: "" } };
+    const r = ejecutarIntencionXR(a, ctxVoz, { onStatus });
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBe("No te he oído. Dime qué quieres hacer.");
+    expect(r.previo).toEqual({});
+    expect(r.tarjeta).toBeNull();
+    expect(onStatus).not.toHaveBeenCalled();
+    if (!r.voz.ok) expect(r.voz.razon).toBe("vacio");
+  });
+  it("una frase que no es texto no se ejecuta: lo dice y no hay tarjeta", () => {
+    const onStatus = vi.fn();
+    const a: AccionBot = { tipo: "xr.intencion", args: { frase: 123 } };
+    const r = ejecutarIntencionXR(a, ctxVoz, { onStatus });
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toContain("xr.intencion");
+    expect(r.previo).toEqual({});
+    expect(r.tarjeta).toBeNull();
+    expect(onStatus).not.toHaveBeenCalled();
+  });
 });
 describe("anclaDeBot", () => {
   const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
