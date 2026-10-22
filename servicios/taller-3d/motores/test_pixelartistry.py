@@ -2,12 +2,18 @@
 # -*- coding: utf-8 -*-
 """Pruebas del motor PixelArtistry (WT1011A) — SIN red ni GPU: la API de ComfyUI se simula.
 
-Ejecutar: python3 -m unittest motores.test_pixelartistry -v
+Ejecutar: python3 -m unittest discover -s servicios/taller-3d/motores -v
+(o: cd servicios/taller-3d/motores && python3 -m unittest -v test_pixelartistry)
 """
 import json
+import os
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
+
+# El motor vive en esta misma carpeta: se importa desde aquí, se llame como se llame.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pixelartistry as pa
 
@@ -222,6 +228,38 @@ class RemallarImagen(unittest.TestCase):
                                espera_s=0.01, tope_s=0.001)
         self.assertFalse(r["ok"])
         self.assertIn("tiempo agotado", r["fallo"])
+
+
+class RemallarImagenNoDisponible(unittest.TestCase):
+    """remallar_imagen cuando el motor NO puede correr en esta neurona (aquí, SO no-Windows)."""
+
+    def setUp(self):
+        # SO no-Windows: disponible() dice que no antes de tocar la ComfyUI.
+        self.parche = mock.patch.object(pa.platform, "system", return_value="Linux")
+        self.parche.start()
+        self.addCleanup(mock.patch.stopall)
+
+    def test_no_disponible_devuelve_fallo_y_no_glb(self):
+        """Sin motor disponible, remallar_imagen devuelve un dict de error, no una malla."""
+        r = pa.remallar_imagen("/fake/path/image.png", resolucion=512,
+                               comfy=ComfyFalso(), dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        # el motivo es honesto: aquí el cierre lo hace blender-voxel (WT1011B)
+        self.assertIn("solo Windows 10/11", r["fallo"])
+        self.assertIn("blender-voxel", r["fallo"])
+        self.assertGreaterEqual(r["segundos"], 0.0)
+        self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
+        # la procedencia se declara igual: el flujo y los nodos que se habrían usado
+        piezas = [p["pieza"] for p in r["procedencia"]]
+        self.assertEqual(piezas, ["flujo cerrada", "nodos MostAadTech"])
+
+    def test_no_disponible_no_pide_flujos_instalados(self):
+        """Si el motor no está disponible, el fallo es ese y no el de los flujos en disco."""
+        r = pa.remallar_imagen("/fake/path/image.png", carpeta_workflows="/no/existe",
+                               comfy=ComfyFalso(), dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertNotIn("watertightMeshes_win_installer.bat", r["fallo"])
 
 
 if __name__ == "__main__":
