@@ -104,4 +104,15 @@ describe("átomos propios", () => {
       expect(pone.operacion.accion).toEqual({ tipo: "exacta", valor: -6 });
     }
   });
+
+  it("texturas-webgl: el dictado resuelve 'pon la escala en 12'", () => {
+    registrarAtomosPropios();
+    const cands = candidatosDe(moleculaCon([{ id: "a-text", herramientaId: "texturas-webgl", estado: "activo" }]));
+    const res = entenderDictado("pon la escala en 12", cands, contexto);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.operacion.objetivo.parametroId).toBe("escala");
+      expect(res.operacion.accion).toEqual({ tipo: "exacta", valor: 12 });
+    }
+  });
 });
