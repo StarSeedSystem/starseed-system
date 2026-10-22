@@ -34,6 +34,26 @@ def configuracion(texto):
                      if l.strip() and not l.strip().startswith("#"))
 
 
+def bloque_genesis(texto):
+    """Las líneas activas del bloque `genesis.{$STARSEED_HOST}` del Caddyfile (sub-bloques incluidos)."""
+    lineas, dentro, profundo = [], False, 0
+    for l in texto.splitlines():
+        limpio = l.strip()
+        if not limpio or limpio.startswith("#"):
+            continue
+        if not dentro:
+            dentro = limpio.startswith("genesis.{$STARSEED_HOST} {")
+            continue
+        if limpio.endswith("{"):
+            profundo += 1
+        elif limpio == "}":
+            if profundo == 0:
+                break
+            profundo -= 1
+        lineas.append(limpio)
+    return lineas
+
+
 class GenesisEnA1(unittest.TestCase):
     """Lo que el contrato §6 exige de los dos archivos del despliegue."""
 
@@ -121,6 +141,34 @@ class GenesisEnA1(unittest.TestCase):
         self.assertTrue(exige, "la unidad no declara qué necesita antes de instalarse")
         self.assertTrue(any(".next/BUILD_ID" in l for l in exige), exige)
         self.assertTrue(any("/usr/local/bin/node" in l for l in exige), exige)
+
+    # —— Rescate de la rama archivada nube/39717140328 (COL1012Md-d3) ——
+    # Solo lo que main no cubría con otro nombre; lo demás ya está arriba.
+
+    def test_el_binario_que_arranca_vive_en_el_directorio_de_servicio(self):
+        """Un .local/bin/next ejecutaría el árbol del guardián (cambia en cada build): la unidad
+        arranca next desde /opt/starseed/genesis, el código solo lectura de root."""
+        execstarts = [l for l in self.unidad_cfg.splitlines() if l.startswith("ExecStart=")]
+        self.assertEqual(len(execstarts), 1)
+        self.assertIn("/opt/starseed/genesis", execstarts[0])
+        self.assertNotIn(".local/bin/next", execstarts[0])
+
+    def test_el_bloque_de_genesis_pasa_la_cabecera_cookie_tal_cual(self):
+        """La sesión va en la cabecera `Cookie`: borrarla (como SI hace la ruta de la puerta de
+        datos, `servicios/puerta-datos/src/caddy.mjs`) dejaría al guardián sin ver a nadie y a
+        Genesis respondería 401 a todo el mundo, sesión puesta."""
+        activas = bloque_genesis(self.caddy)
+        self.assertTrue(activas, "no hay bloque de genesis en el Caddyfile")
+        self.assertNotRegex("\n".join(activas), r"header_up\s+-\s*Cookie")
+
+    def test_no_publica_rutas_que_se_apoyan_en_no_estar_en_la_mac(self):
+        """Rutas que dependen de recursos que solo existen en la Mac (lanzador de binarios con la
+        URL del que llama, gasto de créditos, daemon de voz, buzón abierto de Telegram) no se
+        pueden publicar aquí: fuera del bloque de genesis, 404."""
+        activas = "\n".join(bloque_genesis(self.caddy))
+        self.assertTrue(activas)
+        for ruta in ("/api/agent-reach", "/api/astraura/decidir", "/api/voz-local/", "/api/telegram/send"):
+            self.assertNotIn(ruta, activas)
 
 
 if __name__ == "__main__":
