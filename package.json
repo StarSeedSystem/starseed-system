@@ -115,6 +115,7 @@
     "tldraw": "^5.2.3",
     "undici": "^6.28.0",
     "uuid": "^13.0.0",
+    "onnxruntime-web": "1.30.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
