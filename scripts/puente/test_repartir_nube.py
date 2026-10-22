@@ -397,6 +397,47 @@ class ReclamarVaradasEnLaNube(unittest.TestCase):
         self.assertEqual(R.reclamar_varadas(None, 0), [])
         self.assertEqual(R.reclamar_varadas({"X": "no soy un dict"}, 0), [])
 
+    def test_con_run_vivo_de_otra_cola_la_varada_se_devuelve(self):
+        """(2026-10-21, MEDIDO) 43 tareas (IMG1020A, PES1020A, TRD1020A…) llevaban horas en
+        «reasignada · nube» con su run terminado en «failure» y cero commits: solo se
+        reclamaba con CERO runs y el préstamo se volvía traspaso. Ahora basta saber que el
+        run vivo lleva OTRA cola."""
+        p = self._p(
+            IMG1020A={"estado": "reasignada", "medio": "nube"},
+            OHS={"estado": "reasignada", "medio": "nube"},
+        )
+        self.assertEqual(R.reclamar_varadas(p, 1, ids_vivos={"OHS"}), ["IMG1020A"])
+
+    def test_con_el_run_vivo_de_su_cola_no_se_devuelve(self):
+        """Podría estar haciéndola justo ahora."""
+        p = self._p(IMG1020A={"estado": "reasignada", "medio": "nube"})
+        self.assertEqual(R.reclamar_varadas(p, 1, ids_vivos={"IMG1020A"}), [])
+
+    def test_una_cola_joven_sin_run_todavia_no_se_devuelve(self):
+        """Su run quizá aún no arranca (la cola se escribe y el lanzamiento va detrás):
+        menos de 30 min, no se reclama."""
+        p = self._p(NUE={"estado": "reasignada", "medio": "nube"})
+        self.assertEqual(
+            R.reclamar_varadas(p, 0, ids_vivos=set(), colas_jovenes={"NUE"}), []
+        )
+
+    def test_ids_vivos_y_jovenes_juntas_y_el_resto_vuelve(self):
+        p = self._p(
+            EN_RUN={"estado": "reasignada", "medio": "nube"},
+            JOVEN={"estado": "reasignada", "medio": "nube"},
+            VIEJA={"estado": "reasignada", "medio": "nube"},
+        )
+        self.assertEqual(
+            R.reclamar_varadas(p, 1, ids_vivos={"EN_RUN"}, colas_jovenes={"JOVEN"}),
+            ["VIEJA"],
+        )
+
+    def test_sin_ids_vivos_el_comportamiento_es_el_de_siempre(self):
+        p = self._p(IMG1020A={"estado": "reasignada", "medio": "nube"})
+        self.assertEqual(R.reclamar_varadas(p, 0), ["IMG1020A"])
+        self.assertEqual(R.reclamar_varadas(p, 2), [])
+        self.assertEqual(R.reclamar_varadas(p, 0, colas_jovenes={"IMG1020A"}), ["IMG1020A"])
+
     def test_devolver_a_pendiente_conserva_la_historia(self):
         p = self._p(
             RM3={
