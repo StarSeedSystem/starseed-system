@@ -64,8 +64,9 @@ describe("normalizarCapa · rechazos", () => {
     expect(problemasDe(normalizarCapa({ forma: "nota", texto: `usa ${CLAVE}` }))[0]).toMatch(/forma de clave/);
     expect(problemasDe(normalizarCapa({ forma: "nota" }))).toEqual(["Una nota necesita texto."]);
   });
-  it("resaltar y flecha sin objetivo, u objetivo con forma de selector, se rechazan", () => {
+  it("resaltar y flecha sin objetivo, u objetivo vacío o con forma de selector, se rechazan", () => {
     expect(problemasDe(normalizarCapa({ forma: "resaltar" }))[0]).toMatch(/necesita un objetivo/);
+    expect(problemasDe(normalizarCapa({ forma: "resaltar", objetivo: "" }))[0]).toMatch(/identificador/);
     expect(problemasDe(normalizarCapa({ forma: "flecha", objetivo: "div > a[href]" }))[0]).toMatch(/identificador/);
   });
 });
@@ -93,5 +94,11 @@ describe("apilar y retirar", () => {
   });
   it("retirarDeBot quita solo lo de ese bot (al pausarlo nada suyo queda en pantalla)", () => {
     expect(retirarDeBot([capa("a1"), capa("b1", "bot-b"), capa("a2")], "bot-a").map((c) => c.id)).toEqual(["b1"]);
+  });
+  it(`justo en el tope (${MAX_CAPAS_POR_BOT}) no se descarta ninguna; la siguiente es la que retira`, () => {
+    let capas: CapaActiva[] = [];
+    for (let i = 1; i <= MAX_CAPAS_POR_BOT; i++) capas = apilar(capas, capa(`c${i}`));
+    const esperadas = Array.from({ length: MAX_CAPAS_POR_BOT }, (_, i) => `c${i + 1}`);
+    expect(capas.map((c) => c.id)).toEqual(esperadas);
   });
 });
