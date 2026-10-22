@@ -77,6 +77,23 @@ describe("xr.intencion", () => {
     expect(r).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("mundo") });
     expect(ejecutarIntencionXR(operar(MOVER), ctxVoz)).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("solo traduce «xr.intencion»") });
   });
+  it("una frase que no es texto no se traduce: se dice y no hay tarjeta", () => {
+    const a: AccionBot = { tipo: "xr.intencion", args: { frase: 123 } };
+    const r = ejecutarIntencionXR(a, ctxVoz);
+    expect(r.ok).toBe(false);
+    expect(r.previo).toEqual({});
+    expect(r.tarjeta).toBeNull();
+    expect(r.voz.ok).toBe(false);
+    expect(r.motivo).toContain("xr.intencion");
+  });
+  it("una frase vacía se pide otra vez, sin adivinar nada", () => {
+    const a: AccionBot = { tipo: "xr.intencion", args: { frase: "" } };
+    const r = ejecutarIntencionXR(a, ctxVoz);
+    expect(r.ok).toBe(false);
+    expect(r.previo).toEqual({});
+    expect(r.tarjeta).toBeNull();
+    expect(r.motivo).toBe("No te he oído. Dime qué quieres hacer.");
+  });
 });
 describe("anclaDeBot", () => {
   const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
