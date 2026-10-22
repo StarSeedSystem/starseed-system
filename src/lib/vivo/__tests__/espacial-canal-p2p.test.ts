@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MeshHandle, PeerEvents, PeerSnapshot, SignalTransport } from "@/lib/network/webrtc-mesh";
-import type { ConexionEscena } from "@/lib/vivo/espacial/canal";
+import type { ConexionEscena, EventoEscena } from "@/lib/vivo/espacial/canal";
 import { abrirCanalEscenaP2P, motivoRechazoP2P, type OpcionesCanalP2P } from "@/lib/vivo/espacial/canal-p2p";
 
 /** Malla falsa: conecta pares en memoria, sin red ni WebRTC. */
@@ -38,9 +38,13 @@ const esperar = () => new Promise((r) => setTimeout(r, 0));
 function respaldoFalso() {
     const enviados: string[] = [];
     let oyFila: ((f: { rev: number; doc: unknown; titulo: null; acceso: null }) => void) | null = null;
-    const c = { tema: "t", suscrito: () => true, enviar: (e: string) => { enviados.push(e); }, publicarPresencia: vi.fn(), onPresencia: () => () => {}, onMensaje: () => () => {},
+    let oyMsg: ((e: EventoEscena, p: unknown) => void) | null = null;
+    const c = { tema: "t", suscrito: () => true, enviar: (e: string) => { enviados.push(e); }, publicarPresencia: vi.fn(), onPresencia: () => () => {},
+        onMensaje: (cb: typeof oyMsg) => { oyMsg = cb; return () => {}; },
         onFila: (cb: typeof oyFila) => { oyFila = cb; return () => {}; }, onSuscrito: () => () => {}, cerrar: vi.fn() };
-    return { c: c as unknown as ConexionEscena, enviados, fila: (rev: number) => oyFila?.({ rev, doc: {}, titulo: null, acceso: null }) };
+    return { c: c as unknown as ConexionEscena, enviados,
+        fila: (rev: number) => oyFila?.({ rev, doc: {}, titulo: null, acceso: null }),
+        mensaje: (e: EventoEscena, p: unknown) => oyMsg?.(e, p) };
 }
 async function sala(ids: string[], extra: Partial<OpcionesCanalP2P> = {}) {
     const h = hub();
@@ -175,5 +179,38 @@ describe("canal P2P de la escena", () => {
     it("sin WebRTC devuelve null para que quien llama use el canal de siempre", () => {
         expect(abrirCanalEscenaP2P("t", { miId: "a", señal, crearMalla: () => null })).toBeNull();
         expect(abrirCanalEscenaP2P("", { miId: "a", señal })).toBeNull();
+    });
+    it("la presencia que llega sin meta válida queda como nula y no rompe el estado", async () => {
+        const { h, canales: [, b] } = await sala(["a", "b"]);
+        const estados: Record<string, unknown>[] = [];
+        b.onPresencia((e) => estados.push(e));
+        // meta no-objeto, meta vacía y ausencia de meta: nula, no crash ni contenido
+        h.nodos.get("b")!.oy.forEach((e) => e.onMessage?.("a", JSON.stringify({ e: "_presencia", p: "suelo", de: "a", n: 1 })));
+        h.nodos.get("b")!.oy.forEach((e) => e.onMessage?.("a", JSON.stringify({ e: "_presencia", p: {}, de: "a", n: 2 })));
+        h.nodos.get("b")!.oy.forEach((e) => e.onMessage?.("a", JSON.stringify({ e: "_presencia", p: null, de: "a", n: 3 })));
+        // «suelo» y null quedan nulos (sin contenido), el objeto vacío se conserva como meta
+        expect(estados).toEqual([{}, { a: [{}] }, {}]);
+    });
+    it("al quedarse lleno sin canal de respaldo lo dice y queda sin conexión, sin lanzar", async () => {
+        const ids = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9"];
+        const { canales } = await sala(ids);
+        expect(canales.map((c) => c.modo())).toEqual(ids.map(() => "respaldo"));
+        expect(canales[0].aviso()).toMatch(/canal de respaldo/);
+        expect(canales[0].suscrito()).toBe(false);
+        expect(() => canales[0].enviar("cambios", { ops: [] })).not.toThrow();
+        expect(canales[0].enviar("estado", { lleno: true })).toBeUndefined();
+    });
+    it("tras pasar al respaldo los oyentes vuelven a engancharse: lo del respaldo entra una vez", async () => {
+        const r = respaldoFalso();
+        const ids = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9"];
+        const { canales: [primero] } = await sala(ids, { respaldo: () => r.c });
+        const llega = vi.fn();
+        primero.onMensaje(llega);
+        r.mensaje("estado", { objetos: 2 });
+        expect(llega).toHaveBeenCalledTimes(1);
+        expect(llega).toHaveBeenCalledWith("estado", { objetos: 2 });
+        primero.cerrar();
+        r.mensaje("pose", {});
+        expect(llega).toHaveBeenCalledTimes(1); // cerrado, nada entra
     });
 });
