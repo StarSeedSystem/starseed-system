@@ -395,6 +395,72 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     configHint: "http://<host>:8000/api",
   },
 
+  // ── Seguridad y agentes (repos-libreria-1020b) ──
+  {
+    id: "tirreno-selfhost",
+    name: "tirreno (auto-hospedado)",
+    category: "custom",
+    kind: "oss",
+    authType: "apiKey",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "ShieldAlert",
+    description:
+      "Antifraude de cuentas y votaciones (toma de cuentas, bots y abuso), licencia AGPL-3.0. Recibe IP y correos: solo se activa con aviso de privacidad y el consentimiento expreso de Alex.",
+    repo: "https://github.com/tirrenotechnologies/tirreno",
+    docsUrl: "https://github.com/tirrenotechnologies/tirreno",
+    configHint: "http://<host>:8585",
+  },
+  {
+    id: "moli-serve",
+    name: "Moli (navegador de agentes)",
+    category: "web",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Globe2",
+    description:
+      "Navegador sin interfaz para agentes: ejecuta JavaScript y entrega Markdown y árbol semántico. Licencia Apache-2.0 o MIT; exige sandbox y lista de dominios permitidos.",
+    repo: "https://github.com/lexmount/moli",
+    docsUrl: "https://github.com/lexmount/moli",
+    configHint: "http://127.0.0.1:<puerto de moli serve>",
+  },
+  {
+    id: "dbx-mcp",
+    name: "DBX (MCP de bases locales)",
+    category: "dev",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Database",
+    description:
+      "Inspección de bases de datos locales (PostgreSQL, SQLite, MySQL, Redis, Qdrant…) desde los agentes. Licencia Apache-2.0; su MCP se usa siempre en modo solo lectura.",
+    repo: "https://github.com/t8y2/dbx",
+    docsUrl: "https://github.com/t8y2/dbx",
+    configHint: "stdio (MCP) · o http://127.0.0.1:<puerto>",
+  },
+  {
+    id: "openshell-gateway",
+    name: "OpenShell (sandboxes de agentes)",
+    category: "dev",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Boxes",
+    description:
+      "Sandboxes para agentes con políticas de archivos, procesos, red e inferencia. Licencia Apache-2.0; en alfa y con la telemetría apagada con OPENSHELL_TELEMETRY_ENABLED=false.",
+    repo: "https://github.com/NVIDIA/OpenShell",
+    docsUrl: "https://github.com/NVIDIA/OpenShell",
+    configHint: "http://127.0.0.1:<puerto de OpenShell>",
+  },
+
   // ── Redes sociales (P4-8) ──
   {
     id: "postiz",
