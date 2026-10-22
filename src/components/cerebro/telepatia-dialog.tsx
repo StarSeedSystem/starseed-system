@@ -1,37 +1,36 @@
 "use client";
 
 /**
- * Telepatía del cerebro: vínculos purificados y normalizados.
- * Contrato: architecture/cerebros-fusion-telepatia.md §5.
- * Implementa la interfaz de usuario de los vínculos telepáticos con destino en palabras,
- * alcance resumido, dirección, acceso, estado (y su motivo) y última sincronización.
- * Incluye botones «Sincronizar ahora», «Pausar»/«Reanudar» y «Quitar».
- * «Nuevo vínculo» con los pasos especificados en §5.
+ * Telepatía de un cerebro (§5): vincula y sincroniza sin mezclar.
+ * Lista los vínculos, permite sincronizar, pausar, reanudar y quitar, y crea
+ * vínculos nuevos en tres pasos: destino → alcance → dirección y acceso.
  */
 
-import { useState, useMemo, useEffect } from "react";
-import type { Brain } from "@/lib/brains/brains";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { useEffect, useState } from "react";
+import { Copy, Loader2, Orbit, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import { Loader2, Orbit, Plus, Trash2, RefreshCw, Pause, Play, Check, Copy, Calendar as CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
-import { obtenerVinculos, normalizarVinculos, validarVinculo, destinoEnPalabras, alcanceResumido, estadoConMotivo } from "@/lib/cerebros/telepatia";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { saveBrain, type Brain } from "@/lib/brains/brains";
+import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+import { misEntidades, type EntidadGestionable } from "@/lib/genesis/entidades";
+import {
+  CONFIGURACIONES_TELEPATIA,
+  accesoEnPalabras,
+  alcanceResumido,
+  conVinculo,
+  destinoEnPalabras,
+  direccionEnPalabras,
+  estadoConMotivo,
+  etiquetaConfiguracion,
+  normalizarVinculos,
+  sinVinculo,
+  validarVinculo,
+  type DestinoTelepatia,
+  type VinculoTelepatico,
+} from "@/lib/cerebros/telepatia";
+import { aplicarVinculoTelepatia, type EntidadVinculo } from "@/lib/cerebros/telepatia-aplicar";
 
 export interface TelepatiaDialogProps {
   open: boolean;
@@ -41,552 +40,535 @@ export interface TelepatiaDialogProps {
   onHecho?: () => void;
 }
 
+interface Formulario {
+  destino: string;
+  nombreCuenta: string;
+  completo: boolean;
+  memorias: string[];
+  carpetas: string[];
+  configuraciones: string[];
+  direccion: VinculoTelepatico["direccion"];
+  acceso: VinculoTelepatico["acceso"];
+  auto: boolean;
+  expira: string;
+}
+
+const FORMULARIO: Formulario = {
+  destino: "",
+  nombreCuenta: "",
+  completo: true,
+  memorias: [],
+  carpetas: [],
+  configuraciones: [],
+  direccion: "ambas",
+  acceso: "leer",
+  auto: true,
+  expira: "",
+};
+
+const SELECT = "h-9 w-full cursor-pointer rounded-md border border-white/15 bg-black/40 px-2 text-sm text-white";
+
+function nuevoId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `tel-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+}
+
+function fechaLegible(iso: string | null | undefined): string {
+  if (!iso) return "nunca";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "sin medida";
+  return new Date(t).toLocaleString("es", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function leerCarpetas(brainId: string): Array<{ id: string; nombre: string }> {
+  if (typeof window === "undefined") return [];
+  try {
+    const ids = JSON.parse(window.localStorage.getItem(`starseed.brain.${brainId}.memoryRoots`) ?? "[]") as unknown;
+    if (!Array.isArray(ids)) return [];
+    const raices = JSON.parse(window.localStorage.getItem("starseed.memory.roots.v1") ?? "[]") as unknown;
+    const nombres = new Map<string, string>();
+    if (Array.isArray(raices)) {
+      for (const raiz of raices) {
+        if (!raiz || typeof raiz !== "object" || !("id" in raiz)) continue;
+        const fila = raiz as { id: unknown; name?: unknown };
+        nombres.set(String(fila.id), typeof fila.name === "string" && fila.name ? fila.name : String(fila.id));
+      }
+    }
+    return ids.filter((id): id is string => typeof id === "string").map((id) => ({ id, nombre: nombres.get(id) ?? id }));
+  } catch {
+    return [];
+  }
+}
+
+function destinoDelFormulario(form: Formulario): DestinoTelepatia | null {
+  if (form.destino === "cuenta") {
+    const nombre = form.nombreCuenta.trim();
+    return nombre ? { tipo: "cuenta", id: nombre } : null;
+  }
+  const partes = form.destino.split(":");
+  const tipo = partes[0];
+  const id = partes.slice(1).join(":");
+  if (!id) return null;
+  if (tipo === "cerebro" || tipo === "grupo" || tipo === "comunidad" || tipo === "pagina") return { tipo, id };
+  return null;
+}
+
 export default function TelepatiaDialog({ open, onOpenChange, cerebro, cerebros, onHecho }: TelepatiaDialogProps) {
-  const [vinculos, setVinculos] = useState(() => obtenerVinculos(cerebro));
-  const [nuevoVinculo, setNuevoVinculo] = useState<Partial<import("@/lib/cerebros/telepatia").VinculoTelepatico> | null>(null);
-  const [mostrandoToken, setMostrandoToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [entidadesMap, setEntidadesMap] = useState<Record<string, { tipo: string; nombre: string }>>({});
+  const [vinculos, setVinculos] = useState<VinculoTelepatico[]>(() => normalizarVinculos(cerebro.config));
+  const [memorias, setMemorias] = useState<string[]>([]);
+  const [carpetas, setCarpetas] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [entidades, setEntidades] = useState<EntidadVinculo[]>([]);
+  const [form, setForm] = useState<Formulario>(FORMULARIO);
+  const [paso, setPaso] = useState(1);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [avisos, setAvisos] = useState<string[]>([]);
+  const [token, setToken] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
 
-  // Obtener el mapa de entidades para la UI
   useEffect(() => {
-    const cargarEntidades = async () => {
-      try {
-        const response = await fetch("/api/entidades?scope=group,page,community");
-        if (response.ok) {
-          const data = await response.json();
-          const mapa = {};
-          for (const ent of data.entidades || []) {
-            mapa[ent.id] = { tipo: ent.tipo, nombre: ent.nombre };
-          }
-          setEntidadesMap(mapa);
-        }
-      } catch (error) {
-        // Silently handle errors for entity fetching
+    if (!open) return;
+    setVinculos(normalizarVinculos(cerebro.config));
+    setForm(FORMULARIO);
+    setPaso(1);
+    setError(null);
+    setAvisos([]);
+    setToken(null);
+    setCopiado(false);
+    setCarpetas(leerCarpetas(cerebro.id));
+    let vivo = true;
+    void (async () => {
+      const [archivos, resultado] = await Promise.all([listMemoryFiles(cerebro.id), misEntidades()]);
+      if (!vivo) return;
+      setMemorias(archivos.map((a) => a.name));
+      if (resultado.ok) {
+        setEntidades(resultado.lista.map((e: EntidadGestionable) => ({ id: e.id, tipo: e.tipo, nombre: e.nombre, slug: e.slug })));
+      } else {
+        setError(`No se pudieron leer tus grupos y páginas: ${resultado.motivo}`);
       }
+    })();
+    return () => {
+      vivo = false;
     };
-    cargarEntidades();
-  }, []);
+  }, [open, cerebro.id]);
 
-  const cerebrosMap = useMemo(() => {
-    const mapa: Record<string, Brain> = {};
-    for (const c of cerebros) {
-      mapa[c.id] = c;
+  const cambiar = (parcial: Partial<Formulario>) => setForm((f) => ({ ...f, ...parcial }));
+  const alternar = (clave: "memorias" | "carpetas" | "configuraciones", valor: string) =>
+    setForm((f) => ({
+      ...f,
+      [clave]: f[clave].includes(valor) ? f[clave].filter((x) => x !== valor) : [...f[clave], valor],
+    }));
+
+  async function guardarLista(lista: VinculoTelepatico[]): Promise<boolean> {
+    const guardado = await saveBrain({ ...cerebro, config: { ...cerebro.config, telepatia: lista } });
+    if (!guardado) {
+      setError("No se pudo guardar la lista de vínculos en este cerebro.");
+      return false;
     }
-    return mapa;
-  }, [cerebros]);
+    setVinculos(lista);
+    onHecho?.();
+    return true;
+  }
 
-  const eliminarVinculo = async (vinculoId: string) => {
-    setIsLoading(true);
-    try {
-      const updatedVinculos = vinculos.filter((v) => v.id !== vinculoId);
-      setVinculos(updatedVinculos);
-      // Actualizar cerebro con nuevos vínculos
-      const payload = { config: { telepatia: updatedVinculos } };
-      const response = await fetch("/api/cerebro/${cerebro.id}", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) {
-        // Emitir evento para que otros componentes se actualicen
-        window.dispatchEvent(new CustomEvent("vinculos-telepatia-actualizados", {
-          detail: { cerebroId: cerebro.id, vinculos: updatedVinculos }
-        }));
-        onHecho?.();
-      }
-    } catch (error) {
-      // Silently handle errors
-    } finally {
-      setIsLoading(false);
+  async function cambiarEstado(v: VinculoTelepatico, estado: "activo" | "pausado") {
+    setOcupado(v.id);
+    setError(null);
+    const lista = vinculos.map((x) => (x.id === v.id ? { ...x, estado } : x));
+    await guardarLista(lista);
+    setOcupado(null);
+  }
+
+  async function quitar(v: VinculoTelepatico) {
+    setOcupado(v.id);
+    setError(null);
+    const guardado = await guardarLista(vinculos.filter((x) => x.id !== v.id));
+    if (guardado) setAvisos(["Vínculo quitado de este cerebro. Lo que ya se copió en la otra parte se conserva."]);
+    setOcupado(null);
+  }
+
+  async function sincronizar(v: VinculoTelepatico) {
+    setOcupado(v.id);
+    setError(null);
+    setAvisos([]);
+    const resultado = await aplicarVinculoTelepatia(v, cerebro, { cerebros, entidades });
+    if (resultado.errores.length) setError(resultado.errores.join(" "));
+    if (resultado.avisos.length) setAvisos(resultado.avisos);
+    if (resultado.token) setToken(resultado.token);
+    if (resultado.ok) {
+      const ahora = new Date().toISOString();
+      setVinculos((lista) => lista.map((x) => (x.id === v.id ? { ...x, ultimaSync: ahora } : x)));
     }
-  };
+    setOcupado(null);
+    onHecho?.();
+  }
 
-  const alternarEstadoVinculo = async (vinculo: VinculoTelepatico, nuevoEstado: "activo" | "pausado" | "pendiente") => {
-    setIsLoading(true);
-    try {
-      const vinculosActualizados = vinculos.map((v) =>
-        v.id === vinculo.id ? { ...v, estado: nuevoEstado, ultimaSync: nuevoEstado === "activo" ? new Date().toISOString() : v.ultimaSync } : v
-      );
-      setVinculos(vinculosActualizados);
-      const payload = { config: { telepatia: vinculosActualizados } };
-      const response = await fetch("/api/cerebro/${cerebro.id}", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) {
-        window.dispatchEvent(new CustomEvent("vinculos-telepatia-actualizados", {
-          detail: { cerebroId: cerebro.id, vinculos: vinculosActualizados }
-        }));
-        onHecho?.();
-      }
-    } catch (error) {
-      // Silently handle errors
-    } finally {
-      setIsLoading(false);
+  async function crear() {
+    const destino = destinoDelFormulario(form);
+    if (!destino) {
+      setError("Elige un destino: otro cerebro, un grupo, una comunidad, una página o una cuenta externa.");
+      return;
     }
-  };
-
-  const sincronizarAhora = async (vinculo: VinculoTelepatico) => {
-    setIsLoading(true);
-    try {
-      const vinculosActualizados = vinculos.map((v) =>
-        v.id === vinculo.id ? { ...v, ultimaSync: new Date().toISOString() } : v
-      );
-      setVinculos(vinculosActualizados);
-      const payload = { config: { telepatia: vinculosActualizados } };
-      const response = await fetch("/api/cerebro/${cerebro.id}", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) {
-        window.dispatchEvent(new CustomEvent("vinculos-telepatia-actualizados", {
-          detail: { cerebroId: cerebro.id, vinculos: vinculosActualizados }
-        }));
-        onHecho?.();
-      }
-    } catch (error) {
-      // Silently handle errors
-    } finally {
-      setIsLoading(false);
+    const expiraEn = form.expira ? new Date(`${form.expira}T23:59:59`).toISOString() : null;
+    const vinculo: VinculoTelepatico = {
+      id: nuevoId(),
+      destino,
+      alcance: {
+        completo: form.completo,
+        memorias: form.completo ? [] : form.memorias,
+        carpetas: form.completo ? [] : form.carpetas,
+        configuraciones: form.completo ? [] : form.configuraciones,
+      },
+      direccion: form.direccion,
+      acceso: form.acceso,
+      auto: form.auto,
+      estado: "activo",
+      creadoEn: new Date().toISOString(),
+      expiraEn,
+      ultimaSync: null,
+    };
+    const revision = validarVinculo(vinculo);
+    if (!revision.ok) {
+      setError(revision.motivo);
+      return;
     }
-  };
 
-  const guardarNuevoVinculo = async () => {
-    if (!nuevoVinculo) return;
-    setIsCreating(true);
-    try {
-      const normalizado = normalizarVinculos([nuevoVinculo]);
-      if (normalizado.length === 0) return;
-      const err = validarVinculo(normalizado[0], cerebros, Object.values(entidadesMap));
-      if (err.length) {
-        alert(err.join("\n"));
-        return;
-      }
-      const payload = { config: { telepatia: [...vinculos, ...normalizado] } };
-      const response = await fetch("/api/cerebro/${cerebro.id}", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) {
-        const actualizado = await response.json();
-        setVinculos(actualizado.config?.telepatia || []);
-        setNuevoVinculo(null);
-        setMostrandoToken(null);
-        window.dispatchEvent(new CustomEvent("vinculos-telepatia-actualizados", {
-          detail: { cerebroId: cerebro.id, vinculos: actualizado.config?.telepatia || [] }
-        }));
-        onHecho?.();
-      }
-    } catch (error) {
-      // Silently handle errors
-    } finally {
-      setIsCreating(false);
+    setOcupado("nuevo");
+    setError(null);
+    setAvisos([]);
+    const config = conVinculo(cerebro.config, vinculo);
+    const cerebroConVinculo = { ...cerebro, config };
+    const guardado = await saveBrain(cerebroConVinculo);
+    if (!guardado) {
+      setError("No se pudo guardar el vínculo en este cerebro.");
+      setOcupado(null);
+      return;
     }
-  };
+    const listaConVinculo = normalizarVinculos(config);
+    setVinculos(listaConVinculo);
 
-  const copiarToken = (token: string) => {
-    navigator.clipboard.writeText(token);
-    setMostrandoToken(token);
-    setTimeout(() => setMostrandoToken(null), 3000);
-  };
+    const resultado = await aplicarVinculoTelepatia(vinculo, cerebroConVinculo, { cerebros, entidades });
+    if (resultado.token) setToken(resultado.token);
+    if (resultado.errores.length) setError(resultado.errores.join(" "));
+    if (resultado.avisos.length) setAvisos(resultado.avisos);
+    if (destino.tipo === "cuenta" && !resultado.ok) {
+      const revertido = await saveBrain({ ...cerebro, config: sinVinculo(cerebro.config, vinculo.id) });
+      if (revertido) setVinculos(normalizarVinculos(cerebro.config));
+    } else if (resultado.ok) {
+      const ahora = new Date().toISOString();
+      setVinculos(listaConVinculo.map((x) => (x.id === vinculo.id ? { ...x, ultimaSync: ahora } : x)));
+      setForm(FORMULARIO);
+      setPaso(1);
+    }
+    setOcupado(null);
+    onHecho?.();
+  }
 
-  const esExpirado = (expiraEn?: string | null) => expiraEn && new Date(expiraEn) < new Date();
+  const tipoDestino = form.destino === "cuenta" ? "cuenta" : form.destino.split(":")[0] ?? "";
+  const idDestino = form.destino.includes(":") ? form.destino.slice(form.destino.indexOf(":") + 1) : "";
+  const destinoListo = tipoDestino === "cuenta" ? form.nombreCuenta.trim().length > 0 : Boolean(idDestino);
+  const alcanceListo = form.completo || form.memorias.length + form.carpetas.length + form.configuraciones.length > 0;
+  const nombreDestino = (() => {
+    if (tipoDestino === "cuenta") return form.nombreCuenta.trim() || "Una cuenta externa";
+    if (tipoDestino === "cerebro") return cerebros.find((c) => c.id === idDestino)?.name ?? "Cerebro no encontrado";
+    const entidad = entidades.find((e) => e.id === idDestino && e.tipo === tipoDestino);
+    return entidad?.nombre ?? "Entidad no encontrada";
+  })();
+  const hoy = new Date().toISOString().slice(0, 10);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Orbit className="w-5 h-5 text-violet-400" />
-            Telepatía · «{cerebro.name}»
+            <Orbit className="h-5 w-5 text-violet-400" aria-hidden />
+            <span className="break-words">Telepatía · «{cerebro.name}»</span>
           </DialogTitle>
           <DialogDescription>
-            Vincula y sincroniza sin mezclar: cada cerebro sigue siendo suyo. Elige qué memorias, carpetas y configuraciones compartir, en qué dirección y con qué acceso.
+            Telepatía vincula y sincroniza sin mezclar: cada cerebro sigue siendo suyo
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Lista de vínculos existentes */}
-          <section>
-            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <span className="w-2 h-2 bg-violet-400 rounded-full" />
-              Vínculos activos ({vinculos.length})
+        <div className="space-y-5 py-2 text-white">
+          {error && (
+            <p role="alert" className="rounded-lg border border-red-400/40 bg-red-400/10 p-3 text-xs leading-relaxed text-red-100">
+              {error}
+            </p>
+          )}
+          {avisos.length > 0 && (
+            <ul className="space-y-1 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-xs leading-relaxed text-amber-100">
+              {avisos.map((aviso) => <li key={aviso} className="break-words">{aviso}</li>)}
+            </ul>
+          )}
+          {token && (
+            <div className="rounded-lg border border-emerald-400/40 bg-emerald-400/10 p-3">
+              <p className="text-xs text-emerald-100">Token del vínculo externo. No se volverá a mostrar.</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <code className="min-w-0 flex-1 break-all rounded bg-black/40 p-2 text-xs">{token}</code>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-auto cursor-pointer whitespace-normal border-emerald-300/40 py-1.5"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(token).then(() => setCopiado(true)).catch(() => setError("No se pudo copiar el token; selecciónalo a mano."));
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" aria-hidden />
+                  {copiado ? "Copiado" : "Copiar"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <section aria-labelledby="vinculos-actuales" className="space-y-3">
+            <h3 id="vinculos-actuales" className="text-sm font-semibold">
+              Vínculos de este cerebro ({vinculos.length})
             </h3>
             {vinculos.length === 0 ? (
-              <div className="text-center py-8 text-white/45 bg-white/5 rounded-lg border border-white/10">
-                <p className="text-sm">Aún no hay vínculos telepáticos.</p>
-                <p className="text-xs mt-1">Haz clic en "Nuevo vínculo" para empezar.</p>
-              </div>
+              <p className="rounded-lg border border-white/10 bg-white/5 p-4 text-xs leading-relaxed text-white/60">
+                Todavía no hay vínculos. Cada cerebro sigue siendo suyo: solo se comparte lo que diga el vínculo.
+              </p>
             ) : (
-              <div className="space-y-3">
-                {vinculos.map((vinculo) => {
-                  const infoEstado = estadoConMotivo(vinculo);
-                  const destinoTexto = destinoEnPalabras(vinculo, cerebrosMap, entidadesMap);
-                  const alcanceTexto = alcanceResumido(vinculo.alcance);
-                  const esExpiradoFlag = esExpirado(vinculo.expiraEn);
+              <ul className="space-y-2">
+                {vinculos.map((v) => {
+                  const info = estadoConMotivo(v);
+                  const trabajando = ocupado === v.id;
                   return (
-                    <div
-                      key={vinculo.id}
-                      className={cn(
-                        "rounded-lg border p-4 transition-colors",
-                        esExpiradoFlag ? "border-red-500/30 bg-red-500/5" : "border-white/10 bg-white/5",
-                        vinculo.estado === "pausado" && "opacity-70",
-                        vinculo.estado === "pendiente" && "border-amber-500/30 bg-amber-500/5"
-                      )}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-sm truncate">{destinoTexto}</span>
-                            <Badge
-                              variant={esExpiradoFlag ? "destructive" : vinculo.estado === "activo" ? "default" : "secondary"}
-                              className={cn(
-                                "text-xs",
-                                esExpiradoFlag && "bg-red-500/20 text-red-200 border-red-500/30"
-                              )}
-                            >
-                              {esExpiradoFlag ? "caducado" : vinculo.estado}
-                            </Badge>
-                          </div>
-                          <div className="text-xs text-white/60 space-y-0.5">
-                            <div>
-                              <span className="text-white/45">Alcance:</span> {alcanceTexto}
-                            </div>
-                            <div>
-                              <span className="text-white/45">Dirección:</span> {vinculo.direccion} · <span className="text-white/45">Acceso:</span> {vinculo.acceso}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-white/45">Última sync:</span>
-                              {vinculo.ultimaSync ? format(new Date(vinculo.ultimaSync), "Pp", { locale: es }) : "Nunca"}
-                              {infoEstado.motivo && (
-                                <span className="text-amber-300 ml-1">· {infoEstado.motivo}</span>
-                              )}
-                            </div>
-                          </div>
+                    <li key={v.id} className="rounded-lg border border-white/10 bg-white/5 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="break-words text-sm font-medium">{destinoEnPalabras(v, cerebros, entidades)}</p>
+                          <p className="break-words text-xs text-white/60">
+                            {alcanceResumido(v.alcance)} · {direccionEnPalabras(v.direccion)} · {accesoEnPalabras(v.acceso)}
+                          </p>
+                          <p className="break-words text-xs text-white/60">
+                            Estado: <span className={info.estado === "activo" ? "text-emerald-200" : "text-amber-200"}>{info.estado}</span> · {info.motivo}
+                          </p>
+                          <p className="break-words text-xs text-white/60">Última sincronización: {fechaLegible(v.ultimaSync)}</p>
                         </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          {vinculo.estado === "activo" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 w-8 p-0 border-white/15 hover:bg-white/5"
-                              onClick={() => alternarEstadoVinculo(vinculo, "pausado")}
-                              disabled={isLoading}
-                            >
-                              <Pause className="w-3 h-3" />
-                            </Button>
-                          )}
-                          {vinculo.estado === "pausado" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 w-8 p-0 border-green-500/30 hover:bg-green-500/10"
-                              onClick={() => alternarEstadoVinculo(vinculo, "activo")}
-                              disabled={isLoading}
-                            >
-                              <Play className="w-3 h-3" />
-                            </Button>
-                          )}
+                        <div className="flex flex-wrap gap-1.5">
                           <Button
+                            type="button"
                             size="sm"
                             variant="outline"
-                            className="h-8 w-8 p-0 border-white/15 hover:bg-white/5"
-                            onClick={() => sincronizarAhora(vinculo)}
-                            disabled={isLoading}
+                            className="h-auto cursor-pointer whitespace-normal border-white/15 py-1.5"
+                            disabled={ocupado !== null}
+                            onClick={() => void sincronizar(v)}
                           >
-                            <RefreshCw className={cn("w-3 h-3", isLoading && "animate-spin")} />
+                            <RefreshCw className={trabajando ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} aria-hidden />
+                            Sincronizar ahora
                           </Button>
                           <Button
+                            type="button"
                             size="sm"
                             variant="outline"
-                            className="h-8 w-8 p-0 border-red-500/30 hover:bg-red-500/10"
-                            onClick={() => eliminarVinculo(vinculo.id)}
-                            disabled={isLoading}
+                            className="h-auto cursor-pointer whitespace-normal border-white/15 py-1.5"
+                            disabled={ocupado !== null}
+                            onClick={() => void cambiarEstado(v, v.estado === "pausado" ? "activo" : "pausado")}
                           >
-                            <Trash2 className="w-3 h-3" />
+                            {v.estado === "pausado" ? "Reanudar" : "Pausar"}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-auto cursor-pointer whitespace-normal py-1.5 text-red-200"
+                            disabled={ocupado !== null}
+                            onClick={() => void quitar(v)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                            Quitar
                           </Button>
                         </div>
                       </div>
-                    </div>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             )}
           </section>
 
-          {/* Formulario de nuevo vínculo */}
-          <section className="border-t border-white/10 pt-6">
-            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Nuevo vínculo
+          <section aria-labelledby="nuevo-vinculo" className="space-y-3 border-t border-white/10 pt-4">
+            <h3 id="nuevo-vinculo" className="text-sm font-semibold">
+              Nuevo vínculo · paso {paso} de 3
             </h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs text-white/60">Destino *</Label>
-                  <Select
-                    value={nuevoVinculo?.destino?.tipo ? `${nuevoVinculo.destino.tipo}:${nuevoVinculo.destino.id}` : ""}
-                    onValueChange={(val) => {
-                      const [tipo, id] = val.split(":");
-                      setNuevoVinculo({
-                        ...nuevoVinculo,
-                        destino: { tipo: tipo as any, id } as any,
-                      });
-                    }}
+
+            {paso === 1 && (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="telepatia-destino" className="text-xs text-white/60">Destino</Label>
+                  <select
+                    id="telepatia-destino"
+                    className={SELECT}
+                    value={form.destino}
+                    onChange={(e) => cambiar({ destino: e.target.value })}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona destino..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cerebros.map((c) => (
-                        <SelectItem key={c.id} value={`cerebro:${c.id}`}>{c.name} (cerebro)</SelectItem>
+                    <option value="" disabled>Elige otro cerebro, una entidad o una cuenta externa</option>
+                    <optgroup label="Otros cerebros míos">
+                      {cerebros.filter((c) => c.id !== cerebro.id).map((c) => (
+                        <option key={c.id} value={`cerebro:${c.id}`}>{c.name}</option>
                       ))}
-                      {Object.values(entidadesMap).map((ent) => (
-                        <SelectItem key={ent.tipo + ent.id} value={`${ent.tipo}:${ent.id}`}>{ent.nombre} ({ent.tipo})</SelectItem>
+                    </optgroup>
+                    <optgroup label="Mis grupos, comunidades y páginas">
+                      {entidades.map((e) => (
+                        <option key={`${e.tipo}:${e.id}`} value={`${e.tipo}:${e.id}`}>
+                          {e.tipo === "pagina" ? "Página" : "Grupo o comunidad"} · {e.nombre}
+                        </option>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </optgroup>
+                    <option value="cuenta">Una cuenta externa (con nombre)</option>
+                  </select>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-white/60">Alcance</Label>
-                  <Select
-                    value={nuevoVinculo?.alcance?.completo ? "completo" : "parcial"}
-                    onValueChange={(val) => {
-                      if (val === "completo") {
-                        setNuevoVinculo({
-                          ...nuevoVinculo,
-                          alcance: { completo: true, memorias: [], carpetas: [], configuraciones: [] },
-                        });
-                      } else {
-                        setNuevoVinculo({
-                          ...nuevoVinculo,
-                          alcance: { completo: false, memorias: [], carpetas: [], configuraciones: [] },
-                        });
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona alcance..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="completo">Cerebro completo</SelectItem>
-                      <SelectItem value="parcial">Personalizado</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {form.destino === "cuenta" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="telepatia-cuenta" className="text-xs text-white/60">Nombre de la cuenta externa</Label>
+                    <Input
+                      id="telepatia-cuenta"
+                      className="border-white/15 bg-black/40"
+                      placeholder="Quién recibe el token"
+                      value={form.nombreCuenta}
+                      onChange={(e) => cambiar({ nombreCuenta: e.target.value })}
+                    />
+                    <p className="text-xs text-white/50">El token se enseña una sola vez al guardar. No se volverá a mostrar.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {paso === 2 && (
+              <div className="space-y-3">
+                <label htmlFor="telepatia-completo" className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    id="telepatia-completo"
+                    type="checkbox"
+                    className="h-4 w-4 cursor-pointer accent-violet-500"
+                    checked={form.completo}
+                    onChange={(e) => cambiar({ completo: e.target.checked })}
+                  />
+                  Cerebro completo
+                </label>
+
+                {!form.completo && (
+                  <div className="space-y-3">
+                    <fieldset className="space-y-2">
+                      <legend className="text-xs font-medium text-white/60">Memorias de «{cerebro.name}»</legend>
+                      {memorias.length === 0 ? (
+                        <p className="text-xs text-white/50">Este cerebro no tiene archivos de memoria legibles ahora mismo.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                          {memorias.map((nombre, i) => (
+                            <label key={nombre} htmlFor={`tel-mem-${i}`} className="flex cursor-pointer items-center gap-2 break-all text-xs">
+                              <input id={`tel-mem-${i}`} type="checkbox" className="h-4 w-4 shrink-0 cursor-pointer accent-violet-500" checked={form.memorias.includes(nombre)} onChange={() => alternar("memorias", nombre)} />
+                              {nombre}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </fieldset>
+
+                    <fieldset className="space-y-2">
+                      <legend className="text-xs font-medium text-white/60">Carpetas de memoria de este aparato</legend>
+                      {carpetas.length === 0 ? (
+                        <p className="text-xs text-white/50">No hay carpetas vinculadas a este cerebro en este aparato.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                          {carpetas.map((carpeta, i) => (
+                            <label key={carpeta.id} htmlFor={`tel-carp-${i}`} className="flex cursor-pointer items-center gap-2 break-all text-xs">
+                              <input id={`tel-carp-${i}`} type="checkbox" className="h-4 w-4 shrink-0 cursor-pointer accent-violet-500" checked={form.carpetas.includes(carpeta.id)} onChange={() => alternar("carpetas", carpeta.id)} />
+                              {carpeta.nombre}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </fieldset>
+
+                    <fieldset className="space-y-2">
+                      <legend className="text-xs font-medium text-white/60">Configuraciones</legend>
+                      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                        {CONFIGURACIONES_TELEPATIA.map((clave, i) => (
+                          <label key={clave} htmlFor={`tel-cfg-${i}`} className="flex cursor-pointer items-center gap-2 text-xs">
+                            <input id={`tel-cfg-${i}`} type="checkbox" className="h-4 w-4 shrink-0 cursor-pointer accent-violet-500" checked={form.configuraciones.includes(clave)} onChange={() => alternar("configuraciones", clave)} />
+                            {etiquetaConfiguracion(clave)}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {paso === 3 && (
+              <div className="space-y-3">
+                <p className="break-words text-xs leading-relaxed text-white/60">
+                  Se vinculará <span className="text-white">{nombreDestino}</span> con alcance «{form.completo ? "Cerebro completo" : alcanceResumido({ completo: false, memorias: form.memorias, carpetas: form.carpetas, configuraciones: form.configuraciones })}». Nunca se borra nada en la otra parte.
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="telepatia-direccion" className="text-xs text-white/60">Dirección</Label>
+                    <select id="telepatia-direccion" className={SELECT} value={form.direccion} onChange={(e) => cambiar({ direccion: e.target.value as Formulario["direccion"] })}>
+                      <option value="enviar">Enviar desde este cerebro</option>
+                      <option value="recibir">Recibir en este cerebro</option>
+                      <option value="ambas">En ambas direcciones</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="telepatia-acceso" className="text-xs text-white/60">Acceso</Label>
+                    <select id="telepatia-acceso" className={SELECT} value={form.acceso} onChange={(e) => cambiar({ acceso: e.target.value as Formulario["acceso"] })}>
+                      <option value="leer">Solo lectura</option>
+                      <option value="escribir">Lectura y escritura</option>
+                    </select>
+                  </div>
+                  <label htmlFor="telepatia-auto" className="flex cursor-pointer items-center gap-2 text-sm">
+                    <input id="telepatia-auto" type="checkbox" className="h-4 w-4 cursor-pointer accent-violet-500" checked={form.auto} onChange={(e) => cambiar({ auto: e.target.checked })} />
+                    Sincronizar solo
+                  </label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="telepatia-expira" className="text-xs text-white/60">Caducidad (opcional)</Label>
+                    <Input id="telepatia-expira" type="date" min={hoy} className="border-white/15 bg-black/40" value={form.expira} onChange={(e) => cambiar({ expira: e.target.value })} />
+                  </div>
                 </div>
               </div>
+            )}
 
-              {nuevoVinculo && !nuevoVinculo.alcance?.completo && (
-                <div className="space-y-3 pl-4 border-l-2 border-white/10 ml-2">
-                  <div className="space-y-2">
-                    <Label className="text-xs text-white/60">Memorias (selecciona una o más)</Label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                      {cerebro.config?.includes?.memories?.map((mem: any) => (
-                        <div key={mem.name} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`mem-${mem.name}`}
-                            checked={nuevoVinculo.alcance?.memorias?.includes(mem.name)}
-                            onCheckedChange={(checked) => {
-                              const memorias = checked
-                                ? [...(nuevoVinculo.alcance?.memorias || []), mem.name]
-                                : (nuevoVinculo.alcance?.memorias || []).filter((m) => m !== mem.name);
-                              setNuevoVinculo({
-                                ...nuevoVinculo,
-                                alcance: { ...nuevoVinculo.alcance, memorias },
-                              });
-                            }}
-                          />
-                          <Label htmlFor={`mem-${mem.name}`} className="text-xs cursor-pointer">
-                            {mem.name}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs text-white/60">Carpetas (selecciona una o más)</Label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`folder-${i}`}
-                            checked={nuevoVinculo.alcance?.carpetas?.includes(`carpeta-${i}`)}
-                            onCheckedChange={(checked) => {
-                              const carpetas = checked
-                                ? [...(nuevoVinculo.alcance?.carpetas || []), `carpeta-${i}`]
-                                : (nuevoVinculo.alcance?.carpetas || []).filter((c) => c !== `carpeta-${i}`);
-                              setNuevoVinculo({
-                                ...nuevoVinculo,
-                                alcance: { ...nuevoVinculo.alcance, carpetas },
-                              });
-                            }}
-                          />
-                          <Label htmlFor={`folder-${i}`} className="text-xs cursor-pointer">
-                            Carpeta {i + 1}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs text-white/60">Configuraciones (selecciona una o más)</Label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                      {["servers", "runtimes", "skills", "storage"].map((cfg) => (
-                        <div key={cfg} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`cfg-${cfg}`}
-                            checked={nuevoVinculo.alcance?.configuraciones?.includes(cfg)}
-                            onCheckedChange={(checked) => {
-                              const configuraciones = checked
-                                ? [...(nuevoVinculo.alcance?.configuraciones || []), cfg]
-                                : (nuevoVinculo.alcance?.configuraciones || []).filter((c) => c !== cfg);
-                              setNuevoVinculo({
-                                ...nuevoVinculo,
-                                alcance: { ...nuevoVinculo.alcance, configuraciones },
-                              });
-                            }}
-                          />
-                          <Label htmlFor={`cfg-${cfg}`} className="text-xs cursor-pointer capitalize">
-                            {cfg}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+            <div className="flex flex-wrap gap-2">
+              {paso > 1 && (
+                <Button type="button" size="sm" variant="outline" className="h-auto cursor-pointer whitespace-normal border-white/15 py-1.5" disabled={ocupado !== null} onClick={() => setPaso((p) => p - 1)}>
+                  Atrás
+                </Button>
               )}
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs text-white/60">Dirección</Label>
-                  <Select
-                    value={nuevoVinculo?.direccion}
-                    onValueChange={(val) => setNuevoVinculo({ ...nuevoVinculo, direccion: val as any })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Dirección" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="enviar">Enviar</SelectItem>
-                      <SelectItem value="recibir">Recibir</SelectItem>
-                      <SelectItem value="ambas">Ambas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-white/60">Acceso</Label>
-                  <Select
-                    value={nuevoVinculo?.acceso}
-                    onValueChange={(val) => setNuevoVinculo({ ...nuevoVinculo, acceso: val as any })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Acceso" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="leer">Leer</SelectItem>
-                      <SelectItem value="escribir">Escribir</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-white/60">Auto</Label>
-                  <Select
-                    value={nuevoVinculo?.auto?.toString()}
-                    onValueChange={(val) => setNuevoVinculo({ ...nuevoVinculo, auto: val === "true" })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Auto" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="true">Sí</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs text-white/60">Expira en (opcional)</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal border-white/15 hover:bg-white/5"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {nuevoVinculo?.expiraEn ? format(new Date(nuevoVinculo.expiraEn), "PPP", { locale: es }) : "Selecciona fecha..."}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={nuevoVinculo?.expiraEn ? new Date(nuevoVinculo.expiraEn) : undefined}
-                        onSelect={(date) => setNuevoVinculo({ ...nuevoVinculo, expiraEn: date?.toISOString() })}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-white/60">Sincronizar solo (opcional)</Label>
-                  <Select
-                    value={nuevoVinculo?.auto?.toString()}
-                    onValueChange={(val) => setNuevoVinculo({ ...nuevoVinculo, auto: val === "true" })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sí/No" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="true">Sí</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              {paso < 3 ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-auto cursor-pointer whitespace-normal bg-violet-600 py-1.5 text-white hover:bg-violet-700"
+                  disabled={paso === 1 ? !destinoListo : !alcanceListo}
+                  onClick={() => setPaso((p) => p + 1)}
+                >
+                  Siguiente
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-auto cursor-pointer whitespace-normal bg-violet-600 py-1.5 text-white hover:bg-violet-700"
+                  disabled={ocupado !== null}
+                  onClick={() => void crear()}
+                >
+                  {ocupado === "nuevo" && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                  Guardar vínculo
+                </Button>
+              )}
             </div>
           </section>
         </div>
 
-        {mostrandoToken && (
-          <div className="mt-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-            <p className="text-xs text-green-200 mb-2">¡Token generado! Cópialo antes de que se muestre esto de nuevo.</p>
-            <div className="flex items-center gap-2">
-              <code className="text-xs bg-black/30 px-2 py-1 rounded flex-1 font-mono">{mostrandoToken}</code>
-              <Button size="sm" variant="outline" className="h-7 px-2 border-white/15" onClick={() => copiarToken(mostrandoToken)}>
-                <Copy className="w-3 h-3" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <DialogFooter className="mt-6 pt-4 border-t border-white/10">
-          <Button
-            variant="outline"
-            onClick={() => setNuevoVinculo(null)}
-            disabled={isCreating}
-            className="border-white/15 hover:bg-white/5"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={guardarNuevoVinculo}
-            disabled={isCreating || !nuevoVinculo?.destino?.id || !nuevoVinculo?.destino?.tipo}
-            className="bg-violet-600 hover:bg-violet-700 text-white"
-          >
-            {isCreating ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <Check className="w-4 h-4 mr-2" />
-            )}
-            Guardar vínculo
+        <DialogFooter>
+          <Button type="button" variant="outline" className="h-auto cursor-pointer whitespace-normal border-white/15 py-1.5" onClick={() => onOpenChange(false)}>
+            Cerrar
           </Button>
         </DialogFooter>
       </DialogContent>
