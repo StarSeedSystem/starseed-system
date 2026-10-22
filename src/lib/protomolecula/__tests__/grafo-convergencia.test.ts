@@ -74,6 +74,15 @@ describe("formatos: directo, por conversión o incompatible", () => {
     expect(d).toMatchObject({ ok: true, incompatibles: [], conversiones: [] });
     expect(rutaDe).not.toHaveBeenCalled();
   });
+  it("normalización de formatos: minúsculas, punto inicial y espacios de más (desde la rama nube/38452326970)", () => {
+    const registro = new Map<string, DefinicionAtomo>([
+      ["uno", def("uno", [], [" .PNG ", "MP3 "], "Uno")],
+      ["dos", def("dos", [".png", "mp3"], [], "Dos")],
+    ]);
+    const d = analizarConvergencia([at("u", "uno"), at("d", "dos")], [ar("u", "d")], (id) => registro.get(id), sinRutas);
+    expect(d).toMatchObject({ ok: true, ciclos: [], incompatibles: [], conversiones: [] });
+    expect(d.orden).toEqual(["u", "d"]);
+  });
   it("conversión de dos pasos con un rutaDe falso: la arista va a conversiones con su ruta", () => {
     const rutaDe = vi.fn<RutaDe>((de, a) => (de === "obj" && a === "glb" ? ["OBJ", "gltf", "glb"] : null));
     const d = analizarConvergencia([at("m", "modelador"), at("e", "escena")], [ar("m", "e")], definicion, rutaDe);
