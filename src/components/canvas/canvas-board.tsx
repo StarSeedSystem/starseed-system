@@ -43,7 +43,8 @@ import XRView from "@/components/canvas/xr-view";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { claveDeHerramienta, claveDeAtomo, claveDeMolecula, atributosClave } from "@/lib/variaciones/claves-protomolecula";
+import { claveDeHerramienta, claveDeMolecula, atributosClave } from "@/lib/variaciones/claves-protomolecula";
+import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
 import { usePrompt } from "@/components/ui/confirm-dialog";
 import {
   Plus,
@@ -2033,22 +2034,22 @@ function BlockCard({
   const def = blockKindDef(block.kind);
   const locked = !!block.locked;
   
-  // Generate data-ss-elemento attribute for canvas and Protomolécula components
+  // data-ss-elemento: clave canónica del tipo de bloque, para «Variaciones
+  // públicas» desde el lienzo universal. Solo ids públicos: el nombre del
+  // widget o app y la herramienta del primer átomo de la molécula incorporada;
+  // nunca datos privados ni el id de la instancia.
   const elementoAttrs = useMemo(() => {
-    let clave = null;
-    
-    // For widget and app blocks, use claveDeHerramienta with the name
-    if ((block.kind === "widget" || block.kind === "app") && block.data.name) {
+    let clave: string | null = null;
+    if ((block.kind === "widget" || block.kind === "app") && typeof block.data.name === "string") {
       clave = claveDeHerramienta(block.data.name);
+    } else if (block.kind === "protomolecula" && typeof block.data.code === "string") {
+      const leida = leerBloque(block.data.code);
+      if (leida.ok && leida.valor.atomos[0]) {
+        clave = claveDeMolecula(leida.valor.atomos[0].herramientaId);
+      }
     }
-    // For protomolecula blocks, use claveDeMolecula with the molecule code
-     else if (block.kind === "protomolecula" && block.data.code) {
-       clave = claveDeMolecula(block.data.code);
-    }
-    // TODO: Add support for other block types (átomos, etc.)
-    
-   return clave ? atributosClave(clave) : {};
- }, [block.kind, block.data.name, block.data.code]);
+    return atributosClave(clave);
+  }, [block.kind, block.data.name, block.data.code]);
   
   return (
     <div

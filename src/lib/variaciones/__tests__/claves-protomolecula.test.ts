@@ -1,117 +1,119 @@
-import { describe, it, expect } from 'vitest'
-import { 
-  claveDeHerramienta, 
-  claveDeAtomo, 
+// Prueba de src/lib/variaciones/claves-protomolecula.ts — módulo puro, sin red
+// ni disco. El registro de átomos es un Map en memoria: se siembra un átomo
+// propio y se limpia en cada caso para que la prueba no dependa de nada vivo.
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+
+import {
+  claveDeHerramienta,
+  claveDeAtomo,
   claveDeMolecula,
-  atributosClave
-} from '../claves-protomolecula'
-import { CATALOGO_PROTOMOLECULA } from '../../protomolecula/catalogo-herramientas'
-import { listarAtomos } from '../../protomolecula/registro-atomos'
+  claveDeAtomoPorNombre,
+  atributosClave,
+} from "../claves-protomolecula";
+import type { DefinicionAtomo } from "../../protomolecula/registro-atomos";
+import { registrarAtomo, limpiarRegistro } from "../../protomolecula/registro-atomos";
 
-// Obtener un id de herramienta válido del catálogo (sabemos que el catálogo no está vacío)
-const validToolId = CATALOGO_PROTOMOLECULA.length > 0 ? CATALOGO_PROTOMOLECULA[0].id : 'photocraft'
-// Respaldo a 'photocraft' si el catálogo está vacío (no debería ocurrir)
+// Herramienta segura del catálogo real (el catálogo no debe vaciarse nunca).
+const ID_HERRAMIENTA = "photocraft";
 
-// Obtener un id de átomo válido del registro (si es que hay alguno) obteniendo el herramientaId del primer átomo
-const atoms = listarAtomos()
-const validAtomId = atoms.length > 0 ? atoms[0].herramientaId : ''
+// Definición mínima válida: control «ventana» admite una lista vacía de parámetros.
+const ATOMO: DefinicionAtomo = {
+  herramientaId: "video-html",
+  nombre: "Vídeo HTML",
+  categoria: "video",
+  integracion: "libreria-js",
+  control: "ventana",
+  parametros: [],
+  entradas: [],
+  salidas: [],
+};
 
-describe('claves-protomolecula', () => {
-  describe('claveDeHerramienta', () => {
-    it('should return null for empty id', () => {
-      expect(claveDeHerramienta('')).toBeNull()
-      expect(claveDeHerramienta(' ')).toBeNull() // espacios
-      expect(claveDeHerramienta(null as any)).toBeNull()
-      expect(claveDeHerramienta(undefined as any)).toBeNull()
-    })
+beforeEach(() => {
+  limpiarRegistro();
+  expect(registrarAtomo(ATOMO).ok).toBe(true);
+});
 
-    it('should return null for invalid tool id', () => {
-      expect(claveDeHerramienta('invalid-tool-id')).toBeNull()
-    })
+afterEach(() => {
+  limpiarRegistro();
+});
 
-    it('should return a valid key for a known tool id', () => {
-      // Sabemos que el id de herramienta que obtuvimos del catálogo es válido
-      const clave = claveDeHerramienta(validToolId)
-      expect(clave).toBe(`herramienta:${validToolId}`)
-    })
-  })
+describe("claveDeHerramienta", () => {
+  it("devuelve null para un id vacío o no registrado", () => {
+    expect(claveDeHerramienta("")).toBeNull();
+    expect(claveDeHerramienta("fotografia-mental")).toBeNull();
+  });
 
-  describe('claveDeAtomo', () => {
-    it('should return null for empty id', () => {
-      expect(claveDeAtomo('')).toBeNull()
-      expect(claveDeAtomo(null as any)).toBeNull()
-      expect(claveDeAtomo(undefined as any)).toBeNull()
-    })
+  it("devuelve la clave canónica de una herramienta del catálogo", () => {
+    expect(claveDeHerramienta(ID_HERRAMIENTA)).toBe(`herramienta:${ID_HERRAMIENTA}`);
+  });
+});
 
-    it('should return null for invalid atom id', () => {
-      expect(claveDeAtomo('invalid-atom-id')).toBeNull()
-    })
+describe("claveDeAtomo", () => {
+  it("devuelve null para un id vacío o no registrado", () => {
+    expect(claveDeAtomo("")).toBeNull();
+    expect(claveDeAtomo("video-dream")).toBeNull();
+  });
 
-    it('should return a valid key for a known atom id', () => {
-      // Si tenemos un id de átomo válido del registro, lo probamos
-      if (validAtomId) {
-        const clave = claveDeAtomo(validAtomId)
-        expect(clave).toBe(`atomo:${validAtomId}`)
-      } else {
-        // Si no hay átomos en el registro, esperamos null para cualquier id
-        expect(claveDeAtomo('some-id')).toBeNull()
-      }
-    })
-  })
+  it("devuelve la clave canónica de un átomo del registro", () => {
+    expect(claveDeAtomo(ATOMO.herramientaId)).toBe(`atomo:${ATOMO.herramientaId}`);
+  });
+});
 
-  describe('claveDeMolecula', () => {
-    it('should return null for empty id', () => {
-      expect(claveDeMolecula('')).toBeNull()
-      expect(claveDeMolecula(null as any)).toBeNull()
-      expect(claveDeMolecula(undefined as any)).toBeNull()
-    })
+describe("claveDeMolecula", () => {
+  it("devuelve null para un id vacío o sin pieza registrada", () => {
+    expect(claveDeMolecula("")).toBeNull();
+    expect(claveDeMolecula("molecula-inventada")).toBeNull();
+  });
 
-    it('should return null for id not found in catalog or registry', () => {
-      expect(claveDeMolecula('totally-fake-id')).toBeNull()
-    })
+  it("acepta el id de una herramienta del catálogo", () => {
+    expect(claveDeMolecula(ID_HERRAMIENTA)).toBe(`molecula:${ID_HERRAMIENTA}`);
+  });
 
-    it('should return a valid key for id found in tool catalog', () => {
-      // Usando un id de herramienta válido del catálogo
-      const clave = claveDeMolecula(validToolId)
-      expect(clave).toBe(`molecula:${validToolId}`)
-    })
+  it("acepta el id de un átomo del registro", () => {
+    expect(claveDeMolecula(ATOMO.herramientaId)).toBe(`molecula:${ATOMO.herramientaId}`);
+  });
+});
 
-    it('should return a valid key for id found in atom registry', () => {
-      // Si tenemos un id de átomo válido del registro, lo probamos
-      if (validAtomId) {
-        const clave = claveDeMolecula(validAtomId)
-        expect(clave).toBe(`molecula:${validAtomId}`)
-      } else {
-        // Si no hay átomos en el registro, esperamos null para cualquier id (ya que tampoco estará en el catálogo? pero tenemos el catálogo de herramientas)
-        // En realidad, si el registro de átomos está vacío, todavía tenemos el catálogo de herramientas, así que ya lo probamos.
-        // Entonces podemos omitir esta prueba o simplemente esperar null para un id falso.
-        expect(claveDeMolecula('fake-id')).toBeNull()
-      }
-    })
-  })
+describe("claveDeAtomoPorNombre", () => {
+  it("resuelve la clave por el nombre visible de la definición", () => {
+    expect(claveDeAtomoPorNombre(ATOMO.nombre)).toBe(`atomo:${ATOMO.herramientaId}`);
+  });
 
-  describe('atributosClave', () => {
-    it('should return null for invalid clave format', () => {
-      expect(atributosClave('')).toBeNull()
-      expect(atributosClave('widgetclima')).toBeNull() // falta :
-      expect(atributosClave('widget:')).toBeNull() // falta id
-      expect(atributosClave(':clima')).toBeNull() // falta familia
-      expect(atributosClave('widget clima')).toBeNull() // espacio en lugar de :
-      expect(atributosClave('WIDGET:clima')).toBeNull() // mayúsculas no permitidas
-      expect(atributosClave('widget:cl ima')).toBeNull() // espacio en id
-      expect(atributosClave('widget:clima#')).toBeNull() // parte vacía
-    })
+  it("resuelve la clave si el nombre es ya el id de herramienta", () => {
+    expect(claveDeAtomoPorNombre(ATOMO.herramientaId)).toBe(`atomo:${ATOMO.herramientaId}`);
+  });
 
-    it('should return the attribute object for a valid clave', () => {
-      const clave = 'herramienta:photocraft'
-      const result = atributosClave(clave)
-      expect(result).toEqual({ 'data-ss-elemento': clave })
-    })
+  it("devuelve null para un nombre que el registro no conoce", () => {
+    expect(claveDeAtomoPorNombre("")).toBeNull();
+    expect(claveDeAtomoPorNombre("Vídeo Imaginado")).toBeNull();
+  });
+});
 
-    it('should return the attribute object for a valid clave with parte', () => {
-      const clave = 'herramienta:photocraft#parte1'
-      const result = atributosClave(clave)
-      expect(result).toEqual({ 'data-ss-elemento': clave })
-    })
-  })
-})
+describe("atributosClave", () => {
+  it("devuelve objeto vacío con una clave ausente o mal formada", () => {
+    expect(atributosClave(null)).toEqual({});
+    expect(atributosClave(undefined)).toEqual({});
+    expect(atributosClave("")).toEqual({});
+    expect(atributosClave("widgetclima")).toEqual({});
+    expect(atributosClave("widget:")).toEqual({});
+    expect(atributosClave(":clima")).toEqual({});
+    expect(atributosClave("Widget:clima")).toEqual({});
+    expect(atributosClave("widget:cl ima")).toEqual({});
+    expect(atributosClave("widget:clima#")).toEqual({});
+  });
+
+  it("expone data-ss-elemento para una clave válida", () => {
+    expect(atributosClave(`herramienta:${ID_HERRAMIENTA}`)).toEqual({
+      "data-ss-elemento": `herramienta:${ID_HERRAMIENTA}`,
+    });
+    expect(atributosClave("atomo:video-html#panel")).toEqual({
+      "data-ss-elemento": "atomo:video-html#panel",
+    });
+  });
+
+  it("nunca rompe una expansión en JSX: siempre devuelve un objeto", () => {
+    const attrs = atributosClave(claveDeHerramienta(ID_HERRAMIENTA));
+    expect(attrs).toHaveProperty("data-ss-elemento");
+    expect(Object.keys(atributosClave("no-es-clave"))).toHaveLength(0);
+  });
+});

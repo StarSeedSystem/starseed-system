@@ -48,9 +48,9 @@ export function claveDeMolecula(id: string): ClaveElemento | null {
  * Clave del átomo de la interfaz por su nombre visible. La UI agrupa por
  * nombre (`c.atomo` = título o nombre de la definición); el registro vive por
  * `herramientaId`, así que se busca la definición cuyo nombre coincida y se
- * devuelve la clave por su id de herramienta. Si el nombre ES ya un
- * manda. Sin coincidencia devuelve null (la sección va sin clave; degrada
- * en silencio, sin inventar claves).
+  * devuelve la clave por su id de herramienta. Si el nombre ES ya un
+  * `herramientaId` del registro, manda. Sin coincidencia devuelve null (la
+  * sección va sin clave; degrada en silencio, sin inventar claves).
  */
 export function claveDeAtomoPorNombre(nombre: string): ClaveElemento | null {
   if (!nombre) return null;
