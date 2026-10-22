@@ -58,7 +58,7 @@ describe("ajustes · familia de variaciones públicas", () => {
       [null, "debe ser un objeto"],
       [{}, "está vacío"],
       [{ vuelo: 1 }, "no es un ajuste de la familia"],
-      [{ rendimiento: "sk-abc123def456ghi789" }, "token"],
+      [{ rendimiento: "sk-fake123def456ghi789" }, "token"],
       [{ rendimiento: () => 1 }, "no serializable"],
       [{ cursor: { html: "<b>hola</b>" } }, "código"],
     ];

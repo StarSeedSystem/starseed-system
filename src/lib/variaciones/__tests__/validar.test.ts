@@ -62,7 +62,7 @@ describe("validarVariacion", () => {
   });
 
   it("rechaza valores que parecen un token o una clave", () => {
-    for (const payload of ["sk-abc123def456ghi789", "Bearer abcdefgh12345", "a".repeat(40)]) {
+    for (const payload of ["sk-fake123def456ghi789", "Bearer abcdefgh12345", "a".repeat(40)]) {
       const resultado = validarVariacion(payload);
       expect(resultado.ok).toBe(false);
       if (!resultado.ok) {

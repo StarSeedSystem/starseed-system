@@ -83,7 +83,7 @@ describe("adaptador de apariencia", () => {
     const bueno = disenoDeApariencia("tema", TEMA);
     expect(adaptador.validar(bueno).ok).toBe(true);
 
-    const conSecreto = { ...bueno!, payload: { ...bueno!.payload, token: "sk-abc123def456ghi789" } };
+    const conSecreto = { ...bueno!, payload: { ...bueno!.payload, token: "sk-fake123def456ghi789" } };
     const revision = adaptador.validar(conSecreto);
     expect(revision.ok).toBe(false);
     if (!revision.ok) expect(revision.motivos.some((m) => m.startsWith("Privacidad"))).toBe(true);
