@@ -554,6 +554,17 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         expect(screen.getByTestId(id("info", "mac-aaaaaa"))).toHaveTextContent("2 agentes · contenedor activo");
     });
 
+    it("con el relevo activo y el contenedor activo: «Dejar de usar» lleva su explicación en el title", async () => {
+        // La razón del botón no se repite en pantalla cuando este sí se puede pulsar (en el móvil no hay
+        // `title`): vive en el atributo `title`, y lo que promete es lo que hace de verdad.
+        estado.lectura = lectura([nodo({ relevo: true, contenedor: { activo: true, agentes: 2, apto: true, motivo: "" } })]);
+        pintar();
+        const boton = await screen.findByTestId(id("contenedor"));
+        expect(boton).toHaveTextContent("Dejar de usar como contenedor");
+        expect(boton).not.toBeDisabled();
+        expect(boton).toHaveAttribute("title", "Termina lo que lleva y no coge más.");
+    });
+
     it("con el relevo activo: Desconectar con trabajo pide confirmar y manda la orden AL NODO (no a «lider»)", async () => {
         estado.lectura = lectura([nodo({ relevo: true, enCurso: [tarea("task-1", 60_000)] })]);
         pintar();
