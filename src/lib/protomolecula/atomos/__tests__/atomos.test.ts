@@ -49,6 +49,17 @@ describe("átomos propios", () => {
     expect(primera).toBe(ATOMOS_PROPIOS.length);
   });
 
+  it("VISTAS_COMPONENTE solo guarda cargadores de componente", () => {
+    for (const [id, carga] of Object.entries(VISTAS_COMPONENTE)) {
+      expect(typeof carga, id).toBe("function");
+    }
+    for (const def of ATOMOS_PROPIOS) {
+      const vista = def.vista;
+      if (!vista || vista.tipo !== "componente") continue;
+      expect(typeof VISTAS_COMPONENTE[vista.id], def.herramientaId).toBe("function");
+    }
+  });
+
   it("los ids de parámetros son únicos dentro de cada definición", () => {
     for (const def of ATOMOS_PROPIOS) {
       const ids = def.parametros.map((p) => p.id);
