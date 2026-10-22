@@ -58,6 +58,8 @@ import { llmSourceAccessClass, type ModelAccessClass } from "@/lib/astraura/mode
 // bloque "ORBE CUÁNTICA — conmutación" más abajo. `aurora-orb.module.css` NO
 // se toca: la capa cuántica se monta con estilos inline propios.
 import { QuantumOrb, type QuantumOrbState } from "./quantum-orb";
+import { onQuantumOrbParams } from "@/lib/aurora/quantum-orb-bus";
+import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
 import styles from "./aurora-orb.module.css";
 
 type RGB = [number, number, number];
@@ -325,6 +327,9 @@ export function AuroraOrb({
   // `AnalyserNode` (ver `expandBandsToFreq` y la cabecera de `aurora-orb-bus.ts`).
   const [quantumLevel, setQuantumLevel] = useState(0);
   const [quantumFreq, setQuantumFreq] = useState<Uint8Array | null>(null);
+  // Expresión del bot (BOT1011D2): emoción y personalidad publicadas en el bus de la orbe.
+  const [quantumParams, setQuantumParams] = useState<Partial<QuantumOrbParams>>();
+  useEffect(() => onQuantumOrbParams(setQuantumParams), []);
 
   useEffect(() => {
     if (!quantumActive) {
@@ -699,6 +704,7 @@ export function AuroraOrb({
           state={quantumState}
           level={quantumLevel}
           frequencies={quantumFreq}
+          params={quantumParams}
           size={size}
           trail
         />
