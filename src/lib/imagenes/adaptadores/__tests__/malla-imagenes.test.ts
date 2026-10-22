@@ -1,6 +1,6 @@
 // src/lib/imagenes/adaptadores/__tests__/malla-imagenes.test.ts
 // Tests unitarios para las funciones puras del adaptador de malla de imágenes
-// Como estã¡n prohibidos vi.mock y similares, testeamos funciones puras directamente
+// Como están prohibidos vi.mock y similares, testeamos funciones puras directamente
 
 import { describe, it, expect } from "vitest";
 import { 
@@ -118,6 +118,26 @@ describe("malla-imagenes adaptador - funciones puras", () => {
     it("debe devolver 'apple' para plataforma darwin", () => {
       const cerca = { plataforma: "darwin" };
       expect(inferirTipoGPUDesdeCercana(cerca)).toBe("apple");
+    });
+  });
+
+  describe("inferirRAMLibreGB", () => {
+    it("debe estimar la mitad de la clase declarada, con piso de 1 GB", () => {
+      expect(inferirRAMLibreGB({ ficha: { ramClase: "16 GB" } })).toBe(4);
+      expect(inferirRAMLibreGB({ ficha: { ramClase: "≤4 GB" } })).toBe(1);
+      expect(inferirRAMLibreGB({})).toBe(2);
+    });
+  });
+
+  describe("inferencia conservadora sin datos", () => {
+    it("debe devolver mínimos conservadores cuando no hay datos de la neurona", () => {
+      expect(inferirVRAMGB({})).toBeNull();
+      expect(inferirOcupada({})).toBe(false);
+      expect(inferirInstalados({})).toEqual([]);
+      expect(inferirVRAMGBDesdeCercana({})).toBeNull();
+      expect(inferirOcupadaDesdeCercana({})).toBe(false);
+      expect(inferirRAMLibreGBDesdeCercana({})).toBe(2);
+      expect(inferirInstaladosDesdeCercana({})).toEqual([]);
     });
   });
 
