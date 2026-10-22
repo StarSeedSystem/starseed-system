@@ -157,8 +157,20 @@ export interface EditHistoryEntry {
 
 // ----------------------------- Utilidades -----------------------------------
 
+// Identificadores de gobernanza (sugerencias y reportes) con azar del sistema:
+// Math.random() no es criptográficamente seguro ni auditable. Se conserva el
+// formato `${prefijo}_${marca36}_${6 caracteres base36}` y cada carácter se
+// toma de un byte descartando los valores sesgados (muestreo por rechazo).
 function rid(prefix = "id"): string {
-    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const alfabeto = "0123456789abcdefghijklmnopqrstuvwxyz";
+    const byte = new Uint8Array(1);
+    let sufijo = "";
+    while (sufijo.length < 6) {
+        globalThis.crypto.getRandomValues(byte);
+        // 36 × 7 = 252: por encima de ahí el módulo 36 estaría sesgado.
+        if (byte[0] < 252) sufijo += alfabeto[byte[0] % 36];
+    }
+    return `${prefix}_${Date.now().toString(36)}_${sufijo}`;
 }
 
 function asObject<T extends object>(v: any, fallback: T): T {
