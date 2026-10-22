@@ -2,6 +2,15 @@
 // Catálogo + ejecutor tolerante. El cliente supabase se pasa por contexto.
 
 import type { CommandSpec } from "./types";
+import {
+  clienteVikunja,
+  descripcionTarea,
+  tituloProyecto,
+  type DecisionAprobada,
+  type Entidad,
+  type TipoEntidad,
+} from "@/lib/conectores-propios/vikunja";
+import { connectorCredentials } from "@/lib/connectors/connector-credentials";
 
 export type CommandField = {
   key: string;
@@ -161,6 +170,32 @@ export const COMMAND_TYPES: CommandTypeDef[] = [
     ],
   },
   {
+    id: "vikunja",
+    label: "Crear tarea en Vikunja",
+    blurb:
+      "Ejecuta la propuesta ya aprobada como tarea en el proyecto de su entidad (Vikunja no decide: solo ejecuta).",
+    fields: [
+      {
+        key: "entidadTipo",
+        label: "Tipo de entidad",
+        type: "select",
+        optional: true,
+        options: [
+          { value: "red", label: "Red" },
+          { value: "grupo", label: "Grupo" },
+          { value: "comunidad", label: "Comunidad" },
+          { value: "pagina", label: "Página" },
+          { value: "publicacion", label: "Publicación" },
+          { value: "cerebro", label: "Cerebro" },
+          { value: "personal", label: "Personal" },
+        ],
+      },
+      { key: "entidadId", label: "ID de la entidad", type: "text", placeholder: "id o slug del ámbito", optional: true },
+      { key: "entidadNombre", label: "Nombre de la entidad", type: "text", placeholder: "nombre visible", optional: true },
+      { key: "sector", label: "Sector (opcional)", type: "text", placeholder: "p.ej. alimentación", optional: true },
+    ],
+  },
+  {
     id: "custom",
     label: "Personalizado",
     blurb: "Registra un comando libre para revisión (Astraura o manual pueden ejecutarlo).",
@@ -185,6 +220,51 @@ export type ExecCtx = {
 };
 
 export type ExecResult = { ok: boolean; detail: string };
+
+// ── Vikunja · ejecutar lo aprobado (nunca votar allí) ───────────────────
+const TIPO_VIKUNJA_POR_SCOPE: Record<string, TipoEntidad> = {
+  group: "grupo",
+  page: "pagina",
+  community: "comunidad",
+  account: "personal",
+  global: "red",
+  message: "publicacion",
+};
+
+function tipoVikunja(valor: unknown, scope: unknown): TipoEntidad {
+  const candidatos = [valor, TIPO_VIKUNJA_POR_SCOPE[String(scope ?? "")]];
+  const validos: TipoEntidad[] = ["red", "grupo", "comunidad", "pagina", "publicacion", "cerebro", "personal"];
+  return validos.find((t) => t === candidatos[0] || t === candidatos[1]) ?? "personal";
+}
+
+function entidadVikunja(p: Record<string, unknown>, ctx: ExecCtx): Entidad {
+  const id = String(p.entidadId || ctx.scopeRef || ctx.userId || "personal").trim();
+  const nombre = String(p.entidadNombre || p.name || ctx.scopeRef || "Mi espacio").trim();
+  return { tipo: tipoVikunja(p.entidadTipo, p.scope || ctx.scope), id, nombre };
+}
+
+function decisionVikunja(p: Record<string, unknown>, ctx: ExecCtx): DecisionAprobada {
+  const sector = typeof p.sector === "string" && p.sector.trim() ? p.sector.trim() : undefined;
+  return {
+    propuestaId: String(ctx.proposalId || p.propuestaId || "").trim(),
+    titulo: String(p.titulo || p.label || "Mandato aprobado").trim(),
+    aprobadaEn: String(p.aprobadaEn || new Date().toISOString()).trim(),
+    ...(sector ? { sector } : {}),
+  };
+}
+
+function credencialesVikunja(): { ok: true; base: string; token: string } | { ok: false; motivo: string } {
+  const guardadas = connectorCredentials("vikunja-selfhost");
+  const base =
+    (guardadas?.fields.base || guardadas?.fields.endpoint || guardadas?.fields.url || "").trim() ||
+    "http://localhost:3456/api/v1";
+  const token = (guardadas?.fields.token || guardadas?.fields.apiKey || "").trim();
+  if (!guardadas?.enabled) {
+    return { ok: false, motivo: "Conecta Vikunja en el Hub de Conectores (dirección y token) antes de ejecutar la tarea." };
+  }
+  if (!token) return { ok: false, motivo: "Falta el token de Vikunja en el Hub de Conectores." };
+  return { ok: true, base, token };
+}
 
 // Lee un valor de gobernanza existente y mezcla cambios (helper interno).
 async function mergeGovParams(
@@ -463,6 +543,33 @@ export async function executeCommand(spec: CommandSpec | null, ctx: ExecCtx): Pr
           return { ok: true, detail: "Datastore conectado: " + p.name };
         }
         return { ok: false, detail: "target inválido (server/datastore)" };
+      }
+
+      case "vikunja": {
+        const cred = credencialesVikunja();
+        if (!cred.ok) return { ok: false, detail: cred.motivo };
+        let tituloPropuesta = String(p.titulo || p.label || "").trim();
+        if (!tituloPropuesta && ctx.proposalId) {
+          const { data: propuesta } = await supabase
+            .from("proposals")
+            .select("title")
+            .eq("id", ctx.proposalId)
+            .maybeSingle();
+          tituloPropuesta = String(propuesta?.title ?? "").trim();
+        }
+        const entidad = entidadVikunja(p, ctx);
+        const decision = decisionVikunja({ ...p, titulo: tituloPropuesta || p.titulo }, ctx);
+        const vikunja = clienteVikunja((url, init) => fetch(url, init));
+        const proyecto = await vikunja.asegurarProyecto(cred.base, cred.token, entidad);
+        if (!proyecto.ok) return { ok: false, detail: proyecto.motivo };
+        const tarea = await vikunja.tareaDesdeDecision(cred.base, cred.token, proyecto.id, decision);
+        if (!tarea.ok) return { ok: false, detail: tarea.motivo };
+        const titulo = tituloProyecto(entidad);
+        const resumen = descripcionTarea(decision).split("\n")[0];
+        return {
+          ok: true,
+          detail: `Tarea ${tarea.id} creada en «${titulo}»${proyecto.creado ? " (proyecto nuevo)" : ""}. ${resumen}`,
+        };
       }
 
       case "custom": {
