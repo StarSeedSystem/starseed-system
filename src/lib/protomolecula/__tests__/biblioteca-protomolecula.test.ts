@@ -122,4 +122,36 @@ describe("fichasProtomolecula", () => {
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
   });
+
+  it("la licencia de versiones manda sobre la del catálogo", () => {
+    const catalogo = [herramienta({ id: "versioned-tool", categoria: "conversion-formatos", licencia: "GPL-3.0" })];
+    const [f] = fichasProtomolecula({ "versioned-tool": { licencia: "MIT" } }, catalogo);
+    expect(f.licencia).toBe("MIT");
+  });
+
+  it("toma nombre, descripción, licencia y enlaces del catálogo verificado", () => {
+    const catalogo = [herramienta({
+      id: "catalog-tool",
+      categoria: "conversion-formatos",
+      nombre: "Nombre desde Catálogo",
+      descripcion: "Descripción detallada desde el catálogo",
+      licencia: "GPL-3.0",
+      codigo: "https://github.com/usuario/repo",
+      web: "https://ejemplo.com",
+    })];
+    const [f] = fichasProtomolecula({}, catalogo);
+    expect(f.nombre).toBe("Nombre desde Catálogo");
+    expect(f.descripcion).toContain("Descripción detallada desde el catálogo");
+    expect(f.licencia).toBe("GPL-3.0");
+    expect(f.enlaces.web).toBe("https://ejemplo.com");
+    expect(f.enlaces.repo).toBe("https://github.com/usuario/repo");
+  });
+
+  it("ordena los grupos según el contrato: imagen antes que juegos y que ia", () => {
+    registrarAtomo(atomo("juego-tool", "juegos"));
+    registrarAtomo(atomo("img-tool", "imagen"));
+    registrarAtomo(atomo("ia-tool", "ia"));
+    const fichas = fichasProtomolecula();
+    expect(fichas.map((f) => f.categoria)).toEqual(["imagen", "juegos", "ia"]);
+  });
 });
