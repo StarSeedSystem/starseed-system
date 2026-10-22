@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach } from "vitest";
 import { ATOMOS_PROPIOS, VISTAS_COMPONENTE, registrarAtomosPropios } from "../index";
-import { candidatosDe, limpiarRegistro, listarAtomos, registrarAtomo } from "../../registro-atomos";
+import { candidatosDe, limpiarRegistro, listarAtomos, obtenerAtomo, registrarAtomo } from "../../registro-atomos";
 import { entenderDictado } from "../../dictado";
 import type { AtomoEnUso, Autor, Molecula } from "../../tipos";
 
@@ -47,6 +47,19 @@ describe("átomos propios", () => {
     registrarAtomosPropios();
     expect(listarAtomos().length).toBe(primera);
     expect(primera).toBe(ATOMOS_PROPIOS.length);
+  });
+
+  it("no hay ids de herramienta repetidos entre los átomos propios", () => {
+    const ids = ATOMOS_PROPIOS.map((d) => d.herramientaId);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("registrarAtomosPropios deja cada átomo obtenible por su id de herramienta", () => {
+    registrarAtomosPropios();
+    registrarAtomosPropios();
+    for (const def of ATOMOS_PROPIOS) {
+      expect(obtenerAtomo(def.herramientaId), def.herramientaId).toBe(def);
+    }
   });
 
   it("los ids de parámetros son únicos dentro de cada definición", () => {
