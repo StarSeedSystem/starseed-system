@@ -155,6 +155,9 @@ def medir_nube():
         return len(resumen.get("runs") or []), int(resumen.get("agentes") or 0)
     except Exception as e:
         print("director-nube: no pude medir la nube: %s: %s" % (type(e).__name__, e), flush=True)
+        # (2026-10-22) Sin medición no queda foto: ni el vigía ni la reclamación de varadas
+        # deben actuar sobre la de la pasada anterior, ni tomar «0 runs» por cierto.
+        _ULTIMO_RESUMEN.clear()
         return 0, 0
 
 
@@ -211,6 +214,55 @@ def inventario_de_contenedores():
         return {"contenedores": [], "resumen": {}}
 
 
+def _ids_de_ruta(ruta):
+    """Ids de un archivo de cola (lista o {"tareas": [...]}). None si no se puede leer."""
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return None
+    tareas = d if isinstance(d, list) else (d or {}).get("tareas") or []
+    return {str(t.get("id")) for t in tareas if isinstance(t, dict) and t.get("id")}
+
+
+def ids_de_una_cola(rel):
+    """Los ids de la cola de un run vivo: `inputs.cola` es una ruta relativa a RAIZ del
+    tipo `enjambre/colas/cola-nube-*.json` (la que `nube-gh.py lanzar` escribió al lanzar).
+    None si la ruta falta, es rara o su archivo no se lee: para un run vivo eso significa
+    «no se sabe qué lleva», y con un run en el aire no se devuelve nada esta pasada."""
+    ruta = str(rel or "").strip()
+    if not ruta or ".." in ruta or os.path.isabs(ruta):
+        return None
+    return _ids_de_ruta(os.path.join(RAIZ, ruta))
+
+
+#: (2026-10-21) Menos de 30 min es joven: su run quizá aún no arranca (el disco ya tiene
+#: la cola, el lanzamiento va detrás), y devolver sus tareas sería arrebatárselas.
+COLA_JOVEN_S = 30 * 60
+
+
+def ids_de_colas_jovenes(carpeta, ahora_ts, max_s=COLA_JOVEN_S):
+    """Ids de las `cola-nube-*.json` de menos de `max_s` segundos de antigüedad. Nunca lanza."""
+    try:
+        nombres = os.listdir(carpeta)
+    except OSError:
+        return set()
+    jovenes = set()
+    for nombre in nombres:
+        if not (nombre.startswith("cola-nube-") and nombre.endswith(".json")):
+            continue
+        try:
+            edad = ahora_ts - os.path.getmtime(os.path.join(carpeta, nombre))
+        except OSError:
+            continue
+        if edad >= max_s:
+            continue
+        ids = _ids_de_ruta(os.path.join(carpeta, nombre))
+        if ids:
+            jovenes |= ids
+    return jovenes
+
+
 def reclamar_varadas_de_la_nube(runs_vivos):
     """Devuelve a `pendiente` lo que se prestó a la nube y allí ya no lo hace nadie.
 
@@ -218,6 +270,15 @@ def reclamar_varadas_de_la_nube(runs_vivos):
     progreso, aplicar la regla y escribirlo. Se hace en cada pasada del director porque
     justo esto —una cadena colgando de dos tareas varadas— es lo que Alex ve como «5
     listas y ningún agente», y arreglarlo a mano cada vez no es un sistema.
+
+    (2026-10-21, MEDIDO) Con casi siempre ALGÚN run vivo —de otra cola—, 43 tareas
+    llevaban horas en «reasignada · nube» con su run terminado en «failure» y cero
+    commits: la reclamación solo salía con CERO runs y el préstamo se volvía traspaso.
+    Ahora se construye `ids_vivos` con los ids de las colas de los runs en marcha (del
+    resumen que acaba de medir `agentes_nube`, que trae `cola` por run) y `colas_jovenes`
+    con las `cola-nube-*.json` de menos de 30 min. Si un run vivo no dice su cola —o su
+    cola no se lee—, NO se devuelve nada en esta pasada: mejor esperar un ciclo que
+    devolver lo que alguien está haciendo. Envíos y veredictos, como hoy.
     """
     ruta = os.path.join(RAIZ, "starseed_memory_root", "olas", "progreso.json")
     try:
@@ -228,7 +289,23 @@ def reclamar_varadas_de_la_nube(runs_vivos):
     tareas = progreso.get("tareas") if isinstance(progreso, dict) and "tareas" in progreso else progreso
     if not isinstance(tareas, dict):
         return []
-    ids = RN.reclamar_varadas(tareas, runs_vivos)
+    resumen = _ULTIMO_RESUMEN[0] if _ULTIMO_RESUMEN else None
+    if resumen is None:
+        # La medición falló: «0 runs» no es un dato, es no saber. No se devuelve nada.
+        return []
+    runs = [r for r in ((resumen or {}).get("runs") or []) if isinstance(r, dict)]
+    # Cada run vivo debe decir qué cola lleva. Si lo medido no coincide con lo que puedo
+    # enumerar, no lo sé entero: no se devuelve nada.
+    if runs_vivos > 0 and len(runs) != runs_vivos:
+        return []
+    ids_vivos = set()
+    for r in runs:
+        ids = ids_de_una_cola(r.get("cola"))
+        if ids is None:
+            return []
+        ids_vivos |= ids
+    jovenes = ids_de_colas_jovenes(os.path.join(RAIZ, "enjambre", "colas"), time.time())
+    ids = RN.reclamar_varadas(tareas, runs_vivos, ids_vivos=ids_vivos, colas_jovenes=jovenes)
     if not ids:
         return []
     # (2026-09-24) Con cuántas veces se mandó y con lo que dijo la nube: si ya van tres,
