@@ -133,6 +133,27 @@ describe("resumen del bus", () => {
         expect(e.liderSeco).toBe(true);
         expect(fraseDelMando(e)).toMatch(/modo de prueba/);
     });
+
+    it("cada estado de una orden mapea a su texto", () => {
+        const estados: Record<string, string> = {
+            pendiente: "esperando a un nodo",
+            tomada: "la tiene un nodo",
+            hecha: "hecha",
+            en_marcha: "en marcha",
+            seca: "solo simulada (nodo en prueba)",
+            nada: "no hacía falta",
+            rechazada: "rechazada",
+            fallo: "falló",
+            caducada: "nadie la recogió a tiempo",
+        };
+        for (const [estado, esperado] of Object.entries(estados)) {
+            expect(textoEstadoOrden(estado)).toBe(esperado);
+        }
+    });
+
+    it("un estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+    });
 });
 
 describe("resumen de las tablas (modo tablas)", () => {
