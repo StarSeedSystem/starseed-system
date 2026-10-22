@@ -13,6 +13,31 @@
 
 import { useEffect } from "react";
 import { esErrorDeVersionNueva, recargarPorVersionNueva } from "@/lib/pwa/recarga-por-version";
+import {
+  CLAVE_RASTRO_ERRORES,
+  huella,
+  limpiarDatosPersonales,
+  limpiarTexto,
+  normalizarError,
+  type EventoError,
+} from "@/lib/mando/errores-neurona";
+
+/**
+ * Edita en el rastro de errores (sessionStorage, acotado a 20, los viejos fuera) el evento
+ * estilo Sentry ya limpio y con huella, para que la autocuración de la página
+ * (`autocuracion-pagina.ts`) lo agrupe y el diagnóstico lo vea tras una recarga.
+ */
+function anotarRastro(evento: EventoError): void {
+  try {
+    const crudo = window.sessionStorage.getItem(CLAVE_RASTRO_ERRORES);
+    const lista: unknown = crudo ? JSON.parse(crudo) : null;
+    const eventos = Array.isArray(lista) ? (lista as EventoError[]) : [];
+    eventos.push(evento);
+    window.sessionStorage.setItem(CLAVE_RASTRO_ERRORES, JSON.stringify(eventos.slice(-20)));
+  } catch {
+    /* Sin sessionStorage el evento se queda en la consola; el remedio no depende de él. */
+  }
+}
 
 export default function AppError({
   error,
@@ -23,10 +48,24 @@ export default function AppError({
 }) {
   useEffect(() => {
     try {
+      // Evento estilo Sentry limpio y con huella (Ola 1020S): sin datos personales en consola ni rastro.
+      const evento = limpiarDatosPersonales(
+        normalizarError(error ?? new Error("sin mensaje"), { ambito: "pagina", proceso: "error-raiz-de-segmento" }),
+      );
+      huella(evento);
+      anotarRastro(evento);
       // eslint-disable-next-line no-console
-      console.error("[app/error]", error?.message, error?.digest);
+      console.error(
+        "[app/error]",
+        `huella ${evento.fingerprint.join(" · ")}`,
+        evento.exception.values[0]?.value || "(sin mensaje)",
+      );
     } catch {
-      /* */
+      /* El rastro de errores nunca debe impedir la recuperación de la página. */
+    }
+    if (error?.digest) {
+      // eslint-disable-next-line no-console
+      console.error("[app/error] digest:", error.digest);
     }
     // Una pestaña abierta antes de publicar/reconstruir pide trozos que ya no existen: se recarga sola.
     if (esErrorDeVersionNueva(error)) recargarPorVersionNueva();

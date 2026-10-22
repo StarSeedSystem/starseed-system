@@ -19,6 +19,9 @@ export interface EventoError {
 export interface ContextoError { ambito: AmbitoError; neurona?: string; proceso?: string }
 export interface GrupoErrores { huella: string[]; veces: number; primero: number; ultimo: number; ejemplo: EventoError }
 
+/** Clave compartida de sessionStorage: los límites de error dejan sus eventos limpios y con huella aquí. */
+export const CLAVE_RASTRO_ERRORES = "starseed.mando.errores";
+
 function extraer(error: unknown): { type: string; value: string; stack: string } {
     if (error instanceof Error) {
         return { type: error.name || "Error", value: error.message || "", stack: error.stack || "" };

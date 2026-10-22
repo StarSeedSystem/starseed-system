@@ -18,6 +18,7 @@
  * `sessionStorage`, para que tras una recarga la página diga por qué se recargó.
  */
 import { fetchSinGuardia, guardiaInstalada, type SaludGuardia } from "./guardia-fetch";
+import { agrupar, CLAVE_RASTRO_ERRORES, type EventoError } from "./errores-neurona";
 
 export const FALLOS_ATASCO = 12;
 export const MS_SIN_EXITO_ATASCO = 120_000;
@@ -93,9 +94,23 @@ async function sondearServidor(tope = 8000): Promise<boolean> {
     }
 }
 
-function anunciar(detalle: { remedio: Remedio; porque: string; descartadas?: number }) {
+/** Nº de grupos del rastro de errores (los limpios y con huella de los límites). Vida real: 0 si no hay rastro legible. */
+function gruposDelRastro(): number {
     try {
-        console.info(`[autocuración de Genesis] ${detalle.remedio}: ${detalle.porque}`);
+        const crudo = window.sessionStorage.getItem(CLAVE_RASTRO_ERRORES);
+        const lista: unknown = crudo ? JSON.parse(crudo) : null;
+        if (!Array.isArray(lista) || lista.length === 0) return 0;
+        return agrupar(lista as EventoError[]).length;
+    } catch {
+        return 0;
+    }
+}
+
+function anunciar(detalle: { remedio: Remedio; porque: string; descartadas?: number; errores?: number }) {
+    try {
+        const grupos = detalle.errores ?? 0;
+        const colaErrores = grupos > 0 ? ` · ${grupos} ${grupos === 1 ? "grupo" : "grupos"} de error con huella en esta página` : "";
+        console.info(`[autocuración de Genesis] ${detalle.remedio}: ${detalle.porque}${colaErrores}`);
         window.dispatchEvent(new CustomEvent(EVENTO, { detail: detalle }));
     } catch {
         // Sin CustomEvent no hay aviso; el remedio se aplica igual.
@@ -132,17 +147,17 @@ export function instalarAutocuracionPagina(intervaloMs = 15_000): void {
             if (decision.remedio === "reiniciar-guardia") {
                 guardia.reiniciar("la página estaba atascada");
                 ultimoReinicio = Date.now();
-                anunciar({ ...decision, descartadas: base.salud.descartadas });
+                anunciar({ ...decision, descartadas: base.salud.descartadas, errores: gruposDelRastro() });
             } else if (decision.remedio === "recargar") {
                 try {
                     window.sessionStorage.setItem(CLAVE_RECARGA, JSON.stringify({ t: Date.now(), porque: decision.porque }));
                 } catch {
                     // Sin sessionStorage se recarga igual; el tope de 10 min vive solo en esta carga.
                 }
-                anunciar(decision);
+                anunciar({ ...decision, errores: gruposDelRastro() });
                 window.location.reload();
             } else if (decision.remedio === "esperar-servidor") {
-                anunciar(decision);
+                anunciar({ ...decision, errores: gruposDelRastro() });
             }
         } finally {
             ocupado = false;

@@ -13,6 +13,7 @@
 
 import { useEffect, useState } from "react";
 import { esErrorDeVersionNueva, recargarPorVersionNueva } from "@/lib/pwa/recarga-por-version";
+import { huella, limpiarDatosPersonales, limpiarTexto, normalizarError } from "@/lib/mando/errores-neurona";
 
 export default function GlobalError({
   error,
@@ -30,12 +31,21 @@ export default function GlobalError({
     if (esErrorDeVersionNueva(error)) recargarPorVersionNueva();
   }, [error]);
 
-  const report = [
-    `StarSeed OS · client-side exception`,
-    `digest: ${error?.digest ?? "—"}`,
-    `message: ${error?.message ?? "—"}`,
-    `stack:\n${error?.stack ?? "—"}`,
-  ].join("\n");
+  const report = (() => {
+    // El reporte sale del evento estilo Sentry LIMPIO (Ola 1020S): sin correos, tokens, IP,
+    // teléfonos ni rutas /Users/<nombre> en lo copiado: antes el stack podía llevarlas.
+    const evento = limpiarDatosPersonales(
+      normalizarError(error ?? new Error("sin mensaje"), { ambito: "pagina", proceso: "error-raiz" }),
+    );
+    huella(evento);
+    return [
+      `StarSeed OS · client-side exception`,
+      `huella: ${evento.fingerprint.join(" · ")}`,
+      `digest: ${error?.digest ?? "—"}`,
+      `message: ${evento.exception.values[0]?.value || "—"}`,
+      `stack:\n${limpiarTexto(error?.stack ?? "—")}`,
+    ].join("\n");
+  })();
 
   const copy = async () => {
     try {

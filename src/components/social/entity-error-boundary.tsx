@@ -29,6 +29,7 @@
 import React from "react";
 import Link from "next/link";
 import { AlertTriangle, RefreshCw, ArrowLeft } from "lucide-react";
+import { CLAVE_RASTRO_ERRORES, huella, limpiarDatosPersonales, normalizarError, type EventoError } from "@/lib/mando/errores-neurona";
 
 interface Props {
     children: React.ReactNode;
@@ -70,12 +71,32 @@ export class EntityErrorBoundary extends React.Component<Props, State> {
         // logueamos y se re-lanzan en render() para que el router los maneje.
         if (isNextControlFlow(error)) return;
         const where = this.props.label ?? "entidad";
-        // eslint-disable-next-line no-console
-        console.warn(
-            `[StarSeed] Excepción capturada en página de ${where} — recuperación suave:`,
-            error?.message ?? error,
-            info?.componentStack ?? "",
-        );
+        // Evento estilo Sentry limpio y con huella (Ola 1020S) al rastro acotado de errores;
+        // la autocuración de la página lo agrupa desde ahí. Sin datos personales.
+        try {
+            const evento = limpiarDatosPersonales(
+                normalizarError(error, { ambito: "pagina", proceso: `entidad:${where}` }),
+            );
+            huella(evento);
+            const crudo = window.sessionStorage.getItem(CLAVE_RASTRO_ERRORES);
+            const lista: unknown = crudo ? JSON.parse(crudo) : null;
+            const eventos = Array.isArray(lista) ? (lista as EventoError[]) : [];
+            eventos.push(evento);
+            window.sessionStorage.setItem(CLAVE_RASTRO_ERRORES, JSON.stringify(eventos.slice(-20)));
+            // eslint-disable-next-line no-console
+            console.warn(
+                `[StarSeed] Excepción capturada en página de ${where} — recuperación suave (huella ${evento.fingerprint.join(" · ")}):`,
+                evento.exception.values[0]?.value ?? error?.message,
+                info?.componentStack ?? "",
+            );
+        } catch {
+            // eslint-disable-next-line no-console
+            console.warn(
+                `[StarSeed] Excepción capturada en página de ${where} — recuperación suave:`,
+                error?.message ?? error,
+                info?.componentStack ?? "",
+            );
+        }
     }
 
     private handleRetry = () => {
