@@ -1,14 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { neuronasAtrasadas, EstadoNeuronaActualizacion, Atraso, MotivoAtraso } from "../atrasadas";
+import { neuronasAtrasadas, type EstadoNeuronaActualizacion } from "../atrasadas";
 import type { VersionesPorCapa } from "../capas";
 
 /**
- * Test cases for neuronasAtrasadas function.
- * Tests ≥ 12 scenarios: neuron on track doesn't appear, missing version,
- * priority of reasons, layer without ultima ignored, stable ordering.
+ * Casos de `neuronasAtrasadas` (≥ 12): la neurona al día no aparece, versión
+ * ausente, prioridad de motivos, capa sin `ultima` se ignora y orden estable.
  */
-
-// Test helpers to build neuron states
 describe("neuronasAtrasadas", () => {
   it("doesn’t include neurons that are up-to-date with all layers", () => {
     const neuronas: EstadoNeuronaActualizacion[] = [
@@ -158,7 +155,7 @@ describe("neuronasAtrasadas", () => {
     expect(atrasos[0].texto).toContain("en manual");
   });
 
-  it("shows 'sin-motivo' when neuron is up to date but missing motive", () => {
+  it("la neurona al día y sin señales de espera no aparece", () => {
     const neuronas: EstadoNeuronaActualizacion[] = [
       {
         neuronaId: "a10",
