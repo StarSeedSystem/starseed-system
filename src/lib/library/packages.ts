@@ -63,6 +63,7 @@ import { applyTheme as applyThemePack } from "@/lib/design/theme-engine";
 // para que aparezcan en la Biblioteca y el Mezclador los liste como fuentes.
 import { DESIGN_ELEMENTS, type DesignElementKind } from "@/lib/design/design-elements";
 import { REPO_DECISIONES } from "./fuentes-decision";
+import { REPO_EXTERNOS_1020, esRepoExcluido } from "./repos-externos-1020";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -2136,6 +2137,11 @@ function sanitizePackage(raw: unknown, repoId: string): LibraryPackage | null {
   const name = asString(r.name).trim();
   const kind = asString(r.kind).trim() as PackageKind;
   if (!id || !name || !VALID_KINDS.includes(kind)) return null;
+  const payload = r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
+    ? (r.payload as Record<string, unknown>)
+    : {};
+  const ghRepo = typeof payload.githubRepo === "string" ? payload.githubRepo : "";
+  if (ghRepo && esRepoExcluido(ghRepo)) return null;
   return {
     id,
     kind,
@@ -2147,9 +2153,7 @@ function sanitizePackage(raw: unknown, repoId: string): LibraryPackage | null {
     author: asString(r.author, "Desconocido"),
     sourceRepoId: repoId,
     free: r.free !== false, // gratis-primero por defecto
-    payload: r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
-      ? (r.payload as Record<string, unknown>)
-      : {},
+    payload,
     comingSoon: r.comingSoon === true,
   };
 }
@@ -2216,7 +2220,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO, REPO_EXTERNOS_1020];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
@@ -2256,14 +2260,21 @@ export async function addRepoByUrl(url: string): Promise<InstallResult & { repo?
     repo.id === STARSEED_THEMES_REPO.id ||
     repo.id === STARSEED_DESIGN_ELEMENTS_REPO.id ||
     repo.id === MINE_REPO_ID ||
-    repo.id === FONDO_SHADER_REPO.id
+    repo.id === FONDO_SHADER_REPO.id ||
+    repo.id === REPO_EXTERNOS_1020.id
   ) {
     return { ok: false, message: `Ese id de repo está reservado (${repo.id}).` };
   }
-    const others = readExternalRepos().filter((r) => r.id !== repo.id);
-    writeJson(REPOS_KEY, [...others, repo]);
-    emitLibraryEvent();
-    return { ok: true, message: `Repo «${repo.name}» añadido con ${repo.packages.length} paquete(s).`, repo };
+  if (repo.packages.some((p) => {
+    const gh = typeof (p.payload as Record<string, unknown>)?.githubRepo === "string" ? (p.payload as Record<string, unknown>).githubRepo as string : "";
+    return gh && esRepoExcluido(gh);
+  })) {
+    return { ok: false, message: "El repo contiene elementos bloqueados por seguridad." };
+  }
+  const others = readExternalRepos().filter((r) => r.id !== repo.id);
+  writeJson(REPOS_KEY, [...others, repo]);
+  emitLibraryEvent();
+  return { ok: true, message: `Repo «${repo.name}» añadido con ${repo.packages.length} paquete(s).`, repo };
   } catch (e) {
     const msg = e instanceof Error && e.name === "AbortError"
       ? "El repo tardó demasiado en responder (8 s)."
