@@ -1,8 +1,27 @@
 "use client";
 
 import type { Bot } from "../tipos";
-import { fusionarBots as fusionarNucleo, type BotSync } from "../sincronia-bots";
+import {
+  fusionarBots as fusionarNucleo,
+  integrarRemoto,
+  type BotSync,
+} from "../sincronia-bots";
 import { onTableChange } from "@/lib/realtime/realtime";
+
+/** Sobre del caché de bots: las filas sin marca de tiempo + la marca por id. */
+interface Sobre {
+  bots: Bot[];
+  actualizado: Record<string, number>;
+}
+
+const aSerie = (
+  s: Readonly<{ bots: readonly Bot[]; actualizado: Record<string, number> }>
+): BotSync[] =>
+  s.bots.map((b) => ({ ...b, actualizado: s.actualizado[b.id] ?? 0 }));
+const aSobre = (serie: readonly BotSync[]): Sobre => ({
+  bots: serie.map(({ actualizado, ...bot }) => bot),
+  actualizado: Object.fromEntries(serie.map((b) => [b.id, b.actualizado])),
+});
 
 /**
  * Une los sobres (bots + marca de actualización) DELEGANDO en el núcleo puro
@@ -12,23 +31,14 @@ export function fusionarBots(
   local: Readonly<{ bots: readonly Bot[]; actualizado: Record<string, number> }>,
   remoto: Readonly<{ bots: readonly Bot[]; actualizado: Record<string, number> }>
 ): { bots: Bot[]; actualizado: Record<string, number> } {
-  const sobre = (bots: readonly Bot[], marcas: Record<string, number>): BotSync[] =>
-    bots.map((b) => ({ ...b, actualizado: marcas[b.id] ?? 0 }));
-  const fusion = fusionarNucleo(
-    sobre(local.bots, local.actualizado),
-    sobre(remoto.bots, remoto.actualizado)
-  );
-  return {
-    bots: fusion.map((b) => {
-      const { actualizado, ...bot } = b;
-      return bot;
-    }),
-    actualizado: Object.fromEntries(fusion.map((b) => [b.id, b.actualizado])),
-  };
+  const fusion = fusionarNucleo(aSerie(local), aSerie(remoto));
+  return aSobre(fusion);
 }
 
+/** Payload crudo de un cambio de Realtime sobre `astraura_bots`. */
 export interface PayloadCambio {
   new?: Bot | null;
+  old?: { id?: string } | null;
   eventType?: "INSERT" | "UPDATE" | "DELETE" | undefined;
 }
 
@@ -43,21 +53,15 @@ export function suscribirBotsEntidad(
   );
   const filter = entityFilters.join(' or ');
 
-  let botsCache: Bot[] = [];
-  let actualizadoCache: Record<string, number> = {};
+  let sobre: Sobre = { bots: [], actualizado: {} };
 
   const handleChange = (payload: PayloadCambio) => {
     try {
-      const remoto = payload?.new ?? null;
-      const ahora = Date.now();
-      const local = { bots: botsCache, actualizado: actualizadoCache };
-      const cambio = remoto
-        ? { bots: [remoto], actualizado: { [remoto.id]: ahora } }
-        : { bots: [], actualizado: {} };
-      const merged = fusionarBots(local, cambio);
-      botsCache = merged.bots;
-      actualizadoCache = merged.actualizado;
-      cb([...botsCache]);
+      // El QUÉ (quién entra, quién sale, quien gana) lo decide el núcleo; el
+      // RELOJ (`Date.now`) es del adaptador, como dicta la guardia de pureza.
+      const serie = integrarRemoto(aSerie(sobre), payload, Date.now());
+      sobre = aSobre(serie);
+      cb([...sobre.bots]);
     } catch (e) {
       console.warn("Error in suscribirBotsEntidad:", e);
     }

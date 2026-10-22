@@ -5,7 +5,7 @@ import {
   marcarAbierto,
   migrarAbiertosDesdeAntigua,
 } from "../adaptadores/sincronia-bots";
-import { fusionarBots as fusionarNucleo, type BotSync } from "../sincronia-bots";
+import { fusionarBots as fusionarNucleo, integrarRemoto, type BotSync } from "../sincronia-bots";
 import type { Bot } from "../tipos";
 
 function botEjemplo(id: string): Bot {
@@ -89,6 +89,62 @@ describe("núcleo puro: fusionarBots (decisión de quién gana)", () => {
     const local = [sync(botEjemplo("A"), 100)];
     const remoto = [sync(botEjemplo("A"), 150)];
     expect(fusionarNucleo(local, remoto)).toEqual(fusionarNucleo(local, remoto));
+  });
+});
+
+describe("núcleo puro: integrarRemoto (lo que llega de Realtime)", () => {
+  const sync = (b: Bot, actualizado = 100): BotSync => ({ ...b, actualizado });
+
+  it("un UPDATE válido entra con la marca `ahora` que trae la llamada", () => {
+    const serie = [sync(botEjemplo("b1"), 5)];
+    const res = integrarRemoto(serie, { eventType: "UPDATE", new: botEjemplo("b2") }, 999);
+    expect(res.map((b) => b.id).sort()).toEqual(["b1", "b2"]);
+    expect(res.find((b) => b.id === "b2")?.actualizado).toBe(999);
+    expect(serie.map((b) => b.id)).toEqual(["b1"]);
+  });
+
+  it("una fila remota inválida se descarta", () => {
+    const vicio = botEjemplo("raro");
+    vicio.personalidad.energia = 9;
+    const res = integrarRemoto([sync(botEjemplo("b1"))], { eventType: "INSERT", new: vicio }, 999);
+    expect(res.map((b) => b.id)).toEqual(["b1"]);
+  });
+
+  it("sin fila no toca nada", () => {
+    const serie = [sync(botEjemplo("b1"), 7)];
+    const res = integrarRemoto(serie, { eventType: "UPDATE", new: null }, 999);
+    expect(res.map((b) => b.id)).toEqual(["b1"]);
+    expect(res.find((b) => b.id === "b1")?.actualizado).toBe(7);
+  });
+
+  it("un DELETE lo quita por el id de `old`", () => {
+    const serie = [sync(botEjemplo("b1")), sync(botEjemplo("b2"))];
+    const res = integrarRemoto(serie, { eventType: "DELETE", old: { id: "b1" } }, 999);
+    expect(res.map((b) => b.id)).toEqual(["b2"]);
+  });
+
+  it("un DELETE también funciona si el id solo viene en `new`", () => {
+    const serie = [sync(botEjemplo("b1")), sync(botEjemplo("b2"))];
+    const res = integrarRemoto(serie, { eventType: "DELETE", old: null, new: botEjemplo("b1") }, 999);
+    expect(res.map((b) => b.id)).toEqual(["b2"]);
+  });
+
+  it("un DELETE sin id en ninguna parte deja la serie igual", () => {
+    const serie = [sync(botEjemplo("b1")), sync(botEjemplo("b2"))];
+    const res = integrarRemoto(serie, { eventType: "DELETE", old: null, new: null }, 999);
+    expect(res.map((b) => b.id).sort()).toEqual(["b1", "b2"]);
+  });
+
+  it("una marca no finita se convierte en 0 y el bot entra igual", () => {
+    const res = integrarRemoto([], { eventType: "UPDATE", new: botEjemplo("b1") }, Number.NaN);
+    expect(res.map((b) => b.id)).toEqual(["b1"]);
+    expect(res[0].actualizado).toBe(0);
+  });
+
+  it("una llamada sin eventType conocida no toca nada", () => {
+    const serie = [sync(botEjemplo("b1"), 3)];
+    const res = integrarRemoto(serie, { eventType: undefined, new: botEjemplo("b2") }, 999);
+    expect(res.map((b) => b.id)).toEqual(["b1"]);
   });
 });
 
