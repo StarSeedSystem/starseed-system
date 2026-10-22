@@ -156,9 +156,9 @@ function TrinityDemo({
           return (
             <motion.div
               key={p.id}
-              className="absolute grid place-items-center rounded-xl text-[8px] font-semibold"
+              className="absolute grid place-items-center rounded-xl text-[11px] font-semibold"
               style={{
-                width: 34,
+                width: 52,
                 height: 22,
                 color: "#fff",
                 border: `1.5px solid ${p.color}`,
