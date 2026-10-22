@@ -308,8 +308,8 @@ function PanelProtoMensaje({ code }: { code: string }) {
 /* ═══════════════════════════ Bloque de código ═══════════════════════════ */
 
 function CodeBlock({ lang, code, info }: { lang: string; code: string; info?: string }) {
+  const json = useMemo(() => (lang === "protomolecula" ? undefined : tryParseJson(code)), [lang, code]);
   if (lang === "protomolecula") return <PanelProtoMensaje code={code} />;
-  const json = useMemo(() => tryParseJson(code), [code]);
   if (json !== undefined) return <JsonBlock value={json} raw={code} />;
   // (Ola 4 · Adenda 156) Todo bloque ejecutable se entrega como PROGRAMA VIVO en
   // el propio chat (ejecutar/cerrar, ventana o pestaña nueva, tamaño, modo de uso,
