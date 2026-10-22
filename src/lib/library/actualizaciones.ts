@@ -83,10 +83,10 @@ export function urlDeEtiquetas(upstream: string): string | null {
 export function urlDeConsulta(upstream: string, patronTag?: unknown): string | null {
     const github = RE_GITHUB.exec(upstream);
     if (github) {
-        const ruta = github[1].replace(/\.git$/, "");
         if (validarPatronTag(patronTag).regex) {
-            return `https://api.github.com/repos/${ruta}/tags?per_page=100`;
+            return urlDeEtiquetas(upstream);
         }
+        const ruta = github[1].replace(/\.git$/, "");
         return `https://api.github.com/repos/${ruta}/commits?per_page=1`;
     }
     const hf = RE_HF.exec(upstream);

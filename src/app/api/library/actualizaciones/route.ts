@@ -8,6 +8,7 @@ import { REPO_DECISIONES } from "@/lib/library/fuentes-decision";
 import {
     urlDeConsulta,
     leerVersion,
+    validarPatronTag,
     compararVersiones,
     type EstadoActualizacion,
 } from "@/lib/library/actualizaciones";
@@ -16,7 +17,12 @@ import { CATALOGO_PROTOMOLECULA } from "@/lib/protomolecula/catalogo-herramienta
 
 /* ── Fichas de la Protomolécula con repo: entran a la misma comprobación ── */
 
-interface EntradaFuente { id: string; instalada: string; upstream: string }
+interface EntradaFuente {
+    id: string;
+    instalada: string;
+    upstream: string;
+    patronTag?: unknown;
+}
 
 function fuentesProtomolecula(): EntradaFuente[] {
     try {
@@ -51,6 +57,7 @@ export interface FuenteActualizacion {
     estado: EstadoActualizacion;
     fecha: string | null;
     upstream: string;
+    aviso: string | null;
 }
 
 interface Respuesta {
@@ -65,9 +72,10 @@ let caché: { caduca: number; datos: Respuesta } | null = null;
 
 async function consultarUpstream(
     upstream: string,
+    patronTag: unknown,
     tope: AbortSignal,
 ): Promise<{ remota: string | null; fecha: string | null }> {
-    const url = urlDeConsulta(upstream);
+    const url = urlDeConsulta(upstream, patronTag);
     if (!url) return { remota: null, fecha: null };
     try {
         const respuesta = await fetch(url, {
@@ -76,7 +84,7 @@ async function consultarUpstream(
         });
         if (!respuesta.ok) return { remota: null, fecha: null };
         const json: unknown = await respuesta.json();
-        const leida = leerVersion(upstream, json);
+        const leida = leerVersion(upstream, json, patronTag);
         return { remota: leida?.version ?? null, fecha: leida?.fecha ?? null };
     } catch {
         return { remota: null, fecha: null };
@@ -96,11 +104,12 @@ export async function GET(): Promise<Response> {
 
     try {
         const entradas: EntradaFuente[] = REPO_DECISIONES.packages
-            .map((paquete) => ({
+            .map((paquete): EntradaFuente => ({
                 id: paquete.id,
                 instalada: paquete.version,
                 upstream:
                     typeof paquete.payload?.upstream === "string" ? paquete.payload.upstream : "",
+                patronTag: paquete.payload?.patronTag,
             }))
             .concat(fuentesProtomolecula());
         const fuentes = await Promise.all(
@@ -113,9 +122,14 @@ export async function GET(): Promise<Response> {
                     estado: "desconocida",
                     fecha: null,
                     upstream,
+                    aviso: validarPatronTag(entrada.patronTag).aviso,
                 };
                 if (!upstream) return base;
-                const { remota, fecha } = await consultarUpstream(upstream, tope.signal);
+                const { remota, fecha } = await consultarUpstream(
+                    upstream,
+                    entrada.patronTag,
+                    tope.signal,
+                );
                 if (!remota) return base;
                 return {
                     ...base,
