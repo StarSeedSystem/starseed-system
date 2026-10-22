@@ -2,6 +2,7 @@
 """Pruebas de las decisiones puras del lado de la neurona (oracle_nodo.py, OPO1011)."""
 import os
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -109,6 +110,34 @@ class Prestamo(unittest.TestCase):
     def test_no_toca_lo_prestado_a_la_nube_de_github(self):
         p = {"T": {"estado": "reasignada", "medio": "nube"}}
         self.assertEqual(N.devolver_de_oracle(p, [{"rama": "r", "ids": ["T"], "t": 0}], {"r": {}}, True, 1), [])
+
+    # (2026-10-21, medido) 36 tareas «reasignada · medio oracle» del 12 al 21 de octubre: las
+    # movió Genesis, no están en los `lanzamientos` de esta neurona y su cola ya no corría.
+    NOTA = "movida a oracle (colas/oracle-20261018-231246) desde Genesis"
+    RAMA = "colas/oracle-20261018-231246"
+
+    def _ahora(self, horas=4):
+        base = time.mktime(time.strptime("20261018-231246", "%Y%m%d-%H%M%S"))
+        return base + horas * 3600
+
+    def test_vuelve_lo_movido_por_genesis_si_su_cola_ya_no_corre(self):
+        p = {"T": {"estado": "reasignada", "medio": "oracle", "nota": self.NOTA}}
+        # Más de 3 h y la cola no está entre las vivas del A1: vuelve aunque no esté lanzada.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, self._ahora(4), colas_vivas=set()), ["T"])
+        # Recién movida: aún se le da la gracia.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, self._ahora(1), colas_vivas=set()), [])
+
+    def test_no_toca_lo_de_una_cola_que_el_a1_sigue_corriendo(self):
+        p = {"T": {"estado": "reasignada", "medio": "oracle", "nota": self.NOTA}}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, self._ahora(48), colas_vivas={self.RAMA}), [])
+
+    def test_con_el_nodo_muerto_vuelve_aunque_la_rama_siga_en_github(self):
+        p = {"T": {"estado": "reasignada", "medio": "oracle", "nota": self.NOTA}}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, False, self._ahora(4), colas_vivas={self.RAMA}), ["T"])
+
+    def test_sin_marca_ni_fecha_en_la_rama_no_se_adivina(self):
+        p = {"T": {"estado": "reasignada", "medio": "oracle", "nota": "movida a oracle (una cola) desde Genesis"}}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, self._ahora(48), colas_vivas=set()), [])
 
 
 class Resumen(unittest.TestCase):

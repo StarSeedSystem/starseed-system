@@ -239,18 +239,70 @@ def marcar_oracle(progreso, ids, fecha, rama):
     return p
 
 
-def devolver_de_oracle(progreso, lanzamientos, colas_a1, nodo_late, ahora, gracia_s=3 * 3600):
+#: Las ramas de reparto que cita una nota de Genesis: `colas/oracle-<fecha>` (con hora o sin ella).
+RE_RAMA_ORACLE = re.compile(r"colas/oracle-\d{8}(?:-\d{6})?")
+
+
+def ramas_de_la_nota(nota):
+    """PURA. Las ramas `colas/oracle-<fecha>` que cita una nota (Genesis las anota al mover)."""
+    return sorted(set(RE_RAMA_ORACLE.findall(str(nota or ""))))
+
+
+def marca_de_la_tarea(entrada, ramas):
+    """PURA. Cuándo se movió la tarea: su propia marca (`t`, `desde`…) o la fecha de su rama.
+    Devuelve 0 si no hay ninguna: sin marca no se puede saber si lleva tiempo parada."""
+    for clave in ("t", "desde", "actualizado", "inicio", "ts"):
+        try:
+            t = float((entrada or {}).get(clave) or 0)
+        except (TypeError, ValueError):
+            t = 0
+        if t > 0:
+            return t
+    for rama in ramas or []:
+        m = re.search(r"-(\d{8})(?:-(\d{6}))?$", rama)
+        if not m:
+            continue
+        try:
+            return time.mktime(time.strptime(m.group(1) + (m.group(2) or "000000"), "%Y%m%d%H%M%S"))
+        except ValueError:
+            continue
+    return 0
+
+
+def devolver_de_oracle(progreso, lanzamientos, colas_a1, nodo_late, ahora, gracia_s=3 * 3600,
+                       colas_vivas=None):
     """PURA. Los ids `reasignada · oracle` que vuelven a la cola de la Mac: los de una cola que el
     A1 ya terminó (su trabajo, si lo hubo, ya viaja en `nube/a1-*` y `traer_nube` lo trae o lo
     repara: necesita que la tarea deje de estar «reasignada») y todos si el nodo no late y su
     cola lleva más de `gracia_s` sin terminar. Préstamo, no traspaso (como `reclamar_varadas`).
-    `lanzamientos`: [{rama, ids, t}]; `colas_a1`: {rama: {...historial}}."""
+    `lanzamientos`: [{rama, ids, t}]; `colas_a1`: {rama: {...historial}}.
+
+    (2026-10-21, medido) La reasignación de Genesis (`reasignarTarea` → orden `soltar` + cola en
+    el A1) NO apunta en `lanzamientos` los ids que manda: 36 tareas quedaron «reasignada · medio
+    oracle» del 12 al 21 de octubre, con el A1 sin orquestador y diciendo «nada que hacer», porque
+    esta función solo miraba `lanzamientos`. Ahora también vuelven las que citan en su nota una
+    rama `colas/oracle-<fecha>` que el A1 ya no corre (`colas_vivas`) y llevan más de `gracia_s`
+    sin moverse. Mientras el nodo diga que esa cola sigue viva, no se toca."""
     terminadas = set(colas_a1 or {})
+    vivas = None if colas_vivas is None else set(colas_vivas)
     vuelven = set()
     for l in lanzamientos or []:
         rama = l.get("rama")
         if rama in terminadas or (not nodo_late and ahora - float(l.get("t") or 0) > gracia_s):
             vuelven |= set(l.get("ids") or [])
+    for tid, entrada in (progreso or {}).items():
+        if tid in vuelven or not isinstance(entrada, dict):
+            continue
+        if entrada.get("estado") != "reasignada" or (entrada.get("medio") or "") != "oracle":
+            continue
+        ramas = ramas_de_la_nota(entrada.get("nota"))
+        if not ramas:
+            continue
+        if nodo_late and (vivas is None or any(r in vivas for r in ramas)):
+            continue
+        marca = marca_de_la_tarea(entrada, ramas)
+        if marca and ahora - marca > gracia_s:
+            vuelven.add(tid)
     return sorted(tid for tid in vuelven
                   if isinstance((progreso or {}).get(tid), dict)
                   and progreso[tid].get("estado") == "reasignada"
@@ -778,9 +830,19 @@ def traer(estado_a1=None):
     terminadas = {c.get("rama"): c for c in colas if isinstance(c, dict) and c.get("rama")}
     devueltas = []
     lanzamientos = datos.get("lanzamientos") or []
+    nodo_late = nodo_vivo(estado_a1, time.time())
+    # Las colas que el A1 aún tiene por delante (ramas `colas/oracle-*` sin procesar): mientras
+    # una de ellas esté viva, sus tareas no se tocan. Con el nodo muerto no hay ninguna viva.
+    vivas = None
+    if nodo_late:
+        try:
+            vivas, _, _ = colas_sin_tomar(estado_a1)
+        except Exception:  # noqa: BLE001 — sin la foto se espera; nunca se devuelve a ciegas
+            vivas = None
     with _Cerrojo("progreso", 60):
         progreso = _leer(PROGRESO, {}) or {}
-        ids = devolver_de_oracle(progreso, lanzamientos, terminadas, nodo_vivo(estado_a1, time.time()), time.time())
+        ids = devolver_de_oracle(progreso, lanzamientos, terminadas, nodo_late, time.time(),
+                                 colas_vivas=vivas)
         if ids:
             import repartir_nube as RN
 
