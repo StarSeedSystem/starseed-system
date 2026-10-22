@@ -75,6 +75,33 @@ class PruebasEmpaquetar(unittest.TestCase):
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
 
+    def test_solo_los_logs_se_recortan(self):
+        """El recorte es solo de los logs: un archivo largo que no es log viaja entero.
+
+        Rescatado de la rama nube: si el recorte se aplicara a todo, `progreso.md` (el
+        informe de la ola) perdería sus últimas líneas sin que nadie lo notara.
+        """
+        with open(os.path.join(self.olas, "progreso.md"), "w", encoding="utf-8") as f:
+            f.write("".join("línea %d\n" % i for i in range(300)))
+        with open(os.path.join(self.olas, "log.txt"), "w", encoding="utf-8") as f:
+            f.write("".join("log %d\n" % i for i in range(300)))
+        with self._tar(["progreso.md", "log.txt"]) as tar:
+            self.assertEqual(sorted(tar.getnames()), ["log.txt", "progreso.md"])
+            # Un log se queda con sus últimas líneas…
+            self.assertEqual(tar.extractfile("log.txt").read().decode().count("\n"),
+                             espejo_estado.LOG_LINEAS)
+            # …y un archivo que no es log conserva todas las suyas.
+            self.assertEqual(tar.extractfile("progreso.md").read().decode().count("\n"), 300)
+
+    def test_el_paquete_es_un_tar_gz_legible_desde_su_ruta(self):
+        """`empaquetar` deja el paquete en disco: un tar.gz que se abre por su ruta."""
+        with tempfile.TemporaryDirectory() as salida:
+            ruta = empaquetar(["progreso.json"], self.olas, salida)
+            self.assertTrue(os.path.exists(ruta))
+            self.assertEqual(os.path.basename(ruta), "espejo-mac.tar.gz")
+            with tarfile.open(ruta, "r:gz") as tar:
+                self.assertEqual(tar.getnames(), ["progreso.json"])
+
 
 class PruebasEnviarEstado(unittest.TestCase):
     """enviar_estado con ssh falso: freno de 5 min, huella y orden de extracción atómica."""
