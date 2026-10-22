@@ -84,6 +84,30 @@ describe('decisionPorResonancia', () => {
     expect(r.decision).toBe('limpio');
   });
 
+  it('aviso con 1 cuenta peligrosa y su motivo lo dice en español', () => {
+    const r = decisionPorResonancia('h2', [veredicto({ hash: 'h2' })], conf);
+    expect(r.decision).toBe('aviso');
+    expect(r.motivo).toContain('una cuenta');
+    expect(r.motivo).toContain('peligroso');
+  });
+
+  it('aviso con 2 cuentas sospechosas y su motivo cuenta las cuentas', () => {
+    const r = decisionPorResonancia('h3', [
+      veredicto({ hash: 'h3', nivel: 'sospechoso', cuenta: 'cA' }),
+      veredicto({ hash: 'h3', nivel: 'sospechoso', cuenta: 'cB', nodo: 'n2' }),
+    ], conf);
+    expect(r.decision).toBe('aviso');
+    expect(r.motivo).toContain('2 cuentas');
+  });
+
+  it('limpio con 2 cuentas y su motivo lo dice: «marcan limpio»', () => {
+    const r = decisionPorResonancia('h4', [
+      veredicto({ hash: 'h4', nivel: 'limpio', cuenta: 'cA' }),
+      veredicto({ hash: 'h4', nivel: 'limpio', cuenta: 'cB', nodo: 'n2' }),
+    ], conf);
+    expect(r.motivo).toContain('marcan limpio');
+  });
+
   it('sin-datos si no hay suficientes veredictos fiables', () => {
     const r = decisionPorResonancia('h1', [
       veredicto({ nivel: 'limpio', cuenta: 'c1' }),
@@ -105,6 +129,22 @@ describe('decisionPorResonancia', () => {
       veredicto({ cuenta: 'c2', nodo: 'n2' }),
     ], { n1: 0.9, n2: 0.2 });
     expect(r.decision).toBe('aviso');
+  });
+
+  it('sin-datos con lista vacía y cuentas a 0', () => {
+    const r = decisionPorResonancia('h5', [], conf);
+    expect(r.decision).toBe('sin-datos');
+    expect(r.cuentas).toBe(0);
+  });
+
+  it('ignora veredictos de otro hash', () => {
+    const r = decisionPorResonancia('h5', [veredicto({ hash: 'otro' })], conf);
+    expect(r.decision).toBe('sin-datos');
+  });
+
+  it('firma mala o confianza baja dejan la decisión en sin-datos', () => {
+    expect(decisionPorResonancia('h6', [veredicto({ hash: 'h6', firmaOk: false })], conf).decision).toBe('sin-datos');
+    expect(decisionPorResonancia('h7', [veredicto({ hash: 'h7' })], { n1: 0.1 }).decision).toBe('sin-datos');
   });
 
   it('un voto por cuenta: gana el más reciente', () => {
