@@ -4582,3 +4582,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `MGP1014-561AD5c` — pruebas en rojo: vitest falla (rama conservada)
 - `CB1013Gc` — pruebas en rojo: vitest falla (rama conservada)
 - `RTRC1013Cd-d2c` — otra cosa: red caída: $ opencode run --model openrouter/cohere/north-mini-code:free · 2026-10-22 00:14:19 [0m > build · cohere/north-mini-code:free [
+
+## 2026-10-22 07:23 · mg-oracle-1022-0030
+
+**Lo que se pidió.** espera
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — pruebas en rojo (SP092942b, SP092939b). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `SP092942b` — pruebas en rojo: vitest falla (rama conservada)
+- `SP092939b` — pruebas en rojo: vitest falla (rama conservada)
+- `RTS1010-ACT5d-d2c` — no escribió nada
