@@ -18,20 +18,13 @@ describe("estadoTunelMetaGenesis", () => {
     expect(tacharTexto("Múltiple: https://primero.trycloudflare.com y https://segundo.trycloudflare.com"))
       .toBe("Múltiple: [túnel] y [túnel]");
       
-      expect(tacharTexto("Sin URL: ejemplo.com"))
-        .toBe("Sin URL: ejemplo.com");
-  });
+    expect(tacharTexto("Sin URL: ejemplo.com"))
+      .toBe("Sin URL: ejemplo.com");
 
-  it("tacharTexto conserva ruta y query tras el dominio tachado", () => {
-    expect(
-      tacharTexto("https://subdominio-dash.trycloudflare.com/path?query=value")
-    ).toBe("[túnel]/path?query=value");
-  });
-
-  it("tacharTexto no toca una URL https de otro dominio ni el texto vacío", () => {
-    expect(tacharTexto("Sin cambio: https://example.com"))
-      .toBe("Sin cambio: https://example.com");
-
+    // Casos que main no cubría: cadena vacía y conservación de ruta y query.
     expect(tacharTexto("")).toBe("");
+
+    expect(tacharTexto("https://subdominio-dash.trycloudflare.com/path?query=value"))
+      .toBe("[túnel]/path?query=value");
   });
 });

@@ -95,6 +95,29 @@ describe("TunelMetaGenesisEstado", () => {
     });
     
     expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
+  });
+
+  it("tacha las URL de trycloudflare en el cliente y deja el resto igual", async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        cargado: true,
+        pid: 12345,
+        ultimasLineas: [
+          "Visita https://mi-tunel.trycloudflare.com",
+          "Otro https://otro.trycloudflare.com/path",
+          "Sin cambio: https://example.com"
+        ],
+        medidoEn: new Date().toISOString()
+      })
+    } as Response);
+
+    render(<TunelMetaGenesisEstado />);
+
+    expect(await screen.findByText("Visita [túnel]")).toBeInTheDocument();
+    expect(await screen.findByText("Otro [túnel]/path")).toBeInTheDocument();
+    expect(await screen.findByText("Sin cambio: https://example.com")).toBeInTheDocument();
   });
 
   it("realiza fetch cada 60 segundos cuando el componente está visible", async () => {
