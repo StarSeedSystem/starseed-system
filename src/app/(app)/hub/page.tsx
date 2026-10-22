@@ -36,6 +36,7 @@ import { HubRedSection } from "./red-section";
 import { PanoramaSociocultural } from "@/components/hub/panorama-sociocultural";
 import { HubDiscoverSection } from "./discover-section";
 import { UserDirectoryResults, GroupDirectoryResults, UserRecommendationsStrip } from "@/components/hub/user-directory-results";
+import { puntuacionAportacion } from "@/lib/hub/relevancia";
 
 // Pestañas válidas del Hub (para deep-linking `?tab=` desde el dock / enlaces).
 const HUB_TABS = ["buscador", "contributions", "red", "panorama", "my-pages", "groups", "calendar", "parties", "vote-management"] as const;
@@ -72,7 +73,10 @@ interface ContributionRecommendation {
     source: string;
     urgency: 'Crítico' | 'Alto' | 'Medio' | 'Bajo';
     urgencyVal: number; // 4 = Critico, 1 = Bajo
-    relevance: number; // Percentage
+    // SP092928: ya no hay campo «relevance» guardado: no se inventaba con
+    // Math.random. La relevancia se calcula de la participación real
+    // (puntuacionAportacion, src/lib/hub/relevancia.ts) en el momento de
+    // ordenar y de pintar, así nunca queda desfasada del estado real.
     date: string; // ISO format
     description: string;
     potentialBadge: string;
@@ -255,7 +259,8 @@ export default function HubPage() {
             source: formTarget === 'democratica' ? 'Publicación Democrática' : formTarget === 'pagina' ? 'Página de la Red' : 'Perfil del Usuario',
             urgency: formUrgency,
             urgencyVal: formUrgency === 'Crítico' ? 4 : formUrgency === 'Alto' ? 3 : formUrgency === 'Medio' ? 2 : 1,
-            relevance: Math.floor(Math.random() * 40) + 60, // 60-100
+            // SP092928: relevancia ya no se fingía aquí con Math.random (60-100);
+            // nace de la participación real y se recalcula al pintar u ordenar.
             date: new Date().toISOString().slice(0, 10),
             description: formDescription,
             potentialBadge: formBadge || "Aportante StarSeed",
@@ -544,7 +549,7 @@ export default function HubPage() {
         })
         .sort((a, b) => {
             if (sortBy === 'urgency') return b.urgencyVal - a.urgencyVal;
-            if (sortBy === 'relevance') return b.relevance - a.relevance;
+            if (sortBy === 'relevance') return puntuacionAportacion(b) - puntuacionAportacion(a);
             return b.date.localeCompare(a.date);
         });
 
@@ -1040,7 +1045,7 @@ export default function HubPage() {
                             className={cn("min-h-[40px] px-3 py-1.5 rounded-lg transition-all cursor-pointer", sortBy === 'relevance' ? "bg-primary/20 text-primary border border-primary/20" : "text-muted-foreground")}
                             onClick={() => setSortBy('relevance')}
                         >
-                            Relevancia (IA)
+                            Relevancia
                         </button>
                         <button
                             className={cn("min-h-[40px] px-3 py-1.5 rounded-lg transition-all cursor-pointer", sortBy === 'date' ? "bg-primary/20 text-primary border border-primary/20" : "text-muted-foreground")}
@@ -1221,7 +1226,7 @@ export default function HubPage() {
                                             Urgencia: {rec.urgency}
                                         </Badge>
                                         <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400 bg-emerald-500/10 font-bold px-2.5 py-0.5 rounded-full">
-                                            Relevancia: {rec.relevance}%
+                                            Relevancia ({puntuacionAportacion(rec)}%)
                                         </Badge>
                                     </div>
                                     <h3 className="text-xl font-headline font-bold text-foreground leading-snug group-hover:text-cyan-300 transition-colors pt-1">
