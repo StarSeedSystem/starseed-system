@@ -13,6 +13,20 @@
 
 import { useEffect, useState } from "react";
 import { esErrorDeVersionNueva, recargarPorVersionNueva } from "@/lib/pwa/recarga-por-version";
+import { agrupar, limpiarDatosPersonales, normalizarError } from "@/lib/mando/errores-neurona";
+
+function anotarErrorEnGenesis(error: Error, ambito: "pagina" | "proceso", proceso: string): void {
+  const evento = limpiarDatosPersonales(normalizarError(error, { ambito, proceso }));
+  const [grupo] = agrupar([evento]);
+  const excepcion = evento.exception.values[0];
+  const resumen = `${excepcion?.type ?? "Error"}: ${excepcion?.value ?? "sin mensaje"} (huella ${grupo.huella.join(" · ")})`;
+  console.error(`[${proceso}]`, resumen, evento);
+  void fetch("/api/mando/orquestar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ modo: "anotar", mensaje: `[error de ${ambito} · ${proceso}] ${resumen}`.slice(0, 1800) }),
+  }).catch(() => undefined);
+}
 
 export default function GlobalError({
   error,
@@ -24,8 +38,12 @@ export default function GlobalError({
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    // Loguea siempre al console para no perder el stack.
-    console.error("[StarSeed GlobalError]", error);
+    // Loguea el error limpio y lo anota en Genesis sin datos personales.
+    try {
+      anotarErrorEnGenesis(error, "proceso", "global-error");
+    } catch {
+      console.error("[StarSeed GlobalError]", error);
+    }
     // Una pestaña abierta antes de publicar/reconstruir pide trozos que ya no existen: se recarga sola.
     if (esErrorDeVersionNueva(error)) recargarPorVersionNueva();
   }, [error]);

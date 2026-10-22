@@ -18,6 +18,20 @@ import { RotateCcw, LayoutDashboard, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { esErrorDeVersionNueva, recargarPorVersionNueva } from "@/lib/pwa/recarga-por-version";
+import { agrupar, limpiarDatosPersonales, normalizarError } from "@/lib/mando/errores-neurona";
+
+function anotarErrorEnGenesis(error: Error, ambito: "pagina" | "proceso", proceso: string): void {
+  const evento = limpiarDatosPersonales(normalizarError(error, { ambito, proceso }));
+  const [grupo] = agrupar([evento]);
+  const excepcion = evento.exception.values[0];
+  const resumen = `${excepcion?.type ?? "Error"}: ${excepcion?.value ?? "sin mensaje"} (huella ${grupo.huella.join(" · ")})`;
+  console.error(`[${proceso}]`, resumen, evento);
+  void fetch("/api/mando/orquestar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ modo: "anotar", mensaje: `[error de ${ambito} · ${proceso}] ${resumen}`.slice(0, 1800) }),
+  }).catch(() => undefined);
+}
 
 export default function AppError({
   error,
@@ -27,8 +41,8 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log al console para no perder trazabilidad (no se expone al usuario).
-    console.error("[StarSeed OS] Error de ruta:", error);
+    // Log limpio y anotación en Genesis: el error llega a la autocuración sin datos personales.
+    anotarErrorEnGenesis(error, "pagina", "(app)/error");
     // Una pestaña abierta antes de publicar/reconstruir pide trozos que ya no existen: se recarga sola.
     if (esErrorDeVersionNueva(error)) recargarPorVersionNueva();
   }, [error]);
