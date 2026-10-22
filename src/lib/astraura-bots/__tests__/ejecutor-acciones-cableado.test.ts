@@ -64,4 +64,32 @@ describe("ejecutorAccion", () => {
 
     expect(resultado).toEqual({ ok: false, previo: {}, motivo: "próximamente: editar páginas llega con BOT1011J1." });
   });
+
+  it("sin actor usa «bot:astraura» como identidad de la computadora", async () => {
+    const accion = valida({ tipo: "computadora.ejecutar", args: { orden: "ls" } });
+    (ejecutar as Mock).mockResolvedValue({ ok: true, datos: { salida: "", codigo: 0 } });
+
+    await ejecutarAccion(accion, makeDeps({ actor: undefined }));
+
+    expect(ejecutar as Mock).toHaveBeenCalledWith("bot:astraura", "ls", {});
+  });
+
+  it("nunca lanza: si la computadora revienta devuelve un fallo cerrado", async () => {
+    const accion = valida({ tipo: "computadora.ejecutar", args: { orden: "ls" } });
+    (ejecutar as Mock).mockRejectedValue(new Error("boom"));
+
+    const resultado = await ejecutarAccion(accion, makeDeps());
+
+    expect(resultado).toEqual({ ok: false, previo: {}, motivo: "No pude ejecutar «computadora.ejecutar»: ocurrió un error inesperado." });
+  });
+
+  it("una acción sin ejecutor cableado dice «próximamente» con su tarea", async () => {
+    const accion = valida({ tipo: "tarea.crear", args: { titulo: "Revisar", criterios: ["hecho"] } });
+
+    const resultado = await ejecutarAccion(accion, makeDeps());
+
+    expect(resultado.ok).toBe(false);
+    expect(resultado.previo).toEqual({});
+    expect(resultado.motivo).toBe("próximamente: crear tareas llega con BOT1011W.");
+  });
 });
