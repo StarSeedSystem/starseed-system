@@ -223,6 +223,32 @@ export function etiquetaConfiguracion(clave: string): string {
   return ETIQUETAS_CONFIGURACION[clave as keyof typeof ETIQUETAS_CONFIGURACION] ?? clave;
 }
 
+/** Configuraciones que viven en el CEREBRO (no en las preferencias de este aparato). */
+export const CONFIGURACIONES_DEL_CEREBRO = ["includes.personalities"] as const;
+
+export function esConfiguracionDelCerebro(clave: string): boolean {
+  return (CONFIGURACIONES_DEL_CEREBRO as readonly string[]).includes(clave);
+}
+
+/** Claves de configuración que comparte este vínculo: todas si el alcance es el cerebro completo. */
+export function clavesDeAlcance(v: VinculoTelepatico): string[] {
+  return v.alcance.completo ? [...CONFIGURACIONES_TELEPATIA] : [...v.alcance.configuraciones];
+}
+
+/** Ámbito del vínculo con una cuenta externa: el cerebro entero, una memoria o una carpeta (§5). */
+export function ambitoExterno(
+  v: VinculoTelepatico,
+  cerebroId: string,
+): { ambitoTipo: "cerebro" | "memoria" | "carpeta"; ambitoId: string } {
+  if (!v.alcance.completo && v.alcance.memorias.length === 1 && v.alcance.carpetas.length === 0) {
+    return { ambitoTipo: "memoria", ambitoId: v.alcance.memorias[0] };
+  }
+  if (!v.alcance.completo && v.alcance.carpetas.length === 1 && v.alcance.memorias.length === 0) {
+    return { ambitoTipo: "carpeta", ambitoId: v.alcance.carpetas[0] };
+  }
+  return { ambitoTipo: "cerebro", ambitoId: cerebroId };
+}
+
 export interface EntidadTelepatia {
   id: string;
   tipo: string;

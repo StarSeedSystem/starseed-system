@@ -14,8 +14,12 @@
 import { listMemoryFiles, saveMemoryFile } from "@/lib/cerebro/memory-files";
 import { saveBrain, type Brain } from "@/lib/brains/brains";
 import { upsertGrant } from "@/lib/sharing/access";
+import { pushPreferences } from "@/lib/settings-sync";
 import {
+  ambitoExterno,
+  clavesDeAlcance,
   conVinculo,
+  esConfiguracionDelCerebro,
   estaCaducado,
   planSincronizacion,
   type VinculoTelepatico,
