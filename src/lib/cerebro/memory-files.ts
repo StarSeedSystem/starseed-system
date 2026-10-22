@@ -355,7 +355,9 @@ export async function listMemoryFiles(brainId: string | null): Promise<MemoryFil
       q = sb.from("brain_memory_files").select("*").eq("owner", owner).is("brain_id", null).order("name", { ascending: true });
     }
     const { data } = await q;
-    return ((data as Record<string, unknown>[]) || []).map(normalizeFile);
+    const files = ((data as Record<string, unknown>[]) || []).map(normalizeFile);
+    for (const f of files) recordarContenido(f.id, f.content);
+    return files;
   } catch {
     return [];
   }
@@ -383,7 +385,10 @@ export async function saveMemoryFile(file: Partial<MemoryFile>): Promise<MemoryF
       .upsert(payload)
       .select("*")
       .single();
-    return data ? normalizeFile(data as Record<string, unknown>) : null;
+    if (!data) return null;
+    const saved = normalizeFile(data as Record<string, unknown>);
+    recordarContenido(saved.id, saved.content);
+    return saved;
   } catch {
     return null;
   }
@@ -391,6 +396,8 @@ export async function saveMemoryFile(file: Partial<MemoryFile>): Promise<MemoryF
 
 /** Actualiza sólo el contenido (autosave del editor). */
 export async function updateMemoryContent(id: string, content: string): Promise<boolean> {
+  // Sin cambios respecto a lo último leído/escrito → no sale ninguna petición.
+  if (contenidoSinCambios(id, content)) return true;
   try {
     const owner = await uid();
     if (!owner) return false;
@@ -400,10 +407,130 @@ export async function updateMemoryContent(id: string, content: string): Promise<
       .update({ content, updated_at: new Date().toISOString() })
       .eq("owner", owner)
       .eq("id", id);
+    if (!error) recordarContenido(id, content);
     return !error;
   } catch {
     return false;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Escrituras: nunca sin cambios, y agrupadas (CON1011B)               */
+/* ------------------------------------------------------------------ */
+/* Medido 2026-10-11: una pestaña abierta mandaba ~30 GET + 30 PATCH cada
+ * 30 min a `brain_memory_files` sin que nadie hiciera nada. Dos frenos:
+ *   1) la huella del contenido: lo que ya está en la tabla no se reenvía;
+ *   2) `escribirAgrupado`: como mucho una escritura por fichero cada 5 min
+ *      (la primera sale ya; las siguientes se juntan en una) y lo pendiente
+ *      sale al cerrar la pestaña. */
+
+/** Huella FNV-1a (32 bits) del contenido: barata, síncrona y suficiente para "¿cambió?". */
+export function huellaContenido(content: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < content.length; i++) {
+    h ^= content.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return `${content.length}:${(h >>> 0).toString(16)}`;
+}
+
+/** Huella de lo último leído o escrito por fichero (id → huella). */
+const ultimaHuella = new Map<string, string>();
+
+function recordarContenido(id: string, content: string): void {
+  if (id) ultimaHuella.set(id, huellaContenido(content ?? ""));
+}
+
+/** ¿Coincide `content` con lo último leído/escrito de ese fichero? */
+export function contenidoSinCambios(id: string, content: string): boolean {
+  return !!id && ultimaHuella.get(id) === huellaContenido(content ?? "");
+}
+
+/** Intervalo mínimo entre dos escrituras agrupadas del mismo fichero. */
+export const INTERVALO_ESCRITURA_AGRUPADA_MS = 5 * 60_000;
+
+interface EscrituraPendiente {
+  content: string;
+  escribir: (content: string) => Promise<unknown>;
+}
+
+const ultimaSalida = new Map<string, number>();
+const pendientes = new Map<string, EscrituraPendiente>();
+const temporizadores = new Map<string, ReturnType<typeof setTimeout>>();
+let cierreEscuchado = false;
+
+function salir(id: string, p: EscrituraPendiente): void {
+  if (contenidoSinCambios(id, p.content)) return;
+  ultimaSalida.set(id, Date.now());
+  try {
+    void Promise.resolve(p.escribir(p.content)).catch(() => undefined);
+  } catch {
+    /* nunca lanza */
+  }
+}
+
+function vaciarUno(id: string): void {
+  const t = temporizadores.get(id);
+  if (t) clearTimeout(t);
+  temporizadores.delete(id);
+  const p = pendientes.get(id);
+  pendientes.delete(id);
+  if (p) salir(id, p);
+}
+
+/** Saca YA todas las escrituras agrupadas pendientes (al cerrar la pestaña). */
+export function vaciarEscriturasAgrupadas(): void {
+  for (const id of [...pendientes.keys()]) vaciarUno(id);
+}
+
+function escucharCierre(): void {
+  if (cierreEscuchado || typeof window === "undefined") return;
+  cierreEscuchado = true;
+  try {
+    window.addEventListener("pagehide", vaciarEscriturasAgrupadas);
+  } catch {
+    /* */
+  }
+}
+
+/**
+ * Programa la escritura de `content` en el fichero `id` con `escribir`:
+ * nada si no cambió; ya si hace ≥ 5 min de la última; si no, se junta con
+ * las siguientes y sale UNA al cumplirse el intervalo (o al cerrar la pestaña).
+ */
+export function escribirAgrupado(
+  id: string,
+  content: string,
+  escribir: (content: string) => Promise<unknown>,
+): void {
+  try {
+    if (!id) return;
+    escucharCierre();
+    if (!pendientes.has(id) && contenidoSinCambios(id, content)) return;
+    const desde = Date.now() - (ultimaSalida.get(id) ?? -Infinity);
+    if (!temporizadores.has(id) && desde >= INTERVALO_ESCRITURA_AGRUPADA_MS) {
+      salir(id, { content, escribir });
+      return;
+    }
+    pendientes.set(id, { content, escribir });
+    if (!temporizadores.has(id)) {
+      temporizadores.set(
+        id,
+        setTimeout(() => vaciarUno(id), Math.max(0, INTERVALO_ESCRITURA_AGRUPADA_MS - desde)),
+      );
+    }
+  } catch {
+    /* nunca lanza */
+  }
+}
+
+/** Solo pruebas: olvida huellas, pendientes y temporizadores. */
+export function _reiniciarEscriturasMemoria(): void {
+  for (const t of temporizadores.values()) clearTimeout(t);
+  temporizadores.clear();
+  pendientes.clear();
+  ultimaSalida.clear();
+  ultimaHuella.clear();
 }
 
 /** Cambia la fuente/servidor y su config para un fichero. */
