@@ -191,6 +191,30 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
     });
 });
 
+describe("textoEstadoOrden: todo estado conocido tiene su frase y uno desconocido se devuelve tal cual", () => {
+    const esperados: Record<string, string> = {
+        pendiente: "esperando a un nodo",
+        tomada: "la tiene un nodo",
+        hecha: "hecha",
+        en_marcha: "en marcha",
+        seca: "solo simulada (nodo en prueba)",
+        nada: "no hacía falta",
+        rechazada: "rechazada",
+        fallo: "falló",
+        caducada: "nadie la recogió a tiempo",
+    };
+
+    it("cada estado mapea al texto correcto", () => {
+        Object.entries(esperados).forEach(([estado, texto]) => {
+            expect(textoEstadoOrden(estado)).toBe(texto);
+        });
+    });
+
+    it("un estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+    });
+});
+
 describe("ACCIONES: etiquetas y argumentos correctos", () => {
     it("tienen las etiquetas y argumentos correctos", () => {
         expect(ACCIONES.desconectar.etiqueta).toBe("Desconectar");
