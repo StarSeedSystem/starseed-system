@@ -4,6 +4,7 @@ import { describe, it, expect } from "vitest";
 import {
     urlDeConsulta,
     leerVersion,
+    leerPatronTag,
     compararVersiones,
 } from "../actualizaciones";
 
@@ -48,6 +49,71 @@ describe("leerVersion", () => {
     it("una respuesta vacía o rara devuelve null", () => {
         expect(leerVersion("https://github.com/a/b", [])).toBeNull();
         expect(leerVersion("https://huggingface.co/a/b", {})).toBeNull();
+    });
+});
+
+describe("canal de etiquetas con patrón (RuView)", () => {
+    const upstream = "https://github.com/ruvnet/RuView";
+    const patron = "^ruview-harness-";
+
+    it("consulta las etiquetas y elige la primera que casa, saltándose v3263", () => {
+        expect(urlDeConsulta(upstream, patron)).toBe(
+            "https://api.github.com/repos/ruvnet/RuView/tags?per_page=100",
+        );
+
+        const etiquetas = [
+            { name: "v3263" },
+            { name: "v3264" },
+            { name: "ruview-harness-20261020-1200" },
+            { name: "ruview-harness-20261019-0900" },
+        ];
+        expect(leerVersion(upstream, etiquetas, patron)).toEqual({
+            version: "ruview-harness-20261020-1200",
+            fecha: null,
+        });
+    });
+
+    it("sin coincidencias no inventa versión: devuelve null", () => {
+        const etiquetas = [{ name: "v3263" }, { name: "otra-cosa" }];
+        expect(leerVersion(upstream, etiquetas, patron)).toBeNull();
+        expect(leerVersion(upstream, "no-es-lista", patron)).toBeNull();
+    });
+
+    it("un patrón inválido se ignora con su aviso y no rompe la consulta normal", () => {
+        expect(leerPatronTag("[")).toEqual({
+            regex: null,
+            aviso: "El patrón de etiquetas no es una expresión regular válida: se ignora.",
+        });
+        expect(urlDeConsulta(upstream, "[")).toBe(
+            "https://api.github.com/repos/ruvnet/RuView/commits?per_page=1",
+        );
+        expect(() => leerVersion(upstream, [{ name: "v3263" }], "[")).not.toThrow();
+        expect(leerVersion(upstream, [{ name: "v3263" }], "[")).toBeNull();
+    });
+
+    it("un patrón de más de 80 caracteres se ignora con aviso", () => {
+        const largo = "^" + "a".repeat(80);
+        expect(leerPatronTag(largo)).toEqual({
+            regex: null,
+            aviso: "El patrón de etiquetas supera 80 caracteres: se ignora.",
+        });
+        expect(urlDeConsulta(upstream, largo)).toBe(
+            "https://api.github.com/repos/ruvnet/RuView/commits?per_page=1",
+        );
+    });
+
+    it("sin patrón todo sigue igual: se lee el último commit", () => {
+        expect(urlDeConsulta(upstream)).toBe(
+            "https://api.github.com/repos/ruvnet/RuView/commits?per_page=1",
+        );
+        expect(leerPatronTag(undefined)).toEqual({ regex: null, aviso: null });
+        const commits = [
+            { sha: "a1b2c3d4e5f6", commit: { committer: { date: "2026-09-20T10:00:00Z" } } },
+        ];
+        expect(leerVersion(upstream, commits)).toEqual({
+            version: "a1b2c3d",
+            fecha: "2026-09-20T10:00:00Z",
+        });
     });
 });
 
