@@ -38,6 +38,11 @@ describe('bolsa · privacidad', () => {
     const r = planificar(peticion([parte('computo', { ramMb: 256 })], { tipo: 'grupo', id: 'g1' }), [ajeno, miembro]);
     expect(r[0].resultado.destino).toBe('deGrupo');
   });
+  it('una neurona de la cuenta que no presta a su cuenta no se usa', () => {
+    const cerrada = oferta('cerrada', { presta: presta({ cuenta: false }) });
+    const r = planificar(peticion([parte('computo', { ramMb: 256 })]), [cerrada]);
+    expect(r[0].resultado.destino).toBe('local');
+  });
 });
 
 describe('bolsa · latencia', () => {
@@ -61,6 +66,11 @@ describe('bolsa · energía', () => {
     const r = planificar(peticion([parte('computo', { ramMb: 256 })]), [cansada, ocupada]);
     expect(r[0].resultado.destino).toBe('local');
   });
+  it('una neurona con la batería baja tampoco presta su almacenamiento', () => {
+    const cansada = oferta('cansada', { energia: { bateriaPct: 5, cargando: false, enUso: false } });
+    const r = planificar(peticion([parte('bytes', { volumen: 'vol-peli' })]), [cansada]);
+    expect(r[0].resultado.destino).toBe('nube');
+  });
 });
 
 describe('bolsa · capacidad prestable', () => {
@@ -71,6 +81,29 @@ describe('bolsa · capacidad prestable', () => {
   it('exige el motor pedido', () => {
     const sinMotor = oferta('sinMotor', { computo: { nucleos: 8, ramLibreMb: 8192, gpu: false, motores: ['voz'] } });
     expect(planificar(peticion([parte('relevo', { ramMb: 128, motor: 'imagen' })]), [sinMotor])[0].resultado.destino).toBe('local');
+  });
+  it('una app más pesada que la RAM prestada no se abre en ese nodo', () => {
+    const pequeno = oferta('pequeno', {
+      computo: { nucleos: 2, ramLibreMb: 2048, gpu: false, motores: [] },
+      presta: presta({ topes: { cpuPct: 100, ramMb: 2048, discoMb: 4096, soloCargando: false } }),
+    });
+    const r = planificar(peticion([parte('ventana', { appId: 'editor', ramMb: 8000 })]), [pequeno]);
+    expect(r[0].resultado.destino).toBe('nube');
+    expect(r[0].resultado.suelo?.falta.join(' ')).toContain('app editor');
+  });
+});
+
+describe('bolsa · relevo', () => {
+  it('un nodo con menos subida de la pedida no hace el relevo', () => {
+    const corto = oferta('corto', { enlaces: { subidaKbps: 100, latenciaMs: { vecino: 5 } } });
+    const r = planificar(peticion([parte('relevo', { kbps: 1000 })]), [corto]);
+    expect(r[0].resultado.destino).toBe('local');
+  });
+  it('el relevo se reparte entre las fuentes que suben', () => {
+    const medio = (nodoId: string): OfertaNeurona => oferta(nodoId, { enlaces: { subidaKbps: 600, latenciaMs: { vecino: 5 } } });
+    const r = planificar(peticion([parte('relevo', { kbps: 1000 })]), [medio('nodoB'), medio('nodoA')]);
+    expect(r[0].resultado.fuentes).toEqual(['nodoA', 'nodoB']);
+    expect(r[0].resultado.motivo).toContain('Reparto');
   });
 });
 
@@ -101,6 +134,11 @@ describe('bolsa · reparto', () => {
     expect(r[0].resultado.fuentes).toEqual(['nodoA', 'nodoB']);
     expect(r[0].resultado.motivo).toContain('Reparto');
   });
+  it('el respaldo es una neurona que no se está usando ya', () => {
+    const r = planificar(peticion([parte('bytes', { volumen: 'vol-peli', kbps: 1000 })]), [mini('nodoA', 0, 600), mini('nodoB', 0, 600), mini('nodoC', 0, 600)]);
+    expect(r[0].resultado.fuentes).toEqual(['nodoA', 'nodoB']);
+    expect(r[0].resultado.respaldo).toBe('nodoC');
+  });
 });
 
 describe('bolsa · suelo', () => {
@@ -108,6 +146,21 @@ describe('bolsa · suelo', () => {
     const r = planificar(peticion([parte('ventana', { appId: 'editor', ramMb: 16000 })]), []);
     expect(r[0].resultado.destino).toBe('nube');
     expect(r[0].resultado.motivo).toContain('app editor');
+  });
+  it('el suelo nunca va vacío y dice qué falta', () => {
+    const r = planificar(peticion([parte('computo', { ramMb: 1024, gpu: true })]), []);
+    expect(r[0].resultado.suelo?.abrir).toBe('local');
+    expect(r[0].resultado.suelo?.falta.length).toBeGreaterThan(0);
+    expect(r[0].resultado.suelo?.falta.join(' ')).toContain('GPU');
+  });
+  it('el suelo también dice el tope de latencia que no se pudo cumplir', () => {
+    const r = planificar(peticion([parte('ventana', { appId: 'editor' }, 30)]), []);
+    expect(r[0].resultado.suelo?.falta.join(' ')).toContain('latencia');
+  });
+  it('lo privado nunca cae en la nube compartida', () => {
+    const r = planificar(peticion([parte('computo', { ramMb: 1024 })], { privado: true }), []);
+    expect(r[0].resultado.destino).toBe('local');
+    expect(r[0].resultado.suelo?.abrir).toBe('local');
   });
   it('mismo input, mismo plan', () => {
     const p = peticion([parte('computo', { ramMb: 256 })]);
