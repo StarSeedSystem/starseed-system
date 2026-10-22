@@ -135,7 +135,7 @@ export function desdePoligenesis(r: unknown): ProcesoActivo[] {
     const id = txt(x?.id);
     const nombre = txt(x?.titulo);
     const bruto = (txt(x?.estado) ?? "").toLowerCase();
-    if (!x || !id || !nombre || !/abiert|votaci|pendient|esperand|propuest/.test(bruto)) continue;
+    if (!x || !id || !nombre || !/abiert|votaci|pendient|esperand|propuest|open/.test(bruto)) continue;
     const e = estado(bruto, "esperando");
     salida.push(p(`propuesta:${id}`, "poligenesis", nombre, e, "PoliGenesis", "propuestasDe()",
       { desde: epoca(x.creada), detalle: txt(x.problema) ?? undefined }));
@@ -152,7 +152,8 @@ export function desdeSuenos(r: unknown): ProcesoActivo[] {
   const salida: ProcesoActivo[] = [];
   const fecha = txt(sesion?.sesion) ?? "sin fecha";
   if (sesion?.orquestadorVivo === true) {
-    const cuentas = Object.entries(reg(sesion.cuentas) ?? {}).map(([k, v]) => `${k}: ${num(v) ?? 0}`);
+    const cuentas = Object.entries(reg(sesion.cuentas) ?? {})
+      .flatMap(([k, v]) => { const n = num(v); return n === null ? [] : [`${k}: ${n}`]; });
     salida.push(p(`sueno:${fecha}:orquestador`, "sueno", `Sueños profundos · ${fecha}`, "en-marcha",
       "esta Mac", fuente, { detalle: cuentas.join(" · ") || undefined }));
   }
@@ -190,7 +191,7 @@ export function desdeImaginacion(r: unknown): ProcesoActivo[] {
   }
   for (const c of lista(o.runs ?? o.ejecuciones)) {
     const run = reg(c);
-    const bruto = txt(run?.status) ?? txt(run?.estado);
+    const bruto = (txt(run?.status) ?? txt(run?.estado) ?? "").toLowerCase();
     const id = txt(run?.id);
     if (!run || !bruto || !id || !["running", "pending", "paused", "error"].includes(bruto)) continue;
     salida.push(p(`imaginacion:${id}`, "imaginacion", txt(run.title) ?? txt(run.titulo) ?? id,
@@ -224,11 +225,13 @@ export function desdeActualizaciones(r: unknown): ProcesoActivo[] {
   const o = reg(r);
   if (!o) return [];
   const salida: ProcesoActivo[] = [];
+  const estadoDeMotivo = (motivo: string | null): EstadoProceso =>
+    motivo === "fallo" ? "fallando" : motivo === "pospuesta" ? "pausado" : "esperando";
   const añadir = (neuronaId: string, nombre: string, capa: string, tiene: string | null,
-    deberia: string, detalle?: string, fallo?: string) => {
+    deberia: string, detalle?: string, motivo?: string) => {
     const etiqueta = NOMBRE_CAPA[capa as keyof typeof NOMBRE_CAPA] ?? capa;
     salida.push(p(`actualizacion:${neuronaId}:${capa}`, "actualizacion", `${etiqueta} · ${nombre}`,
-      fallo ? "fallando" : "esperando", nombre, "useEstadoActualizaciones()",
+      estadoDeMotivo(motivo ?? null), nombre, "useEstadoActualizaciones()",
       { detalle: detalle ?? `tiene ${tiene ?? "sin medida"} · debería ${deberia}` }));
   };
   for (const c of lista(o.atrasos)) {
