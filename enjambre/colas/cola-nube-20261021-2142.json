@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261021",
+ "tareas": [
+  {
+   "id": "ALT1022B",
+   "ola": "1022A",
+   "importancia": "capacidad",
+   "titulo": "Carril en la nube · `alta-capacidad-nube.py`: lanzar, seguir y traer las sesiones de Claude en la nube",
+   "archivos": [
+    "scripts/puente/alta-capacidad-nube.py",
+    "scripts/puente/test_alta_capacidad_nube.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto: `memory/orquestacion-economica.md` §0, «Carril de alta capacidad», peldaño 4a (léelo ENTERO). Alex tiene un crédito de 250 $ que SOLO gastan las sesiones de Claude Code en la nube (`claude --cloud`); no lo gastan Cowork ni las tareas programadas. Medido el 2026-10-22: dos sesiones lanzadas a mano desde la Mac (XR1010AAd-d1, BOT1011D2) bajaron el crédito de 250 a 248 $ sin mover la semana. Hoy lo opera a mano la dirección; esta ola lo deja automático. Hechos que el código debe respetar:\n- La orden es `claude --model <modelo> --cloud <descripción>` en ESE orden (`--cloud` toma un valor opcional).\n- Sin TTY falla con «--cloud requires an interactive terminal».\n- La salida trae `Created cloud session: <título>` y `View: https://claude.ai/code/session_<id>?from=cli&m=0`.\n- La sesión clona origin/main y trabaja en una rama `claude/<slug>`. Se le pide empujar `nube/cc-<AAAAMMDD>/ola/<ID>`, que `traer_nube.py` reconoce por el sufijo `/ola/<ID>`.\n- Mientras trabaja, la tarea está `reasignada` con `medio: \"claude-nube\"` (ningún reclamador toca ese medio). `traer_nube.decidir` devuelve «esperar» con `reasignada`, así que para traerla hay que pasarla a `pendiente` justo antes de `traer_nube.py revisar --aplicar`.\n- Saldo y vencimiento: `~/.starseed/credito-claude-nube.json` (`credito_claude_nube.py`: total_usd, restante_usd, vence ISO con zona).\n- Registro de sesiones: `~/.starseed/alta-capacidad-nube.json` = {\"sesiones\":[{tarea, sesion, url, rama_pedida, modelo, t}]}.\nReglas de la casa: Python 3 sin dependencias nuevas, español claro, nada de claves en archivos, funciones puras probadas con pytest/unittest como los `test_*.py` vecinos.\n\nTU TAREA (ALT1022B): CLI fino sobre `alta_capacidad_nube_logica.py` (ALT1022A; úsalo, no lo dupliques). Subórdenes:\n- `lanzar --ids A,B [--modelo claude-opus-5-5] [--seco]`: para cada id, busca la tarea en `starseed_memory_root/olas/cola-*.json` (la más reciente que la tenga). Comprueba `cupo_nube` con `credito-claude-nube.json` y `sesiones_vivas`; si no hay cupo, lo dice y no lanza. Construye el brief con `scripts/puente/plantillas/alta-capacidad-nube.md` y lo guarda en `~/.starseed/alta-capacidad-nube/<ID>.md`. Marca la tarea `reasignada · claude-nube` con `traer_nube._actualizar_progreso` (usa su cerrojo; no escribas progreso.json a mano). Lanza `orden_cli` dentro de una pseudoterminal: `script -q <log> <orden…>`, con la entrada de `tail -f <archivo de teclas>` para que no se cierre. Espera hasta 90 s a que `sesion_de_salida(log)` dé la sesión, mata el `tail` y anota la sesión en el registro. Si no sale ninguna sesión, devuelve la tarea a `pendiente` y lo dice. `--seco` hace todo menos lanzar y marcar.\n- `seguir [--aplicar]`: `git ls-remote origin 'refs/heads/nube/cc-*'` y `seguir(...)`. Con «traer»: pasa la tarea a `pendiente` y corre `python3 scripts/puente/traer_nube.py revisar --aplicar` una vez para todas. Con «devolver»: `pendiente` con la nota «devuelta del carril en la nube: sin rama tras N h (sesión <url>)». Con «olvidar»: la quita del registro. Sin `--aplicar` solo informa.\n- `ver [--json]`: crédito restante, presupuesto de hoy, sesiones vivas con su URL y estado.\nNunca imprime el entorno ni claves; en macOS nada de `pgrep -l`/`ps -E` (imprimen el entorno): usa `ps -o pid=,comm=`. Pruebas (≥ 8, sin red ni `claude` real: inyecta el lanzador y `git ls-remote`): cupo agotado no lanza; lanzamiento feliz anota y marca; salida sin sesión devuelve a pendiente; seguir trae y devuelve; `--seco` no toca nada.",
+   "revisor_quitadas": [
+    "ALT1022A"
+   ]
+  }
+ ]
+}
