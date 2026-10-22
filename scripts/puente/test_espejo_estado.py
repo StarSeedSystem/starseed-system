@@ -75,6 +75,33 @@ class PruebasEmpaquetar(unittest.TestCase):
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
 
+    def test_los_no_log_viajan_enteros_y_un_log_largo_conserva_las_ultimas_lineas(self):
+        # Rescatado de la rama nube Test que seguida}: progreso.md (SIEMPRE, no es log) va entero,
+        # y de un log largo solo se conservan las últimas LOG_LINEAS líneas, no las primeras.
+        seleccion = ["progreso.md", "cola-1.json", "orquestador.log"]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            olas_dir = os.path.join(tmp_dir, "olas")
+            os.makedirs(olas_dir)
+            with open(os.path.join(olas_dir, "progreso.md"), "w", encoding="utf-8") as f:
+                f.write("\n".join("Línea %d" % i for i in range(300)))
+            with open(os.path.join(olas_dir, "cola-1.json"), "w", encoding="utf-8") as f:
+                json.dump({"tareas": []}, f)
+            with open(os.path.join(olas_dir, "orquestador.log"), "w", encoding="utf-8") as f:
+                for i in range(500):
+                    f.write("línea %d del manifestador\n" % i)
+            with tempfile.TemporaryDirectory() as salida:
+                ruta_tar = empaquetar(seleccion, olas_dir, salida)
+                self.assertLessEqual(os.path.getsize(ruta_tar), espejo_estado.TOPE_BYTES)
+                with tarfile.open(ruta_tar, "r:gz") as tar:
+                    self.assertEqual(sorted(tar.getnames()), ["cola-1.json", "orquestador.log", "progreso.md"])
+                    texto_md = tar.extractfile("progreso.md").read().decode("utf-8")
+                    self.assertEqual(len(texto_md.splitlines()), 300)
+                    self.assertIn("Línea 299", texto_md)
+                    lineas_log = tar.extractfile("orquestador.log").read().decode("utf-8").splitlines()
+                    self.assertEqual(len(lineas_log), espejo_estado.LOG_LINEAS)
+                    self.assertEqual(lineas_log[0], "línea 300 del manifestador")
+                    self.assertEqual(lineas_log[-1], "línea 499 del manifestador")
+
 
 class PruebasEnviarEstado(unittest.TestCase):
     """enviar_estado con ssh falso: freno de 5 min, huella y orden de extracción atómica."""
