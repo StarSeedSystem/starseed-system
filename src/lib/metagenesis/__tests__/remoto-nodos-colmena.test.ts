@@ -54,6 +54,9 @@ describe("acciones colmena: desconectar y contenedor", () => {
     it("contenedor con activo false rechaza trabajadores", () => {
         expect(validarArgs("contenedor", { activo: false })).toBeNull();
         expect(validarArgs("contenedor", { activo: false, trabajadores: 2 })).toContain("trabajadores solo se permite");
+        // El rango 1–4 se comprueba ANTES de la regla de activo (contrato del nodo rescatado
+        // nube/a1-20261013-130438-RTS1010-EV-ORACLE-1acb): con 0 el fallo es de rango, no de activo.
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBe("trabajadores fuera de 1–4");
     });
 });
 
