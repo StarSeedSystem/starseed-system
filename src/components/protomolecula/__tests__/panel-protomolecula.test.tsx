@@ -70,6 +70,13 @@ afterEach(() => {
 });
 
 describe("PanelProtomolecula · herramientas", () => {
+  it("el panel muestra el título de la molécula y su ámbito", () => {
+    render(<PanelProtomolecula controlador={controlador({ titulo: "Molécula de rescate", ambito: "grupo" })} />);
+    expect(screen.getByRole("heading", { name: "Molécula de rescate" })).toBeDefined();
+    expect(screen.getByText("grupo")).toBeDefined();
+  });
+
+
   it("sin herramientas instaladas lo dice y deshabilita «Añadir herramienta» con el motivo", () => {
     render(<PanelProtomolecula controlador={controlador()} />);
     expect(screen.getByText("Aún no hay herramientas instaladas: llegan con la fase F1.")).toBeDefined();
