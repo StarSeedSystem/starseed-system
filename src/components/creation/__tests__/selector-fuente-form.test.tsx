@@ -52,6 +52,6 @@ describe("SourcePicker · asociación de etiquetas a campos", () => {
 
         const archivo = screen.getByLabelText("Archivo del dispositivo");
         expect(archivo).toBeInstanceOf(HTMLInputElement);
-        expect(archivo.type).toBe("file");
+        expect((archivo as HTMLInputElement).type).toBe("file");
     });
 });
