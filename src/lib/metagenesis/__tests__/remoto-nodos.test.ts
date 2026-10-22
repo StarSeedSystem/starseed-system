@@ -135,6 +135,29 @@ describe("resumen del bus", () => {
     });
 });
 
+describe("textoEstadoOrden: el estado de una orden, dicho para una persona", () => {
+    it("cada estado conocido mapea a su texto", () => {
+        const estados: Record<string, string> = {
+            pendiente: "esperando a un nodo",
+            tomada: "la tiene un nodo",
+            hecha: "hecha",
+            en_marcha: "en marcha",
+            seca: "solo simulada (nodo en prueba)",
+            nada: "no hacía falta",
+            rechazada: "rechazada",
+            fallo: "falló",
+            caducada: "nadie la recogió a tiempo",
+        };
+        Object.entries(estados).forEach(([estado, esperado]) => {
+            expect(textoEstadoOrden(estado)).toBe(esperado);
+        });
+    });
+
+    it("un estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+    });
+});
+
 describe("resumen de las tablas (modo tablas)", () => {
     it("el arriendo vigente manda y las órdenes traen quién las tomó", () => {
         const e = resumirTablas(
