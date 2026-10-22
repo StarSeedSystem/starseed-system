@@ -47,8 +47,8 @@ describe("fichasProtomolecula", () => {
     ];
     const fichas = fichasProtomolecula({}, catalogo);
     expect(fichas.map((f) => f.id)).toEqual(["a-imagen", "c-imagen", "b-video"]);
-    const grupos = new Set(fichas.map((f) => f.categoria));
-    expect([...grupos]).toEqual(["imagen", "video"]);
+    const grupos = Array.from(new Set(fichas.map((f) => f.categoria)));
+    expect(grupos).toEqual(["imagen", "video"]);
     for (const ficha of fichas) {
       expect(ORDEN_GRUPOS_PROTO).toContain(ficha.categoria);
       expect(ficha.categoriaEtiqueta.length).toBeGreaterThan(0);
@@ -94,9 +94,11 @@ describe("fichasProtomolecula", () => {
   it("un átomo sin entrada en el catálogo también recibe ficha", () => {
     registrarAtomo(atomo("propio", "vr-ar", { nombre: "Sala propia" }));
     const [f] = fichasProtomolecula({}, []);
+    expect(f.id).toBe("propio");
     expect(f.nombre).toBe("Sala propia");
     expect(f.estado).toBe("integrada");
     expect(f.categoria).toBe("vr-ar");
+    expect(f.categoriaEtiqueta).toBe("VR/AR");
   });
 
   it("un átomo 'proximamente' no se registra (regla del núcleo): sin ficha duplicada", () => {
@@ -114,12 +116,65 @@ describe("fichasProtomolecula", () => {
 
   it("los grupos extra del catálogo se ordenan detrás de los diez primeros", () => {
     const catalogo = [
-      herramienta({ id: "recurso", categoria: "recursos-abiertos" }),
-      herramienta({ id: "imagen", categoria: "vector-diseno" }),
+      herramienta({ id: "recurso", nombre: "recurso", categoria: "recursos-abiertos", licencia: "MIT" }),
+      herramienta({ id: "imagen", nombre: "imagen", categoria: "vector-diseno", licencia: "MIT" }),
     ];
     const fichas = fichasProtomolecula({}, catalogo);
     expect(fichas.map((f) => f.id)).toEqual(["imagen", "recurso"]);
+    const grupos = Array.from(new Set(fichas.map((f) => f.categoria)));
+    expect(grupos).toEqual(["imagen", "recursos"]);
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
+  });
+
+  it("usa la información de versiones cuando se proporciona", () => {
+    const catalogo = [herramienta({ id: "versioned-tool", nombre: "Herramienta con Versión", licencia: "GPL-3.0", categoria: "conversion-formatos" })];
+    const versiones = {
+      "versioned-tool": {
+        licencia: "MIT",
+      },
+    };
+
+    const resultado = fichasProtomolecula(versiones, catalogo);
+
+    expect(resultado[0].licencia).toBe("MIT");
+  });
+
+  it("usa la información del catálogo cuando se proporciona", () => {
+    const catalogo = [herramienta({
+      id: "catalog-tool",
+      nombre: "Nombre desde Catálogo",
+      descripcion: "Esta es una descripción detallada desde el catálogo",
+      licencia: "GPL-3.0",
+      codigo: "https://github.com/usuario/repo",
+      web: "https://ejemplo.com",
+      motivo: "",
+      categoria: "conversion-formatos",
+    })];
+
+    const resultado = fichasProtomolecula({}, catalogo);
+
+    expect(resultado[0].nombre).toBe("Nombre desde Catálogo");
+    expect(resultado[0].descripcion).toContain("Esta es una descripción detallada desde el catálogo");
+    expect(resultado[0].licencia).toBe("GPL-3.0");
+    // Los enlaces del catálogo se mapean tal cual
+    expect(resultado[0].enlaces).toBeDefined();
+    expect(resultado[0].enlaces?.web).toBe("https://ejemplo.com");
+    expect(resultado[0].enlaces?.repo).toBe("https://github.com/usuario/repo");
+  });
+
+  it("varios átomos sin catálogo reciben una ficha cada uno, ordenados por su grupo", () => {
+    registrarAtomo(atomo("aud-tool", "audio", { nombre: "Herramienta de Audio" }));
+    registrarAtomo(atomo("vid-tool", "video", { nombre: "Herramienta de Vídeo" }));
+    registrarAtomo(atomo("img-tool", "imagen", { nombre: "Herramienta de Imagen" }));
+
+    const resultado = fichasProtomolecula();
+
+    expect(resultado.map((f) => f.nombre)).toEqual([
+      "Herramienta de Imagen",
+      "Herramienta de Audio",
+      "Herramienta de Vídeo",
+    ]);
+    expect(resultado.map((f) => f.categoria)).toEqual(["imagen", "audio", "video"]);
   });
 });
