@@ -68,6 +68,16 @@ function textoContienePalabra(texto: string | null, palabra: string): boolean {
     return r.test(texto);
 }
 
+describe("textoContienePalabra (ayudante)", () => {
+    test("argumentos nulos, vacíos o palabra ajena nunca cuentan como coincidencia", () => {
+        expect(textoContienePalabra(null, "hola")).toBe(false);
+        expect(textoContienePalabra("", "hola")).toBe(false);
+        expect(textoContienePalabra("hola mundo", "")).toBe(false);
+        expect(textoContienePalabra("hola mundo", "adios")).toBe(false);
+        expect(textoContienePalabra("hola mundo", "mundo")).toBe(true);
+    });
+});
+
 async function elegirJuego(sala: Sala, juego: string) {
     await clic(sala.q.getByRole("radio", { name: new RegExp(juego) }));
     await clic(sala.q.getByRole("button", { name: "Empezar con este juego" }));
