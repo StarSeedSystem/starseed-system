@@ -821,21 +821,36 @@ def devolver_envio_por_el_medio(tid, carpeta_colas, ahora_ts=None, ruta_reapertu
         return None
 
 
-def reclamar_varadas(progreso, runs_en_marcha):
+def reclamar_varadas(progreso, runs_en_marcha, ids_vivos=None, colas_jovenes=()):
     """PURA. Las que se mandaron a la nube y allí ya no queda nadie que las haga.
 
     (2026-09-22, MEDIDO) RM3 y RM4 llevaban horas en «reasignada · nube» con CERO runs en
     marcha. Detrás de ellas, RM5 esperaba a RM3 y RM4; RM6 a RM5; RM7 a RM5 y RM6; RM8 a
-    RM7. Genesis enseñaba «LISTAS PARA TRABAJAR 5» y ningún agente podía coger ninguna:
-    la cadena entera colgaba de dos tareas que ya no iba a hacer nadie. El vigía lo veía
+    RM7. Genesis enseñaba «LISTAS PARA TRABAJAR 5» y ningún agente podía coger ninguna: la
+    cadena entera colgaba de dos tareas que ya no iba a hacer nadie. El vigía lo veía
     («cadena_rota») y solo sabía avisar —y ni eso: «no pude avisar»—.
 
     Reasignar a la nube es un préstamo, no un traspaso: si en la nube no queda ningún run
     en marcha, lo prestado vuelve a `pendiente` y la Mac puede cogerlo. Mientras haya UN
     run vivo no se toca nada: podría ser el que las está haciendo.
+
+    (2026-10-21, MEDIDO) Casi siempre hay ALGÚN run vivo, y mientras haya uno no se
+    reclamaba NADA: 43 tareas (IMG1020A, PES1020A, TRD1020A, LSD1020A, OHS1020A,
+    CNX1020A, GUI1021A…) llevaban horas en «reasignada · nube» con su run terminado en
+    «failure» y cero commits — el préstamo se había vuelto traspaso. Ahora quien llama
+    puede decir QUÉ lleva cada run vivo: `ids_vivos` son los ids de las colas de los runs
+    en marcha y `colas_jovenes` los de las `cola-nube-*.json` de menos de 30 min, cuyo run
+    quizá aún no arranca. Si `ids_vivos` es un conjunto, se devuelven las varadas que NO
+    estén en él ni en `colas_jovenes`; el llamador solo pasa un conjunto cuando conoce la
+    cola de TODOS los runs vivos. `ids_vivos=None` conserva el comportamiento de siempre:
+    solo reclamar cuando hayan quedado las colas vacías.
     """
-    if runs_en_marcha != 0:
-        return []
+    if ids_vivos is None:
+        if runs_en_marcha != 0:
+            return []
+        prestadas = set()
+    else:
+        prestadas = {str(i) for i in ids_vivos} | {str(i) for i in colas_jovenes or ()}
     return sorted(
         tid for tid, v in (progreso or {}).items()
         if isinstance(v, dict)
@@ -844,6 +859,7 @@ def reclamar_varadas(progreso, runs_en_marcha):
              # (2026-10-13) Las que soltó la tanda de la Mac al lanzar el run: «movida a nube-gh (run …)»,
              # sin medio hasta este día. Quedaban «reasignada» para siempre si su run moría.
              or (not v.get("medio") and str(v.get("nota") or "").startswith("movida a nube")))
+        and tid not in prestadas
     )
 
 
@@ -871,7 +887,7 @@ def devolver_a_pendiente(progreso, ids, fecha, envios=None, veredictos=None,
         else:
             v.update(
                 estado="pendiente", medio=None,
-                nota="devuelta de la nube %s: no quedaba ningún run en marcha (envío %d de %d)%s"
+                nota="devuelta de la nube %s: no quedaba ningún run en marcha que la llevara (envío %d de %d)%s"
                 % (fecha, n, max_envios, motivo),
             )
         salida[tid] = v

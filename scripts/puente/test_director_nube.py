@@ -7,7 +7,11 @@ falsa (dos runs de colas distintas corrieron en paralelo y entregaron 4 ramas `n
 así que el tope pasó a ser el único que mide algo: agentes simultáneos.
 """
 import importlib.util
+import json
 import os
+import shutil
+import tempfile
+import time
 import unittest
 
 _ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "director-nube.py")
@@ -98,6 +102,106 @@ class TopesPorDefecto(unittest.TestCase):
         # Si alguien baja TOPE_AGENTES por debajo de TRABAJADORES, la nube no arrancaría
         # nunca y el log diría «no caben» para siempre. Esto lo detecta.
         self.assertGreaterEqual(D.TOPE_AGENTES, 2 * int(D.TRABAJADORES))
+
+
+class DevolverLoQueYaNadieHace(unittest.TestCase):
+    """(2026-10-21, MEDIDO) 43 tareas (IMG1020A, PES1020A, TRD1020A…) llevaban horas en
+    «reasignada · nube» con su run TERMINADO en «failure» y cero commits: solo se
+    reclamaba con CERO runs y el préstamo se volvía traspaso. Ahora cada run vivo dice
+    qué cola lleva (`ids_vivos`) y las colas de menos de 30 min (`colas_jovenes`) no se
+    tocan aunque su run aún no arranque."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        raiz_antes, D.RAIZ = D.RAIZ, self.tmp
+        self.addCleanup(setattr, D, "RAIZ", raiz_antes)
+        D._ULTIMO_RESUMEN[:] = [{"generado": "t", "runs": []}]
+        self.addCleanup(D._ULTIMO_RESUMEN.clear)
+        veredictos_antes = D.veredictos_del_ultimo_run
+        D.veredictos_del_ultimo_run = lambda ids, timeout=90: {}
+        self.addCleanup(setattr, D, "veredictos_del_ultimo_run", veredictos_antes)
+
+    def _progreso(self, **estados):
+        olas = os.path.join(self.tmp, "starseed_memory_root", "olas")
+        os.makedirs(olas, exist_ok=True)
+        with open(os.path.join(olas, "progreso.json"), "w", encoding="utf-8") as f:
+            json.dump({"tareas": {k: dict(v) for k, v in estados.items()}}, f)
+
+    def _leer_progreso(self):
+        ruta = os.path.join(self.tmp, "starseed_memory_root", "olas", "progreso.json")
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)["tareas"]
+
+    def _cola(self, nombre, ids, edad_s=900):
+        carpeta = os.path.join(self.tmp, "enjambre", "colas")
+        os.makedirs(carpeta, exist_ok=True)
+        ruta = os.path.join(carpeta, nombre)
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump({"tareas": [{"id": i} for i in ids]}, f)
+        viejo = time.time() - edad_s
+        os.utime(ruta, (viejo, viejo))
+
+    def _runs(self, *runs):
+        D._ULTIMO_RESUMEN[:] = [{"generado": "t", "runs": list(runs)}]
+
+    def test_con_un_run_vivo_de_otra_cola_la_varada_vuelve(self):
+        self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
+        self._cola("cola-nube-20261021-0900.json", ["OTRA"])
+        self._runs({"run": 1, "cola": os.path.join("enjambre", "colas",
+                                                   "cola-nube-20261021-0900.json")})
+        self.assertEqual(D.reclamar_varadas_de_la_nube(1), ["IMG1020A"])
+        self.assertEqual(self._leer_progreso()["IMG1020A"]["estado"], "pendiente")
+
+    def test_con_el_run_vivo_de_su_cola_no_se_devuelve(self):
+        self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
+        self._cola("cola-nube-20261021-0900.json", ["IMG1020A"])
+        self._runs({"run": 1, "cola": os.path.join("enjambre", "colas",
+                                                   "cola-nube-20261021-0900.json")})
+        self.assertEqual(D.reclamar_varadas_de_la_nube(1), [])
+
+    def test_run_vivo_con_su_cola_tirada_no_devuelve_nada(self):
+        # No se puede saber qué lleva el run vivo: mejor esperar un ciclo que devolver
+        # algo que quizá está escribiendo alguien.
+        self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
+        self._cola("cola-nube-20261021-0900.json", ["OTRA"])
+        self._runs({"run": 1, "cola": None})
+        self.assertEqual(D.reclamar_varadas_de_la_nube(1), [])
+
+    def test_una_cola_joven_sin_run_todavia_aguanta(self):
+        self._progreso(NUE={"estado": "reasignada", "medio": "nube"})
+        self._cola("cola-nube-20261021-1015.json", ["NUE"], edad_s=60)
+        self._runs()  # todavía sin run: el lanzamiento va detrás de la cola
+        self.assertEqual(D.reclamar_varadas_de_la_nube(0), [])
+
+    def test_una_cola_vieja_sin_run_se_devuelve(self):
+        self._progreso(VIEJA={"estado": "reasignada", "medio": "nube"})
+        self._cola("cola-nube-20261021-0000.json", ["VIEJA"], edad_s=2 * 3600)
+        self._runs()
+        self.assertEqual(D.reclamar_varadas_de_la_nube(0), ["VIEJA"])
+
+    def test_runs_vivos_que_no_se_pueden_enumerar_no_devuelve_nada(self):
+        self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
+        D._ULTIMO_RESUMEN.clear()  # la medición falló: no sé qué llevan los runs vivos
+        self.assertEqual(D.reclamar_varadas_de_la_nube(1), [])
+
+    def test_medicion_fallida_con_cero_runs_tampoco_devuelve(self):
+        # Antes, una medición fallida daba «0 runs» y se reclamaba TODO lo prestado.
+        self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
+        D._ULTIMO_RESUMEN.clear()
+        self.assertEqual(D.reclamar_varadas_de_la_nube(0), [])
+        self.assertEqual(self._leer_progreso()["IMG1020A"]["estado"], "reasignada")
+
+    def test_medir_nube_fallida_borra_la_foto_vieja(self):
+        import agentes_nube as AN
+        antes = AN._runs_de_github
+        def falla():
+            raise RuntimeError("sin gh")
+        AN._runs_de_github = falla
+        self.addCleanup(setattr, AN, "_runs_de_github", antes)
+        D._ULTIMO_RESUMEN[:] = [{"generado": "viejo", "runs": [{"run": 9, "cola": None}]}]
+        self.assertEqual(D.medir_nube(), (0, 0))
+        self.assertEqual(D._ULTIMO_RESUMEN, [])
 
 
 if __name__ == "__main__":
