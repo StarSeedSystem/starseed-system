@@ -170,6 +170,23 @@ class RemallarImagen(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("watertightMeshes_win_installer.bat", r["fallo"])
 
+    def test_cuando_el_motor_no_esta_disponible_devuelve_error_con_procedencia(self):
+        # En macOS el motor no puede correr: remallar_imagen debe devolver el fallo de `disponible`
+        # con la procedencia completa y las cifras del taller, sin tocar ComfyUI.
+        comfy = ComfyFalso()
+        with mock.patch.object(pa.platform, "system", return_value="Darwin"):
+            r = pa.remallar_imagen("/fake/path/image.png", resolucion=512,
+                                   carpeta_workflows=self.tmp, comfy=comfy,
+                                   dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        self.assertIn("solo Windows 10/11", r["fallo"])
+        self.assertIsInstance(r["procedencia"], list)
+        self.assertGreaterEqual(len(r["procedencia"]), 2)
+        self.assertGreaterEqual(r["segundos"], 0.0)
+        self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
+        self.assertIsNone(comfy.ultimo_prompt)
+
     def test_prompt_rechazado_devuelve_el_fallo(self):
         carpeta = _flujo_en_disco(self.tmp)
         r = pa.remallar_imagen("a.png", carpeta_workflows=carpeta,
