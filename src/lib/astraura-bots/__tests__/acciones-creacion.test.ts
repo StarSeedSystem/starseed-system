@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deshacer, validarAccion, type AccionBot } from "../acciones";
 import { MAX_ORBES_VISIBLES } from "../orbes";
 import { disponerTrinity, type EntradaEspacio } from "@/lib/xr/espacio-trinity";
-import type { ContextoVoz } from "@/lib/xr/intenciones-voz";
+import * as xrIntencionesVoz from "@/lib/xr/intenciones-voz";
+import type { ContextoVoz, ResultadoVoz } from "@/lib/xr/intenciones-voz";
 
 type Respuesta = { ok: boolean; message: string };
 type Herramienta = { name: string; describe: string; example: string; handler: (args: Record<string, unknown>, ctx: unknown) => Promise<Respuesta> };
@@ -60,6 +61,7 @@ describe("protomolecula.operar", () => {
   });
 });
 describe("xr.intencion", () => {
+  afterEach(() => { vi.restoreAllMocks(); });
   it("devuelve la tarjeta de entenderVoz y no ejecuta nada (lo confirma la persona)", () => {
     const handler = instalar();
     const r = ejecutarIntencionXR(voz("crea un mundo con cielo de noche e invita al grupo Banda"), ctxVoz);
@@ -77,6 +79,26 @@ describe("xr.intencion", () => {
     expect(r).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("mundo") });
     expect(ejecutarIntencionXR(operar(MOVER), ctxVoz)).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("solo traduce «xr.intencion»") });
   });
+  it("si la voz no entiende, el motivo es su pregunta, tal cual", () => {
+    const vozFalla: ResultadoVoz = { ok: false, razon: "no-entendido", pregunta: "¿Qué quieres decir?", sugerencias: [] };
+    vi.spyOn(xrIntencionesVoz, "entenderVoz").mockReturnValue(vozFalla);
+    const r = ejecutarIntencionXR(voz("frase no entendida"), ctxVoz, { onStatus: vi.fn() });
+    expect(r).toMatchObject({ ok: false, tarjeta: null, previo: {}, motivo: "¿Qué quieres decir?" });
+    expect(r.voz).toBe(vozFalla);
+  });
+  it("una frase vacía no inventa nada: pregunta y no hay tarjeta", () => {
+    const r = ejecutarIntencionXR({ tipo: "xr.intencion", args: { frase: "" } }, ctxVoz);
+    expect(r).toMatchObject({ ok: false, tarjeta: null, previo: {} });
+    expect(r.motivo).toContain("No te he oído");
+    if (r.voz.ok) throw new Error("una frase vacía no puede entenderse");
+    expect(r.voz.razon).toBe("vacio");
+  });
+  it("una frase que no es texto tampoco produce tarjeta", () => {
+    const r = ejecutarIntencionXR({ tipo: "xr.intencion", args: { frase: 123 } }, ctxVoz);
+    expect(r).toMatchObject({ ok: false, tarjeta: null, previo: {} });
+    expect(r.motivo.length).toBeGreaterThan(0);
+    expect(r.voz.ok).toBe(false);
+  });
 });
 describe("anclaDeBot", () => {
   const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -85,6 +107,11 @@ describe("anclaDeBot", () => {
     expect(anclaDeBot("cafe", 2)).toEqual(anclaDeBot("cafe", 2));
     expect([anclaDeBot("cafe", 0).fase === anclaDeBot("cafe", 3).fase, anclaDeBot("cafe", 0).fase === anclaDeBot("banda", 0).fase]).toEqual([true, false]);
     expect(anclaDeBot("cafe", 1).id).toBe("bot:cafe");
+  });
+  it("el mismo índice es el mismo sitio: cambiar de bot no mueve la orbe", () => {
+    const uno = anclaDeBot("bot1", 0), otro = anclaDeBot("bot2", 0);
+    expect(otro.posicion).toEqual(uno.posicion);
+    expect(otro.id).not.toBe(uno.id);
   });
   it("las visibles son distintas por índice y no se tocan; del 6.º en adelante van a la ranura de «más»", () => {
     const anclas = Array.from({ length: MAX_ORBES_VISIBLES + 1 }, (_, i) => anclaDeBot(`b${i}`, i));
