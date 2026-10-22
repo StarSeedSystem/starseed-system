@@ -8,8 +8,13 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "enjambre"))
 import buscar_capacidad as B  # noqa: E402
 import repartir_nube as RN  # noqa: E402
+import sonda_escritor as SE  # noqa: E402
+
+#: Se le pasan a `representantes` para que no mire el entorno real del que corre las pruebas.
+SIN_CLAVE = {"entorno": {}, "ruta_auth": "/no/existe/auth.json", "archivos": ()}
 
 AHORA = 1_791_000_000.0
 
@@ -318,9 +323,10 @@ class EscritoresDelBoton(unittest.TestCase):
             "freellmapi": {"models": {"auto": {}}},
             "vacio": {"models": {}},
         }}
-        self.assertEqual(B.representantes(cfg), {"freellmapi": ["freellmapi/auto"],
-                                                  "nvidia": ["nvidia/moonshotai/kimi-k3"],
-                                                  "openrouter": ["openrouter/a:free", "openrouter/b:free"]})
+        self.assertEqual(B.representantes(cfg, **SIN_CLAVE),
+                         {"freellmapi": ["freellmapi/auto"],
+                          "nvidia": ["nvidia/moonshotai/kimi-k3"],
+                          "openrouter": ["openrouter/a:free", "openrouter/b:free"]})
 
     def test_un_modelo_retirado_no_decide_por_el_proveedor(self):
         respuestas = {"p/viejo": (False, "modelo retirado (410)", 0, True),
@@ -372,10 +378,77 @@ class EscritoresDelBoton(unittest.TestCase):
     def test_retirados_no_se_sondean_y_se_explican(self):
         cfg = {"provider": {"apinex": {"models": {"free/x": {}}}, "tokenrouter": {"models": {"z": {}}},
                             "nvidia": {"models": {"a": {}}}}}
-        self.assertEqual(list(B.representantes(cfg)), ["nvidia"])
+        self.assertEqual(list(B.representantes(cfg, **SIN_CLAVE)), ["nvidia"])
         t = B.texto_fuera_de_escritura()
         for p in ("apinex", "tokenrouter", "github-models", "groq (solo revisa"):
             self.assertIn(p, t)
+
+
+class ZenGratisEscritor(unittest.TestCase):
+    """(2026-10-21, ZEN1021B) OpenCode Zen como escritor: con clave entra, sin clave no. Su capa
+    gratuita solo responde dentro de opencode (403 FreeTierError), así que NUNCA se sondea por
+    HTTP ni ese 403 se trata como «sin crédito»."""
+
+    def test_con_clave_en_el_entorno_hay_grupo(self):
+        r = B.representantes({"provider": {"nvidia": {"models": {"a": {}}}}},
+                             entorno={"OPENCODE_API_KEY": "x"},
+                             ruta_auth=SIN_CLAVE["ruta_auth"], archivos=())
+        self.assertEqual(r["opencode"], list(B.MODELOS_ZEN_GRATIS))
+        self.assertEqual(r["nvidia"], ["nvidia/a"])
+        self.assertEqual(len(r["opencode"]), len(B.MODELOS_ZEN_GRATIS))
+
+    def test_sin_clave_no_hay_grupo(self):
+        self.assertNotIn("opencode", B.representantes({"provider": {}}, **SIN_CLAVE))
+        # Con clave vacía en el entorno tampoco (el orquestador no arrancaría Zen con ella).
+        self.assertNotIn("opencode", B.representantes({"provider": {}}, entorno={"OPENCODE_API_KEY": "  "},
+                                                      ruta_auth=SIN_CLAVE["ruta_auth"], archivos=()))
+
+    def test_clave_en_archivo_de_entorno(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "env")
+            with open(ruta, "w") as f:
+                f.write("OTRA=1\nexport OPENCODE_API_KEY=abc\n")
+            r = B.representantes({"provider": {}}, entorno={}, ruta_auth="/no/existe/auth.json",
+                                 archivos=[ruta])
+        self.assertIn("opencode", r)
+
+    def test_clave_en_auth_json(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "auth.json")
+            with open(ruta, "w") as f:
+                f.write('{"helicone": {}, "opencode": {"type": "wellknown"}}')
+            r = B.representantes({"provider": {}}, entorno={}, ruta_auth=ruta, archivos=())
+        self.assertIn("opencode", r)
+
+    def test_zen_cuenta_como_escritor_de_la_nube(self):
+        self.assertIn("opencode", B.PROVEEDORES_NUBE)
+        con_zen = [("opencode/glm-5.3-flash-free", True, B.SIN_SONDA_ZEN, 0),
+                   ("nvidia/nemo", True, "responde", 0)]
+        self.assertEqual(B.escritores_en_la_nube(con_zen), ["nvidia", "opencode"])
+        sin_zen = [("nvidia/nemo", True, "responde", 0)]
+        self.assertEqual(B.escritores_en_la_nube(sin_zen), ["nvidia"])
+        # Y el tope de jobs crece con ese escritor extra (la misma rotación pide dos jobs).
+        uno = B.tope_runs_nube(40, ["nvidia"])[0]
+        dos = B.tope_runs_nube(40, ["nvidia", "opencode"])[0]
+        self.assertGreater(dos, uno)
+
+    def test_el_grupo_zen_cuenta_apto_sin_sondearlo(self):
+        for m in B.MODELOS_ZEN_GRATIS:
+            self.assertEqual(B._sondear_zen(m), (True, B.SIN_SONDA_ZEN, 0, False))
+        self.assertEqual(B.veredicto_proveedor(list(B.MODELOS_ZEN_GRATIS), B._sondear_zen)[1], True)
+
+    def test_la_sonda_de_zen_no_debe_salir_por_http(self):
+        for m in B.MODELOS_ZEN_GRATIS:
+            self.assertIsNone(SE.destino(m, {}, {"OPENCODE_API_KEY": "x"}))
+            self.assertEqual(SE.sondear(m, {}, {})[:2], (True, "sin sonda"))
+
+    def test_403_freetier_no_es_sin_credito(self):
+        cuerpo = ("FreeTierError: OpenCode's free tier can only be used from within OpenCode")
+        apto, motivo, horas, muerto = SE.clasificar(403, cuerpo, proveedor="opencode")
+        self.assertTrue(apto)
+        self.assertEqual(motivo, "Zen gratis: solo dentro de opencode")
+        self.assertEqual(horas, 0)
+        self.assertFalse(muerto)
 
 
 class TopeNubeDinamico(unittest.TestCase):

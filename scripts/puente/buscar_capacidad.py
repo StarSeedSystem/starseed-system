@@ -42,6 +42,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import time
@@ -74,7 +75,12 @@ MAX_RUNS_NUBE = int(os.environ.get("STARSEED_NUBE_MAX_RUNS") or 14)
 RUNS_POR_ESCRITOR = 2
 #: Escritores cuyas claves viajan a la nube como secretos (`nube-gh.py SECRETOS`). freellmapi
 #: (127.0.0.1 de la Mac) y Codex (sesión de la Mac) NO llegan allí; Groq llega, pero solo revisa.
-PROVEEDORES_NUBE = ("google", "nvidia", "openrouter", "xkiro")
+#: (2026-10-21, ZEN1021B) opencode es OpenCode Zen: escribe gratis dentro de opencode (solo los
+#: «-free» y big-pickle) y su clave viaja a la nube como secreto OPENCODE_API_KEY, así que
+#: también cuenta como escritor de la nube.
+PROVEEDORES_NUBE = ("google", "nvidia", "openrouter", "opencode", "xkiro")
+#: Motivo con el que el grupo de Zen cuenta como apto sin sonda: jamás por HTTP.
+SIN_SONDA_ZEN = "sin sonda: Zen gratis solo responde dentro de opencode"
 MINUTOS_JOB = 60
 #: Lo que se reabre en una pasada, cuánto espera una tarea entre reaperturas y cuántas
 #: lleva como mucho en la ventana de envíos (dos días).
@@ -352,9 +358,54 @@ SALUD_DE = {"nvidia": "nim"}
 #: no dice nada del proveedor (2026-10-06: el primero de nvidia, openrouter y apinex lo estaba).
 MODELOS_POR_PROVEEDOR = 4
 
+#: (2026-10-21, ZEN1021B) Modelos GRATIS de OpenCode Zen, copiados del orquestador
+#: (starseed-enjambre.py · MODELOS_ZEN_GRATIS; se copia a propósito, sin importar el
+#: orquestador, que son casi 10.000 líneas): solo los gratuitos («-free» y big-pickle); los
+#: demás modelos de Zen (claude-*, gpt-*, gemini-…) son de pago y jamás entran aquí.
+MODELOS_ZEN_GRATIS = (
+    "opencode/glm-5.3-flash-free",
+    "opencode/deepseek-v4.1-flash-free",
+    "opencode/minimax-m3.1-flash-free",
+    "opencode/big-pickle",
+)
 
-def representantes(cfg_opencode, maximo=MODELOS_POR_PROVEEDOR):
-    """PURA: {proveedor: [«prov/modelo», …]} para sondear, sin los de pago ni los que no escriben."""
+ARCHIVOS_CLAVE_ZEN = ("~/.starseed/env", "~/.hermes/.env")
+
+
+def hay_clave_zen(entorno=None, ruta_auth=None, archivos=None):
+    """¿Puede opencode usar OpenCode Zen aquí? Clave en el entorno (OPENCODE_API_KEY), en los
+    archivos de entorno de la máquina (la Mac, el A1 y la nube la llevan ahí) o proveedor
+    «opencode» en el auth.json de opencode (la Mac, tras `opencode auth login`). Igual que la
+    del orquestador, copiada aquí: este módulo del puente no lo importa."""
+    if str((entorno if entorno is not None else os.environ).get("OPENCODE_API_KEY") or "").strip():
+        return True
+    for archivo in (ARCHIVOS_CLAVE_ZEN if archivos is None else archivos):
+        try:
+            with open(os.path.expanduser(archivo), encoding="utf-8") as f:
+                if any(re.match(r"\s*(export\s+)?OPENCODE_API_KEY\s*=\s*\S", l) for l in f):
+                    return True
+        except OSError:
+            pass
+    ruta = ruta_auth or os.path.expanduser("~/.local/share/opencode/auth.json")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            return "opencode" in (json.load(f) or {})
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def _sondear_zen(_modelo):
+    """El grupo «opencode» de Zen NO se sondea por HTTP: cuenta como apto de una vez."""
+    return True, SIN_SONDA_ZEN, 0, False
+
+
+def representantes(cfg_opencode, maximo=MODELOS_POR_PROVEEDOR, entorno=None, ruta_auth=None,
+                   archivos=None):
+    """{proveedor: [«prov/modelo», …]} para sondear, sin los de pago ni los que no escriben.
+    (2026-10-21, ZEN1021B) OpenCode Zen es NATIVO de opencode: no es un bloque `provider` de
+    ~/.config/opencode/opencode.json, por eso era invisible y la nube contaba 1 escritor menos.
+    Con clave (entorno, ~/.starseed/env o auth.json) entra como grupo «opencode»; ese grupo no
+    se sondea por HTTP (403 «FreeTierError»: su capa gratuita solo responde dentro de opencode)."""
     salida = {}
     for prov, bloque in sorted(((cfg_opencode or {}).get("provider") or {}).items()):
         if prov in DE_PAGO or prov in NO_ESCRITORES or prov in RETIRADOS or not isinstance(bloque, dict):
@@ -362,6 +413,8 @@ def representantes(cfg_opencode, maximo=MODELOS_POR_PROVEEDOR):
         modelos = list((bloque.get("models") or {}).keys())[:maximo]
         if modelos:
             salida[prov] = ["%s/%s" % (prov, m) for m in modelos]
+    if hay_clave_zen(entorno, ruta_auth, archivos):
+        salida["opencode"] = list(MODELOS_ZEN_GRATIS)
     return salida
 
 
@@ -582,10 +635,12 @@ def _sondear_escritores():
                     entorno.setdefault(k.replace("export ", "").strip(), v.strip().strip('"').strip("'"))
         except OSError:
             pass
-    grupos = representantes(cfg)
+    grupos = representantes(cfg, entorno=entorno)
     with ThreadPoolExecutor(8) as ex:
-        res = [r for r in ex.map(lambda ms: veredicto_proveedor(ms, lambda m: SE.sondear(m, cfg, entorno)),
-                                 grupos.values()) if r]
+        res = [r for r in ex.map(
+            lambda g: veredicto_proveedor(
+                g[1], _sondear_zen if g[0] == "opencode" else (lambda m: SE.sondear(m, cfg, entorno))),
+            grupos.items()) if r]
     salud = _leer_json(SALUD, {})
     cambio = False
     for m, apto, motivo, horas, muerto in res:

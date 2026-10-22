@@ -26,13 +26,20 @@ OK_VALE_S = 600
 #: Sin respuesta en este tiempo = no está para escribir ahora.
 TIEMPO_S = 25
 #: Proveedores que no se sondean así: codex va por su sesión y avisa él mismo de su límite.
-SIN_SONDA = ("codex",)
+#: (2026-10-21, ZEN1021B) opencode es OpenCode Zen: su capa gratuita solo responde desde dentro
+#: de opencode (403 «FreeTierError»), así que una sonda por HTTP no distingue «sin clave» de
+#: «funciona» y no se le gasta una petición.
+SIN_SONDA = ("codex", "opencode")
 
 _DIARIO = re.compile(r"per[- ]day|today|daily|del d[ií]a|free-models-per-day")
 _PAGO = re.compile(r"paid|premium|subscri|top up|wallet|deposit")
 _CREDITO = re.compile(r"payment required|credits|recharge|insufficient|balance")
 #: Sin saldo de la CUENTA (no del modelo): «depleted your monthly included credits».
 _SIN_SALDO = re.compile(r"depleted|credits|recharge|insufficient")
+#: (2026-10-21, ZEN1021B) OpenCode Zen, medido: con la clave responde 403 «FreeTierError ·
+#: OpenCode's free tier can only be used from within OpenCode». NO es «sin crédito»: es que su
+#: capa gratuita solo se puede usar desde dentro de opencode (la sonda por HTTP no va a poder).
+_ZEN_GRATIS = re.compile(r"freetiererror|only be used from within opencode")
 
 
 def horas_hasta_medianoche_utc(ahora=None):
@@ -84,6 +91,8 @@ def clasificar(codigo, cuerpo, ahora=None, proveedor=None):
       (24 h, como un sin crédito). Sin cuerpo leído se da por bueno, como siempre.
     - 404/410 o «does not exist» → el MODELO ya no existe: fuera de la rotación (no el proveedor).
     - 403 de «solo de pago/premium» → ese modelo no es gratis: fuera de la rotación.
+    - 403 de Zen con «FreeTierError» → apto: su capa gratuita solo responde dentro de opencode
+      (NO es «sin crédito» y jamás se trata ese 403 como sin cupo).
     - 429 con tope diario → proveedor sin cupo hasta las 00:00 UTC; 429 suelto → 15 min.
     - 402 o «sin crédito» → proveedor sin cupo 24 h.
     - 5xx o sin respuesta (codigo None) → 15 min.
@@ -93,6 +102,8 @@ def clasificar(codigo, cuerpo, ahora=None, proveedor=None):
         if (cuerpo or "").strip() and not es_respuesta_de_chat(cuerpo):
             return False, "200 que no es de chat («%s»): servicio retirado o portal" % (cuerpo or "").strip()[:24], 24, False
         return True, "responde", 0, False
+    if _ZEN_GRATIS.search(c):
+        return True, "Zen gratis: solo dentro de opencode", 0, False
     if codigo in (404, 410) or "does not exist" in c or "has reached its end" in c:
         return False, "modelo retirado (%s)" % codigo, 0, True
     if codigo in (402, 403) and _PAGO.search(c) and not _SIN_SALDO.search(c):
