@@ -26,6 +26,7 @@ Tiempos configurables:
 
 import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
 import signal
+import tempfile
 import contextlib, fcntl
 
 # La decisión de salud, vencimiento y reparto vive fuera para poder probarla sin lanzar una ola.
@@ -4074,6 +4075,88 @@ def repo_es_python(cwd):
     return not os.path.exists(os.path.join(cwd, "tsconfig.json"))
 
 
+def _comprobar_en_a1():
+    """La función `comprobar` de comprobar_en_a1.py, o None si no se puede usar (TRA1012A).
+    Solo en la Mac: la nube y el A1 mismo ya compilan donde tienen memoria."""
+    if os.environ.get("STARSEED_MEDIO") != "mac":
+        return None
+    ruta = os.path.join(ROOT, "scripts", "puente")
+    if not os.path.isfile(os.path.join(ruta, "comprobar_en_a1.py")):
+        return None
+    if ruta not in sys.path:
+        sys.path.insert(0, ruta)
+    from comprobar_en_a1 import comprobar
+
+    return comprobar
+
+
+def errores_de_a1(detalle):
+    """PURA: el detalle del A1 en líneas «error TS», el formato que la reparación automática espera."""
+    lineas = [l.strip() for l in str(detalle or "").splitlines() if "error TS" in l]
+    if not lineas:
+        # tsc rojo sin líneas reconocibles: el texto entero, para que el aviso diga algo.
+        lineas = [str(detalle or "el A1 dio rojo sin detalle")[:600]]
+    return lineas
+
+
+def tsc_en_a1(cwd, log=None, comprobar=None):
+    """Puerta tsc en el A1. Devuelve (rc, errores) si el A1 dio verde o rojo y None si hay que
+    compilar aquí (no es la Mac, el A1 no responde o está ocupado: fallo del medio, no de la tarea).
+    `comprobar` es inyectable para las pruebas."""
+    try:
+        comprobar = comprobar or _comprobar_en_a1()
+    except Exception:  # noqa: BLE001 — sin el módulo se comprueba en local
+        comprobar = None
+    if comprobar is None:
+        return None
+    tid = os.path.basename(cwd.rstrip("/"))
+    inicio = time.time()
+    snap = None
+    try:
+        rc, base = sh(["git", "rev-parse", "main"], cwd=cwd, timeout=30)
+        base = base.strip()
+        if rc != 0 or not base:
+            return None
+        # El worktree llega a esta puerta SIN commitear (el commit va después de tsc): el A1 solo ve
+        # commits, así que se hace una foto del árbol (índice aparte: no toca el del agente) en un
+        # worktree desacoplado y temporal.
+        env = dict(os.environ, GIT_INDEX_FILE=os.path.join(tempfile.gettempdir(), "enj-a1-idx-%s-%d" % (tid, os.getpid())))
+        try:
+            rc, _ = sh("git read-tree HEAD && git add -A", cwd=cwd, timeout=120, env=env)
+            rc, arbol = sh(["git", "write-tree"], cwd=cwd, timeout=60, env=env)
+            arbol = arbol.strip()
+            if rc != 0 or not arbol:
+                return None
+            rc, snap = sh(["git", "commit-tree", arbol, "-p", "HEAD", "-m", "snapshot tsc A1"], cwd=cwd, timeout=60)
+            snap = snap.strip()
+            if rc != 0 or not snap:
+                return None
+        finally:
+            with contextlib.suppress(OSError):
+                os.remove(env["GIT_INDEX_FILE"])
+        _, nombres = sh(["git", "diff", "--name-only", base, snap], cwd=cwd, timeout=60)
+        cambiados = [l.strip() for l in nombres.splitlines() if l.strip()]
+        tmp = tempfile.mkdtemp(prefix="enj-a1-")
+        rc, _ = sh(["git", "worktree", "add", "--detach", tmp, snap], cwd=cwd, timeout=120)
+        if rc != 0:
+            shutil.rmtree(tmp, ignore_errors=True)
+            return None
+        try:
+            ok, detalle, del_medio = comprobar(base, [snap], cambiados, timeout=900, cwd=tmp)
+        finally:
+            sh(["git", "worktree", "remove", "--force", tmp], cwd=cwd, timeout=60)
+            shutil.rmtree(tmp, ignore_errors=True)
+    except Exception as e:  # noqa: BLE001 — cualquier fallo de la ruta remota: tsc local como hoy
+        evento("aviso", tid, "puerta tsc: A1 no disponible (%s) → tsc en la Mac" % str(e)[:120])
+        return None
+    seg = time.time() - inicio
+    if del_medio:
+        evento("aviso", tid, "puerta tsc: Mac (%.0f s; A1: %s)" % (seg, str(detalle)[:160]))
+        return None
+    evento("aviso", tid, "puerta tsc: A1 (%.0f s) %s" % (seg, "en verde" if ok else "en rojo"))
+    return (0, []) if ok else (1, errores_de_a1(detalle))
+
+
 def tsc(cwd, log):
     if repo_es_python(cwd):
         # Compilación de los .py cambiados respecto a main (o todos los del diff sin commit).
@@ -4098,6 +4181,10 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
+    # TRA1012Bc-d1: en la Mac el tsc completo pesa ~3,5 GB; si el A1 responde, la puerta se hace allí.
+    remoto = tsc_en_a1(cwd, log)
+    if remoto is not None:
+        return remoto
     env = ENV_TSC
     for intento in range(2):
         with SEM_PESADO, cerrojo("pesado"):
