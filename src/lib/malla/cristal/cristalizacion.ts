@@ -6,7 +6,7 @@ import type {
    EstadoVitreo, Cristal, Puente
  } from "./tipos";
 import { coordinacionDe } from "./tipos";
-import { esTitanio, bonusTroncal, temperaturaAmortiguada, COORDINACION_TITANIO } from "./titanio";
+import { esTitanio, bonusTroncal, temperaturaAmortiguada, coordinacionTitanio } from "./titanio";
 import { delaunay } from "./triangulacion";
 import { senalesDeReticula, huellaReticula } from "./teselas";
 import { posicionesEstimadas } from "./geometria";
@@ -296,9 +296,11 @@ export function cristalizar(
   // Calentar coordinación objetivo para cada neurona
   const coordinacionObjetivo: Record<string, number> = {};
   for (const neurona of neuronas) {
-    // El titanio ya tiene coordinación 6: nunca se le suma el +1 de la zona fundida.
+    // El titanio con batería coordina menos que uno enchufado (§8.1): 6 con
+    // corriente, con batería desconocida o con ≥ 50 %; 4 entre 20 y 50 %; 3 por
+    // debajo del 20 %. Nunca se le suma el +1 de la zona fundida.
     coordinacionObjetivo[neurona.id] = esTitanio(neurona)
-      ? COORDINACION_TITANIO
+      ? coordinacionTitanio(neurona)
       : coordinacionDe(neurona);
   }
   
