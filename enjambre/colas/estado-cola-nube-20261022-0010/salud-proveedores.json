@@ -1,0 +1,70 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-22 00:09:28",
+  "desde": "2026-10-17 23:01:51",
+  "ultimo_429": "2026-10-18 00:20:58",
+  "sin_cupo_hasta": "2026-10-22 18:00:18",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-22 00:09:28",
+  "desde": "2026-10-17 23:01:56",
+  "ultimo_429": "2026-10-11 23:04:56",
+  "motivo": "pasarela: $ opencode run --model nvidia/nvidia/nemotron-3-super-120b-a12b · 2026-10-18 04:36:34 \u001b[0m \u001b[0m > build · nvidia/nemotron-3-super-120b-a12b ",
+  "sin_cupo_hasta": "2026-10-18 05:08:49"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-22 00:09:28",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-17 20:22:14",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-22 00:09:28",
+  "desde": "2026-10-17 23:02:23",
+  "ultimo_429": "2026-10-16 20:22:17",
+  "sin_cupo_hasta": "2026-10-21 18:00:34",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-22 00:09:28",
+  "desde": "2026-10-17 23:02:34",
+  "ultimo_429": "2026-10-16 20:22:09"
+ },
+ "ultimo_revisor_ok": "groq/openai/gpt-oss-120b",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-22 00:09:28",
+  "desde": "2026-10-20 07:10:11",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "pasarela: $ opencode run --model apinex/free/deepseek-v4-pro-0813 · 2026-10-19 21:33:48 \u001b[0m > build · free/deepseek-v4-pro-0813 \u001b[0m\u001b[0m→ \u001b[0mRead sr",
+  "ultimo_429": "2026-10-10 13:27:48",
+  "sin_cupo_hasta": "2026-10-19 21:55:03"
+ },
+ "google": {
+  "estado": "vivo",
+  "motivo": "sonda del botón: cupo del día agotado (429)",
+  "sin_cupo_hasta": "2026-10-22 01:00:29"
+ },
+ "codex": {
+  "motivo": "$ codex exec -m gpt-5.6-sol -s workspace-write --skip-git-repo-check -C /Users/alex/Documents/starseed-wt/CAP1018Ab-d1b · 2026-10-21 20:47:5",
+  "sin_cupo_hasta": "2026-10-22 20:48:06"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-22 00:09:29",
+  "desde": "2026-10-07 15:26:19",
+  "motivo": "la sonda lo vio escribir (autocuración)"
+ }
+}
