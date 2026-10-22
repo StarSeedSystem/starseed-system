@@ -511,6 +511,49 @@ class CesionDeLaTandaDeLaMac(unittest.TestCase):
             self.assertEqual(RN.colas_de_la_tanda_viva(ps, olas), [("cola-auto-9.json", ["A", "B"])])
 
 
+class ClaudeEnLaNube(unittest.TestCase):
+    """(ALT1022C) La línea de Claude en la nube y su lanzamiento, sin red ni `claude` real."""
+
+    def test_linea_del_resumen(self):
+        ahora = time.mktime(time.strptime("2026-10-15", "%Y-%m-%d"))
+        credito = {"restante_usd": 244, "vence": "2026-11-04T23:59:00-08:00"}
+        linea = B.texto_claude_nube(1, 4, credito, ahora)
+        self.assertTrue(linea.startswith("Claude en la nube: 1 de 4 sesiones · crédito 244 $ (vence 2026-11-04"))
+        self.assertIn("hoy caben ", linea)
+        self.assertIn("sin crédito declarado", B.texto_claude_nube(0, 4, None, ahora))
+        self.assertIn("hoy caben 0", B.texto_claude_nube(0, 4, None, ahora))
+
+    def test_no_lanza_sin_lanzador(self):
+        corridas = []
+        sumadas, texto = B.lanzar_claude_nube("listo", False, lambda: corridas.append(1), lambda: 0, lambda: 5)
+        self.assertEqual((sumadas, corridas), (0, []))
+        self.assertIn("aún no está en main", texto)
+
+    def test_no_lanza_si_el_medio_no_esta_listo(self):
+        corridas = []
+        self.assertEqual(B.lanzar_claude_nube("no_disponible", True, lambda: corridas.append(1),
+                                              lambda: 0, lambda: 5)[0], 0)
+        self.assertEqual(corridas, [])
+
+    def test_lanza_y_suma_solo_lo_anotado(self):
+        cuenta = {"n": 2}
+
+        def correr():
+            cuenta["n"] += 2
+
+        sumadas, texto = B.lanzar_claude_nube("listo", True, correr, lambda: cuenta["n"], lambda: cuenta["n"])
+        self.assertEqual(sumadas, 2)
+        self.assertIn("lanzadas 2", texto)
+
+    def test_un_lanzador_que_falla_no_rompe_el_boton(self):
+        def correr():
+            raise TimeoutError()
+
+        sumadas, texto = B.lanzar_claude_nube("listo", True, correr, lambda: 0, lambda: 0)
+        self.assertEqual(sumadas, 0)
+        self.assertIn("TimeoutError", texto)
+
+
 if __name__ == "__main__":
     unittest.main()
 
