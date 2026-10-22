@@ -77,6 +77,20 @@ describe("xr.intencion", () => {
     expect(r).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("mundo") });
     expect(ejecutarIntencionXR(operar(MOVER), ctxVoz)).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("solo traduce «xr.intencion»") });
   });
+  it("una frase que no es texto no llega a entenderVoz (y una vacía ni valida): pregunta y no hay tarjeta", () => {
+    const noTexto = ejecutarIntencionXR({ tipo: "xr.intencion", args: { frase: 123 } } as unknown as AccionBot, ctxVoz);
+    const vacia = validarAccion({ tipo: "xr.intencion", args: { frase: "" } });
+    expect(noTexto).toMatchObject({ ok: false, previo: {}, tarjeta: null, motivo: expect.stringContaining("solo traduce") });
+    expect(vacia.accion).toBeNull();
+    expect(vacia.problemas.join(" ")).toContain("frase");
+  });
+  it("avisa de que espera la confirmación solo cuando hay tarjeta", () => {
+    const onStatus = vi.fn();
+    ejecutarIntencionXR(voz("llévame a la estación Cumbre"), ctxVoz, { onStatus });
+    expect(onStatus).toHaveBeenCalledTimes(1);
+    ejecutarIntencionXR(voz("zzz qqq"), ctxVoz, { onStatus });
+    expect(onStatus).toHaveBeenCalledTimes(1);
+  });
 });
 describe("anclaDeBot", () => {
   const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -101,6 +115,10 @@ describe("anclaDeBot", () => {
       expect(az).toBeGreaterThan(grados(Math.atan2(zenith.ancho / 2, zenith.distancia)));
       expect(az).toBeLessThan(Math.abs(logic.azimutDeg) - grados(Math.atan2(logic.ancho / 2, logic.distancia)));
     }
+  });
+  it("la posición depende del índice y no del bot; cada índice avanza por una ranura distinta", () => {
+    expect(anclaDeBot("uno", 1).posicion).toEqual(anclaDeBot("otro", 1).posicion);
+    expect(anclaDeBot("uno", 0).posicion).not.toEqual(anclaDeBot("uno", 1).posicion);
   });
   it("con una mano, las orbes van al lado libre (Horizon queda del dominante)", () => {
     const e: EntradaEspacio = { ...ESPACIO_POR_DEFECTO, postura: "una-mano", manoDominante: "derecha" };
