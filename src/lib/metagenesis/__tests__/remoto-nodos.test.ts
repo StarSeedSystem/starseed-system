@@ -212,6 +212,7 @@ describe("textoEstadoOrden: el texto de cada estado de una orden", () => {
 
     it("estado desconocido se devuelve tal cual", () => {
         expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+        expect(textoEstadoOrden("")).toBe("");
     });
 });
 
