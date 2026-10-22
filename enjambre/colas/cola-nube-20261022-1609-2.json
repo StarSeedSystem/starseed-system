@@ -1,0 +1,90 @@
+{
+ "ola": "nube-20261022",
+ "tareas": [
+  {
+   "id": "RLB1020I",
+   "titulo": "Trilium · cliente puro de ETAPI para que los cerebros lean y guarden notas",
+   "archivos": [
+    "src/lib/conectores-propios/trilium.ts",
+    "src/lib/conectores-propios/__tests__/trilium.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Crea `src/lib/conectores-propios/trilium.ts`, módulo PURO con `pedir` inyectado, para la ETAPI de Trilium: `buscarNotas(base, token, consulta, limite=20)` (GET /etapi/notes?search=…), `leerNota(base, token, id)` (contenido en texto plano, con tope de 64 KB), `crearNota(base, token, padreId, titulo, contenido, tipo=\"text\")` (POST /etapi/create-note). Uso: memoria de los cerebros y notas de perfiles, grupos y archivos. Nada de credenciales en el código ni en registros (el token entra por parámetro y nunca se incluye en mensajes de error). Pruebas con `pedir` falso: búsqueda devuelve id y título; el tope de 64 KB corta; el error no filtra el token. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área",
+   "dependencias_ya_en_main": [
+    "RLB1020G1"
+   ]
+  },
+  {
+   "id": "RLB1020J",
+   "titulo": "Genesis · errores con formato de evento de Sentry, sin datos personales y con huella, para la autocuración",
+   "archivos": [
+    "src/lib/mando/errores-neurona.ts",
+    "src/lib/mando/__tests__/errores-neurona.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Alex quiere autorreparación de errores de cada neurona, cerebro, perfil, cuenta, página, proceso y creación de contenido; el servidor de Sentry no cabe (16 GB + swap) y su FSL no es abierta, así que Genesis lo hace con el FORMATO de evento del SDK de Sentry. Crea `src/lib/mando/errores-neurona.ts`, PURO: `normalizarError(e, contexto)` → evento estilo Sentry {event_id, timestamp, level, platform, exception:{values:[{type, value, stacktrace:{frames}}]}, tags:{ambito, neurona, proceso}, fingerprint} donde ambito ∈ neurona|cerebro|perfil|cuenta|pagina|proceso|contenido; `limpiarDatosPersonales(evento)` quita o enmascara correos, teléfonos, IP, tokens (`sk-`, `gsk_`, `Bearer …`, `eyJ…`) y rutas de usuario (`/Users/<nombre>`); `huella(evento)` agrupa por tipo + primer marco propio + ámbito; `agrupar(eventos)` → {huella, veces, primero, ultimo, ejemplo}. Sin red y sin enviar nada a terceros. Pruebas: limpia cada tipo de dato personal; dos errores iguales con mensajes de distinto id comparten huella; uno de otro ámbito no. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área"
+  },
+  {
+   "id": "APM1017E",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Malla · relé `capacidad.*`: pedir cualquier capacidad a otra neurona (imagen, voz, oído, transcodificar…)",
+   "archivos": [
+    "src/lib/network/capacidad-por-malla.ts",
+    "src/lib/network/__tests__/capacidad-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Generaliza el patrón de `src/lib/network/ia-por-malla.ts` (léelo: espacio de nombres, topes de tamaño, trozos, fin, error y cancelar) a `CAPACIDAD_NS = \"capacidad.\"` con `tipo`: imagen | voz | oido | palabra | transcodificar | render | buscar | construir. Cliente: `pedirCapacidad(enviar, { tipo, cuerpo, sesionId, timeoutMs })` que reúne los trozos y nunca lanza (`{ ok:false, motivo }`). Codificar y validar mensajes con guardas de tipo. No cambies ia-por-malla.ts. Pruebas con un canal falso: éxito, trozos desordenados, error, cancelar y tiempo agotado. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017I",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · caché de bandas por medio (OPFS en el navegador) con presupuesto y expulsión",
+   "archivos": [
+    "src/lib/recursos/cache-bandas.ts",
+    "src/lib/recursos/__tests__/cache-bandas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Caché de bandas sobre la interfaz `Almacenamiento` de src/lib/astraura/capas/almacen.ts (inyectada; en pruebas, `almacenamientoEnMemoria()`). `crearCacheBandas({ almacen, presupuestoBytes, ahora })` con `tener`, `leer`, `guardar(sha, bytes)` (verifica el SHA-256 con `crypto.subtle` inyectable antes de guardar) y expulsión de lo menos usado al pasarse del presupuesto; nunca expulsa una banda en uso. El presupuesto viene de src/lib/astraura/capas/perfil-medio.ts (no lo cambies). Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017H"
+   ]
+  },
+  {
+   "id": "APM1017Q",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Apps remotas · anfitrión web: fotogramas al lienzo, pista WebRTC y aviso visible",
+   "archivos": [
+    "src/lib/apps-remotas/anfitrion.ts",
+    "src/lib/apps-remotas/__tests__/anfitrion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión (§9) con todo inyectado: `crearAnfitrion({ capturar, dibujar, crearPista, sesion, fps, anchoMax })` que pide fotogramas a la app nativa (comando `capturar_ventana`), los dibuja en un lienzo, expone la pista (`canvas.captureStream(fps)` en el navegador), adapta fps y ancho al ancho de banda medido, reenvía las entradas a `entrada_ventana` solo con sesión válida (sesion-prestamo.ts) y se para al revocar. Pruebas con relojes y capturas falsas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D"
+   ]
+  },
+  {
+   "id": "APM1017U",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Medios · disponibilidad: quién tiene qué segmento o banda, anunciado en poco espacio",
+   "archivos": [
+    "src/lib/recursos/disponibilidad.ts",
+    "src/lib/recursos/__tests__/disponibilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: mapa de bits compacto por elemento (segmentos de una transmisión o bandas de un volumen) con `codificar`/`decodificar` en base64, `fusionar(anuncios)`, `quienTiene(elemento, indice, ahora)` con caducidad (30 s por defecto) y `anuncio(elemento, tengo)` con tope de 1 KB por mensaje (troceando si hace falta). Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "APM1017E",
+   "APM1017I",
+   "APM1017Q",
+   "APM1017U",
+   "RLB1020I",
+   "RLB1020J"
+  ]
+ }
+}
