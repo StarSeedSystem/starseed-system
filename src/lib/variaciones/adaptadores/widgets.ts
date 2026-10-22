@@ -70,6 +70,9 @@ export function validarVariacionWidget(payload: unknown): ResultadoValidarWidget
     if (tipo === null) motivos.push("Tipo: no es un tipo de widget del manifiesto del dashboard");
     const opciones = typeof v.opciones === "object" && v.opciones !== null && !Array.isArray(v.opciones) ? v.opciones : null;
     if (tipo !== null && !opciones) motivos.push("Opciones: deben ser un objeto de ajustes");
+    // Las URLs de una variación solo pueden ser https, también en medio de un texto (§5).
+    const plano = opciones !== null ? JSON.stringify(opciones) : null;
+    if (plano !== null && /http:\/\/|(?:^|\W)(?:javascript|data|vbscript):/i.test(plano)) motivos.push("Url: dentro de las opciones solo se permiten URLs https");
     if (tipo !== null && typeof v.tamano === "object" && v.tamano !== null && !Array.isArray(v.tamano)) {
         const t = v.tamano as { w?: unknown; h?: unknown };
         const w = typeof t.w === "number" ? t.w : undefined;
@@ -88,20 +91,27 @@ export function validarVariacionWidget(payload: unknown): ResultadoValidarWidget
 
 /** Aplica la variación fusionándola con la instancia elegida; deshacer devuelve la original. */
 export function aplicarWidget(clave: string, payload: VariacionWidget, instancia: DashboardWidget): ResultadoAplicarWidget | null {
-    if (!validarVariacionWidget(payload).ok) return null;
     const tipo = tipoDeClaveWidget(clave);
     if (!tipo || tipo !== payload.tipo || instancia.widget_type !== payload.tipo) return null;
     const limites = getSizeConstraints(payload.tipo);
-    // Un eje sin tamaño declarado hereda el de la instancia; uno declarado queda siempre
-    // dentro de getSizeConstraints (nunca por debajo del mínimo del manifiesto).
+    // Un eje sin tamaño declarado hereda el de la instancia; el pedido se acomoda a los
+    // límites de getSizeConstraints ANTES de validar: nunca por debajo del mínimo del
+    // manifiesto ni por encima de su máximos.
     const eje = (dato: number | undefined, minimo: number, maximo: number | undefined, heredar: number): number =>
         dato === undefined ? heredar : Math.min(maximo ?? Infinity, Math.max(minimo, Math.round(dato)));
+    const ajustada: VariacionWidget = {
+        ...payload,
+        tamano: payload.tamano
+            ? { w: eje(payload.tamano.w, limites.minW, limites.maxW, limites.minW), h: eje(payload.tamano.h, limites.minH, limites.maxH, limites.minH) }
+            : undefined,
+    };
+    if (!validarVariacionWidget(ajustada).ok) return null;
     const widget: DashboardWidget = {
         ...instancia,
         layout: {
             ...instancia.layout,
-            w: eje(payload.tamano?.w, limites.minW, limites.maxW, instancia.layout.w),
-            h: eje(payload.tamano?.h, limites.minH, limites.maxH, instancia.layout.h),
+            w: ajustada.tamano?.w ?? instancia.layout.w,
+            h: ajustada.tamano?.h ?? instancia.layout.h,
         },
         settings: { ...instancia.settings, ...payload.opciones },
     };
