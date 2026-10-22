@@ -21,4 +21,18 @@ describe("estadoTunelMetaGenesis", () => {
     expect(tacharTexto("Sin URL: ejemplo.com"))
       .toBe("Sin URL: ejemplo.com");
   });
+
+  it("tacharTexto deja intactas las URLs que no son del túnel", () => {
+    expect(tacharTexto("Sin coincidencia: https://example.com"))
+      .toBe("Sin coincidencia: https://example.com");
+  });
+
+  it("tacharTexto conserva la ruta y la consulta tras el dominio del túnel", () => {
+    expect(tacharTexto("https://subdominio-dash.trycloudflare.com/path?query=value"))
+      .toBe("[túnel]/path?query=value");
+  });
+
+  it("tacharTexto devuelve la cadena vacía tal cual", () => {
+    expect(tacharTexto("")).toBe("");
+  });
 });
