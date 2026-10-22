@@ -105,7 +105,8 @@ def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None, c
         ahora: str 'YYYY-MM-DD HH:MM:SS' (por defecto: se ignora y se genera si es None)
 
     Devuelve:
-        dict con campos {estado, modelo, cuenta, motivo}
+        dict con campos {estado, modelo, cuenta, motivo} — y alta_capacidad=True
+        cuando se agota la escalera (carril de alta capacidad, orquestación §0)
         o None si el estado no es recuperable.
 
     El estado devuelto puede ser 'pendiente' (seguir reintentando) o
@@ -135,6 +136,10 @@ def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None, c
             "modelo": None,
             "cuenta": None,
             "motivo": "escalada agotada tras %d intentos (%s): requiere una persona" % (n, resumen),
+            # (2026-10-21, orquestación §0) al agotarse la escalera, la tarea queda marcada
+            # para el carril de alta capacidad. Solo esta rama: las bloqueantes por tope o
+            # por falta de niveles siguen pidiendo una persona a secas.
+            "alta_capacidad": True,
         }
 
     nivel = niveles[n]
@@ -256,6 +261,13 @@ def aplicar(progreso, tid, paso, ahora):
         entrada["intentos_auto"] = entrada.get("intentos_auto", 0) + 1
     entrada["nota"] = "director: " + paso["motivo"]
     entrada["t"] = ahora
+
+    # Carril de alta capacidad (ola 1021B): si el paso trae la marca, queda en la
+    # entrada; un paso «pendiente» la quita (la tarea vuelve a subir la escalera).
+    if paso.get("alta_capacidad"):
+        entrada["alta_capacidad"] = True
+    elif paso["estado"] == "pendiente":
+        entrada.pop("alta_capacidad", None)
 
     if paso["modelo"] is not None:
         entrada["modelo_siguiente"] = paso["modelo"]

@@ -468,3 +468,61 @@ class PeldanoCodex(unittest.TestCase):
     def test_codex_0_quita_el_peldano(self):
         cfg = {"escalada": dict(self.CFG["escalada"], codex=0)}
         self.assertNotIn("codex", E.niveles_de(cfg, True))
+
+
+class TestAltaCapacidad(unittest.TestCase):
+    """(2026-10-21, orquestación §0) Al agotarse la escalera, la tarea queda marcada
+    «alta_capacidad» para el carril de agentes potentes; un reintento posterior la quita."""
+
+    def test_paso_agotado_lleva_alta_capacidad(self):
+        paso = siguiente_paso({"estado": "sin_cambios", "intentos_auto": 5}, {}, {}, "2026-10-22", [])
+        self.assertEqual("bloqueante", paso["estado"])
+        self.assertIn("escalada agotada", paso["motivo"])
+        self.assertTrue(paso.get("alta_capacidad"))
+
+    def test_paso_agotado_no_cambia_el_motivo(self):
+        paso = siguiente_paso({"estado": "fallo", "intentos_auto": 5}, {}, {}, "2026-10-22", [])
+        self.assertIn("escalada agotada tras 5 intentos", paso["motivo"])
+        self.assertIn("requiere una persona", paso["motivo"])
+
+    def test_aplicar_copia_alta_capacidad_a_la_entrada(self):
+        paso = {
+            "estado": "bloqueante",
+            "modelo": None,
+            "cuenta": None,
+            "motivo": "escalada agotada tras 5 intentos: requiere una persona",
+            "alta_capacidad": True,
+        }
+        nuevo = aplicar({"T": {"estado": "fallo", "intentos_auto": 5}}, "T", paso, "2026-10-22 12:00:00")
+        self.assertEqual(nuevo["T"]["estado"], "bloqueante")
+        self.assertTrue(nuevo["T"].get("alta_capacidad"))
+
+    def test_reintento_posterior_quita_la_marca(self):
+        entrada = {
+            "estado": "bloqueante",
+            "intentos_auto": 8,
+            "nota": "director: escalada agotada tras 8 intentos (libre×8): requiere una persona",
+            "alta_capacidad": True,
+        }
+        paso = E.siguiente_paso(entrada, {}, PeldanoCodex.CFG, "2026-10-22", [], codex_ok=True)
+        self.assertEqual("pendiente", paso["estado"])
+        self.assertNotIn("alta_capacidad", paso)
+        nuevo = aplicar({"T": entrada}, "T", paso, "2026-10-22 13:00:00")
+        self.assertNotIn("alta_capacidad", nuevo["T"])
+
+    def test_paso_pendiente_quita_la_marca_directo(self):
+        paso = {"estado": "pendiente", "modelo": None, "cuenta": None, "motivo": "reintento gratuito 1/2"}
+        nuevo = aplicar(
+            {"T": {"estado": "bloqueante", "intentos_auto": 5, "alta_capacidad": True}},
+            "T", paso, "2026-10-22 12:00:00",
+        )
+        self.assertNotIn("alta_capacidad", nuevo["T"])
+
+    def test_bloqueante_por_otra_causa_no_marca(self):
+        paso = siguiente_paso(
+            {"estado": "fallo", "intentos_auto": 2}, {},
+            {"escalada": {"activa": False}}, "2026-10-22", [],
+        )
+        self.assertEqual("bloqueante", paso["estado"])
+        self.assertIn("desactivada", paso["motivo"])
+        self.assertNotIn("alta_capacidad", paso)
