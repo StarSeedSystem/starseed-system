@@ -105,6 +105,29 @@ export function cristalizar(
 ): Cristal {
   // Obtener neuronas de la retícula
   const neuronas: NeuronaReticula[] = Object.values(r.teselas).map(t => t.neurona);
+  const porId = new Map(neuronas.map(n => [n.id, n] as const));
+  // La temperatura pasa por el amortiguado del titanio según los vecinos Ti que tenga entre sus
+  // puentes: un titanio (o quien toca uno) nunca supera 0,2; sin titanios cerca se conserva la medida.
+  const amortiguarTemperaturas = (puentes: Puente[]): Record<string, number> => {
+    const temps: Record<string, number> = {};
+    for (const neurona of neuronas) {
+      const vecinos = new Set<string>();
+      let vecinosTi = 0;
+      for (const p of puentes) {
+        if (p.a !== neurona.id && p.b !== neurona.id) continue;
+        const otro = p.a === neurona.id ? p.b : p.a;
+        if (vecinos.has(otro)) continue;
+        vecinos.add(otro);
+        const nOtro = porId.get(otro);
+        if (nOtro && esTitanio(nOtro)) vecinosTi++;
+      }
+      const base = opc.temperatura?.[neurona.id] ?? 0.5;
+      temps[neurona.id] = esTitanio(neurona) || vecinosTi > 0
+        ? temperaturaAmortiguada(base, vecinosTi, vecinos.size)
+        : base;
+    }
+    return temps;
+  };
   
   // Obtener señales medidas de la retícula
   const senalesMedidas = senalesDeReticula(r);
