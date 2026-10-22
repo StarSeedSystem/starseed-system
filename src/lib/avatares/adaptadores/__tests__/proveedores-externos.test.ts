@@ -206,6 +206,15 @@ describe("lo que sale a la red", () => {
       }
     }
   });
+  it("un Tripo apagado (sin permiso o sin su clave) no toca la red", async () => {
+    for (const entorno of [{ AVATARES_EXTERNOS_PERMITIDOS: "0" }, { AVATARES_EXTERNOS_PERMITIDOS: "1" }]) {
+      const red = sinRed();
+      const r = await crearTarea("tripo", PNG, entorno, red.buscar);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.motivo).toMatch(/Apagado por defecto|TRIPO_API_KEY/);
+      expect(red.llamadas).toHaveLength(0);
+    }
+  });
   it("Tripo manda Authorization en las dos peticiones y JSON solo en la segunda; Meshy manda las dos cabeceras", async () => {
     const tripo = simulado([{ cuerpo: { code: 0, data: { file_token: "f1" } } }, { cuerpo: { code: 0, data: { task_id: "t1" } } }]);
     await crearTarea("tripo", PNG, ENCENDIDO, tripo.buscar);
