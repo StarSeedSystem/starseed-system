@@ -37,10 +37,11 @@ const urlDe = (ruta: string): string => `${REPO_ONNX_SD_TURBO}/${ruta}`;
 const navegador = (): Navegador => navigator as unknown as Navegador;
 const textoError = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-export interface TokenizadorCLIP { vocab: Map<string, number>; rangos: Map<string, number>; bytes: Map<number, string>; cache: Map<string, number[]> }
-export function tokenizaCLIP(texto: string, t: TokenizadorCLIP): Int32Array { return tokeniza(texto, t); }
-/** Construye el tokenizador CLIP desde los dos archivos de texto del repo (puro; sirve para pruebas). */
-export function parseaTokenizador(vocabJson: string, merges: string): TokenizadorCLIP {
+interface TokenizadorCLIP { vocab: Map<string, number>; rangos: Map<string, number>; bytes: Map<number, string>; cache: Map<string, number[]> }
+/** Tokeniza el texto con el tokenizador CLIP; lo llama `generar` antes del codificador de texto. */
+function tokenizaCLIP(texto: string, t: TokenizadorCLIP): Int32Array { return tokeniza(texto, t); }
+/** Construye el tokenizador CLIP desde los dos archivos de texto del repo; lo llama `cargaTokenizador`. */
+function parseaTokenizador(vocabJson: string, merges: string): TokenizadorCLIP {
   const vocab = new Map<string, number>(Object.entries(JSON.parse(vocabJson) as Record<string, number>));
   const rangos = new Map<string, number>();
   merges.split(/\r?\n/).forEach((linea, i) => { if (i > 0 && linea.trim()) rangos.set(linea.trim(), i - 1); });
