@@ -409,7 +409,6 @@ function CommentThread({
                     (typeof meta.full_name === "string" && meta.full_name) ||
                     (typeof meta.name === "string" && meta.name) ||
                     (typeof meta.display_name === "string" && meta.display_name) ||
-                    (user?.email ? user.email.split("@")[0] : "") ||
                     "Ciudadano StarSeed";
                 setMyName(name);
             } catch {
