@@ -13,6 +13,7 @@ vi.mock("@/components/aurora/quantum-orb", () => ({ prefersReducedMotion: () => 
 vi.mock("@/lib/consumo/usuario", () => ({ uidActual: async () => null }));
 
 import type { Bot } from "@/lib/astraura-bots/tipos";
+import { EVENTO_BUCLE_UI } from "@/lib/astraura-bots/adaptadores/evento-bucle-ui";
 import { OrbesBots, CLAVE_ORBES, EVENTO_ENFOCADO, leerPosiciones } from "../orbes-bots";
 
 const PERFIL = "local";
@@ -110,5 +111,39 @@ describe("OrbesBots", () => {
     expect(screen.getByLabelText("Orbe de Cinco")).toBeTruthy();
     expect(screen.getAllByTestId("orbe")).toHaveLength(4);
     expect(recibidos).toEqual([{ id: "bot:4" }]);
+  });
+
+  it("el anillo de sentidos se monta sobre la orbe y se apaga con el bucle (BOT1011E2)", () => {
+    sembrar([PRED, bot("bot:a", "Luna")], { "bot:a": "1" });
+    render(<OrbesBots perfilId={PERFIL} principal={PRINCIPAL} />);
+    expect(screen.queryByTestId("anillo-sentidos")).toBeNull();
+    act(() => {
+      window.dispatchEvent(new CustomEvent(EVENTO_BUCLE_UI, {
+        detail: {
+          botId: "bot:a",
+          evento: {
+            tipo: "observar", sentido: "microfono", at: 1,
+            decision: { permitido: true, requiere: "nada", motivo: "Permitido.", indicador: true },
+          },
+        },
+      }));
+    });
+    expect(screen.getByTestId("anillo-sentidos")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("Luna está usando: micrófono");
+    fireEvent.click(screen.getByLabelText("Apagar este sentido: micrófono"));
+    expect(screen.queryByTestId("anillo-sentidos")).toBeNull();
+    act(() => {
+      window.dispatchEvent(new CustomEvent(EVENTO_BUCLE_UI, {
+        detail: {
+          botId: "bot:a",
+          evento: {
+            tipo: "observar", sentido: "pantalla", at: 2,
+            decision: { permitido: true, requiere: "nada", motivo: "Permitido.", indicador: true },
+          },
+        },
+      }));
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Pausar el bot" }));
+    expect(screen.queryByTestId("anillo-sentidos")).toBeNull();
   });
 });

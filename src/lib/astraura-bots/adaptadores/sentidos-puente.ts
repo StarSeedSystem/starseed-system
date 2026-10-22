@@ -16,6 +16,7 @@ import { auroraSee } from "@/lib/aurora/senses/vision-sense";
 import { detectarFuga, type FragmentoMemoria } from "@/lib/nucleo/alcance-memoria";
 import type { EventoBucle } from "../bucle";
 import { decidirSentido } from "../permisos";
+import { EVENTO_BUCLE_UI } from "./evento-bucle-ui";
 import { esBotDeEntidad, esInvitado, type Bot, type ConsentimientoSentido, type Medio, type Sentido, type TipoSesion } from "../tipos";
 
 export const MAX_TEXTO_SENTIDO = 4000;
@@ -67,7 +68,14 @@ function limpiar(texto: string): string {
 
 export function crearPuenteSentidos(dep: DepsPuenteSentidos) {
   const ahora = dep.ahora ?? Date.now;
-  const avisar = (ev: EventoBucle, botId: string) => { try { dep.alEvento?.(ev, botId); } catch { /* el aviso no tumba la percepción */ } };
+  const avisar = (ev: EventoBucle, botId: string) => {
+    try {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(EVENTO_BUCLE_UI, { detail: { botId, evento: ev } }));
+      }
+    } catch { /* sin orbe montada: el aviso no tumba la percepción */ }
+    try { dep.alEvento?.(ev, botId); } catch { /* el aviso no tumba la percepción */ }
+  };
   /** Lecturas en curso por bot y sentido: el indicador se apaga cuando acaba la ÚLTIMA, no la primera. */
   const enCurso = new Map<string, number>();
   const restar = (k: string): number => { const n = (enCurso.get(k) ?? 1) - 1; if (n > 0) enCurso.set(k, n); else enCurso.delete(k); return n; };
