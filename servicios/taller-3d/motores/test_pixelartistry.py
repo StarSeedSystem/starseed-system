@@ -213,6 +213,19 @@ class RemallarImagen(unittest.TestCase):
         self.assertEqual(r["glb"], "malla.glb")
         self.assertEqual(llamadas["n"], 3)
 
+    def test_no_disponible_devuelve_el_dict_completo_con_procedencia(self):
+        carpeta = _flujo_en_disco(self.tmp)
+        with mock.patch.object(pa.platform, "system", return_value="Linux"):
+            r = pa.remallar_imagen("a.png", 512, carpeta_workflows=carpeta,
+                                   comfy=ComfyFalso(), dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        self.assertIn("solo Windows", r["fallo"])
+        self.assertEqual([p["pieza"] for p in r["procedencia"]],
+                         ["flujo cerrada", "nodos MostAadTech"])
+        self.assertGreaterEqual(r["segundos"], 0)
+        self.assertEqual(r["pico_memoria_gb"], 0)
+
     def test_tiempo_agotado(self):
         carpeta = _flujo_en_disco(self.tmp)
         comfy = ComfyFalso(historial={"p1": None})
