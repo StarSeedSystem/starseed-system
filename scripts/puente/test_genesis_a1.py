@@ -137,6 +137,14 @@ class GenesisEnA1(unittest.TestCase):
         self.assertTrue(any(".next/BUILD_ID" in l for l in exige), exige)
         self.assertTrue(any("/usr/local/bin/node" in l for l in exige), exige)
 
+    def test_el_execstart_arranca_next_del_directorio_de_servicio(self):
+        """El `next` que se ejecuta vive en /opt/starseed/genesis: nunca el del home del
+        guardián (`~/.local/bin/next`), aunque WorkingDirectory o el `# requiere:` digan
+        otra cosa. Era un hueco de la revisión de COL1012Md-d3."""
+        execstart = next(l for l in self.unidad_cfg.splitlines() if l.startswith("ExecStart="))
+        self.assertIn("/opt/starseed/genesis", execstart, "el ExecStart no arranca el código de /opt")
+        self.assertNotIn(".local/bin/next", execstart, "el ExecStart arranca el next del guardián")
+
     def test_el_bloque_de_genesis_no_borra_la_cookie(self):
         """La `Cookie` se pasa tal cual: borrarla (copiando la puerta de datos) rompería la
         sesión de Supabase y Genesis respondería 401 a todo el mundo."""
