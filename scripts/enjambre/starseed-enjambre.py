@@ -4074,6 +4074,74 @@ def repo_es_python(cwd):
     return not os.path.exists(os.path.join(cwd, "tsconfig.json"))
 
 
+def archivos_del_diff(cwd):
+    """Los archivos del diff de la tarea (contra HEAD y los soltos), o None si git falla.
+
+    Ante la menor duda se corre tsc como hoy: el salto de la puerta solo se le da a un diff
+    que se leyó bien."""
+    try:
+        p = subprocess.run(
+            "git diff --name-only main...HEAD; git diff --name-only",
+            cwd=cwd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except Exception:
+        return None
+    if p.returncode != 0:
+        return None
+    return [
+        l.strip()
+        for l in ((p.stdout or "") + (p.stderr or "")).splitlines()
+        if l.strip()
+    ]
+
+
+EXTENSIONES_TSC = (
+    ".ts",
+    ".tsx",
+    ".mts",
+    ".cts",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+)
+
+
+def diff_necesita_tsc(archivos):
+    """PURA: ¿el diff de la tarea toca algún archivo que tsc?
+
+    Caso medido (2026-10-21 10:30 UTC, Mac de 8 GB con la swap al 94 % y presión del núcleo 2):
+    tres tareas llevaban 5, 30 y 49 min haciendo cola para el turno de un tsc COMPLETO y una de
+    ellas (VAR1021A) solo tocaba .py de scripts/puente/: el diff no puede cambiar el resultado
+    de tsc, porque cada worktree se pone al día con main y main está en verde. Solo que tsc mire
+    .ts/.tsx y familia, tsconfig*, package.json y lo bajo src/ o types/; con la lista vacía o
+    dudosa devuelve True y se corre tsc como hoy.
+    """
+    if not archivos:
+        return True
+    for ruta in archivos:
+        ruta = str(ruta).strip().replace("\\", "/")
+        if ruta.startswith("./"):
+            ruta = ruta[2:]
+        if not ruta:
+            continue
+        if ruta.startswith(("src/", "types/")):
+            return True
+        base = os.path.basename(ruta).lower()
+        if base in ("package.json", "package-lock.json", "next-env.d.ts"):
+            return True
+        if base.startswith("tsconfig") and base.endswith(".json"):
+            return True
+        for ext in EXTENSIONES_TSC:
+            if base.endswith(ext):
+                return True
+    return False
+
+
 def tsc(cwd, log):
     if repo_es_python(cwd):
         # Compilación de los .py cambiados respecto a main (o todos los del diff sin commit).
@@ -4098,6 +4166,25 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
+    # (2026-10-21) Solo en el repo del OS (hay tsconfig.json): un diff que no toca nada que
+    # tsc mire no hace cola por un tsc completo — VAR1021A esperó 49 min por tocar solo .py,
+    # y main (a lo que se pone al día el worktree) ya está en verde. Ante la menor duda
+    # (git falla, lista vacía porque no hay diff) se corre tsc como hoy.
+    try:
+        archivos = archivos_del_diff(cwd)
+        if archivos and not diff_necesita_tsc(archivos):
+            if log:
+                try:
+                    with open(log, "a", encoding="utf-8") as f:
+                        f.write(
+                            "\n$ tsc (omitido): tsc no hace falta: el diff no toca TypeScript"
+                            " (%d archivos)\n" % len(archivos)
+                        )
+                except Exception:
+                    pass
+            return (0, [])
+    except Exception:
+        pass
     env = ENV_TSC
     for intento in range(2):
         with SEM_PESADO, cerrojo("pesado"):
