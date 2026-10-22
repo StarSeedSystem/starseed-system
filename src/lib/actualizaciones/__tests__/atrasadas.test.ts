@@ -247,6 +247,25 @@ describe("neuronasAtrasadas", () => {
     expect(atrasos).toHaveLength(0);
   });
 
+  it("ignora la capa con versión atrasada que `ultima` no publica y saca las demás", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a20",
+        nombre: "Neuron Parcial",
+        online: true,
+        // «datos» va atrás pero `ultima` no la publica: no puede haber atraso ahí.
+        versiones: { datos: "2025.12.01" }
+      }
+    ];
+    // Copia de ULTIMA_SEIS sin «datos»: las otras cinco capas sí tienen versión publicada.
+    const { datos: _, ...ultimaSinDatos } = ULTIMA_SEIS;
+    const atrasos = neuronasAtrasadas(neuronas, ultimaSinDatos);
+    expect(atrasos).toHaveLength(5);
+    expect(atrasos.some((a) => a.capa === "datos")).toBe(false);
+    expect(atrasos.every((a) => a.motivo === "sin-motivo")).toBe(true);
+    expect(atrasos.every((a) => a.tiene === null)).toBe(true);
+  });
+
   it("ignora la neurona cuya versión va por delante de la última", () => {
     const neuronas: EstadoNeuronaActualizacion[] = [
       {
