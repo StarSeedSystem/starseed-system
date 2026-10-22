@@ -41,8 +41,18 @@ describe("malla-imagenes adaptador - funciones puras", () => {
       expect(inferirTipoGPU(disp)).toBe("nvidia");
     });
 
+    it("debe devolver 'nvidia' para 'Windows 11' con mayúsculas y versión", () => {
+      const disp = { plataforma: "Windows 11" };
+      expect(inferirTipoGPU(disp)).toBe("nvidia");
+    });
+
     it("debe devolver 'ninguna' para plataforma desconocida", () => {
       const disp = { plataforma: "desconocida" };
+      expect(inferirTipoGPU(disp)).toBe("ninguna");
+    });
+
+    it("debe devolver 'ninguna' para android (conservador)", () => {
+      const disp = { plataforma: "android" };
       expect(inferirTipoGPU(disp)).toBe("ninguna");
     });
 
@@ -100,11 +110,61 @@ describe("malla-imagenes adaptador - funciones puras", () => {
     });
   });
 
+  describe("valores conservadores por defecto", () => {
+    it("la VRAM no se conoce", () => {
+      expect(inferirVRAMGB({})).toBeNull();
+    });
+
+    it("no se declaran modelos instalados", () => {
+      expect(inferirInstalados({})).toEqual([]);
+    });
+
+    it("por defecto la neurona no está ocupada", () => {
+      expect(inferirOcupada({})).toBe(false);
+    });
+
+    it("sin ficha se estima una RAM libre conservadora de 2 GB", () => {
+      expect(inferirRAMLibreGB({})).toBe(2);
+    });
+  });
+
   // Tests similares para las funciones de cercanas...
   describe("inferirTipoGPUDesdeCercana", () => {
     it("debe devolver 'apple' para plataforma darwin", () => {
       const cerca = { plataforma: "darwin" };
       expect(inferirTipoGPUDesdeCercana(cerca)).toBe("apple");
+    });
+
+    it("debe devolver 'nvidia' para plataforma linux", () => {
+      expect(inferirTipoGPUDesdeCercana({ plataforma: "linux" })).toBe("nvidia");
+    });
+
+    it("debe devolver 'ninguna' sin plataforma conocida", () => {
+      expect(inferirTipoGPUDesdeCercana({})).toBe("ninguna");
+    });
+  });
+
+  describe("cercanas - valores conservadores por defecto", () => {
+    it("sin GPU solo ofrece sdcpp y onnx-web", () => {
+      expect(inferirMotoresDesdeCercana({})).toEqual(["sdcpp", "onnx-web"]);
+    });
+
+    it("con GPU añade comfyui y diffusers", () => {
+      const motores = inferirMotoresDesdeCercana({ plataforma: "linux" });
+      expect(motores).toContain("comfyui");
+      expect(motores).toContain("diffusers");
+    });
+
+    it("la VRAM de la cercana no se conoce", () => {
+      expect(inferirVRAMGBDesdeCercana({})).toBeNull();
+    });
+
+    it("se estima una RAM libre conservadora de 2 GB", () => {
+      expect(inferirRAMLibreGBDesdeCercana({})).toBe(2);
+    });
+
+    it("por defecto la cercana no está ocupada", () => {
+      expect(inferirOcupadaDesdeCercana({})).toBe(false);
     });
   });
 
