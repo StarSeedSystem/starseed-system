@@ -78,6 +78,34 @@ describe("xr.intencion", () => {
     expect(ejecutarIntencionXR(operar(MOVER), ctxVoz)).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("solo traduce «xr.intencion»") });
   });
 });
+describe("xr.intencion · frase y estado", () => {
+  const cruda = (frase: unknown): AccionBot => ({ tipo: "xr.intencion", args: { frase } }) as AccionBot;
+  it("una frase que no es texto o está vacía no genera tarjeta ni ejecuta nada", () => {
+    for (const frase of [123, "", "   "]) {
+      const r = ejecutarIntencionXR(cruda(frase), ctxVoz);
+      expect(r).toMatchObject({ ok: false, previo: {}, tarjeta: null });
+      expect(r.motivo.length).toBeGreaterThan(0);
+    }
+  });
+  it("avisa con onStatus solo cuando hay tarjeta que confirmar", () => {
+    const onStatus = vi.fn();
+    ejecutarIntencionXR(voz("llévame a la estación Cumbre"), ctxVoz, { onStatus });
+    expect(onStatus).toHaveBeenCalledTimes(1);
+    ejecutarIntencionXR(cruda(""), ctxVoz, { onStatus });
+    expect(onStatus).toHaveBeenCalledTimes(1);
+  });
+});
+describe("anclaDeBot · mismo índice", () => {
+  it("dos bots en el mismo índice comparten sitio (la posición depende solo del índice) pero no la fase", () => {
+    const [a, b] = [anclaDeBot("bot1", 0), anclaDeBot("bot2", 0)];
+    expect(a.posicion).toEqual(b.posicion);
+    expect(a.fase).not.toBe(b.fase);
+  });
+  it("un índice negativo o no numérico cae en el primero", () => {
+    expect(anclaDeBot("b", -3).posicion).toEqual(anclaDeBot("b", 0).posicion);
+    expect(anclaDeBot("b", Number.NaN).indice).toBe(0);
+  });
+});
 describe("anclaDeBot", () => {
   const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
   const grados = (r: number) => (r * 180) / Math.PI;
