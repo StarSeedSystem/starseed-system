@@ -38,6 +38,17 @@ describe("validarEndpoint · guardia SSRF estricta", () => {
   it("rechaza metadatos de la nube por nombre, por IP y escondidos en IPv6 o en un DNS mixto", async () => {
     for (const u of ["https://169.254.169.254/latest", "https://metadata.google.internal/", "https://[::ffff:169.254.169.254]/", "https://mixto.invitado.example/"]) expect((await validarEndpoint(u, dns)).ok).toBe(false);
   });
+  it("una dirección sin esquema se rechaza antes de tocar el DNS", async () => {
+    let resueltas = 0;
+    const contando: Resolver = async (h) => { resueltas++; return dns(h); };
+    expect((await validarEndpoint("example.com", contando)).ok).toBe(false);
+    expect(resueltas).toBe(0);
+  });
+  it("un nombre que no resuelve (ni vacío ni con el DNS caído) se rechaza: no hay destino al que llamar", async () => {
+    expect((await validarEndpoint("https://nada.invitado.example/agente", resolver({}))).ok).toBe(false);
+    const caido: Resolver = async () => { throw new Error("getaddrinfo ENOTFOUND"); };
+    expect((await validarEndpoint("https://bot.invitado.example/agente", caido)).ok).toBe(false);
+  });
 });
 describe("reenviarTurno", () => {
   it("hace POST AG-UI (RunAgentInput) y devuelve el flujo tal cual", async () => {
@@ -89,6 +100,12 @@ describe("reenviarTurno", () => {
     const r = await reenviarTurno(entrada(), preparar([lento], { tiempoLimiteMs: 30 }).dep);
     expect(r.ok && (await leer(r.flujo))).toContain("tiempo límite de 60 s");
   });
+  it("si la red falla, 502 y el motivo del fallo no se filtra al que pregunta", async () => {
+    const caida = preparar([() => Promise.reject(new Error("ECONNREFUSED 10.0.0.1:443"))]);
+    const r = await reenviarTurno(entrada(), caida.dep);
+    expect(r).toMatchObject({ ok: false, status: 502 });
+    expect(JSON.stringify(r)).not.toContain("ECONNREFUSED");
+  });
   it("la cabecera no aparece en la respuesta ni en el registro (solo su longitud) y va ligada a su origen", async () => {
     const valor = "Bearer " + ["to", "ken-secreto-"].join("") + "y".repeat(24);
     const p = preparar([sse()], { leerCabecera: () => ({ valor, origen: "https://bot.invitado.example" }) });
@@ -104,6 +121,14 @@ describe("reenviarTurno", () => {
     const entorno = { SUPABASE_SERVICE_ROLE_KEY: "x", STARSEED_BOT_INVITADO_A: "Bearer abc", STARSEED_BOT_INVITADO_A_ORIGEN: "https://bot.invitado.example/", STARSEED_BOT_INVITADO_B: "v" };
     for (const n of ["SUPABASE_SERVICE_ROLE_KEY", "STARSEED_BOT_INVITADO_B"]) expect(cabeceraDelEntorno(n, entorno)).toBeNull();
     expect(cabeceraDelEntorno("STARSEED_BOT_INVITADO_A", entorno)).toEqual({ valor: "Bearer abc", origen: "https://bot.invitado.example" });
+  });
+  it("sin cabecera pedida el turno sale sin Authorization; con cabecera pedida y ausente en la bóveda, ni se contacta", async () => {
+    const p = preparar([sse()]);
+    expect((await reenviarTurno(entrada(), p.dep)).ok).toBe(true);
+    expect(p.llamadas[0].headers.Authorization).toBeUndefined();
+    const ausente = preparar([sse()], { leerCabecera: () => null });
+    expect(await reenviarTurno(entrada({ cabecera: "STARSEED_BOT_INVITADO_A" }), ausente.dep)).toMatchObject({ ok: false, status: 400 });
+    expect(ausente.llamadas).toHaveLength(0);
   });
 });
 describe("POST /api/bots/invitado", () => {
