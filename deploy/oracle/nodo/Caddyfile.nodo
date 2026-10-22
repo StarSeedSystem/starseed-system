@@ -3,6 +3,12 @@
 # Nada sin clave: BitNet exige la suya (llama-server --api-key-file); /health queda abierto.
 bitnet.{$STARSEED_HOST} {
 	encode gzip
+	route /apps/linux/* {
+		uri strip_prefix /apps/linux
+		reverse_proxy 127.0.0.1:3001 {
+			flush_interval -1
+		}
+	}
 	reverse_proxy 127.0.0.1:8790 {
 		flush_interval -1
 	}
@@ -10,8 +16,65 @@ bitnet.{$STARSEED_HOST} {
 		output discard
 	}
 }
+
+# ── Genesis en el A1 (COL1012Md-d2) ───────────────────────────────────────────
+# POR QUÉ un bloque aparte: la sala de control (Genesis) se sirve en el A1 con el mismo
+# certificado automático, en `genesis.<host>`. La unidad `starseed-genesis` escucha SOLO en
+# 127.0.0.1:9002, así que este bloque es lo único que la alcanza desde internet.
+#
+# LO QUE NO SE TOCA, Y POR QUÉ:
+#   · La cabecera `Cookie` se pasa tal cual. La ruta de la puerta de datos sí la borra
+#     (`servicios/puerta-datos/src/caddy.mjs`); aquí eso rompería la sesión: sin la cookie de
+#     Supabase el guardián no ve a nadie y Genesis respondería 401 a todo el mundo.
+#   · La cabecera `Host` también se pasa tal cual (Caddy reenvía las cabeceras sin tocarlas al
+#     hablar por HTTP plano), y por eso la cookie de sesión y las redirecciones de Supabase son
+#     del nombre público y no de 127.0.0.1.
+#
+# `header_up X-Real-IP {remote_host}` SOBRESCRIBE la que traiga el cliente (sin el prefijo `+`):
+# es la IP real de quien llama y nadie la puede falsear. Detrás de Caddy todo llega del bucle
+# local, así que sin ella `esPeticionDeEstaMaquina` podría creerse que la petición es de la
+# propia máquina y dejaría pasar a quien no tiene sesión. Con ella (y con `STARSEED_PUBLICO=1` en
+# la unidad) cada petición exige sesión de Supabase y ser miembro de MetaGenesis. El guardián
+# también la usa para frenar por IP a quien insiste con sesiones malas.
 genesis.{$STARSEED_HOST} {
-	reverse_proxy 127.0.0.1:9002 {
-		header_up X-Real-IP {remote_host}
+	encode gzip
+
+	# SOLO se publica lo que la sala de control necesita de verdad; el resto responde 404. La
+	# unidad publica la app Next entera, y hay rutas que se apoyan en «no estoy en la Mac»: las
+	# que lanzan un binario con la URL que pone quien llama (`/api/agent-reach/<capacidad>`), las
+	# que gastan créditos del OS sin preguntar (`/api/astraura/decidir`), las que hablan con el
+	# daemon de voz (`/api/voz-local/*`) y las que son un buzón abierto (`/api/telegram/send`).
+	# Ninguna hace falta para dirigir el enjambre, así que no se publican. La regla que se sigue
+	# para admitirlas: solo entra lo que es página, o lo que exige sesión de Supabase.
+	#
+	# · La sala y su consola.
+	# · Entrar y volver de Supabase (la cookie va en la cabecera `Cookie`, que no se toca).
+	# · Los recursos de Next y los ficheros públicos que la página pide.
+	# · La API de la consola: el mando (todo pasa por el guardián: sesión + miembro de
+	#   MetaGenesis), las propuestas de «Mi Genesis», los paneles de BitNet, la voz, el
+	#   movimiento y el almacenamiento externo (los cuatro últimos exigen sesión).
+	@necesario {
+		path /genesis /genesis/* /metagenesis /metagenesis/*
+		path /login /login/* /auth/callback
+		path /_next/* /favicon.ico /favicon-48.png /icon.png /apple-icon.png /manifest.webmanifest /sw-v7.js /offline.html /version.json /icons/* /app-icons/* /assets/* /logo.png /starseed-symbol.png /starseed-symbol-192.png /starseed-symbol-square.png
+		path /api/mando /api/mando/* /api/genesis/proponer /api/genesis/contenedores /api/ai/astraura-158 /api/ai/astraura-158/* /api/voz/* /api/movimiento/* /api/storage/oauth/token
+	}
+
+	# El nombre público abre la sala (la raíz del OS lleva a otra pantalla que aquí no se publica).
+	@raiz path /
+	redir @raiz /genesis 302
+
+	handle @necesario {
+		reverse_proxy 127.0.0.1:9002 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	handle {
+		respond 404
+	}
+
+	log {
+		output discard
 	}
 }

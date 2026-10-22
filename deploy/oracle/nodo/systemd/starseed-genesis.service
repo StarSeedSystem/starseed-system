@@ -1,30 +1,147 @@
 [Unit]
-Description=StarSeed · genesis en el A1 como espejo del estado de la Mac (COL1012M · 2026-10-16)
-After=network-online.target starseed-medio.service
+Description=StarSeed · Genesis (sala de control) en el A1: siempre en línea, tras Caddy y con sesión (COL1012Md)
+After=network-online.target
 Wants=network-online.target
-# requiere: build de la Mac de Next.js en ~/starseed-system (verde por el guardián)
-# El repositorio de /opt/starseed/nodo trae scripts/puente/oracle_nodo.py que lo deja en el A1 (esta tarea).
-# Nunca ejecuta una build roja, solo la verde del guardián.
-StartLimitIntervalSec=3600
-StartLimitBurst=5
+# requiere: /opt/starseed/genesis/.next/BUILD_ID
+# requiere: /usr/local/bin/node
+# Parte 1 de 3 de «Genesis en el A1» (architecture/colmena-relevo-contenedores.md §5 y §6). Las otras dos:
+#   · el bloque `genesis.{$STARSEED_HOST}` de Caddyfile.nodo, que es lo que lo publica en HTTPS;
+#   · scripts/puente/test_genesis_a1.py, que vigila en el texto de ambos archivos que esto no se afloje.
+#
+# POR QUÉ existe: Genesis (/genesis y /api/mando/*) solo lo servía la Mac. Con la Mac apagada o sin
+# internet no había sala de control. El A1 (2 OCPU, 12 GB, 24/7) la sirve desde un móvil o cualquier
+# neurona, con la misma cuenta.
+#
+# CONDICIONES DE INSTALACIÓN (líneas `# requiere:`): `preparar-a1.sh` solo instala esta unidad si existen
+# TODAS las rutas: la build en /opt/starseed/genesis y el Node de /usr/local/bin (el mismo que usa la puerta
+# de datos: `NODE_A1` en scripts/puente/puerta_datos.py). Sin build verde, o con Node en otro sitio, no hay
+# servicio: la unidad simplemente no está y `preparar-a1.sh` lo dice en su registro, en vez de dejar un
+# servicio roto reiniciándose con 203/EXEC hasta agotar StartLimit. Si en el A1 `command -v node` dijera
+# otra ruta, se cambia aquí en las DOS líneas (esta de arriba y ExecStart), nunca solo en una.
+#
+# DE DÓNDE SALE LA BUILD: de un directorio de SERVICIO separado del árbol del guardián. El guardián
+# (`oracle_a1.py`, PASOS_GUARDIAN: tsc, vitest, mesh y `next build` en la carpeta de trabajo del usuario
+# starseed) da por verde o rojo cada main de la Mac. El paso de despliegue que añadirá `oracle_a1.py`
+# (NO está aquí, ni lo hace este archivo) copiará a /opt/starseed/genesis, solo cuando ese ciclo acabe
+# en verde: `.next`, `public`, `package.json`, la configuración de Next y `node_modules`; después
+# `systemctl reset-failed` y reinicio de esta unidad. Una build roja NUNCA llega aquí.
+#
+# QUIÉN PUEDE TOCAR EL CÓDIGO QUE SE SIRVE (el hallazgo más serio de la revisión de COL1012Md-d1):
+# Genesis es lo único del A1 que habla con internet, y por él pasan las cookies y los Bearer de los
+# miembros de MetaGenesis. En el mismo A1 corre `starseed-medio` como usuario `starseed`, y ese ejecuta
+# código no confiable (agentes con modelos gratuitos y shell; pruebas sobre ramas de la nube). Si Genesis
+# fuera del usuario `starseed`, o su carpeta escribible por él, ese código podría reescribir el JS que se
+# sirve (el guardián incluido), mandarle señales o leer su entorno. Por eso:
+#   · Identidad propia: DynamicUser=yes. systemd crea un usuario efímero solo para este servicio, sin
+#     shell y sin ningún grupo en común con `starseed`; el enjambre no puede ni matarlo ni leer su memoria.
+#   · El código es de ROOT y de solo lectura para el servicio: /opt/starseed/genesis es root:root 755, sin
+#     ReadWritePaths. Lo único que escribe `next start` es su caché, que vive en /var/cache/starseed-genesis
+#     (CacheDirectory= la crea y es la única ruta escribible); el paso de despliegue deja `.next/cache`
+#     como ENLACE SIMBÓLICO a esa carpeta (el enlace lo crea root; el servicio no necesita escribir el árbol).
+#   · El despliegue COPIA SIEMPRE (`cp -a` o `rsync -a`) hacia /opt/starseed/genesis y deja root:root. Nunca
+#     un enlace físico (hardlink) ni un enlace simbólico hacia el árbol del guardián: un enlace físico
+#     comparte inodo con ~/starseed-system/node_modules, así que editar el archivo desde el home de
+#     `starseed` lo editaría también en /opt, y ProtectHome no protege de eso.
+#   · /etc/starseed/genesis.env es root:root 600: lo lee PID 1 al arrancar la unidad (EnvironmentFile se
+#     lee antes de cambiar de usuario), el servicio no hace falta que pueda leerlo y el enjambre tampoco.
+#
+# SESIÓN Y SEGURIDAD (la prueba obligatoria del contrato §5: desde fuera y sin sesión, 401 o 403):
+#   · Escucha SOLO en el bucle local. Lo único que lo alcanza desde fuera es Caddy, que pone el
+#     certificado y manda la IP real de quien llama en X-Real-IP.
+#   · Nunca se activa el modo local del despliegue (el que deja pasar CUALQUIER petición sin sesión);
+#     aquí no se define ni en el entorno ni en el archivo de variables.
+#   · STARSEED_PUBLICO=1 anula además la confianza en «viene de localhost»: detrás de un proxy, todo
+#     lo que ve este proceso llega desde el bucle local, así que nada puede pasar por «local». Con
+#     esa variable, cada petición exige sesión de Supabase y ser miembro de MetaGenesis.
+#   · STARSEED_MANDO=1 enciende la consola (sin él, en producción, /api/mando/* responde 404).
+#
+# RIESGO RESIDUAL (anotado para COL1012Md-d2, no resuelto aquí): el puerto 127.0.0.1:9002 es TCP, y
+# cuando este servicio está caído (StartLimit agotado, reinicio de un despliegue) cualquier proceso del A1,
+# `starseed-medio` incluido, puede ocuparlo y recoger lo que Caddy le mande: cookies y Bearer. Una unidad
+# de systemd no lo puede impedir sola. Salidas reales: un `.socket` de root con `systemd-socket-proxyd` y
+# PrivateNetwork/JoinsNamespaceOf, para que el puerto interno no se alcance desde otros procesos del host;
+# o que Caddy hable con Genesis por un socket Unix (Next no lo ofrece sin servidor propio). Mientras no se
+# haga, la defensa es que la caída dure poco (Restart=always, RestartSec=10) y que el despliegue use
+# `restart` y no `stop` + `start`.
+#
+# MEMORIA (medido el 2026-10-12: 12 GB en el A1, el guardián llega a ~5 GB con `next build`, BitNet
+# ~2 GB, el medio hasta 9 GB): Genesis tiene techo propio. NODE_OPTIONS fija el montón de Node en 2 GB;
+# MemoryHigh frena antes de llegar al corte; MemoryMax lo corta. OOMScoreAdjust protege a Genesis si el
+# núcleo tiene que elegir entre procesos (el guardián se reinicia solo; la sala de control, no debe
+# caerse la primera).
+StartLimitIntervalSec=600
+StartLimitBurst=10
 
 [Service]
-User=starseed
-Group=starseed
+Type=simple
+DynamicUser=yes
 WorkingDirectory=/opt/starseed/genesis
-Environment=STARSEED_MANDO=1 Environment=STARSEED_MEDIO=oracle Environment=STARSEED_DONDE=oracle Environment=STARSEED_ROOT=/home/starseed/starseed-system
-Environment=STARSEED_WT=/home/starseed/starseed-wt NODE_OPTIONS=--max-old-space-size=2048
-ExecStart=/home/starseed/.local/bin/next start -p 9002 -H 127.0.0.1
-Restart=on-failure
-RestartSec=30
+CacheDirectory=starseed-genesis
+CacheDirectoryMode=0750
+Environment=NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
+Environment=STARSEED_MANDO=1 STARSEED_PUBLICO=1
+Environment=STARSEED_ROOT=/opt/starseed/genesis STARSEED_DONDE=oracle
+Environment=NODE_OPTIONS=--max-old-space-size=2048
+# Solo NOMBRES de variable, nunca valores en el repositorio. El archivo lo crea Alex en el A1 (root:root 600)
+# para lo que el servicio necesite en TIEMPO DE EJECUCIÓN; hoy no hace falta ninguna. OJO, que es la trampa
+# de las variables públicas: `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` NO se leen aquí.
+# Next las incrusta en el código al COMPILAR (en el paquete del servidor y en el del navegador), así que
+# ponerlas en este archivo y reiniciar no cambia nada: el login no funcionaría. Han de estar en el entorno
+# del `next build` del paso de despliegue (son públicas por diseño; el contrato §6 lo repite). NO se pone
+# aquí la clave de servicio de Supabase: Genesis no la usa y este es el único servicio del A1 expuesto a
+# internet. El guion hace que la ausencia del archivo no impida el arranque: sin las variables compiladas
+# el guardián responde 401/503, nunca deja pasar.
+EnvironmentFile=-/etc/starseed/genesis.env
+ExecStart=/usr/local/bin/node /opt/starseed/genesis/node_modules/next/dist/bin/next start -p 9002 -H 127.0.0.1
+# `next start` termina con código 0 al recibir SIGTERM, y un SIGTERM que NO viene de `systemctl` (otro
+# proceso, un pkill, el OOM del contenedor) lo deja parado con éxito: con Restart=on-failure esa salida
+# limpia no se relanzaría. Con «always» sí, y un `systemctl stop` manual sigue parándolo. (Un reinicio de
+# la máquina no depende de esto: la unidad está habilitada en multi-user.target y arranca igual.)
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+MemoryHigh=2560M
 MemoryMax=3G
-NoNewPrivileges=true
+# Por debajo de BitNet (400): las neuronas esperan respuesta de BitNet antes que la de la sala de control.
+# Por encima del medio del enjambre (50): es lo que ve el usuario, el enjambre es trabajo de fondo.
+CPUWeight=200
+OOMScoreAdjust=-200
+# Endurecido: es lo único del A1 que habla con internet a través de Caddy, y sirve código de aplicación.
+# No escribe en ningún sitio salvo su caché (CacheDirectory); todo lo demás va en solo lectura.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
 ProtectSystem=strict
-ProtectHome=true
-PrivateTmp=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+# ProtectProc=invisible esconde los procesos de los demás (el enjambre incluido). NO se pone ProcSubset=pid:
+# oculta /proc/stat, /proc/cpuinfo y /proc/meminfo, y entonces `os.cpus()` de Node devuelve [] y la RAM libre
+# se mide con `os.freemem()` (MemFree, no MemAvailable). Genesis decidiría y enseñaría hardware falso:
+# `perfilDeEstaMaquina` (donde-razona-servidor.ts, rutas /api/ai/astraura-158) supondría 1 núcleo y podría
+# mandar el razonamiento a la nube con BitNet en el A1; `medirHardware` daría 0 núcleos; y neurona.ts daría
+# menos RAM disponible de la que hay.
+ProtectProc=invisible
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+# Solo las llamadas al sistema de un servicio normal. Si una faltara, el proceso recibe EPERM y lo
+# cuenta en el registro, en vez de morir de golpe con SIGSYS. (Sin comprobar contra Node en el A1: si el
+# registro mostrara EPERM inesperados, se afina aquí.)
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+RestrictNamespaces=yes
+RestrictRealtime=yes
+ProtectClock=yes
+ProtectHostname=yes
+RemoveIPC=yes
+# Sin capacidades de root (escucha en un puerto alto) y sin que lo que escribe lo lea otro usuario.
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0027
 
 [Install]
 WantedBy=multi-user.target
