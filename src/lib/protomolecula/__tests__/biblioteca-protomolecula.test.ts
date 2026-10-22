@@ -76,6 +76,13 @@ describe("fichasProtomolecula", () => {
     expect(f.versionDisponible).toBeUndefined();
   });
 
+  it("la licencia de versiones tiene precedencia sobre la del catálogo", () => {
+    const catalogo = [herramienta({ id: "completa", categoria: "ia-generativa", licencia: "GPL-3.0", web: "https://ejemplo.com" })];
+    const [f] = fichasProtomolecula({ completa: { version: "2.0.0", licencia: "Apache-2.0" } }, catalogo);
+    expect(f.licencia).toBe("Apache-2.0");
+    expect(f.enlaces.web).toBe("https://ejemplo.com");
+  });
+
   it("herramienta sin repositorio sale sin enlace de repo (nada que comprobar)", () => {
     const catalogo = [herramienta({ id: "estandar", categoria: "conversion-formatos", codigo: null })];
     const [f] = fichasProtomolecula({}, catalogo);
@@ -97,6 +104,28 @@ describe("fichasProtomolecula", () => {
     expect(f.nombre).toBe("Sala propia");
     expect(f.estado).toBe("integrada");
     expect(f.categoria).toBe("vr-ar");
+  });
+
+  it("un átomo trae su licencia y sus enlaces cuando no está en el catálogo", () => {
+    registrarAtomo(atomo("propio-con-ficha", "ia", {
+      nombre: "Propia con ficha",
+      ficha: { licencia: "MIT", web: "https://web.propia", repo: "https://github.com/ale/propia" },
+    }));
+    const [f] = fichasProtomolecula({}, []);
+    expect(f.licencia).toBe("MIT");
+    expect(f.enlaces.web).toBe("https://web.propia");
+    expect(f.enlaces.repo).toBe("https://github.com/ale/propia");
+  });
+
+  it("las fichas de átomos salen en el orden del contrato (imagen → … → ia)", () => {
+    const contrato = ["imagen", "audio", "video", "3d", "arquitectura", "fisicas", "juegos", "vr-ar", "codigo", "ia"];
+    // Se registran desordenados a propósito: el orden lo pone la ficha, no el registro.
+    for (const categoria of [...contrato].reverse()) {
+      registrarAtomo(atomo(`atomo-${categoria}`, categoria as CategoriaAtomo));
+    }
+    const fichas = fichasProtomolecula({}, []);
+    expect(fichas.map((f) => f.categoria)).toEqual(contrato);
+    expect(ORDEN_GRUPOS_PROTO.slice(0, contrato.length)).toEqual(contrato);
   });
 
   it("un átomo 'proximamente' no se registra (regla del núcleo): sin ficha duplicada", () => {
