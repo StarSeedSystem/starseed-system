@@ -6,6 +6,19 @@ import type { NeuronaReticula, Tesela, Medio, SenalMedida } from "./tipos";
 export const COORDINACION_TITANIO = 6;
 export const MARGEN_TITANIO = 0.30;
 
+/**
+ * Coordinación del titanio en la retícula (§8.1 «titanio portátil»): 6 con
+ * corriente, batería desconocida o ≥ 50 %; 4 entre 20 y 50 %; 3 por debajo
+ * del 20 %. Mismas reglas que el titanio portátil de la red, sin depender
+ * del módulo de red (el cristal no depende de la red).
+ */
+export function coordinacionTitanio(n: NeuronaReticula): number {
+  if (n.capacidad.cargando || n.capacidad.bateriaPct === null) return COORDINACION_TITANIO;
+  if (n.capacidad.bateriaPct >= 50) return COORDINACION_TITANIO;
+  if (n.capacidad.bateriaPct >= 20) return 4;
+  return 3;
+}
+
 export function esTitanio(n: NeuronaReticula): boolean {
   return n.esRouter === true;
 }
