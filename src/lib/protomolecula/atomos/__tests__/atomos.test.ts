@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach } from "vitest";
 import { ATOMOS_PROPIOS, VISTAS_COMPONENTE, registrarAtomosPropios } from "../index";
-import { candidatosDe, limpiarRegistro, listarAtomos, registrarAtomo } from "../../registro-atomos";
+import { candidatosDe, limpiarRegistro, listarAtomos, obtenerAtomo, registrarAtomo } from "../../registro-atomos";
 import { entenderDictado } from "../../dictado";
 import type { AtomoEnUso, Autor, Molecula } from "../../tipos";
 
@@ -34,6 +34,11 @@ describe("átomos propios", () => {
     expect(VISTAS_COMPONENTE).toBeTypeOf("object");
   });
 
+  it("no hay ids de herramienta repetidos entre los átomos propios", () => {
+    const ids = ATOMOS_PROPIOS.map((def) => def.herramientaId);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("cada definición pasa registrarAtomo", () => {
     for (const def of ATOMOS_PROPIOS) {
       limpiarRegistro();
@@ -41,12 +46,15 @@ describe("átomos propios", () => {
     }
   });
 
-  it("registrarAtomosPropios es idempotente", () => {
+  it("registrarAtomosPropios es idempotente y deja cada átomo obtenible", () => {
     registrarAtomosPropios();
     const primera = listarAtomos().length;
     registrarAtomosPropios();
     expect(listarAtomos().length).toBe(primera);
     expect(primera).toBe(ATOMOS_PROPIOS.length);
+    for (const def of ATOMOS_PROPIOS) {
+      expect(obtenerAtomo(def.herramientaId)).toBeDefined();
+    }
   });
 
   it("VISTAS_COMPONENTE solo guarda cargadores de componente", () => {
