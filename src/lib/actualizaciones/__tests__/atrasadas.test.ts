@@ -13,9 +13,10 @@ const ULTIMA_SEIS: VersionesPorCapa = {
 };
 
 /**
- * Casos de `neuronasAtrasadas` (19): la neurona al día no aparece, versión
- * ausente, prioridad de motivos, capa sin `ultima` se ignora, versión por
- * delante, texto del atraso y orden estable (nombre, luego id).
+ * Casos de `neuronasAtrasadas` (21): la neurona al día no aparece, versión
+ * ausente, prioridad de motivos (incluido «fallo» sobre «offline»), capa sin
+ * `ultima` se ignora, versión por delante, texto del atraso y orden estable
+ * (nombre, luego id).
  */
 describe("neuronasAtrasadas", () => {
   it("doesn’t include neurons that are up-to-date with all layers", () => {
@@ -113,6 +114,23 @@ describe("neuronasAtrasadas", () => {
     expect(atrasos).toHaveLength(1);
     expect(atrasos[0].motivo).toBe("offline");
     expect(atrasos[0].texto).toContain("no está en línea");
+  });
+
+  it("prioritizes 'fallo' over 'offline' cuando ambos coinciden", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a19",
+        nombre: "Neuron Fallo y Offline",
+        online: false,
+        versiones: { datos: "2025.12.01" },
+        fallo: "sin espacio en disco"
+      }
+    ];
+    const ultima: VersionesPorCapa = { datos: "2026.01.01" };
+    const atrasos = neuronasAtrasadas(neuronas, ultima);
+    expect(atrasos).toHaveLength(1);
+    expect(atrasos[0].motivo).toBe("fallo");
+    expect(atrasos[0].texto).toContain("falló");
   });
 
   it("prioritizes 'espera-wifi' over pospuesta", () => {
