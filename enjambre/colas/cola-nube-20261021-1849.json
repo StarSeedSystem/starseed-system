@@ -1,0 +1,45 @@
+{
+ "ola": "nube-20261021",
+ "tareas": [
+  {
+   "ola": "Ola 1012T · Capacidad: las comprobaciones pesadas de la Mac van al A1 (12 GB)",
+   "importancia": "capacidad",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261014-142215-TRA1012Bb",
+   "id": "TRA1012Bc-d1",
+   "titulo": "La puerta tsc del orquestador de la Mac se hace en el A1 cuando responde (parte 1 de 2)",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py"
+   ],
+   "depende": [],
+   "prompt": "En scripts/enjambre/starseed-enjambre.py, la función que corre la puerta tsc de una tarea (busca `npx tsc --noEmit --skipLibCheck` bajo `SEM_PESADO, cerrojo(\"pesado\")`), cuando el orquestador corre en la Mac (`STARSEED_MEDIO=mac`) y existe scripts/puente/comprobar_en_a1.py (TRA1012A), primero pide la comprobación al A1 con la rama `ola/<id>` (base = main del worktree, shas = los commits de la tarea): si el A1 contesta verde o rojo, ese es el resultado de la puerta (con el mismo formato de errores para la reparación automática); si es fallo del medio (A1 ocupado, sin respuesta), corre el tsc local como hoy. Anota en el evento de la puerta dónde se comprobó («A1» o «Mac») y cuánto tardó. Pruebas con la función remota falsa: verde remoto no lanza tsc local; rojo remoto devuelve los errores; medio remoto cae al local.\n\nContexto medido el 12-10 (hora de la Mac): con 8 GB, cada tsc completo en la Mac pesa ~3,2–3,7 GB y tarda 5–15 min con la swap llena; el gobernador baja a 2 agentes por eso. En el A1 de Oracle (12 GB, siempre encendido) el mismo tsc tarda ~20 s–4 min (guardián). La Mac ya habla con el A1 por SSH con `oracle_nodo.ssh(orden, entrada, timeout)` y le deja paquetes git (`enviar_main`). Reglas: nunca imprimir la IP (`oracle_nodo.tachar`), nada de claves en código ni registros, comentarios en español con el porqué, pruebas con ssh y git falsos (sin red). Para tipos usa `bash scripts/enjambre/tsc-turno.sh`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261014-142215-TRA1012Bb`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261014-142215-TRA1012Bb:refs/remotes/origin/nube/a1-20261014-142215-TRA1012Bb\"` y `git cherry-pick --no-commit a7e7e6359936`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/enjambre/starseed-enjambre.py, scripts/enjambre/test_tsc_remoto.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió TRA1012Bc: falla por sí misma (tarea:escalera))\nEn esta parte tocas SOLO: scripts/enjambre/starseed-enjambre.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "TRA1012Bc",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:escalera)"
+   },
+   "dependencias_ya_en_main": [
+    "TRA1012A"
+   ]
+  },
+  {
+   "id": "ZEN1021B",
+   "ola": "1021M",
+   "importancia": "capacidad",
+   "titulo": "Capacidad · «Buscar más capacidad» y el tope de la nube cuentan OpenCode Zen como escritor (sin sondearlo por HTTP)",
+   "archivos": [
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/enjambre/sonda_escritor.py",
+    "scripts/puente/test_buscar_capacidad.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (2026-10-21): OpenCode Zen entró como escritor gratuito (commits ce8f26a7c y 1618784f8: `MODELOS_ZEN_GRATIS` y `hay_clave_zen` en scripts/enjambre/starseed-enjambre.py; la clave viaja como OPENCODE_API_KEY en ~/.starseed/env de la Mac y del A1 y como secreto de GitHub para la nube). Escribe de verdad con opencode (medido en la Mac y en el A1). Pero «Buscar más capacidad» sigue diciendo «Escritores que pueden escribir ahora: freellmapi, nvidia» y el tope de jobs de la nube cuenta 1 escritor vivo, porque Zen no es un bloque `provider` de ~/.config/opencode/opencode.json (es nativo de opencode) y `representantes()` solo mira esos bloques. OJO, medido: Zen gratis NO se puede sondear por HTTP: `POST https://opencode.ai/zen/v1/chat/completions` con la clave devuelve 403 `FreeTierError` «OpenCode's free tier can only be used from within OpenCode». Por eso NUNCA hay que sondearlo por HTTP ni tratar ese 403 como «sin crédito».\n\nArreglo:\n1. `scripts/puente/buscar_capacidad.py`: «opencode» en `PROVEEDORES_NUBE`; `representantes()` añade el grupo «opencode» con los modelos de `MODELOS_ZEN_GRATIS` (cópialos como constante aquí, sin importar el orquestador) solo si hay OPENCODE_API_KEY en el entorno o en ~/.starseed/env, o proveedor «opencode» en ~/.local/share/opencode/auth.json; ese grupo no se sondea por HTTP y cuenta como apto con motivo «sin sonda: Zen gratis solo responde dentro de opencode».\n2. `scripts/enjambre/sonda_escritor.py`: en `clasificar`, un 403 cuyo texto contenga «FreeTierError» no es «sin crédito»: devuelve apto=True con motivo «Zen gratis: solo dentro de opencode» (por si alguien lo sondea igualmente).\n3. `scripts/puente/test_buscar_capacidad.py`: pruebas de que con clave Zen el grupo aparece y cuenta en `escritores_en_la_nube`, sin clave no; y del 403 FreeTierError en sonda_escritor si cabe en el mismo archivo (si no, en scripts/enjambre/test_sonda_escritor.py en lugar del 3, máximo 3 archivos).\n\nCorre las pruebas tocadas con `python3 -m unittest` y lee su resumen entero."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "TRA1012Bc-d1",
+   "ZEN1021B"
+  ]
+ }
+}
