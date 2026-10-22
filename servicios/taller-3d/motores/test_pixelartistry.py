@@ -164,6 +164,24 @@ class RemallarImagen(unittest.TestCase):
         self.assertEqual(prompt["1"]["inputs"]["image"], "avatar.png")
         self.assertEqual(prompt["2"]["inputs"]["resolution"], 1536)
 
+    def test_no_disponible_devuelve_dict_de_error_completo(self):
+        """Rescate SP092929b: con el motor no disponible, remallar_imagen sale por la
+        puerta temprana y aun así devuelve el dict completo del taller (procedencia incluida)."""
+        # Linux explícito aunque la suite corra en Mac o Windows: dentro del with no toca red ni comfy.
+        with mock.patch.object(pa.platform, "system", return_value="Linux"):
+            r = pa.remallar_imagen("image.png", resolucion=512, carpeta_workflows=self.tmp,
+                                   comfy=ComfyFalso(), dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        self.assertIsInstance(r["procedencia"], list)
+        piezas = [p["pieza"] for p in r["procedencia"]]
+        self.assertEqual(piezas, ["flujo cerrada", "nodos MostAadTech"])
+        self.assertIsInstance(r["fallo"], str)
+        self.assertIn("solo windows", r["fallo"].lower())
+        self.assertIn("blender-voxel", r["fallo"])
+        self.assertGreaterEqual(r["segundos"], 0.0)
+        self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
+
     def test_sin_flujos_en_disco_pide_el_instalador(self):
         r = pa.remallar_imagen("a.png", carpeta_workflows=self.tmp,
                                comfy=ComfyFalso(), dormir=lambda _: None)
