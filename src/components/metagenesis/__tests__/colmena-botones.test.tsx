@@ -133,22 +133,22 @@ it("con trabajo en curso y contenedor activo, ambos botones requieren confirmaci
         expect(b.desconectar.confirmar).toBeFalsy();
     });
 
-    it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado sin relevo activo", () => {
+    it("con contenedor activo y sin trabajo en curso, sin relevo activo Desconectar remite a «Dejar de usar»", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } });
-        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
+        expect(b.desconectar.explica).toContain("Dejar de usar como contenedor");
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
     });
 
-    it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente sin relevo activo", () => {
+    it("con trabajo en curso de 1 agente sin relevo activo, Desconectar no promete traspaso", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1 });
-        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
-        expect(b.desconectar.explica).toBe(
-            "Guarda el trabajo a medias de sus 1 agente(s) y lo pasa a otro contenedor antes de que este aparato se quede sin internet."
-        );
-        expect(b.desconectar.confirmar).toBe(true);
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
+        expect(b.desconectar.explica).toContain("El traspaso del trabajo a otro contenedor aún no está activo");
+        expect(b.desconectar.explica).toContain("cuando acaben sus 1 tarea(s)");
+        expect(b.desconectar.confirmar).toBeFalsy();
     });
 
-    it("contenedor activo: explica «Termina lo que lleva y no coge más.» y pide confirmar si hay trabajo sin relevo activo", () => {
+    it("contenedor activo sin relevo activo: «Dejar de usar» dice que no para lo que ya corre y no pide confirmar", () => {
         const sin = botonesNeurona({
             nodo: "oracle-a1-bbbbbb",
             vivo: true,
@@ -160,7 +160,7 @@ it("con trabajo en curso y contenedor activo, ambos botones requieren confirmaci
             visible: true,
             habilitado: true,
             etiqueta: "Dejar de usar como contenedor",
-            explica: "Termina lo que lleva y no coge más.",
+            explica: "Deja de ofrecer este aparato como contenedor. No para lo que ya esté corriendo.",
         });
         expect(sin.contenedor.confirmar).toBe(false);
         const con = botonesNeurona({
@@ -170,7 +170,7 @@ it("con trabajo en curso y contenedor activo, ambos botones requieren confirmaci
             enCurso: 1,
             contenedor: { activo: true, agentes: 2, apto: true, motivo: "Listo para trabajar" },
         });
-        expect(con.contenedor.confirmar).toBe(true);
+        expect(con.contenedor.confirmar).toBe(false);
     });
 
     it("sin trabajador: «Instalar el trabajador» visible y habilitado (explica Terminal / Termux)", () => {
