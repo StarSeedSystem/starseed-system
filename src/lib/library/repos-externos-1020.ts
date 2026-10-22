@@ -3,10 +3,9 @@
  * ---------------------------------------------------------------------------
  * Las 14 publicaciones autoactualizables de la Ola 1020 (contrato
  * `architecture/repos-libreria-1020.md` §2-§5), leídas del catálogo VERIFICADO
- * `config/repos-libreria-1020.json` (licencias comprobadas el 2026-10-20 contra
- * `api.github.com/repos/<r>/license`).
+ * `config/repos-libreria-1020.json` (licencias comprobadas el 2026-10-20).
  *
- * Puro: sin red, sin disco, sin `node:*`. Solo el catálogo y un mapeo
+ * Puro: sin red, sin disco, sin `node:*`; solo el catálogo y un mapeo
  * determinista, sin `any`.
  *
  * HONESTIDAD: hoy NINGUNA de las 14 tiene efecto de instalación real —no hay
@@ -25,11 +24,19 @@
 import catalogo from "../../../config/repos-libreria-1020.json";
 import type { LibraryPackage, LibraryRepo, PackageKind } from "./packages";
 
+/**
+ * El catálogo llega TIPADO por el import del JSON: si Alex renombra o rompe un
+ * campo del JSON, el casteo de abajo deja de ser comparable y el `tsc` falla
+ * ruidosamente en vez de publicar una ficha a medias. Los datos son reales y
+ * verificados: no se tocan, se leen.
+ */
+export const CATALOGO_1020 = catalogo;
+
 /** Id del repo builtin donde viven estas 14 publicaciones. */
 export const REPO_EXTERNOS_1020_ID = "starseed-biblioteca-externa";
 
 /** Una entrada del catálogo verificado (los datos son reales: no se tocan). */
-interface EntradaCatalogo {
+export interface EntradaCatalogo {
   id: string;
   repo: string;
   nombre: string;
@@ -50,12 +57,27 @@ const TIPOS: Record<string, { kind: PackageKind; icon: string }> = {
   function: { kind: "function", icon: "Boxes" },
 };
 
+/**
+ * Dueño de un repo de GitHub (`owner/repo`): quien firma la publicación.
+ * Devuelve `null` si el repo no tiene esa forma: sin dueño no hay ni autor
+ * ni URL de release que enseñar, y una ficha a medias sería una mentira.
+ */
+function duenoDe(repo: string): string | null {
+  const partes = repo.split("/");
+  if (partes.length !== 2) return null;
+  const dueno = partes[0]?.trim() ?? "";
+  const nombre = partes[1]?.trim() ?? "";
+  if (!dueno || !nombre) return null;
+  return dueno;
+}
+
 /** Mapea una entrada del catálogo a una publicación de la Biblioteca. */
 function mapearEntrada(entrada: EntradaCatalogo): LibraryPackage | null {
   const tipo = TIPOS[entrada.kind];
   // Un tipo que no conocemos no se publica: se calla antes que mentir en la ficha.
   if (!tipo) return null;
-  const owner = entrada.repo.split("/")[0] ?? entrada.repo;
+  const dueno = duenoDe(entrada.repo);
+  if (!dueno) return null;
   const descripcion = entrada.aviso
     ? `${entrada.que_es} — ${entrada.aviso}`
     : entrada.que_es;
@@ -70,7 +92,7 @@ function mapearEntrada(entrada: EntradaCatalogo): LibraryPackage | null {
     icon: tipo.icon,
     tags: etiquetas,
     version: "1.0.0",
-    author: owner,
+    author: dueno,
     sourceRepoId: REPO_EXTERNOS_1020_ID,
     free: true,
     // Sin efecto real todavía → el botón queda deshabilitado (honestidad).
@@ -92,7 +114,7 @@ export const REPO_EXTERNOS_1020: LibraryRepo = {
   id: REPO_EXTERNOS_1020_ID,
   name: "Biblioteca externa",
   builtin: true,
-  packages: (catalogo.paquetes as EntradaCatalogo[])
+  packages: (CATALOGO_1020.paquetes as EntradaCatalogo[])
     .map(mapearEntrada)
     .filter((paquete): paquete is LibraryPackage => paquete !== null),
 };
