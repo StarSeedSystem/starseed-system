@@ -120,6 +120,10 @@ describe("analizarIoreg", () => {
     expect(result.uso).toBeNull();
     expect(result.nombre).toBe("Apple M1 Pro");
   });
+
+  it("should report usage even when the model is missing", () => {
+    expect(analizarIoreg(`"Device Utilization %" = 99`)).toEqual({ uso: 99, nombre: null });
+  });
 });
 
 describe("analizarPmset", () => {
@@ -146,6 +150,13 @@ describe("analizarPmset", () => {
     const result = analizarPmset(pmset);
     expect(result.porcentaje).toBe(100);
     expect(result.cargando).toBe(false);
+  });
+
+  it("should report percentage but unknown state when pmset omits it", () => {
+    // pmset puede dar el porcentaje sin decir en qué estado está: no se inventa si carga.
+    const result = analizarPmset("Now drawing from 'AC Power'\n -internalbattery:     90%");
+    expect(result.porcentaje).toBe(90);
+    expect(result.cargando).toBeNull();
   });
 
   it("should return null if percentage not found", () => {
