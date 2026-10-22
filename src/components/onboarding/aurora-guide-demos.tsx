@@ -134,8 +134,8 @@ function TrinityDemo({
     label: string;
   }> = [
     { id: "zenith", color: "#007FFF", dx: 0, dy: -34, label: "Zenith" },
-    { id: "horizon", color: "#39FF14", dx: -40, dy: 0, label: "Horizon" },
-    { id: "logic", color: "#FFBF00", dx: 40, dy: 0, label: "Logic" },
+    { id: "horizon", color: "#39FF14", dx: -56, dy: 0, label: "Horizon" },
+    { id: "logic", color: "#FFBF00", dx: 56, dy: 0, label: "Logic" },
     { id: "anchor", color: "#DC143C", dx: 0, dy: 34, label: "Anchor" },
   ];
   return (
@@ -156,9 +156,9 @@ function TrinityDemo({
           return (
             <motion.div
               key={p.id}
-              className="absolute grid place-items-center rounded-xl text-[8px] font-semibold"
+              className="absolute grid place-items-center rounded-xl text-[11px] font-semibold"
               style={{
-                width: 34,
+                width: 52,
                 height: 22,
                 color: "#fff",
                 border: `1.5px solid ${p.color}`,
