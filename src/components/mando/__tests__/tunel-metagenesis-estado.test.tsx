@@ -10,11 +10,6 @@ describe("TunelMetaGenesisEstado", () => {
 
    beforeEach(() => {
      llamadas.length = 0;
-     // Ensure document is visible for the component to fetch initially
-     Object.defineProperty(document, 'visibilityState', {
-       value: 'visible',
-       configurable: true
-     });
      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
        const url = String(input);
        llamadas.push({ url, init });
