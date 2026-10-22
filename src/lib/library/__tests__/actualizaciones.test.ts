@@ -3,7 +3,10 @@
 import { describe, it, expect } from "vitest";
 import {
     urlDeConsulta,
+    urlDeEtiquetas,
     leerVersion,
+    leerEtiqueta,
+    validarPatronTag,
     compararVersiones,
 } from "../actualizaciones";
 
@@ -68,5 +71,75 @@ describe("compararVersiones", () => {
     it("falta un dato → «desconocida»", () => {
         expect(compararVersiones(undefined, "a1b2c3d")).toBe("desconocida");
         expect(compararVersiones("a1b2c3d", null)).toBe("desconocida");
+    });
+});
+
+describe("canal de etiquetas con patrón (RuView)", () => {
+    const upstream = "https://github.com/ruvnet/RuView";
+    const etiquetas = [
+        { name: "v3263" },
+        { name: "v3264" },
+        { name: "ruview-harness-0.4.1" },
+        { name: "ruview-harness-0.4.0" },
+    ];
+
+    it("con patrón consulta /tags?per_page=100", () => {
+        expect(urlDeConsulta(upstream, "^ruview-harness-")).toBe(
+            "https://api.github.com/repos/ruvnet/RuView/tags?per_page=100",
+        );
+        expect(urlDeEtiquetas(upstream)).toBe(
+            "https://api.github.com/repos/ruvnet/RuView/tags?per_page=100",
+        );
+    });
+
+    it("elige la primera etiqueta ruview-harness-* y se salta v3263", () => {
+        expect(leerVersion(upstream, etiquetas, "^ruview-harness-")).toEqual({
+            version: "ruview-harness-0.4.1",
+            fecha: null,
+        });
+        expect(leerEtiqueta(etiquetas, "^ruview-harness-")).toEqual({
+            version: "ruview-harness-0.4.1",
+            fecha: null,
+        });
+    });
+
+    it("sin coincidencias devuelve «sin versión», no inventa", () => {
+        expect(leerVersion(upstream, etiquetas, "^no-existe-")).toBeNull();
+        expect(leerEtiqueta([], "^ruview-harness-")).toBeNull();
+        expect(leerEtiqueta([{ nombre: "ruview-harness-1" }], "^ruview-harness-")).toBeNull();
+    });
+
+    it("un patrón inválido no rompe: se ignora y se avisa", () => {
+        const roto = validarPatronTag("[");
+        expect(roto.regex).toBeNull();
+        expect(roto.aviso).toContain("no es una expresión regular válida");
+        expect(urlDeConsulta(upstream, "[")).toBe(
+            "https://api.github.com/repos/ruvnet/RuView/commits?per_page=1",
+        );
+        expect(leerVersion(upstream, etiquetas, "[")).toBeNull();
+    });
+
+    it("un patrón de más de 80 caracteres se ignora con aviso", () => {
+        const largo = "a".repeat(81);
+        const validado = validarPatronTag(largo);
+        expect(validado.regex).toBeNull();
+        expect(validado.aviso).toContain("80 caracteres");
+        expect(urlDeConsulta(upstream, largo)).toContain("/commits?per_page=1");
+    });
+
+    it("sin patrón todo sigue igual (commit e Hugging Face)", () => {
+        const commits = [
+            { sha: "a1b2c3d4e5f6", commit: { committer: { date: "2026-09-20T10:00:00Z" } } },
+        ];
+        expect(urlDeConsulta(upstream)).toContain("/commits?per_page=1");
+        expect(leerVersion(upstream, commits)).toEqual({
+            version: "a1b2c3d",
+            fecha: "2026-09-20T10:00:00Z",
+        });
+        expect(validarPatronTag(undefined)).toEqual({
+            patron: null,
+            regex: null,
+            aviso: null,
+        });
     });
 });

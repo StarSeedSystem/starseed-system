@@ -15,20 +15,78 @@ export interface VersionLeida {
     fecha: string | null;
 }
 
+/* ───────────────── Patrón de etiquetas (RuView) ───────────────── */
+
+export interface PatronTagValidado {
+    patron: string | null;
+    regex: RegExp | null;
+    aviso: string | null;
+}
+
+const MAX_PATRON_TAG = 80;
+
+/**
+ * Valida el patrón de etiquetas que llega en `payload.patronTag`.
+ * Vacío → no hay patrón. Demasiado largo o regex inválida → se ignora y se
+ * devuelve el motivo en `aviso` (nunca lanza).
+ */
+export function validarPatronTag(patron: unknown): PatronTagValidado {
+    if (patron === null || patron === undefined || patron === "") {
+        return { patron: null, regex: null, aviso: null };
+    }
+    if (typeof patron !== "string") {
+        return {
+            patron: null,
+            regex: null,
+            aviso: "Patrón de etiqueta ignorado: debe ser texto.",
+        };
+    }
+    const texto = patron.trim();
+    if (!texto) return { patron: null, regex: null, aviso: null };
+    if (texto.length > MAX_PATRON_TAG) {
+        return {
+            patron: null,
+            regex: null,
+            aviso: `Patrón de etiqueta ignorado: supera ${MAX_PATRON_TAG} caracteres.`,
+        };
+    }
+    try {
+        return { patron: texto, regex: new RegExp(texto), aviso: null };
+    } catch {
+        return {
+            patron: null,
+            regex: null,
+            aviso: "Patrón de etiqueta ignorado: no es una expresión regular válida.",
+        };
+    }
+}
+
 /* ───────────────────── URL pública de consulta ───────────────────── */
 
 const RE_GITHUB = /^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+?)(?:\/.*)?$/;
 const RE_HF = /^https?:\/\/huggingface\.co\/([^/\s]+\/[^/\s]+?)(?:\/.*)?$/;
 
+/** URL de las últimas 100 etiquetas de un repo de GitHub (o null). */
+export function urlDeEtiquetas(upstream: string): string | null {
+    const github = RE_GITHUB.exec(upstream);
+    if (!github) return null;
+    const ruta = github[1].replace(/\.git$/, "");
+    return `https://api.github.com/repos/${ruta}/tags?per_page=100`;
+}
+
 /**
  * A qué URL pública hay que pedir para saber la versión de un upstream.
- * GitHub → último commit del repo; Hugging Face → ficha del modelo.
- * Cualquier otra forma devuelve null.
+ * Con `patronTag` válido → etiquetas del repo (RuView solo sigue
+ * `ruview-harness-*`); sin patrón → último commit. Hugging Face → ficha.
+ * Un patrón inválido se ignora y se cae al canal normal.
  */
-export function urlDeConsulta(upstream: string): string | null {
+export function urlDeConsulta(upstream: string, patronTag?: unknown): string | null {
     const github = RE_GITHUB.exec(upstream);
     if (github) {
         const ruta = github[1].replace(/\.git$/, "");
+        if (validarPatronTag(patronTag).regex) {
+            return `https://api.github.com/repos/${ruta}/tags?per_page=100`;
+        }
         return `https://api.github.com/repos/${ruta}/commits?per_page=1`;
     }
     const hf = RE_HF.exec(upstream);
@@ -45,11 +103,36 @@ function esCadena(v: unknown): v is string {
 }
 
 /**
- * Saca `{version, fecha}` del JSON de la consulta: sha corto y fecha del
- * commit en GitHub (lista), o `sha`/`lastModified` del modelo en HF (objeto).
+ * Primera etiqueta de la lista `/tags?per_page=100` cuyo nombre case con el
+ * patrón, en el orden que devuelve GitHub. Sin patrón válido o sin
+ * coincidencias devuelve null: no se inventa una versión.
+ */
+export function leerEtiqueta(json: unknown, patronTag: unknown): VersionLeida | null {
+    const { regex } = validarPatronTag(patronTag);
+    if (!regex || !Array.isArray(json)) return null;
+    for (const etiqueta of json) {
+        const nombre = (etiqueta as { name?: unknown } | null)?.name;
+        if (esCadena(nombre) && regex.test(nombre)) {
+            return { version: nombre, fecha: null };
+        }
+    }
+    return null;
+}
+
+/**
+ * Saca `{version, fecha}` del JSON de la consulta: con `patronTag`, la primera
+ * etiqueta que case (RuView); sin patrón, sha corto y fecha del commit en
+ * GitHub (lista), o `sha`/`lastModified` del modelo en HF (objeto).
  * Si no se puede leer nada, devuelve null.
  */
-export function leerVersion(upstream: string, json: unknown): VersionLeida | null {
+export function leerVersion(
+    upstream: string,
+    json: unknown,
+    patronTag?: unknown,
+): VersionLeida | null {
+    if (RE_GITHUB.test(upstream) && validarPatronTag(patronTag).regex) {
+        return leerEtiqueta(json, patronTag);
+    }
     if (urlDeConsulta(upstream)?.includes("api.github.com")) {
         if (!Array.isArray(json) || json.length === 0) return null;
         const primero = json[0] as { sha?: unknown; commit?: { committer?: { date?: unknown } } };
