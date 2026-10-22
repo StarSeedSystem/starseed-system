@@ -1,13 +1,12 @@
 import { describe, it, expect } from "vitest";
+import { fusionarBots, type BotSync } from "../sincronia-bots";
 import {
-  fusionarBots,
   abiertosEnEstaNeurona,
   marcarAbierto,
   migrarAbiertosDesdeAntigua,
 } from "../adaptadores/sincronia-bots";
-import type { Bot } from "../tipos";
 
-function botEjemplo(id: string): Bot {
+function botEjemplo(id: string, actualizado = 0): BotSync {
   return {
     id,
     nombre: `Bot ${id}`,
@@ -25,34 +24,41 @@ function botEjemplo(id: string): Bot {
     cuerpo: { forma: "orbe", tono: 200, escala: 1 },
     sentidosHabilitados: ["pantalla", "red"],
     activo: true,
+    actualizado,
   };
 }
 
-describe("fusionarBots", () => {
+describe("fusionarBots (núcleo puro)", () => {
   it("gana el más reciente por actualizado", () => {
-    const local = { bots: [botEjemplo("b1"), botEjemplo("b2")], actualizado: { b1: 1000, b2: 2000 } };
-    const remoto = { bots: [botEjemplo("b1"), botEjemplo("b3")], actualizado: { b1: 2000, b3: 1500 } };
+    const local: BotSync[] = [botEjemplo("b1", 1000), botEjemplo("b2", 2000)];
+    const remoto: BotSync[] = [botEjemplo("b1", 2000), botEjemplo("b3", 1500)];
     const res = fusionarBots(local, remoto);
-    const ids = res.bots.map((b) => b.id).sort();
+    const ids = res.map((b) => b.id).sort();
     expect(ids).toEqual(["b1", "b2", "b3"]);
-    const actualizadoRes = res.actualizado;
-    expect(actualizadoRes["b1"]).toBe(2000);
+    expect(res.find((b) => b.id === "b1")?.actualizado).toBe(2000);
   });
 
   it("conserva local si no está en remoto", () => {
-    const local = { bots: [botEjemplo("b-local")], actualizado: { "b-local": 1000 } };
-    const remoto = { bots: [], actualizado: {} };
-    const res = fusionarBots(local, remoto);
-    expect(res.bots.length).toBe(1);
-    expect(res.bots[0].id).toBe("b-local");
+    const res = fusionarBots([botEjemplo("b-local", 1000)], []);
+    expect(res.length).toBe(1);
+    expect(res[0].id).toBe("b-local");
+  });
+
+  it("descarta el bot remoto inválido sin perder el local", () => {
+    const valido = botEjemplo("b-v", 500);
+    const invalido = { ...botEjemplo("b-i", 900), actualizado: -3 } as unknown as BotSync;
+    const res = fusionarBots([botEjemplo("b-i", 100)], [valido, invalido]);
+    expect(res.map((b) => b.id).sort()).toEqual(["b-i", "b-v"]);
+    expect(res.find((b) => b.id === "b-i")?.actualizado).toBe(100);
   });
 
   it("fusión determinista", () => {
-    const local = { bots: [botEjemplo("A")], actualizado: { A: 100 } };
-    const remoto = { bots: [botEjemplo("A")], actualizado: { A: 150 } };
+    const local: BotSync[] = [botEjemplo("A", 100)];
+    const remoto: BotSync[] = [botEjemplo("A", 150)];
     const r1 = fusionarBots(local, remoto);
     const r2 = fusionarBots(local, remoto);
-    expect(r1.bots.map((b) => b.id).sort()).toEqual(r2.bots.map((b) => b.id).sort());
+    expect(r1.map((b) => b.id).sort()).toEqual(r2.map((b) => b.id).sort());
+    expect(r1.map((b) => b.actualizado)).toEqual(r2.map((b) => b.actualizado));
   });
 });
 

@@ -4568,3 +4568,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1accbbbbbb` — los tipos no compilan: 12 errores tsc (rama ola/RTRTRTS1010-EV-ORACLE-1accbbbbbb conservada)
 - `CB1013S` — no escribió nada
 - `VPU1019W` — no escribió nada
+
+## 2026-10-16 07:09 · mg-oracle-1015-2329
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (RTRTRTS1010-EV-ORACLE-1accbbb, S1010-ACT5d, S1010-ACT2c). Es 75 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTS1010-EV-ORACLE-1accbbb` — otra cosa: degenerado: src/lib/astraura-bots/sincronia-bots.ts: encogió de 85 a 36 líneas (más de la mitad)
+- `S1010-ACT5d` — otra cosa: degenerado: src/lib/astraura-bots/sincronia-bots.ts: encogió de 85 a 36 líneas (más de la mitad)
+- `S1010-ACT2c` — otra cosa: ningún proveedor respondió (todos caídos)
