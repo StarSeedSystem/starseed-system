@@ -122,6 +122,32 @@ class GenesisEnA1(unittest.TestCase):
         self.assertTrue(any(".next/BUILD_ID" in l for l in exige), exige)
         self.assertTrue(any("/usr/local/bin/node" in l for l in exige), exige)
 
+    def test_los_comentarios_no_cuentan_al_aplicar(self):
+        """Lo que se vigila es lo que de verdad se aplica: los comentarios no aplican
+        (rescate de nube/39717140328). Así un ejemplo con IP de documentación escrita en un
+        comentario no cuenta como configuración activa."""
+        self.assertEqual(configuracion("# genesis.example.com 203.0.113.9\nExecStart=x"), "ExecStart=x")
+        self.assertEqual(configuracion("ExecStart=x\n\n   \nRestartSec=10"), "ExecStart=x\nRestartSec=10")
+
+    def test_el_execstart_sirve_la_copia_servida_de_opt(self):
+        """El binario que arranca es el de la copia servida en /opt/starseed/genesis (root,
+        solo lectura); nunca el `next` de ~/.local/bin (el del lanzador o el del guardián)."""
+        arranque = next(l for l in self.unidad_cfg.splitlines() if l.startswith("ExecStart="))
+        self.assertIn("/opt/starseed/genesis", arranque)
+        self.assertNotIn(".local/bin/next", arranque)
+
+    def test_caddy_no_borra_la_cookie_de_sesion(self):
+        """Copiar el borrado de `Cookie` de la puerta de datos (`servicios/puerta-datos/src/caddy.mjs`)
+        rompería la sesión: sin la cookie de Supabase, Genesis respondería 401 a todo el mundo."""
+        self.assertNotRegex(self.caddy_cfg, r'header_up\s+-\s*"?Cookie')
+
+    def test_caddy_no_publica_rutas_que_se_apoyan_en_no_estar_en_la_mac(self):
+        """Rutas que lanzan un binario con la URL de quien llama, gastan créditos del OS sin
+        preguntar, hablan con el daemon de voz de la Mac o son un buzón abierto: no se publican.
+        Se mide lo ACTIVO (las notas del Caddyfile sí las nombran y no por eso cuentan)."""
+        for ruta in ("/api/agent-reach", "/api/astraura/decidir", "/api/voz-local/", "/api/telegram/send"):
+            self.assertNotIn(ruta, self.caddy_cfg, f"{ruta} no debe publicarse en el A1")
+
 
 if __name__ == "__main__":
     unittest.main()
