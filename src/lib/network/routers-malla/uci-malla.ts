@@ -2,13 +2,16 @@
  * batman-adv (BATMAN_V) y el guion sh que lo aplica por SSH. Puro: sin red, sin disco ni `node:*`. Pide OpenWrt 23.05 o
  * 24.10 (opkg, wpad-mesh-mbedtls, radios con `band`, puente `config device` br-lan); las de apk aún no. SIN PROBAR
  * en un router real: solo vitest sobre el texto. Sangría con espacios: un tabulador pegado dispara el autocompletado. */
-import { uciPuerta, uciClientePuerta, guionGuardianTope } from './uci-puerta';
+import { uciPuerta, uciClientePuerta, guionGuardianTope, type CfgPuerta } from './uci-puerta';
+import { restanteParaOtrosMb, TIPOS_PUERTA, type PuertaInternet } from '../../malla/cristal/puertas-internet';
 
 export type BandaWifi = "2g" | "5g" | "6g";
 export interface TroncalUci { banda: BandaWifi; canal: number; anchoMhz: number; pireDbm: number }
 export interface ClienteUci { canal: number; ssid: string; clave: string }
-export interface CfgUciMalla { router: string; meshId: string; claveMalla: string; region: string; troncal: TroncalUci; cliente: ClienteUci }
-export interface UciMalla { wireless: string; network: string }
+/** Puerta de internet declarada en el router (§8.1) con el tope del dueño que necesita el guardián. */
+export interface CfgPuertaMalla extends CfgPuerta { topeMensualMb?: number; reservaDuenoPct?: number }
+export interface CfgUciMalla { router: string; meshId: string; claveMalla: string; region: string; troncal: TroncalUci; cliente: ClienteUci; puerta?: CfgPuertaMalla }
+export interface UciMalla { wireless: string; network: string; firewall?: string }
 type Opciones = Array<[string, string | number]>;
 
 const ANCHOS: Record<BandaWifi, number[]> = { "2g": [20, 40], "5g": [20, 40, 80, 160], "6g": [20, 40, 80, 160] };
@@ -40,15 +43,58 @@ function validar(e: CfgUciMalla): string {
   return pais;
 }
 
-/** Interfaces de batman-adv: bat0 (BATMAN_V) y la malla como su hardif (MTU ≥ 1532 para tramas de 1500). */
-const interfacesBat = (): string[] => [seccion("interface", "bat0", [["proto", "batadv"], ["routing_algo", "BATMAN_V"],
-  ["bridge_loop_avoidance", "1"], ["distributed_arp_table", "1"]]),
-  seccion("interface", "bat0_hardif_mesh", [["proto", "batadv_hardif"], ["master", "bat0"], ["mtu", "1536"]])];
+/** Interfaces de batman-adv: bat0 (BATMAN_V) y la malla como su hardif (MTU ≥ 1532 para tramas de 1500).
+ * Con puerta declarada (§8.1), el titanio la anuncia: bat0 va en `gw_mode server` con el ancho medido. */
+const interfacesBat = (gw?: { bajadaKbps: number; subidaKbps: number }): string[] => {
+  const opciones: Array<[string, string | number]> = [["proto", "batadv"], ["routing_algo", "BATMAN_V"],
+    ["bridge_loop_avoidance", "1"], ["distributed_arp_table", "1"]];
+  if (gw) opciones.push(["gw_mode", "server"], ["gw_bandwidth", `${gw.bajadaKbps}kbit/${gw.subidaKbps}kbit`]);
+  return [seccion("interface", "bat0", opciones),
+    seccion("interface", "bat0_hardif_mesh", [["proto", "batadv_hardif"], ["master", "bat0"], ["mtu", "1536"]])];
+};
+
+/** La puerta declarada (§8.1): el tipo debe constar en la lista del contrato; el satélite ya está
+ * fuera por el tipo de `CfgPuerta` (hoy sin UCI que lo genere). */
+function validarPuerta(p: CfgPuertaMalla): CfgPuerta {
+  if (!(TIPOS_PUERTA as readonly string[]).includes(p.tipo)) {
+    throw new Error(`El tipo de puerta «${p.tipo}» no está en la lista del contrato (§8.1)`);
+  }
+  return p;
+}
+
+/** Interfaces UCI de la puerta, sin repetir bat0 (lo lleva `interfacesBat`). */
+function redPuerta(p: CfgPuertaMalla): { network: string; firewall: string } {
+  const salida = uciPuerta(p, { conBat: false });
+  return { network: salida.network, firewall: salida.firewall };
+}
+
+/** Guion guardián de la puerta (§8.1): un guardián en el router cuenta los bytes y deja de anunciar
+ * la puerta al llegar al tope del dueño — exactamente cuando `restanteParaOtrosMb` llega a cero
+ * (reserva del dueño 20 % editable); vuelve con el mes nuevo. Puerta sin tope: no hay guardián. */
+export function guardianDePuerta(
+  p: Pick<CfgPuertaMalla, "tipo" | "bajadaKbps" | "subidaKbps" | "topeMensualMb" | "reservaDuenoPct">,
+  interfaz?: string,
+): string | null {
+  // La puerta declarada en la tesela (`PuertaInternet`): sin tope no hay medida, y sin medida no hay guardián
+  const declarada: PuertaInternet = {
+    id: "puerta", neurona: "-", cuenta: "-", tipo: p.tipo,
+    bajadaKbps: p.bajadaKbps, subidaKbps: p.subidaKbps, latenciaMs: 0,
+    medida: p.topeMensualMb !== undefined, topeMensualMb: p.topeMensualMb,
+    reservaDuenoPct: p.reservaDuenoPct, compartir: "nadie",
+  };
+  if (restanteParaOtrosMb(declarada) === null) return null;
+  const ifaz = interfaz ?? (p.tipo === "cable" ? "wan" : "wwan");
+  return guionGuardianTope({
+    interfaz: ifaz, topeMb: p.topeMensualMb ?? 0, reservaPct: p.reservaDuenoPct ?? 20,
+    bajadaKbps: p.bajadaKbps, subidaKbps: p.subidaKbps,
+  });
+}
 
 /** Genera la configuración completa de la malla (§8). Incluye la puerta de internet opcional (§8.1)
  * si la configuración incluye los parámetros de puerta. */
 export function uciMalla(e: CfgUciMalla): UciMalla {
   const country = validar(e), { troncal: t, cliente: c } = e;
+  const p = e.puerta ? validarPuerta(e.puerta) : null;
   const unaRadio = t.banda === "2g"; // troncal en 2,4 GHz = una sola radio: el AP comparte su canal
   // txpower es potencia en el conector: igualarla a la PIRE legal supone una antena de 0 dBi.
   const radios = [seccion("wifi-device", "radio_troncal", [["type", "mac80211"], ["band", t.banda], ["channel", t.canal],
@@ -59,9 +105,17 @@ export function uciMalla(e: CfgUciMalla): UciMalla {
     ["encryption", "sae"], ["key", e.claveMalla], ["mesh_fwding", "0"], ["network", "bat0_hardif_mesh"]]);
   const ap = seccion("wifi-iface", "ap0", [["device", unaRadio ? "radio_troncal" : "radio_cliente"], ["mode", "ap"],
     ["ssid", c.ssid], ["encryption", "sae-mixed"], ["key", c.clave], ["network", "lan"]]);
-  const network = [...interfacesBat(), seccion("device", "br_lan", [["name", "br-lan"], ["type", "bridge"]], ["bat0"])];
+  const red = p ? redPuerta(p) : null;
+  const network = [
+    ...interfacesBat(p ? { bajadaKbps: p.bajadaKbps, subidaKbps: p.subidaKbps } : undefined),
+    seccion("device", "br_lan", [["name", "br-lan"], ["type", "bridge"]], ["bat0"]),
+  ];
   const wireless = `${[...radios, malla, ap].join("\n\n")}\n`;
-  return { wireless, network: `${network.join("\n\n")}\n` };
+  return {
+    wireless,
+    network: red ? `${network.join("\n\n")}\n\n${red.network}` : `${network.join("\n\n")}\n`,
+    ...(red ? { firewall: red.firewall } : {}),
+  };
 }
 
 /** `uciPuerta(e)` genera la configuración UCI para una puerta de internet (§8.1): móvil (4G/5G), Wi-Fi externo,
@@ -80,9 +134,14 @@ export { uciClientePuerta };
  * Re-exportada desde uci-puerta. */
 export { guionGuardianTope };
 
-/** Guion sh para pegar por SSH: copia, comprobaciones, paquetes, configuración y vuelta atrás sola en 5 min. */
+/** Guion sh para pegar por SSH: copia, comprobaciones, paquetes, configuración y vuelta atrás sola en 5 min.
+ * Con puerta declarada (§8.1) también aplica su red, su firewall y el guardián del tope con su cron. */
 export function guionAplicar(cfg: CfgUciMalla): string {
   const { wireless } = uciMalla(cfg);
+  const puertaAplicar = cfg.puerta
+    ? { red: redPuerta(cfg.puerta), guardian: guardianDePuerta(cfg.puerta) }
+    : null;
+  const gw = cfg.puerta ? { bajadaKbps: cfg.puerta.bajadaKbps, subidaKbps: cfg.puerta.subidaKbps } : undefined;
   const dos = cfg.troncal.banda !== "2g";
   const radio = (b: BandaWifi, v: string): string => `${v}=$(radio ${b}) || fallo "no encuentro la radio de ${b} con su path"`;
   return String.raw`#!/bin/sh
@@ -119,8 +178,18 @@ uci -q delete network.bat0; uci -q delete network.bat0_hardif_mesh
 uci -q del_list "network.$B.ports=bat0"; uci add_list "network.$B.ports=bat0"; uci commit network
 cat >> /etc/config/network <<'STARSEED_FIN'
 
-${interfacesBat().join("\n\n")}
+${interfacesBat(gw).join("\n\n")}${puertaAplicar ? `\n\n${puertaAplicar.red.network.trimEnd()}` : ""}
+STARSEED_FIN${puertaAplicar ? `
+cat >> /etc/config/firewall <<'STARSEED_FIN'
+
+${puertaAplicar.red.firewall.trimEnd()}
 STARSEED_FIN
+mkdir -p /etc/starseed
+cat > /etc/starseed/guardian-puerta.sh <<'STARSEED_GUARDIAN'
+${puertaAplicar.guardian?.trimEnd() ?? "# puerta sin tope declarada: sin guardián (la tesela dice qué se comparte)"}
+STARSEED_GUARDIAN
+crontab -l 2>/dev/null | grep -v guardian-puerta.sh
+{ crontab -l 2>/dev/null; echo '*/5 * * * * sh /etc/starseed/guardian-puerta.sh'; } | crontab -` : ""}
 # 5. Vuelta atrás: a mano cuando quieras, y sola en 5 minutos si no confirmas (como «aplicar» de LuCI)
 printf '%s\n' 'cp /etc/config/wireless.antes-starseed /etc/config/wireless' 'cp /etc/config/network.antes-starseed /etc/config/network' \
   'wifi reload; /etc/init.d/network restart' > /root/starseed-volver.sh

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { guionAplicar, uciMalla, type BandaWifi, type CfgUciMalla } from "../uci-malla";
+import {
+  guardianDePuerta,
+  guionAplicar,
+  uciMalla,
+  type BandaWifi,
+  type CfgPuertaMalla,
+  type CfgUciMalla,
+} from "../uci-malla";
+import { restanteParaOtrosMb, type PuertaInternet } from "../../../malla/cristal/puertas-internet";
 
 const CLAVE_MALLA = "malla-secreta-123";
 const CLAVE_AP = "wifi-casa-456";
@@ -114,5 +122,90 @@ describe("guionAplicar", () => {
     const raro = guionAplicar(cfg("5g", 80, { router: "Torre\nrm -rf /" })).split("\n");
     expect(raro.filter((l) => l.includes("Torre")).every((l) => l.startsWith("#"))).toBe(true);
     expect(raro.some((l) => l.startsWith("rm"))).toBe(false);
+  });
+});
+
+const puertaMovil: CfgPuertaMalla = {
+  tipo: "movil-4g", apn: "internet", bajadaKbps: 5000, subidaKbps: 1000, topeMensualMb: 1000,
+};
+
+describe("uciMalla con puerta declarada (§8.1)", () => {
+  it("genera la interfaz wwan de la puerta y bat0 en gw_mode server con el ancho medido", () => {
+    const r = uciMalla(cfg("5g", 80, { puerta: puertaMovil }));
+    const n = secciones(r.network);
+    expect(n.wwan).toEqual(expect.arrayContaining([
+      "option proto 'qmi'", "option apn 'internet'", "option pdptype 'ipv4v6'",
+    ]));
+    expect(n.bat0).toEqual(expect.arrayContaining([
+      "option routing_algo 'BATMAN_V'", "option gw_mode 'server'", "option gw_bandwidth '5000kbit/1000kbit'",
+    ]));
+    expect(r.network.match(/config interface 'bat0'\n/g)).toHaveLength(1);
+  });
+
+  it("devuelve el firewall de la puerta (wwan con masq) y ni toca el br-lan de antes", () => {
+    const r = uciMalla(cfg("5g", 80, { puerta: puertaMovil }));
+    const f = secciones(r.firewall ?? "");
+    expect(f.wwan).toEqual(expect.arrayContaining(["option masq '1'", "option mtu_fix '1'"]));
+    expect(secciones(r.firewall ?? "").lan_to_wwan).toEqual(["option src 'lan'", "option dest 'wwan'"]);
+    expect(secciones(r.network).br_lan).toEqual(["option name 'br-lan'", "option type 'bridge'", "list ports 'bat0'"]);
+  });
+
+  it("sin puerta, como antes: sin wwan, sin firewall, bat0 sin gw_mode", () => {
+    const r = uciMalla(cfg());
+    expect(r.firewall).toBeUndefined();
+    expect(r.network).not.toContain("config interface 'wwan'");
+    expect(secciones(r.network).bat0).not.toEqual(expect.arrayContaining(["option gw_mode 'server'"]));
+  });
+});
+
+describe("guardianDePuerta — el guardián del tope del dueño (§8.1)", () => {
+  const umbral = (topeMb: number, reservaPct: number): number =>
+    Math.floor(topeMb * 1024 * 1024 * (1 - reservaPct / 100));
+
+  it("deja de anunciar gw server justo cuando el restante para otros llega a cero (reserva 20 % por defecto)", () => {
+    const tope = 1000;
+    const g = guardianDePuerta({ tipo: "movil-4g", bajadaKbps: 1000, subidaKbps: 500, topeMensualMb: tope });
+    expect(g).toContain(String(umbral(tope, 20)));
+    // el umbral del guion es exactamente el punto donde restanteParaOtrosMb llega a 0:
+    expect(restanteParaOtrosMb(puertaCon(tope, umbral(tope, 20) / (1024 * 1024), 20))).toBe(0);
+  });
+
+  it("respeta la reserva editable del dueño y vigila la interfaz que toca por tipo", () => {
+    const g = guardianDePuerta({ tipo: "movil-4g", bajadaKbps: 1000, subidaKbps: 500, topeMensualMb: 1000, reservaDuenoPct: 40 }, "wwan0");
+    expect(g).toContain(String(umbral(1000, 40)));
+    expect(g).toContain("net/wwan0/");
+    expect(guardianDePuerta({ tipo: "cable", bajadaKbps: 1000, subidaKbps: 500, topeMensualMb: 100 })).toContain("net/wan/");
+    expect(guardianDePuerta({ tipo: "usb-telefono", bajadaKbps: 1000, subidaKbps: 500, topeMensualMb: 100 })).toContain("net/wwan/");
+  });
+
+  it("puerta sin tope (sin medida): no hay guardián que contabilizar", () => {
+    expect(guardianDePuerta({ tipo: "cable", bajadaKbps: 1000, subidaKbps: 500 })).toBeNull();
+  });
+});
+
+/** La puerta tal como viaja en la tesela: con lo usado en el mes y su reserva. */
+function puertaCon(topeMb: number, usadoMb: number, reservaPct: number): PuertaInternet {
+  return {
+    id: "p1", neurona: "t1", cuenta: "c1", tipo: "movil-4g",
+    bajadaKbps: 1000, subidaKbps: 500, latenciaMs: 50,
+    medida: true, topeMensualMb: topeMb, usadoMesMb: Math.floor(usadoMb), reservaDuenoPct: reservaPct,
+    compartir: "publico",
+  };
+}
+
+describe("guionAplicar con puerta declarada (§8.1)", () => {
+  it("aplica la red y el firewall de la puerta y deja el guardián con su cron cada 5 min", () => {
+    const g = guionAplicar(cfg("5g", 80, { puerta: puertaMovil }));
+    expect(g).toContain("config interface 'wwan'");
+    expect(g).toContain("cat >> /etc/config/firewall <<'STARSEED_FIN'");
+    expect(g).toContain("cat > /etc/starseed/guardian-puerta.sh <<'STARSEED_GUARDIAN'");
+    expect(g).toContain("*/5 * * * * sh /etc/starseed/guardian-puerta.sh");
+  });
+
+  it("sin puerta no añade firewall, guardián ni cron", () => {
+    const g = guionAplicar(cfg());
+    expect(g).not.toContain("config interface 'wwan'");
+    expect(g).not.toContain("guardian-puerta.sh");
+    expect(g).not.toContain("*/5 * * * *");
   });
 });

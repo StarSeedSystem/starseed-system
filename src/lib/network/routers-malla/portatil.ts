@@ -12,6 +12,18 @@ import {
   type ResultadoCompatibilidad,
 } from "./compatibilidad-openwrt";
 import { teselaDeRouter } from "../../malla/cristal/titanio";
+import {
+  TIPOS_PUERTA,
+  elegirPuerta,
+  puedeUsar,
+  puertaParaTesela,
+  restanteParaOtrosMb,
+  type Compartir,
+  type PuertaInternet,
+  type Solicitante,
+  type TipoPuerta,
+} from "../../malla/cristal/puertas-internet";
+import type { ClaseDato } from "../../malla/cristal/tipos";
 
 export const TIPOS_PORTATIL = [
   "viaje-openwrt",
@@ -114,4 +126,85 @@ export function resumenSinSim(r: RouterPortatil): string {
   return r.modem?.conSim === true
     ? `${base} Su SIM queda disponible solo como puerta a internet opcional.`
     : base;
+}
+
+/** Tipo de puerta que aporta el módem del portátil (§8.1): 5g → móvil-5g, 4g → móvil-4g, siempre
+ * contra la única lista del contrato (`TIPOS_PUERTA`); sin SIM no hay puerta. */
+export function tipoPuertaDeModem(r: RouterPortatil): TipoPuerta | null {
+  if (!r.modem?.conSim) return null;
+  const tipo: TipoPuerta = r.modem.generacion === "5g" ? "movil-5g" : "movil-4g";
+  return (TIPOS_PUERTA as readonly string[]).includes(tipo) ? tipo : null;
+}
+
+/** Declaración de la puerta de internet de este titanio (§8.1), lista para viajar EN SU TESELA:
+ * nace de lo medido del módem y de cómo se comparte; los números de la SIM (ICCID, IMSI, PIN y
+ * teléfono) llegan por `sim` y SIEMPRE pasan por la lista blanca — jamás salen de la declaracion. */
+export function puertaDesdeSim(e: {
+  id: string;
+  neurona: string;
+  cuenta: string;
+  generacion: "4g" | "5g";
+  bajadaKbps: number;
+  subidaKbps: number;
+  latenciaMs: number;
+  topeMensualMb?: number;
+  usadoMesMb?: number;
+  reservaDuenoPct?: number;
+  compartir: Compartir;
+  grupos?: string[];
+  /** Lo de la SIM: queda aquí dentro y no sale a la tesela (§8.1 «Privacidad y responsabilidad»). */
+  sim?: { iccid?: string; imsi?: string; pin?: string; telefono?: string };
+}): PuertaInternet {
+  const titanio: RouterPortatil = {
+    id: e.id, tipo: "viaje-openwrt", bateriaPct: null, cargando: false,
+    modem: { generacion: e.generacion, conSim: true },
+  };
+  const tipo = tipoPuertaDeModem(titanio) ?? "movil-4g";
+  const cruda: PuertaInternet & { iccid?: string; imsi?: string; pin?: string; telefono?: string } = {
+    id: e.id,
+    neurona: e.neurona,
+    cuenta: e.cuenta,
+    tipo,
+    bajadaKbps: e.bajadaKbps,
+    subidaKbps: e.subidaKbps,
+    latenciaMs: e.latenciaMs,
+    medida: e.topeMensualMb !== undefined,
+    topeMensualMb: e.topeMensualMb,
+    usadoMesMb: e.usadoMesMb,
+    reservaDuenoPct: e.reservaDuenoPct,
+    compartir: e.compartir,
+    grupos: e.grupos,
+    iccid: e.sim?.iccid,
+    imsi: e.sim?.imsi,
+    pin: e.sim?.pin,
+    telefono: e.sim?.telefono,
+  };
+  // La lista blanca es el único camino de la puerta a la tesela
+  return puertaParaTesela(cruda);
+}
+
+/** Quién puede usar la puerta y qué queda para los demás (§8.1): el dueño siempre hasta su tope;
+ * los demás según con quién se comparte y solo si la reserva del dueño (20 % editable) deja
+ * restante para otros. El restante lo calcula la misma regla que el guardián del router. */
+export function cupoDePuerta(
+  p: PuertaInternet,
+  s: Solicitante,
+): { ok: boolean; motivo: string; restanteParaOtrosMb: number | null } {
+  return { ...puedeUsar(p, s), restanteParaOtrosMb: restanteParaOtrosMb(p) };
+}
+
+/** ¿Cómo sale este titanio (§8.1)? Lo interno y lo privado entre neuronas NUNCA usa una puerta — va
+ * por la malla P2P. Lo demás elige la puerta permitida de menor coste (desempate por id) y conserva
+ * la actual si no cuesta mucho más que la mejor × 1,2: histéresis del 20 % para no oscilar. */
+export function salidaAInternet(e: {
+  clase: ClaseDato;
+  necesitaInternet: boolean;
+  puertas: PuertaInternet[];
+  solicitante: Solicitante;
+  actual?: string;
+}): { puerta: PuertaInternet | null; motivo: string } {
+  if (e.clase === "interno" || e.clase === "privado") {
+    return { puerta: null, motivo: "va por la malla P2P: no necesita salir a internet" };
+  }
+  return elegirPuerta(e);
 }
