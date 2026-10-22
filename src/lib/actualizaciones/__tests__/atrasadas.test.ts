@@ -204,6 +204,56 @@ describe("neuronasAtrasadas", () => {
     expect(atrasos).toHaveLength(0);
   });
 
+  it("no cuenta como atraso una versión mayor que la última", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a14",
+        nombre: "Adelantada",
+        online: true,
+        versiones: { datos: "2026.10.15" }
+      }
+    ];
+    const ultima: VersionesPorCapa = { datos: "2026.10.01" };
+    const atrasos = neuronasAtrasadas(neuronas, ultima);
+    expect(atrasos.some((a) => a.capa === "datos")).toBe(false);
+  });
+
+  it("offline sin versión da prioridad a offline y no a sin-motivo", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a15",
+        nombre: "Offline",
+        online: false,
+        versiones: {}
+      }
+    ];
+    const ultima: VersionesPorCapa = { datos: "2026.01.01", interfaz: "2026.01.01" };
+    const atrasos = neuronasAtrasadas(neuronas, ultima);
+    expect(atrasos).toHaveLength(2);
+    expect(atrasos.every((a) => a.motivo === "offline")).toBe(true);
+  });
+
+  it("con el mismo nombre, ordena por id de neurona", () => {
+    const ultima: VersionesPorCapa = {
+      datos: "2026.10.01",
+      interfaz: "2026.10.01",
+      sw: "2026.10.01",
+      servicios: "2026.10.01",
+      modelos: "2026.10.01",
+      nativa: "2026.10.01"
+    };
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      { neuronaId: "2", nombre: "Beta", online: true, versiones: { datos: "2026.09.01" } },
+      { neuronaId: "1", nombre: "Alpha", online: true, versiones: { datos: "2026.09.01" } },
+      { neuronaId: "3", nombre: "Alpha", online: true, versiones: { datos: "2026.09.01" } }
+    ];
+    const atrasos = neuronasAtrasadas(neuronas, ultima);
+    expect(atrasos).toHaveLength(18);
+    for (let i = 0; i < 6; i++) expect(atrasos[i].neuronaId).toBe("1");
+    for (let i = 6; i < 12; i++) expect(atrasos[i].neuronaId).toBe("3");
+    for (let i = 12; i < 18; i++) expect(atrasos[i].neuronaId).toBe("2");
+  });
+
   it("handles empty ultima object", () => {
     const neuronas: EstadoNeuronaActualizacion[] = [
       {
