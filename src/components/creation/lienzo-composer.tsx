@@ -455,6 +455,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                 type="button"
                                 onClick={() => setGeo(null)}
                                 title="Quitar ubicación"
+                                aria-label="Quitar ubicación adjunta"
                                 className="cursor-pointer text-sky-300/60 hover:text-sky-100 transition-colors"
                             >
                                 <X className="w-3.5 h-3.5" />
@@ -484,6 +485,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                                 disabled={i === 0}
                                                 className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
                                                 title="Subir bloque"
+                                                aria-label="Subir bloque"
                                             >
                                                 <ArrowUp className="w-3.5 h-3.5" />
                                             </button>
@@ -493,6 +495,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                                 disabled={i === blocks.length - 1}
                                                 className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
                                                 title="Bajar bloque"
+                                                aria-label="Bajar bloque"
                                             >
                                                 <ArrowDown className="w-3.5 h-3.5" />
                                             </button>
@@ -501,6 +504,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                                 onClick={() => removeBlock(b.id)}
                                                 className="p-1 rounded-md text-white/30 hover:text-red-300 hover:bg-red-500/10 cursor-pointer transition-colors"
                                                 title="Quitar bloque"
+                                                aria-label="Quitar bloque"
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
@@ -530,7 +534,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                                         // eslint-disable-next-line @next/next/no-img-element
                                                         <img
                                                             src={b.url}
-                                                            alt={b.name}
+                                                            alt={b.name ? `Vista previa de ${b.name}` : "Vista previa de la imagen adjunta"}
                                                             className="max-h-48 w-auto rounded-xl border border-white/10 object-cover"
                                                         />
                                                     )}
@@ -645,6 +649,8 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                     <input
                         ref={fileInputRef}
                         type="file"
+                        accept="image/*"
+                        aria-label="Elegir archivo o imagen para el bloque"
                         className="hidden"
                         onChange={(e) => void handleFileChosen(e)}
                     />
