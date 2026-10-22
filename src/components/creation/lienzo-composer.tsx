@@ -141,6 +141,44 @@ export function blockHasContent(b: PostBlock): boolean {
     }
 }
 
+// ── Accesibilidad de los controles del bloque ────────────────────────────────
+
+/** Acciones de los botones solo-icono que gobiernan un bloque del Lienzo. */
+export type AccionBloque = "subir" | "bajar" | "quitar";
+
+/** Texto visible (tooltip) de cada acción. */
+const ACCION_BLOQUE: Record<AccionBloque, string> = {
+    subir: "Subir bloque",
+    bajar: "Bajar bloque",
+    quitar: "Quitar bloque",
+};
+
+/**
+ * Nombre accesible de los botones solo-icono: dice la acción, el tipo de bloque
+ * y su posición. El `title` no es suficiente (no llega a lector de pantalla ni
+ * a voz de móvil), así que el botón lleva las dos cosas.
+ */
+export function ariaLabelBloque(accion: AccionBloque, etiqueta: string, posicion: number): string {
+    return `${ACCION_BLOQUE[accion]} de ${etiqueta} (posición ${posicion})`;
+}
+
+/**
+ * Texto alternativo de la imagen de un bloque: la imagen es CONTENIDO de la
+ * creación, nunca decorativa, así que siempre lleva descripción.
+ */
+export function altImagenBloque(nombre: string | undefined | null): string {
+    const n = nombre?.trim();
+    return n ? `Imagen adjunta: ${n}` : "Imagen adjunta a la creación";
+}
+
+/**
+ * Filtro del input de archivos según el tipo de bloque: una imagen solo
+ * acepta imágenes; un archivo de bloque acepta cualquier documento.
+ */
+export function acceptPorTipo(tipo: PostBlockType): string {
+    return tipo === "imagen" ? "image/*" : "*/*";
+}
+
 /** Widgets forjados disponibles (AI_GENERATED) leídos del almacén del dashboard. */
 function listForgedWidgets(): Array<{ id: string; title: string }> {
     if (typeof window === "undefined") return [];
@@ -216,7 +254,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
         if (type === "imagen" || type === "archivo") {
             requestAnimationFrame(() => {
                 if (fileInputRef.current) {
-                    fileInputRef.current.accept = type === "imagen" ? "image/*" : "*/*";
+                    fileInputRef.current.accept = acceptPorTipo(type);
                     fileInputRef.current.dataset.blockId = b.id;
                     fileInputRef.current.value = "";
                     fileInputRef.current.click();
@@ -227,7 +265,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
 
     const pickFileFor = useCallback((block: PostBlock) => {
         if (!fileInputRef.current) return;
-        fileInputRef.current.accept = block.type === "imagen" ? "image/*" : "*/*";
+        fileInputRef.current.accept = acceptPorTipo(block.type);
         fileInputRef.current.dataset.blockId = block.id;
         fileInputRef.current.value = "";
         fileInputRef.current.click();
@@ -458,7 +496,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                 aria-label="Quitar ubicación adjunta"
                                 className="cursor-pointer text-sky-300/60 hover:text-sky-100 transition-colors"
                             >
-                                <X className="w-3.5 h-3.5" />
+                                <X className="w-3.5 h-3.5" aria-hidden="true" />
                             </button>
                         </div>
                     )}
@@ -485,9 +523,9 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                                 disabled={i === 0}
                                                 className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
                                                 title="Subir bloque"
-                                                aria-label={`Subir bloque de ${meta.label} (posición ${i + 1})`}
+                                                aria-label={ariaLabelBloque("subir", meta.label, i + 1)}
                                             >
-                                                <ArrowUp className="w-3.5 h-3.5" />
+                                                <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
                                             </button>
                                             <button
                                                 type="button"
@@ -495,18 +533,18 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                                 disabled={i === blocks.length - 1}
                                                 className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
                                                 title="Bajar bloque"
-                                                aria-label={`Bajar bloque de ${meta.label} (posición ${i + 1})`}
+                                                aria-label={ariaLabelBloque("bajar", meta.label, i + 1)}
                                             >
-                                                <ArrowDown className="w-3.5 h-3.5" />
+                                                <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => removeBlock(b.id)}
                                                 className="p-1 rounded-md text-white/30 hover:text-red-300 hover:bg-red-500/10 cursor-pointer transition-colors"
                                                 title="Quitar bloque"
-                                                aria-label={`Quitar bloque de ${meta.label} (posición ${i + 1})`}
+                                                aria-label={ariaLabelBloque("quitar", meta.label, i + 1)}
                                             >
-                                                <Trash2 className="w-3.5 h-3.5" />
+                                                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                                             </button>
                                         </div>
                                     </div>
@@ -534,7 +572,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                                         // eslint-disable-next-line @next/next/no-img-element
                                                         <img
                                                             src={b.url}
-                                                            alt={b.name || ""}
+                                                            alt={altImagenBloque(b.name)}
                                                             className="max-h-48 w-auto rounded-xl border border-white/10 object-cover"
                                                         />
                                                     )}
@@ -646,12 +684,12 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                     </div>
 
                     {/* Input de archivos oculto (compartido por bloques legados).
-                        accept inicial image/*: los flujos de apertura lo ajustan al
-                        vuelo (imagen y archivo) antes de cada clic. */}
+                        El `accept` de partida es el de imagen; los flujos de apertura
+                        lo ajustan al vuelo (imagen o archivo) antes de cada clic. */}
                     <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/*"
+                        accept={acceptPorTipo("imagen")}
                         className="hidden"
                         onChange={(e) => void handleFileChosen(e)}
                     />
