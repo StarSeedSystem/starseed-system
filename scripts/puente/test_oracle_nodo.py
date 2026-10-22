@@ -2,6 +2,7 @@
 """Pruebas de las decisiones puras del lado de la neurona (oracle_nodo.py, OPO1011)."""
 import os
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -109,6 +110,38 @@ class Prestamo(unittest.TestCase):
     def test_no_toca_lo_prestado_a_la_nube_de_github(self):
         p = {"T": {"estado": "reasignada", "medio": "nube"}}
         self.assertEqual(N.devolver_de_oracle(p, [{"rama": "r", "ids": ["T"], "t": 0}], {"r": {}}, True, 1), [])
+
+    def test_reasignada_desde_genesis_vuelve_cuando_su_cola_ya_no_corre(self):
+        # Caso medido (2026-10-21 17:20 UTC): 36 tareas «reasignada · oracle» con la nota
+        # «movida a oracle (colas/oracle-…) desde Genesis» llevaban 9 días sin volver: la
+        # reasignación de Genesis no las apunta en `lanzamientos` y `traer_nube` no se les
+        # acerca («está reasignada: no se le pisa el trabajo»). Bloqueo mutuo.
+        cola = "colas/oracle-20261018-231246"
+        t0 = time.mktime(time.strptime("20261018-231246", "%Y%m%d-%H%M%S"))
+        p = {"T1": {"estado": "reasignada", "medio": "oracle",
+                    "nota": "movida a oracle (%s) desde Genesis" % cola},
+             "T2": {"estado": "reasignada", "medio": "oracle",
+                    "nota": "reasignada al A1 de Oracle 20261018 (%s)" % cola},
+             "T3": {"estado": "reasignada", "medio": "oracle",
+                    "nota": "movida a cola de la nube desde Genesis"}}
+        # Mientras el nodo diga que esa cola sigue viva, no se toca, ni al día siguiente.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, t0 + 9 * 86400, colas_vivas=[cola]), [])
+        # Sin esa cola en el A1 y pasadas las 3 h desde su rama: vuelven incluso sin lanzamiento.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, t0 + 4 * 3600), ["T1", "T2"])
+        # Con menos de la gracia todavía no.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, t0 + 3600), [])
+        # Si el historial del A1 la da por terminada, vuelven enseguida: lo hecho ya viaja.
+        self.assertEqual(N.devolver_de_oracle(p, [], {cola: {}}, True, t0 + 60), ["T1", "T2"])
+        # Nodo muerto más allá de la gracia: vuelven aunque la cola conste viva (como los
+        # lanzamientos).
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, False, t0 + 4 * 3600, colas_vivas=[cola]), ["T1", "T2"])
+
+    def test_prestamo_desde_genesis_no_cambia_lo_terminado_por_otro(self):
+        cola = "colas/oracle-20261018-231246"
+        t0 = time.mktime(time.strptime("20261018-231246", "%Y%m%d-%H%M%S"))
+        p = {"T": {"estado": "commit", "medio": "oracle",
+                   "nota": "movida a oracle (%s) desde Genesis" % cola}}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, t0 + 90 * 86400), [])
 
 
 class Resumen(unittest.TestCase):

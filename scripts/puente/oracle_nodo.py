@@ -41,6 +41,7 @@ Decisiones PURAS con sus pruebas en `test_oracle_nodo.py`.
 """
 from __future__ import annotations
 
+import datetime
 import fcntl
 import importlib.util
 import json
@@ -239,18 +240,62 @@ def marcar_oracle(progreso, ids, fecha, rama):
     return p
 
 
-def devolver_de_oracle(progreso, lanzamientos, colas_a1, nodo_late, ahora, gracia_s=3 * 3600):
+def ramas_de_notas_oracle(progreso):
+    """PURA. {id: rama} de las tareas `reasignada · oracle` cuya nota cita una cola del A1
+    (`colas/oracle-<fecha>`): la huella de un préstamo que NO pasó por los `lanzamientos` de
+    esta neurona — las movidas desde Genesis (`reasignarTarea` → orden `soltar` + lanzamiento
+    en el A1) no dejan lanzamiento anotado, y por eso la ruta de los `lanzamientos` nunca las
+    devolvía (caso medido 2026-10-21: 36 tareas llevaban del 12-10 al 21-10 «reasignada · medio
+    oracle» con el A1 exclamando «nada que hacer» cada 5 min, y `traer_nube` no se les acercaba
+    porque «está reasignada: no se le pisa el trabajo»: bloqueo mutuo)."""
+    fuera = {}
+    for tid, entrada in (progreso or {}).items():
+        if not isinstance(entrada, dict) or entrada.get("estado") != "reasignada":
+            continue
+        if (entrada.get("medio") or "") != "oracle":
+            continue
+        cita = re.search(r"%s(\d{8}-\d{6})" % PREFIJO_COLA, str(entrada.get("nota") or ""))
+        if cita:
+            fuera[tid] = cita.group(0)
+    return fuera
+
+
+def _t_de_rama_cola(rama):
+    """PURA. La época (segundos, hora local como la guardó el reparto) del nombre de una rama
+    `colas/oracle-<YYYYMMDD>-HHMMSS>`, o None si no la trae."""
+    m = re.match(r"^%s(\d{8}-\d{6})$" % PREFIJO_COLA, str(rama or "").strip())
+    if not m:
+        return None
+    try:
+        return time.mktime(datetime.datetime.strptime(m.group(1), "%Y%m%d-%H%M%S").timetuple())
+    except (ValueError, OverflowError):
+        return None
+
+
+def devolver_de_oracle(progreso, lanzamientos, colas_a1, nodo_late, ahora, gracia_s=3 * 3600,
+                       colas_vivas=None):
     """PURA. Los ids `reasignada · oracle` que vuelven a la cola de la Mac: los de una cola que el
     A1 ya terminó (su trabajo, si lo hubo, ya viaja en `nube/a1-*` y `traer_nube` lo trae o lo
     repara: necesita que la tarea deje de estar «reasignada») y todos si el nodo no late y su
-    cola lleva más de `gracia_s` sin terminar. Préstamo, no traspaso (como `reclamar_varadas`).
-    `lanzamientos`: [{rama, ids, t}]; `colas_a1`: {rama: {...historial}}."""
+    cola lleva más de `gracia_s` sin terminar. ADEMÁS, los movidos desde Genesis aunque no
+    estén en `lanzamientos` (véase `ramas_de_notas_oracle`): vuelven cuando la rama que su nota
+    cita ya no corre en el A1 — consta terminada en su historial (`colas_a1`) o no está entre
+    las colas vivas que da el nodo (`colas_vivas`, las `colas/oracle-*` del remoto que aún no
+    están procesadas) — y desde la fecha de su rama llevan más de `gracia_s` sin moverse.
+    Mientras el nodo diga que esa cola sigue viva (y lata), no se toca. Préstamo, no traspaso
+    (como `reclamar_varadas`). `lanzamientos`: [{rama, ids, t}]; `colas_a1`: {rama: {...historial}}."""
     terminadas = set(colas_a1 or {})
+    vivas = {str(r) for r in (colas_vivas or [])}
     vuelven = set()
     for l in lanzamientos or []:
         rama = l.get("rama")
         if rama in terminadas or (not nodo_late and ahora - float(l.get("t") or 0) > gracia_s):
             vuelven |= set(l.get("ids") or [])
+    for tid, rama in ramas_de_notas_oracle(progreso).items():
+        t = _t_de_rama_cola(rama)
+        vencida = t is not None and (ahora - t) > gracia_s
+        if rama in terminadas or (vencida and (rama not in vivas or not nodo_late)):
+            vuelven.add(tid)
     return sorted(tid for tid in vuelven
                   if isinstance((progreso or {}).get(tid), dict)
                   and progreso[tid].get("estado") == "reasignada"
@@ -778,9 +823,16 @@ def traer(estado_a1=None):
     terminadas = {c.get("rama"): c for c in colas if isinstance(c, dict) and c.get("rama")}
     devueltas = []
     lanzamientos = datos.get("lanzamientos") or []
+    # (2026-10-21) Las colas del A1 aún no tomadas dejan de serlo al procesarlas; una de ellas
+    # cuenta como viva y su préstamo (el de las movidas desde Genesis) no se le quita.
+    try:
+        vivas = set(colas_sin_tomar(estado_a1)[0])
+    except Exception:  # noqa: BLE001 — sin remoto legible ninguna cola consta viva
+        vivas = set()
     with _Cerrojo("progreso", 60):
         progreso = _leer(PROGRESO, {}) or {}
-        ids = devolver_de_oracle(progreso, lanzamientos, terminadas, nodo_vivo(estado_a1, time.time()), time.time())
+        ids = devolver_de_oracle(progreso, lanzamientos, terminadas, nodo_vivo(estado_a1, time.time()),
+                                 time.time(), colas_vivas=vivas)
         if ids:
             import repartir_nube as RN
 
