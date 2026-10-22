@@ -6,6 +6,7 @@
       "nube-ola/**": false,
       "colas/**": false,
       "ola/**": false,
+      "claude/**": false,
       "produccion/**": true
     }
   }
