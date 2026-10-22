@@ -97,6 +97,39 @@ describe("TunelMetaGenesisEstado", () => {
     expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
   });
 
+  it("no enseña la sección de últimas líneas cuando el túnel está parado", async () => {
+    globalThis.fetch = async () =>
+      ({
+        ok: true,
+        json: async () => ({ cargado: false, pid: null, ultimasLineas: [], medidoEn: new Date().toISOString() }),
+      }) as Response;
+
+    render(<TunelMetaGenesisEstado />);
+
+    expect(await screen.findByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
+  });
+
+  it("tacha solo las URL de trycloudflare y conserva el resto de la línea", async () => {
+    globalThis.fetch = async () =>
+      ({
+        ok: true,
+        json: async () => ({
+          cargado: true,
+          pid: 12345,
+          ultimasLineas: ["Otro https://otro.trycloudflare.com/path", "Sin cambio: https://example.com"],
+          medidoEn: new Date().toISOString(),
+        }),
+      }) as Response;
+
+    render(<TunelMetaGenesisEstado />);
+
+    expect(await screen.findByText(/Últimas líneas:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Otro \[túnel\]\/path/)).toBeInTheDocument();
+    expect(screen.getByText(/Sin cambio: https:\/\/example\.com/)).toBeInTheDocument();
+    expect(screen.queryByText(/otro\.trycloudflare/)).not.toBeInTheDocument();
+  });
+
   it("realiza fetch cada 60 segundos cuando el componente está visible", async () => {
     vi.useFakeTimers();
     
