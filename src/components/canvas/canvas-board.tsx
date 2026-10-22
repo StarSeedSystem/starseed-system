@@ -43,6 +43,7 @@ import XRView from "@/components/canvas/xr-view";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { claveDeHerramienta, claveDeAtomo, claveDeMolecula, atributosClave } from "@/lib/variaciones/claves-protomolecula";
 import { usePrompt } from "@/components/ui/confirm-dialog";
 import {
   Plus,
@@ -2031,9 +2032,28 @@ function BlockCard({
 }) {
   const def = blockKindDef(block.kind);
   const locked = !!block.locked;
+  
+  // Generate data-ss-elemento attribute for canvas and Protomolécula components
+  const elementoAttrs = useMemo(() => {
+    let clave = null;
+    
+    // For widget and app blocks, use claveDeHerramienta with the name
+    if ((block.kind === "widget" || block.kind === "app") && block.data.name) {
+      clave = claveDeHerramienta(block.data.name);
+    }
+    // For protomolecula blocks, use claveDeMolecula with the molecule code
+     else if (block.kind === "protomolecula" && block.data.code) {
+       clave = claveDeMolecula(block.data.code);
+    }
+    // TODO: Add support for other block types (átomos, etc.)
+    
+   return clave ? atributosClave(clave) : {};
+ }, [block.kind, block.data.name, block.data.code]);
+  
   return (
     <div
       data-block={block.id}
+      {...elementoAttrs}
       onClick={connectMode ? onConnectClick : onSelect}
       className={cn(
         "absolute rounded-xl border bg-zinc-900/80 backdrop-blur shadow-lg flex flex-col overflow-hidden",
