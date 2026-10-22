@@ -25,6 +25,9 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import type { SignalTransport } from "@/lib/network/webrtc-mesh";
+import { elegirTransporte, type Alcanzabilidad, type Sala } from "@/lib/salas/sala";
+import { abrirCanalEscenaP2P, type OpcionesCanalP2P } from "./canal-p2p";
 
 export type EventoEscena = "pose" | "cambios" | "arrastre" | "pedir-estado" | "estado";
 export const EVENTOS_ESCENA: readonly EventoEscena[] = ["pose", "cambios", "arrastre", "pedir-estado", "estado"];
