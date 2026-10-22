@@ -80,6 +80,15 @@ describe("apilar y retirar", () => {
     expect(delA.at(-1)).toBe("c9");
     expect(capas.some((c) => c.id === "ajena")).toBe(true);
   });
+  it("con menos de 8 añade al final sin tocar las demás y conserva la capa tal cual", () => {
+    const antes = [capa("a1"), capa("b1", "bot-b")];
+    const nueva: CapaActiva = { forma: "flecha", objetivo: "boton-enviar", texto: "Envía aquí", id: "a2", botId: "bot-a", nombreBot: "Bot A" };
+    const despues = apilar(antes, nueva);
+    expect(despues).toHaveLength(antes.length + 1);
+    expect(despues.at(-1)).toBe(nueva);
+    expect(despues.slice(0, antes.length)).toEqual(antes);
+    expect(antes).toHaveLength(2);
+  });
   it("el mismo id sustituye en su sitio y no cuenta dos veces", () => {
     const capas = apilar(apilar([capa("x"), capa("y")], { ...capa("x"), texto: "nueva" }), capa("z"));
     expect(capas.map((c) => c.id)).toEqual(["x", "y", "z"]);
