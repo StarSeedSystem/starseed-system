@@ -4596,3 +4596,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SP092942b` — pruebas en rojo: vitest falla (rama conservada)
 - `SP092939b` — pruebas en rojo: vitest falla (rama conservada)
 - `RTS1010-ACT5d-d2c` — no escribió nada
+
+## 2026-10-22 12:43 · mg-oracle-1022-0457
+
+**Lo que se pidió.** para tareas muy complicadas … que requieran más capacidad de detalle en su producción y desarrollo técnico y creativo puedes utilizar agentes potentes más especializados (Claude Opus 5.5 en un contenedor en la nube, los más nuevos de Gemini y ChatGPT, o los gratuitos más potentes) supervisando los créditos para no agotarlos
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (ALT1021Ac, RTS1010-MGR2d-d1c, RTRTS1010-EV-ORACLE-1acbbbbbbbbbbb, RTRC1013Cd-d2d). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `ALT1021Ac` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTS1010-MGR2d-d1c` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTS1010-EV-ORACLE-1acbbbbbbbbbbb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRC1013Cd-d2d` — otra cosa: ningún proveedor respondió (todos caídos)
