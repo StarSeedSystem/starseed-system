@@ -4074,6 +4074,134 @@ def repo_es_python(cwd):
     return not os.path.exists(os.path.join(cwd, "tsconfig.json"))
 
 
+def _tsc_en_a1_disponible():
+    """¿Toca pedir la puerta al A1? Solo en la Mac y solo si TRA1012A dejó el puente.
+
+    En el A1 o en la nube no tiene sentido (ya está allí); sin `comprobar_en_a1.py`
+    tampoco hay con quién hablar.
+    """
+    return (
+        os.environ.get("STARSEED_MEDIO") == "mac"
+        and os.path.isfile(os.path.join(ROOT, "scripts", "puente", "comprobar_en_a1.py"))
+    )
+
+
+def errores_del_a1(detalle):
+    """PURA: los errores del A1 en el MISMO formato que el tsc local.
+
+    La reparación automática lee líneas «error TS» y se las pasa al modelo. Si el A1
+    contestó rojo pero no listó ninguna, se marca como tsc que no terminó para no mandar
+    a «reparar» a ciegas algo que en realidad fue un fallo de la comprobación.
+    """
+    texto = str(detalle or "").strip()
+    errores = []
+    for linea in texto.splitlines():
+        limpia = linea.strip()
+        # `comprobar` antepone «en el A1: tsc: » a la primera línea; la reparación espera
+        # el error tal cual lo escribiría tsc, para poder enseñarlo sin ruido.
+        while True:
+            for prefijo in ("en el A1: ", "A1: ", "tsc: "):
+                if limpia.startswith(prefijo):
+                    limpia = limpia[len(prefijo):]
+                    break
+            else:
+                break
+        if "error TS" in limpia:
+            errores.append(limpia)
+    if errores:
+        return errores
+    return ["%s (en el A1): %s" % (TSC_SIN_TERMINAR, texto or "sin detalle")]
+
+
+def _avisar_puerta_tsc(tid, donde, segundos, ok, errores):
+    """Deja en el evento de la puerta dónde se comprobó («A1» o «Mac») y cuánto tardó.
+
+    Genesis necesita ese dato para saber si el A1 está sirviendo de verdad o si la Mac
+    sigue pagando los 5–15 min de tsc que esta tarea quiere quitarle.
+    """
+    if ok:
+        texto = "puerta tsc en %s (%.1fs): verde" % (donde, max(0.0, segundos))
+    else:
+        texto = "puerta tsc en %s (%.1fs): %d errores" % (
+            donde,
+            max(0.0, segundos),
+            len(errores or []),
+        )
+    evento("aviso", tid, texto)
+
+
+def _tsc_en_a1(cwd, log):
+    """Pide la puerta tsc al A1 de Oracle. Devuelve (ok, errores, del_medio, segundos).
+
+    `comprobar_en_a1.comprobar` empaqueta el HEAD del worktree —la rama `ola/<id>`, ya
+    cherry-pickeada sobre main por el salvavidas— y comprueba allí tsc y lo relacionado.
+    `del_medio` en True significa que el A1 no pudo (ocupado, sin respuesta, guardián):
+    eso NO es un fallo de la tarea, así que la Mac sigue con su tsc de siempre.
+
+    El worktree tiene que estar limpio: `comprobar` solo manda commits, y comprobar un
+    HEAD sin los cambios en curso daría un verde falso. El salvavidas commitea antes de
+    las puertas, pero si algo quedó suelto se comprueba en la Mac.
+    """
+    inicio = time.time()
+    # Sin carpeta real no hay worktree que empaquetar; además mantiene las pruebas de la
+    # puerta en su carril: no salen a la red por llevar STARSEED_MEDIO=mac en la Mac.
+    if not cwd or not os.path.isdir(cwd):
+        return False, [], True, time.time() - inicio
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        # Import perezoso: `oracle_nodo` toca red y claves, y este módulo se importa
+        # también en el A1 y en la nube, donde ese puente no pinta nada.
+        import comprobar_en_a1  # noqa: PLC0415
+
+        rc_sucio, sucio = sh(["git", "status", "--porcelain"], cwd=cwd, timeout=30)
+        # Las notas del director y los temporales del agente no son trabajo y no viajan en
+        # el paquete; si los hubiera, no convierten el worktree en «sucio».
+        reales = [
+            l
+            for l in (sucio or "").splitlines()
+            if l.strip()
+            and not es_archivo_basura(l[3:].strip().split(" -> ")[-1].strip('"'))
+        ]
+        if rc_sucio != 0 or reales:
+            return False, [], True, time.time() - inicio
+        rc_base, salida = sh(["git", "rev-parse", "main"], cwd=cwd, timeout=30)
+        base = salida.strip() if rc_base == 0 else ""
+        rama = base or "main"
+        rc_shas, salida_shas = sh(
+            ["git", "rev-list", "--reverse", "%s..HEAD" % rama], cwd=cwd, timeout=60
+        )
+        shas = (
+            [l.strip() for l in salida_shas.splitlines() if l.strip()]
+            if rc_shas == 0
+            else []
+        )
+        rc_camb, salida_camb = sh(
+            ["git", "diff", "--name-only", "%s...HEAD" % rama], cwd=cwd, timeout=60
+        )
+        cambiados = (
+            [l.strip() for l in salida_camb.splitlines() if l.strip()]
+            if rc_camb == 0
+            else []
+        )
+        # El tsc local compila SIEMPRE el proyecto entero, pero `comprobar` solo lo hace si
+        # ve TypeScript en el diff. Se lo pedimos igual con el tsconfig para que la puerta
+        # del A1 sea la misma puerta y no un «no había nada que comprobar» (pasa en main).
+        if "tsconfig.json" not in cambiados:
+            cambiados.append("tsconfig.json")
+        # 600 s: si el A1 no contesta en lo que tarda un tsc suyo (20 s–4 min), la Mac
+        # no puede quedarse esperando; arranca el tsc local y la tarea no se pierde.
+        ok, detalle, del_medio = comprobar_en_a1.comprobar(
+            base, shas, cambiados, timeout=600, cwd=cwd
+        )
+    except Exception:
+        # Cualquier fallo al hablar con el A1 es DEL MEDIO: la Mac comprueba.
+        return False, [], True, time.time() - inicio
+    errores = [] if ok else errores_del_a1(detalle)
+    return bool(ok), errores, bool(del_medio), time.time() - inicio
+
+
 def tsc(cwd, log):
     if repo_es_python(cwd):
         # Compilación de los .py cambiados respecto a main (o todos los del diff sin commit).
@@ -4098,6 +4226,24 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
+    # (TRA1012Bc) En la Mac, el tsc completo pesa 3,2–3,7 GB y tarda 5–15 min con la swap
+    # llena; el A1 de Oracle (12 GB) hace el mismo trabajo en 20 s–4 min. Se le pide a él
+    # primero y solo si el A1 «no puede» (ocupado, sin respuesta) se paga en la Mac.
+    tid = os.path.basename(os.path.normpath(cwd))
+    if _tsc_en_a1_disponible():
+        ok, errores, del_medio, segundos = _tsc_en_a1(cwd, log)
+        if not del_medio:
+            _avisar_puerta_tsc(tid, "A1", segundos, ok, errores)
+            return (0 if ok else 1), errores
+        # Fallo DEL MEDIO, no de la tarea: la Mac comprueba como siempre.
+        evento(
+            "aviso",
+            tid,
+            "el A1 no pudo comprobar en %.1fs; la puerta sigue en la Mac" % segundos,
+        )
+
+    # tsc local de la Mac (camino de siempre y respaldo del A1).
+    inicio_local = time.time()
     env = ENV_TSC
     for intento in range(2):
         with SEM_PESADO, cerrojo("pesado"):
@@ -4111,16 +4257,19 @@ def tsc(cwd, log):
         errores = [l for l in out.splitlines() if "error TS" in l]
         motivo = tsc_sin_terminar(rc, out, errores)
         if not motivo:
+            _avisar_puerta_tsc(tid, "Mac", time.time() - inicio_local, rc == 0, errores)
             return rc, errores
         if intento == 0:
             # Una segunda vuelta con más montón si fue la memoria, tras dejar respirar a la Mac.
             if "memoria" in motivo:
                 env = dict(ENV_TSC, NODE_OPTIONS="--max-old-space-size=%d" % max(3584, TSC_HEAP_MB))
             time.sleep(30)
-    return rc, [
+    errores = [
         "%s (%s): la puerta no da el visto bueno sin un tsc completo"
         % (TSC_SIN_TERMINAR, motivo)
     ]
+    _avisar_puerta_tsc(tid, "Mac", time.time() - inicio_local, False, errores)
+    return rc, errores
 
 
 #: (2026-10-04) Un tsc que MUERE no es un tsc limpio. La puerta contaba las líneas «error TS»
