@@ -4333,7 +4333,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `S1010-TU-LL2c` — los tipos no compilan: 9 errores tsc (rama ola/S1010-TU-LL2c conservada)
 - `PM1010F0Ec` — los tipos no compilan: 4 errores tsc (rama ola/PM1010F0Ec conservada)
 
-<<<<<<< HEAD
+## 2026-10-12 22:42 · mg-oracle-1012-1504
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (S1010-TU-LL3, WT1011A). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `S1010-TU-LL3` — otra cosa: sin decisión en 0 h; rama ola/S1010-TU-LL3 conservada
+- `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
+
 ## 2026-10-13 01:20 · mg-oracle-1012-1741
 
 **Lo que se pidió.** Biblioteca por categorías: una ficha por herramienta con licencia, enlaces, versión y estado real
@@ -4345,8 +4357,6 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCOL1012Bc` — otra cosa: sin decisión en 0 h; rama ola/RTCOL1012Bc conservada
 - `RTAV1011Dd` — pruebas en rojo: vitest falla (rama conservada)
 
-=======
->>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
 ## 2026-10-13 03:50 · mg-oracle-1012-2102
 
 **Lo que se pidió.** diamante en esencia de conciencia
@@ -4355,7 +4365,6 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
 - nvidia/nvidia/nemotron-3-super-120b-a12b integró 2 tareas sin fallar una.
-<<<<<<< HEAD
 
 ## 2026-10-13 15:06 · mg-oracle-1013-0708
 
@@ -4416,16 +4425,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTIMG1011Gd` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTIMG1011Gd conservada)
 
 ## 2026-10-14 19:46 · mg-oracle-1014-1253
-=======
-## 2026-10-12 22:42 · mg-oracle-1012-1504
->>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 
 **Lo que se pidió.** Genesis
 
 **Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
 
 **Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
-<<<<<<< HEAD
 - 2 tareas se fueron por lo mismo — otra cosa (S1010-ACT5, S1010-ACT2). Es 50 % de la ola.
 - openrouter/thinkingmachines/inkling:free no integró ninguna de sus 2 tareas.
 
@@ -4447,17 +4452,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
-=======
-<<<<<<< HEAD
->>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
-=======
-- 2 tareas se fueron por lo mismo — otra cosa (S1010-TU-LL3, WT1011A). Es 50 % de la ola.
+
+## 2026-10-16 07:09 · mg-oracle-1015-2329
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (RTRTRTS1010-EV-ORACLE-1accbbb, S1010-ACT5d, S1010-ACT2c). Es 75 % de la ola.
 
 **Lo que quedó fuera, una por una:**
-- `S1010-TU-LL3` — otra cosa: sin decisión en 0 h; rama ola/S1010-TU-LL3 conservada
-- `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
->>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
->>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+- `RTRTRTS1010-EV-ORACLE-1accbbb` — otra cosa: degenerado: src/lib/astraura-bots/sincronia-bots.ts: encogió de 85 a 36 líneas (más de la mitad)
+- `S1010-ACT5d` — otra cosa: degenerado: src/lib/astraura-bots/sincronia-bots.ts: encogió de 85 a 36 líneas (más de la mitad)
+- `S1010-ACT2c` — otra cosa: ningún proveedor respondió (todos caídos)
 
 ## 2026-10-19 15:12 · mg-oracle-1019-0800
 
@@ -4468,7 +4476,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTRTCOL1012Bdsbbbbbbbbbbbb` — no escribió nada
 
-<<<<<<< HEAD
+## 2026-10-19 16:13 · mg-oracle-1019-0915
+
+**Lo que se pidió.** Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/nvidia/nemotron-3-super-120b-a12b integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `RTS1010-EV-ORACLE-1acf` — no escribió nada
+- `VGM1016H` — otra cosa: sin decisión en 0 h; rama ola/VGM1016H conservada
+
 ## 2026-10-19 18:47 · mg-oracle-1019-1149
 
 **Lo que se pidió.** Nodo de MetaGenesis: órdenes «desconectar
@@ -4479,12 +4499,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCOL1012Ae` — no escribió nada
 - `PG1013F` — otra cosa: sin decisión en 0 h; rama ola/PG1013F conservada
 
+## 2026-10-19 20:55 · mg-oracle-1019-1251
+
+**Lo que se pidió.** Laya · privacidad que solo sube (nunca baja)
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (RTLYS1018E, RTRTRTRTCOL1012Bdsbbbbbbbbbbb, GCA1019P). Es 75 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RTLYS1018E` — otra cosa: sin decisión en 0 h; rama ola/RTLYS1018E conservada
+- `RTRTRTRTCOL1012Bdsbbbbbbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTCOL1012Bdsbbbbbbbbbbb conservada
+- `GCA1019P` — otra cosa: sin decisión en 0 h; rama ola/GCA1019P conservada
+
 ## 2026-10-20 00:18 · mg-oracle-1019-1732
 
 **Lo que se pidió.** Ejecutor de acciones tipadas y directiva [[BOT: …]] (traducción a los ejecutores reales)
-## 2026-10-19 16:13 · mg-oracle-1019-0915
-
-**Lo que se pidió.** Relé de estaciones (lógica pura de salas) con pruebas
 
 **Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
 
@@ -4513,10 +4544,6 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-10-20 17:42 · mg-oracle-1020-0802
 
 **Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
-=======
-## 2026-10-19 20:55 · mg-oracle-1019-1251
-
-**Lo que se pidió.** Laya · privacidad que solo sube (nunca baja)
 
 **Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
 
@@ -4527,18 +4554,6 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1abbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTS1010-EV-ORACLE-1abbbbbbb conservada
 - `RTCOL1012Mb` — pruebas en rojo: vitest falla (rama conservada)
 - `VST1018Gb` — otra cosa: ningún proveedor respondió (todos caídos)
-- nvidia/nvidia/nemotron-3-super-120b-a12b integró 2 tareas sin fallar una.
-
-**Lo que quedó fuera, una por una:**
-- `RTS1010-EV-ORACLE-1acf` — no escribió nada
-- `VGM1016H` — otra cosa: sin decisión en 0 h; rama ola/VGM1016H conservada
-- 3 tareas se fueron por lo mismo — otra cosa (RTLYS1018E, RTRTRTRTCOL1012Bdsbbbbbbbbbbb, GCA1019P). Es 75 % de la ola.
-
-**Lo que quedó fuera, una por una:**
-- `RTLYS1018E` — otra cosa: sin decisión en 0 h; rama ola/RTLYS1018E conservada
-- `RTRTRTRTCOL1012Bdsbbbbbbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTCOL1012Bdsbbbbbbbbbbb conservada
-- `GCA1019P` — otra cosa: sin decisión en 0 h; rama ola/GCA1019P conservada
->>>>>>> 93f1d225 (chore(memoria): aprendizaje de la ola mg-oracle-1019-1251)
 
 ## 2026-10-21 01:28 · mg-oracle-1020-1627
 
@@ -4568,3 +4583,4 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1accbbbbbb` — los tipos no compilan: 12 errores tsc (rama ola/RTRTRTS1010-EV-ORACLE-1accbbbbbb conservada)
 - `CB1013S` — no escribió nada
 - `VPU1019W` — no escribió nada
+

@@ -1,7 +1,6 @@
 "use client";
 
 import type { Bot } from "../tipos";
-import { createClient } from "@/utils/supabase/client";
 import { onTableChange } from "@/lib/realtime/realtime";
 
 export function fusionarBots(
