@@ -8,15 +8,17 @@
  * dashboard: sin título, dictado ni historial, pero con «Añadir herramienta», parámetros y pendientes
  * (un widget vacío sin forma de llenarlo sería un callejón sin salida).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { registrarAtomosPropios } from "@/lib/protomolecula/atomos";
 import type { Controlador } from "@/lib/protomolecula/controlador";
 import { AVISO_SALUD } from "@/lib/protomolecula/permisos";
-import { candidatosDe } from "@/lib/protomolecula/registro-atomos";
+import { candidatosDe, obtenerAtomo } from "@/lib/protomolecula/registro-atomos";
 import type { EstadoGuardado } from "@/lib/protomolecula/sesion-molecula";
-import type { Ambito, Autor } from "@/lib/protomolecula/tipos";
+import type { Ambito, Autor, ValorParametro } from "@/lib/protomolecula/tipos";
 
 import { BarraDictado } from "./barra-dictado";
+import { MarcoAislado } from "./marco-aislado";
 import { PanelActividad, hayLecturaSalud } from "./panel-actividad";
 import { AnadirHerramienta, ListaPendientes } from "./panel-estructura";
 import { PanelParametros } from "./panel-parametros";
@@ -26,6 +28,8 @@ const AUTOR_PANEL: Autor = { tipo: "persona", id: "panel" };
 
 const ETIQUETA_AMBITO: Record<Ambito, string> = { personal: "personal", perfil: "perfil", grupo: "grupo", publica: "pública" };
 const TEXTO_GUARDADO = { "sin-cambios": "Sin cambios que guardar", guardando: "Guardando…", guardado: "Guardado en este aparato" } as const;
+const MIME: Record<string, string> = { wav: "audio/wav", mp3: "audio/mpeg", ogg: "audio/ogg", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", svg: "image/svg+xml", glb: "model/gltf-binary", gltf: "model/gltf+json", json: "application/json", txt: "text/plain" };
+const nuevoIdOperacion = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `pm-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 export interface PanelProtomoleculaProps {
   controlador: Controlador;
@@ -39,6 +43,8 @@ export interface PanelProtomoleculaProps {
 export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, compacto = false, guardado }: PanelProtomoleculaProps) {
   const estado = useEstadoControl(ctl);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [descargas, setDescargas] = useState<Array<{ formato: string; url: string }>>([]);
+  useEffect(() => { registrarAtomosPropios(); }, []);
   if (!estado) return null;
 
   return (
@@ -54,6 +60,26 @@ export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, comp
       <AnadirHerramienta controlador={ctl} estado={estado} />
       <ListaPendientes controlador={ctl} estado={estado} />
       {!compacto && <BarraDictado alDictar={(frase) => ctl.dictar(frase, autor).resultados} />}
+      {estado.molecula.atomos.filter((a) => a.estado === "activo").map((a) => {
+        const def = obtenerAtomo(a.herramientaId);
+        return def?.vista ? (
+          <MarcoAislado key={a.id} definicion={def} atomoId={a.id} valores={estado.molecula.valores}
+            alCambio={(parametroId, valor) => {
+              const r = ctl.mover({ id: nuevoIdOperacion(), objetivo: { atomoId: a.id, parametroId }, accion: { tipo: "exacta", valor: valor as ValorParametro }, autor, origen: "mano", t: Date.now() });
+              setAviso(r.ok ? null : r.motivo);
+            }}
+            alExportar={(formato, datos) => {
+              const url = URL.createObjectURL(new Blob([typeof datos === "string" ? datos : JSON.stringify(datos)], { type: MIME[formato.toLowerCase()] ?? "application/octet-stream" }));
+              setTimeout(() => URL.revokeObjectURL(url), 60_000);
+              setDescargas((p) => [...p, { formato, url }]);
+            }} />
+        ) : null;
+      })}
+      {descargas.length > 0 && (
+        <ul aria-label="Descargas" className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          {descargas.map((d, i) => <li key={`${d.formato}-${i}`}><a className="cursor-pointer text-primary underline" href={d.url} download={`protomolecula.${d.formato}`}>Descargar {d.formato}</a></li>)}
+        </ul>
+      )}
       <PanelParametros
         candidatos={candidatosDe(estado.molecula)}
         valores={estado.molecula.valores}
