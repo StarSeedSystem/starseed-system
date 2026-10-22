@@ -80,6 +80,13 @@ describe("apilar y retirar", () => {
     expect(delA.at(-1)).toBe("c9");
     expect(capas.some((c) => c.id === "ajena")).toBe(true);
   });
+  it("por debajo del tope no se retira nada: la nueva va al final y la lista original no cambia", () => {
+    const antes = [capa("a1"), capa("a2")];
+    const despues = apilar(antes, { ...capa("a3"), forma: "flecha", objetivo: "menu:ajustes" });
+    expect(despues.map((c) => c.id)).toEqual(["a1", "a2", "a3"]);
+    expect(despues[2].forma).toBe("flecha");
+    expect(antes.map((c) => c.id)).toEqual(["a1", "a2"]);
+  });
   it("el mismo id sustituye en su sitio y no cuenta dos veces", () => {
     const capas = apilar(apilar([capa("x"), capa("y")], { ...capa("x"), texto: "nueva" }), capa("z"));
     expect(capas.map((c) => c.id)).toEqual(["x", "y", "z"]);
