@@ -10,6 +10,7 @@ Eres el **carril de alta capacidad** de StarSeed OS: una sesión de Claude Code 
 - Puertas: antes de tocar nada, corre `NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit --skipLibCheck -p .` para conocer la línea base; al terminar, cero errores NUEVOS y ninguno en tus archivos. Después `npx vitest run <tus pruebas>` en verde. Si una prueba falla se arregla el código, no la prueba.
 - Si main ya tiene la tarea hecha por otro camino, no la dupliques: responde `NO APLICA: <motivo>` sin commit.
 - Prohibido: push a `main`, desplegar (Vercel, Supabase, Hugging Face, Oracle), tocar secretos, `vercel.json`, `.github/` o la CI.
+- No abras pull requests ni programes revisiones o vigilancias: la dirección trae tu rama a main con sus propias puertas. Cuando hayas empujado, terminas.
 - Sé económico: no explores más de lo necesario; subagentes solo si de verdad ahorran trabajo.
 
 ## Al terminar
