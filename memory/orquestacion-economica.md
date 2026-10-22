@@ -56,9 +56,34 @@ tarea:
 | 1 | los gratuitos más fuertes y creativos: OpenCode Zen (`glm-5.3-flash-free`, `deepseek-v4.1-flash-free`, `minimax-m3.1-flash-free`, `big-pickle`), NIM (`kimi-k3`), el Gemini más nuevo con cuota gratis | 0 |
 | 2 | Codex / ChatGPT | suscripción |
 | 3 | Antigravity `agy` (Gemini más nuevo) — cuando su modo sin pantalla funcione | suscripción |
-| 4 | agentes **Claude Opus 5.5** en el contenedor de la sesión de dirección (Cowork) | créditos de Claude |
+| 4a | **sesiones de Claude Code en la nube** con Opus 5.5 (`claude --model claude-opus-5-5 --cloud …`) | **crédito de sesiones en la nube** (250 $, vence el 4-11 a las 23:59 PT): no toca el límite semanal |
+| 4b | agentes Opus 5.5 en el contenedor de la sesión de dirección (Cowork) — solo sin crédito de nube | límite semanal de Claude |
 
-Cómo se opera el peldaño 4:
+**El crédito de 250 $ solo lo gastan las sesiones de Claude Code en la nube** (2026-10-22, medido).
+- Lo gastan las que se abren desde claude.ai/code, la pestaña Code del móvil, la app de escritorio con «Nube» o `claude --cloud`.
+- NO lo gastan Cowork (esta dirección), las tareas programadas (routines), Projects ni Remote Control. Por eso siguió
+  intacto del 27-09 al 21-10: todo corría en Cowork y las dos agentes del piloto GUI1021D/E subieron la semana del 72 al 74 %.
+- Prueba: al abrir la primera sesión en la nube (XR1010AAd-d1) el crédito bajó de 250 a 248 $ y la semana siguió en 74 %.
+
+Cómo se opera el peldaño 4a (mientras quede crédito):
+- Lanzar desde la Mac, en la raíz del repo: `claude --model claude-opus-5-5 --cloud "$(cat <brief>.md)"`. El orden importa:
+  `--cloud` toma un valor opcional y, si va antes de `--model`, se queda sin descripción. Necesita una terminal de verdad;
+  desde un proceso sin TTY se envuelve en `script -q <log> …` (stdin de `tail -f <teclas>`). La salida trae
+  `View: https://claude.ai/code/session_…`, que se anota en `~/.starseed/alta-capacidad-nube.json`.
+- Brief: `scripts/puente/plantillas/alta-capacidad-nube.md` + el `prompt` de la tarea (las colas no viajan en git).
+  La sesión clona `origin/main` de GitHub (puede ir unos commits por detrás de la Mac) y hace `npm ci`.
+- La tarea queda `reasignada · claude-nube` mientras la sesión trabaja; ningún reclamador toca ese medio.
+- La sesión empuja `nube/cc-<fecha>/ola/<ID>`, con asunto `Ola 1022C · … · <ID>: …`.
+  Al aparecer la rama, la tarea vuelve a `pendiente` y se corre `traer_nube.py revisar --aplicar`, que la trae con las
+  puertas de la Mac. Si la sesión solo pudo empujar a `claude/…`, se trae a mano.
+  `vercel.json` no despliega `nube/**` ni `claude/**`.
+- **Ritmo:** el crédito restante entre los días que faltan (~18 $/día al empezar); como mucho 3 sesiones vivas;
+  se paran con 10 $ de reserva. Saldo: claude.ai/settings/usage → «Créditos de sesiones en la nube»,
+  anotado con `credito_claude_nube.py declarar --restante N`.
+- Lo automatiza la ola 1022A (`cola-alta-capacidad-1022.json`). Al vencer o agotarse el crédito,
+  las sesiones en la nube vuelven a contar en el límite del plan, sin avisar: entonces rige el 4b.
+
+Cómo se opera el peldaño 4b:
 - Una tarea cerrada por agente, sobre un árbol igual a main de la Mac (lo que no compila no
   cuenta: `enjambre/`, `.agent/`, `queue/` pueden faltar).
 - tsc limpio y vitest en verde en el contenedor antes de traerla; se integra con
