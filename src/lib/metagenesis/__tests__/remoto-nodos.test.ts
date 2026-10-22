@@ -212,6 +212,19 @@ describe("textoEstadoOrden: todo estado conocido tiene su frase y uno desconocid
 
     it("un estado desconocido se devuelve tal cual", () => {
         expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+        // Los estados llegan del bus y de las tablas tal cual vinieron: ni se traducen ni se inventan.
+        expect(textoEstadoOrden("Pendiente")).toBe("Pendiente");
+        expect(textoEstadoOrden("en curso")).toBe("en curso");
+    });
+
+    it("una orden del bus con un estado que nadie definió conserva su estado y su texto", () => {
+        const filas = [
+            fila("mg_orden", { nonce: "nonce-estado-1", accion: "buscar_capacidad", para: "lider" }),
+            fila("mg_orden_hecha", { nonce: "nonce-estado-1", estado: "inventado", nodo: "mac-aaaaaa", resultado: "" }),
+        ];
+        const e = resumirBus(filas, AHORA);
+        expect(e.ordenes[0].estado).toBe("inventado");
+        expect(textoEstadoOrden(e.ordenes[0].estado)).toBe("inventado");
     });
 });
 

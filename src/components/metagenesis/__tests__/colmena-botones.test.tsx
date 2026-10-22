@@ -53,6 +53,9 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(b.desconectar.confirmar).toBe(false);
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
         expect(b.contenedor.confirmar).toBe(false);
+        // Lo que el botón promete al pulsarlo (sale en la tarjeta): con contenedor activo y nada a medias este
+        // texto no lo fijaba ninguna prueba, y es el que ve el usuario antes de confirmar.
+        expect(b.desconectar.explica).toBe("Pasa a otro contenedor lo que tenga a medias antes de que este aparato se quede sin internet.");
     });
 
     it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente", () => {
