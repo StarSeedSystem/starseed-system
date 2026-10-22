@@ -78,6 +78,31 @@ describe("xr.intencion", () => {
     expect(ejecutarIntencionXR(operar(MOVER), ctxVoz)).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("solo traduce «xr.intencion»") });
   });
 });
+describe("xr.intencion · entradas límite", () => {
+  const cruda = (frase: unknown): AccionBot => ({ tipo: "xr.intencion", args: { frase } } as unknown as AccionBot);
+  it("una frase que no es texto no llega a entenderVoz: motivo claro, sin previo ni tarjeta", () => {
+    const r = ejecutarIntencionXR(cruda(123), ctxVoz);
+    expect(r).toMatchObject({ ok: false, previo: {}, tarjeta: null, motivo: expect.stringContaining("solo traduce") });
+  });
+  it("una frase vacía pide que la persona hable y no genera tarjeta", () => {
+    const r = ejecutarIntencionXR(cruda(""), ctxVoz);
+    expect(r).toMatchObject({ ok: false, previo: {}, tarjeta: null });
+    expect(r.motivo.length).toBeGreaterThan(0);
+  });
+  it("una frase que no entiende devuelve su pregunta y no avisa de espera de confirmación", () => {
+    const onStatus = vi.fn();
+    const r = ejecutarIntencionXR(voz("zzzz qqqq xxxx"), ctxVoz, { onStatus });
+    expect(r).toMatchObject({ ok: false, previo: {}, tarjeta: null });
+    expect(onStatus).not.toHaveBeenCalled();
+  });
+  it("con tarjeta lista avisa «Esperando tu confirmación…» y no ejecuta nada", () => {
+    const onStatus = vi.fn();
+    const r = ejecutarIntencionXR(voz("llévame a la estación Cumbre"), ctxVoz, { onStatus });
+    expect(r).toMatchObject({ ok: true, previo: {}, motivo: "Tarjeta lista: no se hace nada hasta que la confirmes." });
+    expect(onStatus).toHaveBeenCalledWith("Esperando tu confirmación…");
+    expect(router.push).not.toHaveBeenCalled();
+  });
+});
 describe("anclaDeBot", () => {
   const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
   const grados = (r: number) => (r * 180) / Math.PI;
@@ -101,6 +126,10 @@ describe("anclaDeBot", () => {
       expect(az).toBeGreaterThan(grados(Math.atan2(zenith.ancho / 2, zenith.distancia)));
       expect(az).toBeLessThan(Math.abs(logic.azimutDeg) - grados(Math.atan2(logic.ancho / 2, logic.distancia)));
     }
+  });
+  it("la posición depende del índice, no del bot: mismo índice, misma posición; el siguiente se desplaza", () => {
+    expect(anclaDeBot("bot1", 0).posicion).toEqual(anclaDeBot("bot2", 0).posicion);
+    expect(anclaDeBot("bot1", 0).posicion).not.toEqual(anclaDeBot("bot1", 1).posicion);
   });
   it("con una mano, las orbes van al lado libre (Horizon queda del dominante)", () => {
     const e: EntradaEspacio = { ...ESPACIO_POR_DEFECTO, postura: "una-mano", manoDominante: "derecha" };
