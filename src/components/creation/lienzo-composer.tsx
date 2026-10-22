@@ -517,35 +517,35 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                             {meta.label}
                                         </span>
                                         <div className="ml-auto flex items-center gap-1">
-<button
-                                                 type="button"
-                                                 onClick={() => moveBlock(b.id, -1)}
-                                                 disabled={i === 0}
-                                                 className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
-                                                 title="Subir bloque"
-                                                 aria-label={ariaLabelBloque("subir", meta.label, i + 1)}
-                                             >
-                                                 <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
-                                             </button>
-<button
-                                                 type="button"
-                                                 onClick={() => moveBlock(b.id, 1)}
-                                                 disabled={i === blocks.length - 1}
-                                                 className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
-                                                 title="Bajar bloque"
-                                                 aria-label={ariaLabelBloque("bajar", meta.label, i + 1)}
-                                             >
-                                                 <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
-                                             </button>
-<button
-                                                 type="button"
-                                                 onClick={() => removeBlock(b.id)}
-                                                 className="p-1 rounded-md text-white/30 hover:text-red-300 hover:bg-red-500/10 cursor-pointer transition-colors"
-                                                 title="Quitar bloque"
-                                                 aria-label={ariaLabelBloque("quitar", meta.label, i + 1)}
-                                             >
-                                                 <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                                             </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => moveBlock(b.id, -1)}
+                                                disabled={i === 0}
+                                                className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
+                                                title="Subir bloque"
+                                                aria-label={ariaLabelBloque("subir", meta.label, i + 1)}
+                                            >
+                                                <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => moveBlock(b.id, 1)}
+                                                disabled={i === blocks.length - 1}
+                                                className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
+                                                title="Bajar bloque"
+                                                aria-label={ariaLabelBloque("bajar", meta.label, i + 1)}
+                                            >
+                                                <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeBlock(b.id)}
+                                                className="p-1 rounded-md text-white/30 hover:text-red-300 hover:bg-red-500/10 cursor-pointer transition-colors"
+                                                title="Quitar bloque"
+                                                aria-label={ariaLabelBloque("quitar", meta.label, i + 1)}
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                                            </button>
                                         </div>
                                     </div>
 
@@ -568,14 +568,14 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                                 </div>
                                             ) : b.url ? (
                                                 <div className="space-y-2">
-{b.type === "imagen" && (
-                                                         // eslint-disable-next-line @next/next/no-img-element
-                                                         <img
-                                                             src={b.url}
-                                                             alt={altImagenBloque(b.name)}
-                                                             className="max-h-48 w-auto rounded-xl border border-white/10 object-cover"
-                                                         />
-                                                     )}
+                                                    {b.type === "imagen" && (
+                                                        // eslint-disable-next-line @next/next/no-img-element
+                                                        <img
+                                                            src={b.url}
+                                                            alt={altImagenBloque(b.name)}
+                                                            className="max-h-48 w-auto rounded-xl border border-white/10 object-cover"
+                                                        />
+                                                    )}
                                                     <p className="text-xs text-white/50 truncate">
                                                         {b.name} — subido a tu nube
                                                     </p>
