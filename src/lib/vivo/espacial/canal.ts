@@ -258,9 +258,8 @@ export interface DepsCanalElegido {
 }
 
 /**
- * Abre la escena por donde toca: `elegirTransporte` decide; la malla P2P si es `malla-p2p`
- * (o un `servidor-privado` sin internet) y el canal de Supabase de siempre en cualquier otro
- * caso o si la malla no está disponible. `abrirCanalEscena` no cambia.
+ * Abre la escena por donde toca: `elegirTransporte` decide; la malla P2P si es `malla-p2p` (o un
+ * `servidor-privado` sin internet) y el canal de Supabase de siempre si no. `abrirCanalEscena` no cambia.
  */
 export function abrirCanalEscenaElegido(sala: Sala, alcance: Alcanzabilidad, deps: DepsCanalElegido): ConexionEscena | null {
     const { transporte } = elegirTransporte(sala, alcance);
