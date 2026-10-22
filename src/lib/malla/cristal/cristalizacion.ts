@@ -6,7 +6,7 @@ import type {
    EstadoVitreo, Cristal, Puente
  } from "./tipos";
 import { coordinacionDe } from "./tipos";
-import { esTitanio, bonusTroncal, temperaturaAmortiguada } from "./titanio";
+import { esTitanio, bonusTroncal, temperaturaAmortiguada, COORDINACION_TITANIO } from "./titanio";
 import { delaunay } from "./triangulacion";
 import { senalesDeReticula, huellaReticula } from "./teselas";
 import { posicionesEstimadas } from "./geometria";
@@ -284,6 +284,10 @@ export function cristalizar(
       });
     }
   }
+  
+  // Temperaturas amortiguadas por los titanios ya unidos: la zona del router se enfría antes
+  // de decidir los triángulos, así el titanio nunca recibe el +1 de zona fundida.
+  const temperaturasKruskal = amortiguarTemperaturas(puentesSeleccionados);
   
   // Paso 3: Añadir candidatos que cierren un triángulo con puentes ya elegidos
   // Mientras ambos extremos estén por debajo de su coordinación objetivo
