@@ -237,3 +237,26 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
         expect("ceder" in ACCIONES_DEL_LIDER).toBe(true);
     });
 });
+
+describe("textoEstadoOrden", () => {
+    it("cada estado conocido tiene su texto", () => {
+        const esperados: Record<string, string> = {
+            pendiente: "esperando a un nodo",
+            tomada: "la tiene un nodo",
+            hecha: "hecha",
+            en_marcha: "en marcha",
+            seca: "solo simulada (nodo en prueba)",
+            nada: "no hacía falta",
+            rechazada: "rechazada",
+            fallo: "falló",
+            caducada: "nadie la recogió a tiempo",
+        };
+        for (const [estado, texto] of Object.entries(esperados)) {
+            expect(textoEstadoOrden(estado)).toBe(texto);
+        }
+    });
+
+    it("un estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-desconocido")).toBe("estado-desconocido");
+    });
+});
