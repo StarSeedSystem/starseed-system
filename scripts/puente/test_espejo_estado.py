@@ -75,6 +75,46 @@ class PruebasEmpaquetar(unittest.TestCase):
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
 
+    def test_los_fijos_no_se_recortan_y_un_log_en_el_tope_entra_entero(self):
+        """`empaquetar` solo recorta logs: un .md largo y los fijos viajan completos.
+
+        El caso de la rama comprobaba además que el paquete es un tar.gz con los
+        archivos en la raíz. Eso ya lo cubre `test_archivos_en_la_raiz_del_tar_y_logs_recortados`;
+        lo que faltaba era el borde de un log con exactamente LOG_LINEAS (no se pierde
+        ninguna) y que un archivo de estado con muchas líneas no se toca.
+        """
+        seleccion = ["progreso.json", "progreso.md", "medios.json",
+                     "puntos-control.json", "cola-1.json", "evento1.jsonl", "log.txt"]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            olas_dir = os.path.join(tmp_dir, "olas")
+            os.makedirs(olas_dir)
+            # Un fijo con 300 líneas (no es log) y dos logs justo en el tope.
+            with open(os.path.join(olas_dir, "progreso.md"), "w", encoding="utf-8") as f:
+                f.write("\n".join("Línea %d" % i for i in range(300)))
+            with open(os.path.join(olas_dir, "evento1.jsonl"), "w", encoding="utf-8") as f:
+                for i in range(espejo_estado.LOG_LINEAS):
+                    f.write(json.dumps({"evento": i, "ts": 1000 + i}) + "\n")
+            with open(os.path.join(olas_dir, "log.txt"), "w", encoding="utf-8") as f:
+                f.write("\n".join("Log line %d" % i for i in range(espejo_estado.LOG_LINEAS)))
+            # El resto de fijos y una cola, de una línea, como publica el orquestador.
+            for nombre in ("progreso.json", "medios.json", "puntos-control.json", "cola-1.json"):
+                with open(os.path.join(olas_dir, nombre), "w", encoding="utf-8") as f:
+                    json.dump({"prueba": nombre}, f)
+            salida_dir = os.path.join(tmp_dir, "salida")
+            os.makedirs(salida_dir)
+            ruta_tar = empaquetar(seleccion, olas_dir, salida_dir)
+            self.assertTrue(os.path.exists(ruta_tar))
+            with tarfile.open(ruta_tar, "r:gz") as tar:
+                self.assertEqual(set(tar.getnames()), set(seleccion))
+                esperadas = {"progreso.md": 300}
+                for nombre in ("progreso.json", "medios.json", "puntos-control.json", "cola-1.json"):
+                    esperadas[nombre] = 1
+                for nombre in ("evento1.jsonl", "log.txt"):
+                    esperadas[nombre] = espejo_estado.LOG_LINEAS
+                for nombre, esperada in esperadas.items():
+                    lineas = tar.extractfile(nombre).read().decode("utf-8").splitlines()
+                    self.assertEqual(len(lineas), esperada, "%s: %d != %d" % (nombre, len(lineas), esperada))
+
 
 class PruebasEnviarEstado(unittest.TestCase):
     """enviar_estado con ssh falso: freno de 5 min, huella y orden de extracción atómica."""
