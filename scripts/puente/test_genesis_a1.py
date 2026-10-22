@@ -123,5 +123,15 @@ class GenesisEnA1(unittest.TestCase):
         self.assertTrue(any("/usr/local/bin/node" in l for l in exige), exige)
 
 
+    def test_el_bloque_de_bitnet_no_lleva_claves_en_el_caddyfile(self):
+        """La clave de BitNet vive en /etc/starseed/bitnet.key (la exige llama-server): el bloque
+        `bitnet.{$STARSEED_HOST}` de Caddy solo proxifica y nunca lleva la clave ni su bandera."""
+        bloque = re.search(r"^bitnet\.\{\$STARSEED_HOST\}\s*\{.*?^\}", self.caddy_cfg + "\n",
+                           re.MULTILINE | re.DOTALL)
+        self.assertIsNotNone(bloque, "el Caddyfile no tiene el bloque bitnet.{$STARSEED_HOST}")
+        for prohibido in ("--api-key", "Bearer", "Authorization", "bitnet.key"):
+            self.assertNotIn(prohibido, bloque.group(0), f"clave en el bloque de BitNet: {prohibido}")
+
+
 if __name__ == "__main__":
     unittest.main()
