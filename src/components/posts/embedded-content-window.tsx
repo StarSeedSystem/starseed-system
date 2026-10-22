@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import { FilePreview, detectFormat, type FileLike } from "@/components/files/file-preview";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
+import { prepararDiagrama } from "@/lib/diagramas/aislar-diagrama";
 import type { MainRatio } from "@/lib/publish/publish";
 import { SANDBOX_CODIGO } from "@/lib/variaciones/validar";
 
@@ -386,16 +387,45 @@ function SandboxedIframeBody({ item, boxed, context }: { item: EmbeddedItem; box
     );
 }
 
+/** Un HTML es un diagrama cuando trae `<svg>`: es la firma de la habilidad
+ *  `diagram-design` (MIT) y lo que exige `prepararDiagrama` para validarlo. */
+function esDiagramaHtml(html: string): boolean {
+    return /<svg\b/i.test(html);
+}
+
 /** Código ejecutable en línea: iframe `srcdoc` con el sandbox MÁS estricto
  *  posible (`SANDBOX_CODIGO`, sólo `allow-scripts`, sin `allow-same-origin`)
  *  — el contenido es HTML/CSS/JS arbitrario escrito por el autor (o generado
  *  por Aurora), así que se ejecuta en un origen opaco sin acceso a
- *  cookies/storage del sitio. */
+ *  cookies/storage del sitio.
+ *
+ *  Si el contenido es un DIAGRAMA (HTML+SVG de `diagram-design`), antes de
+ *  mostrarlo pasa por `prepararDiagrama`: quita red y recursos externos,
+ *  prohíbe `allow-same-origin` e inyecta la CSP (architecture/diagramas.md §3). */
 function CodeSandboxBody({ item, boxed, context }: { item: EmbeddedItem; boxed: boolean; context: EmbedContext }) {
+    const contenido = item.content || "";
+    const diagrama = esDiagramaHtml(contenido)
+        ? prepararDiagrama(contenido, { permitirAnimacion: true })
+        : null;
+    if (diagrama && !diagrama.ok) {
+        return (
+            <div
+                role="alert"
+                className={cn("border-0 bg-white/5 p-3 text-xs text-red-200", fillClass(boxed, context))}
+            >
+                <p className="font-semibold">Diagrama rechazado</p>
+                <ul className="mt-1 list-disc pl-4">
+                    {diagrama.motivos.map((motivo, i) => (
+                        <li key={i}>{motivo}</li>
+                    ))}
+                </ul>
+            </div>
+        );
+    }
     return (
         <iframe
-            srcDoc={item.content || ""}
-            sandbox={SANDBOX_CODIGO}
+            srcDoc={diagrama?.srcdoc ?? contenido}
+            sandbox={diagrama?.sandbox ?? SANDBOX_CODIGO}
             className={cn("border-0 bg-white", fillClass(boxed, context))}
             title={titleOf(item)}
         />
