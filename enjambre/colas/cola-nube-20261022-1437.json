@@ -1,0 +1,27 @@
+{
+ "ola": "oracle-20261022",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "ola": "Ola 1012T · Capacidad: las comprobaciones pesadas de la Mac van al A1 (12 GB)",
+   "importancia": "capacidad",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261014-142215-TRA1012Bb",
+   "id": "TRA1012Bc-d2",
+   "titulo": "La puerta tsc del orquestador de la Mac se hace en el A1 cuando responde (parte 2 de 2)",
+   "archivos": [
+    "scripts/enjambre/test_tsc_remoto.py"
+   ],
+   "depende": [],
+   "prompt": "En scripts/enjambre/starseed-enjambre.py, la función que corre la puerta tsc de una tarea (busca `npx tsc --noEmit --skipLibCheck` bajo `SEM_PESADO, cerrojo(\"pesado\")`), cuando el orquestador corre en la Mac (`STARSEED_MEDIO=mac`) y existe scripts/puente/comprobar_en_a1.py (TRA1012A), primero pide la comprobación al A1 con la rama `ola/<id>` (base = main del worktree, shas = los commits de la tarea): si el A1 contesta verde o rojo, ese es el resultado de la puerta (con el mismo formato de errores para la reparación automática); si es fallo del medio (A1 ocupado, sin respuesta), corre el tsc local como hoy. Anota en el evento de la puerta dónde se comprobó («A1» o «Mac») y cuánto tardó. Pruebas con la función remota falsa: verde remoto no lanza tsc local; rojo remoto devuelve los errores; medio remoto cae al local.\n\nContexto medido el 12-10 (hora de la Mac): con 8 GB, cada tsc completo en la Mac pesa ~3,2–3,7 GB y tarda 5–15 min con la swap llena; el gobernador baja a 2 agentes por eso. En el A1 de Oracle (12 GB, siempre encendido) el mismo tsc tarda ~20 s–4 min (guardián). La Mac ya habla con el A1 por SSH con `oracle_nodo.ssh(orden, entrada, timeout)` y le deja paquetes git (`enviar_main`). Reglas: nunca imprimir la IP (`oracle_nodo.tachar`), nada de claves en código ni registros, comentarios en español con el porqué, pruebas con ssh y git falsos (sin red). Para tipos usa `bash scripts/enjambre/tsc-turno.sh`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261014-142215-TRA1012Bb`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261014-142215-TRA1012Bb:refs/remotes/origin/nube/a1-20261014-142215-TRA1012Bb\"` y `git cherry-pick --no-commit a7e7e6359936`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/enjambre/starseed-enjambre.py, scripts/enjambre/test_tsc_remoto.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió TRA1012Bc: falla por sí misma (tarea:escalera))\nEn esta parte tocas SOLO: scripts/enjambre/test_tsc_remoto.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "TRA1012Bc",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:escalera)"
+   },
+   "dependencias_ya_en_main": [
+    "TRA1012Bc-d1"
+   ]
+  }
+ ]
+}
