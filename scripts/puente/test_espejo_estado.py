@@ -45,6 +45,36 @@ class PruebasSeleccion(unittest.TestCase):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
 
+    def test_que_copiar_selecciona_correctamente(self):
+        # Listado mixto: fijos, varias colas recientes, logs de los dos tipos (.jsonl y .txt)
+        # y un .md que no es log. Todo reciente, así que viaja entero.
+        listado = self.pares(
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+        )
+        seleccion = que_copiar(listado, AHORA)
+        esperados = {
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+        }
+        self.assertEqual(set(seleccion), esperados)
+
 
 class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
@@ -74,6 +104,49 @@ class PruebasEmpaquetar(unittest.TestCase):
             self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
+
+    def test_empaquetar_respeta_lineas_fuera_de_logs_y_recorta_logs(self):
+        # Un archivo que no es log conserva sus 300 líneas; los logs bajan a LOG_LINEAS.
+        seleccion = ["progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+                     "cola-1.json", "evento1.jsonl", "log.txt"]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            olas_dir = os.path.join(tmp_dir, "olas")
+            os.makedirs(olas_dir)
+            contenidos = {
+                "progreso.json": json.dumps({"ola": "1012C"}),
+                "progreso.md": "\n".join("Línea %d" % i for i in range(300)),
+                "medios.json": json.dumps({"medios": ["oracle-a1"]}),
+                "puntos-control.json": json.dumps({"puntos": [{"nombre": "pc1"}]}),
+                "cola-1.json": json.dumps({"tareas": []}),
+                "evento1.jsonl": "\n".join(json.dumps({"evento": i, "ts": 1000 + i}) for i in range(300)),
+                "log.txt": "\n".join("Log line %d" % i for i in range(300)),
+            }
+            for nombre, texto in contenidos.items():
+                with open(os.path.join(olas_dir, nombre), "w", encoding="utf-8") as f:
+                    f.write(texto)
+            salida_dir = os.path.join(tmp_dir, "salida")
+            os.makedirs(salida_dir)
+            ruta_tar = empaquetar(seleccion, olas_dir, salida_dir)
+            self.assertTrue(os.path.exists(ruta_tar))
+            with tarfile.open(ruta_tar, "r:gz") as tar:
+                extra_dir = os.path.join(tmp_dir, "extra")
+                os.makedirs(extra_dir, exist_ok=True)
+                tar.extractall(path=extra_dir)
+                # Los archivos van en la raíz del paquete, no en una subcarpeta.
+                self.assertEqual(set(os.listdir(extra_dir)), set(seleccion))
+                esperadas_lineas = {
+                    "progreso.json": 1,
+                    "progreso.md": 300,
+                    "medios.json": 1,
+                    "puntos-control.json": 1,
+                    "cola-1.json": 1,
+                    "evento1.jsonl": espejo_estado.LOG_LINEAS,
+                    "log.txt": espejo_estado.LOG_LINEAS,
+                }
+                for nombre, esperada in esperadas_lineas.items():
+                    with open(os.path.join(extra_dir, nombre), "r", encoding="utf-8") as f:
+                        lineas = f.read().splitlines()
+                    self.assertEqual(len(lineas), esperada, "%s: %d != %d" % (nombre, len(lineas), esperada))
 
 
 class PruebasEnviarEstado(unittest.TestCase):
