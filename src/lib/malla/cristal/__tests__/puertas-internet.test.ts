@@ -12,7 +12,6 @@ import {
   Compartir,
 } from '../puertas-internet';
 import type { ClaseDato } from '../tipos';
-import type { ClaseDato } from '../tipos';
 
 describe('TIPOS_PUERTA y COMPARTIR', () => {
   it('TIPOS_PUERTA tiene los valores esperados', () => {
