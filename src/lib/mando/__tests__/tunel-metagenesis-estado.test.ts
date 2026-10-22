@@ -20,5 +20,11 @@ describe("estadoTunelMetaGenesis", () => {
       
     expect(tacharTexto("Sin URL: ejemplo.com"))
       .toBe("Sin URL: ejemplo.com");
+
+    // Casos que main no cubría: cadena vacía y conservación de ruta y query.
+    expect(tacharTexto("")).toBe("");
+
+    expect(tacharTexto("https://subdominio-dash.trycloudflare.com/path?query=value"))
+      .toBe("[túnel]/path?query=value");
   });
 });
