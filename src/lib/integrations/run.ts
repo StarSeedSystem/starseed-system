@@ -13,6 +13,13 @@
 
 import type { IntegrationConfig, IntegrationResult } from "./types";
 import { getIntegration, loadIntegrationConfig } from "./registry";
+import {
+  buscarNotas,
+  crearNota,
+  leerNota,
+  ErrorTrilium,
+  type Pedir,
+} from "../conectores-propios/trilium";
 
 import * as Crawl4AI from "./clients/crawl4ai";
 import * as Firecrawl from "./clients/firecrawl";
@@ -50,6 +57,21 @@ function gate(cfg: IntegrationConfig, fallbackEndpoint?: string): { ok: true; cf
   if (!enabled) return { ok: false, error: "no configurado" };
   if (!endpoint) return { ok: false, error: "no configurado" };
   return { ok: true, cfg: { ...cfg, endpoint } };
+}
+
+/** `fetch` real inyectado en el cliente puro de Trilium (sin `node:*`). */
+const pedirTrilium: Pedir = (url, init) => fetch(url, init);
+
+/** Adapta la llamada al cliente Trilium al contrato del runner, sin filtrar el token. */
+async function desdeTrilium<T>(accion: () => Promise<T>): Promise<IntegrationResult<T>> {
+  try {
+    return { ok: true, data: await accion() };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof ErrorTrilium ? error.message : "No se pudo contactar con Trilium.",
+    };
+  }
 }
 
 /**
@@ -153,6 +175,31 @@ export async function runIntegration(
         if (a === "search-memories") return await TdaiMemory.searchMemories(c, input);
         if (a === "session-end") return await TdaiMemory.endSession(c, input);
         break;
+      case "trilium-etapi": {
+        const base = c.endpoint ?? "";
+        const token = c.apiKey ?? "";
+        const entrada = (input ?? {}) as Record<string, unknown>;
+        const texto = (valor: unknown) => (typeof valor === "string" ? valor : "");
+        if (a === "buscar") {
+          const consulta = texto(entrada.consulta) || texto(entrada.q) || texto(entrada.query) || texto(entrada.texto);
+          if (!consulta.trim()) return { ok: false, error: "Falta el texto a buscar." };
+          const limite = Number(entrada.limite ?? entrada.limit) || 20;
+          return desdeTrilium(() => buscarNotas(base, token, consulta, pedirTrilium, limite));
+        }
+        if (a === "leer") {
+          const id = texto(entrada.id) || texto(entrada.noteId);
+          if (!id.trim()) return { ok: false, error: "Falta el id de la nota." };
+          return desdeTrilium(() => leerNota(base, token, id, pedirTrilium));
+        }
+        if (a === "crear") {
+          const padre = texto(entrada.padreId) || texto(entrada.parentNoteId);
+          const titulo = texto(entrada.titulo) || texto(entrada.title);
+          const contenido = texto(entrada.contenido) || texto(entrada.content);
+          const tipo = texto(entrada.tipo) || "text";
+          return desdeTrilium(() => crearNota(base, token, padre, titulo, contenido, pedirTrilium, tipo));
+        }
+        break;
+      }
       case "databasement":
         if (a === "servers") return await Databasement.servers(c);
         if (a === "snapshots") return await Databasement.snapshots(c);
@@ -319,6 +366,11 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
         return await Postiz.health(c);
       case "tencentdb-memory":
         return await TdaiMemory.health(c);
+      case "trilium-etapi":
+        return await desdeTrilium(async () => {
+          const notas = await buscarNotas(c.endpoint ?? "", c.apiKey ?? "", "", pedirTrilium, 1);
+          return { notas: notas.length };
+        });
       case "databasement":
         return await Databasement.health(c);
       case "openmanus":
