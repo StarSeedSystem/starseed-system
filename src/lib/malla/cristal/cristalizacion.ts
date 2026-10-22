@@ -110,7 +110,8 @@ export function cristalizar(
   // puentes: un titanio (o quien toca uno) nunca supera 0,2; sin titanios cerca se conserva la medida.
   const amortiguarTemperaturas = (puentes: Puente[]): Record<string, number> => {
     const temps: Record<string, number> = {};
-    for (const neurona of neuronas) {
+    // Orden total por id: la misma retícula da el mismo mapa de temperaturas llegue como llegue.
+    for (const neurona of [...neuronas].sort((a, b) => a.id.localeCompare(b.id))) {
       const vecinos = new Set<string>();
       let vecinosTi = 0;
       for (const p of puentes) {
@@ -295,7 +296,10 @@ export function cristalizar(
   // Calentar coordinación objetivo para cada neurona
   const coordinacionObjetivo: Record<string, number> = {};
   for (const neurona of neuronas) {
-    coordinacionObjetivo[neurona.id] = coordinacionDe(neurona);
+    // El titanio ya tiene coordinación 6: nunca se le suma el +1 de la zona fundida.
+    coordinacionObjetivo[neurona.id] = esTitanio(neurona)
+      ? COORDINACION_TITANIO
+      : coordinacionDe(neurona);
   }
   
   // Contar puentes actuales por neurona
@@ -364,13 +368,15 @@ export function cristalizar(
     let defectoA = 0;
     let defectoB = 0;
     
-    // Obtener temperatura de la neurona (de opc.temperatura o calcular por defecto)
-    const tempA = opc.temperatura?.[candidato.a] ?? 0.5;
-    const tempB = opc.temperatura?.[candidato.b] ?? 0.5;
+    // Obtener temperatura amortiguada de la neurona (la de los puentes ya elegidos)
+    const tempA = temperaturasKruskal[candidato.a] ?? 0.5;
+    const tempB = temperaturasKruskal[candidato.b] ?? 0.5;
+    const neurA = porId.get(candidato.a);
+    const neurB = porId.get(candidato.b);
     
-    // +1 si la neurona está 'fundida' (temperatura ≥ 0.6)
-    if (tempA >= 0.6) defectoA += 1;
-    if (tempB >= 0.6) defectoB += 1;
+    // +1 si la neurona está 'fundida' (temperatura ≥ 0.6), salvo el titanio, que fija la red.
+    if (neurA && !esTitanio(neurA) && tempA >= 0.6) defectoA += 1;
+    if (neurB && !esTitanio(neurB) && tempB >= 0.6) defectoB += 1;
     
     // -1 si su mejor candidato restante cuesta > 0.7
     // (Esto es más complejo, lo simplificamos asumiendo que ya lo evaluamos en el orden)
@@ -504,7 +510,9 @@ export function cristalizar(
   const puentesFinales = Object.values(puentesUnicos);
   
   // Calcular temperatura media para el estado
-  const temperaturas = opc.temperatura || {};
+  // La temperatura final se amortigua según los titanios que toquen los puentes elegidos:
+  // la zona de un router queda más fría que la misma red sin él.
+  const temperaturas = amortiguarTemperaturas(puentesFinales);
   let sumaTemperatura = 0;
   let count = 0;
   

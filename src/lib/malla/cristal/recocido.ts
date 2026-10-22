@@ -4,7 +4,7 @@ import { coordinacionDe, type Cristal, type NeuronaReticula, type Puente, type R
 import { cristalizar } from './cristalizacion';
 import { costeSenal } from './coste';
 import { huellaReticula, senalesDeReticula } from './teselas';
-import { esTitanio, margenDePuente, temperaturaAmortiguada, MARGEN_TITANIO } from './titanio';
+import { esTitanio, margenDePuente, temperaturaAmortiguada } from './titanio';
 export interface OpcRelajar { confianza?: Record<string, number>; temperatura?: Record<string, number> }
 const par = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
 const clave = (p: Puente): string => `${par(p.a, p.b)}|${p.medio}`;
@@ -40,9 +40,11 @@ function tasador(r: Reticula, confianza: Record<string, number> = {}): (p: Puent
   return (p, siNoHay) => costes.get(clave(p)) ?? siNoHay;
 }
 // Coordinación máxima: la de su capacidad, +1 si su zona está fundida (la misma regla que cristalizar).
+// El titanio nunca lleva ese +1: su objetivo es COORDINACION_TITANIO y su zona se amortigua.
 const limitador = (neur: Map<string, NeuronaReticula>, temp: Record<string, number>) => (id: string): number => {
   const n = neur.get(id);
-  return n ? coordinacionDe(n) + ((temp[id] ?? 0.5) >= 0.6 ? 1 : 0) : 0;
+  if (!n) return 0;
+  return coordinacionDe(n) + (!esTitanio(n) && (temp[id] ?? 0.5) >= 0.6 ? 1 : 0);
 };
 function montar(r: Reticula, puentes: Puente[], base: Cristal, raiz = huellaReticula(r)): Cristal {
   const ps = ordenar(puentes), g = new Map<string, number>([...neuronas(r).keys()].sort().map(id => [id, 0]));
@@ -55,11 +57,31 @@ export function relajarLocal(previo: Cristal | null, r: Reticula, cambiadas: str
   // La temperatura que no llega nueva se hereda del previo: el propuesto y la salida usan la misma.
   const temp = { ...previo.temperatura, ...(opc.temperatura ?? {}) }, prop = cristalizar(r, { ...opc, temperatura: temp });
   const neur = neuronas(r), coste = tasador(r, opc.confianza), limite = limitador(neur, temp);
+  // Los puentes del previo y del propuesto sirven para contar los titanios que tocan cada extremo.
+  const puentesTemp = [...previo.puentes, ...prop.puentes];
+  // La temperatura de un extremo se amortigua por los titanios de su vecindario: su zona no se dilata.
+  const temperaturaDe = (e: string): number => {
+    const n = neur.get(e), base = temp[e] ?? 0.5;
+    if (!n) return base;
+    const vecinos = new Set<string>();
+    let vecinosTi = 0;
+    for (const p of puentesTemp) {
+      if (!toca(p, e)) continue;
+      const otro = otroDe(p, e);
+      if (vecinos.has(otro)) continue;
+      vecinos.add(otro);
+      const m = neur.get(otro);
+      if (m && esTitanio(m)) vecinosTi++;
+    }
+    return esTitanio(n) || vecinosTi > 0
+      ? temperaturaAmortiguada(base, vecinosTi, vecinos.size)
+      : base;
+  };
   // Un titanio (router) lleva siempre la histéresis máxima: fija la red mientras lo demás se mueve.
   const margen = (p: Puente, e: string): number => {
     const aTi = neur.has(p.a) ? esTitanio(neur.get(p.a)!) : false;
     const bTi = neur.has(p.b) ? esTitanio(neur.get(p.b)!) : false;
-    return margenDePuente(margenHisteresis(temp[e] ?? 0.5), aTi, bTi);
+    return margenDePuente(margenHisteresis(temperaturaDe(e)), aTi, bTi);
   };
   const mejora = (n: Puente, v: Puente, m: number): boolean => coste(n, n.coste) < coste(v, Infinity) * (1 - m);
   // Las neuronas que entran en la retícula o salen de ella también cuentan como cambiadas.
