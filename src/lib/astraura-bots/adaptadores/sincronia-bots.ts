@@ -1,31 +1,30 @@
 "use client";
 
 import type { Bot } from "../tipos";
-import { createClient } from "@/utils/supabase/client";
+import { fusionarBots as fusionarNucleo, type BotSync } from "../sincronia-bots";
 import { onTableChange } from "@/lib/realtime/realtime";
 
+/**
+ * Une los sobres (bots + marca de actualización) DELEGANDO en el núcleo puro
+ * `sincronia-bots.ts`: aquí solo se adapta el envoltorio, nunca se decide.
+ */
 export function fusionarBots(
-  local: Readonly<{ bots: Bot[]; actualizado: Record<string, number> }>,
-  remoto: Readonly<{ bots: Bot[]; actualizado: Record<string, number> }>
+  local: Readonly<{ bots: readonly Bot[]; actualizado: Record<string, number> }>,
+  remoto: Readonly<{ bots: readonly Bot[]; actualizado: Record<string, number> }>
 ): { bots: Bot[]; actualizado: Record<string, number> } {
-  const botsPorId = new Map<string, Bot>();
-  const actualizadoPorId: Record<string, number> = {};
-
-  for (const bot of local.bots) {
-    botsPorId.set(bot.id, bot);
-    actualizadoPorId[bot.id] = local.actualizado[bot.id] ?? 0;
-  }
-
-  for (const bot of remoto.bots) {
-    const timestampRemoto = remoto.actualizado[bot.id] ?? 0;
-    const timestampLocal = actualizadoPorId[bot.id];
-    if (!botsPorId.has(bot.id) || timestampRemoto > timestampLocal) {
-      botsPorId.set(bot.id, bot);
-      actualizadoPorId[bot.id] = timestampRemoto;
-    }
-  }
-
-  return { bots: Array.from(botsPorId.values()), actualizado: actualizadoPorId };
+  const sobre = (bots: readonly Bot[], marcas: Record<string, number>): BotSync[] =>
+    bots.map((b) => ({ ...b, actualizado: marcas[b.id] ?? 0 }));
+  const fusion = fusionarNucleo(
+    sobre(local.bots, local.actualizado),
+    sobre(remoto.bots, remoto.actualizado)
+  );
+  return {
+    bots: fusion.map((b) => {
+      const { actualizado, ...bot } = b;
+      return bot;
+    }),
+    actualizado: Object.fromEntries(fusion.map((b) => [b.id, b.actualizado])),
+  };
 }
 
 export interface PayloadCambio {
@@ -49,24 +48,18 @@ export function suscribirBotsEntidad(
 
   const handleChange = (payload: PayloadCambio) => {
     try {
-      const changeBot = payload?.new ?? null;
-      const eventType = payload?.eventType;
+      const remoto = payload?.new ?? null;
       const ahora = Date.now();
-
-      const remoteBots: Bot[] = changeBot ? [changeBot] : [];
-      const remoteActualizado: Record<string, number> = changeBot
-        ? { [changeBot.id]: ahora } : {};
-
-      const localEnvelope = { bots: botsCache, actualizado: actualizadoCache };
-      const remoteEnvelope = { bots: remoteBots, actualizado: remoteActualizado };
-
-      const merged = fusionarBots(localEnvelope, remoteEnvelope);
+      const local = { bots: botsCache, actualizado: actualizadoCache };
+      const cambio = remoto
+        ? { bots: [remoto], actualizado: { [remoto.id]: ahora } }
+        : { bots: [], actualizado: {} };
+      const merged = fusionarBots(local, cambio);
       botsCache = merged.bots;
       actualizadoCache = merged.actualizado;
-
       cb([...botsCache]);
     } catch (e) {
-      console.warn('Error in suscribirBotsEntidad:', e);
+      console.warn("Error in suscribirBotsEntidad:", e);
     }
   };
 

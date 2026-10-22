@@ -5,6 +5,7 @@ import {
   marcarAbierto,
   migrarAbiertosDesdeAntigua,
 } from "../adaptadores/sincronia-bots";
+import { fusionarBots as fusionarNucleo, type BotSync } from "../sincronia-bots";
 import type { Bot } from "../tipos";
 
 function botEjemplo(id: string): Bot {
@@ -28,7 +29,7 @@ function botEjemplo(id: string): Bot {
   };
 }
 
-describe("fusionarBots", () => {
+describe("adaptador: fusionarBots (sobre, delega en el núcleo)", () => {
   it("gana el más reciente por actualizado", () => {
     const local = { bots: [botEjemplo("b1"), botEjemplo("b2")], actualizado: { b1: 1000, b2: 2000 } };
     const remoto = { bots: [botEjemplo("b1"), botEjemplo("b3")], actualizado: { b1: 2000, b3: 1500 } };
@@ -53,6 +54,41 @@ describe("fusionarBots", () => {
     const r1 = fusionarBots(local, remoto);
     const r2 = fusionarBots(local, remoto);
     expect(r1.bots.map((b) => b.id).sort()).toEqual(r2.bots.map((b) => b.id).sort());
+  });
+});
+
+describe("núcleo puro: fusionarBots (decisión de quién gana)", () => {
+  const sync = (b: Bot, actualizado: number): BotSync => ({ ...b, actualizado });
+
+  it("gana el más reciente por actualizado", () => {
+    const local = [sync(botEjemplo("b1"), 1000), sync(botEjemplo("b2"), 2000)];
+    const remoto = [sync(botEjemplo("b1"), 2000), sync(botEjemplo("b3"), 1500)];
+    const res = fusionarNucleo(local, remoto);
+    expect(res.map((b) => b.id).sort()).toEqual(["b1", "b2", "b3"]);
+    expect(res.find((b) => b.id === "b1")?.actualizado).toBe(2000);
+  });
+
+  it("en empate de actualizado gana lo local", () => {
+    const res = fusionarNucleo([sync(botEjemplo("a"), 100)], [sync(botEjemplo("a"), 100)]);
+    expect(res.find((b) => b.id === "a")?.actualizado).toBe(100);
+  });
+
+  it("lo remoto inválido se descarta y nada local se pierde", () => {
+    const vicio = botEjemplo("raro");
+    vicio.personalidad.calidez = 5;
+    const res = fusionarNucleo([sync(botEjemplo("local"), 10)], [sync(vicio, 20)]);
+    expect(res.map((b) => b.id)).toEqual(["local"]);
+  });
+
+  it("un remoto válido que no está en lo local entra", () => {
+    const res = fusionarNucleo([], [sync(botEjemplo("nuevo"), 50)]);
+    expect(res.map((b) => b.id)).toEqual(["nuevo"]);
+  });
+
+  it("la fusión es determinista", () => {
+    const local = [sync(botEjemplo("A"), 100)];
+    const remoto = [sync(botEjemplo("A"), 150)];
+    expect(fusionarNucleo(local, remoto)).toEqual(fusionarNucleo(local, remoto));
   });
 });
 
