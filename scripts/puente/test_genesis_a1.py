@@ -34,6 +34,20 @@ def configuracion(texto):
                      if l.strip() and not l.strip().startswith("#"))
 
 
+def bloque_de(caddy, sitio):
+    """Las líneas activas del bloque de un sitio del Caddyfile, hasta cerrarse."""
+    lineas = caddy.splitlines()
+    inicio = next(i for i, l in enumerate(lineas) if l.strip().startswith(sitio + " {"))
+    bloque = [lineas[inicio].strip()]
+    nivel = 1
+    for l in lineas[inicio + 1:]:
+        nivel += l.count("{") - l.count("}")
+        bloque.append(l.strip())
+        if nivel == 0:
+            break
+    return configuracion("\n".join(bloque))
+
+
 class GenesisEnA1(unittest.TestCase):
     """Lo que el contrato §6 exige de los dos archivos del despliegue."""
 
@@ -44,6 +58,7 @@ class GenesisEnA1(unittest.TestCase):
         self.caddy = leer(CADDY)
         self.unidad_cfg = configuracion(self.unidad)
         self.caddy_cfg = configuracion(self.caddy)
+        self.bloque_cfg = bloque_de(self.caddy, "genesis.{$STARSEED_HOST}")
 
     def test_sin_modo_local_en_los_dos_archivos(self):
         """STARSEED_LOCAL deja pasar CUALQUIER petición sin sesión: ni en la unidad ni en Caddy."""
@@ -121,6 +136,19 @@ class GenesisEnA1(unittest.TestCase):
         self.assertTrue(exige, "la unidad no declara qué necesita antes de instalarse")
         self.assertTrue(any(".next/BUILD_ID" in l for l in exige), exige)
         self.assertTrue(any("/usr/local/bin/node" in l for l in exige), exige)
+
+    def test_el_bloque_de_genesis_no_borra_la_cookie(self):
+        """La `Cookie` se pasa tal cual: borrarla (copiando la puerta de datos) rompería la
+        sesión de Supabase y Genesis respondería 401 a todo el mundo."""
+        self.assertIn(f"reverse_proxy {BUCLE}:{PUERTO}", self.bloque_cfg, self.bloque_cfg)
+        self.assertNotRegex(self.bloque_cfg, r"header_up\s+-\s*Cookie",
+                            "el proxy borra la Cookie: la sesión se pierde")
+
+    def test_no_publica_rutas_que_se_apoyan_en_no_estar_en_la_mac(self):
+        """Rutas que lanzan un binario con la URL de quien llama o son un buzón abierto: no se
+        publican desde el A1, solo responden 404. `@necesario` es la lista cerrada."""
+        for ruta in ("/api/agent-reach", "/api/astraura/decidir", "/api/voz-local/", "/api/telegram/send"):
+            self.assertNotIn(ruta, self.bloque_cfg, f"{ruta} se publica en el A1")
 
 
 if __name__ == "__main__":
