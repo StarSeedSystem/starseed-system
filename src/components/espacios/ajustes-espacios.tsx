@@ -14,7 +14,7 @@ import { ExternalLink, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { miAccesoMetaGenesis } from "@/lib/metagenesis/accesos";
 import { borrarTokenHf, guardarTokenHf, leerTokenHf } from "@/lib/espacios/cliente-espacios";
-import { guardarPreferenciaEspacios, resolverPermisoEspaciosGuardado, type PermisoEspaciosResuelto } from "@/lib/espacios/permiso-espacios";
+import { ESPACIOS_3D, guardarPreferenciaEspacios, resolverPermisoEspaciosGuardado, type PermisoEspaciosResuelto } from "@/lib/espacios/permiso-espacios";
 
 const ENLACE_TOKENS = "https://huggingface.co/settings/tokens";
 export interface AjustesEspaciosProps { esCuentaDeAdministracion?: boolean }
@@ -32,7 +32,11 @@ export function AjustesEspacios({ esCuentaDeAdministracion }: AjustesEspaciosPro
         try { admin = (await miAccesoMetaGenesis())?.dueno === true; } catch { admin = false; }
       }
       if (!vivo) return;
-      setPermiso(resolverPermisoEspaciosGuardado(admin));
+      const resuelto = resolverPermisoEspaciosGuardado(admin);
+      // La administración viene encendida por decisión de Alex: se deja escrito para que
+      // los motores (3D e imágenes) lo lean sin volver a preguntar ni consultar la cuenta.
+      if (resuelto.origen === "administracion") guardarPreferenciaEspacios({ permitido: true });
+      setPermiso(resuelto);
       setToken(leerTokenHf());
     })();
     return () => { vivo = false; };
@@ -94,6 +98,7 @@ export function AjustesEspacios({ esCuentaDeAdministracion }: AjustesEspaciosPro
           <li><strong>A quién:</strong> a Hugging Face y a quien publica el Space (Tencent ARC, Microsoft, Black Forest Labs o Qwen), con sus condiciones.</li>
           <li><strong>Cuota gratis:</strong> ZeroGPU da 2 min de GPU al día sin cuenta, 5 con cuenta gratis y 40 con PRO. Es tuya y se comparte entre Spaces; el OS no la cuenta en ningún servidor.</li>
           <li><strong>Fotos de personas:</strong> piden además tu consentimiento por cada imagen. Si un Space está dormido, lleno o cambió su API, se dice y se pasa a la siguiente opción del plan.</li>
+          <li><strong>3D:</strong> {ESPACIOS_3D.map((e) => `${e.nombre} — ${e.uso}`).join(" · ")}. Las imágenes usan FLUX.1 schnell y Qwen-Image.</li>
         </ul>
         <div className="space-y-2 rounded-lg border border-white/5 bg-black/20 p-3">
           <p className="flex items-center gap-2 text-sm font-semibold"><KeyRound className="h-4 w-4 text-cyan-300" /> Token de Hugging Face (opcional)</p>

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntelligencePanel } from "@/components/settings/ai/intelligence-panel";
+import { AjustesEspacios } from "@/components/espacios/ajustes-espacios";
 import { AgentesFondoSection } from "@/components/astraura/agentes-fondo-section";
 import { readRouteLog, getIntelligenceSettings, saveIntelligenceSettings, type RouteRecord } from "@/ai/astraura/router";
 import { estadoEntonacion, reflexionarEntonacion, EVENTO_ENTONACION, type DecisionEntonacion } from "@/lib/aurora/agente-entonacion";
@@ -313,6 +314,7 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
                         </div>
                     )}
                     <IntelligencePanel />
+                    <AjustesEspacios />
                 </div>
             )}
 

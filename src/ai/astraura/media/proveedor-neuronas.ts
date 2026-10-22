@@ -16,6 +16,7 @@
  */
 import { planImagen, type CapaImg, type NeuronaImg, type OpcionImagen, type PeticionImagen } from "@/lib/imagenes/plan";
 import { modeloPorId, MOTORES_IMG, type CapacidadImg, type MotorImg } from "@/lib/imagenes/modelos";
+import { espaciosParaPlan, resolverPermisoEspaciosGuardado } from "@/lib/espacios/permiso-espacios";
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 
 /** Una opción de la galería que ve la Protomolécula: de dónde salió, con qué licencia y cuánto tardó. */
@@ -327,6 +328,9 @@ export async function generarGaleriaImagenes(
     }
     if (entrada.neuronasExtra) neuronas.push(...entrada.neuronasExtra);
 
+    // La lista `espacios` sale del permiso por cuenta ya guardado (sin preguntar ni sondear
+    // Supabase): solo los modelos del catálogo con Space verificado. Quien llama puede pasarla.
+    const espacios = entrada.espacios ?? espaciosParaPlan(resolverPermisoEspaciosGuardado());
     const peticion: PeticionImagen = {
       opciones: Math.min(8, pedidas * 2), // pide de más para tener sustitutas si alguna falla
       prioridad: entrada.prioridad ?? "calidad",
@@ -335,7 +339,7 @@ export async function generarGaleriaImagenes(
       conReferencia: entrada.conReferencia === true,
       permisoRemoto: entrada.permisoRemoto === true,
       permitirDePago: false, // los servicios de pago se piden con tu clave aparte
-      ...(entrada.espacios && entrada.espacios.length ? { espacios: entrada.espacios } : {}),
+      ...(espacios.length ? { espacios } : {}),
     };
     const plan = planImagen(peticion, neuronas, entrada.semillaBase ?? 1);
     descartes.push(...plan.descartes);
