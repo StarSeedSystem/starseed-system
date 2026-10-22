@@ -21,6 +21,10 @@
 
 import { getInstalledFunctionIds, getInstalledPackageIds } from "@/lib/library/packages";
 import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
+// GCA1019Wc · Conector «habilidades para agentes»: el mismo selector por papel
+// y ámbito que usan los agentes de Genesis y PoliGenesis decide lo que entra
+// al system prompt del chat (módulo PURO de genesis-conectores W).
+import { habilidadesPara } from "@/lib/genesis/conectores/habilidades-agente";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -725,16 +729,38 @@ export function activeCapabilities(): SkillCapability[] {
   return SKILL_CAPABILITIES.filter((c) => set.has(c.id));
 }
 
+/** Texto del bloque de system prompt a partir de capacidades YA elegidas.
+ *  Puro: la forma es siempre la misma (Adenda 71-bis); antes se repetía a mano
+ *  en `skillsSystemPrompt`, y ahora lo usan la vía global y la explícita. */
+function bloqueDeCapacidades(habilidades: SkillCapability[]): string {
+  if (!habilidades.length) return "";
+  return (
+    "Capacidades activas de Aurora (Biblioteca StarSeed):\n" +
+    habilidades.map((c) => `• ${c.label}: ${c.systemPrompt}`).join("\n")
+  );
+}
+
 /** Bloque de system prompt que Aurora antepone al cerebro (o "" si no hay ninguna).
  *  Si `only` se pasa, restringe a esos ids (filtro por chat del menú unificado,
  *  Adenda 71-bis fix-20): el LLM solo recibe las habilidades elegidas para este
- *  chat, no todas las activas globalmente. */
+ *  chat, no todas las activas globalmente. Cuando la persona eligió a mano,
+ *  ESAS entran (elección explícita gana al papel); sin `only`, la selección
+ *  global pasa por `habilidadesPara` (genesis-conectores W · GCA1019W): elijo
+ *  por papel «chat» con routing y etiquetas, respetando las desactivadas de
+ *  Ajustes (`starseed.capabilities.disabled.v1`), en tamaño «completa» — el
+ *  recorte por capa lo hace el puente de capas cuando conozca la del modelo
+ *  que responde (architecture/laya-y-habilidades.md §5). */
 export function skillsSystemPrompt(only?: string[]): string {
-  const act = activeCapabilities().filter((c) => !only || only.includes(c.id));
+  const act = activeCapabilities();
   if (!act.length) return "";
-  return (
-    "Capacidades activas de Aurora (Biblioteca StarSeed):\n" +
-    act.map((c) => `• ${c.label}: ${c.systemPrompt}`).join("\n")
+  if (only && only.length) {
+    return bloqueDeCapacidades(act.filter((c) => only.includes(c.id)));
+  }
+  const apagadas = act
+    .filter((c) => isCapabilityDisabled(c.id))
+    .map((c) => c.id);
+  return bloqueDeCapacidades(
+    habilidadesPara("chat", "cuenta", { capacidades: act, desactivadas: apagadas }),
   );
 }
 
