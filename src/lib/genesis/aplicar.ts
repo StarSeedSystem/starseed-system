@@ -32,6 +32,8 @@ import {
     type Operacion,
     type TipoEntidad,
 } from "./operaciones";
+import { decidirConfiguracion } from "@/lib/astraura-bots/permisos";
+import { esTipoDueno, type Bot, type RolBot } from "@/lib/astraura-bots/tipos";
 
 /* ── Puertos ─────────────────────────────────────────────────────────────── */
 
@@ -97,6 +99,13 @@ export interface PuertosGenesis {
         borrar(id: string): boolean;
         vincular(id: string, tipo: "page" | "group", entidadId: string, publico: boolean): boolean;
         desvincular(id: string, tipo: "page" | "group", entidadId: string): void;
+    };
+    /** Almacén de bots (`astraura_bots`, BOT1011B). Inyectable; sin puerto no se toca nada.
+     *  `upsert` fusiona `valores` en la fila del bot; 0 filas = la RLS no dejó. */
+    astrauraBots?: {
+        leer(botId: string): Promise<{ ok: true; valores: Record<string, unknown> } | { ok: false; motivo: string }>;
+        upsert(botId: string, valores: Record<string, unknown>): Promise<{ ok: boolean; filas: number; motivo?: string }>;
+        borrar(botId: string): Promise<{ ok: boolean; motivo?: string }>;
     };
     ahora(): number;
     nuevoId(): string;
@@ -172,7 +181,7 @@ export async function aplicarOperacion(
     bruto: Operacion,
     ambito: Ambito,
     p: PuertosGenesis,
-    opciones: { paginasPropias?: string[] } = {},
+    opciones: { paginasPropias?: string[]; rol?: RolBot; propuestaAprobada?: boolean } = {},
 ): Promise<ResultadoAplicar> {
     try {
         const v = validarOperacion(bruto, contextoDesde(p, ambito, opciones.paginasPropias));
@@ -339,6 +348,50 @@ export async function aplicarOperacion(
                         : "Agente creado en tu biblioteca.",
                 );
             }
+            case "bot.crear": {
+                if (ambito.tipo !== "entidad") return { ok: false, motivo: "El bot común pertenece a una entidad o grupo." };
+                if (!p.astrauraBots) return { ok: false, motivo: "El almacén de bots (astraura_bots) no está conectado todavía." };
+                const id = p.nuevoId();
+                const r = await p.astrauraBots.upsert(id, {
+                    id, activo: true, datos: {},
+                    nombre: op.datos.nombre, gobierno: op.datos.gobierno,
+                    dueno_tipo: ambito.entidad.tipo, dueno_id: ambito.entidad.id,
+                });
+                if (!r.ok || r.filas === 0) return { ok: false, motivo: r.motivo ?? "La base de datos no dejó crear el bot." };
+                return hecho({ tipo: "bot.borrar", botId: id }, `Bot «${op.datos.nombre}» creado para la entidad.`);
+            }
+
+            case "bot.configurar": {
+                if (!p.astrauraBots) return { ok: false, motivo: "El almacén de bots (astraura_bots) no está conectado todavía." };
+                const lectura = await p.astrauraBots.leer(op.cambios.botId);
+                if (!lectura.ok) return { ok: false, motivo: lectura.motivo };
+                const fila = lectura.valores as Record<string, unknown>;
+                // Falla cerrada: en una entidad solo aplica si `decidirConfiguracion` da permitido
+                // (el rol entra por `opciones.rol`) o la propuesta ya pasó su votación.
+                const bot = {
+                    id: String(fila.id ?? op.cambios.botId), nombre: String(fila.nombre ?? "Bot"), origen: "astraura",
+                    dueno: { tipo: esTipoDueno(fila.dueno_tipo) ? fila.dueno_tipo : "grupo", id: String(fila.dueno_id ?? ""), cuentaId: String(fila.cuenta_id ?? "") },
+                    gobierno: fila.gobierno === "democratico" ? "democratico" : "jerarquico", activo: fila.activo !== false,
+                    personalidad: {}, cuerpo: {}, sentidosHabilitados: [],
+                } as unknown as Bot;
+                const d = decidirConfiguracion(bot, opciones.rol ?? "observador", op.cambios.cambio);
+                if (ambito.tipo === "entidad" && !d.permitido && !opciones.propuestaAprobada) {
+                    return { ok: false, motivo: d.motivo };
+                }
+                if (op.cambios.cambio === "borrar") {
+                    return { ok: false, motivo: "Borrar un bot exige copia previa: hazlo desde el panel de bots de la entidad." };
+                }
+                const columna = op.cambios.cambio === "pausar" ? "activo" : op.cambios.cambio;
+                const r = await p.astrauraBots.upsert(op.cambios.botId, {
+                    ...fila,
+                    [columna]: op.cambios.cambio === "pausar" ? false : op.cambios.valor,
+                });
+                if (!r.ok || r.filas === 0) return { ok: false, motivo: r.motivo ?? "La base de datos no dejó guardar el bot." };
+                return hecho(
+                    { tipo: "bot.restaurar", botId: op.cambios.botId, campo: op.cambios.cambio, antes: fila[columna], despues: op.cambios.valor },
+                    `Bot configurado: ${op.cambios.cambio}.`,
+                );
+            }
         }
         return { ok: false, motivo: "Operación no reconocida." };
     } catch (e) {
@@ -434,6 +487,23 @@ export async function deshacerEntrada(e: EntradaGenesis, p: PuertosGenesis): Pro
                 if (inv.vinculo) p.agentes.desvincular(inv.agenteId, inv.vinculo.tipo, inv.vinculo.id);
                 const borrado = p.agentes.borrar(inv.agenteId);
                 return borrado ? { ok: true, resultado: "Agente borrado." } : { ok: true, resultado: "Ese agente ya no estaba." };
+            }
+            case "bot.borrar": {
+                if (!p.astrauraBots) return { ok: false, motivo: "El almacén de bots no está conectado todavía." };
+                const r = await p.astrauraBots.borrar(inv.botId);
+                return r.ok ? { ok: true, resultado: "Bot retirado." } : { ok: false, motivo: r.motivo ?? "No se pudo retirar el bot." };
+            }
+            case "bot.restaurar": {
+                if (!p.astrauraBots) return { ok: false, motivo: "El almacén de bots no está conectado todavía." };
+                const lectura = await p.astrauraBots.leer(inv.botId);
+                if (!lectura.ok) return { ok: false, motivo: lectura.motivo };
+                const fila = lectura.valores as Record<string, unknown>;
+                // «pausar» tocó la columna activo; «borrar» guarda la fila previa en `antes`.
+                const quedo = inv.campo === "pausar" ? { activo: false } : inv.campo === "borrar" ? fila : { [inv.campo]: inv.despues };
+                const antes = inv.campo === "pausar" ? { activo: inv.antes } : inv.campo === "borrar" ? (inv.antes as Record<string, unknown>) : { [inv.campo]: inv.antes };
+                if (inv.campo !== "borrar" && camposEnConflicto(fila, quedo).length) return { ok: false, motivo: conflicto([String(inv.campo)]) };
+                const r = await p.astrauraBots.upsert(inv.botId, { ...fila, ...antes });
+                return r.ok && r.filas > 0 ? { ok: true, resultado: `«${String(inv.campo)}» como estaba.` } : { ok: false, motivo: r.motivo ?? "No se pudo restaurar el bot." };
             }
         }
         return { ok: false, motivo: "No sé deshacer esto." };

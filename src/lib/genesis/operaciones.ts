@@ -24,6 +24,7 @@
 import { validarContraInvariantes, type Violacion } from "@/lib/nucleo/invariantes";
 import { pareceCodigo } from "@/lib/nucleo/ui-spec";
 import { validarAccionUi, type TipoAccionUi } from "@/lib/astraura/ui-acciones";
+import { type CambioBot } from "@/lib/astraura-bots/permisos";
 
 /* ── Vocabulario ─────────────────────────────────────────────────────────── */
 
@@ -36,7 +37,9 @@ export type TipoOperacion =
     | "dock.quitar"
     | "dashboard.widget.añadir"
     | "dashboard.widget.quitar"
-    | "agente.crear";
+    | "agente.crear"
+    | "bot.crear"
+    | "bot.configurar";
 
 export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "perfil.editar",
@@ -48,12 +51,15 @@ export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "dashboard.widget.añadir",
     "dashboard.widget.quitar",
     "agente.crear",
+    "bot.crear",
+    "bot.configurar",
 ];
 
 /** Lo que cada nivel puede tocar. PoliGenesis: solo lo de la entidad. */
 export const OPERACIONES_POR_AMBITO: Record<"persona" | "entidad", readonly TipoOperacion[]> = {
-    persona: TIPOS_OPERACION,
-    entidad: ["pagina.editar", "agente.crear"],
+    // Crear un bot común es de la entidad; configurar el tuyo también es personal.
+    persona: TIPOS_OPERACION.filter((t) => t !== "bot.crear"),
+    entidad: ["pagina.editar", "agente.crear", "bot.crear", "bot.configurar"],
 };
 
 export type TipoEntidad = "pagina" | "grupo";
@@ -114,6 +120,19 @@ export interface DatosAgente {
     visibilidad?: "private" | "public";
 }
 
+/** El bot común de una entidad (grupo o página): al crearlo se fija su gobierno. */
+export interface DatosBotNuevo {
+    nombre: string;
+    gobierno: "jerarquico" | "democratico";
+}
+
+/** Cambio de configuración de un bot (`CambioBot` del núcleo de bots). */
+export interface CambiosBot {
+    botId: string;
+    cambio: CambioBot;
+    valor: unknown;
+}
+
 interface Base {
     /** Por qué, en una frase (se enseña en la vista previa). */
     motivo: string;
@@ -128,7 +147,9 @@ export type Operacion =
     | (Base & { tipo: "dock.quitar"; id: string })
     | (Base & { tipo: "dashboard.widget.añadir"; tablero?: string; widget: string; talla?: "S" | "M" | "L" })
     | (Base & { tipo: "dashboard.widget.quitar"; tablero?: string; widget: string })
-    | (Base & { tipo: "agente.crear"; agente: DatosAgente });
+    | (Base & { tipo: "agente.crear"; agente: DatosAgente })
+    | (Base & { tipo: "bot.crear"; datos: DatosBotNuevo })
+    | (Base & { tipo: "bot.configurar"; cambios: CambiosBot });
 
 /** Lo que la validación sabe del entorno (lo pasa quien llama; todo opcional). */
 export interface ContextoValidacion {
@@ -181,6 +202,9 @@ export const DOCK_NUCLEO: Readonly<Record<string, { ruta: string; nombre: string
 
 /** Widgets que llevan código o HTML propio: Genesis nunca los crea. */
 export const WIDGETS_VETADOS = new Set(["AI_GENERATED", "CUSTOM_HTML", "IFRAME", "EMBED_HTML"]);
+
+/** Cambios admitidos en «bot.configurar» (los mismos del núcleo de bots, §3.2). */
+const CAMBIOS_BOT: readonly CambioBot[] = ["personalidad", "cuerpo", "sentidos", "permisos", "modelo", "pausar", "borrar"];
 
 /* ── Utilidades ──────────────────────────────────────────────────────────── */
 
@@ -498,6 +522,38 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
                 if (problemas.length) return fallo();
                 return { ok: true, avisos, op: { tipo: "agente.crear", motivo, agente: agente as DatosAgente } };
             }
+
+            case "bot.crear": {
+                const d = esObjeto(bruto.datos) ? bruto.datos : {};
+                const nombre = texto(d.nombre, LIMITES.nombre, "nombre", problemas);
+                if (d.gobierno !== "jerarquico" && d.gobierno !== "democratico") {
+                    problemas.push("«gobierno» debe ser jerarquico o democratico.");
+                }
+                if (!nombre && !problemas.length) problemas.push("El bot nuevo necesita un nombre.");
+                if (problemas.length) return fallo();
+                return { ok: true, avisos, op: { tipo: "bot.crear", motivo, datos: { nombre, gobierno: d.gobierno } as DatosBotNuevo } };
+            }
+
+            case "bot.configurar": {
+                const b = esObjeto(bruto.cambios) ? bruto.cambios : {};
+                const botId = typeof b.botId === "string" ? b.botId.trim() : "";
+                const cambio = b.cambio;
+                if (!PATRON_ID.test(botId)) problemas.push("Falta el bot a configurar (su identificador).");
+                if (!(CAMBIOS_BOT as readonly string[]).includes(String(cambio))) {
+                    problemas.push("«cambio» debe ser uno de: personalidad, cuerpo, sentidos, permisos, modelo, pausar o borrar.");
+                }
+                let json = "";
+                try {
+                    json = JSON.stringify(b.valor) ?? "null";
+                } catch {
+                    problemas.push("«valor» no es un valor JSON.");
+                }
+                if (!json) problemas.push("Falta el valor nuevo del bot.");
+                if (json.length > 4000) problemas.push("«valor» supera los 4000 caracteres.");
+                if (json && pareceCodigo(json)) problemas.push("«valor» contiene algo que parece código; Genesis solo acepta contenido.");
+                if (problemas.length) return fallo();
+                return { ok: true, avisos, op: { tipo: "bot.configurar", motivo, cambios: { botId, cambio: cambio as CambioBot, valor: b.valor } } };
+            }
         }
         problemas.push("Operación no reconocida.");
         return fallo();
@@ -626,7 +682,19 @@ export function describirOperacion(op: Operacion, ambito: Ambito): VistaPrevia {
                     `visibilidad: ${op.agente.visibilidad === "public" ? "pública" : "privada"}`,
                     ...(ambito.tipo === "entidad" ? ["queda vinculado a la entidad"] : []),
                 ],
-                deshacer: "Deshacer lo borra de tu biblioteca.",
+            deshacer: "Deshacer lo borra de tu biblioteca.",
+        };
+        case "bot.crear":
+            return {
+                titulo: `Crear el bot «${op.datos.nombre}»${de}`,
+                detalles: [`gobierno: ${op.datos.gobierno === "democratico" ? "democrático (lo decide el grupo en votación)" : "jerárquico (lo administra quien gestiona)"}`],
+                deshacer: "Deshacer lo quita de los bots de la entidad.",
+            };
+        case "bot.configurar":
+            return {
+                titulo: `Configurar el bot «${op.cambios.botId}»`,
+                detalles: [`cambio: ${op.cambios.cambio}`, `valor: ${valorCorto(op.cambios.valor)}`],
+                deshacer: "Deshacer repone el valor anterior del bot.",
             };
     }
 }
@@ -683,7 +751,9 @@ export type Inverso =
     | { tipo: "dock.restaurar"; id: string; existia: boolean; estabaActivo: boolean }
     | { tipo: "widget.quitar"; tablero: string; widgetId: string }
     | { tipo: "widget.reponer"; tablero: string; widget: Record<string, unknown> }
-    | { tipo: "agente.borrar"; agenteId: string; vinculo?: { tipo: "page" | "group"; id: string } };
+    | { tipo: "agente.borrar"; agenteId: string; vinculo?: { tipo: "page" | "group"; id: string } }
+    | { tipo: "bot.borrar"; botId: string }
+    | { tipo: "bot.restaurar"; botId: string; campo: CambioBot; antes: unknown; despues: unknown };
 
 export type EstadoEntrada = "aplicada" | "deshecha" | "propuesta" | "fallida";
 
