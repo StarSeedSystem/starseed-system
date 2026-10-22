@@ -77,11 +77,29 @@ Cómo se opera el peldaño 4a (mientras quede crédito):
   Al aparecer la rama, la tarea vuelve a `pendiente` y se corre `traer_nube.py revisar --aplicar`, que la trae con las
   puertas de la Mac. Si la sesión solo pudo empujar a `claude/…`, se trae a mano.
   `vercel.json` no despliega `nube/**` ni `claude/**`.
-- **Ritmo:** el crédito restante entre los días que faltan (~18 $/día al empezar); como mucho 3 sesiones vivas;
+- **Medio de capacidad, no solo carril difícil (2026-10-22, Alex: «¿por qué solo hay 6 agentes y no se agregan solos
+  más en más medios, como el contenedor de Claude de los créditos?»).** Mientras quede crédito, las sesiones de Claude
+  en la nube son un medio más del enjambre: cogen solas las tareas listas que el resto no cierra (alta capacidad,
+  ≥ 3 archivos, o ya fallidas con otros modelos) y, si sobra presupuesto del día, las demás. Modelo por tarea:
+  `claude-opus-5-5` para lo difícil, `sonnet` para lo demás (más barato). Lo automatiza ALT1022Ac (`alta-capacidad-nube.py
+  ciclo`, servicio `com.starseed.alta-nube` cada 15 min) y ALT1022C las cuenta en Contenedores, Agentes y «Buscar más capacidad».
+- **Ritmo:** el crédito restante entre los días que faltan (~18 $/día al empezar); como mucho 4 sesiones vivas;
   se paran con 10 $ de reserva. Saldo: claude.ai/settings/usage → «Créditos de sesiones en la nube»,
   anotado con `credito_claude_nube.py declarar --restante N`.
 - Lo automatiza la ola 1022A (`cola-alta-capacidad-1022.json`). Al vencer o agotarse el crédito,
   las sesiones en la nube vuelven a contar en el límite del plan, sin avisar: entonces rige el 4b.
+
+**Por qué no crecían los agentes (medido el 2026-10-22, 6 agentes con 59 tareas listas):**
+1. La Mac: el gobernador la baja a 2 por RAM (≈ 100 MB libres y swap llena). Es un límite real.
+2. `clasificar_fallo_motor` leía «quota»/«402»/«429»/«503» en TODA la salida de opencode, que incluye lo que el agente
+   lee: cada tarea sin cambios que tocara archivos de cupos apartaba a su proveedor «sin cupo» 24 h. En el A1 estaban
+   así Zen, freellmapi, google y openrouter, y una tarea esperó 40 min con todos vivos. Arreglado (`29ce92b06`): solo
+   cuentan las últimas líneas de error. Las marcas falsas se borraron en la Mac y en el A1.
+3. «Buscar más capacidad» no contaba a Zen como escritor de la nube (no tiene sonda HTTP): el tope era 1 job.
+   Arreglado (`80854e08b`, ZEN1021B).
+4. La autopublicación llevaba 63 commits frenada por claves de mentira en pruebas sin la marca «fake»: la nube
+   trabajaba sobre el main de ayer. Arreglado (`5f9c09a93`).
+5. La nube no vuelve a coger lo que ya falló 3 veces (45 tareas hoy): esas son justo las del medio Claude en la nube.
 
 Cómo se opera el peldaño 4b:
 - Una tarea cerrada por agente, sobre un árbol igual a main de la Mac (lo que no compila no
