@@ -41,6 +41,12 @@ describe("átomos propios", () => {
     }
   });
 
+  it("VISTAS_COMPONENTE solo guarda cargadores de componente", () => {
+    for (const carga of Object.values(VISTAS_COMPONENTE)) {
+      expect(typeof carga).toBe("function");
+    }
+  });
+
   it("registrarAtomosPropios es idempotente", () => {
     registrarAtomosPropios();
     const primera = listarAtomos().length;
