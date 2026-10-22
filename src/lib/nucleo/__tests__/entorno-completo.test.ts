@@ -149,3 +149,40 @@ describe("aplicar y deshacer", () => {
     expect(estado["appearance-config-v2"]).toBe("viejo");
   });
 });
+
+describe("flujo del panel de configuración completa", () => {
+  it("captura, duplica y revisa antes de exportar; aplicar y deshacer dejan igual", () => {
+    const origen: Record<string, string> = {
+      "appearance-config-v2": '{"tema":"claro"}',
+      "starseed.dock.items.v2": '[{"id":"a"}]',
+      "starseed.ai.providers": '{"apiKey":"sk-no-viaja"}',
+    };
+    const capturado = capturarEntorno(lector(origen), paquete(), []);
+    const copia = duplicarEntorno(capturado, "exportado");
+    expect(revisarEntorno(copia, depsLimpio).instalable).toBe(true);
+    expect(copia.ajustes).not.toHaveProperty("starseed.ai.providers");
+
+    const destino: Record<string, unknown> = { "appearance-config-v2": { tema: "oscuro" } };
+    const antes = structuredClone(destino);
+    const acciones = {
+      leer: (clave: string) => (clave in destino ? JSON.stringify(destino[clave]) : null),
+      escribir: (clave: string, valor: unknown) => {
+        if (valor === null) delete destino[clave];
+        else destino[clave] = valor;
+      },
+    };
+    const { deshacer, cambios } = aplicar(copia, acciones);
+    expect(cambios).toContain("appearance-config-v2");
+    deshacer();
+    expect(destino).toEqual(antes);
+  });
+
+  it("una ruta absoluta de disco en un ajuste bloquea la exportación", () => {
+    const ent = entorno({
+      ajustes: { "starseed.inicio.pantalla.v1": "/home/alex/privado" },
+    });
+    const res = revisarEntorno(ent, depsLimpio);
+    expect(res.instalable).toBe(false);
+    expect(res.motivos.some((m) => m.includes("/home/"))).toBe(true);
+  });
+});

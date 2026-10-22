@@ -24,11 +24,54 @@ import { Button } from "@/components/ui/button";
 import { Download, Upload, RotateCcw, FileJson, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SYNCED_KEYS } from "@/lib/settings-sync";
+import {
+    VERSION_ENTORNO,
+    aplicar,
+    capturarEntorno,
+    diferencia,
+    duplicarEntorno,
+    revisarEntorno,
+    type EntornoCompleto,
+} from "@/lib/nucleo/entorno-completo";
+import { empaquetar, type PaqueteSistema } from "@/lib/nucleo/paquete-sistema";
+import { validarUiSpec } from "@/lib/nucleo/ui-spec";
+import { validarContraInvariantes } from "@/lib/nucleo/invariantes";
 
 interface ExportedConfigFile {
-    version: 1;
+    version: typeof VERSION_ENTORNO;
     exportedAt: string;
     data: Record<string, unknown>;
+}
+
+/** Guardianes reales del núcleo: el panel exporta/importa en el cliente, donde
+ *  `ArranqueNucleo` ya los tiene registrados; pasarlos explícitos evita que la
+ *  revisión caiga en el fallo cerrado si el panel se monta aislado. */
+const DEPENDENCIAS_NUCLEO = { validarUiSpec, validarContraInvariantes };
+
+/** Paquete que acompaña a la configuración exportada. No pide permisos ni
+ *  trae interfaz: solo da forma revisable a un entorno de ajustes del sistema. */
+function paqueteDelEntorno(nombre: string): PaqueteSistema {
+    const ahora = Date.now();
+    return empaquetar(
+        {
+            nombre,
+            autor: { perfil: "local", nombre: "Este dispositivo" },
+            uiSpec: {
+                version: 1,
+                superficie: "os:ajustes",
+                titulo: "Configuración del sistema",
+                bloques: [],
+            },
+            permisosPedidos: [],
+            requiere: [],
+        },
+        ahora,
+        `entorno-${ahora}`,
+    );
+}
+
+function lectorLocal() {
+    return { leer: (clave: string): string | null => window.localStorage.getItem(clave) };
 }
 
 /** Cuenta cuántas de SYNCED_KEYS tienen valor no-null en localStorage ahora mismo. */
@@ -39,22 +82,6 @@ function countAvailableKeys(): number {
         if (window.localStorage.getItem(key) != null) count++;
     }
     return count;
-}
-
-function collectAllPrefs(): Record<string, unknown> {
-    const bundle: Record<string, unknown> = {};
-    if (typeof window === "undefined") return bundle;
-    for (const key of SYNCED_KEYS) {
-        const raw = window.localStorage.getItem(key);
-        if (raw != null) {
-            try {
-                bundle[key] = JSON.parse(raw);
-            } catch {
-                bundle[key] = raw; // valores no-JSON (p.ej. "on"/"off") tal cual
-            }
-        }
-    }
-    return bundle;
 }
 
 export function ConfigExportPanel() {
@@ -68,23 +95,34 @@ export function ConfigExportPanel() {
     const handleExportClick = () => {
         setBusy("export");
         try {
+            const ahora = new Date();
+            const nombre = `starseed_config_${ahora.toISOString().slice(0, 10)}`;
+            const capturado = capturarEntorno(lectorLocal(), paqueteDelEntorno(nombre), []);
+            const copia = duplicarEntorno(capturado, nombre);
+            const revision = revisarEntorno(copia, DEPENDENCIAS_NUCLEO);
+            if (!revision.instalable) {
+                toast.error("No se exporta: la configuración lleva secretos o claves prohibidas.", {
+                    description: revision.motivos.join(" · "),
+                });
+                return;
+            }
             const file: ExportedConfigFile = {
-                version: 1,
-                exportedAt: new Date().toISOString(),
-                data: collectAllPrefs(),
+                version: VERSION_ENTORNO,
+                exportedAt: ahora.toISOString(),
+                data: copia.ajustes,
             };
             const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `starseed_config_${new Date().toISOString().slice(0, 10)}.json`;
+            a.download = `${nombre}.json`;
             document.body.appendChild(a);
             a.click();
             a.remove();
             URL.revokeObjectURL(url);
             toast.success(`Configuración exportada (${Object.keys(file.data).length} claves).`);
-        } catch (e: any) {
-            toast.error(`Error al exportar: ${e?.message ?? e}`);
+        } catch (e: unknown) {
+            toast.error(`Error al exportar: ${e instanceof Error ? e.message : String(e)}`);
         } finally {
             setBusy(null);
         }
@@ -100,42 +138,61 @@ export function ConfigExportPanel() {
         setBusy("import");
         try {
             const text = await file.text();
-            const parsed = JSON.parse(text);
+            const parsed: unknown = JSON.parse(text);
 
-            if (!parsed || typeof parsed !== "object" || typeof parsed.data !== "object" || parsed.data === null || Array.isArray(parsed.data)) {
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                toast.error("Archivo inválido: falta el campo «data» con la configuración.");
+                return;
+            }
+            const datos = (parsed as { data?: unknown }).data;
+            if (!datos || typeof datos !== "object" || Array.isArray(datos)) {
                 toast.error("Archivo inválido: falta el campo «data» con la configuración.");
                 return;
             }
 
-            let applied = 0;
-            let skipped = 0;
-            for (const [key, value] of Object.entries(parsed.data as Record<string, unknown>)) {
-                if (!SYNCED_KEYS.includes(key as any)) {
-                    skipped++;
-                    continue; // solo claves conocidas
-                }
-                try {
-                    const serialized = typeof value === "string" ? value : JSON.stringify(value);
-                    window.localStorage.setItem(key, serialized);
-                    applied++;
-                } catch {
-                    skipped++;
-                }
+            const nombre = `importado_${new Date().toISOString().slice(0, 10)}`;
+            const entrada: EntornoCompleto = {
+                version: VERSION_ENTORNO,
+                nombre,
+                paquete: paqueteDelEntorno(nombre),
+                ajustes: datos as Record<string, unknown>,
+                volumenes: [],
+            };
+            const revision = revisarEntorno(entrada, DEPENDENCIAS_NUCLEO);
+            if (!revision.instalable) {
+                toast.error("El archivo no se importa: lleva secretos o claves prohibidas.", {
+                    description: revision.motivos.join(" · "),
+                });
+                return;
             }
 
-            if (applied === 0) {
+            const actual = capturarEntorno(lectorLocal(), paqueteDelEntorno("actual"), []);
+            const diferencias = diferencia(actual, entrada);
+            const { cambios: applied, omitidas } = aplicar(entrada, {
+                leer: (clave: string) => window.localStorage.getItem(clave),
+                escribir: (clave: string, valor: unknown) => {
+                    if (valor === null) window.localStorage.removeItem(clave);
+                    else window.localStorage.setItem(clave, typeof valor === "string" ? valor : JSON.stringify(valor));
+                },
+            });
+
+            if (applied.length === 0) {
                 toast.error("No se encontró ninguna clave conocida en el archivo.");
                 return;
             }
 
+            const resumen = [
+                `${diferencias.anadidas.length} nuevas`,
+                `${diferencias.cambiadas.length} cambiadas`,
+            ].join(", ");
             toast.success(
-                `Configuración importada (${applied} claves${skipped > 0 ? `, ${skipped} ignoradas` : ""}).`,
-                { description: "Recargando para aplicar tus ajustes…" }
+                `Configuración importada (${applied.length} claves${omitidas.length > 0 ? `, ${omitidas.length} ignoradas` : ""}).`,
+                { description: `${resumen}. Recargando para aplicar tus ajustes…` }
             );
             setTimeout(() => window.location.reload(), 900);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            toast.error(`Error al leer el archivo: ${error?.message ?? "formato JSON inválido"}`);
+            toast.error(`Error al leer el archivo: ${error instanceof Error ? error.message : "formato JSON inválido"}`);
         } finally {
             setBusy(null);
             if (fileInputRef.current) fileInputRef.current.value = "";
