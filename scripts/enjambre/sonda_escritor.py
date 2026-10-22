@@ -93,6 +93,10 @@ def clasificar(codigo, cuerpo, ahora=None, proveedor=None):
         if (cuerpo or "").strip() and not es_respuesta_de_chat(cuerpo):
             return False, "200 que no es de chat («%s»): servicio retirado o portal" % (cuerpo or "").strip()[:24], 24, False
         return True, "responde", 0, False
+    if codigo == 403 and "freetiererror" in c:
+        # (2026-10-22, ZEN1021B) OpenCode Zen gratis solo responde DENTRO de opencode: su API
+        # devuelve 403 FreeTierError a cualquier sonda HTTP. No es falta de crédito.
+        return True, "Zen gratis: solo dentro de opencode", 0, False
     if codigo in (404, 410) or "does not exist" in c or "has reached its end" in c:
         return False, "modelo retirado (%s)" % codigo, 0, True
     if codigo in (402, 403) and _PAGO.search(c) and not _SIN_SALDO.search(c):

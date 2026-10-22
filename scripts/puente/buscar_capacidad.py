@@ -74,7 +74,32 @@ MAX_RUNS_NUBE = int(os.environ.get("STARSEED_NUBE_MAX_RUNS") or 14)
 RUNS_POR_ESCRITOR = 2
 #: Escritores cuyas claves viajan a la nube como secretos (`nube-gh.py SECRETOS`). freellmapi
 #: (127.0.0.1 de la Mac) y Codex (sesión de la Mac) NO llegan allí; Groq llega, pero solo revisa.
-PROVEEDORES_NUBE = ("google", "nvidia", "openrouter", "xkiro")
+PROVEEDORES_NUBE = ("google", "nvidia", "openrouter", "xkiro", "opencode")
+#: (2026-10-22, ZEN1021B) OpenCode Zen gratis: el escritor principal de la nube desde el 21-10
+#: (secreto OPENCODE_API_KEY). No se sondea por HTTP: su API da 403 FreeTierError fuera de
+#: opencode. Copia de `MODELOS_ZEN_GRATIS` de starseed-enjambre.py (sin importar el orquestador).
+MODELOS_ZEN_GRATIS = ("opencode/glm-5.3-flash-free", "opencode/deepseek-v4.1-flash-free",
+                      "opencode/minimax-m3.1-flash-free", "opencode/big-pickle")
+MOTIVO_ZEN = "sin sonda: Zen gratis solo responde dentro de opencode"
+
+
+def hay_clave_zen(entorno, auth=None):
+    """PURA: ¿puede opencode usar Zen aquí? Clave en el entorno o proveedor «opencode» en auth.json."""
+    if str((entorno or {}).get("OPENCODE_API_KEY") or "").strip():
+        return True
+    return isinstance(auth, dict) and "opencode" in auth
+
+
+def resultado_zen(entorno, salud, ahora_txt, auth=None):
+    """PURA: la fila de Zen para los resultados de las sondas, o None (sin clave, o la salud lo
+    da por caído o sin cupo de verdad). → (modelo, apto, motivo, horas, muerto)."""
+    if not hay_clave_zen(entorno, auth):
+        return None
+    e = (salud or {}).get("opencode")
+    if isinstance(e, dict) and (str(e.get("estado") or "") in ("caido", "caído")
+                                or str(e.get("sin_cupo_hasta") or "") > str(ahora_txt or "")):
+        return (MODELOS_ZEN_GRATIS[0], False, "Zen sin cupo según la salud compartida", 0, False)
+    return (MODELOS_ZEN_GRATIS[0], True, MOTIVO_ZEN, 0, False)
 MINUTOS_JOB = 60
 #: Lo que se reabre en una pasada, cuánto espera una tarea entre reaperturas y cuántas
 #: lleva como mucho en la ventana de envíos (dos días).
@@ -151,6 +176,8 @@ def escritores_en_la_nube(resultados=None, salud=None, ahora_txt=""):
     for prov in PROVEEDORES_NUBE:
         e = (salud or {}).get(SALUD_DE.get(prov, prov))
         if not isinstance(e, dict):
+            if prov == "opencode":  # Zen no tiene sonda: sin marca de fallo, cuenta como vivo
+                vivos.append(prov)
             continue
         if str(e.get("estado") or "") in ("caido", "caído"):
             continue
@@ -587,6 +614,13 @@ def _sondear_escritores():
         res = [r for r in ex.map(lambda ms: veredicto_proveedor(ms, lambda m: SE.sondear(m, cfg, entorno)),
                                  grupos.values()) if r]
     salud = _leer_json(SALUD, {})
+    try:
+        _auth = _leer_json(os.path.expanduser("~/.local/share/opencode/auth.json"), {})
+    except Exception:  # noqa: BLE001 — sin auth.json se mira solo el entorno
+        _auth = {}
+    _zen = resultado_zen(entorno, salud, time.strftime("%Y-%m-%d %H:%M:%S"), _auth)
+    if _zen:
+        res.append(_zen)
     cambio = False
     for m, apto, motivo, horas, muerto in res:
         prov = SALUD_DE.get(m.split("/", 1)[0], m.split("/", 1)[0])

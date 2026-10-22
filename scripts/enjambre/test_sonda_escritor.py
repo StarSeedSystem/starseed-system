@@ -18,6 +18,13 @@ ENV = {"OPENROUTER_API_KEY": "k-prueba", "GEMINI_API_KEY": "g-prueba"}
 
 
 class Clasificar(unittest.TestCase):
+    def test_zen_free_tier_no_es_sin_credito(self):
+        apto, motivo, horas, muerto = S.clasificar(
+            403, '{"type":"error","error":{"type":"FreeTierError","message":"OpenCode free tier can only be used from within OpenCode"}}')
+        self.assertTrue(apto)
+        self.assertEqual((horas, muerto), (0, False))
+        self.assertIn("Zen", motivo)
+
     def test_respuestas_reales_del_2026_10_06(self):
         medianoche = 86400 * 20000  # un 00:00 UTC exacto
         ahora = medianoche - 3 * 3600

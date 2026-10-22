@@ -411,7 +411,9 @@ class TopeNubeDinamico(unittest.TestCase):
         salud = {"nim": {"estado": "vivo"}, "google": {"sin_cupo_hasta": "2026-10-10 18:00:00"},
                  "xkiro": {"estado": "caido"}, "openrouter": {"sin_cupo_hasta": "2026-10-10 10:00:00"},
                  "freellmapi": {"estado": "vivo"}}
-        self.assertEqual(B.escritores_en_la_nube(None, salud, "2026-10-10 15:00:00"), ["nvidia", "openrouter"])
+        # (2026-10-22, ZEN1021B) Zen viaja como secreto y no tiene sonda: sin marca en la salud, cuenta.
+        self.assertEqual(B.escritores_en_la_nube(None, salud, "2026-10-10 15:00:00"),
+                         ["nvidia", "openrouter", "opencode"])
 
     def test_plan_con_tope_cero_dice_por_que(self):
         p = B.plan_nube(["A"], [], 0, None, {}, AHORA, tope_runs=0, motivo_tope="ningún escritor con cupo")
@@ -511,3 +513,34 @@ class CesionDeLaTandaDeLaMac(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ZenCuentaEnLaNube(unittest.TestCase):
+    """(2026-10-22, ZEN1021B) Zen es el escritor principal de la nube y no tiene sonda HTTP."""
+
+    def test_con_clave_en_el_entorno_o_en_auth(self):
+        self.assertTrue(B.hay_clave_zen({"OPENCODE_API_KEY": "x"}))
+        self.assertTrue(B.hay_clave_zen({}, {"opencode": {"type": "api"}}))
+        self.assertFalse(B.hay_clave_zen({}, {}))
+        self.assertFalse(B.hay_clave_zen({"OPENCODE_API_KEY": "  "}))
+
+    def test_fila_de_zen(self):
+        fila = B.resultado_zen({"OPENCODE_API_KEY": "x"}, {}, "2026-10-22 12:00:00")
+        self.assertEqual(fila[:3], ("opencode/glm-5.3-flash-free", True, B.MOTIVO_ZEN))
+        self.assertIsNone(B.resultado_zen({}, {}, "2026-10-22 12:00:00"))
+        sin = B.resultado_zen({"OPENCODE_API_KEY": "x"},
+                              {"opencode": {"sin_cupo_hasta": "2026-10-23 00:00:00"}}, "2026-10-22 12:00:00")
+        self.assertFalse(sin[1])
+
+    def test_cuenta_como_escritor_de_la_nube(self):
+        fila = B.resultado_zen({"OPENCODE_API_KEY": "x"}, {}, "2026-10-22 12:00:00")
+        self.assertIn("opencode", B.escritores_en_la_nube([fila[:4]]))
+        # Sin sondas: sin entrada en la salud, Zen cuenta como vivo; con marca de cupo, no.
+        self.assertIn("opencode", B.escritores_en_la_nube(None, {}, "2026-10-22 12:00:00"))
+        self.assertNotIn("opencode", B.escritores_en_la_nube(
+            None, {"opencode": {"sin_cupo_hasta": "2026-10-23 00:00:00"}}, "2026-10-22 12:00:00"))
+
+    def test_sube_el_tope_de_jobs(self):
+        uno = B.tope_runs_nube(36, ["nvidia"])[0]
+        dos = B.tope_runs_nube(36, ["nvidia", "opencode"])[0]
+        self.assertGreater(dos, uno)
