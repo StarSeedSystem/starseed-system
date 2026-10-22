@@ -16,6 +16,7 @@ import { voiceModeChipLabel } from "@/lib/aurora/capabilities";
 import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
 import { AURORA_TRINITY_FLAG, AURORA_TRINITY_EVENT } from "@/components/layout/trinity-fab";
 import { AuroraOrb } from "./aurora-orb";
+import { useBotPredeterminado, useExpresionBot } from "@/lib/astraura-bots/adaptadores/expresion-orbe";
 import { QuantumOrbLiveTalk } from "./quantum-orb-live-talk";
 import {
   AuroraMiniPlayer,
@@ -182,6 +183,8 @@ export function AuroraWidget() {
   const aurora = useAurora();
   const { activeEdge, setActiveEdge } = usePerimeter();
   const ruta = usePathname();
+  // La orbe es el cuerpo del bot predeterminado: expresa su emoción y personalidad (BOT1011D2).
+  useExpresionBot(useBotPredeterminado());
 
   // Mini-popover anclado al orbe.
   const [open, setOpen] = useState(false);
