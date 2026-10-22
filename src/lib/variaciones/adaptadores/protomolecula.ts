@@ -100,7 +100,7 @@ export function crearAdaptadorProtomolecula(deps: DepsProtomolecula): AdaptadorF
     return { tipo: "herramienta", herramientaId: id, valores: val(clave) };
   };
   const aplicar = (familia: string, payload: PayloadProtomolecula): { deshacer: () => void } => {
-    if (familia === "molecula") return payload.tipo !== "molecula" ? sinEfecto : copiaMolecula(payload.molecula);
+    if (payload.tipo === "molecula") return familia === "molecula" ? copiaMolecula(payload.molecula) : sinEfecto;
     if (payload.tipo !== familia) return sinEfecto;
     if (payload.tipo === "herramienta") return nueva(payload.titulo ?? payload.herramientaId, payload.herramientaId, payload.valores ?? {});
     return nueva(payload.titulo ?? payload.atomoId, obtenerAtomo(payload.atomoId)?.herramientaId ?? payload.atomoId, payload.valores ?? {});
