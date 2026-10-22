@@ -240,12 +240,46 @@ def instalar(etiqueta, orden, log, siempre):
     )
 
 
+# (2026-10-22) Servicios PERIÓDICOS (StartInterval, no KeepAlive): su plist vive en el repo con
+# las rutas de la Mac de Alex y aquí solo se cambian por las de esta instalación.
+#   «alta-nube» (Ola 1022C, ALT1022Ac): cada 15 min trae lo que dejaron las sesiones de Claude en
+#   la nube y lanza otras con el crédito de sesiones en la nube (`alta-capacidad-nube.py ciclo`).
+PERIODICOS = {"alta-nube": P("com.starseed.alta-nube.plist")}
+
+
+def adaptar_plist(texto):
+    """Las rutas de la Mac de Alex → las de esta instalación (raíz, python3 y HOME)."""
+    return (
+        texto.replace("/Users/alex/Documents/starseed-os-main", RAIZ)
+        .replace("/opt/homebrew/bin/python3", PY3)
+        .replace("/Users/alex/", HOME.rstrip("/") + "/")
+    )
+
+
+def instalar_periodico(etiqueta, fuente):
+    ruta = os.path.join(AG, etiqueta + ".plist")
+    with open(fuente, encoding="utf-8") as f:
+        texto = adaptar_plist(f.read())
+    with open(ruta, "w", encoding="utf-8") as f:
+        f.write(texto)
+    os.makedirs(os.path.join(HOME, ".starseed"), exist_ok=True)
+    ok = subprocess.run(["plutil", "-lint", ruta], capture_output=True).returncode == 0
+    subprocess.run(["launchctl", "unload", ruta], capture_output=True)
+    r = subprocess.run(["launchctl", "load", ruta], capture_output=True, text=True)
+    print("  %-10s plist %s · %s" % (etiqueta.split(".")[-1], "ok" if ok else "INVÁLIDO",
+                                     "cargado" if r.returncode == 0 else (r.stderr.strip()[:50] or "error")))
+
+
 # Reinstalar TODOS reinicia Genesis y los directores; con STARSEED_SOLO se toca solo lo nombrado.
 SOLO = {n.strip() for n in os.environ.get("STARSEED_SOLO", "").split(",") if n.strip()}
 for nombre, (orden, log, siempre) in SERVICIOS.items():
     if SOLO and nombre not in SOLO:
         continue
     instalar("com.starseed." + nombre, orden, log, siempre)
+for nombre, fuente in PERIODICOS.items():
+    if (SOLO and nombre not in SOLO) or not os.path.exists(fuente):
+        continue
+    instalar_periodico("com.starseed." + nombre, fuente)
 if SOLO:
     sys.exit(0)
 
