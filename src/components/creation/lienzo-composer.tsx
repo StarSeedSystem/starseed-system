@@ -517,47 +517,35 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                             {meta.label}
                                         </span>
                                         <div className="ml-auto flex items-center gap-1">
-                                            <button
-                                                type="button"
-                                                onClick={() => moveBlock(b.id, -1)}
-                                                disabled={i === 0}
-                                                className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
-                                                title="Subir bloque"
-<<<<<<< HEAD
-                                                aria-label={ariaLabelBloque("subir", meta.label, i + 1)}
-=======
-                                                aria-label={`Subir bloque de ${meta.label} (posición ${i + 1})`}
->>>>>>> f89b64bfa (salvavidas · SP092942: trabajo del agente antes de las puertas (tsc / vitest))
-                                            >
-                                                <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => moveBlock(b.id, 1)}
-                                                disabled={i === blocks.length - 1}
-                                                className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
-                                                title="Bajar bloque"
-<<<<<<< HEAD
-                                                aria-label={ariaLabelBloque("bajar", meta.label, i + 1)}
-=======
-                                                aria-label={`Bajar bloque de ${meta.label} (posición ${i + 1})`}
->>>>>>> f89b64bfa (salvavidas · SP092942: trabajo del agente antes de las puertas (tsc / vitest))
-                                            >
-                                                <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeBlock(b.id)}
-                                                className="p-1 rounded-md text-white/30 hover:text-red-300 hover:bg-red-500/10 cursor-pointer transition-colors"
-                                                title="Quitar bloque"
-<<<<<<< HEAD
-                                                aria-label={ariaLabelBloque("quitar", meta.label, i + 1)}
-=======
-                                                aria-label={`Quitar bloque de ${meta.label} (posición ${i + 1})`}
->>>>>>> f89b64bfa (salvavidas · SP092942: trabajo del agente antes de las puertas (tsc / vitest))
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                                            </button>
+<button
+                                                 type="button"
+                                                 onClick={() => moveBlock(b.id, -1)}
+                                                 disabled={i === 0}
+                                                 className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
+                                                 title="Subir bloque"
+                                                 aria-label={ariaLabelBloque("subir", meta.label, i + 1)}
+                                             >
+                                                 <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
+                                             </button>
+<button
+                                                 type="button"
+                                                 onClick={() => moveBlock(b.id, 1)}
+                                                 disabled={i === blocks.length - 1}
+                                                 className="p-1 rounded-md text-white/30 hover:text-white/80 hover:bg-white/10 disabled:opacity-20 cursor-pointer transition-colors"
+                                                 title="Bajar bloque"
+                                                 aria-label={ariaLabelBloque("bajar", meta.label, i + 1)}
+                                             >
+                                                 <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
+                                             </button>
+<button
+                                                 type="button"
+                                                 onClick={() => removeBlock(b.id)}
+                                                 className="p-1 rounded-md text-white/30 hover:text-red-300 hover:bg-red-500/10 cursor-pointer transition-colors"
+                                                 title="Quitar bloque"
+                                                 aria-label={ariaLabelBloque("quitar", meta.label, i + 1)}
+                                             >
+                                                 <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                                             </button>
                                         </div>
                                     </div>
 
@@ -580,18 +568,14 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                                 </div>
                                             ) : b.url ? (
                                                 <div className="space-y-2">
-                                                    {b.type === "imagen" && (
-                                                        // eslint-disable-next-line @next/next/no-img-element
-                                                        <img
-                                                            src={b.url}
-<<<<<<< HEAD
-                                                            alt={altImagenBloque(b.name)}
-=======
-                                                            alt={b.name || ""}
->>>>>>> f89b64bfa (salvavidas · SP092942: trabajo del agente antes de las puertas (tsc / vitest))
-                                                            className="max-h-48 w-auto rounded-xl border border-white/10 object-cover"
-                                                        />
-                                                    )}
+{b.type === "imagen" && (
+                                                         // eslint-disable-next-line @next/next/no-img-element
+                                                         <img
+                                                             src={b.url}
+                                                             alt={altImagenBloque(b.name)}
+                                                             className="max-h-48 w-auto rounded-xl border border-white/10 object-cover"
+                                                         />
+                                                     )}
                                                     <p className="text-xs text-white/50 truncate">
                                                         {b.name} — subido a tu nube
                                                     </p>
@@ -700,21 +684,12 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                     </div>
 
                     {/* Input de archivos oculto (compartido por bloques legados).
-<<<<<<< HEAD
                         El `accept` de partida es el de imagen; los flujos de apertura
                         lo ajustan al vuelo (imagen o archivo) antes de cada clic. */}
                     <input
                         ref={fileInputRef}
                         type="file"
                         accept={acceptPorTipo("imagen")}
-=======
-                        accept inicial image/*: los flujos de apertura lo ajustan al
-                        vuelo (imagen y archivo) antes de cada clic. */}
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
->>>>>>> f89b64bfa (salvavidas · SP092942: trabajo del agente antes de las puertas (tsc / vitest))
                         className="hidden"
                         onChange={(e) => void handleFileChosen(e)}
                     />
