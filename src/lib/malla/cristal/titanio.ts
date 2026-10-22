@@ -10,6 +10,20 @@ export function esTitanio(n: NeuronaReticula): boolean {
   return n.esRouter === true;
 }
 
+/**
+ * Coordinación del titanio según su batería (§8.1): 6 con corriente, con la
+ * batería desconocida o con ≥ 50 %; 4 entre 20 y 50 %; 3 por debajo del 20 %.
+ * Mismo criterio que el titanio portátil de la red, pero escrito aquí para que
+ * el cristal no dependa de la red.
+ */
+export function coordinacionTitanio(n: NeuronaReticula): number {
+  const { bateriaPct, cargando } = n.capacidad;
+  if (cargando || bateriaPct === null) return COORDINACION_TITANIO;
+  if (bateriaPct >= 50) return COORDINACION_TITANIO;
+  if (bateriaPct >= 20) return 4;
+  return 3;
+}
+
 /** Amortigua la temperatura por la presencia de routers titanio en los vecinos. */
 export function temperaturaAmortiguada(
   t: number,
