@@ -223,6 +223,23 @@ class RemallarImagen(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("tiempo agotado", r["fallo"])
 
+    def test_remallar_imagen_cuando_el_motor_no_disponible(self):
+        """Si el motor no está disponible, devuelve el dict de error con su forma."""
+        caido = mock.MagicMock()
+        caido.get.side_effect = OSError("conexión rehusada (simulado)")
+        r = pa.remallar_imagen("/fake/path/imagen.png", resolucion=512,
+                              carpeta_workflows=self.tmp, comfy=caido,
+                              dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        self.assertIsInstance(r["fallo"], str)
+        self.assertIn("ComfyUI no responde", r["fallo"])
+        # procedencia honesta: el flujo y los nodos, aunque no se haya podido hacer nada
+        self.assertEqual([p["pieza"] for p in r["procedencia"]],
+                         ["flujo cerrada", "nodos MostAadTech"])
+        self.assertGreaterEqual(r["segundos"], 0.0)
+        self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
