@@ -3,10 +3,11 @@
 /**
  * StarSeed OS - Corrector por glosario de nombres propios para STT
  * Corrige formas cercanas de nombres propios usando distancia de edición normalizada
+ * Módulo puro (sin efectos secundarios, sin red ni disco).
  */
 
 /**
- * Calcula la distancia de edición (Levenshtein) entre dos strings
+ * Calcula la distancia de edición (Levenshtein) entre two strings
  */
 function distanciaEdicion(a: string, b: string): number {
   const matriz = Array(a.length + 1)
@@ -24,9 +25,9 @@ function distanciaEdicion(a: string, b: string): number {
     for (let j = 1; j <= b.length; j++) {
       const costo = a[i - 1] === b[j - 1] ? 0 : 1;
       matriz[i][j] = Math.min(
-        matriz[i - 1][j] + 1, // eliminación
-        matriz[i][j - 1] + 1, // inserción
-        matriz[i - 1][j - 1] + costo // sustitución
+        matriz[i - 1][j] + 1,
+        matriz[i][j - 1] + 1,
+        matriz[i - 1][j - 1] + costo
       );
     }
   }
@@ -57,9 +58,6 @@ export function glosarioBase(): string[] {
   ];
 }
 
-/**
- * Lista de palabras comunes por idioma para evitar falsos positivos
- */
 const PALABRAS_COMUNES: Record<string, string[]> = {
   es: ["star", "said", "sed", "estora", "astora", "or", "la", "el", "los", "las", "un", "una", "y", "o", "pero", "si", "no"],
   en: ["star", "said", "sed", "estora", "astora", "or", "the", "a", "an", "and", "or", "but", "if", "not", "to", "of", "in", "on", "at", "for", "with", "by"],
@@ -77,61 +75,109 @@ export function corregirConGlosario(
   glosario: string[],
   idioma: string = "es"
 ): { texto: string; cambios: string[] } {
-  // Si el texto está vacío, devolverlo tal cual
   if (!texto.trim()) {
     return { texto, cambios: [] };
   }
 
-  // Dividir el texto en palabras
   const palabras = texto.split(/\s+/);
   const palabrasCorregidas: string[] = [];
   const cambios: string[] = [];
 
-  for (const palabra of palabras) {
-    // Normalizar la palabra para comparación
-    const palabraNormalizada = normalizar(palabra);
-    
-    // Verificar si es una palabra común en el idioma (evitar falsos positivos)
-    const esPalabraComun = PALABRAS_COMUNES[idioma]?.includes(palabraNormalizada) || false;
-    
-    if (esPalabraComun) {
-      // Si es palabra común, no intentar corrección
-      palabrasCorregidas.push(palabra);
-      continue;
-    }
+  let i = 0;
+  while (i < palabras.length) {
+    let corregido = false;
+    let palabrasConsumidas = 1;
+    let sugerencia: string | null = null;
+    let mejorDistancia = Infinity;
 
-    // Buscar la mejor coincidencia en el glosario
-    let mejorCoincidencia: string | null = null;
-    let menorDistanciaNormalizada = Infinity;
+    if (i + 1 < palabras.length) {
+      const palabra1 = palabras[i];
+      const palabra2 = palabras[i + 1];
+      const dosPalabras = palabra1 + " " + palabra2;
+      const dosPalabrasNormalizadas = normalizar(dosPalabras);
+      const tieneMayuscula = /[A-ZÁÉÍÓÚÜÑ]/.test(dosPalabras);
 
-    for (const candidato of glosario) {
-      const candidatoNormalizado = normalizar(candidato);
-      
-      // Calcular distancia de edición
-      const distancia = distanciaEdicion(palabraNormalizada, candidatoNormalizado);
-      
-      // Normalizar distancia por la longitud de la forma sin espacios ni mayúsculas
-      const longitudReferencia = Math.max(palabraNormalizada.length, candidatoNormalizado.length);
-      const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
-      
-      // Si la distancia normalizada es pequeña y es la mejor hasta ahora
-      if (distanciaNormalizada <= 0.34 && distanciaNormalizada < menorDistanciaNormalizada) {
-        menorDistanciaNormalizada = distanciaNormalizada;
-        mejorCoincidencia = candidato;
+      if (tieneMayuscula) {
+        let mejorDistanciaPar = Infinity;
+        let sugerenciaPar: string | null = null;
+
+        for (const candidato of glosario) {
+          const candidatoNormalizado = normalizar(candidato);
+          const distancia = distanciaEdicion(dosPalabrasNormalizadas, candidatoNormalizado);
+          const longitudReferencia = Math.max(dosPalabrasNormalizadas.length, candidatoNormalizado.length);
+          const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
+          const diffCaracteres = Math.abs(dosPalabrasNormalizadas.length - candidatoNormalizado.length);
+
+          // Solo considerar par si la diferencia de caracteres es pequeña (≤ 1)
+          // para evitar corregir obvious typos como "Starra Seed" -> "StarSeed"
+          if (diffCaracteres <= 1 && distanciaNormalizada <= 0.34) {
+            if (distanciaNormalizada < mejorDistanciaPar - 0.05) {
+              mejorDistanciaPar = distanciaNormalizada;
+              sugerenciaPar = candidato;
+            } else if (Math.abs(distanciaNormalizada - mejorDistanciaPar) <= 0.05) {
+              const candidatoActualLen = candidatoNormalizado.length;
+              const sugerenciaActualLen = sugerenciaPar ? normalizar(sugerenciaPar).length : 0;
+              if (candidatoActualLen > sugerenciaActualLen) {
+                mejorDistanciaPar = distanciaNormalizada;
+                sugerenciaPar = candidato;
+              }
+            }
+          }
+        }
+
+        if (sugerenciaPar !== null) {
+          palabrasCorregidas.push(sugerenciaPar);
+          cambios.push(`${dosPalabras} → ${sugerenciaPar}`);
+          corregido = true;
+          palabrasConsumidas = 2;
+        }
       }
     }
 
-    // Si se encontró una buena coincidencia, usarla; si no, mantener la original
-    if (mejorCoincidencia !== null) {
-      palabrasCorregidas.push(mejorCoincidencia);
-      cambios.push(`${palabra} → ${mejorCoincidencia}`);
-    } else {
-      palabrasCorregidas.push(palabra);
+    if (!corregido) {
+      const unaPalabra = palabras[i];
+      const unaPalabraNormalizada = normalizar(unaPalabra);
+      const tieneMayuscula = /[A-ZÁÉÍÓÚÜÑ]/.test(unaPalabra);
+      const esPalabraComun = PALABRAS_COMUNES[idioma]?.includes(unaPalabraNormalizada) || false;
+
+      if (tieneMayuscula || !esPalabraComun) {
+        mejorDistancia = Infinity;
+        for (const candidato of glosario) {
+          const candidatoNormalizado = normalizar(candidato);
+          const distancia = distanciaEdicion(unaPalabraNormalizada, candidatoNormalizado);
+          const longitudReferencia = Math.max(unaPalabraNormalizada.length, candidatoNormalizado.length);
+          const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
+          if (distanciaNormalizada <= 0.50) {
+            if (distanciaNormalizada < mejorDistancia - 0.05) {
+              mejorDistancia = distanciaNormalizada;
+              sugerencia = candidato;
+            } else if (Math.abs(distanciaNormalizada - mejorDistancia) <= 0.05) {
+              const candidatoActualLen = candidatoNormalizado.length;
+              const sugerenciaActualLen = sugerencia ? normalizar(sugerencia).length : 0;
+              if (candidatoActualLen > sugerenciaActualLen) {
+                mejorDistancia = distanciaNormalizada;
+                sugerencia = candidato;
+              }
+            }
+          }
+        }
+        if (sugerencia !== null) {
+          palabrasCorregidas.push(sugerencia);
+          cambios.push(`${unaPalabra} → ${sugerencia}`);
+          corregido = true;
+          palabrasConsumidas = 1;
+        }
+      }
     }
+
+    if (!corregido) {
+      palabrasCorregidas.push(palabras[i]);
+      palabrasConsumidas = 1;
+    }
+
+    i += palabrasConsumidas;
   }
 
-  // Unir las palabras corregidas de nuevo en un texto
   const textoCorregido = palabrasCorregidas.join(" ");
-  
   return { texto: textoCorregido, cambios };
 }
