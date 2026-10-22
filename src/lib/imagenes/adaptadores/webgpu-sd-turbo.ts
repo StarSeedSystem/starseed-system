@@ -11,11 +11,26 @@
  *
  * Lo que NO hace: bajar los pesos sin permiso, prometer tamaños sin medir, ni servir el modelo cuando el
  * navegador no tiene WebGPU con fp16 (entonces se dice y se usan las demás capas del plan).
+ *
+ * CÓMO SE ENCHUFA (esto es el núcleo; el cableado es de otra parte de la cadena, AGENTS.md: «el cableado
+ * va en su propia tarea»):
+ *   · El plan ya tiene la capa «navegador» con el motor «onnx-web» (src/lib/imagenes/plan.ts) y la ejecuta
+ *     `ejecutarOpcionReal` (src/ai/astraura/media/proveedor-neuronas.ts) con el generador que se registra
+ *     con `registrarGeneradorTab`. Mientras nadie se registre ahí, la capa «navegador» no se ofrece y se
+ *     dice en el descarte («la pestaña no tiene el generador WebGPU registrado»).
+ *   · La forma que espera ese enganche es `(prompt, semilla) => { url?: string; ref?: string } | null`: aquí
+ *     la imagen sale como `data:` en `ResultadoFlujoSdTurbo.imagen`, y `null` quiere decir «aquí no se
+ *     puede», que es lo que hace que el plan siga con la siguiente capa (neuronas, malla o web gratis).
+ *   · El permiso de descarga y el espacio libre no se inventan aquí: los decide quien llama (la pestaña) y
+ *     se reciben en `OpcionesFlujo.permiso` y `OpcionesFlujo.espacio`.
  */
 import { espacioSuficiente } from "./hierro-local";
 import { modeloPorId, type ModeloImagen } from "../modelos";
 
-/** Versión exacta de onnxruntime-web que corresponde al ejemplo oficial (fijada, sin rangos). */
+/**
+ * Versión exacta de onnxruntime-web que corresponde al ejemplo oficial (fijada, sin rangos): el ejemplo de
+ * Microsoft pide «^1.17.1» en su package.json y aquí se fija 1.17.1, que es la que instala el worker.
+ */
 export const VERSION_ONNXRUNTIME_WEB = "1.17.1";
 
 /** Dónde viven los pesos en ONNX que usa el ejemplo oficial. */
@@ -41,6 +56,11 @@ export interface MotorSdTurbo {
   generar(prompt: string, semilla: number): Promise<string>;
 }
 
+/**
+ * Espacio que declara el navegador: `navigator.storage.estimate()` devuelve `{ quota, usage }`, que aquí
+ * llegan como `cuotaBytes` y `usadoBytes`. Ojo: es una estimación del almacenamiento del navegador entero
+ * (no solo de la caché «onnx»), así que la regla del triple se cumple por encima de lo necesario.
+ */
 export interface EspacioNavegador { cuotaBytes: number; usadoBytes: number }
 export interface OpcionesFlujo {
   motor: MotorSdTurbo;
@@ -61,11 +81,16 @@ export interface ResultadoFlujoSdTurbo {
 }
 
 /**
- * Los archivos exactos que hacen falta, con el tamaño REAL medido en Hugging Face (2026-10-22), no
- * estimaciones: los tres pesos en ONNX que usa el ejemplo oficial más el tokenizador y las configuraciones.
- * Nota: el ejemplo oficial saca el tokenizador con transformers.js (`@xenova/transformers`, MIT) del repo
- * `Xenova/clip-vit-base-patch16`; aquí se listan los MISMOS archivos de tokenizador que trae el repo de ONNX
- * (vocab.json, merges.txt…), que es lo que se guarda en la caché del navegador.
+ * Los archivos exactos que hacen falta, con el tamaño REAL medido en Hugging Face (2026-10-22, comprobado
+ * uno por uno contra la API del repo `schmuell/sd-turbo-ort-web`): los tres pesos en ONNX que usa el ejemplo
+ * oficial más el tokenizador CLIP y las configuraciones. Solo se descargan con permiso y con el triple de
+ * espacio libre (§8); nunca solos.
+ *
+ * Sobre el tokenizador: el ejemplo oficial lo saca con transformers.js (`@xenova/transformers`, MIT) del
+ * repo `Xenova/clip-vit-base-patch16`; aquí se listan los archivos del tokenizador CLIP que trae el repo de
+ * ONNX (mismos nombres, tamaños medidos y distintos de los de Xenova). Quien implemente el worker tiene que
+ * elegir UNA fuente y no descargar las dos. El scheduler NO hace falta: el ejemplo implementa el paso
+ * (Euler) en JavaScript.
  */
 export const ARCHIVOS_SD_TURBO: readonly ArchivoSdTurbo[] = [
   { grupo: "unet", ruta: "unet/model.onnx", bytes: 1733430199, pesado: true },
@@ -141,7 +166,7 @@ export function evaluaWebGPU(s: SondaWebGPU): { disponible: boolean; motivo: str
   return { disponible: true, motivo: "WebGPU con fp16: SD-Turbo puede correr en esta pestaña, sin instalar nada." };
 }
 
-/** Espacio libre en la caché del navegador (lo que declara `navigator.storage.estimate()`). */
+/** Espacio libre según lo que declara el navegador (`navigator.storage.estimate()`). */
 export function espacioLibreBytes(e: EspacioNavegador): number {
   return Math.max(0, e.cuotaBytes - e.usadoBytes);
 }
@@ -202,11 +227,18 @@ export async function flujoSdTurbo(o: OpcionesFlujo): Promise<ResultadoFlujoSdTu
 /**
  * Licencia de SD-Turbo: la del catálogo, CONDICIONADA y SIN COMPROBAR DEL TODO (su LICENSE.md de Stability
  * no lleva etiqueta en Hugging Face). Para un uso comercial, quien decide tiene que revisar los términos.
+ *
+ * Comprobado el 2026-10-22, porque hay dos textos distintos: el repo del modelo (`stabilityai/sd-turbo`) no
+ * tiene etiqueta de licencia en Hugging Face y su LICENSE.md es la «Stability AI Community License»
+ * (5-7-2024): investigación y no comercial gratis, y comercial con registro mientras los ingresos anuales
+ * sean menores de 1 M USD. En cambio el repo de ONNX del que salen los pesos (`schmuell/sd-turbo-ort-web`)
+ * declara «stabilityai-non-comercial» y trae la versión antigua (28-11-2023) de esa licencia. Con dos
+ * textos distintos, el estado honesto es «sin comprobar del todo» y el uso «condicionado».
  */
 export const LICENCIA_SD_TURBO = {
   estado: "sin-comprobar-del-todo",
   uso: "condicionado",
-  texto: "SD-Turbo (stabilityai/sd-turbo): licencia de Stability AI (su LICENSE.md, sin etiqueta en Hugging Face). Condicionada y sin comprobar del todo: para un uso comercial, revisa los términos antes de publicarlo.",
+  texto: "SD-Turbo (stabilityai/sd-turbo): licencia de Stability AI (su LICENSE.md, sin etiqueta en Hugging Face). Condicionada y sin comprobar del todo: el uso comercial está limitado (hay que registrarse en https://stability.ai/community-license mientras los ingresos anuales sean menores de 1 millón de USD) y el repo del que se descargan los pesos trae otra versión de la licencia. Si lo usas en comercial, revisa los dos textos antes de publicarlo.",
 } as const;
 
 /** Textos para la interfaz, en claro y sin jerga. */
