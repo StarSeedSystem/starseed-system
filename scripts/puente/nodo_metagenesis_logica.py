@@ -72,7 +72,7 @@ ACCIONES_ORDEN: Dict[str, Dict[str, Any]] = {
     "ceder": {"texto": "El líder cede el mando al siguiente", "args": ()},
     # (OPA1011b) Interna: el líder se la pide al medio con las colas en su disco cuando no es él
     # (la web no la manda; por eso no está en el CHECK de la tabla ni en los botones).
-    "repartir": {"texto": "Prestar tareas listas a un medio ocioso", "args": ("destino", "tope")},
+    "repartir": {"texto": "Prestar tareas listas a un medio ocioso", "args": ("destino", "tope", "modo")},
     "desconectar": {"texto": "Guardar el trabajo a medias de este aparato y pasarlo a otro contenedor", "args": ()},
     "contenedor": {"texto": "Usar o dejar de usar este aparato como contenedor de agentes", "args": ("activo", "trabajadores")},
 }
@@ -287,6 +287,8 @@ def args_validos(accion: str, args: Any) -> Optional[str]:
         if "tope" in args and not (isinstance(args["tope"], int) and not isinstance(args["tope"], bool)
                                    and 1 <= args["tope"] <= 8):
             return "tope fuera de 1–8"
+        if "modo" in args and args["modo"] != "alimentar":
+            return "modo no admitido"
     if accion == "contenedor":
         # activo is required and must be boolean
         if "activo" not in args:
@@ -680,6 +682,44 @@ def mejor_medio_ocioso(nodos: Dict[str, Dict[str, Any]], excepto: Optional[str] 
     return min(libres, key=lambda kv: _clave_mejor(kv[0], kv[1]))[0]
 
 
+ALIMENTAR_QUIETA_S = 10 * 60
+
+
+def medio_alimentable(n: str, l: Dict[str, Any]) -> Tuple[bool, str]:
+    """PURA. ¿Se puede ALIMENTAR la cola viva de este medio (UN orquestador por medio: nunca una segunda
+    cola)? Hace falta orquestador vivo, algún trabajador libre y que su cola no haya recibido tareas
+    nuevas en los últimos 10 min. Lee `salud.cola_viva` = {trabajando, esperando, libres, sin_nuevas_s}."""
+    s = l.get("salud") or {}
+    if l.get("modo") != "real":
+        return False, "seco"
+    if s.get("autoritativo"):
+        return False, "es el medio con las colas"
+    if l.get("secreto") is not True:
+        return False, "sin secreto: no podría comprobar la orden firmada"
+    if not s.get("repo") or not s.get("orquestador"):
+        return False, "sin repo u orquestador"
+    if not s.get("orquestadores"):
+        return False, "sin orquestador vivo: se le lanza una cola, no se alimenta"
+    cv = s.get("cola_viva")
+    if not isinstance(cv, dict):
+        return False, "sin resumen de su cola viva"
+    libres = cv.get("libres")
+    if isinstance(libres, bool) or not isinstance(libres, int) or libres < 1:
+        return False, "sin trabajadores libres"
+    quieta = cv.get("sin_nuevas_s")
+    if isinstance(quieta, bool) or not isinstance(quieta, (int, float)) or quieta < ALIMENTAR_QUIETA_S:
+        return False, "su cola recibió tareas hace menos de 10 min"
+    return True, ""
+
+
+def mejor_medio_alimentable(nodos: Dict[str, Dict[str, Any]], excepto: Optional[str] = None) -> Optional[str]:
+    """El alimentable con más trabajadores libres (desempate estable por `_clave_mejor`)."""
+    ok = [(n, l) for n, l in (nodos or {}).items() if n != excepto and medio_alimentable(n, l)[0]]
+    if not ok:
+        return None
+    return min(ok, key=lambda kv: (-kv[1]["salud"]["cola_viva"]["libres"], _clave_mejor(kv[0], kv[1])))[0]
+
+
 def _h(texto: str) -> str:
     return hashlib.sha256(texto.encode("utf-8")).hexdigest()[:8]
 
@@ -851,6 +891,16 @@ def planificar_resultados(n: str, s: Dict[str, Any], nodos: Dict[str, Dict[str, 
                            "%d listas en %s y %s libre: las del final del orden, que la Mac tardaría horas en "
                            "coger" % (listas, n, destino),
                            args={"destino": destino, "tope": REPARTO_TOPE}, espera_s=REPARTO_ESPERA_S))
+    elif not pausado and not s.get("nube_pausada") and not destino and listas >= REPARTO_MIN_LISTAS:
+        # 6b. Nadie ocioso, pero un medio con trabajadores libres: se alimenta SU cola viva.
+        alim = mejor_medio_alimentable(nodos, excepto=n)
+        if alim:
+            libres = nodos[alim]["salud"]["cola_viva"]["libres"]
+            plan.append(accion("repartir:%s:alimentar" % alim, "repartir", n,
+                               "%d listas en %s y %s con %d trabajador(es) libre(s) en su cola viva: se le añaden "
+                               "a ella, sin segunda cola" % (listas, n, alim, libres),
+                               args={"destino": alim, "tope": min(libres * 2, 8), "modo": "alimentar"},
+                               espera_s=REPARTO_ESPERA_S))
     # 7.
     pub = r.get("publicacion") or {}
     clase = clase_publicacion(pub)
