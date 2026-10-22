@@ -20,7 +20,9 @@ import { ACTIVE_PROFILE_KEY, PROFILE_ACTIVE_EVENT } from "@/lib/profiles/profile
 // usuario dejó activo la última vez (si lo hay) — init "pequeño y global"
 // pedido para que aplicar un tema del catálogo SOBREVIVA a un refresco.
 import "@/lib/design/theme-catalog";
-import { appliedTheme, applyTheme as applyThemePack } from "@/lib/design/theme-engine";
+import { appliedTheme, applyTheme as applyThemePack, applyThemeTokens } from "@/lib/design/theme-engine";
+import { curatedPresets } from "@/lib/themes/curated-presets";
+import { registrarAdaptadoresApariencia } from "@/lib/variaciones/adaptadores/apariencia";
 
 export interface CustomFont {
     name: string;
@@ -1304,6 +1306,40 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             };
         });
     }
+
+    // ── Variaciones públicas · familia de apariencia (VPU1019C) ─────────────
+    // El registro de familias es global; se cablea aquí, donde vive el estado
+    // real del tema y del fondo activos, con lector y escritor inyectados. El
+    // lector y el escritor van por referencia para no registrar de nuevo en
+    // cada render y para que «deshacer» siempre vea el estado más reciente.
+    const variacionesRef = useRef({ config, updateConfig, updateSection });
+    variacionesRef.current = { config, updateConfig, updateSection };
+    useEffect(() => {
+        registrarAdaptadoresApariencia({
+            leer: (familia) => {
+                const actual = variacionesRef.current.config;
+                if (familia === "tema") return actual.themeStore?.activeTemplateId ?? null;
+                return typeof document === "undefined"
+                    ? null
+                    : document.documentElement.dataset.ssBackground || null;
+            },
+            escribir: (familia, id) => {
+                const { updateConfig, updateSection } = variacionesRef.current;
+                if (familia === "fondo") {
+                    applyThemeTokens({ vars: {}, background: id ?? "" });
+                    return;
+                }
+                if (id === null) {
+                    updateSection("themeStore", { activeTemplateId: undefined });
+                    return;
+                }
+                const preset = curatedPresets.find((p) => p.id === id);
+                if (!preset) return;
+                updateConfig(preset.config);
+                updateSection("themeStore", { activeTemplateId: id });
+            },
+        });
+    }, []);
 
     /** ¿El ámbito seleccionado tiene un override propio guardado? */
     const bgScopeHasOverride = (() => {
