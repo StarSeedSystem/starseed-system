@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { neuronasAtrasadas, type EstadoNeuronaActualizacion } from "../atrasadas";
 import type { VersionesPorCapa } from "../capas";
+import { CAPAS_ORDEN } from "../manifiesto";
 
 /**
  * Casos de `neuronasAtrasadas` (≥ 12): la neurona al día no aparece, versión
@@ -216,5 +217,131 @@ describe("neuronasAtrasadas", () => {
     const ultima: VersionesPorCapa = {};
     const atrasos = neuronasAtrasadas(neuronas, ultima);
     expect(atrasos).toHaveLength(0);
+  });
+});
+
+/**
+ * Casos rescatados de la rama archivada nube/39662663331 (RTS1010-ACT5d-d2b):
+ * versión adelantada, `ultima` parcial, señales combinadas y desempate por id.
+ */
+describe("neuronasAtrasadas · rescate rama nube", () => {
+  const dummyUltima: VersionesPorCapa = {
+    datos: "2026.10.10",
+    interfaz: "2026.10.10",
+    sw: "2026.10.10",
+    servicios: "2026.10.10",
+    modelos: "2026.10.10",
+    nativa: "2026.10.10",
+  };
+
+  it("versión mayor a la última no es atraso en esa capa", () => {
+    const neuron: EstadoNeuronaActualizacion = {
+      neuronaId: "b1",
+      nombre: "Adelantada",
+      online: true,
+      versiones: { datos: "2026.10.15" },
+    };
+    const result = neuronasAtrasadas([neuron], dummyUltima);
+    expect(result.some((r) => r.capa === "datos")).toBe(false);
+    expect(result).toHaveLength(5);
+  });
+
+  it("capa ausente en ultima se ignora aunque la neurona la declare", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "b2",
+        nombre: "Parcial",
+        online: true,
+        versiones: { datos: "2026.10.01" },
+      },
+    ];
+    const ultimaSinDatos: VersionesPorCapa = {
+      interfaz: dummyUltima.interfaz,
+      sw: dummyUltima.sw,
+      servicios: dummyUltima.servicios,
+      modelos: dummyUltima.modelos,
+      nativa: dummyUltima.nativa,
+    };
+    const result = neuronasAtrasadas(neuronas, ultimaSinDatos);
+    expect(result).toHaveLength(5);
+    result.forEach((atraso) => expect(atraso.capa).not.toBe("datos"));
+  });
+
+  it("prioridad de señales combinadas: fallo > offline > espera-wifi > pospuesta > manual", () => {
+    const base = {
+      neuronaId: "b3",
+      nombre: "Señales",
+      online: true,
+      versiones: { datos: "2026.10.01" },
+    };
+    const conTodo = { ...base, online: false, fallo: "kernel", pospuestaPor: "espera-wifi" as const, manual: true };
+    expect(neuronasAtrasadas([conTodo], dummyUltima)[0].motivo).toBe("fallo");
+    const offlineYMas = { ...base, online: false, pospuestaPor: "espera-wifi" as const, manual: true };
+    expect(neuronasAtrasadas([offlineYMas], dummyUltima)[0].motivo).toBe("offline");
+    const wifiYManual = { ...base, pospuestaPor: "espera-wifi" as const, manual: true };
+    expect(neuronasAtrasadas([wifiYManual], dummyUltima)[0].motivo).toBe("espera-wifi");
+    const pospuestaYManual = { ...base, pospuestaPor: "llamada" as const, manual: true };
+    expect(neuronasAtrasadas([pospuestaYManual], dummyUltima)[0].motivo).toBe("pospuesta");
+  });
+
+  it("offline sin versión da «offline», no «sin-motivo»", () => {
+    const neuron: EstadoNeuronaActualizacion = {
+      neuronaId: "b4",
+      nombre: "Offline muda",
+      online: false,
+      versiones: {},
+    };
+    const result = neuronasAtrasadas([neuron], dummyUltima);
+    expect(result).toHaveLength(6);
+    expect(result.every((r) => r.motivo === "offline")).toBe(true);
+  });
+
+  it("texto de sin-motivo: sin versión y versión atrás sin señales", () => {
+    const sinVersion: EstadoNeuronaActualizacion = {
+      neuronaId: "b5",
+      nombre: "Muda",
+      online: true,
+      versiones: {},
+    };
+    const sinVersionResult = neuronasAtrasadas([sinVersion], dummyUltima);
+    expect(sinVersionResult).toHaveLength(6);
+    sinVersionResult.forEach((atraso) => {
+      expect(atraso.motivo).toBe("sin-motivo");
+      expect(atraso.tiene).toBeNull();
+      expect(atraso.texto).toContain("no declara qué versión tiene");
+    });
+
+    const sinSenales: EstadoNeuronaActualizacion = {
+      neuronaId: "b6",
+      nombre: "Pixel",
+      online: true,
+      versiones: { datos: "2026.10.01" },
+    };
+    const datos = neuronasAtrasadas([sinSenales], dummyUltima).find((r) => r.capa === "datos");
+    expect(datos?.motivo).toBe("sin-motivo");
+    expect(datos?.texto).toContain("Pixel");
+    expect(datos?.texto).toContain("datos");
+    expect(datos?.texto).toContain("2026.10.01");
+    expect(datos?.texto).toContain("2026.10.10");
+    expect(datos?.texto).toContain("sin motivo conocido");
+  });
+
+  it("orden estable: nombre y, a igualdad, neuronaId; capas en orden de aplicación", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      { neuronaId: "b9", nombre: "Beta", online: true, versiones: { datos: "2026.10.01" } },
+      { neuronaId: "b7", nombre: "Alfa", online: true, versiones: { datos: "2026.10.01" } },
+      { neuronaId: "b8", nombre: "Alfa", online: true, versiones: { datos: "2026.10.01" } },
+    ];
+    const result = neuronasAtrasadas(neuronas, dummyUltima);
+    expect(result).toHaveLength(18);
+    expect(result[0].neuronaId).toBe("b7");
+    expect(result[5].neuronaId).toBe("b7");
+    expect(result[6].neuronaId).toBe("b8");
+    expect(result[11].neuronaId).toBe("b8");
+    expect(result[12].neuronaId).toBe("b9");
+    expect(result[17].neuronaId).toBe("b9");
+    result.forEach((atraso, i) => {
+      expect(atraso.capa).toBe(CAPAS_ORDEN[i % CAPAS_ORDEN.length]);
+    });
   });
 });
