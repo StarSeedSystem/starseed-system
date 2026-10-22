@@ -6,7 +6,7 @@
  * máximo 5 visibles (`MAX_ORBES_VISIBLES`), el resto en «más».
  * El predeterminado no se pinta (su cuerpo ES la orbe de `AuroraWidget`); el resto se abre en «Mis bots».
  */
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { QuantumOrbAvatar } from "@/components/aurora/quantum-orb-avatar";
@@ -14,7 +14,10 @@ import { prefersReducedMotion } from "@/components/aurora/quantum-orb";
 import { readOrbPosition } from "@/lib/aurora/aurora-orb-bus";
 import { uidActual } from "@/lib/consumo/usuario";
 import { leerBots, suscribirBots } from "@/lib/astraura-bots/adaptadores/almacen-bots";
+import { EVENTO_BUCLE_UI, type DetalleBucleUI } from "@/lib/astraura-bots/adaptadores/evento-bucle-ui";
+import { avanzar, bucleInicial, indicadorVisible, type EstadoBucle, type EventoBucle } from "@/lib/astraura-bots/bucle";
 import type { Bot } from "@/lib/astraura-bots/tipos";
+import { DIAMETRO_ANILLO, IndicadorSentidos } from "./indicador-sentidos";
 import {
   MAX_ORBES_VISIBLES,
   disposicionOrbes,
@@ -75,7 +78,22 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
   const [enfocado, setEnfocado] = useState(""), [delante, setDelante] = useState<string[]>([]);
   const [moviendo, setMoviendo] = useState<{ id: string; pos: PosOrbe } | null>(null);
   const arrastre = useRef<{ id: string; x0: number; y0: number; movido: boolean } | null>(null);
+  const [bucle, setBucle] = useState<Record<string, EstadoBucle>>({});
   const reducido = useMemo(() => prefersReducedMotion(), []);
+  // El puente de sentidos (BOT1011F) avisa de cada paso del bucle: el anillo vive en la orbe (BOT1011E2).
+  useEffect(() => {
+    const alBucle = (e: Event) => {
+      const d = (e as CustomEvent<Partial<DetalleBucleUI> | null>).detail;
+      if (!d || typeof d.botId !== "string" || !d.evento) return;
+      const botId = d.botId, evento = d.evento;
+      setBucle((s) => ({ ...s, [botId]: avanzar(s[botId] ?? bucleInicial(botId), evento) }));
+    };
+    window.addEventListener(EVENTO_BUCLE_UI, alBucle);
+    return () => window.removeEventListener(EVENTO_BUCLE_UI, alBucle);
+  }, []);
+  const moverBucle = (botId: string, evento: EventoBucle) => {
+    try { window.dispatchEvent(new CustomEvent(EVENTO_BUCLE_UI, { detail: { botId, evento } })); } catch { /* sin orbes */ }
+  };
   useEffect(() => {
     const fijar = (u: string | null) => setIds({ perfil: u ?? "local", cuenta: u ?? "local" }); // sin sesión: esta neurona
     if (!ids) { uidActual().then(fijar, () => fijar(null)); return; }
@@ -126,17 +144,26 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
   return (
     <>
       {visibles.map(({ id, pos }) => {
-        const b = porId.get(id), p = moviendo?.id === id ? moviendo.pos : pos;
+        const b = porId.get(id), p = moviendo?.id === id ? moviendo.pos : pos, est = bucle[id];
         return b ? (
-          <button key={id} type="button" aria-label={`Orbe de ${b.nombre}`} aria-pressed={enfocado === id} data-bot-id={id}
-            title={`${b.nombre} · toca para enfocarlo, arrastra para moverlo`}
-            onPointerDown={(e) => { arrastre.current = { id, x0: e.clientX, y0: e.clientY, movido: false }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* sin captura */ } }}
-            onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={() => { arrastre.current = null; setMoviendo(null); }}
-            onClick={(e) => { if (e.detail === 0) enfocar(id); }}
-            className={cn("fixed cursor-pointer touch-none select-none rounded-full", !reducido && "hover:scale-105", enfocado === id && "ring-2 ring-cyan-300/70")}
-            style={{ left: p.xRatio * vista.ancho - D / 2, top: p.yRatio * vista.alto - D / 2, zIndex: 41 + capas.indexOf(id), transition: moviendo?.id === id ? "none" : transicion }}>
-            <QuantumOrbAvatar personaId={b.id} size={D} />
-          </button>
+          <Fragment key={id}>
+            <button type="button" aria-label={`Orbe de ${b.nombre}`} aria-pressed={enfocado === id} data-bot-id={id}
+              title={`${b.nombre} · toca para enfocarlo, arrastra para moverlo`}
+              onPointerDown={(e) => { arrastre.current = { id, x0: e.clientX, y0: e.clientY, movido: false }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* sin captura */ } }}
+              onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={() => { arrastre.current = null; setMoviendo(null); }}
+              onClick={(e) => { if (e.detail === 0) enfocar(id); }}
+              className={cn("fixed cursor-pointer touch-none select-none rounded-full", !reducido && "hover:scale-105", enfocado === id && "ring-2 ring-cyan-300/70")}
+              style={{ left: p.xRatio * vista.ancho - D / 2, top: p.yRatio * vista.alto - D / 2, zIndex: 41 + capas.indexOf(id), transition: moviendo?.id === id ? "none" : transicion }}>
+              <QuantumOrbAvatar personaId={b.id} size={D} />
+            </button>
+            {est && indicadorVisible(est) ? (
+              <div data-anillo-bot={id} className="pointer-events-none fixed" style={{ left: p.xRatio * vista.ancho - DIAMETRO_ANILLO / 2, top: p.yRatio * vista.alto - DIAMETRO_ANILLO / 2, width: DIAMETRO_ANILLO, height: DIAMETRO_ANILLO, zIndex: 41 + capas.indexOf(id) }}>
+                <IndicadorSentidos estado={est} nombreBot={b.nombre}
+                  onApagarSentido={(sentido) => moverBucle(id, { tipo: "soltar", sentido, at: Date.now() })}
+                  onPausarBot={() => moverBucle(id, { tipo: "pausar", quien: "persona", at: Date.now() })} />
+              </div>
+            ) : null}
+          </Fragment>
         ) : null;
       })}
       {ocultas.length > 0 && (
