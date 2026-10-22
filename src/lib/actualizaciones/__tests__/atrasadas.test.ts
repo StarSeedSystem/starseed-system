@@ -3,10 +3,29 @@ import { neuronasAtrasadas, type EstadoNeuronaActualizacion } from "../atrasadas
 import type { VersionesPorCapa } from "../capas";
 
 /**
- * Casos de `neuronasAtrasadas` (≥ 12): la neurona al día no aparece, versión
+ * Casos de `neuronasAtrasadas` (≥ 18): la neurona al día no aparece, versión
  * ausente, prioridad de motivos, capa sin `ultima` se ignora y orden estable.
  */
 describe("neuronasAtrasadas", () => {
+  /** Un manifiesto con las seis capas al día: sirve de «última versión conocida». */
+  const ULTIMA: VersionesPorCapa = {
+    datos: "2026.10.10",
+    interfaz: "2026.10.10",
+    sw: "2026.10.10",
+    servicios: "2026.10.10",
+    modelos: "2026.10.10",
+    nativa: "2026.10.10",
+  };
+
+  /** El mismo manifiesto, pero sin la capa `datos`: esa capa no se mira. */
+  const ULTIMA_SIN_DATOS: VersionesPorCapa = {
+    interfaz: "2026.10.10",
+    sw: "2026.10.10",
+    servicios: "2026.10.10",
+    modelos: "2026.10.10",
+    nativa: "2026.10.10",
+  };
+
   it("doesn’t include neurons that are up-to-date with all layers", () => {
     const neuronas: EstadoNeuronaActualizacion[] = [
       {
@@ -216,5 +235,119 @@ describe("neuronasAtrasadas", () => {
     const ultima: VersionesPorCapa = {};
     const atrasos = neuronasAtrasadas(neuronas, ultima);
     expect(atrasos).toHaveLength(0);
+  });
+
+  it("ignora una capa que el manifiesto no publica: solo mira las que sí tiene «última»", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a14",
+        nombre: "Neuron L",
+        online: true,
+        // «datos» va por detrás, pero el manifiesto no publica esa capa: no se cuenta.
+        versiones: { datos: "2026.10.01" }
+      }
+    ];
+    const atrasos = neuronasAtrasadas(neuronas, ULTIMA_SIN_DATOS);
+    // Las otras cinco capas no las declara: se avisan, pero «datos» ni se mira.
+    expect(atrasos).toHaveLength(5);
+    expect(atrasos.every((a) => a.capa !== "datos")).toBe(true);
+    expect(atrasos.map((a) => a.capa)).toEqual(["interfaz", "sw", "servicios", "modelos", "nativa"]);
+  });
+
+  it("una versión más nueva que la última no es un atraso", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a15",
+        nombre: "Neuron Adelantada",
+        online: true,
+        versiones: { datos: "2026.10.15" }
+      }
+    ];
+    const atrasos = neuronasAtrasadas(neuronas, ULTIMA);
+    expect(atrasos.some((a) => a.capa === "datos")).toBe(false);
+    // Las cinco capas que no declara sí se avisan: solo «datos» queda fuera.
+    expect(atrasos).toHaveLength(5);
+  });
+
+  it("solo una capa atrasada entre varias al día", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a16",
+        nombre: "Neuron Parcial",
+        online: true,
+        versiones: {
+          datos: "2026.10.10",
+          interfaz: "2026.10.05",
+          sw: "2026.10.10",
+          servicios: "2026.10.10",
+          modelos: "2026.10.10",
+          nativa: "2026.10.10"
+        }
+      }
+    ];
+    const atrasos = neuronasAtrasadas(neuronas, ULTIMA);
+    expect(atrasos).toHaveLength(1);
+    expect(atrasos[0].capa).toBe("interfaz");
+    expect(atrasos[0].tiene).toBe("2026.10.05");
+    expect(atrasos[0].deberia).toBe("2026.10.10");
+    // Dice la versión que tiene, así que no hay motivo conocido: solo está por detrás.
+    expect(atrasos[0].motivo).toBe("sin-motivo");
+  });
+
+  it("sin versión y fuera de línea, el motivo es «offline» y no «sin-motivo»", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a17",
+        nombre: "Neuron Offline",
+        online: false,
+        versiones: {}
+      }
+    ];
+    const atrasos = neuronasAtrasadas(neuronas, ULTIMA);
+    expect(atrasos).toHaveLength(6);
+    expect(atrasos.every((a) => a.motivo === "offline")).toBe(true);
+    expect(atrasos[0].tiene).toBeNull();
+  });
+
+  it("orden estable: por nombre, luego por id, y las capas en el orden del manifiesto", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "2",
+        nombre: "Beta",
+        online: true,
+        versiones: { datos: "2026.10.01" }
+      },
+      {
+        neuronaId: "1",
+        nombre: "Alpha",
+        online: true,
+        versiones: { datos: "2026.10.01" }
+      },
+      {
+        neuronaId: "3",
+        nombre: "Alpha", // mismo nombre, otro id
+        online: true,
+        versiones: { datos: "2026.10.01" }
+      }
+    ];
+    const atrasos = neuronasAtrasadas(neuronas, ULTIMA);
+    // Tres neuronas × seis capas = dieciocho avisos.
+    expect(atrasos).toHaveLength(18);
+    // A igual nombre, manda el id: primero Alpha (1), luego Alpha (3), y al final Beta (2).
+    for (let i = 0; i < 6; i++) {
+      expect(atrasos[i].neuronaId).toBe("1");
+      expect(atrasos[i].nombre).toBe("Alpha");
+    }
+    for (let i = 6; i < 12; i++) {
+      expect(atrasos[i].neuronaId).toBe("3");
+      expect(atrasos[i].nombre).toBe("Alpha");
+    }
+    for (let i = 12; i < 18; i++) {
+      expect(atrasos[i].neuronaId).toBe("2");
+      expect(atrasos[i].nombre).toBe("Beta");
+    }
+    // Y dentro de cada neurona, las capas van en el orden del manifiesto.
+    expect(atrasos[0].capa).toBe("datos");
+    expect(atrasos[5].capa).toBe("nativa");
   });
 });
