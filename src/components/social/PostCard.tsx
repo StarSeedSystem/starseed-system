@@ -34,6 +34,10 @@ import {
     formatRelativeTime,
 } from "@/lib/social-posts";
 import { PostBlocksRenderer, PostTagChips } from "@/components/social/post-blocks-renderer";
+// Nombre público de quien comenta: manda el PERFIL, el email no se muestra
+// (imaginación profunda 2026-09-29 · social × coherencia-triada).
+import { ALIAS_ANONIMO, nombrePublicoParaComentario } from "@/lib/social/alias-publico";
+import { fetchMyProfile } from "@/lib/social/os-profiles";
 // (Adenda 219) Fotos y vídeos con MARCO de forma (círculo, estrella, hexágono…).
 import { FotoConMarco } from "@/components/profile/foto-con-marco";
 // Enviar a… (DESTINOS · Adenda 66 §5): publicar en el Lienzo, mensaje, cerebro, etc.
@@ -392,7 +396,7 @@ function CommentThread({
     const [sending, setSending] = useState(false);
     const [authHint, setAuthHint] = useState(false);
     const [myUid, setMyUid] = useState<string | null>(null);
-    const [myName, setMyName] = useState<string>("Ciudadano StarSeed");
+    const [myName, setMyName] = useState<string>(ALIAS_ANONIMO);
     const mounted = useRef(true);
 
     useEffect(() => {
@@ -404,14 +408,19 @@ function CommentThread({
                 const user = data.session?.user;
                 if (!mounted.current) return;
                 setMyUid(user?.id ?? null);
+                // El nombre público lo manda el PERFIL; de la CUENTA solo se
+                // toma el nombre que la persona eligió. El email NO se usa:
+                // firmarlo con el correo filtra un dato privado en un hilo
+                // que cualquiera puede leer.
+                const perfil = await fetchMyProfile();
+                if (!mounted.current) return;
                 const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
-                const name =
-                    (typeof meta.full_name === "string" && meta.full_name) ||
-                    (typeof meta.name === "string" && meta.name) ||
-                    (typeof meta.display_name === "string" && meta.display_name) ||
-                    (user?.email ? user.email.split("@")[0] : "") ||
-                    "Ciudadano StarSeed";
-                setMyName(name);
+                setMyName(
+                    nombrePublicoParaComentario({
+                        nombrePerfil: perfil?.displayName,
+                        metadata: meta,
+                    }),
+                );
             } catch {
                 /* sin sesión */
             }
