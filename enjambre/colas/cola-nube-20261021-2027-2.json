@@ -1,0 +1,69 @@
+{
+ "ola": "nube-20261021",
+ "tareas": [
+  {
+   "id": "SP092941b",
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "titulo": "Vincular labels e inputs en formularios de creación",
+   "archivos": [
+    "src/components/creation/source-picker.tsx",
+    "src/components/creation/pizarras-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092938 (creacion × ux-accesibilidad-diseno) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/creacion--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Asociar etiquetas a campos con htmlFor e id — Los <label> de URL y Etiqueta no tienen htmlFor ni los Input id; también el textarea de comentario y las opciones de votación carecen de label asociado. Los lectores de pantalla no anuncian el propósito de cada campo.\nCITA: src/components/creation/source-picker.tsx:292 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Añadir id único a cada Input/textarea y htmlFor en su label; donde no haya label visible, usar aria-label fijo.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/creation/source-picker.tsx, src/components/creation/pizarras-panel.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39561950516`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39561950516:refs/remotes/origin/nube/39561950516\"` y `git cherry-pick --no-commit 46e6d36a91c5`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/creation/pizarras-panel.tsx, src/components/creation/source-picker.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39561950516"
+  },
+  {
+   "id": "DGM1018Cc",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · aislar y validar el HTML generado antes de mostrarlo",
+   "archivos": [
+    "src/lib/diagramas/aislar-diagrama.ts",
+    "src/lib/diagramas/__tests__/aislar-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `prepararDiagrama(html, { permitirAnimacion })` → { ok, srcdoc, sandbox, motivos }: exige un solo documento con `<svg>`; quita `<link>`/`@import`/`url(http…)` remotos y cualquier `<iframe>`, `<object>`, `<embed>`, `<form>`, `on*=` y `javascript:`; inserta `<meta http-equiv=\"Content-Security-Policy\">` con default-src 'none', style-src 'unsafe-inline', img-src data:, font-src data: y script-src 'unsafe-inline' SOLO si permitirAnimacion; sandbox = \"allow-scripts\" con animación y \"\" sin ella (nunca allow-same-origin); límite 2 MB. Pruebas con HTML malicioso y con una plantilla de vendor/habilidades/diagram-design/assets. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39555339842`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39555339842:refs/remotes/origin/nube/39555339842\"` y `git cherry-pick --no-commit c38101b2914e`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/posts/embedded-content-window.tsx, src/lib/diagramas/__tests__/aislar-diagrama.test.ts, src/lib/diagramas/aislar-diagrama.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39555339842"
+  },
+  {
+   "id": "RLB1020Bd",
+   "ola": "repos-libreria-1020",
+   "titulo": "Biblioteca · canal releases en el módulo puro actualizaciones.ts",
+   "archivos": [
+    "src/lib/library/actualizaciones.ts",
+    "src/lib/library/__tests__/actualizaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/repos-libreria-1020.md §1 y §4. Hoy src/lib/library/actualizaciones.ts (módulo PURO, sin fs ni node:*) solo consulta el último commit de GitHub o la ficha de HF. Dale paridad con available-updates.ts añadiendo el canal releases, SIN romper lo existente ni sus pruebas.\n\n1. `urlDeConsulta(upstream, canal?)`: con canal==='releases' devuelve `https://api.github.com/repos/<owner/repo>/releases/latest`; con 'tags' → `/tags?per_page=1`; por defecto (o 'commits') lo de ahora (`/commits?per_page=1`). Mantén la firma retrocompatible (canal opcional; sin canal, igual que hoy).\n2. `leerVersion(upstream, json, canal?)`: releases → { version: tag_name, fecha: published_at }; tags → { version: name, fecha: null }; commits/HF como hoy. Usa esCadena; si no se puede leer, null.\n3. `compararVersiones` sigue igual; como un tag no es un sha, cuando los dos lados son tags iguales debe dar 'igual' y distintos 'hay-actualizacion' (añade comparación de tags normalizados: quita 'v' inicial, compara por igualdad textual; si no son shas ni tags comparables, 'desconocida').\n4. Tests nuevos para releases y tags; deja pasar los tests actuales de commits/HF.\n Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos puros sin `node:*` en cliente; nada de `any`; honestidad radical en cada ficha (qué hace DE VERDAD; botón deshabilitado con `comingSoon:true` si aún no hay efecto); respeta `canal` y licencia de cada entrada; NO incluyas zhaoxuya520/reverse-skill (excluida por seguridad).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39555339842`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39555339842:refs/remotes/origin/nube/39555339842\"` y `git cherry-pick --no-commit 37c865287087`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/actualizaciones.test.ts, src/lib/library/actualizaciones.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39555339842"
+  },
+  {
+   "id": "GCA1019Wc",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Habilidades de la Biblioteca para los agentes de Genesis y PoliGenesis",
+   "archivos": [
+    "src/lib/genesis/conectores/habilidades-agente.ts",
+    "src/lib/genesis/conectores/__tests__/habilidades-agente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `habilidadesPara(papel, ambito, { capacidades: SkillCapability[] de src/ai/astraura/skills.ts, desactivadas })` elige las habilidades útiles por papel o director (por `routing` y etiquetas) en tamaño tarjeta, resumen o completa según la capa del modelo elegido (`architecture/laya-y-habilidades.md`). Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261021-165748-GCA1019Wb`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261021-165748-GCA1019Wb:refs/remotes/origin/nube/a1-20261021-165748-GCA1019Wb\"` y `git cherry-pick --no-commit 6766c7fbfab0`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/lib/genesis/conectores/__tests__/habilidades-agente.test.ts, src/lib/genesis/conectores/habilidades-agente.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GCA1019F"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261021-165748-GCA1019Wb"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "GCA1019Wc",
+   "DGM1018Cc",
+   "RLB1020Bd",
+   "SP092941b"
+  ]
+ }
+}
