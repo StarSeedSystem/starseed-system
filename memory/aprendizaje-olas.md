@@ -4596,3 +4596,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SP092942b` — pruebas en rojo: vitest falla (rama conservada)
 - `SP092939b` — pruebas en rojo: vitest falla (rama conservada)
 - `RTS1010-ACT5d-d2c` — no escribió nada
+
+## 2026-10-22 20:30 · mg-oracle-1022-1154
+
+**Lo que se pidió.** pregunta
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (IMN1021Bb, RTMC1012Nc, RTGBL1019Ab, RTCB1013X). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `IMN1021Bb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTMC1012Nc` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTGBL1019Ab` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCB1013X` — otra cosa: sin decisión en 0 h; rama ola/RTCB1013X conservada
