@@ -37,6 +37,10 @@ import { cn } from "@/lib/utils";
 import { MessageMedia } from "@/components/aurora/universal-viewer";
 import { AuroraReadButton } from "@/components/aurora/aurora-read-button";
 import { CodeRunner } from "@/components/aurora/code-runner";
+import { PanelProtomolecula } from "@/components/protomolecula/panel-protomolecula";
+import { almacenNavegador, guardarMolecula } from "@/lib/protomolecula/almacen-moleculas";
+import { crearControlador } from "@/lib/protomolecula/controlador";
+import { moleculaDeFence } from "@/lib/protomolecula/fence-mensaje";
 
 
 /* ═══════════════════════════ Sanitización HTML/SVG ═══════════════════════════
@@ -276,9 +280,35 @@ function CopyButton({ value, className }: { value: string; className?: string })
   );
 }
 
+/* ═══════════ Bloque ```protomolecula · panel vivo del agente ═══════════ */
+
+let secuenciaMensaje = 0;
+
+function PanelProtoMensaje({ code }: { code: string }) {
+  const lectura = useMemo(() => moleculaDeFence(code), [code]);
+  const controlador = useMemo(() => lectura.ok ? crearControlador({
+    molecula: lectura.molecula, rol: "dueno", ahora: () => Date.now(),
+    nuevoId: () => `mensaje-${Date.now().toString(36)}-${++secuenciaMensaje}`,
+  }) : null, [lectura]);
+  const [guardado, setGuardado] = useState<string | null>(null);
+  if (!lectura.ok || !controlador) return <PlainCodeBlock lang="protomolecula" code={code} />;
+  return (
+    <div className="my-1.5 overflow-hidden rounded-xl border border-violet-300/25 bg-violet-500/5 backdrop-blur-md">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/[0.03] px-2.5 py-1.5">
+        <span className="text-[11px] font-medium text-violet-200">Protomolécula propuesta por el agente</span>
+        <button type="button" onClick={() => { const a = almacenNavegador(); setGuardado(a && guardarMolecula(a, controlador.obtener().molecula) ? "Guardada en tus moléculas." : "No se pudo guardar en este aparato."); }} className="cursor-pointer rounded-md border border-violet-300/30 bg-violet-400/10 px-2 py-0.5 text-[10px] text-violet-100 transition-colors duration-200 hover:bg-violet-400/20">Guardar en mis moléculas</button>
+      </div>
+      {lectura.avisos.length > 0 && <ul className="list-disc px-6 py-1 text-[10px] text-amber-200/90">{lectura.avisos.map((aviso, i) => <li key={i}>{aviso}</li>)}</ul>}
+      {guardado && <p role="status" className="px-2.5 py-1 text-[10px] text-white/70">{guardado}</p>}
+      <div className="h-80"><PanelProtomolecula controlador={controlador} compacto /></div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════ Bloque de código ═══════════════════════════ */
 
 function CodeBlock({ lang, code, info }: { lang: string; code: string; info?: string }) {
+  if (lang === "protomolecula") return <PanelProtoMensaje code={code} />;
   const json = useMemo(() => tryParseJson(code), [code]);
   if (json !== undefined) return <JsonBlock value={json} raw={code} />;
   // (Ola 4 · Adenda 156) Todo bloque ejecutable se entrega como PROGRAMA VIVO en
