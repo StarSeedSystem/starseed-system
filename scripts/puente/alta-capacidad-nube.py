@@ -240,8 +240,34 @@ def _lanzar_una(t, cola, modelo, ahora, seco, lanzador, decir):
     return fila
 
 
+
+def fuera_por_otros_medios(lista_colas, progreso):
+    """Ids que este carril NO debe coger: lo que la tanda viva de la Mac se queda para sus
+    próximas rondas (todo su tanda menos lo cedible, el mismo cálculo que la nube y el A1) y lo
+    que MetaGenesis ya prestó a otro medio. (2026-10-22, medido) Sin esto, el carril lanzó
+    CAP1018Ab-d1b en la nube mientras la Mac la escribía con Codex: el mismo trabajo dos veces.
+    Si la foto de la Mac falla, devuelve None y el carril no lanza nada por su cuenta."""
+    try:
+        import repartir_nube as RN  # noqa: PLC0415
+        import asignar_huecos  # noqa: PLC0415
+
+        procesos = subprocess.run(["ps", "-axo", "args="], capture_output=True, text=True, timeout=20).stdout
+        colas_mac = RN.colas_de_la_tanda_viva(procesos, traer_nube.OLAS)
+        tanda = {str(i) for _n, ids_ in colas_mac for i in ids_}
+        ajenas = {str(x) for x in (RN.leer_prestadas() or ())}
+        cedibles = set()
+        if tanda:
+            cedibles, _lote = RN.cedibles_y_lote(tanda, asignar_huecos.reunir(), lista_colas, progreso, ajenas)
+            cedibles = {str(x) for x in cedibles}
+        return (tanda - cedibles) | ajenas
+    except Exception as e:  # noqa: BLE001
+        print("carril: no pude ver la tanda de la Mac (%s: %s); no lanzo en automático" % (type(e).__name__, e),
+              file=sys.stderr)
+        return None
+
+
 def lanzar(ids=None, modelo=None, seco=False, auto=False, maximo=None, ahora=None,
-           lanzador=lanzador_real, decir=print):
+           lanzador=lanzador_real, decir=print, fuera_de_otros=None):
     """Lanza las tareas pedidas (o las que elige `--auto`). Devuelve las filas anotadas."""
     ahora = time.time() if ahora is None else ahora
     reg = leer_registro()
@@ -255,8 +281,22 @@ def lanzar(ids=None, modelo=None, seco=False, auto=False, maximo=None, ahora=Non
         return []
     lista = colas()
     if auto:
-        cands = L.candidatas(lista, progreso, reg)
-        plan = L.elegir_auto(cands, vivas, tope, hoy, L.gastado_hoy(reg, inicio_del_dia(ahora)), maximo)
+        import repartir_nube as RN  # noqa: PLC0415
+
+        # Un solo repartidor a la vez (el mismo cerrojo que la nube y el A1): se elige y se
+        # marca «reasignada · claude-nube» dentro; los lanzamientos (hasta 90 s cada uno), fuera.
+        with RN.CerrojoReparto():
+            progreso = traer_nube._progreso()
+            fuera = fuera_de_otros() if fuera_de_otros else fuera_por_otros_medios(lista, progreso)
+            if fuera is None:
+                decir("no lanzo en automático: sin la foto de la tanda de la Mac")
+                return []
+            cands = [c for c in L.candidatas(lista, progreso, reg) if str(c[0].get("id")) not in fuera]
+            plan = L.elegir_auto(cands, vivas, tope, hoy, L.gastado_hoy(reg, inicio_del_dia(ahora)), maximo)
+            if plan and not seco:
+                traer_nube._actualizar_progreso({str(t.get("id")): {
+                    "estado": L.ESTADO_PRESTADA, "medio": L.MEDIO,
+                    "nota": "reservada por el carril en la nube (lanzando la sesión)"} for t, _c, _m, _x in plan})
         if not plan:
             decir("nada que lanzar: %d candidatas, %d/%d vivas, %.2f $ para hoy" % (len(cands), vivas, tope, hoy))
     else:

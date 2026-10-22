@@ -109,15 +109,29 @@ def test_seco_no_toca_nada(entorno):
 
 def test_auto_elige_sin_dependencias_ni_privadas_y_en_orden(entorno):
     lz = Lanzador()
-    filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=lz, decir=lambda *_: None)
+    filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=lz, decir=lambda *_: None, fuera_de_otros=set)
     assert [f["tarea"] for f in filas] == ["T2", "T1"]
     assert [f["modelo"] for f in filas] == ["claude-opus-5-5", "sonnet"]
 
 
 def test_auto_respeta_el_maximo(entorno, monkeypatch):
     monkeypatch.setenv("STARSEED_ALTA_NUBE_MAX", "1")
-    filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=Lanzador(), decir=lambda *_: None)
+    filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=Lanzador(), decir=lambda *_: None, fuera_de_otros=set)
     assert [f["tarea"] for f in filas] == ["T2"]
+
+
+def test_auto_no_coge_lo_que_la_mac_se_queda(entorno):
+    """(2026-10-22) CAP1018Ab-d1b se lanzó en la nube mientras la Mac la escribía."""
+    filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=Lanzador(), decir=lambda *_: None,
+                       fuera_de_otros=lambda: {"T2"})
+    assert [f["tarea"] for f in filas] == ["T1"]
+
+
+def test_auto_sin_foto_de_la_mac_no_lanza(entorno):
+    dicho = []
+    filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=Lanzador(), decir=dicho.append,
+                       fuera_de_otros=lambda: None)
+    assert filas == [] and any("sin la foto" in d for d in dicho)
 
 
 def test_seguir_trae_y_devuelve(entorno):
