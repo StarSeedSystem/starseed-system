@@ -40,6 +40,8 @@ afterEach(() => {
 describe("claveDeHerramienta", () => {
   it("devuelve null para un id vacío o no registrado", () => {
     expect(claveDeHerramienta("")).toBeNull();
+    expect(claveDeHerramienta(" ")).toBeNull();
+    expect(claveDeHerramienta("PhotoCraft")).toBeNull();
     expect(claveDeHerramienta("fotografia-mental")).toBeNull();
   });
 
@@ -51,7 +53,12 @@ describe("claveDeHerramienta", () => {
 describe("claveDeAtomo", () => {
   it("devuelve null para un id vacío o no registrado", () => {
     expect(claveDeAtomo("")).toBeNull();
+    expect(claveDeAtomo(" ")).toBeNull();
     expect(claveDeAtomo("video-dream")).toBeNull();
+  });
+
+  it("no confunde una herramienta del catálogo con un átomo registrado", () => {
+    expect(claveDeAtomo(ID_HERRAMIENTA)).toBeNull();
   });
 
   it("devuelve la clave canónica de un átomo del registro", () => {
