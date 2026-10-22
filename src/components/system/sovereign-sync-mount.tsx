@@ -36,6 +36,77 @@ import { pushPreferences } from "@/lib/settings-sync";
 
 registrarAdaptadorAjustes({ pushPreferences });
 
+// Variaciones públicas · familias «escritorio», «dock» y «app» (contrato §5,
+// tarea VPU1019G): se registran aquí, junto a «ajuste», porque este es el
+// montaje de cliente que ve el Registro de familias del navegador. Los puertos
+// leen y escriben SOLO lo que ya existe: el dock persistido (loadDockConfig),
+// el catálogo de apps (APP_CATALOG) y la disposición de los escritorios
+// (desktop-store). Nada privado viaja: la disposición va por `refId`, nunca por
+// el nombre del archivo de la persona.
+import {
+    registrarAdaptadoresEscritorio,
+    type Movimiento,
+    type PuertoApps,
+    type PuertoDock,
+    type PuertoEscritorio,
+} from "@/lib/variaciones/adaptadores/escritorio";
+import { loadDockConfig, saveDockConfig } from "@/components/layout/dock-config";
+import { APP_CATALOG, getApp } from "@/components/dashboard/apps/app-catalog";
+import { moveIcon, moveIconToPage, readDesktopsSnapshot } from "@/components/desktop/desktop-store";
+
+const puertoDock: PuertoDock = {
+    leer: () => loadDockConfig(),
+    guardar: (items) => {
+        saveDockConfig(items);
+        try { window.dispatchEvent(new Event("starseed:dock")); } catch { /* noop */ }
+    },
+};
+
+const puertoApps: PuertoApps = {
+    existe: (id) => Boolean(getApp(id)),
+    leer: () => Object.fromEntries(APP_CATALOG.map((a) => [a.id, { accent: a.accent, short: a.short }])),
+    guardar: (registro) => {
+        for (const app of APP_CATALOG) {
+            const cambio = registro[app.id];
+            if (!cambio) continue;
+            if (cambio.accent !== undefined) app.accent = cambio.accent;
+            if ("short" in cambio) {
+                if (cambio.short === undefined) delete app.short;
+                else app.short = cambio.short;
+            }
+        }
+    },
+};
+
+function escritorioActivo() {
+    const estado = readDesktopsSnapshot();
+    return estado.desktops.find((d) => d.id === estado.activeId) ?? estado.desktops[0] ?? null;
+}
+
+const puertoEscritorio: PuertoEscritorio = {
+    leer: () => {
+        const escritorio = escritorioActivo();
+        if (!escritorio) return [];
+        return escritorio.icons.map((i) => ({
+            id: i.id,
+            ref: i.refId ?? i.id,
+            x: i.x,
+            y: i.y,
+            ...(i.page !== undefined ? { page: i.page } : {}),
+        }));
+    },
+    mover: (cambios: Movimiento[]) => {
+        const escritorio = escritorioActivo();
+        if (!escritorio) return;
+        for (const cambio of cambios) {
+            if (cambio.page !== undefined) moveIconToPage(escritorio.id, cambio.id, cambio.page);
+            moveIcon(escritorio.id, cambio.id, cambio.x, cambio.y);
+        }
+    },
+};
+
+registrarAdaptadoresEscritorio({ dock: puertoDock, apps: puertoApps, escritorio: puertoEscritorio });
+
 export function SovereignSyncMount() {
     useLibrarySync();
     useDashboardsBackup();

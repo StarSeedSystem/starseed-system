@@ -1,8 +1,8 @@
 // Familias «escritorio», «dock» y «app» de las variaciones públicas (architecture/variaciones-publicas.md §5). Módulo PURO: puertos inyectados, sin disco, DOM ni red; nunca viajan nombres de archivos ni URLs privadas.
 import { validarVariacion } from "../validar";
 import { registrarFamilia, type AdaptadorFamilia } from "../familias";
-import type { DockColor, DockItemConfig } from "@/components/layout/dock-config";
-export type ParcheDock = { id: string; label?: string; iconKey?: string; color?: DockColor; enabled?: boolean };
+import type { DockColor, DockIconKey, DockItemConfig } from "@/components/layout/dock-config";
+export type ParcheDock = { id: string; label?: string; iconKey?: DockIconKey; color?: DockColor; enabled?: boolean };
 export type ParcheApp = { id: string; accent?: string; short?: string };
 export type PosicionIcono = { ref: string; x: number; y: number; page?: number };
 export type ParcheEscritorio = { iconos: PosicionIcono[] };
