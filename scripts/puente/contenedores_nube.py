@@ -30,14 +30,36 @@ Qué se mide de cada contenedor:
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import time
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser("~/Documents/starseed-os-main")
 SALIDA = os.path.join(RAIZ, "starseed_memory_root", "mando", "contenedores.json")
+PROGRESO = os.path.join(RAIZ, "starseed_memory_root", "olas", "progreso.json")
+
+#: (2026-10-22, ALT1022C) Las sesiones de Claude Code en la nube. Alex tiene un crédito que SOLO
+#: gastan ellas y que no toca su límite semanal (`memory/orquestacion-economica.md` §0, 4a): son
+#: un medio más. Lo declarado del crédito y el registro del lanzador viven fuera del repo.
+CREDITO_CLAUDE = os.path.expanduser("~/.starseed/credito-claude-nube.json")
+REGISTRO_CLAUDE = os.path.expanduser("~/.starseed/alta-capacidad-nube.json")
+LANZADOR_CLAUDE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "alta-capacidad-nube.py")
+#: Lo que se deja sin gastar del crédito, y lo que cuesta de media una sesión (medido: ~3 $).
+RESERVA_CLAUDE_USD = 10.0
+COSTE_SESION_CLAUDE_USD = 3.0
+#: Estados del registro que dicen que la sesión ya acabó (como `agentes-claude-nube.ts`).
+SESION_CERRADA = {"terminada", "traida", "traída", "integrada", "fallida", "cancelada", "archivada", "hecha"}
+
+
+def tope_claude_nube() -> int:
+    try:
+        return max(0, int(os.environ.get("STARSEED_ALTA_NUBE_MAX") or 4))
+    except ValueError:
+        return 4
 
 #: Lo que sabemos de cada medio y que NO se puede sondear: la máquina que da el servicio y
 #: cuántos jobs deja a la vez. Son datos de catálogo, medidos el 21 y 22 de septiembre, no
@@ -100,11 +122,113 @@ CATALOGO = {
         "coste": "Always Free (gratis para siempre): 2 OCPU · 12 GB · 10 TB/mes de salida",
         "lanza": "",
     },
+    "claude-nube": {
+        "servicio": "Sesiones de Claude Code en la nube",
+        "proveedor": "Anthropic (crédito de sesiones en la nube)",
+        "horas_job": 0,
+        "jobs_simultaneos": tope_claude_nube(),
+        "agentes_por_job": 1,
+        "coste": "crédito de sesiones en la nube (no toca el límite semanal)",
+        "lanza": "python3 scripts/puente/alta-capacidad-nube.py lanzar --auto",
+    },
 }
 
-#: Medios que NO son contenedores de nube: la Mac es esta máquina y «claude» es una sesión
-#: de pago, no un contenedor donde desplegar agentes gratis.
+#: Medios que NO son contenedores de nube: la Mac es esta máquina y «claude» es la sesión de
+#: dirección en Cowork, no un sitio donde desplegar agentes. Las sesiones de Claude Code en la
+#: nube SÍ lo son, y van aparte como «claude-nube».
 NO_SON_CONTENEDORES = {"mac", "claude"}
+
+
+def _fecha(txt):
+    """ISO con zona → datetime con zona, o None."""
+    if not isinstance(txt, str) or not txt.strip():
+        return None
+    try:
+        d = datetime.fromisoformat(txt.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+def _usd(v) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def estado_claude_nube(credito, hay_lanzador: bool, ahora: float):
+    """PURA: (estado, detalle) del medio claude-nube según el crédito declarado y el lanzador."""
+    if not isinstance(credito, dict) or "restante_usd" not in credito:
+        return ("no_disponible", "sin crédito declarado (credito_claude_nube.py declarar --restante …)")
+    vence = _fecha(credito.get("vence"))
+    restante = _usd(credito.get("restante_usd"))
+    if vence is not None and vence.timestamp() <= ahora:
+        return ("no_disponible", "el crédito venció el %s" % credito.get("vence"))
+    if restante <= RESERVA_CLAUDE_USD:
+        return ("no_disponible", "quedan %.0f $ del crédito: no se baja de la reserva de %.0f $"
+                % (restante, RESERVA_CLAUDE_USD))
+    if not hay_lanzador:
+        return ("usable", "el lanzador (scripts/puente/alta-capacidad-nube.py) aún no está en main")
+    return ("listo", "crédito %.0f $ (vence %s)" % (restante, credito.get("vence") or "sin fecha"))
+
+
+def coste_claude_nube(credito) -> str:
+    """PURA: el coste dicho con el restante y el vencimiento."""
+    if not isinstance(credito, dict):
+        return CATALOGO["claude-nube"]["coste"]
+    return "crédito de sesiones en la nube: quedan %.0f $ de %.0f $, vence %s (no toca el límite semanal)" % (
+        _usd(credito.get("restante_usd")), _usd(credito.get("total_usd")), credito.get("vence") or "sin fecha")
+
+
+def vivas_claude_nube(registro, progreso) -> int:
+    """PURA: sesiones vivas = tareas del registro que siguen `reasignada` con `medio: claude-nube`.
+    Una tarea con dos sesiones anotadas (un relanzamiento) es UN agente."""
+    sesiones = (registro or {}).get("sesiones") if isinstance(registro, dict) else None
+    progreso = progreso if isinstance(progreso, dict) else {}
+    vivas = set()
+    for s in sesiones if isinstance(sesiones, list) else []:
+        if not isinstance(s, dict):
+            continue
+        tarea = str(s.get("tarea") or "").strip()
+        e = progreso.get(tarea) if tarea else None
+        if not isinstance(e, dict) or e.get("estado") != "reasignada" or e.get("medio") != "claude-nube":
+            continue
+        if str(s.get("estado") or "").strip().lower() in SESION_CERRADA:
+            continue
+        vivas.add(tarea)
+    return len(vivas)
+
+
+def caben_hoy_claude(credito, ahora: float) -> int:
+    """PURA: sesiones que caben hoy = (restante − reserva) / días que faltan, a 3 $ por sesión."""
+    if not isinstance(credito, dict):
+        return 0
+    vence = _fecha(credito.get("vence"))
+    if vence is not None and vence.timestamp() <= ahora:
+        return 0
+    dias = max(1, math.ceil((vence.timestamp() - ahora) / 86400)) if vence is not None else 1
+    presupuesto = (_usd(credito.get("restante_usd")) - RESERVA_CLAUDE_USD) / dias
+    return max(0, int(presupuesto // COSTE_SESION_CLAUDE_USD))
+
+
+def medio_claude_nube(credito, hay_lanzador: bool, ahora: float):
+    """PURA: (medio sondeado, catálogo) de claude-nube, como si `medios_disponibles` lo diera."""
+    estado, detalle = estado_claude_nube(credito, hay_lanzador, ahora)
+    cat = dict(CATALOGO["claude-nube"], coste=coste_claude_nube(credito))
+    if not hay_lanzador:
+        cat["lanza"] = ""
+    medio = {"id": "claude-nube", "nombre": cat["servicio"], "estado": estado, "detalle": detalle,
+             "siguiente_paso": cat["lanza"] if estado == "listo" else ""}
+    return medio, cat
+
+
+def _leer_json(ruta, defecto=None):
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return defecto
 
 
 def libres_de(cat: dict, agentes_ahora: int, runs_ahora: int) -> int:
@@ -172,9 +296,12 @@ def _vivos_por_medio() -> dict:
         import agentes_nube as AN
 
         d = AN.resumir(AN._runs_de_github(), time.time())
-        return {"nube-gh": {"agentes": int(d.get("agentes") or 0), "runs": len(d.get("runs") or [])}}
+        vivos = {"nube-gh": {"agentes": int(d.get("agentes") or 0), "runs": len(d.get("runs") or [])}}
     except Exception:
-        return {}
+        vivos = {}
+    n = vivas_claude_nube(_leer_json(REGISTRO_CLAUDE, {}), _leer_json(PROGRESO, {}))
+    vivos["claude-nube"] = {"agentes": n, "runs": n}
+    return vivos
 
 
 def _sondeo() -> list:
@@ -196,6 +323,10 @@ def inventario(medios_sondeados=None) -> dict:
     medios = [m for m in origen if str(m.get("id")) not in NO_SON_CONTENEDORES]
     vivos = _vivos_por_medio()
     conts = [contenedor(m, CATALOGO.get(str(m.get("id")), {}), vivos) for m in medios]
+    # `medios_disponibles` no sondea las sesiones de Claude en la nube: se añaden aquí.
+    if not any(str(m.get("id")) == "claude-nube" for m in medios):
+        medio, cat = medio_claude_nube(_leer_json(CREDITO_CLAUDE), os.path.exists(LANZADOR_CLAUDE), time.time())
+        conts.append(contenedor(medio, cat, vivos))
     # Los usables primero, y dentro de ellos los que tienen más sitio: así el director
     # coge el mejor sin ordenar por su cuenta (otra vez, un solo criterio y no dos).
     orden = {"listo": 0, "usable": 1, "requiere_alex": 2, "no_disponible": 3}

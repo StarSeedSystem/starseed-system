@@ -89,6 +89,7 @@ NOMBRES = {
     "mac": "Mac",
     "nube-gh": "Nube (GitHub Actions)",
     "claude": "Contenedor de Claude",
+    "claude-nube": "Claude en la nube",
     "gcloud": "Google Cloud",
     "hf": "Hugging Face",
     "colab": "Colab / Kaggle",
@@ -278,6 +279,71 @@ def texto_medio(m):
         resto = m.get("siguiente_paso") or m.get("detalle") or ""
         detalle = " · ".join(p for p in (m.get("capacidad"), resto) if p)
     return "%s: %s%s" % (nombre, estado, (" · " + detalle) if detalle else "")
+
+
+#: (2026-10-22, ALT1022C) Lo que tarda como mucho el lanzador de sesiones de Claude en la nube.
+LANZAR_CLAUDE_S = 150
+
+
+def texto_claude_nube(vivas, tope, credito, ahora, lanzado=""):
+    """PURA: la línea de las sesiones de Claude Code en la nube (crédito propio, no el semanal)."""
+    import contenedores_nube as CN
+
+    if not isinstance(credito, dict) or "restante_usd" not in credito:
+        cred = "sin crédito declarado"
+    else:
+        cred = "crédito %.0f $ (vence %s)" % (CN._usd(credito.get("restante_usd")), credito.get("vence") or "sin fecha")
+    linea = "%s: %d de %d sesiones · %s · hoy caben %d" % (
+        NOMBRES["claude-nube"], vivas, tope, cred, CN.caben_hoy_claude(credito, ahora))
+    return linea + (" · " + lanzado if lanzado else "")
+
+
+def lanzar_claude_nube(estado, hay_lanzador, correr, antes, despues):
+    """Lanza sesiones si el medio está listo. `correr()` ejecuta el lanzador; `antes`/`despues`
+    leen cuántas sesiones hay anotadas. Devuelve (sumadas, texto). Nunca falla."""
+    if not hay_lanzador:
+        return 0, "el lanzador aún no está en main"
+    if estado != "listo":
+        return 0, ""
+    n0 = antes()
+    try:
+        correr()
+    except Exception as e:  # noqa: BLE001
+        return 0, "no pude lanzar sesiones (%s)" % type(e).__name__
+    sumadas = max(0, despues() - n0)
+    return sumadas, ("lanzadas %d sesión(es)" % sumadas if sumadas else "el lanzador no abrió ninguna sesión")
+
+
+def _sesiones_anotadas():
+    import contenedores_nube as CN
+
+    d = CN._leer_json(CN.REGISTRO_CLAUDE, {})
+    return len(d.get("sesiones") or []) if isinstance(d, dict) else 0
+
+
+def _correr_lanzador_claude():
+    import contenedores_nube as CN
+
+    with open(REGISTRO, "a", encoding="utf-8") as log:
+        subprocess.run([sys.executable, CN.LANZADOR_CLAUDE, "lanzar", "--auto"], cwd=RAIZ, stdout=log,
+                       stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=LANZAR_CLAUDE_S, check=False)
+
+
+def claude_nube(aplicar, ahora):
+    """Línea y sumados del medio claude-nube; con `aplicar`, lanza por el lanzador si está listo."""
+    import contenedores_nube as CN
+
+    credito = CN._leer_json(CN.CREDITO_CLAUDE)
+    hay = os.path.exists(CN.LANZADOR_CLAUDE)
+    estado, _ = CN.estado_claude_nube(credito, hay, ahora)
+    sumadas, lanzado = 0, ""
+    if aplicar:
+        sumadas, lanzado = lanzar_claude_nube(estado, hay, _correr_lanzador_claude, _sesiones_anotadas,
+                                              _sesiones_anotadas)
+    elif not hay:
+        lanzado = "el lanzador aún no está en main"
+    vivas = CN.vivas_claude_nube(CN._leer_json(CN.REGISTRO_CLAUDE, {}), CN._leer_json(CN.PROGRESO, {}))
+    return sumadas, texto_claude_nube(vivas, CN.tope_claude_nube(), credito, ahora, lanzado)
 
 
 #: Claves de `salud-proveedores.json` que no son proveedores.
@@ -749,6 +815,16 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             hechas.append(lanzados)
         lineas.append(texto_nube(nube["clases"], plan, vivos, lanzados, aplicado=aplicar, mac=nube.get("mac"),
                                  tope=tope))
+
+        # 2b · Sesiones de Claude Code en la nube (crédito propio, no el límite semanal).
+        try:
+            sumadas_claude, linea_claude = claude_nube(aplicar, ahora)
+            if sumadas_claude:
+                sumados += sumadas_claude
+                hechas.append("sesiones de Claude en la nube: %d" % sumadas_claude)
+            lineas.append(linea_claude)
+        except Exception as e:  # noqa: BLE001
+            lineas.append("%s: no pude mirarlas (%s)" % (NOMBRES["claude-nube"], type(e).__name__))
 
         # 3 · Los demás medios
         if futuro_medios is not None:

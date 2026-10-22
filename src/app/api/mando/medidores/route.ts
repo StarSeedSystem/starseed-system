@@ -22,6 +22,7 @@ import { guardianMando } from "@/lib/mando/guardian";
 import { lanzarPublicacion, leerDiario } from "@/lib/mando/publicador";
 import { POST as reintentarTareas } from "@/app/api/mando/reintentar/route";
 import { leerCreditosPago } from "@/lib/mando/creditos-pago";
+import { agentesDeClaudeNube } from "@/lib/mando/agentes-claude-nube";
 import {
     colaInteligente,
     enjambreEnMarcha,
@@ -365,6 +366,16 @@ async function leerAgentesDeLaNube(tareasPorRun: ReadonlyMap<string, string[]> =
         // cola: leerla dos veces costaba ~10 s más por refresco con la Mac cargada.
         const runs: RunDeLaNube[] = (d.runs ?? []).map((r) => ({ ...r, tareas: tareasPorRun.get(String(r.run)) ?? [] }));
         return agentesDeRunsNube(runs);
+    } catch {
+        return [];
+    }
+}
+
+/** (ALT1022C) Las sesiones de Claude Code en la nube vivas, del registro de su lanzador. */
+async function leerSesionesClaudeNube(progreso: Record<string, { estado?: unknown; medio?: unknown }>) {
+    try {
+        const crudo = await readFile(path.join(os.homedir(), ".starseed", "alta-capacidad-nube.json"), "utf8");
+        return agentesDeClaudeNube(JSON.parse(crudo) as { sesiones?: unknown }, progreso);
     } catch {
         return [];
     }
@@ -781,7 +792,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         titulos,
         // Los de la nube se SUMAN a los de la Mac: el medidor de agentes tiene que contar
         // toda la capacidad viva, no solo la de esta máquina.
-        latidos: [...latidosDeAqui, ...agentesNube],
+        latidos: [...latidosDeAqui, ...agentesNube, ...(await leerSesionesClaudeNube(progreso))],
         escritores,
         fantasmas,
         // (2026-10-09) Lo que el director ya decidió y el vigilante aún no aplicó (espera a que

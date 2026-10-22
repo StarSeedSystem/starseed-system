@@ -18,6 +18,7 @@ import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-oper
 
 import { ENLACE_USO_CLAUDE, estadoCreditoClaude, resumenCreditoClaude, type ConfigCreditoClaude } from "./credito-claude";
 import { estadoLimitesClaude, resumenLimitesClaude } from "./limites-claude";
+import { DONDE_CLAUDE_NUBE, TEXTO_CLAUDE_NUBE } from "./agentes-claude-nube";
 import { estadoCreditos, type DocCreditos } from "./creditos-pago-tipos";
 import {
     resumirBloqueadas,
@@ -701,6 +702,7 @@ export function fichaDeAgente(
         valor: dondeLegible(l.donde),
     });
     if (l.medio) ficha.push({ etiqueta: "Medio", valor: l.medio });
+    if (l.url) ficha.push({ etiqueta: "Sesión", valor: l.url });
     if (l.cola) ficha.push({ etiqueta: "Cola", valor: l.cola });
     ficha.push({ etiqueta: "Trabaja en", valor: l.tarea });
     ficha.push({ etiqueta: "Fase", valor: l.fase });
@@ -780,6 +782,8 @@ export function dondeLegible(donde: string | undefined): string {
             return "A1 de Oracle (nube propia, siempre encendida)";
         case "nube-gh":
             return "GitHub Actions (nube)";
+        case DONDE_CLAUDE_NUBE:
+            return "Sesión de Claude Code en la nube (crédito de sesiones)";
         default:
             return donde;
     }
@@ -794,6 +798,8 @@ export function dondeCorto(donde: string | undefined): string {
             return "A1 de Oracle";
         case "nube-gh":
             return "GitHub Actions";
+        case DONDE_CLAUDE_NUBE:
+            return "Claude en la nube";
         case "nube-cowork":
         case "cowork":
             return "Cowork";
@@ -1305,6 +1311,8 @@ export interface DatosMedidores {
         atasco?: { tipo: string; motivo: string; cancelar: boolean };
         /** (2026-10-13) Nube de GitHub: paso de preparación viejo en un job que ya pasó todos sus topes. */
         pasoViejo?: boolean;
+        /** (ALT1022C) Sesión de Claude Code en la nube: su URL. */
+        url?: string;
     }[];
     /**
      * Inventario de contenedores en la nube, tal como lo escribe
@@ -2170,6 +2178,9 @@ export function detalleDeMedidor(
                         (l.atasco
                             ? ` · ATASCO: ${l.atasco.motivo} · ${l.atasco.cancelar ? "el director de la nube lo cancela y devuelve sus tareas sin gastarles un envío" : "el director avisa y no lo corta (puede estar trabajando)"}`
                             : "");
+                } else if (l.donde === DONDE_CLAUDE_NUBE) {
+                    estado = "escribiendo";
+                    porque = `${TEXTO_CLAUDE_NUBE}${l.url ? ` · ${l.url}` : ""}`;
                 } else if (externo) {
                     estado = "trabajando fuera";
                     porque = `fase: ${l.fase ?? "sin fase"} · avisa al cambiar de fase (no escribe registro en la Mac)`;

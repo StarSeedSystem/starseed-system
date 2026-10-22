@@ -5,6 +5,7 @@ Antes la capacidad de la nube vivía en dos sitios que no se hablaban: el sondeo
 pinta en Genesis y unas constantes del director (`TOPE_AGENTES = 12`). Lo que la
 pantalla enseñaba y lo que el director decidía no tenían por qué coincidir.
 """
+import os
 import unittest
 
 import contenedores_nube as C
@@ -121,6 +122,100 @@ class OracleTieneCapacidadReal(unittest.TestCase):
         self.assertFalse(c["desplegable"])
         self.assertEqual(c["agentes_libres"], 0)
         self.assertIn("vincular", c["falta"])
+
+
+class ClaudeEnLaNube(unittest.TestCase):
+    """(ALT1022C) Las sesiones de Claude Code en la nube son un medio: tienen crédito propio."""
+
+    AHORA = 1_792_000_000.0  # 2026-10-15 aprox.
+    VIGENTE = {"total_usd": 250, "restante_usd": 244, "vence": "2026-11-04T23:59:00-08:00"}
+
+    def test_esta_en_el_catalogo_y_la_sesion_de_direccion_sigue_fuera(self):
+        cat = C.CATALOGO["claude-nube"]
+        self.assertEqual(cat["servicio"], "Sesiones de Claude Code en la nube")
+        self.assertIn("Anthropic", cat["proveedor"])
+        self.assertEqual(cat["agentes_por_job"], 1)
+        self.assertEqual(cat["horas_job"], 0)
+        self.assertIn("claude", C.NO_SON_CONTENEDORES)
+        self.assertNotIn("claude-nube", C.NO_SON_CONTENEDORES)
+
+    def test_tope_por_entorno(self):
+        viejo = os.environ.get("STARSEED_ALTA_NUBE_MAX")
+        try:
+            os.environ["STARSEED_ALTA_NUBE_MAX"] = "7"
+            self.assertEqual(C.tope_claude_nube(), 7)
+            os.environ["STARSEED_ALTA_NUBE_MAX"] = "x"
+            self.assertEqual(C.tope_claude_nube(), 4)
+            del os.environ["STARSEED_ALTA_NUBE_MAX"]
+            self.assertEqual(C.tope_claude_nube(), 4)
+        finally:
+            if viejo is not None:
+                os.environ["STARSEED_ALTA_NUBE_MAX"] = viejo
+
+    def test_credito_vigente_con_lanzador_esta_listo(self):
+        medio, cat = C.medio_claude_nube(self.VIGENTE, True, self.AHORA)
+        self.assertEqual(medio["estado"], "listo")
+        self.assertIn("244", cat["coste"])
+        self.assertIn("2026-11-04", cat["coste"])
+        c = C.contenedor(medio, cat, {"claude-nube": {"agentes": 1, "runs": 1}})
+        self.assertEqual(c["agentes_ahora"], 1)
+        self.assertEqual(c["agentes_libres"], cat["jobs_simultaneos"] - 1)
+        self.assertTrue(c["desplegable"])
+
+    def test_sin_lanzador_es_usable_pero_no_desplegable(self):
+        medio, cat = C.medio_claude_nube(self.VIGENTE, False, self.AHORA)
+        self.assertEqual(medio["estado"], "usable")
+        self.assertIn("lanzador", medio["detalle"])
+        self.assertFalse(C.contenedor(medio, cat, {})["desplegable"])
+
+    def test_credito_vencido_no_esta_disponible(self):
+        vencido = dict(self.VIGENTE, vence="2026-01-01T00:00:00Z")
+        estado, detalle = C.estado_claude_nube(vencido, True, self.AHORA)
+        self.assertEqual(estado, "no_disponible")
+        self.assertIn("venció", detalle)
+        self.assertEqual(C.caben_hoy_claude(vencido, self.AHORA), 0)
+
+    def test_bajo_la_reserva_no_esta_disponible(self):
+        estado, detalle = C.estado_claude_nube(dict(self.VIGENTE, restante_usd=9), True, self.AHORA)
+        self.assertEqual(estado, "no_disponible")
+        self.assertIn("reserva", detalle)
+        self.assertEqual(C.estado_claude_nube(None, True, self.AHORA)[0], "no_disponible")
+
+    def test_vivas_desde_el_progreso(self):
+        registro = {"sesiones": [
+            {"tarea": "A", "t": 1}, {"tarea": "A", "t": 2},  # relanzada: un agente
+            {"tarea": "B"},                                  # ya integrada
+            {"tarea": "C", "estado": "terminada"},           # el registro la cerró
+            {"tarea": "D"},                                  # reasignada a otro medio
+            "basura",
+        ]}
+        progreso = {
+            "A": {"estado": "reasignada", "medio": "claude-nube"},
+            "B": {"estado": "integrada", "medio": "claude-nube"},
+            "C": {"estado": "reasignada", "medio": "claude-nube"},
+            "D": {"estado": "reasignada", "medio": "oracle"},
+        }
+        self.assertEqual(C.vivas_claude_nube(registro, progreso), 1)
+        self.assertEqual(C.vivas_claude_nube(None, progreso), 0)
+        self.assertEqual(C.vivas_claude_nube(registro, None), 0)
+
+    def test_caben_hoy_reparte_el_credito_por_dias(self):
+        # 20 días exactos y 244 $: (244 − 10) / 20 = 11,7 $ hoy → 3 sesiones de 3 $.
+        credito = {"restante_usd": 244, "vence": "2026-11-04T00:00:00Z"}
+        ahora = C._fecha("2026-10-15T00:00:00Z").timestamp()
+        self.assertEqual(C.caben_hoy_claude(credito, ahora), 3)
+        self.assertEqual(C.caben_hoy_claude(dict(credito, restante_usd=5), ahora), 0)
+
+    def test_inventario_lo_anade_aunque_el_sondeo_no_lo_traiga(self):
+        from unittest import mock
+
+        with mock.patch.object(C, "_vivos_por_medio", return_value={}), \
+                mock.patch.object(C, "_leer_json", return_value=None):
+            d = C.inventario([{"id": "claude", "estado": "usable"}, {"id": "mac", "estado": "listo"}])
+        ids = [c["id"] for c in d["contenedores"]]
+        self.assertIn("claude-nube", ids)
+        self.assertNotIn("claude", ids)
+        self.assertNotIn("mac", ids)
 
 
 if __name__ == "__main__":
