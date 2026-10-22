@@ -129,6 +129,33 @@ class ParchearFlujo(unittest.TestCase):
         self.assertEqual(f["1"]["inputs"]["image"], "vieja.png")
 
 
+class RemallarImagenNoDisponible(unittest.TestCase):
+    """Cuando disponible() dice que no (p. ej. Mac/Linux), remallar_imagen devuelve el dict de
+    error honesto, con fallo y con la procedencia de lo que iba a usar (ram rescate: caso de rama nube)."""
+
+    def test_remallar_imagen_cuando_no_disponible(self):
+        # macOS: disponible() corta antes de tocar la red ni el disco; ComfyFalso por si cambia el orden.
+        with mock.patch.object(pa.platform, "system", return_value="Darwin"):
+            result = pa.remallar_imagen(
+                "/fake/path/image.png",
+                resolucion=512,
+                carpeta_workflows="",
+                comfy=ComfyFalso(),
+                dormir=lambda _: None,
+            )
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        # procedencia honesta: el flujo y los nodos que habría usado, aunque no llegó a usarlos
+        piezas = [p["pieza"] for p in result["procedencia"]]
+        self.assertEqual(piezas, ["flujo cerrada", "nodos MostAadTech"])
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+        self.assertIn("solo Windows", result["fallo"])
+
+
 class RemallarImagen(unittest.TestCase):
     def setUp(self):
         self.parches = _windows_ok()
