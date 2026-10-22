@@ -111,4 +111,38 @@ describe('canalPara', () => {
     expect(resultado.canal).toBe('SITEMAP')
     expect(resultado.motivo).toBe('Canal sitemap/páginas')
   })
+
+  it('debe elegir el primer canal oficial conectado según el orden de la entrada', () => {
+    const conectado = new Set<string>(['mcp-oficial', 'api-oficial'])
+    const entradaReordenada: EntradaReferencia = {
+      ...entradaBase,
+      canales: ['api-oficial', 'mcp-oficial']
+    }
+    const resultado = canalPara(entradaReordenada, { accion: 'buscar', conectado, ahora })
+    expect(resultado.canal).toBe('api-oficial')
+    expect(resultado.motivo).toBe('Canal oficial conectado')
+  })
+
+  it('debe tratar igual las acciones básicas al elegir canal y permiso', () => {
+    const conectado = new Set<string>(['mcp-oficial'])
+    const acciones = ['buscar', 'leer-pagina', 'instalar']
+    const resultados = acciones.map((accion) =>
+      canalPara(entradaBase, { accion, conectado, ahora })
+    )
+    for (const resultado of resultados) {
+      expect(resultado.canal).toBe('mcp-oficial')
+      expect(resultado.permitido).toBe(true)
+      expect(resultado.motivo).toBe('Canal oficial conectado')
+    }
+  })
+
+  it('debe calcular cacheMaxMs en horas a partir de prohibido cache-mas-de-2h', () => {
+    const conectado = new Set<string>()
+    const entradaConCacheHoras: EntradaReferencia = {
+      ...entradaBase,
+      prohibido: ['cache-mas-de-2h']
+    }
+    const resultado = canalPara(entradaConCacheHoras, { accion: 'buscar', conectado, ahora })
+    expect(resultado.cacheMaxMs).toBe(2 * 3600 * 1000)
+  })
 })
