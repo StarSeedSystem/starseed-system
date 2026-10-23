@@ -13,6 +13,7 @@ import {
   type EntradaCapa,
 } from "./capas/catalogo";
 import { AlmacenCapas, type Almacenamiento } from "./capas/almacen";
+import { capaEnPropio } from "./capas/repartir";
 import type {
   DecisionNeedle,
   HerramientaNeedle,
@@ -288,7 +289,7 @@ export async function cargarNeedleWasm(
 
   let pesos: ArrayBuffer | null = null;
   let origenPesos = "";
-  if (entorno.almacen) {
+  if (entorno.almacen && (await capaEnPropio(entorno.almacen, [entrada], entrada.sha256))) {
     pesos = await new AlmacenCapas(entorno.almacen).abrirCapa(entrada.id);
     if (pesos) origenPesos = `almacen:${entrada.id}`;
   }
