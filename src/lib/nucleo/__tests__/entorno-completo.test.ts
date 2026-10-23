@@ -69,6 +69,13 @@ describe("revisarEntorno", () => {
 });
 
 describe("duplicarEntorno", () => {
+  it("la copia conserva el contenido de ajustes y volúmenes", () => {
+    const o = entorno({ "appearance-config-v2": '{"tema":"oscuro"}' });
+    const c = duplicarEntorno(o, "Copia");
+    expect(c.ajustes).toEqual(o.ajustes);
+    expect(c.volumenes).toEqual(o.volumenes);
+  });
+
   it("no comparte referencias con el original", () => {
     const o = entorno({ a: "1" });
     const c = duplicarEntorno(o, "Copia");
