@@ -9,6 +9,9 @@ import type { VersionesPorCapa } from "./capas";
 import { CAPAS_ORDEN, NOMBRE_CAPA, compararVersiones, type CapaActualizacion } from "./manifiesto";
 import type { MotivoEspera } from "./momento";
 
+/** La definición vive en `capas.ts`; se reexporta aquí para que el contrato de este módulo sea completo. */
+export type { VersionesPorCapa } from "./capas";
+
 export interface EstadoNeuronaActualizacion {
   neuronaId: string;
   nombre: string;
