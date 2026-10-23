@@ -34,6 +34,9 @@ import {
     formatRelativeTime,
 } from "@/lib/social-posts";
 import { PostBlocksRenderer, PostTagChips } from "@/components/social/post-blocks-renderer";
+// (SP092939) Nombre PÚBLICO del autor: el email es dato de CUENTA (privado) y
+// como nombre público se expone sin consentimiento. Sin nombre elegido, alias.
+import { ALIAS_ANONIMO, nombrePublicoDesdeMetadata } from "@/lib/social/alias-publico";
 // (Adenda 219) Fotos y vídeos con MARCO de forma (círculo, estrella, hexágono…).
 import { FotoConMarco } from "@/components/profile/foto-con-marco";
 // Enviar a… (DESTINOS · Adenda 66 §5): publicar en el Lienzo, mensaje, cerebro, etc.
@@ -392,7 +395,7 @@ function CommentThread({
     const [sending, setSending] = useState(false);
     const [authHint, setAuthHint] = useState(false);
     const [myUid, setMyUid] = useState<string | null>(null);
-    const [myName, setMyName] = useState<string>("Ciudadano StarSeed");
+    const [myName, setMyName] = useState<string>(ALIAS_ANONIMO);
     const mounted = useRef(true);
 
     useEffect(() => {
@@ -404,14 +407,9 @@ function CommentThread({
                 const user = data.session?.user;
                 if (!mounted.current) return;
                 setMyUid(user?.id ?? null);
-                const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
-                const name =
-                    (typeof meta.full_name === "string" && meta.full_name) ||
-                    (typeof meta.name === "string" && meta.name) ||
-                    (typeof meta.display_name === "string" && meta.display_name) ||
-                    (user?.email ? user.email.split("@")[0] : "") ||
-                    "Ciudadano StarSeed";
-                setMyName(name);
+                // (SP092939) Sin nombre de perfil público, alias anónimo: el
+                // email de la cuenta nunca se muestra ni se persiste.
+                setMyName(nombrePublicoDesdeMetadata(user?.user_metadata));
             } catch {
                 /* sin sesión */
             }
