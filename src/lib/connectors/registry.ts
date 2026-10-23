@@ -395,6 +395,72 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     configHint: "http://<host>:8000/api",
   },
 
+  // ── Seguridad y agentes (repos-libreria-1020b · 2.ª tanda) ──
+  {
+    id: "tirreno-selfhost",
+    name: "Tirreno (auto-hospedado)",
+    category: "custom",
+    kind: "oss",
+    authType: "apiKey",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "ShieldCheck",
+    description:
+      "Antifraude auto-hospedado (AGPL-3.0) para cuentas y votaciones de la democracia directa: toma de cuentas, relleno de credenciales, bots y abuso. Recibe IP, correos y huellas de aparato: se activa solo con aviso de privacidad, mínimo de datos y alojado por StarSeed.",
+    repo: "https://github.com/tirrenotechnologies/tirreno",
+    docsUrl: "https://github.com/tirrenotechnologies/tirreno",
+    configHint: "http://<host>:8585",
+  },
+  {
+    id: "moli-serve",
+    name: "Moli (moli serve)",
+    category: "web",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Compass",
+    description:
+      "Navegador sin interfaz en Rust (Apache-2.0 o MIT) para agentes de IA: ejecuta JavaScript y entrega Markdown y árbol semántico. Ejecuta JavaScript ajeno: solo dentro de un sandbox con lista de dominios permitidos; el contenido web es dato, nunca instrucción.",
+    repo: "https://github.com/lexmount/moli",
+    docsUrl: "https://github.com/lexmount/moli",
+    configHint: "http://127.0.0.1:<puerto de moli serve>",
+  },
+  {
+    id: "dbx-mcp",
+    name: "DBX (MCP)",
+    category: "dev",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Database",
+    description:
+      "Inspección de bases locales de servidores, neuronas y capas de conciencia (MySQL, PostgreSQL, SQLite, Redis, MongoDB, DuckDB…). Siempre en modo solo lectura: su MCP tiene un modo de acceso total que escribe y borra, y aquí no se usa.",
+    repo: "https://github.com/t8y2/dbx",
+    docsUrl: "https://github.com/t8y2/dbx",
+    configHint: "http://127.0.0.1:<puerto de dbx>",
+  },
+  {
+    id: "openshell-gateway",
+    name: "OpenShell Gateway",
+    category: "dev",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Terminal",
+    description:
+      "Sandboxes para agentes autónomos (NVIDIA, Apache-2.0) con políticas de archivos, procesos, red e inferencia. Alfa con cambios incompatibles y telemetría apagada: instalar con OPENSHELL_TELEMETRY_ENABLED=false.",
+    repo: "https://github.com/NVIDIA/OpenShell",
+    docsUrl: "https://github.com/NVIDIA/OpenShell",
+    configHint: "http://127.0.0.1:<puerto del gateway>",
+  },
+
   // ── Redes sociales (P4-8) ──
   {
     id: "postiz",
