@@ -4,8 +4,22 @@
  * capacidad-por-malla — Relay P2P de capacidades (Ola 1017A).
  * Generaliza `ia-por-malla.ts` a `capacidad.*` con tipos: imagen | voz | oido |
  * palabra | transcodificar | render | buscar | construir.
- * Cliente `pedirCapacidad` nunca lanza: {ok:false, motivo}.
+ * Cliente `pedirCapacidad` nunca lanza: {ok:false, motivo}. En el lado que
+ * sirve, `atenderPeticionVozMalla` aplica las reglas de `voz-por-malla.ts`.
  */
+
+import {
+  CONTEXTOS_VOZ_MALLA,
+  esContextoVozMalla,
+  licenciaAdmitida,
+  elegirMotorVoz,
+  motivoAccesoVoz,
+  motivoPermisoVoz,
+  manejarVozHablar,
+  manejarOidoTranscribir,
+  type PeticionVozMalla,
+  type ResultadoVozMalla,
+} from "@/lib/network/voz-por-malla";
 
 export const CAPACIDAD_MALLA_NS = "capacidad.";
 export const CAPACIDAD_MALLA_MAX_BYTES = 16 * 1024;
@@ -42,6 +56,35 @@ export function parseCapacidadMallaMensaje(raw: string): Msg | null {
 
 export function esTipoCapacidadValido(tipo: string): tipo is TipoCapacidad {
   return ["imagen","voz","oido","palabra","transcodificar","render","buscar","construir"].includes(tipo);
+}
+
+/** Petición de `voz.hablar` o `oido.transcribir` con su forma pura. */
+export type PeticionCapacidadVoz = PeticionVozMalla & { tipo: "voz" | "oido" };
+
+/**
+ * Lado que SIRVE del relé para voz y oído: valida contexto, cuenta o grupo,
+ * permiso sobre la voz/audio y licencia del motor antes de sintetizar o
+ * transcribir. Puro: identidad, permisos, motores y reloj vienen en la petición.
+ */
+export function atenderPeticionVozMalla(peticion: PeticionCapacidadVoz): ResultadoVozMalla {
+  if (!esContextoVozMalla(peticion.contexto)) {
+    return { ok: false, motivo: `Contexto no válido: ${CONTEXTOS_VOZ_MALLA.join(", ")}.` };
+  }
+  const acceso = motivoAccesoVoz(peticion);
+  if (acceso) return { ok: false, motivo: acceso };
+  const sujeto = peticion.tipo === "voz"
+    ? peticion.titularVoz ?? peticion.solicitante
+    : peticion.audioDe ?? peticion.solicitante;
+  const permiso = motivoPermisoVoz(peticion, sujeto);
+  if (permiso) return { ok: false, motivo: permiso };
+  const motor = elegirMotorVoz(peticion.motores ?? [], peticion.contexto);
+  if (!motor) {
+    return { ok: false, motivo: `No hay motor con licencia admitida para «${peticion.contexto}».` };
+  }
+  if (!licenciaAdmitida(motor.claseLicencia, peticion.contexto, motor.condicionCumplida === true)) {
+    return { ok: false, motivo: `El motor «${motor.id}» no tiene licencia admitida para «${peticion.contexto}».` };
+  }
+  return peticion.tipo === "voz" ? manejarVozHablar(peticion) : manejarOidoTranscribir(peticion);
 }
 
 export function bytesUtf8(s: string): number { return new TextEncoder().encode(s).length; }
