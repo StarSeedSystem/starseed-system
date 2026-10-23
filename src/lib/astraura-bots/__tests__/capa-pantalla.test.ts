@@ -64,8 +64,11 @@ describe("normalizarCapa · rechazos", () => {
     expect(problemasDe(normalizarCapa({ forma: "nota", texto: `usa ${CLAVE}` }))[0]).toMatch(/forma de clave/);
     expect(problemasDe(normalizarCapa({ forma: "nota" }))).toEqual(["Una nota necesita texto."]);
   });
-  it("resaltar y flecha sin objetivo, u objetivo con forma de selector, se rechazan", () => {
+  it("resaltar y flecha sin objetivo, u objetivo vacío o con forma de selector, se rechazan", () => {
     expect(problemasDe(normalizarCapa({ forma: "resaltar" }))[0]).toMatch(/necesita un objetivo/);
+    expect(problemasDe(normalizarCapa({ forma: "resaltar", objetivo: "" }))[0]).toBe(
+      "El objetivo no es un identificador de elemento válido.",
+    );
     expect(problemasDe(normalizarCapa({ forma: "flecha", objetivo: "div > a[href]" }))[0]).toMatch(/identificador/);
   });
 });
