@@ -109,6 +109,27 @@ describe("analizarIoreg", () => {
     expect(result.nombre).toBe("Apple M1 Pro");
   });
 
+  it("should parse the real ioreg tree", () => {
+    // Salida real de `ioreg -r -d 1 -c IOAccelerator`: árbol de clases y no un fragmento plano.
+    const ioreg = `
+      +-o Root <class IORegistryRoot, id 0x100000100, retain 11>
+        +-o AppleGPU <class AppleGPU, id 0x100000200, retain 12>
+          {
+            "model" = "Apple M1 Pro"
+            "Device Utilization %" = 42
+          }
+    `;
+    const result = analizarIoreg(ioreg);
+    expect(result.uso).toBe(42);
+    expect(result.nombre).toBe("Apple M1 Pro");
+  });
+
+  it("should report usage even when the model is missing", () => {
+    const result = analizarIoreg(`"Device Utilization %" = 99`);
+    expect(result.uso).toBe(99);
+    expect(result.nombre).toBeNull();
+  });
+
   it("should handle missing fields", () => {
     const ioreg = `
       {
@@ -146,6 +167,15 @@ describe("analizarPmset", () => {
     const result = analizarPmset(pmset);
     expect(result.porcentaje).toBe(100);
     expect(result.cargando).toBe(false);
+  });
+
+  it("should report percentage but unknown state when pmset omits it", () => {
+    // pmset puede dar el porcentaje y no decir en qué estado está (línea recortada):
+    // el porcentaje vale, pero no se inventa si está cargando.
+    const pmset = "Now drawing from 'AC Power'\n -internalbattery:     90%";
+    const result = analizarPmset(pmset);
+    expect(result.porcentaje).toBe(90);
+    expect(result.cargando).toBeNull();
   });
 
   it("should return null if percentage not found", () => {
