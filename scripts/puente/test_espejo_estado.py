@@ -45,6 +45,42 @@ class PruebasSeleccion(unittest.TestCase):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
 
+    def test_la_antiguez_de_la_cola_se_juzga_por_el_mtime_no_por_el_nombre(self):
+        sel = que_copiar(self.pares("cola-antigua.json"), AHORA)
+        self.assertEqual(sel, ["cola-antigua.json"])
+
+    def test_que_copiar_selecciona_correctamente(self):
+        # Create a listado with all files that should be selected
+        ahora = AHORA
+        reciente = ahora - 3600  # 1 hour ago
+        listado = self.pares(
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+            mtime=reciente
+        )
+        seleccion = que_copiar(listado, ahora)
+        esperados = {
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+        }
+        self.assertEqual(set(seleccion), esperados)
+
 
 class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
@@ -74,6 +110,37 @@ class PruebasEmpaquetar(unittest.TestCase):
             self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
+
+    def test_logs_txt_se_recortan_y_los_no_log_viajan_enteros(self):
+        """Mezcla de la rama nube: un log por nombre («log.txt») se recorta igual que un
+        .jsonl, y los archivos de estado y las colas viajan enteros aunque sean largos."""
+        for nombre, lineas in (
+            ("progreso.md", 300),
+            ("medios.json", 1),
+            ("puntos-control.json", 1),
+            ("cola-1.json", 1),
+            ("evento1.jsonl", 200),
+            ("log.txt", 200),
+        ):
+            with open(os.path.join(self.olas, nombre), "w", encoding="utf-8") as f:
+                if nombre.endswith(".json"):
+                    json.dump({"prueba": nombre}, f)
+                elif nombre.endswith(".jsonl"):
+                    for i in range(lineas):
+                        f.write(json.dumps({"evento": i, "ts": 1000 + i}) + "\n")
+                else:
+                    f.write("\n".join("línea %d de %s" % (i, nombre) for i in range(lineas)))
+        seleccion = ["progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+                     "cola-1.json", "evento1.jsonl", "log.txt"]
+        with self._tar(seleccion) as tar:
+            self.assertEqual(set(tar.getnames()), set(seleccion))
+            esperadas = {"progreso.json": 1, "progreso.md": 300, "medios.json": 1,
+                         "puntos-control.json": 1, "cola-1.json": 1,
+                         "evento1.jsonl": espejo_estado.LOG_LINEAS, "log.txt": espejo_estado.LOG_LINEAS}
+            for nombre, esperada in esperadas.items():
+                contenido = tar.extractfile(nombre).read().decode("utf-8")
+                self.assertEqual(len(contenido.splitlines()), esperada, nombre)
+
 
 
 class PruebasEnviarEstado(unittest.TestCase):
