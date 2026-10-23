@@ -8,15 +8,22 @@ import { REPO_DECISIONES } from "@/lib/library/fuentes-decision";
 import {
     urlDeConsulta,
     leerVersion,
+    validarPatronTag,
     compararVersiones,
     type EstadoActualizacion,
+    type PayloadActualizacion,
 } from "@/lib/library/actualizaciones";
 import { fichasProtomolecula, type VersionProto } from "@/lib/protomolecula/biblioteca-protomolecula";
 import { CATALOGO_PROTOMOLECULA } from "@/lib/protomolecula/catalogo-herramientas";
 
 /* ── Fichas de la Protomolécula con repo: entran a la misma comprobación ── */
 
-interface EntradaFuente { id: string; instalada: string; upstream: string }
+interface EntradaFuente {
+    id: string;
+    instalada: string;
+    upstream: string;
+    payload?: PayloadActualizacion;
+}
 
 function fuentesProtomolecula(): EntradaFuente[] {
     try {
@@ -51,6 +58,7 @@ export interface FuenteActualizacion {
     estado: EstadoActualizacion;
     fecha: string | null;
     upstream: string;
+    aviso: string | null;
 }
 
 interface Respuesta {
@@ -65,9 +73,10 @@ let caché: { caduca: number; datos: Respuesta } | null = null;
 
 async function consultarUpstream(
     upstream: string,
+    payload: PayloadActualizacion | undefined,
     tope: AbortSignal,
 ): Promise<{ remota: string | null; fecha: string | null }> {
-    const url = urlDeConsulta(upstream);
+    const url = urlDeConsulta(upstream, payload);
     if (!url) return { remota: null, fecha: null };
     try {
         const respuesta = await fetch(url, {
@@ -76,7 +85,7 @@ async function consultarUpstream(
         });
         if (!respuesta.ok) return { remota: null, fecha: null };
         const json: unknown = await respuesta.json();
-        const leida = leerVersion(upstream, json);
+        const leida = leerVersion(upstream, json, payload);
         return { remota: leida?.version ?? null, fecha: leida?.fecha ?? null };
     } catch {
         return { remota: null, fecha: null };
@@ -96,16 +105,18 @@ export async function GET(): Promise<Response> {
 
     try {
         const entradas: EntradaFuente[] = REPO_DECISIONES.packages
-            .map((paquete) => ({
+            .map((paquete): EntradaFuente => ({
                 id: paquete.id,
                 instalada: paquete.version,
                 upstream:
                     typeof paquete.payload?.upstream === "string" ? paquete.payload.upstream : "",
+                payload: paquete.payload,
             }))
             .concat(fuentesProtomolecula());
         const fuentes = await Promise.all(
             entradas.map(async (entrada): Promise<FuenteActualizacion> => {
-                const { upstream } = entrada;
+                const { upstream, payload } = entrada;
+                const patronTag = payload?.patronTag;
                 const base: FuenteActualizacion = {
                     id: entrada.id,
                     instalada: entrada.instalada,
@@ -113,9 +124,17 @@ export async function GET(): Promise<Response> {
                     estado: "desconocida",
                     fecha: null,
                     upstream,
+                    aviso:
+                        patronTag === undefined || patronTag === null
+                            ? null
+                            : validarPatronTag(patronTag).error,
                 };
                 if (!upstream) return base;
-                const { remota, fecha } = await consultarUpstream(upstream, tope.signal);
+                const { remota, fecha } = await consultarUpstream(
+                    upstream,
+                    payload,
+                    tope.signal,
+                );
                 if (!remota) return base;
                 return {
                     ...base,
