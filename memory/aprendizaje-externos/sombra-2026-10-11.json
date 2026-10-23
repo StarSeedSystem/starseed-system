@@ -1,0 +1,121 @@
+{
+  "coinciden": 3,
+  "eventos": [
+    {
+      "coincide": true,
+      "error": null,
+      "esperado": {
+        "datos": {
+          "flujo": "starseed-producci-n-puentes",
+          "nota": "Prueba en sombra con el motor propio (no envía nada)"
+        },
+        "evento": "publicada",
+        "medios": [
+          "motor-propio"
+        ],
+        "momento": "2026-10-23T11:53:25.628870+00:00",
+        "sha": "sombra",
+        "tareas": [
+          "FLU1014Ed"
+        ]
+      },
+      "evento": "produccion.publicada",
+      "obtenido": {
+        "datos": {
+          "flujo": "starseed-producci-n-puentes",
+          "nota": "Prueba en sombra con el motor propio (no envía nada)"
+        },
+        "evento": "publicada",
+        "medios": [
+          "motor-propio"
+        ],
+        "momento": "2026-10-23T11:53:25.628870+00:00",
+        "sha": "sombra",
+        "tareas": [
+          "FLU1014Ed"
+        ]
+      },
+      "ruta": "starseed-produccion-publicada",
+      "webhook": "wh-publicada"
+    },
+    {
+      "coincide": true,
+      "error": null,
+      "esperado": {
+        "datos": {
+          "flujo": "starseed-producci-n-puentes",
+          "nota": "Prueba en sombra con el motor propio (no envía nada)"
+        },
+        "evento": "pieza-lista",
+        "medios": [
+          "motor-propio"
+        ],
+        "momento": "2026-10-23T11:53:25.706054+00:00",
+        "sha": "sombra",
+        "tareas": [
+          "FLU1014Ed"
+        ]
+      },
+      "evento": "produccion.pieza_lista",
+      "obtenido": {
+        "datos": {
+          "flujo": "starseed-producci-n-puentes",
+          "nota": "Prueba en sombra con el motor propio (no envía nada)"
+        },
+        "evento": "pieza-lista",
+        "medios": [
+          "motor-propio"
+        ],
+        "momento": "2026-10-23T11:53:25.706054+00:00",
+        "sha": "sombra",
+        "tareas": [
+          "FLU1014Ed"
+        ]
+      },
+      "ruta": "starseed-produccion-pieza-lista",
+      "webhook": "wh-pieza-lista"
+    },
+    {
+      "coincide": true,
+      "error": null,
+      "esperado": {
+        "datos": {
+          "flujo": "starseed-producci-n-puentes",
+          "nota": "Prueba en sombra con el motor propio (no envía nada)"
+        },
+        "evento": "revertida",
+        "medios": [
+          "motor-propio"
+        ],
+        "momento": "2026-10-23T11:53:25.768349+00:00",
+        "sha": "sombra",
+        "tareas": [
+          "FLU1014Ed"
+        ]
+      },
+      "evento": "produccion.revertida",
+      "obtenido": {
+        "datos": {
+          "flujo": "starseed-producci-n-puentes",
+          "nota": "Prueba en sombra con el motor propio (no envía nada)"
+        },
+        "evento": "revertida",
+        "medios": [
+          "motor-propio"
+        ],
+        "momento": "2026-10-23T11:53:25.768349+00:00",
+        "sha": "sombra",
+        "tareas": [
+          "FLU1014Ed"
+        ]
+      },
+      "ruta": "starseed-produccion-revertida",
+      "webhook": "wh-revertida"
+    }
+  ],
+  "exportacion": "memory/aprendizaje-externos/n8n-export/2026-10-11",
+  "fecha": "2026-10-11",
+  "no_traducidos": 0,
+  "ok": true,
+  "total": 3
+}
