@@ -161,6 +161,21 @@ describe("disponibilidad.ts", () => {
       expect(almacenado?.t).toBe(200);
       expect([...reg.get("t4")!.orden.get("solo")!.bits.slice(0, 2)]).toEqual([3, 3]);
     });
+
+    it("sin anuncios el registro queda vacío y nadie tiene nada", () => {
+      const reg = fusionar([]);
+      expect(reg.size).toBe(0);
+      expect(quienTiene(reg, "t5", 0, AHORA)).toEqual([]);
+    });
+
+    it("un nodo sin piezas no emite anuncio ni aparece como fuente", () => {
+      const piezas = anuncio("nodo-vacio", "t5", 4, [], 1000);
+      expect(piezas).toEqual([]);
+
+      const reg = fusionar(piezas.map((a) => ({ anuncio: a, recibidoEn: AHORA })));
+      expect(reg.has("t5")).toBe(false);
+      expect(quienTiene(reg, "t5", 0, AHORA)).toEqual([]);
+    });
   });
 });
 
