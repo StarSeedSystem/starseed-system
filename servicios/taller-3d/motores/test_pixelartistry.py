@@ -185,6 +185,16 @@ class RemallarImagen(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("sin GLB", r["fallo"])
 
+    def test_motor_no_disponible_devuelve_error_con_procedencia(self):
+        r = pa.remallar_imagen("/fake/path/image.png", resolucion=512, carpeta_workflows=self.tmp,
+                               comfy=pa.ClienteComfyUI(), dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        self.assertGreaterEqual(len(r["procedencia"]), 2)
+        self.assertTrue(r["fallo"])
+        self.assertGreaterEqual(r["segundos"], 0.0)
+        self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
+
     def test_flujo_desconocido(self):
         r = pa.remallar_imagen("a.png", flujo="inventado", comfy=ComfyFalso())
         self.assertFalse(r["ok"])
