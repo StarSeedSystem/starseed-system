@@ -1,23 +1,50 @@
 "use client";
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+// ════════════════════════════════════════════════════════════════════════════
+// Biblioteca · catálogo externo de la ola 1020
+// ----------------------------------------------------------------------------
+// Las 14 publicaciones verificadas de `config/repos-libreria-1020.json` entran
+// como un repo builtin de la Biblioteca. Todas se abren en su upstream de
+// GitHub y se autoactualizan solas por `payload.externalUrl`
+// (`available-updates.ts`, que ya existe: aquí no se duplica ese motor).
+// `comingSoon: true` es honesto: instalar hoy solo guarda el enlace; no hay
+// efecto local todavía. Se conserva además la fusión con la 2.ª tanda
+// (`config/repos-libreria-1020b.json`) que ya vivía en este módulo.
+// ════════════════════════════════════════════════════════════════════════════
 
-const REPO_ROOT = process.cwd();
-const CONFIG_1_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020.json");
-const CONFIG_2_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020b.json");
+import catalogo1020 from "../../../config/repos-libreria-1020.json";
+import catalogo1020b from "../../../config/repos-libreria-1020b.json";
+import type { LibraryPackage, LibraryRepo, PackageKind } from "./packages";
 
-const repos1 = JSON.parse(readFileSync(CONFIG_1_PATH, "utf-8"));
-const repos2 = JSON.parse(readFileSync(CONFIG_2_PATH, "utf-8"));
-
-const EXCLUIDA_1: string[] = [repos1.excluida?.repo ?? ""].filter((v): v is string => v !== "");
-const EXCLUIDAS_2: string[] = repos2.excluidas?.map((e: { repo: string }) => e.repo) ?? [];
-
-export const REPOS_EXCLUIDOS: string[] = [...EXCLUIDA_1, ...EXCLUIDAS_2];
-
-function mapaPatronTag(patron_tag: string): string {
-  return patron_tag ?? "";
+export interface EntradaCatalogo {
+  id: string;
+  repo: string;
+  nombre: string;
+  kind: string;
+  canal: string;
+  assets?: string[];
+  licencia?: string;
+  area?: string[];
+  que_es?: string;
+  aviso?: string;
+  skillId?: string;
 }
+
+export interface EntradaConEfecto extends EntradaCatalogo {
+  patron_tag?: string;
+  efecto?: string;
+  preinstalar?: string;
+  claude?: string | boolean;
+}
+
+export interface CatalogoExterno {
+  paquetes: EntradaConEfecto[];
+  excluida?: { repo: string };
+  excluidas?: { repo: string }[];
+}
+
+const catalogoA = catalogo1020 as unknown as CatalogoExterno;
+const catalogoB = catalogo1020b as unknown as CatalogoExterno;
 
 export interface ReposExternosPaquete {
   id: string;
@@ -37,25 +64,75 @@ export interface ReposExternosPaquete {
   motivoComingSoon?: string;
 }
 
-function transformaPaquete(p: typeof repos1.paquetes[0] | (typeof repos2.paquetes)[0]): ReposExternosPaquete {
+const EXCLUIDOS = [
+  catalogoA.excluida?.repo,
+  ...(catalogoA.excluidas ?? []).map((e) => e.repo),
+  ...(catalogoB.excluidas ?? []).map((e) => e.repo),
+].filter((repo): repo is string => Boolean(repo));
+
+/** Repos que no se instalan ni se integran (p. ej. herramientas ofensivas). */
+export const REPOS_EXCLUIDOS: string[] = [...new Set(EXCLUIDOS)];
+
+function iconoDeKind(kind: string): string {
+  if (kind === "app") return "AppWindow";
+  if (kind === "ai-source") return "BrainCircuit";
+  if (kind === "function") return "Boxes";
+  return "Package";
+}
+
+function kindSeguro(kind: string): PackageKind {
+  return kind === "app" || kind === "ai-source" || kind === "function" ? kind : "app";
+}
+
+function descripcionDe(e: EntradaCatalogo): string {
+  const queEs = e.que_es ?? "";
+  return e.aviso ? `${queEs} — ${e.aviso}` : queEs;
+}
+
+/** Mapea una entrada del catálogo a la ficha instalable de la Biblioteca. */
+function aPaquete(e: EntradaCatalogo): LibraryPackage {
+  const owner = e.repo.split("/")[0] ?? "";
+  const tags = [...(e.area ?? []), e.canal, e.licencia ? "lic" : ""].filter(
+    (t): t is string => Boolean(t),
+  );
+  return {
+    id: e.id,
+    kind: kindSeguro(e.kind),
+    name: e.nombre,
+    description: descripcionDe(e),
+    icon: iconoDeKind(e.kind),
+    tags,
+    version: "1.0.0",
+    author: owner,
+    sourceRepoId: "starseed-biblioteca-externa",
+    free: true,
+    comingSoon: true,
+    payload: {
+      externalUrl: `https://github.com/${e.repo}`,
+      githubRepo: e.repo,
+      canal: e.canal,
+      area: e.area ?? [],
+      licencia: e.licencia ?? "",
+      assets: e.assets ?? false,
+      ...(e.skillId ? { skillId: e.skillId } : {}),
+    },
+  };
+}
+
+/** Repo builtin con las 14 publicaciones externas de la ola 1020. */
+export const REPO_EXTERNOS_1020: LibraryRepo = {
+  id: "starseed-biblioteca-externa",
+  name: "Biblioteca externa",
+  builtin: true,
+  packages: catalogoA.paquetes.map(aPaquete),
+};
+
+// ── 2.ª tanda: catálogo fusionado 1020 + 1020b (se conserva tal cual) ──
+function transformaPaquete(p: EntradaConEfecto): ReposExternosPaquete {
   const efecto = p.efecto ?? "";
-  const preinstalar = p.preinstalar ?? "";
-  const claude = p.claude ?? false;
-  const patronTag = mapaPatronTag(p.patron_tag);
-
-  const githubRepo = p.repo ?? "";
-  const externalUrl = `https://github.com/${githubRepo}`;
-
-  const esEfectoQueRequiereComingSoon =
+  const githubRepo = p.repo;
+  const comingSoon =
     efecto === "CONECTOR" || efecto === "HERRAMIENTA-AGENTE" || efecto === "CATALOGO";
-
-  let comingSoon = false;
-  let motivoComingSoon = "";
-
-  if (esEfectoQueRequiereComingSoon) {
-    comingSoon = true;
-    motivoComingSoon = `efecto ${efecto}: instalación externa, sin ruta propia del OS`;
-  }
 
   return {
     id: p.id,
@@ -63,25 +140,24 @@ function transformaPaquete(p: typeof repos1.paquetes[0] | (typeof repos2.paquete
     nombre: p.nombre ?? p.id,
     kind: p.kind ?? "app",
     canal: p.canal ?? "releases",
-    patronTag,
+    patronTag: p.patron_tag ?? "",
     licencia: p.licencia ?? "",
     area: p.area ?? [],
     efecto,
-    preinstalar,
-    claude,
+    preinstalar: p.preinstalar ?? "",
+    claude: p.claude ?? false,
     githubRepo,
-    externalUrl,
+    externalUrl: `https://github.com/${githubRepo}`,
     comingSoon,
-    motivoComingSoon,
+    motivoComingSoon: comingSoon ? `efecto ${efecto}: instalación externa, sin ruta propia del OS` : "",
   };
 }
 
-const paquetes1 = (repos1.paquetes ?? []).map(transformaPaquete);
-const paquetes2 = (repos2.paquetes ?? []).map(transformaPaquete);
-
-const reposExcluidosSet = new Set(REPOS_EXCLUIDOS);
+const excluidos = new Set(REPOS_EXCLUIDOS);
 
 export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
-  ...paquetes1.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-  ...paquetes2.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-];
+  ...catalogoA.paquetes,
+  ...catalogoB.paquetes,
+]
+  .filter((p) => !excluidos.has(p.repo))
+  .map(transformaPaquete);
