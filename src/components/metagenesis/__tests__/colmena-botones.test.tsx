@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // @vitest-environment-options {"url": "https://starseed-os.vercel.app/metagenesis"}
 /**
  * Los botones «Desconectar» y «Usar como contenedor» de la tarjeta de cada neurona (COL1012I).
@@ -38,14 +37,6 @@ import { AppearanceProvider } from "@/context/appearance-context";
 import { MetaGenesisAutonoma } from "../metagenesis-autonoma";
 
 describe("colmena-botones · botones de una neurona (rescatado de rama nube)", () => {
-    // Los textos del contrato (traspaso a otro contenedor) solo son verdad con el relevo cableado: estas pruebas
-    // lo declaran. Sin la bandera se asume que NO está activo (ver el bloque «sin traspaso» más abajo).
-=======
-import { describe, expect, it } from "vitest";
-import { botonesNeurona, type NeuronaColmena } from "../../../lib/metagenesis/colmena";
-
-describe("colmena-botones", () => {
->>>>>>> 5eeca4267 (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
     it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 });
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
