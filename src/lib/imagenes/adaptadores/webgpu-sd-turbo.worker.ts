@@ -1,272 +1,201 @@
 /**
  * Imágenes locales de Astraura · SD-TURBO EN LA PESTAÑA DEL NAVEGADOR (IMG1011H · parte 2 de 3: el worker).
- * Contrato: architecture/astraura-imagenes.md §1 y §8. Implementa `MotorSDTurbo` (parte 1,
- * webgpu-sd-turbo.ts) con onnxruntime-web + WebGPU, a partir del ejemplo oficial de Microsoft
- * (onnxruntime-inference-examples/js/sd-turbo, MIT): texto → CLIP → UNet de un paso → VAE.
+ * Contrato: architecture/astraura-imagenes.md §1 y §8. Reglas del flujo en webgpu-sd-turbo.ts (parte 1).
  *
- * onnxruntime-web NO es una dependencia del repo (no se toca package.json): se carga en el worker, a demanda,
- * desde jsDelivr con la versión EXACTA fijada en la parte 1 (VERSION_ONNXRUNTIME_WEB), igual que el tokenizador
- * (transformers.js). Así ni tsc ni el paquete del navegador dependen de ellos. Nada se descarga solo: este
- * archivo solo baja pesos cuando la orden `descargarPesos` llega, y esa orden la manda el flujo
- * `generaEnPestana` únicamente tras el permiso de la persona y la comprobación del triple de espacio.
+ * Basado en el ejemplo oficial de Microsoft (onnxruntime-inference-examples/js/sd-turbo, MIT): texto →
+ * CLIP → UNet de un paso (euler, sigma 14,6146) → VAE → píxeles, con onnxruntime-web y WebGPU.
  *
- * HONESTIDAD: escrito sin GPU a mano; lo que no se pudo probar aquí (la inferencia real) se prueba en un
- * navegador con WebGPU + shader-f16. Si algo falla, el error sale en claro y el flujo cae a las demás capas.
+ * Decisiones:
+ *  - onnxruntime-web y el tokenizador CLIP NO están en package.json (no se tocan dependencias en esta parte):
+ *    se cargan en el worker con `import()` desde jsDelivr con versión EXACTA, solo cuando hay permiso y WebGPU
+ *    con f16. La parte 3 puede instalarlos y cambiar solo `cargarOrt`/`cargarTokenizador`.
+ *  - Nada se descarga solo: `descargar` exige `permisoDescarga` en el mensaje y comprueba el espacio (triple).
+ *  - Los pesos se guardan en la Cache API del navegador y se leen de ahí.
+ *  - Este archivo solo habla con la pestaña por mensajes; la lógica del flujo es `generaEnPestana`.
  */
 import {
-  BYTES_PESOS_SD_TURBO, CACHE_PESOS_SD_TURBO, PESOS_SD_TURBO, REPO_ONNX_SD_TURBO,
-  TOKENIZER_CLIP_SD_TURBO, VERSION_ONNXRUNTIME_WEB,
-  type ImagenSDTurbo, type MotorSDTurbo, type PeticionSDTurbo, type SondasWebGPU,
+  BYTES_PESOS_SD_TURBO, CACHE_PESOS_SD_TURBO, PESOS_SD_TURBO, REPO_ONNX_SD_TURBO, TOKENIZER_CLIP_SD_TURBO,
+  VERSION_ONNXRUNTIME_WEB, generaEnPestana,
+  type ImagenSDTurbo, type MotorSDTurbo, type PeticionSDTurbo, type ResultadoSDTurbo, type SondasWebGPU,
 } from "./webgpu-sd-turbo";
 
-const URL_ORT = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${VERSION_ONNXRUNTIME_WEB}/dist/`;
-const URL_TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2";
+/** Mensajes pestaña → worker. */
+export type MensajeAlWorker =
+  | { tipo: "generar"; id: number; peticion: PeticionSDTurbo }
+  | { tipo: "sondear"; id: number };
+/** Mensajes worker → pestaña. */
+export type MensajeDelWorker =
+  | { tipo: "resultado"; id: number; resultado: ResultadoSDTurbo }
+  | { tipo: "sondas"; id: number; sondas: SondasWebGPU }
+  | { tipo: "progreso"; id: number; etapa: "descarga" | "carga" | "texto" | "unet" | "vae"; fraccion: number };
 
-/** Constantes del planificador de SD-Turbo (un solo paso, sigma inicial y factor del VAE). */
+/** Lo mínimo de onnxruntime-web que usamos (tipos locales: el paquete no está instalado). */
+interface TensorOrt { data: ArrayLike<number | bigint>; dims: readonly number[]; dispose?(): void }
+interface SesionOrt { run(entradas: Record<string, TensorOrt>): Promise<Record<string, TensorOrt>>; release?(): Promise<void> }
+interface OrtWeb {
+  env: { wasm: { numThreads?: number }; webgpu?: unknown };
+  Tensor: new (tipo: string, datos: ArrayBufferView, dims: readonly number[]) => TensorOrt;
+  InferenceSession: { create(modelo: Uint8Array, opciones: { executionProviders: string[]; freeDimensionOverrides?: Record<string, number> }): Promise<SesionOrt> };
+}
+type Tokenizador = (texto: string, opciones: { padding: string; max_length: number; truncation: boolean }) => { input_ids: { data: ArrayLike<number | bigint> } };
+
+const URL_ORT = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${VERSION_ONNXRUNTIME_WEB}/dist/ort.webgpu.min.mjs`;
+const URL_TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js";
+/** `webpackIgnore`: Next no intenta empaquetar una URL; el navegador la importa en tiempo de ejecución. */
+const importarUrl = <T>(url: string): Promise<T> => import(/* webpackIgnore: true */ url) as Promise<T>;
+
 const SIGMA = 14.6146;
 const FACTOR_VAE = 0.18215;
 const LADO = 512;
-const LADO_LATENTE = LADO / 8;
-const LARGO_TEXTO = 77;
+const LATENTE = LADO / 8;
+const TOKENS = 77;
 
-// ── Utilidades puras (exportadas para probarlas sin GPU) ───────────────────────────────────────────────
-
-/** float32 → float16 (bits IEEE 754, redondeo al más cercano simple). */
-export function f32AF16(x: number): number {
+// --- Medias precisiones (f16) sin depender de Float16Array, que no está en todos los navegadores ---
+export function f32AMitad(v: number): number {
   const f = new Float32Array(1); const u = new Uint32Array(f.buffer);
-  f[0] = x; const v = u[0]!;
-  const signo = (v >>> 16) & 0x8000; let exp = ((v >>> 23) & 0xff) - 127 + 15; let man = v & 0x7fffff;
-  if (((v >>> 23) & 0xff) === 0xff) return signo | 0x7c00 | (man ? 0x200 : 0);
-  if (exp >= 0x1f) return signo | 0x7c00;
-  if (exp <= 0) {
-    if (exp < -10) return signo;
-    man = (man | 0x800000) >> (1 - exp);
-    return signo | ((man + 0x1000) >> 13);
-  }
-  return signo | (exp << 10) | ((man + 0x1000) >> 13);
+  f[0] = v; const x = u[0];
+  const s = (x >>> 16) & 0x8000; let e = ((x >>> 23) & 0xff) - 127 + 15; const m = x & 0x7fffff;
+  if (Number.isNaN(v)) return 0x7e00;
+  if (e >= 31) return s | 0x7c00;
+  if (e <= 0) { if (e < -10) return s; return s | ((m | 0x800000) >> (14 - e)); }
+  return s | (e << 10) | (m >> 13);
+}
+export function mitadAF32(h: number): number {
+  const s = h & 0x8000 ? -1 : 1; const e = (h >> 10) & 0x1f; const m = h & 0x3ff;
+  if (e === 0) return s * 2 ** -14 * (m / 1024);
+  if (e === 31) return m ? NaN : s * Infinity;
+  return s * 2 ** (e - 15) * (1 + m / 1024);
 }
 
-/** float16 (bits) → float32. */
-export function f16AF32(h: number): number {
-  const signo = h & 0x8000 ? -1 : 1; const exp = (h >> 10) & 0x1f; const man = h & 0x3ff;
-  if (exp === 0) return signo * 2 ** -14 * (man / 1024);
-  if (exp === 0x1f) return man ? NaN : signo * Infinity;
-  return signo * 2 ** (exp - 15) * (1 + man / 1024);
-}
-
-/** Generador determinista (mulberry32): la misma semilla da el mismo ruido. */
-export function aleatorioConSemilla(semilla: number): () => number {
+/** Normal estándar determinista por semilla (mulberry32 + Box-Muller): misma semilla, misma imagen. */
+export function ruidoNormal(n: number, semilla: number): Float32Array {
   let a = semilla >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  const unif = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const r = new Float32Array(n);
+  for (let i = 0; i < n; i += 2) {
+    const u = Math.max(unif(), 1e-12), v = unif(); const k = Math.sqrt(-2 * Math.log(u));
+    r[i] = k * Math.cos(2 * Math.PI * v); if (i + 1 < n) r[i + 1] = k * Math.sin(2 * Math.PI * v);
+  }
+  return r;
+}
+
+/** Un paso de euler de SD-Turbo: devuelve la entrada del UNet y, con su salida, el latente limpio. */
+export function entradaUnet(latente: Float32Array): Float32Array {
+  const k = 1 / Math.sqrt(SIGMA * SIGMA + 1); return latente.map((x) => x * k);
+}
+export function latenteLimpio(latente: Float32Array, salidaUnet: Float32Array): Float32Array {
+  const r = new Float32Array(latente.length);
+  for (let i = 0; i < r.length; i++) r[i] = (latente[i] - SIGMA * salidaUnet[i]) / FACTOR_VAE;
+  return r;
+}
+/** Salida del VAE (-1..1, planar RGB) → píxeles RGBA 8 bits. */
+export function aPixelesRgba(planar: Float32Array, ancho: number, alto: number): Uint8Array {
+  const n = ancho * alto; const out = new Uint8Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < 3; c++) out[i * 4 + c] = Math.max(0, Math.min(255, Math.round((planar[c * n + i] / 2 + 0.5) * 255)));
+    out[i * 4 + 3] = 255;
+  }
+  return out;
+}
+
+const aMitades = (f: Float32Array): Uint16Array => Uint16Array.from(f, f32AMitad);
+const deMitades = (d: ArrayLike<number | bigint>): Float32Array => Float32Array.from(d as ArrayLike<number>, (h) => mitadAF32(h));
+
+/** Motor real: onnxruntime-web (WebGPU) + Cache API. Se construye en el worker; `progreso` informa a la pestaña. */
+export function crearMotorReal(progreso: (etapa: "descarga" | "carga" | "texto" | "unet" | "vae", fraccion: number) => void): MotorSDTurbo {
+  let ort: OrtWeb | null = null; let tokenizar: Tokenizador | null = null;
+  const sesiones: Record<string, SesionOrt> = {};
+  const nav = (self as unknown as { navigator: Navigator & { gpu?: { requestAdapter(): Promise<{ features: { has(n: string): boolean } } | null> } } }).navigator;
+
+  const cargarOrt = async (): Promise<OrtWeb> => ort ??= await importarUrl<OrtWeb>(URL_ORT);
+  const cargarTokenizador = async (): Promise<Tokenizador> => {
+    if (tokenizar) return tokenizar;
+    const t = await importarUrl<{ AutoTokenizer: { from_pretrained(id: string): Promise<Tokenizador> }; env: { allowLocalModels: boolean } }>(URL_TRANSFORMERS);
+    t.env.allowLocalModels = false;
+    return (tokenizar = await t.AutoTokenizer.from_pretrained(TOKENIZER_CLIP_SD_TURBO));
+  };
+  const peso = async (ruta: string): Promise<Uint8Array> => {
+    const cache = await caches.open(CACHE_PESOS_SD_TURBO);
+    const r = await cache.match(`${REPO_ONNX_SD_TURBO}/${ruta}`);
+    if (!r) throw new Error(`falta ${ruta} en la caché: hay que descargar los pesos`);
+    return new Uint8Array(await r.arrayBuffer());
+  };
+  const sesion = async (nombre: string, ruta: string): Promise<SesionOrt> => {
+    if (sesiones[nombre]) return sesiones[nombre];
+    const o = await cargarOrt();
+    return (sesiones[nombre] = await o.InferenceSession.create(await peso(ruta), {
+      executionProviders: ["webgpu"],
+      freeDimensionOverrides: nombre === "unet" ? { batch_size: 1, num_channels_latent: 4, height_latent: LATENTE, width_latent: LATENTE, sequence_length: TOKENS } : undefined,
+    }));
+  };
+
+  return {
+    async sondear() {
+      if (!nav.gpu) return { hayWebGPU: false, hayAdaptador: false, f16: false };
+      const ad = await nav.gpu.requestAdapter().catch(() => null);
+      return { hayWebGPU: true, hayAdaptador: !!ad, f16: !!ad && ad.features.has("shader-f16") };
+    },
+    async hayPesosEnCache() {
+      if (typeof caches === "undefined") return false;
+      const cache = await caches.open(CACHE_PESOS_SD_TURBO);
+      for (const p of PESOS_SD_TURBO) if (!(await cache.match(`${REPO_ONNX_SD_TURBO}/${p.ruta}`))) return false;
+      return true;
+    },
+    async cuotaLibre() {
+      const e = await nav.storage?.estimate?.().catch(() => null);
+      return e && typeof e.quota === "number" && typeof e.usage === "number" ? Math.max(0, e.quota - e.usage) : null;
+    },
+    async descargarPesos() {
+      if (typeof caches === "undefined") throw new Error("este navegador no tiene Cache API");
+      const cache = await caches.open(CACHE_PESOS_SD_TURBO);
+      let hechos = 0;
+      for (const p of PESOS_SD_TURBO) {
+        const url = `${REPO_ONNX_SD_TURBO}/${p.ruta}`;
+        if (await cache.match(url)) { hechos += p.bytes; progreso("descarga", hechos / BYTES_PESOS_SD_TURBO); continue; }
+        const r = await fetch(url);
+        if (!r.ok || !r.body) throw new Error(`${p.ruta}: respuesta ${r.status}`);
+        // Se cuenta lo que llega mientras se guarda; si se corta, no se guarda a medias.
+        let recibidos = 0;
+        const medido = r.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({ transform(c, ctl) { recibidos += c.byteLength; progreso("descarga", (hechos + recibidos) / BYTES_PESOS_SD_TURBO); ctl.enqueue(c); } }));
+        await cache.put(url, new Response(medido, { headers: { "content-type": "application/octet-stream" } }));
+        hechos += p.bytes;
+      }
+    },
+    async generar(peticion: PeticionSDTurbo): Promise<ImagenSDTurbo> {
+      const o = await cargarOrt(); const tok = await cargarTokenizador();
+      progreso("carga", 0);
+      const [enc, unet, vae] = [await sesion("texto", "text_encoder/model.onnx"), await sesion("unet", "unet/model.onnx"), await sesion("vae", "vae_decoder/model.onnx")];
+      progreso("carga", 1);
+      const ids = Int32Array.from(tok(peticion.prompt, { padding: "max_length", max_length: TOKENS, truncation: true }).input_ids.data as ArrayLike<number>);
+      progreso("texto", 0);
+      const texto = (await enc.run({ input_ids: new o.Tensor("int32", ids, [1, TOKENS]) })).last_hidden_state;
+      progreso("unet", 0);
+      const latente = ruidoNormal(4 * LATENTE * LATENTE, peticion.semilla).map((x) => x * SIGMA);
+      const salida = (await unet.run({
+        sample: new o.Tensor("float16", aMitades(entradaUnet(latente)), [1, 4, LATENTE, LATENTE]),
+        timestep: new o.Tensor("int64", BigInt64Array.from([BigInt(999)]), [1]),
+        encoder_hidden_states: texto,
+      })).out_sample;
+      progreso("vae", 0);
+      const limpio = latenteLimpio(latente, deMitades(salida.data));
+      const img = (await vae.run({ latent_sample: new o.Tensor("float16", aMitades(limpio), [1, 4, LATENTE, LATENTE]) })).sample;
+      progreso("vae", 1);
+      return { ancho: LADO, alto: LADO, pixeles: aPixelesRgba(deMitades(img.data), LADO, LADO), motor: "sd-turbo · onnxruntime-web · webgpu" };
+    },
   };
 }
 
-/** Ruido gaussiano N(0, escala²) de `n` valores (Box-Muller), determinista por semilla. */
-export function ruidoGaussiano(n: number, semilla: number, escala: number): Float32Array {
-  const azar = aleatorioConSemilla(semilla); const out = new Float32Array(n);
-  for (let i = 0; i < n; i += 2) {
-    const r = Math.sqrt(-2 * Math.log(Math.max(azar(), 1e-12))); const a = 2 * Math.PI * azar();
-    out[i] = r * Math.cos(a) * escala;
-    if (i + 1 < n) out[i + 1] = r * Math.sin(a) * escala;
-  }
-  return out;
-}
-
-/** Salida del VAE (CHW, rango [-1, 1]) → píxeles RGBA de 8 bits. */
-export function chwARgba(chw: ArrayLike<number>, ancho: number, alto: number): Uint8Array {
-  const plano = ancho * alto; const out = new Uint8Array(plano * 4);
-  const aByte = (v: number) => Math.max(0, Math.min(255, Math.round((v / 2 + 0.5) * 255)));
-  for (let i = 0; i < plano; i++) {
-    out[i * 4] = aByte(chw[i]!); out[i * 4 + 1] = aByte(chw[plano + i]!); out[i * 4 + 2] = aByte(chw[2 * plano + i]!); out[i * 4 + 3] = 255;
-  }
-  return out;
-}
-
-// ── Tipos mínimos de onnxruntime-web (no se importa el paquete) ────────────────────────────────────────
-interface TensorOrt { type: string; dims: readonly number[]; getData(): Promise<ArrayLike<number> | ArrayLike<bigint>>; dispose?(): void }
-interface SesionOrt { run(entradas: Record<string, TensorOrt>): Promise<Record<string, TensorOrt>>; release?(): Promise<void> }
-export interface OrtWeb {
-  env: { wasm: { wasmPaths?: string; numThreads?: number } };
-  Tensor: new (tipo: string, datos: ArrayLike<number> | ArrayLike<bigint> | Uint16Array, dims: number[]) => TensorOrt;
-  InferenceSession: { create(modelo: Uint8Array, opciones: Record<string, unknown>): Promise<SesionOrt> };
-}
-type Tokenizador = (texto: string, opc: Record<string, unknown>) => { input_ids: number[] };
-export interface Cargadores {
-  ort: () => Promise<OrtWeb>;
-  tokenizador: () => Promise<Tokenizador>;
-}
-
-/** Importa un módulo ESM por URL sin que el empaquetador lo intente resolver. */
-const importaUrl = <T,>(url: string): Promise<T> => import(/* webpackIgnore: true */ /* @vite-ignore */ url) as Promise<T>;
-
-export const CARGADORES_REALES: Cargadores = {
-  async ort() {
-    const ort = await importaUrl<OrtWeb>(`${URL_ORT}ort.webgpu.min.mjs`);
-    ort.env.wasm.wasmPaths = URL_ORT; ort.env.wasm.numThreads = 1;
-    return ort;
-  },
-  async tokenizador() {
-    const { AutoTokenizer, env } = await importaUrl<{ AutoTokenizer: { from_pretrained(id: string): Promise<Tokenizador> }; env: { allowLocalModels: boolean } }>(`${URL_TRANSFORMERS}/dist/transformers.min.js`);
-    env.allowLocalModels = false;
-    return AutoTokenizer.from_pretrained(TOKENIZER_CLIP_SD_TURBO);
-  },
-};
-
-type Avisar = (progreso: { hecho: number; total: number; archivo: string }) => void;
-
-/** El motor real: WebGPU + caché del navegador. Una instancia por worker. */
-export class MotorOrtSDTurbo implements MotorSDTurbo {
-  private ort: OrtWeb | null = null;
-  private sesiones: Record<string, SesionOrt> = {};
-  private tok: Tokenizador | null = null;
-  constructor(private readonly cargadores: Cargadores = CARGADORES_REALES, private readonly avisar: Avisar = () => {}) {}
-
-  async sondear(): Promise<SondasWebGPU> {
-    const gpu = (globalThis as { navigator?: { gpu?: { requestAdapter(): Promise<{ features: { has(f: string): boolean } } | null> } } }).navigator?.gpu;
-    if (!gpu) return { hayWebGPU: false, hayAdaptador: false, f16: false };
-    try {
-      const adaptador = await gpu.requestAdapter();
-      if (!adaptador) return { hayWebGPU: true, hayAdaptador: false, f16: false };
-      return { hayWebGPU: true, hayAdaptador: true, f16: adaptador.features.has("shader-f16") };
-    } catch { return { hayWebGPU: true, hayAdaptador: false, f16: false }; }
-  }
-
-  async hayPesosEnCache(): Promise<boolean> {
-    try {
-      if (typeof caches === "undefined") return false;
-      const cache = await caches.open(CACHE_PESOS_SD_TURBO);
-      for (const p of PESOS_SD_TURBO) {
-        const r = await cache.match(`${REPO_ONNX_SD_TURBO}/${p.ruta}`);
-        if (!r) return false;
-        const largo = Number(r.headers.get("content-length"));
-        if (Number.isFinite(largo) && largo > 0 && largo !== p.bytes) return false;
-      }
-      return true;
-    } catch { return false; }
-  }
-
-  async cuotaLibre(): Promise<number | null> {
-    try {
-      const est = await (globalThis as { navigator?: { storage?: { estimate(): Promise<{ quota?: number; usage?: number }> } } }).navigator?.storage?.estimate();
-      if (!est || typeof est.quota !== "number") return null;
-      return Math.max(0, est.quota - (est.usage ?? 0));
-    } catch { return null; }
-  }
-
-  /** Baja SOLO los tres archivos necesarios, uno a uno, a la caché del navegador, con progreso. */
-  async descargarPesos(): Promise<void> {
-    if (typeof caches === "undefined") throw new Error("este navegador no tiene Cache API para guardar los pesos");
-    const cache = await caches.open(CACHE_PESOS_SD_TURBO);
-    let hecho = 0;
-    for (const p of PESOS_SD_TURBO) {
-      const url = `${REPO_ONNX_SD_TURBO}/${p.ruta}`;
-      const previo = await cache.match(url);
-      if (previo && Number(previo.headers.get("content-length")) === p.bytes) { hecho += p.bytes; continue; }
-      const r = await fetch(url);
-      if (!r.ok || !r.body) throw new Error(`${p.ruta}: el servidor contestó ${r.status}`);
-      const lector = r.body.getReader(); const trozos: Uint8Array[] = []; let archivo = 0;
-      for (;;) {
-        const { done, value } = await lector.read();
-        if (done) break;
-        trozos.push(value); archivo += value.byteLength;
-        this.avisar({ hecho: hecho + archivo, total: BYTES_PESOS_SD_TURBO, archivo: p.ruta });
-      }
-      if (archivo !== p.bytes) throw new Error(`${p.ruta}: llegaron ${archivo} bytes y se esperaban ${p.bytes}; no se guarda un archivo incompleto`);
-      await cache.put(url, new Response(new Blob(trozos as BlobPart[]), { headers: { "content-length": String(p.bytes) } }));
-      hecho += p.bytes;
-    }
-  }
-
-  private async sesion(nombre: string, ruta: string): Promise<SesionOrt> {
-    const ya = this.sesiones[nombre]; if (ya) return ya;
-    const ort = this.ort ??= await this.cargadores.ort();
-    const cache = await caches.open(CACHE_PESOS_SD_TURBO);
-    const r = await cache.match(`${REPO_ONNX_SD_TURBO}/${ruta}`);
-    if (!r) throw new Error(`faltan los pesos ${ruta} en la caché`);
-    const bytes = new Uint8Array(await r.arrayBuffer());
-    const s = await ort.InferenceSession.create(bytes, {
-      executionProviders: ["webgpu"], enableMemPattern: false, enableCpuMemArena: false,
-      graphOptimizationLevel: "all",
-      extra: { session: { disable_prepacking: "1", use_device_allocator_for_initializers: "1" } },
-    });
-    return (this.sesiones[nombre] = s);
-  }
-
-  /** Datos → tensor del tipo que pida el modelo (los pesos de SD-Turbo son float16 en el ejemplo). */
-  private tensor(ort: OrtWeb, tipo: string, datos: Float32Array, dims: number[]): TensorOrt {
-    if (tipo !== "float16") return new ort.Tensor("float32", datos, dims);
-    const h = new Uint16Array(datos.length); for (let i = 0; i < datos.length; i++) h[i] = f32AF16(datos[i]!);
-    return new ort.Tensor("float16", h, dims);
-  }
-  private async aFloat32(t: TensorOrt): Promise<Float32Array> {
-    const d = await t.getData();
-    if (t.type === "float16") { const o = new Float32Array(d.length); for (let i = 0; i < d.length; i++) o[i] = f16AF32(Number(d[i])); return o; }
-    return Float32Array.from(d as ArrayLike<number>);
-  }
-
-  async generar(peticion: PeticionSDTurbo): Promise<ImagenSDTurbo> {
-    const ort = this.ort ??= await this.cargadores.ort();
-    this.tok ??= await this.cargadores.tokenizador();
-    const ids = this.tok(peticion.prompt, { padding: "max_length", max_length: LARGO_TEXTO, truncation: true, return_tensor: false }).input_ids;
-    const textoEnc = await this.sesion("texto", "text_encoder/model.onnx");
-    const unet = await this.sesion("unet", "unet/model.onnx");
-    const vae = await this.sesion("vae", "vae_decoder/model.onnx");
-
-    const entrada = Int32Array.from(ids.slice(0, LARGO_TEXTO));
-    const oculto = (await textoEnc.run({ input_ids: new ort.Tensor("int32", entrada, [1, LARGO_TEXTO]) })).last_hidden_state;
-    if (!oculto) throw new Error("el codificador de texto no devolvió last_hidden_state");
-
-    const n = 4 * LADO_LATENTE * LADO_LATENTE;
-    const latente = ruidoGaussiano(n, peticion.semilla, SIGMA);
-    const escala = 1 / Math.sqrt(SIGMA * SIGMA + 1);
-    const entradaUnet = new Float32Array(n); for (let i = 0; i < n; i++) entradaUnet[i] = latente[i]! * escala;
-    const salidaUnet = await unet.run({
-      sample: this.tensor(ort, "float16", entradaUnet, [1, 4, LADO_LATENTE, LADO_LATENTE]),
-      timestep: new ort.Tensor("int64", [BigInt(999)], [1]),
-      encoder_hidden_states: oculto,
-    });
-    const pred = await this.aFloat32(salidaUnet.out_sample ?? Object.values(salidaUnet)[0]!);
-    // Paso del planificador (euler ancestral de un solo paso): x0 = x - sigma · ε, y a la escala del VAE.
-    const x0 = new Float32Array(n); for (let i = 0; i < n; i++) x0[i] = (latente[i]! - SIGMA * pred[i]!) / FACTOR_VAE;
-    const salidaVae = await vae.run({ latent_sample: this.tensor(ort, "float16", x0, [1, 4, LADO_LATENTE, LADO_LATENTE]) });
-    const chw = await this.aFloat32(salidaVae.sample ?? Object.values(salidaVae)[0]!);
-    return { ancho: LADO, alto: LADO, pixeles: chwARgba(chw, LADO, LADO), motor: "sd-turbo · onnxruntime-web · webgpu" };
-  }
-}
-
-// ── Protocolo de mensajes con el hilo principal ────────────────────────────────────────────────────────
-export type OrdenWorker =
-  | { id: number; tipo: "sondear" | "hayPesosEnCache" | "cuotaLibre" | "descargarPesos" }
-  | { id: number; tipo: "generar"; peticion: PeticionSDTurbo };
-export type RespuestaWorker =
-  | { id: number; ok: true; valor: unknown }
-  | { id: number; ok: false; error: string }
-  | { id: number; progreso: { hecho: number; total: number; archivo: string } };
-
-/** Atiende una orden con el motor dado y responde por `responder`. Separado del `self` para poder probarlo. */
-export async function atenderOrden(motor: MotorSDTurbo, orden: OrdenWorker, responder: (r: RespuestaWorker) => void): Promise<void> {
-  try {
-    let valor: unknown;
-    if (orden.tipo === "sondear") valor = await motor.sondear();
-    else if (orden.tipo === "hayPesosEnCache") valor = await motor.hayPesosEnCache();
-    else if (orden.tipo === "cuotaLibre") valor = await motor.cuotaLibre();
-    else if (orden.tipo === "descargarPesos") { await motor.descargarPesos(); valor = null; }
-    else if (orden.tipo === "generar") valor = await motor.generar(orden.peticion);
-    else throw new Error("orden desconocida");
-    responder({ id: orden.id, ok: true, valor });
-  } catch (e) {
-    responder({ id: orden.id, ok: false, error: e instanceof Error ? e.message : String(e) });
-  }
-}
-
-/** Solo dentro de un worker de verdad (en pruebas o en el hilo principal este módulo no hace nada al importarse). */
-interface AmbitoWorker { postMessage(m: unknown): void; onmessage: ((e: { data: OrdenWorker }) => void) | null }
-const global = globalThis as unknown as Partial<AmbitoWorker> & { WorkerGlobalScope?: unknown; document?: unknown };
-if (typeof global.WorkerGlobalScope !== "undefined" && typeof global.document === "undefined" && typeof global.postMessage === "function") {
+// --- Cableado del worker (solo dentro de un worker real) ---
+type AlcanceWorker = { postMessage(m: MensajeDelWorker, t?: Transferable[]): void; onmessage: ((e: MessageEvent<MensajeAlWorker>) => void) | null };
+const esWorker = typeof self !== "undefined" && typeof (self as { importScripts?: unknown }).importScripts === "function";
+if (esWorker) {
+  const ctx = self as unknown as AlcanceWorker;
   let idActual = 0;
-  const motor = new MotorOrtSDTurbo(CARGADORES_REALES, (progreso) => global.postMessage!({ id: idActual, progreso } satisfies RespuestaWorker));
-  global.onmessage = (e) => { idActual = e.data.id; void atenderOrden(motor, e.data, (r) => global.postMessage!(r)); };
+  const motor = crearMotorReal((etapa, fraccion) => ctx.postMessage({ tipo: "progreso", id: idActual, etapa, fraccion }));
+  ctx.onmessage = async (e) => {
+    const m = e.data; idActual = m.id;
+    if (m.tipo === "sondear") { ctx.postMessage({ tipo: "sondas", id: m.id, sondas: await motor.sondear() }); return; }
+    const resultado = await generaEnPestana(motor, m.peticion);
+    ctx.postMessage({ tipo: "resultado", id: m.id, resultado }, resultado.imagen ? [resultado.imagen.pixeles.buffer] : []);
+  };
 }
