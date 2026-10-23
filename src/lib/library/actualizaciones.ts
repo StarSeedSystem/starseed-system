@@ -103,7 +103,7 @@ function canalDeGitHub(payload?: PayloadActualizacion): "commits" | "releases" |
  */
 export function urlDeConsulta(upstream: string, payload?: PayloadActualizacion): string | null {
     const traslado = rutaTrasladoCodeberg(payload?.trasladadoA);
-    if (traslado) return urlCodeberg(trasladadoAssumedFix(traslado), "releases");
+    if (traslado) return urlCodeberg(traslado, "releases");
     const github = RE_GITHUB.exec(upstream);
     if (github) {
         const ruta = github[1].replace(/\.git$/, "");
@@ -162,6 +162,7 @@ export function leerVersion(
     json: unknown,
     payload?: PayloadActualizacion,
 ): VersionLeida | null {
+    if (rutaTrasladoCodeberg(payload?.trasladadoA)) return leerVersionCodeberg(json);
     if (RE_GITHUB.test(upstream)) {
         const canal = canalDeGitHub(payload);
         if (canal === "tags") return leerEtiqueta(json, payload);
@@ -179,6 +180,67 @@ export function leerVersion(
         return { version: modelo.sha.slice(0, 7), fecha: esCadena(fecha) ? fecha : null };
     }
     return null;
+}
+
+/**
+ * Saca `{version, fecha}` del JSON de Codeberg (Forgejo): releases con
+ * `tag_name`/`published_at` o etiquetas con `name`. Sin nada legible devuelve
+ * null: no se inventa una versión (el respaldo a tags lo decide la consulta).
+ */
+export function leerVersionCodeberg(json: unknown): VersionLeida | null {
+    if (!Array.isArray(json) || json.length === 0) return null;
+    const primero = json[0] as { tag_name?: unknown; published_at?: unknown; name?: unknown };
+    if (esCadena(primero?.tag_name)) {
+        return {
+            version: primero.tag_name,
+            fecha: esCadena(primero.published_at) ? primero.published_at : null,
+        };
+    }
+    return esCadena(primero?.name) ? { version: primero.name, fecha: null } : null;
+}
+
+/* ───────────────────── Consulta de Codeberg (fetch inyectado) ───────────────────── */
+
+/** Resultado de `consultarCodeberg`: una versión o el motivo honesto de no tenerla. */
+export type LecturaCodeberg =
+    | { version: string; fecha: string | null; error: null }
+    | { version: null; fecha: null; error: string };
+
+/**
+ * Sigue un traslado a Codeberg (`codeberg:dueño/repo`) hasta su versión.
+ * Codeberg es Forgejo con API compatible con Gitea: pregunta releases y, si
+ * no hay, etiquetas. El `fetch` va inyectado para que el módulo siga puro
+ * (pruebas sin red). El error es honesto: dice qué falló, sin inventar nada.
+ */
+export async function consultarCodeberg(
+    trasladadoA: unknown,
+    fetchFn: typeof fetch,
+): Promise<LecturaCodeberg> {
+    const ruta = rutaTrasladoCodeberg(trasladadoA);
+    if (!ruta) {
+        return {
+            version: null,
+            fecha: null,
+            error: "El traslado a Codeberg no tiene la forma codeberg:dueño/repo.",
+        };
+    }
+    let motivo = `No hay versión ni etiqueta en Codeberg para ${ruta}.`;
+    for (const endpoint of ["releases", "tags"] as const) {
+        try {
+            const respuesta = await fetchFn(urlCodeberg(ruta, endpoint), {
+                headers: { Accept: "application/json", "User-Agent": "starseed-os-biblioteca" },
+            });
+            if (!respuesta.ok) {
+                motivo = `Codeberg respondió ${respuesta.status} al pedir ${endpoint}.`;
+                continue;
+            }
+            const leida = leerVersionCodeberg(await respuesta.json());
+            if (leida) return { version: leida.version, fecha: leida.fecha, error: null };
+        } catch {
+            motivo = `No se pudo consultar ${endpoint} de Codeberg (${ruta}): fallo en la petición.`;
+        }
+    }
+    return { version: null, fecha: null, error: motivo };
 }
 
 /* ───────────────────── Comparación de versiones ───────────────────── */
