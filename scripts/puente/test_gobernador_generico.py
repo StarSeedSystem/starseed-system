@@ -1,14 +1,20 @@
-"""Tests for governor_generico.py — PURE FUNCTIONS."""
+"""Pruebas de gobernador_generico.py — funciones puras e helpers de `medir()` (COL1012Ld-d2)."""
+import importlib.util
 import os
+import subprocess
+import sys
 import unittest
+from unittest import mock
+
+CARPETA = os.path.dirname(os.path.abspath(__file__))
+RAIZ = os.path.abspath(os.path.join(CARPETA, "..", ".."))
+
 from gobernador_generico import (
-    de_meminfo, de_sysctl, de_bateria_linux, de_pmset, 
+    de_meminfo, de_sysctl, de_bateria_linux, de_pmset,
     herramientas, medir, _version_a_numero,
-    _detectar_so, _es_wsl, _es_android,
-    _obtener_ram_total_mb, _obtener_nucleos, _obtener_disco_libre_gb,
-    _obtener_bateria, _obtener_bateria_linux, _obtener_bateria_macos,
-    _obtener_red, _obtener_herramientas_con_versiones,
-    _obtener_version_git, _obtener_version_node, _obtener_version_python, _obtener_version_opencode
+    _es_wsl, _es_android,
+    _obtener_nucleos, _obtener_disco_libre_gb,
+    _obtener_bateria, _obtener_red,
 )
 
 
@@ -306,6 +312,76 @@ class TestMedir(unittest.TestCase):
         resultado = medir()
         so_validos = {"macos", "linux", "android", "wsl", "windows", "otro"}
         self.assertIn(resultado["so"], so_validos)
+
+
+class TestDeteccionSo(unittest.TestCase):
+    """Detección del sistema (COL1012Ld-d2): la vía sin privilegios que alimenta a medir()."""
+
+    def test_es_android_con_prefix_de_termux(self):
+        # Termux escribe en la variable PREFIX la ruta de su prefijo, con «com.termux» dentro.
+        with mock.patch.dict(os.environ, {"PREFIX": "/data/data/com.termux/files/usr"}):
+            self.assertTrue(_es_android())
+
+    def test_es_android_sin_termux(self):
+        # Un PREFIX normal (Linux, macOS) no manda a un aparato Android.
+        with mock.patch.dict(os.environ, {"PREFIX": "/usr/local/bin"}):
+            self.assertFalse(_es_android())
+
+    def test_es_wsl_consistente_con_proc_version(self):
+        # No fingimos contenido: es la misma fuente que lee la función, exigimos igualdad de veredicto.
+        try:
+            with open("/proc/version", "r") as f:
+                contenido = f.read().lower()
+            esperado = "microsoft" in contenido or "wsl" in contenido
+        except OSError:
+            # Sin /proc/version (macOS, Windows pelado) no hay manera de ser WSL.
+            esperado = False
+        self.assertEqual(_es_wsl(), esperado)
+
+
+class TestHijasDeMedir(unittest.TestCase):
+    """Las piezas alimentadas por medir(), en vivo y sin privilegios."""
+
+    def test_obtener_red_sin_dato_no_se_inventa(self):
+        # Contrato: la red medida solo va si se sabe; _obtener_red (pura) no inventa datos.
+        self.assertEqual(_obtener_red(), {})
+
+    def test_obtener_nucleos_al_menos_uno(self):
+        nucleos = _obtener_nucleos()
+        self.assertIsInstance(nucleos, int)
+        self.assertGreaterEqual(nucleos, 1)
+
+    @unittest.skipIf(not hasattr(os, "statvfs"), "os.statvfs no existe en Windows")
+    def test_disco_libre_del_repo_positivo(self):
+        disco = _obtener_disco_libre_gb()
+        self.assertIsNotNone(disco)
+        self.assertGreater(disco, 0.0)
+
+    def test_obtener_bateria_con_forma_valida_si_presente(self):
+        # En vivo: {} (sin batería) o {nivel (0..1), cargando (bool)}; nunca claves a medias.
+        bateria = _obtener_bateria()
+        if bateria:
+            self.assertIn("nivel", bateria)
+            self.assertIn("cargando", bateria)
+            self.assertIsInstance(bateria["cargando"], bool)
+            self.assertGreaterEqual(bateria["nivel"], 0.0)
+            self.assertLessEqual(bateria["nivel"], 1.0)
+
+
+class TestRecogidaConPytest(unittest.TestCase):
+    @unittest.skipUnless(importlib.util.find_spec("pytest"), "pytest no está instalado en este python")
+    def test_pytest_recoge_test_gobernador_desde_la_raiz(self):
+        """El caso real que tumbaron a la nube: pytest sobre ESTE archivo desde la raíz.
+        Antes moría en la recogida con ModuleNotFoundError; con conftest.py (COL1012Md-d1)
+        debe recogerse entero. Espeja el patrón de test_conftest_pytest.py para este archivo."""
+        r = subprocess.run(
+            [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
+             os.path.join("scripts", "puente", os.path.basename(__file__))],
+            cwd=RAIZ, capture_output=True, text=True, timeout=120,
+        )
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("ModuleNotFoundError", r.stdout + r.stderr)
+        self.assertIn("test_gobernador_generico.py", r.stdout)
 
 
 if __name__ == "__main__":
