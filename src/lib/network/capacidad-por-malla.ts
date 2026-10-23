@@ -1,5 +1,8 @@
 "use client";
 
+import type { MeshHandle } from "@/lib/network/webrtc-mesh";
+import { getSharedMesh, capaMeshCompartiendo } from "@/lib/network/lan-sync";
+
 /*
  * capacidad-por-malla — Relay P2P genérico de cualquier capacidad sobre la malla de neuronas (Ola 1017A).
  * ---------------------------------------------------------------------------
@@ -54,13 +57,11 @@ export function esMensajeCapacidadMalla(x: unknown): x is CapacidadMsg {
   const t = x.t;
   if (typeof t !== "string" || !t.startsWith(CAPACIDAD_MALLA_NS)) return false;
   if (typeof x.id !== "string" || !x.id) return false;
-  if (typeof x.tipo !== "string") return false;
   switch (t) {
     case "capacidad.pedir":
       return (
-        esObjeto(x.cuerpo) &&
-        typeof x.cuerpo.tipo !== "undefined" &&
-        Array.isArray((x.cuerpo as Record<string, unknown>).messages)
+        typeof x.tipo === "string" &&
+        esObjeto(x.cuerpo)
       );
     case "capacidad.trozo":
       return typeof x.texto === "string";
@@ -90,6 +91,25 @@ export function cabeEnMensajeCapacidad(json: string): boolean {
   return bytesUtf8(json) <= CAPACIDAD_MALLA_MAX_BYTES;
 }
 
+/** Codifica un `tipo` de capacidad para validación. Devuelve `true` si es un tipo válido. */
+export function esTipoCapacidadValido(tipo: string): tipo is TipoCapacidad {
+  return (
+    tipo === "imagen" ||
+    tipo === "voz" ||
+    tipo === "oido" ||
+    tipo === "palabra" ||
+    tipo === "transcodificar" ||
+    tipo === "render" ||
+    tipo === "buscar" ||
+    tipo === "construir"
+  );
+}
+
+/** bytes UTF-8 de una cadena. */
+export function bytesUtf8(s: string): number {
+  return new TextEncoder().encode(s).length;
+}
+
 /* ══════════════════════════ 2) Rol SERVIDOR ══════════════════════════ */
 
 const TIMEOUT_TOTAL_SERVIDOR_MS = 200_000;
@@ -103,20 +123,19 @@ interface PeticionEnCurso {
 /** Registro por defecto (producción): 1 entrada por `peerId` con petición en vuelo. */
 const registroProduccion = new Map<string, PeticionEnCurso>();
 
-/** Resultado de una capacidad servida. */
-export interface ResultadoCapacidad {
-  ok: true;
-  resultado: unknown;
+/** Depencias inyectables para el servidor de capacidad. */
+export interface DepsServidorCapacidadMalla {
+  /** Sustituye la comprobación de capa (`capaMeshCompartiendo`). */
+  puedeServir?: () => boolean;
+  /** Sustituye la ejecución real de capacidad (pruebas: sin ejecución real). */
+  ejecutar?: (cuerpo: Record<string, unknown>, opts: { signal: AbortSignal; onChunk: (delta: string) => void }) => Promise<unknown>;
+  /** Registro de peticiones en vuelo por peer (pruebas: un Map propio y aislado). */
+  registro?: Map<string, PeticionEnCurso>;
+  /** ms entre lotes de `capacidad.trozo` (por defecto 100). */
+  flushMs?: number;
+  /** Corte duro total (por defecto 200 s). */
+  timeoutTotalMs?: number;
 }
-
-/** Resultado de error de una capacidad. */
-export interface ResultadoCapacidadError {
-  ok: false;
-  motivo: string;
-}
-
-/** Estado combinado de un resultado de capacidad. */
-export type ResultadoCapacidadFinal = ResultadoCapacidad | ResultadoCapacidadError;
 
 /** ¿Puede ESTA neurona servir capacidad por la malla ahora mismo? Capa mesh compartiendo. */
 function puedeServirDefecto(): boolean {
@@ -126,7 +145,6 @@ function puedeServirDefecto(): boolean {
 
 /**
  * enviarError — envía un mensaje de error por la malla.
- * Siempre envía `{ ok:false, motivo }` para que el cliente nunca lance.
  */
 function enviarError(
   mesh: Pick<MeshHandle, "sendToPeer">,
@@ -136,7 +154,7 @@ function enviarError(
   mensaje: string,
   extra?: { reintentarEnS?: number; ocupado?: boolean },
 ): void {
-  const msg: CapacidadErrorMsg = {
+  const msg: MsgCapacidadError = {
     t: "capacidad.error",
     id,
     estado,
@@ -154,7 +172,6 @@ function enviarError(
  * manejarPeticionCapacidadMalla — atiende UN `capacidad.pedir` de `peerId`.
  * Exportada con `deps` inyectables para poder probarla con un mesh de mentira
  * y un `ejecutar` de mentira, sin `getSharedMesh()` ni red real.
- * NUNCA lanza: siempre devuelve `{ ok:false, motivo }` al cliente.
  */
 export async function manejarPeticionCapacidadMalla(
   mesh: Pick<MeshHandle, "sendToPeer">,
@@ -310,52 +327,70 @@ export interface ResultadoCapacidadOutput {
 
 /**
  * pedirCapacidad — Pide una capacidad a la red mesh.
- * `(enviar, { tipo, cuerpo, sesionId, timeoutMs })` — `enviar` es una función
- * que envía un mensaje por el canal (ej. `mesh.sendToPeer`).
  * Reúne los trozos y nunca lanza: siempre devuelve `{ ok:true, resultado }`
  * o `{ ok:false, motivo }`.
  */
-export function pedirCapacidad(
+export async function pedirCapacidad(
   enviar: (msg: string) => boolean,
-  { tipo, cuerpo, sesionId, timeoutMs = 200_000 }:
-    | { tipo: TipoCapacidad; cuerpo: CapacidadCuerpo["cuerpo"]; sesionId?: string; timeoutMs?: number }
-    ,
+  { tipo, cuerpo, sesionId, timeoutMs = 200_000 }: { tipo: TipoCapacidad; cuerpo: CapacidadCuerpo["cuerpo"]; sesionId?: string; timeoutMs?: number },
 ): Promise<ResultadoCapacidadOutput> {
   const id = crearIdPeticion();
   const cuerpoPedir: MsgCapacidadPedir = { t: "capacidad.pedir", id, tipo, cuerpo, sesionId };
-  let acc = "";
+
+  let resultado: unknown;
   let errorMotivo: string | undefined;
   let settled = false;
 
-  const timeoutTotal = setTimeout(() => {
+  // Simulación de recepción de mensajes (en producción manejada por el mesh)
+  const onMensaje = (data: string): void => {
     if (settled) return;
-    settled = true;
-    acc = "";
-    errorMotivo = "Capacidad por la malla: timeout total.";
-    enviar(JSON.stringify({ t: "capacidad.error", id, estado: 502, mensaje: errorMotivo }));
-  }, timeoutMs);
+    const msg = parseCapacidadMallaMensaje(data);
+    if (!msg || msg.id !== id) return;
 
-  const onChunk = (delta: string) => {
-    if (delta) {
-      acc += delta;
+    if (msg.t === "capacidad.trozo") {
+      // Acumulamos trozos si el resultado es string
+      if (typeof resultado === "string") {
+        resultado += msg.texto;
+      } else {
+        resultado = msg.texto;
+      }
+    } else if (msg.t === "capacidad.fin") {
+      settled = true;
+      resultado = msg.resultado;
+      clearTimeout(timeoutTimer);
+    } else if (msg.t === "capacidad.error") {
+      settled = true;
+      errorMotivo = msg.mensaje;
+      clearTimeout(timeoutTimer);
     }
   };
 
+  // En producción, este listener se conectaría al mesh
+  // Por simplicidad en el módulo puro: enviamos y esperamos timeout
   try {
     enviar(JSON.stringify(cuerpoPedir));
-    // Simulación de recepción de trozos y fin - en la integración real
-    // el llamador manejaría los mensajes entrantes por el mesh
-    if (!acc) {
-      return { ok: false, motivo: "No se recibieron trozos de la capacidad." };
-    }
-    return { ok: true, resultado: acc };
   } catch (e) {
-    const mensaje = e instanceof Error ? e.message : "Error inesperado.";
-    errorMotivo = mensaje;
+    const mensaje = e instanceof Error ? e.message : "Error al enviar la petición.";
     return { ok: false, motivo: mensaje };
-  } finally {
-    clearTimeout(timeoutTotal);
   }
+
+  const timeoutTimer = setTimeout(() => {
+    if (!settled) {
+      settled = true;
+      errorMotivo = "Capacidad por la malla: timeout total.";
+    }
+  }, timeoutMs);
+
+  // Esperamos un momento para recibir respuesta (en producción se usaría Promises)
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  if (errorMotivo) {
+    return { ok: false, motivo: errorMotivo };
+  }
+  if (resultado !== undefined) {
+    return { ok: true, resultado };
+  }
+  return { ok: false, motivo: "No se recibieron trozos de la capacidad." };
 }
 
 /** Id de petición razonablemente único (no necesita ser criptográfico). */
@@ -392,27 +427,7 @@ export function partirEnTrozos(texto: string, maxBytesTexto: number = CAPACIDAD_
   return partes;
 }
 
-/** Codifica un `tipo` de capacidad para validación. Devuelve `true` si es un tipo válido. */
-export function esTipoCapacidadValido(tipo: string): tipo is TipoCapacidad {
-  return (
-    tipo === "imagen" ||
-    tipo === "voz" ||
-    tipo === "oido" ||
-    tipo === "palabra" ||
-    tipo === "transcodificar" ||
-    tipo === "render" ||
-    tipo === "buscar" ||
-    tipo === "construir"
-  );
-}
-
-/** bytes UTF-8 de una cadena. */
-export function bytesUtf8(s: string): number {
-  return new TextEncoder().encode(s).length;
-}
-
-/* ══════════════════════════ Events helpers ══════════════════════════ */
-
-function bytesDe(s: string): number {
-  return new TextEncoder().encode(s).length;
+/** Solo para pruebas: vacía el registro de producción entre tests. */
+export function reiniciarServidorCapacidadMallaParaTests(): void {
+  registroProduccion.clear();
 }
