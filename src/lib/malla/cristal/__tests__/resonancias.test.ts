@@ -116,4 +116,48 @@ describe('decisionPorResonancia', () => {
     ], conf);
     expect(r.decision).toBe('limpio');
   });
+
+  it('los motivos dicen cuántas cuentas y qué marcan', () => {
+    const uno = decisionPorResonancia('h1', [veredicto({})], conf);
+    expect(uno.motivo).toBe('una cuenta marca peligroso');
+    const sosp = decisionPorResonancia('h1', [
+      veredicto({ nivel: 'sospechoso', cuenta: 'c1' }),
+      veredicto({ nivel: 'sospechoso', cuenta: 'c2', nodo: 'n2' }),
+    ], conf);
+    expect(sosp.motivo).toBe('2 cuentas marcan sospechoso');
+    const lim = decisionPorResonancia('h1', [
+      veredicto({ nivel: 'limpio', cuenta: 'c1' }),
+      veredicto({ nivel: 'limpio', cuenta: 'c2', nodo: 'n2' }),
+    ], conf);
+    expect(lim.motivo).toBe('2 cuentas marcan limpio');
+  });
+
+  it('sin veredictos: sin-datos con 0 cuentas', () => {
+    const r = decisionPorResonancia('h1', [], conf);
+    expect(r.decision).toBe('sin-datos');
+    expect(r.cuentas).toBe(0);
+  });
+
+  it('ignora los veredictos de otro hash', () => {
+    const r = decisionPorResonancia('h1', [veredicto({ hash: 'otro' })], conf);
+    expect(r.decision).toBe('sin-datos');
+  });
+
+  it('ignora un veredicto sin firma válida', () => {
+    const r = decisionPorResonancia('h1', [veredicto({ firmaOk: false })], conf);
+    expect(r).toMatchObject({ decision: 'sin-datos', cuentas: 0 });
+  });
+
+  it('ignora un veredicto de un nodo con confianza baja', () => {
+    const r = decisionPorResonancia('h1', [veredicto({})], { n1: 0.1 });
+    expect(r.decision).toBe('sin-datos');
+  });
+
+  it('el voto más reciente de una cuenta sustituye al anterior aunque cambie de nodo', () => {
+    const r = decisionPorResonancia('h1', [
+      veredicto({ nivel: 'limpio', nodo: 'n1', t: 1 }),
+      veredicto({ nivel: 'peligroso', nodo: 'n2', t: 2 }),
+    ], conf);
+    expect(r.decision).toBe('aviso');
+  });
 });
