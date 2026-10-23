@@ -1,14 +1,29 @@
-"""Tests for governor_generico.py — PURE FUNCTIONS."""
+"""Pruebas del gobernador genérico del aparato (COL1012Ld, parte 2 de 2).
+
+El gobernador mide el aparato SIN privilegios y alimenta el diccionario que espera
+`colmena_logica.capacidad_contenedor` (contrato: architecture/colmena-relevo-contenedores.md §2).
+Las funciones puras se prueban con textos reales de ejemplo de cada fuente (/proc/meminfo,
+`sysctl hw.memsize`, `/sys/class/power_supply/*`, `pmset -g batt`, versiones de herramientas),
+nunca con los del sistema de turno: así la misma prueba vale en la Mac, el A1, un Linux, WSL y Termux.
+
+Por qué hace falta el `sys.path.insert` antes de los imports: esa prueba se corre en el puente por tres
+caminos (`python3 -m unittest scripts/puente/test_X.py`, pytest de `traer_nube._puertas` y
+`unittest discover`). El conftest.py de esta carpeta cubre solo a pytest; sin el insert propio la forma
+por ruta muere en la RECOGIDA con `ModuleNotFoundError`, como lo traído de la nube el 2026-10-23
+(COL1012Lc cayó en la Mac sin que una sola aserción se ejecutara). El arranque propio es la reparación.
+"""
 import os
+import sys
 import unittest
-from gobernador_generico import (
-    de_meminfo, de_sysctl, de_bateria_linux, de_pmset, 
-    herramientas, medir, _version_a_numero,
-    _detectar_so, _es_wsl, _es_android,
-    _obtener_ram_total_mb, _obtener_nucleos, _obtener_disco_libre_gb,
-    _obtener_bateria, _obtener_bateria_linux, _obtener_bateria_macos,
-    _obtener_red, _obtener_herramientas_con_versiones,
-    _obtener_version_git, _obtener_version_node, _obtener_version_python, _obtener_version_opencode
+from unittest import mock
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import colmena_logica as C  # noqa: E402
+
+from gobernador_generico import (  # noqa: E402
+    de_meminfo, de_sysctl, de_bateria_linux, de_pmset,
+    herramientas, medir, _version_a_numero, _es_android,
 )
 
 
@@ -270,6 +285,35 @@ class TestHerramientas(unittest.TestCase):
         self.assertFalse(resultado["python3"])
         self.assertTrue(resultado["opencode"])
 
+    def test_herramientas_node_fronteras_version(self):
+        """Las fronteras del mínimo pedido (Node ≥ 20.19): de donde salió el «apto» no prometido."""
+        fronteras = [
+            ("v20.19.0", True),      # mínimo exacto
+            ("20.19.0", True),       # sin «v» inicial también cuenta
+            ("v20.19.1", True),
+            ("v20.18.9", False),     # el parche anterior no llega
+            ("20", False),           # solo el mayor: falta el menor 19
+            ("v20.19", True),        # menor exacto sin parche
+            ("v20.20.0", True),
+            ("v21.0.0", True),
+            ("v19.10.0", False),
+        ]
+        for version, esperado in fronteras:
+            with self.subTest(version=version):
+                self.assertEqual(herramientas({"node": version})["node"], esperado)
+
+
+class TestDeteccionAparato(unittest.TestCase):
+    """Tests for _es_android: la variable pública TERMUX_PREFIX que hace al aparato «Android»."""
+
+    def test_prefix_con_com_termux_marca_android(self):
+        with mock.patch.dict(os.environ, {"PREFIX": "/data/data/com.termux/files/usr"}):
+            self.assertTrue(_es_android())
+
+    def test_prefix_sin_com_termux_no_es_android(self):
+        with mock.patch.dict(os.environ, {"PREFIX": "/usr/local"}):
+            self.assertFalse(_es_android())
+
 
 class TestMedir(unittest.TestCase):
     """Tests for medir function."""
@@ -279,27 +323,48 @@ class TestMedir(unittest.TestCase):
         """Verifica que medir devuelva un diccionario con las claves esperadas."""
         resultado = medir()
         self.assertIsInstance(resultado, dict)
-        
-        # Claves esperadas
+
+        # Las claves EXACTAS del diccionario que espera `colmena_logica.capacidad_contenedor`
+        # (contrato §2): ni una de más (se sacaría del aparato) ni una de menos.
         claves_esperadas = {
-            "so", "medio_app", "ram_total_mb", "nucleos", 
+            "so", "medio_app", "ram_total_mb", "nucleos",
             "disco_libre_gb", "bateria", "red", "herramientas"
         }
-        for clave in claves_esperadas:
-            self.assertIn(clave, resultado)
-        
+        self.assertEqual(set(resultado), claves_esperadas)
+
         # Verificar tipos básicos
         self.assertIsInstance(resultado["so"], str)
         self.assertEqual(resultado["medio_app"], "terminal")
         self.assertIsInstance(resultado["nucleos"], int)
         self.assertGreaterEqual(resultado["nucleos"], 1)
-        
+
         # Herramientas debe ser un diccionario con claves específicas
         self.assertIsInstance(resultado["herramientas"], dict)
         herramientas_esperadas = {"git", "node", "python3", "opencode"}
         for herramienta in herramientas_esperadas:
             self.assertIn(herramienta, resultado["herramientas"])
             self.assertIsInstance(resultado["herramientas"][herramienta], bool)
+
+    def test_medir_no_inventa_red_medida(self):
+        """Sin saberlo (NetworkManager o datos móviles de Termux), no se pone: el núcleo usaría el dato."""
+        resultado = medir()
+        self.assertIsInstance(resultado["red"], dict)
+        if not resultado["red"]:
+            self.assertNotIn("medida", resultado["red"])
+
+    def test_medir_alimenta_capacidad_contenedor(self):
+        """El propósito entero: el diccionario de `medir()` entra en el núcleo puro y sale un veredicto.
+
+        No se afirma un número concreto (cada aparato dirá el suyo): se afirma que el circuito
+        `medir` → `colmena_logica.capacidad_contenedor` corre sin fallos y con la forma del contrato.
+        """
+        veredicto = C.capacidad_contenedor(medir())
+        self.assertIsInstance(veredicto["apto"], bool)
+        self.assertIsInstance(veredicto["agentes"], int)
+        self.assertGreaterEqual(veredicto["agentes"], 0)
+        self.assertIsInstance(veredicto["motivo"], str)
+        self.assertGreater(len(veredicto["motivo"]), 0)
+        self.assertIsInstance(veredicto["falta"], list)
     
     def test_medir_so_valido(self):
         """Verifica que el SO detectado sea uno de los esperados."""
