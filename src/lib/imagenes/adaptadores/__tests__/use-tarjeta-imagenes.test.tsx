@@ -6,19 +6,15 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
+
+vi.mock("@/lib/imagenes/adaptadores/plan-imagen");
+vi.mock("@/lib/imagenes/adaptadores/generar-imagen");
+vi.mock("@/lib/imagenes/adaptadores/guardar-biblioteca");
+vi.mock("@/lib/imagenes/adaptadores/usar-como-referencia-3d");
+vi.mock("@/lib/imagenes/adaptadores/abrir-protomolecula");
+
+// Importar después de los mocks
 import { useTarjetaImagenes } from "@/lib/imagenes/adaptadores/use-tarjeta-imagenes";
-
-const h = vi.hoisted(() => ({
-  planImagen: { planImagen: vi.fn() },
-  generarImagen: { generarImagen: vi.fn() },
-  guardarEnBiblioteca: { guardarEnBiblioteca: vi.fn() },
-  usarComoReferencia3D: { usarComoReferencia3D: vi.fn() },
-  abrirEnProtomolecula: { abrirProtomoleculaEditor: vi.fn() },
-}));
-
-vi.mock("@/lib/imagenes/adaptadores/use-tarjeta-imagenes", () => ({
-  useTarjetaImagenes: h,
-}));
 
 describe("adaptador de tarjeta de imágenes - hook", () => {
   const peticionMock = {
@@ -51,9 +47,11 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
   ];
 
   it("debe generar opciones al llamar a generarOpciones", async () => {
-    const { result } = renderHook(() => useTarjetaImagenes());
+    const { useTarjetaImagenes: mockHook } = await import("@/lib/imagenes/adaptadores/use-tarjeta-imagenes");
+    const { result } = renderHook(() => mockHook());
     
-    h.planImagen.planImagen.mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
+    const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
+    planImagen.mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
 
     await act(async () => {
       await result.current.generarOpciones(peticionMock);
@@ -65,9 +63,11 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
   });
 
   it("debe manejar errores en generarOpciones", async () => {
-    const { result } = renderHook(() => useTarjetaImagenes());
+    const { useTarjetaImagenes: mockHook } = await import("@/lib/imagenes/adaptadores/use-tarjeta-imagenes");
+    const { result } = renderHook(() => mockHook());
     
-    h.planImagen.planImagen.mockRejectedValueOnce(new Error("Error de prueba"));
+    const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
+    planImagen.mockRejectedValueOnce(new Error("Error de prueba"));
 
     await act(async () => {
       await result.current.generarOpciones(peticionMock);
@@ -79,50 +79,73 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
   });
 
   it("debe llamar a generarImagen al elegir una opción", async () => {
-    const { result } = renderHook(() => useTarjetaImagenes());
+    const { useTarjetaImagenes: mockHook } = await import("@/lib/imagenes/adaptadores/use-tarjeta-imagenes");
+    const { result } = renderHook(() => mockHook());
     
-    h.planImagen.planImagen.mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
-    h.generarImagen.generarImagen.mockResolvedValueOnce({ ok: true, url: "http://ejemplo.com/imagen.png" });
-    h.guardarEnBiblioteca.guardarEnBiblioteca.mockResolvedValueOnce({ id: 1 });
+    const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
+    const { generarImagen } = await import("@/lib/imagenes/adaptadores/generar-imagen");
+    const { guardarEnBiblioteca } = await import("@/lib/imagenes/adaptadores/guardar-biblioteca");
+    
+    planImagen.mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
+    generarImagen.mockResolvedValueOnce({ ok: true, url: "http://ejemplo.com/imagen.png" });
+    guardarEnBiblioteca.mockResolvedValueOnce({ id: 1, url: "http://ejemplo.com/imagen.png", timestamp: Date.now() });
 
     await act(async () => {
       await result.current.generarOpciones(peticionMock);
     });
 
     await act(async () => {
-      result.current.elegirOpcion(opcionesMock[0]);
+      await result.current.elegirOpcion(opcionesMock[0]);
     });
 
-    expect(h.generarImagen.generarImagen).toHaveBeenCalledWith({
+    expect(generarImagen).toHaveBeenCalledWith({
       prompt: "Una imagen de prueba",
       modelo: "sd-turbo",
       semilla: 123,
     });
     
-    expect(h.guardarEnBiblioteca.guardarEnBiblioteca).toHaveBeenCalled();
+    expect(guardarEnBiblioteca).toHaveBeenCalled();
   });
 
   it("debe llamar a usarComoReferencia3D al usar como referencia 3D", async () => {
-    const { result } = renderHook(() => useTarjetaImagenes());
+    const { useTarjetaImagenes: mockHook } = await import("@/lib/imagenes/adaptadores/use-tarjeta-imagenes");
+    const { result } = renderHook(() => mockHook());
     
-    h.usarComoReferencia3D.usarComoReferencia3D.mockResolvedValueOnce(undefined);
+    const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
+    const { usarComoReferencia3D } = await import("@/lib/imagenes/adaptadores/usar-como-referencia-3d");
+    
+    planImagen.mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
+    usarComoReferencia3D.mockResolvedValueOnce(undefined);
 
     await act(async () => {
-      result.current.usarComoReferencia3D(opcionesMock[0]);
+      await result.current.generarOpciones(peticionMock);
     });
 
-    expect(h.usarComoReferencia3D.usarComoReferencia3D).toHaveBeenCalledWith("http://ejemplo.com/imagen.png");
+    await act(async () => {
+      await result.current.usarComoReferencia3D(opcionesMock[0]);
+    });
+
+    expect(usarComoReferencia3D).toHaveBeenCalledWith(opcionesMock[0]);
   });
 
   it("debe llamar a abrirEnProtomolecula al editar en Protomolécula", async () => {
-    const { result } = renderHook(() => useTarjetaImagenes());
+    const { useTarjetaImagenes: mockHook } = await import("@/lib/imagenes/adaptadores/use-tarjeta-imagenes");
+    const { result } = renderHook(() => mockHook());
     
-    h.abrirEnProtomolecula.abrirProtomoleculaEditor.mockResolvedValueOnce(undefined);
+    const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
+    const { abrirEnProtomoleculaEditor } = await import("@/lib/imagenes/adaptadores/abrir-protomolecula");
+    
+    planImagen.mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
+    abrirEnProtomoleculaEditor.mockResolvedValueOnce(undefined);
     
     await act(async () => {
-      result.current.abrirEnProtomolecula(opcionesMock[0]);
+      await result.current.generarOpciones(peticionMock);
     });
     
-    expect(h.abrirEnProtomolecula.abrirProtomoleculaEditor).toHaveBeenCalledWith("http://ejemplo.com/imagen.png");
+    await act(async () => {
+      await result.current.abrirEnProtomolecula(opcionesMock[0]);
+    });
+    
+    expect(abrirEnProtomoleculaEditor).toHaveBeenCalledWith(opcionesMock[0]);
   });
 });
