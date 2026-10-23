@@ -49,10 +49,11 @@ import { cn } from "@/lib/utils";
 import { FilePreview, detectFormat, type FileLike } from "@/components/files/file-preview";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
+import { prepararDiagrama } from "@/lib/diagramas/aislar-diagrama";
 import type { MainRatio } from "@/lib/publish/publish";
 import { SANDBOX_CODIGO } from "@/lib/variaciones/validar";
-
-// ───────────────────────────── Tipos públicos ───────────────────────────────
+ 
+ // ───────────────────────────── Tipos públicos ───────────────────────────────
 
 export type EmbedContext = "feed" | "page";
 
@@ -392,13 +393,28 @@ function SandboxedIframeBody({ item, boxed, context }: { item: EmbeddedItem; box
  *  por Aurora), así que se ejecuta en un origen opaco sin acceso a
  *  cookies/storage del sitio. */
 function CodeSandboxBody({ item, boxed, context }: { item: EmbeddedItem; boxed: boolean; context: EmbedContext }) {
+    const contenido = item.content || "";
+    const resultado = prepararDiagrama(contenido, { permitirAnimacion: true });
+    if (!resultado.ok) {
+        return (
+            <div className={cn("border-0 bg-white/5 text-xs text-red-200 p-3", fillClass(boxed, context))}>
+                <p className="font-semibold">Diagrama rechazado</p>
+                <ul className="list-disc pl-4 mt-1">
+                    {resultado.motivos.map((m, i) => (
+                        <li key={i}>{m}</li>
+                    ))}
+                </ul>
+            </div>
+        );
+    }
     return (
         <iframe
-            srcDoc={item.content || ""}
-            sandbox={SANDBOX_CODIGO}
+            srcDoc={resultado.srcdoc || contenido}
+            sandbox={resultado.sandbox || "allow-scripts"}
             className={cn("border-0 bg-white", fillClass(boxed, context))}
             title={titleOf(item)}
         />
+    );
     );
 }
 
