@@ -1,10 +1,12 @@
-import { describe, it, expect } from "vitest";
+// @vitest-environment jsdom
+import { beforeEach, describe, expect, it } from "vitest";
 import {
+  SEED_KEY,
   SEED_VERSION,
   RECOMMENDED_PACKAGE_IDS,
-  planSeedInstall,
-  type SeedPlanInput,
+  ensureDefaultsSeeded,
 } from "../defaults-seed";
+import { INSTALLED_KEY, REPOS_KEY } from "../packages";
 
 const SIEMPRE = [
   "lib-vikunja",
@@ -26,20 +28,43 @@ const MANUAL = [
   "lib-dbx",
 ] as const;
 
-function plan(overrides: Partial<SeedPlanInput>): string[] {
-  return planSeedInstall({
-    seededVersion: SEED_VERSION - 1,
-    seedVersion: SEED_VERSION,
-    recommendedIds: [],
-    alreadyOffered: [],
-    installedIds: [],
-    catalog: [],
-    downloadableIds: [],
-    ...overrides,
-  });
+const catalogo = {
+  id: "repos-libreria-1020b-prueba",
+  name: "2.ª tanda (prueba)",
+  packages: [...SIEMPRE, ...MANUAL].map((id) => ({
+    id,
+    kind: "app",
+    name: id,
+    version: "1.0.0",
+    author: "StarSeed",
+    free: true,
+    payload: { externalUrl: `https://github.com/starseed/${id}` },
+  })),
+};
+
+function prepararCatalogo(): void {
+  window.localStorage.setItem(REPOS_KEY, JSON.stringify([catalogo]));
 }
 
-const catalogo = (ids: readonly string[]) => ids.map((id) => ({ id }));
+/** Simula la actualización desde la versión anterior: todo lo demás ya se ofreció. */
+function marcarOfrecido(ids: readonly string[]): void {
+  const siempre = new Set<string>(SIEMPRE);
+  const seededIds = RECOMMENDED_PACKAGE_IDS.filter((id) => !siempre.has(id));
+  seededIds.push(...ids);
+  window.localStorage.setItem(
+    SEED_KEY,
+    JSON.stringify({ version: SEED_VERSION - 1, at: 0, seededIds }),
+  );
+}
+
+function instalados(): string[] {
+  const raw = window.localStorage.getItem(INSTALLED_KEY);
+  return raw ? Object.keys(JSON.parse(raw) as Record<string, unknown>) : [];
+}
+
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 describe("siembra de defaults · 2.ª tanda (SEED_VERSION 16)", () => {
   it("sube SEED_VERSION a 16", () => {
@@ -58,43 +83,37 @@ describe("siembra de defaults · 2.ª tanda (SEED_VERSION 16)", () => {
     }
   });
 
-  it("siembra las siete una sola vez", () => {
-    const primera = plan({ recommendedIds: SIEMPRE, catalog: catalogo(SIEMPRE) });
-    expect(primera).toEqual([...SIEMPRE]);
+  it("siembra las siete una sola vez", async () => {
+    prepararCatalogo();
+    marcarOfrecido([]);
 
-    const segunda = plan({
-      seededVersion: SEED_VERSION,
-      recommendedIds: SIEMPRE,
-      alreadyOffered: SIEMPRE,
-      catalog: catalogo(SIEMPRE),
-    });
-    expect(segunda).toEqual([]);
+    const primera = await ensureDefaultsSeeded();
+    expect(primera.seeded).toBe(true);
+    expect([...primera.installed].sort()).toEqual([...SIEMPRE].sort());
+
+    const segunda = await ensureDefaultsSeeded();
+    expect(segunda).toEqual({ seeded: false, installed: [] });
+    expect(instalados().sort()).toEqual([...SIEMPRE].sort());
   });
 
-  it("no vuelve a sembrar lo que la persona desinstaló", () => {
-    const candidatos = plan({
-      recommendedIds: ["lib-vikunja"],
-      alreadyOffered: ["lib-vikunja"],
-      catalog: catalogo(["lib-vikunja"]),
-    });
-    expect(candidatos).toEqual([]);
+  it("no vuelve a sembrar lo que la persona desinstaló", async () => {
+    prepararCatalogo();
+    marcarOfrecido(["lib-vikunja"]);
+
+    const res = await ensureDefaultsSeeded();
+    expect(res.installed).not.toContain("lib-vikunja");
+    expect([...res.installed].sort()).toEqual(
+      SIEMPRE.filter((id) => id !== "lib-vikunja").sort(),
+    );
   });
 
-  it("respeta lo que ya está instalado", () => {
-    const candidatos = plan({
-      recommendedIds: ["lib-trilium"],
-      installedIds: ["lib-trilium"],
-      catalog: catalogo(["lib-trilium"]),
-    });
-    expect(candidatos).toEqual([]);
-  });
+  it("ninguna «manual» entra en la siembra", async () => {
+    prepararCatalogo();
+    marcarOfrecido([]);
 
-  it("no siembra paquetes comingSoon ni descargables", () => {
-    const candidatos = plan({
-      recommendedIds: ["lib-celld", "lib-sentry"],
-      catalog: [{ id: "lib-celld", comingSoon: true }, { id: "lib-sentry" }],
-      downloadableIds: ["lib-sentry"],
-    });
-    expect(candidatos).toEqual([]);
+    await ensureDefaultsSeeded();
+    for (const id of MANUAL) {
+      expect(instalados()).not.toContain(id);
+    }
   });
 });

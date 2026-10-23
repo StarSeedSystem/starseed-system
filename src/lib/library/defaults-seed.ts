@@ -387,14 +387,14 @@ function isDownloadablePackage(pkg: LibraryPackage): boolean {
   return !!sourceId && (DOWNLOADABLE_SOURCES as readonly string[]).includes(sourceId);
 }
 
-/* ─────────────── Cálculo puro de la siembra (testable) ─────────────── */
+/* ─────────── Cálculo puro de la siembra (interno, sin efectos) ─────────── */
 
-export interface SeedPackageRef {
+interface SeedPackageRef {
   id: string;
   comingSoon?: boolean;
 }
 
-export interface SeedPlanInput {
+interface SeedPlanInput {
   /** Versión ya sembrada en este dispositivo/cuenta. */
   seededVersion: number;
   /** Versión objetivo (normalmente SEED_VERSION). */
@@ -415,9 +415,9 @@ export interface SeedPlanInput {
  * Decide qué ids debe instalar esta siembra, sin tocar disco ni red.
  * Devuelve [] si la versión ya está aplicada; si no, solo los ids que existen,
  * no están instalados, no se ofrecieron antes, no son `comingSoon` y no
- * descargan nada. Es la regla de `ensureDefaultsSeeded`, aislada para probarla.
+ * descargan nada. Es la regla que aplica `ensureDefaultsSeeded`, aislada sin efectos.
  */
-export function planSeedInstall(input: SeedPlanInput): string[] {
+function planSeedInstall(input: SeedPlanInput): string[] {
   if (input.seededVersion >= input.seedVersion) return [];
   const offered = new Set(input.alreadyOffered);
   const installed = new Set(input.installedIds);
