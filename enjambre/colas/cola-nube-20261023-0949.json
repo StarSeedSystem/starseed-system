@@ -1,0 +1,107 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "RTRTRC1013Cd",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Rescate de pruebas · Relevo entre cuentas: recoger lo que otra cuenta me dejó y retirarlo al leerlo",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTRC1013Cd («Rescate de pruebas · Relevo entre cuentas: recoger lo que otra cuenta me dejó y retirarlo al leerlo») se hizo en main por otro camino; su rama nube/38773108654 queda archivada en `refs/archivo/nube/38773108654` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.82)\n\nTU TAREA (RTRTRC1013C · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261021-075038-RTRTRC1013Cc`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261021-075038-RTRTRC1013Cc:refs/remotes/origin/nube/a1-20261021-075038-RTRTRC1013Cc\"` y `git cherry-pick --no-commit 5c6bf37c2096 3dbe2a8277a7 9db090309458 1545499892e4 9fa5267d6161 0e2120e516f0`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261021-075038-RTRTRC1013Cc"
+  },
+  {
+   "id": "GUI1021A",
+   "ola": "1021G",
+   "titulo": "Guías · textos del sistema: Protomolécula, malla, capas de conciencia y neuronas/cerebro",
+   "archivos": [
+    "src/lib/onboarding/guia-temas-sistema.ts",
+    "src/lib/onboarding/__tests__/guia-temas-sistema.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §2 y §3. Módulo PURO con el tipo `TemaGuia {key, titulo, cuerpo, voz, ruta, preguntaAurora, puntos: string[]}` y `TEMAS_SISTEMA` con los temas protomolecula, malla, capas-conciencia y neuronas-cerebro exactamente con los textos de §3. Exporta `temaPorClave`. Pruebas: claves únicas, rutas que empiezan por «/» salvo capas-conciencia (que lleva a Ajustes: usa la ruta real que abre los ajustes de inteligencia si la encuentras en el código; si no, `/agent`), `voz` más corta que `cuerpo`, y ningún texto dice «biométric». Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho)."
+  },
+  {
+   "id": "IMG1020A",
+   "ola": "1020U",
+   "titulo": "ComfyUI · plantillas puras de flujo (texto a imagen, imagen a imagen, escalado y variaciones por formato de publicación)",
+   "archivos": [
+    "src/lib/imagenes/flujos-comfyui.ts",
+    "src/lib/imagenes/__tests__/flujos-comfyui.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2: un ComfyUI real exige el GRAFO del flujo en formato API: objeto `{\"<id>\": {class_type, inputs}}` con enlaces `[\"<id>\", <salida>]`. Escribe constructores puros: `textoAImagen` (CheckpointLoaderSimple → CLIPTextEncode positivo y negativo → EmptyLatentImage → KSampler → VAEDecode → SaveImage), `imagenAImagen` (LoadImage → VAEEncode → KSampler con `denoise`), `escalar` (LoadImage → ImageScaleBy) y `variaciones` (el mismo flujo con N semillas que da quien llama). Formatos de publicación 1:1, 4:5, 9:16 y 16:9 con lados múltiplos de 8, cerca de 1 megapíxel (y una variante de ~0,26 MP para modelos de la gama SD 1.5). Lista blanca de nodos del núcleo (ningún nodo personalizado), muestreadores `euler`, `euler_ancestral`, `dpmpp_2m`, `dpmpp_sde` y planificadores `normal`, `karras`, `simple`; parámetros acotados (pasos 1–60, cfg 1–15, lado ≤ 2048) con error legible si no. Pruebas: cada formato respeta su proporción (±2 %) y múltiplos de 8; todos los enlaces apuntan a nodos que existen; ningún class_type fuera de la lista. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "PES1020A",
+   "ola": "1020U",
+   "titulo": "Capacidad · servicios pesados: sus requisitos y dónde los coloca la malla y las capas de conciencia",
+   "archivos": [
+    "src/lib/recursos/servicios-pesados.ts",
+    "src/lib/recursos/__tests__/servicios-pesados.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §3, regla de Alex: lo que pide RAM o GPU lo colocan la malla local y las capas de conciencia, nunca la neurona por su cuenta. Escribe un módulo puro con `REQUISITOS_SERVICIO` (comfyui, libretranslate, stirling-pdf, archivebox, openhands-agent-server, coolify; mismos datos que el catálogo JSON, `null` = sin medir; medido en el A1 el 2026-10-20: LibreTranslate 711 MiB, Stirling-PDF 1,4 GiB, ComfyUI con SD 1.5 4,1 GB y más de 10 min por imagen en CPU; arm64 comprobado para LibreTranslate, Stirling-PDF, ArchiveBox, ComfyUI y OpenHands) y `SERVICIOS_INSTALADOS` del A1 (cada uno en 127.0.0.1 bajo demanda: LibreTranslate 5000, Stirling-PDF 8180, ArchiveBox 8001, ComfyUI 8188, OpenHands 8010; se encienden al primer uso si caben y se apagan a los 15 min sin uso), `CAPAS_PUBLICAS_CONOCIDAS` (oracle-a1: 2 OCPU, 12288 MB, arm64, sin GPU, activa; cloud-run: inactiva con el motivo «facturación de Google desactivada desde el 2026-09-25»; espacios-hf: solo con permiso) y `colocarServicio(servicio, ofertas, contexto)` que usa `planificar` de `src/lib/recursos/oferta.ts` y devuelve `{donde: {tipo: \"aparato\"|\"cuenta\"|\"cerebro\"|\"malla\"|\"capa-publica\"|\"web-gratis\"|\"ninguno\", id?}, motivo, respaldo?, falta: string[]}` en el orden de §3. Reglas: privado solo aparato, cuenta o cerebro; una arquitectura no verificada para el servicio no se coloca en esa capa (va a `falta`: «medir arm64 en el A1»); RAM sin medir exige una oferta con medida y se anota «a medir»; GPU necesaria sin oferta con GPU → web gratis si no es privado, si no `ninguno` con lo que falta; una capa inactiva nunca se elige y su motivo aparece. Pruebas de cada regla. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "PES1020B",
+   "ola": "1020U",
+   "titulo": "Capacidad · un servidor del cerebro no inventa capacidad (medida o declarada, o «sin medir»)",
+   "archivos": [
+    "src/lib/recursos/adaptadores.ts",
+    "src/lib/recursos/__tests__/adaptadores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §3: `linkedServerToOfertaNeurona` pone 1 núcleo, 1024 MB y sin GPU a todo servidor de cómputo o almacenamiento, sin medir nada. Que lea `servidor.config.capacidad` (validada: `nucleos`, `ramLibreMb`, `gpu`, `vramMb`, `prestaMb`, `arquitectura` amd64|arm64, `fuente` medida|declarada, `medidaEn`) y, si no hay, deje cómputo y almacén a 0 (no elegible) en vez de inventar. Actualiza SOLO los casos de la prueba existente que esperaban 1024 y añade los nuevos: capacidad declarada, medida, ausente y con datos inválidos (se ignoran). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "CLF1020A",
+   "ola": "1020U",
+   "titulo": "Coolify · cliente puro en solo lectura (equipo y servidores) para las capas de conciencia",
+   "archivos": [
+    "src/lib/servidores/coolify.ts",
+    "src/lib/servidores/__tests__/coolify.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2: rutas verificadas el 2026-10-20: `GET {url}/api/v1/teams/current` (sonda: de qué equipo es el token) y `GET {url}/api/v1/servers`; cabecera `Authorization: Bearer <token>` con el valor entero tal cual (id|secreto). Cliente puro con `fetch` inyectado, `redirect: \"manual\"` y tope de tiempo: `sondear()` y `listarServidores()` (mapea solo los campos que vengan, lo que falte es «sin dato»). Errores honestos: 401 token inválido; 403 «sin permiso o tu IP no está en la lista permitida»; 404 «un administrador debe encender la API de Coolify». El token nunca aparece en un error ni en un registro. NADA de desplegar, arrancar ni parar: esas rutas no están verificadas. Pruebas con fetch simulado de cada caso. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "TRD1020A",
+   "ola": "1020U",
+   "titulo": "Traducción · cliente puro de LibreTranslate (traducir por lotes, idiomas, detectar, salud)",
+   "archivos": [
+    "src/lib/traduccion/libretranslate.ts",
+    "src/lib/traduccion/__tests__/libretranslate.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Cliente puro con `fetch` inyectado: `traducir({q: texto o lista, source: \"auto\" o código, target, format: \"text\"|\"html\"})` → `POST {base}/translate` en JSON (con `api_key` solo si quien llama la pasa; nunca se guarda) → `translatedText` (texto o lista) y `detectedLanguage` cuando el origen es auto; `idiomas()` → `GET {base}/languages`; `detectar(q)` → `POST {base}/detect`; `salud()` → `GET {base}/health`. Parte en lotes por un límite de caracteres configurable y respeta el orden. Errores 400/403/429/500 en español claro. Pruebas con fetch simulado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "TRD1020C",
+   "ola": "1020U",
+   "titulo": "Traducción · toda la página: recoger los textos traducibles, aplicar, volver al original y seguir lo nuevo",
+   "archivos": [
+    "src/lib/traduccion/pagina.ts",
+    "src/lib/traduccion/__tests__/pagina.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Funciones sobre el DOM (pruebas en jsdom): `recogerTextos(raiz)` devuelve los nodos de texto visibles y no vacíos, nunca dentro de `script`, `style`, `noscript`, `code`, `pre`, `textarea`, `input`, `select`, `[contenteditable]`, `[translate=no]`, `[data-no-traducir]` ni `[hidden]`; también los atributos `title`, `alt`, `aria-label` y `placeholder`. `aplicar(nodos, traducciones, idioma)` guarda cada original (WeakMap) y marca el elemento padre con `lang` y `data-traducido`; `restaurar(raiz)` lo devuelve todo como estaba; `observar(raiz, alNuevo)` con MutationObserver devuelve una función para parar y no vuelve a traducir lo ya traducido. Pruebas de cada exclusión, ida y vuelta exacta y texto nuevo detectado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "RTRTRC1013Cd",
+   "GUI1021A",
+   "TRD1020A",
+   "IMG1020A",
+   "TRD1020C",
+   "CLF1020A",
+   "PES1020A",
+   "PES1020B"
+  ]
+ }
+}
