@@ -63,6 +63,9 @@ import { applyTheme as applyThemePack } from "@/lib/design/theme-engine";
 // para que aparezcan en la Biblioteca y el Mezclador los liste como fuentes.
 import { DESIGN_ELEMENTS, type DesignElementKind } from "@/lib/design/design-elements";
 import { REPO_DECISIONES } from "./fuentes-decision";
+// Repo builtin «Biblioteca externa» (Ola 1020). El import del módulo es seguro:
+// solo trae tipos de este fichero (erased), no hay ciclo en tiempo de ejecución.
+import { REPO_EXTERNOS_1020 } from "./repos-externos-1020";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -2216,7 +2219,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO, REPO_EXTERNOS_1020];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
@@ -2256,7 +2259,8 @@ export async function addRepoByUrl(url: string): Promise<InstallResult & { repo?
     repo.id === STARSEED_THEMES_REPO.id ||
     repo.id === STARSEED_DESIGN_ELEMENTS_REPO.id ||
     repo.id === MINE_REPO_ID ||
-    repo.id === FONDO_SHADER_REPO.id
+    repo.id === FONDO_SHADER_REPO.id ||
+    repo.id === REPO_EXTERNOS_1020.id
   ) {
     return { ok: false, message: `Ese id de repo está reservado (${repo.id}).` };
   }
