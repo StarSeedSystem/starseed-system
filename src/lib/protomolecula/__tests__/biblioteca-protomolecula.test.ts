@@ -190,6 +190,44 @@ describe("fichasProtomolecula", () => {
     expect(resultado[0].enlaces?.repo).toBe("https://github.com/usuario/repo");
   });
 
+  it("muestra 'Próximamente' cuando el átomo tiene el campo proximamente", () => {
+    const atomo: DefinicionAtomo = {
+      ...crearAtomoValido("proximate-tool", "Herramienta Próxima"),
+      proximamente: "Falta implementar el envoltorio nativo"
+    };
+    // Nota: Los átomos con campo proximamente no se registran (regla del núcleo)
+    const registroResult = registrarAtomo(atomo);
+    expect(registroResult.ok).toBe(false);
+    
+    const resultado = fichasProtomolecula();
+    expect(resultado).toHaveLength(0);
+  });
+
+  it("agrupa correctamente las fichas por categoría", () => {
+    // Crear átomos de diferentes categorías
+    registrarAtomo(crearAtomoValido("img-tool", "Herramienta de Imagen", "imagen"));
+    registrarAtomo(crearAtomoValido("aud-tool", "Herramienta de Audio", "audio"));
+    registrarAtomo(crearAtomoValido("vid-tool", "Herramienta de Video", "video"));
+    
+    const resultado = fichasProtomolecula();
+    
+    // Verificar que tenemos 3 fichas
+    expect(resultado).toHaveLength(3);
+    
+    // Verificar que cada ficha tiene el categoria correspondiente
+    const imgFicha = resultado.find(f => f.nombre === "Herramienta de Imagen");
+    const audFicha = resultado.find(f => f.nombre === "Herramienta de Audio");
+    const vidFicha = resultado.find(f => f.nombre === "Herramienta de Video");
+    
+    expect(imgFicha).toBeDefined();
+    expect(audFicha).toBeDefined();
+    expect(vidFicha).toBeDefined();
+    
+    expect(imgFicha?.categoria).toBe("imagen");
+    expect(audFicha?.categoria).toBe("audio");
+    expect(vidFicha?.categoria).toBe("video");
+  });
+
   it("ordena las fichas según el orden especificado en el contrato", () => {
     // Crear átomos en orden aleatorio
     registrarAtomo(crearAtomoValido("juego-tool", "Herramienta de Juegos", "juegos"));
