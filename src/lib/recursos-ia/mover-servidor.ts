@@ -162,15 +162,26 @@ export function normalizarRuta(ruta: string): string {
     const esAbsoluta = ruta.startsWith("/");
     const partes = ruta.split("/").filter((p) => p && p !== ".");
     const res: string[] = [];
+    let sube = 0;
     for (const p of partes) {
         if (p === "..") {
-            if (res.length > 0) res.pop();
-            else if (!esAbsoluta) res.push("..");
+            if (res.length > 1) {
+                res.pop();
+            } else if (res.length === 1 && !esAbsoluta) {
+                // Sólo un elemento: subir por encima del raíz relativa
+                sube++;
+                res.length = 0;
+            } else if (!esAbsoluta) {
+                sube++;
+            } else {
+                res.pop();
+            }
         } else {
             res.push(p);
         }
     }
     let out = res.join("/");
+    if (sube > 0) out = "../".repeat(sube) + out;
     if (esAbsoluta) out = "/" + out;
     return out || (esAbsoluta ? "/" : ".");
 }
@@ -329,10 +340,12 @@ export async function copiarCarpetaConSha(
 export async function moverPesos(
     entrada: MoverEntrada,
     volumenes: VolumenDetectado[],
+    opciones?: { espacioFn?: (montaje: string) => Promise<EspacioResultado> },
 ): Promise<MoverResultado> {
     const inicio = Date.now();
     const avisos: string[] = [];
     const { origen, destino, sha256Esperado, sobrescribir = false } = entrada;
+    const getEspacio = opciones?.espacioFn ?? espacioDeMontaje;
 
     // Validar que las rutas están en volúmenes detectados
     if (!rutaEnVolumenes(origen, volumenes)) {
@@ -391,7 +404,7 @@ export async function moverPesos(
     }
 
     // Verificar espacio libre
-    const espacio = await espacioDeMontaje(volDestino.montaje);
+    const espacio = await getEspacio(volDestino.montaje);
     const { cabe, necesarioConMargen } = cabeConMargen(espacio.libreBytes, tamañoNecesario);
     if (!cabe) {
         return {

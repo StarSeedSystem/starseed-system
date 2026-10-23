@@ -21,6 +21,7 @@ import {
     moverPesos,
     crearArchivoTemporal,
     crearCarpetaTemporal,
+    GIB,
     type VolumenDetectado,
     type MoverEntrada,
 } from "../mover-servidor";
@@ -28,8 +29,9 @@ import {
 /* ───────────────────────────── Helpers ───────────────────────────── */
 
 let tempRoot: string;
+// Volúmenes de prueba SIN "/" para que no coincida todo
 const vols: VolumenDetectado[] = [
-    { montaje: "/", nombre: "Sistema", totalGb: 500, libreGb: 100, externo: false, tipoDisco: "nvme", conexion: "interna" },
+    { montaje: "/Users/alex", nombre: "Sistema", totalGb: 500, libreGb: 100, externo: false, tipoDisco: "nvme", conexion: "interna" },
     { montaje: "/Volumes/Externo", nombre: "Externo", totalGb: 1000, libreGb: 800, externo: true, tipoDisco: "ssd", conexion: "usb" },
 ];
 
@@ -57,7 +59,7 @@ describe("funciones puras", () => {
     it("rutaEnVolumenes: true si la ruta está dentro de un volumen", () => {
         expect(rutaEnVolumenes("/Users/alex/modelos/bitnet", vols)).toBe(true);
         expect(rutaEnVolumenes("/Volumes/Externo/modelos", vols)).toBe(true);
-        expect(rutaEnVolumenes("/", vols)).toBe(true);
+        expect(rutaEnVolumenes("/Users/alex", vols)).toBe(true);
         expect(rutaEnVolumenes("/Volumes/Externo", vols)).toBe(true);
     });
 
@@ -65,6 +67,7 @@ describe("funciones puras", () => {
         expect(rutaEnVolumenes("/mnt/otro/modelos", vols)).toBe(false);
         expect(rutaEnVolumenes("/home/otro", vols)).toBe(false);
         expect(rutaEnVolumenes("/Volumes/NoExiste/algo", vols)).toBe(false);
+        expect(rutaEnVolumenes("/", vols)).toBe(false); // "/" no está en los volúmenes
     });
 
     it("calcularTamano: archivo devuelve su tamaño", async () => {
@@ -100,7 +103,8 @@ describe("funciones puras", () => {
         expect(normalizarRuta("/a/b/../c")).toBe("/a/c");
         expect(normalizarRuta("/a/./b")).toBe("/a/b");
         expect(normalizarRuta("//a//b///")).toBe("/a/b");
-        expect(normalizarRuta("a/b/../../c")).toBe("/c");
+        // Ruta relativa: a/b/../../c → sube dos niveles desde a/b → .. → luego c → ../c
+        expect(normalizarRuta("a/b/../../c")).toBe("../c");
     });
 
     it("construirRutaDestino une carpeta destino + nombre origen", () => {
@@ -297,7 +301,9 @@ describe("moverPesos (integración)", () => {
         const origen = join(origenDir, "modelo.bin");
         await writeFile(origen, "test");
 
-        const entrada: MoverEntrada = { origen, destino: "/mnt/otro/destino" };
+        // Usar una ruta que no esté en los volúmenes y no requiera root
+        const destinoFuera = join(tmpdir(), "no-existe", "destino");
+        const entrada: MoverEntrada = { origen, destino: destinoFuera };
         const resultado = await moverPesos(entrada, vols);
 
         expect(resultado.ok).toBe(false);
@@ -323,11 +329,19 @@ describe("moverPesos (integración)", () => {
         await writeFile(origen, "x".repeat(50 * 1024 * 1024)); // 50 MB
         const sha = await sha256DeArchivo(origen);
 
-        // Solo 40 MB libres → con margen 10 % necesita 55 MB → no cabe
+        // Simular poco espacio: 40 MB libres → con margen 10 % necesita 55 MB → no cabe
         const volsPocos = [volConMontaje(origenDir, 100), volConMontaje(destinoDir, 0.04)];
+        const espacioMock = async (): Promise<EspacioResultado> => ({
+            libreBytes: 40 * 1024 * 1024,
+            totalBytes: 100 * 1024 * 1024,
+            libreGb: 0.04,
+            totalGb: 0.1,
+            cabe: false,
+            necesarioConMargen: 55 * 1024 * 1024,
+        });
 
         const entrada: MoverEntrada = { origen, destino: destinoDir, sha256Esperado: sha };
-        const resultado = await moverPesos(entrada, volsPocos);
+        const resultado = await moverPesos(entrada, volsPocos, { espacioFn: espacioMock });
 
         expect(resultado.ok).toBe(false);
         expect(resultado.error).toContain("Espacio insuficiente");
@@ -335,8 +349,11 @@ describe("moverPesos (integración)", () => {
     });
 
     it("falla si el origen no existe", async () => {
-        const entrada: MoverEntrada = { origen: "/no/existe/modelo.bin", destino: destinoDir };
-        const resultado = await moverPesos(entrada, vols);
+        // Usar una ruta que SÍ está en los volúmenes pero no existe
+        const origenInexistente = join(origenDir, "no-existe.bin");
+        const entrada: MoverEntrada = { origen: origenInexistente, destino: destinoDir };
+        const volsTest = [volConMontaje(origenDir, 100), volConMontaje(destinoDir, 100)];
+        const resultado = await moverPesos(entrada, volsTest);
 
         expect(resultado.ok).toBe(false);
         expect(resultado.error).toContain("no existe");
