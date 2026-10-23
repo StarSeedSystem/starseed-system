@@ -10,6 +10,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import autocuracion_mando as A  # noqa: E402
 
 
+class BloqueoDeAltaViejo(unittest.TestCase):
+    ERR = ("fatal: cannot remove a locked working tree, lock reason: initializing\n"
+           "use 'remove -f -f' to override or unlock first")
+
+    def test_solo_un_alta_interrumpida_y_vieja(self):
+        self.assertTrue(A.bloqueo_de_alta_viejo(self.ERR, 3 * 3600))
+        self.assertFalse(A.bloqueo_de_alta_viejo(self.ERR, 60))  # se está creando ahora
+        self.assertFalse(A.bloqueo_de_alta_viejo(self.ERR, None))
+        self.assertFalse(A.bloqueo_de_alta_viejo(
+            "fatal: cannot remove a locked working tree, lock reason: lo guardo yo", 3 * 3600))
+        self.assertFalse(A.bloqueo_de_alta_viejo("fatal: contains modified or untracked files", 3 * 3600))
+
+
 class DecidirReinicio(unittest.TestCase):
     def test_si_responde_no_se_toca(self):
         self.assertEqual(A.decidir_reinicio([True], 1000, None)[0], False)

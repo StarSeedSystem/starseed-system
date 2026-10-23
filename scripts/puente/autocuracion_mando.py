@@ -448,6 +448,24 @@ def _traer_en_fondo():
     return True
 
 
+BLOQUEO_VIEJO_S = 30 * 60
+
+
+def bloqueo_de_alta_viejo(error, edad_s, minimo_s=BLOQUEO_VIEJO_S):
+    """PURA: ¿el fallo es un bloqueo «initializing» de un `worktree add` que ya no está en marcha?"""
+    texto = str(error or "")
+    return "locked working tree" in texto and "initializing" in texto and edad_s is not None and edad_s >= minimo_s
+
+
+def _edad_bloqueo(ruta):
+    """Segundos desde que se bloqueó el worktree (`.git/worktrees/<nombre>/locked`); None si no se sabe."""
+    marca = os.path.join(RAIZ, ".git", "worktrees", os.path.basename(str(ruta).rstrip("/")), "locked")
+    try:
+        return time.time() - os.path.getmtime(marca)
+    except OSError:
+        return None
+
+
 def _git_wt(ruta, comando, *args):
     """El `git_fn` que espera `limpieza_worktrees`: la SALIDA para «status --porcelain», el
     CÓDIGO para «merge-base --is-ancestor …» y «worktree remove <ruta>» desde el repo principal."""
@@ -456,8 +474,18 @@ def _git_wt(ruta, comando, *args):
     if comando == "worktree remove":
         r = subprocess.run(["git", "-C", RAIZ, "worktree", "remove", *args],
                            capture_output=True, text=True, timeout=120)
+        error = (r.stderr or r.stdout or "").strip()
+        # (2026-10-23) Un `git worktree add` interrumpido deja el worktree bloqueado con motivo
+        # «initializing» y la limpieza fallaba en cada pasada. Solo se suelta si el bloqueo lleva
+        # más de 30 min (no es uno que se esté creando ahora); el plan ya excluye tareas vivas.
+        if r.returncode != 0 and args and bloqueo_de_alta_viejo(error, _edad_bloqueo(args[-1])):
+            subprocess.run(["git", "-C", RAIZ, "worktree", "unlock", args[-1]],
+                           capture_output=True, text=True, timeout=60)
+            r = subprocess.run(["git", "-C", RAIZ, "worktree", "remove", *args],
+                               capture_output=True, text=True, timeout=120)
+            error = (r.stderr or r.stdout or "").strip()
         if r.returncode != 0:
-            raise RuntimeError((r.stderr or r.stdout or "git worktree remove falló").strip()[:200])
+            raise RuntimeError((error or "git worktree remove falló")[:200])
         return 0
     r = subprocess.run(["git", "-C", ruta] + comando.split(), capture_output=True, text=True, timeout=60)
     if comando.startswith("status"):
