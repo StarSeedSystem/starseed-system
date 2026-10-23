@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- CodeGraph (colbymchenry/codegraph, MIT): pone al día el índice de main cada 15 min para el
+     contexto de los agentes (MCP con --path a main y --no-watch). Telemetría apagada.
+     Instalar: cp a ~/Library/LaunchAgents y `launchctl bootstrap gui/$(id -u) <plist>`.
+     Contrato: architecture/repos-3d-oido-agentes-1023.md §2. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.starseed.codegraph-sync</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/alex/.local/bin/codegraph</string>
+        <string>sync</string>
+        <string>/Users/alex/Documents/starseed-os-main</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>CODEGRAPH_TELEMETRY</key>
+        <string>0</string>
+        <key>DO_NOT_TRACK</key>
+        <string>1</string>
+        <key>PATH</key>
+        <string>/Users/alex/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>900</integer>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>Nice</key>
+    <integer>10</integer>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>StandardOutPath</key>
+    <string>/tmp/starseed-codegraph-sync.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/starseed-codegraph-sync.log</string>
+</dict>
+</plist>
