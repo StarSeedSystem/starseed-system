@@ -70,6 +70,21 @@ describe("Manifiesto de la Forja de Voz 1.58", () => {
     expect(progresoFase(fase)).toBe(50);
   });
 
+  test("progresoFase de una fase con 2 de 4 hechos es 50", () => {
+    const fase: FaseForja = {
+      id: 1,
+      nombre: "programa único",
+      descripcion: "algo",
+      hitos: [
+        { id: "hito1", titulo: "Hito 1", estado: "hecho" },
+        { id: "hito2", titulo: "Hito 2", estado: "hecho" },
+        { id: "hito3", titulo: "Hito 3", estado: "pendiente" },
+        { id: "hito4", titulo: "Hito 4", estado: "pendiente" }
+      ]
+    };
+    expect(progresoFase(fase)).toBe(50);
+  });
+
   test("todos los repos empiezan por https://github.com/", () => {
     MODELOS_FUENTE.forEach(modelo => {
       expect(modelo.repo).toMatch(/^https:\/\/github\.com\//);

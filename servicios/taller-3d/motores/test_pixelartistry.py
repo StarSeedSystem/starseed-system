@@ -213,6 +213,23 @@ class RemallarImagen(unittest.TestCase):
         self.assertEqual(r["glb"], "malla.glb")
         self.assertEqual(llamadas["n"], 3)
 
+    def test_remallar_cuando_no_disponible_devuelve_error_y_procedencia(self):
+        """Con el motor no disponible (Linux simulado), remallar_imagen devuelve el dict de
+        error: glb None, fallo con el motivo de disponibilidad, procedencia del flujo y los
+        nodos ya presente, y métricas a cero (sin VRAM medida)."""
+        with mock.patch.object(pa.platform, "system", return_value="Linux"):
+            r = pa.remallar_imagen("a.png", 512, carpeta_workflows=self.tmp, dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        self.assertIsInstance(r["fallo"], str)
+        self.assertIn("solo windows", r["fallo"].lower())
+        self.assertIsInstance(r["procedencia"], list)
+        self.assertGreaterEqual(len(r["procedencia"]), 2)
+        piezas = [p["pieza"] for p in r["procedencia"]]
+        self.assertEqual(piezas, ["flujo cerrada", "nodos MostAadTech"])
+        self.assertGreaterEqual(r["segundos"], 0.0)
+        self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
+
     def test_tiempo_agotado(self):
         carpeta = _flujo_en_disco(self.tmp)
         comfy = ComfyFalso(historial={"p1": None})
