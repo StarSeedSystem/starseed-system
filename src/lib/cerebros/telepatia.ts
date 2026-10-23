@@ -206,3 +206,112 @@ export function planSincronizacion(
 
   return ops;
 }
+/** Etiquetas legibles de cada configuración que un vínculo puede compartir (§5). */
+export const ETIQUETAS_CONFIGURACION: Record<(typeof CONFIGURACIONES_TELEPATIA)[number], string> = {
+  servers: "Servidores",
+  runtimes: "Entornos de ejecución",
+  skills: "Habilidades",
+  storage: "Almacenamiento",
+  apps: "Aplicaciones",
+  moa: "Mezcla de modelos",
+  channels: "Canales",
+  conectores: "Conectores",
+  "includes.personalities": "Personalidades incluidas",
+};
+
+export function etiquetaConfiguracion(clave: string): string {
+  return ETIQUETAS_CONFIGURACION[clave as keyof typeof ETIQUETAS_CONFIGURACION] ?? clave;
+}
+
+/** Configuraciones que viven en el CEREBRO (no en las preferencias de este aparato). */
+export const CONFIGURACIONES_DEL_CEREBRO = ["includes.personalities"] as const;
+
+export function esConfiguracionDelCerebro(clave: string): boolean {
+  return (CONFIGURACIONES_DEL_CEREBRO as readonly string[]).includes(clave);
+}
+
+/** Claves de configuración que comparte este vínculo: todas si el alcance es el cerebro completo. */
+export function clavesDeAlcance(v: VinculoTelepatico): string[] {
+  return v.alcance.completo ? [...CONFIGURACIONES_TELEPATIA] : [...v.alcance.configuraciones];
+}
+
+/** Ámbito del vínculo con una cuenta externa: el cerebro entero, una memoria o una carpeta (§5). */
+export function ambitoExterno(
+  v: VinculoTelepatico,
+  cerebroId: string,
+): { ambitoTipo: "cerebro" | "memoria" | "carpeta"; ambitoId: string } {
+  if (!v.alcance.completo && v.alcance.memorias.length === 1 && v.alcance.carpetas.length === 0) {
+    return { ambitoTipo: "memoria", ambitoId: v.alcance.memorias[0] };
+  }
+  if (!v.alcance.completo && v.alcance.carpetas.length === 1 && v.alcance.memorias.length === 0) {
+    return { ambitoTipo: "carpeta", ambitoId: v.alcance.carpetas[0] };
+  }
+  return { ambitoTipo: "cerebro", ambitoId: cerebroId };
+}
+
+export interface EntidadTelepatia {
+  id: string;
+  tipo: string;
+  nombre: string;
+}
+
+function fechaCorta(iso: string | null | undefined): string {
+  if (!iso) return "sin medida";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "sin medida";
+  return new Date(t).toLocaleString("es", { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** El destino en palabras: nombre real si se conoce y, si no, su id corto. */
+export function destinoEnPalabras(
+  v: VinculoTelepatico,
+  cerebros: Array<{ id: string; name: string }> = [],
+  entidades: EntidadTelepatia[] = [],
+): string {
+  const destino = v.destino;
+  if (destino.tipo === "cerebro") {
+    const otro = cerebros.find((c) => c.id === destino.id);
+    return otro ? otro.name : `Cerebro no encontrado (${destino.id.slice(0, 8)})`;
+  }
+  if (destino.tipo === "cuenta") return `Cuenta externa «${destino.id}»`;
+  const entidad = entidades.find((e) => e.id === destino.id && e.tipo === destino.tipo);
+  const etiqueta = destino.tipo === "grupo" ? "Grupo" : destino.tipo === "comunidad" ? "Comunidad" : "Página";
+  return entidad ? `${etiqueta} «${entidad.nombre}»` : `${etiqueta} no encontrado (${destino.id.slice(0, 8)})`;
+}
+
+/** Alcance en palabras, con las cuentas reales de lo que se comparte. */
+export function alcanceResumido(alcance: VinculoTelepatico["alcance"]): string {
+  if (alcance.completo) return "Cerebro completo";
+  const partes: string[] = [];
+  const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
+  if (alcance.memorias.length) partes.push(plural(alcance.memorias.length, "memoria", "memorias"));
+  if (alcance.carpetas.length) partes.push(plural(alcance.carpetas.length, "carpeta", "carpetas"));
+  if (alcance.configuraciones.length) partes.push(plural(alcance.configuraciones.length, "configuración", "configuraciones"));
+  return partes.length ? partes.join(", ") : "Nada seleccionado";
+}
+
+export function direccionEnPalabras(direccion: VinculoTelepatico["direccion"]): string {
+  if (direccion === "enviar") return "Enviar desde este cerebro";
+  if (direccion === "recibir") return "Recibir en este cerebro";
+  return "En ambas direcciones";
+}
+
+export function accesoEnPalabras(acceso: VinculoTelepatico["acceso"]): string {
+  return acceso === "escribir" ? "Lectura y escritura" : "Solo lectura";
+}
+
+export interface EstadoVinculo {
+  estado: "activo" | "pausado" | "pendiente" | "caducado";
+  motivo: string;
+}
+
+/** Estado y su motivo, sin inventar: si no hay última sincronización, se dice. */
+export function estadoConMotivo(v: VinculoTelepatico, ahora: number = Date.now()): EstadoVinculo {
+  if (v.expiraEn && estaCaducado(v, ahora)) {
+    return { estado: "caducado", motivo: `Caducó el ${fechaCorta(v.expiraEn)}.` };
+  }
+  if (v.estado === "pausado") return { estado: "pausado", motivo: "Pausado a mano: no se sincroniza." };
+  if (v.estado === "pendiente") return { estado: "pendiente", motivo: "Esperando que el otro lado lo acepte." };
+  if (!v.ultimaSync) return { estado: "activo", motivo: "Activo; todavía no se ha sincronizado." };
+  return { estado: "activo", motivo: `Activo; última sincronización ${fechaCorta(v.ultimaSync)}.` };
+}

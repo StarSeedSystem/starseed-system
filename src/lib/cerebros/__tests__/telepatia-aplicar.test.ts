@@ -173,6 +173,14 @@ describe("sincronizarAhora · destino cuenta externa", () => {
     vi.unstubAllGlobals();
   });
 
+  it("devuelve el cerebro guardado para que la ficha pinte lo que quedó", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ vinculo: { id: "ext-9" }, token: "tok" }), { status: 200 })));
+    const res = await sincronizarAhora(cerebro("brain-1"), vinculo({ destino: { tipo: "cuenta", id: "account-1" } }));
+    expect(res.cerebroGuardado?.id).toBe("brain-1");
+    expect(((res.cerebroGuardado?.config.telepatia as VinculoTelepatico[]) ?? [])[0].id).toBe("v-1");
+    vi.unstubAllGlobals();
+  });
+
   it("si la creación falla, lo dice sin token", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Sin sesión." }), { status: 401 })));
     const res = await sincronizarAhora(cerebro("brain-1"), vinculo({ destino: { tipo: "cuenta", id: "account-1" } }));
@@ -180,5 +188,13 @@ describe("sincronizarAhora · destino cuenta externa", () => {
     expect(res.token).toBeUndefined();
     expect(res.motivo).toContain("Sin sesión");
     vi.unstubAllGlobals();
+  });
+
+  it("un vínculo cuyo token ya se entregó no crea otro", async () => {
+    const res = await sincronizarAhora(cerebro("brain-1"), vinculo({ destino: { tipo: "cuenta", id: "ext-9" }, ultimaSync: new Date().toISOString() }));
+    expect(res.ok).toBe(true);
+    expect(res.token).toBeUndefined();
+    expect(res.motivo).toContain("ya se entregó");
+    expect(mocks.saveBrain).not.toHaveBeenCalled();
   });
 });

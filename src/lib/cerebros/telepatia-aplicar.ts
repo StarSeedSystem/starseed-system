@@ -6,7 +6,7 @@
  * escribe cada archivo con `meta.telepatia = v.id`, nunca borra ni mezcla, y copia
  * las claves `starseed.brain.<id>.<config>` de localStorage según las ops de config.
  */
-import { type Brain, saveBrain } from "@/lib/brains/brains";
+import { saveBrain, type Brain } from "@/lib/brains/brains";
 import { createClient } from "@/utils/supabase/client";
 import { listMemoryFiles, type MemoryFile, saveMemoryFile } from "@/lib/cerebro/memory-files";
 import { pushPreferences } from "@/lib/settings-sync";
@@ -26,6 +26,8 @@ export interface ResultadoSincronizacion {
   estado: VinculoTelepatico["estado"];
   motivo?: string;
   token?: string;
+  /** El cerebro guardado con el vínculo ya actualizado: la ficha pinta lo que de verdad quedó. */
+  cerebroGuardado?: Brain;
 }
 
 export async function guardarVinculo(cerebro: Brain, v: VinculoTelepatico): Promise<Brain | null> {
@@ -127,12 +129,13 @@ async function sincronizarCerebroPropio(
     }
   }
   if (configCopiada) await pushPreferences();
-  await guardarVinculo(cerebro, { ...v, ultimaSync: new Date().toISOString() });
+  const guardado = await guardarVinculo(cerebro, { ...v, ultimaSync: new Date().toISOString() });
   return {
     ok: fallidas === 0,
     operaciones: hechas,
     estado: v.estado,
     motivo: fallidas > 0 ? `${fallidas} operaciones no se pudieron escribir.` : undefined,
+    cerebroGuardado: guardado ?? undefined,
   };
 }
 
@@ -154,12 +157,13 @@ async function darAccesoEntidad(
       sections: v.alcance.memorias.length > 0 ? v.alcance.memorias : undefined,
     };
     await upsertGrant(ref, grant);
-    await guardarVinculo(cerebro, { ...v, estado: "activo", ultimaSync: new Date().toISOString() });
+    const guardado = await guardarVinculo(cerebro, { ...v, estado: "activo", ultimaSync: new Date().toISOString() });
     return {
       ok: true,
       operaciones: 1,
       estado: "activo",
       motivo: "Con la lectura compartida ya aplicada, sus miembros leen este cerebro; la escritura sigue siendo solo del dueño.",
+      cerebroGuardado: guardado ?? undefined,
     };
   } catch (e) {
     return { ok: false, operaciones: 0, estado: v.estado, motivo: e instanceof Error ? e.message : "No se pudo dar acceso." };
@@ -170,6 +174,16 @@ async function crearVinculoCuenta(
   cerebro: Brain,
   v: VinculoTelepatico,
 ): Promise<ResultadoSincronizacion> {
+  // El token se acuña UNA vez, al crear el vínculo: un vínculo que ya se entregó no crea otro.
+  if (v.ultimaSync) {
+    return {
+      ok: true,
+      operaciones: 0,
+      estado: v.estado,
+      motivo:
+        "El token de la cuenta externa ya se entregó al crear el vínculo y no se vuelve a mostrar. Para compartir otra cosa, crea otro vínculo.",
+    };
+  }
   const soloCarpetas = !v.alcance.completo && v.alcance.memorias.length === 0 && v.alcance.configuraciones.length === 0 && v.alcance.carpetas.length > 0;
   const soloMemoria = !v.alcance.completo && v.alcance.carpetas.length === 0 && v.alcance.configuraciones.length === 0 && v.alcance.memorias.length === 1;
   const ambitoTipo = soloCarpetas ? "carpeta" : soloMemoria ? "memoria" : "cerebro";
@@ -188,13 +202,13 @@ async function crearVinculoCuenta(
     });
     const data = (await resp.json()) as { error?: string; token?: string; vinculo?: { id?: string; prefijo?: string } };
     if (!resp.ok || !data.token) throw new Error(data.error || "No se pudo crear el vínculo externo.");
-    await guardarVinculo(cerebro, {
+    const guardado = await guardarVinculo(cerebro, {
       ...v,
       estado: "activo",
       ultimaSync: new Date().toISOString(),
       destino: { ...v.destino, id: data.vinculo?.id || data.vinculo?.prefijo || v.destino.id },
     });
-    return { ok: true, operaciones: 1, estado: "activo", token: data.token };
+    return { ok: true, operaciones: 1, estado: "activo", token: data.token, cerebroGuardado: guardado ?? undefined };
   } catch (e) {
     return { ok: false, operaciones: 0, estado: v.estado, motivo: e instanceof Error ? e.message : "No se pudo crear el vínculo externo." };
   }
