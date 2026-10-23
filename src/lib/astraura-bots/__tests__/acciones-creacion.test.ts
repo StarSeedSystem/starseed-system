@@ -70,6 +70,8 @@ describe("xr.intencion", () => {
   it("lo que no sale de la cuenta también pide confirmación, con un título honesto", () => {
     const r = ejecutarIntencionXR(voz("llévame a la estación Cumbre"), ctxVoz);
     expect(r.voz.ok && r.voz.tarjeta).toBe(null);
+    expect(r.previo).toEqual({});
+    expect(r.motivo).toBe("Tarjeta lista: no se hace nada hasta que la confirmes.");
     expect(r.tarjeta).toEqual({ titulo: TITULO_PROPUESTA_BOT, lineas: ["Ir a «Cumbre»"], acciones: TARJETA });
   });
   it("sin contexto no adivina: pregunta y no hay tarjeta", () => {
@@ -83,6 +85,10 @@ describe("xr.intencion", () => {
     expect(noTexto).toMatchObject({ ok: false, previo: {}, tarjeta: null, motivo: expect.stringContaining("solo traduce") });
     expect(vacia.accion).toBeNull();
     expect(vacia.problemas.join(" ")).toContain("frase");
+  });
+  it("si una frase vacía se cuela hasta el ejecutor, pregunta y no hay tarjeta", () => {
+    const r = ejecutarIntencionXR({ tipo: "xr.intencion", args: { frase: "" } }, ctxVoz);
+    expect(r).toMatchObject({ ok: false, previo: {}, tarjeta: null, motivo: "No te he oído. Dime qué quieres hacer." });
   });
   it("avisa de que espera la confirmación solo cuando hay tarjeta", () => {
     const onStatus = vi.fn();
