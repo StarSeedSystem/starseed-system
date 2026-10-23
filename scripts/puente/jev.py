@@ -223,6 +223,144 @@ def _intenta_explabs(estado, preguntas, quien=None):
     return None, None
 
 
+def _traducir_preguntas_a_decisions(preguntas):
+    """Convierte preguntas de Jev (noul/choice/score) a formato OpenAI Decisions API."""
+    decisions_questions = []
+    for nombre, q in preguntas.items():
+        if not isinstance(q, dict):
+            continue
+        tipo = q.get("type")
+        instructions = q.get("instructions", "")
+        if tipo == "noul":
+            decisions_questions.append({
+                "type": "predicate",
+                "instructions": instructions,
+                "name": nombre
+            })
+        elif tipo == "choice":
+            criteria = q.get("criteria", {})
+            choices = [{"value": k, "description": v} for k, v in criteria.items()]
+            decisions_questions.append({
+                "type": "choice",
+                "instructions": instructions,
+                "choices": choices,
+                "name": nombre
+            })
+        elif tipo == "score":
+            criteria = q.get("criteria", [])
+            levels = [{"label": str(n), "description": str(n)} for n in criteria]
+            decisions_questions.append({
+                "type": "score",
+                "instructions": instructions,
+                "levels": levels,
+                "name": nombre
+            })
+    return decisions_questions
+
+
+def _traducir_respuestas_de_decisions(respuestas, preguntas_originales):
+    """Convierte respuestas de OpenAI Decisions API a formato Jev."""
+    jev_respuestas = {}
+    for ans in respuestas or []:
+        nombre = ans.get("name")
+        tipo = ans.get("type")
+        if not nombre or nombre not in preguntas_originales:
+            continue
+        q_orig = preguntas_originales[nombre]
+        q_type = q_orig.get("type") if isinstance(q_orig, dict) else None
+        if tipo == "predicate" and q_type == "noul":
+            prob = ans.get("probability")
+            if isinstance(prob, (int, float)):
+                jev_respuestas[nombre] = {"type": "noul", "noul": float(prob)}
+        elif tipo == "choice" and q_type == "choice":
+            choice = ans.get("choice")
+            probs = ans.get("probabilities", [])
+            conf = ans.get("confidence", 0.0)
+            prob_dict = {}
+            for p in probs:
+                val = p.get("value")
+                prob_val = p.get("probability")
+                if val is not None and isinstance(prob_val, (int, float)):
+                    prob_dict[str(val)] = float(prob_val)
+            jev_respuestas[nombre] = {
+                "type": "choice",
+                "choice": choice,
+                "probabilities": prob_dict,
+                "confidence": float(conf)
+            }
+        elif tipo == "score" and q_type == "score":
+            score = ans.get("score")
+            probs = ans.get("probabilities", [])
+            conf = ans.get("confidence", 0.0)
+            prob_dict = {}
+            for p in probs:
+                val = p.get("value")
+                prob_val = p.get("probability")
+                if isinstance(val, (int, float)) and isinstance(prob_val, (int, float)):
+                    prob_dict[str(int(val))] = float(prob_val)
+            jev_respuestas[nombre] = {
+                "type": "score",
+                "score": float(score),
+                "probabilities": prob_dict,
+                "confidence": float(conf)
+            }
+        elif tipo == "refusal":
+            # Jev no tiene concepto de refusal; lo tratamos como None para que pase al siguiente medio
+            pass
+    return jev_respuestas
+
+
+def _transporte_explabs_decisions_real(cuerpo):
+    req = urllib.request.Request(
+        EXPLABS_DECISIONS_URL,
+        data=json.dumps(cuerpo).encode("utf-8"),
+        headers={"Authorization": "Bearer " + clave_explabs(), "Content-Type": "application/json",
+                 "User-Agent": "starseed-jev/1.0"},
+    )
+    return json.load(urllib.request.urlopen(req, timeout=TIEMPO_S))
+
+
+def _intenta_explabs_decisions(estado, preguntas, quien=None):
+    """Decisión GRATIS por Experiential Labs Decisions API (GPT-6 Luna); (respuestas, modelo) o (None, None). Nunca lanza.
+
+    Es el último intento gratis antes de OpenRouter. Solo se usa el modelo gpt-6-luna-decisions
+    que está documentado como gratis hasta el 14-nov según la pasarela.
+    """
+    if os.environ.get("STARSEED_JEV_EXPLABS", "1") in ("0", "no", "false"):
+        return None, None
+    if os.environ.get("STARSEED_JEV", "1") in ("0", "no", "false"):
+        return None, None
+    transporte = TRANSPORTE_EXPLABS_DECISIONS
+    if transporte is None:
+        if TRANSPORTE is not None or _transporte_real is not _TRANSPORTE_REAL_DE_FABRICA or not clave_explabs():
+            return None, None
+        transporte = _transporte_explabs_decisions_real
+    # Input para la API de decisions: el estado se pasa como texto en 'input'
+    input_texto = json.dumps(estado, ensure_ascii=False) if isinstance(estado, dict) else str(estado)
+    questions = _traducir_preguntas_a_decisions(preguntas)
+    if not questions:
+        return None, None
+    t0 = time.time()
+    try:
+        r = transporte({
+            "model": EXPLABS_DECISIONS_MODEL,
+            "input": input_texto,
+            "questions": questions
+        })
+    except Exception:
+        return None, None
+    answers = (r or {}).get("answers")
+    if not isinstance(answers, list):
+        return None, None
+    jev_respuestas = _traducir_respuestas_de_decisions(answers, preguntas)
+    if not jev_respuestas:
+        return None, None
+    if transporte is _transporte_explabs_decisions_real:
+        _anotar_uso(r, time.time() - t0, medio="explabs-decisions", ms=(time.time() - t0) * 1000, quien=quien,
+                    tipos=[(q or {}).get("type") for q in preguntas.values() if isinstance(q, dict)])
+    return jev_respuestas, EXPLABS_DECISIONS_MODEL
+
+
 def activo():
     return os.environ.get("STARSEED_JEV", "1") not in ("0", "no", "false") and bool(
         clave()
@@ -611,11 +749,14 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     jl = _local()
     respuestas = None
     medio_usado = None
-    # Pirámide: BitNet local -> Laya local -> Experiential (gratis) -> OpenRouter remoto (de pago).
+    # Pirámide: BitNet local -> Laya local -> Experiential (gratis, /v1/systemone) ->
+    # Experiential Decisions (gratis, /v1/decisions, GPT-6 Luna hasta 14-nov) ->
+    # OpenRouter remoto (de pago).
     intenta_local = medio in (None, "local")
     intenta_laya = medio in (None, "laya", "laya-local")
     intenta_open = medio in (None, "openrouter")
     intenta_explabs = medio in (None, "explabs")
+    intenta_explabs_decisions = medio in (None, "explabs-decisions")
     local_disponible = False
     if intenta_local and medio is None and local_en_pausa():
         intenta_local = False  # circuito abierto: el local no contestó las últimas veces
@@ -640,6 +781,12 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
         if resp_exp is not None:
             respuestas = resp_exp
             medio_usado = "explabs"
+    # Último intento gratis: GPT-6 Luna Decisions API (gratis hasta 14-nov) por /v1/decisions.
+    if respuestas is None and intenta_explabs_decisions:
+        resp_exp_dec, _modelo = _intenta_explabs_decisions(estado, preguntas, quien=quien)
+        if resp_exp_dec is not None:
+            respuestas = resp_exp_dec
+            medio_usado = "explabs-decisions"
     # Escalada obligatoria: si no hay respuesta y no se forzó solo local.
     if respuestas is None and intenta_open:
         respuestas, _cruda = _intenta_openrouter(estado, preguntas, t0, quien=quien)
@@ -651,7 +798,7 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     res = dict(respuestas)
     res["medio"] = medio_usado
     res["ms"] = ms
-    if medio_usado in ("local", "laya-local"):
+    if medio_usado in ("local", "laya-local", "explabs", "explabs-decisions"):
         _anotar_uso({}, time.time() - t0, medio=medio_usado, ms=ms, quien=quien, tipos=tipos)
     if usar_cache:
         # Cache separa respuestas de metadatos (evita mezclar 'medio'/'ms' con claves de pregunta).
