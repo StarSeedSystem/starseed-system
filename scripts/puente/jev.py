@@ -58,11 +58,17 @@ TRANSPORTE = None
 #: (`/v1/systemone`, coste 0 medido): van antes de OpenRouter, que cobra. Los modelos salen de la
 #: foto de promociones (`explabs_promos.py`), que se actualiza sola cada 6 h.
 EXPLABS_URL = os.environ.get("STARSEED_EXPLABS_SYSTEMONE", "https://api.experientiallabs.ai/v1/systemone")
+#: (2026-10-23) Experiential Labs también sirve GPT-6 Luna Decisions GRATIS (hasta 14-nov) por
+#: `/v1/decisions` con la forma de OpenAI Decisions API. Es el último intento gratis antes de OpenRouter.
+EXPLABS_DECISIONS_URL = os.environ.get("STARSEED_EXPLABS_DECISIONS", "https://api.experientiallabs.ai/v1/decisions")
+EXPLABS_DECISIONS_MODEL = "gpt-6-luna-decisions"
 EXPLABS_PROMOS = os.path.expanduser("~/.starseed/explabs-promos.json")
 EXPLABS_POR_DEFECTO = ("jev-latest", "clef-flash")
 #: Transporte de Experiential (se sustituye en las pruebas). Con `TRANSPORTE` falso y este sin
 #: poner, las pruebas NUNCA tocan la red de verdad aunque la Mac tenga la clave.
 TRANSPORTE_EXPLABS = None
+#: Transporte de Experiential Decisions API (se sustituye en las pruebas).
+TRANSPORTE_EXPLABS_DECISIONS = None
 
 #: (2026-10-27, Colibri en las capas de Astraura) Varios extremos locales de /v1/systemone:
 #: Laya en 4470 y Colibri (JustVugg/colibri) en 4480 — el 8000 es del backend de Astraura 1.58.
