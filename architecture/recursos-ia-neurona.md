@@ -85,8 +85,20 @@ Encaja como la capa **profunda** de una neurona Apple Silicon de poca RAM cuando
 es lo más potente que cabe en 8 GB. No sustituye a los 1.58-bit (BitNet, Bonsai ternario) para el
 reflejo, la palabra y la razón de cada día; se sugiere solo donde corre.
 
+## 7. Servidor propio de IA (Hono · `servicios/servidor-ia`)
+
+Plano de datos de la topología `servidor-propio`: la neurona que procesa une sus motores locales —
+BitNet 1.58 (`:8790`), TurboFieldfare (`:8080`), Ollama (`:11434`), LM Studio (`:1234`) y Laya
+(`:4470`, decisiones)— tras UNA API compatible con OpenAI (`GET /v1/models` con ids
+`<motor>/<modelo>`, `POST /v1/chat/completions` con flujo, `POST /v1/systemone`), y las demás
+neuronas de la cuenta la usan por la malla local o la red de StarSeed. Hono porque el mismo código
+corre en Node, Bun, Deno y Workers (Mac, A1, Raspberry, borde). Sin token solo escucha en
+`127.0.0.1`; fuera de la máquina exige `STARSEED_SERVIDOR_IA_TOKEN` (Bearer). Arranque:
+`node servicios/servidor-ia/bin/servidor-ia.mjs` (puerto 4480).
+
 ## 6. Lo que sigue (cola del enjambre)
 
-Backend de Astraura 1.58 (lanzar y vigilar TurboFieldfare como servidor local cuando está instalado),
+Servicio permanente del servidor propio de IA (launchd/systemd) y que el router de IA del OS lo use
+cuando la topología es `servidor-propio`; backend de Astraura 1.58 (lanzar y vigilar TurboFieldfare como servidor local cuando está instalado),
 detección de discos y NPU en la app nativa (Tauri), publicar `OfertaNeurona` desde las asignaciones,
 `capaEnPropio` real en `capas/repartir.ts`, y mover pesos entre almacenes con verificación de SHA.

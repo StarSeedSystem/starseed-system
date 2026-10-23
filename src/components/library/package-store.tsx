@@ -62,6 +62,7 @@ import {
   // Genesis y PoliGenesis en la Biblioteca (Ola 1010S)
   Users,
   type LucideIcon,
+  Flame, LogIn,
 } from "lucide-react";
 import {
   addRepoByUrl,
@@ -154,7 +155,7 @@ const EFFECT_EXPLAIN: Record<PackageKind, string> = {
 
 /** Mapa nombre-lucide → componente (fallback defensivo: Package). */
 const ICON_MAP: Record<string, LucideIcon> = {
-  Package, AppWindow, LayoutGrid, PanelsTopLeft, PenSquare, Presentation,
+  Flame, LogIn, Package, AppWindow, LayoutGrid, PanelsTopLeft, PenSquare, Presentation,
   FlaskConical, FolderKanban, Palette, Sparkles, Wand2, Brain, GitBranch,
   Zap, Gauge, Shapes, Flower2, Chrome, Globe, HardDrive, Gem, Layers,
   TreePine, Leaf, Move3d, Activity, Rotate3d, Radio, Orbit, Monitor,

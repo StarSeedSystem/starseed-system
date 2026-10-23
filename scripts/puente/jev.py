@@ -53,6 +53,16 @@ SALDO_TTL_S = 3600
 #: Transporte real (se sustituye en las pruebas por una función que no toca la red).
 TRANSPORTE = None
 
+#: (2026-10-23) Experiential Labs sirve Jev y Clef Flash GRATIS por el mismo contrato
+#: (`/v1/systemone`, coste 0 medido): van antes de OpenRouter, que cobra. Los modelos salen de la
+#: foto de promociones (`explabs_promos.py`), que se actualiza sola cada 6 h.
+EXPLABS_URL = os.environ.get("STARSEED_EXPLABS_SYSTEMONE", "https://api.experientiallabs.ai/v1/systemone")
+EXPLABS_PROMOS = os.path.expanduser("~/.starseed/explabs-promos.json")
+EXPLABS_POR_DEFECTO = ("jev-latest", "clef-flash")
+#: Transporte de Experiential (se sustituye en las pruebas). Con `TRANSPORTE` falso y este sin
+#: poner, las pruebas NUNCA tocan la red de verdad aunque la Mac tenga la clave.
+TRANSPORTE_EXPLABS = None
+
 
 def clave():
     """La clave de OpenRouter, del entorno o de los archivos de claves. Nunca se imprime."""
@@ -68,6 +78,67 @@ def clave():
         except OSError:
             continue
     return None
+
+
+def clave_explabs():
+    """La clave de Experiential Labs (EXPLABS_API_KEY). Nunca se imprime."""
+    v = os.environ.get("EXPLABS_API_KEY")
+    if v:
+        return v
+    for ruta in ARCHIVOS_DE_CLAVES:
+        try:
+            for linea in open(os.path.expanduser(ruta), encoding="utf-8"):
+                m = re.match(r"^\s*(?:export\s+)?EXPLABS_API_KEY=(.+?)\s*$", linea)
+                if m:
+                    return m.group(1).strip().strip('"').strip("'")
+        except OSError:
+            continue
+    return None
+
+
+def modelos_explabs():
+    """Los modelos de decisión GRATIS de Experiential, de la foto de promociones (Jev primero)."""
+    foto = _leer(EXPLABS_PROMOS, {})
+    lista = [m for m in (foto.get("decisiones_gratis") or []) if isinstance(m, str)]
+    return lista or list(EXPLABS_POR_DEFECTO)
+
+
+def _transporte_explabs_real(cuerpo):
+    req = urllib.request.Request(
+        EXPLABS_URL,
+        data=json.dumps(cuerpo).encode("utf-8"),
+        headers={"Authorization": "Bearer " + clave_explabs(), "Content-Type": "application/json",
+                 "User-Agent": "starseed-jev/1.0"},
+    )
+    return json.load(urllib.request.urlopen(req, timeout=TIEMPO_S))
+
+
+def _intenta_explabs(estado, preguntas, quien=None):
+    """Decisión GRATIS por Experiential Labs; (respuestas, modelo) o (None, None). Nunca lanza."""
+    if os.environ.get("STARSEED_JEV_EXPLABS", "1") in ("0", "no", "false"):
+        return None, None
+    if os.environ.get("STARSEED_JEV", "1") in ("0", "no", "false"):
+        return None, None  # Jev apagado del todo: tampoco la pasarela gratis
+    transporte = TRANSPORTE_EXPLABS
+    if transporte is None:
+        if TRANSPORTE is not None or _transporte_real is not _TRANSPORTE_REAL_DE_FABRICA or not clave_explabs():
+            # En pruebas (transporte falso, o el de OpenRouter sustituido por uno simulado) o sin
+            # clave: nada de red. Así ninguna prueba toca la pasarela aunque la Mac tenga la clave.
+            return None, None
+        transporte = _transporte_explabs_real
+    for modelo in modelos_explabs():
+        t0 = time.time()
+        try:
+            r = transporte({"model": modelo, "state": estado, "questions": preguntas})
+        except Exception:
+            continue  # 4xx/5xx/tiempo: el siguiente modelo gratis, y luego OpenRouter
+        respuestas = (r or {}).get("answers")
+        if isinstance(respuestas, dict) and respuestas:
+            if transporte is _transporte_explabs_real:
+                _anotar_uso(r, time.time() - t0, medio="explabs", ms=(time.time() - t0) * 1000, quien=quien,
+                            tipos=[(q or {}).get("type") for q in preguntas.values() if isinstance(q, dict)])
+            return respuestas, modelo
+    return None, None
 
 
 def activo():
@@ -129,6 +200,11 @@ LOCAL_FALLOS_MAX = 3
 LOCAL_PAUSA_S = 600
 
 
+#: El transporte real de OpenRouter tal como sale de fábrica; si una prueba lo sustituye, Experiential
+#: tampoco toca la red (ver `_intenta_explabs`).
+_TRANSPORTE_REAL_DE_FABRICA = _transporte_real
+
+
 def _quien():
     """Nombre corto del módulo que pregunta a Jev (sin claves ni rutas)."""
     import sys as _sys
@@ -155,7 +231,8 @@ def _sumar(d, clave, n=1):
 def _anotar_uso(respuesta, segundos, hoy=None, medio="openrouter", ms=0.0, quien=None, tipos=()):
     uso = _leer(USO, {"llamadas": 0, "tokens": 0, "coste_usd": 0.0})
     u = (respuesta or {}).get("usage") or {}
-    coste = float(u.get("cost") or 0.0) if medio == "openrouter" else 0.0
+    # Experiential cuenta su coste igual (si una promo gratis deja de serlo, se ve y suma al techo).
+    coste = float(u.get("cost") or 0.0) if medio in ("openrouter", "explabs") else 0.0
     uso["llamadas"] = uso.get("llamadas", 0) + 1
     uso["tokens"] = (
         uso.get("tokens", 0)
@@ -431,10 +508,11 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     jl = _local()
     respuestas = None
     medio_usado = None
-    # Pirámide: BitNet local -> Laya local -> OpenRouter remoto.
+    # Pirámide: BitNet local -> Laya local -> Experiential (gratis) -> OpenRouter remoto (de pago).
     intenta_local = medio in (None, "local")
     intenta_laya = medio in (None, "laya", "laya-local")
     intenta_open = medio in (None, "openrouter")
+    intenta_explabs = medio in (None, "explabs")
     local_disponible = False
     if intenta_local and medio is None and local_en_pausa():
         intenta_local = False  # circuito abierto: el local no contestó las últimas veces
@@ -453,6 +531,12 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
         if resp_laya is not None:
             respuestas = resp_laya
             medio_usado = "laya-local"
+    # Gratis en la nube antes que de pago: Jev/Clef Flash de Experiential Labs.
+    if respuestas is None and intenta_explabs:
+        resp_exp, _modelo = _intenta_explabs(estado, preguntas, quien=quien)
+        if resp_exp is not None:
+            respuestas = resp_exp
+            medio_usado = "explabs"
     # Escalada obligatoria: si no hay respuesta y no se forzó solo local.
     if respuestas is None and intenta_open:
         respuestas, _cruda = _intenta_openrouter(estado, preguntas, t0, quien=quien)

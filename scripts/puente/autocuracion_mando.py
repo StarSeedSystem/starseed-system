@@ -80,6 +80,8 @@ ATASCO_UMBRAL_S = 20 * 60
 REFRESCO_MINIMO_S = 15 * 60
 #: (2026-10-23) Cada cuánto los directores comprueban los medidores y reparan los que estén mal.
 REPARAR_MEDIDORES_MINIMO_S = 10 * 60
+#: (2026-10-23) Promociones de Experiential Labs (modelos gratis y con descuento): cada 6 h.
+EXPLABS_MINIMO_S = 6 * 3600
 #: Carpeta de los worktrees de los agentes (la misma que usa el orquestador).
 RAIZ_WT = os.path.join(os.path.dirname(RAIZ), "starseed-wt")
 REFRESCO_SIN_EFECTO_S = 10 * 60
@@ -540,6 +542,16 @@ def _reparar_medidores_en_fondo(forzar=False):
     return True
 
 
+def _explabs_en_fondo():
+    """`explabs_promos.py actualizar` suelto (una petición de ~2 MB a la pasarela)."""
+    import subprocess
+
+    with open("/tmp/starseed-explabs.log", "a", encoding="utf-8") as log:
+        subprocess.Popen([sys.executable, os.path.join(DIRECTORIO, "explabs_promos.py"), "actualizar"], cwd=RAIZ,
+                         stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+    return True
+
+
 def _buscar():
     """El botón «Buscar más capacidad» sin los sondeos lentos ni la Mac (de ella ya se ocupa
     el llenado de arriba). Avisa él mismo en el Chat Director si suma agentes."""
@@ -746,7 +758,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
             buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
             servicios_fn=_servicios, medidores_fn=_levantar_por_medidores, worktrees_fn=None,
-            reparar_fn=None):
+            reparar_fn=None, explabs_fn=None):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO).
     `forzar` (el botón «Reactivar directores»): todo ya, sin los tiempos mínimos."""
     ahora = ahora if ahora is not None else time.time()
@@ -896,6 +908,15 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             hechos.append("medidores: comprobación y reparación lanzadas en segundo plano")
         except Exception as e:
             hechos.append("no pude lanzar la reparación de medidores: %s: %s" % (type(e).__name__, e))
+
+    # 8. Promociones de Experiential Labs: Jev gratis y revisores en promoción se actualizan solos.
+    exp_fn = explabs_fn or (_explabs_en_fondo if limpiar_fn is limpiar else None)
+    if exp_fn and (forzar or ahora - float(estado.get("ultima_explabs") or 0) >= EXPLABS_MINIMO_S):
+        estado["ultima_explabs"] = ahora
+        try:
+            exp_fn()
+        except Exception as e:
+            hechos.append("no pude actualizar las promociones de Experiential Labs: %s" % type(e).__name__)
 
     estado.update({"visto": time.strftime("%Y-%m-%d %H:%M:%S"), "responde": any(sondas),
                    "por_que": porque, "libre_gb": None if libre is None else round(libre, 1),

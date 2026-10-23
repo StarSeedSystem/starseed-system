@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { REPO_DECISIONES } from "@/lib/library/fuentes-decision";
 import { FICHAS_IA_LOCALES, fichasIaConUpstreamGitHub } from "@/lib/library/fuentes-ia-locales";
+import { FICHAS_REPOS_OS } from "@/lib/library/repos-os";
 import {
     urlDeConsulta,
     leerVersion,
@@ -110,7 +111,7 @@ export async function GET(): Promise<Response> {
         const idsDecisiones = new Set(REPO_DECISIONES.packages.map((p) => p.id));
         const fichas = [
             ...REPO_DECISIONES.packages,
-            ...fichasIaConUpstreamGitHub(FICHAS_IA_LOCALES).filter((p) => !idsDecisiones.has(p.id)),
+            ...fichasIaConUpstreamGitHub([...FICHAS_IA_LOCALES, ...FICHAS_REPOS_OS]).filter((p) => !idsDecisiones.has(p.id)),
         ];
         const entradas: EntradaFuente[] = fichas
             .map((paquete): EntradaFuente => ({

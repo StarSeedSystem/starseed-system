@@ -68,6 +68,7 @@ import { REPO_DECISIONES } from "./fuentes-decision";
 // Fuentes de IA locales que se descargan (TurboFieldfare): viven en un módulo sin "use client"
 // para que /api/library/actualizaciones pueda comprobar su upstream.
 import { FICHAS_IA_LOCALES } from "./fuentes-ia-locales";
+import { FICHAS_REPOS_OS } from "./repos-os";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -985,6 +986,8 @@ const LABS_PACKAGES: LibraryPackage[] = [
     },
     /* ── Modelos locales que se descargan tras comprobar dónde caben (Recursos de IA) ── */
     ...FICHAS_IA_LOCALES,
+    /* ── Repos que Alex trajo para el OS (Hono, React Native Zalo Kit) ── */
+    ...FICHAS_REPOS_OS,
 ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */

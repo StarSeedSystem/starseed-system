@@ -1,0 +1,15 @@
+{
+  "name": "starseed-servidor-ia",
+  "version": "1.0.0",
+  "description": "Servidor propio de IA de una neurona (Hono): une los motores locales (BitNet 1.58, Ollama, TurboFieldfare, LM Studio, Laya) tras una sola API compatible con OpenAI para las demás neuronas de la cuenta (architecture/recursos-ia-neurona.md §7)",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "engines": { "node": ">=22" },
+  "bin": { "servidor-ia": "bin/servidor-ia.mjs" },
+  "dependencies": { "hono": "^4.12.6", "@hono/node-server": "^1.19.11" },
+  "scripts": {
+    "servir": "node bin/servidor-ia.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

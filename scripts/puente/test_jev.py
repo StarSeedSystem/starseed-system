@@ -59,12 +59,16 @@ class Jev(unittest.TestCase):
         jev.TRANSPORTE = None
         os.environ["STARSEED_JEV"] = "0"
         os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"  # invalid port to prevent laya-local from responding
+        # Estas pruebas miden local -> OpenRouter; la pasarela gratis de Experiential se prueba en
+        # test_jev_explabs.py. Sin esto, en la Mac (con EXPLABS_API_KEY) contestaría de verdad.
+        os.environ["STARSEED_JEV_EXPLABS"] = "0"
         _sin_motor_local()
 
     def tearDown(self):
         jev.TRANSPORTE = None
         _quita_local()
         os.environ.pop("STARSEED_JEV", None)
+        os.environ.pop("STARSEED_JEV_EXPLABS", None)
 
     def test_apagado_devuelve_none_sin_tocar_nada(self):
         self.assertFalse(jev.activo())
@@ -209,12 +213,16 @@ class Piramide(unittest.TestCase):
         jev.TRANSPORTE = None
         os.environ["STARSEED_JEV"] = "0"
         os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"  # invalid port to prevent laya-local from responding
+        # Estas pruebas miden local -> OpenRouter; la pasarela gratis de Experiential se prueba en
+        # test_jev_explabs.py. Sin esto, en la Mac (con EXPLABS_API_KEY) contestaría de verdad.
+        os.environ["STARSEED_JEV_EXPLABS"] = "0"
         _sin_motor_local()
 
     def tearDown(self):
         jev.TRANSPORTE = None
         _quita_local()
         os.environ.pop("STARSEED_JEV", None)
+        os.environ.pop("STARSEED_JEV_EXPLABS", None)
         os.environ.pop("STARSEED_LAYA_URL", None)
 
     def test_local_responde_no_se_toca_openrouter(self):

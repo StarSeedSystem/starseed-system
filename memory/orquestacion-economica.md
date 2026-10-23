@@ -97,6 +97,15 @@ Cómo se opera el peldaño 4a (mientras quede crédito):
   (`~/.starseed/alta-nube-pausada.json`, servicio `com.starseed.alta-nube` fuera de launchd) hasta que Alex decida;
   crédito declarado: 50 $. Regla: un lanzador que gasta dinero cuenta lo GASTADO en un registro que nadie más
   toca, no lo que «está vivo» en un estado que otros reescriben.
+- **Experiential Labs (2026-10-23, pasarela `api.experientiallabs.ai`, clave en `EXPLABS_API_KEY` y
+  `STARSEED_PASARELA_EXPLABS_KEY` de `~/.starseed/env`):** medido, ningún modelo de chat es gratis; los de
+  DECISIÓN sí (Jev y Clef Flash, coste 0). Jev los usa antes que OpenRouter (pirámide: BitNet local → Laya →
+  Experiential gratis → OpenRouter de pago; `STARSEED_JEV_EXPLABS=0` lo apaga). Los modelos de chat en
+  PROMOCIÓN (descuento, gastan créditos de la cuenta) entran como revisores de la pasarela `EXPLABS`
+  (solo revisor, 6 rpm). `scripts/puente/explabs_promos.py` rehace la lista cada 6 h desde la autocuración
+  (`~/.starseed/explabs-promos.json` y la línea `STARSEED_PASARELA_EXPLABS_MODELOS`). Perfil aparte de Claude
+  Code por la pasarela: `claude-explabs` (`~/.claude-explabs`, claude-opus-5.5): cobra por token; una sesión
+  en este repo escribe ~520 k tokens de caché al arrancar (≈ 3 $ medidos), así que se usa para lo que lo vale.
 - **Reparar medidores (2026-10-23, `cf422f2ec`…`0a236fdf4`):** cada medidor de Genesis tiene «Reparar» junto a
   «Comprobar ahora» (`scripts/puente/reparar_medidor.py`, `/api/mando/reparar`): comprueba, aplica la acción de
   cada veredicto (`REGLAS`) y vuelve a comprobar; lo que espera a Alex no se repara solo y se dice. Los directores
