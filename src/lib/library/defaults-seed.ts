@@ -68,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 15;
+export const SEED_VERSION = 16;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -307,7 +307,48 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   "iatool-openmanus",
   "iatool-penpot",
   "iatool-opencut",
+  // ── (SEED_VERSION 16 · Ola 1020S) 2.ª tanda de repos de la Librería:
+  //    SOLO las siete marcadas «preinstalar: siempre» en
+  //    config/repos-libreria-1020b.json. Su install() únicamente registra la
+  //    ficha, guarda el enlace o dispone el conector: NO descarga, NO ejecuta
+  //    código y NO abre ninguna ruta durante la siembra. Las marcadas
+  //    «manual» (RuView, tirreno, DigUp, Moli, OpenShell, Coucou, DBX) quedan
+  //    fuera a propósito: son herramientas de la máquina, datos sensibles o
+  //    ejecución de código, y solo se instalan con decisión expresa.
+  "lib-vikunja",
+  "lib-celld",
+  "lib-sentry",
+  "lib-windmill",
+  "lib-metabase",
+  "lib-trilium",
+  "lib-politica-privacidad",
 ];
+
+/** Entrada de la decisión pura de siembra (sin disco, sin red, sin DOM). */
+export interface SeedPlanInput {
+  /** Ids recomendados, en el orden en que se quieren sembrar. */
+  recommendedIds: readonly string[];
+  /** Ids que el catálogo conoce hoy; el resto se ignora sin romper. */
+  catalogIds: readonly string[];
+  /** Ids ya ofrecidos por versiones anteriores (no se reinstalan). */
+  alreadyOfferedIds: readonly string[];
+  /** Ids instalados ahora mismo (no se pisan). */
+  installedIds: readonly string[];
+}
+
+/**
+ * Decide qué paquetes recomendados siembra esta versión: los que existen en el
+ * catálogo, no se ofrecieron antes y no están instalados. Al no volver a
+ * ofrecer lo ya sembrado, una desinstalación deliberada nunca se deshace.
+ */
+export function planSeed(input: SeedPlanInput): string[] {
+  const enCatalogo = new Set(input.catalogIds);
+  const yaOfrecidos = new Set(input.alreadyOfferedIds);
+  const yaInstalados = new Set(input.installedIds);
+  return input.recommendedIds.filter(
+    (id) => enCatalogo.has(id) && !yaOfrecidos.has(id) && !yaInstalados.has(id),
+  );
+}
 
 /**
  * Fuentes gratuitas del catálogo Astraura que garantizamos NO deshabilitadas.
@@ -401,13 +442,19 @@ export async function ensureDefaultsSeeded(): Promise<{ seeded: boolean; install
   //       · NO estén ya instalados (respeta lo que el usuario tenga),
   //       · NO se hayan ofrecido antes (respeta desinstalaciones deliberadas),
   //       · NO sean descargables ni comingSoon (defensa extra).
-  for (const id of RECOMMENDED_PACKAGE_IDS) {
-    if (alreadyOffered.has(id)) continue;      // ya se ofreció en una versión previa
+  const idsASembrar = planSeed({
+    recommendedIds: RECOMMENDED_PACKAGE_IDS,
+    catalogIds: catalog.map((p) => p.id),
+    alreadyOfferedIds: Array.from(alreadyOffered),
+    installedIds: Object.keys(installedNow),
+  });
+
+  for (const id of idsASembrar) {
     const pkg = byId.get(id);
     if (!pkg) continue;                         // el catálogo cambió: no rompemos
     if (pkg.comingSoon) continue;
     if (isDownloadablePackage(pkg)) continue;   // opt-in siempre
-    if (id in installedNow || isInstalled(id)) continue; // ya instalado por el usuario
+    if (isInstalled(id)) continue;              // ya instalado por el usuario
 
     try {
       const res = await install(pkg);           // aplica su efecto real y lo registra
