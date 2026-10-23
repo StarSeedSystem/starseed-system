@@ -98,4 +98,23 @@ describe("vikunja · cliente puro", () => {
     expect(!r404.ok && r404.motivo).toContain("404");
     expect(!r500.ok && r500.motivo).toContain("falló");
   });
+
+  it("409 y 500 al asegurar proyecto dan motivo legible", async () => {
+    const r409 = await asegurarProyecto(BASE, TOKEN, grupo, falso(409, {}).pedir);
+    const r500 = await asegurarProyecto(BASE, TOKEN, grupo, falso(500, {}).pedir);
+    expect(!r409.ok && r409.motivo).toContain("409");
+    expect(!r500.ok && r500.motivo).toContain("falló");
+    expect(r409.ok).toBe(false);
+    expect(r500.ok).toBe(false);
+  });
+
+  it("409 al crear tarea da motivo legible sin tarea", async () => {
+    const d = { propuestaId: "p", titulo: "t", aprobadaEn: "2026-10-20" };
+    const r = await tareaDesdeDecision(BASE, TOKEN, "5", d, falso(409, {}).pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toContain("409");
+      expect(r.motivo).not.toContain(TOKEN);
+    }
+  });
 });
