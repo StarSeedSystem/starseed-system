@@ -1,0 +1,70 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-23 11:52:09",
+  "desde": "2026-10-17 23:01:51",
+  "ultimo_429": "2026-10-18 00:20:58",
+  "sin_cupo_hasta": "2026-10-23 18:00:44",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-23 11:52:09",
+  "desde": "2026-10-17 23:01:56",
+  "ultimo_429": "2026-10-11 23:04:56",
+  "motivo": "pasarela: $ opencode run --model nvidia/nvidia/nemotron-3-super-120b-a12b · 2026-10-18 04:36:34 \u001b[0m \u001b[0m > build · nvidia/nemotron-3-super-120b-a12b ",
+  "sin_cupo_hasta": "2026-10-18 05:08:49"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-23 11:52:09",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-17 20:22:14",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-23 11:52:09",
+  "desde": "2026-10-22 04:59:02",
+  "ultimo_429": "2026-10-16 20:22:17",
+  "sin_cupo_hasta": "2026-10-23 18:00:44",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-23 11:52:10",
+  "desde": "2026-10-22 04:51:21",
+  "ultimo_429": "2026-10-16 20:22:09"
+ },
+ "ultimo_revisor_ok": "groq/openai/gpt-oss-120b",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-23 11:52:10",
+  "desde": "2026-10-22 12:09:30",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "sonda de escritura: sin crédito (402)",
+  "ultimo_429": "2026-10-10 13:27:48",
+  "sin_cupo_hasta": "2026-10-23 21:08:48"
+ },
+ "google": {
+  "estado": "vivo",
+  "motivo": "sonda del botón: cupo del día agotado (429)",
+  "sin_cupo_hasta": "2026-10-24 01:00:23"
+ },
+ "codex": {
+  "motivo": "el medidor de crédito lo ve con cupo (autocuración)"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-23 11:52:11",
+  "desde": "2026-10-07 15:26:19",
+  "motivo": "pasarela: $ opencode run --model freellmapi/auto · 2026-10-22 16:12:46 \u001b[0m \u001b[0m > build · auto \u001b[0m→ \u001b[0mRead CLAUDE.md \u001b[0m→ \u001b[0mRead scripts/puente",
+  "sin_cupo_hasta": "2026-10-22 16:36:51"
+ }
+}
