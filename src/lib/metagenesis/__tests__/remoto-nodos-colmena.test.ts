@@ -54,6 +54,10 @@ describe("acciones colmena: desconectar y contenedor", () => {
     it("contenedor con activo false rechaza trabajadores", () => {
         expect(validarArgs("contenedor", { activo: false })).toBeNull();
         expect(validarArgs("contenedor", { activo: false, trabajadores: 2 })).toContain("trabajadores solo se permite");
+        // Casos de frontera del relevo (rama nube/a1-20261019-051124-RFI1018B): con activo false,
+        // el rango 1–4 se comprueba ANTES del «solo se permite».
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 1 })).toContain("trabajadores solo se permite");
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBe("trabajadores fuera de 1–4");
     });
 });
 
