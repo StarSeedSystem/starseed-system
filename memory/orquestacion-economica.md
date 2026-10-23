@@ -88,6 +88,21 @@ Cómo se opera el peldaño 4a (mientras quede crédito):
   anotado con `credito_claude_nube.py declarar --restante N`.
 - Lo automatiza la ola 1022A (`cola-alta-capacidad-1022.json`). Al vencer o agotarse el crédito,
   las sesiones en la nube vuelven a contar en el límite del plan, sin avisar: entonces rige el 4b.
+- **La rueda que gastó ~186 $ (2026-10-22/23, `4f2c1f726`):** 284 sesiones en 21 h. Otros actores devolvían a
+  `pendiente` las tareas prestadas, `seguir` las «olvidaba» del registro (y con ellas su gasto del día) y el saldo era
+  el declarado, nunca el real: el carril las relanzaba sin fin. Ahora manda un **historial permanente**
+  (`~/.starseed/alta-nube-historial.jsonl`, nunca se poda): la misma tarea no se relanza en 24 h ni más de 2 veces,
+  como mucho **6 lanzamientos al día** (`STARSEED_ALTA_NUBE_DIA`), el saldo se estima restando lo lanzado desde la
+  última declaración y las prestadas sin sesión abierta se devuelven (`huerfanas`). El carril queda **en pausa**
+  (`~/.starseed/alta-nube-pausada.json`, servicio `com.starseed.alta-nube` fuera de launchd) hasta que Alex decida;
+  crédito declarado: 50 $. Regla: un lanzador que gasta dinero cuenta lo GASTADO en un registro que nadie más
+  toca, no lo que «está vivo» en un estado que otros reescriben.
+- **Reparar medidores (2026-10-23, `cf422f2ec`…`0a236fdf4`):** cada medidor de Genesis tiene «Reparar» junto a
+  «Comprobar ahora» (`scripts/puente/reparar_medidor.py`, `/api/mando/reparar`): comprueba, aplica la acción de
+  cada veredicto (`REGLAS`) y vuelve a comprobar; lo que espera a Alex no se repara solo y se dice. Los directores
+  lo hacen solos cada 10 min (paso 7 de `autocuracion_mando.revisar`, `--todos`, con mínimo por medidor) y lo
+  anuncian en el Chat Director. Un medidor que «sigue igual» tras reparar suele ser un comprobador que mide
+  distinto que Genesis: se arregla la medida, no se repite la reparación.
 
 **Por qué no crecían los agentes (medido el 2026-10-22, 6 agentes con 59 tareas listas):**
 1. La Mac: el gobernador la baja a 2 por RAM (≈ 100 MB libres y swap llena). Es un límite real.
