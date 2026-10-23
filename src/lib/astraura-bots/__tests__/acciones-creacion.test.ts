@@ -84,6 +84,10 @@ describe("xr.intencion", () => {
     expect(vacia.accion).toBeNull();
     expect(vacia.problemas.join(" ")).toContain("frase");
   });
+  it("si la frase vacía llega igualmente al adaptador, pregunta sin tarjeta ni previo", () => {
+    const r = ejecutarIntencionXR({ tipo: "xr.intencion", args: { frase: "" } } as unknown as AccionBot, ctxVoz);
+    expect(r).toMatchObject({ ok: false, motivo: "No te he oído. Dime qué quieres hacer.", previo: {}, tarjeta: null });
+  });
   it("avisa de que espera la confirmación solo cuando hay tarjeta", () => {
     const onStatus = vi.fn();
     ejecutarIntencionXR(voz("llévame a la estación Cumbre"), ctxVoz, { onStatus });
