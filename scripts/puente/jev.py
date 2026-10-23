@@ -96,11 +96,21 @@ def clave_explabs():
     return None
 
 
-def modelos_explabs():
-    """Los modelos de decisión GRATIS de Experiential, de la foto de promociones (Jev primero)."""
+def modelos_explabs(hoy=None):
+    """Modelos de decisión de Experiential por /v1/systemone, de la foto de promociones.
+
+    Primero los GRATIS (Jev primero); después, solo mientras quede presupuesto del día y del mes,
+    los que están en DESCUENTO (gastan créditos de la cuenta de Experiential, y su coste suma al
+    mismo techo que OpenRouter). Alex, 2026-10-23: «lo gratis y lo promocional usando los
+    créditos de la cuenta»."""
     foto = _leer(EXPLABS_PROMOS, {})
     lista = [m for m in (foto.get("decisiones_gratis") or []) if isinstance(m, str)]
-    return lista or list(EXPLABS_POR_DEFECTO)
+    lista = lista or list(EXPLABS_POR_DEFECTO)
+    promo = [c.get("slug") for c in (foto.get("decisiones_promocion") or []) if isinstance(c, dict)]
+    promo = [m for m in promo if isinstance(m, str) and m not in lista]
+    if promo and presupuesto_ok(hoy):
+        lista += promo
+    return lista
 
 
 def _transporte_explabs_real(cuerpo):

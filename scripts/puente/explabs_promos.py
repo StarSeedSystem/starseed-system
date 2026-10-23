@@ -54,34 +54,51 @@ def clave():
     return None
 
 
-def _es_decision(modelo):
-    """¿Sirve decisiones tipadas (/v1/systemone) en vez de chat? PURA."""
+def _api_de_decision(modelo):
+    """¿Por qué API sirve decisiones tipadas? PURA.
+
+    "systemone" (el contrato openjev que ya habla Jev: Jev, Clef, Clef Flash), "otra" (decisiones
+    por otra API, p. ej. GPT-6 Luna en `/v1/decisions` con la forma de OpenAI: la pasarela le
+    contesta 400 a /v1/systemone, medido 2026-10-23) o None (chat)."""
     m = modelo or {}
     texto = " ".join(str(m.get(k) or "") for k in ("slug", "display_name", "description")).lower()
-    return "systemone" in texto or "decisions api" in texto or "decision model" in texto
+    if "systemone" in texto:
+        return "systemone"
+    if "/v1/decisions" in texto or "decisions api" in texto or "decision model" in texto:
+        return "otra"
+    return None
+
+
+def _es_decision(modelo):
+    """¿Es un modelo de decisiones (por la API que sea) y no de chat? PURA."""
+    return _api_de_decision(modelo) is not None
 
 
 def clasificar(datos):
     """De la respuesta de `/api/models` a lo que usa MetaGenesis. PURA.
 
-    {decisiones_gratis, chat_gratis, chat_promocion:[{slug, percent_off}], promos:[…]}. Una promo
-    que pide método de pago se marca (`requiere_pago`): se intenta igual, y si la cuenta no lo
-    tiene la pasarela contesta con error y se pasa al siguiente."""
+    {decisiones_gratis, decisiones_promocion:[{slug, descuento}], decisiones_otra_api:[…],
+    chat_gratis, chat_promocion:[{slug, descuento}], promos:[…]}. Jev usa las de /v1/systemone:
+    primero las gratis y, mientras quede presupuesto, las de descuento (gastan créditos de la
+    cuenta). Las de otra API se anotan para verlas, no se usan. Una promo que pide método de pago
+    se marca (`requiere_pago`): se intenta igual, y si la cuenta no lo tiene la pasarela contesta
+    con error y se pasa al siguiente."""
     datos = datos if isinstance(datos, dict) else {}
     modelos = {}
     for fila in datos.get("data") or datos.get("models") or []:
         m = (fila or {}).get("model") or {}
         if m.get("slug"):
             modelos[m["slug"]] = m
-    decisiones, chat_gratis, chat_promo, promos = [], [], [], []
+    decisiones, decision_promo, otra_api, chat_gratis, chat_promo, promos = [], [], [], [], [], []
     for p in datos.get("promotions") or []:
         if not isinstance(p, dict):
             continue
         gratis = bool(p.get("free"))
         descuento = float(p.get("percent_off") or 0)
         slugs = [s for s in (p.get("slugs") or []) if isinstance(s, str)]
+        etiqueta = str(p.get("label") or "")[:120]
         promos.append({
-            "etiqueta": str(p.get("label") or "")[:120],
+            "etiqueta": etiqueta,
             "slugs": slugs,
             "gratis": gratis,
             "descuento": descuento,
@@ -89,18 +106,30 @@ def clasificar(datos):
             "tokens_dia": p.get("free_input_tokens_per_day"),
         })
         for s in slugs:
-            decision = _es_decision(modelos.get(s) or {"slug": s})
-            if gratis and decision and s not in decisiones:
-                decisiones.append(s)
-            elif gratis and not decision and s not in chat_gratis:
-                chat_gratis.append(s)
-            elif descuento > 0 and not decision and all(c["slug"] != s for c in chat_promo):
-                chat_promo.append({"slug": s, "descuento": descuento})
+            api = _api_de_decision(modelos.get(s) or {"slug": s})
+            if api == "otra":
+                if all(o["slug"] != s for o in otra_api):
+                    otra_api.append({"slug": s, "gratis": gratis, "descuento": descuento, "etiqueta": etiqueta})
+            elif api == "systemone" and gratis:
+                if s not in decisiones:
+                    decisiones.append(s)
+            elif api == "systemone" and descuento > 0:
+                if all(c["slug"] != s for c in decision_promo):
+                    decision_promo.append({"slug": s, "descuento": descuento})
+            elif api is None and gratis:
+                if s not in chat_gratis:
+                    chat_gratis.append(s)
+            elif api is None and descuento > 0:
+                if all(c["slug"] != s for c in chat_promo):
+                    chat_promo.append({"slug": s, "descuento": descuento})
     # Jev primero (es el mismo contrato que ya usa el OS), luego el resto en orden de la pasarela.
     decisiones.sort(key=lambda s: (0 if s.startswith("jev") else 1))
+    decision_promo.sort(key=lambda c: -c["descuento"])
     chat_promo.sort(key=lambda c: -c["descuento"])
     return {
         "decisiones_gratis": decisiones,
+        "decisiones_promocion": decision_promo,
+        "decisiones_otra_api": otra_api,
         "chat_gratis": chat_gratis,
         "chat_promocion": chat_promo,
         "promos": promos,
@@ -175,12 +204,18 @@ def actualizar(forzar=False, ahora=None, pedir=_pedir):
 def resumen(r):
     if not r.get("decisiones_gratis") and not r.get("chat_promocion") and not r.get("hecho"):
         return "Experiential Labs: %s" % r.get("motivo", "sin datos")
-    return "Experiential Labs: decisiones gratis %s · chat gratis %s · en promoción %s%s" % (
+    con_desc = lambda xs: ", ".join("%s (-%d %%)" % (c["slug"], c["descuento"]) for c in xs or [])
+    texto = "Experiential Labs: decisiones gratis %s · decisiones en promoción %s · chat gratis %s · chat en promoción %s" % (
         ", ".join(r.get("decisiones_gratis") or []) or "ninguna",
+        con_desc(r.get("decisiones_promocion")) or "ninguna",
         ", ".join(r.get("chat_gratis") or []) or "ninguno",
-        ", ".join("%s (-%d %%)" % (c["slug"], c["descuento"]) for c in r.get("chat_promocion") or []) or "ninguno",
-        "" if r.get("hecho") else " (%s)" % r.get("motivo", ""),
+        con_desc(r.get("chat_promocion")) or "ninguno",
     )
+    otras = r.get("decisiones_otra_api") or []
+    if otras:
+        texto += " · por otra API (sin usar): %s" % ", ".join(
+            o["slug"] + (" gratis" if o.get("gratis") else "") for o in otras)
+    return texto + ("" if r.get("hecho") else " (%s)" % r.get("motivo", ""))
 
 
 def main(argv):

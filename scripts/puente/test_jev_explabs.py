@@ -62,6 +62,13 @@ class ExplabsAntesQueOpenrouter(unittest.TestCase):
         os.remove(jev.EXPLABS_PROMOS)
         self.assertEqual(jev.modelos_explabs(), ["jev-latest", "clef-flash"])
 
+    def test_las_de_descuento_solo_con_presupuesto(self):
+        with open(jev.EXPLABS_PROMOS, "w") as f:
+            f.write('{"decisiones_gratis": ["jev-latest"], "decisiones_promocion": [{"slug": "clef", "descuento": 50}]}')
+        self.assertEqual(jev.modelos_explabs(), ["jev-latest", "clef"])
+        jev._anotar_uso({"usage": {"cost": 5.0}}, 0.1, medio="explabs")  # techo reventado
+        self.assertEqual(jev.modelos_explabs(), ["jev-latest"])  # las gratis siguen
+
     def test_se_puede_apagar(self):
         os.environ["STARSEED_JEV_EXPLABS"] = "0"
         jev.TRANSPORTE_EXPLABS = _falso({"q": {"type": "noul", "noul": 0.9}})

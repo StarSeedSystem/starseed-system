@@ -21,10 +21,10 @@ DATOS = {
         {"label": "TypeSafe Jev — Free", "slugs": ["jev-latest"], "free": True, "requires_payment_method": True},
     ],
     "data": [
-        {"model": {"slug": "clef", "description": "Cloudflare's 27B multimodal decision model: … in one forward pass."}},
-        {"model": {"slug": "clef-flash", "description": "Cloudflare's smaller, faster Clef: a 9B decision model …"}},
+        {"model": {"slug": "clef", "description": "Cloudflare's 27B multimodal decision model … Served natively by Experiential Cloud through /v1/systemone"}},
+        {"model": {"slug": "clef-flash", "description": "Cloudflare's smaller, faster Clef: a 9B decision model … Served natively by Experiential Cloud through /v1/systemone with text state"}},
         {"model": {"slug": "deepseek-v4.1-flash-uncensored", "description": "DeepSeek V4.1 Flash, uncensored chat."}},
-        {"model": {"slug": "gpt-6-luna-decisions", "description": "OpenAI's GPT-6 Luna on the OpenAI Decisions API …"}},
+        {"model": {"slug": "gpt-6-luna-decisions", "description": "OpenAI's GPT-6 Luna on the OpenAI Decisions API … Served through POST /v1/decisions in OpenAI's request shape"}},
         {"model": {"slug": "jev-latest", "description": "TypeSafe's typed decision model … Served natively through /v1/systemone"}},
     ],
 }
@@ -34,12 +34,24 @@ class Clasificar(unittest.TestCase):
     def test_decisiones_gratis_y_chat_en_promocion(self):
         c = E.clasificar(DATOS)
         self.assertEqual(c["decisiones_gratis"][0], "jev-latest")  # Jev primero: el contrato del OS
-        self.assertEqual(set(c["decisiones_gratis"]), {"jev-latest", "clef-flash", "gpt-6-luna-decisions"})
+        self.assertEqual(c["decisiones_gratis"], ["jev-latest", "clef-flash"])
+        # Clef al 50 %: decisión por /v1/systemone que gasta créditos de la cuenta.
+        self.assertEqual(c["decisiones_promocion"], [{"slug": "clef", "descuento": 50.0}])
+        # GPT-6 Luna es gratis pero por /v1/decisions (otra forma): la pasarela le dice 400 a
+        # /v1/systemone (medido 2026-10-23), así que se anota y no se usa.
+        self.assertEqual([o["slug"] for o in c["decisiones_otra_api"]], ["gpt-6-luna-decisions"])
+        self.assertTrue(c["decisiones_otra_api"][0]["gratis"])
         self.assertEqual(c["chat_gratis"], [])
         self.assertEqual([x["slug"] for x in c["chat_promocion"]], ["deepseek-v4.1-flash-uncensored"])
         self.assertTrue(any(p["requiere_pago"] for p in c["promos"]))
         # Clef con descuento es de decisión: no va de revisor de chat.
         self.assertNotIn("clef", E.modelos_pasarela(c))
+
+    def test_resumen_dice_lo_que_hay(self):
+        texto = E.resumen({"hecho": True, **E.clasificar(DATOS)})
+        self.assertIn("decisiones gratis jev-latest, clef-flash", texto)
+        self.assertIn("clef (-50 %)", texto)
+        self.assertIn("gpt-6-luna-decisions gratis", texto)
 
     def test_datos_raros_no_rompen(self):
         self.assertEqual(E.clasificar(None)["decisiones_gratis"], [])

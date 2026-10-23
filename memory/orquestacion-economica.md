@@ -100,7 +100,10 @@ Cómo se opera el peldaño 4a (mientras quede crédito):
 - **Experiential Labs (2026-10-23, pasarela `api.experientiallabs.ai`, clave en `EXPLABS_API_KEY` y
   `STARSEED_PASARELA_EXPLABS_KEY` de `~/.starseed/env`):** medido, ningún modelo de chat es gratis; los de
   DECISIÓN sí (Jev y Clef Flash, coste 0). Jev los usa antes que OpenRouter (pirámide: BitNet local → Laya →
-  Experiential gratis → OpenRouter de pago; `STARSEED_JEV_EXPLABS=0` lo apaga). Los modelos de chat en
+  Experiential gratis → Experiential en descuento, p. ej. Clef al 50 %, solo con presupuesto del día y del
+  mes → OpenRouter de pago; `STARSEED_JEV_EXPLABS=0` o `STARSEED_JEV=0` lo apagan). Solo valen los de
+  `/v1/systemone`: GPT-6 Luna Decisions es gratis hasta el 14-nov pero va por `/v1/decisions` con otra forma
+  (la pasarela da 400 en systemone), así que se anota en `decisiones_otra_api` y no se usa. Los modelos de chat en
   PROMOCIÓN (descuento, gastan créditos de la cuenta) entran como revisores de la pasarela `EXPLABS`
   (solo revisor, 6 rpm). `scripts/puente/explabs_promos.py` rehace la lista cada 6 h desde la autocuración
   (`~/.starseed/explabs-promos.json` y la línea `STARSEED_PASARELA_EXPLABS_MODELOS`). Perfil aparte de Claude
