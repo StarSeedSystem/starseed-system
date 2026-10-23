@@ -32,6 +32,17 @@ describe("validarEndpoint · guardia SSRF estricta", () => {
     expect(await reenviarTurno(entrada({ endpoint: "http://bot.invitado.example/a" }), p.dep)).toMatchObject({ ok: false, status: 400 });
     expect(p.llamadas).toHaveLength(0);
   });
+  it("una dirección sin esquema se rechaza antes de tocar el DNS", async () => {
+    let resueltas = 0;
+    const contando: Resolver = async (h) => { resueltas++; return dns(h); };
+    expect((await validarEndpoint("example.com", contando)).ok).toBe(false);
+    expect(resueltas).toBe(0);
+  });
+  it("un nombre que no resuelve (ni vacío ni con el DNS caído) se rechaza: no hay destino al que llamar", async () => {
+    expect((await validarEndpoint("https://nada.invitado.example/agente", resolver({}))).ok).toBe(false);
+    const caido: Resolver = async () => { throw new Error("getaddrinfo ENOTFOUND"); };
+    expect((await validarEndpoint("https://bot.invitado.example/agente", caido)).ok).toBe(false);
+  });
   it("rechaza IP privada y loopback, literal o resuelta (aquí no hay self-host)", async () => {
     for (const u of ["https://10.0.0.5/a", "https://127.0.0.1/a", "https://[::1]/a", "https://lan.invitado.example/a"]) expect((await validarEndpoint(u, dns)).ok).toBe(false);
   });
@@ -54,6 +65,20 @@ describe("reenviarTurno", () => {
       expect(await reenviarTurno(entrada({ contextoPermitido: [fragmento("publica"), ...malo] }), p.dep)).toMatchObject({ ok: false, status: 400 });
       expect(p.llamadas).toHaveLength(0);
     }
+  });
+  it("sin cabecera pedida el turno sale sin Authorization; con cabecera pedida y ausente en la bóveda, ni se contacta", async () => {
+    const p = preparar([sse()]);
+    expect((await reenviarTurno(entrada(), p.dep)).ok).toBe(true);
+    expect(p.llamadas[0].headers.Authorization).toBeUndefined();
+    const ausente = preparar([sse()], { leerCabecera: () => null });
+    expect(await reenviarTurno(entrada({ cabecera: "STARSEED_BOT_INVITADO_A" }), ausente.dep)).toMatchObject({ ok: false, status: 400 });
+    expect(ausente.llamadas).toHaveLength(0);
+  });
+  it("si la red falla, 502 y el motivo del fallo no se filtra al que pregunta", async () => {
+    const caida = preparar([() => Promise.reject(new Error("ECONNREFUSED 10.0.0.1:443"))]);
+    const r = await reenviarTurno(entrada(), caida.dep);
+    expect(r).toMatchObject({ ok: false, status: 502 });
+    expect(JSON.stringify(r)).not.toContain("ECONNREFUSED");
   });
   it("un mensaje con forma de clave no sale hacia el invitado", async () => {
     const p = preparar([sse()]), clave = ["s", "k-"].join("") + "a".repeat(40);
