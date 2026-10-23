@@ -157,8 +157,62 @@ export interface EditHistoryEntry {
 
 // ----------------------------- Utilidades -----------------------------------
 
-function rid(prefix = "id"): string {
-    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+/** Alfabeto base36 (0-9a-z) con el que se codifican los bytes aleatorios. */
+const BASE36 = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+/**
+ * Valor EXCLUSIVO para el reparto uniforme en base36: 252 = 36·7. Los bytes
+ * >= 252 se descartan y se vuelve a pedir otro, porque 256 no es múltiplo de
+ * 36 y el módulo puro repartiría los primeros valores una vez más (sesgo).
+ */
+const TOPE_BASE36 = 252;
+
+/** Contador de respaldo para entornos SIN Web Crypto (nunca en un navegador
+ *  moderno ni en Node >= 18; el segmento aleatorio sería 000001, 000002…). */
+let secuenciaRespaldo = 0;
+
+/**
+ * Genera un fragmento aleatorio CRIPTOGRÁFICAMENTE SEGURO en base36.
+ *
+ * Usa `crypto.getRandomValues` (Web Crypto) y NO `Math.random`: los ids de
+ * gobernanza (sugerencias y reportes) son auditables, no deben poder
+ * falsificarse adivinando el siguiente y no deben colisionar.
+ *
+ * @param len número de caracteres del fragmento (mínimo 1).
+ */
+export function fragmentoAleatorioSeguro(len = 8): string {
+    const n = Math.max(1, Math.floor(len));
+    const webcrypto = globalThis.crypto;
+
+    // Respaldo: contador monotónico. ÚNICO dentro del proceso, sin `Math.random`.
+    if (!webcrypto || typeof webcrypto.getRandomValues !== "function") {
+        secuenciaRespaldo += 1;
+        return secuenciaRespaldo.toString(36).padStart(n, "0").slice(-n);
+    }
+
+    const buffer = new Uint8Array(64);
+    let cursor = buffer.length;   // buffer agotado: se rellena en la primera vuelta
+    const out: string[] = [];
+    while (out.length < n) {
+        if (cursor >= buffer.length) {
+            webcrypto.getRandomValues(buffer);
+            cursor = 0;
+        }
+        const byte = buffer[cursor++];
+        if (byte >= TOPE_BASE36) continue;   // valor sesgado: se descarta
+        out.push(BASE36[byte % 36]);
+    }
+    return out.join("");
+}
+
+/**
+ * Id de gobernanza con formato `<prefijo>_<tiempo base36>_<aleatorio base36>`.
+ * El segmento aleatorio sale de `crypto.getRandomValues` (no de `Math.random`)
+ * y mide 8 caracteres en base36: ~2,8 billones de combinaciones, suficiente
+ * para que dos sugerencias o dos reportes nunca choquen.
+ */
+export function rid(prefix = "id"): string {
+    return `${prefix}_${Date.now().toString(36)}_${fragmentoAleatorioSeguro(8)}`;
 }
 
 function asObject<T extends object>(v: any, fallback: T): T {
