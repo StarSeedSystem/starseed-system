@@ -16,6 +16,7 @@ class DirectorTest(unittest.TestCase):
         self.t = tempfile.TemporaryDirectory(); self.home = os.path.join(self.t.name, "h"); self.raiz = os.path.join(self.t.name, "r")
         os.makedirs(self.home); os.makedirs(self.raiz)
         self.llamadas = []
+        self.lanzador_vacio = lambda: True
 
     def tearDown(self):
         self.t.cleanup()
