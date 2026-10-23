@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import shutil
 import socket
 import subprocess
 import sys
@@ -365,5 +366,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import shutil  # noqa: E402 — usado en _buscar_binario
     sys.exit(main())
