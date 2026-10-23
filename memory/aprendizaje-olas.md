@@ -4596,3 +4596,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SP092942b` — pruebas en rojo: vitest falla (rama conservada)
 - `SP092939b` — pruebas en rojo: vitest falla (rama conservada)
 - `RTS1010-ACT5d-d2c` — no escribió nada
+
+## 2026-10-23 15:03 · mg-oracle-1023-0813
+
+**Lo que se pidió.** Cálculo único de bloqueadas: problemas y en cadena
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTGBL1019Ad` — otra cosa: ningún proveedor respondió (todos caídos)
