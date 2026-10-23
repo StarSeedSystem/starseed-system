@@ -63,6 +63,11 @@ import { applyTheme as applyThemePack } from "@/lib/design/theme-engine";
 // para que aparezcan en la Biblioteca y el Mezclador los liste como fuentes.
 import { DESIGN_ELEMENTS, type DesignElementKind } from "@/lib/design/design-elements";
 import { REPO_DECISIONES } from "./fuentes-decision";
+// Cargador de las tandas 1020/1020b/1020c (publicaciones del visionario):
+// lista el repo builtin con sus fichas y bloquea los repos excluidos por
+// seguridad. El body de packages.ts registra los builtin en el cargador (ver
+// el aviso del ciclo de módulos en el propio cargador).
+import { registrarReposBuiltin, REPO_EXTERNOS_1020, esRepoExcluido } from "./repos-externos-1020";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -2136,6 +2141,11 @@ function sanitizePackage(raw: unknown, repoId: string): LibraryPackage | null {
   const name = asString(r.name).trim();
   const kind = asString(r.kind).trim() as PackageKind;
   if (!id || !name || !VALID_KINDS.includes(kind)) return null;
+  const payload = r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
+    ? (r.payload as Record<string, unknown>)
+    : {};
+  const ghRepo = typeof payload.githubRepo === "string" ? payload.githubRepo : "";
+  if (ghRepo && esRepoExcluido(ghRepo)) return null;
   return {
     id,
     kind,
@@ -2147,9 +2157,7 @@ function sanitizePackage(raw: unknown, repoId: string): LibraryPackage | null {
     author: asString(r.author, "Desconocido"),
     sourceRepoId: repoId,
     free: r.free !== false, // gratis-primero por defecto
-    payload: r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
-      ? (r.payload as Record<string, unknown>)
-      : {},
+    payload,
     comingSoon: r.comingSoon === true,
   };
 }
@@ -2216,7 +2224,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO, REPO_EXTERNOS_1020];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
@@ -2256,9 +2264,16 @@ export async function addRepoByUrl(url: string): Promise<InstallResult & { repo?
     repo.id === STARSEED_THEMES_REPO.id ||
     repo.id === STARSEED_DESIGN_ELEMENTS_REPO.id ||
     repo.id === MINE_REPO_ID ||
-    repo.id === FONDO_SHADER_REPO.id
+    repo.id === FONDO_SHADER_REPO.id ||
+    repo.id === REPO_EXTERNOS_1020.id
   ) {
     return { ok: false, message: `Ese id de repo está reservado (${repo.id}).` };
+  }
+  if (repo.packages.some((p) => {
+    const gh = typeof p.payload.githubRepo === "string" ? p.payload.githubRepo : "";
+    return gh !== "" && esRepoExcluido(gh);
+  })) {
+    return { ok: false, message: "El repo contiene publicaciones bloqueadas por seguridad." };
   }
     const others = readExternalRepos().filter((r) => r.id !== repo.id);
     writeJson(REPOS_KEY, [...others, repo]);
@@ -2827,4 +2842,14 @@ export function getPublishedBranches(): LibraryPackage[] {
   const raw = readJson<unknown>(PUBLISHED_KEY);
   if (!Array.isArray(raw)) return [];
   return raw.filter((p): p is LibraryPackage => !!p && typeof p === "object" && typeof (p as LibraryPackage).id === "string");
+}
+
+// Registro de los builtin en el cargador (fin del body: todos existen ya).
+// Si el cargador se evaluó antes, aquí su body ni el registro no existen todavía
+// (TDZ): se salta esta llamada y el cargador completa al auto-registrarse; si
+// packages.ts fue el primero, esto completa el cálculo del cargador.
+try {
+  registrarReposBuiltin();
+} catch {
+  /* el cargador ya se auto-registró (fue él el que se evaluó primero) */
 }

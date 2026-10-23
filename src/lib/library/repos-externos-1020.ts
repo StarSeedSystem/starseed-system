@@ -1,7 +1,28 @@
 "use client";
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+// ════════════════════════════════════════════════════════════════════════════
+// StarSeed OS — Biblioteca · EL CARGADOR de las tandas de repos externos 1020
+// ------------------------------------------------------------------------------
+// Lee las TRES tandas del catálogo verificado (Olas 1020, 1020b y 1020c):
+//   · config/repos-libreria-1020.json  · 1020b.json · 1020c.json
+// y produce el catálogo aplicado en la Biblioteca a través de packages.ts
+// (listRepos → REPO_EXTERNOS_1020). Bloquea los repos excluidos por seguridad
+// (REPOS_EXCLUIDOS / esRepoExcluido) y no duplica los que ya están como builtin
+// (REPOS_YA_PRESENTES, p. ej. penpot/penpot → iatool-penpot).
+// Puro y sin `node:*`: esta ficha la importa el cliente.
+//
+// CICLO DEL CARGADOR: packages.ts importa de aquí y aquí se escanean sus repos
+// builtin, así que body de uno necesita body del otro. Para que el orden de
+// evaluación dé igual (packages primero en la app, cargador primero en los
+// tests), el cálculo que depende de los builtins vive en registrarReposBuiltin:
+// el cargador se auto-registra al evaluarse y packages.ts lo re-registra al
+// terminar su body; quien llegue antes lanza (TDZ) y quien llegue después lo
+// completa. Las llamadas son idempotentes.
+// ════════════════════════════════════════════════════════════════════════════
+
+import tandaA from "../../../config/repos-libreria-1020.json";
+import tandaB from "../../../config/repos-libreria-1020b.json";
+import tandaC from "../../../config/repos-libreria-1020c.json";
 import {
   FONDO_SHADER_REPO,
   STARSEED_AGENTS_REPO,
@@ -10,23 +31,46 @@ import {
   STARSEED_IA_TOOLS_REPO,
   STARSEED_LABS_REPO,
   STARSEED_THEMES_REPO,
+  type LibraryPackage,
   type LibraryRepo,
 } from "./packages";
 
-const REPO_ROOT = process.cwd();
-const CONFIG_1_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020.json");
-const CONFIG_2_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020b.json");
-const CONFIG_3_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020c.json");
+/* ───────────────────── Tipos del catálogo crudo (sin any) ───────────────────── */
 
-const repos1 = JSON.parse(readFileSync(CONFIG_1_PATH, "utf-8"));
-const repos2 = JSON.parse(readFileSync(CONFIG_2_PATH, "utf-8"));
-const repos3 = JSON.parse(readFileSync(CONFIG_3_PATH, "utf-8"));
+interface EntradaCatalogo {
+  id: string;
+  repo: string;
+  nombre: string;
+  kind: string;
+  canal?: string;
+  licencia?: string;
+  area?: string[];
+  efecto?: string;
+  preinstalar?: string;
+  claude?: string | boolean;
+  patron_tag?: string;
+  que_es?: string;
+  aviso?: string;
+  ruta_os?: string;
+}
+
+interface CatalogoCrudo {
+  paquetes?: EntradaCatalogo[];
+  excluida?: { repo: string; motivo: string };
+  excluidas?: { repo: string; motivo: string }[];
+}
+
+const repos1 = tandaA as CatalogoCrudo;
+const repos2 = tandaB as CatalogoCrudo;
+const repos3 = tandaC as CatalogoCrudo;
 
 const EXCLUIDA_1: string[] = [repos1.excluida?.repo ?? ""].filter((v): v is string => v !== "");
-const EXCLUIDAS_2: string[] = repos2.excluidas?.map((e: { repo: string }) => e.repo) ?? [];
-const EXCLUIDAS_3: string[] = repos3.excluidas?.map((e: { repo: string }) => e.repo) ?? [];
+const EXCLUIDAS_2: string[] = repos2.excluidas?.map((e) => e.repo) ?? [];
+const EXCLUIDAS_3: string[] = repos3.excluidas?.map((e) => e.repo) ?? [];
 
 export const REPOS_EXCLUIDOS: string[] = [...EXCLUIDA_1, ...EXCLUIDAS_2, ...EXCLUIDAS_3];
+
+/* ──────────────────────────── Mapeo de las tandas ──────────────────────────── */
 
 function mapaPatronTag(patron_tag: string): string {
   return patron_tag ?? "";
@@ -43,6 +87,8 @@ export interface ReposExternosPaquete {
   area: string[];
   efecto: string;
   preinstalar: string;
+  queEs: string;
+  aviso: string;
   claude: string | boolean;
   githubRepo: string;
   externalUrl: string;
@@ -50,13 +96,11 @@ export interface ReposExternosPaquete {
   motivoComingSoon?: string;
 }
 
-function transformaPaquete(
-  p: typeof repos1.paquetes[0] | (typeof repos2.paquetes)[0] | (typeof repos3.paquetes)[0],
-): ReposExternosPaquete {
+function transformaPaquete(p: EntradaCatalogo): ReposExternosPaquete {
   const efecto = p.efecto ?? "";
   const preinstalar = p.preinstalar ?? "";
   const claude = p.claude ?? false;
-  const patronTag = mapaPatronTag(p.patron_tag);
+  const patronTag = mapaPatronTag(p.patron_tag ?? "");
 
   const githubRepo = p.repo ?? "";
   const externalUrl = `https://github.com/${githubRepo}`;
@@ -83,6 +127,8 @@ function transformaPaquete(
     area: p.area ?? [],
     efecto,
     preinstalar,
+    queEs: p.que_es ?? "",
+    aviso: p.aviso ?? "",
     claude,
     githubRepo,
     externalUrl,
@@ -95,36 +141,48 @@ const paquetes1 = (repos1.paquetes ?? []).map(transformaPaquete);
 const paquetes2 = (repos2.paquetes ?? []).map(transformaPaquete);
 const paquetes3 = (repos3.paquetes ?? []).map(transformaPaquete);
 
-const reposExcluidosSet = new Set(REPOS_EXCLUIDOS);
-
-/* ── No duplicar repos que ya están (3.ª tanda) ───────────────────────────
- * Si un paquete builtin de packages.ts ya apunta al mismo repo de GitHub por
- * `payload.externalUrl` (p. ej. iatool-penpot → penpot/penpot), no se crea otro
- * paquete con ese repo: queda visible en REPOS_YA_PRESENTES. La regla entra con
- * la 3.ª tanda: las tandas 1 y 2 conservan su catálogo fijado por sus pruebas.
- * ──────────────────────────────────────────────────────────────────────── */
-const REPOS_BUILTIN_CON_URL: LibraryRepo[] = [
-  STARSEED_CORE_REPO,
-  STARSEED_LABS_REPO,
-  STARSEED_IA_TOOLS_REPO,
-  STARSEED_AGENTS_REPO,
-  STARSEED_THEMES_REPO,
-  STARSEED_DESIGN_ELEMENTS_REPO,
-  FONDO_SHADER_REPO,
-];
-
-function repoDeGithub(url: string): string {
-  const match = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)$/.exec(url.trim());
-  return match ? match[1] : "";
+/** ¿Es un repo excluido por seguridad (reverse-skill, Vikunja falso, open-kritt)? */
+export function esRepoExcluido(repo: string): boolean {
+  return REPOS_EXCLUIDOS.includes(repo.trim());
 }
 
-const idBuiltinPorRepo = new Map<string, string>();
-for (const repoBuiltin of REPOS_BUILTIN_CON_URL) {
-  for (const pkg of repoBuiltin.packages) {
-    const externa = typeof pkg.payload.externalUrl === "string" ? pkg.payload.externalUrl : "";
-    const github = repoDeGithub(externa);
-    if (github && !idBuiltinPorRepo.has(github)) idBuiltinPorRepo.set(github, pkg.id);
-  }
+/* ───────────────── Ficha LibraryPackage de cada entrada ───────────────── */
+
+/** `tool` (CLI/MCP/skill de agentes) → `function`; `link` (ficha externa) → `app`. */
+function kindDe(p: ReposExternosPaquete): LibraryPackage["kind"] {
+  if (p.kind === "tool") return "function";
+  if (p.kind === "link") return "app";
+  return (
+    ["app", "ai-source", "function"].find((k) => k === p.kind) ?? "app"
+  ) as LibraryPackage["kind"];
+}
+
+function fichaDe(p: ReposExternosPaquete): LibraryPackage {
+  const descripcion = p.queEs.trim() || p.nombre;
+  const nota = p.aviso.trim();
+  return {
+    id: p.id,
+    kind: kindDe(p),
+    name: p.nombre,
+    description: nota ? `${descripcion} ${nota}` : descripcion,
+    icon: "Package",
+    tags: [...p.area, p.canal].slice(0, 12),
+    version: "1.0.0",
+    author: p.repo.split("/")[0] ?? "externo",
+    sourceRepoId: "starseed-repos-1020",
+    free: true,
+    comingSoon: p.comingSoon === true,
+    payload: {
+      externalUrl: p.externalUrl,
+      githubRepo: p.githubRepo,
+      canal: p.canal,
+      area: [...p.area],
+      licencia: p.licencia,
+      efecto: p.efecto,
+      preinstalar: p.preinstalar,
+      patronTag: p.patronTag,
+    },
+  };
 }
 
 export interface ReposExternosYaPresente {
@@ -132,21 +190,59 @@ export interface ReposExternosYaPresente {
   id: string;
 }
 
-const reposDeTandasPrevias = new Set(
-  [...paquetes1, ...paquetes2].map((p: ReposExternosPaquete) => p.repo),
-);
-const candidatos3 = paquetes3.filter((p: ReposExternosPaquete) => {
-  return !reposExcluidosSet.has(p.repo) && !reposDeTandasPrevias.has(p.repo);
-});
+/* ──────────────── Registro: builtin map, dedupe y repo builtin ──────────────── */
 
-export const REPOS_YA_PRESENTES: ReposExternosYaPresente[] = candidatos3
-  .filter((p: ReposExternosPaquete) => idBuiltinPorRepo.has(p.repo))
-  .map((p: ReposExternosPaquete) => ({ repo: p.repo, id: idBuiltinPorRepo.get(p.repo) as string }));
+// Let de carga: se rellenan en registrarReposBuiltin (ver el aviso del ciclo).
+export let REPOS_YA_PRESENTES: ReposExternosYaPresente[] = [];
+export let PAQUETES_EXTERNOS: ReposExternosPaquete[] = [];
+export let REPO_EXTERNOS_1020: LibraryRepo = {
+  id: "starseed-repos-1020",
+  name: "Repos del visionario 1020",
+  builtin: true,
+  packages: [],
+};
 
-const reposYaPresentes = new Set(REPOS_YA_PRESENTES.map((presente) => presente.repo));
+export function registrarReposBuiltin(): void {
+  const idBuiltinPorRepo = new Map<string, string>();
+  for (const repoBuiltin of [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, FONDO_SHADER_REPO]) {
+    for (const pkg of repoBuiltin.packages) {
+      const externa = typeof pkg.payload.externalUrl === "string" ? pkg.payload.externalUrl : "";
+      const github = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)$/.exec(externa.trim())?.[1] ?? "";
+      if (github && !idBuiltinPorRepo.has(github)) idBuiltinPorRepo.set(github, pkg.id);
+    }
+  }
 
-export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
-  ...paquetes1.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-  ...paquetes2.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-  ...candidatos3.filter((p: ReposExternosPaquete) => !reposYaPresentes.has(p.repo)),
-];
+  const reposExcluidosSet = new Set(REPOS_EXCLUIDOS);
+  const reposDeTandasPrevias = new Set([...paquetes1, ...paquetes2].map((p) => p.repo));
+  const candidatos3 = paquetes3.filter(
+    (p) => !reposExcluidosSet.has(p.repo) && !reposDeTandasPrevias.has(p.repo),
+  );
+
+  REPOS_YA_PRESENTES = candidatos3
+    .filter((p) => idBuiltinPorRepo.has(p.repo))
+    .map((p) => ({ repo: p.repo, id: idBuiltinPorRepo.get(p.repo) as string }));
+
+  const reposYaPresentes = new Set(REPOS_YA_PRESENTES.map((presente) => presente.repo));
+
+  PAQUETES_EXTERNOS = [
+    ...paquetes1.filter((p) => !reposExcluidosSet.has(p.repo)),
+    ...paquetes2.filter((p) => !reposExcluidosSet.has(p.repo)),
+    ...candidatos3.filter((p) => !reposYaPresentes.has(p.repo)),
+  ];
+
+  REPO_EXTERNOS_1020 = {
+    id: "starseed-repos-1020",
+    name: "Repos del visionario 1020",
+    builtin: true,
+    packages: PAQUETES_EXTERNOS.map(fichaDe),
+  };
+}
+
+// Auto-registro: si el cargador fue evaluado primero (p. ej. en los tests),
+// aquí queda TODO listo. Si packages.ts se evaluó antes, la primera llamada
+// saltó por TDZ y lo completa al terminar su body.
+try {
+  registrarReposBuiltin();
+} catch {
+  /* packages.ts se está evaluando: completará cuando su body llame de nuevo */
+}
