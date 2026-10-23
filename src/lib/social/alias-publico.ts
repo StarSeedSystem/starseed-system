@@ -16,7 +16,7 @@
 /** Alias anónimo por defecto (el mismo que usa el resto del OS). */
 export const ALIAS_ANONIMO = "Ciudadano StarSeed";
 
-/** Claves de metadata donde la persona guarda el nombre que ELIGI mostrar. */
+/** Claves de metadata donde la persona guarda el nombre que ELIGIÓ mostrar. */
 const CLAVES_NOMBRE = ["full_name", "name", "display_name", "user_name"] as const;
 
 /** Longitud máxima de un nombre mostrado (evita cadenas absurdas en la UI). */
