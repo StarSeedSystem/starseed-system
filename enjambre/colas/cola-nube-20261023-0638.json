@@ -1,0 +1,84 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "DGM1018E",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · perfil de marca desde los tokens de tema del perfil, página o grupo (y su fondo)",
+   "archivos": [
+    "src/lib/diagramas/perfil-marca.ts",
+    "src/lib/diagramas/__tests__/perfil-marca.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `perfilDesdeTema(tokens: ThemeTokens, modo, paletaFondo?)` → los tokens que pide la guía de estilo de la skill (vendor/habilidades/diagram-design/references/style-guide.md: papel, tinta, acento, tipografías, trazos) con contraste AA comprobado; `bloquePerfil(perfil)` lo escribe en el formato de cabecera de perfil activo que describe references/profiles.md. Pruebas con un tema claro, uno oscuro y uno con fondo de Shaders. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DGM1018N",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · edición en grupo en tiempo real sobre la especificación",
+   "archivos": [
+    "src/lib/diagramas/sincronia-diagrama.ts",
+    "src/lib/diagramas/__tests__/sincronia-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elementosDeEspecificacion(espec, autor, t)` convierte cada nodo, arista y texto en `ElementoSala` (src/lib/salas/sincronia-sala.ts) y `especificacionDeEstado(estado)` lo recompone; usa `fusionarEstados`. Prueba: dos personas renombran nodos distintos a la vez y una borra una arista; las tres neuronas convergen. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DGM1018M"
+   ]
+  },
+  {
+   "id": "GUI1021I",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · puerta común abrirGuia y reglas del modo invitado (puro)",
+   "archivos": [
+    "src/lib/onboarding/guia-acceso.ts",
+    "src/lib/onboarding/__tests__/guia-acceso.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Módulo puro: `EVENTO_ABRIR_GUIA = \"starseed:open-guide\"` (igual que `OPEN_GUIDE_EVENT` de aurora-guide; la prueba lo compara leyendo el texto del archivo, sin importarlo), `abrirGuia({desde, temaInicial?})` (despacha el evento con ese detalle; sin `window`, no hace nada), `modoGuia(haySesion)` → 'invitado' | 'cuenta', `accionesDelPaso(modo)` → en invitado sin «Ir» ni «Hazlo por mí» y con la etiqueta «Disponible al entrar», `zGuia(desde, haySesion)` → 240 si se abre desde una ventana de acceso o sin sesión, si no el valor de hoy, y `unirVistas(local, cuenta)` (lo visto como invitado se une a la marca de la cuenta sin perder nada). Pruebas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical."
+  },
+  {
+   "id": "MGB1021B",
+   "ola": "1021B",
+   "titulo": "Revisor de bloqueadas · cuando un rescate de pruebas sale NO APLICA, sus rescates hermanos del mismo origen se cierran igual",
+   "archivos": [
+    "scripts/puente/revisor_bloqueadas_logica.py",
+    "scripts/puente/test_revisor_bloqueadas_hermanas.py"
+   ],
+   "depende": [],
+   "prompt": "Caso real (2026-10-21): RTCOL1012Ae se cerró «NO APLICA: los 9 casos ya están en main» el 20-10, pero su hermana RTCOL1012Ad (mismo ORIGEN: la rama archivada `refs/archivo/nube/a1-20261012-114650` de COL1012A y el mismo archivo de prueba) se quedó un día en «te necesitan». En `revisor_bloqueadas_logica.py` añade una regla PURA: las tareas de rescate (prompt que empieza por «ORIGEN: revisión automática de las ramas de la nube») que comparten la misma rama archivada (la ref `refs/archivo/nube/…` citada en el prompt) y los mismos archivos que otra ya cerrada como NO APLICA o integrada heredan ese cierre (`sustituida` con la nota «NO APLICA por su hermana <id>: <motivo de la hermana>»), salvo que estén en curso. Encájala en la decisión que ya devuelve el revisor (mira cómo devuelve hoy sus cierres) y no cambies nada más. Pruebas: hermana cerrada → cierre heredado; distinta rama o distintos archivos → nada; una en curso → nada. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lógica PURA con el reloj y los datos por parámetro; pruebas unittest sin red ni procesos; textos en español con acentos; nunca se borra nada de progreso.json: se cierra con estado `sustituida` y una nota que dice por qué."
+  },
+  {
+   "id": "GUI1021A",
+   "ola": "1021G",
+   "titulo": "Guías · textos del sistema: Protomolécula, malla, capas de conciencia y neuronas/cerebro",
+   "archivos": [
+    "src/lib/onboarding/guia-temas-sistema.ts",
+    "src/lib/onboarding/__tests__/guia-temas-sistema.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §2 y §3. Módulo PURO con el tipo `TemaGuia {key, titulo, cuerpo, voz, ruta, preguntaAurora, puntos: string[]}` y `TEMAS_SISTEMA` con los temas protomolecula, malla, capas-conciencia y neuronas-cerebro exactamente con los textos de §3. Exporta `temaPorClave`. Pruebas: claves únicas, rutas que empiezan por «/» salvo capas-conciencia (que lleva a Ajustes: usa la ruta real que abre los ajustes de inteligencia si la encuentras en el código; si no, `/agent`), `voz` más corta que `cuerpo`, y ningún texto dice «biométric». Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho)."
+  },
+  {
+   "id": "IMG1020A",
+   "ola": "1020U",
+   "titulo": "ComfyUI · plantillas puras de flujo (texto a imagen, imagen a imagen, escalado y variaciones por formato de publicación)",
+   "archivos": [
+    "src/lib/imagenes/flujos-comfyui.ts",
+    "src/lib/imagenes/__tests__/flujos-comfyui.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2: un ComfyUI real exige el GRAFO del flujo en formato API: objeto `{\"<id>\": {class_type, inputs}}` con enlaces `[\"<id>\", <salida>]`. Escribe constructores puros: `textoAImagen` (CheckpointLoaderSimple → CLIPTextEncode positivo y negativo → EmptyLatentImage → KSampler → VAEDecode → SaveImage), `imagenAImagen` (LoadImage → VAEEncode → KSampler con `denoise`), `escalar` (LoadImage → ImageScaleBy) y `variaciones` (el mismo flujo con N semillas que da quien llama). Formatos de publicación 1:1, 4:5, 9:16 y 16:9 con lados múltiplos de 8, cerca de 1 megapíxel (y una variante de ~0,26 MP para modelos de la gama SD 1.5). Lista blanca de nodos del núcleo (ningún nodo personalizado), muestreadores `euler`, `euler_ancestral`, `dpmpp_2m`, `dpmpp_sde` y planificadores `normal`, `karras`, `simple`; parámetros acotados (pasos 1–60, cfg 1–15, lado ≤ 2048) con error legible si no. Pruebas: cada formato respeta su proporción (±2 %) y múltiplos de 8; todos los enlaces apuntan a nodos que existen; ningún class_type fuera de la lista. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "GUI1021I",
+   "DGM1018E",
+   "GUI1021A",
+   "IMG1020A",
+   "DGM1018N",
+   "MGB1021B"
+  ]
+ }
+}
