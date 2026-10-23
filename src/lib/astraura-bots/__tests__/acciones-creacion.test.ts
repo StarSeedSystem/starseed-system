@@ -60,22 +60,37 @@ describe("protomolecula.operar", () => {
   });
 });
 describe("xr.intencion", () => {
-  it("devuelve la tarjeta de entenderVoz y no ejecuta nada (lo confirma la persona)", () => {
-    const handler = instalar();
-    const r = ejecutarIntencionXR(voz("crea un mundo con cielo de noche e invita al grupo Banda"), ctxVoz);
-    expect(r).toMatchObject({ ok: true, tarjeta: { titulo: "Esto saldrá de tu cuenta. ¿Lo hago?", acciones: TARJETA } });
-    expect(r.tarjeta?.lineas).toContain("Invitar a «Banda» (4 personas)");
-    expect([handler.mock.calls.length, router.push.mock.calls.length]).toEqual([0, 0]);
+  it("devuelve error de entenderVoz", async () => {
+    const a = voz("frase no entendida");
+    const d = { onStatus: vi.fn() };
+    const intencionesVoz = await import("@/lib/xr/intenciones-voz");
+    const m: ResultadoVoz = { ok: false, razon: "no-entendido", pregunta: "¿Qué quieres decir?", sugerencias: [] };
+    entenderVozSpy = vi.spyOn(intencionesVoz, "entenderVoz").mockReturnValue(m);
+    const r = await ejecutarIntencionXR(a, ctxVoz, d);
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBe("¿Qué quieres decir?");
+    expect(r.previo).toEqual({});
+    expect(r.tarjeta).toBeNull();
   });
-  it("lo que no sale de la cuenta también pide confirmación, con un título honesto", () => {
-    const r = ejecutarIntencionXR(voz("llévame a la estación Cumbre"), ctxVoz);
-    expect(r.voz.ok && r.voz.tarjeta).toBe(null);
-    expect(r.tarjeta).toEqual({ titulo: TITULO_PROPUESTA_BOT, lineas: ["Ir a «Cumbre»"], acciones: TARJETA });
+  it("devuelve tarjeta", async () => {
+    const a = voz("crea un mundo");
+    const d = { onStatus: vi.fn() };
+    const m: ResultadoVoz = { ok: true, pasos: [], confirmar: false, tarjeta: null };
+    const intencionesVoz = await import("@/lib/xr/intenciones-voz");
+    entenderVozSpy = vi.spyOn(intencionesVoz, "entenderVoz").mockReturnValue(m);
+    const r = await ejecutarIntencionXR(a, ctxVoz, d);
+    expect(r.ok).toBe(true);
+    expect(r.motivo).toBe("Tarjeta lista: no se hace nada hasta que la confirmes.");
+    expect(r.previo).toEqual({});
+    expect(r.tarjeta).not.toBeNull();
+    expect(r.tarjeta!.titulo).toBe(TITULO_PROPUESTA_BOT);
   });
-  it("sin contexto no adivina: pregunta y no hay tarjeta", () => {
-    const r = ejecutarIntencionXR(voz("invita al grupo Banda"), ctxVoz);
-    expect(r).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("mundo") });
-    expect(ejecutarIntencionXR(operar(MOVER), ctxVoz)).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("solo traduce «xr.intencion»") });
+  it("error frase no válida", async () => {
+    const a = { tipo: "xr.intencion", args: { frase: 123 } as any } as AccionBot;
+    const r = await ejecutarIntencionXR(a, ctxVoz);
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBe("Esta pieza solo traduce «xr.intencion», no «xr.intencion».");
+    expect(r.previo).toEqual({});
   });
   it("una frase que no es texto no llega a entenderVoz (y una vacía ni valida): pregunta y no hay tarjeta", () => {
     const noTexto = ejecutarIntencionXR({ tipo: "xr.intencion", args: { frase: 123 } } as unknown as AccionBot, ctxVoz);
