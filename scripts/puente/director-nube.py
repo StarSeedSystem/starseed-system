@@ -326,6 +326,54 @@ def reclamar_varadas_de_la_nube(runs_vivos):
         os.replace(tmp, ruta)
     except OSError:
         return []
+    # (2026-10-21) Si alguna tarea reclamada de la nube pertenece a la tanda viva
+    # de un orquestador en esta máquina (colas locales OLAS/cola-*.json), escribir
+    # la orden `reabrir` en el control de esa cola para que la tarea vuelva a la
+    # tanda en lugar de volver a la nube.
+    try:
+        ids_reclamados = set(str(t) for t in ids) if ids else set()
+        if ids_reclamados:
+            olas_dir = os.path.join(os.path.dirname(ruta), "olas")
+            if os.path.isdir(olas_dir):
+                for nombre_ola in sorted(os.listdir(olas_dir)):
+                    if not (nombre_ola.startswith("cola-") and nombre_ola.endswith(".json")):
+                        continue
+                    ruta_ola = os.path.join(olas_dir, nombre_ola)
+                    try:
+                        with open(ruta_ola, encoding="utf-8") as f:
+                            d_ola = json.load(f)
+                    except Exception:
+                        continue
+                    tareas_ola = d_ola if isinstance(d_ola, list) else (d_ola or {}).get("tareas") or []
+                    ids_ola = {str(t.get("id")) for t in tareas_ola if isinstance(t, dict) and t.get("id")}
+                    # Para cada id reclamado que esté en esta cola local
+                    ids_en_ola = ids_reclamados & ids_ola
+                    if ids_en_ola:
+                        nombre_cola = nombre_ola.replace(".json", "")
+                        control_ruta = os.path.join(olas_dir, "control-" + nombre_cola)
+                        # Leer control existente o crear uno vacío
+                        try:
+                            with open(control_ruta, encoding="utf-8") as f:
+                                control_actual = json.load(f)
+                        except Exception:
+                            control_actual = {}
+                        # Fusionar con la orden reabrir
+                        orden_reabrir = {
+                            "accion": "reabrir",
+                            "quien": "director-nube",
+                            "motivo": "devuelta de la nube: su run terminó",
+                            "t": time.strftime("%Y%m%d"),
+                        }
+                        actualizado = control_actual.copy()
+                        actualizado.update(orden_reabrir)
+                        tmp_c = control_ruta + ".tmp"
+                        with open(tmp_c, "w", encoding="utf-8") as f:
+                            json.dump(actualizado, f, ensure_ascii=False, indent=1)
+                        os.replace(tmp_c, control_ruta)
+                        # Quitar de la lista de ids devueltos para no reenviar a pendiente
+                        ids_reclamados -= ids_en_ola
+    except Exception:
+        pass
     return ids
 
 

@@ -62,3 +62,32 @@ class ReabrirConPeldanoTest(unittest.TestCase):
         enjambre.MIAS.discard("T9")
         enjambre.PROG.pop("T9", None)
         enjambre.REABRIR.discard("T9")
+
+
+class TestReabrirDespuesSoltarTest(unittest.TestCase):
+    """(2026-10-21) Una tarea soltada y luego reabierta vuelve a pendientes
+    y no se marca hecha."""
+
+    def test_reabrir_despues_de_soltar_vuelve_a_pendiente(self):
+        from unittest import mock
+
+        # Simular una tarea en estado reasignada · nube
+        memoria = {"T1": {"estado": "reasignada", "nota": "movida a nube", "medio": "nube"}}
+        disco = {"T1": {"estado": "reasignada", "nota": "movida a nube", "medio": "nube"}}
+
+        # Fusionar progreso (como hace guardar_prog)
+        fundido = enjambre.fusionar_progreso(memoria, disco, {"T1"})
+        self.assertEqual(fundido["T1"]["estado"], "reasignada")
+
+        # Ahora simular que el orquestador atiende una orden 'reabrir'
+        orden = {"T1": {"accion": "reabrir", "motivo": "run de nube terminado"}}
+        with mock.patch.object(enjambre, "consumir_control", return_value=orden), \
+                mock.patch.object(enjambre, "entregar_mensajes"), \
+                mock.patch.object(enjambre, "guardar_prog"), \
+                mock.patch.object(enjambre, "evento"), \
+                mock.patch.object(enjambre, "asegurar_modelo_opencode", return_value=True):
+            enjambre.atender_control()
+
+        # La tarea debería volver a pendiente, no a hecha ni reasignada
+        self.assertEqual("pendiente", enjambre.PROG["T1"]["estado"])
+        self.assertNotIn("T1", enjambre.PROGRESO_IRREVERSIBLE or set())
