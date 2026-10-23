@@ -33,6 +33,11 @@ describe("disponibilidad.ts", () => {
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
     });
+
+    it("una cadena sin letras decodifica a un mapa de bits vacío", () => {
+      expect(decodificar("")).toEqual(new Uint8Array(0));
+      expect([...decodificar("")]).toEqual([]);
+    });
   });
 
   describe("mapa de bits", () => {
@@ -98,6 +103,9 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+    it("un nodo sin piezas no anuncia nada", () => {
+      expect(anuncio("nodo-vacio", "e", 10, [], 0)).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
@@ -148,6 +156,12 @@ describe("disponibilidad.ts", () => {
       expect(quienTiene(reg, "t3", 0, AHORA + 16_000, 60_000).sort()).toEqual(["caduco", "fresco"]);
       // caducidad 0: nadie
       expect(quienTiene(reg, "t3", 0, AHORA, 0)).toEqual([]);
+    });
+
+    it("un registro sin anuncios no da fuentes", () => {
+      const reg = fusionar([]);
+      expect(reg.size).toBe(0);
+      expect(quienTiene(reg, "t1", 0, AHORA)).toEqual([]);
     });
 
     it("une piezas de un mismo nodo y las más nuevas ganan en caducidad", () => {
