@@ -12,18 +12,23 @@ caminos (`python3 -m unittest scripts/puente/test_X.py`, pytest de `traer_nube._
 por ruta muere en la RECOGIDA con `ModuleNotFoundError`, como lo traído de la nube el 2026-10-23
 (COL1012Lc cayó en la Mac sin que una sola aserción se ejecutara). El arranque propio es la reparación.
 """
+import importlib.util
 import os
+import subprocess
 import sys
 import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+RAIZ = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+
 import colmena_logica as C  # noqa: E402
 
 from gobernador_generico import (  # noqa: E402
     de_meminfo, de_sysctl, de_bateria_linux, de_pmset,
-    herramientas, medir, _version_a_numero, _es_android,
+    herramientas, medir, _version_a_numero, _es_android, _es_wsl,
+    _obtener_red, _obtener_disco_libre_gb, _obtener_bateria,
 )
 
 
@@ -371,6 +376,57 @@ class TestMedir(unittest.TestCase):
         resultado = medir()
         so_validos = {"macos", "linux", "android", "wsl", "windows", "otro"}
         self.assertIn(resultado["so"], so_validos)
+
+
+class TestLecturasDelAparato(unittest.TestCase):
+    """Las lecturas EN VIVO, tal como están los contratos de las funciones privadas aquí al lado."""
+
+    def test_es_wsl_consistente_con_proc_version(self):
+        # No fingimos contenido: es la misma fuente que lee la función, exigimos igualdad de veredicto.
+        try:
+            with open("/proc/version", "r") as f:
+                contenido = f.read().lower()
+            esperado = "microsoft" in contenido or "wsl" in contenido
+        except OSError:
+            # Sin /proc/version (macOS, Windows pelado) no hay manera de ser WSL.
+            esperado = False
+        self.assertEqual(_es_wsl(), esperado)
+
+    def test_obtener_red_sin_dato_no_se_inventa(self):
+        # Contrato: la red medida solo va si se sabe; _obtener_red (pura) no inventa datos.
+        self.assertEqual(_obtener_red(), {})
+
+    def test_disco_libre_del_repo_positivo(self):
+        disco = _obtener_disco_libre_gb()
+        self.assertIsNotNone(disco)
+        self.assertGreater(disco, 0.0)
+
+    def test_obtener_bateria_con_forma_valida_si_presente(self):
+        # En vivo: {} (sin batería) o {nivel (0..1), cargando (bool)}; nunca claves a medias.
+        bateria = _obtener_bateria()
+        if bateria:
+            self.assertIn("nivel", bateria)
+            self.assertIn("cargando", bateria)
+            self.assertIsInstance(bateria["cargando"], bool)
+            self.assertGreaterEqual(bateria["nivel"], 0.0)
+            self.assertLessEqual(bateria["nivel"], 1.0)
+
+
+@unittest.skipUnless(importlib.util.find_spec("pytest"), "pytest no está instalado en este python")
+class TestRecogidaConPytest(unittest.TestCase):
+    """El caso real que tumbaron a la nube: pytest sobre ESTE archivo desde la raíz."""
+
+    def test_pytest_recoge_test_gobernador_desde_la_raiz(self):
+        """Antes moría en la recogida con ModuleNotFoundError; con conftest.py (COL1012Md-d1)
+        debe recogerse entero. Espeja el patrón de test_conftest_pytest.py para este archivo."""
+        r = subprocess.run(
+            [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
+             os.path.join("scripts", "puente", os.path.basename(__file__))],
+            cwd=RAIZ, capture_output=True, text=True, timeout=120,
+        )
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("ModuleNotFoundError", r.stdout + r.stderr)
+        self.assertIn("test_gobernador_generico.py", r.stdout)
 
 
 if __name__ == "__main__":
