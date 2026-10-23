@@ -68,6 +68,10 @@ describe("normalizarCapa · rechazos", () => {
     expect(problemasDe(normalizarCapa({ forma: "resaltar" }))[0]).toMatch(/necesita un objetivo/);
     expect(problemasDe(normalizarCapa({ forma: "flecha", objetivo: "div > a[href]" }))[0]).toMatch(/identificador/);
   });
+  it("un objetivo presente pero vacío o en blanco se rechaza (no es lo mismo que no ponerlo)", () => {
+    expect(problemasDe(normalizarCapa({ forma: "resaltar", objetivo: "" }))[0]).toMatch(/identificador/);
+    expect(problemasDe(normalizarCapa({ forma: "flecha", objetivo: "   " }))[0]).toMatch(/identificador/);
+  });
 });
 
 describe("apilar y retirar", () => {
