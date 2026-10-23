@@ -45,6 +45,11 @@ class GenesisEnA1(unittest.TestCase):
         self.unidad_cfg = configuracion(self.unidad)
         self.caddy_cfg = configuracion(self.caddy)
 
+    def test_la_configuracion_ignora_comentarios_y_lineas_vacias(self):
+        """Lo que se vigila es lo que se aplica: un comentario no enciende ni apaga nada."""
+        texto = "# genesis.example.com 203.0.113.9\nExecStart=x\n\n  # una nota\n"
+        self.assertEqual(configuracion(texto), "ExecStart=x")
+
     def test_sin_modo_local_en_los_dos_archivos(self):
         """STARSEED_LOCAL deja pasar CUALQUIER petición sin sesión: ni en la unidad ni en Caddy."""
         for nombre, texto in (("la unidad", self.unidad), ("el Caddyfile", self.caddy)):
@@ -78,6 +83,17 @@ class GenesisEnA1(unittest.TestCase):
         """X-Real-IP sin `+`: con `+` Caddy añadiría la del cliente y podría falsearse."""
         self.assertIn("header_up X-Real-IP {remote_host}", self.caddy_cfg)
         self.assertNotIn("+X-Real-IP", self.caddy, "la IP real no puede ser la que traiga el cliente")
+
+    def test_caddy_no_borra_la_cookie_de_sesion(self):
+        """La puerta de datos borra `Cookie`; aquí eso dejaría a Genesis sin sesión (401 a todos)."""
+        self.assertNotRegex(self.caddy_cfg, r"header_up\s+-\s*Cookie")
+
+    def test_no_publica_rutas_que_se_apoyan_en_no_estar_en_la_mac(self):
+        """Solo se publica lo que la sala necesita: ni binarios con URL del cliente, ni gasto de
+        créditos, ni el daemon de voz, ni un buzón abierto. Los comentarios no cuentan."""
+        for ruta in ("/api/agent-reach", "/api/astraura/decidir",
+                     "/api/voz-local/", "/api/telegram/send"):
+            self.assertNotIn(ruta, self.caddy_cfg, f"ruta no apta para internet: {ruta}")
 
     def test_nada_de_ips_ni_hosts_ni_claves_reales(self):
         """Al repo solo llega el bucle local; ni una URL, ni una IP, ni un host, ni una clave."""
@@ -121,6 +137,13 @@ class GenesisEnA1(unittest.TestCase):
         self.assertTrue(exige, "la unidad no declara qué necesita antes de instalarse")
         self.assertTrue(any(".next/BUILD_ID" in l for l in exige), exige)
         self.assertTrue(any("/usr/local/bin/node" in l for l in exige), exige)
+
+    def test_el_arranque_usa_el_node_del_sistema_y_el_codigo_de_opt(self):
+        """ExecStart no puede colarse a un `next` de un home: se sirve lo instalado en /opt."""
+        arranques = [l for l in self.unidad_cfg.splitlines() if l.startswith("ExecStart=")]
+        self.assertEqual(len(arranques), 1, self.unidad_cfg)
+        self.assertIn("/opt/starseed/genesis", arranques[0])
+        self.assertNotIn(".local/bin/next", arranques[0])
 
 
     def test_el_bloque_de_bitnet_no_lleva_claves_en_el_caddyfile(self):
