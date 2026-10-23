@@ -1,0 +1,91 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "RTAPM1017Ub",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Medios · disponibilidad: quién tiene qué segmento o banda, anunciado en poco espacio",
+   "archivos": [
+    "src/lib/recursos/__tests__/arbol-relevo.test.ts",
+    "src/lib/recursos/__tests__/disponibilidad.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea APM1017U («Medios · disponibilidad: quién tiene qué segmento o banda, anunciado en poco espacio») se hizo en main por otro camino; su rama nube/a1-20261023-184106-APM1017U queda archivada en `refs/archivo/nube/a1-20261023-184106-APM1017U` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.86)\n\nTU TAREA (RTAPM1017Ub · solo estos archivos: src/lib/recursos/__tests__/arbol-relevo.test.ts, src/lib/recursos/__tests__/disponibilidad.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/recursos/__tests__/arbol-relevo.test.ts\n    it('con 1 receptor', () => {\n      const origen = 'origen';\n      const receptores = [{ nodoId: 'n1', subidaKbps: 1000 }];\n      const arbol = armarArbol(origen, receptores, 500);\n      \n      expect(arbol.origen).toBe(origen);\n      expect(arbol.nodos.get(origen)?.hijos).toContain('n1');\n    });\n\n# src/lib/recursos/__tests__/arbol-relevo.test.ts\n    it('con 10 receptores ordenados por subida', () => {\n      const origen = 'origen';\n      const receptores = Array.from({ length: 10 }, (_, i) => ({\n        nodoId: `n${i}`,\n        subidaKbps: (10 - i) * 1000\n      }));\n      \n      const arbol = armarArbol(origen, receptores, 1000);\n      \n      const hijosOrigen = arbol.nodos.get(origen)?.hijos || [];\n      expect(hijosOrigen.length).toBeGreaterThan(0);\n      \n      const primerosHijos = hijosOrigen.slice(0, 3);\n      const subidas = primerosHijos.map(id => arbol.nodos.get(id)?.subidaKbps ?? 0);\n      if (subidas.length >= 3) {\n        expect(subidas[0]).toBeGreaterThanOrEqual(subidas[1]);\n        expect(subidas[1]).toBeGreaterThanOrEqual(subidas[2]);\n      }\n    });\n\n# src/lib/recursos/__tests__/arbol-relevo.test.ts\n    it('respeta capacidad máxima por nodo', () => {\n      const origen = 'origen';\n      const receptores = [\n        { nodoId: 'n1', subidaKbps: 5000 },\n        { nodoId: 'n2', subidaKbps: 1000 },\n        { nodoId: 'n3', subidaKbps: 1000 },\n        { nodoId: 'n4', subidaKbps: 1000 },\n        { nodoId: 'n5', subidaKbps: 1000 }\n      ];\n      \n      const kbpsFlujo = 1000;\n      const arbol = armarArbol(origen, receptores, kbpsFlujo);\n      \n      const nodo1 = arbol.nodos.get('n1');\n      if (nodo1) {\n        const capacidadMax = Math.floor(5000 / kbpsFlujo);\n        expect(nodo1.hijos.length).toBeLessThanOrEqual(capacidadMax);\n      }\n    });\n\n# src/lib/recursos/__tests__/arbol-relevo.test.ts\n    it('con subida sin medir usa capacidad mínima', () => {\n      const origen = 'origen';\n      const receptores = [\n        { nodoId: 'n1' },\n        { nodoId: 'n2' },\n        { nodoId: 'n3' }\n      ];\n      \n      const arbol = armarArbol(origen, receptores, 1000);\n      \n      const n1 = arbol.nodos.get('n1');\n      expect(n1?.subidaKbps).toBe(0);\n      expect(arbol.nodos.get(origen)?.hijos.length).toBeGreaterThan(0);\n    });\n\n# src/lib/recursos/__tests__/arbol-relevo.test.ts\n    it('200 receptores', () => {\n      const origen = 'origen';\n      const receptores = Array.from({ length: 200 }, (_, i) => ({\n        nodoId: `n${i}`,\n        subidaKbps: (200 - i) * 500\n      }));\n      \n      const arbol = armarArbol(origen, receptores, 1000);\n      \n      let totalReceptores = 0;\n      for (const [id, nodo] of arbol.nodos) {\n        if (id !== origen) totalReceptores++;\n      }\n      \n      expect(totalReceptores).toBe(200);\n      \n      for (const [id, nodo] of arbol.nodos) {\n        const capMax = nodo.subidaKbps > 0 ? Math.floor(nodo.subidaKbps / 1000) : 9999;\n        expect(nodo.hijos.length).toBeLessThanOrEqual(capMax);\n      }\n    });\n\n# src/lib/recursos/__tests__/arbol-relevo.test.ts\n    it('mueve la rama cuando un nodo se va', () => {\n      const origen = 'origen';\n      const receptores = [\n        { nodoId: 'n1', subidaKbps: 5000 },\n        { nodoId: 'n2', subidaKbps: 3000 },\n        { nodoId: 'n3', subidaKbps: 2000 },\n        { nodoId: 'n4', subidaKbps: 1000 }\n      ];\n      \n      const arbol = armarArbol(origen, receptores, 1000);\n      const hijosAntes = arbol.nodos.get('n1')?.hijos.length || 0;\n      \n      const arbolRecolocado = recolocar(arbol, 'n1');\n      \n      expect(arbolRecolocado.nodos.get('n1')?.hijos.length).toBe(0);\n      expect(arbolRecolocado.nodos.get(origen)?.hijos).not.toContain('n1');\n      \n      const totalHijos = Array.from(arbolRecolocado.nodos.values())\n        .reduce((sum, nodo) => sum + nodo.hijos.length, 0);\n      expect(totalHijos).toBeGreaterThan(0);\n    });\n\n# src/lib/recursos/__tests__/arbol-relevo.test.ts\n    it('mantiene determinismo', () => {\n      const origen = 'origen';\n      const receptores = [\n        { nodoId: 'n1', subidaKbps: 5000 },\n        { nodoId: 'n2', subidaKbps: 3000 },\n        { nodoId: 'n3', subidaKbps: 2000 }\n      ];\n      \n      const arbol1 = armarArbol(origen, receptores, 1000);\n      const arbol2 = armarArbol(origen, receptores, 1000);\n      \n      for (const [id, nodo1] of arbol1.nodos) {\n        const nodo2 = arbol2.nodos.get(id);\n        expect(nodo2?.hijos).toEqual(nodo1.hijos);\n      }\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"codifica un conjunto de índices a base64\", () => {\n      const indices = [0, 1, 2, 5, 8];\n      const resultado = codificar(indices);\n      expect(typeof resultado).toBe(\"string\");\n      expect(resultado).not.toBe(\"\");\n\n      const recuperados = decodificar(resultado);\n      expect(recuperados).toEqual(indices);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"maneja arreglo vacío\", () => {\n      const resultado = codificar([]);\n      expect(resultado).not.toBeNull();\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"codifica un solo índice\", () => {\n      const resultado = codificar([3]);\n      const recuperados = decodificar(resultado);\n      expect(recuperados).toEqual([3]);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"decodifica base64 a índices\", () => {\n      const indicesOriginal = [0, 1, 2, 5, 8];\n      const bitMapB64 = codificar(indicesOriginal);\n      const recuperados = decodificar(bitMapB64);\n      expect(recuperados).toEqual(indicesOriginal);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"retorna arreglo vacío para base64 nulo\", () => {\n      expect(decodificar(null as unknown as string)).toEqual([]);\n      expect(decodificar(undefined as unknown as string)).toEqual([]);\n      expect(decodificar(\"\")).toEqual([]);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"fusiona múltiples mapas de bits\", () => {\n      const bitMap1 = codificar([0, 1, 2]);\n      const bitMap2 = codificar([3, 4, 5]);\n      const fusionado = fusionar([bitMap1, bitMap2]);\n\n      const resultado = decodificar(fusionado);\n      expect(resultado).toEqual([0, 1, 2, 3, 4, 5]);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"fusionar vacío retorna mapa vacío\", () => {\n      const resultado = fusionar([]);\n      const recuperados = decodificar(resultado);\n      expect(recuperados).toEqual([]);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"fusiona un solo anuncio\", () => {\n      const bitMap1 = codificar([1, 3, 5]);\n      const fusionado = fusionar([bitMap1]);\n      const recuperados = decodificar(fusionado);\n      expect(recuperados).toEqual([1, 3, 5]);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"retorna true cuando el bit está activado y no expirado\", () => {\n      const ahora = new Date();\n      const resultado = quienTiene(5, 2, ahora);\n      expect(resultado).toBe(true);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"retorna false cuando el bit no está activado\", () => {\n      const ahora = new Date();\n      const resultado = quienTiene(5, 3, ahora);\n      expect(resultado).toBe(false);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"retorna false cuando la información ha expirado\", () => {\n      const hace30Segundos = new Date(Date.now() - 60000);\n      const resultado = quienTiene(5, 2, hace30Segundos);\n      expect(resultado).toBe(false);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"retorna true cuando el bit está activado para un elemento\", () => {\n      const ahora = new Date();\n      // elemento=5 (101 binario), indice=2 → bit posición 2 está activado (5 >> 2 = 1)\n      const resultado = quienTiene(5, 2, ahora);\n      expect(resultado).toBe(true);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"crea un anuncio codificado cuando cabe en 1 KB\", () => {\n      const resultado = anuncio(5, true);\n      expect(typeof resultado).toBe(\"string\");\n      expect(resultado.length).toBeGreaterThan(0);\n\n      const indices = decodificar(resultado);\n      expect(indices).toEqual([5]);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"crea anuncio para elemento no disponible\", () => {\n      const resultado = anuncio(3, false);\n      expect(typeof resultado).toBe(\"string\");\n\n      const indices = decodificar(resultado);\n      expect(indices).toEqual([]);\n    });\n\n# src/lib/recursos/__tests__/disponibilidad.test.ts\n    it(\"trocea mensaje cuando excede 1 KB\", () => {\n      // Con pocos elementos el bit map cabalga en pocos bytes,\n      // pero verificamos la lógica de tamaño\n      const resultado = anuncio(42, true);\n      expect(typeof resultado).toBe(\"string\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "APM1017U",
+    "rama": "nube/a1-20261023-184106-APM1017U"
+   }
+  },
+  {
+   "id": "APM1017F",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · servir capacidades: admisión con los topes de préstamo, cola, cancelación y registro",
+   "archivos": [
+    "src/lib/recursos/servir-capacidades.ts",
+    "src/lib/recursos/__tests__/servir-capacidades.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión del relé `capacidad.*`: `crearServidor({ manejadores: Partial<Record<tipo, fn>>, oferta, sesiones, ahora })` con `atender(mensaje)` que comprueba la sesión (sesion-prestamo.ts) y los topes de `capacidadPrestable`, encola si está lleno (máx. 4 en cola), corre el manejador, trocea la respuesta y permite cancelar. `prestamos()` devuelve los préstamos vivos y hechos (quién, qué, ms, bytes) para Procesos activos. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D",
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "VST1018K",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Malla · voz y oído de VoiceStudio servidos a otras neuronas de la cuenta y el grupo",
+   "archivos": [
+    "src/lib/network/voz-por-malla.ts",
+    "src/lib/network/__tests__/voz-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Manejadores PUROS para las capacidades `voz.hablar` y `oido.transcribir` del relé `capacidad.*` (src/lib/network/capacidad-por-malla.ts): admiten solo peticiones de la misma cuenta o de un grupo con permiso, rechazan audio de terceros sin permiso (clonacion.ts si existe; si no, solo la voz del propio solicitante), aplican licencia-voz.ts al contexto de la petición y devuelven { motor, motivo } o un rechazo legible. Sin red en las pruebas. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "VST1018C"
+   ],
+   "dependencias_ya_en_main": [
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "HFR1018I",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Malla · `capacidad.video.render`: renderizar en la neurona con recursos",
+   "archivos": [
+    "src/lib/network/video-por-malla.ts",
+    "src/lib/network/__tests__/video-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Manejador PURO para el relé `capacidad.*` (src/lib/network/capacidad-por-malla.ts): admite solo peticiones de la misma cuenta o de un grupo con permiso, comprueba que la composición no traiga GSAP editado por el OS (adaptadores.ts) ni recursos remotos privados ajenos, y devuelve { aceptado, trabajoId } o un rechazo legible. La elección de la neurona la hace la bolsa de recursos; aquí solo se valida y se encola. Sin red en las pruebas. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "HFR1018C"
+   ],
+   "dependencias_ya_en_main": [
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "CNV1023D",
+   "ola": "1023C",
+   "titulo": "Conversor por la malla · servicio Hono en la neurona que tiene Filee",
+   "archivos": [
+    "servicios/conversor/src/app.mjs",
+    "servicios/conversor/bin/conversor.mjs",
+    "servicios/conversor/test/app.test.mjs"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nComo `servicios/servidor-ia` (mismo patrón: `crearApp`, bearerAuth con `STARSEED_CONVERSOR_TOKEN`, sin token solo 127.0.0.1, CORS solo para orígenes permitidos) crea un servicio en el puerto 4481 con `GET /salud`, `GET /formatos?de=` y `POST /convertir` (multipart archivo + a + calidad) que llama a `filee` con execFile y lista de argumentos en una carpeta temporal que borra siempre (topes: 500 MB, 15 min, 2 a la vez). Puedes importar la lógica pura de `src/lib/conversion/formatos.ts` copiándola si no se puede importar TS desde .mjs. Pruebas con node --test y un ejecutor falso."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "CNV1023D",
+   "APM1017F",
+   "RTAPM1017Ub",
+   "HFR1018I",
+   "VST1018K"
+  ]
+ }
+}
