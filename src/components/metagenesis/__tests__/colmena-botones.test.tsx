@@ -41,15 +41,11 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 });
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
         expect(b.desconectar.explica).toBe("No tiene trabajo en curso: puedes apagarlo sin más.");
-<<<<<<< HEAD
-        expect(b.desconectar.confirmar).toBeFalsy();
+expect(b.desconectar.confirmar).toBeFalsy();
     });
 
     it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" }, relevoActivo: true });
-=======
-        expect(b.desconectar.confirmar).toBe(false);
-    });
 
     it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } });
@@ -59,18 +55,12 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
     });
 
     it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente", () => {
-<<<<<<< HEAD
-        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, relevoActivo: true });
-=======
-        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1 });
->>>>>>> 5eeca4267 (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
+const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, relevoActivo: true });
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
         expect(b.desconectar.explica).toContain("1 agente");
         expect(b.desconectar.confirmar).toBe(true);
     });
-<<<<<<< HEAD
-
-    it("contenedor activo: explica «Termina lo que lleva y no coge más.» y pide confirmar si hay trabajo", () => {
+it("contenedor activo: explica «Termina lo que lleva y no coge más.» y pide confirmar si hay trabajo", () => {
         const sin = botonesNeurona({
             nodo: "oracle-a1-bbbbbb",
             vivo: true,
