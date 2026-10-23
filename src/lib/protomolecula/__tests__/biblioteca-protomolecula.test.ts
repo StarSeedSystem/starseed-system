@@ -122,4 +122,44 @@ describe("fichasProtomolecula", () => {
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
   });
+  it("la licencia de versiones manda sobre la del catálogo", () => {
+    const catalogo = [herramienta({ id: "lic", categoria: "audio-edicion", licencia: "GPL-3.0" })];
+    const [conVersion] = fichasProtomolecula({ lic: { licencia: "Apache-2.0" } }, catalogo);
+    const [sinVersion] = fichasProtomolecula({}, catalogo);
+    expect(conVersion.licencia).toBe("Apache-2.0");
+    expect(sinVersion.licencia).toBe("GPL-3.0");
+  });
+
+  it("nombre, descripción y enlaces salen del catálogo", () => {
+    const catalogo = [herramienta({
+      id: "enlaces", categoria: "raster-pintura", nombre: "Pintor", descripcion: "Pinta cosas.",
+      web: "https://ejemplo.com", codigo: "https://github.com/ejemplo/enlaces",
+    })];
+    const [f] = fichasProtomolecula({}, catalogo);
+    expect(f.nombre).toBe("Pintor");
+    expect(f.descripcion).toBe("Pinta cosas.");
+    expect(f.enlaces).toEqual({ web: "https://ejemplo.com", repo: "https://github.com/ejemplo/enlaces" });
+  });
+
+  it("sin dato en catálogo, licencia y enlaces caen a la ficha del átomo", () => {
+    const catalogo = [herramienta({ id: "atomo-ficha", categoria: "motores-juego", licencia: null as never, codigo: null })];
+    registrarAtomo(atomo("atomo-ficha", "juegos", { ficha: { web: "https://atomo.dev", repo: "https://github.com/a/b", licencia: "MPL-2.0" } }));
+    const [f] = fichasProtomolecula({}, catalogo);
+    expect(f.licencia).toBe("MPL-2.0");
+    expect(f.enlaces).toEqual({ web: "https://atomo.dev", repo: "https://github.com/a/b" });
+  });
+
+  it("sin licencia en ninguna parte se dice 'desconocida'", () => {
+    const catalogo = [herramienta({ id: "sin-lic", categoria: "audio-edicion", licencia: null as never })];
+    expect(fichasProtomolecula({}, catalogo)[0].licencia).toBe("desconocida");
+  });
+
+  it("el orden del contrato se respeta: imagen, juegos, ia", () => {
+    const catalogo = [
+      herramienta({ id: "ia", categoria: "ia-generativa" }),
+      herramienta({ id: "juego", categoria: "motores-juego" }),
+      herramienta({ id: "img", categoria: "raster-pintura" }),
+    ];
+    expect(fichasProtomolecula({}, catalogo).map((f) => f.categoria)).toEqual(["imagen", "juegos", "ia"]);
+  });
 });
