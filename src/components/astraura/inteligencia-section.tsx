@@ -31,7 +31,8 @@ import { readRouteLog, getIntelligenceSettings, saveIntelligenceSettings, type R
 import { estadoEntonacion, reflexionarEntonacion, EVENTO_ENTONACION, type DecisionEntonacion } from "@/lib/aurora/agente-entonacion";
 import { TIMBRES, fijarTimbre } from "@/lib/aurora/timbres";
 import { MOTORES_VOZ } from "@/lib/aurora/catalogo-voces";
-import { VozLicencias } from "@/components/astraura/voz-licencias";
+import { VozLicencias, type EstadoVoicestudioNeurona } from "@/components/astraura/voz-licencias";
+import { descubrir } from "@/lib/aurora/voz-starseed/voicestudio";
 import { PanelCapas } from "@/components/astraura/capas/panel-capas";
 
 /* ── Uso por fuente/modelo (tokens, contexto) ─────────────────────────────── */
@@ -105,6 +106,7 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
     const [ultimaDecision, setUltimaDecision] = useState<DecisionEntonacion | null>(null);
     const [reflexionando, setReflexionando] = useState(false);
     const [vista, setVista] = useState<"uso" | "rutas" | "fondo" | "voz" | "fuentes" | "conexiones">("uso");
+    const [estadoVoicestudio, setEstadoVoicestudio] = useState<EstadoVoicestudioNeurona>("sin-comprobar");
 
     const refrescar = useCallback(() => {
         try { setLog(readRouteLog()); } catch { /* */ }
@@ -119,6 +121,17 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
         window.addEventListener(EVENTO_ENTONACION, on);
         return () => { window.clearInterval(id); window.removeEventListener(EVENTO_ENTONACION, on); };
     }, [refrescar]);
+
+    /* VoiceStudio en esta neurona: se comprueba al abrir la pestaña de voz
+         (descubrimiento local, 800 ms de tope; sin red más allá de la neurona). */
+    useEffect(() => {
+        if (vista !== "voz") return;
+        let cancelado = false;
+        descubrir()
+            .then((r) => { if (!cancelado) setEstadoVoicestudio(r.vivo ? "vivo" : "no-detectado"); })
+            .catch(() => { if (!cancelado) setEstadoVoicestudio("no-detectado"); });
+        return () => { cancelado = true; };
+    }, [vista]);
 
     const uso = useMemo(() => agruparUso(log), [log]);
     const totalIn = uso.reduce((a, u) => a + u.inputTokens, 0);
@@ -299,7 +312,7 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
                         </div>
                     </div>
 
-                    <VozLicencias contexto="personal" condicionCumplida={false} estadoVoicestudio="sin-comprobar" />
+                    <VozLicencias contexto="personal" condicionCumplida={false} estadoVoicestudio={estadoVoicestudio} />
                 </div>
             )}
 
