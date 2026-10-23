@@ -17,7 +17,7 @@ export const DONDE_CLAUDE_NUBE = "claude-nube";
 export const TEXTO_CLAUDE_NUBE = "sesión de Claude Code en la nube (crédito incluido, no toca el límite semanal)";
 
 /** Estados del registro que dicen que la sesión ya terminó, aunque el progreso aún no lo sepa. */
-const CERRADAS = /^(terminada|traida|traída|integrada|fallida|cancelada|archivada|hecha)$/i;
+const CERRADAS = /^(terminada|traida|traída|devuelta|integrada|fallida|cancelada|archivada|hecha)$/i;
 
 /** Una entrada de `~/.starseed/alta-capacidad-nube.json`, tal como la escribe el lanzador. */
 export interface SesionClaudeNube {
@@ -29,6 +29,8 @@ export interface SesionClaudeNube {
     coste_usd?: unknown;
     t?: unknown;
     estado?: unknown;
+    /** Lo que escribe `seguir` al cerrarla: «traida» o «devuelta». */
+    final?: unknown;
 }
 
 /** El latido de una sesión viva, con la forma de los del medidor. */
@@ -74,6 +76,9 @@ export function agentesDeClaudeNube(
         const tarea = typeof s.tarea === "string" ? s.tarea.trim() : "";
         if (!tarea || !tareaEnClaudeNube(progreso[tarea])) continue;
         if (typeof s.estado === "string" && CERRADAS.test(s.estado.trim())) continue;
+        // (2026-10-23) El lanzador cierra con `final`, no con `estado`: AV1011F salió 22 h
+        // «escribiendo» con su sesión ya traída porque la tarea seguía prestada en el progreso.
+        if (typeof s.final === "string" && s.final.trim()) continue;
         const t = instanteDe(s.t);
         const previo = porTarea.get(tarea);
         if (!previo || (Number.isFinite(t) && !(t <= previo.t))) porTarea.set(tarea, { s, t });

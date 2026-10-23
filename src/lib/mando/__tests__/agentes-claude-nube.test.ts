@@ -31,6 +31,9 @@ describe("agentesDeClaudeNube", () => {
     it("una sesión ya traída a main no cuenta (progreso cerrado o registro terminado)", () => {
         expect(agentesDeClaudeNube({ sesiones: [sesion()] }, { XR1: { estado: "integrada", medio: "claude-nube" } }, AHORA)).toEqual([]);
         expect(agentesDeClaudeNube({ sesiones: [sesion({ estado: "traida" })] }, { XR1: viva }, AHORA)).toEqual([]);
+        // El lanzador la cierra con `final` (traída o devuelta) aunque el progreso siga prestado.
+        expect(agentesDeClaudeNube({ sesiones: [sesion({ final: "traida" })] }, { XR1: viva }, AHORA)).toEqual([]);
+        expect(agentesDeClaudeNube({ sesiones: [sesion({ final: "devuelta" })] }, { XR1: viva }, AHORA)).toEqual([]);
         // Reasignada, pero a otro medio: no es de Claude.
         expect(agentesDeClaudeNube({ sesiones: [sesion()] }, { XR1: { estado: "reasignada", medio: "oracle" } }, AHORA)).toEqual([]);
     });

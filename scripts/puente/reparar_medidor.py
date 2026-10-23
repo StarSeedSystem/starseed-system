@@ -375,14 +375,34 @@ def accion_tokens() -> Tuple[bool, str]:
     return _kickstart("com.starseed.tokens")
 
 
+def instalando_build(raiz: str = RAIZ) -> bool:
+    """¿Hay una build a medio instalar? (`instalar_build.py` la deja en `.next-build` y reinicia él)."""
+    return os.path.isdir(os.path.join(raiz, ".next-build"))
+
+
 def accion_genesis() -> Tuple[bool, str]:
+    """Con las MISMAS reglas que la autocuración (2026-10-23: la primera pasada reinició Genesis
+    mientras `instalar_build.py` lo estaba reiniciando): nunca durante una publicación o una
+    instalación, y no otra vez si ya se reinició hace poco."""
     import autocuracion_mando as A
-    for _ in range(3):
-        if A.sondear():
+    sondas = []
+    for _ in range(A.SONDAS):
+        sondas.append(bool(A.sondear()))
+        if sondas[-1]:
             return True, "Genesis contesta: no hacía falta reiniciarlo"
-        time.sleep(5)
+        time.sleep(A.ESPERA_ENTRE_SONDAS_S)
+    if instalando_build():
+        return False, "no contesta, pero se está instalando una build nueva (ella lo reinicia): espero"
+    estado = A._leer_json(A.ESTADO, {})
+    ahora = time.time()
+    reiniciar, porque = A.decidir_reinicio(sondas, ahora, estado.get("ultimo_reinicio"),
+                                           A.publicacion_en_marcha(A._leer_json(A.PUBLICACION, {})))
+    if not reiniciar:
+        return False, porque
     A._reiniciar()
-    return A.sondear(), "Genesis no contestaba: lo reinicié"
+    estado["ultimo_reinicio"] = ahora
+    A._guardar(estado)
+    return bool(A.sondear()), "Genesis %s: lo reinicié" % porque
 
 
 def accion_contenedores() -> Tuple[bool, str]:

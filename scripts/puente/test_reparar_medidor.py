@@ -168,3 +168,14 @@ class AvisosDelVigia(unittest.TestCase):
         malos = [v("Vigía: aprobacion_eterna", "colgado", "OLA1: 9 h esperando tu visto bueno")]
         self.assertEqual(R.plan_reparacion("agentes", malos), [])
         self.assertEqual(len(R.sin_reparacion("agentes", malos)), 1)
+
+
+class GenesisNoSeReiniciaEncimaDeUnaInstalacion(unittest.TestCase):
+    def test_build_a_medio_instalar(self):
+        d = tempfile.mkdtemp()
+        try:
+            self.assertFalse(R.instalando_build(d))
+            os.makedirs(os.path.join(d, ".next-build"))
+            self.assertTrue(R.instalando_build(d))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
