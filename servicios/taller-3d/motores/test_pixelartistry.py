@@ -177,6 +177,24 @@ class RemallarImagen(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("ComfyUI rechazó el prompt", r["fallo"])
 
+    def test_remallar_imagen_cuando_no_disponible(self):
+        """Cuando el motor no está disponible, remallar_imagen debe devolver un dict de error."""
+        result = pa.remallar_imagen(
+            "/fake/path/image.png",
+            resolucion=512,
+            carpeta_workflows=self.tmp,
+            comfy=pa.ClienteComfyUI(),
+            dormir=lambda _: None
+        )
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertGreaterEqual(len(result["procedencia"]), 2)  # piezas de flujo y nodos
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+
     def test_historial_sin_glb_es_agujero(self):
         carpeta = _flujo_en_disco(self.tmp)
         comfy = ComfyFalso(historial={"p1": {"outputs": {"n1": {"files": [{"filename": "malla.obj"}]}}}})
