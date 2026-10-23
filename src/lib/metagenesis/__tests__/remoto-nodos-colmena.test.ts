@@ -51,9 +51,12 @@ describe("acciones colmena: desconectar y contenedor", () => {
         expect(validarArgs("contenedor", { activo: true, trabajadores: 2 })).toBeNull();
     });
 
-    it("contenedor con activo false rechaza trabajadores", () => {
+    it("contenedor con activo false rechaza trabajadores (rango antes que compatibilidad con activo)", () => {
         expect(validarArgs("contenedor", { activo: false })).toBeNull();
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 1 })).toContain("trabajadores solo se permite");
         expect(validarArgs("contenedor", { activo: false, trabajadores: 2 })).toContain("trabajadores solo se permite");
+        // 0 está fuera del rango 1–4, y esa comprobación corre ANTES de la de `activo`: gana el mensaje del rango.
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBe("trabajadores fuera de 1–4");
     });
 });
 
