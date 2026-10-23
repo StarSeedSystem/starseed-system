@@ -116,4 +116,33 @@ describe('decisionPorResonancia', () => {
     ], conf);
     expect(r.decision).toBe('limpio');
   });
+
+  it('sin-datos y 0 cuentas con la lista vacía', () => {
+    const r = decisionPorResonancia('h1', [], conf);
+    expect(r.decision).toBe('sin-datos');
+    expect(r.cuentas).toBe(0);
+  });
+
+  it('ignora los veredictos de otro hash', () => {
+    const r = decisionPorResonancia('h1', [veredicto({ hash: 'otro' })], conf);
+    expect(r.decision).toBe('sin-datos');
+  });
+
+  it('un veredicto sin firmaOk no cuenta ni como aviso', () => {
+    const r = decisionPorResonancia('h1', [veredicto({ firmaOk: false })], conf);
+    expect(r.decision).toBe('sin-datos');
+  });
+
+  it('un nodo con confianza baja no cuenta ni como aviso', () => {
+    const r = decisionPorResonancia('h1', [veredicto({ nodo: 'n1' })], { n1: 0.1 });
+    expect(r.decision).toBe('sin-datos');
+  });
+
+  it('el mismo nodo y cuenta: manda el veredicto más reciente aunque llegue antes en la lista', () => {
+    const r = decisionPorResonancia('h1', [
+      veredicto({ nivel: 'peligroso', t: 2 }),
+      veredicto({ nivel: 'limpio', t: 1 }),
+    ], conf);
+    expect(r.decision).toBe('aviso');
+  });
 });

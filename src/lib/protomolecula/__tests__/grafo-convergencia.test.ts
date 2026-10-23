@@ -74,6 +74,16 @@ describe("formatos: directo, por conversión o incompatible", () => {
     expect(d).toMatchObject({ ok: true, incompatibles: [], conversiones: [] });
     expect(rutaDe).not.toHaveBeenCalled();
   });
+  it("la normalización recorta espacios y quita el punto inicial: « Mp3 » = «.MP3»", () => {
+    const defs = new Map<string, DefinicionAtomo>([
+      ["a", def("a", [], [".PNG", " Mp3 "], "A")],
+      ["b", def("b", ["mp3"], [], "B")],
+    ]);
+    const rutaDe = vi.fn<RutaDe>(() => null);
+    const d = analizarConvergencia([at("x", "a"), at("y", "b")], [ar("x", "y")], (id) => defs.get(id), rutaDe);
+    expect(d).toMatchObject({ ok: true, incompatibles: [], conversiones: [] });
+    expect(rutaDe).not.toHaveBeenCalled();
+  });
   it("conversión de dos pasos con un rutaDe falso: la arista va a conversiones con su ruta", () => {
     const rutaDe = vi.fn<RutaDe>((de, a) => (de === "obj" && a === "glb" ? ["OBJ", "gltf", "glb"] : null));
     const d = analizarConvergencia([at("m", "modelador"), at("e", "escena")], [ar("m", "e")], definicion, rutaDe);
