@@ -2,9 +2,9 @@
  * TESTS PG1013D · decidirResultado y propuestaMetaGenesis. Solo funciones puras.
  */
 import { describe, it, expect } from "vitest";
-import { decidirResultado, propuestaMetaGenesis } from "../decision";
+import { decidirResultado, propuestaMetaGenesis, faltaDePlan } from "../decision";
 import type { EntradaDecision } from "../decision";
-import type { Encargo } from "../encargo";
+import type { Encargo, Plan, Paso, Criterio } from "../encargo";
 
 const entradaBase: EntradaDecision = {
   ambito: "personal",
@@ -83,5 +83,50 @@ describe("propuestaMetaGenesis", () => {
     expect(p.prompt).not.toContain("detalle privado");
     expect(p.prompt).toContain("atomo");
     expect(p.titulo).not.toContain("querido secreto");
+  });
+});
+
+describe("faltaDePlan · lo que la molécula no sabe hacer", () => {
+  const criterio = (tipo: Criterio["tipo"], texto: string): Criterio => ({ tipo, texto });
+  const paso = (id: string, atomo = "herramienta", entradas: string[] = [], salida = "png"): Paso => ({
+    id,
+    atomo,
+    titulo: `Paso ${id}`,
+    entradas,
+    salida: { formato: salida },
+    depende: [],
+    criterios: [criterio("formato", salida)],
+  });
+
+  it("sin plan no falta nada", () => {
+    expect(faltaDePlan(null)).toBeNull();
+  });
+
+  it("un plan completo y limpio no pide nada al OS", () => {
+    const plan: Plan = { encargoId: "enc1", pasos: [paso("P1", "editor-imagen", [], "png")] };
+    expect(faltaDePlan(plan)).toBeNull();
+  });
+
+  it("un paso con átomo «solo-enlace» literal → falta un átomo (próximamente)", () => {
+    const plan: Plan = { encargoId: "enc1", pasos: [paso("P1", "solo-enlace")] };
+    const falta = faltaDePlan(plan);
+    expect(falta?.tipo).toBe("atomo");
+    expect(falta?.detalle).toContain("próximamente");
+  });
+
+  it("un átomo del catálogo marcado «solo-enlace» (tldraw) también pide un átomo al OS", () => {
+    const plan: Plan = { encargoId: "enc1", pasos: [paso("P1", "tldraw")] };
+    expect(faltaDePlan(plan)?.tipo).toBe("atomo");
+  });
+
+  it("camino completo: plan que toca fuera → metágesis y el borrador respeta lo personal", () => {
+    const todoDeUnaVez: Plan = { encargoId: "enc1", pasos: [paso("P1", "solo-enlace")] };
+    const falta = faltaDePlan(todoDeUnaVez);
+    if (!falta) throw new Error("el plan debería avisar de lo que falta");
+    const r = decidirResultado({ ...entradaBase, tocaFueraDeLaMolecula: true });
+    expect(r.modo).toBe("proponer-metagenesis");
+    const borrador = propuestaMetaGenesis({ ...encargo, ambito: "personal", intencion: "secreto mío" }, falta);
+    expect(borrador.prompt).not.toContain("secreto mío");
+    expect(borrador.archivos).toEqual([]);
   });
 });

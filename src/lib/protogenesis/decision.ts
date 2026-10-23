@@ -10,8 +10,9 @@
  * conversor o código del OS → propuesta de tarea a MetaGenesis. Nada se
  * aplica desde aquí sin esa decisión.
  */
-import type { Encargo } from "./encargo";
+import type { Encargo, Plan } from "./encargo";
 import type { Ambito } from "@/lib/protomolecula/tipos";
+import { herramientaPorId } from "@/lib/protomolecula/catalogo-herramientas";
 import { decidirAplicacion, rangoDeRol } from "@/lib/genesis/operaciones";
 
 export type ModoResultado = "aceptar" | "proponer-voto" | "proponer-metagenesis" | "sin-permiso";
@@ -80,6 +81,29 @@ export type PropuestaMetaGenesis = {
   depende: string[];
   prompt: string;
 };
+
+/** Lo que la molécula no sabe hacer: un átomo nuevo, un conversor u otro código del OS. */
+export type Falta = {
+  tipo: "atomo" | "conversor" | "otro";
+  detalle: string;
+};
+
+/**
+ * Lo que un plan dice por sí mismo (§2.2): un paso cuyo átomo está «solo-enlace» —o no está
+ * en el catálogo— es un átomo que falta y lo decide MetaGenesis. Lo que pide un conversor
+ * lo aporta quien planificó (el aviso «falta conversor de X a Y» del §2.2), no este plan.
+ * Sin nada pendiente, el resultado entero vive dentro de la molécula y aquí no hay propuesta.
+ */
+export function faltaDePlan(plan: Plan | null): Falta | null {
+  const pasoFaltante =
+    plan?.pasos.find((p) => p.atomo === "solo-enlace" || herramientaPorId(p.atomo)?.integracion === "solo-enlace") ??
+    null;
+  if (!pasoFaltante) return null;
+  return {
+    tipo: "atomo",
+    detalle: `paso ${pasoFaltante.id}: el átomo de «${pasoFaltante.titulo}» está «próximamente»`,
+  };
+}
 
 /**
  * Convierte «lo que la molécula no sabe hacer» en un borrador de tarea para el
