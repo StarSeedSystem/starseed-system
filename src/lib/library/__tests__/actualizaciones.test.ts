@@ -128,6 +128,18 @@ describe("canal de etiquetas con patrón", () => {
         expect(leerVersion(URL_RUVIEW, tags, { patronTag: "^ruview-harness-" })).toBeNull();
     });
 
+    it("las etiquetas que traen commit no inventan fecha: gana el nombre", () => {
+        const tags = [
+            { name: "v3263", commit: { committer: { date: "2026-09-01T00:00:00Z" } } },
+            { name: "ruview-harness-42", commit: { committer: { date: "2026-09-15T00:00:00Z" } } },
+            { name: "ruview-harness-41", commit: { committer: { date: "2026-09-10T00:00:00Z" } } },
+        ];
+        expect(leerVersion(URL_RUVIEW, tags, { patronTag: "^ruview-harness-" })).toEqual({
+            version: "ruview-harness-42",
+            fecha: null,
+        });
+    });
+
     it("el canal tags sin patrón toma la primera etiqueta", () => {
         expect(
             leerVersion(URL_RUVIEW, [{ name: "ruview-harness-2026-10-20" }], { canal: "tags" }),
