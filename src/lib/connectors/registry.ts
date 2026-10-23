@@ -395,6 +395,72 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     configHint: "http://<host>:8000/api",
   },
 
+  // ── Seguridad y agentes (repos-libreria-1020b, 2.ª parte) ──
+  {
+    id: "tirreno-selfhost",
+    name: "tirreno (antifraude, auto-hospedado)",
+    category: "custom",
+    kind: "oss",
+    authType: "apiKey",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "ShieldAlert",
+    description:
+      "Antifraude de cuentas y votaciones (toma de cuentas, bots, abuso; licencia AGPL-3.0). ⚠️ Recibe IP y correos de quien lo use: se activa solo con aviso de privacidad, datos mínimos y alojado por StarSeed. No protege la malla P2P.",
+    repo: "https://github.com/tirrenotechnologies/tirreno",
+    docsUrl: "https://github.com/tirrenotechnologies/tirreno",
+    configHint: "http://<host>:8585",
+  },
+  {
+    id: "moli-serve",
+    name: "Moli (navegador para agentes)",
+    category: "web",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Globe2",
+    description:
+      "Navegador sin interfaz en Rust para agentes (Apache-2.0 o MIT): ejecuta JavaScript ajeno y entrega Markdown. ⚠️ Exige sandbox y lista de dominios permitidos: el contenido web es dato, nunca instrucción.",
+    repo: "https://github.com/lexmount/moli",
+    docsUrl: "https://github.com/lexmount/moli",
+    configHint: "http://127.0.0.1:<puerto de moli serve>",
+  },
+  {
+    id: "dbx-mcp",
+    name: "DBX (inspección de bases locales)",
+    category: "dev",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Database",
+    description:
+      "Cliente de bases de datos con servidor MCP (Apache-2.0) para inspeccionar las bases locales de servidores y neuronas. Siempre en modo solo lectura: su modo «Acceso total» escribe y borra, y su IA integrada puede enviar esquemas a la nube.",
+    repo: "https://github.com/t8y2/dbx",
+    docsUrl: "https://github.com/t8y2/dbx",
+    configHint: "http://127.0.0.1:<puerto del MCP de dbx>",
+  },
+  {
+    id: "openshell-gateway",
+    name: "OpenShell (sandboxes para agentes)",
+    category: "dev",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Box",
+    description:
+      "Sandboxes de NVIDIA (Apache-2.0) con política de archivos, procesos y red para agentes. Alfa: puede cambiar sin avisar. Telemetría activada por defecto: instálalo con OPENSHELL_TELEMETRY_ENABLED=false.",
+    repo: "https://github.com/NVIDIA/OpenShell",
+    docsUrl: "https://github.com/NVIDIA/OpenShell",
+    configHint: "http://127.0.0.1:<puerto del gateway de OpenShell>",
+  },
+
   // ── Redes sociales (P4-8) ──
   {
     id: "postiz",
