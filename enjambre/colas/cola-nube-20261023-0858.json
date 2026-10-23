@@ -1,0 +1,114 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "ola": "repos-libreria-1020",
+   "id": "RLB1020Ab-d1c",
+   "titulo": "Biblioteca · repo builtin externo 1020 (14 publicaciones autoactualizables) (parte 1 de 3)",
+   "archivos": [
+    "src/lib/library/repos-externos-1020.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee entero el contrato architecture/repos-libreria-1020.md (§1-§5) y el catálogo verificado config/repos-libreria-1020.json (14 entradas en `paquetes`; datos reales, NO los cambies).\n\n1. Crea src/lib/library/repos-externos-1020.ts: importa el JSON (import … assert {type:'json'} o require tipado; el proyecto ya importa JSON en otros módulos de library) y mapea cada entrada a LibraryPackage (de ./packages): id, kind=entrada.kind, name=entrada.nombre, description=entrada.que_es + (entrada.aviso? ' — '+entrada.aviso : ''), icon por kind (app→AppWindow, ai-source→BrainCircuit, function→Boxes), tags=[...entrada.area, entrada.canal, entrada.licencia?'lic':''].filter(Boolean), version='1.0.0', author derivado de repo (owner), sourceRepoId='starseed-biblioteca-externa', free=true, comingSoon=true (ninguna tiene efecto de instalación real todavía), payload={ externalUrl: 'https://github.com/'+entrada.repo, githubRepo: entrada.repo, canal: entrada.canal, area: entrada.area, licencia: entrada.licencia, assets: entrada.assets??false, ...(entrada.skillId?{skillId:entrada.skillId}:{}) }. Exporta REPO_EXTERNOS_1020: LibraryRepo = { id:'starseed-biblioteca-externa', name:'Biblioteca externa', builtin:true, packages: [...] }.\n2. En packages.ts, añade REPO_EXTERNOS_1020 a listRepos() (impórtalo; colócalo en `base` junto a los demás builtins). Un solo punto de cambio; no toques nada más de packages.ts.\n3. Test: las 14 ids son únicas; cada paquete tiene payload.externalUrl que empieza por 'https://github.com/' y payload.githubRepo con forma owner/repo; NINGÚN id/repo contiene 'reverse-skill'; lib-anatomy lleva payload.skillId==='anatomy'; lib-gods-eye está en area 'mapas'. available-updates.ts ya autobusca releases con payload.externalUrl: NO dupliques ese motor.\n Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos puros sin `node:*` en cliente; nada de `any`; honestidad radical en cada ficha (qué hace DE VERDAD; botón deshabilitado con `comingSoon:true` si aún no hay efecto); respeta `canal` y licencia de cada entrada; NO incluyas zhaoxuya520/reverse-skill (excluida por seguridad).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39908668167`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39908668167:refs/remotes/origin/nube/39908668167\"` y `git cherry-pick --no-commit 91450a6789b9`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/repos-externos-1020.test.ts, src/lib/library/packages.ts, src/lib/library/repos-externos-1020.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "RLB1020Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39908668167"
+  },
+  {
+   "id": "MGP1011-1ECCC4dobjbbbbbbbb",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: CI en rojo · objeción del revisor",
+   "archivos": [
+    "src/components/vivo/juegos/__tests__/sala-juegos.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de MGP1011-1ECCC4d, ya integrada (sha 46bd9a86899c) tras 4 intentos con tsc y pruebas en verde. El revisor puso esta objeción y no se resolvió en la cadena:\n\nLa función `textoContienePalabra` usa `\\b` para delimitar palabras, por lo que no detectará la cadena concatenada “Beto${palabra}” (no hay límite de palabr\n\nTu encargo es SOLO resolver esa objeción sobre el código que ya está en main (léelo primero), con su prueba. Tarea original: Puerta de publicación en rojo: CI en rojo\n\n--- encargo original, como contexto ---\nNOTA DE METAGENESIS (2026-10-11 06:03): la autopublicación lleva más de 60 min frenada en 389c0afd por «CI en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n\u001b[39m (s\u001b[33m:\u001b[39m \u001b[33mSala\u001b[39m\u001b[33m,\u001b[39m texto\u001b[33m:\u001b[39m string) \u001b[33m=>\u001b[39m {\n2026-10-11T10:58:19.1397595Z \n2026-10-11T10:58:19.1397978Z \u001b[31m\u001b[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\u001b[22m\u001b[39m\n2026-10-11T10:58:19.1398354Z \n2026-10-11T10:58:19.1492763Z \u001b[2m Test Files \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m829 passed\u001b[39m\u001b[22m\u001b[90m (830)\u001b[39m\n2026-10-11T10:58:19.1522046Z \u001b[2m      Tests \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m9310 passed\u001b[39m\u001b[22m\u001b[90m (9311)\u001b[39m\n2026-10-11T10:58:19.1523056Z \u001b[2m   Start at \u001b[22m 10:53:56\n2026-10-11T10:58:19.1539714Z \u001b[2m   Duration \u001b[22m 262.62s\u001b[2m (transform 35.34s, setup 32.34s, collect 211.95s, tests 210.00s, environment 140.73s, prepare 59.22s)\u001b[22m\n2026-10-11T10:58:19.1540553Z \n2026-10-11T10:58:19.1610310Z \n2026-10-11T10:58:19.1626282Z ##[error]AssertionError: expected 'Sala de juegosDibujo-adivinaABCEn viv…' not to contain 'vela'\n\nExpected: \"vela\"\nReceived: \"Sala de juegosDibujo-adivinaABCEn vivoCambiar de juegoRonda 1 de 3Dibuja AnaTiempo del dibujo1:16La mesa3 de 8AnaAsiento 1 · le tocaBeto (tú)Asiento 2CarlaAsiento 3Marcador del grupo0Ana0Beto0Carla0Adivina aquíLos intentos aparecerán aquí.EnviarCómo funciona y sus límitesQuien dibuja hace de árbitro de su ronda: elige la palabra, compara los intentos\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261021-040512`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261021-040512:refs/remotes/origin/nube/a1-20261021-040512\"` y `git cherry-pick --no-commit b817cf2beb23 2b020fe8cffd`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/vivo/juegos/__tests__/sala-juegos.test.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "depende_de": [],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261021-040512"
+  },
+  {
+   "id": "RTMR1012Dd",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Routers a nodos: configuración OpenWrt (802.11s + batman-adv) y guion para aplicarla",
+   "archivos": [
+    "src/lib/network/routers-malla/__tests__/uci-malla.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea MR1012D («Routers a nodos: configuración OpenWrt (802.11s + batman-adv) y guion para aplicarla») se hizo en main por otro camino; su rama nube/38735825378 queda archivada en `refs/archivo/nube/38735825378` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.88)\n\nTU TAREA (RTMR1012D · solo estos archivos: src/lib/network/routers-malla/__tests__/uci-malla.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/network/routers-malla/__tests__/uci-malla.test.ts\n  it(\"wireless válido\", () => {\n    const r = uciMalla(e).wireless;\n    expect(r).toContain(\"config wifi-device 'radio1'\");\n    expect(r).toContain(\"option channel '36'\");\n    expect(r).toContain(\"option htmode 'VHT40'\");\n    expect(r).toContain(\"option country 'DE'\");\n    expect(r).toContain(\"option mode 'mesh'\");\n    expect(r).toContain(`option mesh_id '${e.meshId}'`);\n    expect(r).toContain(\"option encryption 'sae'\");\n    expect(r).toContain(`option key '${e.claveMalla}'`);\n    expect(r).toContain(\"option mesh_fwding '0'\");\n    expect(r).toContain(\"option network 'bat0_hardif_mesh'\");\n    expect(r).toContain(\"config wifi-iface 'ap_cliente'\");\n    expect(r).toContain(\"option device 'radio0'\");\n    expect(r).toContain(\"option mode 'ap'\");\n    expect(r).toContain(`option ssid '${e.cliente.ssid}'`);\n    expect(r).toContain(\"option encryption 'psk2'\");\n    expect(r).toContain(`option key '${e.cliente.clave}'`);\n    expect(r).toContain(\"option network 'lan'\");\n  });\n\n# src/lib/network/routers-malla/__tests__/uci-malla.test.ts\n  it(\"network válido\", () => {\n    const r = uciMalla(e).network;\n    expect(r).toContain(\"config interface 'bat0'\");\n    expect(r).toContain(\"option proto 'batadv'\");\n    expect(r).toContain(\"option routing_algo 'BATMAN_V'\");\n    expect(r).toContain(\"option mesh 'bat0_hardif_mesh'\");\n    expect(r).toContain(\"config interface 'bat0_hardif'\");\n    expect(r).toContain(\"option proto 'batadv_hardif'\");\n    expect(r).toContain(\"option master 'bat0'\");\n    expect(r).toContain(\"config interface 'lan'\");\n    expect(r).toContain(\"option type 'bridge'\");\n    expect(r).toContain(\"config device 'lan_bat0'\");\n    expect(r).toContain(\"option name 'bat0'\");\n  });\n\n# src/lib/network/routers-malla/__tests__/uci-malla.test.ts\n  it(\"banda 2g\", () => {\n    const r = uciMalla({ ...e, troncal: { ...e.troncal, banda: '2g', canal: 6, anchoMhz: 20 } }).wireless;\n    expect(r).toContain(\"option htmode 'HT20'\");\n    expect(r).toContain(\"option device 'radio0'\");\n  });\n\n# src/lib/network/routers-malla/__tests__/uci-malla.test.ts\n  it(\"banda 6g\", () => {\n    const r = uciMalla({ ...e, troncal: { ...e.troncal, banda: '6g', canal: 1, anchoMhz: 80 } }).wireless;\n    expect(r).toContain(\"option htmode 'HE80'\");\n    expect(r).toContain(\"option device 'radio2'\");\n  });\n\n# src/lib/network/routers-malla/__tests__/uci-malla.test.ts\n  it(\"país por región\", () => {\n    const regiones: Record<string, string> = { 'US':'US', 'ES':'ES', 'FR':'FR', 'JP':'JP' };\n    for (const [r, c] of Object.entries(regiones)) {\n      const res = uciMalla({ ...e, region: r as any }).wireless;\n      expect(res).toContain(`option country '${c}'`);\n    }\n  });\n\n# src/lib/network/routers-malla/__tests__/uci-malla.test.ts\n  it(\"guion válido\", () => {\n    const g = guionAplicar(e);\n    expect(g.length).toBeGreaterThan(0);\n    expect(g).toContain(\"#!/bin/sh\");\n    expect(g).toContain(\"cp /etc/config/wireless /etc/config/wireless.antes-starseed\");\n    expect(g).toContain(\"cp /etc/config/network /etc/config/network.antes-starseed\");\n    expect(g).toContain(\"wifi reload\");\n    expect(g).toContain(\"/etc/init.d/network restart\");\n    expect(g).toContain(\"Configuración aplicada correctamente\");\n  });\n\n# src/lib/network/routers-malla/__tests__/uci-malla.test.ts\n  it(\"incluye configuraciones\", () => {\n    const g = guionAplicar(e);\n    const { wireless, network } = uciMalla(e);\n    expect(g).toContain(wireless.split('\\n')[0]);\n    expect(g).toContain(wireless.split('\\n')[wireless.split('\\n').length - 1]);\n    expect(g).toContain(network.split('\\n')[0]);\n    expect(g).toContain(network.split('\\n')[network.split('\\n').length - 1]);\n  });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39233749226`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39233749226:refs/remotes/origin/nube/39233749226\"` y `git cherry-pick --no-commit 3c86ad351386`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/network/routers-malla/__tests__/uci-malla.test.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39233749226"
+  },
+  {
+   "id": "MGB1021B",
+   "ola": "1021B",
+   "titulo": "Revisor de bloqueadas · cuando un rescate de pruebas sale NO APLICA, sus rescates hermanos del mismo origen se cierran igual",
+   "archivos": [
+    "scripts/puente/revisor_bloqueadas_logica.py",
+    "scripts/puente/test_revisor_bloqueadas_hermanas.py"
+   ],
+   "depende": [],
+   "prompt": "Caso real (2026-10-21): RTCOL1012Ae se cerró «NO APLICA: los 9 casos ya están en main» el 20-10, pero su hermana RTCOL1012Ad (mismo ORIGEN: la rama archivada `refs/archivo/nube/a1-20261012-114650` de COL1012A y el mismo archivo de prueba) se quedó un día en «te necesitan». En `revisor_bloqueadas_logica.py` añade una regla PURA: las tareas de rescate (prompt que empieza por «ORIGEN: revisión automática de las ramas de la nube») que comparten la misma rama archivada (la ref `refs/archivo/nube/…` citada en el prompt) y los mismos archivos que otra ya cerrada como NO APLICA o integrada heredan ese cierre (`sustituida` con la nota «NO APLICA por su hermana <id>: <motivo de la hermana>»), salvo que estén en curso. Encájala en la decisión que ya devuelve el revisor (mira cómo devuelve hoy sus cierres) y no cambies nada más. Pruebas: hermana cerrada → cierre heredado; distinta rama o distintos archivos → nada; una en curso → nada. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lógica PURA con el reloj y los datos por parámetro; pruebas unittest sin red ni procesos; textos en español con acentos; nunca se borra nada de progreso.json: se cierra con estado `sustituida` y una nota que dice por qué."
+  },
+  {
+   "id": "GUI1021A",
+   "ola": "1021G",
+   "titulo": "Guías · textos del sistema: Protomolécula, malla, capas de conciencia y neuronas/cerebro",
+   "archivos": [
+    "src/lib/onboarding/guia-temas-sistema.ts",
+    "src/lib/onboarding/__tests__/guia-temas-sistema.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §2 y §3. Módulo PURO con el tipo `TemaGuia {key, titulo, cuerpo, voz, ruta, preguntaAurora, puntos: string[]}` y `TEMAS_SISTEMA` con los temas protomolecula, malla, capas-conciencia y neuronas-cerebro exactamente con los textos de §3. Exporta `temaPorClave`. Pruebas: claves únicas, rutas que empiezan por «/» salvo capas-conciencia (que lleva a Ajustes: usa la ruta real que abre los ajustes de inteligencia si la encuentras en el código; si no, `/agent`), `voz` más corta que `cuerpo`, y ningún texto dice «biométric». Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho)."
+  },
+  {
+   "id": "IMG1020A",
+   "ola": "1020U",
+   "titulo": "ComfyUI · plantillas puras de flujo (texto a imagen, imagen a imagen, escalado y variaciones por formato de publicación)",
+   "archivos": [
+    "src/lib/imagenes/flujos-comfyui.ts",
+    "src/lib/imagenes/__tests__/flujos-comfyui.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2: un ComfyUI real exige el GRAFO del flujo en formato API: objeto `{\"<id>\": {class_type, inputs}}` con enlaces `[\"<id>\", <salida>]`. Escribe constructores puros: `textoAImagen` (CheckpointLoaderSimple → CLIPTextEncode positivo y negativo → EmptyLatentImage → KSampler → VAEDecode → SaveImage), `imagenAImagen` (LoadImage → VAEEncode → KSampler con `denoise`), `escalar` (LoadImage → ImageScaleBy) y `variaciones` (el mismo flujo con N semillas que da quien llama). Formatos de publicación 1:1, 4:5, 9:16 y 16:9 con lados múltiplos de 8, cerca de 1 megapíxel (y una variante de ~0,26 MP para modelos de la gama SD 1.5). Lista blanca de nodos del núcleo (ningún nodo personalizado), muestreadores `euler`, `euler_ancestral`, `dpmpp_2m`, `dpmpp_sde` y planificadores `normal`, `karras`, `simple`; parámetros acotados (pasos 1–60, cfg 1–15, lado ≤ 2048) con error legible si no. Pruebas: cada formato respeta su proporción (±2 %) y múltiplos de 8; todos los enlaces apuntan a nodos que existen; ningún class_type fuera de la lista. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "PES1020A",
+   "ola": "1020U",
+   "titulo": "Capacidad · servicios pesados: sus requisitos y dónde los coloca la malla y las capas de conciencia",
+   "archivos": [
+    "src/lib/recursos/servicios-pesados.ts",
+    "src/lib/recursos/__tests__/servicios-pesados.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §3, regla de Alex: lo que pide RAM o GPU lo colocan la malla local y las capas de conciencia, nunca la neurona por su cuenta. Escribe un módulo puro con `REQUISITOS_SERVICIO` (comfyui, libretranslate, stirling-pdf, archivebox, openhands-agent-server, coolify; mismos datos que el catálogo JSON, `null` = sin medir; medido en el A1 el 2026-10-20: LibreTranslate 711 MiB, Stirling-PDF 1,4 GiB, ComfyUI con SD 1.5 4,1 GB y más de 10 min por imagen en CPU; arm64 comprobado para LibreTranslate, Stirling-PDF, ArchiveBox, ComfyUI y OpenHands) y `SERVICIOS_INSTALADOS` del A1 (cada uno en 127.0.0.1 bajo demanda: LibreTranslate 5000, Stirling-PDF 8180, ArchiveBox 8001, ComfyUI 8188, OpenHands 8010; se encienden al primer uso si caben y se apagan a los 15 min sin uso), `CAPAS_PUBLICAS_CONOCIDAS` (oracle-a1: 2 OCPU, 12288 MB, arm64, sin GPU, activa; cloud-run: inactiva con el motivo «facturación de Google desactivada desde el 2026-09-25»; espacios-hf: solo con permiso) y `colocarServicio(servicio, ofertas, contexto)` que usa `planificar` de `src/lib/recursos/oferta.ts` y devuelve `{donde: {tipo: \"aparato\"|\"cuenta\"|\"cerebro\"|\"malla\"|\"capa-publica\"|\"web-gratis\"|\"ninguno\", id?}, motivo, respaldo?, falta: string[]}` en el orden de §3. Reglas: privado solo aparato, cuenta o cerebro; una arquitectura no verificada para el servicio no se coloca en esa capa (va a `falta`: «medir arm64 en el A1»); RAM sin medir exige una oferta con medida y se anota «a medir»; GPU necesaria sin oferta con GPU → web gratis si no es privado, si no `ninguno` con lo que falta; una capa inactiva nunca se elige y su motivo aparece. Pruebas de cada regla. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "PES1020B",
+   "ola": "1020U",
+   "titulo": "Capacidad · un servidor del cerebro no inventa capacidad (medida o declarada, o «sin medir»)",
+   "archivos": [
+    "src/lib/recursos/adaptadores.ts",
+    "src/lib/recursos/__tests__/adaptadores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §3: `linkedServerToOfertaNeurona` pone 1 núcleo, 1024 MB y sin GPU a todo servidor de cómputo o almacenamiento, sin medir nada. Que lea `servidor.config.capacidad` (validada: `nucleos`, `ramLibreMb`, `gpu`, `vramMb`, `prestaMb`, `arquitectura` amd64|arm64, `fuente` medida|declarada, `medidaEn`) y, si no hay, deje cómputo y almacén a 0 (no elegible) en vez de inventar. Actualiza SOLO los casos de la prueba existente que esperaban 1024 y añade los nuevos: capacidad declarada, medida, ausente y con datos inválidos (se ignoran). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "RLB1020Ab-d1c",
+   "GUI1021A",
+   "IMG1020A",
+   "MGB1021B",
+   "PES1020A",
+   "PES1020B",
+   "RTMR1012Dd",
+   "MGP1011-1ECCC4dobjbbbbbbbb"
+  ]
+ }
+}
