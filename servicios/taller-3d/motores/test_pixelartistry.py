@@ -183,7 +183,7 @@ class RemallarImagen(unittest.TestCase):
             "/fake/path/image.png",
             resolucion=512,
             carpeta_workflows=self.tmp,
-            comfy=pa.ClienteComfyUI(),
+            comfy=ComfyFalso(),
             dormir=lambda _: None
         )
         self.assertFalse(result["ok"])
