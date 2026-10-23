@@ -98,4 +98,23 @@ describe("vikunja · cliente puro", () => {
     expect(!r404.ok && r404.motivo).toContain("404");
     expect(!r500.ok && r500.motivo).toContain("falló");
   });
+
+  it("encuentra un proyecto existente en la primera búsqueda sin crearlo", async () => {
+    const { pedir, llamadas } = falso(200, [{ id: "p1", title: TITULO }]);
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r).toEqual({ ok: true, proyecto: { id: "p1", titulo: TITULO }, creado: false });
+    expect(llamadas).toHaveLength(1);
+  });
+  it("500 al buscar y 409 al crear dan motivo legible", async () => {
+    const r500 = await asegurarProyecto(BASE, TOKEN, grupo, falso(500, {}).pedir);
+    expect(!r500.ok && r500.motivo).toContain("falló");
+    const p409: Pedir = async (_u, i) => (i.method === "PUT"
+      ? { ok: false, status: 409, text: async () => "" }
+      : { ok: true, status: 200, text: async () => "[]" });
+    const r409 = await asegurarProyecto(BASE, TOKEN, grupo, p409);
+    expect(!r409.ok && r409.motivo).toContain("HTTP 409");
+    const d = { propuestaId: "p", titulo: "t", aprobadaEn: "2026-10-20" };
+    const t409 = await tareaDesdeDecision(BASE, TOKEN, "5", d, falso(409, {}).pedir);
+    expect(!t409.ok && t409.motivo).toContain("HTTP 409");
+  });
 });
