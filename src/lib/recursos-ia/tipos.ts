@@ -175,6 +175,8 @@ export interface InventarioRecursos {
     almacenesSueltos: MedioAlmacen[];
     /** Procesadores que no son de una neurona de la cuenta: servidores propios, públicos o comunales. */
     procesadoresSueltos: Procesador[];
+    /** Modelos que ya están en una neurona (un servidor de IA que contesta, el backend de Astraura): no se vuelven a descargar. */
+    modelosInstalados?: { modeloId: string; procesadorId?: string; almacenId?: string }[];
     avisos: string[];
 }
 

@@ -58,7 +58,7 @@ export function ResumenRecursosNeurona() {
         () =>
             inv
                 ? seguro(
-                      () => sugerirPlan(inv, catalogo, { capacidades: ["texto", "voz-tts"], alcance: ALCANCE_PROPIO, topologia: guardada, tamanosConfirmados: estado.tamanosConfirmados }),
+                      () => sugerirPlan(inv, catalogo, { capacidades: ["texto", "voz-tts"], alcance: ALCANCE_PROPIO, topologia: guardada, tamanosConfirmados: estado.tamanosConfirmados, instalados: inv.modelosInstalados }),
                       null,
                   )
                 : null,

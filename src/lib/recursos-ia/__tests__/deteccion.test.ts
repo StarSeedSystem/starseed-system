@@ -305,3 +305,14 @@ describe("detectarInventario fuera del navegador", () => {
         expect(inv.avisos).toContain(AVISO_DISCOS);
     });
 });
+
+describe("modelos ya instalados (integración)", () => {
+    it("BitNet viene con el backend de Astraura; TurboFieldfare solo si su servidor contesta", async () => {
+        const { modelosInstaladosDe } = await import("../deteccion");
+        const base = { t: "", host: "mac", so: "macOS 26.3.1", arquitectura: "arm64" as const, nucleos: 8, ramGb: 8, gpus: [], volumenes: [], herramientas: [], avisos: [] };
+        const conBitnet = modelosInstaladosDe("n1", { ...base, runtimes: ["bitnet-cpp"], servidoresIA: [{ id: "turbo-fieldfare", url: "", ok: false }] });
+        expect(conBitnet).toEqual([{ modeloId: "bitnet-b1.58-2b-4t", procesadorId: "n1:cpu", almacenId: "n1:interno" }]);
+        const conTurbo = modelosInstaladosDe("n1", { ...base, runtimes: [], servidoresIA: [{ id: "turbo-fieldfare", url: "", ok: true }] });
+        expect(conTurbo.map((x) => x.modeloId)).toEqual(["turbo-fieldfare-gemma4-26b-a4b"]);
+    });
+});

@@ -539,6 +539,25 @@ export function almacenBiblioteca(disponible = true): MedioAlmacen {
 
 /* ───────────────────────────── Unión (PURA) ───────────────────────────── */
 
+/**
+ * (integración) Modelos que ya viven en esta neurona, para que el plan no pida descargarlos otra
+ * vez: BitNet b1.58-2B-4T lo trae el backend de Astraura 1.58 (runtime `bitnet-cpp`, aunque su
+ * servidor esté dormido mientras el enjambre escribe) y TurboFieldfare cuenta solo si su servidor
+ * contesta (tener el repo clonado no es tener el modelo preparado). PURA.
+ */
+export function modelosInstaladosDe(neuronaId: string, m: DeteccionMaquina): NonNullable<InventarioRecursos["modelosInstalados"]> {
+    const vivo = (id: string) => m.servidoresIA.some((s) => s.id === id && s.ok);
+    const fuera: NonNullable<InventarioRecursos["modelosInstalados"]> = [];
+    const interno = `${neuronaId}:interno`;
+    if (m.runtimes.includes("bitnet-cpp") || vivo("bitnet")) {
+        fuera.push({ modeloId: "bitnet-b1.58-2b-4t", procesadorId: `${neuronaId}:cpu`, almacenId: interno });
+    }
+    if (vivo("turbo-fieldfare")) {
+        fuera.push({ modeloId: "turbo-fieldfare-gemma4-26b-a4b", procesadorId: `${neuronaId}:gpu` });
+    }
+    return fuera;
+}
+
 export function inventarioDesde(f: FuentesInventario): InventarioRecursos {
     const avisos: string[] = [];
     const base = f.estaNeurona;
@@ -595,6 +614,7 @@ export function inventarioDesde(f: FuentesInventario): InventarioRecursos {
         neuronas,
         almacenesSueltos,
         procesadoresSueltos,
+        ...(f.maquina ? { modelosInstalados: modelosInstaladosDe(esta.id, f.maquina) } : {}),
         avisos: unicos(avisos),
     };
 }
@@ -656,7 +676,7 @@ const HOSTS_LOCALES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 /** La máquina por dentro desde la ruta local. Nunca lanza; lo que falla va a `avisos`. */
 async function pedirMaquina(avisos: string[]): Promise<DeteccionMaquina | null> {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8_000);
+    const t = setTimeout(() => ctrl.abort(), 15_000);
     try {
         const r = await fetch("/api/recursos-ia/detectar", { signal: ctrl.signal, cache: "no-store" });
         if (!r.ok) {

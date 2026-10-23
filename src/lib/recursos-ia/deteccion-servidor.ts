@@ -29,10 +29,14 @@ import type { DeteccionMaquina, GpuDetectada, VolumenDetectado } from "./detecci
 export type { DeteccionMaquina, GpuDetectada, VolumenDetectado } from "./deteccion-tipos";
 
 const GIB = 1024 ** 3;
-/** Tope por orden (ms). */
-export const TOPE_ORDEN_MS = 3_000;
-/** Tope de toda la detección (ms): por debajo de los 8 s que espera el navegador. */
-export const TOPE_TOTAL_MS = 7_500;
+/**
+ * Tope por orden (ms). (integración, medido en la Mac de Alex) Con 3 s, `system_profiler` y
+ * `swift --version` —0,7 s y 1,7 s a solas— no llegaban al lanzarse todas las órdenes a la vez en
+ * una Mac de 8 GB cargada: la GPU (Metal 4) y Swift salían «sin leer».
+ */
+export const TOPE_ORDEN_MS = 7_000;
+/** Tope de toda la detección (ms): por debajo de los 15 s que espera el navegador. */
+export const TOPE_TOTAL_MS = 11_000;
 /** Vida de la caché en memoria (ms). */
 export const CACHE_MS = 60_000;
 /** Volúmenes más pequeños no sirven para modelos y solo ensucian (EFI, montajes de 10 MB…). */

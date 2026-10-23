@@ -105,6 +105,7 @@ export function PanelRecursosIa({ alcance: alcanceInicial }: { alcance?: Alcance
                               topologia: guardada,
                               tamanosConfirmados: estado.tamanosConfirmados,
                               preferir158: true,
+                              instalados: inv.modelosInstalados,
                           }),
                       null,
                   )

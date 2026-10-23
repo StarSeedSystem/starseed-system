@@ -194,3 +194,13 @@ describe("bitsDeModelo y ordenarPorPrioridad", () => {
         expect(orden).toEqual(["t-rec-grande", "t-rec-chico", "t-exp", "q4-rec-grande", "q4-respaldo", "q4-pruebas"]);
     });
 });
+
+describe("modelos de imagen (integración)", () => {
+    it("entran del catálogo de Imágenes con el tamaño por confirmar", async () => {
+        const { catalogoRecursos } = await import("../catalogo");
+        const img = catalogoRecursos().filter((m) => m.capacidades.includes("imagen"));
+        expect(img.length).toBeGreaterThan(5);
+        expect(img.every((m) => m.disco.gb === null)).toBe(true);
+        expect(img.find((m) => m.id === "img-sd-turbo")?.medios).toContain("web");
+    });
+});

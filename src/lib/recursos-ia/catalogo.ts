@@ -17,6 +17,7 @@
  */
 import capasJson from "../../../config/capas-astraura.json";
 import { LOCAL_LLM_SPECS, LOCAL_VOICE_SPECS, type ModelSpec } from "@/ai/astraura/model-requirements";
+import { MODELOS_IMAGEN, type ModeloImagen } from "@/lib/imagenes/modelos";
 import type { Acelerador, Arquitectura, Bits, Capacidad, MedioApp, RequisitosModelo } from "./tipos";
 
 /* ───────────────────────────── Bits ───────────────────────────── */
@@ -471,6 +472,50 @@ export function ordenarPorPrioridad(lista: RequisitosModelo[]): RequisitosModelo
     );
 }
 
+/**
+ * (integración) Modelos de imagen del catálogo de Imágenes locales (`src/lib/imagenes/modelos.ts`,
+ * IMG1011): sin ellos «Imágenes» salía «sin opción». El tamaño NO se asume: el repositorio de
+ * Hugging Face trae todas las variantes y lo que se descarga es menos, así que `disco.gb` queda en
+ * null y el panel pregunta (regla de Alex). Sin `ramGB` el modelo solo corre en una GPU con VRAM.
+ */
+export function modelosDeImagen(lista: readonly ModeloImagen[]): RequisitosModelo[] {
+    return lista.map((m) => {
+        const enCpu = m.ramGB > 0;
+        const web = m.motores.includes("onnx-web");
+        const sdcpp = m.motores.includes("sdcpp");
+        const medios: MedioApp[] = [
+            ...(web ? (["web", "pwa"] as const) : []),
+            ...(m.motores.some((x) => x !== "onnx-web") ? (["nativo", "servidor"] as const) : []),
+        ];
+        const notas = [
+            m.nota,
+            m.repoGB ? `El repositorio completo pesa ${m.repoGB} GB con todas sus variantes: lo que se descarga es menos y depende de la variante.` : undefined,
+            m.gated ? "Hay que aceptar sus términos con una cuenta de Hugging Face antes de descargarlo." : undefined,
+            `${m.resolucion} px · ${m.pasos} paso(s) · ${m.capacidades.join(", ")}.`,
+        ].filter(Boolean);
+        return {
+            id: `img-${m.id}`,
+            nombre: m.nombre,
+            familia: m.id,
+            capacidades: ["imagen"],
+            bits: 16,
+            formato: sdcpp ? "gguf" : web ? "onnx" : "safetensors",
+            runtime: sdcpp ? "sdcpp" : web ? "webgpu-onnx" : m.motores[0] ?? "diffusers",
+            parametrosB: 0,
+            disco: { gb: null, verificado: false },
+            ramMinGb: enCpu ? m.ramGB : Math.max(8, m.vramGB),
+            ...(enCpu ? {} : { vramMinGb: m.vramGB, aceleradoresRequeridos: ["cuda", "rocm", "metal"] as Acelerador[] }),
+            almacenamiento: { modo: "carga-completa", soloLocal: false },
+            medios,
+            licencia: m.licencia,
+            upstream: `https://huggingface.co/${m.hf}`,
+            notas: notas.join(" "),
+            estado: m.uso === "libre" ? "recomendado" : "respaldo",
+            origen: "catalogo-local",
+        } satisfies RequisitosModelo;
+    });
+}
+
 let memo: RequisitosModelo[] | null = null;
 
 /** Catálogo completo: capas + especificaciones locales + extras, sin duplicados, 1.58-bit primero. */
@@ -483,6 +528,7 @@ export function catalogoRecursos(): RequisitosModelo[] {
             ...MODELOS_EXTRA,
             ...modelosLocales([...LOCAL_LLM_SPECS, ...LOCAL_VOICE_SPECS]),
             SUPERTONIC_3,
+            ...modelosDeImagen(MODELOS_IMAGEN),
         ];
         for (const m of todos) {
             if (vistos.has(m.id)) continue; // gana la fuente con más verdad (capas › extras › locales)

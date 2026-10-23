@@ -284,11 +284,24 @@ function pesaPotencia(cap: Capacidad, o: Opcion): boolean {
  * Nivel › 1.58 primero › (razón: más potente) › puntuación › ids. Sin preferir 1.58, la puntuación
  * pierde su bono de bits y no hay tramo de bits.
  */
+/**
+ * (integración, medido en la Mac de Alex) «óptimo» y «bueno» son el MISMO tramo para ordenar: si no,
+ * Bonsai 1-bit 1.7B (respaldo, «óptimo» por holgura) le ganaba a Ternary Bonsai (1.58, recomendado,
+ * «bueno»), y Alex pidió priorizar el 1.58. Dentro del tramo: 1.58 › estado del catálogo › resto.
+ */
+function tramoNivel(n: Compatibilidad["nivel"]): number {
+    return n === "optimo" || n === "bueno" ? 0 : ORDEN_NIVEL[n];
+}
+
+const ORDEN_ESTADO: Record<RequisitosModelo["estado"], number> = { recomendado: 0, respaldo: 1, "en-pruebas": 2, experimental: 3 };
+
 function comparador(preferir158: boolean, cap: Capacidad) {
     const puntos = (o: Opcion) => (preferir158 ? o.compat.puntuacion : o.compat.puntuacion - bonoBits(o.m.bits));
     return (x: Opcion, y: Opcion) =>
-        ORDEN_NIVEL[x.compat.nivel] - ORDEN_NIVEL[y.compat.nivel] ||
+        tramoNivel(x.compat.nivel) - tramoNivel(y.compat.nivel) ||
         (preferir158 ? rangoBits(x.m.bits) - rangoBits(y.m.bits) : 0) ||
+        ORDEN_ESTADO[x.m.estado] - ORDEN_ESTADO[y.m.estado] ||
+        ORDEN_NIVEL[x.compat.nivel] - ORDEN_NIVEL[y.compat.nivel] ||
         (pesaPotencia(cap, x) ? tramoPotencia(y.m) - tramoPotencia(x.m) : 0) ||
         puntos(y) - puntos(x) ||
         cmp(x.m.id, y.m.id) ||
