@@ -1,0 +1,90 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "APM1017U",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Medios · disponibilidad: quién tiene qué segmento o banda, anunciado en poco espacio",
+   "archivos": [
+    "src/lib/recursos/disponibilidad.ts",
+    "src/lib/recursos/__tests__/disponibilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: mapa de bits compacto por elemento (segmentos de una transmisión o bandas de un volumen) con `codificar`/`decodificar` en base64, `fusionar(anuncios)`, `quienTiene(elemento, indice, ahora)` con caducidad (30 s por defecto) y `anuncio(elemento, tengo)` con tope de 1 KB por mensaje (troceando si hace falta). Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017V",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Medios · árbol de relevo: los que más suben en el centro y recolocación al irse uno",
+   "archivos": [
+    "src/lib/recursos/arbol-relevo.ts",
+    "src/lib/recursos/__tests__/arbol-relevo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO (§10): `armarArbol(origen, receptores: { nodoId, subidaKbps?, latenciaMs? }[], kbpsFlujo)` → padre de cada receptor; cada nodo sostiene como mucho `floor(subida / kbpsFlujo)` hijos (sin medida: 1), los de más subida más cerca del origen; determinista. `recolocar(arbol, seVa)` mueve solo la rama del que se fue. Pruebas con 1, 10 y 200 receptores y con una salida. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017A"
+   ]
+  },
+  {
+   "id": "DGM1018D",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · fuentes servidas por el OS en vez de Google Fonts",
+   "archivos": [
+    "src/lib/diagramas/fuentes-locales.ts",
+    "src/lib/diagramas/__tests__/fuentes-locales.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `sustituirFuentes(html, fuentesDisponibles)` cambia los `<link>` a fonts.googleapis.com por `@font-face` con data URL de las fuentes que el OS ya sirve (src/lib/themes/google-fonts.ts dice cuáles; recíbelas inyectadas) o por la pila de sistema equivalente si no la tiene; nunca deja una petición a terceros. Pruebas. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "DGM1018C"
+   ]
+  },
+  {
+   "id": "DGM1018E",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · perfil de marca desde los tokens de tema del perfil, página o grupo (y su fondo)",
+   "archivos": [
+    "src/lib/diagramas/perfil-marca.ts",
+    "src/lib/diagramas/__tests__/perfil-marca.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `perfilDesdeTema(tokens: ThemeTokens, modo, paletaFondo?)` → los tokens que pide la guía de estilo de la skill (vendor/habilidades/diagram-design/references/style-guide.md: papel, tinta, acento, tipografías, trazos) con contraste AA comprobado; `bloquePerfil(perfil)` lo escribe en el formato de cabecera de perfil activo que describe references/profiles.md. Pruebas con un tema claro, uno oscuro y uno con fondo de Shaders. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DGM1018N",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · edición en grupo en tiempo real sobre la especificación",
+   "archivos": [
+    "src/lib/diagramas/sincronia-diagrama.ts",
+    "src/lib/diagramas/__tests__/sincronia-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elementosDeEspecificacion(espec, autor, t)` convierte cada nodo, arista y texto en `ElementoSala` (src/lib/salas/sincronia-sala.ts) y `especificacionDeEstado(estado)` lo recompone; usa `fusionarEstados`. Prueba: dos personas renombran nodos distintos a la vez y una borra una arista; las tres neuronas convergen. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DGM1018M"
+   ]
+  },
+  {
+   "id": "GUI1021I",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · puerta común abrirGuia y reglas del modo invitado (puro)",
+   "archivos": [
+    "src/lib/onboarding/guia-acceso.ts",
+    "src/lib/onboarding/__tests__/guia-acceso.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Módulo puro: `EVENTO_ABRIR_GUIA = \"starseed:open-guide\"` (igual que `OPEN_GUIDE_EVENT` de aurora-guide; la prueba lo compara leyendo el texto del archivo, sin importarlo), `abrirGuia({desde, temaInicial?})` (despacha el evento con ese detalle; sin `window`, no hace nada), `modoGuia(haySesion)` → 'invitado' | 'cuenta', `accionesDelPaso(modo)` → en invitado sin «Ir» ni «Hazlo por mí» y con la etiqueta «Disponible al entrar», `zGuia(desde, haySesion)` → 240 si se abre desde una ventana de acceso o sin sesión, si no el valor de hoy, y `unirVistas(local, cuenta)` (lo visto como invitado se une a la marca de la cuenta sin perder nada). Pruebas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "GUI1021I",
+   "DGM1018D",
+   "DGM1018E",
+   "APM1017U",
+   "APM1017V",
+   "DGM1018N"
+  ]
+ }
+}
