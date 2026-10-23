@@ -41,6 +41,7 @@ if __name__ == "__main__" and not (os.path.isabs(RAIZ) and os.path.isdir(os.path
 
 # nombre -> (orden, log, vive_siempre)
 #   vive_siempre=False -> KeepAlive sólo si sale con error (guiones de un disparo)
+#   vive_siempre=<segundos> -> StartInterval: disparo periódico, sin KeepAlive
 SERVICIOS = {
     "vigilante": (
         [PY3, P("vigilante-enjambre.py")],
@@ -186,6 +187,18 @@ SERVICIOS = {
         "/tmp/starseed-tunel-metagenesis.log",
         True,
     ),
+    # (2026-10-23) Director de autodesarrollo (Ola 1021I, IMN1021E ·
+    # architecture/imaginacion-autodesarrollo.md §5): cada 15 min ejecuta
+    # «director_autodesarrollo.py ciclo», que recoge las propuestas de imaginación,
+    # las rinde y convierte en tareas solas (lo importante espera el visto bueno
+    # de Alex). Disparo periódico, no «vive siempre»: el tercer elemento es el
+    # StartInterval en segundos, y el plist NO lleva KeepAlive. Python3 directo
+    # (el que tiene el permiso de disco), nunca un shell.
+    "autodesarrollo": (
+        [PY3, "-u", P("director_autodesarrollo.py"), "ciclo"],
+        "/tmp/starseed-autodesarrollo.log",
+        900,
+    ),
 }
 
 PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>
@@ -222,9 +235,13 @@ def instalar(etiqueta, orden, log, siempre):
                 "log": log,
                 "home": HOME,
                 "args": "\n".join("    <string>%s</string>" % esc(a) for a in orden),
-                "vivo": "<key>KeepAlive</key><true/>"
-                if siempre
-                else "<key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>",
+                "vivo": (
+                    "<key>StartInterval</key><integer>%d</integer>" % siempre
+                    if isinstance(siempre, int) and not isinstance(siempre, bool)
+                    else "<key>KeepAlive</key><true/>"
+                    if siempre
+                    else "<key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>"
+                ),
             }
         )
     ok = subprocess.run(["plutil", "-lint", ruta], capture_output=True).returncode == 0
