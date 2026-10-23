@@ -54,6 +54,21 @@ describe("prepararGeneracion", () => {
     expect(p.motivo).toMatch(/podría generar con Pixal3D.*no está instalado.*saldría de este aparato/);
   });
   it("sin el registro de neuronas no dice que no haya ninguna", () => expect(prepararGeneracion(ctx({ neuronas: null }), deps()).neurona).toMatch(/no se leyó el registro/));
+  it("Mac de silicon de 32 GB con taller: sí genera en local y elige el de más fidelidad (TRELLIS.2)", () => {
+    const hierro = { gpu: "apple" as const, ramGB: 32, vramGB: null, blender: true, permiteEspacioHf: false, claveExterna: false };
+    const plan = prepararGeneracion(ctx({ destino: "avatar", comercial: false, hierro }), deps({ taller: async () => ok() }));
+    expect(plan.via).toBe("local");
+    expect(plan.plan.pasos.length).toBe(5);
+    const generar = plan.plan.pasos.find(p => p.etapa === "generar");
+    expect(generar?.motor?.id).toBe("trellis2");
+  });
+  it("permite espacio HF cuando está habilitado (sin GPU ni blender)", () => {
+    const hierro = { gpu: "ninguna" as const, ramGB: 0, vramGB: null, blender: false, permiteEspacioHf: true, claveExterna: false };
+    const plan = prepararGeneracion(ctx({ destino: "bot" }), deps({ espacio: async () => ok() }));
+    expect(plan.via).toBe("remota");
+    const generar = plan.plan.pasos.find(p => p.etapa === "generar");
+    expect(generar?.motor?.remoto).toBe(true);
+  });
 });
 
 describe("generar3d", () => {
