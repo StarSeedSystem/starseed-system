@@ -404,11 +404,16 @@ async function forward(method: "GET" | "POST" | "DELETE", path: string, search: 
     if (destino.via === "nube") {
       try { invalidarDestino(); } catch { /* defensivo */ }
     }
+    // El detalle (DNS, red, host interno) solo va al log del servidor; el
+    // cliente recibe un mensaje genérico y un id para cruzarlo.
+    const requestId = crypto.randomUUID();
+    console.error(`[astraura-158] ${requestId} fallo al contactar el destino (${destino.via}): ${msg}`);
     return Response.json(
       {
         error: cold
           ? "La nube de Astraura 1.58-bit no respondió a tiempo (¿arrancando en frío?)."
-          : `No se pudo contactar la nube de Astraura 1.58-bit: ${msg.slice(0, 160)}`,
+          : "No se pudo contactar la nube de Astraura 1.58-bit (error interno).",
+        requestId,
       },
       { status: 503, headers: { "X-Astraura-Via": destino.via, "Access-Control-Expose-Headers": "X-Astraura-Via" } },
     );
