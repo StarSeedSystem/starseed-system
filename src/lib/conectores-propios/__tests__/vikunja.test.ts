@@ -90,6 +90,14 @@ describe("vikunja · cliente puro", () => {
     expect(r).toEqual({ ok: false, motivo: expect.stringContaining("No se pudo hablar") });
   });
 
+  it("un 500 al asegurar el proyecto da motivo legible y no lo crea", async () => {
+    const { pedir, llamadas } = falso(500, {});
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toContain("falló");
+    expect(llamadas).toHaveLength(1);
+  });
+
   it("crea la tarea enlazando la propuesta aprobada", async () => {
     const { pedir, llamadas } = falso(201, { id: 11 });
     const r = await tareaDesdeDecision(BASE, TOKEN, "5", {
