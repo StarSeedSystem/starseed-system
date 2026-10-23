@@ -1,0 +1,106 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "TSC1021A",
+   "ola": "1021M",
+   "importancia": "capacidad",
+   "titulo": "Enjambre · sin tsc cuando el diff no toca TypeScript (las tareas de Python no hacen cola para el turno)",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py",
+    "scripts/enjambre/test_diff_necesita_tsc.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nCaso real medido (2026-10-21 10:30 UTC, Mac de 8 GB con la swap al 94 % y presión del núcleo 2): tres tareas llevaban 5, 30 y 49 min en la fase «tsc», haciendo cola para el turno de un tsc completo (`scripts/enjambre/tsc-turno.sh`), y en 3 h la Mac no integró nada. Una de ellas, VAR1021A, solo toca archivos .py de `scripts/puente/`: su diff no puede cambiar el resultado de tsc, porque cada worktree se pone al día con main (`poner_al_dia`) y main está en verde.\n\nArreglo en `scripts/enjambre/starseed-enjambre.py`, función `tsc(cwd, log)`: si el repo es el del OS (hay tsconfig.json) y el diff de la tarea (`git diff --name-only main...HEAD` + `git diff --name-only`) no toca NINGÚN archivo que tsc mire —extensiones .ts .tsx .mts .cts .js .jsx .mjs .cjs .d.ts, ni `tsconfig*.json`, `package.json`, `package-lock.json`, `next-env.d.ts` ni nada dentro de `src/` o `types/`—, devuelve (0, []) sin lanzar tsc y lo anota en el log («tsc no hace falta: el diff no toca TypeScript»). Ante la menor duda (git falla, lista vacía porque no hay diff) se corre tsc como hoy. Pon la decisión en una función PURA aparte, `diff_necesita_tsc(archivos) -> bool`, con docstring en español del caso medido. Las guardas de cliente (`alcance_pruebas.GUARDAS_CLIENTE`) y vitest no cambian.\n\nPruebas en `scripts/enjambre/test_tsc_sin_terminar.py` (o un archivo nuevo `scripts/enjambre/test_diff_necesita_tsc.py`): solo .py/.md/.json de datos → False; cualquier .ts/.tsx, tsconfig.json, package.json o algo bajo src/ → True; lista vacía → True. Corre `python3 -m unittest` de ese archivo y lee su resumen entero."
+  },
+  {
+   "id": "PES1020A",
+   "ola": "1020U",
+   "titulo": "Capacidad · servicios pesados: sus requisitos y dónde los coloca la malla y las capas de conciencia",
+   "archivos": [
+    "src/lib/recursos/servicios-pesados.ts",
+    "src/lib/recursos/__tests__/servicios-pesados.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §3, regla de Alex: lo que pide RAM o GPU lo colocan la malla local y las capas de conciencia, nunca la neurona por su cuenta. Escribe un módulo puro con `REQUISITOS_SERVICIO` (comfyui, libretranslate, stirling-pdf, archivebox, openhands-agent-server, coolify; mismos datos que el catálogo JSON, `null` = sin medir; medido en el A1 el 2026-10-20: LibreTranslate 711 MiB, Stirling-PDF 1,4 GiB, ComfyUI con SD 1.5 4,1 GB y más de 10 min por imagen en CPU; arm64 comprobado para LibreTranslate, Stirling-PDF, ArchiveBox, ComfyUI y OpenHands) y `SERVICIOS_INSTALADOS` del A1 (cada uno en 127.0.0.1 bajo demanda: LibreTranslate 5000, Stirling-PDF 8180, ArchiveBox 8001, ComfyUI 8188, OpenHands 8010; se encienden al primer uso si caben y se apagan a los 15 min sin uso), `CAPAS_PUBLICAS_CONOCIDAS` (oracle-a1: 2 OCPU, 12288 MB, arm64, sin GPU, activa; cloud-run: inactiva con el motivo «facturación de Google desactivada desde el 2026-09-25»; espacios-hf: solo con permiso) y `colocarServicio(servicio, ofertas, contexto)` que usa `planificar` de `src/lib/recursos/oferta.ts` y devuelve `{donde: {tipo: \"aparato\"|\"cuenta\"|\"cerebro\"|\"malla\"|\"capa-publica\"|\"web-gratis\"|\"ninguno\", id?}, motivo, respaldo?, falta: string[]}` en el orden de §3. Reglas: privado solo aparato, cuenta o cerebro; una arquitectura no verificada para el servicio no se coloca en esa capa (va a `falta`: «medir arm64 en el A1»); RAM sin medir exige una oferta con medida y se anota «a medir»; GPU necesaria sin oferta con GPU → web gratis si no es privado, si no `ninguno` con lo que falta; una capa inactiva nunca se elige y su motivo aparece. Pruebas de cada regla. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "PES1020B",
+   "ola": "1020U",
+   "titulo": "Capacidad · un servidor del cerebro no inventa capacidad (medida o declarada, o «sin medir»)",
+   "archivos": [
+    "src/lib/recursos/adaptadores.ts",
+    "src/lib/recursos/__tests__/adaptadores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §3: `linkedServerToOfertaNeurona` pone 1 núcleo, 1024 MB y sin GPU a todo servidor de cómputo o almacenamiento, sin medir nada. Que lea `servidor.config.capacidad` (validada: `nucleos`, `ramLibreMb`, `gpu`, `vramMb`, `prestaMb`, `arquitectura` amd64|arm64, `fuente` medida|declarada, `medidaEn`) y, si no hay, deje cómputo y almacén a 0 (no elegible) en vez de inventar. Actualiza SOLO los casos de la prueba existente que esperaban 1024 y añade los nuevos: capacidad declarada, medida, ausente y con datos inválidos (se ignoran). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "CLF1020A",
+   "ola": "1020U",
+   "titulo": "Coolify · cliente puro en solo lectura (equipo y servidores) para las capas de conciencia",
+   "archivos": [
+    "src/lib/servidores/coolify.ts",
+    "src/lib/servidores/__tests__/coolify.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2: rutas verificadas el 2026-10-20: `GET {url}/api/v1/teams/current` (sonda: de qué equipo es el token) y `GET {url}/api/v1/servers`; cabecera `Authorization: Bearer <token>` con el valor entero tal cual (id|secreto). Cliente puro con `fetch` inyectado, `redirect: \"manual\"` y tope de tiempo: `sondear()` y `listarServidores()` (mapea solo los campos que vengan, lo que falte es «sin dato»). Errores honestos: 401 token inválido; 403 «sin permiso o tu IP no está en la lista permitida»; 404 «un administrador debe encender la API de Coolify». El token nunca aparece en un error ni en un registro. NADA de desplegar, arrancar ni parar: esas rutas no están verificadas. Pruebas con fetch simulado de cada caso. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "TRD1020A",
+   "ola": "1020U",
+   "titulo": "Traducción · cliente puro de LibreTranslate (traducir por lotes, idiomas, detectar, salud)",
+   "archivos": [
+    "src/lib/traduccion/libretranslate.ts",
+    "src/lib/traduccion/__tests__/libretranslate.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Cliente puro con `fetch` inyectado: `traducir({q: texto o lista, source: \"auto\" o código, target, format: \"text\"|\"html\"})` → `POST {base}/translate` en JSON (con `api_key` solo si quien llama la pasa; nunca se guarda) → `translatedText` (texto o lista) y `detectedLanguage` cuando el origen es auto; `idiomas()` → `GET {base}/languages`; `detectar(q)` → `POST {base}/detect`; `salud()` → `GET {base}/health`. Parte en lotes por un límite de caracteres configurable y respeta el orden. Errores 400/403/429/500 en español claro. Pruebas con fetch simulado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "TRD1020C",
+   "ola": "1020U",
+   "titulo": "Traducción · toda la página: recoger los textos traducibles, aplicar, volver al original y seguir lo nuevo",
+   "archivos": [
+    "src/lib/traduccion/pagina.ts",
+    "src/lib/traduccion/__tests__/pagina.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Funciones sobre el DOM (pruebas en jsdom): `recogerTextos(raiz)` devuelve los nodos de texto visibles y no vacíos, nunca dentro de `script`, `style`, `noscript`, `code`, `pre`, `textarea`, `input`, `select`, `[contenteditable]`, `[translate=no]`, `[data-no-traducir]` ni `[hidden]`; también los atributos `title`, `alt`, `aria-label` y `placeholder`. `aplicar(nodos, traducciones, idioma)` guarda cada original (WeakMap) y marca el elemento padre con `lang` y `data-traducido`; `restaurar(raiz)` lo devuelve todo como estaba; `observar(raiz, alNuevo)` con MutationObserver devuelve una función para parar y no vuelve a traducir lo ya traducido. Pruebas de cada exclusión, ida y vuelta exacta y texto nuevo detectado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "ARC1020A",
+   "ola": "1020U",
+   "titulo": "ArchiveBox · plan puro de archivo de las fuentes de la Biblioteca (sin archive.org y sin lo privado)",
+   "archivos": [
+    "src/lib/library/archivo-fuentes.ts",
+    "src/lib/library/__tests__/archivo-fuentes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2. Módulo puro: `fuentesParaArchivar(fichas: {id, enlaces, privada}[], yaArchivadas)` normaliza las URL (host en minúsculas, sin `utm_*`, `fbclid`, `gclid` ni fragmento), solo http(s), nunca de fichas privadas ni direcciones locales o privadas (localhost, 127.*, 10.*, 192.168.*, 172.16–31.*, ::1, *.local) y sin repetir; `ordenDeArchivo(urls)` devuelve una orden ABSTRACTA para el servidor `{urls, opciones: {archiveOrg: false, medios: false, git: <true solo para hosts de código>}}` (los nombres exactos los pone el servidor según su versión; en la instalada en el A1, ArchiveBox 0.9.73, son ARCHIVEDOTORG_ENABLED, YTDLP_ENABLED, PUBLIC_INDEX y PUBLIC_SNAPSHOTS, ya apagados: exporta esa tabla para la 0.9 y no inventes otras); `fichaDeCopia(instantanea)` resume la copia para la ficha («copia guardada el …», formatos). Pruebas de cada exclusión y normalización. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "LSD1020A",
+   "ola": "1020U",
+   "titulo": "LocalSend · protocolo v2 puro (anuncio, registro, subida, cancelar, PIN) y su paso al motor de archivos de la malla",
+   "archivos": [
+    "src/lib/malla/localsend/protocolo.ts",
+    "src/lib/malla/localsend/__tests__/protocolo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2. Protocolo v2 verificado el 2026-10-20 (github.com/localsend/protocol): puerto 53317 (TCP y UDP), multidifusión 224.0.0.167; anuncio `{alias, version: \"2.0\", deviceModel, deviceType, fingerprint, port, protocol, download, announce}`; respuesta por `POST /api/localsend/v2/register`; subida `POST /api/localsend/v2/prepare-upload` (`{info, files: {<id>: {id, fileName, size, fileType, sha256?, preview?}}}` → `{sessionId, files: {<id>: token}}`; 204 nada que enviar, 401 PIN, 403 rechazado), `POST /api/localsend/v2/upload?sessionId&fileId&token` (422 si el sha256 no casa) y `POST /api/localsend/v2/cancel?sessionId`; PIN con `?pin=`. Escribe tipos, constructores y lectores validados (lo mal formado → null), las URL con URLSearchParams y `ofertaDesdeLocalSend` / `archivoParaLocalSend` hacia y desde `MsgOferta` de `src/lib/network/archivos-malla.ts`. La descarga por navegador (HTTP sin cifrar) no se implementa. Pruebas de ida y vuelta y de cada error. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "TSC1021A",
+   "TRD1020A",
+   "LSD1020A",
+   "TRD1020C",
+   "ARC1020A",
+   "CLF1020A",
+   "PES1020A",
+   "PES1020B"
+  ]
+ }
+}
