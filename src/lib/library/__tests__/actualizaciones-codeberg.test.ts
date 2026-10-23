@@ -99,6 +99,12 @@ describe("consultarCodeberg con fetch simulado", () => {
         expect(p.urlsVistas()).toEqual([URL_RELEASES, URL_TAGS]);
     });
 
+    it("desde tags no vuelve a pedir releases", async () => {
+        const p = fetchDePrueba({ [URL_TAGS]: { json: [{ name: "v0.28.11" }] } });
+        expect(await consultarCodeberg(TRASLADO, p.fetchFn, "tags")).toEqual(LEÍDA("v0.28.11", null));
+        expect(p.urlsVistas()).toEqual([URL_TAGS]);
+    });
+
     it("sin versiones ni etiquetas lo dice, sin inventar nada", async () => {
         const p = fetchDePrueba({ [URL_RELEASES]: { json: [] }, [URL_TAGS]: { json: [] } });
         esperarResultadoHonesto(await consultarCodeberg(TRASLADO, p.fetchFn), "No hay versión ni etiqueta");

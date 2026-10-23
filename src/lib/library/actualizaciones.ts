@@ -209,12 +209,15 @@ export type LecturaCodeberg =
 /**
  * Sigue un traslado a Codeberg (`codeberg:dueño/repo`) hasta su versión.
  * Codeberg es Forgejo con API compatible con Gitea: pregunta releases y, si
- * no hay, etiquetas. El `fetch` va inyectado para que el módulo siga puro
- * (pruebas sin red). El error es honesto: dice qué falló, sin inventar nada.
+ * no hay, etiquetas. `desde` permite empezar por etiquetas cuando quien llama
+ * ya consultó las releases (la ruta lo hace para no pedirlas dos veces). El
+ * `fetch` va inyectado para que el módulo siga puro (pruebas sin red). El
+ * error es honesto: dice qué falló, sin inventar nada.
  */
 export async function consultarCodeberg(
     trasladadoA: unknown,
     fetchFn: typeof fetch,
+    desde: "releases" | "tags" = "releases",
 ): Promise<LecturaCodeberg> {
     const ruta = rutaTrasladoCodeberg(trasladadoA);
     if (!ruta) {
@@ -225,7 +228,8 @@ export async function consultarCodeberg(
         };
     }
     let motivo = `No hay versión ni etiqueta en Codeberg para ${ruta}.`;
-    for (const endpoint of ["releases", "tags"] as const) {
+    const endpoints = desde === "tags" ? (["tags"] as const) : (["releases", "tags"] as const);
+    for (const endpoint of endpoints) {
         try {
             const respuesta = await fetchFn(urlCodeberg(ruta, endpoint), {
                 headers: { Accept: "application/json", "User-Agent": "starseed-os-biblioteca" },

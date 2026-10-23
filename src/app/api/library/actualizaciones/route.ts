@@ -8,10 +8,12 @@ import { REPO_DECISIONES } from "@/lib/library/fuentes-decision";
 import {
     urlDeConsulta,
     leerVersion,
+    leerVersionCodeberg,
     validarPatronTag,
     compararVersiones,
     consultarCodeberg,
     rutaTrasladoCodeberg,
+    BASE_CODEBERG,
     type EstadoActualizacion,
     type PayloadActualizacion,
 } from "@/lib/library/actualizaciones";
@@ -79,27 +81,32 @@ async function consultarUpstream(
     tope: AbortSignal,
 ): Promise<{ remota: string | null; fecha: string | null; error: string | null }> {
     const traslado = rutaTrasladoCodeberg(payload?.trasladadoA);
-    if (traslado) {
-        const leída = await consultarCodeberg(
-            payload?.trasladadoA,
-            (url, init) => fetch(url, { ...init, signal: tope }),
-        );
-        return { remota: leída.version, fecha: leída.fecha, error: leída.error };
-    }
-    const url = urlDeConsulta(upstream, payload);
+    const url = traslado
+        ? `${BASE_CODEBERG}/api/v1/repos/${traslado}/releases?limit=1`
+        : urlDeConsulta(upstream, payload);
     if (!url) return { remota: null, fecha: null, error: null };
     try {
         const respuesta = await fetch(url, {
             headers: { Accept: "application/json", "User-Agent": "starseed-os-biblioteca" },
             signal: tope,
         });
-        if (!respuesta.ok) return { remota: null, fecha: null, error: null };
-        const json: unknown = await respuesta.json();
-        const leida = leerVersion(upstream, json, payload);
-        return { remota: leida?.version ?? null, fecha: leida?.fecha ?? null, error: null };
+        if (respuesta.ok) {
+            const json: unknown = await respuesta.json();
+            const leida = traslado
+                ? leerVersionCodeberg(json)
+                : leerVersion(upstream, json, payload);
+            if (leida) return { remota: leida.version, fecha: leida.fecha, error: null };
+        }
     } catch {
-        return { remota: null, fecha: null, error: null };
+        // si es Codeberg, el respaldo de etiquetas dirá qué pasó
     }
+    if (!traslado) return { remota: null, fecha: null, error: null };
+    const leída = await consultarCodeberg(
+        payload?.trasladadoA,
+        (u, init) => fetch(u, { ...init, signal: tope }),
+        "tags",
+    );
+    return { remota: leída.version, fecha: leída.fecha, error: leída.error };
 }
 
 /* ── Ruta ── */
@@ -139,7 +146,7 @@ export async function GET(): Promise<Response> {
                             ? null
                             : validarPatronTag(patronTag).error,
                 };
-                if (!upstream) return base;
+                if (!upstream && !rutaTrasladoCodeberg(payload?.trasladadoA)) return base;
                 const { remota, fecha, error } = await consultarUpstream(
                     upstream,
                     payload,
