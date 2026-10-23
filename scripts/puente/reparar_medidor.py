@@ -392,7 +392,22 @@ def accion_contenedores() -> Tuple[bool, str]:
 def accion_capacidad() -> Tuple[bool, str]:
     """El mismo botón «Buscar más capacidad en todos los medios»: GitHub Actions es gratis y el
     carril de Claude en la nube respeta su pausa y sus topes (no gasta crédito si está en pausa)."""
-    return _py("buscar_capacidad.py", "buscar", "--aplicar", tope_s=240)
+    ok, ultima = _py("buscar_capacidad.py", "buscar", "--aplicar", tope_s=240)
+    return ok, _lo_que_sumo_buscar() or ultima
+
+
+def _lo_que_sumo_buscar() -> str:
+    """Lo que hizo «Buscar más capacidad» (su estado) en vez de su última línea, que es Oracle."""
+    try:
+        with open(os.path.join(STARSEED, "buscar-capacidad.json"), encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return ""
+    hechas = [str(h) for h in d.get("hechas") or [] if h]
+    if hechas:
+        return "sumé %s: %s" % (d.get("sumados") or 0, " · ".join(hechas))[:400]
+    nube = next((l for l in str(d.get("resumen") or "").splitlines() if l.startswith("· Nube")), "")
+    return ("no cabía más: " + nube[2:])[:400] if nube else ""
 
 
 ACCIONES: Dict[str, Callable[[], Tuple[bool, str]]] = {

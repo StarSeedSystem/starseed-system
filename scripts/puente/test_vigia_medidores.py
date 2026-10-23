@@ -91,6 +91,29 @@ class NubeOciosa(unittest.TestCase):
                                      contenedores_resumen="0 trabajando · 12 libre(s) de 12"))
         self.assertIn("desplegar_nube", [x["remedio"] for x in p])
 
+    def test_si_la_nube_no_tiene_trabajo_que_coger_no_es_ociosa(self):
+        listas = [{"id": "A1", "estado": "lista"}]
+        p = V.diagnosticar(medidores(agentes=[agente("X")], listas=listas,
+                                     contenedores_resumen="4 trabajando · 13 libre(s) de 17"),
+                           nube_sin_hueco_porque="la nube está en su tope de jobs a la vez")
+        self.assertNotIn("desplegar_nube", [x["remedio"] for x in p])
+
+    def test_lo_que_midio_buscar_capacidad(self):
+        import time
+        ahora = time.time()
+        visto = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora - 60))
+        tope = {"visto": visto, "hechas": [], "resumen": "Busqué\n· Nube (GitHub Actions): 3 job(s) en marcha"
+                " · 0 tarea(s) elegible(s) · ya hay 3 job(s) en marcha, el tope a la vez"}
+        self.assertIn("tope", V.nube_sin_hueco(tope, ahora))
+        sin = dict(tope, resumen="· Nube (GitHub Actions): 0 job(s) · 0 tarea(s) elegible(s) · 28 agotadas")
+        self.assertIn("no hay tareas", V.nube_sin_hueco(sin, ahora))
+        # si acaba de reabrir o lanzar algo, sí había hueco y se vuelve a mirar
+        self.assertEqual(V.nube_sin_hueco(dict(sin, hechas=["reabiertas a la nube: X1"]), ahora), "")
+        # una medida vieja no vale
+        vieja = dict(tope, visto=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora - 3 * 3600)))
+        self.assertEqual(V.nube_sin_hueco(vieja, ahora), "")
+        self.assertEqual(V.nube_sin_hueco(None, ahora), "")
+
     def test_sin_sitio_libre_no_se_despliega(self):
         listas = [{"id": "A1", "estado": "lista"}]
         p = V.diagnosticar(medidores(agentes=[agente("X")], listas=listas,

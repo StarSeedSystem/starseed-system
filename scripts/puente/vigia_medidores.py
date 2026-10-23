@@ -91,7 +91,38 @@ def _hay_gasto(filas) -> bool:
     return False
 
 
-def diagnosticar(medidores: dict, callado_min=CALLADO_MIN, aprobacion_min=APROBACION_MIN) -> list:
+#: «Buscar más capacidad» guarda aquí lo último que midió (lo lanza la autocuración cada 30 min).
+BUSCAR_CAPACIDAD = os.path.expanduser("~/.starseed/buscar-capacidad.json")
+BUSCAR_FRESCO_S = 40 * 60
+
+
+def nube_sin_hueco(estado_buscar, ahora) -> str:
+    """PURA: el motivo por el que la nube NO está ociosa por culpa nuestra, o "".
+
+    (2026-10-23) «Nube ociosa» salía con 3 jobs en marcha en el tope a la vez y 0 tareas
+    elegibles (175 esperando a otra y 28 con sus tres envíos gastados): los contenedores tenían
+    huecos, pero no había trabajo que la nube pudiera coger, y los directores «reparaban» cada
+    10 min sin poder cambiar nada. Si «Buscar más capacidad» acaba de medirlo, se le cree."""
+    if not isinstance(estado_buscar, dict):
+        return ""
+    try:
+        visto = time.mktime(time.strptime(str(estado_buscar.get("visto") or ""), "%Y-%m-%d %H:%M:%S"))
+    except ValueError:
+        return ""
+    if ahora - visto > BUSCAR_FRESCO_S:
+        return ""
+    linea = next((l for l in str(estado_buscar.get("resumen") or "").splitlines()
+                  if l.startswith("· Nube")), "")
+    if "el tope a la vez" in linea:
+        return "la nube está en su tope de jobs a la vez"
+    if "0 tarea(s) elegible(s)" in linea and not any(
+            "reabiertas" in str(h) or "lanzando" in str(h) for h in estado_buscar.get("hechas") or []):
+        return "no hay tareas que la nube pueda coger"
+    return ""
+
+
+def diagnosticar(medidores: dict, callado_min=CALLADO_MIN, aprobacion_min=APROBACION_MIN,
+                 nube_sin_hueco_porque: str = "") -> list:
     """PURA: de los detalles de los medidores a la lista de situaciones con remedio.
 
     Cada problema es {clave, tipo, quien, porque, remedio}. `remedio` es el nombre de la
@@ -166,7 +197,7 @@ def diagnosticar(medidores: dict, callado_min=CALLADO_MIN, aprobacion_min=APROBA
                 "remedio": "avisar_tokens_ciegos",
             })
 
-    if libres and "libre" in resumen_cont and " 0 libre" not in resumen_cont:
+    if libres and "libre" in resumen_cont and " 0 libre" not in resumen_cont and not nube_sin_hueco_porque:
         problemas.append({
             "clave": "contenedores", "tipo": "nube_ociosa", "quien": "nube",
             "porque": "hay atraso y sitio libre en la nube",
@@ -328,7 +359,12 @@ def una_pasada(aplicar_remedios=True) -> dict:
         except Exception as e:
             print("vigia-medidores: autocuración: %s: %s" % (type(e).__name__, e), flush=True)
     medidores = leer_medidores()
-    problemas = diagnosticar(medidores)
+    try:
+        with open(BUSCAR_CAPACIDAD, encoding="utf-8") as f:
+            sin_hueco = nube_sin_hueco(json.load(f), time.time())
+    except (OSError, ValueError):
+        sin_hueco = ""
+    problemas = diagnosticar(medidores, nube_sin_hueco_porque=sin_hueco)
     hechos = []
     if aplicar_remedios:
         for p in problemas:
