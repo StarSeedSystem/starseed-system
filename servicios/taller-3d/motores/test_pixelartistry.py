@@ -2,12 +2,18 @@
 # -*- coding: utf-8 -*-
 """Pruebas del motor PixelArtistry (WT1011A) — SIN red ni GPU: la API de ComfyUI se simula.
 
-Ejecutar: python3 -m unittest motores.test_pixelartistry -v
+Ejecutar: python3 -m unittest discover -s servicios/taller-3d/motores -p "test_pixelartistry.py" -v
+(o: cd servicios/taller-3d/motores && python3 -m unittest -v test_pixelartistry)
 """
 import json
+import os
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
+
+# El motor vive en esta misma carpeta: se importa desde aquí, se llame como se llame.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pixelartistry as pa
 
@@ -69,6 +75,13 @@ class Disponible(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("solo Windows 10/11", r["fallo"])
         self.assertIn("blender-voxel", r["fallo"])
+
+    def test_disponible_false_en_linux(self):
+        """En Linux, disponible debe devolver False porque requiere Windows."""
+        # Sin argumento: comprueba que la llamada con el cliente por defecto
+        # no toca la red cuando el SO ya la descarta.
+        with mock.patch.object(pa.platform, "system", return_value="Linux"):
+            self.assertFalse(pa.disponible()["ok"])
 
     def test_windows_sin_nvidia_dice_que_no(self):
         with mock.patch.object(pa.platform, "system", return_value="Windows"), \
@@ -245,6 +258,35 @@ class RemallarImagen(unittest.TestCase):
                                espera_s=0.01, tope_s=0.001)
         self.assertFalse(r["ok"])
         self.assertIn("tiempo agotado", r["fallo"])
+
+
+class RemallarImagenNoDisponible(unittest.TestCase):
+    """Pruebas de remallar_imagen cuando el motor no está disponible."""
+    def setUp(self):
+        # Simula SO no-Windows para que disponible() devuelva False
+        self.parches = [
+            mock.patch.object(pa.platform, "system", return_value="Linux")
+        ]
+        for p in self.parches:
+            p.start()
+        import tempfile
+        self._d = tempfile.TemporaryDirectory()
+        self.addCleanup(self._d.cleanup)
+        self.tmp = self._d.name
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_no_disponible_no_pide_flujos_instalados(self):
+        """Si el motor no está disponible, el fallo es ese y no el de los flujos en disco."""
+        result = pa.remallar_imagen(
+            "/fake/path/image.png",
+            carpeta_workflows="/no/existe",
+            comfy=ComfyFalso()
+        )
+        self.assertFalse(result["ok"])
+        self.assertNotIn("watertightMeshes_win_installer.bat", result["fallo"])
+        self.assertIn("solo Windows", result["fallo"])
 
 
 if __name__ == "__main__":
