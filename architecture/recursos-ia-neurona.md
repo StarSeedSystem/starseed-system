@@ -85,7 +85,7 @@ Encaja como la capa **profunda** de una neurona Apple Silicon de poca RAM cuando
 es lo más potente que cabe en 8 GB. No sustituye a los 1.58-bit (BitNet, Bonsai ternario) para el
 reflejo, la palabra y la razón de cada día; se sugiere solo donde corre.
 
-## 7. Servidor propio de IA (Hono · `servicios/servidor-ia`)
+## 6. Servidor propio de IA (Hono · `servicios/servidor-ia`)
 
 Plano de datos de la topología `servidor-propio`: la neurona que procesa une sus motores locales —
 BitNet 1.58 (`:8790`), TurboFieldfare (`:8080`), Ollama (`:11434`), LM Studio (`:1234`) y Laya
@@ -96,9 +96,19 @@ corre en Node, Bun, Deno y Workers (Mac, A1, Raspberry, borde). Sin token solo e
 `127.0.0.1`; fuera de la máquina exige `STARSEED_SERVIDOR_IA_TOKEN` (Bearer). Arranque:
 `node servicios/servidor-ia/bin/servidor-ia.mjs` (puerto 4480).
 
-## 6. Lo que sigue (cola del enjambre)
+## 7. Lo que sigue (cola del enjambre · ola 1023R)
 
-Servicio permanente del servidor propio de IA (launchd/systemd) y que el router de IA del OS lo use
-cuando la topología es `servidor-propio`; backend de Astraura 1.58 (lanzar y vigilar TurboFieldfare como servidor local cuando está instalado),
-detección de discos y NPU en la app nativa (Tauri), publicar `OfertaNeurona` desde las asignaciones,
-`capaEnPropio` real en `capas/repartir.ts`, y mover pesos entre almacenes con verificación de SHA.
+`starseed_memory_root/olas/cola-recursos-ia-1023.json`, 10 tareas (≤ 3 archivos cada una):
+
+| Id | Qué |
+|---|---|
+| RIA1023A | servicio launchd del servidor propio de IA (Mac), apagado por defecto, con guion encender/apagar/estado |
+| RIA1023B | unidad systemd de usuario (A1 y Linux) |
+| RIA1023C | `destinoDeIA`: a qué servidor va cada capacidad según la topología (puro) |
+| RIA1023D | con la topología «servidor propio», Astraura lo registra como modelo propio (depende de C) |
+| RIA1023E | `capaEnPropio` real en `src/lib/astraura/capas/repartir.ts` |
+| RIA1023F | publicar la `OfertaNeurona` (`src/lib/recursos/oferta.ts`) desde las asignaciones |
+| RIA1023G | mover pesos entre almacenes con verificación SHA-256 (ruta solo local) |
+| RIA1023H | lanzar y vigilar TurboFieldfare como servidor local cuando esté instalado |
+| RIA1023I | discos y NPU desde la app nativa (`native/src-tauri`) en la detección |
+| RIA1023J | Jev por `/v1/decisions` (GPT-6 Luna, gratis hasta el 14-nov) solo si su forma está documentada |
