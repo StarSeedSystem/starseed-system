@@ -1,0 +1,125 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "RTIMN1021D",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Imaginación · director de autodesarrollo: imagina cuando toca, decide y asigna de punta a punta",
+   "archivos": [
+    "scripts/puente/test_director_autodesarrollo.py",
+    "scripts/puente/test_instalar_servicios_autodesarrollo.py"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea IMN1021Db («Imaginación · director de autodesarrollo: imagina cuando toca, decide y asigna de punta a punta») se hizo en main por otro camino; su rama nube/39900164133 queda archivada en `refs/archivo/nube/39900164133` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.72)\n\nTU TAREA (RTIMN1021D · solo estos archivos: scripts/puente/test_director_autodesarrollo.py, scripts/puente/test_instalar_servicios_autodesarrollo.py):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas Python con unittest, con el patrón de carga que ya use el archivo.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# scripts/puente/test_director_autodesarrollo.py\n    def test_ciclo_seco_no_lanza_y_devuelve_resultado(self):\n        res = D.ciclo(seco=True, ahora=datetime(2026, 10, 23, 3, 0), capacidad={\"huecos_mac\": 1, \"huecos_a1\": 0, \"huecos_nube\": 0, \"proveedores_con_cupo\": 2, \"presion_mac\": 0}, lanzador_diario=self.lanzador_vacio, lanzador_profundo=self.lanzador_vacio)\n        # El lanzador vacío sí se invoca (es el comportamiento esperado con inyección)\n        self.assertIn(\"ahora\", res)\n        self.assertIn(\"toca_ejecutar\", res)\n        # Como toca (noche con capacidad) y tenemos lanzador inyectado, lanzado_diario es True\n        self.assertTrue(res[\"lanzado_diario\"])\n        self.assertTrue(res[\"lanzado_profundo\"])\n\n# scripts/puente/test_director_autodesarrollo.py\n    def test_ciclo_con_datos_inyectados_recolecta_propuestas(self):\n        datos_diaria = \"## mejoras detectadas\\n1. **Arreglar el lector** — corregir error de lectura\"\n        res = D.ciclo(seco=False, ahora=datetime(2026, 10, 23, 3, 0), capacidad={\"huecos_mac\": 1, \"huecos_a1\": 0, \"huecos_nube\": 0, \"proveedores_con_cupo\": 2, \"presion_mac\": 0}, lanzador_diario=self.lanzador_vacio, lanzador_profundo=self.lanzador_vacio, datos_diaria=datos_diaria)\n        self.assertGreaterEqual(res[\"propuestas_recogidas\"], 1)\n        # El archivo de propuestas debe existir (se escribió atómicamente)\n        self.assertTrue(os.path.isfile(res[\"archivo_propuestas\"]) or res[\"archivo_propuestas\"] == \"starseed_memory_root/imaginacion/propuestas.json\")\n\n# scripts/puente/test_director_autodesarrollo.py\n    def test_criterio_utilidad_importancia_destino_puros(self):\n        # Prueba pura con propuesta conocida y archivo existente\n        propuesta = {\n            \"id\": \"test:lectura\", \"titulo\": \"Arreglar el lector de archivos\",\n            \"cuerpo\": \"corregir error en src/lib/algo.ts\", \"archivos\": [\"src/lib/algo.ts\"],\n            \"verificacion\": \"verificado\",\n        }\n        # Como no existe ese archivo, la utilidad debe ser 0\n        # Prueba pura: la propuesta existe pero el archivo no, así que utilidad baja a 0 y no lanza excepción\n        valor, motivo = D.AD.utilidad(propuesta, lambda r: False)\n        self.assertEqual(valor, 0.0)\n\n# scripts/puente/test_instalar_servicios_autodesarrollo.py\n    def test_entrada_existe_y_ejecuta_ciclo(self):\n        orden, log, periodo = self.mod.SERVICIOS[\"autodesarrollo\"]\n        self.assertTrue(any(a.endswith(\"director_autodesarrollo.py\") for a in orden))\n        self.assertEqual(orden[-1], \"ciclo\")\n        self.assertEqual(log, \"/tmp/starseed-autodesarrollo.log\")\n        self.assertEqual(periodo, 900)\n\n# scripts/puente/test_instalar_servicios_autodesarrollo.py\n    def test_usa_python3_con_permiso_de_disco_y_no_un_shell(self):\n        orden = self._orden()\n        self.assertEqual(orden[0], self.mod.PY3)\n        self.assertTrue(orden[0].endswith(\"python3\"))\n        self.assertTrue(os.path.isabs(orden[0]))\n        for a in orden:\n            self.assertFalse(a.endswith(\"zsh\"))\n            self.assertFalse(a.endswith(\"bash\"))\n\n# scripts/puente/test_instalar_servicios_autodesarrollo.py\n    def test_intervalo_900_no_vive_siempre(self):\n        periodo = self.mod.SERVICIOS[\"autodesarrollo\"][2]\n        self.assertIsInstance(periodo, int)\n        self.assertNotIsInstance(periodo, bool)\n        self.assertEqual(periodo, 900)\n\n# scripts/puente/test_instalar_servicios_autodesarrollo.py\n    def test_plist_valido_con_starseed_solo(self):\n        ruta = os.path.join(\n            self.tmp.name, \"Library\", \"LaunchAgents\", \"com.starseed.autodesarrollo.plist\"\n        )\n        with open(ruta, \"rb\") as fichero:\n            plist = plistlib.load(fichero)\n        self.assertEqual(plist[\"Label\"], \"com.starseed.autodesarrollo\")\n        self.assertEqual(plist[\"StartInterval\"], 900)\n        self.assertNotIn(\"KeepAlive\", plist)\n        self.assertIs(plist[\"RunAtLoad\"], True)\n        args = plist[\"ProgramArguments\"]\n        self.assertTrue(args[0].endswith(\"python3\") and os.path.isabs(args[0]))\n        self.assertTrue(any(a.endswith(\"director_autodesarrollo.py\") for a in args))\n        self.assertEqual(plist[\"StandardOutPath\"], \"/tmp/starseed-autodesarrollo.log\")\n        self.assertEqual(plist[\"StandardErrorPath\"], \"/tmp/starseed-autodesarrollo.log\")\n\n# scripts/puente/test_instalar_servicios_autodesarrollo.py\n    def test_solo_no_toca_otros_servicios(self):\n        ag = os.path.join(self.tmp.name, \"Library\", \"LaunchAgents\")\n        self.assertEqual(sorted(os.listdir(ag)), [\"com.starseed.autodesarrollo.plist\"])\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "IMN1021Db",
+    "rama": "nube/39900164133"
+   }
+  },
+  {
+   "id": "RLB1020E",
+   "titulo": "Biblioteca · siembra por defecto de las de la 2.ª tanda marcadas «siempre»",
+   "archivos": [
+    "src/lib/library/defaults-seed.ts",
+    "src/lib/library/__tests__/defaults-seed.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Alex pidió que queden «predeterminadas y preinstaladas inteligentemente». En `src/lib/library/defaults-seed.ts` sube `SEED_VERSION` en 1 y añade a `RECOMMENDED_PACKAGE_IDS`, con un comentario de la versión, SOLO los ids de la 2.ª tanda con `preinstalar: \"siempre\"` (lib-vikunja, lib-celld, lib-sentry, lib-windmill, lib-metabase, lib-trilium, lib-politica-privacidad), respetando las reglas de la cabecera del archivo: nunca lo que descarga, ejecuta código o abre una ruta al instalar, y nunca reinstalar algo que la persona desinstaló. Las «manual» NO se siembran. Pruebas: con la nueva versión se siembran esas 7 una sola vez; una desinstalada no vuelve; ninguna «manual» entra. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área",
+   "dependencias_ya_en_main": [
+    "RLB1020D"
+   ]
+  },
+  {
+   "id": "APM1017E",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Malla · relé `capacidad.*`: pedir cualquier capacidad a otra neurona (imagen, voz, oído, transcodificar…)",
+   "archivos": [
+    "src/lib/network/capacidad-por-malla.ts",
+    "src/lib/network/__tests__/capacidad-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Generaliza el patrón de `src/lib/network/ia-por-malla.ts` (léelo: espacio de nombres, topes de tamaño, trozos, fin, error y cancelar) a `CAPACIDAD_NS = \"capacidad.\"` con `tipo`: imagen | voz | oido | palabra | transcodificar | render | buscar | construir. Cliente: `pedirCapacidad(enviar, { tipo, cuerpo, sesionId, timeoutMs })` que reúne los trozos y nunca lanza (`{ ok:false, motivo }`). Codificar y validar mensajes con guardas de tipo. No cambies ia-por-malla.ts. Pruebas con un canal falso: éxito, trozos desordenados, error, cancelar y tiempo agotado. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017I",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · caché de bandas por medio (OPFS en el navegador) con presupuesto y expulsión",
+   "archivos": [
+    "src/lib/recursos/cache-bandas.ts",
+    "src/lib/recursos/__tests__/cache-bandas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Caché de bandas sobre la interfaz `Almacenamiento` de src/lib/astraura/capas/almacen.ts (inyectada; en pruebas, `almacenamientoEnMemoria()`). `crearCacheBandas({ almacen, presupuestoBytes, ahora })` con `tener`, `leer`, `guardar(sha, bytes)` (verifica el SHA-256 con `crypto.subtle` inyectable antes de guardar) y expulsión de lo menos usado al pasarse del presupuesto; nunca expulsa una banda en uso. El presupuesto viene de src/lib/astraura/capas/perfil-medio.ts (no lo cambies). Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017H"
+   ]
+  },
+  {
+   "id": "APM1017Q",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Apps remotas · anfitrión web: fotogramas al lienzo, pista WebRTC y aviso visible",
+   "archivos": [
+    "src/lib/apps-remotas/anfitrion.ts",
+    "src/lib/apps-remotas/__tests__/anfitrion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión (§9) con todo inyectado: `crearAnfitrion({ capturar, dibujar, crearPista, sesion, fps, anchoMax })` que pide fotogramas a la app nativa (comando `capturar_ventana`), los dibuja en un lienzo, expone la pista (`canvas.captureStream(fps)` en el navegador), adapta fps y ancho al ancho de banda medido, reenvía las entradas a `entrada_ventana` solo con sesión válida (sesion-prestamo.ts) y se para al revocar. Pruebas con relojes y capturas falsas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D"
+   ]
+  },
+  {
+   "id": "APM1017U",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Medios · disponibilidad: quién tiene qué segmento o banda, anunciado en poco espacio",
+   "archivos": [
+    "src/lib/recursos/disponibilidad.ts",
+    "src/lib/recursos/__tests__/disponibilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: mapa de bits compacto por elemento (segmentos de una transmisión o bandas de un volumen) con `codificar`/`decodificar` en base64, `fusionar(anuncios)`, `quienTiene(elemento, indice, ahora)` con caducidad (30 s por defecto) y `anuncio(elemento, tengo)` con tope de 1 KB por mensaje (troceando si hace falta). Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017V",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Medios · árbol de relevo: los que más suben en el centro y recolocación al irse uno",
+   "archivos": [
+    "src/lib/recursos/arbol-relevo.ts",
+    "src/lib/recursos/__tests__/arbol-relevo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO (§10): `armarArbol(origen, receptores: { nodoId, subidaKbps?, latenciaMs? }[], kbpsFlujo)` → padre de cada receptor; cada nodo sostiene como mucho `floor(subida / kbpsFlujo)` hijos (sin medida: 1), los de más subida más cerca del origen; determinista. `recolocar(arbol, seVa)` mueve solo la rama del que se fue. Pruebas con 1, 10 y 200 receptores y con una salida. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017A"
+   ]
+  },
+  {
+   "id": "DGM1018D",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · fuentes servidas por el OS en vez de Google Fonts",
+   "archivos": [
+    "src/lib/diagramas/fuentes-locales.ts",
+    "src/lib/diagramas/__tests__/fuentes-locales.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `sustituirFuentes(html, fuentesDisponibles)` cambia los `<link>` a fonts.googleapis.com por `@font-face` con data URL de las fuentes que el OS ya sirve (src/lib/themes/google-fonts.ts dice cuáles; recíbelas inyectadas) o por la pila de sistema equivalente si no la tiene; nunca deja una petición a terceros. Pruebas. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "DGM1018C"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "DGM1018D",
+   "APM1017E",
+   "RLB1020E",
+   "APM1017I",
+   "APM1017Q",
+   "APM1017U",
+   "APM1017V",
+   "RTIMN1021D"
+  ]
+ }
+}
