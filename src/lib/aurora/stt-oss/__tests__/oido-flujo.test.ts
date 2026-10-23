@@ -129,9 +129,28 @@ describe("prepararAudio", () => {
     expect(salida[1]).toBe(-8192);
   });
 
+  it("remuestrea tramas de AudioContext reales (44,1 kHz) del oído en flujo", () => {
+    // El micrófono del navegador suele venir a 44,1 kHz, no a 48: una trama de
+    // 4410 muestras debe dar exactamente 1600 a 16 kHz (44100/16000 = 2,75625).
+    const trama = new Float32Array(4410);
+    trama.fill(0.25);
+    const salida = prepararAudio(trama, 44100);
+    expect(salida.length).toBe(1600);
+    // Todos los valores convertidos caen dentro de PCM16 sin recorte fallido.
+    for (const muestra of salida) {
+      expect(muestra).toBeGreaterThan(0);
+      expect(muestra).toBeLessThan(0x8000);
+    }
+  });
+
   it("devuelve vacío sin lanzar con entradas raras", () => {
     expect(prepararAudio(new Float32Array(0), 48000).length).toBe(0);
     expect(prepararAudio(new Float32Array(4), Number.NaN).length).toBe(0);
+  });
+  it("mapea tipos desconocidos a null (solo partial, final y done valen)", () => {
+    // El elector de oído debe IGNORAR cualquier `type` que no entienda.
+    expect(leerMensajeOido(JSON.stringify({ type: "transcript", text: "hola" }))).toBeNull();
+    expect(leerMensajeOido(JSON.stringify({ type: "STOP" }))).toBeNull();
   });
 });
 
@@ -184,6 +203,19 @@ describe("abrirFlujoOido", () => {
     expect(zocaloDos?.enviados.length).toBe(0);
   });
 
+  it("manda exactamente la trama aunque sea una vista parcial del buffer", () => {
+    // Las tramas del oído pueden venir como vistas con `byteOffset` (p. ej.
+    // `getChannelData` recortadas); el zócalo debe recibir SOLO su rango.
+    const { flujo, zocalo } = montarFlujo();
+    const base = new Int16Array([7, 100, -100, 0, 9]);
+    const trama = base.subarray(1, 4);
+    flujo.enviar(trama);
+    const enviado = zocalo?.enviados[0];
+    expect(enviado?.byteLength).toBe(6);
+    const eco = new Int16Array(enviado!);
+    expect(Array.from(eco)).toEqual([100, -100, 0]);
+  });
+
   it("el cierre del servidor avisa una vez y NUNCA reconecta", () => {
     const { flujo, zocalo, config } = montarFlujo();
     zocalo?.cerrarDelServidor();
@@ -192,6 +224,18 @@ describe("abrirFlujoOido", () => {
     zocalo?.cerrarDelServidor();
     flujo.enviar(new Int16Array([1]));
     expect(config.alCerrar).toHaveBeenCalledTimes(1);
+    expect(zocalo?.enviados.length).toBe(0);
+  });
+
+  it("terminar tras la frase final NO dispara un segundo aviso (dúplex)", () => {
+    // El cableado del motor ya avisó vía alFinal y cierra con `terminar()`:
+    // el `alCerrar` de terminar es el ÚNICO aviso; nada más, nunca en bucle.
+    const { flujo, zocalo, config } = montarFlujo();
+    zocalo?.recibirSalida(JSON.stringify({ type: "final", text: "Ya" }));
+    expect(config.alFinal).toHaveBeenCalledTimes(1);
+    flujo.terminar();
+    expect(config.alCerrar).toHaveBeenCalledTimes(1);
+    flujo.enviar(new Int16Array([5]));
     expect(zocalo?.enviados.length).toBe(0);
   });
 

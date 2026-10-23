@@ -86,8 +86,9 @@ import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
 import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
 import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
-import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
+import { elegirOido, type MotorOidoId } from "@/lib/aurora/stt-oss";
 import { anotarMedida, medidasDe } from "@/lib/aurora/medidas-voz";
+import { abrirFlujoOido, prepararAudio, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -688,6 +689,10 @@ export function useAuroraEngine(): AuroraEngine {
   // `onend` del reconocimiento viejo queda OBSOLETO y no arranca otro en paralelo
   // (esa era la causa del "se reinicia en loop y no escucha").
   const recGenRef = useRef<number>(0);
+  // ── OÍDOS CAÍDOS EN ESTA SESIÓN ── un motor de oído cuyo servidor se cerró
+  // (o no respondió) NO se vuelve a elegir hasta nueva página: el elector cae
+  // a tramos/motores del sistema, como manda `voz-fusionada-astraura.md` §4.
+  const oidosCaidosRef = useRef<MotorOidoId[]>([]);
   // ── COLA DE HABLA (voz en vivo por cláusulas) ──────────────────────────
   // A diferencia de `speak()` (que CANCELA todo lo anterior — correcto para
   // "lee esto YA": alertas de la malla, "leer este mensaje", cambiar de
@@ -1926,53 +1931,38 @@ export function useAuroraEngine(): AuroraEngine {
   // sesión (que reanudamos).
   const buildRecognition = useCallback(() => {
     if (typeof window === "undefined") return null;
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return null;
-    const rec = new SR();
-    // Esta reconocimiento toma la GENERACIÓN vigente. Su onend solo reinicia si
-    // sigue siendo la más reciente (evita reinicios en paralelo competitivos).
-    const gen = ++recGenRef.current;
     // Móvil (Android/iOS): `continuous` NO es fiable → ciclo corto + reinicio.
     const isMobile = isMobileDevice();
     /** Un reconocimiento que vivió ≥ esto SÍ estuvo escuchando de verdad. */
     const HEALTHY_RUN_MS = 900;
     /** Arranques rotos seguidos tolerados antes de rendirse (y AVISAR). */
     const MAX_BROKEN_RESTARTS = 8;
-    // Salud de ESTE reconocimiento (local: nada que se contamine entre ciclos).
-    let startedAt = 0;
-    let sawResult = false;
-    let lastErr = "";
+    /** Salud de ESTE reconocimiento (local: nada que se contamine entre ciclos). */
+    interface SaludOido { startedAt: number; sawResult: boolean; lastErr: string; }
+    /** Lo mínimo de un trozo reconocido por el navegador. */
+    interface PiezaOida { isFinal: boolean; 0: { transcript: string }; }
+    /** Evento de resultados del navegador con su interface mínima. */
+    interface EventoResultados { resultIndex: number; results: ArrayLike<PiezaOida>; }
+    /** Reconocimiento mínimo (del navegador o en flujo por Phonon-2). */
+    interface RecOido {
+      lang: string;
+      interimResults: boolean;
+      continuous: boolean;
+      maxAlternatives: number;
+      onstart: (() => void) | null;
+      onerror: ((e: { error?: unknown }) => void) | null;
+      onend: (() => void) | null;
+      onresult: ((e: EventoResultados) => void) | null;
+      start: () => void;
+      stop: () => void;
+      abort?: () => void;
+    }
 
-    rec.lang = activeRef.current.voice?.lang || "es-MX";
-    rec.interimResults = true;
-    // Móvil: NO continuo (Android termina tras cada frase; lo reiniciamos aquí).
-    rec.continuous = !isMobile;
-    rec.maxAlternatives = 1;
-    rec.onstart = () => {
-      if (gen !== recGenRef.current) { try { rec.abort?.(); } catch { /* */ } return; }
-      startedAt = Date.now();
-      setListening(true); setInterim("");
-    };
-    rec.onerror = (e: any) => {
-      if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
-      const err = String(e?.error || "");
-      lastErr = err;
-      // FATALES: no se reintentan a ciegas. Los exponemos para que la UI pida el
-      // permiso de micrófono (gesto del usuario) o avise de que el mic está
-      // ocupado. Antes 'not-allowed' caía en el auto-reinicio → bucle invisible.
-      if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") {
-        keepAliveRef.current = false;
-        sttRestartsRef.current = 0;
-        setSttFatal(err as SttFatal);
-        setListening(false);
-        return;
-      }
-      // 'no-speech' | 'aborted' | 'network' → transitorios: los gestiona `onend`.
-    };
-    rec.onend = () => {
-      // Este reconocimiento ya no escucha: suéltalo del registro del ÚNICO
-      // reconocimiento vivo (si aún figuraba como tal).
-      releaseRecognition(rec);
+    // ── CIERRE DE CICLO (compartido por los dos oídos) ── suelta el
+    // reconocimiento y, si la escucha sigue viva, mide la salud y programa el
+    // reenganche (un solo reconocimiento vivo, como siempre).
+    const terminoDeEscuchar = (recogido: RecOido, gen: number, salud: SaludOido): void => {
+      releaseRecognition(recogido);
       // OBSOLETO: si ya no es la generación vigente, no hace NADA (otro
       // reconocimiento más reciente manda) → no hay reinicios en paralelo.
       if (gen !== recGenRef.current) return;
@@ -1986,7 +1976,7 @@ export function useAuroraEngine(): AuroraEngine {
         return;
       }
       // Fallo fatal (permiso/micro): ya lo trató `onerror`. No reintentamos.
-      if (lastErr === "not-allowed" || lastErr === "service-not-allowed" || lastErr === "audio-capture") {
+      if (salud.lastErr === "not-allowed" || salud.lastErr === "service-not-allowed" || salud.lastErr === "audio-capture") {
         setListening(false);
         return;
       }
@@ -1996,16 +1986,15 @@ export function useAuroraEngine(): AuroraEngine {
         // SANO = oyó algo, o estuvo escuchando de verdad (≥ HEALTHY_RUN_MS), o
         // terminó por silencio / abort limpio. En Android esto es lo NORMAL:
         // jamás debe penalizar ni apagar el micrófono.
-        const ranMs = startedAt ? Date.now() - startedAt : 0;
+        const ranMs = salud.startedAt ? Date.now() - salud.startedAt : 0;
         const healthy =
-          sawResult ||
+          salud.sawResult ||
           ranMs >= HEALTHY_RUN_MS ||
-          lastErr === "no-speech" ||
-          lastErr === "aborted" ||
-          lastErr === "";
+          salud.lastErr === "no-speech" ||
+          salud.lastErr === "aborted" ||
+          salud.lastErr === "";
         if (healthy) sttRestartsRef.current = 0;
         else sttRestartsRef.current += 1; // murió al nacer: firma del bucle real
-
         if (sttRestartsRef.current > MAX_BROKEN_RESTARTS) {
           // Nos rendimos, pero NUNCA en silencio: el supervisor lo convierte en
           // "voz no disponible · toca para reintentar".
@@ -2015,7 +2004,6 @@ export function useAuroraEngine(): AuroraEngine {
           setListening(false);
           return;
         }
-
         // Reinicio RÁPIDO cuando el ciclo fue sano (Android necesita reengancharse
         // enseguida o se pierde el principio de la frase siguiente). Con ciclos
         // rotos, backoff progresivo para no martillar el micrófono.
@@ -2026,12 +2014,8 @@ export function useAuroraEngine(): AuroraEngine {
           const next = buildRecognition();
           if (next) {
             recognitionRef.current = next;
-            // Generación de ESTE reinicio programado. Si antes de que venza el
-            // temporizador alguien arranca otro reconocimiento (toque en el
-            // orbe, micro del chat, wake-word…), la generación avanza y este
-            // arranque queda CANCELADO: si no, se sumaba un SEGUNDO
-            // reconocimiento vivo que peleaba por el micrófono con el nuevo (se
-            // abortaban mutuamente → «no escucha» + reinicios en bucle).
+            // Generación de ESTE reinicio programado: otro arranque gana la
+            // carrera y este queda CANCELADO si la generación avanza.
             const nextGen = recGenRef.current;
             sttRestartTimerRef.current = setTimeout(() => {
               sttRestartTimerRef.current = null;
@@ -2046,7 +2030,16 @@ export function useAuroraEngine(): AuroraEngine {
       }
       setListening(false);
     };
-    rec.onresult = (e: any) => {
+
+    // ── TEXTO OÍDO (compartido por los dos oídos) ── lo mismo que hacía el
+    // `onresult` del navegador; `detener` corta al capturar el final (dúplex).
+    const procesarTextoOido = (
+      gen: number,
+      salud: SaludOido,
+      interimText: string,
+      finalText: string,
+      detener: () => void,
+    ): void => {
       if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
       // ANTI-ECO GLOBAL: si Aurora está hablando (o en el cooldown posterior),
       // descarta lo captado — es su propia voz, no un comando del usuario. El
@@ -2054,18 +2047,10 @@ export function useAuroraEngine(): AuroraEngine {
       if (ttsGuardActive()) {
         return;
       }
-      let finalText = "";
-      let interimText = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i];
-        if (r.isFinal) finalText += r[0].transcript;
-        else interimText += r[0].transcript;
-      }
       // Cualquier resultado (incluso interino) prueba que el micro SÍ funciona:
       // este ciclo es SANO y se resetea el backoff anti-loop.
-      sawResult = true;
+      salud.sawResult = true;
       sttRestartsRef.current = 0;
-
       // ── MODO PASIVO (fondo): NO procesamos nada como comando ni mostramos el
       //    interim; solo esperamos oír "aurora". Al oírla, ACTIVAMOS (engaged) y,
       //    si la frase trae algo más ("aurora, abre el café"), lo ejecutamos. ──
@@ -2083,7 +2068,6 @@ export function useAuroraEngine(): AuroraEngine {
         }
         return; // en pasivo, ignora todo lo demás (silencioso)
       }
-
       // ── MODO ACTIVO (engaged): conversación normal ──
       touchEngagedRef.current(); // reinicia el temporizador de inactividad
       if (interimText) setInterim(interimText);
@@ -2103,12 +2087,180 @@ export function useAuroraEngine(): AuroraEngine {
         try { corrected = normalizeStarseedTerms(finalText); } catch { corrected = finalText; }
         // MEDIO-DÚPLEX EXPLÍCITO (fix 2026-07-23): al capturar la frase final,
         // DESHABILITAMOS la escucha DE INMEDIATO para procesar la respuesta de
-        // Aurora sin que el micro capte ruido ni se reinicie la escucha a mitad
-        // de su respuesta. Se reactiva sola al terminar el habla (finishTts) o
-        // si el usuario vuelve a pulsar hablar / interrumpe con un nuevo mensaje.
-        try { rec.stop(); } catch { /* */ }
+        // Aurora sin que el micro capte ruido. Se reactiva sola al terminar el
+        // habla (finishTts) o si el usuario vuelve a pulsar hablar / interrumpe.
+        detener();
         void runCommandRef.current(corrected);
       }
+    };
+
+    // ── ELECCIÓN DEL OÍDO (contrato voz-fusionada-astraura.md §3) ── El elector
+    // puro decide; aquí SOLO se aplican los motores que este motor tiene:
+    // Phonon-2 (WebSocket en flujo) y el navegador (Web Speech). Ni uno más.
+    const implementados: MotorOidoId[] = ["phonon-2", "navegador"];
+    const eleccionOido = elegirOido({
+      idioma: (activeRef.current.voice?.lang || "es").split("-")[0],
+      disponibles: implementados.filter((id) => !oidosCaidosRef.current.includes(id)),
+      fase: "parcial",
+      medidas: {},
+    });
+
+    // ─────────────────────────── OÍDO EN FLUJO (Phonon-2) ───────────────────
+    // Cliente de `abrirFlujoOido` (oido-flujo.ts): PCM16 16 kHz entra por el
+    // WebSocket y sale `partial`/`final`/`done`. Si el flujo se cierra NUNCA se
+    // reconecta solo: el motor cae del elector y se vuelve a tramos/sistema.
+    if (eleccionOido.motor === "phonon-2") {
+      // Este reconocimiento toma la GENERACIÓN vigente; solo el más reciente
+      // puede reiniciarse (evita reconstrucciones en paralelo competitivas).
+      const gen = ++recGenRef.current;
+      const salud: SaludOido = { startedAt: 0, sawResult: false, lastErr: "" };
+      let flujo: OidoFlujo | null = null;
+      let detenido = false;
+      let pantalla: AudioContext | null = null;
+      let procesador: ScriptProcessorNode | null = null;
+      let micro: MediaStream | null = null;
+
+      /** Suelta flujo, AudioContext y micrófono (una sola fuente de verdad). */
+      const sueltaTodo = (conCancel: boolean) => {
+        if (conCancel) { try { flujo?.cancelar(); } catch { /* */ } }
+        else { try { flujo?.terminar(); } catch { /* */ } }
+        flujo = null;
+        try { procesador?.disconnect(); } catch { /* */ }
+        try { pantalla?.close(); } catch { /* */ }
+        pantalla = null;
+        procesador = null;
+        try { micro?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+        micro = null;
+      };
+      /** El servidor cerró (o el zócalo no abrió): Phonon cae del elector. */
+      const caidoAOtrosOidos = () => {
+        if (detenido) return; // fue cerrado por nosotros (stop/terminar): normal
+        detenido = true;
+        if (!oidosCaidosRef.current.includes("phonon-2")) oidosCaidosRef.current.push("phonon-2");
+        sueltaTodo(true);
+        // Sin reconexión automática: lo que sigue lo decide el ciclo de salud.
+        terminoDeEscuchar(recFlujo, gen, salud);
+      };
+
+      const recFlujo: RecOido = {
+        lang: activeRef.current.voice?.lang || "es-MX",
+        interimResults: true,
+        continuous: !isMobile,
+        maxAlternatives: 1,
+        onstart: null,
+        onerror: null,
+        onend: null,
+        onresult: null,
+        start: () => {
+          if (detenido) return;
+          salud.startedAt = Date.now();
+          setListening(true);
+          setInterim("");
+          navigator.mediaDevices
+            .getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+            .then((microTemp) => {
+              if (detenido) { microTemp.getTracks().forEach((t) => t.stop()); return; }
+              micro = microTemp;
+              // AudioContext: trae muestras Float32 mono cuando resuelve el micro.
+              const ventanas = window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext };
+              const ctor = ventanas.AudioContext || ventanas.webkitAudioContext;
+              if (!ctor) throw new Error("sin AudioContext");
+              pantalla = new ctor();
+              const fuente = pantalla.createMediaStreamSource(micro);
+              // ScriptProcessor (obsoleto pero universal) para las tramas PCM.
+              procesador = pantalla.createScriptProcessor(4096, 1, 1);
+              fuente.connect(procesador);
+              // Sumidero mudo: sin él Chrome no entrega tramas de audio.
+              const sumidero = pantalla.createGain();
+              sumidero.gain.value = 0;
+              procesador.connect(sumidero);
+              sumidero.connect(pantalla.destination);
+              // El zócalo del oído: mismo origen que la página (wss si es https).
+              const protocolo = window.location.protocol === "https:" ? "wss" : "ws";
+              flujo = abrirFlujoOido({
+                url: `${protocolo}://${window.location.host}/v1/audio/stream`,
+                WebSocketImpl: WebSocket,
+                alParcial: (texto) => procesarTextoOido(gen, salud, texto, "", () => { try { recFlujo.stop(); } catch { /* */ } }),
+                alFinal: (texto) => procesarTextoOido(gen, salud, "", texto, () => { try { recFlujo.stop(); } catch { /* */ } }),
+                alCerrar: () => caidoAOtrosOidos(),
+              });
+              procesador.onaudioprocess = (ev: AudioProcessingEvent) => {
+                if (detenido) return;
+                let trama: Float32Array;
+                try { trama = ev.inputBuffer.getChannelData(0); } catch { return; }
+                // Float32 → PCM16 16 kHz (prepararAudio) directo a la corriente.
+                flujo?.enviar(prepararAudio(trama, pantalla?.sampleRate ?? 0));
+              };
+            })
+            .catch((err: unknown) => {
+              // Sin permiso (o micro capado): fatal visible, como el navegador.
+              const nombre = typeof err === "object" && err !== null && "name" in err ? String((err as { name?: unknown }).name) : "";
+              salud.lastErr = nombre === "NotAllowedError" || nombre === "SecurityError" ? "not-allowed" : "audio-capture";
+              keepAliveRef.current = false;
+              sttRestartsRef.current = 0;
+              setSttFatal(salud.lastErr as SttFatal);
+              setListening(false);
+            });
+        },
+        stop: () => {
+          if (detenido) return;
+          detenido = true;
+          sueltaTodo(false);
+          // Dúplex/reinicio: el cierre por nuestra mano es el fin del ciclo.
+          terminoDeEscuchar(recFlujo, gen, salud);
+        },
+        abort: () => { try { recFlujo.stop(); } catch { /* */ } },
+      };
+      return recFlujo;
+    }
+
+    // ───────────────────────── OÍDO DEL NAVEGADOR (Web Speech) ──────────────
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return null;
+    const rec = new SR() as RecOido;
+    // Este reconocimiento toma la GENERACIÓN vigente. Su onend solo reinicia si
+    // sigue siendo la más reciente (evita reinicios en paralelo competitivos).
+    const gen = ++recGenRef.current;
+    const salud: SaludOido = { startedAt: 0, sawResult: false, lastErr: "" };
+
+    rec.lang = activeRef.current.voice?.lang || "es-MX";
+    rec.interimResults = true;
+    // Móvil: NO continuo (Android termina tras cada frase; lo reiniciamos aquí).
+    rec.continuous = !isMobile;
+    rec.maxAlternatives = 1;
+    rec.onstart = () => {
+      if (gen !== recGenRef.current) { try { rec.abort?.(); } catch { /* */ } return; }
+      salud.startedAt = Date.now();
+      setListening(true); setInterim("");
+    };
+    rec.onerror = (e) => {
+      if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
+      const err = String((e as { error?: unknown })?.error || "");
+      salud.lastErr = err;
+      // FATALES: no se reintentan a ciegas. Los exponemos para que la UI pida el
+      // permiso de micrófono (gesto del usuario) o avise de que el mic está
+      // ocupado. Antes 'not-allowed' caía en el auto-reinicio → bucle invisible.
+      if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") {
+        keepAliveRef.current = false;
+        sttRestartsRef.current = 0;
+        setSttFatal(err as SttFatal);
+        setListening(false);
+        return;
+      }
+      // 'no-speech' | 'aborted' | 'network' → transitorios: los gestiona `onend`.
+    };
+    rec.onend = () => terminoDeEscuchar(rec, gen, salud);
+    rec.onresult = (e) => {
+      let finalText = "";
+      let interimText = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalText += r[0].transcript;
+        else interimText += r[0].transcript;
+      }
+      procesarTextoOido(gen, salud, interimText, finalText, () => {
+        try { rec.stop(); } catch { /* */ }
+      });
     };
     return rec;
   }, []);
@@ -2166,8 +2318,6 @@ export function useAuroraEngine(): AuroraEngine {
 
   const start = useCallback(() => {
     if (typeof window === "undefined") return;
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { toast.error("Tu navegador no soporta reconocimiento de voz."); return; }
     // Guard singleton TEMPORAL: si otra instancia VIVA posee el testigo del STT,
     // esta cede (no arranca un segundo reconocimiento → no se duplican acciones).
     // Si el testigo está CADUCADO (dueño fantasma), lo retomamos: nunca dejamos a
@@ -2186,17 +2336,14 @@ export function useAuroraEngine(): AuroraEngine {
     sttRestartsRef.current = 0;
     // Medio-dúplex: reanudar la escucha limpia cualquier pausa por TTS pendiente.
     pausedForTtsRef.current = false;
-    // Elección del motor de oído (contrato voz-fusionada-astraura.md §3)
-    const eleccionOido = elegirOido({
-      idioma: (activeRef.current.voice?.lang || "es").split("-")[0],
-      disponibles: MOTORES_OIDO.map((m) => m.id),
-      fase: "parcial",
-      medidas: {},
-    });
-    // El resultado está conectado (motor: eleccionOido.motor, motivo: eleccionOido.motivo).
-    // El motor elegido se aplica a través del registro vivo de motores de oído.
+    // El motor de oído lo elige el ELECTOR dentro de `buildRecognition`
+    // (contrato voz-fusionada-astraura.md §3): Phonon-2 en flujo donde haya
+    // Phonon; si no, el navegador. Si no hay ninguno, nunca sorda en silencio.
     const rec = buildRecognition();
-    if (!rec) return;
+    if (!rec) {
+      toast.error("Tu navegador no soporta reconocimiento de voz.");
+      return;
+    }
     recognitionRef.current = rec;
     // Arranque EXCLUSIVO: aborta de verdad el reconocimiento vivo anterior (un
     // `stop()` es asíncrono y lo dejaba reteniendo el micro un rato más).
