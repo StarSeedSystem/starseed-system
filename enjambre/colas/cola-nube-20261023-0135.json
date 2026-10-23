@@ -1,0 +1,37 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "RLB1020M",
+   "titulo": "Hub de Conectores · Penpot, PocketBase, OpenMAIC, Nextcloud, Chatwoot (buzón público) y Paperclip",
+   "archivos": [
+    "src/lib/connectors/registry.ts",
+    "src/lib/connectors/__tests__/registry-1020c.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020c.md y el catálogo verificado config/repos-libreria-1020c.json (14 `paquetes`, `duplicadas` y `excluidas`; datos reales, NO los cambies). Añade a `BUILTIN_CONNECTORS` (src/lib/connectors/registry.ts), con el patrón de `searxng-selfhost`, seis conectores autoalojables, kind \"oss\", status \"available\", free true, recommended false, con descripción honesta (qué hace, licencia, dónde se aloja y su salvaguarda): `penpot-selfhost` (category \"custom\"; diseño en grupo y su MCP para agentes; authType \"apiKey\": token de acceso; configHint \"http://<host>:9001\"), `pocketbase-local` (category \"storage\"; backend ligero por persona, cerebro, neurona o grupo; authType \"localEndpoint\"; configHint \"http://127.0.0.1:8090\"), `openmaic-aulas` (category \"custom\"; aulas de los grupos de estudio; authType \"localEndpoint\"; configHint \"http://<host>:3000\"; la descripción dice: una instancia por grupo de confianza, aún sin aislamiento entre usuarios), `nextcloud-aio` (category \"storage\"; archivos, calendario y contactos por WebDAV/OCS; authType \"apiKey\": contraseña de aplicación; configHint \"https://<tu-dominio>/remote.php/dav\"), `chatwoot-buzon` (category \"chat\"; buzón público de páginas y comunidades, NO mensajería entre miembros; authType \"apiKey\"; configHint \"http://<host>:3000/api/v1\"), `paperclip-oficina` (category \"dev\"; oficina de agentes con presupuestos; authType \"localEndpoint\"; configHint \"http://127.0.0.1:3100\"; la descripción pide PAPERCLIP_TELEMETRY_DISABLED=1). Prueba: ids únicos en todo el registro; los 6 presentes con repo de GitHub; la de Chatwoot dice que no es mensajería entre miembros. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical.",
+   "ola": "Ola 1020T · 3.ª tanda de repos para agentes, Astraura, Protomolécula, educación, mensajes, backend y servidores",
+   "dependencias_ya_en_main": [
+    "RLB1020G2"
+   ]
+  },
+  {
+   "id": "VAR1021Bb",
+   "ola": "1021V",
+   "importancia": "capacidad",
+   "titulo": "Nube · una tarea prestada que vuelve puede reabrirse en la tanda viva (SOLTADAS ya no la retiene)",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py",
+    "scripts/puente/director-nube.py",
+    "scripts/enjambre/test_progreso_irreversible.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nCaso real medido (2026-10-21 03:20 UTC): Claude devolvió a `pendiente` en progreso.json 43 tareas prestadas a la nube cuyo run ya había muerto (IMG1020A, GUI1021A…). A los pocos minutos volvían a «reasignada»: eran de la tanda viva de la Mac (`cola-auto-1020-121122.json`), el orquestador las tenía en memoria como soltadas y `guardar_prog` → `fusionar_progreso` hace que su copia en memoria mande sobre el disco para sus propias tareas (MIAS). Y la orden de control `reabrir` tampoco sirve: pone `pendientes[tid]`, pero el bucle siguiente hace `if tid in SOLTADAS: pendientes.pop(tid); hechas.add(tid)` y SOLTADAS nunca se vacía. Un préstamo a la nube que muere se queda varado hasta que acaba la tanda (horas o días).\n\nArreglo (depende de VAR1021A):\n1. `scripts/enjambre/starseed-enjambre.py`: en la orden `reabrir`, `SOLTADAS.discard(tid)` y `CORTADOS.discard(tid)` antes de `set_estado(... \"pendiente\")`, con un comentario en español del caso. Nada más en este archivo.\n2. `scripts/puente/director-nube.py`: cuando `reclamar_varadas_de_la_nube` devuelve tareas que son de la tanda viva de un orquestador de esta máquina (`nodo_metagenesis_medio.colas_vivas()` o la misma detección que usa `vigilante-enjambre.py: cola_viva()`), escribe además la orden `{\"accion\": \"reabrir\", \"quien\": \"director-nube\", \"motivo\": \"devuelta de la nube: su run terminó\", \"t\": ...}` en `starseed_memory_root/olas/control-<nombre de la cola viva>.json` (fusionando con lo que haya, escritura atómica con .tmp + os.replace), igual que `vigilante-enjambre.orden_reabrir`.\n3. `scripts/enjambre/test_progreso_irreversible.py` (o una prueba nueva junto a él si encaja mejor): prueba de que una tarea soltada y luego reabierta vuelve a pendientes y no se marca hecha.\n\nCorre las pruebas tocadas y lee su resumen entero.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261023-060157-VAR1021B`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261023-060157-VAR1021B:refs/remotes/origin/nube/a1-20261023-060157-VAR1021B\"` y `git cherry-pick --no-commit 86fea07401ad 097938139024 9dbff1208486 a59d54b8abe5`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/enjambre/starseed-enjambre.py, scripts/enjambre/test_progreso_irreversible.py, scripts/puente/director-nube.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261023-060157-VAR1021B",
+   "dependencias_ya_en_main": [
+    "VAR1021A"
+   ]
+  }
+ ]
+}
