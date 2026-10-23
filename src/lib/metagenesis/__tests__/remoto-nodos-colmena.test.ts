@@ -54,6 +54,9 @@ describe("acciones colmena: desconectar y contenedor", () => {
     it("contenedor con activo false rechaza trabajadores", () => {
         expect(validarArgs("contenedor", { activo: false })).toBeNull();
         expect(validarArgs("contenedor", { activo: false, trabajadores: 2 })).toContain("trabajadores solo se permite");
+        // Con trabajadores inválido manda el rango: el 0 se informa como «fuera de 1–4»
+        // aunque activo sea false (espeja el orden de las reglas del nodo Python).
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBe("trabajadores fuera de 1–4");
     });
 });
 
