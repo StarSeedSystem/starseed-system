@@ -80,6 +80,40 @@ describe("mediosEfectivos", () => {
     expect(r.almacenamiento).toEqual([{ id: "neurona:n1", tipo: "neurona", libreMb: 1000, real: false }]);
   });
 
+  it("privado: excluye ofertas de otras cuentas aunque sean públicas", () => {
+    const r = mediosEfectivos(entrada({
+      privado: true,
+      ofertas: [
+        neurona("n1", "u1"),
+        neurona("n2", "u2", { cuenta: true }),
+        neurona("np", "u2", { cuenta: false, publico: true }),
+      ],
+    }));
+    expect(r.computo.map((c) => c.nodoId)).toEqual(["n1"]);
+    expect(r.motivoPorFuente.n2).toMatch(/privado/i);
+    expect(r.motivoPorFuente.np).toMatch(/privado/i);
+  });
+
+  it("maneja entradas vacías", () => {
+    const r = mediosEfectivos(entrada());
+    expect(r.computo).toEqual([]);
+    expect(r.almacenamiento).toEqual([]);
+    expect(r.motivoPorFuente).toEqual({});
+  });
+
+  it("no muta las entradas", () => {
+    const e = entrada({
+      ofertas: [neurona("n1", "u1")],
+      vecinos: [neurona("v1", "u2", { cuenta: false, publico: true })],
+      almacenes: [{ id: "a1", tipo: "gdrive", libreMb: 500 }],
+      servidoresEnlazados: [servidor("s1", "starseed", "storage")],
+    });
+    const antes = JSON.parse(JSON.stringify(e));
+    const r = mediosEfectivos(e);
+    expect(e).toEqual(antes);
+    expect(r.computo.length).toBeGreaterThan(0);
+  });
+
   it("descarta servidores con error y no filtra IPs ni claves", () => {
     const s = { ...servidor("s1", "own", "compute"), status: "error", endpoint: "http://10.0.0.5:9000", keyRef: "CLAVE_X" };
     const r = mediosEfectivos(entrada({ servidoresEnlazados: [s] }));
