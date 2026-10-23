@@ -29,7 +29,7 @@ const REMOTAS = /(fonts\.googleapis\.com|fonts\.gstatic\.com)/;
 /** Familias pedidas por un <link> o @import a Google Fonts (puntos css2 y css1). */
 export function extraerFamiliasGoogle(html: string): string[] {
   const pedidas: string[] = [];
-  const re = /[?&]family=([^&#{\s]+)/g;
+  const re = /[?&;]family=([^&#{\s]+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html)) !== null) {
     // «Geist+Mono:wght@400» → «Geist Mono»; el texto ya puede traer &amp;.
@@ -61,8 +61,10 @@ export function pilaSistema(familia: string): string {
 function quitarPeticiones(html: string): string {
   let salida = html.replace(/<link\b[^>]*>/gi, (e) => (REMOTAS.test(e) ? "" : e));
   salida = salida.replace(/@import\s+(?:url\s*\(\s*)?['"]?[^();'"]*['"]?\s*\)?\s*;?/gi, (regla) => (REMOTAS.test(regla) ? "" : regla));
-  // url() remota dentro de CSS copiada (p. ej. el src de una @font-face ajena).
-  salida = salida.replace(/url\(\s*['"]?(?:https?:\/\/|\/\/)[^)]*['"]?\s*\)/gi, (regla) => (REMOTAS.test(regla) ? "url()" : regla));
+  // url() remota dentro de CSS copiada (p. ej. el src de una @font-face ajena):
+  // cualquier destino con protocolo o relativo al protocolo se neutraliza, no
+  // solo el de Google: el enunciado es «nunca deja una petición a terceros».
+  salida = salida.replace(/url\(\s*['"]?(?:https?:\/\/|\/\/)[^)]*['"]?\s*\)/gi, "url()");
   return salida;
 }
 /** @font-face con data URL para una fuente servida por el OS. */
@@ -84,7 +86,9 @@ function inyectarEstilos(html: string, css: string): string {
 }
 /** Sustituye la familia por su pila de sistema en declaraciones font-family (CSS y SVG). */
 export function cambiarDeclaraciones(html: string, familia: string, pila: string): string {
-  return html.replace(/font-family\s*[:=]\s*([^;"'>}]*)/gi, (completa, valor: string) => {
+  // La clase NO excluye la comilla simple: las familias van a menudo citadas
+  // (font-family:'Inter'), y excluir a «'» dejaba la captura vacía y sin cambio.
+  return html.replace(/font-family\s*[:=]\s*([^;">}]*)/gi, (completa, valor: string) => {
     if (!valor.trim()) return completa;
     const limpiar = (t: string) => t.trim().replace(/^['"]|['"]$/g, "");
     const pilaNueva = valor
