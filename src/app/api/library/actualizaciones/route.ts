@@ -101,7 +101,6 @@ async function consultarUpstream(
         return { remota: null, fecha: null, error: null };
     }
 }
-}
 
 /* ── Ruta ── */
 
@@ -141,12 +140,12 @@ export async function GET(): Promise<Response> {
                             : validarPatronTag(patronTag).error,
                 };
                 if (!upstream) return base;
-                const { remota, fecha } = await consultarUpstream(
+                const { remota, fecha, error } = await consultarUpstream(
                     upstream,
                     payload,
                     tope.signal,
                 );
-                if (!remota) return base;
+                if (!remota) return base.aviso ? base : { ...base, aviso: error ?? null };
                 return {
                     ...base,
                     remota,
