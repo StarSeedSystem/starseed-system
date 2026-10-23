@@ -3217,14 +3217,23 @@ def cerradas_en_disco(cada_s=30, ruta=None):
 
 
 def fusionar_progreso(memoria, disco, propias):
-    """Funde dos fotos sin permitir que una tarea cerrada vuelva a `en_curso`."""
+    """Funde dos fotos sin permitir que una tarea cerrada vuelva a `en_curso`.
+
+    (2026-10-23) Una tarea propia que en memoria está `reasignada` la lleva OTRO medio: este
+    orquestador no la trabaja, así que lo que diga el disco es más nuevo. Sin esto, AV1011F y
+    SP092936 (prestadas al carril de Claude en la nube cuando entraron en la tanda) volvían a
+    «reasignada» en cada guardado aunque el carril ya las hubiera devuelto a `pendiente`, y
+    traer_nube no traía sus ramas («la tarea está reasignada ahora mismo»)."""
     salida = dict(memoria)
     for tid, valor in disco.items():
         estado = valor.get("estado") if isinstance(valor, dict) else ""
+        en_memoria = salida.get(tid)
+        prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
         if (
             tid not in salida
             or (propias and tid not in propias)
             or estado in PROGRESO_IRREVERSIBLE
+            or prestada
         ):
             salida[tid] = valor
     return salida

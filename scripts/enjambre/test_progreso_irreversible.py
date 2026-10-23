@@ -35,6 +35,11 @@ class ProgresoIrreversibleTest(unittest.TestCase):
         disco = {"T2": {"estado": "fallo"}}
         self.assertEqual(enjambre.fusionar_progreso(memoria, disco, {"T1"})["T2"], disco["T2"])
 
+    def test_una_propia_prestada_a_otro_medio_toma_lo_del_disco(self):
+        memoria = {"AV1": {"estado": "reasignada", "medio": "claude-nube", "nota": "prestada"}}
+        disco = {"AV1": {"estado": "pendiente", "medio": "", "nota": "devuelta del carril"}}
+        self.assertEqual(enjambre.fusionar_progreso(memoria, disco, {"AV1"})["AV1"], disco["AV1"])
+
 
 if __name__ == "__main__":
     unittest.main()
