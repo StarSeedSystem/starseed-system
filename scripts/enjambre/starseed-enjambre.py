@@ -6057,6 +6057,8 @@ def atender_control():
             m = orden.get("reintentos_medio")
             if isinstance(m, int) and not isinstance(m, bool) and m >= 0:
                 extra["reintentos_medio"] = m
+            SOLTADAS.discard(tid)
+            CORTADOS.discard(tid)
             set_estado(
                 tid,
                 estado="pendiente",
