@@ -24,6 +24,7 @@ import {
     GIB,
     type VolumenDetectado,
     type MoverEntrada,
+    type EspacioResultado,
 } from "../mover-servidor";
 
 /* ───────────────────────────── Helpers ───────────────────────────── */
@@ -345,7 +346,7 @@ describe("moverPesos (integración)", () => {
 
         expect(resultado.ok).toBe(false);
         expect(resultado.error).toContain("Espacio insuficiente");
-        expect(resultado.avisos.some((a) => a.includes("Espacio libre"))).toBe(true);
+        expect(resultado.avisos.some((a: string) => a.includes("Espacio libre"))).toBe(true);
     });
 
     it("falla si el origen no existe", async () => {

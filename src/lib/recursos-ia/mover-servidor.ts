@@ -14,6 +14,7 @@ import { statfs } from "node:fs";
 import { promisify } from "node:util";
 
 import type { VolumenDetectado } from "./deteccion-tipos";
+export type { VolumenDetectado };
 
 const statfsAsync = promisify(statfs);
 export const GIB = 1024 ** 3;
