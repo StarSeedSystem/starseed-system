@@ -25,11 +25,12 @@ import {
     FileText, FileCode2, FileImage, FileVideo, FileAudio, FileType2,
     File as FileIcon, Link as LinkIcon, Box, AppWindow, ExternalLink,
     Share2, LayoutDashboard, PenSquare, Download, Play, Globe, Copy, Check,
-    Wrench,
+    Wrench, ArrowRightLeft,
     type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { emitAttach, openComposer } from "@/lib/share/bridge";
+import { enlaceConversor } from "@/lib/conversion/cliente";
 
 // Visor 3D ligero: sólo cliente. Si no existe el módulo o falla, degradamos a
 // miniatura/poster vía el catch del propio componente (ver GlbPreview).
@@ -299,6 +300,7 @@ function AudioPreview({ file }: { file: FileLike }) {
 
 function PdfPreview({ file, compact }: { file: FileLike; compact?: boolean }) {
     if (!file.url) return <GenericBody file={file} fmt="pdf" hint="Sin URL de PDF." />;
+    const convertirHref = enlaceConversor({ url: file.url, nombre: file.name || undefined });
     return (
         <div className="overflow-hidden rounded-xl border border-white/10 bg-white">
             <object data={file.url} type="application/pdf" className="w-full" style={{ height: compact ? 280 : 520 }}>
@@ -311,15 +313,25 @@ function PdfPreview({ file, compact }: { file: FileLike; compact?: boolean }) {
                     </a>
                 </div>
             </object>
-            <a
-                href="https://github.com/Stirling-Tools/Stirling-PDF"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Herramientas PDF self-hosted: unir, dividir, convertir, OCR, firmar (Stirling-PDF)"
-                className="flex items-center gap-1.5 border-t border-black/10 bg-black/5 px-3 py-1.5 text-[11px] font-medium text-black/60 hover:bg-black/10 hover:text-black/80"
-            >
-                <Wrench className="size-3.5" /> Herramientas PDF (Stirling-PDF): unir · dividir · OCR · firmar
-            </a>
+            <div className="flex flex-wrap items-center gap-2 border-t border-black/10 bg-black/5 px-3 py-1.5">
+                <a
+                    href={convertirHref}
+                    title="Convertir este archivo a otro formato"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-medium text-black/60 hover:text-black/80"
+                >
+                    <ArrowRightLeft className="size-3.5" /> Convertir a…
+                </a>
+                <span className="text-black/30">·</span>
+                <a
+                    href="https://github.com/Stirling-Tools/Stirling-PDF"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Herramientas PDF self-hosted: unir, dividir, convertir, OCR, firmar (Stirling-PDF)"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-medium text-black/60 hover:text-black/80"
+                >
+                    <Wrench className="size-3.5" /> Herramientas PDF (Stirling-PDF): unir · dividir · OCR · firmar
+                </a>
+            </div>
         </div>
     );
 }
