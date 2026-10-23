@@ -1,0 +1,71 @@
+{
+ "ola": "nube-20261022",
+ "tareas": [
+  {
+   "id": "RTRTRTRTRTS1010-EV-ORACLE-1acb",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de ",
+   "archivos": [
+    "src/lib/estaciones/__tests__/rele-salas.test.ts",
+    "src/lib/library/__tests__/vincular.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTRTRTRTS1010-EV-ORACLE-1ac («Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas») se hizo en main por otro camino; su rama nube/a1-20261019-222347-GCA1019V queda archivada en `refs/archivo/nube/a1-20261019-222347-GCA1019V` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.86)\n\nTU TAREA (RTRTRTRTRTS1010-EV-ORACLE-1acb · solo estos archivos: src/lib/estaciones/__tests__/rele-salas.test.ts, src/lib/library/__tests__/vincular.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('debería aceptar temas con guiones y guiones bajos', () => {\n    const salas = crearSalas();\n    const tema = 'estacion-vivo:ABC_DEF-123';\n    const conexion = {};\n    const result = salas.entrar(tema, conexion);\n    expect(result.ok).toBe(true);\n  });\n\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('debería aceptar el mismo objeto conexion repetidamente', () => {\n    const salas = crearSalas();\n    const tema = 'estacion-vivo:TemaTest';\n    const conexion = {};\n    const first = salas.entrar(tema, conexion);\n    const second = salas.entrar(tema, conexion);\n    expect(first.ok).toBe(true);\n    expect(second.ok).toBe(true);\n    expect(salas.presencia(tema)).toBe(1);\n  });\n\n# src/lib/library/__tests__/vincular.test.ts\n  it(\"deduce vínculo correcto desde catálogo\", () => {\n    const vinc = vinculoDe(paqueteConId, FREE_CATALOG);\n    expect(vinc.requiereClave).toBe(true);\n    expect(vinc.enlaceAlta).toBe(\"https://console.groq.com/keys\");\n    expect(vinc.gratis).toBe(false);\n  });\n\n# src/lib/library/__tests__/vincular.test.ts\n  it(\"devuelve valores por defecto cuando no hay fuente\", () => {\n\n# src/lib/library/__tests__/vincular.test.ts\n  it(\"permite instalar si fuente vinculada\", () => {\n    expect(instalableEnAmbito(paqueteConId, \"pagina\", [\"groq-free\"]))\n      .toBe(true);\n  });\n\n# src/lib/library/__tests__/vincular.test.ts\n  it(\"no permite si fuente no vinculada\", () => {\n    expect(instalableEnAmbito(paqueteConId, \"pagina\", []))\n      .toBe(false);\n  });\n\n# src/lib/library/__tests__/vincular.test.ts\n  it(\"si no hay catalogSourceId, siempre instalable\", () => {\n    const paqueteSinId: LibraryPackage = { ...paqueteConId, payload: {} };\n    expect(instalableEnAmbito(paqueteSinId, \"cuenta\", [])).toBe(true);\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "RTRTRTRTS1010-EV-ORACLE-1ac",
+    "rama": "nube/a1-20261019-222347-GCA1019V"
+   }
+  },
+  {
+   "id": "RLB1020E",
+   "titulo": "Biblioteca · siembra por defecto de las de la 2.ª tanda marcadas «siempre»",
+   "archivos": [
+    "src/lib/library/defaults-seed.ts",
+    "src/lib/library/__tests__/defaults-seed.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Alex pidió que queden «predeterminadas y preinstaladas inteligentemente». En `src/lib/library/defaults-seed.ts` sube `SEED_VERSION` en 1 y añade a `RECOMMENDED_PACKAGE_IDS`, con un comentario de la versión, SOLO los ids de la 2.ª tanda con `preinstalar: \"siempre\"` (lib-vikunja, lib-celld, lib-sentry, lib-windmill, lib-metabase, lib-trilium, lib-politica-privacidad), respetando las reglas de la cabecera del archivo: nunca lo que descarga, ejecuta código o abre una ruta al instalar, y nunca reinstalar algo que la persona desinstaló. Las «manual» NO se siembran. Pruebas: con la nueva versión se siembran esas 7 una sola vez; una desinstalada no vuelve; ninguna «manual» entra. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área",
+   "dependencias_ya_en_main": [
+    "RLB1020D"
+   ]
+  },
+  {
+   "id": "RLB1020G2",
+   "titulo": "Hub de Conectores · tirreno, Moli, DBX y OpenShell (seguridad y agentes)",
+   "archivos": [
+    "src/lib/connectors/registry.ts",
+    "src/lib/connectors/__tests__/registry-1020b-seguridad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Añade a `BUILTIN_CONNECTORS` cuatro conectores más con el mismo patrón: `tirreno-selfhost` (category \"custom\", antifraude de cuentas y votaciones; authType \"apiKey\"; configHint \"http://<host>:8585\"; la descripción dice que recibe IP y correos y que se activa solo con aviso de privacidad), `moli-serve` (category \"web\", navegador sin interfaz para agentes; authType \"localEndpoint\"; configHint \"http://127.0.0.1:<puerto de moli serve>\"; la descripción exige sandbox y lista de dominios), `dbx-mcp` (category \"dev\", inspección de bases locales; authType \"localEndpoint\"; la descripción dice «siempre en modo solo lectura»), `openshell-gateway` (category \"dev\", sandboxes para agentes; authType \"localEndpoint\"; la descripción dice alfa y telemetría apagada con OPENSHELL_TELEMETRY_ENABLED=false). kind \"oss\", status \"available\", free true, recommended false. Prueba: ids únicos y las 4 descripciones mencionan su salvaguarda (consentimiento, sandbox, solo lectura, telemetría). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área",
+   "dependencias_ya_en_main": [
+    "RLB1020G1"
+   ]
+  },
+  {
+   "id": "RLB1020K",
+   "titulo": "Biblioteca · el cargador lee también la 3.ª tanda, quita excluidas y no duplica repos que ya están",
+   "archivos": [
+    "src/lib/library/repos-externos-1020.ts",
+    "src/lib/library/__tests__/repos-externos-1020c.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020c.md y el catálogo verificado config/repos-libreria-1020c.json (14 `paquetes`, `duplicadas` y `excluidas`; datos reales, NO los cambies). `src/lib/library/repos-externos-1020.ts` ya lee las tandas 1020 y 1020b (RLB1020A y RLB1020D): súmale config/repos-libreria-1020c.json con el mismo mapeo. Añade a `REPOS_EXCLUIDOS` los `excluidas` de la 3.ª tanda (Kritt-ai/open-kritt). No dupliques: si un paquete builtin de `src/lib/library/packages.ts` ya apunta al mismo repo de GitHub por `payload.externalUrl` (p. ej. `iatool-penpot` → penpot/penpot), no se crea otro paquete con ese repo: exporta `REPOS_YA_PRESENTES: {repo, id}[]` para que se vea. Pruebas: ids únicos en las tres tandas; ningún repo excluido; penpot/penpot no aparece dos veces; las 13 restantes de la 3.ª tanda están. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical.",
+   "ola": "Ola 1020T · 3.ª tanda de repos para agentes, Astraura, Protomolécula, educación, mensajes, backend y servidores",
+   "dependencias_ya_en_main": [
+    "RLB1020D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "RLB1020K",
+   "RLB1020G2",
+   "RLB1020E",
+   "RTRTRTRTRTS1010-EV-ORACLE-1acb"
+  ]
+ }
+}
