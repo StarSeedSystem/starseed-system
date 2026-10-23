@@ -135,27 +135,6 @@ describe("resumen del bus", () => {
     });
 });
 
-describe("textoEstadoOrden", () => {
-    it("cada estado mapea al texto correcto", () => {
-        const estados: Record<string, string> = {
-            pendiente: "esperando a un nodo",
-            tomada: "la tiene un nodo",
-            hecha: "hecha",
-            en_marcha: "en marcha",
-            seca: "solo simulada (nodo en prueba)",
-            nada: "no hacía falta",
-            rechazada: "rechazada",
-            fallo: "falló",
-            caducada: "nadie la recogió a tiempo",
-        };
-        for (const [estado, esperado] of Object.entries(estados)) expect(textoEstadoOrden(estado)).toBe(esperado);
-    });
-
-    it("un estado desconocido se devuelve tal cual", () => {
-        expect(textoEstadoOrden("estado-desconocido")).toBe("estado-desconocido");
-    });
-});
-
 describe("resumen de las tablas (modo tablas)", () => {
     it("el arriendo vigente manda y las órdenes traen quién las tomó", () => {
         const e = resumirTablas(
@@ -239,8 +218,8 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
 });
 
 describe("textoEstadoOrden", () => {
-    it("cada estado conocido tiene su texto", () => {
-        const esperados: Record<string, string> = {
+    it("cada estado mapea al texto correcto", () => {
+        const estados = {
             pendiente: "esperando a un nodo",
             tomada: "la tiene un nodo",
             hecha: "hecha",
@@ -251,12 +230,12 @@ describe("textoEstadoOrden", () => {
             fallo: "falló",
             caducada: "nadie la recogió a tiempo",
         };
-        for (const [estado, texto] of Object.entries(esperados)) {
-            expect(textoEstadoOrden(estado)).toBe(texto);
-        }
+        Object.entries(estados).forEach(([estado, esperado]) => {
+            expect(textoEstadoOrden(estado)).toBe(esperado);
+        });
     });
 
-    it("un estado desconocido se devuelve tal cual", () => {
-        expect(textoEstadoOrden("estado-desconocido")).toBe("estado-desconocido");
+    it("estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
     });
 });
