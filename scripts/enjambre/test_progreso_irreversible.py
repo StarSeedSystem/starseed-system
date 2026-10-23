@@ -80,6 +80,7 @@ class TestReabrirDespuesSoltarTest(unittest.TestCase):
         self.assertEqual(fundido["T1"]["estado"], "reasignada")
 
         # Ahora simular que el orquestador atiende una orden 'reabrir'
+        enjambre.MIAS.add("T1")
         orden = {"T1": {"accion": "reabrir", "motivo": "run de nube terminado"}}
         with mock.patch.object(enjambre, "consumir_control", return_value=orden), \
                 mock.patch.object(enjambre, "entregar_mensajes"), \
