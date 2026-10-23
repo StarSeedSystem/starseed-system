@@ -80,6 +80,16 @@ class DirectorTest(unittest.TestCase):
         json.dump({"nim": {}, "xkiro": {"caido": True}}, open(os.path.join(self.home, "salud-proveedores.json"), "w"))
         self.assertEqual(D.medir_capacidad(self.home), {"huecos_mac": 3, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 1, "presion_mac": 1})
 
+    def test_criterio_utilidad_importancia_destino_puros(self):
+        propuesta = {
+            "id": "test:lectura", "titulo": "Arreglar el lector de archivos",
+            "cuerpo": "corregir error en src/lib/algo.ts", "archivos": ["src/lib/algo.ts"],
+            "verificacion": "verificado",
+        }
+        valor, motivo = D.AD.utilidad(propuesta, lambda r: False)
+        self.assertEqual(valor, 0.0)
+        self.assertIn("ninguno", motivo)
+
 
 if __name__ == "__main__":
     unittest.main()
