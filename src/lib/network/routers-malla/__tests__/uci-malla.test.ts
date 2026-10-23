@@ -59,6 +59,14 @@ describe("uciMalla", () => {
     expect(uciMalla(cfg("5g", 80, { claveMalla: "ab'cdefgh" })).wireless).toContain("option key 'ab'\\''cdefgh'");
   });
 
+  it.each([
+    ["US", "US"], ["ES", "ES"], ["fr", "FR"], ["JP", "JP"], [" es ", "ES"],
+  ] as Array<[string, string]>)("usa el país de la región «%s» en las dos radios", (region, pais) => {
+    const w = secciones(uciMalla(cfg("5g", 80, { region })).wireless);
+    expect(w.radio_troncal).toContain(`option country '${pais}'`);
+    expect(w.radio_cliente).toContain(`option country '${pais}'`);
+  });
+
   const troncal = (t: Partial<CfgUciMalla["troncal"]>): Partial<CfgUciMalla> => ({ troncal: { ...cfg().troncal, ...t } });
   it.each([
     [{ region: "EU" }, /país/], [{ meshId: "x".repeat(33) }, /32 bytes/], [{ claveMalla: "corta-1" }, /8 a 63/],
@@ -95,6 +103,14 @@ describe("guionAplicar", () => {
     expect(pos('uci add_list "network.$B.ports=bat0"')).toBeGreaterThan(pos('uci -q del_list "network.$B.ports=bat0"'));
     expect(pos('uci set wireless.radio_troncal.path="$RT"')).toBeGreaterThan(pos("cat > /etc/config/wireless"));
     expect(g.trimEnd().split("\n").slice(-3)).toEqual(["wifi reload", "/etc/init.d/network restart", ")"]);
+  });
+
+  it("es un guion sh con shebang y añade a network el bloque batman-adv completo", () => {
+    expect(g.startsWith("#!/bin/sh\n")).toBe(true);
+    const interfacesBat = uciMalla(cfg()).network.split("\n\nconfig device ")[0];
+    expect(interfacesBat).toContain("config interface 'bat0'");
+    expect(interfacesBat).toContain("config interface 'bat0_hardif_mesh'");
+    expect(g).toContain(`cat >> /etc/config/network <<'STARSEED_FIN'\n\n${interfacesBat}\nSTARSEED_FIN\n`);
   });
 
   it("deja cómo volver y vuelve sola en 5 minutos si nadie confirma, aunque se corte el SSH", () => {
