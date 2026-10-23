@@ -82,6 +82,6 @@ const paquetes2 = (repos2.paquetes ?? []).map(transformaPaquete);
 const reposExcluidosSet = new Set(REPOS_EXCLUIDOS);
 
 export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
-  ...paquetes1.filter((p) => !reposExcluidosSet.has(p.repo)),
-  ...paquetes2.filter((p) => !reposExcluidosSet.has(p.repo)),
+  ...paquetes1.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
+  ...paquetes2.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
 ];
