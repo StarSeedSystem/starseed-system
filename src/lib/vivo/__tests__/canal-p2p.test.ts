@@ -256,4 +256,19 @@ describe("canal P2P de la escena", () => {
         expect(abrirCanalEscenaP2P("", { miId: "a", señal: LA_SEÑAL })).toBeNull();
         expect(abrirCanalEscenaP2P("t", { miId: "", señal: LA_SEÑAL })).toBeNull();
     });
+
+    it("el canal válido expone el tema firmado", () => {
+        const { crearMalla } = centro();
+        const c = abrirCanalEscenaP2P("escena-otro-tema", { miId: "a", señal: LA_SEÑAL, crearMalla })!;
+        expect(c.tema).toBe("escena-otro-tema");
+        c.cerrar();
+    });
+
+    it("cerrar() dos veces seguidas no explota", async () => {
+        const { abrir } = centro();
+        const [a] = await abrir(["a"]);
+        a.cerrar();
+        expect(() => a.cerrar()).not.toThrow();
+        expect(a.suscrito()).toBe(false);
+    });
 });
