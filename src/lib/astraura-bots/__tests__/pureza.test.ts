@@ -26,6 +26,9 @@ describe("núcleo puro de los bots de Astraura", () => {
     const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
     for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
   });
+  it.each(NUCLEO)("%s.ts: sin el cliente de Supabase (regresión 2026-10-14: «CI en rojo» 60 min)", (n) => {
+    expect(leer(n)).not.toMatch(/["']@\/utils\/supabase/);
+  });
 });
 
 describe("tipos", () => {
