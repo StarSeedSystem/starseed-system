@@ -18,6 +18,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 import { INSTANTANEA_VACIA } from "@/lib/vivo/juegos/controlador";
 import { AlmacenFalso, RedFalsa, crearCliente, docInicial } from "@/lib/vivo/__pruebas__/juego-red-falsa";
+import { normalizarPalabra } from "@/lib/vivo/juegos/palabras";
 import { SalaJuegos } from "../sala-juegos";
 
 let red: RedFalsa;
@@ -58,15 +59,64 @@ const entregar = () => act(async () => { red.entregarTodo(); await Promise.resol
 const clic = (el: HTMLElement) => act(async () => { fireEvent.click(el); await Promise.resolve(); });
 const mesa = (c: Controlador) => c.getSnapshot().estado as EstadoMesa;
 
-function escapeRegExp(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Fragmenta el texto en palabras (letras y números, también acentuadas) ya normalizadas: minúsculas y sin acentos. */
+function tokensDeTexto(texto: string): string[] {
+    return (texto.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).map(normalizarPalabra).filter(Boolean);
 }
 
+/**
+ * ¿La palabra aparece en el texto como palabra propia (sin acentos y sin importar mayúsculas)?
+ * A diferencia de `\b` de JS, que se basa en [A-Za-z0-9_], no se queda ciega con los acentos
+ * («árbol») ni falla con palabras pegadas por textContent. Palabras de varias partes («globo
+ * aerostático») se casan aunque el texto las parta conectando las partes seguidas.
+ */
 function textoContienePalabra(texto: string | null, palabra: string): boolean {
     if (!texto || !palabra) return false;
-    const r = new RegExp("\\b" + escapeRegExp(palabra) + "\\b");
-    return r.test(texto);
+    const partes = palabra.trim().split(/\s+/).map(normalizarPalabra);
+    if (partes.some((p) => p.length === 0)) return false;
+    const tokens = tokensDeTexto(texto);
+    for (let i = 0; i + partes.length <= tokens.length; i++) {
+        if (partes.every((p, j) => tokens[i + j] === p)) return true;
+    }
+    return false;
 }
+
+/** ¿El texto contiene el trozo tal cual, pegado a lo que sea? Para fugas sin separador («Beto»+palabra). */
+function textoContienePegado(texto: string | null, trozo: string): boolean {
+    return !!texto && trozo.length > 0 && texto.includes(trozo);
+}
+
+describe("ayudantes de fuga de palabra", () => {
+    test("la palabra se detecta como palabra propia, con acentos y en cualquier caja", () => {
+        expect(textoContienePalabra("La era vela", "vela")).toBe(true);
+        // `\b` de JS ni siquiera veía «árbol» seguido de espacio (la á no es límite de palabra)
+        expect(textoContienePalabra("gató entre ÁrBol", "árbol")).toBe(true);
+        expect(textoContienePalabra("Ronda 1: pingüino", "pingüino")).toBe(true);
+        expect(textoContienePalabra("globo\naerostático", "globo aerostático")).toBe(true);
+        expect(textoContienePalabra("Escríbelo con sol y fogata", "sol")).toBe(true);
+    });
+
+    test("lo que no es la palabra propia no se cuenta", () => {
+        // el falso positivo que tiró la CI: «la revela» contiene «vela» como letras, no como palabra
+        expect(textoContienePalabra("y al final la revela: cualquiera comprueba", "vela")).toBe(false);
+        expect(textoContienePalabra("intento: solar", "sol")).toBe(false);
+        expect(textoContienePalabra("zzzz", "vela")).toBe(false);
+        expect(textoContienePalabra(null, "vela")).toBe(false);
+        expect(textoContienePalabra("hola", "")).toBe(false);
+        expect(textoContienePalabra("hola", "   ")).toBe(false);
+    });
+
+    test("el texto pegado sí se ve, aunque esté encajado entre otras letras", () => {
+        const palabraVela = "vela";
+        // textContent pega las filas sin separador: «…zzzzBetovela…» era invisible con `\b`
+        expect(textoContienePegado("zzzzBeto", `Beto${palabraVela}`)).toBe(false);
+        expect(textoContienePegado("zzzzBetovela salir", `Beto${palabraVela}`)).toBe(true);
+        expect(textoContienePegado("Beto vela", `Beto${palabraVela}`)).toBe(false);
+        expect(textoContienePegado(null, `Beto${palabraVela}`)).toBe(false);
+        expect(textoContienePegado("Beto ", "Beto")).toBe(true);
+        expect(textoContienePegado("Beto hay", "Beto")).toBe(true);
+    });
+});//}};
 
 async function elegirJuego(sala: Sala, juego: string) {
     await clic(sala.q.getByRole("radio", { name: new RegExp(juego) }));
@@ -238,7 +288,7 @@ describe("Dibujo-adivina", () => {
         await waitFor(() => expect(carla.q.getByText(/Beto ha acertado/)).toBeInTheDocument());
         // la palabra acertada NUNCA se enseña en los mensajes visibles de las demás personas
         const mensajesCarla = carla.q.getByRole("list", { name: "Intentos" })?.textContent ?? "";
-        expect(textoContienePalabra(mensajesCarla, `Beto${palabra}`)).toBe(false);
+        expect(textoContienePegado(mensajesCarla, `Beto${palabra}`)).toBe(false);
         expect(mesa(ana.c).tablero).toMatchObject({ aciertos: [expect.objectContaining({ seat: 1 })] });
         expect(beto.q.getByLabelText("Escribe tu intento")).toBeDisabled(); // ya acertó
 
