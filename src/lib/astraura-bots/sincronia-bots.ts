@@ -1,8 +1,10 @@
 /**
  * Bots/dots de Astraura · SINCRONÍA de bots entre neuronas (BOT1011Y).
  * Puro: sin React, red, DOM, reloj ni `node:*` (guardia en __tests__/pureza.test.ts).
- * Aquí solo se decide QUÉ bot gana al fusionar; la suscripción a Realtime y el estado
- * de orbes abiertas por neurona viven en `adaptadores/sincronia-bots.ts` (contrato §3.3).
+ * Aquí solo se DECIDE: qué bot gana al fusionar (`fusionarBots`) y qué se hace con la
+ * fila remota que llega de Realtime (`integrarRemoto`, incluido el DELETE). La marca de
+ * tiempo la pasa quien llama: este módulo no ve el reloj. La suscripción a Realtime y el
+ * estado de orbes abiertas por neurona viven en `adaptadores/sincronia-bots.ts`.
  */
 import type { Bot } from "./tipos";
 
@@ -42,4 +44,26 @@ export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
     if (e) res.push(e);
   }
   return res;
+}
+
+/** Fila que llega de Realtime, en la forma mínima que la sincronía entiende. */
+export interface CambioRemoto {
+  readonly eventType?: "INSERT" | "UPDATE" | "DELETE" | undefined;
+  readonly new?: Bot | null;
+  /** En DELETE Supabase solo trae las claves de la fila (normalmente el id). */
+  readonly old?: { id?: string } | null;
+}
+
+/** Aplica un cambio remoto a la serie del caché: DELETE lo quita (el id puede venir
+ * en `old` o en `new`), una fila inválida se descarta y una válida gana si es más
+ * reciente (su marca es `ahora`, que decide quien llama; el núcleo no ve el reloj). */
+export function integrarRemoto(serie: readonly BotSync[], c: CambioRemoto, ahora: number): BotSync[] {
+  if (c.eventType === "DELETE") {
+    const id = typeof c.old?.id === "string" && c.old.id ? c.old.id
+      : typeof c.new?.id === "string" && c.new.id ? c.new.id : null;
+    return id ? serie.filter(b => b.id !== id) : [...serie];
+  }
+  if (!c.new || !(c.eventType === "INSERT" || c.eventType === "UPDATE")) return [...serie];
+  const marca = Number.isFinite(ahora) ? ahora : 0;
+  return fusionarBots([...serie], [{ ...c.new, actualizado: marca }]);
 }
