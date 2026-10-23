@@ -38,7 +38,7 @@ function reducerEstadoTarjetaImagenes(
 ): EstadoTarjetaImagenes {
   switch (accion.tipo) {
     case 'SET_OPCIONES':
-      return { ...estado, opciones: accion.payload, error: null };
+      return { ...estado, opciones: accion.payload };
     case 'SET_CARGANDO':
       return { ...estado, cargando: accion.payload };
     case 'SET_ERROR':

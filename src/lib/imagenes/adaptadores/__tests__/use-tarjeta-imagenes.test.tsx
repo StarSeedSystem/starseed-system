@@ -7,13 +7,28 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 
-vi.mock("@/lib/imagenes/adaptadores/plan-imagen");
-vi.mock("@/lib/imagenes/adaptadores/generar-imagen");
-vi.mock("@/lib/imagenes/adaptadores/guardar-biblioteca");
-vi.mock("@/lib/imagenes/adaptadores/usar-como-referencia-3d");
-vi.mock("@/lib/imagenes/adaptadores/abrir-protomolecula");
+// Mock all the dependencies before importing the hook
+vi.mock("@/lib/imagenes/adaptadores/plan-imagen", () => ({
+  planImagen: vi.fn(),
+}));
 
-// Importar después de los mocks
+vi.mock("@/lib/imagenes/adaptadores/generar-imagen", () => ({
+  generarImagen: vi.fn(),
+}));
+
+vi.mock("@/lib/imagenes/adaptadores/guardar-biblioteca", () => ({
+  guardarEnBiblioteca: vi.fn(),
+}));
+
+vi.mock("@/lib/imagenes/adaptadores/usar-como-referencia-3d", () => ({
+  usarComoReferencia3D: vi.fn(),
+}));
+
+vi.mock("@/lib/imagenes/adaptadores/abrir-protomolecula", () => ({
+  abrirEnProtomoleculaEditor: vi.fn(),
+}));
+
+// Import the hook after mocking
 import { useTarjetaImagenes } from "@/lib/imagenes/adaptadores/use-tarjeta-imagenes";
 
 describe("adaptador de tarjeta de imágenes - hook", () => {
@@ -47,8 +62,7 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
   ];
 
   it("debe generar opciones al llamar a generarOpciones", async () => {
-    const { useTarjetaImagenes: mockHook } = await import("@/lib/imagenes/adaptadores/use-tarjeta-imagenes");
-    const { result } = renderHook(() => mockHook());
+    const { result } = renderHook(() => useTarjetaImagenes());
     
     const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
     planImagen.mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
@@ -63,8 +77,7 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
   });
 
   it("debe manejar errores en generarOpciones", async () => {
-    const { useTarjetaImagenes: mockHook } = await import("@/lib/imagenes/adaptadores/use-tarjeta-imagenes");
-    const { result } = renderHook(() => mockHook());
+    const { result } = renderHook(() => useTarjetaImagenes());
     
     const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
     planImagen.mockRejectedValueOnce(new Error("Error de prueba"));
@@ -73,14 +86,16 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
       await result.current.generarOpciones(peticionMock);
     });
 
+    // Give time for state to update
+    await new Promise(resolve => setTimeout(resolve, 10));
+
     expect(result.current.error).toBe("Error de prueba");
     expect(result.current.cargando).toBe(false);
     expect(result.current.opciones).toEqual([]);
   });
 
   it("debe llamar a generarImagen al elegir una opción", async () => {
-    const { useTarjetaImagenes: mockHook } = await import("@/lib/imagenes/adaptadores/use-tarjeta-imagenes");
-    const { result } = renderHook(() => mockHook());
+    const { result } = renderHook(() => useTarjetaImagenes());
     
     const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
     const { generarImagen } = await import("@/lib/imagenes/adaptadores/generar-imagen");
@@ -108,8 +123,7 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
   });
 
   it("debe llamar a usarComoReferencia3D al usar como referencia 3D", async () => {
-    const { useTarjetaImagenes: mockHook } = await import("@/lib/imagenes/adaptadores/use-tarjeta-imagenes");
-    const { result } = renderHook(() => mockHook());
+    const { result } = renderHook(() => useTarjetaImagenes());
     
     const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
     const { usarComoReferencia3D } = await import("@/lib/imagenes/adaptadores/usar-como-referencia-3d");
@@ -129,8 +143,7 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
   });
 
   it("debe llamar a abrirEnProtomolecula al editar en Protomolécula", async () => {
-    const { useTarjetaImagenes: mockHook } = await import("@/lib/imagenes/adaptadores/use-tarjeta-imagenes");
-    const { result } = renderHook(() => mockHook());
+    const { result } = renderHook(() => useTarjetaImagenes());
     
     const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
     const { abrirEnProtomoleculaEditor } = await import("@/lib/imagenes/adaptadores/abrir-protomolecula");
