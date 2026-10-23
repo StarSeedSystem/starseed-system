@@ -4,6 +4,8 @@
 // Regla de Alex (2026-09-20): todo repo que se integra entra en la Biblioteca con
 // su ficha y comprobación automática de versión. Lo que no corre aquí se marca
 // `comingSoon` con el motivo a la vista: una ficha no promete lo que no hace.
+// `kind: "project"` (como LiteLLM): instalar lo registra en tu Biblioteca y abre su superficie
+// (`payload.route`). «function» exige una skill de Aurora y estas fichas no la tienen.
 //
 // Módulo PURO y SIN "use client": lo importa también `/api/library/actualizaciones`.
 // ════════════════════════════════════════════════════════════════════════════
@@ -13,7 +15,7 @@ import type { LibraryPackage } from "./packages";
 export const FICHAS_REPOS_OS: LibraryPackage[] = [
     {
         id: "repo-hono",
-        kind: "function",
+        kind: "project",
         name: "Hono · servidor web ultraligero",
         description:
             "Framework web sobre los estándares de la web (MIT, sin dependencias, < 12 kB en su versión mínima) que corre igual en " +
@@ -39,7 +41,7 @@ export const FICHAS_REPOS_OS: LibraryPackage[] = [
     },
     {
         id: "repo-react-native-zalo-kit",
-        kind: "function",
+        kind: "project",
         name: "React Native Zalo Kit · iniciar sesión con Zalo",
         description:
             "Envoltorio del SDK de Zalo (la mensajería de Vietnam) para apps React Native en iOS y Android: iniciar sesión con " +

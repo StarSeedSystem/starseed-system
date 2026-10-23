@@ -58,10 +58,10 @@ const RE_GITHUB = /^https?:\/\/github\.com\/[^/\s]+\/[^/\s]+/;
 /** Fichas cuyo `payload.upstream` es un repo de GitHub (entran en la comprobación de versión). */
 export function fichasIaConUpstreamGitHub(paquetes: LibraryPackage[]): LibraryPackage[] {
     return paquetes.filter(
-        // Modelos, repos y funciones integradas (Hono…): la regla es «todo repo integrado con
-        // comprobación automática de versión», no solo los modelos. Las apps del OS no.
+        // Modelos, repos, proyectos y funciones integradas (Hono…): la regla es «todo repo
+        // integrado con comprobación automática de versión», no solo los modelos. Las apps no.
         (p) =>
-            (p.kind === "ai-source" || p.kind === "repo" || p.kind === "function") &&
+            (p.kind === "ai-source" || p.kind === "repo" || p.kind === "project" || p.kind === "function") &&
             typeof p.payload?.upstream === "string" &&
             RE_GITHUB.test(p.payload.upstream),
     );
