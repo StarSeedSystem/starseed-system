@@ -415,7 +415,6 @@ function CodeSandboxBody({ item, boxed, context }: { item: EmbeddedItem; boxed: 
             title={titleOf(item)}
         />
     );
-    );
 }
 
 function Body({ item, strategy, ratio, context }: { item: EmbeddedItem; strategy: Strategy; ratio: MainRatio; context: EmbedContext }) {
