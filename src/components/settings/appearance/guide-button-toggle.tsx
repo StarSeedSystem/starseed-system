@@ -15,7 +15,9 @@ import { useEffect, useState } from "react";
 import { LifeBuoy, LogIn, Play, Sparkles } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { OPEN_GUIDE_EVENT } from "@/components/onboarding/aurora-guide";
+// (Ola 1021I) Una sola puerta: la guía se abre por `abrirGuia` (puerta común,
+// lib/onboarding/guia-acceso.ts), que despacha el evento que ya escucha el tour.
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 import { abrirPrimerArranque } from "@/lib/onboarding/primer-arranque";
 import {
   getGuideButtonVisible,
@@ -69,11 +71,10 @@ export function GuideButtonToggle() {
         size="sm"
         variant="outline"
         className="h-8 gap-1.5 text-xs"
-        onClick={() => {
-          const w = window as unknown as { openStarseedGuide?: () => void };
-          if (typeof w.openStarseedGuide === "function") w.openStarseedGuide();
-          else window.dispatchEvent(new Event(OPEN_GUIDE_EVENT));
-        }}
+        /* (Ola 1021I) Puerta común con origen declarado: desde Ajustes, la
+           guía se abre con la capa z de hoy (95) si hay sesión y, sin cuenta,
+           por encima del acceso con modo invitado. */
+        onClick={() => abrirGuia({ desde: "ajustes" })}
       >
         <Play className="h-3.5 w-3.5" aria-hidden />
         Reproducir guía del sistema

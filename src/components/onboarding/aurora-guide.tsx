@@ -92,6 +92,19 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
+import { useAccount } from "@/context/account-context";
+// (Ola 1021I) PUERTA COMÚN y reglas del modo invitado: UNA sola fuente para el
+// evento, la capa z y lo que se puede hacer en cada paso. El detalle está en
+// architecture/guias-introduccion.md §5.
+import {
+  EVENTO_ABRIR_GUIA,
+  accionesDelPaso,
+  abrirGuia,
+  modoGuia,
+  zGuia,
+  type DetalleAbrirGuia,
+  type OrigenGuia,
+} from "@/lib/onboarding/guia-acceso";
 import { StepDemo } from "./aurora-guide-demos";
 import { IconoStarSeed } from "./icono-starseed";
 import {
@@ -108,7 +121,7 @@ import {
 } from "@/lib/onboarding/guide-visibility";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
-import { copiarGuiaLocalACuenta, marcarGuiaVista } from "@/lib/onboarding/guia-vista";
+import { copiarGuiaLocalACuenta, marcarGuiaVista, recordarVistaInvitado, unirVistasInvitadoACuenta } from "@/lib/onboarding/guia-vista";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
@@ -120,6 +133,12 @@ import type { PerfilEntrada } from "@/lib/gestos";
 
 // ── contratos externos (solo strings/constantes; sin importar el motor) ──────
 const GUIDE_MODE_KEY = "starseed.guide.mode.v1";
+/**
+ * Evento de apertura. Contrato: es literalmente el MISMO canal que
+ * `EVENTO_ABRIR_GUIA` (lib/onboarding/guia-acceso.ts) — la prueba lo compara
+ * leyendo el texto de los dos archivos, sin importarlos. La puerta común
+ * `abrirGuia({ desde, temaInicial? })` es la que lo lanza ahora.
+ */
 export const OPEN_GUIDE_EVENT = "starseed:open-guide";
 const AURORA_EXOCORTEX_OPEN_EVENT = "starseed:open-aurora-exocortex";
 const AURORA_SUGGEST_EVENT = "aurora:suggest";
@@ -172,6 +191,22 @@ function useSafePerimeter(): { setActiveEdge: (edge: PerimeterEdge) => void } {
     return { setActiveEdge: (edge) => { try { p.setActiveEdge(edge); } catch { /* */ } } };
   } catch {
     return { setActiveEdge: () => {} };
+  }
+}
+
+/**
+ * ¿Hay sesión de cuenta? Con defensa: el árbol RAÍZ ya monta AccountProvider,
+ * pero si por cualquier motivo no estuviera (o en pruebas), no queremos que la
+ * guía tumbe la app: se queda en modo invitado. Ante conocer la sesion real,
+ * el modo pasa de invitado a cuenta en vivo.
+ */
+function useSesionGuia(): boolean {
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { session } = useAccount();
+    return Boolean(session);
+  } catch {
+    return false;
   }
 }
 
@@ -465,8 +500,17 @@ export function AuroraGuide() {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
+  // (Ola 1021I) De dónde se abrió la guía: decide la capa z (una ventana de
+  // acceso, o invitado → por encima del acceso). Por defecto, el botón propio.
+  const [origen, setOrigen] = useState<OrigenGuia>("boton");
   // Modo elegido en la pantalla inicial (null = aún no elegido → pregunta).
   const [mode, setMode] = useState<GuideMode | null>(null);
+  // (Ola 1021I) Con cuenta o en modo invitado: en invitado no hay «Ir» ni
+  // «Hazlo por mí» (detrás está la pantalla de acceso) y se muestra
+  // «Disponible al entrar».
+  const haySesion = useSesionGuia();
+  const modo = modoGuia(haySesion);
+  const acciones = accionesDelPaso(modo);
   // Silenciar la narración por voz (sólo TTS; el texto se mantiene). true = mute.
   const [muted, setMuted] = useState(false);
   // Rectángulo del spotlight (si el target existe en la ruta actual).
@@ -537,7 +581,8 @@ export function AuroraGuide() {
   }, []);
 
   // ── reabrir bajo demanda: evento + helper global ───────────────────────────
-  const openGuide = useCallback((startAt = 0) => {
+  const openGuide = useCallback((startAt = 0, desde: OrigenGuia = "boton") => {
+    setOrigen(desde);
     setIndex(Math.max(0, Math.min(STEPS.length - 1, startAt)));
     // Reabrir SIEMPRE vuelve a preguntar el modo (respeta la elección del momento).
     setMode(null);
@@ -547,18 +592,27 @@ export function AuroraGuide() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // (Ola 1021I) Detalle de la puEnTa común: `{ desde, temaInicial? }`. Se sigue
+    // aceptando el detalle antiguo `{ step }` (proyectos externos y pruebas).
+    // `temaInicial` casa con la clave del paso; si no hay paso con esa clave
+    // (los temas del sistema llegan con su cola), se empieza por el principio.
     const onOpen = (e: Event) => {
-      const at = (e as CustomEvent<{ step?: number }>)?.detail?.step;
-      openGuide(typeof at === "number" ? at : 0);
+      const d = (e as CustomEvent<Partial<DetalleAbrirGuia> & { step?: number }>).detail;
+      const desde: OrigenGuia = d?.desde ?? "boton";
+      const tema = typeof d?.temaInicial === "string" ? d.temaInicial : null;
+      const pasoDeTema = tema ? STEPS.findIndex((s) => s.key === tema) : -1;
+      const paso =
+        pasoDeTema >= 0 ? pasoDeTema : typeof d?.step === "number" ? d.step : 0;
+      openGuide(Math.max(0, Math.min(STEPS.length - 1, paso)), desde);
     };
-    window.addEventListener(OPEN_GUIDE_EVENT, onOpen);
+    window.addEventListener(EVENTO_ABRIR_GUIA, onOpen);
     // Helper global reutilizable desde cualquier parte (menús, ayuda, Aurora).
     try {
       (window as unknown as Record<string, unknown>).openStarseedGuide = (at?: number) =>
         openGuide(typeof at === "number" ? at : 0);
     } catch { /* */ }
     return () => {
-      window.removeEventListener(OPEN_GUIDE_EVENT, onOpen);
+      window.removeEventListener(EVENTO_ABRIR_GUIA, onOpen);
       try { delete (window as unknown as Record<string, unknown>).openStarseedGuide; } catch { /* */ }
     };
   }, [openGuide]);
@@ -621,6 +675,22 @@ export function AuroraGuide() {
   // Deslizar la tarjeta en horizontal pasa de paso (como pasar páginas), con
   // dedo, ratón o lápiz; tocar sus botones sigue siendo un clic.
   const deslizar = useDeslizarPasos({ alSiguiente: goNext, alAnterior: goPrev, habilitado: open && mode !== null });
+
+  // (Ola 1021I) «Lo visto se guarda en el aparato»: cada paso alcanzado en modo
+  // invitado queda marcado en el aparato (guia-vista.ts). Al entrar con una
+  // cuenta, `unirVistasInvitadoACuenta` lo une a la marca de la cuenta sin
+  // perder nada, y «guia.bienvenida» ya no resucita la guía.
+  useEffect(() => {
+    if (!inTour || haySesion || !step) return;
+    recordarVistaInvitado(step.key);
+  }, [inTour, haySesion, step]);
+
+  // (Ola 1021I) En el momento en que aparece la cuenta (entrar con cuenta), las
+  // vistas de invitado de este aparato se unen a la marca de la cuenta.
+  useEffect(() => {
+    if (!haySesion) return;
+    unirVistasInvitadoACuenta();
+  }, [haySesion]);
 
   // Elegir modo (arranca el tour). En modo voz: pide micrófono + narra la intro.
   const chooseMode = useCallback((m: GuideMode) => {
@@ -783,7 +853,9 @@ export function AuroraGuide() {
   const FloatingAccess = !open && buttonVisible ? (
     <button
       type="button"
-      onClick={() => openGuide(0)}
+      /* (Ola 1021I) Una sola puerta: por `abrirGuia` (puerta común), con el
+         origen declarado; el evento regresa a ESTE componente y abre el tour. */
+      onClick={() => abrirGuia({ desde: "boton" })}
       aria-label="Abrir la guía de StarSeed"
       title="Guía y ayuda de StarSeed"
       className={cn(
@@ -835,7 +907,11 @@ export function AuroraGuide() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.22 }}
-            className="fixed inset-0 z-[95]"
+            className="fixed inset-0"
+            /* (Ola 1021I) Capa z de la puerta común: 240 (por encima de
+               AuthGate/bienvenida) si no hay sesión o se abrió desde una
+               ventana de acceso; si no, el valor de hoy (95). */
+            style={{ zIndex: zGuia(origen, haySesion) }}
             aria-modal="true"
             role="dialog"
             aria-label="Guía de StarSeed"
@@ -1177,10 +1253,14 @@ export function AuroraGuide() {
                         </div>
                       )}
 
-                      {/* Acciones del paso: "Ir/mostrar" (acompañar) + "Hazlo por mí" */}
+                      {/* Acciones del paso: "Ir/mostrar" (acompañar) + "Hazlo por mí".
+                          (Ola 1021I) En modo invitado ni Ir ni Hazlo por mí: detrás
+                          está la pantalla de acceso, así que ambas se sustituyen por
+                          la etiqueta «Disponible al entrar» (span informativo, no
+                          clicable: su sitio está al entrar con cuenta). */}
                       {(step.go || step.doIt) && (
-                        <div className="mt-3.5 flex flex-wrap gap-2">
-                          {step.go && (
+                        <div className="mt-3.5 flex flex-wrap items-center gap-2">
+                          {acciones.puedeIr && step.go && (
                             <button
                               type="button"
                               onClick={() => step.go?.run(ctx)}
@@ -1191,7 +1271,7 @@ export function AuroraGuide() {
                               {step.go.label}
                             </button>
                           )}
-                          {step.doIt && (
+                          {acciones.puedeHacerlo && step.doIt && (
                             <button
                               type="button"
                               onClick={() => step.doIt?.run(ctx)}
@@ -1204,6 +1284,14 @@ export function AuroraGuide() {
                               <Wand2 className="h-3.5 w-3.5" />
                               {step.doIt.label}
                             </button>
+                          )}
+                          {!acciones.puedeIr && acciones.etiquetaDisponibleAlEntrar && (
+                            <span
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-white/12 bg-white/[0.03] px-3 py-1.5 text-[12px] text-white/55"
+                              title="La ruta está ahí; se puede ir al entrar con tu cuenta"
+                            >
+                              {acciones.etiquetaDisponibleAlEntrar}
+                            </span>
                           )}
                         </div>
                       )}
