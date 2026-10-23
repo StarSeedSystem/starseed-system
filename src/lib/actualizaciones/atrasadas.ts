@@ -5,7 +5,8 @@
  * Puro: sin React, sin red, sin `node:*`. Nunca lanza.
  */
 
-import type { VersionesPorCapa } from "./capas";
+import type { VersionesPorCapa as VersionesPorCapaBase } from "./capas";
+export type VersionesPorCapa = VersionesPorCapaBase;
 import { CAPAS_ORDEN, NOMBRE_CAPA, compararVersiones, type CapaActualizacion } from "./manifiesto";
 import type { MotivoEspera } from "./momento";
 
