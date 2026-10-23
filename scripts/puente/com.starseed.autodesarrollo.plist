@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.starseed.autodesarrollo</string>
+  <key>ProgramArguments</key><array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>-u</string>
+    <string>/Users/alex/Documents/starseed-os-main/scripts/puente/director_autodesarrollo.py</string>
+    <string>ciclo</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>900</integer>
+  <key>Nice</key><integer>10</integer>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/Users/alex/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>STARSEED_ROOT</key><string>/Users/alex/Documents/starseed-os-main</string>
+  </dict>
+  <key>StandardOutPath</key><string>/Users/alex/.starseed/autodesarrollo.log</string>
+  <key>StandardErrorPath</key><string>/Users/alex/.starseed/autodesarrollo.log</string>
+  <key>WorkingDirectory</key><string>/Users/alex/Documents/starseed-os-main</string>
+</dict></plist>

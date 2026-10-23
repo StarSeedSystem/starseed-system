@@ -244,7 +244,13 @@ def instalar(etiqueta, orden, log, siempre):
 # las rutas de la Mac de Alex y aquí solo se cambian por las de esta instalación.
 #   «alta-nube» (Ola 1022C, ALT1022Ac): cada 15 min trae lo que dejaron las sesiones de Claude en
 #   la nube y lanza otras con el crédito de sesiones en la nube (`alta-capacidad-nube.py ciclo`).
-PERIODICOS = {"alta-nube": P("com.starseed.alta-nube.plist")}
+PERIODICOS = {
+    "alta-nube": P("com.starseed.alta-nube.plist"),
+    # (2026-10-23) Autodesarrollo (Ola 1021, IMN1021E, §5 de architecture/imaginacion-autodesarrollo.md):
+    # cada 15 min el ciclo del director (`director_autodesarrollo.py ciclo`): programa la imaginación,
+    # recoge propuestas de las fuentes y las convierte en tareas; periódico, no residente.
+    "autodesarrollo": P("com.starseed.autodesarrollo.plist"),
+}
 
 
 def adaptar_plist(texto):
