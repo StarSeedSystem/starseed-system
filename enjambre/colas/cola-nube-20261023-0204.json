@@ -1,0 +1,122 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "ola": "repos-libreria-1020",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39353185493",
+   "id": "RLB1020Ab-d3",
+   "titulo": "Biblioteca · repo builtin externo 1020 (14 publicaciones autoactualizables) (parte 3 de 3)",
+   "archivos": [
+    "src/lib/library/packages.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee entero el contrato architecture/repos-libreria-1020.md (§1-§5) y el catálogo verificado config/repos-libreria-1020.json (14 entradas en `paquetes`; datos reales, NO los cambies).\n\n1. Crea src/lib/library/repos-externos-1020.ts: importa el JSON (import … assert {type:'json'} o require tipado; el proyecto ya importa JSON en otros módulos de library) y mapea cada entrada a LibraryPackage (de ./packages): id, kind=entrada.kind, name=entrada.nombre, description=entrada.que_es + (entrada.aviso? ' — '+entrada.aviso : ''), icon por kind (app→AppWindow, ai-source→BrainCircuit, function→Boxes), tags=[...entrada.area, entrada.canal, entrada.licencia?'lic':''].filter(Boolean), version='1.0.0', author derivado de repo (owner), sourceRepoId='starseed-biblioteca-externa', free=true, comingSoon=true (ninguna tiene efecto de instalación real todavía), payload={ externalUrl: 'https://github.com/'+entrada.repo, githubRepo: entrada.repo, canal: entrada.canal, area: entrada.area, licencia: entrada.licencia, assets: entrada.assets??false, ...(entrada.skillId?{skillId:entrada.skillId}:{}) }. Exporta REPO_EXTERNOS_1020: LibraryRepo = { id:'starseed-biblioteca-externa', name:'Biblioteca externa', builtin:true, packages: [...] }.\n2. En packages.ts, añade REPO_EXTERNOS_1020 a listRepos() (impórtalo; colócalo en `base` junto a los demás builtins). Un solo punto de cambio; no toques nada más de packages.ts.\n3. Test: las 14 ids son únicas; cada paquete tiene payload.externalUrl que empieza por 'https://github.com/' y payload.githubRepo con forma owner/repo; NINGÚN id/repo contiene 'reverse-skill'; lib-anatomy lleva payload.skillId==='anatomy'; lib-gods-eye está en area 'mapas'. available-updates.ts ya autobusca releases con payload.externalUrl: NO dupliques ese motor.\n Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos puros sin `node:*` en cliente; nada de `any`; honestidad radical en cada ficha (qué hace DE VERDAD; botón deshabilitado con `comingSoon:true` si aún no hay efecto); respeta `canal` y licencia de cada entrada; NO incluyas zhaoxuya520/reverse-skill (excluida por seguridad).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39353185493`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39353185493:refs/remotes/origin/nube/39353185493\"` y `git cherry-pick --no-commit 1018de61eb49`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/repos-externos-1020.test.ts, src/lib/library/packages.ts, src/lib/library/repos-externos-1020.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió RLB1020Ab: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/library/packages.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RLB1020Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "RLB1020Ab-d2"
+   ]
+  },
+  {
+   "id": "SP092941c",
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "titulo": "Vincular labels e inputs en formularios de creación",
+   "archivos": [
+    "src/components/creation/source-picker.tsx",
+    "src/components/creation/pizarras-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092938 (creacion × ux-accesibilidad-diseno) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/creacion--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Asociar etiquetas a campos con htmlFor e id — Los <label> de URL y Etiqueta no tienen htmlFor ni los Input id; también el textarea de comentario y las opciones de votación carecen de label asociado. Los lectores de pantalla no anuncian el propósito de cada campo.\nCITA: src/components/creation/source-picker.tsx:292 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Añadir id único a cada Input/textarea y htmlFor en su label; donde no haya label visible, usar aria-label fijo.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/creation/source-picker.tsx, src/components/creation/pizarras-panel.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39711481854`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39711481854:refs/remotes/origin/nube/39711481854\"` y `git cherry-pick --no-commit 614f65bc8b70 2aaaf40b00b9`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/creation/__tests__/pizarras-panel-form.test.tsx, src/components/creation/__tests__/selector-fuente-form.test.tsx, src/components/creation/pizarras-panel.tsx, src/components/creation/source-picker.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39711481854"
+  },
+  {
+   "id": "SP092935c",
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "titulo": "Versionar spec en architecture/imaginacion-spec.md",
+   "archivos": [
+    "architecture/imaginacion-spec.md",
+    "src/components/astraura/imaginacion/imaginacion-view.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092925 (astraura × arquitectura-deuda) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/astraura--arquitectura-deuda.md`.\n\nHALLAZGO: Mover especificación de imaginación a repositorio versionado — Spec canónica vive en /tmp/imagination-spec.md, ruta efímera local; contrato implícito no versionado que desaparece al reiniciar la máquina.\nCITA: src/components/astraura/imaginacion/imaginacion-view.tsx:7 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Mover especificación a carpeta architecture/ del repo y actualizar import para leer desde fuente versionada controlada por git.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO architecture/imaginacion-spec.md, src/components/astraura/imaginacion/imaginacion-view.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39708414976`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39708414976:refs/remotes/origin/nube/39708414976\"` y `git cherry-pick --no-commit db54fee15361`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: architecture/imaginacion-spec.md, src/components/astraura/imaginacion/imaginacion-view.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39708414976"
+  },
+  {
+   "id": "IMN1021K2c",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en la ramificación y el diseñador de olas",
+   "archivos": [
+    "src/components/mando/ramificacion-agentes.tsx",
+    "src/components/mando/disenador-ola.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios que digan «sueño(s) profundo(s)» o «Dream» por «imaginación profunda» o «imaginación diaria». Nada de identificadores. Las pruebas existentes deben seguir en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39708414976`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39708414976:refs/remotes/origin/nube/39708414976\"` y `git cherry-pick --no-commit 5e095a2ec91b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/mando/disenador-ola.tsx, src/components/mando/ramificacion-agentes.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39708414976"
+  },
+  {
+   "id": "RLB1020M",
+   "titulo": "Hub de Conectores · Penpot, PocketBase, OpenMAIC, Nextcloud, Chatwoot (buzón público) y Paperclip",
+   "archivos": [
+    "src/lib/connectors/registry.ts",
+    "src/lib/connectors/__tests__/registry-1020c.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020c.md y el catálogo verificado config/repos-libreria-1020c.json (14 `paquetes`, `duplicadas` y `excluidas`; datos reales, NO los cambies). Añade a `BUILTIN_CONNECTORS` (src/lib/connectors/registry.ts), con el patrón de `searxng-selfhost`, seis conectores autoalojables, kind \"oss\", status \"available\", free true, recommended false, con descripción honesta (qué hace, licencia, dónde se aloja y su salvaguarda): `penpot-selfhost` (category \"custom\"; diseño en grupo y su MCP para agentes; authType \"apiKey\": token de acceso; configHint \"http://<host>:9001\"), `pocketbase-local` (category \"storage\"; backend ligero por persona, cerebro, neurona o grupo; authType \"localEndpoint\"; configHint \"http://127.0.0.1:8090\"), `openmaic-aulas` (category \"custom\"; aulas de los grupos de estudio; authType \"localEndpoint\"; configHint \"http://<host>:3000\"; la descripción dice: una instancia por grupo de confianza, aún sin aislamiento entre usuarios), `nextcloud-aio` (category \"storage\"; archivos, calendario y contactos por WebDAV/OCS; authType \"apiKey\": contraseña de aplicación; configHint \"https://<tu-dominio>/remote.php/dav\"), `chatwoot-buzon` (category \"chat\"; buzón público de páginas y comunidades, NO mensajería entre miembros; authType \"apiKey\"; configHint \"http://<host>:3000/api/v1\"), `paperclip-oficina` (category \"dev\"; oficina de agentes con presupuestos; authType \"localEndpoint\"; configHint \"http://127.0.0.1:3100\"; la descripción pide PAPERCLIP_TELEMETRY_DISABLED=1). Prueba: ids únicos en todo el registro; los 6 presentes con repo de GitHub; la de Chatwoot dice que no es mensajería entre miembros. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical.",
+   "ola": "Ola 1020T · 3.ª tanda de repos para agentes, Astraura, Protomolécula, educación, mensajes, backend y servidores",
+   "dependencias_ya_en_main": [
+    "RLB1020G2"
+   ]
+  },
+  {
+   "id": "IMN1021H",
+   "ola": "1021I",
+   "titulo": "Genesis · medidor «Imaginación» en el pulso (detalle con las propuestas)",
+   "archivos": [
+    "src/lib/mando/medidores.ts",
+    "src/app/api/mando/medidores/route.ts",
+    "src/lib/mando/__tests__/medidores-imaginacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §6. Añade la clave de medidor `imaginacion` a `ClaveMedidor` y a `ORDEN_POR_DEFECTO` (después de 'fallidas' si está, si no después de 'en-cadena'), y su detalle con `filasMedidor` de `imaginacion-tipos.ts` (medidores.ts va al cliente: nada de `node:*`; los datos los reúne la ruta del servidor con `imaginacion-servidor.ts`, igual que hace con las demás). Toma como patrón cómo se añadió 'en-cadena'. Pruebas del detalle con datos de ejemplo y de que ningún medidor anterior se pierde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).",
+   "revisor_quitadas": [
+    "IMN1021F",
+    "IMN1021G"
+   ]
+  },
+  {
+   "id": "IMN1021I",
+   "ola": "1021I",
+   "titulo": "Genesis · ajustes de la imaginación: automático, rango 0–10, fuentes, horario y frecuencia",
+   "archivos": [
+    "src/components/mando/ajustes-imaginacion.tsx",
+    "src/components/mando/__tests__/ajustes-imaginacion.test.tsx",
+    "src/components/mando/panel-ajustes.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §4. Componente reutilizable `AjustesImaginacion` (se monta en Ajustes y dentro del medidor): interruptor «Automático», selector de rango doble 0–10 («Tareas autodesarrolladas por ciclo: de a a b»), las cuatro fuentes con su interruptor, horario «Inteligente» o «Por franjas» con lista editable de franjas (días y horas), «Repartir entre franjas» y «Imaginación profunda cada N días (0 = nunca)». Un texto fijo dice que lo importante siempre espera tu visto bueno. Guarda con POST `/api/mando/imaginacion` (ajustes). Accesible, dianas de 44 px, cursor pointer, estilo de la marca como `interruptor-autopublicacion.tsx`. Móntalo en `panel-ajustes.tsx` junto a la autopublicación (solo esa línea y su import). Pruebas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).",
+   "revisor_quitadas": [
+    "IMN1021G"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "IMN1021K2c",
+   "SP092935c",
+   "SP092941c",
+   "RLB1020M",
+   "IMN1021H",
+   "IMN1021I",
+   "RLB1020Ab-d3"
+  ]
+ }
+}
