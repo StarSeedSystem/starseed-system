@@ -1,0 +1,132 @@
+{
+ "flujo": "starseed-producci-n-puentes",
+ "exportacion": "memory/aprendizaje-externos/n8n-export/2026-10-11/starseed-producci-n-puentes.json",
+ "registro_del_motor": [
+  "bus",
+  "chat",
+  "chat_director",
+  "conocimiento",
+  "cron",
+  "esperar",
+  "fusion",
+  "http",
+  "ia",
+  "ntfy",
+  "set",
+  "si",
+  "switch",
+  "telegram",
+  "webhook"
+ ],
+ "eventos": [
+  {
+   "evento": "produccion.publicada",
+   "ruta": "starseed-produccion-publicada",
+   "esperado": {
+    "evento": "publicada",
+    "sha": "sombra",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-23T16:47:13.592726+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "obtenido": {
+    "evento": "publicada",
+    "sha": "sombra",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-23T16:47:13.592726+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "error": null,
+   "coincide": true
+  },
+  {
+   "evento": "produccion.pieza-lista",
+   "ruta": "starseed-produccion-pieza-lista",
+   "esperado": {
+    "evento": "pieza-lista",
+    "sha": "sombra",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-23T16:47:13.666825+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "obtenido": {
+    "evento": "pieza-lista",
+    "sha": "sombra",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-23T16:47:13.666825+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "error": null,
+   "coincide": true
+  },
+  {
+   "evento": "produccion.revertida",
+   "ruta": "starseed-produccion-revertida",
+   "esperado": {
+    "evento": "revertida",
+    "sha": "sombra",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-23T16:47:13.744270+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "obtenido": {
+    "evento": "revertida",
+    "sha": "sombra",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-23T16:47:13.744270+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "error": null,
+   "coincide": true
+  }
+ ],
+ "coincide": true
+}
