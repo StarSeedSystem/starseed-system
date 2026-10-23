@@ -55,6 +55,26 @@ describe("uciMalla", () => {
     expect(guionAplicar(cfg("2g", 20))).not.toContain("RC=");
   });
 
+  it.each(["us", "ES", "fr", "Jp"])("la región %s va como país en mayúsculas en todas las radios", (region) => {
+    const w = uciMalla(cfg("5g", 80, { region })).wireless;
+    const pais = region.toUpperCase();
+    expect(w.split(`option country '${pais}'`)).toHaveLength(3); // radio_troncal y radio_cliente
+  });
+
+  it("6g: la troncal lleva HE y el cliente sigue en una radio 2g aparte", () => {
+    const w = secciones(uciMalla(cfg("6g", 80, { troncal: { banda: "6g", canal: 1, anchoMhz: 80, pireDbm: 14 } })).wireless);
+    expect(w.radio_troncal).toEqual(expect.arrayContaining(["option band '6g'", "option channel '1'", "option htmode 'HE80'"]));
+    expect(w.radio_cliente).toContain("option band '2g'");
+  });
+
+  it("el AP de clientes cifra con sae-mixed y batman-adv activa BLA, DAT y MTU 1536 en la hardif", () => {
+    const u = uciMalla(cfg());
+    expect(secciones(u.wireless).ap0).toContain("option encryption 'sae-mixed'");
+    const n = secciones(u.network);
+    expect(n.bat0).toEqual(expect.arrayContaining(["option bridge_loop_avoidance '1'", "option distributed_arp_table '1'"]));
+    expect(n.bat0_hardif_mesh).toContain("option mtu '1536'");
+  });
+
   it("escapa la comilla simple como uci export", () => {
     expect(uciMalla(cfg("5g", 80, { claveMalla: "ab'cdefgh" })).wireless).toContain("option key 'ab'\\''cdefgh'");
   });
@@ -103,6 +123,18 @@ describe("guionAplicar", () => {
     expect(temporizador).toBeGreaterThan(pos("> /root/starseed-volver.sh"));
     expect(temporizador).toBeLessThan(g.lastIndexOf("wifi reload"));
     expect(g).toContain("rm /tmp/starseed-pendiente-*");
+  });
+
+  it("empieza con shebang, deja la copia .antes-starseed de wireless y network y cierra con la recarga", () => {
+    expect(g.startsWith("#!/bin/sh\n")).toBe(true);
+    expect(g).toContain("cp -p /etc/config/$f /etc/config/$f.antes-starseed");
+    expect(g).toContain("cp /etc/config/wireless.antes-starseed /etc/config/wireless");
+  });
+
+  it("incluye la primera y la última línea de la configuración wireless generada", () => {
+    const lineas = uciMalla(cfg()).wireless.trimEnd().split("\n");
+    expect(g).toContain(lineas[0]);
+    expect(g).toContain(lineas[lineas.length - 1]);
   });
 
   it("las claves solo van en sus líneas «option key»: ni en comentarios ni en nombres; sin tabuladores", () => {
