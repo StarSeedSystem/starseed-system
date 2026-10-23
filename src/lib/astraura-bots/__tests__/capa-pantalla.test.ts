@@ -49,6 +49,13 @@ describe("normalizarCapa · rechazos", () => {
     expect(problemasDe(normalizarCapa({ forma: "widget", uiSpec: { ...SPEC, version: 0 } }))[0]).toMatch(/UiSpec inválida/);
     expect(problemasDe(normalizarCapa({ forma: "widget" }))).toEqual(["Un widget necesita su UiSpec."]);
   });
+  it("un bloque válido con contenido que parece código también invalida el widget", () => {
+    const conCodigo = {
+      version: 1, superficie: "os:capa-bot",
+      bloques: [{ tipo: "texto", id: "t1", props: { contenido: "<script>alert(1)</script>" } }],
+    };
+    expect(problemasDe(normalizarCapa({ forma: "widget", uiSpec: conCodigo }))[0]).toMatch(/UiSpec inválida/);
+  });
   it("una UiSpec fuera de un widget no se cuela", () => {
     expect(problemasDe(normalizarCapa({ forma: "nota", texto: "Hola", uiSpec: SPEC }))).toEqual(["La UiSpec solo cabe en la forma «widget»."]);
   });
