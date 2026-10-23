@@ -239,8 +239,13 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
 });
 
 describe("textoEstadoOrden", () => {
+<<<<<<< HEAD
     it("cada estado conocido tiene su texto", () => {
         const esperados: Record<string, string> = {
+=======
+    it("cada estado mapea al texto correcto", () => {
+        const estados = {
+>>>>>>> 983a75c6e (salvavidas · RTRTRTRTRTCOL1012Bdsbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
             pendiente: "esperando a un nodo",
             tomada: "la tiene un nodo",
             hecha: "hecha",
@@ -251,6 +256,7 @@ describe("textoEstadoOrden", () => {
             fallo: "falló",
             caducada: "nadie la recogió a tiempo",
         };
+<<<<<<< HEAD
         for (const [estado, texto] of Object.entries(esperados)) {
             expect(textoEstadoOrden(estado)).toBe(texto);
         }
@@ -258,5 +264,14 @@ describe("textoEstadoOrden", () => {
 
     it("un estado desconocido se devuelve tal cual", () => {
         expect(textoEstadoOrden("estado-desconocido")).toBe("estado-desconocido");
+=======
+        Object.entries(estados).forEach(([estado, esperado]) => {
+            expect(textoEstadoOrden(estado)).toBe(esperado);
+        });
+    });
+
+    it("estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+>>>>>>> 983a75c6e (salvavidas · RTRTRTRTRTCOL1012Bdsbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
     });
 });
