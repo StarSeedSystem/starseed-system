@@ -4596,3 +4596,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SP092942b` — pruebas en rojo: vitest falla (rama conservada)
 - `SP092939b` — pruebas en rojo: vitest falla (rama conservada)
 - `RTS1010-ACT5d-d2c` — no escribió nada
+
+## 2026-10-23 08:00 · mg-oracle-1023-0138
+
+**Lo que se pidió.** para tareas muy complicadas … que requieran más capacidad de detalle en su producción y desarrollo técnico y creativo puedes utilizar agentes potentes más especializados (Claude Opus 5.5 en un contenedor en la nube, los más nuevos de Gemini y ChatGPT, o los gratuitos más potentes) supervisando los créditos para no agotarlos
+
+**Resultado.** 1 de 1 integradas.
