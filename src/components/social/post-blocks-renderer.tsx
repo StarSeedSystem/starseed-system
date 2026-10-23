@@ -23,8 +23,7 @@ import {
     buildSandboxDoc,
     type PostBlock,
 } from "@/lib/creation/post-blocks";
-import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
-import { blockHasContent } from "@/components/creation/lienzo-composer";
+import { VistaBloqueProtomolecula } from "@/components/protomolecula/vista-bloque";
 import { astrauraChat } from "@/ai/astraura/router";
 import type { ChatMessage } from "@/ai/providers/types";
 import { loadLeaflet, type LeafletNS } from "@/lib/map/leaflet-loader";
@@ -137,31 +136,9 @@ function BlockRender({ block, accent, reduced }: { block: PostBlock; accent?: st
             return <PenpotBlock block={block} />;
         case "video":
             return <VideoBlock block={block} />;
-        case "protomolecula": {
-            if (!blockHasContent(block)) {
-                return null;
-            }
-            const bloqueResultado = leerBloque(block.code as string);
-            if (!bloqueResultado.ok) {
-                return null;
-            }
-            const m = bloqueResultado.valor;
-            return (
-                <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-                    <div className="mb-2">
-                        <h3 className="text-lg font-semibold text-white/90">{m.titulo}</h3>
-                        <p className="text-xs text-muted-foreground">
-                            {m.capas.length} capas, {m.atomos.length} átomos
-                        </p>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                        <Link href={`/protomolecula?molecula=${m.id}`} className="underline hover:no-underline">
-                            Abrir una copia propia
-                        </Link>
-                    </div>
-                </div>
-            );
-        }
+        case "protomolecula":
+            // Bloque del lienzo universal: `code` lleva el texto de `serializarBloque`.
+            return block.code?.trim() ? <VistaBloqueProtomolecula texto={block.code} /> : null;
         default:
             return null;
     }
