@@ -39,7 +39,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Obtener volúmenes detectados (con caché 60 s)
-    const { maquina } = await detectarMaquina({});
+    const maquina = await detectarMaquina({});
     const volumenes = maquina.volumenes;
 
     // Ejecutar el movimiento
