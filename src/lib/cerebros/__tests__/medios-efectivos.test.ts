@@ -86,4 +86,50 @@ describe("mediosEfectivos", () => {
     expect(r.computo).toHaveLength(0);
     expect(JSON.stringify(r.motivoPorFuente)).not.toMatch(/10\.0\.0\.5|CLAVE_X/);
   });
+
+  it("no privado: una oferta ajena que presta al público entra", () => {
+    const r = mediosEfectivos(entrada({
+      ofertas: [neurona("n1", "u1"), neurona("n9", "u9", { cuenta: false, publico: true })],
+    }));
+    expect(r.computo.map((c) => c.nodoId)).toEqual(["n1", "n9"]);
+    expect(r.motivoPorFuente.n9).toMatch(/prestable/i);
+  });
+
+  it("privado: entre las ofertas solo entran las de la cuenta propia, públicas o no", () => {
+    const r = mediosEfectivos(entrada({
+      privado: true,
+      ofertas: [
+        neurona("n1", "u1"),
+        neurona("n2", "u2"),
+        neurona("n3", "u3", { cuenta: false, publico: true }),
+      ],
+    }));
+    expect(r.computo.map((c) => c.nodoId)).toEqual(["n1"]);
+    expect(r.motivoPorFuente.n2).toMatch(/privado/i);
+    expect(r.motivoPorFuente.n3).toMatch(/privado/i);
+  });
+
+  it("reenvía el libreMb del almacén declarado y lo marca por driver", () => {
+    const r = mediosEfectivos(entrada({ almacenes: [{ id: "bk-1", tipo: "gcs", libreMb: 7168 }] }));
+    expect(r.almacenamiento).toEqual([{ id: "bk-1", tipo: "gcs", libreMb: 7168, real: true }]);
+  });
+
+  it("maneja entradas vacías", () => {
+    const r = mediosEfectivos(entrada());
+    expect(r.computo).toEqual([]);
+    expect(r.almacenamiento).toEqual([]);
+    expect(r.motivoPorFuente).toEqual({});
+  });
+
+  it("no muta las entradas", () => {
+    const e = entrada({
+      ofertas: [neurona("n1", "u1")],
+      vecinos: [neurona("v1", "u2", { publico: true })],
+      almacenes: [{ id: "a1", tipo: "ipfs" }],
+      servidoresEnlazados: [servidor("s1", "starseed", "storage")],
+    });
+    const antes = JSON.stringify(e);
+    mediosEfectivos(e);
+    expect(JSON.stringify(e)).toBe(antes);
+  });
 });
