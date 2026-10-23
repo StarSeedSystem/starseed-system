@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { neuronasAtrasadas, type EstadoNeuronaActualizacion } from "../atrasadas";
-import type { VersionesPorCapa } from "../capas";
+import {
+  neuronasAtrasadas,
+  type EstadoNeuronaActualizacion,
+  type VersionesPorCapa
+} from "../atrasadas";
 
 /** Las seis capas con versión publicada: para los casos que miran varias filas por neurona. */
 const ULTIMA_SEIS: VersionesPorCapa = {
