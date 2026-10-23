@@ -20,12 +20,8 @@ def credito(restante=250, vence="2026-11-04T12:00:00+00:00"):
 PRESTADA = {"estado": "reasignada", "medio": "claude-nube"}
 
 
-<<<<<<< HEAD
-class CupoNube(unittest.TestCase):
-=======
 class TestCupoNube(unittest.TestCase):
     # ── cupo_nube ──
->>>>>>> fa22f0915 (salvavidas · ALT1021Cb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_cupo_credito_vencido(self):
         ok, motivo, hoy = L.cupo_nube(credito(vence="2026-10-21T00:00:00-06:00"), AHORA, 0)
         self.assertFalse(ok)
@@ -57,18 +53,11 @@ class TestCupoNube(unittest.TestCase):
         vence = datetime.fromtimestamp(AHORA + DIA / 2, timezone.utc).isoformat()
         ok, _, hoy = L.cupo_nube(credito(restante=50, vence=vence), AHORA, 0)
         self.assertTrue(ok)
-<<<<<<< HEAD
-        self.assertAlmostEqual(hoy, 40.0, delta=0.01)
-
-
-class RamaOrdenYBrief(unittest.TestCase):
-=======
         self.assertAlmostEqual(hoy, 40.0)
 
 
 class TestRamaOrdenYBrief(unittest.TestCase):
     # ── rama, orden y brief ──
->>>>>>> fa22f0915 (salvavidas · ALT1021Cb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_rama_pedida(self):
         self.assertEqual(L.rama_pedida("ALT1022A", "20261022"), "nube/cc-20261022/ola/ALT1022A")
 
@@ -89,12 +78,8 @@ class TestRamaOrdenYBrief(unittest.TestCase):
             "T1 · Título · 20261022\na.py, b.py\nusa {ID} y {\"x\": 1} literal"))
 
 
-<<<<<<< HEAD
-class SesionDeSalida(unittest.TestCase):
-=======
 class TestSesionDeSalida(unittest.TestCase):
     # ── sesion_de_salida ──
->>>>>>> fa22f0915 (salvavidas · ALT1021Cb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_sesion_de_salida_real_con_ansi(self):
         texto = ("\x1b[>4m Created cloud session: Canal P2P\r\n"
                  "View: https://claude.ai/code/session_01HW1xkHMRPYXUF5bjHiWxyd?from=cli&m=0")
@@ -112,12 +97,8 @@ def _registro(*tareas, t=AHORA - 3600):
                           "rama_pedida": L.rama_pedida(x, "20261022"), "t": t} for x in tareas]}
 
 
-<<<<<<< HEAD
-class Seguir(unittest.TestCase):
-=======
 class TestSeguirYVivas(unittest.TestCase):
     # ── seguir y vivas ──
->>>>>>> fa22f0915 (salvavidas · ALT1021Cb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_seguir_trae_con_rama(self):
         reg = _registro("A")
         self.assertEqual(L.seguir(reg, {L.rama_pedida("A", "20261022")}, {"A": PRESTADA}, AHORA), {"A": "traer"})
@@ -144,12 +125,8 @@ class TestSeguirYVivas(unittest.TestCase):
         self.assertEqual(L.sesiones_vivas(_registro("A", "B", "C"), prog), 1)
 
 
-<<<<<<< HEAD
-class ModeloPara(unittest.TestCase):
-=======
 class TestModeloPara(unittest.TestCase):
     # ── modelo_para ──
->>>>>>> fa22f0915 (salvavidas · ALT1021Cb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_modelo_para_alta_capacidad(self):
         self.assertEqual(L.modelo_para({"id": "X", "alta_capacidad": True}), "claude-opus-5-5")
 
@@ -166,12 +143,8 @@ class TestModeloPara(unittest.TestCase):
         self.assertEqual(L.coste_estimado("claude-opus-5-5"), 3.0)
 
 
-<<<<<<< HEAD
-class CandidatasYAuto(unittest.TestCase):
-=======
 class TestCandidatasYElegirAuto(unittest.TestCase):
     # ── candidatas y elegir_auto ──
->>>>>>> fa22f0915 (salvavidas · ALT1021Cb: trabajo del agente antes de las puertas (tsc / vitest))
     def test_candidatas_filtra_y_ordena(self):
         colas = [("cola-2.json", [
             {"id": "VIEJA", "archivos": ["a"]},
@@ -190,17 +163,10 @@ class TestCandidatasYElegirAuto(unittest.TestCase):
     def test_elegir_auto_respeta_huecos_y_presupuesto(self):
         cands = [({"id": "A", "alta_capacidad": True}, "c"), ({"id": "B"}, "c"), ({"id": "C"}, "c")]
         elegidas = L.elegir_auto(cands, vivas=1, max_vivas=4, presupuesto_hoy=4.5, gastado=0)
-<<<<<<< HEAD
-        self.assertEqual([(t["id"], m) for t, _, m, _ in elegidas],
-                         [("A", "claude-opus-5-5"), ("B", "sonnet")])
-        self.assertEqual(L.elegir_auto(cands, vivas=4, max_vivas=4, presupuesto_hoy=99, gastado=0), [])
-        self.assertEqual(len(L.elegir_auto(cands, vivas=0, max_vivas=4, presupuesto_hoy=99, gastado=0, maximo=1)), 1)
-=======
         self.assertEqual([(t["id"], m) for t, _, m, _ in elegidas], [("A", "claude-opus-5-5"), ("B", "sonnet")])
         self.assertEqual(L.elegir_auto(cands, vivas=4, max_vivas=4, presupuesto_hoy=99, gastado=0), [])
         self.assertEqual(len(L.elegir_auto(cands, vivas=0, max_vivas=4, presupuesto_hoy=99,
                                            gastado=0, maximo=1)), 1)
->>>>>>> fa22f0915 (salvavidas · ALT1021Cb: trabajo del agente antes de las puertas (tsc / vitest))
 
 
 if __name__ == "__main__":
