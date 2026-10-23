@@ -6078,7 +6078,7 @@ if accion == "reabrir":
                 ),
             )
             continue
-        if accion == "soltar":
+if accion == "soltar":
             SOLTADAS.add(tid)
             donde = str(orden.get("donde") or "otro servidor")
             if p and p.poll() is None:
