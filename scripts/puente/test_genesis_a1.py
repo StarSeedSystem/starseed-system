@@ -123,6 +123,30 @@ class GenesisEnA1(unittest.TestCase):
         self.assertTrue(any("/usr/local/bin/node" in l for l in exige), exige)
 
 
+    def test_los_comentarios_no_cuentan_en_lo_que_se_aplica(self):
+        """`configuracion` quita comentarios y blancos: los demás tests lo usan de hecho, pero
+        antes nadie lo afirmaba por sí solo (rescatado de la rama nube/39717140328)."""
+        self.assertEqual(configuracion("# genesis.example.com 203.0.113.9\nExecStart=x"), "ExecStart=x")
+        self.assertEqual(configuracion("a\n\n   # nota\n   \nb"), "a\nb")
+
+    def test_el_bloque_de_genesis_no_borra_la_cookie_de_sesion(self):
+        """Copiar el borrado de `Cookie` de la puerta de datos rompería la sesión: sin la cookie de
+        Supabase Genesis respondería 401 a todo el mundo (rescatado de la rama nube/…)."""
+        bloque = re.search(r"^genesis\.\{\$STARSEED_HOST\}\s*\{.*?^\}", self.caddy_cfg + "\n",
+                           re.MULTILINE | re.DOTALL)
+        self.assertIsNotNone(bloque, "el Caddyfile no tiene el bloque genesis.{$STARSEED_HOST}")
+        self.assertNotRegex(bloque.group(0), r"header_up\s+-\s*Cookie",
+                            "borrar la Cookie de la sesión rompe el acceso a Genesis")
+
+    def test_no_publica_rutas_que_se_apoyan_en_no_estar_en_la_mac(self):
+        """Agent-reach ejecuta lo que pone quien llama, la voz-local necesita el daemon del
+        portátil y el buzón de Telegram es abierto: si no es página o no exige sesión, 404
+        (rescatado de la rama nube/…). Se vigila la configuración aplicada, no los comentarios."""
+        activas = "\n".join(l for l in self.caddy_cfg.splitlines() if l.startswith("path"))
+        self.assertTrue(activas, "el bloque de Genesis no declara rutas necesarias")
+        for ruta in ("/api/agent-reach", "/api/ezekiel/decidir", "/api/voz-local/", "/api/telegram/send"):
+            self.assertNotIn(ruta, activas, f"ruta que solo funciona en la Mac, publicada: {ruta}")
+
     def test_el_bloque_de_bitnet_no_lleva_claves_en_el_caddyfile(self):
         """La clave de BitNet vive en /etc/starseed/bitnet.key (la exige llama-server): el bloque
         `bitnet.{$STARSEED_HOST}` de Caddy solo proxifica y nunca lleva la clave ni su bandera."""
