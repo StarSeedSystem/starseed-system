@@ -63,15 +63,46 @@ function resumenParams(t: TomaVoz): string {
     return partes.join(" · ");
 }
 
+/** Mensaje legible para un rechazo de `play()` (autoplay, decodificación o red). */
+export function mensajeErrorReproduccion(causa: unknown): string {
+    const nombre =
+        typeof causa === "object" && causa !== null && "name" in causa
+            ? String((causa as { name?: unknown }).name ?? "")
+            : "";
+    if (nombre === "NotAllowedError") return "El navegador bloqueó el sonido: pulsa «Reintentar» para permitirlo.";
+    if (nombre === "NotSupportedError" || nombre === "EncodingError") return "El navegador no pudo decodificar el WAV de esta toma.";
+    if (nombre === "NetworkError") return "La toma no llegó completa: fallo de red o datos cortados.";
+    if (nombre === "AbortError") return "La reproducción se interrumpió antes de empezar.";
+    return "El audio no suena: puede ser decodificación, red o una política de autoplay.";
+}
+
+/** Mensaje legible para el `MediaError.code` que deja un `<audio>`. */
+export function mensajeErrorMedia(codigo: number | null | undefined): string {
+    switch (codigo) {
+        case 1:
+            return "La reproducción se canceló.";
+        case 2:
+            return "La toma no llegó completa: fallo de red.";
+        case 3:
+            return "El navegador no pudo decodificar el WAV de esta toma.";
+        case 4:
+            return "Este navegador no entiende el formato de audio de la toma.";
+        default:
+            return "El audio no suena y el navegador no dio más detalle.";
+    }
+}
+
 export function TomasVoz({ timbreId, nombreVoz }: Props) {
     const [tomas, setTomas] = useState<TomaVoz[]>([]);
     const [comparando, setComparando] = useState<string[]>([]);
     const [reproduciendo, setReproduciendo] = useState<string | null>(null);
+    const [errorAudio, setErrorAudio] = useState<{ tomaId: string; mensaje: string } | null>(null);
 
     useEffect(() => suscribirTomasVoz(() => setTomas(listarTomasVozDe(timbreId))), [timbreId]);
     useEffect(() => {
         setTomas(listarTomasVozDe(timbreId));
         setComparando([]);
+        setErrorAudio(null);
     }, [timbreId]);
 
     const enComparacion = (id: string) => comparando.includes(id);
@@ -93,10 +124,16 @@ export function TomasVoz({ timbreId, nombreVoz }: Props) {
         const toma = tomas.find((t) => t.id === id);
         if (!toma?.audioDataUrl) return;
         setReproduciendo(id);
+        setErrorAudio(null);
+        const fallar = (detalle: string, causa?: unknown) => {
+            console.warn(`[tomas-voz] no se pudo reproducir la toma ${id}: ${detalle}`, causa ?? "");
+            setReproduciendo(null);
+            setErrorAudio({ tomaId: id, mensaje: detalle });
+        };
         const audio = new Audio(`data:audio/wav;base64,${toma.audioDataUrl}`);
         audio.onended = () => setReproduciendo(null);
-        audio.onerror = () => setReproduciendo(null);
-        void audio.play().catch(() => setReproduciendo(null));
+        audio.onerror = () => fallar(mensajeErrorMedia(audio.error?.code), audio.error);
+        void audio.play().catch((causa) => fallar(mensajeErrorReproduccion(causa), causa));
     };
 
     const promover = (toma: TomaVoz) => {
@@ -171,6 +208,11 @@ export function TomasVoz({ timbreId, nombreVoz }: Props) {
                                     preload="none"
                                     src={`data:audio/wav;base64,${toma.audioDataUrl}`}
                                     className="h-8 w-full"
+                                    onError={(e) => {
+                                        const detalle = mensajeErrorMedia(e.currentTarget.error?.code);
+                                        console.warn(`[tomas-voz] el reproductor de la toma ${toma.id} falló: ${detalle}`, e.currentTarget.error);
+                                        setErrorAudio({ tomaId: toma.id, mensaje: detalle });
+                                    }}
                                 />
                             </div>
                         )}
@@ -178,6 +220,20 @@ export function TomasVoz({ timbreId, nombreVoz }: Props) {
                             <p className="mt-2 text-xs text-muted-foreground">
                                 Sin audio guardado: el WAV pesaba demasiado o no llegó del motor.
                             </p>
+                        )}
+                        {errorAudio?.tomaId === toma.id && (
+                            <div role="alert" className="mt-2 rounded-md border border-destructive/40 bg-destructive/5 p-2">
+                                <p className="text-xs text-destructive">{errorAudio.mensaje}</p>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => reproducir(toma.id)}
+                                    className="mt-1 cursor-pointer"
+                                >
+                                    <Play className="mr-1 h-3.5 w-3.5" /> Reintentar
+                                </Button>
+                            </div>
                         )}
 
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -230,6 +286,7 @@ export function TomasVoz({ timbreId, nombreVoz }: Props) {
 
 /** Resumen de qué difiere entre dos tomas comparadas. */
 function Comparador({ a, b, onCerrar }: { a: TomaVoz; b: TomaVoz; onCerrar: () => void }) {
+    const [error, setError] = useState<string | null>(null);
     const difieren: string[] = [];
     if (a.params.speed !== b.params.speed) difieren.push("velocidad");
     if (a.params.seed !== b.params.seed) difieren.push("semilla");
@@ -239,12 +296,19 @@ function Comparador({ a, b, onCerrar }: { a: TomaVoz; b: TomaVoz; onCerrar: () =
     if (resumenEfectos(a) !== resumenEfectos(b)) difieren.push("efectos");
 
     const reproducirSecuencia = () => {
+        setError(null);
+        const fallar = (detalle: string, causa?: unknown) => {
+            console.warn(`[tomas-voz] falló la comparación A → B: ${detalle}`, causa ?? "");
+            setError(detalle);
+        };
         const audio1 = new Audio(`data:audio/wav;base64,${a.audioDataUrl}`);
-        audio1.play().catch(() => null);
+        audio1.onerror = () => fallar(mensajeErrorMedia(audio1.error?.code), audio1.error);
+        void audio1.play().catch((causa) => fallar(mensajeErrorReproduccion(causa), causa));
         if (b.audioDataUrl) {
             audio1.onended = () => {
                 const audio2 = new Audio(`data:audio/wav;base64,${b.audioDataUrl}`);
-                void audio2.play().catch(() => null);
+                audio2.onerror = () => fallar(mensajeErrorMedia(audio2.error?.code), audio2.error);
+                void audio2.play().catch((causa) => fallar(mensajeErrorReproduccion(causa), causa));
             };
         }
     };
@@ -271,6 +335,14 @@ function Comparador({ a, b, onCerrar }: { a: TomaVoz; b: TomaVoz; onCerrar: () =
                 <Button type="button" size="sm" onClick={reproducirSecuencia} className="mt-2 cursor-pointer">
                     <Play className="mr-1 h-3.5 w-3.5" /> Reproducir A → B
                 </Button>
+            )}
+            {error && (
+                <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2">
+                    <p className="text-xs text-destructive">{error}</p>
+                    <Button type="button" size="sm" variant="outline" onClick={reproducirSecuencia} className="cursor-pointer">
+                        Reintentar
+                    </Button>
+                </div>
             )}
         </div>
     );
