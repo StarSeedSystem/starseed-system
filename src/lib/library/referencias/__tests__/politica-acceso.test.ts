@@ -101,6 +101,47 @@ describe('canalPara', () => {
     expect(resultado.cacheMaxMs).toBe(0)
   })
 
+  it('debe tratar todas las acciones de manera similar para permisos básicos', () => {
+    const conectado = new Set<string>(['mcp-oficial'])
+    const acciones = ['buscar', 'leer-pagina', 'instalar']
+    const resultados = acciones.map((accion) => canalPara(entradaBase, { accion, conectado, ahora }))
+
+    for (const resultado of resultados) {
+      expect(resultado.canal).toBe('mcp-oficial')
+      expect(resultado.permitido).toBe(true)
+      expect(resultado.pausaMs).toBe(0)
+      expect(resultado.cacheMaxMs).toBe(0)
+    }
+  })
+
+  it('debe respetar el orden de canales entre oficiales conectados', () => {
+    const conectado = new Set<string>(['mcp-oficial', 'api-oficial'])
+    const entrada: EntradaReferencia = { ...entradaBase, canales: ['api-oficial', 'mcp-oficial'] }
+    expect(canalPara(entrada, { accion: 'buscar', conectado, ahora }).canal).toBe('api-oficial')
+    expect(canalPara(entradaBase, { accion: 'buscar', conectado, ahora }).canal).toBe('mcp-oficial')
+  })
+
+  it('debe ignorar un canal oficial listado que no está conectado', () => {
+    const conectado = new Set<string>(['navegador-de-la-persona'])
+    const resultado = canalPara(entradaBase, { accion: 'buscar', conectado, ahora })
+    expect(resultado.canal).toBe('sitemap')
+  })
+
+  it('debe caer al primer canal declarado cuando ninguna regla aplica', () => {
+    const entrada: EntradaReferencia = { ...entradaBase, canales: ['rss', 'otro'] }
+    const resultado = canalPara(entrada, { accion: 'buscar', conectado: new Set<string>(), ahora })
+    expect(resultado.canal).toBe('rss')
+    expect(resultado.motivo).toBe('Primer canal disponible (configuración por defecto)')
+    expect(resultado.pausaMs).toBe(0)
+    expect(resultado.agenteUsuario).toBe('')
+  })
+
+  it('debe calcular cacheMaxMs a partir de prohibido cache-mas-de-2d', () => {
+    const entrada: EntradaReferencia = { ...entradaBase, prohibido: ['cache-mas-de-2d'] }
+    const resultado = canalPara(entrada, { accion: 'buscar', conectado: new Set<string>(), ahora })
+    expect(resultado.cacheMaxMs).toBe(2 * 24 * 3600 * 1000)
+  })
+
   it('debe ignorar mayúsculas/minúsculas en canal sitemap', () => {
     const conectado = new Set<string>()
     const entradaConSitemapMayusculas: EntradaReferencia = {
