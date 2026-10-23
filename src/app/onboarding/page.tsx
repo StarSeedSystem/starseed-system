@@ -27,9 +27,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { etiquetaEnlaceNuevaPestana } from '@/lib/onboarding/aviso-pestana';
 import {
   User, Users, LogIn, UserPlus, Palette, BookOpen, Sparkles, Image as ImageIcon,
   Cpu, Brain, ChevronRight, ChevronLeft, SkipForward, Check, ArrowRight, Leaf, Building, Castle, Eye, Wrench, Server,
+  ExternalLink,
 } from 'lucide-react';
 
 type AccountKind = 'individual' | 'grupo';
@@ -328,9 +330,15 @@ function StepWalkthrough({ onNext }: any) {
             <h3 className="text-lg font-bold mb-1">{current.label}</h3>
             <p className="text-xs text-muted-foreground mb-3">{current.desc}</p>
             <div className="flex flex-wrap gap-2">
-              <Link href={current.path} target="_blank">
+              <Link
+                href={current.path}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={etiquetaEnlaceNuevaPestana(`Visitar ${current.label}`)}
+              >
                 <Button variant="outline" size="sm" className="text-xs">
-                  <ArrowRight className="w-3 h-3 mr-1" /> Visitar
+                  <ArrowRight className="w-3 h-3 mr-1" aria-hidden="true" /> Visitar
+                  <ExternalLink className="w-3 h-3 ml-1" aria-hidden="true" />
                 </Button>
               </Link>
               <Button variant="ghost" size="sm" className="text-xs"
@@ -402,8 +410,18 @@ function StepAiGuide({ onNext }: any) {
         <FeatureCard icon={Brain}    label="Cerebro"      desc="Visualización geométrica de tu memoria y conexiones." />
       </div>
       <div className="text-center pt-2 flex gap-2 justify-center">
-        <Link href="/agent" target="_blank"><Button variant="outline" size="sm">Abrir Astraura AI</Button></Link>
-        <Button onClick={onNext}>Continuar <ArrowRight className="w-3 h-3 ml-1" /></Button>
+        <Link
+          href="/agent"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={etiquetaEnlaceNuevaPestana('Abrir Astraura AI')}
+        >
+          <Button variant="outline" size="sm">
+            Abrir Astraura AI
+            <ExternalLink className="w-3 h-3 ml-1" aria-hidden="true" />
+          </Button>
+        </Link>
+        <Button onClick={onNext}>Continuar <ArrowRight className="w-3 h-3 ml-1" aria-hidden="true" /></Button>
       </div>
     </div>
   );
