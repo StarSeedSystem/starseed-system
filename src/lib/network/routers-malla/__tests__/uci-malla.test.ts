@@ -59,6 +59,22 @@ describe("uciMalla", () => {
     expect(uciMalla(cfg("5g", 80, { claveMalla: "ab'cdefgh" })).wireless).toContain("option key 'ab'\\''cdefgh'");
   });
 
+  it.each([["us", "US"], ["Fr", "FR"], [" jp ", "JP"], ["ES", "ES"]])("el país %j sale como %s en las dos radios", (region, pais) => {
+    const w = secciones(uciMalla(cfg("5g", 80, { region })).wireless);
+    expect(w.radio_troncal).toContain(`option country '${pais}'`);
+    expect(w.radio_cliente).toContain(`option country '${pais}'`);
+  });
+
+  it("troncal en 6 GHz: HE80, radio de cliente aparte en 2g y el guion busca ambas radios", () => {
+    const e = cfg("6g", 80, { troncal: { banda: "6g", canal: 1, anchoMhz: 80, pireDbm: 14 } });
+    const w = secciones(uciMalla(e).wireless);
+    expect(w.radio_troncal).toEqual(expect.arrayContaining(["option band '6g'", "option channel '1'", "option htmode 'HE80'"]));
+    expect(w.ap0).toContain("option device 'radio_cliente'");
+    const g = guionAplicar(e);
+    expect(g).toContain('RT=$(radio 6g)');
+    expect(g).toContain('RC=$(radio 2g)');
+  });
+
   const troncal = (t: Partial<CfgUciMalla["troncal"]>): Partial<CfgUciMalla> => ({ troncal: { ...cfg().troncal, ...t } });
   it.each([
     [{ region: "EU" }, /país/], [{ meshId: "x".repeat(33) }, /32 bytes/], [{ claveMalla: "corta-1" }, /8 a 63/],
