@@ -41,7 +41,11 @@ describe("mediosEfectivos", () => {
       privado: true,
       ofertas: [neurona("n1", "u1")],
       vecinos: [neurona("v1", "u2", { cuenta: false, publico: true })],
-      servidoresEnlazados: [servidor("s1", "starseed", "compute", true), servidor("s2", "own", "compute")],
+      servidoresEnlazados: [
+        servidor("s1", "starseed", "compute", true),
+        // Sin capacidad declarada no es elegible; s2 la declara para seguir probando la privacidad.
+        { ...servidor("s2", "own", "compute"), config: { capacidad: { nucleos: 2, ramLibreMb: 2048 } } },
+      ],
     }));
     expect(r.computo.map((c) => c.nodoId).sort()).toEqual(["n1", "s2"]);
     expect(r.motivoPorFuente.v1).toMatch(/privado/i);
