@@ -1,7 +1,14 @@
 "use client";
 
-import repos1 from "@/config/repos-libreria-1020.json";
-import repos2 from "@/config/repos-libreria-1020b.json";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const REPO_ROOT = process.cwd();
+const CONFIG_1_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020.json");
+const CONFIG_2_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020b.json");
+
+const repos1 = JSON.parse(readFileSync(CONFIG_1_PATH, "utf-8"));
+const repos2 = JSON.parse(readFileSync(CONFIG_2_PATH, "utf-8"));
 
 const EXCLUIDA_1: string[] = [repos1.excluida?.repo ?? ""].filter((v): v is string => v !== "");
 const EXCLUIDAS_2: string[] = repos2.excluidas?.map((e: { repo: string }) => e.repo) ?? [];
@@ -39,17 +46,15 @@ function transformaPaquete(p: typeof repos1.paquetes[0] | (typeof repos2.paquete
   const githubRepo = p.repo ?? "";
   const externalUrl = `https://github.com/${githubRepo}`;
 
-  const tieneRutaPropia = "/" in githubRepo && githubRepo.split("/").length > 1 ? "/" : false;
-
   const esEfectoQueRequiereComingSoon =
     efecto === "CONECTOR" || efecto === "HERRAMIENTA-AGENTE" || efecto === "CATALOGO";
 
   let comingSoon = false;
   let motivoComingSoon = "";
 
-  if (esEfectoQueRequiereComingSoon && !tieneRutaPropia) {
+  if (esEfectoQueRequiereComingSoon) {
     comingSoon = true;
-    motivoComingSoon = `efecto ${efecto} sin ruta propia del OS`;
+    motivoComingSoon = `efecto ${efecto}: instalación externa, sin ruta propia del OS`;
   }
 
   return {
