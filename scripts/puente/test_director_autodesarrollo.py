@@ -45,6 +45,13 @@ class DirectorTest(unittest.TestCase):
         r = self.correr(capacidad=None); self.assertFalse(r["toca_ejecutar"]); self.assertIn("sin dato", r["motivo_toca"])
         self.assertEqual(self.llamadas, [])
 
+    def test_recoge_propuestas_aunque_no_haya_capacidad(self):
+        r = self.correr(capacidad=None, datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}})
+        self.assertFalse(r["toca_ejecutar"]); self.assertEqual(self.llamadas, [])
+        self.assertGreaterEqual(r["propuestas"], 1)
+        props = self.leer(self.raiz, "starseed_memory_root", "imaginacion", "propuestas.json")["propuestas"]
+        self.assertTrue(any(p["fuente"] == "diaria" for p in props))
+
     def test_escribe_cola_y_propuestas_y_no_repite(self):
         r = self.correr(); self.assertEqual(r["autodesarrolladas"], 1)
         cola = self.leer(self.raiz, "starseed_memory_root", "olas", r["cola"])
