@@ -223,6 +223,20 @@ class RemallarImagen(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("tiempo agotado", r["fallo"])
 
+    def test_sin_motor_disponible_no_envia_nada_y_explica_por_que(self):
+        """En una neurona que no puede (aquí Linux), remallar_imagen corta antes de ComfyUI."""
+        with mock.patch.object(pa.platform, "system", return_value="Linux"):
+            r = pa.remallar_imagen("avatar.png", resolucion=512, carpeta_workflows=self.tmp,
+                                   comfy=ComfyFalso(), dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        self.assertIn("solo Windows 10/11", r["fallo"])
+        # procedencia honesta aunque no llegue a ejecutar: flujo + nodos
+        self.assertEqual([p["pieza"] for p in r["procedencia"]],
+                         ["flujo cerrada", "nodos MostAadTech"])
+        self.assertGreaterEqual(r["segundos"], 0.0)
+        self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
