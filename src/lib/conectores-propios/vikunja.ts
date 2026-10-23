@@ -46,12 +46,12 @@ function tituloDe(base: Entidad): string {
   return `${base.tipo} · ${base.nombre} · ${base.id}`;
 }
 
-function mapearError(status: number, texto: string): string {
-  if (status === 401) return "Token de Vikunja inválido o ausente.";
-  if (status === 404) return "Entidad Vikunja no encontrada.";
-  if (status === 409) return "Ya existe un proyecto con ese título.";
-  if (status >= 500) return "El servidor Vikunja falló.";
-  return `Error HTTP ${status}.`;
+function textoValor(valor: unknown): string {
+  return typeof valor === "string" ? valor : "";
+}
+
+function idDeFila(fila: Record<string, unknown>): string {
+  return textoValor(fila.id) || textoValor(fila.projectId) || "";
 }
 
 async function buscarProyecto(
@@ -59,22 +59,27 @@ async function buscarProyecto(
   base: string,
   token: string,
   titulo: string,
-): Promise<unknown> {
+): Promise<{ status: number; data?: unknown }> {
   const url = `${base}/projects?title=${encodeURIComponent(titulo)}`;
-  const respuesta = await pedir(url, {
-    method: "GET",
-    headers: { Authorization: token },
-  });
-  if (!respuesta.ok) {
-    return null;
+  let respuesta: { ok: boolean; status: number; text(): Promise<string> };
+  try {
+    respuesta = await pedir(url, {
+      method: "GET",
+      headers: { Authorization: token },
+    });
+  } catch {
+    respuesta = { ok: false, status: 0, text: async () => "" };
   }
   const crudo = await respuesta.text();
-  if (!crudo.trim()) return null;
-  try {
-    return JSON.parse(crudo);
-  } catch {
-    return null;
+  let datos: unknown = null;
+  if (crudo.trim()) {
+    try {
+      datos = JSON.parse(crudo);
+    } catch {
+      datos = null;
+    }
   }
+  return { status: respuesta.status, data: datos };
 }
 
 async function crearProyecto(
@@ -82,7 +87,7 @@ async function crearProyecto(
   base: string,
   token: string,
   titulo: string,
-): Promise<unknown> {
+): Promise<{ status: number; data?: unknown }> {
   const url = `${base}/projects`;
   const cuerpo = JSON.stringify({ title: titulo, owner_id: 0 });
   const respuesta = await pedir(url, {
@@ -93,16 +98,16 @@ async function crearProyecto(
     },
     body: cuerpo,
   });
-  if (!respuesta.ok) {
-    return null;
-  }
   const crudo = await respuesta.text();
-  if (!crudo.trim()) return null;
-  try {
-    return JSON.parse(crudo);
-  } catch {
-    return null;
+  let datos: unknown = null;
+  if (crudo.trim()) {
+    try {
+      datos = JSON.parse(crudo);
+    } catch {
+      datos = null;
+    }
   }
+  return { status: respuesta.status, data: datos };
 }
 
 export async function asegurarProyecto(
@@ -112,24 +117,33 @@ export async function asegurarProyecto(
   entidad: Entidad,
 ): Promise<ResultadoProyecto> {
   const titulo = tituloDe(entidad);
-  const encontrado = await buscarProyecto(pedir, base, token, titulo);
+  const resultadoBusqueda = await buscarProyecto(pedir, base, token, titulo);
 
-  if (encontrado && Array.isArray(encontrado) && encontrado.length > 0) {
-    const proyecto = encontrado[0] as Record<string, unknown>;
-    const id = String(proyecto.id || proyecto.projectId || "");
+  if (resultadoBusqueda.status === 200 && resultadoBusqueda.data && Array.isArray(resultadoBusqueda.data) && resultadoBusqueda.data.length > 0) {
+    const proyecto = resultadoBusqueda.data[0] as Record<string, unknown>;
+    const id = idDeFila(proyecto);
     return { ok: true, proyecto: { id, titulo } };
   }
 
-  const creado = await crearProyecto(pedir, base, token, titulo);
-  if (!creado) {
+  const resultadoCreacion = await crearProyecto(pedir, base, token, titulo);
+
+  if (resultadoCreacion.status === 409) {
     return {
       ok: false,
-      motivo: `No se pudo asegurar el proyecto "${tituloDe(entidad)}".`,
+      motivo: `Ya existe un proyecto con ese título.${resultadoCreacion.status === 409 ? "" : " No se pudo crear uno nuevo."}`,
     };
   }
 
-  const proj = creado as Record<string, unknown>;
-  const id = String(proj.id || proj.projectId || "");
+  if (!resultadoCreacion.data) {
+    const mensaje = mapearError(resultadoCreacion.status, "");
+    return {
+      ok: false,
+      motivo: `No se pudo asegurar el proyecto "${tituloDe(entidad)}": ${mensaje}`,
+    };
+  }
+
+  const proyecto = resultadoCreacion.data as Record<string, unknown>;
+  const id = idDeFila(proyecto);
   return { ok: true, proyecto: { id, titulo } };
 }
 
@@ -140,32 +154,36 @@ async function crearTarea(
   proyectoId: string,
   titulo: string,
   descripcion: string,
-): Promise<unknown> {
+): Promise<{ status: number; data?: unknown }> {
   const url = `${base}/projects/${encodeURIComponent(proyectoId)}/tasks`;
-  const cuerpo = JSON.stringify({
-    title: titulo,
-    description: descripcion,
-    list_id: 0,
-    priority: 1,
-  });
-  const respuesta = await pedir(url, {
-    method: "POST",
-    headers: {
-      Authorization: token,
-      "Content-Type": "application/json",
-    },
-    body: cuerpo,
-  });
-  if (!respuesta.ok) {
-    return null;
+  let respuesta: { ok: boolean; status: number; text(): Promise<string> };
+  try {
+    respuesta = await pedir(url, {
+      method: "POST",
+      headers: {
+        Authorization: token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: titulo,
+        description: descripcion,
+        list_id: 0,
+        priority: 1,
+      }),
+    });
+  } catch {
+    respuesta = { ok: false, status: 0, text: async () => "" };
   }
   const crudo = await respuesta.text();
-  if (!crudo.trim()) return null;
-  try {
-    return JSON.parse(crudo);
-  } catch {
-    return null;
+  let datos: unknown = null;
+  if (crudo.trim()) {
+    try {
+      datos = JSON.parse(crudo);
+    } catch {
+      datos = null;
+    }
   }
+  return { status: respuesta.status, data: datos };
 }
 
 export async function tareaDesdeDecision(
@@ -176,15 +194,24 @@ export async function tareaDesdeDecision(
   decision: Decision,
 ): Promise<ResultadoTarea> {
   const descripcion = `Propuesta ${decision.propuestaId} aprobada el ${decision.aprobadaEn}.${decision.sector ? ` Sector: ${decision.sector}.` : ""}`;
-  const tareaCreada = await crearTarea(pedir, base, token, proyectoId, decision.titulo, descripcion);
-  if (!tareaCreada) {
+  const resultadoCreacion = await crearTarea(pedir, base, token, proyectoId, decision.titulo, descripcion);
+  if (!resultadoCreacion.data) {
+    const mensaje = mapearError(resultadoCreacion.status, "");
     return {
       ok: false,
-      motivo: `No se pudo crear la tarea "${decision.titulo}" en el proyecto ${proyectoId}.`,
+      motivo: `No se pudo crear la tarea "${decision.titulo}" en el proyecto ${proyectoId}: ${mensaje}`,
     };
   }
 
-  const tarea = tareaCreada as Record<string, unknown>;
-  const id = String(tarea.id || tarea.taskId || "");
+  const tarea = resultadoCreacion.data as Record<string, unknown>;
+  const id = idDeFila(tarea);
   return { ok: true, tarea: { id, titulo: decision.titulo } };
+}
+
+function mapearError(status: number, _texto: string): string {
+  if (status === 401) return "Token de Vikunja inválido o ausente.";
+  if (status === 404) return "Error HTTP 404.";
+  if (status === 409) return "Ya existe una tarea con ese título.";
+  if (status >= 500) return "El servidor Vikunja falló.";
+  return `Error HTTP ${status}.`;
 }
