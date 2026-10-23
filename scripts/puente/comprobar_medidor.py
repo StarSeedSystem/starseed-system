@@ -407,14 +407,17 @@ def filas_del_medidor(clave: str, detalle: Optional[Dict[str, Any]],
         clase = _clase_de_texto(str(f.get("estado") or ""), aux)
         if clase == "escribiendo" and tarea and _clase_de_fase(fases.get(tarea, "")) not in (None, "escribiendo"):
             clase = _clase_de_fase(fases[tarea]) or clase
-        donde = None
+        donde = donde_de_fila(f)
         for campo in (f.get("titulo"), f.get("quien")):
+            if donde:
+                break
             md = _RE_DONDE.search(str(campo or ""))
             if md:
                 donde = md.group(1).lower()
-                break
         mn = _RE_N_AGENTES.search(str(f.get("quien") or ""))
+        mm = _RE_MINUTOS_ID.search(fid)
         resultado.append({
+            "minutos": int(mm.group(1)) if mm else None,
             "id": fid,
             "tarea": tarea,
             "clase": clase,
@@ -427,6 +430,33 @@ def filas_del_medidor(clave: str, detalle: Optional[Dict[str, Any]],
 
 def _es_nube(donde: Optional[str]) -> bool:
     return bool(donde) and donde != "mac"
+
+
+#: Dónde trabaja una fila según los TROZOS de su id o de su «quien» («freellmapi/auto · A1 de Oracle ·
+#: tanda …», «sonnet · Claude en la nube», «GitHub Actions · paso …», «nvidia/glm-5.3 · mac · tanda …»).
+#: (2026-10-23, medido) Antes solo se miraba un «en <sitio>» al final del título, que ya no traen: las
+#: filas del A1 y de las sesiones de Claude en la nube se tomaban por agentes de la Mac sin proceso y
+#: «Comprobar» decía «Agente opencode: muerto» con la Mac sana.
+_TROZOS_DONDE = (("claude en la nube", "claude-nube"), ("a1 de oracle", "oracle"),
+                 ("github actions", "nube-gh"), ("mac", "mac"))
+#: Los sitios que cuenta `agentes_nube` (los runs de GitHub Actions): solo esos se cotejan con GitHub.
+DONDE_GITHUB = ("nube-gh", "nube", "github")
+#: Una sesión de Claude en la nube que lleva más de esto «escribiendo» ya no escribe: terminó, se
+#: paró o se quedó esperando. (AV1011F salía «escribiendo · 1257 min» como agente vivo.)
+MINUTOS_SESION_NUBE_VIEJA = 180
+_RE_MINUTOS_ID = re.compile(r"(\d+)\s*min\s*$")
+
+
+def donde_de_fila(f: Dict[str, Any]) -> Optional[str]:
+    """PURA: el medio de una fila por los trozos «·» de su id y de su «quien», o None."""
+    fid = str(f.get("id") or "")
+    if fid.startswith("nube/"):
+        return "nube-gh"
+    trozos = [t.strip().lower() for campo in (fid, f.get("quien")) for t in str(campo or "").split("·")]
+    for marca, donde in _TROZOS_DONDE:
+        if marca in trozos:
+            return donde
+    return None
 
 
 def analizar_agentes(clave: str, detalle: Optional[Dict[str, Any]], hechos: Dict[str, Any]) -> Dict[str, Any]:
@@ -449,11 +479,12 @@ def analizar_agentes(clave: str, detalle: Optional[Dict[str, Any]], hechos: Dict
 
     escribiendo = [f for f in filas if f["clase"] == "escribiendo"]
     en_nube = [f for f in escribiendo if _es_nube(f["donde"])]
+    en_github = [f for f in en_nube if str(f["donde"]).startswith(DONDE_GITHUB)]
     candidatas = [f for f in escribiendo if not _es_nube(f["donde"])]
     emparejadas = {i for i, f in enumerate(candidatas) if f["tarea"] and f["tarea"] in por_tarea}
     # Procesos que no se pudieron atribuir a ninguna tarea: pueden explicar filas sin emparejar.
     sueltos = max(0, n_procesos - len(set(por_tarea.values())))
-    capacidad_nube = None if nube is None else max(0, nube - sum(f["n"] for f in en_nube))
+    capacidad_nube = None if nube is None else max(0, nube - sum(f["n"] for f in en_github))
     sin_proceso: List[str] = []
     por_confirmar: List[str] = []   # sin proceso, sin sitio conocido y la nube no se pudo medir
     inferidas_nube: List[Dict[str, Any]] = []
@@ -472,6 +503,8 @@ def analizar_agentes(clave: str, detalle: Optional[Dict[str, Any]], hechos: Dict
         else:
             sin_proceso.append(nombre)
     ids_con_fila = {f["tarea"] for f in filas if f["tarea"]}
+    viejas_nube = [f["tarea"] or f["id"] for f in escribiendo
+                   if f["donde"] == "claude-nube" and (f.get("minutos") or 0) > MINUTOS_SESION_NUBE_VIEJA]
     en_nube_n = sum(f["n"] for f in en_nube)
     return {
         "usable": any(cuenta.values()),
@@ -484,11 +517,12 @@ def analizar_agentes(clave: str, detalle: Optional[Dict[str, Any]], hechos: Dict
         "sonando": cuenta["sonando"],
         "fuera": cuenta["fuera"],
         "en_nube": en_nube_n + sum(f["n"] for f in inferidas_nube),
-        "nube_de_mas": nube is not None and en_nube_n > nube,
+        "nube_de_mas": nube is not None and sum(f["n"] for f in en_github) > nube,
         "huerfanos": sorted(t for t in por_tarea if ids_con_fila and t not in ids_con_fila),
         "hay_codex": any(f["codex"] for f in filas),
         "codex_escribiendo": any(f["codex"] for f in escribiendo),
         "escribiendo_mac": sum(f["n"] for f in candidatas),
+        "viejas_nube": viejas_nube,
     }
 
 
@@ -618,6 +652,10 @@ def cotejar_agentes(clave: str, detalle: Dict[str, Any], hechos: Dict[str, Any])
     if a["nube_de_mas"]:
         estado = "colgado"
         partes.append("NO COINCIDEN: el medidor da más agentes en la nube de los que cuenta GitHub (%s)" % nube)
+    if a.get("viejas_nube"):
+        estado = "colgado"
+        partes.append("NO COINCIDEN: sesiones de Claude en la nube «escribiendo» hace más de %d h (ya no trabajan): %s"
+                      % (MINUTOS_SESION_NUBE_VIEJA // 60, ", ".join(a["viejas_nube"])))
     if a["por_confirmar"] and estado == "vivo":
         estado = "desconocido"
         partes.append("sin proceso en la Mac y no pude preguntar a GitHub si están en la nube: %s"
@@ -963,13 +1001,10 @@ def veredictos_de(
     return veredictos, resumen
 
 
-def main() -> int:
-    """Ejecuta la comprobación del medidor de argv[1] y persiste el JSON."""
-    if len(sys.argv) < 2:
-        print("Uso: comprobar_medidor.py <medidor>", file=sys.stderr)
-        return 2
-
-    medidor = sys.argv[1].replace("_", "-")
+def comprobar_y_guardar(medidor: str) -> Dict[str, Any]:
+    """Comprueba un medidor y deja su JSON donde lo lee Genesis. Lo usan este guion y
+    `reparar_medidor.py` (que comprueba antes y después de reparar)."""
+    medidor = medidor.replace("_", "-")
     empezado = datetime.now(timezone.utc).isoformat()
 
     try:
@@ -1000,8 +1035,15 @@ def main() -> int:
     contenido = json.dumps(comprobacion, ensure_ascii=False, indent=2) + "\n"
     f_comp.write_text(contenido, encoding="utf-8")
     f_simple.write_text(contenido, encoding="utf-8")
+    return comprobacion
 
-    print(json.dumps(comprobacion, ensure_ascii=False))
+
+def main() -> int:
+    """Ejecuta la comprobación del medidor de argv[1] y persiste el JSON."""
+    if len(sys.argv) < 2:
+        print("Uso: comprobar_medidor.py <medidor>", file=sys.stderr)
+        return 2
+    print(json.dumps(comprobar_y_guardar(sys.argv[1]), ensure_ascii=False))
     return 0
 
 

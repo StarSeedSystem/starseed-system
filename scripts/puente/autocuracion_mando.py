@@ -78,6 +78,10 @@ BUSQUEDA_MINIMA_S = 30 * 60
 TRAER_MINIMO_S = 30 * 60
 ATASCO_UMBRAL_S = 20 * 60
 REFRESCO_MINIMO_S = 15 * 60
+#: (2026-10-23) Cada cuánto los directores comprueban los medidores y reparan los que estén mal.
+REPARAR_MEDIDORES_MINIMO_S = 10 * 60
+#: Carpeta de los worktrees de los agentes (la misma que usa el orquestador).
+RAIZ_WT = os.path.join(os.path.dirname(RAIZ), "starseed-wt")
 REFRESCO_SIN_EFECTO_S = 10 * 60
 REINICIO_ORQ_MINIMO_S = 45 * 60
 SONDA_VALIDA_S = 10 * 60
@@ -444,6 +448,70 @@ def _traer_en_fondo():
     return True
 
 
+def _git_wt(ruta, comando, *args):
+    """El `git_fn` que espera `limpieza_worktrees`: la SALIDA para «status --porcelain», el
+    CÓDIGO para «merge-base --is-ancestor …» y «worktree remove <ruta>» desde el repo principal."""
+    import subprocess
+
+    if comando == "worktree remove":
+        r = subprocess.run(["git", "-C", RAIZ, "worktree", "remove", *args],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            raise RuntimeError((r.stderr or r.stdout or "git worktree remove falló").strip()[:200])
+        return 0
+    r = subprocess.run(["git", "-C", ruta] + comando.split(), capture_output=True, text=True, timeout=60)
+    if comando.startswith("status"):
+        # Sin estado legible no se sabe si está limpio: se dice «sucio» y no se toca.
+        return r.stdout if r.returncode == 0 else "?"
+    return r.returncode
+
+
+def _tareas_vivas():
+    """(progreso, ids que no se tocan): pendientes, en curso o prestadas, y las que laten ahora."""
+    import glob as _glob
+
+    progreso = _leer_json(os.path.join(OLAS, "progreso.json"), {})
+    vivas = {t for t, v in progreso.items()
+             if isinstance(v, dict) and v.get("estado") in ("pendiente", "en_curso", "reasignada", "por_traer")}
+    for ruta in _glob.glob(os.path.join(OLAS, "latidos-*.json")):
+        try:
+            if time.time() - os.path.getmtime(ruta) > 86400:
+                continue
+            vivas |= set(((_leer_json(ruta, {}) or {}).get("tareas") or {}).keys())
+        except OSError:
+            continue
+    return progreso, sorted(vivas)
+
+
+def limpiar_worktrees(raiz_wt=None):
+    """Quita los worktrees limpios de tareas cerradas y los node_modules propios (no enlazados)
+    de los que no trabajan. Las ramas `ola/<ID>` se quedan: `git worktree remove` no las toca."""
+    import shutil
+
+    raiz_wt = raiz_wt or RAIZ_WT
+    if not os.path.isdir(raiz_wt):
+        return {"quitados": [], "nm_borrados": [], "errores": []}
+    progreso, vivas = _tareas_vivas()
+    w = [x for x in limpieza_worktrees.recoger(raiz_wt, RAIZ, _git_wt)
+         if not os.path.basename(x["ruta"]).startswith("_")]  # `_traer` es de traer_nube
+    plan = limpieza_worktrees.plan(w, progreso, vivas)
+    return limpieza_worktrees.aplicar(plan, RAIZ, _git_wt, shutil.rmtree)
+
+
+def _reparar_medidores_en_fondo(forzar=False):
+    """`reparar_medidor.py --todos` suelto: comprueba medidores (GitHub, procesos, API) y eso
+    tarda minutos; el vigía no se puede quedar parado. Una sola pasada a la vez (su cerrojo)."""
+    import subprocess
+
+    orden = [sys.executable, os.path.join(DIRECTORIO, "reparar_medidor.py"), "--todos", "--origen", "directores"]
+    if forzar:
+        orden.append("--forzar")
+    with open("/tmp/starseed-reparar-medidores.log", "a", encoding="utf-8") as log:
+        subprocess.Popen(orden, cwd=RAIZ, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                         start_new_session=True)
+    return True
+
+
 def _buscar():
     """El botón «Buscar más capacidad» sin los sondeos lentos ni la Mac (de ella ya se ocupa
     el llenado de arriba). Avisa él mismo en el Chat Director si suma agentes."""
@@ -649,7 +717,8 @@ def curar_enjambre(estado, ahora, forzar=False, latido_fn=None, sondear_fn=_sond
 def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=limpiar,
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
             buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
-            servicios_fn=_servicios, medidores_fn=_levantar_por_medidores):
+            servicios_fn=_servicios, medidores_fn=_levantar_por_medidores, worktrees_fn=None,
+            reparar_fn=None):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO).
     `forzar` (el botón «Reactivar directores»): todo ya, sin los tiempos mínimos."""
     ahora = ahora if ahora is not None else time.time()
@@ -678,17 +747,27 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
 
     libre = libre_fn()
     ids = ids_a_limpiar(libre)
-    # Limpieza de worktrees y node_modules
-    if libre < 2 * DISCO_AVISO_GB or (time.time() - estado.get("ultima_limpieza_wt", 0)) > 86400:
+    # Limpieza de worktrees y node_modules.
+    # (2026-10-23, medido) Este paso NUNCA corría: leía `estado["raiz_wt"]`, `estado["repo"]` y
+    # `estado["git_fn"]` del JSON de estado, que no los tiene, y cada pasada acababa en
+    # KeyError('raiz_wt') (era lo único que decía `hechos`). Resultado: 52 worktrees y 5,3 GB en
+    # starseed-wt, uno de ellos con node_modules propio de 1,5 GB, y la Mac con 3,6 GB libres.
+    # Ahora usa las rutas reales; con una `limpiar_fn` inyectada (pruebas) no toca el disco real.
+    wt_fn = worktrees_fn or (limpiar_worktrees if limpiar_fn is limpiar else None)
+    if wt_fn and (libre is None or libre < 2 * DISCO_AVISO_GB or forzar
+                  or ahora - float(estado.get("ultima_limpieza_wt") or 0) > 86400):
         try:
-            w = limpieza_worktrees.recoger(estado["raiz_wt"], estado["repo"], estado["git_fn"])
-            p = limpieza_worktrees.plan(w, estado["progreso"], estado["en_curso"])
-            r = limpieza_worktrees.aplicar(p, estado["repo"], estado["git_fn"], estado["rmtree_fn"])
-            if r["quitados"] or r["nm_borrados"]:
-                avisar_fn(f"Autocuración: quité {len(r['quitados'])} worktrees cerrados y {len(r['nm_borrados'])} node_modules duplicados.")
-            estado["ultima_limpieza_wt"] = time.time()
+            r = wt_fn() or {}
+            estado["ultima_limpieza_wt"] = ahora
+            if r.get("quitados") or r.get("nm_borrados"):
+                linea = "quité %d worktree(s) cerrado(s) y %d node_modules duplicado(s)" % (
+                    len(r.get("quitados") or []), len(r.get("nm_borrados") or []))
+                hechos.append("worktrees: " + linea)
+                avisar_fn("Autocuración: " + linea + ".")
+            if r.get("errores"):
+                hechos.append("worktrees: %d error(es): %s" % (len(r["errores"]), r["errores"][0][:160]))
         except Exception as e:
-            hechos.append(str(e))
+            hechos.append("no pude limpiar los worktrees: %s: %s" % (type(e).__name__, e))
     if ids and (forzar or ahora - (estado.get("ultima_limpieza") or 0) >= LIMPIEZA_MINIMA_S):
         r = limpiar_fn(ids)
         estado["ultima_limpieza"] = ahora
@@ -773,6 +852,22 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             hechos.append(linea)
     except Exception as e:
         hechos.append("no pude revisar el enjambre: %s: %s" % (type(e).__name__, e))
+
+    # 7 · Medidores en rojo (2026-10-23). Alex: «debería funcionar automáticamente por la
+    # supervisión de los directores… actualmente no se repara solo». La comprobación de cada
+    # medidor existía, pero nadie actuaba sobre lo que encontraba. Cada 10 min (o ya, con
+    # «Reactivar directores») se lanza en segundo plano `reparar_medidor.py --todos`: comprueba
+    # cada medidor y repara lo que tenga reparación conocida (el mismo camino que el botón
+    # «Reparar» de Genesis), con su propio cerrojo y sus tiempos mínimos por medidor.
+    rep_fn = reparar_fn or (_reparar_medidores_en_fondo if limpiar_fn is limpiar else None)
+    if rep_fn and any(sondas) and (forzar or ahora - float(estado.get("ultima_reparacion_medidores") or 0)
+                                   >= REPARAR_MEDIDORES_MINIMO_S):
+        estado["ultima_reparacion_medidores"] = ahora
+        try:
+            rep_fn(forzar)
+            hechos.append("medidores: comprobación y reparación lanzadas en segundo plano")
+        except Exception as e:
+            hechos.append("no pude lanzar la reparación de medidores: %s: %s" % (type(e).__name__, e))
 
     estado.update({"visto": time.strftime("%Y-%m-%d %H:%M:%S"), "responde": any(sondas),
                    "por_que": porque, "libre_gb": None if libre is None else round(libre, 1),

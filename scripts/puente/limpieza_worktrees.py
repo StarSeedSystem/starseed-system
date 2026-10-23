@@ -2,7 +2,9 @@
 import os
 from typing import List, Dict, Any
 
-ESTADOS_CERRADOS = ("rechazada", "sustituida")
+#: (2026-10-23) También las integradas («commit») y las descartadas: un worktree LIMPIO de una tarea
+#: que ya está en main no guarda nada que no esté en su rama `ola/<ID>`.
+ESTADOS_CERRADOS = ("rechazada", "sustituida", "commit", "hecho", "descartada")
 
 def plan(worktrees: List[Dict[str, Any]], progreso: Dict[str, Any], en_curso: List[str]) -> Dict[str, List[str]]:
     """

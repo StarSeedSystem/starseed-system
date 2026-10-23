@@ -421,3 +421,46 @@ class EstadosNuevosDelMedidor(unittest.TestCase):
         self.assertEqual(_clase_de_texto("comprobando", "el orquestador pasa los tipos (tsc)"), "comprobando")
         self.assertEqual(_clase_de_texto("esperando modelo", "ningún modelo con cupo"), "esperando")
 
+
+
+class FilasDeOtrosMedios(unittest.TestCase):
+    """(2026-10-23, medido) Las filas del A1 y de Claude en la nube se tomaban por agentes de la
+    Mac sin proceso: «Agente opencode: muerto» con la Mac sana."""
+
+    FILAS = [
+        {"id": "RLB1020J · A1 de Oracle · auto · 4 min", "titulo": "Genesis · errores", "estado": "escribiendo",
+         "etapa": "etapa 1 de 6 · escribiendo", "quien": "freellmapi/auto · A1 de Oracle · tanda mg-oracle-1023"},
+        {"id": "AV1011F · Claude en la nube · claude-opus-5-5 · 17 min", "titulo": "Taller 3D", "estado": "escribiendo",
+         "etapa": "etapa 1 de 6 · escribiendo", "quien": "claude-opus-5-5 · Claude en la nube"},
+        {"id": "nube/39988277695 · trabajador 1 de 1 · 28 min", "titulo": "reparto a la nube · IMG1011J",
+         "estado": "escribiendo", "etapa": "etapa 1 de 6 · escribiendo", "quien": "GitHub Actions · paso «Enjambre»"},
+        {"id": "ALT1021Bb", "titulo": "Escalada", "estado": "comprobando", "etapa": "etapa 2 de 6 · verificando",
+         "quien": "nvidia/glm-5.3 · mac · tanda auto-1021-112746"},
+    ]
+
+    def test_donde_de_cada_fila(self):
+        self.assertEqual([C.donde_de_fila(f) for f in self.FILAS], ["oracle", "claude-nube", "nube-gh", "mac"])
+
+    def test_no_acusa_a_la_mac_ni_se_pasa_de_github(self):
+        h = _hechos(self.FILAS, {}, nube=1, opencode=[])
+        vs, _ = C.veredictos_de("agentes", h["procesos"], h)
+        por = {v["proceso"]: v for v in vs}
+        self.assertEqual(por["Agente opencode"]["estado"], "vivo", por["Agente opencode"]["detalle"])
+        self.assertEqual(por["Agentes medidos"]["estado"], "vivo", por["Agentes medidos"]["detalle"])
+        self.assertIn("3 escribiendo en la nube", por["Agentes medidos"]["detalle"])
+
+    def test_github_de_mas_si_se_acusa(self):
+        h = _hechos(self.FILAS, {}, nube=0, opencode=[])
+        v = [x for x in C.cotejar("agentes", h["detalle"], h) if x["proceso"] == "Agentes medidos"][0]
+        self.assertEqual(v["estado"], "colgado")
+
+
+class SesionesDeClaudeViejas(unittest.TestCase):
+    def test_una_sesion_de_horas_es_un_agente_fantasma(self):
+        filas = [dict(FilasDeOtrosMedios.FILAS[1], id="AV1011F · Claude en la nube · claude-opus-5-5 · 1257 min")]
+        h = _hechos(filas, {}, nube=0, opencode=[])
+        v = [x for x in C.cotejar("agentes", h["detalle"], h) if x["proceso"] == "Agentes medidos"][0]
+        self.assertEqual(v["estado"], "colgado")
+        self.assertIn("AV1011F", v["detalle"])
+        planes = __import__("reparar_medidor").plan_reparacion("agentes", [v])
+        self.assertIn("carril_nube", [p["accion"] for p in planes])

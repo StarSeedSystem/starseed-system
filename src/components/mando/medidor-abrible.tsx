@@ -25,6 +25,7 @@ import { ChevronDown, Loader2 } from "lucide-react";
 import { BloqueadasPanel, itemDesdeFilaMedidor } from "@/components/mando/bloqueadas-panel";
 import { BloqueadasGrupos, CadenasBloqueadas } from "@/components/mando/bloqueadas-grupos";
 import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
+import { BotonReparar, ResultadoReparacion, useReparacion } from "@/components/mando/reparar-medidor";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 
 export type TonoMedidor = "normal" | "aviso" | "peligro" | "ok";
@@ -521,6 +522,13 @@ export function PanelMedidor({
         }
     }, [clave, cargar, cargarComprobacion]);
 
+    // (2026-10-23) «Reparar» junto a «Comprobar ahora»: al terminar se releen el panel y la comprobación.
+    const recargarTodo = useCallback(() => {
+        void cargar();
+        void cargarComprobacion();
+    }, [cargar, cargarComprobacion]);
+    const reparacion = useReparacion(clave, recargarTodo);
+
     useEffect(() => {
         setDatos(null);
         setRespuesta(null);
@@ -632,6 +640,7 @@ export function PanelMedidor({
                     {comprobando ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
                     Comprobar ahora
                 </button>
+                <BotonReparar reparando={reparacion.reparando} alPulsar={() => void reparacion.reparar()} />
                 <button
                     type="button"
                     onClick={alCerrar}
@@ -681,6 +690,8 @@ export function PanelMedidor({
                     </ul>
                 </div>
             ) : null}
+
+            <ResultadoReparacion reparacion={reparacion.reparacion} />
 
             {clave === "sin-publicar" ? (
                 // (2026-10-08) Alex: «añade el ajuste de publicación automática dentro del medidor».
