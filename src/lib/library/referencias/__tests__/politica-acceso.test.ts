@@ -101,6 +101,43 @@ describe('canalPara', () => {
     expect(resultado.cacheMaxMs).toBe(0)
   })
 
+  it('debe tratar todas las acciones de manera similar para permisos básicos', () => {
+    const conectado = new Set<string>(['mcp-oficial'])
+    const acciones = ['buscar', 'leer-pagina', 'instalar']
+    const resultados = acciones.map((accion) => canalPara(entradaBase, { accion, conectado, ahora }))
+
+    for (const resultado of resultados) {
+      expect(resultado.canal).toBe('mcp-oficial')
+      expect(resultado.permitido).toBe(true)
+      expect(resultado.pausaMs).toBe(0)
+      expect(resultado.cacheMaxMs).toBe(0)
+    }
+  })
+
+  it('debe elegir el primer oficial conectado según el orden de canales de la entrada', () => {
+    const conectado = new Set<string>(['mcp-oficial', 'api-oficial'])
+    const entradaApiPrimero: EntradaReferencia = {
+      ...entradaBase,
+      canales: ['api-oficial', 'mcp-oficial', 'navegador-de-la-persona']
+    }
+    const resultado = canalPara(entradaApiPrimero, { accion: 'buscar', conectado, ahora })
+    expect(resultado.canal).toBe('api-oficial')
+  })
+
+  it('debe caer al primer canal listado cuando no hay oficiales, sitemap ni navegador', () => {
+    const conectado = new Set<string>()
+    const entradaSoloOficiales: EntradaReferencia = {
+      ...entradaBase,
+      canales: ['mcp-oficial', 'api-oficial']
+    }
+    const resultado = canalPara(entradaSoloOficiales, { accion: 'buscar', conectado, ahora })
+    expect(resultado.canal).toBe('mcp-oficial')
+    expect(resultado.motivo).toBe('Primer canal disponible (configuración por defecto)')
+    expect(resultado.agenteUsuario).toBe('')
+    expect(resultado.pausaMs).toBe(0)
+    expect(resultado.cacheMaxMs).toBe(0)
+  })
+
   it('debe ignorar mayúsculas/minúsculas en canal sitemap', () => {
     const conectado = new Set<string>()
     const entradaConSitemapMayusculas: EntradaReferencia = {
