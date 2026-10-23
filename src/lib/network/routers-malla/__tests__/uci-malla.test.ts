@@ -31,7 +31,7 @@ describe("uciMalla", () => {
     ]);
     expect(w.radio_cliente).toEqual(expect.arrayContaining(["option band '2g'", "option channel '6'", "option country 'ES'"]));
     expect(w.ap0).toEqual(expect.arrayContaining(["option device 'radio_cliente'", "option mode 'ap'", "option ssid 'StarSeed'",
-      `option key '${CLAVE_AP}'`, "option network 'lan'"]));
+      "option encryption 'sae-mixed'", `option key '${CLAVE_AP}'`, "option network 'lan'"]));
   });
 
   it("network: bat0 BATMAN_V, la hardif con master bat0 y bat0 dentro de br-lan", () => {
@@ -46,6 +46,12 @@ describe("uciMalla", () => {
     ["2g", 40, "HT40"], ["2g", 20, "HT20"], ["2g", 80, "HT40"],
   ] as Array<[BandaWifi, number, string]>)("htmode de %s a %i MHz = %s", (banda, ancho, esperado) => {
     expect(secciones(uciMalla(cfg(banda, ancho)).wireless).radio_troncal).toContain(`option htmode '${esperado}'`);
+  });
+
+  it("el country sale de la región en mayúsculas, sin fijarlo a ES", () => {
+    const paises: Record<string, string> = { US: "US", FR: "FR", JP: "JP", de: "DE" };
+    for (const [region, esperado] of Object.entries(paises))
+      expect(uciMalla(cfg("5g", 80, { region })).wireless).toContain(`option country '${esperado}'`);
   });
 
   it("troncal en 2,4 GHz: una sola radio y el AP comparte su canal", () => {
@@ -75,6 +81,10 @@ describe("uciMalla", () => {
 describe("guionAplicar", () => {
   const g = guionAplicar(cfg());
   const pos = (t: string): number => { const i = g.indexOf(t); expect(i, t).toBeGreaterThanOrEqual(0); return i; };
+
+  it("empieza por el shebang de sh para poder ejecutarse tal cual", () => {
+    expect(g.startsWith("#!/bin/sh\n")).toBe(true);
+  });
 
   it("hace la copia y comprueba radios y br-lan antes de instalar o escribir nada", () => {
     const copia = pos("cp -p /etc/config/$f /etc/config/$f.antes-starseed");
