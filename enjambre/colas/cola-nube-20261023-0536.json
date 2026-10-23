@@ -1,0 +1,91 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "TSC1021A",
+   "ola": "1021M",
+   "importancia": "capacidad",
+   "titulo": "Enjambre · sin tsc cuando el diff no toca TypeScript (las tareas de Python no hacen cola para el turno)",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py",
+    "scripts/enjambre/test_diff_necesita_tsc.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nCaso real medido (2026-10-21 10:30 UTC, Mac de 8 GB con la swap al 94 % y presión del núcleo 2): tres tareas llevaban 5, 30 y 49 min en la fase «tsc», haciendo cola para el turno de un tsc completo (`scripts/enjambre/tsc-turno.sh`), y en 3 h la Mac no integró nada. Una de ellas, VAR1021A, solo toca archivos .py de `scripts/puente/`: su diff no puede cambiar el resultado de tsc, porque cada worktree se pone al día con main (`poner_al_dia`) y main está en verde.\n\nArreglo en `scripts/enjambre/starseed-enjambre.py`, función `tsc(cwd, log)`: si el repo es el del OS (hay tsconfig.json) y el diff de la tarea (`git diff --name-only main...HEAD` + `git diff --name-only`) no toca NINGÚN archivo que tsc mire —extensiones .ts .tsx .mts .cts .js .jsx .mjs .cjs .d.ts, ni `tsconfig*.json`, `package.json`, `package-lock.json`, `next-env.d.ts` ni nada dentro de `src/` o `types/`—, devuelve (0, []) sin lanzar tsc y lo anota en el log («tsc no hace falta: el diff no toca TypeScript»). Ante la menor duda (git falla, lista vacía porque no hay diff) se corre tsc como hoy. Pon la decisión en una función PURA aparte, `diff_necesita_tsc(archivos) -> bool`, con docstring en español del caso medido. Las guardas de cliente (`alcance_pruebas.GUARDAS_CLIENTE`) y vitest no cambian.\n\nPruebas en `scripts/enjambre/test_tsc_sin_terminar.py` (o un archivo nuevo `scripts/enjambre/test_diff_necesita_tsc.py`): solo .py/.md/.json de datos → False; cualquier .ts/.tsx, tsconfig.json, package.json o algo bajo src/ → True; lista vacía → True. Corre `python3 -m unittest` de ese archivo y lee su resumen entero."
+  },
+  {
+   "id": "RLB1020E",
+   "titulo": "Biblioteca · siembra por defecto de las de la 2.ª tanda marcadas «siempre»",
+   "archivos": [
+    "src/lib/library/defaults-seed.ts",
+    "src/lib/library/__tests__/defaults-seed.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Alex pidió que queden «predeterminadas y preinstaladas inteligentemente». En `src/lib/library/defaults-seed.ts` sube `SEED_VERSION` en 1 y añade a `RECOMMENDED_PACKAGE_IDS`, con un comentario de la versión, SOLO los ids de la 2.ª tanda con `preinstalar: \"siempre\"` (lib-vikunja, lib-celld, lib-sentry, lib-windmill, lib-metabase, lib-trilium, lib-politica-privacidad), respetando las reglas de la cabecera del archivo: nunca lo que descarga, ejecuta código o abre una ruta al instalar, y nunca reinstalar algo que la persona desinstaló. Las «manual» NO se siembran. Pruebas: con la nueva versión se siembran esas 7 una sola vez; una desinstalada no vuelve; ninguna «manual» entra. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área",
+   "dependencias_ya_en_main": [
+    "RLB1020D"
+   ]
+  },
+  {
+   "id": "RLB1020J",
+   "titulo": "Genesis · errores con formato de evento de Sentry, sin datos personales y con huella, para la autocuración",
+   "archivos": [
+    "src/lib/mando/errores-neurona.ts",
+    "src/lib/mando/__tests__/errores-neurona.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Alex quiere autorreparación de errores de cada neurona, cerebro, perfil, cuenta, página, proceso y creación de contenido; el servidor de Sentry no cabe (16 GB + swap) y su FSL no es abierta, así que Genesis lo hace con el FORMATO de evento del SDK de Sentry. Crea `src/lib/mando/errores-neurona.ts`, PURO: `normalizarError(e, contexto)` → evento estilo Sentry {event_id, timestamp, level, platform, exception:{values:[{type, value, stacktrace:{frames}}]}, tags:{ambito, neurona, proceso}, fingerprint} donde ambito ∈ neurona|cerebro|perfil|cuenta|pagina|proceso|contenido; `limpiarDatosPersonales(evento)` quita o enmascara correos, teléfonos, IP, tokens (`sk-`, `gsk_`, `Bearer …`, `eyJ…`) y rutas de usuario (`/Users/<nombre>`); `huella(evento)` agrupa por tipo + primer marco propio + ámbito; `agrupar(eventos)` → {huella, veces, primero, ultimo, ejemplo}. Sin red y sin enviar nada a terceros. Pruebas: limpia cada tipo de dato personal; dos errores iguales con mensajes de distinto id comparten huella; uno de otro ámbito no. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área"
+  },
+  {
+   "id": "APM1017E",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Malla · relé `capacidad.*`: pedir cualquier capacidad a otra neurona (imagen, voz, oído, transcodificar…)",
+   "archivos": [
+    "src/lib/network/capacidad-por-malla.ts",
+    "src/lib/network/__tests__/capacidad-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Generaliza el patrón de `src/lib/network/ia-por-malla.ts` (léelo: espacio de nombres, topes de tamaño, trozos, fin, error y cancelar) a `CAPACIDAD_NS = \"capacidad.\"` con `tipo`: imagen | voz | oido | palabra | transcodificar | render | buscar | construir. Cliente: `pedirCapacidad(enviar, { tipo, cuerpo, sesionId, timeoutMs })` que reúne los trozos y nunca lanza (`{ ok:false, motivo }`). Codificar y validar mensajes con guardas de tipo. No cambies ia-por-malla.ts. Pruebas con un canal falso: éxito, trozos desordenados, error, cancelar y tiempo agotado. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017I",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · caché de bandas por medio (OPFS en el navegador) con presupuesto y expulsión",
+   "archivos": [
+    "src/lib/recursos/cache-bandas.ts",
+    "src/lib/recursos/__tests__/cache-bandas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Caché de bandas sobre la interfaz `Almacenamiento` de src/lib/astraura/capas/almacen.ts (inyectada; en pruebas, `almacenamientoEnMemoria()`). `crearCacheBandas({ almacen, presupuestoBytes, ahora })` con `tener`, `leer`, `guardar(sha, bytes)` (verifica el SHA-256 con `crypto.subtle` inyectable antes de guardar) y expulsión de lo menos usado al pasarse del presupuesto; nunca expulsa una banda en uso. El presupuesto viene de src/lib/astraura/capas/perfil-medio.ts (no lo cambies). Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017H"
+   ]
+  },
+  {
+   "id": "APM1017Q",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Apps remotas · anfitrión web: fotogramas al lienzo, pista WebRTC y aviso visible",
+   "archivos": [
+    "src/lib/apps-remotas/anfitrion.ts",
+    "src/lib/apps-remotas/__tests__/anfitrion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión (§9) con todo inyectado: `crearAnfitrion({ capturar, dibujar, crearPista, sesion, fps, anchoMax })` que pide fotogramas a la app nativa (comando `capturar_ventana`), los dibuja en un lienzo, expone la pista (`canvas.captureStream(fps)` en el navegador), adapta fps y ancho al ancho de banda medido, reenvía las entradas a `entrada_ventana` solo con sesión válida (sesion-prestamo.ts) y se para al revocar. Pruebas con relojes y capturas falsas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "TSC1021A",
+   "APM1017E",
+   "RLB1020E",
+   "APM1017I",
+   "APM1017Q",
+   "RLB1020J"
+  ]
+ }
+}
