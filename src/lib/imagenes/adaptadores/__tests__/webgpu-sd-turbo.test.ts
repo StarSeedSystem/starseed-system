@@ -3,6 +3,7 @@
  * Pruebas PURAS de src/lib/imagenes/adaptadores/webgpu-sd-turbo.ts: catálogo, detección WebGPU,
  * plan de pesos (regla del triple) y flujo completo con un motor SIMULADO (sin red ni GPU).
  */
+import { modeloPorId } from "../../modelos";
 import { describe, expect, it } from "vitest";
 import {
   BYTES_PESOS_SD_TURBO, CACHE_PESOS_SD_TURBO, MODELO_SD_TURBO, PESOS_SD_TURBO, REPO_ONNX_SD_TURBO,
@@ -34,6 +35,18 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
     expect(typeof textoBytes).toBe("function");
     expect(MODELO_SD_TURBO).toBe("sd-turbo");
     expect(BYTES_PESOS_SD_TURBO).toBe(PESOS_SD_TURBO.reduce((t, p) => t + p.bytes, 0));
+  });
+
+  it("el total pesa más de 2,5 GB y se dice en claro como «2,3 GB» (GiB, con coma)", () => {
+    expect(BYTES_PESOS_SD_TURBO).toBeGreaterThan(Math.round(2.5e9));
+    expect(textoBytes(BYTES_PESOS_SD_TURBO)).toBe("2,3 GB");
+  });
+
+  it("el catálogo mantiene la licencia «sin comprobar del todo» y el motor de la pestaña", () => {
+    const modelo = modeloPorId(MODELO_SD_TURBO);
+    expect(modelo).toBeDefined();
+    expect(modelo!.nota).toContain("sin comprobar del todo");
+    expect(modelo!.motores).toContain("onnx-web");
   });
 
   it("fija el repo, la caché y la versión EXACTA que debe instalar la parte del worker", () => {
@@ -112,6 +125,7 @@ describe("generaEnPestana · flujo completo con el motor simulado", () => {
   it("sin permiso o sin espacio para el triple: para en el plan y no toca el motor", async () => {
     const llamadas: string[] = [];
     expect(await generaEnPestana(motor({}, llamadas), { ...PETICION, permisoDescarga: false })).toMatchObject({ ok: false, accion: "pedir-permiso" });
+    expect(await generaEnPestana(motor({ cuotaLibre: async () => null }, llamadas), PETICION)).toMatchObject({ ok: false, accion: "sin-espacio" });
     expect(await generaEnPestana(motor({ cuotaLibre: async () => BYTES_PESOS_SD_TURBO }, llamadas), PETICION)).toMatchObject({ ok: false, accion: "sin-espacio" });
     expect(llamadas).toEqual([]);
   });
