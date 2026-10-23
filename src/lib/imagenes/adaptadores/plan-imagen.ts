@@ -29,7 +29,7 @@ export async function planImagen(
       motor: "espacio-hf",
       cuantizacion: "nativa",
       semilla: semillaBase + i,
-      motivo: `Opción ${i + 1} para ${peticion.opciones} opciones",
+      motivo: `Opción ${i + 1} para ${peticion.opciones} opciones`,
     });
   }
 
