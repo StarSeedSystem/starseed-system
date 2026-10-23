@@ -14,7 +14,7 @@
  * Guardar en Biblioteca. Ver architecture/astraura-inteligencia.md §17.4.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -34,6 +34,10 @@ import { executeUndo } from "@/lib/aurora/undo";
 import { myLibraryDestinations, saveItem } from "@/lib/library/entity-library";
 import { useSavedLibrary } from "@/lib/library-store";
 import type { PersonalityProfile } from "@/lib/aurora/personalities";
+import { uploadFile } from "@/lib/files/os-files";
+import { descargarBlob, type Convertido } from "@/lib/conversion/cliente";
+import { useConversionMenu, type ArchivoConvertible } from "@/components/conversion/use-conversion-menu";
+import { SubmenuConvertir } from "@/components/conversion/submenu-convertir";
 
 /** Un mensaje normalizado (vivo o cargado) para el menú contextual. */
 export interface ChatMessagePayload {
@@ -41,6 +45,8 @@ export interface ChatMessagePayload {
   text: string;
   ts: number;
   meta?: AuroraMessageMeta;
+  /** Adjuntos del mensaje (jsonb `astraura_messages.attachments`), ya normalizables. */
+  attachments?: unknown[] | null;
   /**
    * Historial (rol/texto/ts) hasta ESTE mensaje incluido, del array de origen
    * (vivo o cargado). Contrato: el ÚLTIMO elemento de `history` es siempre
@@ -72,12 +78,56 @@ function findPrecedingUserText(payload: ChatMessagePayload): string | null {
   return null;
 }
 
+/**
+ * Adjuntos con un archivo real que se puede convertir (URL o data URL). Las
+ * referencias vivas (llamada, sesión, enlace interno) no son archivos.
+ */
+function archivosConvertibles(raw: unknown[] | null | undefined): ArchivoConvertible[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ArchivoConvertible[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const a = item as { kind?: string; name?: string; mime?: string; url?: string; dataUrl?: string };
+    const url = a.url || a.dataUrl;
+    if (!url) continue;
+    if (a.kind === "ref" || a.kind === "llamada" || a.kind === "vivo") continue;
+    out.push({ nombre: a.name || "Archivo adjunto", url, tipoMime: a.mime });
+  }
+  return out;
+}
+
+/** «Convertir a…» de un adjunto: sube el resultado a Conversiones y lo descarga. */
+function SubmenuConvertirAdjunto({ archivo, etiqueta }: { archivo: ArchivoConvertible; etiqueta?: string }) {
+  const guardar = useCallback(async (c: Convertido, original: ArchivoConvertible): Promise<string | null> => {
+    const subido = await uploadFile(new File([c.blob], c.nombre, { type: c.blob.type || undefined }), {
+      folder: "conversiones",
+      meta: { context: "conversion", motor: c.motor, de: original.nombre },
+    });
+    if (!subido.ok) throw new Error(subido.error || "No pude guardar el archivo convertido.");
+    descargarBlob(c.blob, c.nombre);
+    return "guardado en Conversiones y descargado";
+  }, []);
+  const conversion = useConversionMenu(archivo, guardar);
+  if (!conversion) return null;
+  return (
+    <>
+      {etiqueta && (
+        <DropdownMenuLabel className="max-w-[15rem] truncate text-[10px] font-normal text-muted-foreground">
+          {etiqueta}
+        </DropdownMenuLabel>
+      )}
+      <SubmenuConvertir conversion={conversion} />
+    </>
+  );
+}
+
 export function MessageContextMenu({
   x, y, payload, onClose, onBranchFromMessage, onRetryMessage, onViewProcess,
 }: MessageContextMenuProps) {
   const [avail, setAvail] = useState<SourceAvailability[] | null>(null);
   const isAurora = payload.role === "aurora";
   const undoableTools = (payload.meta?.tools ?? []).filter((t) => !!t.undo);
+  const adjuntos = useMemo(() => archivosConvertibles(payload.attachments), [payload.attachments]);
   
   const aurora = useAuroraEngine();
   const { items } = useSavedLibrary();
@@ -298,6 +348,19 @@ export function MessageContextMenu({
         <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(() => void save())}>
           <Bookmark className="h-3.5 w-3.5" /> Guardar en Biblioteca
         </DropdownMenuItem>
+
+        {adjuntos.length > 0 && (
+          <>
+            <DropdownMenuSeparator className="bg-white/10" />
+            {adjuntos.map((a, i) => (
+              <SubmenuConvertirAdjunto
+                key={`${a.url}-${i}`}
+                archivo={a}
+                etiqueta={adjuntos.length > 1 ? a.nombre : undefined}
+              />
+            ))}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
