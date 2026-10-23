@@ -1,0 +1,28 @@
+# Unidad systemd de USUARIO del servidor propio de IA de una neurona
+# (`servicios/servidor-ia`, architecture/recursos-ia-neurona.md §6 y §7). La instala
+# servicios/servidor-ia/systemd/instalar.sh en ~/.config/systemd/user/.
+#
+# El servidor une los motores locales de la neurona (BitNet 1.58 :8790, TurboFieldfare
+# :8080, Ollama :11434, LM Studio :1234, Laya :4470) tras UNA API compatible con OpenAI.
+# host, puerto y token viven en ~/.starseed/servidor-ia.env (fuera del repo); sin token
+# el servidor solo escucha en 127.0.0.1 — fuera de la máquina exige el Bearer.
+[Unit]
+Description=StarSeed · servidor propio de IA (Hono, API OpenAI-compatible)
+Documentation=https://github.com/StarSeedSystem/starseed-system
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/starseed-system/servicios/servidor-ia
+EnvironmentFile=-%h/.starseed/servidor-ia.env
+ExecStart=/usr/bin/env node %h/starseed-system/servicios/servidor-ia/bin/servidor-ia.mjs
+Restart=on-failure
+RestartSec=30
+# Endurecido ligero: debe leer su home (código y .env), nada más.
+NoNewPrivileges=yes
+PrivateTmp=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=default.target
