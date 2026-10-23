@@ -54,7 +54,6 @@ import {
   allPackages,
   getInstalledMap,
   install,
-  isInstalled,
   LIBRARY_EVENT,
   type LibraryPackage,
 } from "./packages";
@@ -68,7 +67,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 15;
+export const SEED_VERSION = 16;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -307,6 +306,22 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   "iatool-openmanus",
   "iatool-penpot",
   "iatool-opencut",
+  // ── (SEED_VERSION 16 · Ola 1020S) 2.ª tanda de repos externos: SOLO las
+  //    siete marcadas `preinstalar: "siempre"` en
+  //    config/repos-libreria-1020b.json. Son fichas (CATALOGO) o conectores
+  //    (CONECTOR): instalar únicamente registra la ficha y guarda su enlace;
+  //    NO descarga, NO ejecuta código, NO lanza servidores y NO abre ninguna
+  //    ruta durante la siembra (`ensureDefaultsSeeded` ignora action/href).
+  //    Las siete «manual» de esa tanda (RuView, tirreno, DigUp, Moli,
+  //    OpenShell, Coucou y DBX) siguen fuera: tocan datos sensibles, ejecutan
+  //    código o se instalan en la Mac de Alex, y solo entran con su palabra.
+  "lib-vikunja",
+  "lib-celld",
+  "lib-sentry",
+  "lib-windmill",
+  "lib-metabase",
+  "lib-trilium",
+  "lib-politica-privacidad",
 ];
 
 /**
@@ -372,6 +387,53 @@ function isDownloadablePackage(pkg: LibraryPackage): boolean {
   return !!sourceId && (DOWNLOADABLE_SOURCES as readonly string[]).includes(sourceId);
 }
 
+/* ─────────────── Cálculo puro de la siembra (testable) ─────────────── */
+
+export interface SeedPackageRef {
+  id: string;
+  comingSoon?: boolean;
+}
+
+export interface SeedPlanInput {
+  /** Versión ya sembrada en este dispositivo/cuenta. */
+  seededVersion: number;
+  /** Versión objetivo (normalmente SEED_VERSION). */
+  seedVersion: number;
+  /** Ids candidatos de la siembra. */
+  recommendedIds: readonly string[];
+  /** Ids ya OFRECIDOS en versiones anteriores (respeta desinstalaciones). */
+  alreadyOffered: readonly string[];
+  /** Ids instalados ahora mismo por la persona. */
+  installedIds: readonly string[];
+  /** Paquetes disponibles en el catálogo. */
+  catalog: readonly SeedPackageRef[];
+  /** Ids cuyo paquete descarga modelos (opt-in: nunca se siembran). */
+  downloadableIds: readonly string[];
+}
+
+/**
+ * Decide qué ids debe instalar esta siembra, sin tocar disco ni red.
+ * Devuelve [] si la versión ya está aplicada; si no, solo los ids que existen,
+ * no están instalados, no se ofrecieron antes, no son `comingSoon` y no
+ * descargan nada. Es la regla de `ensureDefaultsSeeded`, aislada para probarla.
+ */
+export function planSeedInstall(input: SeedPlanInput): string[] {
+  if (input.seededVersion >= input.seedVersion) return [];
+  const offered = new Set(input.alreadyOffered);
+  const installed = new Set(input.installedIds);
+  const downloadable = new Set(input.downloadableIds);
+  const catalog = new Map(input.catalog.map((p) => [p.id, p] as const));
+  const out: string[] = [];
+  for (const id of input.recommendedIds) {
+    if (offered.has(id) || installed.has(id)) continue;
+    const pkg = catalog.get(id);
+    if (!pkg || pkg.comingSoon) continue;
+    if (downloadable.has(id)) continue;
+    out.push(id);
+  }
+  return out;
+}
+
 /* ─────────────────────── Siembra idempotente ─────────────────────── */
 
 /**
@@ -401,14 +463,19 @@ export async function ensureDefaultsSeeded(): Promise<{ seeded: boolean; install
   //       · NO estén ya instalados (respeta lo que el usuario tenga),
   //       · NO se hayan ofrecido antes (respeta desinstalaciones deliberadas),
   //       · NO sean descargables ni comingSoon (defensa extra).
-  for (const id of RECOMMENDED_PACKAGE_IDS) {
-    if (alreadyOffered.has(id)) continue;      // ya se ofreció en una versión previa
+  const candidates = planSeedInstall({
+    seededVersion: state.version,
+    seedVersion: SEED_VERSION,
+    recommendedIds: RECOMMENDED_PACKAGE_IDS,
+    alreadyOffered: state.seededIds ?? [],
+    installedIds: Object.keys(installedNow),
+    catalog: catalog.map((p) => ({ id: p.id, comingSoon: p.comingSoon === true })),
+    downloadableIds: catalog.filter(isDownloadablePackage).map((p) => p.id),
+  });
+
+  for (const id of candidates) {
     const pkg = byId.get(id);
     if (!pkg) continue;                         // el catálogo cambió: no rompemos
-    if (pkg.comingSoon) continue;
-    if (isDownloadablePackage(pkg)) continue;   // opt-in siempre
-    if (id in installedNow || isInstalled(id)) continue; // ya instalado por el usuario
-
     try {
       const res = await install(pkg);           // aplica su efecto real y lo registra
       if (res.ok) justInstalled.push(id);
