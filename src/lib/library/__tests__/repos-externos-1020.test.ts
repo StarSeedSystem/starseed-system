@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { REPO_EXTERNOS_1020, mapearEntradaExterna } from "../repos-externos-1020";
-import { listRepos } from "../packages";
+import { allPackages, listRepos, validateRepoShape } from "../packages";
 
 const paquetes = REPO_EXTERNOS_1020.packages;
 
@@ -64,6 +64,35 @@ describe("REPO_EXTERNOS_1020 · repo builtin de la Ola 1020", () => {
 
   it("el repo está en listRepos() junto a los builtins", () => {
     expect(listRepos().some((repo) => repo.id === "starseed-biblioteca-externa")).toBe(true);
+  });
+
+  it("sus 14 paquetes llegan al catálogo unificado con su repo de origen", () => {
+    const externos = allPackages().filter(
+      (paquete) => paquete.sourceRepoId === "starseed-biblioteca-externa",
+    );
+    expect(externos).toHaveLength(14);
+  });
+
+  it("un catálogo externo con shape `paquetes` usa el mismo mapeador", () => {
+    const repo = validateRepoShape({
+      id: "catalogo-externo-prueba",
+      name: "Catálogo de prueba",
+      paquetes: [
+        {
+          id: "lib-prueba",
+          repo: "owner/repo",
+          nombre: "Prueba",
+          kind: "app",
+          canal: "tags",
+          area: ["mapas"],
+          que_es: "Una entrada de prueba.",
+        },
+      ],
+    });
+    expect(repo?.packages).toHaveLength(1);
+    expect(repo?.packages[0]?.sourceRepoId).toBe("catalogo-externo-prueba");
+    expect(repo?.packages[0]?.payload.githubRepo).toBe("owner/repo");
+    expect(repo?.packages[0]?.payload.externalUrl).toBe("https://github.com/owner/repo");
   });
 
   it("descarta una entrada con repo mal formado en vez de publicar a medias", () => {

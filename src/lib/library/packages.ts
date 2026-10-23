@@ -63,7 +63,12 @@ import { applyTheme as applyThemePack } from "@/lib/design/theme-engine";
 // para que aparezcan en la Biblioteca y el Mezclador los liste como fuentes.
 import { DESIGN_ELEMENTS, type DesignElementKind } from "@/lib/design/design-elements";
 import { REPO_DECISIONES } from "./fuentes-decision";
-import { REPO_EXTERNOS_1020 } from "./repos-externos-1020";
+import {
+  REPO_EXTERNOS_1020,
+  REPO_EXTERNOS_1020_ID,
+  mapearEntradaExterna,
+  type EntradaCatalogo,
+} from "./repos-externos-1020";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -2155,18 +2160,50 @@ function sanitizePackage(raw: unknown, repoId: string): LibraryPackage | null {
   };
 }
 
+/** ¿Trae los campos del catálogo verificado (`que_es`, `repo`, `area`…)? */
+function esEntradaCatalogo(raw: unknown): raw is EntradaCatalogo {
+  if (!raw || typeof raw !== "object") return false;
+  const e = raw as Record<string, unknown>;
+  return (
+    typeof e.id === "string" &&
+    typeof e.repo === "string" &&
+    typeof e.nombre === "string" &&
+    typeof e.kind === "string" &&
+    typeof e.canal === "string" &&
+    typeof e.que_es === "string" &&
+    Array.isArray(e.area) &&
+    e.area.every((a) => typeof a === "string")
+  );
+}
+
+/**
+ * Una entrada del catálogo 1020 (shape `paquetes`) se publica con el MISMO
+ * mapeador que el repo builtin, en vez de duplicar aquí sus reglas.
+ */
+function paqueteDeCatalogo(raw: unknown, repoId: string): LibraryPackage | null {
+  if (!esEntradaCatalogo(raw)) return null;
+  const paquete = mapearEntradaExterna(raw);
+  return paquete ? { ...paquete, sourceRepoId: repoId } : null;
+}
+
 /**
  * Valida el shape LibraryRepo de un JSON externo. Tolerante: descarta
  * paquetes inválidos en vez de rechazar el repo entero. Null si no es repo.
+ * Acepta `packages` (shape LibraryRepo) o `paquetes` (catálogo verificado 1020).
  */
 export function validateRepoShape(data: unknown, url?: string): LibraryRepo | null {
   if (!data || typeof data !== "object") return null;
   const d = data as Record<string, unknown>;
   const id = asString(d.id).trim();
   const name = asString(d.name).trim();
-  if (!id || !name || !Array.isArray(d.packages)) return null;
-  const packages = d.packages
-    .map((p) => sanitizePackage(p, id))
+  const crudos = Array.isArray(d.packages)
+    ? d.packages
+    : Array.isArray(d.paquetes)
+      ? d.paquetes
+      : null;
+  if (!id || !name || !crudos) return null;
+  const packages = crudos
+    .map((p) => sanitizePackage(p, id) ?? paqueteDeCatalogo(p, id))
     .filter((p): p is LibraryPackage => p !== null);
   return { id, name, url: url ?? (asString(d.url) || undefined), builtin: false, packages };
 }
@@ -2257,7 +2294,8 @@ export async function addRepoByUrl(url: string): Promise<InstallResult & { repo?
     repo.id === STARSEED_THEMES_REPO.id ||
     repo.id === STARSEED_DESIGN_ELEMENTS_REPO.id ||
     repo.id === MINE_REPO_ID ||
-    repo.id === FONDO_SHADER_REPO.id
+    repo.id === FONDO_SHADER_REPO.id ||
+    repo.id === REPO_EXTERNOS_1020_ID
   ) {
     return { ok: false, message: `Ese id de repo está reservado (${repo.id}).` };
   }
