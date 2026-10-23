@@ -79,7 +79,7 @@ describe("vikunja · cliente puro", () => {
   it("maneja token inválido sin filtrarlo", async () => {
     const tokenLimpio = "vikunja-token-seguro";
     const tokenOculto = "«oculto»";
-    const { pedir } = espia(responder("Token inválido", false, 401));
+    const { pedir } = espia(responder(`Token inválido: ${tokenLimpio}`, false, 401));
     const resultado = await asegurarProyecto(pedir, BASE, tokenLimpio, entidadRed);
     expect(resultado.ok).toBe(false);
     expect(resultado.motivo).toContain("inválido");

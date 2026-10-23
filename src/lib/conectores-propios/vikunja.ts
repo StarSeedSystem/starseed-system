@@ -59,9 +59,10 @@ async function buscarProyecto(
   base: string,
   token: string,
   titulo: string,
-): Promise<{ status: number; data?: unknown }> {
+): Promise<{ status: number; data?: unknown; error?: string }> {
   const url = `${base}/projects?title=${encodeURIComponent(titulo)}`;
   let respuesta: { ok: boolean; status: number; text(): Promise<string> };
+  let error: string = "";
   try {
     respuesta = await pedir(url, {
       method: "GET",
@@ -69,6 +70,7 @@ async function buscarProyecto(
     });
   } catch {
     respuesta = { ok: false, status: 0, text: async () => "" };
+    error = "Sin conexión a Vikunja.";
   }
   const crudo = await respuesta.text();
   let datos: unknown = null;
@@ -77,9 +79,10 @@ async function buscarProyecto(
       datos = JSON.parse(crudo);
     } catch {
       datos = null;
+      error = crudo.trim();
     }
   }
-  return { status: respuesta.status, data: datos };
+  return { status: respuesta.status, data: datos, error };
 }
 
 async function crearProyecto(
@@ -87,17 +90,23 @@ async function crearProyecto(
   base: string,
   token: string,
   titulo: string,
-): Promise<{ status: number; data?: unknown }> {
+): Promise<{ status: number; data?: unknown; error?: string }> {
   const url = `${base}/projects`;
-  const cuerpo = JSON.stringify({ title: titulo, owner_id: 0 });
-  const respuesta = await pedir(url, {
-    method: "POST",
-    headers: {
-      Authorization: token,
-      "Content-Type": "application/json",
-    },
-    body: cuerpo,
-  });
+  let respuesta: { ok: boolean; status: number; text(): Promise<string> };
+  let error: string = "";
+  try {
+    respuesta = await pedir(url, {
+      method: "POST",
+      headers: {
+        Authorization: token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ title: titulo, owner_id: 0 }),
+    });
+  } catch {
+    respuesta = { ok: false, status: 0, text: async () => "" };
+    error = "Sin conexión a Vikunja.";
+  }
   const crudo = await respuesta.text();
   let datos: unknown = null;
   if (crudo.trim()) {
@@ -105,9 +114,10 @@ async function crearProyecto(
       datos = JSON.parse(crudo);
     } catch {
       datos = null;
+      error = crudo.trim();
     }
   }
-  return { status: respuesta.status, data: datos };
+  return { status: respuesta.status, data: datos, error };
 }
 
 export async function asegurarProyecto(
@@ -130,16 +140,14 @@ export async function asegurarProyecto(
   if (resultadoCreacion.status === 409) {
     return {
       ok: false,
-      motivo: `Ya existe un proyecto con ese título.${resultadoCreacion.status === 409 ? "" : " No se pudo crear uno nuevo."}`,
+      motivo: `ya existe un proyecto con ese título.${resultadoCreacion.status === 409 ? "" : " No se pudo crear uno nuevo."}`,
     };
   }
 
   if (!resultadoCreacion.data) {
-    const mensaje = mapearError(resultadoCreacion.status, "");
-    return {
-      ok: false,
-      motivo: `No se pudo asegurar el proyecto "${tituloDe(entidad)}": ${mensaje}`,
-    };
+    const mensaje = mapearError(resultadoCreacion.status, resultadoCreacion.error || "", token);
+    const motivo = `No se pudo asegurar el proyecto "${tituloDe(entidad)}": ${mensaje}`;
+    return { ok: false, motivo };
   }
 
   const proyecto = resultadoCreacion.data as Record<string, unknown>;
@@ -154,9 +162,10 @@ async function crearTarea(
   proyectoId: string,
   titulo: string,
   descripcion: string,
-): Promise<{ status: number; data?: unknown }> {
+): Promise<{ status: number; data?: unknown; error?: string }> {
   const url = `${base}/projects/${encodeURIComponent(proyectoId)}/tasks`;
   let respuesta: { ok: boolean; status: number; text(): Promise<string> };
+  let error: string = "";
   try {
     respuesta = await pedir(url, {
       method: "POST",
@@ -173,6 +182,7 @@ async function crearTarea(
     });
   } catch {
     respuesta = { ok: false, status: 0, text: async () => "" };
+    error = "Sin conexión a Vikunja.";
   }
   const crudo = await respuesta.text();
   let datos: unknown = null;
@@ -181,9 +191,10 @@ async function crearTarea(
       datos = JSON.parse(crudo);
     } catch {
       datos = null;
+      error = crudo.trim();
     }
   }
-  return { status: respuesta.status, data: datos };
+  return { status: respuesta.status, data: datos, error };
 }
 
 export async function tareaDesdeDecision(
@@ -196,11 +207,9 @@ export async function tareaDesdeDecision(
   const descripcion = `Propuesta ${decision.propuestaId} aprobada el ${decision.aprobadaEn}.${decision.sector ? ` Sector: ${decision.sector}.` : ""}`;
   const resultadoCreacion = await crearTarea(pedir, base, token, proyectoId, decision.titulo, descripcion);
   if (!resultadoCreacion.data) {
-    const mensaje = mapearError(resultadoCreacion.status, "");
-    return {
-      ok: false,
-      motivo: `No se pudo crear la tarea "${decision.titulo}" en el proyecto ${proyectoId}: ${mensaje}`,
-    };
+    const mensaje = mapearError(resultadoCreacion.status, resultadoCreacion.error || "", token);
+    const motivo = `No se pudo crear la tarea "${decision.titulo}" en el proyecto ${proyectoId}: ${mensaje}`;
+    return { ok: false, motivo };
   }
 
   const tarea = resultadoCreacion.data as Record<string, unknown>;
@@ -208,10 +217,16 @@ export async function tareaDesdeDecision(
   return { ok: true, tarea: { id, titulo: decision.titulo } };
 }
 
-function mapearError(status: number, _texto: string): string {
-  if (status === 401) return "Token de Vikunja inválido o ausente.";
+function mapearError(status: number, texto: string, token: string): string {
+  if (status === 401) {
+    return `Token de Vikunja inválido o ausente.: ${limpiarToken(texto.slice(0, 300), token)}`;
+  }
   if (status === 404) return "Error HTTP 404.";
-  if (status === 409) return "Ya existe una tarea con ese título.";
+  if (status === 409) return "ya existe un proyecto con ese título.";
   if (status >= 500) return "El servidor Vikunja falló.";
   return `Error HTTP ${status}.`;
+}
+
+function limpiarToken(texto: string, token: string): string {
+  return token ? texto.split(token).join("«oculto»") : texto;
 }
