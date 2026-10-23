@@ -47,9 +47,7 @@ expect(b.desconectar.confirmar).toBeFalsy();
     it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" }, relevoActivo: true });
 
-    it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
-        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } });
->>>>>>> 5eeca4267 (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
+    it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente", () => {>>> 5eeca4267 (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
     });
@@ -679,6 +677,3 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         await waitFor(() => expect(enviarOrden).toHaveBeenCalledWith("revisar_bloqueadas", "lider"));
     });
 });
-=======
-});
->>>>>>> 5eeca4267 (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
