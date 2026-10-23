@@ -54,7 +54,6 @@ import {
   allPackages,
   getInstalledMap,
   install,
-  isInstalled,
   LIBRARY_EVENT,
   type LibraryPackage,
 } from "./packages";
@@ -68,7 +67,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 15;
+export const SEED_VERSION = 16;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -307,6 +306,28 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   "iatool-openmanus",
   "iatool-penpot",
   "iatool-opencut",
+  // ── (SEED_VERSION 16 · Ola 1020S) LA 2.ª TANDA DE REPOS, SOLO LAS SIEMPRE.
+  //    De las 14 entradas de config/repos-libreria-1020b.json, se siembran las
+  //    7 con `preinstalar: "siempre"`: instalar cada una SOLO registra su ficha,
+  //    su enlace o su conector (servidor levantado por Alex en el A1/Mac y
+  //    endpoint pegado a mano en el Hub). Cero descarga, cero ejecución de
+  //    código, cero ruta abierta y cero clave durante la siembra. Las «manual»
+  //    (RuView, tirreno, DigUp, Moli, OpenShell, Coucou, dbx) NO entran: ejecutan
+  //    código, tocan datos sensibles o se instalan en la máquina de Alex.
+  //    · lib-vikunja  → tareas/proyectos por grupo, comunidad, página o cerebro.
+  //    · lib-celld    → ficha y seguimiento (aún v0.1.0; sin TLS entre nodos).
+  //    · lib-sentry   → ficha; Genesis ya usa el formato de sus eventos.
+  //    · lib-windmill → conector de flujos; no sustituye a Genesis.
+  //    · lib-metabase → conector de analítica sobre réplica de lectura.
+  //    · lib-trilium  → conector de notas jerárquicas por ETAPI.
+  //    · lib-politica-privacidad → enlace al generador de avisos de privacidad.
+  "lib-vikunja",
+  "lib-celld",
+  "lib-sentry",
+  "lib-windmill",
+  "lib-metabase",
+  "lib-trilium",
+  "lib-politica-privacidad",
 ];
 
 /**
@@ -372,6 +393,49 @@ function isDownloadablePackage(pkg: LibraryPackage): boolean {
   return !!sourceId && (DOWNLOADABLE_SOURCES as readonly string[]).includes(sourceId);
 }
 
+/** Entrada mínima del catálogo para decidir la siembra, sin efectos. */
+export interface SeedCatalogEntry {
+  id: string;
+  /** `true` si el paquete aún no tiene efecto real (no se siembra). */
+  comingSoon?: boolean;
+  /** `true` si instalar descargaría un modelo o binario (siempre opt-in). */
+  downloadable?: boolean;
+}
+
+export interface SeedSelectionInput {
+  /** Versión de siembra guardada en el dispositivo/cuenta. */
+  currentVersion: number;
+  /** Versión objetivo de esta siembra (SEED_VERSION). */
+  seedVersion: number;
+  recommendedIds: readonly string[];
+  catalog: readonly SeedCatalogEntry[];
+  /** Ids ya ofrecidos por versiones anteriores (respetan desinstalaciones). */
+  alreadyOffered: readonly string[];
+  /** Ids que la persona tiene instalados ahora mismo. */
+  installedIds: readonly string[];
+}
+
+/**
+ * Decide, SIN tocar disco, red ni localStorage, qué ids hay que sembrar.
+ * Mismas reglas que la siembra real: versión nueva, no ofrecido antes, no
+ * instalado, presente en el catálogo y con efecto seguro (ni `comingSoon` ni
+ * descargable). Devuelve `[]` si la versión ya está sembrada.
+ */
+export function selectSeedIds(input: SeedSelectionInput): string[] {
+  if (input.currentVersion >= input.seedVersion) return [];
+  const byId = new Map(input.catalog.map((p) => [p.id, p] as const));
+  const offered = new Set(input.alreadyOffered);
+  const installed = new Set(input.installedIds);
+  const out: string[] = [];
+  for (const id of input.recommendedIds) {
+    if (offered.has(id) || installed.has(id)) continue;
+    const pkg = byId.get(id);
+    if (!pkg || pkg.comingSoon || pkg.downloadable) continue;
+    out.push(id);
+  }
+  return out;
+}
+
 /* ─────────────────────── Siembra idempotente ─────────────────────── */
 
 /**
@@ -396,18 +460,23 @@ export async function ensureDefaultsSeeded(): Promise<{ seeded: boolean; install
   const installedNow = getInstalledMap();
   const justInstalled: string[] = [];
 
-  // ── 1) Auto-instalar los paquetes recomendados que:
+  // ── 1) Auto-instalar los paquetes recomendados que la decisión pura deja:
   //       · existan en el catálogo,
   //       · NO estén ya instalados (respeta lo que el usuario tenga),
   //       · NO se hayan ofrecido antes (respeta desinstalaciones deliberadas),
   //       · NO sean descargables ni comingSoon (defensa extra).
-  for (const id of RECOMMENDED_PACKAGE_IDS) {
-    if (alreadyOffered.has(id)) continue;      // ya se ofreció en una versión previa
+  const plannedIds = selectSeedIds({
+    currentVersion: state.version,
+    seedVersion: SEED_VERSION,
+    recommendedIds: RECOMMENDED_PACKAGE_IDS,
+    catalog: catalog.map((p) => ({ id: p.id, comingSoon: p.comingSoon, downloadable: isDownloadablePackage(p) })),
+    alreadyOffered: Array.from(alreadyOffered),
+    installedIds: Object.keys(installedNow),
+  });
+
+  for (const id of plannedIds) {
     const pkg = byId.get(id);
     if (!pkg) continue;                         // el catálogo cambió: no rompemos
-    if (pkg.comingSoon) continue;
-    if (isDownloadablePackage(pkg)) continue;   // opt-in siempre
-    if (id in installedNow || isInstalled(id)) continue; // ya instalado por el usuario
 
     try {
       const res = await install(pkg);           // aplica su efecto real y lo registra
