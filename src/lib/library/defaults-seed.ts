@@ -341,7 +341,7 @@ export interface SeedPlanInput {
  * catálogo, no se ofrecieron antes y no están instalados. Al no volver a
  * ofrecer lo ya sembrado, una desinstalación deliberada nunca se deshace.
  */
-export function planSeed(input: SeedPlanInput): string[] {
+function planSeed(input: SeedPlanInput): string[] {
   const enCatalogo = new Set(input.catalogIds);
   const yaOfrecidos = new Set(input.alreadyOfferedIds);
   const yaInstalados = new Set(input.installedIds);
@@ -349,6 +349,10 @@ export function planSeed(input: SeedPlanInput): string[] {
     (id) => enCatalogo.has(id) && !yaOfrecidos.has(id) && !yaInstalados.has(id),
   );
 }
+
+// Se exporta para las pruebas de la decisión pura; la siembra real la usa
+// dentro de este mismo módulo, en ensureDefaultsSeeded().
+export { planSeed };
 
 /**
  * Fuentes gratuitas del catálogo Astraura que garantizamos NO deshabilitadas.
