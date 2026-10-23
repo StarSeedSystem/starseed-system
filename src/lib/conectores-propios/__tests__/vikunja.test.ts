@@ -66,6 +66,22 @@ describe("vikunja · cliente puro", () => {
     }
   });
 
+  it("un 409 al crear el proyecto (tras buscar sin hallarlo) falla sin lanzar", async () => {
+    const llamadas: string[] = [];
+    const pedir: Pedir = async (url, init) => {
+      llamadas.push(init.method);
+      if (init.method === "PUT") return { ok: false, status: 409, text: async () => "" };
+      return { ok: true, status: 200, text: async () => "[]" };
+    };
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(llamadas).toEqual(["GET", "PUT"]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toContain("409");
+      expect(r.motivo).not.toContain(TOKEN);
+    }
+  });
+
   it("un fallo de red no lanza", async () => {
     const pedir: Pedir = async () => {
       throw new Error("ECONNREFUSED");
