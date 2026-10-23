@@ -135,8 +135,10 @@ describe("AjustesImaginacion", () => {
         montar();
         fireEvent.click(await screen.findByRole("button", { name: "Por franjas" }));
         expect(screen.getByLabelText("Franjas horarias")).toBeInTheDocument();
+        expect(screen.getByText("Todos los días · 02:00–06:00")).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: "lunes" }));
         expect(screen.getByRole("button", { name: "lunes" })).toHaveAttribute("aria-pressed", "false");
+        expect(screen.getByText("domingo, martes, miércoles, jueves, viernes, sábado · 02:00–06:00")).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: /Añadir franja/ }));
         expect(screen.getByLabelText("Días de la franja 2")).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: "Quitar franja 2" }));

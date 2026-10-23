@@ -289,6 +289,7 @@ export function AjustesImaginacion({ compacto = false }: AjustesImaginacionProps
                         <ul className="mt-3 space-y-2" aria-label="Franjas horarias">
                             {ajustes.horario.franjas.map((franja, índice) => (
                                 <li key={índice} className="rounded-lg border border-white/10 bg-white/5 p-2">
+                                    <p className="mb-1 font-mono text-[11px] text-white/50">{textoFranja(franja)}</p>
                                     <div role="group" aria-label={`Días de la franja ${índice + 1}`} className="flex flex-wrap gap-1">
                                         {DIAS.map((letra, dia) => (
                                             <button
