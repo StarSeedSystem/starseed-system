@@ -63,6 +63,10 @@ import { applyTheme as applyThemePack } from "@/lib/design/theme-engine";
 // para que aparezcan en la Biblioteca y el Mezclador los liste como fuentes.
 import { DESIGN_ELEMENTS, type DesignElementKind } from "@/lib/design/design-elements";
 import { REPO_DECISIONES } from "./fuentes-decision";
+// Catálogo verificado de la Ola 1020 (14 publicaciones autoactualizables del
+// visionario): datos reales que este módulo NO cambia. Contrato:
+// architecture/repos-libreria-1020.md.
+import catalogo1020 from "../../../config/repos-libreria-1020.json";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -762,6 +766,78 @@ export const FONDO_SHADER_REPO: LibraryRepo = {
   name: "Fondos con Shaders",
   builtin: true,
   packages: buildFondosShadersPackages(),
+};
+
+/* ═══════════════ REPO BUILTIN «starseed-biblioteca-externa» (Ola 1020) ═══════════════ */
+/**
+ * Biblioteca externa: las 14 publicaciones autoactualizables del visionario
+ * (contrato: architecture/repos-libreria-1020.md; catálogo verificado
+ * config/repos-libreria-1020.json — datos reales que aquí NO se cambian).
+ * Honesto: instalar NO descarga ni lanza servidores; `available-updates.ts`
+ * autobusca la versión upstream real por el canal de cada una
+ * (`payload.externalUrl` + `payload.githubRepo` + `payload.canal`), sin motor
+ * nuevo. Ninguna tiene todavía efecto de instalación real en el OS
+ * (`comingSoon: true`), y `zhaoxuya520/reverse-skill` queda EXCLUIDA por
+ * seguridad (no está en un catálogo que este módulo mapea tal cual).
+ */
+
+/** Una entrada del catálogo (los campos opcionales varían por publicación). */
+interface EntradaCatalogo1020 {
+  id: string;
+  repo: string;
+  nombre: string;
+  kind: string;
+  canal: string;
+  que_es: string;
+  aviso?: string;
+  licencia?: string;
+  area?: string[];
+  skillId?: string;
+  assets?: boolean | string[];
+}
+
+/** Icono por kind (el catálogo declara app, ai-source y function). */
+function iconoExterno1020(kind: string): string {
+  if (kind === "ai-source") return "BrainCircuit";
+  if (kind === "function") return "Boxes";
+  return "AppWindow";
+}
+
+/** Mapea una entrada del catálogo a LibraryPackage (contrato §5, tarea 1). */
+function paqueteExterno1020(entrada: EntradaCatalogo1020): LibraryPackage {
+  return {
+    id: entrada.id,
+    kind: entrada.kind as PackageKind,
+    name: entrada.nombre,
+    description: entrada.que_es + (entrada.aviso ? " — " + entrada.aviso : ""),
+    icon: iconoExterno1020(entrada.kind),
+    tags: [...(entrada.area ?? []), entrada.canal, ...(entrada.licencia ? ["lic"] : [])],
+    version: "1.0.0",
+    author: entrada.repo.split("/")[0],
+    sourceRepoId: "starseed-biblioteca-externa",
+    free: true,
+    comingSoon: true,
+    payload: {
+      externalUrl: `https://github.com/${entrada.repo}`,
+      githubRepo: entrada.repo,
+      canal: entrada.canal,
+      area: entrada.area ?? [],
+      licencia: entrada.licencia ?? "",
+      assets: entrada.assets ?? false,
+      ...(entrada.skillId ? { skillId: entrada.skillId } : {}),
+    },
+  };
+}
+
+const PAQUETES_EXTERNOS_1020: LibraryPackage[] = catalogo1020.paquetes.map(
+  (entrada) => paqueteExterno1020(entrada as EntradaCatalogo1020),
+);
+
+export const REPO_EXTERNOS_1020: LibraryRepo = {
+  id: "starseed-biblioteca-externa",
+  name: "Biblioteca externa",
+  builtin: true,
+  packages: PAQUETES_EXTERNOS_1020,
 };
 const LABS_PACKAGES: LibraryPackage[] = [
   /* ── SmolLM3 en el navegador (WebGPU · sin clave) ── */
@@ -2216,7 +2292,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO, REPO_EXTERNOS_1020];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
