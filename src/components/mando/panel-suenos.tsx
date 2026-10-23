@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * Panel «Sueños profundos» (Procesos de Genesis · 2026-09-29)
+ * Panel «Imaginación profunda» (Procesos de Genesis · 2026-09-29)
  * ─────────────────────────────────────────────────────────────────────────────
- * Alex: «a través de Genesis orquesta una flota de agentes de sueños profundos que
+ * Alex: «a través de Genesis orquesta una flota de agentes de imaginación profunda que
  * pueda llevar varias horas, donde analicen a detalle cada área de todo StarSeed OS».
  *
  * Qué enseña, todo leído del disco de esta máquina por `GET /api/mando/suenos` (sin Supabase):
- *   · la rejilla área × lente: estado de cada sueño (pendiente · soñando · por verificar ·
+ *   · la rejilla área × lente: estado de cada sesión de imaginación (pendiente · imaginando · por verificar ·
  *     verificado · ajustado · rechazado · fallo), proveedor, tokens estimados y quién lo verificó;
  *   · las recomendaciones ya ordenadas por el director (capacidad primero, verificado > ajustado
  *     > sin verificar), y la cola propuesta con «Abrir en Diseñador» (NO se lanza sola);
@@ -48,7 +48,7 @@ const SONDEO_MS = 30_000;
 
 const ETIQUETA: Record<EstadoSueno, string> = {
     pendiente: "pendiente",
-    analizando: "soñando",
+    analizando: "imaginando",
     informe: "por verificar",
     verificado: "verificado",
     ajustado: "ajustado",
@@ -93,10 +93,10 @@ function useSuenos(fecha: string | undefined) {
                 setDatos(d.datos);
                 setError(null);
             } else {
-                setError(d.error ?? `Los sueños no respondieron (HTTP ${r.status}).`);
+                setError(d.error ?? `La imaginación no respondió (HTTP ${r.status}).`);
             }
         } catch {
-            if (vivo.current) setError("No se pudieron leer los sueños: ¿está Genesis en marcha?");
+            if (vivo.current) setError("No se pudieron leer la imaginación: ¿está Genesis en marcha?");
         } finally {
             if (vivo.current) setCargando(false);
         }
@@ -200,7 +200,7 @@ function Ficha({ fila, sesion, onCerrar }: { fila: FilaSueno; sesion: string; on
     const informe = `starseed_memory_root/dream/profundo/${sesion}/${fila.area}--${fila.lente}.md`;
     const orden = `python3 scripts/puente/suenos.py veredicto ${fila.id} --estado verificado --nota "…" --por claude-<modelo> --fecha ${sesion}`;
     return (
-        <article className="mt-3 rounded-lg border border-violet-500/30 bg-violet-950/20 p-3 text-[11px] text-white/75" aria-label={`Ficha del sueño ${fila.id}`}>
+        <article className="mt-3 rounded-lg border border-violet-500/30 bg-violet-950/20 p-3 text-[11px] text-white/75" aria-label={`Ficha de imaginación ${fila.id}`}>
             <header className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
                 <h4 className="font-semibold text-white">
                     {fila.id} · {fila.area} × {fila.lente}
@@ -299,10 +299,10 @@ function DialogoLanzar({
     };
     const tareas = selA.size * selL.size;
     return (
-        <form onSubmit={enviar} className="mt-3 rounded-xl border border-violet-400/30 bg-black/40 p-3 text-[11px] text-white/80" aria-label="Lanzar sueños profundos">
+        <form onSubmit={enviar} className="mt-3 rounded-xl border border-violet-400/30 bg-black/40 p-3 text-[11px] text-white/80" aria-label="Lanzar imaginación profunda">
             <header className="mb-2 flex items-center justify-between">
                 <h4 className="flex items-center gap-2 text-[12px] font-semibold text-white">
-                    <Rocket className="h-3.5 w-3.5 text-violet-300" aria-hidden /> Lanzar sueños profundos
+                    <Rocket className="h-3.5 w-3.5 text-violet-300" aria-hidden /> Lanzar imaginación profunda
                 </h4>
                 <button type="button" onClick={alCerrar} className="cursor-pointer rounded p-1 text-white/60 transition-colors duration-200 hover:bg-white/10" aria-label="Cerrar">
                     <X className="h-3.5 w-3.5" aria-hidden />
@@ -318,7 +318,7 @@ function DialogoLanzar({
                     value={horas}
                     onChange={(e) => setHoras(Number(e.target.value))}
                     className="w-48 cursor-pointer accent-violet-400"
-                    aria-label="Horas que debe durar el sueño"
+                    aria-label="Horas que debe durar la sesión de imaginación"
                 />
                 <span className="tabular-nums">{horas === 0 ? "sin pausa (lo que dejen los cupos)" : `${String(horas).replace(".", ",")} h`}</span>
             </label>
@@ -345,8 +345,8 @@ function DialogoLanzar({
                 </div>
             </fieldset>
             <p className="mt-2 text-white/50">
-                {tareas} sueños con la flota GRATUITA (cero crédito de Claude). La seguridad es privada: se queda en esta Mac.
-                Si ya hay un orquestador que sabe soñar, se le añaden; si es uno viejo, no se lanza otro.
+                {tareas} sesiones de imaginación con la flota GRATUITA (cero crédito de Claude). La seguridad es privada: se queda en esta Mac.
+                Si ya hay un orquestador que sabe imaginar, se le añaden; si es uno viejo, no se lanza otro.
             </p>
             <div className="mt-2 flex justify-end gap-2">
                 <button type="submit" disabled={ocupado || tareas === 0} className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-violet-300/50 bg-violet-500/20 px-3 py-1 text-white transition-colors duration-200 hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-50">
@@ -431,7 +431,7 @@ export function PanelSuenos() {
                 <div>
                     <h3 id="titulo-suenos" className="flex items-center gap-2 text-sm font-semibold text-white">
                         <Moon className="h-4 w-4 text-indigo-300" aria-hidden />
-                        Sueños profundos
+                        Imaginación profunda
                         {sesion ? <span className="text-[11px] font-normal text-white/50">· {sesion.sesion}</span> : null}
                     </h3>
                     <p className="text-[11px] text-white/50">
@@ -444,7 +444,7 @@ export function PanelSuenos() {
                             value={sesion?.sesion ?? ""}
                             onChange={(e) => setFecha(e.target.value || undefined)}
                             className="cursor-pointer rounded-md border border-white/10 bg-black/40 px-2 py-1 text-white/80"
-                            aria-label="Sesión de sueños"
+                            aria-label="Sesión de imaginación"
                         >
                             {[...(datos?.sesiones ?? [])].reverse().map((s) => <option key={s} value={s}>{s}</option>)}
                         </select>
@@ -458,7 +458,7 @@ export function PanelSuenos() {
                     <button type="button" onClick={() => void verInforme()} disabled={!sesion?.informeFinal} className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-white/80 transition-colors duration-200 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50">
                         <FileText className="h-3 w-3" aria-hidden /> {informe !== null ? "Ocultar informe" : "INFORME.md"}
                     </button>
-                    <button type="button" onClick={() => void recargar()} className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-white/70 transition-colors duration-200 hover:bg-white/5" aria-label="Actualizar sueños">
+                    <button type="button" onClick={() => void recargar()} className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-white/70 transition-colors duration-200 hover:bg-white/5" aria-label="Actualizar imaginación">
                         <RefreshCw className={`h-3 w-3 ${cargando ? "animate-spin" : ""}`} aria-hidden />
                     </button>
                 </div>
@@ -473,7 +473,7 @@ export function PanelSuenos() {
             {sesion ? (
                 <>
                     <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/60">
-                        <span>{sesion.total} sueños</span>
+                        <span>{sesion.total} sesiones de imaginación</span>
                         {(Object.keys(ETIQUETA) as EstadoSueno[]).filter((e) => c[e]).map((e) => (
                             <span key={e}>{c[e]} {ETIQUETA[e]}</span>
                         ))}
@@ -485,7 +485,7 @@ export function PanelSuenos() {
                     </p>
                     <div className="mt-2 overflow-x-auto">
                         <table className="w-full border-separate border-spacing-0 text-[10px]">
-                            <caption className="sr-only">Rejilla de sueños por área y lente</caption>
+                            <caption className="sr-only">Rejilla de imaginación por área y lente</caption>
                             <thead>
                                 <tr>
                                     <th scope="col" className="px-1 py-1 text-left font-medium text-white/50">Área</th>
@@ -546,7 +546,7 @@ export function PanelSuenos() {
                 </>
             ) : datos ? (
                 <p className="mt-3 text-[11px] text-white/50">
-                    Aún no hay ninguna sesión de sueños en esta máquina. «Lanzar…» o, en la terminal: <code>python3 scripts/puente/suenos.py lanzar --horas 3</code>.
+                    Aún no hay ninguna sesión de imaginación profunda en esta máquina. «Lanzar…» o, en la terminal: <code>python3 scripts/puente/suenos.py lanzar --horas 3</code>.
                 </p>
             ) : null}
 

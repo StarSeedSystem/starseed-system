@@ -33,7 +33,7 @@ const datos = {
         propuesta: { nombre: "suenos-propuesta-2026-09-29", tareas: 3 },
         consolidado: {
             generado: "2026-09-29 13:00:00",
-            resumen: "Sueños profundos 2026-09-29: 1 informe.",
+            resumen: "Imaginación profunda 2026-09-29: 1 informe.",
             propuestas: 3,
             cuentas: {},
             top: [{ titulo: "Frenar el sondeo de la malla", area: "voz", lente: "rendimiento-consumo", archivo: "src/lib/voces/motor.ts", linea: 40, impacto: 5, esfuerzo: 1, confianza: 0.9, verificacion: "verificado", por: "claude-opus-5.5", capacidad: true, privado: false, puntuacion: 4.5, tarea: "SA09299", apariciones: 2, yaEncargada: false, seccion: "riesgo", propuesta: "Frenar el sondeo", accionable: true, prioridad: "alta", jev: "alta · 0.93 (local)" }],
@@ -59,7 +59,7 @@ describe("PanelSuenos", () => {
         servir();
         render(<PanelSuenos />);
         expect(await screen.findByText("Frenar el sondeo de la malla")).toBeInTheDocument();
-        expect(screen.getByRole("table", { name: /rejilla de sueños/i })).toBeInTheDocument();
+        expect(screen.getByRole("table", { name: /rejilla de imaginación/i })).toBeInTheDocument();
         expect(screen.getByText("claude-opus-5.5 · 48 k")).toBeInTheDocument();
         expect(screen.getByLabelText("privado")).toBeInTheDocument();
         expect(screen.getByText(/No se ha lanzado/)).toBeInTheDocument();
@@ -67,12 +67,12 @@ describe("PanelSuenos", () => {
         expect(screen.getByRole("button", { name: /Abrir en Diseñador/ })).toBeInTheDocument();
     });
 
-    it("la ficha de un sueño trae la orden de veredicto para el supervisor", async () => {
+    it("la ficha de una sesión de imaginación trae la orden de veredicto para el supervisor", async () => {
         servir();
         render(<PanelSuenos />);
         const celda = await screen.findByTitle(/SA092910/);
         fireEvent.click(celda);
-        expect(screen.getByRole("article", { name: /Ficha del sueño SA092910/ })).toBeInTheDocument();
+        expect(screen.getByRole("article", { name: /Ficha de imaginación SA092910/ })).toBeInTheDocument();
         expect(screen.getByText("lectura 2/9 · llm7/gpt-oss")).toBeInTheDocument();
     });
 
