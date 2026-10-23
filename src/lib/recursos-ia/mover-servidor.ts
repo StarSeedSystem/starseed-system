@@ -16,7 +16,7 @@ import { promisify } from "node:util";
 import type { VolumenDetectado } from "./deteccion-tipos";
 
 const statfsAsync = promisify(statfs);
-const GIB = 1024 ** 3;
+export const GIB = 1024 ** 3;
 const MARGEN_ESPACIO = 0.1; // 10 %
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
@@ -159,13 +159,20 @@ export function cabeConMargen(libreBytes: number, necesarioBytes: number): { cab
  * PURA: solo strings.
  */
 export function normalizarRuta(ruta: string): string {
-    return ruta
-        .split("/")
-        .filter((p) => p && p !== ".")
-        .reduce((acc, p) => {
-            if (p === "..") return acc.split("/").slice(0, -1).join("/") || "/";
-            return `${acc}/${p}`;
-        }, "");
+    const esAbsoluta = ruta.startsWith("/");
+    const partes = ruta.split("/").filter((p) => p && p !== ".");
+    const res: string[] = [];
+    for (const p of partes) {
+        if (p === "..") {
+            if (res.length > 0) res.pop();
+            else if (!esAbsoluta) res.push("..");
+        } else {
+            res.push(p);
+        }
+    }
+    let out = res.join("/");
+    if (esAbsoluta) out = "/" + out;
+    return out || (esAbsoluta ? "/" : ".");
 }
 
 /**
@@ -195,15 +202,16 @@ export async function copiarArchivoConSha(
     // Verificar si existe el destino
     try {
         const statsDestino = await stat(destino);
-        if (statsDestino.isFile() && !sobrescribir) {
-            throw new Error(`El destino ya existe y sobrescribir=false: ${destino}`);
-        }
-        if (statsDestino.isDirectory()) {
+        if (statsDestino.isFile()) {
+            if (!sobrescribir) {
+                throw new Error(`El destino ya existe y sobrescribir=false: ${destino}`);
+            }
+        } else if (statsDestino.isDirectory()) {
             throw new Error(`El destino es una carpeta, no un archivo: ${destino}`);
         }
     } catch (e: unknown) {
         const err = e as NodeJS.ErrnoException;
-        if (err.code !== "ENOENT" && !err.message?.includes("sobrescribir")) throw e;
+        if (err.code !== "ENOENT") throw e;
     }
 
     // Asegurar carpeta padre
@@ -441,7 +449,7 @@ export async function moverPesos(
         ok: true,
         destino: destinoFinal,
         bytesCopiados,
-        sha256Calculado,
+        sha256Calculado: shaCalculado,
         duracionMs: Date.now() - inicio,
         avisos,
     };
