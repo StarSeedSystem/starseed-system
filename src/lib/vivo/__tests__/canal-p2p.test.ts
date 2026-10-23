@@ -256,4 +256,46 @@ describe("canal P2P de la escena", () => {
         expect(abrirCanalEscenaP2P("", { miId: "a", señal: LA_SEÑAL })).toBeNull();
         expect(abrirCanalEscenaP2P("t", { miId: "", señal: LA_SEÑAL })).toBeNull();
     });
+
+    it("con contexto válido conserva el tema de la sala", () => {
+        const { crearMalla } = centro();
+        const canal = abrirCanalEscenaP2P("escena3d-test", { miId: "a", señal: LA_SEÑAL, crearMalla });
+        expect(canal?.tema).toBe("escena3d-test");
+        canal?.cerrar();
+    });
+
+    it("cada on* devuelve su baja: tras desuscribir, ese oyente ya no recibe nada", async () => {
+        const r = respaldoFalso();
+        const { abrir } = centro();
+        const [a, b] = await abrir(["a", "b"]);
+
+        const mensajes = vi.fn();
+        b.onMensaje(mensajes)();
+        a.enviar("pose", { cabeza: [1] });
+        expect(mensajes).not.toHaveBeenCalled();
+
+        const presencias = vi.fn();
+        b.onPresencia(presencias)();
+        a.publicarPresencia({ nombre: "Ana" });
+        expect(presencias).not.toHaveBeenCalled();
+
+        const suscripciones = vi.fn();
+        a.onSuscrito(suscripciones)();
+        await abrir(["c"], { pares: ["a"] });
+        expect(suscripciones).not.toHaveBeenCalled();
+
+        const filas = vi.fn();
+        const conRespaldo = (await abrir(["d"], { respaldo: () => r.c }))[0];
+        conRespaldo.onFila(filas)();
+        r.emitirFila(1);
+        expect(filas).not.toHaveBeenCalled();
+    });
+
+    it("cerrar() repetido no explota y deja el canal cerrado", async () => {
+        const { abrir } = centro();
+        const [a] = await abrir(["a"]);
+        expect(() => { a.cerrar(); a.cerrar(); }).not.toThrow();
+        expect(a.suscrito()).toBe(false);
+        expect(a.modo()).toBe("p2p");
+    });
 });
