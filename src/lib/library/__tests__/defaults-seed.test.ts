@@ -40,6 +40,10 @@ describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
     expect(deLaTanda.sort()).toEqual([...SIEMPRE_2A].sort());
   });
 
+  it("cada id recomendado aparece una sola vez (sin duplicados)", () => {
+    expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
+  });
+
   it("no siembra ninguna «manual»", () => {
     for (const id of MANUAL_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).not.toContain(id);
@@ -96,6 +100,18 @@ describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
       installedIds: ["lib-windmill"],
     });
     expect(plan).toEqual(["lib-vikunja"]);
+  });
+
+  it("un id recomendado que no está en el catálogo no se siembra", () => {
+    const plan = selectSeedIds({
+      currentVersion: 0,
+      seedVersion: SEED_VERSION,
+      recommendedIds: ["lib-celld", "iatool-inexistente"],
+      catalog: catalogo(["lib-celld"]),
+      alreadyOffered: [],
+      installedIds: [],
+    });
+    expect(plan).toEqual(["lib-celld"]);
   });
 
   it("una versión ya sembrada no hace nada", () => {
