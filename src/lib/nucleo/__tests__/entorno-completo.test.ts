@@ -82,6 +82,15 @@ describe("duplicarEntorno", () => {
     c.volumenes[0].raiz = "/otra";
     expect(o.volumenes[0].raiz).toBe("/datos");
   });
+
+  it("conserva el contenido de ajustes y volúmenes al duplicar", () => {
+    const o = entorno({ "appearance-config-v2": '{"tema":"oscuro"}' });
+    const c = duplicarEntorno(o, "Copia");
+    expect(c.ajustes).toEqual(o.ajustes);
+    expect(c.ajustes).not.toBe(o.ajustes);
+    expect(c.volumenes).toEqual(o.volumenes);
+    expect(c.volumenes).not.toBe(o.volumenes);
+  });
 });
 
 describe("diferencia", () => {
