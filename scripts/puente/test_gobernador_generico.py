@@ -1,6 +1,16 @@
 """Tests for governor_generico.py — PURE FUNCTIONS."""
 import os
+import sys
 import unittest
+
+# POR QUÉ este arranque: scripts/puente tiene `__init__.py`, así que pytest (modo «prepend»)
+# mete en sys.path `scripts/`, no `scripts/puente/`, y `python3 -m unittest
+# scripts/puente/test_gobernador_generico.py` tampoco lo añade. En la rama de nube
+# d01d40d17439 la recogida moría con «ModuleNotFoundError: No module named
+# 'gobernador_generico'» (solo el conftest.py de COL1012Md-d1 tapaba pytest, nunca unittest).
+# Lo mismo que unittest hace solo con `discover` desde la carpeta, lo hacemos aquí una vez.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from gobernador_generico import (
     de_meminfo, de_sysctl, de_bateria_linux, de_pmset, 
     herramientas, medir, _version_a_numero,
@@ -160,6 +170,15 @@ class TestDePmset(unittest.TestCase):
         resultado = de_pmset(texto)
         self.assertEqual(resultado["nivel"], 1.0)
         self.assertTrue(resultado["cargando"])  # charged se considera cargando
+
+    def test_pmset_no_cargando(self):
+        # Salida real de macOS con la pila al 45 % enchufada pero sin cargarse: pmset dice
+        # «not charging» (no «discharging»), y eso no puede confundirse con batería cargando.
+        texto = """Now drawing from 'AC Power'
+ -InternalBattery-     45%; not charging; 1:30 remaining"""
+        resultado = de_pmset(texto)
+        self.assertEqual(resultado["nivel"], 0.45)
+        self.assertFalse(resultado["cargando"])
     
     def test_pmset_sin_porcentaje(self):
         texto = """Now drawing from 'Battery Power'
@@ -243,6 +262,21 @@ class TestHerramientas(unittest.TestCase):
         }
         resultado = herramientas(versiones)
         self.assertTrue(resultado["node"])  # Debería ser True
+
+    def test_herramientas_node_un_menor_y_un_mayor(self):
+        # El mínimo es 20.19: la 20.18 (mismo major, minor menor) NO vale,
+        # y una major mayor sí, aunque sus componentes vayan solos (v21).
+        versiones = {"git": "2.40.1", "python3": "3.11.2", "opencode": "0.1.0"}
+        self.assertFalse(herramientas(dict(versiones, node="v20.18.0"))["node"])
+        self.assertFalse(herramientas(dict(versiones, node="v20.19.0-beta"))["node"])
+        self.assertTrue(herramientas(dict(versiones, node="v21.0.0"))["node"])
+        self.assertTrue(herramientas(dict(versiones, node="v22.11.5"))["node"])
+
+    def test_herramientas_python3_necesita_la_rama_3(self):
+        # «python3» con versión 2.x no es python3: el núcleo lo exige (≥ 3.0).
+        versiones = {"git": "2.40.1", "node": "v20.19.0", "opencode": "0.1.0"}
+        self.assertFalse(herramientas(dict(versiones, python3="2.7.18"))["python3"])
+        self.assertTrue(herramientas(dict(versiones, python3="3.0.0"))["python3"])
     
     def test_herramientas_faltantes(self):
         versiones = {
@@ -306,6 +340,37 @@ class TestMedir(unittest.TestCase):
         resultado = medir()
         so_validos = {"macos", "linux", "android", "wsl", "windows", "otro"}
         self.assertIn(resultado["so"], so_validos)
+
+
+class TestMedirAlimentaColmena(unittest.TestCase):
+    """El propósito real de medir(): que colmena_logica.capacidad_contenedor coma su salida.
+
+    Núcleo (COL1012Ld): la medida del aparato es un CANDIDATO que solo vale si el
+    núcleo puro ya probado la entiende. Aquí no se copia su lógica: se invoca."""
+
+    @classmethod
+    def setUpClass(cls):
+        # El bootstrap de arriba ya dejó esta carpeta en sys.path: colmena_logica está al lado.
+        import colmena_logica as core  # noqa: E402
+        cls.core = core
+
+    def test_la_medida_de_este_aparato_entrar_en_capacidad(self):
+        r = self.core.capacidad_contenedor(medir())
+        self.assertIn("apto", r)
+        self.assertIn("agentes", r)
+        self.assertIn("motivo", r)
+        self.assertIn("falta", r)
+        self.assertIsInstance(r["agentes"], int)
+        self.assertGreaterEqual(r["agentes"], 0)
+
+    def test_sin_herramientas_el_veredicto_es_lo_que_falta(self):
+        # La medida de verdad de capacidad: sin git/node/python3/opencode no hay
+        # vertedero, y el motivo lo dice en español, no crashea con la salida de medir().
+        cap = dict(medir(), herramientas={h: False for h in self.core.HERRAMIENTAS})
+        r = self.core.capacidad_contenedor(cap)
+        self.assertFalse(r["apto"])
+        self.assertEqual(r["agentes"], 0)
+        self.assertIn("Faltan herramientas", r["motivo"])
 
 
 if __name__ == "__main__":
