@@ -62,6 +62,13 @@ def _flujo_en_disco(tmp, nombre="PixelArtistry_01_Image_to_Watertight_Mesh.json"
 
 
 class Disponible(unittest.TestCase):
+    def test_disponible_true_when_conditions_met(self):
+        """When mocked to Windows, with nvidia-smi and ComfyUI responding, disponible returns True."""
+        comfy = ComfyFalso(clases={n: {} for n in pa.NODOS_REQUERIDOS})
+        with mock.patch.object(pa.platform, "system", return_value="Windows"), \
+             mock.patch.object(pa, "_hay_nvidia", return_value=True):
+            self.assertTrue(pa.disponible(comfy)["ok"])
+
     def test_en_mac_o_linux_dice_que_no_y_por_que(self):
         for so in ("Darwin", "Linux"):
             with mock.patch.object(pa.platform, "system", return_value=so):
