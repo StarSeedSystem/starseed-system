@@ -6047,6 +6047,11 @@ def atender_control():
             # respondida) y la tarea vive en esta cola, así que `progreso.json` no basta:
             # la copia en memoria de este proceso manda. Se reabre aquí.
             REABRIR.add(tid)
+            # (2026-10-21) Una tarea prestada a la nube cuyo run murió puede seguir en memoria
+            # como SOLTADA; el bucle la volvía a marcar hecha y el préstamo quedaba varado
+            # hasta el final de la tanda. Si el director la reabre, vuelve de verdad a la tanda.
+            SOLTADAS.discard(tid)
+            CORTADOS.discard(tid)
             # (2026-10-09) La escalera del director sube de peldaño (más intentos, otro modelo):
             # la orden trae el contador y el modelo, y aquí se respetan. Sin esto la copia en
             # memoria pisaba el contador al guardar y CPA1007Kb repetía «Codex 1/2» para siempre.

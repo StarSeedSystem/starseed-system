@@ -263,6 +263,71 @@ def ids_de_colas_jovenes(carpeta, ahora_ts, max_s=COLA_JOVEN_S):
     return jovenes
 
 
+def colas_vivas_locales():
+    """Las colas que corre AHORA un orquestador de esta máquina (nombres de archivo).
+
+    (2026-10-21) Misma detección que `vigilante-enjambre.cola_viva`: los argumentos del
+    proceso, no el latido más reciente (que puede ser de una cola de hace una semana).
+    Si el nodo no está disponible, no se inventa ninguna."""
+    try:
+        import nodo_metagenesis_medio as N
+        return N.colas_vivas()
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def ordenes_reabrir(ids, colas, olas):
+    """PURA. {ruta del control: {tid: orden}} de las tareas reclamadas que viven en una cola viva.
+
+    (2026-10-21) Una tarea prestada a la nube cuyo run murió puede seguir en la copia en
+    memoria del orquestador como SOLTADA. Devolverla a `pendiente` en `progreso.json` no
+    basta: esa copia manda sobre el disco para sus propias tareas (`guardar_prog` →
+    `fusionar_progreso`). Se le escribe la orden `reabrir` en el control de SU cola, con el
+    mismo formato que `vigilante-enjambre.orden_reabrir` (`{tid: orden}`, no una orden suelta).
+    """
+    salida = {}
+    ids = {str(i) for i in ids or []}
+    if not ids:
+        return salida
+    for cola in colas or []:
+        nombre = os.path.basename(str(cola))
+        if not (nombre.startswith("cola-") and nombre.endswith(".json")):
+            continue
+        comunes = ids & (_ids_de_ruta(os.path.join(olas, nombre)) or set())
+        if not comunes:
+            continue
+        ruta_ctrl = os.path.join(olas, "control-" + nombre)
+        ordenes = salida.setdefault(ruta_ctrl, {})
+        for tid in sorted(comunes):
+            ordenes[tid] = {
+                "accion": "reabrir",
+                "quien": "director-nube",
+                "motivo": "devuelta de la nube: su run terminó",
+                "t": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+    return salida
+
+
+def escribir_ordenes_reabrir(ordenes):
+    """Fusiona cada `{tid: orden}` con su control y lo guarda con .tmp + os.replace."""
+    for ruta_ctrl, nuevas in (ordenes or {}).items():
+        try:
+            with open(ruta_ctrl, encoding="utf-8") as f:
+                actual = json.load(f)
+        except (OSError, ValueError):
+            actual = {}
+        if not isinstance(actual, dict):
+            actual = {}
+        actual.update(nuevas)
+        try:
+            tmp = ruta_ctrl + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(actual, f, ensure_ascii=False, indent=1)
+            os.replace(tmp, ruta_ctrl)
+        except OSError:
+            continue
+
+
 def reclamar_varadas_de_la_nube(runs_vivos):
     """Devuelve a `pendiente` lo que se prestó a la nube y allí ya no lo hace nadie.
 
@@ -326,6 +391,13 @@ def reclamar_varadas_de_la_nube(runs_vivos):
         os.replace(tmp, ruta)
     except OSError:
         return []
+    # (2026-10-21) Si lo reclamado pertenece a la tanda viva de esta máquina, su copia en
+    # memoria manda: además de `pendiente` en disco, se le pide `reabrir` en SU control.
+    try:
+        olas = os.path.dirname(ruta)
+        escribir_ordenes_reabrir(ordenes_reabrir(ids, colas_vivas_locales(), olas))
+    except Exception:  # noqa: BLE001
+        pass
     return ids
 
 

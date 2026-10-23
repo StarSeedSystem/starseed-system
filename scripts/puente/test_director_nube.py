@@ -145,6 +145,23 @@ class DevolverLoQueYaNadieHace(unittest.TestCase):
     def _runs(self, *runs):
         D._ULTIMO_RESUMEN[:] = [{"generado": "t", "runs": list(runs)}]
 
+    def _cola_local(self, nombre, ids):
+        """Una cola que corre AHORA en esta máquina, en `olas/` (donde vive su control)."""
+        olas = os.path.join(self.tmp, "starseed_memory_root", "olas")
+        os.makedirs(olas, exist_ok=True)
+        with open(os.path.join(olas, nombre), "w", encoding="utf-8") as f:
+            json.dump({"tareas": [{"id": i} for i in ids]}, f)
+        return os.path.join(olas, "control-" + nombre)
+
+    def _leer_control(self, ruta):
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)
+
+    def _colas_vivas(self, nombres):
+        antes = D.colas_vivas_locales
+        D.colas_vivas_locales = lambda: list(nombres)
+        self.addCleanup(setattr, D, "colas_vivas_locales", antes)
+
     def test_con_un_run_vivo_de_otra_cola_la_varada_vuelve(self):
         self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
         self._cola("cola-nube-20261021-0900.json", ["OTRA"])
@@ -191,6 +208,41 @@ class DevolverLoQueYaNadieHace(unittest.TestCase):
         D._ULTIMO_RESUMEN.clear()
         self.assertEqual(D.reclamar_varadas_de_la_nube(0), [])
         self.assertEqual(self._leer_progreso()["IMG1020A"]["estado"], "reasignada")
+
+    def test_una_varada_de_la_tanda_viva_pide_reabrir(self):
+        # (2026-10-21) El orquestador la tiene como SOLTADA en memoria y su copia manda:
+        # devolverla a `pendiente` en disco no basta, hace falta la orden `reabrir`.
+        self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
+        control = self._cola_local("cola-auto-1020-121122.json", ["IMG1020A"])
+        self._colas_vivas(["cola-auto-1020-121122.json"])
+        self._runs()
+        self.assertEqual(D.reclamar_varadas_de_la_nube(0), ["IMG1020A"])
+        orden = self._leer_control(control)["IMG1020A"]
+        self.assertEqual("reabrir", orden["accion"])
+        self.assertEqual("director-nube", orden["quien"])
+        self.assertIn("run terminó", orden["motivo"])
+
+    def test_reabrir_se_fusiona_con_lo_que_ya_habia_en_el_control(self):
+        self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
+        control = self._cola_local("cola-auto-1020-121122.json", ["IMG1020A"])
+        with open(control, "w", encoding="utf-8") as f:
+            json.dump({"OTRA": {"accion": "aprobar", "quien": "alex"}}, f)
+        self._colas_vivas(["cola-auto-1020-121122.json"])
+        self._runs()
+        D.reclamar_varadas_de_la_nube(0)
+        ordenes = self._leer_control(control)
+        self.assertEqual("aprobar", ordenes["OTRA"]["accion"])
+        self.assertEqual("reabrir", ordenes["IMG1020A"]["accion"])
+
+    def test_una_cola_que_no_corre_no_recibe_orden(self):
+        self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
+        self._cola_local("cola-auto-1020-121122.json", ["IMG1020A"])
+        self._colas_vivas(["cola-otra-1020.json"])
+        self._runs()
+        D.reclamar_varadas_de_la_nube(0)
+        self.assertFalse(os.path.exists(
+            os.path.join(self.tmp, "starseed_memory_root", "olas",
+                         "control-cola-auto-1020-121122.json")))
 
     def test_medir_nube_fallida_borra_la_foto_vieja(self):
         import agentes_nube as AN

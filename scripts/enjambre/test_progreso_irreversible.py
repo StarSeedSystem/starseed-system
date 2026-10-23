@@ -62,3 +62,51 @@ class ReabrirConPeldanoTest(unittest.TestCase):
         enjambre.MIAS.discard("T9")
         enjambre.PROG.pop("T9", None)
         enjambre.REABRIR.discard("T9")
+
+
+class ReabrirDespuesDeSoltarTest(unittest.TestCase):
+    """(2026-10-21) Una tarea prestada a la nube cuyo run murió: `reabrir` la devuelve a
+    pendientes y la saca de SOLTADAS, para que el bucle no la vuelva a marcar hecha."""
+
+    def test_una_soltada_reabierta_vuelve_a_la_tanda(self):
+        from unittest import mock
+
+        enjambre.MIAS.add("T1")
+        enjambre.SOLTADAS.add("T1")
+        enjambre.CORTADOS.add("T1")
+        enjambre.PROG["T1"] = {"estado": "reasignada", "medio": "nube"}
+        orden = {"T1": {"accion": "reabrir", "motivo": "devuelta de la nube: su run terminó"}}
+        with mock.patch.object(enjambre, "consumir_control", return_value=orden), \
+                mock.patch.object(enjambre, "entregar_mensajes"), \
+                mock.patch.object(enjambre, "guardar_prog"), \
+                mock.patch.object(enjambre, "evento"), \
+                mock.patch.object(enjambre, "asegurar_modelo_opencode", return_value=True):
+            enjambre.atender_control()
+
+        self.assertEqual("pendiente", enjambre.PROG["T1"]["estado"])
+        self.assertNotIn("T1", enjambre.SOLTADAS)
+        self.assertNotIn("T1", enjambre.CORTADOS)
+
+        enjambre.MIAS.discard("T1")
+        enjambre.PROG.pop("T1", None)
+        enjambre.REABRIR.discard("T1")
+
+    def test_una_tarea_soltada_sin_reabrir_sigue_fuera(self):
+        # La otra cara: SOLTADAS solo se vacía con la orden, no por atender el control.
+        from unittest import mock
+
+        enjambre.MIAS.add("T2")
+        enjambre.SOLTADAS.add("T2")
+        enjambre.PROG["T2"] = {"estado": "reasignada", "medio": "nube"}
+        orden = {"T2": {"accion": "aprobar"}}
+        with mock.patch.object(enjambre, "consumir_control", return_value=orden), \
+                mock.patch.object(enjambre, "entregar_mensajes"), \
+                mock.patch.object(enjambre, "guardar_prog"), \
+                mock.patch.object(enjambre, "evento"):
+            enjambre.atender_control()
+
+        self.assertIn("T2", enjambre.SOLTADAS)
+        enjambre.MIAS.discard("T2")
+        enjambre.PROG.pop("T2", None)
+        enjambre.APROBACIONES.pop("T2", None)
+        enjambre.QUIEN_DECIDIO.pop("T2", None)
