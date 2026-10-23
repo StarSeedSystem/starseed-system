@@ -9,6 +9,7 @@ import {
   TOKENIZER_CLIP_SD_TURBO, VERSION_ONNXRUNTIME_WEB, detectaSDTurbo, generaEnPestana, planPesos, textoBytes,
   type ImagenSDTurbo, type MotorSDTurbo, type SondasWebGPU,
 } from "../webgpu-sd-turbo";
+import { modeloPorId } from "../../../imagenes/modelos";
 
 const BUENAS: SondasWebGPU = { hayWebGPU: true, hayAdaptador: true, f16: true };
 const IMAGEN: ImagenSDTurbo = { ancho: 512, alto: 512, pixeles: new Uint8Array(4), motor: "sd-turbo" };
@@ -54,6 +55,18 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
     expect(textoBytes(0)).toBe("0 MB");
     expect(textoBytes(NaN)).toBe("tamaño desconocido");
     expect(textoBytes(-1)).toBe("tamaño desconocido");
+  });
+
+  it("declara el total de los pesos: 2,51 GB en bruto, «2,3 GB» en claro, y la caché sin rutas", () => {
+    expect(BYTES_PESOS_SD_TURBO).toBeGreaterThan(Math.round(2.5e9));
+    expect(textoBytes(BYTES_PESOS_SD_TURBO)).toBe("2,3 GB");
+    expect(CACHE_PESOS_SD_TURBO).not.toContain("/");
+  });
+
+  it("el catálogo mantiene la licencia «sin comprobar del todo» y el motor onnx-web", () => {
+    const modelo = modeloPorId(MODELO_SD_TURBO)!;
+    expect(modelo.nota).toContain("sin comprobar del todo");
+    expect(modelo.motores).toContain("onnx-web");
   });
 });
 
@@ -114,6 +127,29 @@ describe("generaEnPestana · flujo completo con el motor simulado", () => {
     expect(await generaEnPestana(motor({}, llamadas), { ...PETICION, permisoDescarga: false })).toMatchObject({ ok: false, accion: "pedir-permiso" });
     expect(await generaEnPestana(motor({ cuotaLibre: async () => BYTES_PESOS_SD_TURBO }, llamadas), PETICION)).toMatchObject({ ok: false, accion: "sin-espacio" });
     expect(llamadas).toEqual([]);
+  });
+
+  it("sin WebGPU se corta antes: ni la caché ni la cuota se miden; y la cuota inmedible para el flujo", async () => {
+    const pasos: string[] = [];
+    const motorPasos = (over: Partial<MotorSDTurbo> = {}): MotorSDTurbo => ({
+      sondear: async () => ({ ...BUENAS, hayWebGPU: false }),
+      hayPesosEnCache: async () => { pasos.push("caché"); return false; },
+      cuotaLibre: async () => { pasos.push("cuota"); return BYTES_PESOS_SD_TURBO * 4; },
+      descargarPesos: async () => { pasos.push("descargar"); },
+      generar: async () => { pasos.push("generar"); return IMAGEN; },
+      ...over,
+    });
+    expect(await generaEnPestana(motorPasos(), PETICION)).toMatchObject({ ok: false, accion: "sin-webgpu" });
+    expect(pasos).toEqual([]);
+    pasos.length = 0;
+    const inmedible = await generaEnPestana(
+      motorPasos({ sondear: async () => BUENAS, cuotaLibre: async () => { pasos.push("cuota"); return null; } }),
+      PETICION,
+    );
+    expect(inmedible).toMatchObject({ ok: false, accion: "sin-espacio" });
+    expect(inmedible.motivo).toContain("No se puede comprobar el espacio libre");
+    expect(inmedible.imagen).toBeUndefined();
+    expect(pasos).toEqual(["caché", "cuota"]);
   });
 
   it("con permiso y espacio descarga los pesos y LUEGO genera", async () => {
