@@ -86,4 +86,49 @@ describe("mediosEfectivos", () => {
     expect(r.computo).toHaveLength(0);
     expect(JSON.stringify(r.motivoPorFuente)).not.toMatch(/10\.0\.0\.5|CLAVE_X/);
   });
+
+  it("mapea los servidores de cómputo a una oferta con su capacidad", () => {
+    const r = mediosEfectivos(entrada({
+      servidoresEnlazados: [servidor("s1", "own", "compute"), servidor("s2", "own", "storage")],
+    }));
+    const s1 = r.computo.find((c) => c.nodoId === "s1");
+    expect(s1?.computo.nucleos).toBe(1);
+    expect(s1?.computo.ramLibreMb).toBe(1024);
+    expect(r.computo.some((c) => c.nodoId === "s2")).toBe(false);
+  });
+
+  it("en público acepta ofertas públicas ajenas; en privado las excluye", () => {
+    const ajena = () => neurona("n-pub", "ajena", { cuenta: false, publico: true });
+    const pub = mediosEfectivos(entrada({ ofertas: [ajena()] }));
+    expect(pub.computo.map((c) => c.nodoId)).toContain("n-pub");
+    const priv = mediosEfectivos(entrada({ ofertas: [ajena()], privado: true }));
+    expect(priv.computo.some((c) => c.nodoId === "n-pub")).toBe(false);
+    expect(priv.motivoPorFuente["n-pub"]).toMatch(/privado/i);
+  });
+
+  it("marca real starseed, gcs y gdrive; local y github quedan declarados", () => {
+    const r = mediosEfectivos(entrada({
+      almacenes: ["starseed", "gcs", "gdrive", "local", "github"].map((tipo, i) => ({ id: `bk-${i}`, tipo })),
+    }));
+    const reales = r.almacenamiento.filter((a) => a.real).map((a) => a.tipo).sort();
+    expect(reales).toEqual(["gcs", "gdrive", "starseed"]);
+    expect(r.motivoPorFuente["bk-3"]).toMatch(/solo declarado/i);
+  });
+
+  it("maneja entradas vacías", () => {
+    const r = mediosEfectivos(entrada());
+    expect(r).toEqual({ computo: [], almacenamiento: [], motivoPorFuente: {} });
+  });
+
+  it("no muta las entradas", () => {
+    const e = entrada({
+      ofertas: [neurona("n1", "u1", {}, 500)],
+      servidoresEnlazados: [servidor("s1", "own", "compute")],
+      almacenes: [{ id: "a1", tipo: "gcs", libreMb: 10 }],
+      vecinos: [neurona("v1", "u2", { cuenta: false, publico: true })],
+    });
+    const antes = JSON.stringify(e);
+    mediosEfectivos(e);
+    expect(JSON.stringify(e)).toBe(antes);
+  });
 });
