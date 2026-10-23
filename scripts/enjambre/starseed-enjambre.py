@@ -4157,6 +4157,34 @@ def tsc_en_a1(cwd, log=None, comprobar=None):
     return (0, []) if ok else (1, errores_de_a1(detalle))
 
 
+def diff_necesita_tsc(archivos):
+    """PURA: True si el diff de la tarea puede cambiar lo que tsc compila.
+
+    Caso medido (2026-10-21 10:30 UTC, Mac de 8 GB con la swap al 94 % y presión del núcleo 2):
+    tres tareas 5, 30 y 49 min en la fase «tsc», en cola por el turno de un tsc completo
+    (scripts/enjambre/tsc-turno.sh), y en 3 h la Mac no integró nada. Una de ellas, VAR1021A,
+    solo tocaba .py de scripts/puente/: su diff no puede cambiar el resultado de tsc, porque cada
+    worktree se pone al día con main y main está en verde. Toca algo de TypeScript (extensiones,
+    tsconfig*, package.json, package-lock.json, next-env.d.ts) o vive bajo src/ o types/ → True;
+    solo .py/.md/.json de datos fuera de ellos → False. Ante la menor duda (lista vacía) True:
+    se corre tsc como hoy.
+    """
+    if not archivos:
+        return True
+    for bruto in archivos:
+        a = bruto.replace("\\", "/").strip().lower()
+        nombre = a.rsplit("/", 1)[-1]
+        if nombre.endswith((".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")):
+            return True
+        if nombre in ("package.json", "package-lock.json", "next-env.d.ts"):
+            return True
+        if nombre.startswith("tsconfig") and nombre.endswith(".json"):
+            return True
+        if "src" in a.split("/") or "types" in a.split("/"):
+            return True
+    return False
+
+
 def tsc(cwd, log):
     if repo_es_python(cwd):
         # Compilación de los .py cambiados respecto a main (o todos los del diff sin commit).
@@ -4181,6 +4209,27 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
+    # (2026-10-21) El tsc completo en la Mac pesa minutos de cola: si el diff de la tarea no
+    # toca nada que tsc mire (main está en verde tras poner_al_dia), el resultado ya está decidido.
+    if os.path.exists(os.path.join(cwd, "tsconfig.json")):
+        rc_diff, cambios = sh(
+            "git diff --name-only main...HEAD; git diff --name-only",
+            cwd=cwd,
+            timeout=60,
+            log=log,
+        )
+        archivos = (
+            [l.strip() for l in cambios.splitlines() if l.strip()] if rc_diff == 0 else []
+        )
+        if archivos and not diff_necesita_tsc(archivos):
+            if log:
+                with contextlib.suppress(OSError):
+                    with open(log, "a", encoding="utf-8") as f:
+                        f.write(
+                            "\n$ tsc\ntsc no hace falta: el diff no toca TypeScript (%d archivos)\n"
+                            % len(archivos)
+                        )
+            return 0, []
     # TRA1012Bc-d1: en la Mac el tsc completo pesa ~3,5 GB; si el A1 responde, la puerta se hace allí.
     remoto = tsc_en_a1(cwd, log)
     if remoto is not None:
