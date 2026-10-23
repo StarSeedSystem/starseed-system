@@ -502,3 +502,25 @@ class IntegradasComoGenesis(unittest.TestCase):
                     self.assertEqual(C.contar_integradas(), 2)
             finally:
                 os.chdir(antes)
+
+
+class ProveedoresDelInformeReal(unittest.TestCase):
+    INFORME = {"t": "2026-10-23 12:03:59", "pasarelas": [
+        {"clave": "neurona", "estado": "escribe"}, {"clave": "openrouter", "estado": "modelo_fuera"},
+        {"clave": "google", "estado": "escribe"}]}
+    SALUD = {"xkiro": {"estado": "vivo", "sin_cupo_hasta": "2026-10-23 18:00:44"},
+             "nim": {"estado": "vivo", "sin_cupo_hasta": "2026-10-18 05:08:49"},
+             "groq": {"estado": "vivo"}, "llm7": {"estado": "caido"}, "claves": {}, "ultimo_revisor_ok": "x"}
+
+    def test_cuenta_los_que_tienen_cupo_y_las_pasarelas_que_escriben(self):
+        act, ok = C.proveedores_de_informe(self.INFORME, self.SALUD, "2026-10-23 12:20:00")
+        self.assertEqual(act, 2)  # nim y groq: xkiro sin cupo hasta las 18:00, llm7 caído
+        self.assertTrue(ok)
+        v, _ = C.veredictos_de("proveedores", {}, {"proveedores_activos": act, "pasarelas_ok": ok})
+        self.assertEqual([x["estado"] for x in v], ["vivo", "vivo"])
+
+    def test_un_informe_viejo_no_vale(self):
+        self.assertEqual(C.proveedores_de_informe(self.INFORME, self.SALUD, "2026-10-26 09:00:00"), (None, None))
+
+    def test_sin_salud_cuenta_las_que_escriben(self):
+        self.assertEqual(C.proveedores_de_informe(self.INFORME, None, "2026-10-23 12:20:00"), (2, True))

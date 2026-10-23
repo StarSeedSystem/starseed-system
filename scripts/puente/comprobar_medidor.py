@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 import shutil
 import subprocess
 import sys
@@ -99,6 +100,31 @@ def medir_disco() -> Optional[float]:
         return None
 
 
+def proveedores_de_informe(informe, salud, ahora_txt: str) -> Tuple[Optional[int], Optional[bool]]:
+    """PURA: (proveedores con cupo, ¿alguna pasarela escribe?) del informe de pasarelas y la salud.
+
+    `ahora_txt` «AAAA-MM-DD HH:MM:SS» (se compara como texto, igual que lo escribe el orquestador).
+    Un informe de más de un día no vale: se dice «desconocido», no una cifra vieja."""
+    t = str((informe or {}).get("t") or "")
+    if not t or t[:10] < _dia_antes(ahora_txt):
+        return None, None
+    escriben = sorted({str(x.get("clave")) for x in (informe.get("pasarelas") or [])
+                       if isinstance(x, dict) and x.get("estado") == "escribe"})
+    if not isinstance(salud, dict):
+        return len(escriben), bool(escriben)
+    con_cupo = [n for n, v in salud.items() if isinstance(v, dict) and n not in ("claves",)
+                and str(v.get("estado") or "") == "vivo" and not str(v.get("sin_cupo_hasta") or "") > ahora_txt]
+    return len(con_cupo), bool(escriben)
+
+
+def _dia_antes(ahora_txt: str) -> str:
+    try:
+        t = time.mktime(time.strptime(ahora_txt[:10], "%Y-%m-%d")) - 86400
+        return time.strftime("%Y-%m-%d", time.localtime(t))
+    except ValueError:
+        return ""
+
+
 def medir_proveedores() -> Tuple[Optional[int], Optional[bool]]:
     """Lee el informe real de pasarelas de ~/.starseed/pasarelas-informe.json."""
     ruta = Path.home() / ".starseed" / "pasarelas-informe.json"
@@ -110,6 +136,15 @@ def medir_proveedores() -> Tuple[Optional[int], Optional[bool]]:
         datos = json.loads(ruta.read_text(encoding="utf-8"))
         if not isinstance(datos, dict):
             return None, None
+        if "proveedores_activos" not in datos and isinstance(datos.get("pasarelas"), list):
+            # (2026-10-23) El informe real (renovador de pasarelas) es {t, pasarelas: [{clave,
+            # estado}]}, no {proveedores_activos, pasarelas_ok}: el medidor salía «desconocido»
+            # siempre. Los proveedores con cupo salen de la salud compartida, como en Buscar capacidad.
+            try:
+                salud = json.loads((Path.home() / ".starseed" / "salud-proveedores.json").read_text(encoding="utf-8"))
+            except Exception:
+                salud = None
+            return proveedores_de_informe(datos, salud, time.strftime("%Y-%m-%d %H:%M:%S"))
         activos = datos.get("proveedores_activos")
         pasarelas_ok = datos.get("pasarelas_ok")
         if isinstance(activos, int) and not isinstance(activos, bool):
