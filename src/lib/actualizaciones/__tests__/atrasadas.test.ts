@@ -221,3 +221,95 @@ describe("neuronasAtrasadas", () => {
     expect(atrasos).toHaveLength(0);
   });
 });
+
+/** Casos de rescate (RTS1010-ACT5d-d2d): lo que los de arriba no cubren. */
+describe("neuronasAtrasadas · rescate", () => {
+  const SEIS: VersionesPorCapa = {
+    datos: "2026.01.01",
+    interfaz: "2026.01.01",
+    sw: "2026.01.01",
+    servicios: "2026.01.01",
+    modelos: "2026.01.01",
+    nativa: "2026.01.01"
+  };
+  const base: EstadoNeuronaActualizacion = {
+    neuronaId: "r1",
+    nombre: "Pixel",
+    online: true,
+    versiones: {}
+  };
+
+  it("«fallo» gana a «offline» cuando coinciden", () => {
+    const r = neuronasAtrasadas([{ ...base, online: false, versiones: { datos: "2025.12.01" }, fallo: "disco lleno" }], { datos: "2026.01.01" });
+    expect(r).toHaveLength(1);
+    expect(r[0].motivo).toBe("fallo");
+    expect(r[0].texto).toContain("falló");
+  });
+
+  it("versión ausente: una fila por capa publicada, sin versión y con su texto", () => {
+    const r = neuronasAtrasadas([base], SEIS);
+    expect(r).toHaveLength(6);
+    for (const a of r) {
+      expect(a.motivo).toBe("sin-motivo");
+      expect(a.tiene).toBeNull();
+      expect(a.texto).toContain("no declara qué versión tiene");
+    }
+  });
+
+  it("offline sin versión conserva «offline», no «sin-motivo»", () => {
+    const r = neuronasAtrasadas([{ ...base, online: false }], SEIS);
+    expect(r).toHaveLength(6);
+    expect(r.every((a) => a.motivo === "offline")).toBe(true);
+  });
+
+  it("una capa que `ultima` no publica se ignora y las otras cinco salen", () => {
+    const { datos: _datos, ...sinDatos } = SEIS;
+    const r = neuronasAtrasadas([{ ...base, versiones: { datos: "2025.12.01" } }], sinDatos);
+    expect(r).toHaveLength(5);
+    expect(r.some((a) => a.capa === "datos")).toBe(false);
+  });
+
+  it("versión igual o por delante de la última no es atraso", () => {
+    const igual = neuronasAtrasadas([{ ...base, versiones: { datos: "2026.01.01" } }], { datos: "2026.01.01" });
+    const delante = neuronasAtrasadas([{ ...base, versiones: { datos: "2026.02.01" } }], { datos: "2026.01.01" });
+    expect(igual).toHaveLength(0);
+    expect(delante).toHaveLength(0);
+  });
+
+  it("solo la capa atrasada entre varias presentes", () => {
+    const r = neuronasAtrasadas([{ ...base, versiones: { ...SEIS, interfaz: "2025.12.01" } }], SEIS);
+    expect(r).toHaveLength(1);
+    expect(r[0].capa).toBe("interfaz");
+    expect(r[0].motivo).toBe("sin-motivo");
+    expect(r[0].texto).toContain("sin motivo conocido");
+  });
+
+  it("«manual» con versión antigua mantiene «manual»", () => {
+    const r = neuronasAtrasadas([{ ...base, versiones: { datos: "2025.12.01" }, manual: true }], { datos: "2026.01.01" });
+    expect(r[0].motivo).toBe("manual");
+    expect(r[0].texto).toContain("en manual");
+  });
+
+  it("el texto nombra la neurona, la capa, las dos versiones y la espera de Wi-Fi", () => {
+    const r = neuronasAtrasadas(
+      [{ ...base, versiones: { interfaz: "2025.12.01" }, pospuestaPor: "espera-wifi" }],
+      { interfaz: "2026.01.01" }
+    );
+    expect(r[0].texto).toContain("Pixel");
+    expect(r[0].texto).toContain("interfaz");
+    expect(r[0].texto).toContain("2025.12.01");
+    expect(r[0].texto).toContain("2026.01.01");
+    expect(r[0].texto).toContain("esperando Wi-Fi");
+  });
+
+  it("el orden desempata por id cuando dos neuronas comparten nombre", () => {
+    const mk = (neuronaId: string, nombre: string): EstadoNeuronaActualizacion => ({
+      neuronaId,
+      nombre,
+      online: true,
+      versiones: { datos: "2025.12.01" }
+    });
+    const r = neuronasAtrasadas([mk("n2", "Beta"), mk("n1", "Alpha"), mk("n3", "Alpha")], { datos: "2026.01.01" });
+    expect(r.map((a) => a.neuronaId)).toEqual(["n1", "n3", "n2"]);
+  });
+});
