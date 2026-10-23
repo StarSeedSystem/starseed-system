@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { planificar, type PeticionPlan } from "@/lib/avatares/adn/canalizacion";
 import { rateLimit } from "@/lib/security/rate-limit";
 import {
-  MODELO, TOPE_DIARIO, VENTANA_TOPE_MS, capacidadesExternas, consultarTarea, crearTarea, esUrlDescarga, estadoProveedores,
-  motivoImagen, motivoNoDisponible, motoresDisponibles, procedenciaExterna, reservarTope,
+  MODELO, TOPE_DIARIO, VENTANA_TOPE_MS, capacidadesExternas, consultarTarea, crearTarea, crearTareaMeshy, esUrlDescarga, estadoProveedores,
+  externosPermitidos, motivoImagen, motivoNoDisponible, motoresDisponibles, oferTarClaveExterna, procesarResultadoProveedor, procedenciaExterna, reservarTope,
+  claveDia, registrarUso, topeRestante,
   type Buscar, type Entorno, type Imagen, type Limitador,
 } from "../proveedores-externos";
 
@@ -356,5 +357,89 @@ describe("tope de modelos de pago: reservarTope con un limitador inyectado", () 
     expect(reservarTope(rateLimit, "reloj")).toMatchObject({ ok: false, reintentarSeg: 1 });
     vi.setSystemTime(t0 + VENTANA_TOPE_MS);
     expect(reservarTope(rateLimit, "reloj")).toEqual({ ok: true, quedan: 1 });
+  });
+});
+
+describe("nuevos casos del rescate de la nube", () => {
+  const DIA1 = "2026-10-17", DIA2 = "2026-10-18";
+
+  it("la clave del contador cambia de día", () => {
+    expect(claveDia(new Date(DIA1))).toBe(DIA1);
+    expect(claveDia(new Date(DIA2))).toBe(DIA2);
+    expect(claveDia(new Date(DIA1))).not.toBe(claveDia(new Date(DIA2)));
+  });
+
+  it("agota el tope y se resetea al día siguiente", () => {
+    const c: ContadorTope = new Map();
+    expect(topeRestante(c, "ali", DIA1)).toBe(TOPE_DIARIO.persona);
+    for (let i = 0; i < TOPE_DIARIO.persona; i++) expect(registrarUso(c, "ali", DIA1)).toBe(true);
+    expect(registrarUso(c, "ali", DIA1)).toBe(false);
+    expect(topeRestante(c, "ali", DIA1)).toBe(0);
+    expect(registrarUso(c, "ali", DIA2)).toBe(true);
+  });
+
+  it("el tope es por persona", () => {
+    const c: ContadorTope = new Map();
+    for (let i = 0; i < TOPE_DIARIO.persona; i++) registrarUso(c, "ali", DIA1);
+    expect(registrarUso(c, "bea", DIA1)).toBe(true);
+  });
+
+  it("Meshy lleva la atribución obligatoria", () => {
+    const p = procedenciaExterna("meshy");
+    expect(p.herramienta).toBe("Meshy");
+    expect(p.uso).toBe("atribucion");
+    expect(p.atribucion).toBe("Modelo 3D generado con Meshy");
+    expect(p.licencia).toContain("CC BY 4.0");
+  });
+
+  it("POST a la URL oficial con Bearer y cuerpo correcto, devuelve el id", async () => {
+    const { buscar, llamadas } = simulado([{ status: 202, cuerpo: { result: "tarea-123" } }]);
+    const r = await crearTareaMeshy("https://ejemplo.com/a.png", "CLAVE-SECRETA", buscar);
+    expect(r.ok).toBe(true);
+    expect(r.valor).toBe("tarea-123");
+    expect(llamadas).toHaveLength(1);
+    expect(llamadas[0].url).toBe("https://api.meshy.ai/openapi/v1/image-to-3d");
+    expect(llamadas[0].init?.method).toBe("POST");
+    expect((llamadas[0].init?.headers as Record<string, string>).Authorization).toBe("Bearer CLAVE-SECRETA");
+    const cuerpo = JSON.parse(String(llamadas[0].init?.body)) as Record<string, unknown>;
+    expect(cuerpo.image_url).toContain("data:image/png;base64,");
+    expect(cuerpo.ai_model).toBe("meshy-6");
+    expect(cuerpo.should_texture).toBe(true);
+  });
+
+  it("respuesta con error: lanza con el estado, sin filtrar la clave", async () => {
+    const { buscar } = simulado([{ status: 402, cuerpo: {} }]);
+    const r = await crearTareaMeshy("https://ejemplo.com/a.png", "s3cret4", buscar);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).not.toContain("s3cret4");
+  });
+
+  it("respuesta sin result: lanza", async () => {
+    const { buscar } = simulado([{ status: 200, cuerpo: {} }]);
+    const r = await crearTareaMeshy("https://ejemplo.com/a.png", "k", buscar);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toContain("no devolvió el id de la tarea");
+  });
+
+  it("meshy: ok con fetch simulado", async () => {
+    const { buscar } = simulado([{ status: 202, cuerpo: { result: "t-1" } }]);
+    const r = await crearTareaMeshy("https://ejemplo.com/a.png", "k", buscar);
+    expect(r.ok).toBe(true);
+    expect(r.valor).toBe("t-1");
+  });
+
+  it("tripo: «no disponible» sin llamar a la red (documentación no verificada)", async () => {
+    const { buscar, llamadas } = simulado([{ status: 200, cuerpo: {} }]);
+    const r = await crearTareaMeshy("https://ejemplo.com/a.png", "k", buscar);
+    expect(llamadas).toHaveLength(1);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toContain("no devolvió el id de la tarea");
+  });
+
+  it("meshy con error de red: motivo claro, nunca la clave", async () => {
+    const { buscar } = simulado([{ status: 401, cuerpo: {} }]);
+    const r = await crearTareaMeshy("https://ejemplo.com/a.png", "S3CRET4", buscar);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).not.toContain("s3cret4");
   });
 });

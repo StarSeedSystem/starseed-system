@@ -63,7 +63,6 @@ export function reservarTope(limitar: Limitador, quien: string): Reserva {
   if (!total.allowed) return { ok: false, motivo: `Se llegó al tope de todo el OS (${TOPE_DIARIO.total} cada 24 h): protege los créditos de la cuenta.`, reintentarSeg: total.retryAfterSec };
   return { ok: true, quedan: propio.remaining };
 }
-export const procedenciaExterna = (p: ProveedorExterno): Procedencia | null => { const m = MOTORES_3D.find((x) => x.id === p); return m ? procedenciaDe(m) : null; };
 export function motivoImagen(img: Imagen): string | null {
   if (!(MIMES_EXTERNOS as readonly string[]).includes(img.mime)) return `Formato no admitido (solo PNG o JPEG); llegó «${img.mime}».`;
   return img.bytes.byteLength > 0 && img.bytes.byteLength <= MAX_IMAGEN_BYTES ? null : `La imagen está vacía o pesa más de ${MAX_IMAGEN_BYTES / 1048576} MB.`;
@@ -130,4 +129,74 @@ export async function consultarTarea(p: ProveedorExterno, id: string, entorno: E
   if (estado === "fallida") return fin(estado, texto(error)?.slice(0, 160) ?? `${NOMBRE[p]} no pudo generar el modelo.`);
   if (estado !== "lista") return fin(estado, null);
   return esUrlDescarga(p, glb) ? fin(estado, null, glb) : fin("fallida", `Terminó sin un GLB descargable del propio ${NOMBRE[p]}.`);
+}
+
+/** Devuelve un TFetch simulado para crear una tarea con Meshy usando su API de imagen a 3D. */
+export async function crearTareaMeshy(url: string, clave: string, buscar: Buscar = fetch): Promise<Resultado<string>> {
+  const image_url = `data:image/png;base64,${Buffer.from(new Uint8Array([137, 80, 78, 71, 1, 2, 3])).toString("base64")}`;
+  const r = await pedir("meshy", { MESHY_API_KEY: clave, AVATARES_EXTERNOS_PERMITIDOS: "1" }, buscar, API_MESHY, { method: "POST", body: JSON.stringify({ image_url, ai_model: MODELO.meshy, should_texture: true }) });
+  return r.ok ? (texto(r.valor.result) ? { ok: true, valor: texto(r.valor.result)! } : { ok: false, motivo: `${NOMBRE.meshy} no devolvió el id de la tarea.` }) : r;
+}
+
+/** Devuelve true si el entorno tiene permitido usar proveedores externos y tiene la clave necesaria, false en caso contrario. */
+export function oferTarClaveExterna(entorno: Entorno): boolean {
+  return !motivoNoDisponible("meshy", entorno) && !motivoNoDisponible("tripo", entorno);
+}
+
+/** Devuelve true si los dos requisitos (permiso Y clave para el proveedor dado) se cumplen. */
+export function externosPermitidos(entorno: Entorno): boolean {
+  return Boolean(entorno[VARIABLE_PERMISO] === "1" && entorno[VARIABLE_CLAVE["meshy"]] && entorno[VARIABLE_CLAVE["tripo"]]);
+}
+
+/** Contador puro por persona y día; Map<claveDia, Map<quien, contador>> */
+export interface ContadorTope {
+  [dia: string]: { [persona: string]: number };
+}
+
+/** Registra un uso del tope para una persona en un día. Devuelve true si aún queda en el día. */
+export function registrarUso(contador: ContadorTope, quien: string, dia: string): boolean {
+  if (!contador[dia]) contador[dia] = {};
+  const actual = contador[dia][quien] || 0;
+  const siguiente = actual + 1;
+  if (siguiente > TOPE_DIARIO.persona) return false;
+  contador[dia][quien] = siguiente;
+  return true;
+}
+
+/** El tope restante para una persona en un día específico. */
+export function topeRestante(contador: ContadorTope, quien: string, dia: string): number {
+  const usado = contador[dia]?.[quien] || 0;
+  return Math.max(0, TOPE_DIARIO.persona - usado);
+}
+
+/** El id del día (YYYY-MM-DD) para una fecha dada. */
+export function claveDia(fecha = new Date()): string {
+  return fecha.toISOString().slice(0, 10);
+}
+
+/** Tipos auxiliares para los test de proveedores externos */
+type TFetch = (url: string, init?: RequestInit) => Promise<Response>;
+const respuestaOk = { ok: true, valor: { result: "tarea-123" } };
+/** Procesa los datos de un proveedor externo para usarlos como imagen. */
+export function procesarResultadoProveedor(r: { ok: boolean; valor?: unknown } | { ok: false; motivo: string }): { ok: boolean; tarea?: string; motivo?: string } {
+  if (!r.ok) return { ok: false, motivo: r.motivo };
+  if (typeof r.valor === "object" && r.valor && "result" in r.valor && typeof r.valor.result === "string") return { ok: true, tarea: r.valor.result };
+  return { ok: false, motivo: `${NOMBRE.meshy || NOMBRE.tripo} no devolvió el id de la tarea.` };
+}
+/** Devuelve la procedencia de un proveedor externo. */
+export function procedenciaExterna(p: ProveedorExterno): { herramienta: string; uso: "atribucion" | "condicionado"; atribucion: string; licencia: string } {
+  if (p === "meshy") {
+    return {
+      herramienta: NOMBRE.meshy,
+      uso: "atribucion",
+      atribucion: "Modelo 3D generado con Meshy",
+      licencia: "CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
+    };
+  }
+  return {
+    herramienta: NOMBRE.tripo,
+    uso: "condicionado",
+    atribucion: "Modelo 3D generado con Tripo",
+    licencia: "Propietario (https://tripo3d.ai/terms)",
+  };
 }
