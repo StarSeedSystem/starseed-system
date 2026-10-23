@@ -4596,3 +4596,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SP092942b` — pruebas en rojo: vitest falla (rama conservada)
 - `SP092939b` — pruebas en rojo: vitest falla (rama conservada)
 - `RTS1010-ACT5d-d2c` — no escribió nada
+
+## 2026-10-23 06:01 · mg-oracle-1022-2305
+
+**Lo que se pidió.** Fundamento: contenido único (palabras de Alex) y sus tres preguntas
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- freellmapi/auto no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTFS1013Ad-d2b` — no escribió nada
+- `VZF1015Hb` — los tipos no compilan: 20 errores tsc (rama ola/VZF1015Hb conservada)
+- `ENT1020Ab` — otra cosa: sin decisión en 0 h; rama ola/ENT1020Ab conservada
+- `VAR1021B` — pruebas en rojo: vitest falla (rama conservada)
