@@ -52,6 +52,12 @@ const ModelScoutPanel = dynamic(
   },
 );
 
+/** Recursos de IA de esta neurona (2026-10-23): resumen compacto con enlace al panel completo. */
+const ResumenRecursosNeurona = dynamic(
+  () => import("@/components/recursos-ia/resumen-neurona").then((m) => ({ default: m.ResumenRecursosNeurona })),
+  { ssr: false },
+);
+
 const FIT_META: Record<FitLevel, { label: string; cls: string }> = {
   ideal: { label: "Ideal", cls: "text-emerald-300 bg-emerald-500/15 border-emerald-400/30" },
   suficiente: { label: "Suficiente", cls: "text-cyan-300 bg-cyan-500/15 border-cyan-400/30" },
@@ -268,6 +274,11 @@ export function NeuronModelsPanel({ embedded = false }: { embedded?: boolean }) 
        {/* Gestión de esta neurona: servidor/receptor, ubicación, memorias, logs (Adenda 114). */}
        <div className="border-t border-white/10 pt-3">
          <NeuronServerConfig />
+       </div>
+
+       {/* Recursos de IA: dónde se guarda y se procesa la IA de esta neurona (2026-10-23). */}
+       <div className="border-t border-white/10 pt-3">
+         <ResumenRecursosNeurona />
        </div>
 
        {/* Prestar recursos (Ola 1017A · Apps en la malla) */}

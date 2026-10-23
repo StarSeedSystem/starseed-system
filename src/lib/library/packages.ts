@@ -13,7 +13,9 @@
 // hará al instalarse, y solo existen paquetes cuyo efecto es REAL hoy:
 //   · ai-source  → activa una fuente del FREE_CATALOG en Astraura (quita el id
 //                  de `disabledSources`; si necesita clave, guía a conseguirla
-//                  y a Ajustes → Inteligencia).
+//                  y a Ajustes → Inteligencia). Sin `catalogSourceId` y con
+//                  `route` (modelo local que se descarga, p. ej. TurboFieldfare)
+//                  → abre esa ruta (Recursos de IA) SIN marcarlo instalado.
 //   · design     → añade `payload.materialClass` al registro de diseño
 //                  (`starseed.library.design.v1`) y emite "starseed:design".
 //                  La capa de materiales (src/styles/starseed-materials.css,
@@ -63,6 +65,9 @@ import { applyTheme as applyThemePack } from "@/lib/design/theme-engine";
 // para que aparezcan en la Biblioteca y el Mezclador los liste como fuentes.
 import { DESIGN_ELEMENTS, type DesignElementKind } from "@/lib/design/design-elements";
 import { REPO_DECISIONES } from "./fuentes-decision";
+// Fuentes de IA locales que se descargan (TurboFieldfare): viven en un módulo sin "use client"
+// para que /api/library/actualizaciones pueda comprobar su upstream.
+import { FICHAS_IA_LOCALES } from "./fuentes-ia-locales";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -977,7 +982,9 @@ const LABS_PACKAGES: LibraryPackage[] = [
       tags: ["diagramas", "svg", "arquitectura", "flujo", "3d"], version: "2.6.110",
       author: "cathrynlavery", sourceRepoId: "starseed-labs", free: true, featured: true,
       payload: { skillId: "diagram-design" }
-    }
+    },
+    /* ── Modelos locales que se descargan tras comprobar dónde caben (Recursos de IA) ── */
+    ...FICHAS_IA_LOCALES,
 ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */
@@ -2500,6 +2507,18 @@ export async function install(pkg: LibraryPackage): Promise<InstallResult> {
       /* ── Fuente de IA: activarla en Astraura ─────────────────────── */
       case "ai-source": {
         const sourceId = asString(pkg.payload.catalogSourceId).trim();
+        // Modelo local que hay que descargar (TurboFieldfare): no hay fuente que activar. Se
+        // abre el panel que comprueba neurona por neurona dónde cabe y pide confirmar tamaño y
+        // destino. NO se registra como instalado: no lo está hasta que el panel lo descargue.
+        const rutaPanel = asString(pkg.payload.route).trim();
+        if (!sourceId && rutaPanel) {
+          return {
+            ok: true,
+            message: `«${pkg.name}» aún no está instalado: abre Recursos de IA para ver en qué neurona cabe y confirmar tamaño y destino antes de descargarlo.`,
+            action: "route",
+            href: rutaPanel,
+          };
+        }
         const source = findSource(sourceId);
         if (!source) return { ok: false, message: "Esa fuente ya no existe en el catálogo Astraura." };
         // Import dinámico defensivo: el router toca localStorage y providers.

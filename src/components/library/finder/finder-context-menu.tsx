@@ -24,7 +24,7 @@ import {
 import {
     ExternalLink, Eye, GitBranch, Copy, ClipboardCopy, ClipboardPaste,
     Link2, FolderInput, Tags, Share2, Send, ShieldCheck, Trash2, Package, Megaphone,
-    PenSquare, History, MessageSquare, Boxes, ScrollText, Sparkles,
+    PenSquare, History, MessageSquare, Boxes, ScrollText, Sparkles, HardDrive,
     type LucideIcon,
 } from "lucide-react";
 
@@ -90,6 +90,8 @@ export interface FinderContextMenuProps {
     onInstallTo?: () => void;
     /** v2.1 (§18): acciones adicionales calculadas por formato (imagen/código/audio/vídeo/zip…). */
     extraActions?: FinderExtraAction[];
+    /** Recursos de IA (2026-10-23): «Dónde se guarda y se procesa…» para ítems y folders. */
+    onDondeSeGuarda?: () => void;
 }
 
 export function FinderContextMenu({
@@ -97,7 +99,7 @@ export function FinderContextMenu({
     onOpen, onClose, onPreview, onReplicate, onDuplicate,
     onCopy, onCut, onPaste, onCreateShortcut, onMove, onTags,
     onShare, onSendTo, onPublish, onPublishToCatalog, onPublishFolderToCatalog, onPermissions, onRemove,
-    onEdit, onVersions, onHistory, onLog, onBranches, onComments, onInstallTo, extraActions,
+    onEdit, onVersions, onHistory, onLog, onBranches, onComments, onInstallTo, extraActions, onDondeSeGuarda,
 }: FinderContextMenuProps) {
     
     const aurora = useAurora();
@@ -358,6 +360,12 @@ export function FinderContextMenu({
                             </DropdownMenuItem>
                         ))}
                     </>
+                )}
+
+                {onDondeSeGuarda && (
+                    <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onDondeSeGuarda)}>
+                        <HardDrive className="h-3.5 w-3.5 text-[#7fb8ff]" /> Dónde se guarda y se procesa…
+                    </DropdownMenuItem>
                 )}
 
                 {target.canWrite && (

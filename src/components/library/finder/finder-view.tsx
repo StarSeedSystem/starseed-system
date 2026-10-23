@@ -87,6 +87,8 @@ import { createRepo, convertFolderToRepo } from "@/lib/library/user-repos";
 import { readDesktopsSnapshot, addIcon, setWallpaper, openWindow } from "@/components/desktop/desktop-store";
 import { updateProfile, activeProfileId } from "@/lib/profiles/profiles";
 import { listZipEntries } from "@/lib/files/simple-zip";
+// Recursos de IA (2026-10-23): «Dónde se guarda y se procesa…» desde el menú contextual.
+import { abrirSelectorMedio, refDeBiblioteca, SelectorMedioGlobal } from "@/components/recursos-ia/abrir-selector-medio";
 
 const TYPE_FILTERS: Array<{ key: "todos" | SavedItemType; label: string }> = [
     { key: "todos", label: "Todo" },
@@ -1174,8 +1176,13 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                               })()
                             : undefined
                     }
+                    onDondeSeGuarda={() => {
+                        const d = refDeBiblioteca(menuTarget.kind, menuTarget.id, doc.items, doc.folders);
+                        if (d) abrirSelectorMedio(d.elemento, d.padres);
+                    }}
                 />
             )}
+            <SelectorMedioGlobal />
 
             {/* ── Diálogo: mover a… ── */}
             {moveDialog && (

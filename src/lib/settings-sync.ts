@@ -208,6 +208,7 @@ export const SYNCED_KEYS = [
     //    guardaba su «visto» en una clave local suelta y cada medio (localhost, Vercel, PWA,
     //    Tauri) la volvía a abrir. Se FUSIONA por id al bajar (no se pisa): ver AVISOS_KEY.
     "starseed.avisos.vistos.v1", // src/lib/sync/avisos-cuenta.ts
+    "starseed.recursos-ia.v1", // (2026-10-23) dónde se guarda/procesa cada modelo, archivo, carpeta y memoria: viaja con la cuenta; nunca lleva secretos
 ] as const;
 
 /**

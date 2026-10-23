@@ -65,6 +65,21 @@ export const QUANT_BPP: Record<string, number> = {
   "GPTQ-Int8": 1.0,
   "mlx-4bit": 0.55,
   "mlx-8bit": 1.0,
+  // Ternarias (1.58 bits) y 1-bit: las añade StarSeed (llmfit no las trae), calibradas igual que
+  // las demás, contra el tamaño real de archivo. Entrenadas así de origen, no son cuantizaciones de un modelo
+  // en float: por eso NO entran en `QUANT_HIERARCHY` (bestQuantForBudget no debe proponerlas).
+  // I2_S (bitnet.cpp) empaqueta 2 bits por peso, pero el GGUF guarda embeddings y salida en f16:
+  // en modelos pequeños eso manda. Calibrado con el archivo real de BitNet b1.58 2B-4T
+  // (ggml-model-i2_s.gguf, 1,19 GB → 2 × 0.55 ≈ 1,1 GB); en modelos grandes sobreestima un poco.
+  I2_S: 0.55,
+  // Ternario de llama.cpp: 1,6875 y 2,0625 bits/peso, más ~5 % de tensores que van en más precisión.
+  TQ1_0: 0.22,
+  TQ2_0: 0.27,
+  // PrismML: Ternary Bonsai en Q2_0 y Bonsai 1-bit en Q1_0 (g128), medidos con sus archivos reales
+  // (Ternary 1.7B/4B/8B: 0,46/1,07/2,18 GB; Bonsai 1.7B/27B: 0,25/3,80 GB).
+  Q2_0: 0.27,
+  Q1_0: 0.145,
+  Q1_0_g128: 0.145,
 };
 
 /** bpp por defecto para una cuantización desconocida (≈ Q4_K_M/Q4_0: el término medio real del ecosistema). */

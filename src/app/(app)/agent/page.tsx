@@ -170,6 +170,8 @@ const AiAppGenerator = nextDynamic(() => import("@/components/appgen/ai-app-gene
 // Neuronas: capacidades de hardware + modelos recomendados por neurona (Adenda 109).
 const NeuronModelsPanel = nextDynamic(() => import("@/components/neurons/neuron-models-panel").then(m => m.NeuronModelsPanel), { ssr: false });
 // Integraciones: fuentes OSS/gratuitas recomendadas por servicio del OS (Adenda 110).
+// Recursos de IA por neurona: constelación, topología, por capacidad, catálogo y preguntas.
+const PanelRecursosIa = nextDynamic(() => import("@/components/recursos-ia/panel-recursos-ia").then(m => m.PanelRecursosIa), { ssr: false });
 const IntegrationSourcesPanel = nextDynamic(() => import("@/components/integrations/integration-sources-panel").then(m => m.IntegrationSourcesPanel), { ssr: false });
 // Astraura 1.58-bit: panel del SISTEMA PRIMARIO soberano (Adenda 153).
 const Astraura158Panel = nextDynamic(() => import("@/components/astraura/astraura-158-panel").then(m => m.Astraura158Panel), { ssr: false });
@@ -354,6 +356,9 @@ const STUDIO_SECTIONS: StudioSection[] = [
     accent: "text-cyan-300",
     hint: "Dónde vive cada cosa: reglas de enrutado, unidades, cerebros externos, almacenes y conexiones.",
     items: [
+      // Recursos de IA por neurona (2026-10-23, SOP architecture/recursos-ia-neurona.md):
+      // dónde se guarda y dónde se procesa cada modelo, archivo, carpeta y memoria.
+      { value: "recursos-ia", label: "Recursos de IA", icon: Network },
       { value: "almacenamiento-158", label: "Enrutamiento 1.58", icon: HardDrive },
       { value: "almacenes", label: "Almacenes", icon: HardDrive },
       { value: "conexiones", label: "Conexiones", icon: Cloud },
@@ -681,6 +686,11 @@ const TAB_ALIASES: Record<string, string> = {
   almacenamiento: "almacenamiento-158",
   storage: "almacenamiento-158",
   enrutamiento: "almacenamiento-158",
+  // Recursos de IA por neurona (2026-10-23).
+  recursos: "recursos-ia",
+  "recursos-ia": "recursos-ia",
+  procesadores: "recursos-ia",
+  "modelos-locales": "recursos-ia",
   memoria: "memoria-158",
   memory: "memoria-158",
   recuerdos: "memoria-158",
@@ -1872,6 +1882,9 @@ function AgentPageInner() {
         <TabsContent value="almacenes" className={TAB_SCROLL}><StoragePanel /></TabsContent>
 
         <TabsContent value="conexiones" className={TAB_SCROLL}><ConnectionsHub /></TabsContent>
+
+        {/* --- TAB: RECURSOS DE IA (almacenamiento y procesadores por neurona · 2026-10-23) --- */}
+        <TabsContent value="recursos-ia" className={TAB_SCROLL}><PanelRecursosIa /></TabsContent>
 
         {/* --- TAB: CONFIGURACIÓN IA (config unificada Astraura & OmniVoice · Adenda 132) --- */}
         <TabsContent value="config-ia" className={TAB_SCROLL}><AstrauraOmniVoiceConfig variant="embedded" onNavigate={(t) => setActiveTab(t)} /></TabsContent>

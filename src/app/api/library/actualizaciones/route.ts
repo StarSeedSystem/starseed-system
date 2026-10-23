@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { REPO_DECISIONES } from "@/lib/library/fuentes-decision";
+import { FICHAS_IA_LOCALES, fichasIaConUpstreamGitHub } from "@/lib/library/fuentes-ia-locales";
 import {
     urlDeConsulta,
     leerVersion,
@@ -104,7 +105,14 @@ export async function GET(): Promise<Response> {
     const temporizadorTotal = setTimeout(() => tope.abort(), MS_PLAZO_TOTAL);
 
     try {
-        const entradas: EntradaFuente[] = REPO_DECISIONES.packages
+        // Fuentes de decisiones + fichas `ai-source` de modelos locales con repo en GitHub
+        // (TurboFieldfare: sin releases, se sigue por commits). Sin duplicar ids.
+        const idsDecisiones = new Set(REPO_DECISIONES.packages.map((p) => p.id));
+        const fichas = [
+            ...REPO_DECISIONES.packages,
+            ...fichasIaConUpstreamGitHub(FICHAS_IA_LOCALES).filter((p) => !idsDecisiones.has(p.id)),
+        ];
+        const entradas: EntradaFuente[] = fichas
             .map((paquete): EntradaFuente => ({
                 id: paquete.id,
                 instalada: paquete.version,
