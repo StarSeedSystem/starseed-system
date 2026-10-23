@@ -1108,7 +1108,7 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
       "Framework de agentes y flujos en TypeScript del lado del front. Referencia para los patrones de agentes de interfaz del OS. Instalar guarda el enlace y abre su repo.",
     icon: "Workflow", tags: ["diseno", "agentes", "typescript", "front"], version: "1.0.0",
     author: "mastra-ai", sourceRepoId: "starseed-ia-tools", free: true,
-    payload: { externalUrl: "https://github.com/mastra-ai/mastra", categoria: "diseno", note: "Agentes y flujos en TS del lado del front" },
+    payload: { externalUrl: "https://github.com/mastra-ai/mastra", upstream: "https://github.com/mastra-ai/mastra", canal: "releases", licencia: "Apache-2.0 (carpetas ee/: licencia empresarial)", categoria: "diseno", note: "Agentes y flujos en TS del lado del front. 2026-10-23: también motor de agentes de Genesis en TypeScript (ola 1023A; su servidor encaja con el servidor propio de IA en Hono)." },
   },
   /* ── LangGraph.js · grafos de agentes con estado ── */
   {

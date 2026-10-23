@@ -22,7 +22,11 @@ describe("repos que Alex trajo para el OS", () => {
     });
 
     it("las dos entran en la comprobación automática de versión", () => {
-        expect(fichasIaConUpstreamGitHub(FICHAS_REPOS_OS).map((p) => p.id)).toEqual(["repo-hono", "repo-filee", "repo-react-native-zalo-kit"]);
+        expect(fichasIaConUpstreamGitHub(FICHAS_REPOS_OS).map((p) => p.id)).toEqual(FICHAS_REPOS_OS.map((p) => p.id));
+        expect(FICHAS_REPOS_OS.map((p) => p.id)).toEqual(expect.arrayContaining([
+            "repo-hono", "repo-filee", "repo-codegraph", "repo-manimgx", "repo-earshot",
+            "repo-agno", "repo-langgraph", "repo-pydantic-ai", "repo-openai-agents-python", "repo-react-native-zalo-kit",
+        ]));
     });
 });
 
@@ -54,5 +58,28 @@ describe("instalar desde la Biblioteca", () => {
         const zalo = findPackage("repo-react-native-zalo-kit")!;
         expect(zalo.comingSoon).toBe(true);
         expect(zalo.payload.route).toBeUndefined();
+    });
+});
+
+describe("tanda del 2026-10-23 (3D, contexto, oído y motores de agentes)", () => {
+    it("lo que aún no corre en el OS va «próximamente» con su motivo y su licencia", () => {
+        for (const id of ["repo-manimgx", "repo-earshot", "repo-agno", "repo-langgraph", "repo-pydantic-ai", "repo-openai-agents-python"]) {
+            const p = FICHAS_REPOS_OS.find((x) => x.id === id)!;
+            expect(p.comingSoon, id).toBe(true);
+            expect(String(p.payload.note), id).toMatch(/ola 1023/);
+            expect(String(p.payload.licencia), id).toMatch(/MIT|Apache/);
+        }
+    });
+
+    it("CodeGraph ya corre (contexto de los agentes de MetaGenesis) y no manda datos fuera", () => {
+        const cg = FICHAS_REPOS_OS.find((x) => x.id === "repo-codegraph")!;
+        expect(cg.comingSoon).toBeFalsy();
+        expect(cg.payload.route).toBe("/metagenesis");
+        expect(String(cg.payload.requisitos)).toMatch(/Telemetría apagada/);
+    });
+
+    it("ids únicos en toda la Biblioteca", () => {
+        const ids = FICHAS_REPOS_OS.map((p) => p.id);
+        expect(new Set(ids).size).toBe(ids.length);
     });
 });
