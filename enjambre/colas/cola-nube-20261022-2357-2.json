@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261022",
+ "tareas": [
+  {
+   "id": "GDL1020Ab",
+   "ola": "1020U",
+   "titulo": "Actualizaciones · canal de Codeberg para repos que se mudaron (gallery-dl)",
+   "archivos": [
+    "src/lib/library/actualizaciones.ts",
+    "src/lib/library/__tests__/actualizaciones-codeberg.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). Añade el canal `codeberg`: Codeberg es Forgejo, con API compatible con Gitea: `GET https://codeberg.org/api/v1/repos/{dueño}/{repo}/releases?limit=1` y, si no hay versiones, `GET …/tags?limit=1`. Mismas funciones puras con `fetch` inyectado que el resto del módulo y el mismo resultado. Un paquete puede declarar `trasladadoA: \"codeberg:<dueño>/<repo>\"` y entonces se sigue allí. La ruta exacta de gallery-dl en Codeberg NO está verificada: las pruebas usan un repo de ejemplo y NO escribas una ruta en ningún catálogo. Pruebas con fetch simulado: versión desde releases, respaldo a tags, error de red honesto. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261023-050033`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261023-050033:refs/remotes/origin/nube/a1-20261023-050033\"` y `git cherry-pick --no-commit 31d91eecad14 31d2da4496d1 55879af95ab9 0e54e8d29762 9236d0355ab6`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/app/api/library/actualizaciones/route.ts, src/lib/library/__tests__/actualizaciones-codeberg.test.ts, src/lib/library/actualizaciones.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261023-050033",
+   "dependencias_ya_en_main": [
+    "RLB1020F"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "GDL1020Ab"
+  ]
+ }
+}
