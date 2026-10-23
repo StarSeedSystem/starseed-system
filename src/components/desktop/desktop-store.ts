@@ -1437,6 +1437,24 @@ export function tiledRects(
     return out;
 }
 
+// ── Filee: «Convertir a…» en el clic derecho (CNV1023C) ──────────
+/** Lo que el submenú de conversión necesita de un icono (estructura de `ArchivoConvertible`). */
+export interface ArchivoConvertibleIcono {
+    url: string;
+    nombre: string;
+}
+
+/**
+ * Dado un icono del escritorio, devuelve el archivo convertible que representa
+ * (solo los que apuntan a un archivo o enlace con URL) o null si no aplica:
+ * apps, widgets, folders, notas sin URL… Puro (sin DOM ni red).
+ */
+export function archivoConvertibleDeIcono(icon: DesktopIcon): ArchivoConvertibleIcono | null {
+    if (icon.kind !== "file" && icon.kind !== "link") return null;
+    if (!icon.url) return null;
+    return { url: icon.url, nombre: icon.name || "archivo" };
+}
+
 // ── Suscripción + hooks ──────────────────────────────────────────
 function subscribe(callback: () => void): () => void {
     if (!isClient()) return () => { };
