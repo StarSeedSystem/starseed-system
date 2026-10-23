@@ -16,6 +16,7 @@ import type { Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
+import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
 
 const AMBITO: Ambito = { tipo: "persona" };
 
@@ -60,10 +61,21 @@ export function MiGenesis() {
         const almacen = almacenNavegador();
         if (almacen) {
             const lista = cargarEncargos(almacen); // Without moleculaId, we get all, but we want to limit per molecule? The function already limits to 50 per molecule internally.
-            setEncargos(lista);
+            // Aquí solo manda Genesis: los ámbitos grupo/pública los decide su entidad en PoliGenesis (§2.7).
+            setEncargos(lista.filter((r) => r.encargo.ambito === "personal" || r.encargo.ambito === "perfil"));
         } else {
             setEncargos([]); // No access to storage
         }
+    }, []);
+
+    const decisionPara = useCallback((r: RegistroEncargo): { modo: string; motivo: string; borrador: { id: string; titulo: string } | null } => {
+        const falta: Falta | null = faltaDePlan(r.plan);
+        const d = decidirResultado({
+            ambito: r.encargo.ambito,
+            esDueno: true, // en Mi Genesis solo se enseñan los encargos de la propia cuenta
+            tocaFueraDeLaMolecula: falta !== null,
+        });
+        return { modo: d.modo, motivo: d.motivo, borrador: falta ? propuestaMetaGenesis(r.encargo, falta) : null };
     }, []);
 
     return (
@@ -98,21 +110,31 @@ export function MiGenesis() {
                     </p>
                 ) : (
                     <ul className="space-y-1">
-                        {encargos.map((encargo) => (
-                            <li key={encargo.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
+                    {encargos.map((registro) => {
+                        const decision = decisionPara(registro);
+                        return (
+                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
                                 <div className="flex-1">
-                                    <span className="block truncate">{encargo.encargo.intencion}</span>
-                                    {encargo.plan ? (
-                                        <span className="text-[10px] text-white/45">Con plan: {encargo.plan.pasos.length} pasos</span>
+                                    <span className="block truncate">{registro.encargo.intencion}</span>
+                                    {registro.plan ? (
+                                        <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
                                     ) : (
                                         <span className="text-[10px] text-white/45">Sin plan</span>
                                     )}
+                                    {/* La decisión del resultado (§2.7 del contrato): quién acepta y por qué. */}
+                                    <span className="block truncate text-[10px] text-emerald-200/70">{decision.motivo}</span>
+                                    {decision.modo === "proponer-metagenesis" && decision.borrador ? (
+                                        <span className="block truncate text-[10px] text-amber-200/80">
+                                            Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
+                                        </span>
+                                    ) : null}
                                 </div>
                                 <span className="text-[10px] text-white/45">
-                                    {encargo.actualizadoEn ? new Date(encargo.actualizadoEn).toLocaleString() : ""}
+                                    {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                 </span>
                             </li>
-                        ))}
+                        );
+                    })}
                     </ul>
                 )}
             </section>
