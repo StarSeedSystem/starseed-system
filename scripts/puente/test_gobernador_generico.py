@@ -168,6 +168,13 @@ class TestDePmset(unittest.TestCase):
         self.assertNotIn("nivel", resultado)
         self.assertTrue(resultado["cargando"])
     
+    def test_pmset_solo_cabecera(self):
+        # Cabecera sin línea de batería: «Battery Power» no debe confundirse con estado.
+        texto = """Now drawing from 'Battery Power'
+"""
+        resultado = de_pmset(texto)
+        self.assertEqual(resultado, {})
+
     def test_pmset_vacio(self):
         texto = ""
         resultado = de_pmset(texto)
