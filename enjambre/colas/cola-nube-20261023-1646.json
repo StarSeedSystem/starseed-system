@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "MGX1023A",
+   "ola": "1023X",
+   "titulo": "ManimGX · contrato de escena y validación pura (antes de ejecutar nada)",
+   "archivos": [
+    "src/lib/protomolecula/manimgx/escena.ts",
+    "src/lib/protomolecula/manimgx/__tests__/escena.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «manimgx para todo el desarrollo de modelos 3D con Astraura y la Protomolécula en cualquier medio y publicación o archivo» y «earshot para los sentidos de cada agente de Astraura y de la orbe flotante si tiene su ajuste de sentidos encendidos siempre escuchando». Contrato: `architecture/repos-3d-oido-agentes-1023.md` (§3 son reglas duras: el código que escribe un agente nunca corre en el proceso del OS; el oído solo con sentidos encendidos, solo fragmentos sin voz, nada sale de las neuronas; nada de subir audio a Gemini).\n\nMódulo puro: tipo `EscenaManim` {codigo, clase, calidad: 480p|720p|1080p, fps, duracionMax} y `validarEscena(codigo)` que rechaza lo que no es una escena de Manim (imports fuera de `manimgx`/`manim`/`math`/`numpy`, `open(`, `exec`, `eval`, `__import__`, `subprocess`, `os.`, `sys.`, red) con motivos legibles. No ejecuta nada. Pruebas con escenas buenas (Scene, ThreeDScene con cubo y rotación de cámara) y malas."
+  },
+  {
+   "id": "CNV1023C",
+   "ola": "1023C",
+   "titulo": "Escritorio · «Convertir a…» en el clic derecho de los iconos de archivo",
+   "archivos": [
+    "src/components/desktop/desktop-icon-menu.tsx",
+    "src/components/desktop/desktop-store.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nBusca el menú contextual de los iconos del escritorio (si el archivo tiene otro nombre, usa el que exista y dilo). Para iconos que apuntan a un archivo con URL, añade `SubmenuConvertir` (`useConversionMenu`); el resultado se descarga. Si no hay menú contextual de iconos, responde NO APLICA."
+  },
+  {
+   "id": "CNV1023G",
+   "ola": "1023C",
+   "titulo": "Biblioteca · carpetas vigiladas que convierten solas (filee watch)",
+   "archivos": [
+    "src/lib/conversion/vigiladas.ts",
+    "src/lib/conversion/__tests__/vigiladas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nMódulo puro: reglas «carpeta de la Biblioteca → formato» (p. ej. todo lo que entra en «Fotos del móvil» pasa a JPG) guardadas en `starseed.conversion.vigiladas.v1`, y la función que decide qué archivos nuevos convertir (sin repetir, sin bucles: nunca convertir un resultado de conversión). Solo la lógica y sus pruebas; el cableado al Explorador va en otra tarea."
+  },
+  {
+   "id": "RIA1023B",
+   "ola": "1023R",
+   "titulo": "Servidor propio de IA · unidad systemd (A1 y Linux) y guion de instalación",
+   "archivos": [
+    "servicios/servidor-ia/systemd/starseed-servidor-ia.service",
+    "servicios/servidor-ia/systemd/instalar.sh"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nUnidad systemd de usuario (`~/.config/systemd/user/`) para el A1 y cualquier Linux: `ExecStart=/usr/bin/env node %h/starseed-system/servicios/servidor-ia/bin/servidor-ia.mjs`, `Restart=on-failure`, `RestartSec=30`, `EnvironmentFile=-%h/.starseed/servidor-ia.env` (ahí van host, puerto y token; el archivo NO va en el repo). `instalar.sh` copia la unidad, hace `systemctl --user daemon-reload` y `enable --now` solo con `--encender`; sin ese argumento solo copia. Prueba: `bash -n instalar.sh` y `systemd-analyze verify` si está disponible."
+  },
+  {
+   "id": "RIA1023C",
+   "ola": "1023R",
+   "titulo": "Recursos de IA · resolver a qué servidor de IA va cada capacidad según la topología (núcleo puro)",
+   "archivos": [
+    "src/lib/recursos-ia/enrutado.ts",
+    "src/lib/recursos-ia/__tests__/enrutado.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nFunción PURA `destinoDeIA(plan, asignaciones, inventario, capacidad)` → `{via, neuronaId, baseUrl|null, motivo}`: con topología `servidor-propio` devuelve la URL del servidor de la neurona elegida (`http://<host>:4480/v1`, el host sale del inventario/oferta de esa neurona; si no se conoce, `baseUrl: null` y un motivo legible), con `cada-neurona` → `local`, con `fragmentada` → la neurona asignada a esa capacidad, y nunca `antena` para chat (solo decisiones, §3). Sin `node:*`, sin `fetch`. Reutiliza los tipos de `tipos.ts` (no inventes otros). Pruebas vitest de las cuatro topologías y del caso sin host. Corre `npx vitest run src/lib/recursos-ia` y lee el resumen entero."
+  },
+  {
+   "id": "RIA1023E",
+   "ola": "1023R",
+   "titulo": "Capas de Astraura · capaEnPropio de verdad (cruzar el SHA con el catálogo local)",
+   "archivos": [
+    "src/lib/astraura/capas/repartir.ts",
+    "src/lib/astraura/capas/__tests__/repartir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\n`capaEnPropio` en `repartir.ts` hoy devuelve siempre false (lo dice su comentario). Hazla real: busca en el almacén la meta de la capa cuyo SHA-256 coincide y comprueba que todos sus trozos están y verificados (usa las claves y metas que ya escribe este módulo; no inventes otro formato). Exportala para probarla. Pruebas: almacén con la capa completa → true; con un trozo que falta → false; con otro SHA → false. Corre `npx vitest run src/lib/astraura/capas` y lee el resumen entero."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "MGX1023A",
+   "CNV1023C",
+   "CNV1023G",
+   "RIA1023C",
+   "RIA1023B",
+   "RIA1023E"
+  ]
+ }
+}
