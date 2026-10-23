@@ -1,0 +1,48 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "ola": "repos-libreria-1020",
+   "id": "RLB1020Ab-d2b",
+   "titulo": "Biblioteca · repo builtin externo 1020 (14 publicaciones autoactualizables) (parte 2 de 3)",
+   "archivos": [
+    "src/lib/library/__tests__/repos-externos-1020.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee entero el contrato architecture/repos-libreria-1020.md (§1-§5) y el catálogo verificado config/repos-libreria-1020.json (14 entradas en `paquetes`; datos reales, NO los cambies).\n\n1. Crea src/lib/library/repos-externos-1020.ts: importa el JSON (import … assert {type:'json'} o require tipado; el proyecto ya importa JSON en otros módulos de library) y mapea cada entrada a LibraryPackage (de ./packages): id, kind=entrada.kind, name=entrada.nombre, description=entrada.que_es + (entrada.aviso? ' — '+entrada.aviso : ''), icon por kind (app→AppWindow, ai-source→BrainCircuit, function→Boxes), tags=[...entrada.area, entrada.canal, entrada.licencia?'lic':''].filter(Boolean), version='1.0.0', author derivado de repo (owner), sourceRepoId='starseed-biblioteca-externa', free=true, comingSoon=true (ninguna tiene efecto de instalación real todavía), payload={ externalUrl: 'https://github.com/'+entrada.repo, githubRepo: entrada.repo, canal: entrada.canal, area: entrada.area, licencia: entrada.licencia, assets: entrada.assets??false, ...(entrada.skillId?{skillId:entrada.skillId}:{}) }. Exporta REPO_EXTERNOS_1020: LibraryRepo = { id:'starseed-biblioteca-externa', name:'Biblioteca externa', builtin:true, packages: [...] }.\n2. En packages.ts, añade REPO_EXTERNOS_1020 a listRepos() (impórtalo; colócalo en `base` junto a los demás builtins). Un solo punto de cambio; no toques nada más de packages.ts.\n3. Test: las 14 ids son únicas; cada paquete tiene payload.externalUrl que empieza por 'https://github.com/' y payload.githubRepo con forma owner/repo; NINGÚN id/repo contiene 'reverse-skill'; lib-anatomy lleva payload.skillId==='anatomy'; lib-gods-eye está en area 'mapas'. available-updates.ts ya autobusca releases con payload.externalUrl: NO dupliques ese motor.\n Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos puros sin `node:*` en cliente; nada de `any`; honestidad radical en cada ficha (qué hace DE VERDAD; botón deshabilitado con `comingSoon:true` si aún no hay efecto); respeta `canal` y licencia de cada entrada; NO incluyas zhaoxuya520/reverse-skill (excluida por seguridad).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/cc-20261022/ola/RLB1020Ab-d2`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/cc-20261022/ola/RLB1020Ab-d2:refs/remotes/origin/nube/cc-20261022/ola/RLB1020Ab-d2\"` y `git cherry-pick --no-commit be207c749585`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/repos-externos-1020.test.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "RLB1020Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "RLB1020Ab-d1"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/cc-20261022/ola/RLB1020Ab-d2"
+  },
+  {
+   "id": "IMN1021Gb",
+   "ola": "1021I",
+   "titulo": "Imaginación · servidor y ruta /api/mando/imaginacion (leer, aprobar, rechazar, posponer y ajustes)",
+   "archivos": [
+    "src/lib/mando/imaginacion-servidor.ts",
+    "src/app/api/mando/imaginacion/route.ts",
+    "src/lib/mando/__tests__/imaginacion-servidor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §6. Solo servidor: lee y escribe `starseed_memory_root/imaginacion/propuestas.json` (raíz con `raizDelProyecto()`) y `~/.starseed/autodesarrollo.json` con escritura atómica; `aprobar(id)` marca 'aprobada' (el director la encola en su ciclo) o, si la fuente es Astraura, llama a su backend 1.58 local con `POST /api/imagination/action {item_id, item_type, action: 'apply'}` (si no responde: error honesto, nada cambia); `rechazar`, `posponer(id, horas)`; ajustes GET/POST validados con `validarAjustes`. La ruta solo exporta GET y POST, responde 404 fuera de local como el resto de `/api/mando/*` (mira cómo lo hace `src/app/api/mando/produccion/route.ts`) y jamás devuelve rutas del disco. Pruebas de las funciones con carpeta temporal. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39870129915`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39870129915:refs/remotes/origin/nube/39870129915\"` y `git cherry-pick --no-commit ba6cddd2c761`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/mando/imaginacion/route.ts, src/lib/mando/__tests__/imaginacion-servidor.test.ts, src/lib/mando/imaginacion-servidor.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "IMN1021F"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39870129915"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "RLB1020Ab-d2b",
+   "IMN1021Gb"
+  ]
+ }
+}
