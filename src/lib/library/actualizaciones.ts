@@ -8,6 +8,9 @@
 // Canales por `payload`: commits (por defecto), releases y tags. En tags,
 // `payload.patronTag` filtra por expresión regular: RuView publica releases
 // numéricas de CI y sus versiones reales son las etiquetas ruview-harness-*.
+// Un paquete que se muda puede declarar `payload.trasladadoA` con la forma
+// «codeberg:dueño/repo»: la consulta de versiones se sigue allí (Codeberg es
+// Forgejo, con API compatible con Gitea).
 // ════════════════════════════════════════════════════════════════════════════
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
@@ -23,6 +26,8 @@ export interface VersionLeida {
 export interface PayloadActualizacion {
     canal?: unknown;
     patronTag?: unknown;
+    /** «codeberg:dueño/repo»: el upstream del paquete se mudó ahí. */
+    trasladadoA?: unknown;
 }
 
 /* ─────────────────── Validación del patrón de etiqueta ─────────────────── */
@@ -55,6 +60,26 @@ export function validarPatronTag(texto: unknown): PatronTagValidado {
     }
 }
 
+/* ───────────────────── Traslado a Codeberg ───────────────────── */
+
+const RE_TRASLADO_CODEBERG = /^codeberg:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/;
+
+export const BASE_CODEBERG = "https://codeberg.org";
+
+/**
+ * «dueño/repo» de un `payload.trasladadoA` con la forma `codeberg:dueño/repo`.
+ * Otra forja, otra forma o caracteres inválidos: null (no se sigue el traslado).
+ */
+export function rutaTrasladoCodeberg(trasladadoA: unknown): string | null {
+    if (typeof trasladadoA !== "string") return null;
+    const m = RE_TRASLADO_CODEBERG.exec(trasladadoA.trim());
+    return m ? m[1] : null;
+}
+
+function urlCodeberg(ruta: string, endpoint: "releases" | "tags"): string {
+    return `${BASE_CODEBERG}/api/v1/repos/${ruta}/${endpoint}?limit=1`;
+}
+
 /* ───────────────────── URL pública de consulta ───────────────────── */
 
 const RE_GITHUB = /^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+?)(?:\/.*)?$/;
@@ -69,12 +94,16 @@ function canalDeGitHub(payload?: PayloadActualizacion): "commits" | "releases" |
 
 /**
  * A qué URL pública hay que pedir para saber la versión de un upstream.
- * GitHub → commits, releases o tags según `payload`; si hay un `patronTag`
- * válido manda el canal de etiquetas. Hugging Face → ficha del modelo.
- * Un patrón inválido se ignora (vuelve al canal sin filtro). Cualquier otra
- * forma devuelve null.
+ * Un `trasladadoA: "codeberg:dueño/repo"` manda la consulta a Codeberg
+ * (primero releases; el respaldo a tags lo hace `consultarCodeberg` con el
+ * `fetch` en cadena). GitHub → commits, releases o tags según `payload`; si
+ * hay un `patronTag` válido manda el canal de etiquetas. Hugging Face →
+ * ficha del modelo. Un patrón inválido se ignora (vuelve al canal sin filtro).
+ * Cualquier otra forma devuelve null.
  */
 export function urlDeConsulta(upstream: string, payload?: PayloadActualizacion): string | null {
+    const traslado = rutaTrasladoCodeberg(payload?.trasladadoA);
+    if (traslado) return urlCodeberg(trasladadoAssumedFix(traslado), "releases");
     const github = RE_GITHUB.exec(upstream);
     if (github) {
         const ruta = github[1].replace(/\.git$/, "");
