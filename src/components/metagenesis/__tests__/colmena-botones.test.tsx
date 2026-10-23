@@ -619,3 +619,4 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         await waitFor(() => expect(enviarOrden).toHaveBeenCalledWith("revisar_bloqueadas", "lider"));
     });
 });
+
