@@ -42,7 +42,10 @@ import { createClient } from "@/utils/supabase/client";
 // Subida universal de archivos (Adenda 64 §9): botón "Subir archivos…" de la
 // toolbar — sube al storage real y crea ítems type:'file' en el folder activo.
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
-import type { UniversalAttachment } from "@/lib/files/os-files";
+import { uploadFile, type UniversalAttachment } from "@/lib/files/os-files";
+// Filee (2026-10-23): «Convertir a…» en el clic derecho de cada archivo.
+import { useConversionMenu, type ArchivoConvertible } from "@/components/conversion/use-conversion-menu";
+import type { Convertido } from "@/lib/conversion/cliente";
 import {
     type FinderViewMode, type FinderSort, FINDER_VIEW_KEY, FINDER_SORT_KEY,
     folderPath, folderSubtreeIds, sortItems, sortFolders,
@@ -756,6 +759,39 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         return { kind: "folder", id: folder.id, canWrite: ctx.isOwner || canWriteFolder(doc, folder, ctx) };
     }, [menu, itemsById, doc, ctx]);
 
+    // ── Filee (2026-10-23): «Convertir a…» del archivo del menú ─────────────
+    // El resultado se sube a tus archivos y se guarda en la misma carpeta que el original.
+    const archivoDelMenu: ArchivoConvertible | null = useMemo(() => {
+        if (menuTarget?.kind !== "item") return null;
+        const it = itemsById.get(menuTarget.id);
+        const real = it?.type === "alias" && it.targetItemId ? itemsById.get(it.targetItemId) ?? it : it;
+        if (!real) return null;
+        if (real.url && (real.type === "file" || real.type === "bookmark")) {
+            return { nombre: real.title, url: real.url, tipoMime: real.mime, carpetaId: it?.folderId ?? null };
+        }
+        const fmt = itemFormat(real);
+        if (real.content && (fmt === "markdown" || fmt === "code")) {
+            return { nombre: real.title, contenido: real.content, carpetaId: it?.folderId ?? null };
+        }
+        return null;
+    }, [menuTarget, itemsById]);
+    const guardarConvertido = useCallback(
+        async (c: Convertido, original: ArchivoConvertible): Promise<string | null> => {
+            const subido = await uploadFile(new File([c.blob], c.nombre, { type: c.blob.type || undefined }), {
+                folder: `biblioteca/${entityRef.kind}-${entityRef.id}`,
+                meta: { context: "conversion", motor: c.motor, de: original.nombre },
+            });
+            if (!subido.ok || !subido.file?.url) throw new Error(subido.error || "No pude guardar el archivo convertido.");
+            const res = await saveItem(
+                { type: "file", url: subido.file.url, title: c.nombre, refId: subido.file.id, mime: c.blob.type || undefined },
+                original.carpetaId !== undefined ? original.carpetaId : activeFolder,
+            );
+            return res.ok ? "guardado junto al original" : "está en tus archivos";
+        },
+        [entityRef, saveItem, activeFolder],
+    );
+    const conversionMenu = useConversionMenu(archivoDelMenu, guardarConvertido);
+
     // ── Render ───────────────────────────────────────────────────────────────
 
     if (loading && doc.items.length === 0 && doc.folders.length === 0) {
@@ -1180,6 +1216,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         const d = refDeBiblioteca(menuTarget.kind, menuTarget.id, doc.items, doc.folders);
                         if (d) abrirSelectorMedio(d.elemento, d.padres);
                     }}
+                    conversion={conversionMenu}
                 />
             )}
             <SelectorMedioGlobal />

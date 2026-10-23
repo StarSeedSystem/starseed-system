@@ -13,6 +13,8 @@ import { Volume2 } from "lucide-react";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import { useSavedLibrary } from "@/lib/library-store";
 import type { PersonalityProfile } from "@/lib/aurora/personalities";
+import type { ConversionMenu } from "@/components/conversion/use-conversion-menu";
+import { SubmenuConvertir } from "@/components/conversion/submenu-convertir";
 
 import {
     DropdownMenu,
@@ -92,6 +94,8 @@ export interface FinderContextMenuProps {
     extraActions?: FinderExtraAction[];
     /** Recursos de IA (2026-10-23): «Dónde se guarda y se procesa…» para ítems y folders. */
     onDondeSeGuarda?: () => void;
+    /** Filee (2026-10-23): submenú «Convertir a…» para archivos (ver `use-conversion-menu`). */
+    conversion?: ConversionMenu;
 }
 
 export function FinderContextMenu({
@@ -99,7 +103,7 @@ export function FinderContextMenu({
     onOpen, onClose, onPreview, onReplicate, onDuplicate,
     onCopy, onCut, onPaste, onCreateShortcut, onMove, onTags,
     onShare, onSendTo, onPublish, onPublishToCatalog, onPublishFolderToCatalog, onPermissions, onRemove,
-    onEdit, onVersions, onHistory, onLog, onBranches, onComments, onInstallTo, extraActions, onDondeSeGuarda,
+    onEdit, onVersions, onHistory, onLog, onBranches, onComments, onInstallTo, extraActions, onDondeSeGuarda, conversion,
 }: FinderContextMenuProps) {
     
     const aurora = useAurora();
@@ -361,6 +365,8 @@ export function FinderContextMenu({
                         ))}
                     </>
                 )}
+
+                {isItem && conversion && <SubmenuConvertir conversion={conversion} alElegir={onClose} />}
 
                 {onDondeSeGuarda && (
                     <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onDondeSeGuarda)}>

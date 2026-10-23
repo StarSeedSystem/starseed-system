@@ -2721,6 +2721,19 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     estado: "integrable", motivo: "Servicio local en una neurona con recursos; el OS lo llama por HTTP o línea de órdenes y le pasa solo parámetros.",
     verificado: "2026-10-10",
   },
+  {
+    id: "filee", nombre: "Filee (conversor de 255 formatos)", categoria: "conversion-formatos", tipo: "app", origen: "github",
+    descripcion: "Conversor de archivos sin conexión: imágenes, PDF, Word, Excel, PowerPoint, HWP, libros, vídeo, audio, subtítulos, comprimidos, CAD, tipografías, 3D y datos geoespaciales. En el OS es el motor de «Convertir a…» del clic derecho, de /convertir y de la acción «convertir» de Astraura y de la Protomolécula.",
+    licencia: "MIT", codigo: "https://github.com/KnifeLemon/Filee", web: "https://filee.sh",
+    medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "servicio-local",
+    formatos: { entrada: ["png", "jpeg", "heic", "webp", "pdf", "docx", "xlsx", "pptx", "hwp", "epub", "md", "mp4", "mov", "mp3", "wav", "zip", "dwg", "ttf", "glb", "stl", "geojson"], salida: ["png", "jpeg", "webp", "avif", "pdf", "docx", "txt", "md", "html", "epub", "mp4", "webm", "gif", "mp3", "m4a", "zip", "svg", "glb", "csv", "xlsx"] },
+    control: { via: ["cli"], notas: "`filee convert <archivo> --to <formato> -o <carpeta> --json`; `filee formats <formato>` dice a qué convierte. Motores opcionales: LibreOffice, Pandoc, Ghostscript, calibre y FFmpeg." },
+    actualizacion: { fuente: "github-releases", ref: "KnifeLemon/Filee", ultimaVersion: "v2.0.0", fechaVersion: "2026-10-21" },
+    ia: ["convertir", "exportar", "importar"],
+    estado: "integrable", motivo: "Instalado en la neurona (orden `filee`); el OS lo llama por `/api/conversion` con la lista de argumentos, nunca por una shell. En macOS va sin notarizar (versión preliminar del autor).",
+    verificado: "2026-10-23",
+  },
 
   // ── ia-generativa ───────────────────────────────────────────────
   {

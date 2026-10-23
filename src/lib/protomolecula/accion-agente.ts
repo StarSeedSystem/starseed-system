@@ -8,6 +8,7 @@ import { metricaDeFuente } from "./permisos";
 import { PROTO_ORB_ABRIR_EVENT, leerActivada } from "./orbe-bus";
 import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type ModoRelativo, type Parametro } from "./tipos";
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
+import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
 /** Misma forma que `AuroraActionResult` de `src/lib/aurora/actions.ts`. */
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string }
 /** `avisarOrbe` devuelve `true` solo si la orbe atendió el aviso; `actor` por defecto: el agente personal. */
@@ -16,7 +17,7 @@ export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisa
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
 export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
-const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo"];
+const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir"];
 const MODOS: ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
 let secuencia = 0;
 const texto = (v: unknown): string => (typeof v === "string" ? v.trim() : ""), num = (n: number): string => String(n).replace(".", ",");
@@ -83,11 +84,24 @@ function dictar(c: Controlador, frase: string, autor: Autor): ResultadoAccionPro
     : hechos.has(x.operacion.id) || (x.operacion.accion.tipo === "disparo" && r.aplicados > 0) ? `Aplicado: ${x.resumen}` : `No cambió: ${x.resumen} (ya tenía ese valor o tu rol no permite moverlo)`));
   return { ok: r.aplicados > 0, message: partes.join(" · "), status: "Dictando a la Protomolécula…" };
 }
+/** «convertir» (Filee, 2026-10-23): no necesita molécula; abre el conversor del OS con el archivo y el formato. */
+function convertir(ctx: ContextoAccionProto, a: Record<string, unknown>): ResultadoAccionProto {
+  const destino = formatoDe(texto(a.a) || texto(a.formato)), url = texto(a.url), nombre = texto(a.archivo) || texto(a.nombre);
+  if (!ctx.abrirRuta) return no("Desde aquí no puedo abrir el conversor.");
+  const q = new URLSearchParams();
+  if (url) q.set("url", url);
+  if (nombre) q.set("nombre", nombre);
+  if (destino) q.set("a", destino);
+  ctx.abrirRuta(q.toString() ? `/convertir?${q}` : "/convertir");
+  if (!url) return si(`Abrí el conversor${destino ? ` para pasar a ${etiquetaFormato(destino)}` : ""}: suelta ahí el archivo (o pídemelo con «convertir_archivo» y su nombre).`, "Abriendo el conversor…");
+  return si(destino ? `Convirtiendo «${nombre || "el archivo"}» a ${etiquetaFormato(destino)} con Filee.` : `Abrí «${nombre || "el archivo"}» en el conversor.`, "Convirtiendo con Filee…");
+}
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
   if (accion === "proponer-codigo") return no(MENSAJE_PROPONER_CODIGO);
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
+  if (accion === "convertir") return convertir(ctx, args);
   const c = controladorActivo(moleculaId);
   if (accion === "abrir" && !herramienta) { const a = abrir(ctx, moleculaId); return { ok: a.ok, message: a.texto, status: "Abriendo la Protomolécula…" }; }
   if (!c) return no(`Abre una molécula primero. ${abrir(ctx, moleculaId).texto}`);

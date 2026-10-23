@@ -40,6 +40,37 @@ export const FICHAS_REPOS_OS: LibraryPackage[] = [
         },
     },
     {
+        id: "repo-filee",
+        kind: "project",
+        name: "Filee · convertir archivos (255 formatos)",
+        description:
+            "Conversor de archivos libre (MIT) que funciona sin conexión: imágenes (HEIC, RAW, PSD, AVIF…), PDF, Word, Excel, " +
+            "PowerPoint, HWP, libros electrónicos, vídeo, audio, subtítulos, comprimidos, CAD, tipografías, 3D y datos " +
+            "geoespaciales, sin Office ni LibreOffice. En StarSeed OS convierte en tu propia neurona, sin subir nada a servicios " +
+            "de fuera: con clic derecho sobre cualquier archivo («Convertir a…»), pidiéndoselo a Astraura («convierte este PDF " +
+            "a Word»), desde la Protomolécula o en la página Convertir. Abrir lleva al conversor.",
+        icon: "Replace",
+        tags: ["conversion", "archivos", "formatos", "pdf", "imagenes", "video", "audio", "documentos", "sin-conexion"],
+        version: "2.0.0",
+        author: "KnifeLemon",
+        sourceRepoId: "starseed-labs",
+        free: true,
+        payload: {
+            upstream: "https://github.com/KnifeLemon/Filee",
+            canal: "releases",
+            licencia: "MIT",
+            requisitos:
+                "Neurona con macOS 13+ (versión preliminar, sin notarizar), Windows 10/11 o Linux x64/ARM64 (Ubuntu 22.04+). " +
+                "Orden `filee` en ~/.local/bin. Motores opcionales: LibreOffice, Pandoc, Ghostscript, calibre y FFmpeg.",
+            instalar_mac:
+                "curl -LO https://github.com/KnifeLemon/Filee/releases/download/v2.0.0/Filee-2.0.0-osx-arm64.tar.gz && " +
+                "tar -xzf Filee-2.0.0-osx-arm64.tar.gz && ./Filee-2.0.0-osx-arm64/install.sh",
+            servicio: "src/lib/conversion (ruta /api/conversion)",
+            route: "/convertir",
+            corre_aqui: true,
+        },
+    },
+    {
         id: "repo-react-native-zalo-kit",
         kind: "project",
         name: "React Native Zalo Kit · iniciar sesión con Zalo",

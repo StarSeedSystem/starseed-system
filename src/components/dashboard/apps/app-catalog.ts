@@ -27,6 +27,8 @@ import {
     Gem,
     // Protomolécula
     Atom,
+    // 2026-10-23: Convertir archivos (Filee).
+    Replace,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -421,6 +423,17 @@ export const APP_CATALOG: StarseedApp[] = [
         category: "sistema",
         status: "native",
         open: { primary: "route", allowed: ["route", "tab"], route: "/library" },
+    },
+    {
+        id: "convertir",
+        name: "Convertir archivos",
+        short: "Convertir",
+        description: "Pasa cualquier archivo a otro formato (255) en tu neurona con Filee, sin subirlo a servicios de fuera.",
+        icon: Replace,
+        accent: "#C9A6FF",
+        category: "utilidad",
+        status: "native",
+        open: { primary: "route", allowed: ["route", "tab"], route: "/convertir" },
     },
     {
         id: "agent",

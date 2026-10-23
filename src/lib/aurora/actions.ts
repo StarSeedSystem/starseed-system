@@ -1109,9 +1109,49 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
     },
   },
   {
+    name: "convertir_archivo",
+    describe:
+      "Convierte un archivo a otro formato con Filee (255 formatos: imágenes, PDF, Word, Excel, PowerPoint, libros, vídeo, audio, 3D, CAD, tipografías, datos), en la propia neurona y sin subir nada a servicios de fuera. Args {archivo (nombre de uno de sus archivos) o url, a (formato destino: pdf, docx, png, jpg, webp, mp3, mp4, epub, txt, md…)}. Abre el conversor con el archivo y el formato puestos y convierte solo; luego se descarga o se guarda en sus archivos.",
+    example: '[[ACCION: convertir_archivo {"archivo":"informe.pdf","a":"docx"}]]',
+    handler: async (args, ctx) => {
+      const { enlaceConversor } = await import("@/lib/conversion/cliente");
+      const { elegirPorNombre, etiquetaFormato, formatoDe } = await import("@/lib/conversion/formatos");
+      const a = formatoDe(str(args, "a", "formato", "destino", "to", "como"));
+      let url = str(args, "url", "enlace");
+      let nombre = str(args, "archivo", "nombre", "file", "documento");
+      if (!url && nombre) {
+        const { listMyFiles } = await import("@/lib/files/os-files");
+        const palabra = nombre.split(/[\s.]+/).find((w) => w.length > 2) ?? nombre;
+        let lista = await listMyFiles({ search: palabra, limit: 50 });
+        if (!lista.length) lista = await listMyFiles({ limit: 200 });
+        const hit = elegirPorNombre(lista, nombre);
+        if (hit?.url) {
+          url = hit.url;
+          nombre = hit.name;
+        }
+      }
+      ctx.onStatus?.("Abriendo el conversor…");
+      ctx.router.push(enlaceConversor({ url: url || undefined, nombre: nombre || undefined, a: a || undefined }));
+      if (!url) {
+        return {
+          ok: true,
+          status: "Abriendo el conversor…",
+          message: nombre
+            ? `No encontré «${nombre}» entre tus archivos; abrí el conversor para que lo sueltes ahí${a ? ` y lo paso a ${etiquetaFormato(a)}` : ""}.`
+            : "Abrí el conversor: suelta el archivo y elige el formato.",
+        };
+      }
+      return {
+        ok: true,
+        status: "Convirtiendo…",
+        message: a ? `Convirtiendo «${nombre}» a ${etiquetaFormato(a)} con Filee.` : `Abrí «${nombre}» en el conversor: elige el formato.`,
+      };
+    },
+  },
+  {
     name: "protomolecula",
     describe:
-      "Controla la PROTOMOLÉCULA (creación y edición universal) por la misma puerta que la mano: cada cambio lleva tu nombre y se puede deshacer. Args {accion, molecula?}: «abrir» (orbe o página; con {herramienta} añade un átomo), «estado» (controles con valor, unidad y rango; {atomo} filtra), «mover» ({parametro, valor} exacto o {parametro, cambio, modo: delta|porcentaje-valor|porcentaje-rango|pasos}; {atomo} si hay dos iguales), «dictar» ({frase}), «deshacer» (solo lo tuyo) y «proponer-codigo» (próximamente, fase F7). Lo que pida confirmación queda pendiente en el panel.",
+      "Controla la PROTOMOLÉCULA (creación y edición universal) por la misma puerta que la mano: cada cambio lleva tu nombre y se puede deshacer. Args {accion, molecula?}: «abrir» (orbe o página; con {herramienta} añade un átomo), «estado» (controles con valor, unidad y rango; {atomo} filtra), «mover» ({parametro, valor} exacto o {parametro, cambio, modo: delta|porcentaje-valor|porcentaje-rango|pasos}; {atomo} si hay dos iguales), «dictar» ({frase}), «deshacer» (solo lo tuyo), «convertir» ({url} o {archivo} y {a}: pasa un archivo a otro formato con Filee) y «proponer-codigo» (próximamente, fase F7). Lo que pida confirmación queda pendiente en el panel.",
     example: '[[ACCION: protomolecula {"accion":"mover","parametro":"brillo","valor":50}]]',
     handler: async (args, ctx) => {
       const { manejarAccionProtomolecula } = await import("@/lib/protomolecula/accion-agente");

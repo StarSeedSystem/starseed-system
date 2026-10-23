@@ -22,7 +22,7 @@ describe("repos que Alex trajo para el OS", () => {
     });
 
     it("las dos entran en la comprobación automática de versión", () => {
-        expect(fichasIaConUpstreamGitHub(FICHAS_REPOS_OS).map((p) => p.id)).toEqual(["repo-hono", "repo-react-native-zalo-kit"]);
+        expect(fichasIaConUpstreamGitHub(FICHAS_REPOS_OS).map((p) => p.id)).toEqual(["repo-hono", "repo-filee", "repo-react-native-zalo-kit"]);
     });
 });
 
@@ -38,6 +38,16 @@ describe("instalar desde la Biblioteca", () => {
         expect(res.href).toBe("/agent?tab=recursos-ia");
         expect(res.message).not.toMatch(/skill/i);
         expect(isInstalled("repo-hono")).toBe(true);
+    });
+
+    it("Filee se instala y abre el conversor del OS", async () => {
+        const filee = findPackage("repo-filee")!;
+        expect(filee.payload.upstream).toBe("https://github.com/KnifeLemon/Filee");
+        expect(filee.payload.licencia).toBe("MIT");
+        const res = await install(filee);
+        expect(res.ok).toBe(true);
+        expect(res.href).toBe("/convertir");
+        expect(isInstalled("repo-filee")).toBe(true);
     });
 
     it("Zalo Kit está en el catálogo pero no se instala por error", () => {

@@ -1,0 +1,323 @@
+CSV (csv) converts to:
+  png, jpg, webp, tiff, bmp, gif, ico, avif, jxl, jp2, psd, psb, tga, ppm, apng, mng, qoi, dds, pcx, cur, xpm, xbm, wbmp, pam, pfm, sgi, ras, miff, pdf, docx, docm, dotx, dotm, hwpx, hwp, xlsx, xlsm, xltx, ods, tsv, txt, md, html, json, jsonl, yaml, toml, xml, vcf, epub, kepub, fb2, cbz, htmlz, txtz, geojson, kml, kmz, gpx, shp
+With optional engines (install them in Filee, Settings → Engines):
+  svg, eps, ps, odg, doc, odt, fodt, ott, rtf, xls, xlt, ots, pptx, rst, tex, org, adoc, typ, mediawiki, dbk, ipynb, textile, man, opml, mobi, azw3, lit, lrf, pdb, pml, rb, snb, tcr
+DOCX (docx) converts to:
+  png, jpg, webp, tiff, bmp, gif, ico, avif, jxl, jp2, psd, psb, tga, ppm, apng, mng, qoi, dds, pcx, cur, xpm, xbm, wbmp, pam, pfm, sgi, ras, miff, pdf, docm, dotx, dotm, hwpx, hwp, txt, md, html, epub, kepub, fb2, cbz, htmlz, txtz
+With optional engines (install them in Filee, Settings → Engines):
+  svg, eps, ps, odg, doc, odt, fodt, ott, rtf, pptx, pptm, potx, potm, ppsx, ppt, odp, otp, rst, tex, org, adoc, typ, mediawiki, dbk, ipynb, textile, man, opml, mobi, azw3, lit, lrf, pdb, pml, rb, snb, tcr
+EPUB (epub) converts to:
+  png, jpg, webp, tiff, bmp, gif, ico, avif, jxl, jp2, psd, psb, tga, ppm, apng, mng, qoi, dds, pcx, cur, xpm, xbm, wbmp, pam, pfm, sgi, ras, miff, pdf, docx, docm, dotx, dotm, hwpx, hwp, txt, md, html, kepub, fb2, cbz, htmlz, txtz
+With optional engines (install them in Filee, Settings → Engines):
+  svg, eps, ps, odg, doc, odt, fodt, ott, rtf, pptx, pptm, potx, potm, ppsx, ppt, odp, otp, rst, tex, org, adoc, typ, mediawiki, dbk, ipynb, textile, man, opml, mobi, azw3, lit, lrf, pdb, pml, rb, snb, tcr
+GLB (glb) converts to:
+  png, jpg, webp, tiff, bmp, gif, ico, avif, heic, jxl, jp2, psd, psb, tga, ppm, icns, apng, mng, qoi, dds, pcx, cur, xpm, xbm, wbmp, pam, pfm, sgi, ras, miff, pdf, docx, hwpx, txt, cbz, mp4, m4v, mov, mkv, webm, avi, wmv, flv, mpg, ts, m2ts, 3gp, 3g2, ogv, vob, dv, mxf, mp3, m4a, m4b, aac, wav, flac, ogg, opus, wma, aiff, ac3, amr, au, caf, weba, mka, mp2, voc, wv, tta, w64, eac3, srt, ass, vtt, gltf, stl, obj, 3mf, ply
+With optional engines (install them in Filee, Settings → Engines):
+  svg, eps, ps, odg
+HEIC (heic, heif, hif) converts to:
+  png, jpg, webp, tiff, bmp, gif, ico, avif, jxl, jp2, psd, psb, tga, ppm, icns, apng, mng, qoi, dds, pcx, cur, xpm, xbm, wbmp, pam, pfm, sgi, ras, miff, svg, svgz, pdf, docx, docm, dotx, dotm, hwpx, hwp, txt, md, html, epub, fb2, cbz, htmlz, txtz, mp4, m4v, mov, mkv, webm, avi, wmv, flv, mpg, ts, m2ts, 3gp, 3g2, ogv, vob, dv, mxf, dwg, dxf
+With optional engines (install them in Filee, Settings → Engines):
+  eps, ps, emf, wmf, odg, doc, odt, fodt, ott, rtf, rst, tex, org, adoc, typ, mediawiki, dbk, ipynb, textile, man, opml
+JPG (jpg, jpeg, jpe, jfif) converts to:
+  png, webp, tiff, bmp, gif, ico, avif, heic, jxl, jp2, psd, psb, tga, ppm, icns, apng, mng, qoi, dds, pcx, cur, xpm, xbm, wbmp, pam, pfm, sgi, ras, miff, svg, svgz, pdf, docx, docm, dotx, dotm, hwpx, hwp, txt, md, html, epub, fb2, cbz, htmlz, txtz, mp4, m4v, mov, mkv, webm, avi, wmv, flv, mpg, ts, m2ts, 3gp, 3g2, ogv, vob, dv, mxf, dwg, dxf
+With optional engines (install them in Filee, Settings → Engines):
+  eps, ps, emf, wmf, odg, doc, odt, fodt, ott, rtf, rst, tex, org, adoc, typ, mediawiki, dbk, ipynb, textile, man, opml
+MP3 (mp3) converts to:
+  m4a, m4b, aac, wav, flac, ogg, opus, wma, aiff, ac3, amr, au, caf, weba, mka, mp2, voc, wv, tta, w64, eac3
+MP4 (mp4) converts to:
+  png, jpg, webp, tiff, bmp, gif, ico, avif, heic, jxl, jp2, psd, psb, tga, ppm, icns, apng, mng, qoi, dds, pcx, cur, xpm, xbm, wbmp, pam, pfm, sgi, ras, miff, pdf, docx, hwpx, txt, cbz, m4v, mov, mkv, webm, avi, wmv, flv, mpg, ts, m2ts, 3gp, 3g2, ogv, vob, dv, mxf, mp3, m4a, m4b, aac, wav, flac, ogg, opus, wma, aiff, ac3, amr, au, caf, weba, mka, mp2, voc, wv, tta, w64, eac3, srt, ass, vtt, smi, lrc, ttml, sub
+With optional engines (install them in Filee, Settings → Engines):
+  svg, eps, ps, odg
+PDF (pdf) converts to:
+  png, jpg, webp, tiff, bmp, gif, ico, avif, heic, jxl, jp2, psd, psb, tga, ppm, icns, apng, mng, qoi, dds, pcx, cur, xpm, xbm, wbmp, pam, pfm, sgi, ras, miff, docx, docm, dotx, dotm, hwpx, hwp, pptx, txt, md, html, epub, kepub, fb2, cbz, htmlz, txtz, mp4, m4v, mov, mkv, webm, avi, wmv, flv, mpg, ts, m2ts, 3gp, 3g2, ogv, vob, dv, mxf, mp3, m4a, m4b, aac, wav, flac, ogg, opus, wma, aiff, ac3, amr, au, caf, weba, mka, mp2, voc, wv, tta, w64, eac3, srt, ass, vtt
+With optional engines (install them in Filee, Settings → Engines):
+  svg, svgz, eps, ps, emf, wmf, odg, doc, odt, fodt, ott, rtf, rst, tex, org, adoc, typ, mediawiki, dbk, ipynb, textile, man, opml, mobi, azw3, lit, lrf, pdb, pml, rb, snb, tcr, dwg, dxf
+PPTX (pptx) converts to:
+  png, jpg, webp, tiff, bmp, gif, ico, avif, jxl, jp2, psd, psb, tga, ppm, apng, mng, qoi, dds, pcx, cur, xpm, xbm, wbmp, pam, pfm, sgi, ras, miff, pdf, docx, docm, dotx, dotm, hwpx, hwp, pptm, potx, potm, ppsx, txt, md, html, epub, kepub, fb2, cbz, htmlz, txtz
+With optional engines (install them in Filee, Settings → Engines):
+  heic, icns, svg, svgz, eps, ps, emf, wmf, odg, doc, odt, fodt, ott, rtf, ppt, odp, otp, rst, tex, org, adoc, typ, mediawiki, dbk, ipynb, textile, man, opml, mobi, azw3, lit, lrf, pdb, pml, rb, snb, tcr, mp4, mov, webm, dxf
+SVG (svg) converts to:
+  png, jpg, webp, tiff, bmp, gif, ico, avif, heic, jxl, jp2, psd, psb, tga, ppm, icns, apng, mng, qoi, dds, pcx, cur, xpm, xbm, wbmp, pam, pfm, sgi, ras, miff, svgz, pdf, docx, docm, dotx, dotm, hwpx, hwp, txt, md, html, epub, fb2, cbz, htmlz, txtz, mp4, m4v, mov, mkv, webm, avi, wmv, flv, mpg, ts, m2ts, 3gp, 3g2, ogv, vob, dv, mxf, mp3, m4a, m4b, aac, wav, flac, ogg, opus, wma, aiff, ac3, amr, au, caf, weba, mka, mp2, voc, wv, tta, w64, eac3, dwg, dxf, srt, ass, vtt
+With optional engines (install them in Filee, Settings → Engines):
+  eps, ps, emf, wmf, odg, doc, odt, fodt, ott, rtf, rst, tex, org, adoc, typ, mediawiki, dbk, ipynb, textile, man, opml
+XLSX (xlsx) converts to:
+  png, jpg, webp, tiff, bmp, gif, ico, avif, jxl, jp2, psd, psb, tga, ppm, apng, mng, qoi, dds, pcx, cur, xpm, xbm, wbmp, pam, pfm, sgi, ras, miff, pdf, docx, docm, dotx, dotm, hwpx, hwp, xlsm, xltx, ods, csv, tsv, txt, md, html, json, jsonl, yaml, toml, xml, vcf, epub, kepub, fb2, cbz, htmlz, txtz, geojson, kml, kmz, gpx, shp
+With optional engines (install them in Filee, Settings → Engines):
+  svg, eps, ps, odg, doc, odt, fodt, ott, rtf, xls, xlt, ots, pptx, rst, tex, org, adoc, typ, mediawiki, dbk, ipynb, textile, man, opml, mobi, azw3, lit, lrf, pdb, pml, rb, snb, tcr
+ZIP (zip, wbpz) converts to:
+  7z, tar, tgz, tbz2, txz
+Image:
+  png        PNG  .png
+  jpg        JPG  .jpg .jpeg .jpe .jfif
+  webp       WEBP  .webp
+  tiff       TIFF  .tiff .tif
+  bmp        BMP  .bmp .dib
+  gif        GIF  .gif
+  ico        ICO  .ico
+  avif       AVIF  .avif
+  heic       HEIC  .heic .heif .hif
+  jxl        JPEG XL  .jxl
+  jp2        JPEG 2000  .jp2 .j2k .jpf .jpx
+  psd        PSD  .psd
+  psb        PSB  .psb
+  tga        TGA  .tga .icb .vda .vst
+  ppm        PPM  .ppm .pgm .pbm .pnm
+  icns       ICNS  .icns
+  apng       APNG  .apng
+  mng        MNG  .mng
+  qoi        QOI  .qoi
+  dds        DDS  .dds
+  pcx        PCX  .pcx
+  cur        CUR  .cur
+  xpm        XPM  .xpm
+  xbm        XBM  .xbm
+  wbmp       WBMP  .wbmp
+  pam        PAM  .pam
+  pfm        PFM  .pfm
+  sgi        SGI  .sgi .rgb .rgba .bw
+  ras        Sun Raster  .ras .sun
+  miff       MIFF  .miff
+  dcm        DICOM (read only)  .dcm .dicom
+  pcd        Photo CD (read only)  .pcd
+  exr        OpenEXR (read only)  .exr
+  hdr        Radiance HDR (read only)  .hdr
+  jxr        JPEG XR (read only)  .jxr .wdp .hdp
+  xcf        XCF (read only)  .xcf
+  livp       Live Photo (LIVP) (read only)  .livp
+  raw        RAW (read only)  .dng .cr2 .cr3 .crw .nef .nrw .arw .srf .sr2 .orf .rw2 .raf .pef .dcr .kdc .erf .mos .mrw .x3f .3fr .fff .iiq .mef .rwl .srw .raw
+Vector:
+  svg        SVG  .svg
+  svgz       SVGZ  .svgz
+  eps        EPS  .eps .epsf .epsi
+  ps         PS  .ps
+  ai         AI (read only)  .ai
+  emf        EMF  .emf
+  wmf        WMF  .wmf
+  cdr        CDR (read only)  .cdr
+  cgm        CGM (read only)  .cgm
+  vsd        VSD (read only)  .vsd .vsdx
+  odg        ODG  .odg
+  fodg       FODG (read only)  .fodg
+Pdf:
+  pdf        PDF  .pdf
+Document:
+  docx       DOCX  .docx
+  docm       DOCM  .docm
+  dotx       DOTX  .dotx
+  dotm       DOTM  .dotm
+  doc        DOC  .doc
+  dot        DOT (read only)  .dot
+  odt        ODT  .odt
+  fodt       FODT  .fodt
+  ott        OTT  .ott
+  rtf        RTF  .rtf
+  wps        WPS (read only)  .wps
+  ofd        OFD (read only)  .ofd
+  wpd        WPD (read only)  .wpd
+  lwp        LWP (read only)  .lwp
+  abw        ABW (read only)  .abw .zabw
+  pages      Pages (read only)  .pages
+  sdw        SDW (read only)  .sdw
+  cwk        ClarisWorks (read only)  .cwk
+  mcw        MacWrite (read only)  .mcw
+  602        T602 (read only)  .602
+  psw        Pocket Word (read only)  .psw
+  pub        PUB (read only)  .pub
+  eml        EML  .eml
+  msg        MSG (read only)  .msg
+Hwp:
+  hwpx       HWPX  .hwpx
+  hwp        HWP  .hwp
+Spreadsheet:
+  xlsx       XLSX  .xlsx
+  xlsm       XLSM  .xlsm
+  xltx       XLTX  .xltx
+  xls        XLS  .xls
+  xlt        XLT  .xlt
+  ods        ODS  .ods
+  ots        OTS  .ots
+  fods       FODS (read only)  .fods
+  csv        CSV  .csv
+  tsv        TSV  .tsv .tab
+  et         ET (read only)  .et
+  numbers    Numbers (read only)  .numbers
+  sdc        SDC (read only)  .sdc
+Presentation:
+  pptx       PPTX  .pptx
+  pptm       PPTM  .pptm
+  potx       POTX  .potx
+  potm       POTM  .potm
+  ppsx       PPSX  .ppsx
+  ppt        PPT  .ppt .pps .pot
+  odp        ODP  .odp
+  otp        OTP  .otp
+  fodp       FODP (read only)  .fodp
+  key        Keynote (read only)  .key
+  dps        DPS (read only)  .dps
+  sda        SDA (read only)  .sda .sdd
+Text:
+  txt        TXT  .txt .log .py .pac .bat .command
+  md         Markdown  .md .markdown
+  html       HTML  .html .htm .xhtml
+  mhtml      MHTML (read only)  .mhtml .mht
+  rst        reStructuredText  .rst
+  tex        LaTeX  .tex .latex
+  org        Org  .org
+  adoc       AsciiDoc  .adoc .asciidoc
+  typ        Typst  .typ
+  mediawiki  MediaWiki  .mediawiki .wiki
+  dbk        DocBook  .dbk .docbook
+  ipynb      Jupyter  .ipynb
+  textile    Textile  .textile
+  man        Man page  .man
+  opml       OPML  .opml
+Data:
+  json       JSON  .json
+  jsonl      JSON Lines  .jsonl .ndjson
+  yaml       YAML  .yaml .yml
+  toml       TOML  .toml
+  xml        XML  .xml
+  vcf        vCard  .vcf .vcard
+Ebook:
+  epub       EPUB  .epub
+  kepub      KEPUB  .kepub.epub .kepub
+  mobi       MOBI  .mobi
+  azw3       AZW3  .azw3
+  azw        AZW (read only)  .azw
+  azw4       AZW4 (read only)  .azw4
+  prc        PRC (read only)  .prc
+  fb2        FB2  .fb2
+  cbz        CBZ  .cbz
+  cbr        CBR (read only)  .cbr
+  cb7        CB7 (read only)  .cb7
+  cbt        CBT (read only)  .cbt
+  cbc        CBC (read only)  .cbc
+  htmlz      HTMLZ  .htmlz
+  txtz       TXTZ  .txtz
+  chm        CHM (read only)  .chm
+  lit        LIT  .lit
+  lrf        LRF  .lrf
+  pdb        PDB  .pdb
+  pml        PML  .pml
+  rb         RB  .rb
+  snb        SNB  .snb
+  tcr        TCR  .tcr
+  oeb        OEB (read only)  .oeb .opf
+Video:
+  mp4        MP4  .mp4
+  m4v        M4V  .m4v
+  mov        MOV  .mov .qt
+  mkv        MKV  .mkv
+  webm       WEBM  .webm
+  avi        AVI  .avi .divx
+  wmv        WMV  .wmv .asf
+  flv        FLV  .flv .f4v
+  mpg        MPEG  .mpg .mpeg .mpe .m1v .m2v .dat
+  ts         TS  .ts
+  m2ts       M2TS  .m2ts .mts .m2t
+  3gp        3GP  .3gp .3gpp
+  3g2        3G2  .3g2
+  ogv        OGV  .ogv
+  vob        VOB  .vob
+  mod        MOD (read only)  .mod .tod
+  dv         DV  .dv .dif
+  mxf        MXF  .mxf
+  rm         RM (read only)  .rm .rmvb
+  swf        SWF (read only)  .swf
+  wtv        WTV (read only)  .wtv .dvr-ms .dvr
+  cavs       CAVS (read only)  .cavs
+Audio:
+  mp3        MP3  .mp3
+  m4a        M4A  .m4a
+  m4b        M4B  .m4b
+  aac        AAC  .aac
+  wav        WAV  .wav .wave
+  flac       FLAC  .flac
+  ogg        OGG  .ogg .oga
+  opus       OPUS  .opus
+  wma        WMA  .wma
+  aiff       AIFF  .aiff .aif .aifc
+  ac3        AC3  .ac3
+  amr        AMR  .amr
+  au         AU  .au .snd
+  caf        CAF  .caf
+  weba       WEBA  .weba
+  mka        MKA  .mka
+  mp2        MP2  .mp2 .mpa
+  dss        DSS (read only)  .dss
+  voc        VOC  .voc
+  wv         WavPack  .wv
+  tta        TTA  .tta
+  w64        W64  .w64
+  eac3       E-AC3  .eac3 .ec3
+  ape        APE (read only)  .ape
+  mpc        Musepack (read only)  .mpc .mpp .mp+
+  tak        TAK (read only)  .tak
+  dsf        DSF (read only)  .dsf
+  dff        DFF (read only)  .dff
+  dts        DTS (read only)  .dts
+  spx        Speex (read only)  .spx
+Archive:
+  zip        ZIP  .zip .wbpz
+  7z         7Z  .7z
+  rar        RAR (read only)  .rar
+  tar        TAR  .tar
+  tgz        TAR.GZ  .tar.gz .tgz .taz
+  tbz2       TAR.BZ2  .tar.bz2 .tbz2 .tar.bz .tbz
+  txz        TAR.XZ  .tar.xz .txz
+  tar7z      TAR.7Z (read only)  .tar.7z
+  tlz        TAR.LZ (read only)  .tar.lz .tlz
+  tz         TAR.Z (read only)  .tar.z .tz
+  gz         GZ  .gz
+  bz2        BZ2  .bz2 .bz
+  xz         XZ  .xz
+  lz         LZ (read only)  .lz
+  lzma       LZMA (read only)  .lzma
+  z          Z (read only)  .z
+  jar        JAR (read only)  .jar
+  cab        CAB (read only)  .cab
+  cpio       CPIO (read only)  .cpio
+  deb        DEB (read only)  .deb
+  rpm        RPM (read only)  .rpm
+  dmg        DMG (read only)  .dmg
+  iso        ISO (read only)  .iso
+  img        IMG (read only)  .img
+  lha        LHA (read only)  .lha .lzh
+  arj        ARJ (read only)  .arj
+  alz        ALZ (read only)  .alz
+  egg        EGG (read only)  .egg
+Cad:
+  dwg        DWG  .dwg
+  dxf        DXF  .dxf
+Font:
+  ttf        TTF  .ttf
+  otf        OTF  .otf
+  woff       WOFF  .woff
+  woff2      WOFF2  .woff2
+  eot        EOT  .eot
+Subtitle:
+  srt        SRT  .srt
+  ass        ASS  .ass
+  ssa        SSA (read only)  .ssa
+  vtt        WebVTT  .vtt
+  smi        SAMI  .smi .sami
+  lrc        LRC  .lrc
+  ttml       TTML  .ttml .dfxp
+  sub        MicroDVD  .sub
+  scc        SCC (read only)  .scc
+Model3D:
+  glb        GLB  .glb
+  gltf       glTF  .gltf
+  stl        STL  .stl
+  obj        OBJ  .obj
+  3mf        3MF  .3mf
+  ply        PLY  .ply
+  fbx        FBX (read only)  .fbx
+Geo:
+  geojson    GeoJSON  .geojson
+  kml        KML  .kml
+  kmz        KMZ  .kmz
+  gpx        GPX  .gpx
+  shp        Shapefile  .shp
+
+Run 'filee formats <format>' to see what a format converts to.
