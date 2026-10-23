@@ -5,10 +5,10 @@ const ids = PAQUETES_EXTERNOS.map((p) => p.id);
 const githubRepos = PAQUETES_EXTERNOS.map((p) => p.githubRepo);
 const externalUrls = PAQUETES_EXTERNOS.map((p) => p.externalUrl);
 
-describe("repos-externos-1020 · 2.ª tanda merged con 1.ª", () => {
-  it("tienen 28 ids únicos", () => {
-    expect(new Set(ids).size).toBe(28);
-    expect(ids.length).toBe(28);
+describe("repos-externos-1020 · 3 tandas merged (1020 + 1020b + 1020c)", () => {
+  it("tienen 41 ids únicos", () => {
+    expect(new Set(ids).size).toBe(41);
+    expect(ids.length).toBe(41);
   });
 
   it("cada paquete tiene payload.githubRepo de GitHub", () => {
