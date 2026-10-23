@@ -31,6 +31,7 @@ import { readRouteLog, getIntelligenceSettings, saveIntelligenceSettings, type R
 import { estadoEntonacion, reflexionarEntonacion, EVENTO_ENTONACION, type DecisionEntonacion } from "@/lib/aurora/agente-entonacion";
 import { TIMBRES, fijarTimbre } from "@/lib/aurora/timbres";
 import { MOTORES_VOZ } from "@/lib/aurora/catalogo-voces";
+import { VozLicencias } from "@/components/astraura/voz-licencias";
 import { PanelCapas } from "@/components/astraura/capas/panel-capas";
 
 /* ── Uso por fuente/modelo (tokens, contexto) ─────────────────────────────── */
@@ -297,6 +298,8 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
                             ))}
                         </div>
                     </div>
+
+                    <VozLicencias contexto="personal" condicionCumplida={false} estadoVoicestudio="sin-comprobar" />
                 </div>
             )}
 
