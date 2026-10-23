@@ -60,6 +60,14 @@ import { raizDelProyecto } from "@/lib/mando/raiz";
 import { leerPendientes } from "@/lib/mando/publicaciones";
 import { crearReunionCompartida } from "@/lib/mando/reunion-compartida";
 import { esOpcionAlex, idDeTareaValido, type EstadoRevisorBloqueadas } from "@/lib/mando/bloqueadas";
+import {
+    validarAjustes,
+    type AjustesAutodesarrollo,
+    type EstadoPropuesta,
+    type FuentePropuesta,
+    type ImportanciaPropuesta,
+    type PropuestaImaginacion,
+} from "@/lib/mando/imaginacion-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +75,78 @@ export const dynamic = "force-dynamic";
 const correr = promisify(execFile);
 const RAÍZ = raizDelProyecto();
 const PROGRESO = path.join(RAÍZ, "starseed_memory_root", "olas", "progreso.json");
+const PROPUESTAS_IMAGINACION = path.join(RAÍZ, "starseed_memory_root", "imaginacion", "propuestas.json");
+const AJUSTES_IMAGINACION = path.join(os.homedir(), ".starseed", "autodesarrollo.json");
+
+const FUENTES_IMAGINACION = new Set<FuentePropuesta>(["diaria", "profunda", "astraura", "directores"]);
+const ESTADOS_IMAGINACION = new Set<EstadoPropuesta>([
+    "nueva", "autodesarrollo", "esperando-aprobacion", "pregunta", "descartada",
+    "aprobada", "rechazada", "pospuesta", "hecha",
+]);
+const IMPORTANCIAS_IMAGINACION = new Set<ImportanciaPropuesta>(["baja", "media", "alta", "crítica"]);
+
+const textoCorto = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+const objeto = (v: unknown): v is Record<string, unknown> =>
+    typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * (2026-10-23, IMN1021H) Una propuesta del director → la forma que pinta el medidor.
+ * PURA y defensiva: lo inválido se descarta, lo raro vuelve al valor prudente y los
+ * archivos quedan como rutas RELATIVAS (nunca se devuelven rutas del disco).
+ */
+function normalizarPropuesta(d: unknown): PropuestaImaginacion | null {
+    if (!objeto(d) || typeof d.id !== "string" || !d.id.trim()) return null;
+    const fuente = typeof d.fuente === "string" ? d.fuente : "";
+    if (!FUENTES_IMAGINACION.has(fuente as FuentePropuesta)) return null;
+    const importancia = IMPORTANCIAS_IMAGINACION.has(d.importancia as ImportanciaPropuesta)
+        ? (d.importancia as ImportanciaPropuesta)
+        : "media";
+    const estado = ESTADOS_IMAGINACION.has(d.estado as EstadoPropuesta)
+        ? (d.estado as EstadoPropuesta)
+        : "nueva";
+    const archivos = Array.isArray(d.archivos)
+        ? d.archivos
+              .filter((a): a is string => typeof a === "string" && !path.isAbsolute(a) && !a.includes(".."))
+              .map((a) => a.slice(0, 200))
+              .slice(0, 20)
+        : [];
+    const utilidad = typeof d.utilidad === "number" && Number.isFinite(d.utilidad)
+        ? Math.min(1, Math.max(0, d.utilidad))
+        : 0;
+    const p: PropuestaImaginacion = {
+        id: d.id.trim().slice(0, 120),
+        fuente: fuente as FuentePropuesta,
+        titulo: textoCorto(d.titulo, 200),
+        cuerpo: textoCorto(d.cuerpo, 2000),
+        archivos,
+        utilidad,
+        importancia,
+        estado,
+        motivo: textoCorto(d.motivo, 300),
+        t: textoCorto(d.t, 40),
+    };
+    if (typeof d.tarea === "string" && d.tarea) p.tarea = d.tarea.slice(0, 80);
+    return p;
+}
+
+/** Las propuestas y los ajustes que necesita el medidor «Imaginación». Sin rutas ni claves. */
+async function leerImaginacion(): Promise<{ propuestas: PropuestaImaginacion[]; ajustes: AjustesAutodesarrollo }> {
+    const [crudo, ajustesCrudos] = await Promise.all([
+        readFile(PROPUESTAS_IMAGINACION, "utf8")
+            .then((t) => JSON.parse(t) as unknown)
+            .catch(() => null),
+        readFile(AJUSTES_IMAGINACION, "utf8")
+            .then((t) => JSON.parse(t) as unknown)
+            .catch(() => null),
+    ]);
+    const lista = Array.isArray(crudo)
+        ? crudo
+        : objeto(crudo) && Array.isArray(crudo.propuestas)
+          ? crudo.propuestas
+          : [];
+    const propuestas = lista.map(normalizarPropuesta).filter((p): p is PropuestaImaginacion => p !== null);
+    return { propuestas, ajustes: validarAjustes(ajustesCrudos) };
+}
 
 type Entrada = { estado?: string; nota?: string; t?: string; modelo?: string; [k: string]: unknown };
 
@@ -578,7 +658,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             tiempos[fuente] = Date.now() - inicio;
             throw e;
         });
-    const [progreso, colas, bus, latidosMacTodos, vivo, commitsGit, escritores] = await Promise.all([
+    const [progreso, colas, bus, latidosMacTodos, vivo, commitsGit, escritores, imaginacion] = await Promise.all([
         midiendo("progreso", leerEntradas()),
         midiendo("colas", leerColas().catch(() => [])),
         midiendo("bus", leerLatidosDelBus().catch(() => ({ latidos: [], enjambres: [] }))),
@@ -586,6 +666,13 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         midiendo("enjambre", enjambreEnMarcha().catch(() => false)),
         midiendo("commitsOlas", leerCommitsDeOlas().catch(() => new Map())),
         midiendo("escritores", leerEscritores().catch(() => null)),
+        midiendo(
+            "imaginacion",
+            leerImaginacion().catch(() => ({
+                propuestas: [] as PropuestaImaginacion[],
+                ajustes: validarAjustes(null),
+            })),
+        ),
     ]);
     // La pausa de Genesis vive fuera de git, en la config del director.
     let pausado = false;
@@ -827,6 +914,9 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // que `construirDetalle` recibia `undefined` y no podia filtrar nada. El filtro
         // estaba bien escrito; lo que faltaba era darle el dato.
         asuntosDeMain,
+        // (2026-10-23, IMN1021H) El medidor «Imaginación»: propuestas ya normalizadas y los
+        // ajustes con los que se decide qué se desarrolla solo y qué espera a Alex.
+        imaginacion,
     };
 }
 

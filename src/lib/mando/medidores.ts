@@ -27,6 +27,13 @@ import {
     type ResumenBloqueadas,
 } from "./bloqueadas";
 import { CONTENEDORES_OPCIONES } from "@/lib/genesis/conectores/contenedores";
+import {
+    AJUSTES_POR_DEFECTO,
+    filasMedidor as filasDeImaginacion,
+    resumenPastilla as resumenDeImaginacion,
+    type AjustesAutodesarrollo,
+    type PropuestaImaginacion,
+} from "./imaginacion-tipos";
 
 export type ClaveMedidor =
     | "en-curso"
@@ -55,7 +62,11 @@ export type ClaveMedidor =
     // (2026-10-20) Alex: «es diferente la info de Bloqueadas y rechazadas en Ramificación que el
     // medidor del pulso» y «las en cadena deben ir en su propio medidor». Las esperas normales de
     // una cadena salen de «Bloqueadas» y van aquí: se desbloquean solas.
-    | "en-cadena";
+    | "en-cadena"
+    // (2026-10-23, IMN1021H) Alex: «en el pulso del trabajo añade un medidor de esos procesos
+    // y de sugerencias de los sueños y procesos imaginativos automáticos». El detalle enseña
+    // las propuestas y qué espera tu visto bueno (§6).
+    | "imaginacion";
 
 export type ClaseAccion =
     | "descartar"
@@ -1453,6 +1464,12 @@ export interface DatosMedidores {
     fila?: FilaContable[];
     /** (2026-10-06) Medidores de crédito por terminal, MC1007F. */
     creditosPago?: DocCreditos | null;
+    /** (2026-10-23, IMN1021H) Propuestas de imaginación ya normalizadas por la ruta del
+     *  servidor y los ajustes con los que se decide. Aquí solo se pintan. */
+    imaginacion?: {
+        propuestas: PropuestaImaginacion[];
+        ajustes?: AjustesAutodesarrollo;
+    };
 }
 
 const FASE_VERIFICANDO: Record<string, string> = {
@@ -2049,6 +2066,46 @@ export function detalleDeMedidor(
                 bloqueadas: r,
                 acciones: [IR_A("Ver la ramificación", "procesos")],
                 vacio: "Ninguna tarea espera a otra: nada en cadena.",
+            };
+        }
+
+        case "imaginacion": {
+            // (2026-10-23, IMN1021H) Una fila por propuesta, con la MISMA regla de orden que
+            // usa la pastilla (`filasMedidor`): primero lo que espera a Alex, luego importancia
+            // y utilidad. Los datos vienen ya normalizados de la ruta; aquí no se toca disco.
+            const propuestas = d.imaginacion?.propuestas ?? [];
+            const ajustes = d.imaginacion?.ajustes ?? AJUSTES_POR_DEFECTO;
+            const resumen = resumenDeImaginacion(propuestas, ajustes, new Date(ahora ?? Date.now()));
+            const filas: FilaMedidor[] = filasDeImaginacion(propuestas).map((f) => {
+                const utilidad = `${Math.round(f.utilidad * 100)} %`;
+                const ficha: DatoDeFicha[] = [
+                    { etiqueta: "Fuente", valor: f.fuente },
+                    { etiqueta: "Utilidad", valor: utilidad },
+                    { etiqueta: "Importancia", valor: f.importancia },
+                    { etiqueta: "Estado", valor: f.estado },
+                ];
+                if (f.tarea) ficha.push({ etiqueta: "Tarea", valor: f.tarea });
+                return {
+                    id: f.id,
+                    titulo: f.titulo,
+                    estado: f.estado,
+                    quien: f.fuente,
+                    porque: `utilidad ${utilidad} · importancia ${f.importancia}${
+                        f.esperaAlex ? " · espera tu visto bueno" : ""
+                    }`,
+                    ficha,
+                    // Las acciones de esta ventana se cablean en el pulso; el detalle solo dice
+                    // qué hay y qué espera. Nunca se ofrece descartar una propuesta desde aquí.
+                    acciones: [],
+                };
+            });
+            return {
+                clave,
+                titulo: "Imaginación",
+                resumen: resumen.texto,
+                filas,
+                acciones: [IR_A("Ver propuestas y ajustes", "ajustes#imaginacion")],
+                vacio: "Ninguna propuesta de imaginación: ni la diaria, ni la profunda, ni las de Astraura o los directores.",
             };
         }
 
@@ -2952,6 +3009,9 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     "listas",
     "bloqueadas",
     "en-cadena",
+    // (2026-10-23, IMN1021H) Después de «En cadena» y antes de «Sin publicar»: el pulso
+    // enseña primero lo que está parado y luego lo que ya puede convertirse en trabajo.
+    "imaginacion",
     "sin-publicar",
     "proveedores",
     "memoria",
