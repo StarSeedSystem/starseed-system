@@ -16,7 +16,7 @@ class DirectorTest(unittest.TestCase):
         self.t = tempfile.TemporaryDirectory(); self.home = os.path.join(self.t.name, "h"); self.raiz = os.path.join(self.t.name, "r")
         os.makedirs(self.home); os.makedirs(self.raiz)
         self.llamadas = []
-        self.lanzador_vacio = lambda: True
+        self.lanzador_vacio = lambda *a: True
 
     def tearDown(self):
         self.t.cleanup()
@@ -90,6 +90,21 @@ class DirectorTest(unittest.TestCase):
         valor, motivo = D.AD.utilidad(propuesta, lambda r: False)
         self.assertEqual(valor, 0.0)
         self.assertIn("ninguno", motivo)
+
+    def test_ciclo_seco_no_lanza_y_devuelve_resultado(self):
+        res = D.ciclo(seco=True, ahora=datetime(2026, 10, 23, 3, 0), capacidad={"huecos_mac": 1, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 2, "presion_mac": 0}, lanzador_diario=self.lanzador_vacio, lanzador_profundo=self.lanzador_vacio, datos={"diaria": "## mejoras detectadas\n1. **Arreglar el lector**", "profunda": {}, "astraura": {}, "directores": {}})
+        # Con seco, toca ejecutar (hay capacidad) pero no lanza
+        self.assertTrue(res["toca_ejecutar"])
+        self.assertEqual(res["lanzado"], [])
+        self.assertIn("motivo_toca", res)
+
+    def test_ciclo_con_datos_inyectados_recolecta_propuestas(self):
+        datos_diaria = "## mejoras detectadas\n1. **Arreglar el lector** — corregir error de lectura"
+        res = self.correr(datos={"diaria": datos_diaria, "profunda": {}, "astraura": {}, "directores": {}})
+        self.assertGreaterEqual(res["propuestas"], 1)
+        # El archivo de propuestas debe existir (se escribió atómicamente)
+        props_file = os.path.join(self.raiz, "starseed_memory_root", "imaginacion", "propuestas.json")
+        self.assertTrue(os.path.isfile(props_file))
 
 
 if __name__ == "__main__":
