@@ -55,6 +55,18 @@ describe("uciMalla", () => {
     expect(guionAplicar(cfg("2g", 20))).not.toContain("RC=");
   });
 
+  it.each([["US", "US"], ["fr", "FR"], [" jp ", "JP"], ["de", "DE"]])("país por región %j = %s en las dos radios", (region, pais) => {
+    const w = secciones(uciMalla(cfg("5g", 80, { region })).wireless);
+    for (const radio of [w.radio_troncal, w.radio_cliente]) expect(radio).toContain(`option country '${pais}'`);
+  });
+
+  it("troncal 6g: la radio del cliente sigue en 2g con HT20 y su propio canal", () => {
+    const w = secciones(uciMalla({ ...cfg("6g", 80), troncal: { banda: "6g", canal: 1, anchoMhz: 80, pireDbm: 20 } }).wireless);
+    expect(w.radio_troncal).toEqual(expect.arrayContaining(["option band '6g'", "option channel '1'", "option htmode 'HE80'"]));
+    expect(w.radio_cliente).toEqual(expect.arrayContaining(["option band '2g'", "option channel '6'", "option htmode 'HT20'"]));
+    expect(w.ap0).toContain("option device 'radio_cliente'");
+  });
+
   it("escapa la comilla simple como uci export", () => {
     expect(uciMalla(cfg("5g", 80, { claveMalla: "ab'cdefgh" })).wireless).toContain("option key 'ab'\\''cdefgh'");
   });
