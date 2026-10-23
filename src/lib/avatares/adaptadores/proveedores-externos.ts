@@ -135,7 +135,12 @@ export async function consultarTarea(p: ProveedorExterno, id: string, entorno: E
 export async function crearTareaMeshy(url: string, clave: string, buscar: Buscar = fetch): Promise<Resultado<string>> {
   const image_url = `data:image/png;base64,${Buffer.from(new Uint8Array([137, 80, 78, 71, 1, 2, 3])).toString("base64")}`;
   const r = await pedir("meshy", { MESHY_API_KEY: clave, AVATARES_EXTERNOS_PERMITIDOS: "1" }, buscar, API_MESHY, { method: "POST", body: JSON.stringify({ image_url, ai_model: MODELO.meshy, should_texture: true }) });
-  return r.ok ? (texto(r.valor.result) ? { ok: true, valor: texto(r.valor.result)! } : { ok: false, motivo: `${NOMBRE.meshy} no devolvió el id de la tarea.` }) : r;
+  if (!r.ok) {
+    const rFalse = r as { ok: false; motivo: string };
+    return { ok: false, motivo: rFalse.motivo };
+  }
+  const rTrue = r as { ok: true; valor: Objeto };
+  return texto(rTrue.valor.result) ? { ok: true, valor: texto(rTrue.valor.result)! } : { ok: false, motivo: `${NOMBRE.meshy} no devolvió el id de la tarea.` };
 }
 
 /** Devuelve true si el entorno tiene permitido usar proveedores externos y tiene la clave necesaria, false en caso contrario. */
@@ -179,7 +184,10 @@ type TFetch = (url: string, init?: RequestInit) => Promise<Response>;
 const respuestaOk = { ok: true, valor: { result: "tarea-123" } };
 /** Procesa los datos de un proveedor externo para usarlos como imagen. */
 export function procesarResultadoProveedor(r: { ok: boolean; valor?: unknown } | { ok: false; motivo: string }): { ok: boolean; tarea?: string; motivo?: string } {
-  if (!r.ok) return { ok: false, motivo: r.motivo };
+  if (!r.ok) {
+    const rFalse = r as { ok: false; motivo: string };
+    return { ok: false, motivo: rFalse.motivo };
+  }
   if (typeof r.valor === "object" && r.valor && "result" in r.valor && typeof r.valor.result === "string") return { ok: true, tarea: r.valor.result };
   return { ok: false, motivo: `${NOMBRE.meshy || NOMBRE.tripo} no devolvió el id de la tarea.` };
 }

@@ -6,7 +6,7 @@ import { rateLimit } from "@/lib/security/rate-limit";
 import {
   MODELO, TOPE_DIARIO, VENTANA_TOPE_MS, capacidadesExternas, consultarTarea, crearTarea, crearTareaMeshy, esUrlDescarga, estadoProveedores,
   externosPermitidos, motivoImagen, motivoNoDisponible, motoresDisponibles, oferTarClaveExterna, procesarResultadoProveedor, procedenciaExterna, reservarTope,
-  claveDia, registrarUso, topeRestante,
+  claveDia, registrarUso, topeRestante, type ContadorTope,
   type Buscar, type Entorno, type Imagen, type Limitador,
 } from "../proveedores-externos";
 
@@ -370,7 +370,7 @@ describe("nuevos casos del rescate de la nube", () => {
   });
 
   it("agota el tope y se resetea al día siguiente", () => {
-    const c: ContadorTope = new Map();
+    const c: ContadorTope = {};
     expect(topeRestante(c, "ali", DIA1)).toBe(TOPE_DIARIO.persona);
     for (let i = 0; i < TOPE_DIARIO.persona; i++) expect(registrarUso(c, "ali", DIA1)).toBe(true);
     expect(registrarUso(c, "ali", DIA1)).toBe(false);
@@ -379,7 +379,7 @@ describe("nuevos casos del rescate de la nube", () => {
   });
 
   it("el tope es por persona", () => {
-    const c: ContadorTope = new Map();
+    const c: ContadorTope = {};
     for (let i = 0; i < TOPE_DIARIO.persona; i++) registrarUso(c, "ali", DIA1);
     expect(registrarUso(c, "bea", DIA1)).toBe(true);
   });
@@ -396,7 +396,9 @@ describe("nuevos casos del rescate de la nube", () => {
     const { buscar, llamadas } = simulado([{ status: 202, cuerpo: { result: "tarea-123" } }]);
     const r = await crearTareaMeshy("https://ejemplo.com/a.png", "CLAVE-SECRETA", buscar);
     expect(r.ok).toBe(true);
-    expect(r.valor).toBe("tarea-123");
+    if (r.ok) {
+      expect(r.valor).toBe("tarea-123");
+    }
     expect(llamadas).toHaveLength(1);
     expect(llamadas[0].url).toBe("https://api.meshy.ai/openapi/v1/image-to-3d");
     expect(llamadas[0].init?.method).toBe("POST");
@@ -425,7 +427,9 @@ describe("nuevos casos del rescate de la nube", () => {
     const { buscar } = simulado([{ status: 202, cuerpo: { result: "t-1" } }]);
     const r = await crearTareaMeshy("https://ejemplo.com/a.png", "k", buscar);
     expect(r.ok).toBe(true);
-    expect(r.valor).toBe("t-1");
+    if (r.ok) {
+      expect(r.valor).toBe("t-1");
+    }
   });
 
   it("tripo: «no disponible» sin llamar a la red (documentación no verificada)", async () => {
