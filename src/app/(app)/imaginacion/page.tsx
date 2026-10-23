@@ -3,7 +3,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 // Ruta /imaginacion — "Imaginación Intuitiva (Always-On)", paridad con la
 // pantalla del programa original Astraura 1.58-bit (`IntuitiveImaginationView.jsx`,
-// spec técnica en `/tmp/imagination-spec.md`).
+// spec técnica versionada en `architecture/imaginacion-spec.md`).
 // --------------------------------------------------------------------------
 // Nota sobre `metadata` + `next/dynamic({ ssr:false })`: Next.js App Router
 // PROHÍBE `ssr:false` en `dynamic()` cuando se llama desde un Server Component
