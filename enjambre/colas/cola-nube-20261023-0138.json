@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "ola": "Ola 1011E · Imágenes locales de Astraura por capas y malla (Qwen-Image, Krea 2, FLUX, SD, PixArt, Sana) con varias opciones en la Protomolécula",
+   "id": "IMG1011H-d3",
+   "titulo": "SD-Turbo en la pestaña del navegador con WebGPU (sin instalar nada) (parte 3 de 3)",
+   "archivos": [
+    "src/lib/imagenes/adaptadores/__tests__/webgpu-sd-turbo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-imagenes.md` (léelo ENTERO; el §1 tiene las licencias y motores VERIFICADOS el 2026-10-11 — no inventes otros datos). Se apoya en `architecture/generacion-audiovisual-astraura.md` y `src/ai/astraura/media/media-gen.ts` (Pollinations como suelo gratis, proveedores por neurona): su regla de oro sigue intacta y NO se duplica nada de lo que ya hace. El núcleo puro YA está escrito y probado (19 pruebas) y NO se modifica: `src/lib/imagenes/{modelos,plan,sugerencias}.ts` (MODELOS_IMAGEN, MOTORES, cabe, planImagen, paqueteBase, motoresPosibles). Para la malla reutiliza lo que hagan G3D1011D (`src/lib/avatares/adaptadores/reparto-taller.ts`) y el registro de neuronas existente; para referencias 3D, G3D1011E. Reglas: «basta de ilusiones» (si algo no corre aquí, se dice por qué); NUNCA descargas automáticas de pesos (los repos pesan de 6 a 100 GB): solo con permiso, solo los archivos necesarios y tras comprobar ≥ 3 veces su tamaño libre; modelos «gated» necesitan que la persona acepte sus términos en Hugging Face y un token suyo en el entorno (explícale qué es y dónde se consigue, con enlace); nada de claves en código ni registros; nada no comercial en uso comercial; con imagen de referencia nada sale de sus neuronas sin permiso; en la Mac de Alex (8 GB) las imágenes ceden ante el enjambre; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto de qué funciona y qué no.\n\nTAREA: Basado en el ejemplo oficial de Microsoft (https://github.com/microsoft/onnxruntime-inference-examples/tree/main/js/sd-turbo, MIT) con onnxruntime-web y WebGPU, en un worker. Solo si hay WebGPU y la persona lo activa: la descarga de los pesos (gigabytes) se pide y se guarda en la caché del navegador; si no hay WebGPU, se dice y se usan las demás capas. Instala onnxruntime-web con versión exacta si no está. Registra la licencia de SD-Turbo como «sin comprobar del todo» (catálogo). Pruebas de la detección y del flujo con el motor simulado.\n\n## PARTE 3 DE 3 (la dirección dividió IMG1011H: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/imagenes/adaptadores/__tests__/webgpu-sd-turbo.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG1011H",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "IMG1011H-d2"
+   ]
+  }
+ ]
+}
