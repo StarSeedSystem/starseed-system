@@ -88,8 +88,24 @@ el enjambre (guardia de memoria); en la A1, hilos limitados para no ahogar sus s
 Supabase (las capacidades se publican al arrancar y al cambiar); el token de Hugging Face, si hace falta, va en
 el entorno y nunca en el código.
 
-## §9 · Cola `cola-imagenes-1011.json`
+## §9 · Cola `cola-imagenes-1011.json` · estado REAL (verificado por IMG1011J el 2026-10-23)
 
-IMG1011A servicio local de imágenes por neurona · B proveedor «neuronas» en media-gen · C tarjeta de opciones
-de la Protomolécula · D chats, agentes y bots · E sugerencias e instalador en las apps · F malla · G explorador
-y autoactualización · H SD-Turbo en la pestaña · I fichas del catálogo · J integración y verificación.
+Verificación de puertas hecha en la nube (rama `ola/IMG1011J`): `npx tsc --noEmit` limpio;
+`vitest` de `src/lib/imagenes` + `src/ai/astraura/media` 106 pruebas en verde; `src/lib/astraura-bots` +
+`src/lib/protomolecula` 1061 en verde; tarjeta `src/components/imagenes` 5 en verde; pytest de
+`servicios/imagenes-local` 7 y de `scripts/imagenes` 11 en verde (sin red ni GPU). No se ejecutó
+`next build`. Pendiente de integrar en `main` por el orquestador: el salvavidas de IMG1011J (tarjeta
+montada en chat, ajustes de la neurona y Protomolécula) aún no pasó a `main`.
+
+| Tarea | Estado real |
+|---|---|
+| **A** servicio local de imágenes por neurona | Respondida: `servicios/imagenes-local` (servicio.py, README, unit.service). 7 pruebas pytest en verde. Integrada en `main` (6a8c4d390). |
+| **B** proveedor «neuronas» en media-gen | Respondida: `src/ai/astraura/media/proveedor-neuronas.ts` con `planImagen` y caída a web gratis. 18 pruebas vitest en verde. Integrada (e92536024). |
+| **C** tarjeta de opciones de la Protomolécula | Respondida con matiz: `src/components/imagenes/tarjeta-imagenes.tsx` + 5 pruebas en verde. Sus propios commits (C/Cb/Cc) nunca pasaron a `main`; el componente llegó a esta rama por el salvavidas de IMG1011J. |
+| **D** chats, agentes y bots | Respondida: herramienta `generar_imagen` y acción `imagen.generar` (pruebas de cableado en verde). Integrada (92ee5a48d). |
+| **E** sugerencias e instalador en las apps | Respondida: `sugerencias-instalacion.tsx`, montada en ajustes de la neurona (s158) y página de la Protomolécula. Integrada (eca3437b6). |
+| **F** malla | Respondida: `src/lib/imagenes/adaptadores/malla-imagenes.ts` (18 pruebas en verde); pasó rescate (RTIMG1011F/Fb/Fc). Integrada. |
+| **G** explorador y autoactualización | Respondida: `scripts/imagenes/explorador_modelos.py` (11 pruebas pytest en verde, red simulada) y propuestas al director. Integrada (669f477f9). |
+| **H** SD-Turbo en la pestaña | Respondida en 3 fragmentos: `webgpu-sd-turbo.ts`, `.worker.ts` y 34 pruebas vitest en verde, sin instalar nada. Integrada (hasta d3, 731808184). |
+| **I** fichas del catálogo | Respondida: fichas con licencia y «gated» en la Protomolécula. Integrada (b8e503159). |
+| **J** integración y verificación | En marcha: tarjeta y sugerencias montadas donde la gente las encuentra (panel de media, ajustes de la neurona s158, página de la Protomolécula) y puertas en verde (ver arriba). Falta el empuje del orquestador a `main`. |
