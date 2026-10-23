@@ -99,12 +99,6 @@ describe("vikunja · cliente puro", () => {
     expect(!r500.ok && r500.motivo).toContain("falló");
   });
 
-  it("encuentra un proyecto existente en la primera búsqueda sin crearlo", async () => {
-    const { pedir, llamadas } = falso(200, [{ id: "p1", title: TITULO }]);
-    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
-    expect(r).toEqual({ ok: true, proyecto: { id: "p1", titulo: TITULO }, creado: false });
-    expect(llamadas).toHaveLength(1);
-  });
   it("500 al buscar y 409 al crear dan motivo legible", async () => {
     const r500 = await asegurarProyecto(BASE, TOKEN, grupo, falso(500, {}).pedir);
     expect(!r500.ok && r500.motivo).toContain("falló");
@@ -116,5 +110,22 @@ describe("vikunja · cliente puro", () => {
     const d = { propuestaId: "p", titulo: "t", aprobadaEn: "2026-10-20" };
     const t409 = await tareaDesdeDecision(BASE, TOKEN, "5", d, falso(409, {}).pedir);
     expect(!t409.ok && t409.motivo).toContain("HTTP 409");
+  });
+
+  it("encuentra un proyecto existente en la primera búsqueda sin crearlo", async () => {
+    const { pedir, llamadas } = falso(200, [{ id: "p1", title: TITULO }]);
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r).toEqual({ ok: true, proyecto: { id: "p1", titulo: TITULO }, creado: false });
+    expect(llamadas).toHaveLength(1);
+  });
+
+  it("asegura un proyecto de red buscándolo primero por su título exacto", async () => {
+    const red: Entidad = { tipo: "red", id: "r1", nombre: "Red de prueba" };
+    const tituloRed = tituloProyecto(red);
+    const { pedir, llamadas } = falso(200, [{ id: "p1", title: tituloRed }]);
+    const r = await asegurarProyecto(BASE, TOKEN, red, pedir);
+    expect(r).toEqual({ ok: true, proyecto: { id: "p1", titulo: tituloRed }, creado: false });
+    expect(llamadas).toHaveLength(1);
+    expect(llamadas[0].url).toBe(`https://v.example.com/api/v1/projects?s=${encodeURIComponent(tituloRed)}`);
   });
 });
