@@ -10,6 +10,8 @@ import {
     leerVersion,
     validarPatronTag,
     compararVersiones,
+    consultarCodeberg,
+    rutaTrasladoCodeberg,
     type EstadoActualizacion,
     type PayloadActualizacion,
 } from "@/lib/library/actualizaciones";
@@ -75,20 +77,28 @@ async function consultarUpstream(
     upstream: string,
     payload: PayloadActualizacion | undefined,
     tope: AbortSignal,
-): Promise<{ remota: string | null; fecha: string | null }> {
+): Promise<{ remota: string | null; fecha: string | null; error: string | null }> {
+    const traslado = rutaTrasladoCodeberg(payload?.trasladadoA);
+    if (traslado) {
+        const leída = await consultarCodeberg(
+            payload?.trasladadoA,
+            (url, init) => fetch(url, { ...init, signal: tope }),
+        );
+        return { remota: leída.version, fecha: leída.fecha, error: leída.error };
+    }
     const url = urlDeConsulta(upstream, payload);
-    if (!url) return { remota: null, fecha: null };
+    if (!url) return { remota: null, fecha: null, error: null };
     try {
         const respuesta = await fetch(url, {
             headers: { Accept: "application/json", "User-Agent": "starseed-os-biblioteca" },
             signal: tope,
         });
-        if (!respuesta.ok) return { remota: null, fecha: null };
+        if (!respuesta.ok) return { remota: null, fecha: null, error: null };
         const json: unknown = await respuesta.json();
         const leida = leerVersion(upstream, json, payload);
-        return { remota: leida?.version ?? null, fecha: leida?.fecha ?? null };
+        return { remota: leida?.version ?? null, fecha: leida?.fecha ?? null, error: null };
     } catch {
-        return { remota: null, fecha: null };
+        return { remota: null, fecha: null, error: null };
     }
 }
 
@@ -130,12 +140,12 @@ export async function GET(): Promise<Response> {
                             : validarPatronTag(patronTag).error,
                 };
                 if (!upstream) return base;
-                const { remota, fecha } = await consultarUpstream(
+                const { remota, fecha, error } = await consultarUpstream(
                     upstream,
                     payload,
                     tope.signal,
                 );
-                if (!remota) return base;
+                if (!remota) return base.aviso ? base : { ...base, aviso: error ?? null };
                 return {
                     ...base,
                     remota,
