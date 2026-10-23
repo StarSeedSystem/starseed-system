@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "TRD1020A",
+   "ola": "1020U",
+   "titulo": "Traducción · cliente puro de LibreTranslate (traducir por lotes, idiomas, detectar, salud)",
+   "archivos": [
+    "src/lib/traduccion/libretranslate.ts",
+    "src/lib/traduccion/__tests__/libretranslate.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Cliente puro con `fetch` inyectado: `traducir({q: texto o lista, source: \"auto\" o código, target, format: \"text\"|\"html\"})` → `POST {base}/translate` en JSON (con `api_key` solo si quien llama la pasa; nunca se guarda) → `translatedText` (texto o lista) y `detectedLanguage` cuando el origen es auto; `idiomas()` → `GET {base}/languages`; `detectar(q)` → `POST {base}/detect`; `salud()` → `GET {base}/health`. Parte en lotes por un límite de caracteres configurable y respeta el orden. Errores 400/403/429/500 en español claro. Pruebas con fetch simulado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "TRD1020A"
+  ]
+ }
+}
