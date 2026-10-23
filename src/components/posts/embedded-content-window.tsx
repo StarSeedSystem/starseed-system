@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import { FilePreview, detectFormat, type FileLike } from "@/components/files/file-preview";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
+import { prepararDiagrama } from "@/lib/diagramas/aislar-diagrama";
 import type { MainRatio } from "@/lib/publish/publish";
 import { SANDBOX_CODIGO } from "@/lib/variaciones/validar";
 
@@ -386,16 +387,36 @@ function SandboxedIframeBody({ item, boxed, context }: { item: EmbeddedItem; box
     );
 }
 
-/** Código ejecutable en línea: iframe `srcdoc` con el sandbox MÁS estricto
- *  posible (`SANDBOX_CODIGO`, sólo `allow-scripts`, sin `allow-same-origin`)
- *  — el contenido es HTML/CSS/JS arbitrario escrito por el autor (o generado
- *  por Aurora), así que se ejecuta en un origen opaco sin acceso a
- *  cookies/storage del sitio. */
+/** Código ejecutable en línea en un iframe `srcdoc` con origen opaco.
+ *
+ *  · DIAGRAMA (HTML con `<svg>`, p. ej. de Diagram Design): pasa antes por
+ *    `prepararDiagrama`, que quita red, recursos externos y elementos
+ *    interactivos, añade la CSP y decide el `sandbox` — `allow-scripts` solo
+ *    si hay animación (scripts), `""` si no. Nunca `allow-same-origin`. Si no
+ *    valida, se muestran los motivos y NO se pinta el diagrama.
+ *  · RESTO de código (layouts / apps del Lienzo): se mantiene tal cual con el
+ *    sandbox mínimo de siempre (`SANDBOX_CODIGO`). */
 function CodeSandboxBody({ item, boxed, context }: { item: EmbeddedItem; boxed: boolean; context: EmbedContext }) {
+    const contenido = item.content || "";
+    const esDiagrama = /<svg\b/i.test(contenido);
+    const permitirAnimacion = esDiagrama && /<script\b/i.test(contenido);
+    const resultado = esDiagrama ? prepararDiagrama(contenido, { permitirAnimacion }) : null;
+    if (resultado && !resultado.ok) {
+        return (
+            <div className={cn("overflow-auto rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-xs text-red-100", fillClass(boxed, context))}>
+                <p className="font-semibold">Diagrama rechazado</p>
+                <ul className="mt-1 list-disc pl-4">
+                    {resultado.motivos.map((motivo) => (
+                        <li key={motivo}>{motivo}</li>
+                    ))}
+                </ul>
+            </div>
+        );
+    }
     return (
         <iframe
-            srcDoc={item.content || ""}
-            sandbox={SANDBOX_CODIGO}
+            srcDoc={resultado?.srcdoc ?? contenido}
+            sandbox={resultado ? resultado.sandbox : SANDBOX_CODIGO}
             className={cn("border-0 bg-white", fillClass(boxed, context))}
             title={titleOf(item)}
         />

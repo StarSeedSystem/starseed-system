@@ -1,10 +1,18 @@
-// Pruebas puras del aislamiento de diagramas (entrada → salida; sin red,
-// sin disco y sin navegador real). Cubren el contrato de
-// architecture/diagramas.md §3 y la plantilla MIT de
-// vendor/habilidades/diagram-design/assets/template.html.
+// Pruebas puras del aislamiento de diagramas (entrada → salida; sin red y
+// sin navegador real). Cubren el contrato de architecture/diagramas.md §3 y
+// las plantillas MIT de vendor/habilidades/diagram-design/assets/.
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { prepararDiagrama } from "../aislar-diagrama";
+
+function plantillaDeVendor(nombre: string): string {
+  return readFileSync(
+    fileURLToPath(new URL(`../../../../vendor/habilidades/diagram-design/assets/${nombre}`, import.meta.url)),
+    "utf8",
+  );
+}
 
 describe("prepararDiagrama", () => {
   it("exige un solo documento HTML con <svg>", () => {
@@ -114,5 +122,29 @@ body { background: url(https://ejemplo.com/fondo.png); }
     expect(salida).not.toContain("fonts.googleapis.com");
     expect(salida).not.toContain("url(http");
     expect(salida).toContain("<circle");
+  });
+
+  it("acepta la plantilla real del vendor sin animación y sin red", () => {
+    const r = prepararDiagrama(plantillaDeVendor("template.html"));
+    expect(r.ok).toBe(true);
+    expect(r.sandbox).toBe("");
+    const salida = r.srcdoc || "";
+    expect(salida).toContain("Content-Security-Policy");
+    expect(salida).not.toContain("script-src");
+    expect(salida).not.toContain("fonts.googleapis.com");
+    expect(salida).not.toContain("<link");
+    expect(salida).toContain("<svg");
+  });
+
+  it("acepta la plantilla animada del vendor con allow-scripts y sin red", () => {
+    const html = plantillaDeVendor("template-motion.html");
+    const r = prepararDiagrama(html, { permitirAnimacion: true });
+    expect(r.ok).toBe(true);
+    expect(r.sandbox).toBe("allow-scripts");
+    const salida = r.srcdoc || "";
+    expect(salida).toContain("script-src 'unsafe-inline'");
+    expect(salida).not.toContain("fonts.googleapis.com");
+    expect(salida).not.toContain("<link");
+    expect(salida).toContain("<script");
   });
 });
