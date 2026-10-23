@@ -4447,6 +4447,7 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+<<<<<<< HEAD
 =======
 <<<<<<< HEAD
 >>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
@@ -4517,6 +4518,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-10-19 20:55 · mg-oracle-1019-1251
 
 **Lo que se pidió.** Laya · privacidad que solo sube (nunca baja)
+
+## 2026-10-16 00:14 · mg-oracle-1015-1627
+
+**Lo que se pidió.** Guardia sin node:* también para /metagenesis
 
 **Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
 
@@ -4596,3 +4601,11 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SP092942b` — pruebas en rojo: vitest falla (rama conservada)
 - `SP092939b` — pruebas en rojo: vitest falla (rama conservada)
 - `RTS1010-ACT5d-d2c` — no escribió nada
+- 3 tareas se fueron por lo mismo — otra cosa (RTS1010-MGR2b, RTCOL1012Be, RTS1010-MGR3d). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTS1010-MGR2b` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCOL1012Be` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTS1010-MGR3d` — otra cosa: ningún proveedor respondió (todos caídos)
+>>>>>>> d717ea50 (chore(memoria): aprendizaje de la ola mg-oracle-1015-1627)
