@@ -111,6 +111,21 @@ class Disponible(unittest.TestCase):
             mock.patch.stopall()
 
 
+class RemallarSinMotor(unittest.TestCase):
+    def test_fuera_de_windows_falla_sin_tocar_comfyui_y_con_procedencia(self):
+        comfy = mock.MagicMock()
+        with mock.patch.object(pa.platform, "system", return_value="Linux"):
+            r = pa.remallar_imagen("avatar.png", 512, comfy=comfy, dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        self.assertIn("solo Windows", r["fallo"])
+        self.assertEqual([p["pieza"] for p in r["procedencia"]],
+                         ["flujo cerrada", "nodos MostAadTech"])
+        self.assertGreaterEqual(r["segundos"], 0)
+        self.assertEqual(r["pico_memoria_gb"], 0)
+        comfy.post.assert_not_called()
+
+
 class ParchearFlujo(unittest.TestCase):
     def test_cambia_solo_entrada_y_resolucion(self):
         f = pa.parchear_flujo(FLUJO_EJEMPLO, "avatar.png", 1536)

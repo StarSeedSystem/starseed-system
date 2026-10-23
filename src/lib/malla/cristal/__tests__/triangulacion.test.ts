@@ -65,6 +65,30 @@ describe("triangulación y proyección", () => {
     ]);
   });
 
+  it("puntos duplicados se funden y queda el id menor", () => {
+    const puntos: Punto[] = [
+      { id: "b", x: 0, y: 0 },
+      { id: "a", x: 0, y: 0 },
+      { id: "c", x: 1, y: 0 },
+    ];
+    expect(delaunay(puntos)).toEqual([["a", "c"]]);
+  });
+
+  it("pentágono convexo da 7 aristas (5 de borde y 2 diagonales)", () => {
+    const puntos: Punto[] = [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 1, y: 0 },
+      { id: "c", x: 2, y: 1 },
+      { id: "d", x: 1, y: 2 },
+      { id: "e", x: 0, y: 1 },
+    ];
+    const aristas = delaunay(puntos);
+    expect(aristas.length).toBe(7);
+    for (const borde of [["a", "b"], ["b", "c"], ["c", "d"], ["d", "e"], ["a", "e"]]) {
+      expect(aristas).toContainEqual(borde);
+    }
+  });
+
   it("orden de entrada no cambia la salida", () => {
     const p1: Punto[] = [
       { id: "a", x: 0, y: 0 },
