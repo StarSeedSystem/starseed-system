@@ -73,6 +73,35 @@ describe("compararVersiones", () => {
     });
 });
 
+describe("validarPatronTag", () => {
+    it("un patrón válido devuelve la RegExp y sin error", () => {
+        const validado = validarPatronTag("^ruview-harness-");
+        expect(validado.patron).toBeInstanceOf(RegExp);
+        expect(validado.error).toBeNull();
+        expect(validado.patron?.test("ruview-harness-42")).toBe(true);
+        expect(validado.patron?.test("v3263")).toBe(false);
+    });
+
+    it("un patrón demasiado largo explica que supera el máximo", () => {
+        const validado = validarPatronTag("a".repeat(MAX_LONGITUD_PATRON_TAG + 1));
+        expect(validado.patron).toBeNull();
+        expect(validado.error).toContain(`supera los ${MAX_LONGITUD_PATRON_TAG} caracteres`);
+    });
+
+    it("un patrón con regex inválida lo explica y no lanza", () => {
+        expect(validarPatronTag("[invalid").patron).toBeNull();
+        expect(validarPatronTag("[invalid").error).toContain("no es una expresión regular válida");
+        expect(validarPatronTag("(?").patron).toBeNull();
+        expect(validarPatronTag("(?").error).toContain("no es una expresión regular válida");
+    });
+
+    it("una cadena vacía o ausente devuelve error de patrón vacío", () => {
+        expect(validarPatronTag("").patron).toBeNull();
+        expect(validarPatronTag("").error).toContain("vacío");
+        expect(validarPatronTag(undefined).patron).toBeNull();
+    });
+});
+
 describe("canal de etiquetas con patrón", () => {
     const URL_RUVIEW = "https://github.com/ruvnet/RuView";
 
@@ -125,6 +154,15 @@ describe("canal de etiquetas con patrón", () => {
         expect(urlDeConsulta(URL_RUVIEW, { patronTag: largo })).toBe(
             "https://api.github.com/repos/ruvnet/RuView/commits?per_page=1",
         );
+    });
+
+    it("patrón inválido con canal tags explícito cae a la primera etiqueta", () => {
+        expect(
+            leerVersion(URL_RUVIEW, [{ name: "ruview-harness-2026-10-20" }], {
+                canal: "tags",
+                patronTag: "[",
+            }),
+        ).toEqual({ version: "ruview-harness-2026-10-20", fecha: null });
     });
 
     it("sin patrón todo sigue igual: commits y Hugging Face", () => {
