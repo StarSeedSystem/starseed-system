@@ -111,9 +111,21 @@ def test_seguir_devuelve_pasada_la_gracia():
     assert L.seguir(reg, set(), {"A": PRESTADA}, AHORA, gracia_h=8) == {"A": "devolver"}
 
 
+def test_seguir_gracia_exacta_aun_espera():
+    # Límite exacto de la gracia (8 h con la por defecto): no se juzga aún, se espera.
+    reg = _registro("A", t=AHORA - 8 * 3600)
+    assert L.seguir(reg, set(), {"A": PRESTADA}, AHORA) == {"A": "esperar"}
+
+
 def test_seguir_olvida_lo_que_ya_no_esta_prestada():
     reg = _registro("A")
     assert L.seguir(reg, {L.rama_pedida("A", "20261022")}, {"A": {"estado": "commit"}}, AHORA) == {"A": "olvidar"}
+
+
+def test_seguir_olvida_aunque_pase_la_gracia():
+    # «olvidar» manda sobre «devolver»: una sesión vieja (20 h) de una tarea ya no prestada no se devuelve.
+    reg = _registro("A", t=AHORA - 20 * 3600)
+    assert L.seguir(reg, set(), {"A": {"estado": "commit"}}, AHORA) == {"A": "olvidar"}
 
 
 def test_seguir_ignora_las_ya_cerradas():
