@@ -107,6 +107,17 @@ describe('decisionPorResonancia', () => {
     expect(r.decision).toBe('aviso');
   });
 
+  it('sin veredictos: sin-datos con 0 cuentas', () => {
+    const r = decisionPorResonancia('h1', [], conf);
+    expect(r.decision).toBe('sin-datos');
+    expect(r.cuentas).toBe(0);
+  });
+
+  it('ignora los veredictos de otro hash', () => {
+    const r = decisionPorResonancia('h1', [veredicto({ hash: 'otro' })], conf);
+    expect(r.decision).toBe('sin-datos');
+  });
+
   it('un voto por cuenta: gana el más reciente', () => {
     const r = decisionPorResonancia('h1', [
       veredicto({ cuenta: 'c1', nivel: 'peligroso', t: 1 }),
