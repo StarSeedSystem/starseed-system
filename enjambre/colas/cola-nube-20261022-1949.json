@@ -1,0 +1,24 @@
+{
+ "ola": "oracle-20261022",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "IMN1021D",
+   "ola": "1021I",
+   "titulo": "Imaginación · director de autodesarrollo: imagina cuando toca, decide y asigna de punta a punta",
+   "archivos": [
+    "scripts/puente/director_autodesarrollo.py",
+    "scripts/puente/test_director_autodesarrollo.py"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §5. `python3 scripts/puente/director_autodesarrollo.py ciclo [--seco] [--json]`: lee `~/.starseed/autodesarrollo.json` (validado), mide la capacidad con lo que ya existe (`buscar_capacidad` en modo lectura o el gobernador y la salud de proveedores; si no puede medir, «sin dato» y no ejecuta en modo inteligente); si `toca_ejecutar`: lanza la imaginación diaria si hoy no hay `dream/sugerencias-<fecha>.md` (`bash ~/.hermes/scripts/starseed-dream.sh` en segundo plano, una vez al día) y la profunda cada `cada_dias` (`python3 scripts/puente/suenos.py lanzar` y, completa, `consolidar --sin-telegram`); recoge las fuentes encendidas, decide con IMN1021B, escribe `starseed_memory_root/imaginacion/propuestas.json` (unión con lo anterior, sin perder estados de Alex) y, para lo de destino 'autodesarrollo' y lo aprobado por Alex, `olas/cola-imaginacion-<AAAAMMDD-HHMM>.json` (≤ 3 archivos por tarea, prompt que empieza por «Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA», `aprobacion: true` si `aprobacion_diff`), soltando por `lotes` si el horario reparte; anota lo encargado en `~/.starseed/dream-encargado.json`; una línea al Chat Director y a Telegram solo si hay algo esperando aprobación. Escrituras atómicas (tmp + os.replace) y cerrojo propio en `~/.starseed/cerrojos/autodesarrollo.lock`. Pruebas con carpetas temporales y sin lanzar procesos reales (inyecta el lanzador). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).",
+   "revisor_quitadas": [
+    "IMN1021B"
+   ],
+   "dependencias_ya_en_main": [
+    "IMN1021A",
+    "IMN1021C"
+   ]
+  }
+ ]
+}
