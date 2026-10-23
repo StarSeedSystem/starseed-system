@@ -4,7 +4,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { almacenamientoEnMemoria } from "@/lib/astraura/capas/almacen";
-import { pedirCapa, type ConsultaCapa, type RespuestaCapa, type ContextoPedido, type ResultadoPedido } from "@/lib/astraura/capas/repartir";
+import { pedirCapa, capaEnPropio, type ConsultaCapa, type RespuestaCapa, type ContextoPedido, type ResultadoPedido } from "@/lib/astraura/capas/repartir";
 import type { EntradaCapa } from "@/lib/astraura/capas/catalogo";
 
 function crearCatalogoFalso(): EntradaCapa[] {
@@ -52,6 +52,43 @@ function crearMallaFalsa(respuestas: RespuestaCapa[]) {
     getBroadcast: () => broadcastMsg,
   };
 }
+
+describe("capaEnPropio — verificación real por SHA-256 y trozos", () => {
+  it("devuelve true con la capa completa en el almacén", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const datos = new TextEncoder().encode("contenido-completo");
+    const datosBuffer = datos.buffer.slice(datos.byteOffset, datos.byteOffset + datos.byteLength);
+    await almacen.escribir("capa/test-capa/trozo/0", datosBuffer);
+    const resumen = await globalThis.crypto.subtle.digest("SHA-256", datosBuffer);
+    const sha256 = [...new Uint8Array(resumen)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    expect(await capaEnPropio(almacen, sha256)).toBe(true);
+  });
+
+  it("devuelve false con un trozo que falta", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const datos0 = new TextEncoder().encode("parte-0");
+    const datos1 = new TextEncoder().encode("parte-1");
+    await almacen.escribir("capa/test-capa/trozo/0", datos0.buffer.slice(datos0.byteOffset, datos0.byteOffset + datos0.byteLength));
+    await almacen.escribir("capa/test-capa/trozo/1", datos1.buffer.slice(datos1.byteOffset, datos1.byteOffset + datos1.byteLength));
+    // Ahora borramos el trozo 1 para simular que falta.
+    await almacen.borrar("capa/test-capa/trozo/1");
+    // El SHA completo sería el del archivo con ambos trozos.
+    const completo = new Uint8Array(datos0.byteLength + datos1.byteLength);
+    completo.set(new Uint8Array(datos0.buffer.slice(datos0.byteOffset, datos0.byteOffset + datos0.byteLength)), 0);
+    completo.set(new Uint8Array(datos1.buffer.slice(datos1.byteOffset, datos1.byteOffset + datos1.byteLength)), datos0.byteLength);
+    const resumen = await globalThis.crypto.subtle.digest("SHA-256", completo.buffer);
+    const shaCompleto = [...new Uint8Array(resumen)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    expect(await capaEnPropio(almacen, shaCompleto)).toBe(false);
+  });
+
+  it("devuelve false con otro SHA", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const datos = new TextEncoder().encode("contenido-completo");
+    const datosBuffer = datos.buffer.slice(datos.byteOffset, datos.byteOffset + datos.byteLength);
+    await almacen.escribir("capa/test-capa/trozo/0", datosBuffer);
+    expect(await capaEnPropio(almacen, "b".repeat(64))).toBe(false);
+  });
+});
 
 describe("pedirCapa — selección de fuente por orden §6", () => {
   it("devuelve propio si la capa ya está en el almacén local", async () => {

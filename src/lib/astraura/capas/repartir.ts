@@ -81,12 +81,44 @@ const ORDEN_FUENTES: FuenteCapa[] = [
 /**
  * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén local.
  */
-async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
+export async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
+  if (!/^[0-9a-f]{64}$/.test(sha256)) return false;
   try {
     const claves = await almacen.claves();
-    // Buscar metas guardadas (prefijo capa/<id>/trozo/ no incluye SHA, así que usamos heurística:
-    // si existe algún trozo con ese SHA en el catálogo local, se asume que está.
-    // En implementación real se cruzaría con catálogo; aquí devolvemos false para forzar búsqueda.
+    const ids = new Set<string>();
+    for (const c of claves) {
+      const m = c.match(/^capa\/([^/]+)\/trozo\/\d+$/);
+      if (m) ids.add(m[1]);
+    }
+    for (const id of ids) {
+      const prefijo = `capa/${id}/trozo/`;
+      const trozosClaves = claves
+        .filter((c) => c.startsWith(prefijo))
+        .sort((a, b) => {
+          const ia = Number(a.slice(prefijo.length));
+          const ib = Number(b.slice(prefijo.length));
+          return ia - ib;
+        });
+      if (trozosClaves.length === 0) continue;
+      const partes: ArrayBuffer[] = [];
+      for (const c of trozosClaves) {
+        const datos = await almacen.leer(c);
+        if (datos === null) return false;
+        partes.push(datos);
+      }
+      const total = partes.reduce((s, p) => s + p.byteLength, 0);
+      const entero = new Uint8Array(total);
+      let desplaza = 0;
+      for (const p of partes) {
+        entero.set(new Uint8Array(p), desplaza);
+        desplaza += p.byteLength;
+      }
+      const resumen = await globalThis.crypto.subtle.digest("SHA-256", entero.buffer);
+      const shaCalculado = [...new Uint8Array(resumen)]
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      if (shaCalculado === sha256) return true;
+    }
     return false;
   } catch {
     return false;
