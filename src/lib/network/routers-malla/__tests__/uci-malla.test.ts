@@ -48,6 +48,18 @@ describe("uciMalla", () => {
     expect(secciones(uciMalla(cfg(banda, ancho)).wireless).radio_troncal).toContain(`option htmode '${esperado}'`);
   });
 
+  it.each(["US", "ES", "FR", "JP", "de"])("la región %s da el país en mayúsculas en las dos radios", (region) => {
+    const pais = region.toUpperCase();
+    const w = secciones(uciMalla(cfg("5g", 40, { region })).wireless);
+    expect(w.radio_troncal).toContain(`option country '${pais}'`);
+    expect(w.radio_cliente).toContain(`option country '${pais}'`);
+  });
+
+  it("troncal 6g: radio con htmode HE y canal propio de la banda", () => {
+    const e = cfg("6g", 80, { troncal: { banda: "6g", canal: 1, anchoMhz: 80, pireDbm: 20 } });
+    expect(secciones(uciMalla(e).wireless).radio_troncal).toEqual(expect.arrayContaining(["option band '6g'", "option channel '1'", "option htmode 'HE80'"]));
+  });
+
   it("troncal en 2,4 GHz: una sola radio y el AP comparte su canal", () => {
     const w = secciones(uciMalla(cfg("2g", 20)).wireless);
     expect(w.radio_cliente).toBeUndefined();
@@ -75,6 +87,13 @@ describe("uciMalla", () => {
 describe("guionAplicar", () => {
   const g = guionAplicar(cfg());
   const pos = (t: string): number => { const i = g.indexOf(t); expect(i, t).toBeGreaterThanOrEqual(0); return i; };
+
+  it("es un guion sh no vacío que arranca con el shebang y mete la configuración wireless entera", () => {
+    expect(g.startsWith("#!/bin/sh\n")).toBe(true);
+    const lineas = uciMalla(cfg()).wireless.trimEnd().split("\n");
+    expect(g).toContain(lineas[0]);
+    expect(g).toContain(lineas[lineas.length - 1]);
+  });
 
   it("hace la copia y comprueba radios y br-lan antes de instalar o escribir nada", () => {
     const copia = pos("cp -p /etc/config/$f /etc/config/$f.antes-starseed");
