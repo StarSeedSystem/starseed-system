@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 import unittest
+from unittest import mock
+import json
+import os
 # La descubre `python3 -m unittest discover -s scripts/puente`, que mete ese directorio
 # en el path: importar por `scripts.puente...` hacía que el módulo no se encontrara y la
 # prueba entera se saltaba con un ImportError. (2026-09-22)
@@ -464,3 +467,38 @@ class SesionesDeClaudeViejas(unittest.TestCase):
         self.assertIn("AV1011F", v["detalle"])
         planes = __import__("reparar_medidor").plan_reparacion("agentes", [v])
         self.assertIn("carril_nube", [p["accion"] for p in planes])
+
+
+class MemoriaComoLaDaMacOS(unittest.TestCase):
+    VM = ("Mach Virtual Memory Statistics: (page size of 16384 bytes)\n"
+          "Pages free:                                3928.\n"
+          "Pages active:                             61056.\n"
+          "Pages inactive:                           54958.\n"
+          "Pages speculative:                         5354.\n")
+
+    def test_cuenta_las_inactivas_como_en_genesis(self):
+        salidas = {"vm_stat": self.VM, "sysctl": "total = 8192.00M  used = 7392.31M  free = 799.69M"}
+        with mock.patch.object(C.sys, "platform", "darwin"), \
+             mock.patch.object(C, "_salida", lambda orden, *a, **k: salidas[orden[0]]):
+            ram, swap = C.medir_memoria()
+        self.assertAlmostEqual(ram, 1004.0, delta=1)  # el mismo número que el medidor de Genesis
+        self.assertAlmostEqual(swap, 799.69, delta=0.01)
+
+
+class IntegradasComoGenesis(unittest.TestCase):
+    def test_cuenta_tambien_las_colas_archivadas(self):
+        import tempfile
+        antes = os.getcwd()
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "starseed_memory_root", "olas"))
+            os.makedirs(os.path.join(d, "starseed_memory_root", "colas-fuente"))
+            with open(os.path.join(d, "starseed_memory_root", "olas", "progreso.json"), "w") as f:
+                json.dump({"AA1": {}}, f)
+            with open(os.path.join(d, "starseed_memory_root", "colas-fuente", "indice.json"), "w") as f:
+                json.dump({"tareas": {"BB2": {"titulo": "vieja"}}}, f)
+            os.chdir(d)
+            try:
+                with mock.patch.object(C, "_salida", return_value="Ola 1 · AA1: uno\nOla 0 · BB2: dos\nchore: x"):
+                    self.assertEqual(C.contar_integradas(), 2)
+            finally:
+                os.chdir(antes)

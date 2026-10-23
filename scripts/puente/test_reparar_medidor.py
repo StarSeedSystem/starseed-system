@@ -147,3 +147,24 @@ class Reparar(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AvisosDelVigia(unittest.TestCase):
+    def test_cada_aviso_su_reparacion(self):
+        casos = {
+            ("contenedores", "Vigía: nube_ociosa"): "capacidad",
+            ("agentes", "Vigía: trabajo_sin_nadie"): "capacidad",
+            ("agentes", "Vigía: agente_callado"): "enjambre",
+            ("tokens", "Vigía: tokens_mudos"): "tokens",
+            ("listas", "Vigía: cadena_rota"): "reconciliar",
+        }
+        for (clave, proceso), accion in casos.items():
+            with self.subTest(proceso=proceso):
+                plan = [p["accion"] for p in R.plan_reparacion(clave, [v(proceso, "colgado")])]
+                self.assertIn(accion, plan)
+                self.assertIn(accion, R.ACCIONES)
+
+    def test_lo_que_espera_a_alex_no_se_repara_solo(self):
+        malos = [v("Vigía: aprobacion_eterna", "colgado", "OLA1: 9 h esperando tu visto bueno")]
+        self.assertEqual(R.plan_reparacion("agentes", malos), [])
+        self.assertEqual(len(R.sin_reparacion("agentes", malos)), 1)

@@ -58,12 +58,15 @@ def medir_memoria() -> Tuple[Optional[float], Optional[float]]:
             m_pag = re.search(r"page size of (\d+) bytes", salida_vm)
             if m_pag:
                 tam_pag = int(m_pag.group(1))
+            # (2026-10-23) Libres + INACTIVAS + especulativas: lo que macOS da sin tirar de swap,
+            # como MemAvailable en Linux. Solo las «free» daban ~140 MB con la presión del sistema
+            # normal (25 % libre) y los directores «reparaban» cada 10 min una RAM que estaba bien.
+            # La misma regla en Genesis: src/lib/mando/memoria-medidor.ts.
             m_free = re.search(r"Pages free:\s+(\d+)", salida_vm)
+            m_inac = re.search(r"Pages inactive:\s+(\d+)", salida_vm)
             m_spec = re.search(r"Pages speculative:\s+(\d+)", salida_vm)
-            paginas = (int(m_free.group(1)) if m_free else 0) + (
-                int(m_spec.group(1)) if m_spec else 0
-            )
-            if m_free or m_spec:
+            paginas = sum(int(m.group(1)) for m in (m_free, m_inac, m_spec) if m)
+            if m_free or m_inac or m_spec:
                 ram_libre = round((paginas * tam_pag) / (1024**2), 2)
 
         salida_swap = _salida(["sysctl", "vm.swapusage"])
@@ -574,6 +577,15 @@ def contar_integradas() -> Optional[int]:
                 continue
             lista = d if isinstance(d, list) else (d.get("tareas") or []) if isinstance(d, dict) else []
             conocidas.update(str(t.get("id")) for t in lista if isinstance(t, dict) and t.get("id"))
+        # (2026-10-23) Y las colas archivadas, como hace Genesis (`colas-fuente/indice.json`): sin
+        # ellas contaba 1070 contra los 1080 del medidor y el medidor salía «colgado» sin estarlo.
+        try:
+            with open("starseed_memory_root/colas-fuente/indice.json", encoding="utf-8") as f:
+                tareas = (json.load(f) or {}).get("tareas") or {}
+            if isinstance(tareas, dict):
+                conocidas.update(str(k) for k in tareas)
+        except (OSError, ValueError, AttributeError):
+            pass
         return integradas_en_main(salida.splitlines(), conocidas)
     except Exception:
         return None

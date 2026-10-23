@@ -57,6 +57,8 @@ import {
 } from "@/lib/mando/integradas";
 import { fundirTitulosArchivados, parsearIndice } from "@/lib/mando/indice-colas";
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { medirDisco } from "@/lib/mando/almacenamiento";
+import { discoParaMedidor, medirMemoriaMedidor } from "@/lib/mando/memoria-medidor";
 import { leerPendientes } from "@/lib/mando/publicaciones";
 import { crearReunionCompartida } from "@/lib/mando/reunion-compartida";
 import { esOpcionAlex, idDeTareaValido, type EstadoRevisorBloqueadas } from "@/lib/mando/bloqueadas";
@@ -741,6 +743,11 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         midiendo("tokens", leerTokens().catch(() => null)),
         midiendo("olasNube", leerOlasDeLaNube().catch(() => [])),
     ]);
+    // (2026-10-23) «Disco» y «Memoria» salían «sin dato» desde siempre: nadie los medía aquí.
+    const [disco, memoria] = await Promise.all([
+        midiendo("disco", medirDisco().then(discoParaMedidor).catch(() => undefined)),
+        midiendo("memoria", medirMemoriaMedidor().catch(() => undefined)),
+    ]);
     const agentesNube = await midiendo(
         "agentesNube",
         leerAgentesDeLaNube(new Map(olasNube.filter((o) => o.run).map((o) => [String(o.run), o.tareas.map((t) => t.id)] as const))).catch(
@@ -800,6 +807,8 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         correcciones: await leerCorrecciones(),
         revisorBloqueadas: await leerRevisorBloqueadas(),
         contenedores,
+        disco,
+        memoria,
         creditoClaude: await leerCreditoClaude().catch(() => null),
         limitesClaude: await leerLimitesClaude().catch(() => null),
         proveedores,

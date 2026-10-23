@@ -72,7 +72,12 @@ REGLAS: Tuple[Tuple[str, Tuple[str, ...], Tuple[str, ...]], ...] = (
     (r"^Commits por publicar$", ("colgado",), ("autopublicacion",)),
     (r"^Servicio de tokens$", ("muerto", "colgado"), ("tokens",)),
     (r"^Integradas en main$", ("colgado",), ("reconciliar",)),
-    (r"^Vigía: ", ("colgado",), ("reconciliar",)),
+    # Lo que avisa el vigía de medidores, tipo por tipo. «aprobacion_eterna» no tiene regla a
+    # propósito: espera la decisión de Alex y se dice abajo como «sin reparación automática».
+    (r"^Vigía: (nube_ociosa|trabajo_sin_nadie)$", ("colgado",), ("capacidad",)),
+    (r"^Vigía: agente_callado$", ("colgado",), ("enjambre", "carril_nube")),
+    (r"^Vigía: (tokens_ciegos|tokens_mudos)$", ("colgado",), ("tokens",)),
+    (r"^Vigía: cadena_rota$", ("colgado",), ("reconciliar",)),
     (r"^Medidor$", ("muerto",), ("genesis",)),
 )
 #: Medidores que se reparan siempre con lo mismo cuando algo no está vivo.
@@ -91,6 +96,7 @@ TITULOS = {
     "tokens": "Reiniciar el servicio de tokens",
     "genesis": "Comprobar que Genesis contesta y reiniciarlo si no",
     "contenedores": "Volver a medir los contenedores de la nube",
+    "capacidad": "Buscar más capacidad en todos los medios (llenar la Mac, lanzar jobs en la nube)",
 }
 
 
@@ -383,11 +389,18 @@ def accion_contenedores() -> Tuple[bool, str]:
     return _py("contenedores_nube.py", tope_s=120)
 
 
+def accion_capacidad() -> Tuple[bool, str]:
+    """El mismo botón «Buscar más capacidad en todos los medios»: GitHub Actions es gratis y el
+    carril de Claude en la nube respeta su pausa y sus topes (no gasta crédito si está en pausa)."""
+    return _py("buscar_capacidad.py", "buscar", "--aplicar", tope_s=240)
+
+
 ACCIONES: Dict[str, Callable[[], Tuple[bool, str]]] = {
     "vigilante": accion_vigilante, "enjambre": accion_enjambre, "carril_nube": accion_carril_nube,
     "nube_gh": accion_nube_gh, "reconciliar": accion_reconciliar, "disco": accion_disco,
     "memoria": accion_memoria, "proveedores": accion_proveedores, "autopublicacion": accion_autopublicacion,
     "tokens": accion_tokens, "genesis": accion_genesis, "contenedores": accion_contenedores,
+    "capacidad": accion_capacidad,
 }
 
 
