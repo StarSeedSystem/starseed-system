@@ -123,6 +123,32 @@ class GenesisEnA1(unittest.TestCase):
         self.assertTrue(any("/usr/local/bin/node" in l for l in exige), exige)
 
 
+    def test_el_arranque_usa_la_build_de_servicio_y_no_el_next_del_home(self):
+        """/opt/starseed/genesis es de root; el `next` del home lo escribe el enjambre."""
+        arranques = [l for l in self.unidad_cfg.splitlines() if l.startswith("ExecStart=")]
+        self.assertEqual(len(arranques), 1, self.unidad_cfg)
+        self.assertIn("/opt/starseed/genesis", arranques[0])
+        self.assertNotIn(".local/bin/next", arranques[0])
+
+    def test_el_bloque_de_genesis_no_borra_la_cookie(self):
+        """Copiar el borrado de `Cookie` de la puerta de datos dejaría a Genesis sin sesión."""
+        bloque = re.search(r"^genesis\.\{\$STARSEED_HOST\}\s*\{.*?^\}", self.caddy_cfg + "\n",
+                           re.MULTILINE | re.DOTALL)
+        self.assertIsNotNone(bloque, "el Caddyfile no tiene el bloque genesis.{$STARSEED_HOST}")
+        self.assertNotRegex(bloque.group(0), r"header_up\s+-\s*Cookie",
+                            "el bloque de Genesis borra la cookie de sesión")
+
+    def test_no_publica_rutas_que_se_apoyan_en_estar_en_la_mac(self):
+        """Lanzan binarios con URL ajena, gastan créditos o son buzón abierto: no se publican."""
+        for ruta in ("/api/agent-reach", "/api/astraura/decidir",
+                     "/api/voz-local/", "/api/telegram/send"):
+            self.assertNotIn(ruta, self.caddy_cfg, f"ruta no apta para el A1 publicada: {ruta}")
+
+    def test_los_comentarios_no_cuentan(self):
+        """Se vigila lo que se aplica: un comentario no enciende ni apaga nada."""
+        self.assertEqual(configuracion("# Genesis\n\nExecStart=x\n  # nota\n"), "ExecStart=x")
+        self.assertNotIn("STARSEED_LOCAL", configuracion("# STARSEED_LOCAL=1\nExecStart=x"))
+
     def test_el_bloque_de_bitnet_no_lleva_claves_en_el_caddyfile(self):
         """La clave de BitNet vive en /etc/starseed/bitnet.key (la exige llama-server): el bloque
         `bitnet.{$STARSEED_HOST}` de Caddy solo proxifica y nunca lleva la clave ni su bandera."""
