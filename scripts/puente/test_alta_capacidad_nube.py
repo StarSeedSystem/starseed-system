@@ -73,7 +73,9 @@ class Entorno(unittest.TestCase):
         self._pon(cli, "CREDITO", str(st / "credito-claude-nube.json"))
         self._pon(cli, "BRIEFS", str(st / "alta-capacidad-nube"))
         self._pon(cli, "PAUSA", str(st / "alta-nube-pausada.json"))
+        self._pon(cli, "HISTORIAL", str(st / "alta-nube-historial.jsonl"))
         self._quita_env("STARSEED_ALTA_NUBE_MAX")
+        self._quita_env("STARSEED_ALTA_NUBE_DIA")
         vence = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(AHORA + 13 * 86400))
         cli._escribir_json(cli.CREDITO, {"total_usd": 250, "restante_usd": 240, "vence": vence})
         tareas = [
@@ -198,6 +200,36 @@ class Seguir(Entorno):
         self.assertEqual(self._registro(), [])
 
 
+class NoHayRueda(Entorno):
+    """(2026-10-23, medido) Otro actor devolvía la tarea a «pendiente», `seguir` la olvidaba y el
+    ciclo la relanzaba: 284 sesiones en 21 h, el crédito de 236 a 50 $."""
+
+    def test_lo_olvidado_no_se_relanza_el_mismo_dia(self):
+        lz = Lanzador()
+        primeras = cli.lanzar(auto=True, ahora=AHORA, lanzador=lz, decir=lambda *_: None, fuera_de_otros=set)
+        self.assertEqual(len(primeras), 2)
+        # Otro actor (traer_nube, el revisor, el orquestador) las devuelve a pendiente.
+        traer_nube._actualizar_progreso({"T1": {"estado": "pendiente", "medio": ""},
+                                         "T2": {"estado": "pendiente", "medio": ""}})
+        dicho = []
+        cli.seguir(aplicar=True, ahora=AHORA + 900, ramas=set, traer=lambda: (0, ""), decir=dicho.append)
+        otra = cli.lanzar(auto=True, ahora=AHORA + 900, lanzador=lz, decir=dicho.append, fuera_de_otros=set)
+        self.assertEqual(otra, [])
+        self.assertEqual(len(lz.llamadas), 2)
+        self.assertEqual(len(cli.leer_historial()), 2)
+
+    def test_tope_de_lanzamientos_del_dia(self):
+        self._pon_env("STARSEED_ALTA_NUBE_DIA", "1")
+        filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=Lanzador(), decir=lambda *_: None, fuera_de_otros=set)
+        self.assertEqual(len(filas), 1)
+
+    def test_prestada_sin_sesion_se_devuelve(self):
+        traer_nube._actualizar_progreso({"T9": {"estado": "reasignada", "medio": "claude-nube"}})
+        acciones = cli.seguir(aplicar=True, ahora=AHORA, ramas=set, traer=lambda: (0, ""), decir=lambda *_: None)
+        self.assertEqual(acciones.get("T9"), "devolver")
+        self.assertEqual(self._progreso()["T9"]["estado"], "pendiente")
+
+
 class Ciclo(Entorno):
     def test_ciclo_no_lanza_con_la_pausa(self):
         cli._escribir_json(cli.PAUSA, {"motivo": "Alex lo pidió"})
@@ -214,7 +246,10 @@ class Ciclo(Entorno):
         cli.lanzar(ids=["T1"], ahora=AHORA, lanzador=Lanzador(), decir=lambda *_: None)
         v = cli.ver(ahora=AHORA)
         self.assertEqual(v["vivas"], 1)
-        self.assertEqual(v["restante_usd"], 240)
+        # (2026-10-23) El saldo de `ver` es el estimado: lo declarado menos lo lanzado después.
+        self.assertEqual(v["restante_declarado_usd"], 240)
+        self.assertEqual(v["restante_usd"], 239)
+        self.assertEqual((v["lanzadas_hoy"], v["gastado_hoy_usd"]), (1, 1.0))
         self.assertGreater(v["presupuesto_hoy_usd"], 0)
         self.assertTrue(v["sesiones"][0]["url"].startswith("https://claude.ai/code/session_"))
 

@@ -165,3 +165,37 @@ class CandidatasYAuto(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HistorialFrenaLaRueda(unittest.TestCase):
+    """(2026-10-23, medido) 284 sesiones en 21 h: las mismas tareas relanzadas cada 15 min."""
+
+    def hist(self, *filas):
+        return [{"tarea": t, "t": AHORA - h * 3600, "coste_usd": c, "modelo": "sonnet"} for t, h, c in filas]
+
+    def test_no_se_relanza_en_24_h_ni_mas_de_dos_veces(self):
+        h = self.hist(("A", 1, 1), ("B", 30, 1), ("C", 50, 1), ("C", 30, 1))
+        self.assertEqual(L.bloqueadas_por_historial(h, AHORA), {"A", "C"})
+
+    def test_candidatas_respetan_el_historial(self):
+        colas = [("c.json", [{"id": "A"}, {"id": "B"}])]
+        cands = L.candidatas(colas, {}, {"sesiones": []}, self.hist(("A", 2, 1)), AHORA)
+        self.assertEqual([t["id"] for t, _ in cands], ["B"])
+
+    def test_tope_de_lanzamientos_del_dia(self):
+        cands = [({"id": "T%d" % i}, "c") for i in range(9)]
+        elegidas = L.elegir_auto(cands, 0, 9, 100.0, 0.0, lanzadas_hoy=5, max_dia=6)
+        self.assertEqual(len(elegidas), 1)
+        self.assertEqual(L.elegir_auto(cands, 0, 9, 100.0, 0.0, lanzadas_hoy=6, max_dia=6), [])
+
+    def test_gasto_y_saldo_salen_del_historial(self):
+        h = self.hist(("A", 1, 3), ("B", 2, 1), ("C", 30, 1))
+        self.assertEqual(L.gastado_desde(h, AHORA - 12 * 3600), 4.0)
+        self.assertEqual(L.lanzadas_desde(h, AHORA - 12 * 3600), 2)
+        declarado = datetime.fromtimestamp(AHORA - 3 * 3600, timezone.utc).isoformat()
+        self.assertEqual(L.restante_estimado({"restante_usd": 50, "declarado_en": declarado}, h), 46.0)
+
+    def test_huerfanas(self):
+        progreso = {"A": dict(PRESTADA), "B": dict(PRESTADA), "C": {"estado": "pendiente"}}
+        registro = {"sesiones": [{"tarea": "B", "t": AHORA}]}
+        self.assertEqual(L.huerfanas(progreso, registro), ["A"])

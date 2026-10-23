@@ -26,6 +26,18 @@ COSTE_USD = {"claude-opus-5-5": 3.0, "sonnet": 1.0}
 MODELO_CAPAZ = "claude-opus-5-5"
 MODELO_ECONOMICO = "sonnet"
 
+#: (2026-10-23, MEDIDO) El carril lanzó 284 sesiones en 21 h y el crédito bajó de 236 a 50 $.
+#: Otros actores (traer_nube al recrear la tarea de reparación, el revisor, el orquestador con su
+#: progreso en memoria) devolvían a «pendiente» lo que el carril marcaba «reasignada · claude-nube»;
+#: `seguir` lo «olvidaba» y lo QUITABA del registro, así que la tarea volvía a ser candidata y el
+#: gasto del día (sumado del registro podado) volvía a cero: las mismas 4 tareas cada 15 min.
+#: Ahora cuenta un HISTORIAL que nunca se poda: una tarea no se relanza en `REPETIR_TRAS_H` horas
+#: ni más de `MAX_LANZAMIENTOS_TAREA` veces, el día tiene un tope de lanzamientos y el gasto y el
+#: saldo estimado salen del historial.
+REPETIR_TRAS_H = 24
+MAX_LANZAMIENTOS_TAREA = 2
+MAX_LANZAMIENTOS_DIA = 6
+
 _ANSI = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\)|[@-Z\\-_])")
 _VIEW = re.compile(r"View:\s*(https://claude\.ai/code/(session_[A-Za-z0-9]+))")
 _TITULO = re.compile(r"Created cloud session:\s*(.+)")
@@ -178,14 +190,65 @@ def coste_estimado(modelo):
     return COSTE_USD.get(modelo, COSTE_USD[MODELO_CAPAZ])
 
 
-def candidatas(colas, progreso, registro):
+def _historial(historial):
+    return [h for h in (historial or []) if isinstance(h, dict) and h.get("tarea")]
+
+
+def _t(h):
+    try:
+        return float(h.get("t") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def bloqueadas_por_historial(historial, ahora, repetir_h=REPETIR_TRAS_H, maximo=MAX_LANZAMIENTOS_TAREA):
+    """Ids que NO se relanzan: lanzadas hace menos de `repetir_h` horas o ya `maximo` veces."""
+    por_tarea = {}
+    for h in _historial(historial):
+        por_tarea.setdefault(str(h["tarea"]), []).append(_t(h))
+    return {tid for tid, ts in por_tarea.items()
+            if len(ts) >= maximo or any(ahora - t < repetir_h * 3600 for t in ts)}
+
+
+def gastado_desde(historial, desde):
+    """Coste estimado de lo lanzado desde `desde` (epoch), según el historial."""
+    return round(sum(float(h.get("coste_usd") or 0) for h in _historial(historial) if _t(h) >= desde), 2)
+
+
+def lanzadas_desde(historial, desde):
+    return sum(1 for h in _historial(historial) if _t(h) >= desde)
+
+
+def restante_estimado(credito, historial):
+    """Saldo declarado menos lo lanzado después de declararlo. El saldo real lo da claude.ai
+    (`credito_claude_nube.py declarar`); entre dos lecturas, esto evita gastar a ciegas."""
+    credito = credito if isinstance(credito, dict) else {}
+    try:
+        restante = float(credito.get("restante_usd") or 0)
+    except (TypeError, ValueError):
+        restante = 0.0
+    desde = _vence_epoch(credito.get("declarado_en")) or 0.0
+    return round(max(0.0, restante - gastado_desde(historial, desde)), 2)
+
+
+def huerfanas(progreso, registro):
+    """Tareas `reasignada · claude-nube` que ninguna sesión abierta del registro lleva: nadie las
+    devolvería nunca (AV1011F pasó 21 h así, contando como agente «escribiendo»)."""
+    abiertas_ = {str(s["tarea"]) for s in abiertas(registro)}
+    return sorted(tid for tid in (progreso or {}) if _prestada(progreso, tid) and tid not in abiertas_)
+
+
+def candidatas(colas, progreso, registro, historial=None, ahora=None):
     """Tareas que el carril puede tomar, en su orden: [(tarea, nombre de la cola)].
 
     `colas`: [(nombre, [tareas])] de la más reciente a la más vieja; la primera que tiene un id
-    manda. Fuera: no pendientes, dependencias sin cumplir, privadas y las que ya están en el
-    registro. Orden: `alta_capacidad`, ≥ 3 archivos, ya fallidas y, al final, antigüedad en su cola."""
+    manda. Fuera: no pendientes, dependencias sin cumplir, privadas, las que ya están en el
+    registro y las que el historial bloquea (`bloqueadas_por_historial`). Orden: `alta_capacidad`,
+    ≥ 3 archivos, ya fallidas y, al final, antigüedad en su cola."""
     progreso = progreso if isinstance(progreso, dict) else {}
     vistas, en_registro, filas = set(), {str(s["tarea"]) for s in _sesiones(registro)}, []
+    if historial is not None:
+        en_registro |= bloqueadas_por_historial(historial, ahora if ahora is not None else 0.0)
     for nombre, tareas in colas:
         for pos, t in enumerate(tareas or []):
             if not isinstance(t, dict) or not t.get("id"):
@@ -216,11 +279,14 @@ def gastado_hoy(registro, inicio_dia):
     return sum(float(s.get("coste_usd") or 0) for s in _sesiones(registro) if float(s.get("t") or 0) >= inicio_dia)
 
 
-def elegir_auto(cands, vivas, max_vivas, presupuesto_hoy, gastado, maximo=None):
-    """De las candidatas, las que caben: hasta llenar `max_vivas` sin pasar el presupuesto de hoy.
+def elegir_auto(cands, vivas, max_vivas, presupuesto_hoy, gastado, maximo=None, lanzadas_hoy=0,
+                max_dia=MAX_LANZAMIENTOS_DIA):
+    """De las candidatas, las que caben: hasta llenar `max_vivas` sin pasar el presupuesto de hoy
+    ni el tope de lanzamientos del día (`max_dia`, contando las `lanzadas_hoy`).
 
     Devuelve [(tarea, cola, modelo, coste)]."""
     huecos = max(0, max_vivas - vivas)
+    huecos = min(huecos, max(0, int(max_dia) - int(lanzadas_hoy or 0)))
     if maximo is not None:
         huecos = min(huecos, max(0, int(maximo)))
     elegidas, gasto = [], float(gastado)

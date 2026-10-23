@@ -37,6 +37,9 @@ import traer_nube  # noqa: E402
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 STARSEED = os.path.expanduser("~/.starseed")
 REGISTRO = os.path.join(STARSEED, "alta-capacidad-nube.json")
+#: (2026-10-23) Historial de lanzamientos que NUNCA se poda (una línea JSON por sesión lanzada):
+#: de él salen el gasto del día, el saldo estimado y qué tareas no se relanzan. Ver la lógica.
+HISTORIAL = os.path.join(STARSEED, "alta-nube-historial.jsonl")
 CREDITO = os.path.join(STARSEED, "credito-claude-nube.json")
 BRIEFS = os.path.join(STARSEED, "alta-capacidad-nube")
 PAUSA = os.path.join(STARSEED, "alta-nube-pausada.json")
@@ -77,6 +80,36 @@ def _escribir_json(ruta, datos):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(datos, f, ensure_ascii=False, indent=1)
     os.replace(tmp, ruta)
+
+
+def leer_historial():
+    salida = []
+    try:
+        with open(HISTORIAL, encoding="utf-8") as f:
+            for linea in f:
+                try:
+                    d = json.loads(linea)
+                except ValueError:
+                    continue
+                if isinstance(d, dict):
+                    salida.append(d)
+    except OSError:
+        pass
+    return salida
+
+
+def anotar_historial(fila):
+    os.makedirs(os.path.dirname(HISTORIAL), exist_ok=True)
+    with open(HISTORIAL, "a", encoding="utf-8") as f:
+        f.write(json.dumps({k: fila.get(k) for k in ("tarea", "t", "modelo", "coste_usd", "sesion")},
+                           ensure_ascii=False) + "\n")
+
+
+def max_dia():
+    try:
+        return max(0, int(os.environ.get("STARSEED_ALTA_NUBE_DIA") or L.MAX_LANZAMIENTOS_DIA))
+    except ValueError:
+        return L.MAX_LANZAMIENTOS_DIA
 
 
 def leer_registro():
@@ -236,6 +269,7 @@ def _lanzar_una(t, cola, modelo, ahora, seco, lanzador, decir):
     reg = leer_registro()
     reg["sesiones"].append(fila)
     _escribir_json(REGISTRO, reg)
+    anotar_historial(fila)
     decir("%s: sesión %s · %s · rama %s" % (tid, sesion["url"], modelo, rama))
     return fila
 
@@ -274,11 +308,16 @@ def lanzar(ids=None, modelo=None, seco=False, auto=False, maximo=None, ahora=Non
     progreso = traer_nube._progreso()
     tope = max_vivas()
     vivas = L.sesiones_vivas(reg, progreso)
-    credito = _leer_json(CREDITO, {})
+    historial = leer_historial()
+    credito = dict(_leer_json(CREDITO, {}) or {})
+    credito["restante_usd"] = L.restante_estimado(credito, historial)
     ok, motivo, hoy = L.cupo_nube(credito, ahora, vivas, max_vivas=tope)
     if not ok:
         decir("sin cupo: %s" % motivo)
         return []
+    inicio = inicio_del_dia(ahora)
+    lanzadas_hoy = L.lanzadas_desde(historial, inicio)
+    gastado = L.gastado_desde(historial, inicio)
     lista = colas()
     if auto:
         import repartir_nube as RN  # noqa: PLC0415
@@ -291,14 +330,16 @@ def lanzar(ids=None, modelo=None, seco=False, auto=False, maximo=None, ahora=Non
             if fuera is None:
                 decir("no lanzo en automático: sin la foto de la tanda de la Mac")
                 return []
-            cands = [c for c in L.candidatas(lista, progreso, reg) if str(c[0].get("id")) not in fuera]
-            plan = L.elegir_auto(cands, vivas, tope, hoy, L.gastado_hoy(reg, inicio_del_dia(ahora)), maximo)
+            cands = [c for c in L.candidatas(lista, progreso, reg, historial, ahora) if str(c[0].get("id")) not in fuera]
+            plan = L.elegir_auto(cands, vivas, tope, hoy, gastado, maximo, lanzadas_hoy=lanzadas_hoy,
+                                 max_dia=max_dia())
             if plan and not seco:
                 traer_nube._actualizar_progreso({str(t.get("id")): {
                     "estado": L.ESTADO_PRESTADA, "medio": L.MEDIO,
                     "nota": "reservada por el carril en la nube (lanzando la sesión)"} for t, _c, _m, _x in plan})
         if not plan:
-            decir("nada que lanzar: %d candidatas, %d/%d vivas, %.2f $ para hoy" % (len(cands), vivas, tope, hoy))
+            decir("nada que lanzar: %d candidatas, %d/%d vivas, %.2f de %.2f $ gastados hoy, %d de %d lanzamientos hoy"
+                  % (len(cands), vivas, tope, gastado, hoy, lanzadas_hoy, max_dia()))
     else:
         plan = []
         for tid in ids or []:
@@ -308,6 +349,10 @@ def lanzar(ids=None, modelo=None, seco=False, auto=False, maximo=None, ahora=Non
                 continue
             if L._prestada(progreso, tid):
                 decir("%s: ya está en el carril en la nube; no la lanzo dos veces" % tid)
+                continue
+            if tid in L.bloqueadas_por_historial(historial, ahora):
+                decir("%s: ya se lanzó en las últimas %d h (o %d veces): no la relanzo"
+                      % (tid, L.REPETIR_TRAS_H, L.MAX_LANZAMIENTOS_TAREA))
                 continue
             m = modelo or L.modelo_para(t, progreso.get(tid))
             plan.append((t, cola, m, L.coste_estimado(m)))
@@ -331,6 +376,10 @@ def seguir(aplicar=False, ahora=None, ramas=ramas_remotas_real, traer=traer_real
     progreso = traer_nube._progreso()
     acciones = L.seguir(reg, ramas(), progreso, ahora, gracia_h=GRACIA_H)
     por_tarea = {str(s["tarea"]): s for s in L.abiertas(reg)}
+    # (2026-10-23) Prestadas sin sesión abierta en el registro: nadie las devolvería nunca.
+    for tid in L.huerfanas(progreso, reg):
+        acciones.setdefault(tid, "devolver")
+        por_tarea.setdefault(tid, {"tarea": tid, "url": "sin sesión en el registro", "t": 0})
     for tid, accion in sorted(acciones.items()):
         decir("%-9s %-14s %s" % (accion, tid, por_tarea[tid].get("url", "")))
     if not aplicar or not acciones:
@@ -341,9 +390,10 @@ def seguir(aplicar=False, ahora=None, ramas=ramas_remotas_real, traer=traer_real
         if accion == "traer":
             cambios[tid] = {"estado": "pendiente", "medio": "", "nota": "traída del carril en la nube (%s)" % s.get("url")}
         elif accion == "devolver":
-            horas = int((ahora - float(s.get("t") or 0)) // 3600)
+            horas = int((ahora - float(s.get("t") or 0)) // 3600) if s.get("t") else None
             cambios[tid] = {"estado": "pendiente", "medio": "",
-                            "nota": "devuelta del carril en la nube: sin rama tras %d h (sesión %s)" % (horas, s.get("url"))}
+                            "nota": ("devuelta del carril en la nube: sin rama tras %d h (sesión %s)" % (horas, s.get("url")))
+                            if horas is not None else "devuelta del carril en la nube: prestada sin sesión viva en el registro"}
     if cambios:
         traer_nube._actualizar_progreso(cambios)
     if any(a == "traer" for a in acciones.values()):
@@ -378,7 +428,10 @@ def ver(ahora=None):
     ahora = time.time() if ahora is None else ahora
     reg = leer_registro()
     progreso = traer_nube._progreso()
-    credito = _leer_json(CREDITO, {})
+    historial = leer_historial()
+    credito = dict(_leer_json(CREDITO, {}) or {})
+    declarado = credito.get("restante_usd")
+    credito["restante_usd"] = L.restante_estimado(credito, historial)
     vivas = L.sesiones_vivas(reg, progreso)
     ok, motivo, hoy = L.cupo_nube(credito, ahora, vivas, max_vivas=max_vivas())
     sesiones = []
@@ -388,7 +441,10 @@ def ver(ahora=None):
         sesiones.append({"tarea": tid, "url": s.get("url"), "modelo": s.get("modelo"),
                          "horas": round((ahora - float(s.get("t") or 0)) / 3600, 1),
                          "estado": "%s · %s" % (e.get("estado") or "pendiente", e.get("medio") or "-")})
-    return {"restante_usd": credito.get("restante_usd"), "vence": credito.get("vence"),
+    inicio = inicio_del_dia(ahora)
+    return {"restante_usd": credito.get("restante_usd"), "restante_declarado_usd": declarado,
+            "lanzadas_hoy": L.lanzadas_desde(historial, inicio), "max_dia": max_dia(),
+            "gastado_hoy_usd": L.gastado_desde(historial, inicio), "vence": credito.get("vence"),
             "presupuesto_hoy_usd": hoy, "puede_lanzar": ok, "motivo": motivo, "vivas": vivas,
             "max_vivas": max_vivas(), "pausa": pausada(), "sesiones": sesiones}
 
@@ -424,8 +480,9 @@ def main(argv):
         if "--json" in argv:
             print(json.dumps(v, ensure_ascii=False, indent=1))
             return 0
-        print("Crédito: %s $ (vence %s) · hoy %.2f $ · %d/%d vivas · %s"
-              % (v["restante_usd"], v["vence"], v["presupuesto_hoy_usd"], v["vivas"], v["max_vivas"], v["motivo"]))
+        print("Crédito: ~%s $ estimado (declarado %s $, vence %s) · hoy %.2f de %.2f $ · %d de %d lanzamientos · %d/%d vivas · %s"
+              % (v["restante_usd"], v["restante_declarado_usd"], v["vence"], v["gastado_hoy_usd"],
+                 v["presupuesto_hoy_usd"], v["lanzadas_hoy"], v["max_dia"], v["vivas"], v["max_vivas"], v["motivo"]))
         if v["pausa"]:
             print("En pausa: %s" % v["pausa"])
         for s in v["sesiones"]:
