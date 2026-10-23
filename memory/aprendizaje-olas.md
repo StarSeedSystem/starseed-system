@@ -4596,3 +4596,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SP092942b` — pruebas en rojo: vitest falla (rama conservada)
 - `SP092939b` — pruebas en rojo: vitest falla (rama conservada)
 - `RTS1010-ACT5d-d2c` — no escribió nada
+
+## 2026-10-23 05:00 · mg-oracle-1022-2210
+
+**Lo que se pidió.** Pestañas del hub: los cerebros compartidos contigo, en solo lectura
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (RTCB1013Xb, RTRTRTRTCOL1012Bdsbbbbbc-d2d). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RTCB1013Xb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/RTCB1013Xb conservada)
+- `RTTIP1013Cc` — no escribió nada
+- `RTRTRTRTCOL1012Bdsbbbbbc-d2d` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTRTRTRTCOL1012Bdsbbbbbc-d2d conservada)
