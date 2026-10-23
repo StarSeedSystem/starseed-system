@@ -40,6 +40,11 @@ class PuertaTsc(unittest.TestCase):
             llamadas.append(env)
             return salidas.pop(0)
 
+        # (TSC1021A) La puerta pregunta el diff de la tarea antes de tsc: se le responde
+        # con un diff vacío (duda → corre tsc como hoy) y las salidas de abajo mantienen
+        # su orden; por eso la 3ª llamada es el reintento.
+        salidas = [(0, "")] + list(salidas)
+
         with mock.patch.object(enjambre, "repo_es_python", return_value=False), \
                 mock.patch.object(enjambre, "sh", side_effect=falso_sh), \
                 mock.patch.object(
@@ -54,13 +59,13 @@ class PuertaTsc(unittest.TestCase):
     def test_si_muere_por_memoria_reintenta_con_mas_monton(self):
         (rc, errs), llamadas = self._tsc([(134, OOM), (0, "")])
         self.assertEqual((rc, errs), (0, []))
-        self.assertEqual(len(llamadas), 2)
-        self.assertIn("3584", llamadas[1]["NODE_OPTIONS"])
+        self.assertEqual(len(llamadas), 3)
+        self.assertIn("3584", llamadas[2]["NODE_OPTIONS"])
 
     def test_el_reintento_nunca_pide_menos_que_el_medio(self):
         """(2026-10-14) En la nube el job da 6144: el reintento no puede bajar a 3584."""
         (_rc, _errs), llamadas = self._tsc([(134, OOM), (0, "")], heap=6144)
-        self.assertIn("6144", llamadas[1]["NODE_OPTIONS"])
+        self.assertIn("6144", llamadas[2]["NODE_OPTIONS"])
 
     def test_el_monton_sale_del_medio(self):
         self.assertEqual(enjambre.heap_tsc_mb(None), 2560)
@@ -77,7 +82,8 @@ class PuertaTsc(unittest.TestCase):
     def test_errores_reales_salen_a_la_primera(self):
         (rc, errs), llamadas = self._tsc([(2, "a.ts(1,1): error TS2322: x\n")])
         self.assertEqual(errs, ["a.ts(1,1): error TS2322: x"])
-        self.assertEqual(len(llamadas), 1)
+        # 2 = el diff previo de la puerta (TSC1021A) + el tsc que sí corrió.
+        self.assertEqual(len(llamadas), 2)
 
 
 if __name__ == "__main__":

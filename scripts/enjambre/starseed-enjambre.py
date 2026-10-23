@@ -4157,6 +4157,46 @@ def tsc_en_a1(cwd, log=None, comprobar=None):
     return (0, []) if ok else (1, errores_de_a1(detalle))
 
 
+#: (TSC1021A) Extensiones que cambia el veredicto de tsc y el par de JSON de datos del
+#: sistema: lo demás (.py, .md, datos .json) no puede mover la puerta si main está en verde.
+EXTS_TSC = (".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")
+JSON_TSC = ("package.json", "package-lock.json")
+
+
+def diff_necesita_tsc(archivos):
+    """PURA: ¿el diff de la tarea toca algo que tsc puede mirar? → TSC1021A, 2026-10-21.
+
+    Caso medido (Mac de 8 GB, swap al 94 %, presión del núcleo 2): tres tareas
+    esperaron 5, 30 y 49 min la fase «tsc» por el turno de un tsc completo
+    (scripts/enjambre/tsc-turno.sh) y en 3 h la Mac no integró nada; VAR1021A solo
+    tocaba .py de scripts/puente/ y su diff no podía cambiar el resultado de tsc,
+    porque cada worktree se pone al día con main (poner_al_dia) y main está en verde.
+    Devuelve False SOLO si ningún archivo del diff es fuente TS/JS (.ts .tsx .mts
+    .cts .js .jsx .mjs .cjs —incluido next-env.d.ts—), ni tsconfig*.json,
+    package.json, package-lock.json, ni vive bajo src/ o types/.
+    Ante la menor duda (lista vacía porque no hay diff, ruta escapada o extraña)
+    devuelve True: se corre tsc como hoy.
+    """
+    if not archivos:
+        return True
+    for r0 in archivos:
+        r = str(r0 or "").strip().replace("\\", "/")
+        if not r or r.startswith('"') or r.endswith("/"):
+            # Ruta vacía, escapada por git (nombre con espacios) o carpeta: duda → tsc.
+            return True
+        base = r.rsplit("/", 1)[-1].lower()
+        if base.endswith(EXTS_TSC) or base in JSON_TSC or (
+            base.startswith("tsconfig") and base.endswith(".json")
+        ):
+            # Las fuentes y la configuración del compilador cambian el veredicto;
+            # next-env.d.ts ya cuenta por la .ts.
+            return True
+        if any(p in ("src", "types") for p in r.split("/")[:-1]):
+            # Vive bajo src/ o types/ (también anidados): tsc lo puede mirar.
+            return True
+    return False
+
+
 def tsc(cwd, log):
     if repo_es_python(cwd):
         # Compilación de los .py cambiados respecto a main (o todos los del diff sin commit).
@@ -4181,6 +4221,28 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
+    # (TSC1021A, 2026-10-21) El tsc completo es lo que más hace cola en la Mac de 8 GB.
+    # El diff de la tarea (commiteado en main...HEAD + el sin commit) que no toca NADA
+    # que tsc mire no puede cambiar el veredicto de la puerta: se da por verde sin
+    # compilar. Con la menor duda (git falla, diff vacío) se corre como hoy.
+    rc_diff, nombres = sh(
+        "git diff --name-only main...HEAD; git diff --name-only",
+        cwd=cwd,
+        timeout=60,
+        log=log,
+    )
+    if rc_diff == 0 and not diff_necesita_tsc(
+        [l.strip() for l in nombres.splitlines() if l.strip()]
+    ):
+        evento(
+            "aviso",
+            os.path.basename(cwd.rstrip("/")),
+            "puerta tsc: no hace falta, el diff no toca TypeScript",
+        )
+        if log:
+            with open(log, "a", encoding="utf-8") as f:
+                f.write("\n$ puerta tsc\ntsc no hace falta: el diff no toca TypeScript\n")
+        return 0, []
     # TRA1012Bc-d1: en la Mac el tsc completo pesa ~3,5 GB; si el A1 responde, la puerta se hace allí.
     remoto = tsc_en_a1(cwd, log)
     if remoto is not None:
