@@ -1,87 +1,105 @@
-"use client";
+/**
+ * StarSeed OS — Biblioteca · repo builtin externo 1020 (14 publicaciones).
+ * ---------------------------------------------------------------------------
+ * Mapea el catálogo VERIFICADO `config/repos-libreria-1020.json` (licencias
+ * comprobadas el 2026-10-20) a `LibraryPackage[]`. Puro: sin red, sin disco y
+ * sin `node:*`; solo el catálogo y un mapeo determinista.
+ *
+ * HONESTIDAD: ninguna de las 14 tiene todavía efecto real de instalación —no
+ * hay build que alojar ni servidor que levantar—, así que van con
+ * `comingSoon: true` y el botón queda deshabilitado. Lo que sí es real:
+ * `payload.externalUrl` + `payload.githubRepo` dejan que `available-updates.ts`
+ * autobusque releases/tags/commits según `payload.canal`, y `payload.area`
+ * declara dónde encaja en el OS. No se duplica ese motor.
+ *
+ * EXCLUSIÓN PERMANENTE: `zhaoxuya520/reverse-skill` no entra aquí; el catálogo
+ * solo publica `paquetes`, nunca el bloque `excluida`.
+ */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import catalogo from "../../../config/repos-libreria-1020.json";
+import type { LibraryPackage, LibraryRepo, PackageKind } from "./packages";
 
-const REPO_ROOT = process.cwd();
-const CONFIG_1_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020.json");
-const CONFIG_2_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020b.json");
+/** Id del repo builtin donde viven estas 14 publicaciones. */
+export const REPO_EXTERNOS_1020_ID = "starseed-biblioteca-externa";
 
-const repos1 = JSON.parse(readFileSync(CONFIG_1_PATH, "utf-8"));
-const repos2 = JSON.parse(readFileSync(CONFIG_2_PATH, "utf-8"));
-
-const EXCLUIDA_1: string[] = [repos1.excluida?.repo ?? ""].filter((v): v is string => v !== "");
-const EXCLUIDAS_2: string[] = repos2.excluidas?.map((e: { repo: string }) => e.repo) ?? [];
-
-export const REPOS_EXCLUIDOS: string[] = [...EXCLUIDA_1, ...EXCLUIDAS_2];
-
-function mapaPatronTag(patron_tag: string): string {
-  return patron_tag ?? "";
-}
-
-export interface ReposExternosPaquete {
+/** Una entrada del catálogo verificado (los datos son reales: no se tocan). */
+export interface EntradaCatalogo {
   id: string;
   repo: string;
   nombre: string;
   kind: string;
   canal: string;
-  patronTag: string;
-  licencia: string;
   area: string[];
-  efecto: string;
-  preinstalar: string;
-  claude: string | boolean;
-  githubRepo: string;
-  externalUrl: string;
-  comingSoon?: boolean;
-  motivoComingSoon?: string;
+  que_es: string;
+  licencia?: string;
+  aviso?: string;
+  skillId?: string;
+  assets?: string[];
 }
 
-function transformaPaquete(p: typeof repos1.paquetes[0] | (typeof repos2.paquetes)[0]): ReposExternosPaquete {
-  const efecto = p.efecto ?? "";
-  const preinstalar = p.preinstalar ?? "";
-  const claude = p.claude ?? false;
-  const patronTag = mapaPatronTag(p.patron_tag);
+/** Tipo real del paquete + icono Lucide que lo representa en la Biblioteca. */
+const TIPOS: Record<string, { kind: PackageKind; icon: string }> = {
+  app: { kind: "app", icon: "AppWindow" },
+  "ai-source": { kind: "ai-source", icon: "BrainCircuit" },
+  function: { kind: "function", icon: "Boxes" },
+};
 
-  const githubRepo = p.repo ?? "";
-  const externalUrl = `https://github.com/${githubRepo}`;
+/** Dueño de un repo `owner/repo`, o `null` si la forma no es válida. */
+function duenoDe(repo: string): string | null {
+  const partes = repo.split("/");
+  if (partes.length !== 2) return null;
+  const dueno = partes[0]?.trim() ?? "";
+  const nombre = partes[1]?.trim() ?? "";
+  return dueno && nombre ? dueno : null;
+}
 
-  const esEfectoQueRequiereComingSoon =
-    efecto === "CONECTOR" || efecto === "HERRAMIENTA-AGENTE" || efecto === "CATALOGO";
+/** Mapea una entrada del catálogo a una publicación de la Biblioteca. */
+export function mapearEntradaExterna(entrada: EntradaCatalogo): LibraryPackage | null {
+  const tipo = TIPOS[entrada.kind];
+  const dueno = duenoDe(entrada.repo);
+  // Un tipo o repo que no entendemos no se publica: antes callar que mentir.
+  if (!tipo || !dueno) return null;
 
-  let comingSoon = false;
-  let motivoComingSoon = "";
-
-  if (esEfectoQueRequiereComingSoon) {
-    comingSoon = true;
-    motivoComingSoon = `efecto ${efecto}: instalación externa, sin ruta propia del OS`;
-  }
+  const descripcion = entrada.aviso
+    ? `${entrada.que_es} — ${entrada.aviso}`
+    : entrada.que_es;
+  const etiquetas = [
+    ...entrada.area,
+    entrada.canal,
+    entrada.licencia ? "lic" : "",
+  ].filter((etiqueta) => etiqueta.length > 0);
 
   return {
-    id: p.id,
-    repo: p.repo,
-    nombre: p.nombre ?? p.id,
-    kind: p.kind ?? "app",
-    canal: p.canal ?? "releases",
-    patronTag,
-    licencia: p.licencia ?? "",
-    area: p.area ?? [],
-    efecto,
-    preinstalar,
-    claude,
-    githubRepo,
-    externalUrl,
-    comingSoon,
-    motivoComingSoon,
+    id: entrada.id,
+    kind: tipo.kind,
+    name: entrada.nombre,
+    description: descripcion,
+    icon: tipo.icon,
+    tags: etiquetas,
+    version: "1.0.0",
+    author: dueno,
+    sourceRepoId: REPO_EXTERNOS_1020_ID,
+    free: true,
+    // Sin efecto real todavía → botón deshabilitado (honestidad radical).
+    comingSoon: true,
+    payload: {
+      externalUrl: `https://github.com/${entrada.repo}`,
+      githubRepo: entrada.repo,
+      canal: entrada.canal,
+      area: entrada.area,
+      licencia: entrada.licencia,
+      assets: entrada.assets ?? false,
+      ...(entrada.skillId ? { skillId: entrada.skillId } : {}),
+    },
   };
 }
 
-const paquetes1 = (repos1.paquetes ?? []).map(transformaPaquete);
-const paquetes2 = (repos2.paquetes ?? []).map(transformaPaquete);
-
-const reposExcluidosSet = new Set(REPOS_EXCLUIDOS);
-
-export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
-  ...paquetes1.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-  ...paquetes2.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-];
+/** Las 14 publicaciones del catálogo, en su orden y sin inventar nada. */
+export const REPO_EXTERNOS_1020: LibraryRepo = {
+  id: REPO_EXTERNOS_1020_ID,
+  name: "Biblioteca externa",
+  builtin: true,
+  packages: (catalogo.paquetes as EntradaCatalogo[])
+    .map(mapearEntradaExterna)
+    .filter((paquete): paquete is LibraryPackage => paquete !== null),
+};
