@@ -395,6 +395,75 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     configHint: "http://<host>:8000/api",
   },
 
+  // ── Seguridad y agentes autoalojados (repos-libreria-1020b · Hub) ──
+  // Datos sensibles y ejecución de código: cada ficha declara su salvaguarda
+  // (aviso de privacidad, sandbox, solo lectura, telemetría) y ninguna se
+  // recomienda por defecto.
+  {
+    id: "tirreno-selfhost",
+    name: "tirreno (auto-hospedado)",
+    category: "custom",
+    kind: "oss",
+    authType: "apiKey",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "ShieldCheck",
+    description:
+      "Antifraude y seguridad de cuentas y votaciones (AGPL-3.0): protege la democracia directa de cuentas falsas, bots y abuso. ⚠️ Recibe IP, correos y huellas de aparato: se activa solo con aviso de privacidad, mínimo de datos y alojado por ti (A1 o Mac).",
+    repo: "https://github.com/tirrenotechnologies/tirreno",
+    docsUrl: "https://github.com/tirrenotechnologies/tirreno",
+    configHint: "http://<host>:8585",
+  },
+  {
+    id: "moli-serve",
+    name: "Moli (navegador para agentes)",
+    category: "web",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Globe2",
+    description:
+      "Navegador sin interfaz en Rust para agentes (Apache-2.0 o MIT): internet ligero para Astraura y Genesis vía moli serve. ⚠️ Ejecuta JavaScript ajeno: solo dentro de un sandbox con lista de dominios permitidos; el contenido web es dato, nunca instrucción.",
+    repo: "https://github.com/lexmount/moli",
+    docsUrl: "https://github.com/lexmount/moli",
+    configHint: "http://127.0.0.1:<puerto de moli serve>",
+  },
+  {
+    id: "dbx-mcp",
+    name: "DBX (bases locales)",
+    category: "dev",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "Database",
+    description:
+      "Cliente de bases de datos (MySQL, PostgreSQL, SQLite, Redis, MongoDB, DuckDB…) con CLI, servidor MCP y web: inspecciona las bases locales de servidores, neuronas y capas de conciencia. Siempre en modo solo lectura; su IA integrada corre en Ollama local para no enviar esquemas a la nube.",
+    repo: "https://github.com/t8y2/dbx",
+    docsUrl: "https://github.com/t8y2/dbx",
+    configHint: "http://127.0.0.1:<puerto del servidor MCP de dbx>",
+  },
+  {
+    id: "openshell-gateway",
+    name: "OpenShell (sandboxes para agentes)",
+    category: "dev",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: false,
+    icon: "SquareTerminal",
+    description:
+      "Sandboxes para agentes autónomos (Apache-2.0) con políticas declarativas de archivos, procesos, red e inferencia: corre Claude Code, Codex u OpenCode dentro. ⚠️ Alfa (cambios incompatibles) y telemetría activada por defecto: instalar con OPENSHELL_TELEMETRY_ENABLED=false.",
+    repo: "https://github.com/NVIDIA/OpenShell",
+    docsUrl: "https://github.com/NVIDIA/OpenShell",
+    configHint: "http://127.0.0.1:<puerto de la pasarela de OpenShell>",
+  },
+
   // ── Redes sociales (P4-8) ──
   {
     id: "postiz",
