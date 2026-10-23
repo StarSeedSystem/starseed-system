@@ -48,6 +48,11 @@ describe("uciMalla", () => {
     expect(secciones(uciMalla(cfg(banda, ancho)).wireless).radio_troncal).toContain(`option htmode '${esperado}'`);
   });
 
+  it.each(["us", "FR", " jp "])("el país sale de la región %j en mayúsculas y sin espacios", (region) => {
+    expect(secciones(uciMalla(cfg("5g", 80, { region })).wireless).radio_troncal)
+      .toContain(`option country '${region.trim().toUpperCase()}'`);
+  });
+
   it("troncal en 2,4 GHz: una sola radio y el AP comparte su canal", () => {
     const w = secciones(uciMalla(cfg("2g", 20)).wireless);
     expect(w.radio_cliente).toBeUndefined();
@@ -83,6 +88,13 @@ describe("guionAplicar", () => {
     expect(copia).toBeLessThan(pos("RT=$(radio 5g)"));
     for (const paso of ["opkg update", "opkg install", "opkg remove", "cat > /etc/config/wireless", "uci add_list",
       "cat >> /etc/config/network", "wifi reload", "/etc/init.d/network restart"]) expect(comprobado).toBeLessThan(pos(paso));
+  });
+
+  it("empieza por sh y lleva al router la malla hardif completa, no solo bat0", () => {
+    expect(g.startsWith("#!/bin/sh\n")).toBe(true);
+    expect(g).toContain("config interface 'bat0_hardif_mesh'");
+    expect(g).toContain("option master 'bat0'");
+    expect(g).toContain("option mtu '1536'");
   });
 
   it("instala batman-adv, cambia wpad sin quedarse sin él, escribe con heredoc y reinicia al final", () => {
