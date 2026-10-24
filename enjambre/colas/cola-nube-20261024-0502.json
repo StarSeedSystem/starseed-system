@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "VZR1011E",
+   "ola": "Ola 1011I · Voces locales fluidas (Chatterbox, OpenVoice V2; F5/XTTS opcionales personales) y el pato Open Duck Mini como cuerpo de bots y agentes",
+   "titulo": "Voz propia de cada bot, igual en todas las neuronas",
+   "archivos": [
+    "src/lib/astraura-bots/voz-bot.ts",
+    "src/lib/astraura-bots/__tests__/voz-bot.test.ts",
+    "src/components/astraura-bots/voz-bot-editor.tsx"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-voces-y-robots.md` (léelo ENTERO; el §1 tiene licencias y datos VERIFICADOS el 2026-10-11 — no inventes otros). Reutiliza lo que YA existe y no lo dupliques: `architecture/aurora-voz-motores.md` + `src/lib/aurora/tts-oss/engine-registry.ts` (cadena `buildVoiceChain`, `AUTO_ENDPOINT_ORDER`, OpenVoice V2 ya es el motor principal), `architecture/forja-voz-158.md` §4 (en producto solo MIT/Apache), `src/lib/aurora/voz-starseed/` (motor único por niveles, Supertonic: la voz F1 de Astraura que le gusta a Alex se mantiene), `src/lib/voces/` (clonación con consentimiento obligatorio, trocear, perfil neuronal), `src/lib/astraura/needle3-client.ts` y `decision-hibrida.ts` (capa Needle), `architecture/astraura-bots.md` y `src/lib/astraura-bots/` (cuerpos, acciones con META y riesgo). Reglas: «basta de ilusiones»; nunca descargas automáticas de pesos (solo con permiso y tras comprobar ≥ 3 veces el espacio); en la Mac de Alex (8 GB) los motores pesados ceden ante el enjambre (`scripts/puente/guardia-memoria.py`); clonar una voz exige consentimiento explícito de su dueño y jamás se imita a una persona real sin él; nada no comercial en uso comercial; nada de claves en código; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Toda repo o modelo que entre lleva su ficha en la Biblioteca (`src/lib/library/packages.ts`, `kind: \"ai-source\"` o `\"repo\"`) con comprobación de versión (regla de CLAUDE.md). Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto.\n\nTAREA: Perfil de voz del bot: timbre (semilla sintética, voz del catálogo o la voz propia de su dueño con consentimiento — reutiliza `src/lib/voces/clonacion.ts`), motor preferido y mapa emoción→estilo (exageración de Chatterbox, estilos de OpenVoice). Se guarda con el bot y viaja con su sincronía (las capas de memoria compartida), así suena igual en todas las neuronas; si una neurona no tiene ese motor, usa el más parecido de su cadena y lo dice. Prohibido usar como timbre la voz de una persona real sin su consentimiento registrado. Editor pequeño en el panel del bot (si existe el de BOT1011I1; si no, deja el componente exportado). Pruebas.",
+   "dependencias_ya_en_main": [
+    "VZR1011B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "VZR1011E"
+  ]
+ }
+}
