@@ -113,7 +113,7 @@
     {
       "id": "habilidades", "nombre": "Habilidades",
       "pipeline_tags": [], "autores": ["mattpocock", "heygen-com"], "cuantizadores": [],
-      "repos_github": ["mattpocock/skills"],
+      "repos_github": ["mattpocock/skills", "heygen-com/hyperframes"],
       "catalogo": "src/ai/astraura/skills-ingenieria.ts",
       "nota": "Skills y extensiones de Matt Pocock (carpeta skills/) y HyperFrames (npm hyperframes y @hyperframes/*)."
     }

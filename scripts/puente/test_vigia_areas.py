@@ -59,7 +59,7 @@ class AreasDelVigia(unittest.TestCase):
         reflejo = next(a for a in areas if a["id"] == "reflejo")
         self.assertEqual(set(reflejo["repos_github"]), {"NandhaKishorM/laya"})
         habilidades = areas[-1]
-        self.assertEqual(set(habilidades["repos_github"]), {"mattpocock/skills"})
+        self.assertEqual(set(habilidades["repos_github"]), {"mattpocock/skills", "heygen-com/hyperframes"})
         self.assertTrue({"Qwen", "Tongyi-MAI"} <= set(areas[0]["autores"]) and "text-to-image" in areas[0]["pipeline_tags"])
         self.assertTrue({"unsloth", "city96", "QuantStack"} <= set(areas[0]["cuantizadores"]))
 
