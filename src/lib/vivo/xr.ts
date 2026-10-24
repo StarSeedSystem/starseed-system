@@ -15,6 +15,7 @@
  */
 
 import type { PermisoVivo } from "@/lib/mensajeria/formato-tipos";
+import { plataformaDeDatos, type DatosNavegador } from "@/lib/xr/capacidades";
 import { docVacio } from "@/lib/vivo/espacial/modelo";
 import { crearFilaEscena, listarEscenasPropias, MENSAJES_ERROR } from "@/lib/vivo/espacial/persistencia";
 
@@ -60,11 +61,25 @@ export async function listarMiosXr(): Promise<{ refId: string; titulo: string; r
 export type PlataformaXR = "quest" | "visionos" | "android" | "ios" | "escritorio";
 
 export function plataformaDe(ua: string, tactil = false): PlataformaXR {
-    const u = ua.toLowerCase();
-    if (/oculusbrowser|quest|pico/.test(u)) return "quest";
-    if (/visionos|apple vision/.test(u)) return "visionos";
-    if (/android/.test(u)) return "android";
-    if (/iphone|ipad|ipod/.test(u) || (/macintosh/.test(u) && tactil)) return "ios";
+    // Delega en el sondeo nuevo (contrato XR §2.2): sin datos de sesión (`vr`/`ar` desconocidos),
+    // la firma y los cinco valores de salida se conservan. `pico`, `magic-leap`, `spectacles` y
+    // `desconocida` no existen aquí: caen en `escritorio` (diferencia aceptada, probada abajo).
+    const p = plataformaDeDatos({
+        ua,
+        seguro: true,
+        tieneXR: false,
+        vr: null,
+        ar: null,
+        ofreceSesion: false,
+        tactil,
+        webgl2: false,
+        webgpu: false,
+        instalada: false,
+    });
+    if (p === "quest") return "quest";
+    if (p === "visionos") return "visionos";
+    if (p === "android-xr" || p === "android-movil") return "android";
+    if (p === "ios") return "ios";
     return "escritorio";
 }
 
