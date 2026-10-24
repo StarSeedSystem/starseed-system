@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { WelcomeGate } from "@/components/welcome/welcome-gate";
 import { iniciarRito, navegarSuave } from "@/lib/onboarding/director-rito";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 
 function traducir(m: string): string {
   const s = (m || "").toLowerCase();
@@ -424,6 +425,19 @@ export function AuthGate() {
         <p style={{ textAlign: "center", fontSize: 10.5, opacity: .45, margin: "7px 0 0", lineHeight: 1.45 }}>
           Entras como invitado y exploras al instante. Luego, desde la guía, puedes añadir un correo y conservar todo.
         </p>
+
+        {/* Guía completa sin cuenta (§5 de architecture/guias-introduccion.md).
+            Va bajo los dos modos (Entrar y Crear cuenta) y solo abre la guía:
+            no toca el inicio de sesión ni crea sesión. */}
+        <button
+          type="button"
+          className="ss-auth-soft"
+          onClick={() => abrirGuia({ desde: "login" })}
+          style={{ width: "100%", minHeight: 44, marginTop: 10, border: "1px solid rgba(167,139,250,.32)", borderRadius: 13, padding: "12px 0", color: "rgba(255,255,255,.92)", fontWeight: 600, fontSize: 13.5, cursor: "pointer", transition: "background .15s, border-color .15s", background: "rgba(124,92,255,.1)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+        >
+          <span aria-hidden>✶</span>
+          Conoce StarSeed (sin cuenta)
+        </button>
 
         <button
           type="button"
