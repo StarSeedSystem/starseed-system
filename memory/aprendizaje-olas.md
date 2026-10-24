@@ -4600,6 +4600,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-10-24 01:41 · mg-oracle-1023-1814
 
 **Lo que se pidió.** reasignada
+## 2026-10-23 23:26 · mg-oracle-1023-1608
+
+**Lo que se pidió.** cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible
 
 **Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
 
@@ -4611,3 +4614,24 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `VAR1021Bc` — pruebas en rojo: vitest falla (rama conservada)
 - `VZF1015N` — no escribió nada
 - `VZF1015L` — no escribió nada
+- 3 tareas se fueron por lo mismo — pruebas en rojo (RIA1023J, RIA1023G, RLB1020J). Es 75 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RIA1023J` — pruebas en rojo: Traceback (most recent call last):
+- `RIA1023G` — pruebas en rojo: Traceback (most recent call last):
+- `RLB1020J` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-24 04:45 · mg-oracle-1023-2221
+
+**Lo que se pidió.** Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (RTRTCOL1012Bdsbbbbbbbcbbbbbbbbbbbb, RIA1023Jb). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTCOL1012Bdsbbbbbbbcbbbbbbbbbbbb` — no escribió nada
+- `RIA1023Jb` — no escribió nada
+- `RIA1023Gb` — pruebas en rojo: Traceback (most recent call last):
