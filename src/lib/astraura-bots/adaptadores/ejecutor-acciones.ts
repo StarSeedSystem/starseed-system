@@ -8,7 +8,8 @@
  * aquí jamás se vuelve a decidir el permiso, solo se traduce al ejecutor real:
  *   navegar/abrir-app → `navegar`/`ir_app` de `AURORA_ACTIONS` (buscados por nombre)
  *   widget.añadir     → `agregar_widget` de `AURORA_ACTIONS`
- *   capa-pantalla     → `showBadges`/`highlight` (uiSpec llega con BOT1011V)
+ *   capa-pantalla     → `normalizarCapa` + apilar (máx. 8 por bot) en el panel de capas
+ *                       (evento `EVENTO_CAPA_BOT`, lo pinta `CapaPantallaBot` con BOT1011V)
  *   ajuste.proponer   → `validarAccionUi` + aplicador con bitácora deshacible
  *   notificar         → `notifyFromApp`
  *   codigo.proponer   → solo se guarda el CANDIDATO en `starseed.astraura.bots.candidatos.v1`; jamás se ejecuta
@@ -16,12 +17,12 @@
  * Devuelve el `previo` que `deshacer` (acciones.ts) necesita para el camino de vuelta.
  */
 import { AURORA_ACTIONS, type AuroraActionContext, type AuroraRouter } from "@/lib/aurora/actions";
-import { highlight, showBadges } from "@/lib/aurora/screen-control/screen-overlay";
 import { validarAccionUi, type TipoAccionUi } from "@/lib/astraura/ui-acciones";
 import { aplicarAccion, type EntradaBitacora } from "@/lib/astraura/ui-aplicador";
 import { notifyFromApp } from "@/lib/notifications/app-notify";
 import type { AppearanceConfig } from "../../../context/appearance-context";
 import type { AccionBot, Previo, TipoAccion } from "../acciones";
+import { apilar, esCapaValida, normalizarCapa, retirar, type CapaActiva } from "../capa-pantalla";
 import { ejecutar, type OpcionesComputadora } from "./computadora-cliente";
 import { registrarEnEjecutor, type DepsCreacion, type EjecutorCreacion } from "./acciones-creacion";
 
@@ -46,6 +47,43 @@ export interface ResultadoEjecucion {
 
 export const CLAVE_CANDIDATOS = "starseed.astraura.bots.candidatos.v1";
 const creationActionsMap = registrarEnEjecutor(new Map<TipoAccion, EjecutorCreacion>());
+
+/* ── Panel de capas (BOT1011V) ─────────────────────────────────────────────
+ * El ejecutor apila aquí las capas validadas y lo Avisa con un evento:
+ * el anfitrión que pinta `CapaPantallaBot` deja de suscribirse al montar. */
+export const EVENTO_CAPA_BOT = "starseed:astraura-bot-capa";
+export interface DetalleCapaBot { capas: readonly CapaActiva[] }
+
+let capasPanel: readonly CapaActiva[] = [];
+/** Copia inmutable de las capas del panel ahora mismo (para quien pinta). */
+export const capasPanelAhora = (): readonly CapaActiva[] => capasPanel;
+
+function emitirCapas(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new CustomEvent(EVENTO_CAPA_BOT, { detail: { capas: [...capasPanel] } }));
+  } catch {
+    /* sin observadores no pasa nada */
+  }
+}
+
+/** Retira una capa del panel (el «Quitar» del componente o el deshacer `{retirar: id}`). */
+export function retirarCapaPanel(id: string): void {
+  capasPanel = retirar(capasPanel, id);
+  emitirCapas();
+}
+
+/**
+ * Puro: normaliza los argumentos de `capa-pantalla` con `normalizarCapa` y quita la capa
+ * anotada (id, bot y `previo: {idEnviado}` para que `deshacer` devuelva `{retirar: id}`).
+ */
+export function prepararCapa(
+  args: unknown, id: string, botId: string, nombreBot: string,
+): { capa: CapaActiva; previo: Previo } | { problemas: string[] } {
+  const r = normalizarCapa(args);
+  if (!esCapaValida(r)) return r;
+  return { capa: { ...r, id, botId, nombreBot }, previo: { idEnviado: id } };
+}
 
 const f = (motivo: string): ResultadoEjecucion => ({ ok: false, previo: {}, motivo });
 const enCliente = (): boolean => typeof window !== "undefined" && typeof document !== "undefined";
@@ -77,16 +115,20 @@ function guardarCandidato(args: AccionBot["args"]): ResultadoEjecucion {
   return { ok: true, previo: { idCreado: id }, motivo: "Candidato guardado para revisión humana; no se ejecutó ningún código." };
 }
 
-/** Capa sobre la pantalla: badges numerados o resaltado del elemento objetivo. */
-function capaPantalla(args: AccionBot["args"]): ResultadoEjecucion {
-  if (args.uiSpec) return f("próximamente: el renderizador de UiSpec llega con BOT1011V.");
+/**
+ * Capa sobre la pantalla (BOT1011V): normaliza, apila (máx. 8 por bot, lo hace `apilar`)
+ * y avisa con `EVENTO_CAPA_BOT`; la pinta `CapaPantallaBot`, que también ofrece «Quitar».
+ */
+const CAPA_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
+function capaPantalla(args: AccionBot["args"], dep: DepsEjecutor): ResultadoEjecucion {
   if (!enCliente()) return f("No hay pantalla donde pintar la capa.");
-  const objetivo = typeof args.objetivo === "string" ? args.objetivo : "";
-  const el = objetivo ? document.getElementById(objetivo) ?? document.querySelector<HTMLElement>(objetivo) : null;
-  if (!el) return f("No encontré el elemento que señalar en pantalla.");
-  if (args.forma === "resaltar") highlight(el);
-  else showBadges([{ id: 1, el, label: typeof args.texto === "string" ? args.texto : undefined }]);
-  return { ok: true, previo: {}, motivo: "Capa señalada en pantalla." };
+  const botId = dep.actor ?? "bot:astraura";
+  const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `capa-${Date.now()}`;
+  const preparado = prepararCapa(args, CAPA_ID.test(id) ? id : `capa-panel`, botId, botId.replace(/^bot:/, ""));
+  if ("problemas" in preparado) return f(`Capa rechazada: ${preparado.problemas.join(" ")}`);
+  capasPanel = apilar(capasPanel, preparado.capa);
+  emitirCapas();
+  return { ok: true, previo: preparado.previo, motivo: `Capa ${preparado.capa.forma} puesta sobre la pantalla.` };
 }
 
 function ajusteProponer(args: AccionBot["args"], dep: DepsEjecutor): ResultadoEjecucion {
@@ -127,7 +169,7 @@ export async function ejecutarAccion(accion: AccionBot, dep: DepsEjecutor): Prom
             return r;
          }
          case "capa-pantalla":
-            return capaPantalla(accion.args);
+            return capaPantalla(accion.args, dep);
          case "ajuste.proponer":
             return ajusteProponer(accion.args, dep);
          case "codigo.proponer":
