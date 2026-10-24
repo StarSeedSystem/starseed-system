@@ -113,12 +113,14 @@
         "pipeline_tags": [],
         "autores": [],
         "cuantizadores": [],
-        "repos_github": ["mattpocock/skills","heygen-com/hyperframes"],
+        "repos_github": ["mattpocock/skills","heygen-com/hyperframes","cathrynlavery/diagram-design"],
         "alias_github": {
             "mattpocock/skills": "mattpocock/skills",
-            "heygen-com/hyperframes": "heygen-com/hyperframes"
+            "heygen-com/hyperframes": "heygen-com/hyperframes",
+            "cathrynlavery/diagram-design": "cathrynlavery/diagram-design"
         },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
+        "catalogo": "src/ai/astraura/skills.ts",
+        "nota": "Diagram Design (cathrynlavery/diagram-design) es una skill MIT citada en vendor/habilidades/diagram-design/ (ORIGEN.md y THIRD_PARTY_LICENSES.md). El vigía mira su manifiesto de origen `.claude-plugin/plugin.json` y toma el campo «version» como señal (2.6.110 el 2026-10-16); cuando sube, renueva entera la carpeta de destino vendor/habilidades/diagram-design/. Todo HTML de diagrama se muestra solo en iframe `sandbox` sin `allow-same-origin`, sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso)."
     }
   ]
 }
