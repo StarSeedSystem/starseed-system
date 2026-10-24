@@ -8,6 +8,7 @@
  * siempre como argumento `ahora`). Lo importan componentes de cliente.
  */
 import type { AlcanceMemoria } from "@/lib/nucleo/alcance-memoria";
+import type { VozBot } from "./voz-bot";
 
 /* ── Dueño y gobierno ────────────────────────────────────────────────────── */
 
@@ -121,6 +122,9 @@ export interface Bot {
   sentidosHabilitados: readonly Sentido[];
   /** Interruptor general: un bot pausado no observa ni actúa. */
   activo: boolean;
+  /** Perfil de voz del bot (VZR1011E · astraura-voces-y-robots.md §3): viaja CON el bot y con
+   *  su sincronía, así suena igual en todas las neuronas. Ausente → `vozBotDefecto(bot.id)`. */
+  voz?: VozBot;
 }
 
 /* ── Sesión, tareas y memoria ────────────────────────────────────────────── */

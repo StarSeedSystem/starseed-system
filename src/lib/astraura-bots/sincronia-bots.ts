@@ -5,6 +5,7 @@
  * de orbes abiertas por neurona viven en `adaptadores/sincronia-bots.ts` (contrato §3.3).
  */
 import type { Bot } from "./tipos";
+import { fusionarVozBot, serializarVozBot } from "./voz-bot";
 
 /** Bot con la marca de su última actualización (la pone quien escribe, nunca este módulo). */
 export interface BotSync extends Bot { actualizado: number; }
@@ -36,7 +37,15 @@ export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
     const lb = lm.get(id);
     const rb = rm.get(id);
     let e: BotSync | undefined;
-    if (lb && rb) e = lb.actualizado >= rb.actualizado ? lb : rb;
+    if (lb && rb) {
+      e = lb.actualizado >= rb.actualizado ? lb : rb;
+      // La voz del bot (VZR1011E) suena igual en todas las neuronas: al unir dos copias se
+      // conserva el perfil más reciente (el del ganador suele serlo) y se evita perder uno
+      // nuevo si la copia contraria, más vieja, era la única que lo tenía.
+      const otro = (e === lb ? rb : lb).voz ?? null;
+      const voz = fusionarVozBot(e.voz ?? null, otro);
+      if (voz && serializarVozBot(voz) !== (e.voz ? serializarVozBot(e.voz) : null)) e = { ...e, voz };
+    }
     else if (lb) e = lb;
     else if (rb) e = rb;
     if (e) res.push(e);

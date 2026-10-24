@@ -3,8 +3,9 @@
  * Editor de un bot personal (BOT1011I1 · contrato architecture/astraura-bots.md §13).
  * Nombre, cuerpo (FORMAS_CUERPO; las 3D como «próximamente»), rasgos con vista
  * previa de `instruccionesDeTono`, sentidos (los íntimos avisan del permiso
- * individual) y el nivel de acción con su explicación. Solo presenta; la
- * persistencia la hace el panel con `guardarBots`.
+ * individual), el nivel de acción con su explicación y LA VOZ (VZR1011E:
+ * <EditorVozBot />). Solo presenta; la persistencia la hace el panel con
+ * `guardarBots` — el perfil de voz se guarda CON el bot y viaja con su sincronía.
  */
 import { useState } from "react";
 import {
@@ -18,6 +19,8 @@ import {
 } from "@/lib/astraura-bots/tipos";
 import { instruccionesDeTono } from "@/lib/astraura-bots/personalidad-adaptable";
 import type { NivelBot } from "@/lib/astraura-bots/permisos";
+import { normalizarVozBot, vozBotDefecto, type VozBot } from "@/lib/astraura-bots/voz-bot";
+import { EditorVozBot } from "./voz-bot-editor";
 
 /** Formas que aún no tienen renderizador: se anuncian y no se ofrecen elegir. */
 const FORMAS_PROXIMAS: readonly FormaCuerpo[] = ["avatar-3d", "vrm"];
@@ -42,6 +45,9 @@ export function EditorBot({ bot, nivel: nivelInicial, onGuardar, onCerrar }: Edi
   const [personalidad, setPersonalidad] = useState({ ...bot.personalidad });
   const [sentidos, setSentidos] = useState<Sentido[]>([...bot.sentidosHabilitados]);
   const [nivel, setNivel] = useState<NivelBot>(nivelInicial);
+  const [voz, setVoz] = useState<VozBot>(
+    () => normalizarVozBot(bot.voz) ?? vozBotDefecto(bot.id, Date.now()),
+  );
 
   const proxima = FORMAS_PROXIMAS.includes(cuerpo.forma);
   const alternarSentido = (s: Sentido) =>
@@ -49,7 +55,10 @@ export function EditorBot({ bot, nivel: nivelInicial, onGuardar, onCerrar }: Edi
 
   const guardar = () => {
     const limpio = nombre.trim() || bot.nombre;
-    onGuardar({ ...bot, nombre: limpio, cuerpo, personalidad, sentidosHabilitados: sentidos }, nivel);
+    onGuardar(
+      { ...bot, nombre: limpio, cuerpo, personalidad, sentidosHabilitados: sentidos, voz },
+      nivel,
+    );
   };
 
   const campo = "mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm";
@@ -109,6 +118,10 @@ export function EditorBot({ bot, nivel: nivelInicial, onGuardar, onCerrar }: Edi
             </label>
           ))}
         </div>
+      </fieldset>
+      <fieldset>
+        <legend className="font-medium">Voz</legend>
+        <EditorVozBot valor={voz} onCambiar={setVoz} />
       </fieldset>
       <label className="block font-medium">Nivel de acción
         <select className={`${campo} cursor-pointer`} value={nivel}

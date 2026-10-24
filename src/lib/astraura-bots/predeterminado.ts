@@ -7,6 +7,7 @@
  */
 import type { Bot, Personalidad } from "./tipos";
 import { acotar, esOrigen, esSentido, esTipoDueno } from "./tipos";
+import { deserializarVozBot, normalizarVozBot } from "./voz-bot";
 
 /** Versión del formato persistido en el almacén de bots. */
 export const VERSION_BOTS = 1;
@@ -72,6 +73,10 @@ function sanearBot(bruto: unknown, cuentaId: string): Bot | null {
     ? bruto.sentidosHabilitados.filter(esSentido)
     : [];
 
+  // El perfil de voz (VZR1011E) viaja con el bot: llega como objeto o ya serializado;
+  // sin perfil válido no existe (nada inventado).
+  const voz = typeof bruto.voz === "string" ? deserializarVozBot(bruto.voz) : normalizarVozBot(bruto.voz);
+
   return {
     id: bruto.id,
     nombre: bruto.nombre,
@@ -87,6 +92,7 @@ function sanearBot(bruto: unknown, cuentaId: string): Bot | null {
     },
     sentidosHabilitados: sentidos,
     activo: bruto.activo === true,
+    ...(voz ? { voz } : {}),
   };
 }
 
