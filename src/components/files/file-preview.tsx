@@ -569,6 +569,18 @@ export function FilePreview({
             {body}
 
             {actions && <ActionBar file={file} fmt={fmt} context={context} />}
+
+            {fmt === "generic" && (
+                <div className="mt-2">
+                    <a
+                        href={enlaceConversor({ url: file.url, nombre: file.name })} 
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-white/70 hover:border-white/25 hover:bg-white/[0.07] hover:text-white"
+                    >
+                        <Wrench className="size-3.5" />
+                        <span>Convertir a…</span>
+                    </a>
+                </div>
+            )}
         </div>
     );
 }
