@@ -1,0 +1,90 @@
+{
+ "ola": "oracle-20261024",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "AV1011H",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Protomolécula: fichas verificadas de las herramientas de avatares 3D",
+   "archivos": [
+    "src/lib/protomolecula/catalogo-herramientas.ts",
+    "src/lib/protomolecula/__tests__/catalogo-avatares-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Añade fichas `HerramientaProto` con ESTOS datos verificados el 2026-10-11 (no inventes nada; lo no comprobado va en `sinComprobar`): unimate (proximamente; código MIT anunciado, inferencia no publicada; pesos en Hugging Face Linzhan/UniMate sin licencia declarada; texto → movimiento para cualquier esqueleto; https://github.com/Friedrich-M/UniMate); image-to-3dlab (integrable, servicio-local, solo macOS Apple Silicon, 32 GB recomendados; salida GLB con PBR + provenance.json; motores Hunyuan3D-MLX [MIT código, pesos Tencent sin licencia en UE, Reino Unido y Corea del Sur], TRELLIS.2 [MIT + DINOv3, comercial condicionado], Stable Fast 3D [Stability Community]); unirig (integrable, MIT, GPU NVIDIA ≥ 8 GB, entrada obj/fbx/glb/vrm, salida fbx/glb; https://github.com/VAST-AI-Research/UniRig); instant-meshes (BSD-3-Clause; https://github.com/wjakob/instant-meshes); smart-remesh (solo-enlace: complemento de Blender 4.2–5.2, GPL, 17 USD, de 3DRedbox Studio; https://superhivemarket.com/products/smart-remesh); three-vrm (MIT, pixiv; https://github.com/pixiv/three-vrm); characterstudio (MIT, M3-org; https://github.com/M3-org/CharacterStudio); filigree3d (proximamente, solo artículo https://arxiv.org/abs/2609.34900); btc3d (proximamente, solo artículo https://arxiv.org/abs/2609.39709); meshy (solo-enlace, servicio: plan gratis 100 créditos/mes con salida CC BY 4.0; https://www.meshy.ai); tripo (solo-enlace, servicio; precios y licencia sin comprobar; https://www.tripo3d.ai); 3daistudio (solo-enlace, https://www.3daistudio.com); hi3d (solo-enlace, https://www.hi3d.ai); hitem3d (solo-enlace, web null y en sinComprobar: el enlace recibido apuntaba a 3daistudio); meta-horizon (solo-enlace, plataforma cerrada de Meta sin API pública ni pesos; https://developers.meta.com/horizon). NUNCA guardes parámetros de afiliado (`?aff=`, `?via=`, `utm_`). Antes de añadir, mira si ya existen (trellis, triposr, hunyuan3d): no dupliques; a hunyuan3d añádele el aviso de región si le falta. Respeta los tipos y categorías existentes y deja en verde las pruebas de la Protomolécula."
+  },
+  {
+   "id": "VGM1016B",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Vigía · descubrir: tendencia, familias vigiladas, hermanos de lo que ya tenemos y sus cuantizados",
+   "archivos": [
+    "scripts/puente/vigia_descubrir.py",
+    "scripts/puente/test_vigia_descubrir.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-16 con la API pública de Hugging Face: `models?pipeline_tag=text-to-image&sort=likes&limit=10` da FLUX.1-dev, SDXL, SD 1.4… y NO trae Qwen/Qwen-Image-2.1-Turbo (publicado el 2026-10-09); con `sort=trendingScore` sale el PRIMERO, y `author=Qwen&sort=createdAt` también. En la misma lista de tendencia aparecen re-subidas «Uncensored» de terceros (abenzerps/…, AtomicChat/…-Uncensored-GGUF, KasugaiSakura/…) que NO deben entrar. Crea `descubrir(area, catalogo_ids, http_get, ahora)` → lista de candidatos `{id, autor, creado, modificado, pipeline_tag, likes, trending, licencia_hf, gated, archivos:[{nombre, bytes, sha256?}]}` con cuatro fuentes: (1) `models?pipeline_tag=<tag>&sort=trendingScore&direction=-1&limit=30`; (2) por autor vigilado `models?author=<a>&sort=createdAt&direction=-1&limit=20` (solo lo creado en los últimos 60 días); (3) hermanos: repos cuyo nombre empieza por el de uno del catálogo (`Qwen-Image-2.1` → `Qwen-Image-2.1-Turbo`); (4) para cada candidato, sus cuantizados (`models?search=<nombre>&author=<cuantizador>`). Detalle de archivos con `models/<id>?blobs=true` (siblings con `size` y `lfs.sha256`). Máximo 120 peticiones por pasada, pausa de 1 s, `HF_TOKEN` en la cabecera solo si existe en el entorno. Sin duplicados. Pruebas con respuestas grabadas (incluye el caso real del Turbo y su `unsloth/Qwen-Image-2.1-Turbo-GGUF`). Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español.",
+   "dependencias_ya_en_main": [
+    "VGM1016A"
+   ]
+  },
+  {
+   "id": "VGM1016C",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Vigía · evaluar: clase de licencia, seguridad, tamaño por medio, motor y mejora real",
+   "archivos": [
+    "scripts/puente/vigia_evaluar.py",
+    "scripts/puente/test_vigia_evaluar.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-16 con la API pública de Hugging Face: `models?pipeline_tag=text-to-image&sort=likes&limit=10` da FLUX.1-dev, SDXL, SD 1.4… y NO trae Qwen/Qwen-Image-2.1-Turbo (publicado el 2026-10-09); con `sort=trendingScore` sale el PRIMERO, y `author=Qwen&sort=createdAt` también. En la misma lista de tendencia aparecen re-subidas «Uncensored» de terceros (abenzerps/…, AtomicChat/…-Uncensored-GGUF, KasugaiSakura/…) que NO deben entrar. Funciones PURAS del §3 del contrato: `clase_licencia(licencia_hf, tags, conocidas)` → libre | personal | condicionada | desconocida (Hugging Face marca muchas como «other»: usa la tabla de `licencias_conocidas` y el nombre del archivo LICENSE si viene); `es_seguro(candidato)` (fuera «uncensored», «abliterated», «nsfw», «lewd» en id o tags, y terceros que no cuantizan un modelo ya aceptado); `cabe_en(candidato, medios)` con los topes del §3 (navegador/PWA ≤ 1 GB, Mac 8 GB ≤ 4,5 GB de pesos, A1 ≤ 8 GB, app nativa ≤ 15 % del disco) eligiendo el archivo cuantizado que cabe; `motor_para(archivos)` (gguf → sdcpp/llamacpp, onnx → onnx, mlx/coreml → apple, safetensors → diffusers/comfyui); `es_mejora(candidato, mejor_actual)` y `puntuar(...)` con su motivo. Pruebas con el Turbo (personal, cabe en la Mac con Q3_K_S 2,72 GB), Z-Image-Turbo (libre) y una re-subida «Uncensored» (fuera). Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español.",
+   "dependencias_ya_en_main": [
+    "VGM1016A"
+   ]
+  },
+  {
+   "id": "VGM1016N",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Paquete base de imágenes con los nuevos: Z-Image-Turbo por defecto donde quepa, Turbo GGUF solo como personal",
+   "archivos": [
+    "src/lib/imagenes/sugerencias.ts",
+    "src/lib/imagenes/__tests__/imagenes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Que `paqueteBase` proponga Z-Image-Turbo (libre) como opción rápida de calidad donde quepa, y Qwen-Image-2.1-Turbo en GGUF (Q3_K_S 2,72 GB en la Mac de 8 GB, Q4_K_M 4,2 GB en el A1) solo cuando la persona activó modelos de uso personal (parámetro nuevo opcional `permitirPersonal`, falso por defecto), siempre con su motivo en `porQue`. No cambies el comportamiento sin ese parámetro salvo añadir Z-Image-Turbo. Pruebas. Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español.",
+   "dependencias_ya_en_main": [
+    "VGM1016M"
+   ]
+  },
+  {
+   "id": "CB1013C",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Fusionar: leer, copia de seguridad y aplicar (Supabase con RLS del dueño)",
+   "archivos": [
+    "src/lib/cerebros/fusion-aplicar.ts",
+    "src/lib/cerebros/__tests__/fusion-aplicar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §4 y §9 b (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo de cliente (`\"use client\"`). Usa `createClient` de `@/utils/supabase/client`, `getBrain`/`saveBrain`/`deleteBrain` de `@/lib/brains/brains`, `senalEsencial` de `@/lib/consumo/guardian` (en cada lectura: `.abortSignal(senalEsencial())`) y `pushPreferences` de `@/lib/settings-sync`. Exporta: `leerParaFusion(destinoId: string, origenIds: string[]): Promise<{ ok: true; destino: Brain; origenes: Brain[]; archivos: ArchivoMemoria[]; prefs: Record<string, PrefsCerebro> } | { ok: false; motivo: string }>` (los archivos con `select('id,brain_id,name,content,updated_at,meta').in('brain_id', ids)`; las prefs leyendo de localStorage las claves `starseed.brain.<id>.*` con JSON.parse defensivo); `copiaDeSeguridad(datos, fecha)` → `{ nombre: 'cerebros-fusion-<fecha>.json', texto }` con TODO lo leído; `descargarCopia(copia)` (Blob + enlace `download`; sin `window` no hace nada y devuelve false); `aplicarFusion(plan: PlanFusion, o: { destino: Brain; origenIds: string[]; quitarOrigenes: boolean }): Promise<ResultadoFusion>` con `ResultadoFusion { ok: boolean; archivosEscritos: number; bytes: number; origenesQuitados: string[]; origenesConservados: Array<{ id: string; motivo: string }>; error?: string }`. Orden: (1) archivos: 'anexar'/'copiar' con `idDestino` → `update({ content, updated_at })` por id; 'copiar' sin id → `insert({ brain_id: destino.id, name, content, source: 'fusion' })` (la tabla tiene índice único por (owner, brain_id, name) con expresión: NO uses upsert con onConflict); (2) `saveBrain({ ...destino, includes, servers, config })`; (3) prefs → `localStorage.setItem('starseed.brain.<destino>.<sufijo>', JSON.stringify(v))` y `await pushPreferences()`; (4) solo si todo lo anterior fue bien y `quitarOrigenes`: por cada origen, si `brain_selections` tiene filas con ese `brain_id` NO se borra (motivo: «tiene selecciones; se moverán cuando se aplique §9 b») y si no `deleteBrain(id)` (sus archivos caen en cascada). Si algo falla en (1)-(3) no se borra ningún origen y `ok` es false con el error. Nunca lanza. Pruebas con mocks de `@/utils/supabase/client`, `@/lib/brains/brains` y `@/lib/settings-sync` y `vi.stubGlobal('window', { localStorage })`: camino feliz (cuenta escrituras y borrados), fallo al escribir un archivo → no borra orígenes, origen con selecciones → se conserva con su motivo, la copia contiene todos los archivos.",
+   "revisor_quitadas": [
+    "CB1013B"
+   ]
+  },
+  {
+   "id": "CB1013L",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: leer las fuentes en el cliente (con topes y sin romperse)",
+   "archivos": [
+    "src/lib/cerebros/procesos-fuentes.ts",
+    "src/lib/cerebros/__tests__/procesos-fuentes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo de cliente. Exporta `leerProcesos(o?: { incluirMac?: boolean }): Promise<{ procesos: ProcesoActivo[]; hardware: HardwareServidor[]; fuentes: Array<{ nombre: string; ok: boolean; ms: number; motivo?: string }> }>`: en paralelo y cada una con tope de 4 s (AbortSignal.timeout o Promise.race), `/api/mando/agentes`, `/api/mando/medidores`, `/api/mando/suenos` y `/api/mando/hardware` (solo responden en la Mac o con sesión de MetaGenesis: un 401/403/404 cuenta como «no disponible aquí», no como error), `leerEstadoAutonomo()` (src/lib/metagenesis/remoto-nodos-cliente.ts), `leerHistorial()`, `fetchAstraura158DreamStatus`/`ImaginationStatus`, `listRuns()` de imagine, las instalaciones (`useInstalaciones` es un hook: usa la función de lectura del store), `readDesktopsSnapshot()` y `listNeurons()` para el hardware de las neuronas. Normaliza con CB1013J/K. Si una fuente falla, sigue y lo dice en `fuentes`. Nunca lanza. Pruebas con mocks de fetch y de los módulos: una fuente caída no tumba las demás; 404 → «no disponible aquí»; el tope de 4 s corta una fuente colgada.",
+   "revisor_quitadas": [
+    "CB1013K"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013J"
+   ]
+  }
+ ]
+}
