@@ -4611,3 +4611,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `VAR1021Bc` — pruebas en rojo: vitest falla (rama conservada)
 - `VZF1015N` — no escribió nada
 - `VZF1015L` — no escribió nada
+
+## 2026-10-24 05:43 · mg-oracle-1023-2252
+
+**Lo que se pidió.** reasignada · medio oracle
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (RLB1020Jb, PES1020Bb). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RLB1020Jb` — no escribió nada
+- `PES1020Bb` — no escribió nada
