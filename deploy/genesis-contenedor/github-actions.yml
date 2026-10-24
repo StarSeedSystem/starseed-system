@@ -1,0 +1,114 @@
+# Plantilla de contenedor del OS: la copias a TU repositorio y GitHub Actions corre tareas de
+# tu Genesis. Contrato: architecture/genesis-conectores-abiertos.md §5 y
+# supabase/migrations/20261008090200_mando_rpc_motor.sql (RPC por token; nunca claves en claro).
+# Secretos que hay que crear en el repo (Prueba README): STARSEED_MOTOR_TOKEN,
+# NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY. Nunca se imprimen ni viajan a nada
+# que no sea la RPC de tu Genesis.
+name: Genesis Contenedor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 * * * *" # cada hora; GitHub ejecuta los horarios con retraso: doc oficial en el README
+
+permissions:
+  contents: read # lo mínimo: leer código; sin push, sin paquetes, sin sistema
+
+concurrency:
+  group: genesis-contenedor
+  cancel-in-progress: false # un solo enjambre: si vuelve a saltar, espera a que acabe
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  COLA: cola.json
+  TRABAJO: trabajo.json
+
+jobs:
+  tarea:
+    name: Pedir trabajo a mi Genesis y correrlo
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      STARSEED_MOTOR_TOKEN: ${{ secrets.STARSEED_MOTOR_TOKEN }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Pide trabajo a mi ámbito
+        id: pedir
+        run: |
+          set -euo pipefail
+          # El token va por stdin: no queda en la línea de órdenes de curl (cualquiera la ve con ps).
+          printf '{"p_token":"%s"}' "$STARSEED_MOTOR_TOKEN" | curl -sS --max-time 20 \
+            -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" --data @- -o "$TRABAJO" \
+            "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/rpc/mando_motor_pendiente"
+          python3 - <<'PY'
+          import json, os
+          r = json.load(open("trabajo.json", encoding="utf-8"))
+          tareas = r.get("tareas") or []
+          if not r.get("ok", False) or r.get("freno"): tareas = []  # sin token o frenado: nada que hacer
+          cola = [{"id": str(t.get("tarea_id") or t.get("id", "")), "titulo": str(t.get("titulo", ""))[:200],
+                   "prompt": str(t.get("prompt") or "")} for t in tareas]
+          ids = ",".join(t["id"] for t in cola if t["id"])
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write("hay=%s\nids=%s\n" % (1 if ids else 0, ids))
+          json.dump(cola, open("cola.json", "w", encoding="utf-8"), ensure_ascii=False)
+          print("Trabajo pendiente: %d tarea(s) → %s" % (len(cola), "correr" if ids else "nada"))
+          PY
+
+      - name: Clona el repositorio del OS
+        if: steps.pedir.outputs.hay == '1'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.STARSEED_REPO_URL || 'StarSeedSystem/starseed-system' }}
+          ref: main
+          fetch-depth: 1
+          path: os
+
+      - name: Instala las dependencias del enjambre y el escritor
+        if: steps.pedir.outputs.hay == '1'
+        run: |
+          npm install --include=dev && npm install -g opencode-ai
+
+      - name: Corre una tarea con el orquestador del OS
+        if: steps.pedir.outputs.hay == '1'
+        timeout-minutes: 45
+        run: |
+          git config user.name "Contenedor Genesis"; git config user.email "contenedor@starseed.local"
+          export PATH="$HOME/.local/bin:$PATH"; cd os
+          # Telemetría del flujo apagada: el conector solo reporta AL FINAL (paso siguiente).
+          export STARSEED_TELEMETRIA=off
+          if python3 scripts/enjambre/starseed-enjambre.py ../cola.json --workers 1 \
+            --solo "${{ steps.pedir.outputs.ids }}"; then ESTADO=hecha; else ESTADO=fallo; fi
+          echo "$ESTADO" > ../estado.txt
+
+      - name: Devuelve el resultado a mi Genesis
+        if: always() && steps.pedir.outputs.hay == '1'
+        env:
+          IDS: ${{ steps.pedir.outputs.ids }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          try: estado = open("estado.txt", encoding="utf-8").read().strip()
+          except OSError: estado = "fallo"  # el paso anterior no llegó: se reporta como fallo
+          ids = [i for i in os.environ["IDS"].split(",") if i]
+          # Telemetría apagada: eventos [] y sin latido ni medidores; solo el resultado de la tarea.
+          lote = {"version": 1, "motor_id": "", "ambito_id": "", "eventos": [],
+                  "progreso": {i: {"estado": estado} for i in ids}}
+          open("reporte.jsonl", "w", encoding="utf-8").write(json.dumps(lote, ensure_ascii=False))
+          PY
+          # El token va por stdin, junto al lote; nunca se imprime ni se guarda.
+          printf '{"p_token":"%s","p_lote":%s}' "$STARSEED_MOTOR_TOKEN" "$(cat reporte.jsonl)" \
+            | curl -sS --max-time 20 -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+              -H "Content-Type: application/json" --data @- -o /dev/null \
+              "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/rpc/mando_motor_reportar"
+          echo "Resultado reportado a mi Genesis: $IDS → $(cat estado.txt)"
+
+
+

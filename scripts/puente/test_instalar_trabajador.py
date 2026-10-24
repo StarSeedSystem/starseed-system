@@ -27,6 +27,9 @@ class TestInstalarTrabajador(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.home, self.bin, self.mods, self.log = (os.path.join(self.tmp.name, n) for n in ("casa", "bin", "mods", "llamadas.log"))
         self.destino = os.path.join(self.home, "starseed-trabajador")
+        self.etc_systemd = os.path.join(self.tmp.name, "etc", "systemd", "system")
+        os.makedirs(self.etc_systemd)
+        pathlib.Path(self.etc_systemd, "starseed-metagenesis.service").write_text(f"ExecStart=/usr/bin/python3 -u {self.destino}/scripts/puente/nodo_metagenesis.py servir\n")
         os.mkdir(self.home), os.mkdir(self.mods), self.preparar(), self.gobernador(16 * 1024)
     def preparar(self, sin=(), con=()):
         """Rehace el PATH falso: todos los programas menos `sin`, más `con` (que solo existen)."""
@@ -40,8 +43,7 @@ class TestInstalarTrabajador(unittest.TestCase):
             "'ram_total_mb': %d, 'disco_libre_gb': 50.0, 'herramientas': {h: True for h in ('git', 'node', 'python3', 'opencode')}}\n" % ram_mb)
     def correr(self, *args, entrada=None, **env):
         """Con `entrada`, el guion llega por la entrada estándar, como con «curl … | bash -s -- …»."""
-        e = dict({"PATH": self.bin, "HOME": self.home, "FALSO_LOG": self.log, "PYTHONPATH": self.mods, "PYTHONDONTWRITEBYTECODE": "1", "LANG": "C.UTF-8",
-                  "STARSEED_UNIDAD_SISTEMA": os.path.join(self.tmp.name, "sin-unidad-metagenesis.service")}, **env)
+        e = dict({"PATH": self.bin, "HOME": self.home, "FALSO_LOG": self.log, "PYTHONPATH": self.mods, "PYTHONDONTWRITEBYTECODE": "1", "LANG": "C.UTF-8", "STARSEED_SYSTEMD_SYSTEM_PATH": self.etc_systemd}, **env)
         orden, kw = ([BASH, "-s", "--"], {"input": entrada}) if entrada is not None else ([BASH, SCRIPT], {"stdin": subprocess.DEVNULL})
         r = subprocess.run(orden + list(args), env=e, capture_output=True, text=True, encoding="utf-8",
                            timeout=60, start_new_session=True, cwd=self.tmp.name, **kw)
