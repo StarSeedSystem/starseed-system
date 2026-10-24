@@ -1,0 +1,130 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "GCA1019Wc",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Habilidades de la Biblioteca para los agentes de Genesis y PoliGenesis",
+   "archivos": [
+    "src/lib/genesis/conectores/habilidades-agente.ts",
+    "src/lib/genesis/conectores/__tests__/habilidades-agente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `habilidadesPara(papel, ambito, { capacidades: SkillCapability[] de src/ai/astraura/skills.ts, desactivadas })` elige las habilidades útiles por papel o director (por `routing` y etiquetas) en tamaño tarjeta, resumen o completa según la capa del modelo elegido (`architecture/laya-y-habilidades.md`). Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261021-165748-GCA1019Wb`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261021-165748-GCA1019Wb:refs/remotes/origin/nube/a1-20261021-165748-GCA1019Wb\"` y `git cherry-pick --no-commit 6766c7fbfab0`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/lib/genesis/conectores/__tests__/habilidades-agente.test.ts, src/lib/genesis/conectores/habilidades-agente.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GCA1019F"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261021-165748-GCA1019Wb"
+  },
+  {
+   "id": "RIA1023F",
+   "ola": "1023R",
+   "titulo": "Recursos de IA · publicar la oferta de la neurona (OfertaNeurona) desde sus asignaciones",
+   "archivos": [
+    "src/lib/recursos-ia/oferta-desde-asignaciones.ts",
+    "src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nFunción PURA que, a partir del inventario de esta neurona y sus asignaciones de Recursos de IA, construye la `OfertaNeurona` de `src/lib/recursos/oferta.ts` (usa ese tipo tal cual): qué modelos sirve, por qué procesador, si presta su servidor propio de IA (puerto 4480) y con qué alcance (privado → solo la cuenta; grupo/comunidad según la asignación). Nada privado sale con alcance público. Pruebas vitest: neurona sin servidor propio, con servidor propio privado y con alcance de grupo."
+  },
+  {
+   "id": "APM1017F",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · servir capacidades: admisión con los topes de préstamo, cola, cancelación y registro",
+   "archivos": [
+    "src/lib/recursos/servir-capacidades.ts",
+    "src/lib/recursos/__tests__/servir-capacidades.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión del relé `capacidad.*`: `crearServidor({ manejadores: Partial<Record<tipo, fn>>, oferta, sesiones, ahora })` con `atender(mensaje)` que comprueba la sesión (sesion-prestamo.ts) y los topes de `capacidadPrestable`, encola si está lleno (máx. 4 en cola), corre el manejador, trocea la respuesta y permite cancelar. `prestamos()` devuelve los préstamos vivos y hechos (quién, qué, ms, bytes) para Procesos activos. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D",
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "APM1017J",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · lector multifuente: cada banda de la fuente más rápida, varias a la vez, verificada",
+   "archivos": [
+    "src/lib/recursos/lector-volumen.ts",
+    "src/lib/recursos/__tests__/lector-volumen.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`crearLector({ manifiesto, cache, fuentes: { id, pedirBanda(i): Promise<Uint8Array> }[], verificar, paralelo = 4 })` con `leer(desde, hasta)` → bytes del rango: primero caché, luego `elegirFuentes` de volumen.ts, varias bandas en paralelo, reintento con la siguiente fuente si una falla o el SHA no cuadra (y anota la fuente mala), guarda en la caché. `prebuscar(rango)` para lo que viene después. Las fuentes reales (archivos-malla, Google Drive, el A1) se enchufan desde fuera. Pruebas con fuentes falsas lentas, rotas y mentirosas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017H",
+    "APM1017I"
+   ]
+  },
+  {
+   "id": "DGM1018G",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Habilidades · Diagram Design por capas y elección del tipo con Laya",
+   "archivos": [
+    "src/ai/astraura/habilidades/diagramas.ts",
+    "src/ai/astraura/habilidades/__tests__/diagramas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Desde vendor/habilidades/diagram-design/SKILL.md: tarjeta (≤ 60 palabras), resumen (≤ 120) y rutaCompleta, con la misma forma que las tarjetas de LYS1018I; y `preguntaTipo(tipos)` que arma la pregunta `choice` de Laya con los 45 tipos (nombre + 1 frase de cada references/type-*.md) para elegir el tipo por la petición. Pruebas. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018I"
+   ]
+  },
+  {
+   "id": "GUI1021C",
+   "ola": "1021G",
+   "titulo": "Guías · los diez temas en el tour de Aurora (y cerebros/librería corregidos)",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx",
+    "src/components/onboarding/__tests__/aurora-guide-temas.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §2 y §3. En `STEPS` de `aurora-guide.tsx`, después de `astraura` y `perfil`, añade un paso por cada tema de `TODOS_LOS_TEMAS` construido desde los datos (key, title=titulo, body=cuerpo, say=voz, ask=preguntaAurora, go → `safeGoto(router, ruta)`), con su icono lucide y su color Trinity; sustituye los pasos `cerebros` y `libreria` por `neuronas-cerebro` y `libreria-biblioteca` (que ya están entre los temas). No cambies nada más del componente. Pruebas: el tour tiene los diez temas en orden, ningún paso repetido, y el paso de cerebro lleva a `/cerebro`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho).",
+   "dependencias_ya_en_main": [
+    "GUI1021B"
+   ]
+  },
+  {
+   "id": "VST1018K",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Malla · voz y oído de VoiceStudio servidos a otras neuronas de la cuenta y el grupo",
+   "archivos": [
+    "src/lib/network/voz-por-malla.ts",
+    "src/lib/network/__tests__/voz-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Manejadores PUROS para las capacidades `voz.hablar` y `oido.transcribir` del relé `capacidad.*` (src/lib/network/capacidad-por-malla.ts): admiten solo peticiones de la misma cuenta o de un grupo con permiso, rechazan audio de terceros sin permiso (clonacion.ts si existe; si no, solo la voz del propio solicitante), aplican licencia-voz.ts al contexto de la petición y devuelven { motor, motivo } o un rechazo legible. Sin red en las pruebas. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "VST1018C"
+   ],
+   "dependencias_ya_en_main": [
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "TRD1020C",
+   "ola": "1020U",
+   "titulo": "Traducción · toda la página: recoger los textos traducibles, aplicar, volver al original y seguir lo nuevo",
+   "archivos": [
+    "src/lib/traduccion/pagina.ts",
+    "src/lib/traduccion/__tests__/pagina.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Funciones sobre el DOM (pruebas en jsdom): `recogerTextos(raiz)` devuelve los nodos de texto visibles y no vacíos, nunca dentro de `script`, `style`, `noscript`, `code`, `pre`, `textarea`, `input`, `select`, `[contenteditable]`, `[translate=no]`, `[data-no-traducir]` ni `[hidden]`; también los atributos `title`, `alt`, `aria-label` y `placeholder`. `aplicar(nodos, traducciones, idioma)` guarda cada original (WeakMap) y marca el elemento padre con `lang` y `data-traducido`; `restaurar(raiz)` lo devuelve todo como estaba; `observar(raiz, alNuevo)` con MutationObserver devuelve una función para parar y no vuelve a traducir lo ya traducido. Pruebas de cada exclusión, ida y vuelta exacta y texto nuevo detectado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "GUI1021C",
+   "APM1017F",
+   "TRD1020C",
+   "DGM1018G",
+   "VST1018K",
+   "RIA1023F",
+   "GCA1019Wc",
+   "APM1017J"
+  ]
+ }
+}
