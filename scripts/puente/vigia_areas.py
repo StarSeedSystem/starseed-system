@@ -70,7 +70,7 @@ def _area(a, donde, base, errores, existe, repos_vistos):
          "licencias_conocidas": dict(base["licencias"]), "alias_github": dict(alias if isinstance(alias, dict) else {})}
     for campo, patron in (("pipeline_tags", _ID), ("autores", _CUENTA)):
         r[campo] = _lista(a.get(campo, []), f"{donde} · {campo}", patron, errores)
-    r["repos_github"] = _lista(a.get("repos_github", []), f"{donde} · repos_github", _REPO, errores, repos_vistos)
+    r["repos_github"] = _lista(a.get("repos_github", []), f"{donde} · repos_github", _REPO, errores, set())
     r["cuantizadores"] = _lista(a.get("cuantizadores", base["cuantizadores"]), f"{donde} · cuantizadores", _CUENTA, errores)
     errores += [f"{donde} · cuantizadores: «{c}» no está en la lista común" for c in r["cuantizadores"] if c not in base["cuantizadores"]]
     _si(errores, not (r["pipeline_tags"] or r["autores"] or r["repos_github"]), f"{donde}: no vigila nada (sin etiquetas, autores ni repos)")

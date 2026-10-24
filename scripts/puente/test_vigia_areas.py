@@ -76,9 +76,7 @@ class AreasDelVigia(unittest.TestCase):
     def test_duplicados(self):
         self.assertIn("«imagen» está repetido", errores(con(lambda d: d["areas"].append(copy.deepcopy(d["areas"][0])))))
         self.assertIn("«QWEN» está repetido", errores(con(lambda d: d["areas"][0]["autores"].append("QWEN"))))
-        texto = errores(con(lambda d: (d["areas"][0].update(repos_github=["ggml-org/llama.cpp"]),
-                                       d["areas"][1].update(repos_github=["GGML-org/llama.cpp"]))))
-        self.assertIn("repos_github: «GGML-org/llama.cpp» está repetido", texto)  # un repo, un solo área
+        # Los repos pueden aparecer en varias áreas (ej. heygen-com/hyperframes en video y habilidades).
 
     def test_rutas_relativas_al_repo_sin_ensenar_la_absoluta(self):
         for mala in ("/Users/alguien/repo/x.ts", "~/x.ts", "../fuera.ts", "src/../x.ts", "src\\x.ts", "C:/x.ts", ""):
