@@ -54,6 +54,14 @@ describe("habilidadesPara · por papel", () => {
     expect(ids(habilidadesPara("imagen", "cuenta", OPCIONES))).toEqual(["av-gen", "vision"]);
   });
 
+  it("voz no recibe las capacidades con sesgo web ni de visión", () => {
+    const conSentidos = [...CAPACIDADES, cap("web-senses", "Sentidos web (Agent-Reach)", { web: true })];
+    const voz = ids(habilidadesPara("voz", "cuenta", { capacidades: conSentidos, desactivadas: [] }));
+    expect(voz).toContain("av-gen");
+    expect(voz).not.toContain("web-senses");
+    expect(voz).not.toContain("vision");
+  });
+
   it("excluir las habilidades desactivadas en el ámbito", () => {
     const out = ids(
       habilidadesPara("escritor", "cuenta", {
