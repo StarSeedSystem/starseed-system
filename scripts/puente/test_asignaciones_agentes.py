@@ -217,5 +217,47 @@ class TestAsignacionesAgentes(unittest.TestCase):
             self.assertFalse(habilitar_director(director, asignaciones))
 
 
+class RaizDelRepositorio(unittest.TestCase):
+    """OPS1024A: RAIZ es la raíz del repositorio (no `scripts/`) y respeta STARSEED_ROOT."""
+
+    def _recargar(self, entorno):
+        """Recarga el módulo con el entorno dado y devuelve (RAIZ, RUTA_ASIGNACIONES)."""
+        import importlib
+        import asignaciones_agentes
+        with patch.dict(os.environ, entorno, clear=False):
+            if "STARSEED_ROOT" not in entorno:
+                os.environ.pop("STARSEED_ROOT", None)
+            importlib.reload(asignaciones_agentes)
+            return asignaciones_agentes.RAIZ, asignaciones_agentes.RUTA_ASIGNACIONES
+
+    def tearDown(self):
+        """Devuelve el módulo a su entorno original tras cada prueba."""
+        import importlib
+        import asignaciones_agentes
+        importlib.reload(asignaciones_agentes)
+
+    def test_raiz_por_defecto_es_la_del_repositorio(self):
+        """Sin STARSEED_ROOT, la raíz por defecto es la del repo (contiene CLAUDE.md)."""
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        raiz, ruta = self._recargar({})
+        self.assertEqual(os.path.abspath(raiz), repo)
+        self.assertTrue(os.path.isfile(os.path.join(raiz, "CLAUDE.md")))
+        self.assertEqual(
+            ruta,
+            os.path.join(repo, "starseed_memory_root", "mando", "asignaciones-agentes.json"),
+        )
+
+    def test_raiz_respeta_starseed_root(self):
+        """Con STARSEED_ROOT, RAIZ y RUTA_ASIGNACIONES se construyen desde esa raíz."""
+        otra = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(otra, ignore_errors=True))
+        raiz, ruta = self._recargar({"STARSEED_ROOT": otra})
+        self.assertEqual(raiz, otra)
+        self.assertEqual(
+            ruta,
+            os.path.join(otra, "starseed_memory_root", "mando", "asignaciones-agentes.json"),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
