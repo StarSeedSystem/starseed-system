@@ -2561,6 +2561,15 @@ def recoger_grupo(proceso):
         pass
 
 
+def _reintentar_index_lock(ejecutar):
+    """Repite hasta 60 veces, separadas por 1 s, solo ante el error index.lock."""
+    for intento in range(61):
+        rc, salida = ejecutar()
+        if rc == 0 or "index.lock" not in salida or intento == 60:
+            return rc, salida
+        time.sleep(1)
+
+
 def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
     """Corre una orden y devuelve (código, salida). Con tiempo agotado → 124.
 
@@ -2570,35 +2579,44 @@ def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
     `node (vitest N)` de ~2,2 GB cada uno, huérfanos 49 minutos, dejaron la Mac sin RAM
     y Genesis sin contestar."""
     e = entorno_hijo(env)
-    p = None
-    try:
-        p = subprocess.Popen(
-            cmd,
-            cwd=cwd,
-            shell=isinstance(cmd, str),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=e,
-            start_new_session=True,
-        )
-        stdout, stderr = p.communicate(timeout=timeout)
-        out = (stdout or "") + (stderr or "")
-    except subprocess.TimeoutExpired:
-        matar_grupo(p)
-        try:
-            stdout, _ = p.communicate(timeout=10)
-        except Exception:
-            stdout = ""
+    def ejecutar():
         p = None
-        out = "TIMEOUT %ss\n%s" % (timeout, (stdout or "")[-2000:])
+        try:
+            p = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                shell=isinstance(cmd, str),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=e,
+                start_new_session=True,
+            )
+            stdout, stderr = p.communicate(timeout=timeout)
+            out = (stdout or "") + (stderr or "")
+        except subprocess.TimeoutExpired:
+            matar_grupo(p)
+            try:
+                stdout, _ = p.communicate(timeout=10)
+            except Exception:
+                stdout = ""
+            p = None
+            out = "TIMEOUT %ss\n%s" % (timeout, (stdout or "")[-2000:])
+        return (p.returncode if p else 124), out
+
+    orden = cmd if isinstance(cmd, (list, tuple)) else cmd.strip().split()
+    git_main = (
+        bool(orden) and orden[0] == "git"
+        and os.path.realpath(cwd or ROOT) == os.path.realpath(ROOT)
+    )
+    rc, out = _reintentar_index_lock(ejecutar) if git_main else ejecutar()
     if log:
         with open(log, "a", encoding="utf-8") as f:
             f.write(
                 "\n$ %s\n%s\n"
                 % (cmd if isinstance(cmd, str) else " ".join(cmd), out[-20000:])
             )
-    return (p.returncode if p else 124), out
+    return rc, out
 
 
 class Cupo:

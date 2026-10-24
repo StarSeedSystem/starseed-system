@@ -309,10 +309,22 @@ def texto_informe(traidas, reparadas, superadas_nuevas, esperando):
 
 # ── la máquina ──────────────────────────────────────────────────────────────────
 
+def _reintentar_index_lock(ejecutar):
+    """Repite Git solo si falló por index.lock; nunca intenta quitarlo."""
+    for intento in range(61):
+        rc, salida = ejecutar()
+        if rc == 0 or "index.lock" not in salida or intento == 60:
+            return rc, salida
+        time.sleep(1)
+
+
 def _git(args, timeout=120):
     try:
-        r = subprocess.run(["git", *args], cwd=RAIZ, capture_output=True, text=True, timeout=timeout)
-        return r.returncode, (r.stdout or "") + (r.stderr or "")
+        def ejecutar():
+            r = subprocess.run(["git", *args], cwd=RAIZ, capture_output=True, text=True, timeout=timeout)
+            return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+        return _reintentar_index_lock(ejecutar)
     except Exception as e:  # noqa: BLE001
         return 1, "%s: %s" % (type(e).__name__, e)
 
