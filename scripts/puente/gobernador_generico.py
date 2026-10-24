@@ -106,16 +106,43 @@ def de_pmset(texto: str) -> Dict[str, Any]:
     return resultado
 
 
+_NUMEROS_VERSION = re.compile(r"[vV]?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\.\d+)*")
+_PRE_VERSION = re.compile(r"[-_.]?([0-9A-Za-z][0-9A-Za-z.\-]*)")
+
+
+def _partir_version(version_str: str) -> Tuple[Tuple[int, int, int], Optional[str]]:
+    """PURA. '1.2.3-rc1' → ((1, 2, 3), 'rc1'); '0.24.0b1' → ((0, 24, 0), 'b1'); final → pre None.
+    Los metadatos de compilación ('+…') no cuentan (semver §10); más de tres números se ignoran."""
+    texto = (version_str or "").strip().split("+", 1)[0]
+    coincide = _NUMEROS_VERSION.match(texto)
+    if not coincide:
+        return (0, 0, 0), None
+    numeros = tuple(int(g) if g else 0 for g in coincide.groups())
+    pre = _PRE_VERSION.match(texto[coincide.end():])
+    return (numeros[0], numeros[1], numeros[2]), (pre.group(1) if pre else None)
+
+
 def _version_a_numero(version_str: str) -> Tuple[int, int, int]:
-    """Convierte una string de versión como '20.19.0' a tupla de enteros."""
-    partes = version_str.strip().split(".")
-    # Aseguramos tener al menos 3 partes
-    while len(partes) < 3:
-        partes.append("0")
-    try:
-        return (int(partes[0]), int(partes[1]), int(partes[2]))
-    except ValueError:
-        return (0, 0, 0)
+    """Convierte una string de versión como '20.19.0' (o '1.2.3-rc1') a su tupla numérica."""
+    return _partir_version(version_str)[0]
+
+
+def clave_version(version_str: str) -> Tuple[Any, ...]:
+    """PURA. Clave de orden semver: la pre-versión queda por debajo de la final del mismo número.
+    Cada identificador de la pre-versión se parte en tramos ('rc1' → 'rc', 1); los numéricos van
+    por debajo de los alfanuméricos y, con el mismo prefijo, más identificadores pesan más."""
+    numeros, pre = _partir_version(version_str)
+    if pre is None:
+        return numeros + (1, ())
+    tramos = tuple((0, int(t), "") if t.isdigit() else (1, 0, t)
+                   for t in re.findall(r"\d+|[A-Za-z]+", pre))
+    return numeros + (0, tramos)
+
+
+def comparar_versiones(a: str, b: str) -> int:
+    """PURA. -1 si a < b, 0 si son iguales, 1 si a > b (orden semver de clave_version)."""
+    ka, kb = clave_version(a), clave_version(b)
+    return (ka > kb) - (ka < kb)
 
 
 def herramientas(versiones: Dict[str, str]) -> Dict[str, bool]:
@@ -136,28 +163,14 @@ def herramientas(versiones: Dict[str, str]) -> Dict[str, bool]:
     # node: ≥ 20.19.0
     node_ok = False
     if "node" in versiones:
-        # Quitar la 'v' inicial si existe
-        node_ver = versiones["node"]
-        if node_ver.startswith("v"):
-            node_ver = node_ver[1:]
-        try:
-            node_tuple = _version_a_numero(node_ver)
-            # Comparar con (20, 19, 0)
-            if node_tuple[0] > 20 or (node_tuple[0] == 20 and node_tuple[1] >= 19):
-                node_ok = True
-        except (ValueError, IndexError):
-            pass
+        # La «v» inicial se acepta; orden semver: «v20.19.0-rc.1» queda por debajo del mínimo 20.19.0.
+        node_ok = comparar_versiones(versiones["node"], "20.19.0") >= 0
     resultado["node"] = node_ok
-    
+
     # python3: cualquier versión ≥ 3.0
     python_ok = False
     if "python3" in versiones:
-        try:
-            python_tuple = _version_a_numero(versiones["python3"])
-            if python_tuple[0] >= 3:
-                python_ok = True
-        except (ValueError, IndexError):
-            pass
+        python_ok = comparar_versiones(versiones["python3"], "3.0.0") >= 0
     resultado["python3"] = python_ok
     
     # opencode: cualquier versión

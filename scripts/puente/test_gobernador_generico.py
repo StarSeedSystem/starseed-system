@@ -213,11 +213,58 @@ class TestVersionConversion(unittest.TestCase):
         self.assertEqual(_version_a_numero("1.2.3.4.5"), (1, 2, 3))
     
     def test_version_con_caracteres_no_numericos(self):
-        self.assertEqual(_version_a_numero("v20.19.0-beta"), (0, 0, 0))
-        self.assertEqual(_version_a_numero("20.19.0-alpha"), (0, 0, 0))
-    
+        # OPF1024B: la parte numérica cuenta aunque lleve sufijo de pre-versión (antes daba 0.0.0).
+        self.assertEqual(_version_a_numero("v20.19.0-beta"), (20, 19, 0))
+        self.assertEqual(_version_a_numero("20.19.0-alpha"), (20, 19, 0))
+        self.assertEqual(_version_a_numero("1.2.3-rc1"), (1, 2, 3))
+        self.assertEqual(_version_a_numero("0.24.0b1"), (0, 24, 0))
+        self.assertEqual(_version_a_numero("2.0.0-beta.2"), (2, 0, 0))
+        self.assertEqual(_version_a_numero("1.2.3+compilacion.5"), (1, 2, 3))
+        self.assertEqual(_version_a_numero("sin número"), (0, 0, 0))
+
     def test_version_vacia(self):
         self.assertEqual(_version_a_numero(""), (0, 0, 0))
+
+
+class TestPreVersionesSemver(unittest.TestCase):
+    """OPF1024B: una pre-versión queda por debajo de la final del mismo número (semver §11)."""
+
+    def setUp(self):
+        import gobernador_generico as G
+        self.G = G
+
+    def test_pre_version_por_debajo_de_la_final(self):
+        cmp = self.G.comparar_versiones
+        for pre, final in [("1.2.3-rc1", "1.2.3"), ("0.24.0b1", "0.24.0"), ("2.0.0-beta.2", "2.0.0"),
+                           ("v20.19.0-rc.1", "v20.19.0"), ("3.14.0rc1", "3.14.0")]:
+            self.assertEqual(cmp(pre, final), -1, (pre, final))
+            self.assertEqual(cmp(final, pre), 1, (final, pre))
+
+    def test_pre_version_por_encima_del_numero_anterior(self):
+        self.assertEqual(self.G.comparar_versiones("2.0.0-beta.2", "1.9.9"), 1)
+        self.assertEqual(self.G.comparar_versiones("0.24.0b1", "0.23.9"), 1)
+
+    def test_orden_de_semver(self):
+        # El ejemplo de precedencia de semver.org, barajado.
+        esperado = ["1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta", "1.0.0-beta",
+                    "1.0.0-beta.2", "1.0.0-beta.11", "1.0.0-rc.1", "1.0.0"]
+        barajado = [esperado[i] for i in (5, 0, 7, 2, 6, 1, 4, 3)]
+        self.assertEqual(sorted(barajado, key=self.G.clave_version), esperado)
+
+    def test_iguales_y_metadatos(self):
+        cmp = self.G.comparar_versiones
+        self.assertEqual(cmp("v1.2.3", "1.2.3"), 0)
+        self.assertEqual(cmp("1.2.3+compilacion.7", "1.2.3"), 0)
+        self.assertEqual(cmp("1.2", "1.2.0"), 0)
+        self.assertEqual(cmp("1.0.0-1", "1.0.0-alpha"), -1)  # numérico por debajo de alfanumérico
+
+    def test_herramientas_con_pre_versiones(self):
+        base = {"git": "2.40.1", "opencode": "0.1.0"}
+        # Por debajo del mínimo 20.19.0 aunque el número coincida.
+        self.assertFalse(herramientas(dict(base, node="v20.19.0-rc.1", python3="3.11.2"))["node"])
+        r = herramientas(dict(base, node="v22.0.0-nightly20260101", python3="3.14.0rc1"))
+        self.assertTrue(r["node"])
+        self.assertTrue(r["python3"])
 
 
 class TestHerramientas(unittest.TestCase):
