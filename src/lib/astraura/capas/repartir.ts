@@ -83,40 +83,48 @@ const ORDEN_FUENTES: FuenteCapa[] = [
  */
 async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
   try {
+    // Verificar si existe una capa con el SHA-256 buscado y todos sus trozos están guardados
     const claves = await almacen.claves();
-    // Buscar metas de capas completas con el SHA-256 coincidente
-    const metas = new Map<string, MetaCapa>();
-    for (const clave of claves) {
-      if (clave.startsWith('capa/')) {
-        const partes = clave.split('/');
-        const idCapa = partes[1];
-        const indiceTrozo = Number(partes[3]);
-        const datos = await almacen.leer(clave);
-        if (datos) {
-          // Verificar si el trozo pertenece a una capa con el SHA-256 buscado
-          // (Nota: En una implementación real, se necesitaría un catálogo para asociar SHA con idCapa)
-          // Por ahora, asumimos que si hay trozos, la capa podría estar completa
-          // y se verifica con el catálogo en una implementación futura
-          const meta = metas.get(idCapa) || {
-            bytes: 0,
-            ultimoUso: Date.now(),
-            fijada: false,
-            totalTrozos: 0,
-            completa: false,
-            sha256: '',
-          };
-          meta.totalTrozos++;
-          metas.set(idCapa, meta);
+    const trozosSHA = claves.filter(clave => clave.startsWith('capa/') && clave.includes('/trozo/'));
+    
+    // Verificar si hay al menos un trozo con el SHA-256 buscado
+    // (Nota: En una implementación real, se necesitaría un catálogo para asociar el SHA-256 con el id de la capa)
+    // Aquí asumimos que si hay trozos guardados con el mismo prefijo, la capa podría estar completa
+    // y se verifica con el catálogo en una implementación futura
+    
+    // Buscar metas de capas completas con el mismo prefijo
+    const metas = new Map<string, { totalTrozos: number, completa: boolean, sha256: string }>();
+    
+    for (const clave of trozosSHA) {
+      const partes = clave.split('/');
+      const idCapa = partes[1];
+      
+      if (!metas.has(idCapa)) {
+        metas.set(idCapa, { totalTrozos: 0, completa: false, sha256: '' });
+      }
+      metas.get(idCapa)!.totalTrozos++;
+    }
+    
+    // Verificar si alguna capa tiene todos sus trozos guardados
+    for (const [idCapa, meta] of metas) {
+      const trozosGuardados = await almacen.claves().filter((clave) => clave.startsWith(`capa/${idCapa}/trozo/`)).length;
+      
+      // En una implementación real, se necesitaría obtener la meta de la capa desde el catálogo
+      // y verificar que el SHA-256 coincida con el proporcionado.
+      // Por ahora, asumimos que si hay trozos guardados, la capa podría estar completa
+      // y se verifica con el catálogo en una implementación futura
+      
+      // Para este caso, verificamos que el SHA-256 coincida con el proporcionado
+      // y que todos los trozos estén guardados
+      const datosCapa = await almacen.leer(`capa/${idCapa}/meta`);
+      if (datosCapa) {
+        const metaCapa = JSON.parse(new TextDecoder().decode(datosCapa));
+        if (metaCapa.sha256 === sha256 && metaCapa.completa && trozosGuardados === metaCapa.totalTrozos) {
+          return true;
         }
       }
     }
-    // Verificar si alguna capa tiene el SHA-256 buscado y todos sus trozos guardados
-    for (const [idCapa, meta] of metas) {
-      const trozosGuardados = await almacen.claves().filter((clave) => clave.startsWith(`capa/${idCapa}/trozo/`)).length;
-      if (meta.sha256 === sha256 && meta.completa && meta.totalTrozos > 0 && trozosGuardados === meta.totalTrozos) {
-        return true;
-      }
-    }
+    
     return false;
   } catch {
     return false;
