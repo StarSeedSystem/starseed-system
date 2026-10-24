@@ -97,6 +97,42 @@ export const FICHAS_REPOS_OS: LibraryPackage[] = [
         },
     },
     {
+        id: "repo-cloudroom",
+        kind: "project",
+        name: "Cloudroom · servidor de agentes (local y nube)",
+        description:
+            "App de escritorio que ejecuta agentes de código (Claude Code, Codex, opencode, Hermes…) en local o en sandboxes " +
+            "en la nube: cada agente con su sandbox aislado y su propia rama de git; los de la nube siguen aunque se cierre el " +
+            "portátil. Gratis: agentes locales sin límite y 100 agentes en la nube cada 30 días por cuenta (los modelos los " +
+            "paga cada dueño con sus claves, Cloudroom no factura las llamadas). En StarSeed OS es una opción más de servidor " +
+            "de agentes, sugerida solo si el contexto lo soporta, con su cupo repartido por contexto (ola 1024C). Abrir lleva " +
+            "a la sección de agentes de Genesis.",
+        icon: "Boxes",
+        tags: ["agentes", "contenedores", "sandboxes", "nube", "local", "cupo", "git", "metagenesis"],
+        version: "119.0.0",
+        author: "davidondrej",
+        sourceRepoId: "starseed-labs",
+        free: true,
+        payload: {
+            upstream: "https://github.com/davidondrej/cloudroom-gui",
+            canal: "releases",
+            licencia: "código abierto (núcleo cloudroom-core)",
+            requisitos:
+                "App de escritorio: macOS Apple Silicon 13+ o Linux x64 (alfa). Cuenta de Cloudroom, GitHub y un agente " +
+                "conectado (Claude Code, Codex, opencode…). CLI `room-cli` (~/.local/bin/room-cli): `status`, `cloud status`, " +
+                "`thread spawn/wait`, `environment diff-patch`.",
+            instalar_mac:
+                "Descarga el instalador .dmg de la release oficial de cloudroom-gui (comprueba el SHA-256 con su SHA256SUMS.txt) " +
+                "y ejecuta la app; la CLI queda en ~/.local/bin/room-cli (`room-cli status --json`).",
+            servicio: "src/lib/genesis/conectores/contenedores · cupo-cloudroom (cupo por contexto) · CLI room-cli",
+            route: "/agent?tab=runtimes",
+            corre_aqui: true,
+            note:
+                "Autoalojamiento del núcleo cloudroom-core (Rust + PostgreSQL) aún sin guía oficial. Se sugiere solo si el " +
+                "contexto lo soporta (neurona con la app, agente de código, repositorio git); en web pública y móvil no se ofrece.",
+        },
+    },
+    {
         id: "repo-manimgx",
         kind: "project",
         name: "ManimGX · animaciones matemáticas y 3D para agentes",

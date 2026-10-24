@@ -15,6 +15,20 @@ describe("repos que Alex trajo para el OS", () => {
         expect(hono?.payload.route).toBe("/agent?tab=recursos-ia");
     });
 
+    it("Cloudroom entra con cupo, licencia del núcleo y ruta a los agentes de Genesis", () => {
+        const cr = FICHAS_REPOS_OS.find((p) => p.id === "repo-cloudroom")!;
+        expect(cr.kind).toBe("project");
+        expect(String(cr.description)).toMatch(/100 agentes en la nube cada 30 días/);
+        expect(String(cr.payload.upstream)).toBe("https://github.com/davidondrej/cloudroom-gui");
+        expect(String(cr.payload.licencia)).toMatch(/código abierto \(núcleo cloudroom-core\)/);
+        expect(String(cr.payload.requisitos)).toMatch(/Apple Silicon 13\+/);
+        expect(String(cr.payload.requisitos)).toMatch(/Linux x64 \(alfa\)/);
+        // Abrir la ficha lleva a la sección de agentes (runtimes) de Genesis.
+        expect(cr.payload.route).toBe("/agent?tab=runtimes");
+        // Honestidad: lo aún sin guía va con el motivo a la vista.
+        expect(String(cr.payload.note)).toMatch(/sin guía oficial/);
+    });
+
     it("Zalo Kit va como «próximamente» con el motivo a la vista (no es un modelo de IA)", () => {
         const zalo = FICHAS_REPOS_OS.find((p) => p.id === "repo-react-native-zalo-kit");
         expect(zalo?.comingSoon).toBe(true);
@@ -24,7 +38,7 @@ describe("repos que Alex trajo para el OS", () => {
     it("las dos entran en la comprobación automática de versión", () => {
         expect(fichasIaConUpstreamGitHub(FICHAS_REPOS_OS).map((p) => p.id)).toEqual(FICHAS_REPOS_OS.map((p) => p.id));
         expect(FICHAS_REPOS_OS.map((p) => p.id)).toEqual(expect.arrayContaining([
-            "repo-hono", "repo-filee", "repo-codegraph", "repo-manimgx", "repo-earshot",
+            "repo-hono", "repo-filee", "repo-codegraph", "repo-cloudroom", "repo-manimgx", "repo-earshot",
             "repo-agno", "repo-langgraph", "repo-pydantic-ai", "repo-openai-agents-python", "repo-react-native-zalo-kit",
         ]));
     });
