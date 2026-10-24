@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "APM1017J",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · lector multifuente: cada banda de la fuente más rápida, varias a la vez, verificada",
+   "archivos": [
+    "src/lib/recursos/lector-volumen.ts",
+    "src/lib/recursos/__tests__/lector-volumen.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`crearLector({ manifiesto, cache, fuentes: { id, pedirBanda(i): Promise<Uint8Array> }[], verificar, paralelo = 4 })` con `leer(desde, hasta)` → bytes del rango: primero caché, luego `elegirFuentes` de volumen.ts, varias bandas en paralelo, reintento con la siguiente fuente si una falla o el SHA no cuadra (y anota la fuente mala), guarda en la caché. `prebuscar(rango)` para lo que viene después. Las fuentes reales (archivos-malla, Google Drive, el A1) se enchufan desde fuera. Pruebas con fuentes falsas lentas, rotas y mentirosas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017H",
+    "APM1017I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "APM1017J"
+  ]
+ }
+}
