@@ -2,6 +2,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { CITA_FUNDAMENTO } from "@/lib/fundamento/fundamento";
+import ReactMarkdown from "react-markdown";
 
 const constitutionContent = [
     { 
@@ -194,7 +195,9 @@ export default function ConstitutionPage() {
                  </section>
                  <section className="mt-6">
                      <blockquote className="border-l-4 border-primary pl-4 italic text-muted-foreground">
-                         {CITA_FUNDAMENTO}
+                         {/* La cita se escribe en Markdown (**negrita**): se pinta con el mismo
+                             renderizador del OS, sin HTML crudo, para no enseñar los asteriscos. */}
+                         <ReactMarkdown>{CITA_FUNDAMENTO}</ReactMarkdown>
                      </blockquote>
                  </section>
 
