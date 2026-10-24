@@ -54,6 +54,17 @@ describe("habilidadesPara · por papel", () => {
     expect(ids(habilidadesPara("imagen", "cuenta", OPCIONES))).toEqual(["av-gen", "vision"]);
   });
 
+  it("la bandera web entra para escritor y queda fuera para visión", () => {
+    const conWeb = [...CAPACIDADES, cap("web-senses", "Sentidos web (Agent-Reach)", { web: true })];
+    const opciones = { capacidades: conWeb, desactivadas: [] };
+    const escritor = ids(habilidadesPara("escritor", "cuenta", opciones));
+    expect(escritor).toContain("av-gen");
+    expect(escritor).toContain("pm");
+    expect(escritor).toContain("web-senses");
+    expect(escritor).not.toContain("vision");
+    expect(ids(habilidadesPara("visión", "cuenta", opciones))).not.toContain("web-senses");
+  });
+
   it("excluir las habilidades desactivadas en el ámbito", () => {
     const out = ids(
       habilidadesPara("escritor", "cuenta", {
