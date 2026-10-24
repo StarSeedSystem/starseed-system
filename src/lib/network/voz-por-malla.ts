@@ -117,3 +117,117 @@ export function despacharVozMalla(msg: VozMallaMsg, destino: DestinoVoz, deps: D
     return new TextEncoder().encode(json).length <= VOZ_MALLA_MAX_BYTES && deps.transporte.enviar(destino.dispositivo, json);
   } catch { return false; }
 }
+
+/* ── VST1018K · manejadores PUROS de las capacidades `voz.hablar` y `oido.transcribir` del relé ──
+ * `capacidad.*` (capacidad-por-malla.ts, tipos `voz` y `oido`). La neurona que sirve admite solo
+ * peticiones de su misma cuenta o de la sesión de grupo que comparte; el audio de un tercero exige
+ * permiso registrado (clonacion.ts) y el motor se elige con licencia por contexto (catalogo-voces:
+ * nada «personal» por defecto ni fuera de lo personal; sin AudioSeal una voz clonada no sale de lo
+ * personal). Contrato: architecture/voz-voicestudio.md §3–§4. Todo inyectado, sin red ni reloj. */
+import { puedeClonar, type PermisoVoz, type UsoVoz } from "@/lib/aurora/voz-starseed/clonacion";
+import { MOTORES_VOZ, motorRecomendado, type MotorVozCatalogo, type Plataforma } from "@/lib/aurora/catalogo-voces";
+import { MOTORES_OIDO, elegirOido, type MotorOidoId } from "@/lib/aurora/stt-oss/motores-oido";
+
+/** Respuesta de un manejador: el motor con su motivo, o un rechazo legible. */
+export type PlanVozMalla =
+  | { ok: true; motor: string; motivo: string }
+  | { ok: false; motivo: string };
+
+/** Qué pide y desde dónde: cuerpo de `capacidad.pedir` (tipo `voz` u `oido`). */
+export interface PeticionVozMallaCuerpo {
+  /** Cuenta de quien pide; solo se compara, no se valida aquí. */
+  cuenta: string;
+  /** Sesión de grupo desde la que pide (debe ser la que esta neurona comparte). */
+  grupo?: string;
+  /** Contexto de licencia; por defecto «personal», nunca se infiere uno más antojadizo. */
+  uso?: UsoVoz;
+  /** Cuenta dueña de la voz; si es otra, hace falta permiso y motor que clone. */
+  vozTitular?: string;
+  /** Idioma del audio que se transcribe (el elector de oído lo usa). */
+  idioma?: string;
+  motorPreferido?: string;
+}
+
+/** Neurona que sirve: su cuenta, el grupo que acepta, permisos y medidas, todo inyectado. */
+export interface ContextoServidaVoz {
+  cuentaLocal: string;
+  sesionGrupo?: string | null;
+  permisos: PermisoVoz[];
+  /** Reloj inyectado (ms) para juzgar la validez de los permisos. */
+  ahora: number;
+  plataforma: Plataforma;
+  ramGB: number;
+  /** Oídos medidos como disponibles en esta neurona. */
+  oidoDisponibles: MotorOidoId[];
+  fase?: "parcial" | "final";
+  /** Motores «condicionada» cuya condición se cumple aquí (vigia-modelos.md). */
+  condicionesCumplidas?: string[];
+  /** ¿AudioSeal disponible? Sin marca de agua, una voz clonada no sale de lo personal. */
+  marcaAguaDisponible?: boolean;
+}
+
+/** Admisión: misma cuenta o la sesión de grupo que esta neurona comparte. Pura. */
+function admite(p: { cuenta: string; grupo?: string }, ctx: ContextoServidaVoz): { ok: boolean; motivo: string } {
+  if (!p.cuenta) return { ok: false, motivo: "Petición sin cuenta: nada que atender." };
+  if (p.cuenta === ctx.cuentaLocal) return { ok: true, motivo: "misma cuenta" };
+  if (p.grupo && p.grupo === ctx.sesionGrupo) return { ok: true, motivo: `sesión de grupo «${p.grupo}» compartida aquí` };
+  return { ok: false, motivo: "Solo se atienden peticiones de la misma cuenta o de un grupo con permiso." };
+}
+
+/** Motores del catálogo que clonan desde una referencia de audio (contrato §3.2). */
+const CLONAN = new Set(["cosyvoice3", "voxcpm", "qwen3-tts", "chatterbox", "voicemorphic", "voicestudio"]);
+
+/** Licencia por contexto: «personal» solo a mano en lo propio; «condicionada» si su condición se cumple. */
+function entraPorLicencia(m: MotorVozCatalogo, uso: UsoVoz, preferido?: string, condiciones: string[] = []): boolean {
+  if (m.claseLicencia === "libre") return true;
+  if (m.claseLicencia === "condicionada") return condiciones.includes(m.id);
+  return uso === "personal" && !!preferido && m.id === preferido;
+}
+
+/** `voz.hablar` por la malla: admite, exige permiso al tercero y elige motor por licencia. Pura. */
+export function vozHablarPorMalla(p: PeticionVozMallaCuerpo, ctx: ContextoServidaVoz): PlanVozMalla {
+  const uso: UsoVoz = p.uso ?? "personal";
+  const puerta = admite(p, ctx);
+  if (!puerta.ok) return { ok: false, motivo: puerta.motivo };
+  const titular = p.vozTitular ?? p.cuenta;
+  const clonar = titular !== p.cuenta;
+  if (clonar) {
+    const r = puedeClonar({ solicitante: p.cuenta, titular, uso, permisos: ctx.permisos, ahora: ctx.ahora });
+    if (!r.ok) return { ok: false, motivo: `Audio de un tercero sin permiso: ${r.motivo}` };
+    if (uso !== "personal" && ctx.marcaAguaDisponible !== true) {
+      return { ok: false, motivo: "Sin marca de agua (AudioSeal) la voz clonada no sale de lo personal." };
+    }
+  }
+  const ram = Number.isFinite(ctx.ramGB) ? ctx.ramGB : 0;
+  const sirve = (m: MotorVozCatalogo) =>
+    entraPorLicencia(m, uso, p.motorPreferido, ctx.condicionesCumplidas ?? []) &&
+    m.offline && m.plataformas.includes(ctx.plataforma) && m.ramMinGB <= ram && (!clonar || CLONAN.has(m.id));
+  const preferido = MOTORES_VOZ.find((m) => m.id === p.motorPreferido);
+  // El defecto pasa SIEMPRE por el filtro de licencia: nada «personal» por defecto (como en doblaje).
+  const porDefecto = motorRecomendado(ctx.plataforma, ram, uso === "personal" ? "grupo" : uso);
+  const elegido = (preferido && sirve(preferido) ? preferido : null) ?? (sirve(porDefecto) ? porDefecto : MOTORES_VOZ.find(sirve) ?? null);
+  if (!elegido) return { ok: false, motivo: `Ningún motor de voz permitido en «${uso}» en esta neurona (licencia, medio o RAM).` };
+  return {
+    ok: true,
+    motor: elegido.id,
+    motivo: `${elegido.nombre} (${elegido.claseLicencia}) en «${uso}»; voz ${clonar ? "clonada con permiso del titular" : "del propio solicitante"}`,
+  };
+}
+
+/** `oido.transcribir` por la malla: misma admisión, permiso si el audio es de otra cuenta y oído licenciado. Pura. */
+export function oidoTranscribirPorMalla(p: PeticionVozMallaCuerpo, ctx: ContextoServidaVoz): PlanVozMalla {
+  const uso: UsoVoz = p.uso ?? "personal";
+  const puerta = admite(p, ctx);
+  if (!puerta.ok) return { ok: false, motivo: puerta.motivo };
+  if (p.vozTitular && p.vozTitular !== p.cuenta) {
+    const r = puedeClonar({ solicitante: p.cuenta, titular: p.vozTitular, uso, permisos: ctx.permisos, ahora: ctx.ahora });
+    if (!r.ok) return { ok: false, motivo: `Audio de un tercero sin permiso: ${r.motivo}` };
+  }
+  const licencia = (id: MotorOidoId) => MOTORES_OIDO.find((m) => m.id === id)?.licencia ?? "";
+  // El audio ya está aquí: el oído «malla» nunca re-reelisa; fuera de lo personal, solo oído con licencia conocida.
+  const disponibles = ctx.oidoDisponibles.filter((id) => id !== "malla" && (uso === "personal" || licencia(id) !== ""));
+  if (!disponibles.length) return { ok: false, motivo: `Ningún oído permitido en «${uso}» en esta neurona (solo sale de lo personal con licencia conocida).` };
+  const r = elegirOido({ idioma: p.idioma ?? "", disponibles, fase: ctx.fase ?? "final" });
+  if (!disponibles.includes(r.motor as MotorOidoId)) return { ok: false, motivo: "El elector de oído no encontró motor disponible en esta neurona." };
+  return { ok: true, motor: r.motor, motivo: `${r.motivo} · el audio no sale de las neuronas de su dueño` };
+}
