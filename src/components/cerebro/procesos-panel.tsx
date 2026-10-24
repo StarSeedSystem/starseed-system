@@ -124,7 +124,7 @@ export default function ProcesosPanel(_props: ProcesosPanelProps) {
     useEffect(() => {
         let vivo = true;
         void leerProcesos({ atrasos: actualizaciones.atrasos, presencia }).then((p) => {
-            if (vivo) setProcesos(p);
+            if (vivo) setProcesos(p.procesos);
         });
         return () => { vivo = false; };
     }, [actualizaciones.atrasos, presencia]);
