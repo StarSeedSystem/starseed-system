@@ -67,6 +67,11 @@ describe("xr.intencion", () => {
     expect(r.tarjeta?.lineas).toContain("Invitar a «Banda» (4 personas)");
     expect([handler.mock.calls.length, router.push.mock.calls.length]).toEqual([0, 0]);
   });
+  it("una frase no entendida devuelve la pregunta como motivo, sin previo ni tarjeta", () => {
+    const r = ejecutarIntencionXR(voz("zzz qqq"), ctxVoz);
+    expect(r).toMatchObject({ ok: false, previo: {}, tarjeta: null, motivo: expect.stringContaining("No he entendido «zzz qqq»") });
+    expect(r.voz).toMatchObject({ ok: false, razon: "no-entendido" });
+  });
   it("lo que no sale de la cuenta también pide confirmación, con un título honesto", () => {
     const r = ejecutarIntencionXR(voz("llévame a la estación Cumbre"), ctxVoz);
     expect(r.voz.ok && r.voz.tarjeta).toBe(null);
