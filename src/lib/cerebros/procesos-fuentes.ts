@@ -10,8 +10,8 @@ import { listRuns } from "@/lib/aurora/imagine";
 import { leerInstalaciones } from "@/lib/instalaciones/instalaciones-store";
 import { readDesktopsSnapshot } from "@/components/desktop/desktop-store";
 import { listNeurons } from "@/lib/neurons/neurons";
-import type { ProcesoActivo } from "./procesos";
-import type { FuentesProcesos } from "./procesos";
+import type { ProcesoActivo, HardwareServidor } from "./procesos";
+import { hardwareDesdeMac, hardwareDesdeNeurona } from "./procesos";
 import {
     desdeActualizaciones, desdeAgentesMac, desdeImaginacion, desdeInstalaciones, desdeLatidos,
     desdeNodos, desdePoligenesis, desdePresencia, desdeSuenos, desdeVentanas, unirProcesos,
@@ -78,10 +78,10 @@ async function leerFuenteFetch(url: string): Promise<ResultadoFuente> {
         if (error instanceof DOMException && error.name === "AbortError") {
             return { ok: false, data: null, ms, motivo: " tiempo agotado" };
         }
-        if (error.status !== undefined) {
-            const motivo = [401, 403, 404].includes(error.status)
+        if ((error as { status?: number }).status !== undefined) {
+            const motivo = [401, 403, 404].includes((error as { status?: number }).status)
                 ? " no disponible aquí"
-                : ` error ${error.status}`;
+                : ` error ${(error as { status?: number }).status}`;
             return { ok: false, data: null, ms, motivo };
         }
         const motivo = (error as Error).message ?? " error desconocido";
@@ -112,7 +112,7 @@ async function leerFuenteFn(fn: () => Promise<unknown>): Promise<ResultadoFuente
 }
 
 /** Lee todas las fuentes y devuelve procesos, hardware y status de cada fuente. Nunca lanza. */
-export async function leerProcesos(o?: { incluirMac?: boolean }): Promise<{
+export async function leerProcesos(o?: { incluirMac?: boolean; atrasos?: unknown; presencia?: unknown }): Promise<{
     procesos: ProcesoActivo[];
     hardware: HardwareServidor[];
     fuentes: Array<{ nombre: string; ok: boolean; ms: number; motivo?: string }>;
@@ -174,7 +174,7 @@ export async function leerProcesos(o?: { incluirMac?: boolean }): Promise<{
     const mds = medidoresR.ok && medidoresR.data ? desdeLatidos(medidoresR.data) : [];
     const nds = estadoR.ok && estadoR.data ? desdeNodos(estadoR.data) : [];
     const pgss = desdePoligenesis(undefined); // poligenesis no tiene fetch directo aquí
-    const srs = suenosR.ok && suenosR.data ? desdeSuenos(sueñosR.data) : [];
+    const srs = suenosR.ok && suenosR.data ? desdeSuenos(suenosR.data) : [];
     const sas = imaginacionR.ok && imaginacionR.data ? desdeImaginacion(imaginacionR.data) : [];
     const sts = historialR.ok && historialR.data ? desdeActualizaciones(historialR.data) : [];
     const wis = desktopsR.ok && desktopsR.data ? desdeVentanas(desktopsR.data) : [];
