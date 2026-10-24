@@ -86,6 +86,7 @@ import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
 import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
 import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
+import { decidirInterrupcion } from "@/lib/aurora/interrumpir-por-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
 import { anotarMedida, medidasDe } from "@/lib/aurora/medidas-voz";
@@ -436,19 +437,107 @@ let turnoVozPendiente: { origen: "voz"; msDesdeQueCalló: number | null } | null
 const bucleVoz = detectorBucle();
 /** Respuestas más cortas que esto («Abriendo el café») no cuentan como bucle. */
 const MIN_PALABRAS_BUCLE = 6;
+// Montaje de interrupción por voz (Ola 1015V): micrófono con echoCancellation/noiseSuppression
+let interrupcionActiva = false;
+let interrupcionStream: MediaStream | null = null;
+let interrupcionAudioContext: AudioContext | null = null;
+let interrupcionAnalizador: AnalyserNode | null = null;
+let interrupcionTimer: ReturnType<typeof setInterval> | null = null;
+let interrupcionMuestras: Array<{ db: number; ahora: number }> = [];
 function ttsGuardActive(): boolean {
   return ttsSpeakingGlobal || Date.now() < ttsGuardUntilGlobal;
 }
+function calcularDb(analizador: AnalyserNode): number {
+  const datos = new Uint8Array(analizador.fftSize);
+  analizador.getByteTimeDomainData(datos);
+  let suma = 0;
+  for (let i = 0; i < datos.length; i++) {
+    const v = (datos[i] - 128) / 128;
+    suma += v * v;
+  }
+  const rms = Math.sqrt(suma / datos.length);
+  if (rms <= 0) return -1000;
+  return 20 * Math.log10(rms);
+}
+
+function detenerInterrupcionPorVoz(): void {
+  if (interrupcionTimer) {
+    clearInterval(interrupcionTimer);
+    interrupcionTimer = null;
+  }
+  if (interrupcionStream) {
+    try {
+      interrupcionStream.getTracks().forEach((t) => t.stop());
+    } catch { /* */ }
+    interrupcionStream = null;
+  }
+  if (interrupcionAudioContext) {
+    try {
+      interrupcionAudioContext.close();
+    } catch { /* */ }
+    interrupcionAudioContext = null;
+  }
+  interrupcionAnalizador = null;
+  interrupcionMuestras = [];
+  interrupcionActiva = false;
+}
+
 /** Llamado por speak() en TODAS sus rutas: abre/cierra la ventana anti-eco. */
 function markTtsSpeaking(on: boolean): void {
   ttsSpeakingGlobal = on;
-  if (!on) {
-    ultimoFinHablaGlobal = Date.now();
-    // Cola de eco tras hablar: 1,2 s en escritorio, 2,2 s en móvil/tablet (antes 800 ms fijos).
-    let movil = false;
-    try { movil = isMobileDevice(); } catch { /* */ }
-    ttsGuardUntilGlobal = Date.now() + ventanaEcoMs({ movil });
+  if (on) {
+    interrupcionMuestras = [];
+    interrupcionActiva = true;
+    try {
+      if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+        navigator.mediaDevices
+          .getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } as any })
+          .then((stream) => {
+            if (!interrupcionActiva || ttsSpeakingGlobal === false) {
+              try { stream.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+              return;
+            }
+            interrupcionStream = stream;
+            const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            interrupcionAudioContext = ctx;
+            const fuente = ctx.createMediaStreamSource(stream);
+            const analizador = ctx.createAnalyser();
+            analizador.fftSize = 256;
+            interrupcionAnalizador = analizador;
+            fuente.connect(analizador);
+            if (interrupcionTimer) clearInterval(interrupcionTimer);
+            interrupcionTimer = setInterval(() => {
+              if (!ttsSpeakingGlobal || !interrupcionAnalizador) return;
+              const db = calcularDb(interrupcionAnalizador);
+              const ahora = Date.now();
+              interrupcionMuestras.push({ db, ahora });
+              if (interrupcionMuestras.length > 200) {
+                interrupcionMuestras = interrupcionMuestras.slice(interrupcionMuestras.length - 200);
+              }
+              let movil = false;
+              try { movil = isMobileDevice(); } catch { /* */ }
+              const ecoHasta = ttsGuardUntilGlobal || Date.now() + ventanaEcoMs({ movil });
+              const res = decidirInterrupcion(interrupcionMuestras, { hablando: true, ecoHasta }, { minimoMs: 250, movil });
+              if (res.interrumpir) {
+                detenerInterrupcionPorVoz();
+                // @ts-ignore
+                if (typeof interruptGlobal === "function") interruptGlobal();
+              }
+            }, 50);
+          })
+          .catch(() => { /* sin micrófono o sin permiso: seguir sin interrupción */ });
+      }
+    } catch { /* */ }
+    return;
   }
+  detenerInterrupcionPorVoz();
+  ultimoFinHablaGlobal = Date.now();
+  // Cola de eco tras hablar: 1,2 s en escritorio, 2,2 s en móvil/tablet (antes 800 ms fijos).
+  let movil = false;
+  try { movil = isMobileDevice(); } catch { /* */ }
+  ttsGuardUntilGlobal = Date.now() + ventanaEcoMs({ movil });
 }
 
 /**
