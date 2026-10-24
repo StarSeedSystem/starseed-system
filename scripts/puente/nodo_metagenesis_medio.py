@@ -147,6 +147,45 @@ def disco_libre_gb(ruta: str) -> Optional[float]:
         return None
 
 
+def disco_total_gb(ruta: str) -> Optional[float]:
+    """Capacidad total del disco que contiene `ruta`; None si no se pudo medir (nunca un número inventado)."""
+    try:
+        return round(shutil.disk_usage(ruta).total / 1e9, 1)
+    except OSError:
+        return None
+
+
+def cpu_pct() -> Optional[float]:
+    """Linux: dos lecturas de /proc/stat separadas 0,3 s → % ocupado; macOS u otros: None.
+
+    En macOS no hay /proc/stat y no se estima: devolver None es la verdad («sin medida»), no un 0 falso."""
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        with open("/proc/stat") as f:
+            linea = f.readline()
+        if not linea.startswith("cpu "):
+            return None
+        tiempos1 = [int(x) for x in linea.split()[1:]]
+        inactivo1 = tiempos1[3]  # cuarto valor: idle
+        total1 = sum(tiempos1)
+        time.sleep(0.3)
+        with open("/proc/stat") as f:
+            linea = f.readline()
+        if not linea.startswith("cpu "):
+            return None
+        tiempos2 = [int(x) for x in linea.split()[1:]]
+        inactivo2 = tiempos2[3]
+        total2 = sum(tiempos2)
+        total = total2 - total1
+        inactivo = inactivo2 - inactivo1
+        if total > 0:
+            return round((total - inactivo) * 100.0 / total, 1)
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
 def ram_total_mb() -> Optional[int]:
     """RAM TOTAL del aparato (no la libre): la capacidad de contenedor se decide con ella (§2 del contrato).
     None si no se pudo medir: entonces no se inventa un contenedor (ni «no apto» por un 0 falso)."""
@@ -159,7 +198,7 @@ def ram_total_mb() -> Optional[int]:
         pass
     if sys.platform == "darwin":
         # Ruta absoluta: launchd no lleva /usr/sbin en el PATH (mismo motivo que `ioreg` en huella_maquina).
-        rc, out = _sh(["/usr/sbin/sysctl", "-n", "hw.memsize"], tope=10)
+        rc, out = _sh(["/usr/sbin/sysctl", "-n", "hw.memsize"], tope=2)
         if rc == 0 and out.strip().isdigit():
             return int(out.strip()) // (1024 * 1024)
     return None
@@ -631,9 +670,11 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         "autoritativo": autoritativo,
         "orquestadores": orqs,
         "disco_gb": disco_libre_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
+        "disco_total_gb": disco_total_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
         "ram_libre_mb": ram_libre_mb(),
         "nucleos": os.cpu_count(),
         "carga": round(os.getloadavg()[0], 2) if hasattr(os, "getloadavg") else None,
+        "cpu_pct": cpu_pct(),
         "servicios_caidos": [],
         "guardianes_caidos": [],
     }

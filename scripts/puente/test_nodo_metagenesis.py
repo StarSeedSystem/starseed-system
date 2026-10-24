@@ -365,6 +365,35 @@ class TestRescate(unittest.TestCase):
 
 
 class TestFotoYTachado(unittest.TestCase):
+    def test_resumen_nodo_lleva_las_medidas_nuevas(self):
+        l = {"medio": "oracle-a1", "modo": "real", "ts": T0, "salud": {
+            "disco_gb": 40.0, "ram_libre_mb": 2048, "cpu_pct": 37.5, "ram_total_mb": 8192,
+            "disco_total_gb": 80.0, "nucleos": 4, "carga": 1.25}}
+        r = L.resumen_nodo("oracle-a1-bbbbbb", l, None, T0 + 10)
+        self.assertEqual(r["cpu_pct"], 37.5)
+        self.assertEqual(r["ram_total_mb"], 8192)
+        self.assertEqual(r["disco_total_gb"], 80.0)
+        self.assertEqual(r["nucleos"], 4)
+        self.assertEqual(r["carga"], 1.25)
+
+    def test_resumen_nodo_respeta_none_sin_inventar_cero(self):
+        l = {"medio": "mac", "modo": "real", "ts": T0, "salud": {
+            "cpu_pct": None, "ram_total_mb": None, "disco_total_gb": None, "nucleos": None, "carga": None}}
+        r = L.resumen_nodo("mac-aaaaaa", l, None, T0 + 10)
+        self.assertIsNone(r["cpu_pct"])
+        self.assertIsNone(r["ram_total_mb"])
+        self.assertIsNone(r["disco_total_gb"])
+        self.assertIsNone(r["nucleos"])
+        self.assertIsNone(r["carga"])
+
+    def test_huella_ignora_las_medidas_de_salud(self):
+        n1 = {"mac-aaaaaa": {"nodo": "mac-aaaaaa", "medio": "mac", "modo": "real", "ts": T0, "salud": {
+            "cpu_pct": 10.0, "ram_total_mb": 8192, "disco_total_gb": 500.0}}}
+        n2 = {"mac-aaaaaa": {"nodo": "mac-aaaaaa", "medio": "mac", "modo": "real", "ts": T0, "salud": {
+            "cpu_pct": 90.0, "ram_total_mb": 16384, "disco_total_gb": 1000.0}}}
+        self.assertEqual(L.huella_foto(L.foto("mac-aaaaaa", 3, n1, [], {}, True, "real", T0)),
+                         L.huella_foto(L.foto("mac-aaaaaa", 3, n2, [], {}, True, "real", T0)))
+
     def test_huella_no_cambia_con_el_reloj(self):
         n = {"mac-aaaaaa": {"nodo": "mac-aaaaaa", "medio": "mac", "modo": "real", "ts": T0, "salud": {}}}
         a = L.foto("mac-aaaaaa", 3, n, [], {"listas": "3"}, True, "real", T0 + 10)

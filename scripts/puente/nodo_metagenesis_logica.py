@@ -1095,7 +1095,12 @@ def resumen_nodo(n: str, l: Dict[str, Any], lider: Optional[str], ahora: float) 
         "orquestadores": [o.get("cola") for o in s.get("orquestadores") or []][:4],
         "caidos": (s.get("servicios_caidos") or [])[:6],
         "disco_gb": s.get("disco_gb"),
+        "disco_total_gb": s.get("disco_total_gb"),
         "ram_libre_mb": s.get("ram_libre_mb"),
+        "ram_total_mb": s.get("ram_total_mb"),
+        "cpu_pct": s.get("cpu_pct"),
+        "nucleos": s.get("nucleos"),
+        "carga": s.get("carga"),
         "trabajo": s.get("trabajo") or {},
         "version": l.get("version"),
     }
@@ -1137,7 +1142,8 @@ def huella_foto(f: Dict[str, Any]) -> str:
         "lider": f.get("lider"),
         "termino": f.get("termino"),
         "autonomia": f.get("autonomia"),
-        "nodos": [{k: v for k, v in n.items() if k not in ("hace_s", "ram_libre_mb", "disco_gb")}
+        "nodos": [{k: v for k, v in n.items()
+                   if k not in ("hace_s", "ram_libre_mb", "disco_gb", "cpu_pct", "ram_total_mb", "disco_total_gb")}
                   for n in f.get("nodos") or []],
         # De cada medidor, solo su cifra: sus textos llevan la hora de la medida y cambiarían siempre.
         "medidores": {k: _numero(v) for k, v in (f.get("medidores") or {}).items()},
