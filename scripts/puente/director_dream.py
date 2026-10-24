@@ -93,7 +93,7 @@ def tarea_de(p, fecha, i):
         # Dream se procesaran CADA VEZ que ocurren; con ids repetidos solo se
         # procesaba el primero.
         "id": "DR%s-%d" % (str(fecha).replace("-", "")[4:], i + 1),
-        "ola": "Ola Dream %s · lo que el análisis nocturno encontró" % fecha,
+        "ola": "Ola Imaginación %s · lo que el análisis nocturno encontró" % fecha,
         "titulo": p["titulo"],
         "archivos": [],
         "depende": [],

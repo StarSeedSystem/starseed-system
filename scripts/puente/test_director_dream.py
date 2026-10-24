@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Pruebas de director_dream.py: el que convierte el Dream en encargos."""
+"""Pruebas de director_dream.py: el que convierte la imaginación diaria en encargos."""
 
 import os
 import sys
@@ -54,7 +54,7 @@ class TestFormaDelEncargo(unittest.TestCase):
         self.assertIn(P["seccion"], prompt)
 
     def test_deja_salida_si_ya_no_aplica(self):
-        # El Dream lo escriben modelos gratuitos leyendo registros: a veces
+        # La imaginación diaria la escriben modelos gratuitos leyendo registros: a veces
         # proponen algo ya hecho. El encargo tiene que permitir decirlo.
         self.assertIn("NO APLICA", DD.tarea_de(P, "2026-09-17", 0)["prompt"])
 
@@ -62,6 +62,30 @@ class TestFormaDelEncargo(unittest.TestCase):
         t = DD.tarea_de(P, "2026-09-17", 0)
         self.assertEqual(t["depende"], [])
         self.assertEqual(t["archivos"], [])
+
+
+class TestTextosQueLeenPersonas(unittest.TestCase):
+    """(1021I) Lo que se lee dice «Imaginación diaria»; los ids y las rutas no cambian.
+
+    Las colas viejas conservan su título «Ola Dream …»: solo cambia el de las nuevas.
+    """
+
+    def test_la_ola_nueva_se_llama_imaginacion(self):
+        self.assertEqual(
+            DD.tarea_de(P, "2026-09-17", 0)["ola"],
+            "Ola Imaginación 2026-09-17 · lo que el análisis nocturno encontró",
+        )
+
+    def test_el_resumen_dice_imaginacion_diaria(self):
+        t = DD.D.resumen([{"titulo": "Algo que hacer"}], total_leidas=3)
+        self.assertTrue(t.startswith("Imaginación diaria leída: encargo 1"))
+        self.assertNotIn("Dream leído", t)
+
+    def test_el_resumen_sin_nada_tambien_lo_dice(self):
+        self.assertEqual(
+            DD.D.resumen([]),
+            "Imaginación diaria leída: nada accionable nuevo que encargar.",
+        )
 
 
 if __name__ == "__main__":
