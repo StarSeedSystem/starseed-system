@@ -87,6 +87,25 @@ describe("prepararDiagrama", () => {
     expect(sinAnimacion.sandbox).not.toContain("allow-same-origin");
   });
 
+  it("sin animación la CSP completa no lleva script-src aunque el HTML traiga un script", () => {
+    // Rescate de la rama nube/39711481854: el enunciado de la rama pedía BORRAR
+    // el <script> sin animación; el contrato actual lo NEUTRALIZA (el script
+    // queda en la salida pero sin script-src en la CSP y sin allow-scripts).
+    const html =
+      '<!DOCTYPE html><html><head></head><body><svg></svg>' +
+      '<script>document.querySelector("svg");</script></body></html>';
+    const r = prepararDiagrama(html, { permitirAnimacion: false });
+    expect(r.ok).toBe(true);
+    expect(r.sandbox).toBe("");
+    expect(r.sandbox).not.toContain("allow-same-origin");
+    expect(r.srcdoc).toContain('<meta http-equiv="Content-Security-Policy"');
+    expect(r.srcdoc).toContain("default-src 'none'");
+    expect(r.srcdoc).toContain("style-src 'unsafe-inline'");
+    expect(r.srcdoc).toContain("img-src data:");
+    expect(r.srcdoc).toContain("font-src data:");
+    expect(r.srcdoc).not.toContain("script-src");
+  });
+
   it("rechaza HTML mayor de 2 MB", () => {
     const grande = "<!DOCTYPE html><html><body><svg></svg>" + "x".repeat(3 * 1024 * 1024) + "</body></html>";
     const r = prepararDiagrama(grande);
