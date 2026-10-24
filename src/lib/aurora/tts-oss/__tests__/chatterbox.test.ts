@@ -118,7 +118,7 @@ function montar(esc: Escenario = {}) {
   const almacen = new Map<string, string>();
   let reloj = 1_000_000;
   const llamadasGradio: { base: string; fn: string; data: unknown[] }[] = [];
-  const medidas: { tipo: string; valor: number }[] = [];
+  const medidas: { tipo: string; valor: number; idioma?: string }[] = [];
   const pedidas: string[] = [];
   const fetchFalso = vi.fn(async (url: string, init?: RequestInit): Promise<Response> => {
     pedidas.push(url);
@@ -152,8 +152,8 @@ function montar(esc: Escenario = {}) {
       return (esc.spacesQueHablan ?? []).includes(base) ? [{ url: `${base}/gradio_api/file=out.wav` }] : null;
     },
     audioDeSalida: async (out) => (out ? new Blob([new Uint8Array([0x52, 0x49, 0x46, 0x46])], { type: "audio/wav" }) : null),
-    anotar: (tipo, valor) => {
-      medidas.push({ tipo, valor });
+    anotar: (tipo, valor, idioma) => {
+      medidas.push({ tipo, valor, idioma });
     },
   };
   return {
@@ -236,7 +236,26 @@ describe("cliente Chatterbox", () => {
     expect(r.factorTiempoReal).toBe(2.5);
     expect(m.llamadasGradio).toHaveLength(0);
     expect(m.medidas.map((x) => x.tipo)).toEqual(["primer-sonido", "tiempo-real-voz"]);
+    expect(m.medidas[0]).toMatchObject({ tipo: "primer-sonido", idioma: "es" }); // es-ES → es
+    expect(m.medidas[1]).toMatchObject({ tipo: "tiempo-real-voz", idioma: "es" });
     expect(estadoChatterbox(m.deps)).toBe("listo");
+  });
+
+  it("un primer-sonido por TURNO, no por trozo: dentro del mismo turno no se re-anota", async () => {
+    const m = montar({ local: "vivo" });
+    await sintetizarChatterbox("Primer trozo del turno.", { idioma: "es" }, m.deps);
+    await sintetizarChatterbox("Segundo trozo del mismo turno.", { idioma: "es" }, m.deps);
+    const sonidos = m.medidas.filter((x) => x.tipo === "primer-sonido");
+    expect(sonidos).toHaveLength(1); // solo el primer trozo mide
+    expect(sonidos[0]).toMatchObject({ idioma: "es" });
+    // El factor de tiempo real lo informa el local de cada trozo: sí va por trozo.
+    expect(m.medidas.filter((x) => x.tipo === "tiempo-real-voz")).toHaveLength(2);
+    // Un turno NUEVO (pasa la ventana) vuelve a medir, ya con su idioma.
+    m.avanzar(3 * 60_000 + 1);
+    await sintetizarChatterbox("Arranca el turno nuevo.", { idioma: "en" }, m.deps);
+    const deNuevo = m.medidas.filter((x) => x.tipo === "primer-sonido");
+    expect(deNuevo).toHaveLength(2);
+    expect(deNuevo[1]).toMatchObject({ idioma: "en" });
   });
 
   it("si el local está en modo simulado (sin audio) pasa al Space multilingüe para español", async () => {

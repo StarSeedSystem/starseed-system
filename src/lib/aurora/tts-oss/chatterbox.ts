@@ -63,6 +63,12 @@ const MAX_SONDEOS = 8;
 const MAX_INTENTOS_SPACE = 3;
 const PRESUPUESTO_MS = 60_000;
 const GANADOR_MS = 3 * 60_000;
+/**
+ * Ventana de UN turno de locución para la medida de «primer-sonido» (SGO1024B):
+ * los trozos de un mismo mensaje llegan seguidos y activos, así que una
+ * medida por trozo falseaba la mediana. La misma ventana que `ganador`.
+ */
+const TURNO_PRIMER_SONIDO_MS = GANADOR_MS;
 const LS_SNAPSHOT = "starseed.aurora.chatterbox.discovery.v1";
 const LS_SALUD = "starseed.aurora.chatterbox.health.v1";
 /** Id del servicio local dentro de la memoria de salud. */
@@ -121,7 +127,7 @@ export interface ChatterboxDeps {
   /** Primer audio de la salida de un Space (por defecto `firstAudioFromGradio`). */
   audioDeSalida: (out: unknown[] | null, base: string, signal: AbortSignal) => Promise<Blob | null>;
   /** Anota la medida en las medidas de voz de la neurona (por defecto `medidas-voz.ts`). */
-  anotar: (tipo: "primer-sonido" | "tiempo-real-voz", valor: number) => void;
+  anotar: (tipo: "primer-sonido" | "tiempo-real-voz", valor: number, idioma?: string) => void;
 }
 
 export interface PeticionChatterbox {
@@ -213,9 +219,9 @@ function depsPorDefecto(): ChatterboxDeps {
       const { firstAudioFromGradio } = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
       return firstAudioFromGradio(out, base, signal);
     },
-    anotar: (tipo, valor) => {
+    anotar: (tipo, valor, idioma) => {
       void import("@/lib/aurora/medidas-voz")
-        .then((m) => m.anotarMedida({ motor: "chatterbox", tipo, valor }))
+        .then((m) => m.anotarMedida({ motor: "chatterbox", tipo, valor, idioma }))
         .catch(() => null);
     },
   };
@@ -684,6 +690,25 @@ async function sintetizarLocal(
 
 /** Último endpoint que habló: los trozos del mismo mensaje siguen por él. */
 let ganador: { id: string; at: number } | null = null;
+/** Hora del último «primer-sonido» anotado: UNA por turno, el primer trozo (SGO1024B). */
+let primerSonidoDe: { at: number; idioma: string } | null = null;
+
+/**
+ * Anota «primer-sonido» como hace `cronometroHabla` para los demás motores
+ * (`speak-router.runLink`, VOZ1024A): UNA medida por turno — el primer trozo —
+ * y con el idioma del texto. Los trozos siguientes del mismo mensaje no anotan.
+ */
+function anotarPrimerSonido(
+  d: ChatterboxDeps,
+  valor: number,
+  idioma: string,
+): void {
+  const t = d.ahora();
+  const anterior = primerSonidoDe;
+  if (anterior && t - anterior.at < TURNO_PRIMER_SONIDO_MS) return; // trozo de un turno ya medido
+  primerSonidoDe = { at: t, idioma };
+  d.anotar("primer-sonido", valor, idioma);
+}
 
 /**
  * Sintetiza con Chatterbox: servicio local primero y, si no hay, Spaces públicos.
@@ -718,8 +743,8 @@ export async function sintetizarChatterbox(
       if (r) {
         const lat = d.ahora() - t0;
         marcarResultadoChatterbox(CHATTERBOX_ID_LOCAL, true, lat, d);
-        d.anotar("primer-sonido", lat);
-        if (r.rtf) d.anotar("tiempo-real-voz", r.rtf);
+        anotarPrimerSonido(d, lat, idioma);
+        if (r.rtf) d.anotar("tiempo-real-voz", r.rtf, idioma);
         ganador = { id: CHATTERBOX_ID_LOCAL, at: d.ahora() };
         return { blob: r.blob, via: "local", endpoint: CHATTERBOX_ID_LOCAL, latenciaMs: lat, factorTiempoReal: r.rtf };
       }
@@ -750,7 +775,7 @@ export async function sintetizarChatterbox(
       if (blob) {
         const lat = d.ahora() - t1;
         marcarResultadoChatterbox(sp.id, true, lat, d);
-        d.anotar("primer-sonido", lat);
+        anotarPrimerSonido(d, lat, idioma);
         ganador = { id: sp.id, at: d.ahora() };
         return { blob, via: "space", endpoint: sp.id, latenciaMs: lat };
       }
@@ -763,9 +788,10 @@ export async function sintetizarChatterbox(
   }
 }
 
-/** Solo pruebas: olvida la memoria de proceso (salud local y ganador). */
+/** Solo pruebas: olvida la memoria de proceso (salud local, ganador y turno medido). */
 export function _reiniciarChatterboxParaPruebas(): void {
   saludLocalMemo = null;
   ganador = null;
+  primerSonidoDe = null;
   descubriendo = false;
 }
