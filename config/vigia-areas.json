@@ -7,12 +7,12 @@
     "apache-2.0": "libre", "mit": "libre", "bsd-2-clause": "libre", "bsd-3-clause": "libre", "cc0-1.0": "libre",
     "cc-by-4.0": "libre", "cc-by-sa-4.0": "libre", "openrail": "libre", "openrail++": "libre",
     "creativeml-openrail-m": "libre", "bigscience-openrail-m": "libre", "bigcode-openrail-m": "libre",
-    "nvidia-open-model-license": "libre",
+    "nvidia-open-model-license": "libre", "agpl-3.0-only": "libre",
     "qwen-research": "personal", "cc-by-nc-4.0": "personal", "cc-by-nc-sa-4.0": "personal", "cc-by-nc-nd-4.0": "personal",
     "flux-1-dev-non-commercial-license": "personal", "mrl": "personal", "apple-amlr": "personal",
     "stabilityai-ai-community": "condicionada", "llama3": "condicionada", "llama3.1": "condicionada",
     "llama3.2": "condicionada", "llama3.3": "condicionada", "llama4": "condicionada", "gemma": "condicionada",
-    "qwen": "condicionada", "tencent-hunyuan-community": "condicionada",
+    "qwen": "condicionada", "tencent-hunyuan-community": "condicionada", "licenseref-gsap-standard": "condicionada",
     "other": "desconocida", "unknown": "desconocida"
   },
   "areas": [
