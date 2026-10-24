@@ -1,0 +1,108 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "MGP1014-561AD5d",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: CI en rojo",
+   "archivos": [
+    "src/lib/astraura-bots/__tests__/pureza.test.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DE METAGENESIS (2026-10-14 22:09): la autopublicación lleva más de 60 min frenada en 6e0e3764 por «CI en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n    const ant = pp.viejo as BotSync | null;\n    const b = reg ?? ant;\n    if (!b) return;\n    const { dueno } = b;\n    if (!dueno || !e.includes(dueno.id) || ![\\\"grupo\\\", \\\"comunidad\\\", \\\"pagina\\\"].includes(dueno.tipo)) return;\n    c({ t: p.eventType as \\\"INSERT\\\" | \\\"U\\\" | \\\"D\\\", r: reg, a: ant });\n  }).subscribe();\n  return () => s.removeChannel(ch);\n}\nexport function abiertosEnEstaNeurona(): string[] {\n  if (typeof window === \\\"undefined\\\") return [];\n  const r = window.localStorage.getItem(\\\"starseed.as\n2026-10-15T03:08:02.6015880Z \n2026-10-15T03:08:02.6020828Z ##[error]AssertionError: expected '@/utils/supabase/client' to match /^(\\.\\/|@\\/lib\\/nucleo\\/(alcance-me…/|@\\\n\n- Expected: \n/^(\\.\\/|@\\/lib\\/nucleo\\/(alcance-memoria|ui-spec|paquete-sistema)$)/\n\n+ Received: \n\"@/utils/supabase/client\"\n\n ❯ src/lib/astraura-bots/__tests__/pureza.test.ts:27:43\n\n\n2026-10-15T03:08:02.8363903Z ##[error]Process completed with exit code 1.\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `npx vitest run src/lib/astraura-bots/__tests__/pureza.test.ts`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261022-011415-MGP1014-561AD5c`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261022-011415-MGP1014-561AD5c:refs/remotes/origin/nube/a1-20261022-011415-MGP1014-561AD5c\"` y `git cherry-pick --no-commit 6a7fce53ed44 a0f2b2f34a78 25408f72c6f4 56409885c386 b580ad8afedc 43d60d3b4476 35be541b0c9f 90cc23a5e053 8d50c255b6a8 86445e7f4441 619f0d1fe62c`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/lib/astraura-bots/__tests__/pureza.test.ts, src/lib/astraura-bots/__tests__/sincronia-bots.test.ts, src/lib/astraura-bots/adaptadores/sincronia-bots-supabase.ts, src/lib/astraura-bots/adaptadores/sincronia-bots.ts, src/lib/astraura-bots/efectos/sincronia-bots.ts, src/lib/astraura-bots/fusionar-bots.ts, src/lib/astraura-bots/sincronia-bots.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261022-011415-MGP1014-561AD5c"
+  },
+  {
+   "id": "OPS1024E",
+   "ola": "1024R",
+   "titulo": "Tareas «reasignada · nube» varadas días después de que su run terminó: devolverlas a la cola sin gastar envío",
+   "archivos": [
+    "scripts/puente/vigia_runs_nube.py",
+    "scripts/puente/test_vigia_runs_nube.py"
+   ],
+   "depende": [],
+   "importancia": "capacidad",
+   "capacidad": "alta",
+   "prompt": "Comprueba primero si sigue haciendo falta. Medido el 2026-10-24: traer_nube.py lista decenas de tareas con «la tarea está «reasignada» ahora mismo: no se le pisa el trabajo» (p. ej. VZF1015Q, VZR1011B y DGM1018I, movidas a nube-gh en los runs 39588171249 y 39576180546 el 2026-10-21) cuyo run de GitHub Actions terminó hace días: nadie las devuelve a la cola y quedan fuera de todos los medios. Lee scripts/puente/vigia_runs_nube.py (corre en cada pasada de director-nube.py) y añade la regla: una tarea en progreso.json con estado «reasignada», medio «nube» y nota «movida a nube-gh (run N)», cuyo run N ya no está en marcha (dato del RUN de la API, el mismo que ya usa el vigía; nunca de los pasos) y cuyo último cambio tiene más de 6 h, vuelve a «pendiente» SIN gastar un envío (la misma devolución que ya hace para los runs cancelados), con una línea en el Chat Director que diga cuántas devolvió. Si el run sigue vivo o no se puede consultar, no se toca. Pruebas con la API simulada (sin red): run terminado → vuelve; run vivo → se queda; sin dato → se queda; tarea reasignada a otro medio (no nube) → se queda. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "AGF1023A",
+   "ola": "1023A",
+   "titulo": "Contrato de motores de agentes (TS, puro)",
+   "archivos": [
+    "src/lib/agents/motores/tipos.ts",
+    "src/lib/agents/motores/__tests__/tipos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): agno, mastra, langgraph, pydantic-ai y openai-agents-python «para los desarrollos de agentes de Astraura, Genesis, PoliGenesis y MetaGenesis en todos sus contextos y medios». Contrato: `architecture/repos-3d-oido-agentes-1023.md` §3 (un contrato de agente, varios motores; modelos siempre por el enrutador propio —gratis primero, Jev, Experiential, servidor propio de IA—; trazas de terceros apagadas; nada de LangSmith ni nubes de los autores). Agentes de hoy: `src/lib/agents/model.ts` (tipo `Agent`) y `src/lib/agents/store.ts`.\n\nDefine `MotorAgentes` = 'nativo' | 'mastra' | 'langgraph' | 'pydantic-ai' | 'openai-agents' | 'agno' con, por motor: lenguaje (ts|py), dónde corre (navegador|neurona-node|neurona-python), qué aporta (flujos con estado, persona en el bucle, salidas tipadas, traspasos, equipos) y licencia; y `elegirMotor(agente, necesidades)` puro que sugiere el motor (nativo por defecto; LangGraph si hay ejecución larga con reanudación; Pydantic AI si la salida debe validar un esquema; OpenAI Agents si hay traspasos entre roles; Agno si es un equipo con memoria compartida; Mastra si corre en la neurona en TS). Pruebas de cada caso."
+  },
+  {
+   "id": "MGX1023A",
+   "ola": "1023X",
+   "titulo": "ManimGX · contrato de escena y validación pura (antes de ejecutar nada)",
+   "archivos": [
+    "src/lib/protomolecula/manimgx/escena.ts",
+    "src/lib/protomolecula/manimgx/__tests__/escena.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «manimgx para todo el desarrollo de modelos 3D con Astraura y la Protomolécula en cualquier medio y publicación o archivo» y «earshot para los sentidos de cada agente de Astraura y de la orbe flotante si tiene su ajuste de sentidos encendidos siempre escuchando». Contrato: `architecture/repos-3d-oido-agentes-1023.md` (§3 son reglas duras: el código que escribe un agente nunca corre en el proceso del OS; el oído solo con sentidos encendidos, solo fragmentos sin voz, nada sale de las neuronas; nada de subir audio a Gemini).\n\nMódulo puro: tipo `EscenaManim` {codigo, clase, calidad: 480p|720p|1080p, fps, duracionMax} y `validarEscena(codigo)` que rechaza lo que no es una escena de Manim (imports fuera de `manimgx`/`manim`/`math`/`numpy`, `open(`, `exec`, `eval`, `__import__`, `subprocess`, `os.`, `sys.`, red) con motivos legibles. No ejecuta nada. Pruebas con escenas buenas (Scene, ThreeDScene con cubo y rotación de cámara) y malas."
+  },
+  {
+   "id": "CNV1023C",
+   "ola": "1023C",
+   "titulo": "Escritorio · «Convertir a…» en el clic derecho de los iconos de archivo",
+   "archivos": [
+    "src/components/desktop/desktop-icon-menu.tsx",
+    "src/components/desktop/desktop-store.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nBusca el menú contextual de los iconos del escritorio (si el archivo tiene otro nombre, usa el que exista y dilo). Para iconos que apuntan a un archivo con URL, añade `SubmenuConvertir` (`useConversionMenu`); el resultado se descarga. Si no hay menú contextual de iconos, responde NO APLICA."
+  },
+  {
+   "id": "CNV1023G",
+   "ola": "1023C",
+   "titulo": "Biblioteca · carpetas vigiladas que convierten solas (filee watch)",
+   "archivos": [
+    "src/lib/conversion/vigiladas.ts",
+    "src/lib/conversion/__tests__/vigiladas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nMódulo puro: reglas «carpeta de la Biblioteca → formato» (p. ej. todo lo que entra en «Fotos del móvil» pasa a JPG) guardadas en `starseed.conversion.vigiladas.v1`, y la función que decide qué archivos nuevos convertir (sin repetir, sin bucles: nunca convertir un resultado de conversión). Solo la lógica y sus pruebas; el cableado al Explorador va en otra tarea."
+  },
+  {
+   "id": "RIA1023B",
+   "ola": "1023R",
+   "titulo": "Servidor propio de IA · unidad systemd (A1 y Linux) y guion de instalación",
+   "archivos": [
+    "servicios/servidor-ia/systemd/starseed-servidor-ia.service",
+    "servicios/servidor-ia/systemd/instalar.sh"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nUnidad systemd de usuario (`~/.config/systemd/user/`) para el A1 y cualquier Linux: `ExecStart=/usr/bin/env node %h/starseed-system/servicios/servidor-ia/bin/servidor-ia.mjs`, `Restart=on-failure`, `RestartSec=30`, `EnvironmentFile=-%h/.starseed/servidor-ia.env` (ahí van host, puerto y token; el archivo NO va en el repo). `instalar.sh` copia la unidad, hace `systemctl --user daemon-reload` y `enable --now` solo con `--encender`; sin ese argumento solo copia. Prueba: `bash -n instalar.sh` y `systemd-analyze verify` si está disponible."
+  },
+  {
+   "id": "RIA1023C",
+   "ola": "1023R",
+   "titulo": "Recursos de IA · resolver a qué servidor de IA va cada capacidad según la topología (núcleo puro)",
+   "archivos": [
+    "src/lib/recursos-ia/enrutado.ts",
+    "src/lib/recursos-ia/__tests__/enrutado.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nFunción PURA `destinoDeIA(plan, asignaciones, inventario, capacidad)` → `{via, neuronaId, baseUrl|null, motivo}`: con topología `servidor-propio` devuelve la URL del servidor de la neurona elegida (`http://<host>:4480/v1`, el host sale del inventario/oferta de esa neurona; si no se conoce, `baseUrl: null` y un motivo legible), con `cada-neurona` → `local`, con `fragmentada` → la neurona asignada a esa capacidad, y nunca `antena` para chat (solo decisiones, §3). Sin `node:*`, sin `fetch`. Reutiliza los tipos de `tipos.ts` (no inventes otros). Pruebas vitest de las cuatro topologías y del caso sin host. Corre `npx vitest run src/lib/recursos-ia` y lee el resumen entero."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "MGP1014-561AD5d",
+   "OPS1024E",
+   "AGF1023A",
+   "MGX1023A",
+   "RIA1023C",
+   "CNV1023C",
+   "CNV1023G",
+   "RIA1023B"
+  ]
+ }
+}
