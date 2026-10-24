@@ -4596,3 +4596,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SP092942b` — pruebas en rojo: vitest falla (rama conservada)
 - `SP092939b` — pruebas en rojo: vitest falla (rama conservada)
 - `RTS1010-ACT5d-d2c` — no escribió nada
+
+## 2026-10-24 00:12 · mg-oracle-1023-1730
+
+**Lo que se pidió.** Diagramas · aislar y validar el HTML generado antes de mostrarlo
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (RTDGM1018C, APM1017V, CLF1020Ab). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTDGM1018C` — no escribió nada
+- `APM1017V` — no escribió nada
+- `CLF1020Ab` — no escribió nada
