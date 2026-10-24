@@ -362,3 +362,20 @@ describe("diagram-design tool", () => {
     expect(diagramDesign?.avisos).toEqual(expect.arrayContaining(["sin telemetría", "fuentes del OS", "animaciones solo en iframe aislado"]));
   });
 });
+
+describe("repos-libreria-1020 protomolécula", () => {
+  it("las 3 ids existen, son únicas, con codigo de GitHub y actualizacion.fuente válida", () => {
+    const idsProto = ["solidcraft", "detectron2", "mesh2motion"];
+    const setIds = new Set(ids);
+    for (const id of idsProto) {
+      expect(ids).toContain(id);
+      expect(setIds.has(id)).toBe(true);
+    }
+    expect(new Set(idsProto).size).toBe(3);
+    for (const id of idsProto) {
+      const h = herramientaPorId(id) as HerramientaProto;
+      expect(h.codigo).toMatch(/^https:\/\/github\.com\//);
+      expect(h.actualizacion.fuente).toMatch(/^(github-releases|github-tags|github-commits)$/);
+    }
+  });
+});
