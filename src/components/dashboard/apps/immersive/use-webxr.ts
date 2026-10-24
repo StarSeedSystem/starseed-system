@@ -21,6 +21,23 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type * as THREE from 'three';
+import { type FuncionXR } from '@/lib/xr/tipos';
+import { type CapacidadesXR } from '@/lib/xr/capacidades';
+import { funcionesAPedir } from '@/components/xr/shell/aplicar-perfil';
+import { mensajeErrorXR } from '@/components/vivo/espacial/use-sesion-xr';
+
+/** Capacidades XR por defecto para el espacio inmersivo (el botón universal). */
+const CAPACIDADES_POR_DEFECTO: CapacidadesXR = {
+  plataforma: 'desconocida',
+  visor: false,
+  modos: ['2d'],
+  recomendado: '2d',
+  entradas: ['voz'],
+  funciones: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers', 'hit-test'] as FuncionXR[],
+  ofrecerSesion: false,
+  motivos: [],
+  avisos: [],
+};
 
 /** Modo de sesión inmersiva soportado por el OS. */
 export type XRMode = 'immersive-vr' | 'immersive-ar';
@@ -103,7 +120,7 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
             setError(null);
             const xr = getXR();
             if (!xr || !gl) {
-                setError('WebXR no disponible en este dispositivo.');
+                setError(mensajeErrorXR('WebXR no disponible en este dispositivo.' as any));
                 return;
             }
             // Si ya hay sesión, primero la cerramos limpiamente.
@@ -111,16 +128,13 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
                 await exit();
             }
 
-            // Características opcionales: el navegador concede las que pueda.
-            // 'hit-test' es útil en AR; 'hand-tracking' / suelos en VR.
+            // Características opcionales: obtenidas del sistema XR1010D.
+            const capacidades = CAPACIDADES_POR_DEFECTO;
+            const { opcionales, requeridas } = funcionesAPedir(capacidades, {
+                habitacion: target === 'immersive-ar',
+            });
             const sessionInit: XRSessionInit = {
-                optionalFeatures: [
-                    'local-floor',
-                    'bounded-floor',
-                    'hand-tracking',
-                    'layers',
-                    ...(target === 'immersive-ar' ? (['hit-test'] as string[]) : []),
-                ],
+                optionalFeatures: [...requeridas, ...opcionales],
             };
 
             try {
@@ -154,9 +168,7 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
                 } catch {
                     /* noop */
                 }
-                const msg =
-                    e instanceof Error ? e.message : 'No se pudo iniciar la sesión XR.';
-                setError(msg);
+                setError(mensajeErrorXR(e));
                 setInSession(false);
                 setMode(null);
             }
