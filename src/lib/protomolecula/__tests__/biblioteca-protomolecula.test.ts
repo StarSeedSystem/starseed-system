@@ -130,6 +130,29 @@ describe("fichasProtomolecula", () => {
     expect(sinVersion.licencia).toBe("GPL-3.0");
   });
 
+  it("combina catálogo y versiones: conserva el estado del catálogo y prioriza su licencia versionada", () => {
+    const catalogo = [herramienta({
+      id: "combinada",
+      categoria: "ia-generativa",
+      nombre: "Nombre del catálogo",
+      descripcion: "Descripción del catálogo.",
+      licencia: "GPL-3.0",
+      estado: "proximamente",
+      motivo: "falta el puente nativo",
+      web: "https://ejemplo.com",
+    })];
+
+    const [ficha] = fichasProtomolecula({ combinada: { version: "2.0.0", licencia: "Apache-2.0" } }, catalogo);
+
+    expect(ficha.nombre).toBe("Nombre del catálogo");
+    expect(ficha.descripcion).toBe("Descripción del catálogo.");
+    expect(ficha.licencia).toBe("Apache-2.0");
+    expect(ficha.enlaces.web).toBe("https://ejemplo.com");
+    expect(ficha.estado).toBe("proximamente");
+    expect(ficha.proximamente).toBe("próximamente: falta el puente nativo");
+    expect(ficha.versionDisponible).toBe("2.0.0");
+  });
+
   it("nombre, descripción y enlaces salen del catálogo", () => {
     const catalogo = [herramienta({
       id: "enlaces", categoria: "raster-pintura", nombre: "Pintor", descripcion: "Pinta cosas.",
