@@ -45,6 +45,11 @@ class PruebasSeleccion(unittest.TestCase):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
 
+    def test_un_log_por_nombre_txt_viaja_aunque_sea_viejo(self):
+        """Rescatado de rama nube (RTRTS1010): un log se reconoce por su nombre, no solo por ``*.jsonl``."""
+        sel = que_copiar(self.pares("log.txt", "cola-vieja.json", mtime=VIEJO), AHORA)
+        self.assertEqual(sel, ["log.txt"])
+
 
 class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
