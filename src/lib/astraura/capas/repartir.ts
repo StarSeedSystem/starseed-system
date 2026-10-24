@@ -81,7 +81,7 @@ const ORDEN_FUENTES: FuenteCapa[] = [
 /**
  * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén local.
  */
-async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
+export async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
   try {
     const claves = await almacen.claves();
     for (const clave of claves) {
@@ -90,12 +90,12 @@ async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<bo
       if (!data) continue;
       const json = new TextDecoder().decode(data);
       try {
-        const meta: { sha256: string; completa: boolean } = JSON.parse(json);
+        const meta: { sha256: string; completa: boolean; totalTrozos?: number } = JSON.parse(json);
         if (meta.sha256 === sha256 && meta.completa) {
-          // confirm all trozos present
           const pref = clave.slice(0, clave.lastIndexOf('/meta'));
           const trozos = claves.filter(k => k.startsWith(pref + '/trozo/'));
-          if (trozos.length > 0) return true;
+          const esperados = meta.totalTrozos ?? trozos.length;
+          if (trozos.length === esperados && esperados > 0) return true;
         }
       } catch {
         continue;
