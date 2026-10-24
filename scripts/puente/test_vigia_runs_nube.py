@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 """Pruebas del vigía de runs de la nube (2026-10-13): duplicados, sin máquina, preparación atascada,
 pasados de tope y «sin dato del paso» (solo aviso). Lo puro, sin red ni GitHub."""
+import json
 import os
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -111,6 +113,76 @@ class Devolver(unittest.TestCase):
         self.assertEqual(VR.ids_de_cola(None), [])
 
 
+class Varadas(unittest.TestCase):
+    """(OPS1024E) Tareas «reasignada · nube» con su run N terminado y más de 6 h sin cambio.
+    Puro, con el resumen de la RUN de la API simulado (los vivos dentro, los muertos fuera)."""
+
+    HACE_TRES_DIAS = AHORA - 3 * 86400
+    RESUMEN = {"generado": "2026-10-13 22:10:00", "agentes": 1,
+               "runs": [{"run": 111, "estado": "in_progress"}]}
+
+    def tarea(self, **k):
+        base = {"estado": "reasignada", "medio": "nube",
+                "nota": "movida a nube-gh (run 39588171249) desde Genesis",
+                "t": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.HACE_TRES_DIAS))}
+        base.update(k)
+        return base
+
+    def test_run_terminado_y_vieja_vuelve(self):
+        self.assertEqual(VR.varadas_a_devolver(
+            {"VZF1015Q": self.tarea(), "VZR1011B": self.tarea(nota="movida a nube-gh (run 39576180546) desde Genesis")},
+            self.RESUMEN, AHORA), ["VZF1015Q", "VZR1011B"])
+
+    def test_run_vivo_se_queda(self):
+        self.assertEqual(VR.varadas_a_devolver(
+            {"J": self.tarea(nota="movida a nube-gh (run 111) desde Genesis")}, self.RESUMEN, AHORA), [])
+
+    def test_recien_movida_se_queda(self):
+        joven = self.tarea(t=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(AHORA - 2 * 3600)))
+        self.assertEqual(VR.varadas_a_devolver({"N": joven}, self.RESUMEN, AHORA), [])
+
+    def test_otro_medio_se_queda(self):
+        self.assertEqual(VR.varadas_a_devolver({"O": self.tarea(medio="oracle")}, self.RESUMEN, AHORA), [])
+        self.assertEqual(VR.varadas_a_devolver(
+            {"M": self.tarea(medio="mac", nota="reasignada a la mac ahora mismo")}, self.RESUMEN, AHORA), [])
+
+    def test_sin_dato_del_run_se_queda(self):
+        """Resumen no consultable y nota de run ajeno a la nube: no se toca nada."""
+        self.assertEqual(VR.varadas_a_devolver({"A": self.tarea()}, {"agentes": 0, "runs": []}, AHORA), [])
+        self.assertEqual(VR.varadas_a_devolver({"A": self.tarea()}, None, AHORA), [])
+        self.assertEqual(VR.varadas_a_devolver(
+            {"A": self.tarea(nota="reasignada a la nube 20261021")}, self.RESUMEN, AHORA), [])
+
+    def test_sin_cambio_legible_se_queda(self):
+        self.assertEqual(VR.varadas_a_devolver({"A": self.tarea(t="no-es-una-hora")}, self.RESUMEN, AHORA), [])
+        self.assertEqual(VR.varadas_a_devolver({"A": self.tarea(t=None)}, self.RESUMEN, AHORA), [])
+
+    def test_t_epoch_tambien_cuenta(self):
+        p = {"A": self.tarea(t=self.HACE_TRES_DIAS)}
+        self.assertEqual(VR.varadas_a_devolver(p, self.RESUMEN, AHORA), ["A"])
+
+    def test_soltadas_sin_medio_tambien(self):
+        p = {"Q": self.tarea(medio=None, nota="movida a nube-gh (run 9) desde Genesis"),
+             "S": self.tarea(medio=None, nota="movida a oracle (x) desde Genesis")}
+        self.assertEqual(VR.varadas_a_devolver(p, self.RESUMEN, AHORA), ["Q"])
+
+    def test_devolver_varadas_es_la_devolucion_sin_envio(self):
+        prog = {"A": self.tarea(), "B": {"estado": "commit"}}
+        nuevo, hechas = VR.devolver_varadas(prog, ["A"], "20261024")
+        self.assertEqual(hechas, ["A"])
+        self.assertEqual(nuevo["A"]["estado"], "pendiente")
+        self.assertIsNone(nuevo["A"]["medio"])
+        self.assertIn("no cuenta como envío", nuevo["A"]["nota"])
+        self.assertIn("run 39588171249", nuevo["A"]["nota"])
+        self.assertEqual(nuevo["B"], {"estado": "commit"})
+        self.assertEqual(prog["A"]["estado"], "reasignada")  # no muta la entrada
+
+    def test_edad_de(self):
+        self.assertEqual(VR.edad_de(1000.0, 3000.0), 2000.0)
+        self.assertEqual(VR.edad_de(AHORA, AHORA), 0.0)
+        self.assertIsNone(VR.edad_de("ayer", AHORA))
+
+
 class Actuar(unittest.TestCase):
     """`actuar` con GitHub y el Chat Director simulados: confirma antes de cancelar y avisa una vez."""
 
@@ -147,6 +219,32 @@ class Actuar(unittest.TestCase):
         self.assertEqual(VR.actuar(resumen, self.dir, ahora=1300.0), [])
         self.assertEqual(self.cancelados, [])
         self.assertEqual(len(self.avisos), 1)
+
+    def test_varadas_de_un_run_terminado_devuelve_y_avisa_una_vez(self):
+        from unittest import mock
+
+        import repartir_nube as RN
+
+        resumen = {"generado": "x", "runs": [{"run": 111, "estado": "in_progress"}]}
+        viejo = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(AHORA - 3 * 86400))
+        carpeta = os.path.join(self.dir, "starseed_memory_root", "olas")
+        os.makedirs(carpeta, exist_ok=True)
+        ruta = os.path.join(carpeta, "progreso.json")
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump({"VZF1015Q": {"estado": "reasignada", "medio": "nube",
+                                    "nota": "movida a nube-gh (run 39588171249) desde Genesis",
+                                    "t": viejo}}, f, ensure_ascii=False)
+        reabiertas = []
+        with mock.patch.object(RN, "anotar_reaperturas",
+                               side_effect=lambda ids, ts=None, ruta=None: reabiertas.extend(ids)):
+            hechos = VR.actuar(resumen, self.dir, ahora=AHORA)
+        self.assertEqual(len(hechos), 1)
+        self.assertIn("1 tarea(s)", hechos[0])
+        with open(ruta, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["VZF1015Q"]["estado"], "pendiente")
+        self.assertEqual(reabiertas, ["VZF1015Q"])
+        hechos = VR.actuar(resumen, self.dir, ahora=AHORA)
+        self.assertEqual(hechos, [])  # ya está en pendiente: no repite el aviso
 
 
 if __name__ == "__main__":
