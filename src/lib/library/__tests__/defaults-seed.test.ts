@@ -109,4 +109,20 @@ describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
     });
     expect(plan).toEqual([]);
   });
+
+  it("un id que no está en el catálogo no se siembra (puerta defensiva)", () => {
+    const plan = selectSeedIds({
+      currentVersion: SEED_VERSION - 1,
+      seedVersion: SEED_VERSION,
+      recommendedIds: ["lib-celld", "iatool-inexistente"],
+      catalog: catalogo(["lib-celld"]),
+      alreadyOffered: [],
+      installedIds: [],
+    });
+    expect(plan).toEqual(["lib-celld"]);
+  });
+
+  it("cada id aparece una sola vez (sin duplicados)", () => {
+    expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
+  });
 });
