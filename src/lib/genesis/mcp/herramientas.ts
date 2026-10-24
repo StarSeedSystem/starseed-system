@@ -9,8 +9,8 @@
  * Contrato: architecture/genesis-conectores-abiertos.md §7.
  */
 
-import { validarOperacion } from "@/lib/genesis/operaciones";
-import type { ContextoValidacion } from "@/lib/genesis/operaciones";
+import { validarOperacion } from "../operaciones";
+import type { ContextoValidacion } from "../operaciones";
 
 export interface HerramientaMcp {
   nombre: string;
@@ -182,7 +182,7 @@ export const HERRAMIENTAS_GENESIS: HerramientaMcp[] = [
       if (!operacionValidada.ok) {
         return {
           contenido: [
-            { tipo: "texto" as const, texto: `Error: ${operacionValidada.problemas.join(", ")}` },
+            { tipo: "texto" as const, texto: `Error: ${JSON.stringify(operacionValidada)}` },
           ],
           esError: true,
         };
