@@ -44,6 +44,12 @@ import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
+// Ola 1019V · Variaciones públicas: clic derecho de absolutamente todo (§3 del
+// contrato architecture/variaciones-publicas.md) y el anfitrión de la ventana
+// «Variaciones públicas» (§4). El contenido de la ventana lo pone la tarea de
+// ventana; sin él se muestra un aviso honesto.
+import { ClicDerechoGlobal } from "@/components/variaciones/clic-derecho-global";
+import { VariacionesHost } from "@/components/variaciones/variaciones-host";
 
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
@@ -84,6 +90,10 @@ export default function AppGlobals() {
           discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
+      {/* (Ola 1019V) Variaciones públicas en el clic derecho de absolutamente
+          todo + el anfitrión de la ventana (misma ola); juntos por clave. */}
+      <ClicDerechoGlobal />
+      <VariacionesHost />
     </SoloFueraDeConsola>
   );
 }
