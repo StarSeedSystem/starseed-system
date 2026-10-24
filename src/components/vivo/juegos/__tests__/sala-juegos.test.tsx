@@ -68,6 +68,36 @@ function textoContienePalabra(texto: string | null, palabra: string): boolean {
     return r.test(texto);
 }
 
+describe("guardián de la palabra secreta (textoContienePalabra)", () => {
+    test("detecta la palabra completa delimitada en el texto", () => {
+        expect(textoContienePalabra("hola mundo", "mundo")).toBe(true);
+        expect(textoContienePalabra("hola mundo", " mundo")).toBe(true);
+    });
+
+    test("con las fronteras de hoy, un trozo de la palabra no cuenta como si estuviera", () => {
+        // «hol» va pegado dentro de «hola»: si contara como subcadena,
+        // mensajes sin la palabra podrían hacer fallar la comprobación de fuga.
+        expect(textoContienePalabra("hola mundo", "hol")).toBe(false);
+        expect(textoContienePalabra("hola mundo", "mundo ")).toBe(false);
+    });
+
+    test("devuelve false cuando la palabra no aparece (texto vacío o nulo incluidos)", () => {
+        expect(textoContienePalabra("hola mundo", "adios")).toBe(false);
+        expect(textoContienePalabra("hola mundo", "")).toBe(false);
+        expect(textoContienePalabra("", "hola")).toBe(false);
+        expect(textoContienePalabra(null, "hola")).toBe(false);
+    });
+
+    test("concatenado Beto+vela=Betovela: la palabra exacta se ve, la pegada a letras no", () => {
+        expect(textoContienePalabra("Betovela", "Betovela")).toBe(true);
+        expect(textoContienePalabra("Betovel", "Betovela")).toBe(false);
+        // Diferencia con la rama (que pedía sin fronteras): hoy una palabra pegada
+        // a letras sin separación («abcBetovela») no levanta el guardián.
+        expect(textoContienePalabra("abcBetovela def", "Betovela")).toBe(false);
+        expect(textoContienePalabra("abcBetovelad", "Betovela")).toBe(false);
+    });
+});
+
 async function elegirJuego(sala: Sala, juego: string) {
     await clic(sala.q.getByRole("radio", { name: new RegExp(juego) }));
     await clic(sala.q.getByRole("button", { name: "Empezar con este juego" }));
