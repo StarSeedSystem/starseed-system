@@ -1,31 +1,29 @@
 "use client";
 
 import type { Bot } from "../tipos";
-import { createClient } from "@/utils/supabase/client";
+import { fusionarBots as fusionarEnNucleo, type BotSync } from "../sincronia-bots";
 import { onTableChange } from "@/lib/realtime/realtime";
 
+/**
+ * Fusiona dos sobres { bots, actualizado } delegando en el núcleo puro
+ * (`sincronia-bots.ts`): aquí solo se traduce la marca de tiempo, la regla
+ * de «quién gana» y la validez del remoto viven en el núcleo, no se duplican.
+ */
 export function fusionarBots(
   local: Readonly<{ bots: Bot[]; actualizado: Record<string, number> }>,
   remoto: Readonly<{ bots: Bot[]; actualizado: Record<string, number> }>
 ): { bots: Bot[]; actualizado: Record<string, number> } {
-  const botsPorId = new Map<string, Bot>();
-  const actualizadoPorId: Record<string, number> = {};
-
-  for (const bot of local.bots) {
-    botsPorId.set(bot.id, bot);
-    actualizadoPorId[bot.id] = local.actualizado[bot.id] ?? 0;
+  const aSync = (e: Readonly<{ bots: Bot[]; actualizado: Record<string, number> }>): BotSync[] =>
+    e.bots.map((b) => ({ ...b, actualizado: e.actualizado[b.id] ?? 0 }));
+  const unidos = fusionarEnNucleo(aSync(local), aSync(remoto));
+  const bots: Bot[] = [];
+  const actualizado: Record<string, number> = {};
+  for (const b of unidos) {
+    const { actualizado: ts, ...bot } = b;
+    bots.push(bot);
+    actualizado[bot.id] = ts;
   }
-
-  for (const bot of remoto.bots) {
-    const timestampRemoto = remoto.actualizado[bot.id] ?? 0;
-    const timestampLocal = actualizadoPorId[bot.id];
-    if (!botsPorId.has(bot.id) || timestampRemoto > timestampLocal) {
-      botsPorId.set(bot.id, bot);
-      actualizadoPorId[bot.id] = timestampRemoto;
-    }
-  }
-
-  return { bots: Array.from(botsPorId.values()), actualizado: actualizadoPorId };
+  return { bots, actualizado };
 }
 
 export interface PayloadCambio {

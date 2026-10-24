@@ -54,6 +54,16 @@ describe("fusionarBots", () => {
     const r2 = fusionarBots(local, remoto);
     expect(r1.bots.map((b) => b.id).sort()).toEqual(r2.bots.map((b) => b.id).sort());
   });
+
+  it("delega en el núcleo: el remoto inválido se descarta y el local se conserva", () => {
+    const roto = { ...botEjemplo("b1"), personalidad: { ...botEjemplo("b1").personalidad, calidez: 5 } };
+    const local = { bots: [botEjemplo("b1")], actualizado: { b1: 100 } };
+    const remoto = { bots: [roto as Bot], actualizado: { b1: 999 } };
+    const res = fusionarBots(local, remoto);
+    expect(res.bots).toHaveLength(1);
+    expect(res.bots[0].personalidad.calidez).toBe(0.5);
+    expect(res.actualizado["b1"]).toBe(100);
+  });
 });
 
 describe("migración de abiertos", () => {
