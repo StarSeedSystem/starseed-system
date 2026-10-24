@@ -158,3 +158,45 @@ class ConAlexHablandoLosMotoresNoSeCongelan(unittest.TestCase):
     def test_sin_conversacion_la_regla_de_siempre(self):
         self.assertEqual(G.decidir(True, 10, set(), ["llama-server"], conversando=False),
                          [("llama-server", "congelar")])
+
+
+class PresionDelNucleo(unittest.TestCase):
+    """(2026-10-21) Con la inactiva alta, `libres_mb` mentía y el motor quedaba 22 h
+    congelado con la swap al 94 %. La presión del núcleo desempata."""
+
+    def test_congelado_con_presion_2_y_libre_alta_se_reevalua(self):
+        acciones = G.decidir(
+            True, SOBRE + 1, {"llama-server"}, ["llama-server"], presion=2
+        )
+        self.assertEqual([("llama-server", "reevaluar")], acciones)
+
+    def test_suelto_con_presion_2_se_congela_aunque_la_libre_sea_alta(self):
+        acciones = G.decidir(True, SOBRE + 1, set(), ["llama-server"], presion=2)
+        self.assertEqual([("llama-server", "congelar")], acciones)
+
+    def test_presion_1_y_libre_alta_no_hace_nada(self):
+        self.assertEqual(
+            [], G.decidir(True, SOBRE + 1, {"llama-server"}, ["llama-server"], presion=1)
+        )
+
+    def test_sin_presion_medida_todo_como_hoy(self):
+        self.assertEqual(
+            [], G.decidir(True, SOBRE + 1, {"llama-server"}, ["llama-server"], presion=None)
+        )
+        self.assertEqual(
+            [("llama-server", "reevaluar")],
+            G.decidir(True, BAJO - 1, {"llama-server"}, ["llama-server"], presion=None),
+        )
+
+    def test_presion_alta_con_memoria_ilegible_actua(self):
+        # Si `vm_stat` falla pero el núcleo dice que hay presión, no se queda de brazos
+        # cruzados: es justo el caso que dejó a BitNet congelado un día entero.
+        acciones = G.decidir(True, None, {"llama-server"}, ["llama-server"], presion=4)
+        self.assertEqual([("llama-server", "reevaluar")], acciones)
+
+    def test_presion_alta_no_cambia_la_reanudacion(self):
+        # La reanudación sigue igual: sin enjambre y con holgura se devuelve la vida.
+        self.assertEqual(
+            [("llama-server", "descongelar")],
+            G.decidir(False, SOBRE + 1, {"llama-server"}, ["llama-server"], presion=2),
+        )

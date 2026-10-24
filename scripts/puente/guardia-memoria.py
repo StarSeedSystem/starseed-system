@@ -102,6 +102,24 @@ def libres_mb():
         return None
 
 
+def presion_nucleo():
+    """Presión de memoria del núcleo (macOS `kern.memorystatus_vm_pressure_level`).
+
+    1 = normal, 2 = warning, 4 = critical. Es la medida que NO engaña: `libres_mb()`
+    suma la memoria inactiva, y con macOS presionado la inactiva sigue alta aunque el
+    sistema esté paginando a muerte. Devuelve None si no se puede leer (misma prudencia
+    que `libres_mb`), para que el guardia se comporte como antes.
+    """
+    try:
+        s = subprocess.run(
+            ["sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
+            capture_output=True, text=True, timeout=5
+        ).stdout.strip()
+        return int(s)
+    except Exception:
+        return None
+
+
 def procesos():
     """({motor: {pid: estado}}, orquestador_vivo, ps_ok), solo de los motores vigilados.
 
@@ -238,15 +256,22 @@ def accion_para(motor, congelado_min, swap_pct):
     return "nada"
 
 
-def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False):
+def decidir(
+    orquestador_vivo, libre_mb, congelados, motores, conversando=False, presion=None
+):
     """Que hacer, pura: lista de (motor, 'congelar'|'descongelar').
 
     `congelados` son los motores que el guardia tiene marcados Y verificados como
     parados (estado «T») en este ciclo — nunca solo porque quede un archivo en /tmp.
+    `presion` es `kern.memorystatus_vm_pressure_level` (2 = warning, 4 = critical) o
+    None si no se pudo medir.
 
     Reglas:
-      · Sin medida de memoria (`libre_mb is None`) no se toca nada, en ningun sentido.
-      · Enjambre vivo y menos de CONGELAR_BAJO_MB libres: se congela todo motor suelto.
+      · Sin medida de memoria (`libre_mb is None`) y sin presión, no se toca nada.
+      · Enjambre vivo y menos de CONGELAR_BAJO_MB libres O presión >= 2: se congela
+        todo motor suelto. La presión del núcleo manda aunque `libres_mb` engañe: con
+        macOS presionado la memoria inactiva sigue alta y el motor se quedaba congelado
+        22 h con la swap al 94 % sin llegar nunca a la regla CNS1010.
       · Sin enjambre y mas de REANUDAR_SOBRE_MB libres: se reanuda lo congelado por
         nosotros. Entre ambos umbrales no se hace nada (histeresis): sin esa banda el
         motor iria y volveria en cada ciclo.
@@ -259,15 +284,17 @@ def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False):
         # Con Alex hablando, los motores de la conversación no se tocan salvo para
         # devolverles la vida. Da igual cuánta memoria quede: la cede el enjambre.
         return [(m, "descongelar") for m in motores if m in congelados]
-    if libre_mb is None:
+    presionado = presion is not None and presion >= 2
+    if libre_mb is None and not presionado:
         return acciones
+    poca_memoria = (libre_mb is not None and libre_mb < CONGELAR_BAJO_MB) or presionado
     for motor in motores:  # orden estable = el de la lista viva
         if motor not in congelados:
-            if orquestador_vivo and libre_mb < CONGELAR_BAJO_MB:
+            if orquestador_vivo and poca_memoria:
                 acciones.append((motor, "congelar"))
-        elif not orquestador_vivo and libre_mb > REANUDAR_SOBRE_MB:
+        elif not orquestador_vivo and libre_mb is not None and libre_mb > REANUDAR_SOBRE_MB:
             acciones.append((motor, "descongelar"))
-        elif orquestador_vivo and libre_mb < CONGELAR_BAJO_MB:
+        elif orquestador_vivo and poca_memoria:
             # (2026-10-11) Ya congelado y sigue faltando memoria: se REEVALÚA con
             # `accion_para`. Antes nunca se volvía a mirar un motor congelado, así que
             # la regla CNS1010 (tts-server siempre muerto; llama-server muerto tras
@@ -310,7 +337,9 @@ def main():
             congelados = obtener_congelados(motores) if ps_ok else set()
 
             conversando = _conv.activa(_conv.leer_concesion())
-            acciones = decidir(orq, libres_mb(), congelados, vivos, conversando)
+            acciones = decidir(
+                orq, libres_mb(), congelados, vivos, conversando, presion_nucleo()
+            )
             # El enjambre cede la RAM mientras dura la conversación y vuelve al acabar.
             if conversando or _conv.leer_marca():
                 print("conversación: %s" % _conv.aplicar(), flush=True)
