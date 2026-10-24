@@ -31,6 +31,10 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
+  it("cada id recomendado aparece UNA sola vez (sin duplicados)", () => {
+    expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
+  });
+
   it("sube la versión y añade las siete «siempre»", () => {
     expect(SEED_VERSION).toBe(16);
     for (const id of SIEMPRE_2A) {
