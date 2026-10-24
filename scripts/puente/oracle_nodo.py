@@ -239,18 +239,46 @@ def marcar_oracle(progreso, ids, fecha, rama):
     return p
 
 
-def devolver_de_oracle(progreso, lanzamientos, colas_a1, nodo_late, ahora, gracia_s=3 * 3600):
-    """PURA. Los ids `reasignada · oracle` que vuelven a la cola de la Mac: los de una cola que el
-    A1 ya terminó (su trabajo, si lo hubo, ya viaja en `nube/a1-*` y `traer_nube` lo trae o lo
-    repara: necesita que la tarea deje de estar «reasignada») y todos si el nodo no late y su
-    cola lleva más de `gracia_s` sin terminar. Préstamo, no traspaso (como `reclamar_varadas`).
-    `lanzamientos`: [{rama, ids, t}]; `colas_a1`: {rama: {...historial}}."""
+def devolver_de_oracle(progreso, lanzamientos, colas_a1, nodo_late, ahora, gracia_s=3 * 3600, colas_vivas=()):
+    """PURA. Los ids `reasignada · oracle` que vuelven a la cola de la Mac. Préstamo, no traspaso
+    (como `reclamar_varadas`). `lanzamientos`: [{rama, ids, t}]; `colas_a1`: {rama: historial} de
+    las que el A1 ya terminó; `colas_vivas`: las que el nodo tiene EN CURSO ahora (su en-curso.json).
+
+    Caso real medido (2026-10-21 17:20 UTC): 36 tareas llevaban en progreso.json «reasignada ·
+    medio oracle» desde el 12-10 al 21-10 con el A1 diciendo «nada que hacer» cada 5 minutos (sin
+    ningún orquestador vivo): las movió la reasignación de
+    Genesis (`reasignarTarea` → orden `soltar` + lanzamiento en el A1), que NO las apunta en
+    `lanzamientos`, así que este devolvedor nunca las veía; y `traer_nube` no traía sus ramas
+    `nube/a1-*` porque «está reasignada ahora mismo: no se le pisa» — bloqueo mutuo. Por eso aquí
+    también se devuelven las que su NOTA cita como rama `colas/oracle-<fecha>`: si el A1 ya la
+    terminó (está en `colas_a1`) o no la conoce y lleva más de `gracia_s` desde que la rama nació
+    (la fecha va en el nombre), vuelven; mientras el nodo la tenga en curso, no se toca."""
     terminadas = set(colas_a1 or {})
+    vivas = set(colas_vivas or ())
     vuelven = set()
     for l in lanzamientos or []:
         rama = l.get("rama")
         if rama in terminadas or (not nodo_late and ahora - float(l.get("t") or 0) > gracia_s):
             vuelven |= set(l.get("ids") or [])
+    for tid, entrada in (progreso or {}).items():
+        if not isinstance(entrada, dict) or entrada.get("estado") != "reasignada" \
+                or (entrada.get("medio") or "") != "oracle" or tid in vuelven:
+            continue
+        for rama in re.findall(r"colas/oracle-\d{8}-\d{6}", str(entrada.get("nota") or "")):
+            if rama in vivas:
+                continue  # el nodo dice que la sigue corriendo: no se le pisa el trabajo
+            if rama in terminadas:
+                vuelven.add(tid)  # el A1 la terminó: su trabajo ya viaja en nube/a1-*
+                break
+            try:
+                # La rama se nombra con la hora LOCAL de la Mac (`lanzar` usa `datetime.now()`):
+                # se lee igual, con mktime, para que la gracia cuente segundos reales.
+                nacida = time.mktime(time.strptime(rama[len(PREFIJO_COLA):], "%Y%m%d-%H%M%S"))
+            except (ValueError, OverflowError):
+                continue
+            if ahora - nacida > gracia_s:
+                vuelven.add(tid)  # el A1 no la conoce y la rama lleva más de la gracia: vuelve
+                break
     return sorted(tid for tid in vuelven
                   if isinstance((progreso or {}).get(tid), dict)
                   and progreso[tid].get("estado") == "reasignada"
@@ -780,9 +808,21 @@ def traer(estado_a1=None):
     terminadas = {c.get("rama"): c for c in colas if isinstance(c, dict) and c.get("rama")}
     devueltas = []
     lanzamientos = datos.get("lanzamientos") or []
+    ahora = time.time()
+    vivo = nodo_vivo(estado_a1, ahora)
+    # La cola que el nodo tiene EN CURSO: su en-curso.json guarda la rama tal cual (estado.json
+    # solo enseña el basename del archivo de cola, que no casa con la rama de la nota). Solo
+    # cuenta como viva si el nodo late: si el servicio murió, es basura de una cola a medias y
+    # `reanudar_interrumpida` ya la habrá entregado al arrancar él.
+    rc_curso, en_curso = ssh("cat %s/en-curso.json 2>/dev/null" % ESTADO_A1, timeout=40)
+    try:
+        rama_viva = (json.loads(en_curso) or {}).get("rama") if rc_curso == 0 else None
+    except ValueError:
+        rama_viva = None
+    vivas = (rama_viva,) if (vivo and isinstance(rama_viva, str) and rama_viva) else ()
     with _Cerrojo("progreso", 60):
         progreso = _leer(PROGRESO, {}) or {}
-        ids = devolver_de_oracle(progreso, lanzamientos, terminadas, nodo_vivo(estado_a1, time.time()), time.time())
+        ids = devolver_de_oracle(progreso, lanzamientos, terminadas, vivo, ahora, colas_vivas=vivas)
         if ids:
             import repartir_nube as RN
 
