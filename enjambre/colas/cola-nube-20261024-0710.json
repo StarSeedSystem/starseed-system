@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "GUI1021Ib",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · puerta común abrirGuia y reglas del modo invitado (puro)",
+   "archivos": [
+    "src/lib/onboarding/guia-acceso.ts",
+    "src/lib/onboarding/__tests__/guia-acceso.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Módulo puro: `EVENTO_ABRIR_GUIA = \"starseed:open-guide\"` (igual que `OPEN_GUIDE_EVENT` de aurora-guide; la prueba lo compara leyendo el texto del archivo, sin importarlo), `abrirGuia({desde, temaInicial?})` (despacha el evento con ese detalle; sin `window`, no hace nada), `modoGuia(haySesion)` → 'invitado' | 'cuenta', `accionesDelPaso(modo)` → en invitado sin «Ir» ni «Hazlo por mí» y con la etiqueta «Disponible al entrar», `zGuia(desde, haySesion)` → 240 si se abre desde una ventana de acceso o sin sesión, si no el valor de hoy, y `unirVistas(local, cuenta)` (lo visto como invitado se une a la marca de la cuenta sin perder nada). Pruebas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39969425261`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39969425261:refs/remotes/origin/nube/39969425261\"` y `git cherry-pick --no-commit 29760830cf80`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/onboarding/__tests__/guia-acceso.test.ts, src/lib/onboarding/guia-acceso.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39969425261"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "GUI1021Ib"
+  ]
+ }
+}
