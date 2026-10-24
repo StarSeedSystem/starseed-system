@@ -6,7 +6,8 @@
  * (`login`, `bienvenida`, `aviso`), desde Ajustes o desde un botón, con o sin
  * cuenta. Lanza el MISMO evento de siempre (`starseed:open-guide`), el que ya
  * escucha `aurora-guide.tsx`; aquí viven además las reglas del modo invitado,
- * para que no queden al criterio de cada pantalla.
+ * para que no queden al criterio de cada pantalla. `aurora-guide.tsx` ya las
+ * aplica (acciones y capa) y `guia-vista.ts` une lo visto al entrar.
  *
  * Módulo PURO: sin React, sin `node:*`, sin red ni Supabase. Si no hay
  * `window` (SSR, Node), `abrirGuia` no hace nada y no lanza: la guía nunca se

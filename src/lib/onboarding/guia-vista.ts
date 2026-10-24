@@ -14,6 +14,7 @@
  */
 
 import { avisoResuelto, estadoAviso, marcarAviso } from "@/lib/sync/avisos-cuenta";
+import { unirVistas } from "@/lib/onboarding/guia-acceso";
 import { safeGet, safeSet } from "@/lib/safe-storage";
 
 /** Marca local histórica («1» = vista). Se conserva por compatibilidad hacia atrás. */
@@ -46,8 +47,16 @@ export function guiaVistaAqui(): boolean {
 export function copiarGuiaLocalACuenta(): boolean {
   try {
     const local = vistaEnEsteMedio();
-    if (local && !vistaEnCuenta()) marcarAviso(AVISO_GUIA_BIENVENIDA, "hecho");
-    return local || vistaEnCuenta();
+    const cuenta = vistaEnCuenta();
+    // La marca de este medio (aunque sea de cuando no había cuenta) se une a la
+    // de la cuenta sin perder nada ni duplicar; la unión decide qué se escribe.
+    const vistas = unirVistas(
+      local ? [AVISO_GUIA_BIENVENIDA] : [],
+      cuenta ? [AVISO_GUIA_BIENVENIDA] : [],
+    );
+    const vista = vistas.includes(AVISO_GUIA_BIENVENIDA);
+    if (vista && !cuenta) marcarAviso(AVISO_GUIA_BIENVENIDA, "hecho");
+    return vista;
   } catch {
     return false;
   }

@@ -89,6 +89,7 @@ import {
   Mic,
   Radio,
   EarOff,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
@@ -109,6 +110,15 @@ import {
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { copiarGuiaLocalACuenta, marcarGuiaVista } from "@/lib/onboarding/guia-vista";
+import {
+  ETIQUETA_SOLO_CUENTA,
+  VENTANAS_ACCESO,
+  accionesDelPaso,
+  modoGuia,
+  zGuia,
+  type OrigenGuia,
+} from "@/lib/onboarding/guia-acceso";
+import { createClient } from "@/utils/supabase/client";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
@@ -481,6 +491,40 @@ export function AuroraGuide() {
     return subscribeGuideButtonVisible(() => setButtonVisible(getGuideButtonVisible()));
   }, []);
 
+  // Con sesión, guía de cuenta; sin ella, invitado (GUI1021I). Se sigue en vivo
+  // para que entrar o salir mientras la guía está abierta cambie sus acciones.
+  const [haySesion, setHaySesion] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    let quitar: (() => void) | undefined;
+    try {
+      const sb = createClient();
+      void sb.auth
+        .getSession()
+        .then(({ data }) => { if (vivo) setHaySesion(!!data?.session); })
+        .catch(() => { if (vivo) setHaySesion(false); });
+      const { data: sub } = sb.auth.onAuthStateChange((_evento, sesion) => {
+        if (vivo) setHaySesion(!!sesion);
+      });
+      quitar = () => sub.subscription.unsubscribe();
+    } catch {
+      /* sin Supabase: la guía funciona como invitado */
+    }
+    return () => {
+      vivo = false;
+      quitar?.();
+    };
+  }, []);
+
+  // De dónde se abrió (`login`, `bienvenida`, `ajustes`, `aviso`, `boton`):
+  // decide la capa para no quedar debajo de la ventana de acceso.
+  const [origen, setOrigen] = useState<OrigenGuia>("boton");
+  const modo = modoGuia(haySesion);
+  const acciones = accionesDelPaso(modo);
+  const capa = zGuia(origen, haySesion);
+  const desdeVentanaAcceso = (VENTANAS_ACCESO as readonly string[]).includes(origen);
+  const etiquetaSoloCuenta = acciones.etiqueta ?? ETIQUETA_SOLO_CUENTA;
+
   const step = STEPS[index];
   const ctx = useMemo<GuideCtx>(() => ({ router, setActiveEdge }), [router, setActiveEdge]);
   // Texto y narración adaptados al dispositivo (caen al texto común si no hay variante).
@@ -537,8 +581,9 @@ export function AuroraGuide() {
   }, []);
 
   // ── reabrir bajo demanda: evento + helper global ───────────────────────────
-  const openGuide = useCallback((startAt = 0) => {
+  const openGuide = useCallback((startAt = 0, desde: OrigenGuia = "boton") => {
     setIndex(Math.max(0, Math.min(STEPS.length - 1, startAt)));
+    setOrigen(desde);
     // Reabrir SIEMPRE vuelve a preguntar el modo (respeta la elección del momento).
     setMode(null);
     setMuted(false);
@@ -548,8 +593,9 @@ export function AuroraGuide() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onOpen = (e: Event) => {
-      const at = (e as CustomEvent<{ step?: number }>)?.detail?.step;
-      openGuide(typeof at === "number" ? at : 0);
+      const detalle = (e as CustomEvent<{ step?: number; desde?: OrigenGuia }>)?.detail;
+      const at = detalle?.step;
+      openGuide(typeof at === "number" ? at : 0, detalle?.desde ?? "boton");
     };
     window.addEventListener(OPEN_GUIDE_EVENT, onOpen);
     // Helper global reutilizable desde cualquier parte (menús, ayuda, Aurora).
@@ -835,7 +881,10 @@ export function AuroraGuide() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.22 }}
-            className="fixed inset-0 z-[95]"
+            className="fixed inset-0"
+            style={{ zIndex: capa }}
+            data-capa={capa}
+            data-desde-ventana-acceso={desdeVentanaAcceso ? "1" : undefined}
             aria-modal="true"
             role="dialog"
             aria-label="Guía de StarSeed"
@@ -1177,10 +1226,12 @@ export function AuroraGuide() {
                         </div>
                       )}
 
-                      {/* Acciones del paso: "Ir/mostrar" (acompañar) + "Hazlo por mí" */}
+                      {/* Acciones del paso: "Ir/mostrar" (acompañar) + "Hazlo por mí".
+                          Sin cuenta se reservan a la cuenta: no se ofrecen y se
+                          dice tal cual («Disponible al entrar»). */}
                       {(step.go || step.doIt) && (
                         <div className="mt-3.5 flex flex-wrap gap-2">
-                          {step.go && (
+                          {acciones.puedeIr && step.go && (
                             <button
                               type="button"
                               onClick={() => step.go?.run(ctx)}
@@ -1191,7 +1242,7 @@ export function AuroraGuide() {
                               {step.go.label}
                             </button>
                           )}
-                          {step.doIt && (
+                          {acciones.puedeHazloPorMi && step.doIt && (
                             <button
                               type="button"
                               onClick={() => step.doIt?.run(ctx)}
@@ -1204,6 +1255,15 @@ export function AuroraGuide() {
                               <Wand2 className="h-3.5 w-3.5" />
                               {step.doIt.label}
                             </button>
+                          )}
+                          {!acciones.puedeIr && !acciones.puedeHazloPorMi && (
+                            <span
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-dashed border-white/20 bg-white/[0.03] px-3 text-[12px] font-medium text-white/60"
+                              title="Inicia sesión para usar esta acción"
+                            >
+                              <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                              {etiquetaSoloCuenta}
+                            </span>
                           )}
                         </div>
                       )}
