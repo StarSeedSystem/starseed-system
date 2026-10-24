@@ -1,55 +1,35 @@
 #!/usr/bin/env python3
 """
-Ejecutor simple de pruebas para el servicio Chatterbox.
+Ejecutor de las pruebas del servicio Chatterbox sin pytest: corre TODAS las funciones `test_*` de
+test_servidor.py (las descubre solo, para que ninguna prueba nueva se quede fuera).
+Con pytest: `python3 -m pytest -q test_servidor.py`.
 """
 
-import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+import sys
+import traceback
 
-from test_servidor import *
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-def run_test(test_func):
-    """Ejecuta una prueba y reporta el resultado."""
-    try:
-        test_func()
-        print(f"✓ {test_func.__name__}")
-        return True
-    except Exception as e:
-        print(f"✗ {test_func.__name__}: {e}")
-        return False
+import test_servidor  # noqa: E402
 
-def main():
-    """Ejecuta todas las pruebas."""
-    print("Ejecutando pruebas del servicio Chatterbox...")
-    
-    tests = [
-        test_dispositivo,
-        test_modelo_simulado,
-        test_marca_agua_conservada,
-        test_generar_conserva_marca_agua,
-        test_stream_por_frases,
-        test_endpoint_salud,
-        test_idioma_espanol_usa_multilingual,
-        test_idioma_ingles_usa_turbo,
-        test_descarga_por_inactividad,
-    ]
-    
-    passed = 0
-    total = len(tests)
-    
-    for test in tests:
-        if run_test(test):
-            passed += 1
-    
-    print(f"\nResultado: {passed}/{total} pruebas pasaron")
-    
-    if passed == total:
-        print("¡Todas las pruebas pasaron!")
-        return 0
-    else:
-        print("Algunas pruebas fallaron.")
-        return 1
+
+def main() -> int:
+    pruebas = [(n, f) for n, f in vars(test_servidor).items() if n.startswith("test_") and callable(f)]
+    print(f"Ejecutando {len(pruebas)} pruebas del servicio Chatterbox...")
+    pasadas = 0
+    for nombre, prueba in pruebas:
+        try:
+            prueba()
+        except Exception:
+            print(f"✗ {nombre}")
+            traceback.print_exc(limit=3)
+        else:
+            pasadas += 1
+            print(f"✓ {nombre}")
+    print(f"\nResultado: {pasadas}/{len(pruebas)} pruebas pasaron")
+    return 0 if pasadas == len(pruebas) else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())
