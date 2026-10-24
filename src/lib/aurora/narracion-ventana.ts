@@ -12,16 +12,15 @@
  *   · Antes de hablar, corta lo que estuviera sonando o encolado (`interrupt`).
  *   · Si cambias de pestaña o se cierra la ventana antes de empezar, no suena.
  *   · Al desmontar, corta: nada se reproduce «después», en otra ventana.
- *   · Continuidad de voz: usa el MISMO puente que la bienvenida
- *     (`window.STARSEED_AURORA`), así Astraura sigue sonando igual desde el
- *     primer «hola» hasta que tú decidas cambiar su voz en OmniVoice.
+ *   · Voz fusionada (VZF1015J): pasa por `hablar()` de `voz-unica.ts` con
+ *     contexto 'ventana'. Conserva la dependencia en `starseed.voz.rito`.
  *
  * Silencioso por defecto: si el usuario no activó la voz en la bienvenida, no
  * habla (la marca de sesión `starseed.voz.rito` la deja el rito al empezar).
  */
 
 import { useEffect } from "react";
-import { auroraBridge } from "@/components/onboarding/aurora-guide-voice";
+import { callar, hablar } from "@/lib/aurora/voz-unica";
 
 const MARCA_VOZ = "starseed.voz.rito";
 
@@ -42,7 +41,7 @@ export function vozDelRitoActiva(): boolean {
 
 /** Corta cualquier voz en curso o encolada. Nunca lanza. */
 export function cortarVoz(): void {
-  try { auroraBridge()?.interrupt?.(); } catch { /* sin puente: nada que cortar */ }
+  try { callar(); } catch { /* sin puente: nada que cortar */ }
 }
 
 /**
@@ -58,7 +57,7 @@ export function useNarracionVentana(texto: string | null | undefined, activo = t
     // Micro-retardo: deja que el motor corte de verdad antes de arrancar.
     const id = window.setTimeout(() => {
       if (!vigente) return;
-      try { auroraBridge()?.speak?.(t); } catch { /* degradamos a texto */ }
+      try { void hablar(t, { contexto: "ventana" }); } catch { /* degradamos a texto */ }
     }, 80);
     return () => {
       vigente = false;

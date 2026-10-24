@@ -37,6 +37,7 @@
 import { generoEfectivo, getModoVoz, modulacionAutonoma } from "@/lib/aurora/voz-inicial";
 import { timbreActual, vozDelTimbre, buscarTimbre, TIMBRE_AUTONOMO_BASE, type Timbre } from "@/lib/aurora/timbres";
 import { decidirEntonacion } from "@/lib/aurora/agente-entonacion";
+import { hablar as hablarUnica, callar as callarUnica } from "@/lib/aurora/voz-unica";
 import { hablarStarSeed, nivelActual } from "@/lib/aurora/voz-starseed/motor";
 import type { NivelVoz } from "@/lib/aurora/voz-starseed/niveles";
 
@@ -110,6 +111,7 @@ export function callarRito(): void {
     void import("@/lib/aurora/tts-oss/kokoro")
         .then((m) => m.stopKokoro())
         .catch(() => null);
+    try { callarUnica(); } catch { /* */ }
 }
 
 /**
@@ -243,16 +245,19 @@ export function hablarRito(texto: string): boolean {
     const limpio = (texto || "").trim();
     if (!limpio || typeof window === "undefined") return false;
 
+    // Voz fusionada (VZF1015J): pasa por la puerta única con contexto 'rito'
+    try {
+        void hablarUnica(limpio, { contexto: "rito" });
+        return true;
+    } catch {
+        /* fallback al comportamiento anterior */
+    }
+
     // Hablar sustituye, nunca encola: se corta lo anterior y toma el turno.
     callarRito();
     const miTurno = turno;
 
     // ── (Ola 228) EL MOTOR ÚNICO «VOZ STARSEED» ─────────────────────────────
-    // El rito ya no elige motor por su cuenta: habla por `hablarStarSeed`,
-    // con la MISMA voz (mismo timbre) que el resto de ventanas. El nivel
-    // (estudio/alta/ligera/minima) lo decide el motor según el hardware y, si
-    // una vía falla, degrada SIN cambiar el timbre. La voz del navegador ha
-    // quedado como el nivel «minima», el suelo de la cadena.
     avisar("preparando");
     void (async () => {
         let sono = false;
@@ -271,9 +276,6 @@ export function hablarRito(texto: string): boolean {
             avisar(nivelActual() === "minima" ? "navegador" : "motor");
             return;
         }
-        // El motor único agotó sus niveles: un último intento por la vía
-        // verificada del rito (la más tolerant con navegadores caprichosos) y,
-        // si tampoco, se dice en pantalla.
         avisar("muda");
         porElSistema(limpio, miTurno);
     })();
