@@ -36,7 +36,7 @@ export interface OpcionesGenerar3D { titulo: string; permisoRemoto: boolean; esF
 export interface Dependencias3D {
   /** Taller local (servicios/taller-3d/taller.py, AV1011F); null mientras no exista en esta neurona. */
   taller: ((img: Blob, plan: PlanOptimizacion, progreso: (pct: number, etapa: string) => void) => Promise<ResultadoTaller>) | null;
-  /** Space público de Hugging Face (POST /api/avatares/espacio-hf); null = sin respaldo remoto. */
+  /** Space público de Hugging Face llamado DESDE EL NAVEGADOR de la persona (adaptador de Pixal3D y TRELLIS.2, `adaptadores/espacios-3d`; la ruta de servidor /api/avatares/espacio-hf queda solo como respaldo de validación); null = sin respaldo remoto. */
   espacio: ((img: Blob, op: OpcionesGenerar3D) => Promise<ResultadoTaller>) | null;
   /** `aviso`: se guardó, pero con algo pendiente que hay que decir (p. ej. la fila aún sin registrar en la cuenta). */
   guardar: (e: { titulo: string; destino: Destino3D; glb: Blob; lods: number[]; procedencia: Procedencia[]; atribuciones: string[] }) => Promise<{ ok: true; ref: string; aviso?: string } | { ok: false; motivo: string }>;
