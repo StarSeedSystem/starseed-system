@@ -2,9 +2,44 @@ import type { CapacidadesNodo } from "../network/capacidades-nodo";
 import type { Candidato } from "../protomolecula/planificador-computo";
 import type { LinkedServer } from "../brains/servers";
 import type { OfertaNeurona, Peticion, PlanResultado } from "./oferta";
+import { leerEstado } from "../recursos-ia/asignaciones";
+import { ofertaDesdeAsignaciones } from "../recursos-ia/oferta-desde-asignaciones";
 export type { OfertaNeurona, Peticion, PlanResultado } from "./oferta";
 
 export function capacidadesNodoToOfertaNeurona(nodo: CapacidadesNodo): OfertaNeurona {
+    return {
+      nodoId: nodo.nodoId,
+      cuentaId: "",
+      medio: nodo.medio,
+      computo: {
+        nucleos: 1,
+        ramLibreMb: nodo.ramLibreMb,
+        gpu: false,
+        vramMb: undefined,
+        motores: [],
+      },
+      almacen: { prestaMb: 0, volumenes: [] },
+      apps: [],
+      enlaces: { subidaKbps: undefined, bajadaKbps: undefined, latenciaMs: undefined },
+      energia: {
+        bateriaPct: nodo.bateriaPct !== null ? nodo.bateriaPct : undefined,
+        cargando: false,
+        enUso: false,
+      },
+      presta: {
+        cuenta: false,
+        grupos: [],
+        publico: false,
+        topes: { cpuPct: 0, ramMb: 0, discoMb: 0, horas: undefined, soloCargando: false },
+      },
+      t: nodo.t,
+    };
+  }
+
+  export function ofertaDesdeAsignacionesActualizada(): OfertaNeurona {
+    const estado = leerEstado();
+    return ofertaDesdeAsignaciones(estado);
+  }
   return {
     nodoId: nodo.nodoId,
     cuentaId: "",
@@ -35,6 +70,36 @@ export function capacidadesNodoToOfertaNeurona(nodo: CapacidadesNodo): OfertaNeu
 }
 
 export function linkedServerToOfertaNeurona(servidor: LinkedServer): OfertaNeurona {
+    const { role } = servidor.link;
+    const isCompute = role === "compute";
+    const isStorage = role === "storage";
+    return {
+      nodoId: servidor.id,
+      cuentaId: servidor.owner ?? "",
+      medio: "nube",
+      computo: {
+        nucleos: isCompute ? 1 : 0,
+        ramLibreMb: isCompute ? 1024 : 0,
+        gpu: false,
+        vramMb: undefined,
+        motores: [],
+      },
+      almacen: {
+        prestaMb: isStorage ? 1024 : 0,
+        volumenes: [],
+      },
+      apps: [],
+      enlaces: { subidaKbps: undefined, bajadaKbps: undefined, latenciaMs: undefined },
+      energia: { bateriaPct: undefined, cargando: false, enUso: false },
+      presta: {
+        cuenta: !!servidor.owner,
+        grupos: [],
+        publico: !!(servidor.owner && servidor.shared),
+        topes: { cpuPct: 0, ramMb: 0, discoMb: 0, horas: undefined, soloCargando: false },
+      },
+      t: Date.now(),
+    };
+  }
   const { role } = servidor.link;
   const isCompute = role === "compute";
   const isStorage = role === "storage";
@@ -67,6 +132,30 @@ export function linkedServerToOfertaNeurona(servidor: LinkedServer): OfertaNeuro
 }
 
 export function candidatoToOfertaNeurona(candidato: Candidato): OfertaNeurona {
+    return {
+      nodoId: candidato.neuronaId ?? "",
+      cuentaId: "",
+      medio: "desconocido",
+      computo: {
+        nucleos: 1,
+        ramLibreMb: candidato.libreMB,
+        gpu: candidato.gpu,
+        vramMb: undefined,
+        motores: [],
+      },
+      almacen: { prestaMb: 0, volumenes: [] },
+      apps: [],
+      enlaces: { subidaKbps: undefined, bajadaKbps: undefined, latenciaMs: undefined },
+      energia: { bateriaPct: undefined, cargando: false, enUso: false },
+      presta: {
+        cuenta: candidato.cuentaPropia,
+        grupos: [],
+        publico: !candidato.cuentaPropia,
+        topes: { cpuPct: 0, ramMb: 0, discoMb: 0, horas: undefined, soloCargando: false },
+      },
+      t: Date.now(),
+    };
+  }
   return {
     nodoId: candidato.neuronaId ?? "",
     cuentaId: "",
