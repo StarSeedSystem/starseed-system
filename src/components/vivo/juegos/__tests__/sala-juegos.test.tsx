@@ -67,6 +67,30 @@ function textoContienePalabra(texto: string | null, palabra: string): boolean {
     return texto.includes(palabra);
 }
 
+describe("textoContienePalabra", () => {
+
+    test("returns true when palabra is a substring of texto", () => {
+        expect(textoContienePalabra("hola mundo", "mundo")).toBe(true);
+        expect(textoContienePalabra("hola mundo", "hol")).toBe(true);
+        expect(textoContienePalabra("hola mundo", "mundo ")).toBe(false);
+        expect(textoContienePalabra("hola mundo", " mundo")).toBe(true);
+    });
+
+    test("returns false when palabra is not a substring of texto", () => {
+        expect(textoContienePalabra("hola mundo", "adios")).toBe(false);
+        expect(textoContienePalabra("hola mundo", "")).toBe(false);
+        expect(textoContienePalabra("", "hola")).toBe(false);
+        expect(textoContienePalabra(null, "hola")).toBe(false);
+    });
+
+    test("detects concatenated string without word boundaries", () => {
+        expect(textoContienePalabra("abcBetovela def", "Betovela")).toBe(true);
+        expect(textoContienePalabra("abcBetovelad", "Betovela")).toBe(true);
+        expect(textoContienePalabra("Betovela", "Betovela")).toBe(true);
+        expect(textoContienePalabra("Betovel", "Betovela")).toBe(false);
+    });
+});
+
 async function elegirJuego(sala: Sala, juego: string) {
     await clic(sala.q.getByRole("radio", { name: new RegExp(juego) }));
     await clic(sala.q.getByRole("button", { name: "Empezar con este juego" }));
