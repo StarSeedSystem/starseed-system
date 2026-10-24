@@ -96,7 +96,9 @@ _MUESTRO_CUANTIZADO = [
         "trending_score": 9.5,
         "license": "qwen-research",
         "gated": False,
-        "files": [{"rfilename": "Qwen-Image-2.1-Turbo-Q2_K.gguf", "size": 2470000000}],
+        "files": [
+            {"rfilename": "Qwen-Image-2.1-Turbo-Q2_K.gguf", "size": 2470000000, "lfs": {"sha256": "abc123"}}
+        ],
     },
 ]
 
@@ -108,7 +110,8 @@ def _http_get_falso(url, headers=None, timeout=30):
         return json.dumps(_MUESTRO_TRENDING)
     if "/models?author=Qwen&sort=createdAt" in url:
         return json.dumps(_MUESTRO_AUTOR)
-    if "/models?search=Qwen-Image-2.1-Turbo&author=unsloth" in url:
+    # Source 4: cuantizados - coincide si la URL busca cualquier GGUF de Qwen
+    if "/models?search=Qwen-Image-2.1-Turbo-GGUF" in url:
         return json.dumps(_MUESTRO_CUANTIZADO)
     return None
 
@@ -196,7 +199,9 @@ def test_cuantizados_de_candidato():
         "autores": ["Qwen"],
     }
     candidatos = descubrir_y_probar(area, set(), _http_get_falso)
-    with_sha = [c for c in candidatos if c.get("sha256") or any(f.get("sha256") for f in c.get("archivos", []))]
+    # Revisa que los archivos tengan sha256 en la estructura lfs.nested
+    with_sha = [c for c in candidatos
+                if any(f.get("lfs", {}).get("sha256") for f in c.get("archivos", []))]
     _assert_greater_equal(len(with_sha), 1, f"with_sha={with_sha}")
 
 
@@ -210,7 +215,7 @@ def test_sin_duplicados():
     }
     candidatos = descubrir_y_probar(area, set(), _http_get_falso)
     ids = [c["id"] for c in candidatos]
-    _assert_equal_len(ids, len(set(ids)), f"ids={ids}")
+    _assert_equal_len(len(ids), len(set(ids)), f"ids={ids}")
 
 
 def _assert_equal_len(a, b, msg=""):
@@ -275,7 +280,9 @@ def test_archivos_con_sha256():
     t = turbo[0]
     _assert_in("archivos", t, f"t={t}")
     if t["archivos"]:
-        _assert_in("sha256", t["archivos"][0] or {}, f"archivos={t['archivos']}")
+        # _archivos_con_sha256 transforma los entries a {nombre, bytes?, sha256?}
+        first_arch = t["archivos"][0]
+        _assert_is_not_none(first_arch.get("sha256"), f"sha256 from {first_arch}")
 
 
 def test_http_inyectable():
