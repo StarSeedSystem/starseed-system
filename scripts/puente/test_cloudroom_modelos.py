@@ -9,6 +9,10 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(__file__))
 import cloudroom_modelos as CM  # noqa: E402
+# (2026-10-24) Las pruebas no leen la config real de modelos de Pi.
+import cloudroom_modelos as _CMP  # noqa: E402
+_CMP.PI_MODELOS = "/nonexistent/cloudroom-pi-modelos.json"
+
 
 AHORA = 1_800_000_000.0
 ISO = lambda dt: datetime.fromtimestamp(AHORA + dt, timezone.utc).isoformat()  # noqa: E731
@@ -155,3 +159,21 @@ class Rueda(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_pi_suma_sus_modelos_declarados_aunque_la_nube_no_los_liste():
+    import cloudroom_modelos as CM
+    estado = {"harnesses": [{"id": "pi", "provider": "openai-codex", "models": []},
+                            {"id": "codex", "models": [{"model": "gpt-6-luna"}]}]}
+    hs = {n: m for n, _h, m in CM.harnesses_nube(estado, declarados=["nvidia/z-ai/glm-5.3"])}
+    assert hs["pi"] == ["nvidia/z-ai/glm-5.3"] and hs["codex"] == ["gpt-6-luna"]
+    assert CM.proveedor_de({"id": "pi", "provider": "openai-codex"}, "nvidia/z-ai/glm-5.3") == "nvidia"
+
+
+def test_pi_declarados_lee_la_config_y_tolera_que_falte(tmp_path):
+    import json
+    import cloudroom_modelos as CM
+    ruta = tmp_path / "pi.json"
+    ruta.write_text(json.dumps({"modelos": ["nvidia/z-ai/glm-5.3", "", 3]}))
+    assert CM.pi_declarados(str(ruta)) == ["nvidia/z-ai/glm-5.3"]
+    assert CM.pi_declarados(str(tmp_path / "no-existe.json")) == []

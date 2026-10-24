@@ -26,6 +26,7 @@ lecturas las da `cloudroom_lanzar.leer_fuentes()`. Pruebas en `test_cloudroom_mo
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -58,7 +59,24 @@ FALLO_DE_MODELO = re.compile(r"\bmodel|modelo|cloud supports|http 400|unsupporte
                              r"harness|provider|proveedor", re.I)
 
 
-def harnesses_nube(estado):
+#: (2026-10-24) Pi usa en la nube proveedores gratuitos propios (NIM, xKiro) declarados en el models.json
+#: que escribe el setup de Cloudroom; `cloud status` no los lista, así que se declaran aquí.
+PI_MODELOS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                          "config", "cloudroom-pi-modelos.json")
+
+
+def pi_declarados(ruta=None):
+    """Los modelos de Pi declarados en config/cloudroom-pi-modelos.json ([] si no se puede leer)."""
+    try:
+        with open(ruta or PI_MODELOS, encoding="utf-8") as f:
+            datos = json.load(f)
+    except (OSError, ValueError):
+        return []
+    lista = datos.get("modelos") if isinstance(datos, dict) else datos
+    return [str(m).strip() for m in lista or [] if isinstance(m, str) and m.strip()]
+
+
+def harnesses_nube(estado, declarados=None):
     """PURA: [(id, harness, [modelos])] de `cloud status --json` (harnesses[].models[].model), en su
     orden, sin los que la nube da por no disponibles o no conectados."""
     d = estado.get("data", estado) if isinstance(estado, dict) else {}
@@ -72,6 +90,10 @@ def harnesses_nube(estado):
             modelo = m.get("model") if isinstance(m, dict) else m
             if isinstance(modelo, str) and modelo.strip() and modelo.strip() not in modelos:
                 modelos.append(modelo.strip())
+        if nombre == "pi":
+            for m in (pi_declarados() if declarados is None else declarados):
+                if m not in modelos:
+                    modelos.append(m)
         if nombre:
             salida.append((nombre, h, modelos))
     return salida

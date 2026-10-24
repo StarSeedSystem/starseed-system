@@ -11,6 +11,10 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(__file__))
 import cloudroom_lanzar as C  # noqa: E402
+# (2026-10-24) Las pruebas no leen la config real de modelos de Pi.
+import cloudroom_modelos as _CMP  # noqa: E402
+_CMP.PI_MODELOS = "/nonexistent/cloudroom-pi-modelos.json"
+
 
 AHORA = 1_800_000_000.0
 DIA = 86400
@@ -470,3 +474,17 @@ class ProyectoDelRepo(unittest.TestCase):
         self.assertEqual(C.proyecto_del_repo(lista, "/y"), "")
         self.assertEqual(C.proyecto_del_repo(None, "/y"), "")
 
+
+
+class RazonamientoPi(unittest.TestCase):
+    def test_los_modelos_propios_de_pi_van_sin_razonamiento(self):
+        import cloudroom_modelos as CM
+        original = CM.pi_declarados
+        CM.pi_declarados = lambda ruta=None: ["nvidia/z-ai/glm-5.3"]
+        try:
+            orden = C.orden_spawn("r", {"id": "X"}, "b", "pi", "nvidia/z-ai/glm-5.3", "p")
+            i = orden.index("--reasoning-level")
+            self.assertEqual(orden[i + 1], "none")
+            self.assertNotIn("--reasoning-level", C.orden_spawn("r", {"id": "X"}, "b", "codex", "gpt-6-luna", "p"))
+        finally:
+            CM.pi_declarados = original

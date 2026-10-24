@@ -254,6 +254,9 @@ def orden_spawn(cli, tarea, texto, harness, modelo, peticion, proyecto=""):
     orden = [cli, "thread", "spawn", "--machine", "cloud", "--base-branch", "main",
              "--provider", harness, "--model", modelo, "--permission-mode", PERMISOS, "--title", titulo,
              "--request-id", peticion, "--json"]
+    # (2026-10-24) Los modelos propios de Pi (NIM, xKiro) solo admiten el razonamiento «none» («supported: off»).
+    if harness == "pi" and modelo in CM.pi_declarados():
+        orden += ["--reasoning-level", "none"]
     return orden + (["--project", proyecto] if proyecto else []) + ["--prompt", texto]
 
 
