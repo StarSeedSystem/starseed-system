@@ -1,0 +1,127 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "CB1013D",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Fusionar: diálogo con vista previa, copia descargada y casilla de quitar los fusionados",
+   "archivos": [
+    "src/components/cerebro/fusionar-dialog.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §4 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Sustituye el componente de partida manteniendo `export interface FusionarDialogProps { open; onOpenChange; cerebro: Brain; cerebros: Brain[]; onHecho? }` y el `export default`. Usa `Dialog` de `@/components/ui/dialog`, `Button`, `toast` de sonner y `pestanaDeCerebro` de `@/lib/cerebros/pestanas`. Contenido: (1) lista de los OTROS cerebros (`cerebros` sin `cerebro`) con casilla, nombre, pestaña (Privado/Público) y fecha de creación; texto: «Se mezclarán en «<destino>» todas sus memorias y configuraciones»; (2) botón «Ver vista previa» → `leerParaFusion` + `planFusion` → tabla por archivo (acción en palabras: copiar / añadir N secciones / ya estaba, y los KB que entran) y cuentas reales de includes, servidores y preferencias; (3) casilla «Quitar los cerebros fusionados después» marcada por defecto; (4) «Fusionar» → primero `descargarCopia(copiaDeSeguridad(...))` (si no se pudo descargar, pregunta con un segundo clic «Seguir sin copia descargada»), luego `aplicarFusion`; al terminar, toast con los números reales y los orígenes conservados con su motivo, `onHecho()` y cierra. Estados de carga y error visibles; nada se escribe antes del clic en «Fusionar».",
+   "revisor_quitadas": [
+    "CB1013C"
+   ]
+  },
+  {
+   "id": "VGM1016D",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Vigía · director diario: descubre, evalúa, deja novedades, avisa una vez y encola fichas (≤ 5 al día)",
+   "archivos": [
+    "scripts/puente/vigia_modelos.py",
+    "scripts/puente/test_vigia_modelos.py"
+   ],
+   "depende": [],
+   "prompt": "Orquesta una pasada: por cada área de `vigia-areas.json` llama a `descubrir` y `evaluar`; escribe `starseed_memory_root/vigia/novedades-<AAAA-MM-DD>.json` (por área: candidatos aceptados y descartados con su motivo, clase de licencia, archivo elegido por medio, SHA si lo hay) de forma atómica; publica UN resumen en el Chat Director (`director_chat.publicar`, quien «vigia-modelos») con lo nuevo de verdad; y, para los mejores (≤ 5 por día, sin repetir lo que ya está en el catálogo o en una cola), crea `starseed_memory_root/olas/cola-vigia-<AAAA-MM-DD>.json` con una tarea por ficha (≤ 3 archivos: el catálogo del área y su prueba) cuyo prompt lleva los datos verificados y la regla de licencia. Órdenes: `--seco` (no escribe colas ni avisa) y `--area X`. Estado en `~/.starseed/vigia-modelos.json` (última pasada, ids vistos). Pruebas con todo inyectado. Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español.",
+   "revisor_quitadas": [
+    "VGM1016B"
+   ],
+   "dependencias_ya_en_main": [
+    "VGM1016C"
+   ]
+  },
+  {
+   "id": "VGM1016N",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Paquete base de imágenes con los nuevos: Z-Image-Turbo por defecto donde quepa, Turbo GGUF solo como personal",
+   "archivos": [
+    "src/lib/imagenes/sugerencias.ts",
+    "src/lib/imagenes/__tests__/imagenes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Que `paqueteBase` proponga Z-Image-Turbo (libre) como opción rápida de calidad donde quepa, y Qwen-Image-2.1-Turbo en GGUF (Q3_K_S 2,72 GB en la Mac de 8 GB, Q4_K_M 4,2 GB en el A1) solo cuando la persona activó modelos de uso personal (parámetro nuevo opcional `permitirPersonal`, falso por defecto), siempre con su motivo en `porQue`. No cambies el comportamiento sin ese parámetro salvo añadir Z-Image-Turbo. Pruebas. Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español.",
+   "dependencias_ya_en_main": [
+    "VGM1016M"
+   ]
+  },
+  {
+   "id": "GCA1019M",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Asistente «Conectar Genesis» (cuenta, grupo o página)",
+   "archivos": [
+    "src/components/genesis/conectores/asistente-conectores.tsx",
+    "src/components/genesis/conectores/__tests__/asistente-conectores.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Tres pasos: 1) lo local del contexto (neuronas, servidores del cerebro, capa de Astraura que cabe) con interruptores; 2) lo gratis sugerido, con botón «Vincular» que abre el `enlaceAlta`/`enlaceClave` oficial en pestaña nueva y un campo para pegar la clave (se envía a la API y se borra del campo); 3) resumen por papel con la cadena elegida y su motivo. Estética de Genesis (cristal, píldoras). Prueba con Testing Library y API simulada. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019L"
+   ]
+  },
+  {
+   "id": "GCA1019N",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Panel de asignaciones por papel y por director",
+   "archivos": [
+    "src/components/genesis/conectores/asignaciones-panel.tsx",
+    "src/components/genesis/conectores/__tests__/asignaciones-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Una fila por papel o director con su cadena (arrastrar para ordenar, añadir del catálogo, quitar), etiqueta del peldaño (local, malla, contenedor, gratis, pago) y motivo; botón «Restaurar sugeridas». En PoliGenesis democrático, guardar crea una propuesta en vez de aplicar. Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019F",
+    "GCA1019L"
+   ]
+  },
+  {
+   "id": "GCA1019R",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Herramientas MCP de Genesis",
+   "archivos": [
+    "src/lib/genesis/mcp/herramientas.ts",
+    "src/lib/genesis/mcp/__tests__/herramientas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Definiciones (nombre, descripción en español, `inputSchema` JSON Schema) y manejadores inyectados para `estado`, `tareas_listar`, `tareas_crear`, `agentes_listar`, `medidores`, `proponer` (operaciones de `src/lib/genesis/operaciones.ts`), `biblioteca_buscar`, `opciones_sugerir` y `chat`. Cada una declara el permiso que necesita. Prueba: esquemas válidos y manejadores llamados con lo validado. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019Q",
+    "GCA1019K"
+   ]
+  },
+  {
+   "id": "CB1013L",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: leer las fuentes en el cliente (con topes y sin romperse)",
+   "archivos": [
+    "src/lib/cerebros/procesos-fuentes.ts",
+    "src/lib/cerebros/__tests__/procesos-fuentes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo de cliente. Exporta `leerProcesos(o?: { incluirMac?: boolean }): Promise<{ procesos: ProcesoActivo[]; hardware: HardwareServidor[]; fuentes: Array<{ nombre: string; ok: boolean; ms: number; motivo?: string }> }>`: en paralelo y cada una con tope de 4 s (AbortSignal.timeout o Promise.race), `/api/mando/agentes`, `/api/mando/medidores`, `/api/mando/suenos` y `/api/mando/hardware` (solo responden en la Mac o con sesión de MetaGenesis: un 401/403/404 cuenta como «no disponible aquí», no como error), `leerEstadoAutonomo()` (src/lib/metagenesis/remoto-nodos-cliente.ts), `leerHistorial()`, `fetchAstraura158DreamStatus`/`ImaginationStatus`, `listRuns()` de imagine, las instalaciones (`useInstalaciones` es un hook: usa la función de lectura del store), `readDesktopsSnapshot()` y `listNeurons()` para el hardware de las neuronas. Normaliza con CB1013J/K. Si una fuente falla, sigue y lo dice en `fuentes`. Nunca lanza. Pruebas con mocks de fetch y de los módulos: una fuente caída no tumba las demás; 404 → «no disponible aquí»; el tope de 4 s corta una fuente colgada.",
+   "revisor_quitadas": [
+    "CB1013K"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013J"
+   ]
+  },
+  {
+   "id": "CB1013S",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Ajustes del cerebro: diálogo y pestaña Medios (capacidades y almacenamiento)",
+   "archivos": [
+    "src/components/cerebro/ajustes-cerebro-dialog.tsx",
+    "src/components/cerebro/ajustes-medios.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §8 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Sustituye `ajustes-cerebro-dialog.tsx` manteniendo `AjustesCerebroDialogProps { open; onOpenChange; cerebro; cerebros; onHecho? }` y el default. Arriba el selector «Aplicar a»: cerebro completo, una memoria (nombres de `brain_memory_files` de este cerebro) o una carpeta (ids de `starseed.brain.<id>.memoryRoots`). Pestañas: Medios, Seguridad y privacidad, Vinculación y sincronización. Guardar con `saveBrain({ ...cerebro, config: conAjustes(...) })` y `onHecho()`. `ajustes-medios.tsx` (`export function AjustesMedios(...)`): por cada `CAPACIDADES`, un selector con 'auto' + `cerebro.servers` + neuronas de `listNeurons()` (src/lib/neurons/neurons.ts); almacenamiento con los destinos de `getMemoryDestinations(cerebro)` (src/lib/brains/memory-destinations.ts: local, StarSeed, externos y P2P) que, en el nivel cerebro, se guardan con `setMemoryDestinations` (se aplica de verdad) y una línea por destino explicando adónde va cada dato con `destinosDe()` de src/lib/malla/cristal/destinos-almacen.ts si encaja su firma. Junto a cada ajuste, la marca de `APLICACION` («se aplica ya» / «solo se guarda por ahora»).",
+   "revisor_quitadas": [
+    "CB1013R"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013T"
+   ]
+  }
+ ]
+}
