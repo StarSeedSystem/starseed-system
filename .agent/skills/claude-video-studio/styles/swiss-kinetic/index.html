@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&display=swap" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #F1EEE6; }
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #F1EEE6; }
+      #stage, #grain, #specks, #light, #vignette { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+      #stage text { font-family: "Inter Tight", Arial, sans-serif; font-weight: 700; }
+      #grain { mix-blend-mode: multiply; opacity: 0.85; pointer-events: none; }
+      #specks { mix-blend-mode: screen; opacity: 0.5; pointer-events: none; }
+      #light {
+        left: -480px; top: -270px; width: 2880px; height: 1620px; pointer-events: none;
+        background: radial-gradient(ellipse 42% 46% at 34% 30%, rgba(255, 252, 244, 0.55), rgba(255, 252, 244, 0) 70%);
+        mix-blend-mode: soft-light;
+      }
+      #win { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; clip-path: url(#winClip); opacity: 0; }
+      .wl { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+      #winPanel { opacity: 0; }
+      .wl svg { position: absolute; left: 0; top: 0; }
+      #winMove { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 50% 50%; }
+      #vignette {
+        pointer-events: none; mix-blend-mode: multiply;
+        background:
+          radial-gradient(ellipse 85% 80% at 40% 38%, rgba(0,0,0,0) 55%, rgba(92, 72, 48, 0.16) 100%),
+          linear-gradient(160deg, rgba(0,0,0,0) 55%, rgba(80, 60, 40, 0.07) 100%);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="14" data-width="1920" data-height="1080">
+      <svg id="stage" class="clip" data-start="0" data-duration="14" data-track-index="0"
+           viewBox="0 0 1920 1080" width="1920" height="1080" xmlns="http://www.w3.org/2000/svg">
+        <defs id="defs"></defs>
+        <g id="world"></g>
+      </svg>
+      <div id="win"><div id="winMove">
+        <div id="winSkirt" class="wl"><svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+          <rect width="1920" height="1080" fill="#111111"/>
+          <g id="skirtDrift"><g id="skirtA"><path d="M 560 640 A 310 310 0 0 0 1180 640 Z" fill="#E63022"/><path d="M 640 640 A 230 120 0 0 1 1100 640 Z" fill="#B3241A"/></g></g>
+        </svg></div>
+        <div id="winPanel" class="wl"><svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+          <rect width="1920" height="1080" fill="#DDD7CD"/>
+          <rect y="880" width="1920" height="200" fill="#CBC4B8"/>
+          <ellipse id="pShadow" cx="930" cy="896" rx="190" ry="22" fill="#111111" opacity="0.18"/>
+          <g id="pFig"><g id="pBody">
+            <rect id="legL" x="919" y="600" width="24" height="200" fill="#111111"/>
+            <rect id="legR" x="919" y="600" width="24" height="200" fill="#111111"/>
+            <rect id="armL" x="930" y="358" width="200" height="22" fill="#111111"/>
+            <rect id="armR" x="930" y="358" width="200" height="22" fill="#111111"/>
+            <rect x="897" y="350" width="66" height="96" fill="#111111"/>
+            <circle cx="930" cy="296" r="46" fill="#111111"/>
+            <g id="pSkirt"><path d="M 755 440 A 175 175 0 0 0 1105 440 Z" fill="#E63022"/></g>
+          </g></g>
+        </svg></div>
+      </div></div>
+      <div id="light" class="clip" data-start="0" data-duration="14" data-track-index="1"></div>
+      <div id="vignette" class="clip" data-start="0" data-duration="14" data-track-index="2"></div>
+      <canvas id="grain" class="clip" data-start="0" data-duration="14" data-track-index="3" width="1920" height="1080"></canvas>
+      <canvas id="specks" class="clip" data-start="0" data-duration="14" data-track-index="4" width="1920" height="1080"></canvas>
+    </div>
+    <script>
+      // ============================================================
+      // Swiss kinetic type: a printed Swiss poster that moves on the beat.
+      // SVG on a 6 x 4 grid, one red dot that is the same object all the way through. 14 s, does not loop.
+      // Beats (120 BPM, beat = 0.5 s):
+      //   0.0-3.0   grid draws, red circle lands, hero word slams up, slices, rotates into a spine
+      //   3.0-7.5   circle shrinks to a full stop, word 2 steps through the rows like notes, word 3 wipes in, word 4 slams
+      //   7.5-11.0  poster slices out along the rows; word 4 grows giant, its letters become windows; the i opens into a panel
+      //   11.0-14   three black tiles stamp down, slide like a puzzle, the dot grows back into the big circle
+      // Change words: WORDS below. Each word needs a line in MET (see measureMET at the bottom).
+      // Change colours: RED (the one accent), INK, PAPER.
+      // ============================================================
+      (function () {
+        const DUR = 14.0;
+        const RED = '#E63022', INK = '#111111', PAPER = '#F1EEE6';
+        // ---------- words ----------
+        // hero: fills the width, then turns into a spine.  melody: 5 letters step through the rows.
+        // tittle: must contain a dotless "ı" (the red dot becomes its dot).  window: must contain an "i" (it opens into a panel).
+        // tiles: [top-left, top-right, bottom-left] at the start of the puzzle; the end reads tiles[1] / tiles[0] tiles[2].
+        const WORDS = { hero: 'Type', melody: 'moves', tittle: 'lıke', window: 'music', tiles: ['in', 'Made', 'code'] };
+        const FONT = 'Inter Tight';
+        const NS = 'http://www.w3.org/2000/svg';
+        const defs = document.getElementById('defs');
+        const world = document.getElementById('world');
+
+        // ---------- seeded PRNG ----------
+        function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+        const rnd = mulberry32(5150);
+
+        // ---------- helpers ----------
+        function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+        // Inter Tight 700 metrics at 100px: [advance, inkLeft, inkRight, ascent, descent] from canvas measureText.
+        // Hard-coded so the layout never depends on font-load timing. "" and the word prefixes are needed too.
+        const MET = {"Type":[228.7,-1.9,226.7,72.8,20.5],"x":[54.1,-0.8,53.3,54.6,0],"m":[88.1,-4.4,83.7,55.3,0],"mo":[146.2,-4.4,144,55.3,1.1],"mov":[199.8,-4.4,199.7,55.3,1.1],"move":[254.3,-4.4,252.3,55.3,1.1],"moves":[307.2,-4.4,305.4,55.3,1.1],"l":[24,-4.4,19.5,72.8,0],"l\u0131ke":[156.9,-4.4,154.9,72.8,1.1],"\u0131":[24,-4.4,19.5,54.6,0],"music":[279.4,-4.4,277.3,76.9,1.1],"Made":[259.5,-4.7,257.5,72.8,1.1],"in":[83.1,-3.8,78.7,76.9,0],"code":[229.6,-2.2,227.6,72.8,1.1],"mus":[200,-4.4,198.1,55.3,1.1],"musi":[223.9,-4.4,220.1,76.9,1.1],"":[0,0,0,0,0]};
+        function M(s, size) { const m = MET[s], k = size / 100; return { w: m[0] * k, L: m[1] * k, R: m[2] * k, A: m[3] * k, D: m[4] * k }; }
+        function txt(parent, s, x, y, size, fill) { const t = el('text', { x: x, y: y, 'font-size': size, fill: fill, 'font-family': FONT, 'font-weight': 700 }, parent); t.textContent = s; return t; }
+        let fid = 0;
+        function blur(target, region) {
+          const id = 'mb' + (fid++);
+          const r = region || { x: '-20%', y: '-20%', w: '140%', h: '140%' };
+          const f = el('filter', { id: id, x: r.x, y: r.y, width: r.w, height: r.h, 'color-interpolation-filters': 'sRGB' }, defs);
+          const g = el('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: '0 0' }, f);
+          target.setAttribute('filter', 'url(#' + id + ')');
+          return g;
+        }
+        function clip(id, x, y, w, h) { const c = el('clipPath', { id: id, clipPathUnits: 'userSpaceOnUse' }, defs); return el('rect', { x: x, y: y, width: w, height: h }, c); }
+
+        // ---------- grid: 6 cols x 4 rows ----------
+        const colL = k => 80 + 300 * k;           // col 260, gutter 40
+        const rowT = r => 92 + 248 * r;           // row 152, gutter 96
+        const rowB = r => rowT(r) + 152;
+        const GX0 = 80, GX1 = 1840, GY0 = 92, GY1 = 988;
+
+        const tl = gsap.timeline({ paused: true });
+
+        // paper base
+        el('rect', { x: 0, y: 0, width: 1920, height: 1080, fill: PAPER }, world);
+
+        const gridG = el('g', { id: 'grid', opacity: 0.6 }, world);
+        const posterG = el('g', {}, world);
+        const posterIn = el('g', { id: 'posterIn' }, posterG);
+        const vlines = [], hlines = [];
+        for (let k = 0; k < 6; k++) for (const x of [colL(k), colL(k) + 260]) {
+          vlines.push(el('line', { x1: x, y1: GY0, x2: x, y2: GY0 + 96, stroke: INK, 'stroke-opacity': 0.34, 'stroke-width': 1.5 }, gridG));
+        }
+        for (let r = 0; r < 4; r++) for (const y of [rowT(r), rowB(r)]) {
+          hlines.push(el('line', { x1: GX0, y1: y, x2: GX0 + 40, y2: y, stroke: INK, 'stroke-opacity': 0.34, 'stroke-width': 1.5 }, gridG));
+        }
+        vlines.forEach((l, i) => tl.to(l, { attr: { y2: GY1 }, duration: 0.55, ease: 'power3.out' }, 0.0 + i * 0.035));
+        hlines.forEach((l, i) => tl.to(l, { attr: { x2: GX1 }, duration: 0.55, ease: 'power3.out' }, 0.28 + i * 0.045));
+        function pulse(t, peak) { tl.fromTo(gridG, { opacity: peak || 1 }, { opacity: 0.6, duration: 0.45, ease: 'power2.out', immediateRender: false }, t); }
+
+        // ---------- TYPE ----------
+        const mT100 = M(WORDS.hero, 100);
+        const fT = Math.round(1760 / ((mT100.R + mT100.L) / 100));
+        const mT = M(WORDS.hero, fT);
+        const T_x = GX0 + mT.L, T_base = GY1 - mT.D, T_top = T_base - mT.A;
+        const exitType = el('g', {}, posterIn);
+        const typeOuter = el('g', {}, exitType);
+        const baseRule = el('rect', { x: GX0, y: 0, width: 0, height: 14, fill: RED }, typeOuter);
+        const typeClipRect = clip('typeClip', -400, -3000, 2800, 3000 + GY1 + 3);
+        const typeMask = el('g', { 'clip-path': 'url(#typeClip)' }, typeOuter);
+        const typeRise = el('g', {}, typeMask);
+        const typeBlur = blur(typeRise, { x: '-5%', y: '-40%', w: '110%', h: '180%' });
+        const ghostG = el('g', {}, typeRise);
+        txt(ghostG, WORDS.hero, T_x, T_base, fT, RED);
+        const inkH = GY1 - T_top;
+        const c1 = Math.round(T_top + inkH * 0.36), c2 = Math.round(T_top + inkH * 0.69);
+        const bands = [[-3000, c1], [c1, c2], [c2, 4000]];
+        const slices = bands.map((b, i) => {
+          clip('band' + i, -3000, b[0], 8000, b[1] - b[0]);
+          const g = el('g', { 'clip-path': 'url(#band' + i + ')' }, typeRise);
+          txt(g, WORDS.hero, T_x, T_base, fT, INK);
+          return g;
+        });
+
+        // ---------- MOVES ----------
+        const fM = Math.round(152 / (M('x', 100).A / 100));
+        const mMv = M(WORDS.melody, fM);
+        const MV_x = colL(2) + mMv.L, MV_base = rowB(0);
+        const exitMoves = el('g', {}, posterIn);
+        clip('movesClip', 600, -3000, 1280, 8000);
+        const movesImpact = el('g', {}, exitMoves);
+        const movesG = el('g', { 'clip-path': 'url(#movesClip)' }, movesImpact);
+        const letters = WORDS.melody.split('').map((ch, i) => {
+          const slide = el('g', {}, movesG);
+          const jump = el('g', {}, slide);
+          const b = blur(jump, { x: '-60%', y: '-120%', w: '220%', h: '340%' });
+          txt(jump, ch, MV_x + M(WORDS.melody.slice(0, i), fM).w, MV_base, fM, INK);
+          return { slide, jump, b };
+        });
+        const periodX = MV_x + mMv.w + 62, periodY = MV_base - 44;
+
+        // ---------- LIKE ----------
+        const fL = Math.round(400 / (M('l', 100).A / 100));
+        const DI = WORDS.tittle.indexOf('\u0131');
+        const mL = M(WORDS.tittle, fL);
+        const LK_x = colL(2) + mL.L, LK_base = rowB(2);
+        const exitLike = el('g', {}, posterIn);
+        const likeImpact = el('g', {}, exitLike);
+        const likeClipRect = clip('likeClip', 600, -3000, 80, 8000);
+        const likeG = el('g', { 'clip-path': 'url(#likeClip)' }, likeImpact);
+        txt(likeG, WORDS.tittle, LK_x, LK_base, fL, INK);
+        const iX = LK_x + M(WORDS.tittle.slice(0, DI), fL).w, mI = M('\u0131', fL);
+        const tittleX = iX + (-mI.L + mI.R) / 2, tittleY = rowT(1) + 44;
+        const wipe = el('rect', { x: colL(2), y: rowT(1), width: 96, height: 0, fill: RED }, posterIn);
+
+        // EQ bars beside "like"
+        const exitEQ = el('g', {}, posterIn);
+        const eq = [0, 1, 2, 3].map(i => el('rect', { x: 1692 + i * 40, y: rowB(2), width: 28, height: 0, fill: RED }, exitEQ));
+
+        // ---------- MUSIC ----------
+        const mMu = M(WORDS.window, fM);
+        const MU_x = colL(2) + mMu.L, MU_base = rowB(3);
+        const exitMusic = el('g', {}, world);
+        clip('musicClip', -400, rowT(3) - 160, 2800, 160 + 152 + 4);
+        const musicMask = el('g', { 'clip-path': 'url(#musicClip)' }, exitMusic);
+        const musicRise = el('g', {}, musicMask);
+        const musicBlur = blur(musicRise, { x: '-5%', y: '-60%', w: '110%', h: '220%' });
+        const musicGhost = el('g', {}, musicRise);
+        txt(musicGhost, WORDS.window, MU_x, MU_base, fM, RED);
+        txt(musicRise, WORDS.window, MU_x, MU_base, fM, INK);
+
+        // ---------- TILES (sliding puzzle) ----------
+        const TW = 860, TH = 400;
+        const SLOT = { TL: [80, 92], TR: [980, 92], BL: [80, 588], BR: [980, 588] };
+        const center = s => [SLOT[s][0] + TW / 2, SLOT[s][1] + TH / 2];
+        const tg = el('linearGradient', { id: 'tileGrad', x1: 0, y1: 0, x2: 0.25, y2: 1 }, defs);
+        el('stop', { offset: 0, 'stop-color': '#1d1c1a' }, tg); el('stop', { offset: 1, 'stop-color': '#0c0c0c' }, tg);
+        const shadowF = el('filter', { id: 'tshadow', x: '-20%', y: '-30%', width: '140%', height: '160%' }, defs);
+        el('feGaussianBlur', { stdDeviation: 18 }, shadowF);
+        const fTile = Math.floor((TW - 64) / (Math.max(...WORDS.tiles.map(w => M(w, 100).R + M(w, 100).L)) / 100));
+        function makeTile(word, slot) {
+          const g = el('g', {}, world);
+          const lift = el('g', {}, g);
+          const sh = el('rect', { x: 6, y: 14, width: TW - 12, height: TH - 6, fill: '#2a1d10', opacity: 0, filter: 'url(#tshadow)' }, lift);
+          const body = el('g', {}, lift);
+          const b = blur(body, { x: '-10%', y: '-10%', w: '120%', h: '120%' });
+          el('rect', { x: 0, y: 0, width: TW, height: TH, fill: 'url(#tileGrad)' }, body);
+          el('rect', { x: 0, y: 0, width: TW, height: 2, fill: '#ffffff', opacity: 0.09 }, body);
+          const m = M(word, fTile);
+          const inner = el('g', {}, body);
+          txt(inner, word, 32 + m.L, TH - 32, fTile, PAPER);
+          gsap.set(g, { x: SLOT[slot][0], y: SLOT[slot][1] });
+          gsap.set(lift, { opacity: 0, transformOrigin: '50% 50%' });
+          return { g, lift, sh, b, slot, inner };
+        }
+        const tIn = makeTile(WORDS.tiles[0], 'TL');
+        const tMade = makeTile(WORDS.tiles[1], 'TR');
+        const tCode = makeTile(WORDS.tiles[2], 'BL');
+
+        // ---------- THE RED DOT (one continuous object) ----------
+        const dotPos = el('g', {}, world);
+        const dotScale = el('g', {}, dotPos);
+        const dotSquash = el('g', {}, dotScale);
+        el('circle', { cx: 0, cy: 0, r: 200, fill: RED }, dotSquash);
+        const DOT = 0.22; // 88 px dot
+        gsap.set(dotPos, { x: 1560, y: 292, mixBlendMode: 'multiply' });
+        gsap.set(dotScale, { scale: 0.7, opacity: 0, transformOrigin: '50% 50%' });
+        gsap.set(dotSquash, { transformOrigin: '50% 50%' });
+
+        function squash(t, sx, sy, dur) {
+          tl.fromTo(dotSquash, { scaleX: sx, scaleY: sy }, { scaleX: 1, scaleY: 1, duration: dur || 0.4, ease: 'elastic.out(1, 0.45)', immediateRender: false }, t);
+        }
+        // ================== TIMELINE ==================
+        // 0.45 red baseline rule draws where "Type" will land
+        gsap.set(baseRule, { attr: { y: T_base + 4 } });
+        tl.to(baseRule, { attr: { width: GX1 - GX0 }, duration: 0.7, ease: 'power3.inOut' }, 0.2);
+
+        // 1.0 circle lands
+        tl.to(dotScale, { scale: 1, opacity: 1, duration: 0.55, ease: 'back.out(1.5)' }, 0.95);
+        pulse(1.0, 0.85);
+
+        // 1.5 SLAM "Type"
+        gsap.set(typeRise, { y: 780 });
+        gsap.set(ghostG, { x: -16, y: 40 });
+        tl.to(typeRise, { y: 0, duration: 0.36, ease: 'expo.out' }, 1.48);
+        tl.fromTo(typeBlur, { attr: { stdDeviation: '0 34' } }, { attr: { stdDeviation: '0 0' }, duration: 0.24, ease: 'power2.out', immediateRender: false }, 1.48);
+        tl.to(ghostG, { x: 0, y: 0, duration: 0.42, ease: 'power3.out' }, 1.58);
+        pulse(1.52);
+        tl.set(typeClipRect, { attr: { y: -3000, height: 8000 } }, 1.95);
+
+        // 2.0 slice
+        tl.to(slices[0], { x: -150, duration: 0.22, ease: 'power4.inOut' }, 1.92);
+        tl.to(slices[1], { x: 190, duration: 0.22, ease: 'power4.inOut' }, 1.95);
+        tl.to(slices[2], { x: -90, duration: 0.22, ease: 'power4.inOut' }, 1.98);
+        // 2.5 snap back + circle beat
+        tl.to(slices, { x: 0, duration: 0.26, ease: 'expo.out', stagger: 0.03 }, 2.46);
+        tl.to(dotScale, { scale: 0.9, duration: 0.08, ease: 'power2.out' }, 2.48);
+        tl.to(dotScale, { scale: 1, duration: 0.35, ease: 'elastic.out(1, 0.4)' }, 2.56);
+        tl.set(ghostG, { opacity: 0 }, 2.8);
+
+        // 3.0 rotate 90 into a spine (cols 1-2)
+        const tcx = GX0 + 880, tcy = (T_top + GY1) / 2;
+        const sS = (GY1 - GY0) / 1760;
+        const spineW = inkH * sS;
+        tl.to(typeOuter, { rotation: -90, scale: sS, x: GX0 + spineW / 2 - tcx, y: (GY0 + GY1) / 2 - tcy, svgOrigin: tcx + ' ' + tcy, duration: 0.46, ease: 'power4.inOut' }, 2.82);
+        // (rotation lands with a 1.5 degree overshoot and settles)
+        tl.to(typeOuter, { rotation: -88.5, svgOrigin: tcx + ' ' + tcy, duration: 0.1, ease: 'power2.out' }, 3.28);
+        tl.to(typeOuter, { rotation: -90, svgOrigin: tcx + ' ' + tcy, duration: 0.4, ease: 'elastic.out(1, 0.45)' }, 3.38);
+        pulse(3.05, 0.9);
+
+        // circle shrinks into the full stop of "moves"
+        tl.to(dotScale, { scale: DOT, duration: 0.5, ease: 'power3.inOut' }, 2.9);
+        tl.to(dotPos, { x: periodX, duration: 0.62, ease: 'power3.inOut' }, 2.9);
+        tl.to(dotPos, { y: periodY, duration: 0.62, ease: 'back.out(1.2)' }, 2.9);
+        squash(3.52, 1.35, 0.72, 0.45);
+
+        // 3.5 "moves" slides in
+        letters.forEach((L, i) => {
+          gsap.set(L.slide, { x: 1240 });
+          tl.to(L.slide, { x: 0, duration: 0.44, ease: 'expo.out' }, 3.02 + i * 0.03);
+          tl.fromTo(L.b, { attr: { stdDeviation: '46 0' } }, { attr: { stdDeviation: '0 0' }, duration: 0.3, ease: 'power2.out', immediateRender: false }, 3.02 + i * 0.03);
+        });
+        pulse(3.5, 0.85);
+
+        // 4.0 / 4.5 melody, 5.0 back in line
+        const melodies = [[4.0, [0, 1, 2, 3, 2]], [4.5, [3, 2, 1, 0, 1]], [5.0, [0, 0, 0, 0, 0]]];
+        // rows repeat if the melody word is longer than 5 letters
+        const LAST = letters.length - 1, rowOf = (rows, i) => rows[i % rows.length];
+        let prev = [0, 0, 0, 0, 0];
+        melodies.forEach(([t, rows]) => {
+          letters.forEach((L, i) => {
+            const st = t - 0.06 + i * 0.03;
+            if (rowOf(rows, i) !== rowOf(prev, i)) {
+              tl.to(L.jump, { y: rowOf(rows, i) * 248, duration: 0.3, ease: 'back.out(1.25)' }, st);
+              tl.fromTo(L.b, { attr: { stdDeviation: '0 26' } }, { attr: { stdDeviation: '0 0' }, duration: 0.2, ease: 'power2.out', immediateRender: false }, st);
+            }
+          });
+          // dot rides as the full stop of the last letter
+          const st = t - 0.06 + LAST * 0.03 + 0.05;
+          const yTo = periodY + rowOf(rows, LAST) * 248;
+          if (rowOf(rows, LAST) !== rowOf(prev, LAST)) {
+            tl.to(dotPos, { y: yTo, duration: 0.32, ease: 'back.out(1.4)' }, st);
+            squash(st + 0.2, 1.25, 0.8, 0.35);
+          }
+          prev = rows;
+        });
+
+        // 5.5 red bar wipe reveals "like"
+        tl.to(wipe, { attr: { height: 400 }, duration: 0.14, ease: 'power3.out' }, 5.46);
+        tl.to(wipe, { attr: { x: GX1 - 96 }, duration: 0.46, ease: 'power3.inOut' }, 5.58);
+        tl.to(likeClipRect, { attr: { width: GX1 - 96 - 600 }, duration: 0.46, ease: 'power3.inOut' }, 5.58);
+        tl.to(wipe, { attr: { x: GX1, width: 0 }, duration: 0.2, ease: 'power3.in' }, 6.04);
+
+        // 6.0 the dot hops from full stop to the tittle of "like"
+        const hopProxy = { p: 0 };
+        const hx0 = periodX, hy0 = periodY, hx1 = tittleX, hy1 = tittleY;
+        tl.to(hopProxy, {
+          p: 1, duration: 0.42, ease: 'power2.inOut',
+          onUpdate: () => {
+            const p = hopProxy.p;
+            gsap.set(dotPos, { x: hx0 + (hx1 - hx0) * p, y: hy0 + (hy1 - hy0) * p - Math.sin(Math.PI * p) * 150 });
+          }
+        }, 5.9);
+        squash(6.32, 1.3, 0.75, 0.45);
+
+        // 6.5 "music" slams up into row 4 + EQ bars
+        gsap.set(musicRise, { y: 330 });
+        gsap.set(musicGhost, { x: 14, y: 34 });
+        tl.to(musicRise, { y: 0, duration: 0.34, ease: 'expo.out' }, 6.46);
+        tl.fromTo(musicBlur, { attr: { stdDeviation: '0 30' } }, { attr: { stdDeviation: '0 0' }, duration: 0.22, ease: 'power2.out', immediateRender: false }, 6.46);
+        tl.to(musicGhost, { x: 0, y: 0, duration: 0.42, ease: 'power3.out' }, 6.56);
+        pulse(6.5);
+        [movesImpact, likeImpact].forEach((g, i) => {
+          tl.to(g, { y: 8, duration: 0.07, ease: 'power2.out' }, 6.52 + i * 0.03);
+          tl.to(g, { y: 0, duration: 0.4, ease: 'elastic.out(1, 0.5)' }, 6.59 + i * 0.03);
+        });
+        const eqH = [[6.5, [220, 340, 160, 280]], [7.0, [300, 150, 380, 210]]];
+        eqH.forEach(([t, hs]) => eq.forEach((r, i) => tl.to(r, { attr: { height: hs[i], y: rowB(2) - hs[i] }, duration: 0.2, ease: 'power4.out' }, t - 0.04 + i * 0.025)));
+        pulse(7.0, 0.8);
+
+        // ================== act 2: the window word gets a body ==================
+        function arcTo(t, from, to, dur, h) {
+          const pr = { p: 0 };
+          tl.to(pr, {
+            p: 1, duration: dur, ease: 'power3.inOut',
+            onUpdate: () => {
+              const p = pr.p;
+              gsap.set(dotPos, { x: from[0] + (to[0] - from[0]) * p, y: from[1] + (to[1] - from[1]) * p - Math.sin(Math.PI * p) * h });
+            }
+          }, t);
+        }
+
+        // 7.5 the poster is sliced along the grid rows and the bands shear out; the window word stays and grows
+        const pb = [[-400, 292], [292, 764], [764, 1500]];
+        const pbands = pb.map((b, i) => {
+          clip('pband' + i, -4000, b[0], 10000, b[1] - b[0]);
+          const g = el('g', { 'clip-path': 'url(#pband' + i + ')', opacity: 0 }, world);
+          el('use', { href: '#posterIn' }, g);
+          const bl = blur(g, { x: '-10%', y: '-5%', w: '120%', h: '110%' });
+          return { g, bl };
+        });
+        world.insertBefore(pbands[0].g, posterG.nextSibling);
+        world.insertBefore(pbands[1].g, pbands[0].g.nextSibling);
+        world.insertBefore(pbands[2].g, pbands[1].g.nextSibling);
+        tl.set(posterG, { opacity: 0 }, 7.46);
+        pbands.forEach((B, i) => {
+          tl.set(B.g, { opacity: 1 }, 7.46);
+          const t = 7.46 + i * 0.05;
+          tl.to(B.g, { x: (i % 2 ? 2200 : -2200), duration: 0.3, ease: 'power4.in' }, t);
+          tl.fromTo(B.bl, { attr: { stdDeviation: '0 0' } }, { attr: { stdDeviation: '70 0' }, duration: 0.3, ease: 'power4.in', immediateRender: false }, t);
+        });
+
+        // giant window-word geometry (fills the width), and the clip that turns it into a window
+        const WI = WORDS.window.indexOf('i');
+        const m100 = M(WORDS.window, 100);
+        const fG = Math.round(1760 / ((m100.R + m100.L) / 100));
+        const kG = fG / 100;
+        const mG = M(WORDS.window, fG);
+        const G_x = GX0 + mG.L, G_base = Math.round(540 + 0.357 * fG);
+        const iAdv = M(WORDS.window.slice(0, WI), fG).w, mIG = M('\u0131', fG);
+        const dc = el('clipPath', { id: 'winClip', clipPathUnits: 'userSpaceOnUse' }, defs);
+        const cMus = txt(dc, WORDS.window.slice(0, WI), G_x, G_base, fG, '#000');
+        // the i is drawn as a plain stem rect so it can open into the panel
+        const cStem = el('rect', { x: G_x + iAdv - mIG.L, y: G_base - mIG.A, width: mIG.R + mIG.L, height: mIG.A }, dc);
+        const cC = txt(dc, WORDS.window.slice(WI + 1), G_x + M(WORDS.window.slice(0, WI + 1), fG).w, G_base, fG, '#000');
+        const gTitX = G_x + iAdv + (mIG.R - mIG.L) / 2, gTitY = G_base - M('l', fG).A + 44;
+
+        // the black word scales up from row 4 to the giant word (cut on motion with the slice-out)
+        tl.to(exitMusic, { scale: fG / fM, x: G_x - MU_x, y: G_base - MU_base, svgOrigin: MU_x + ' ' + MU_base, duration: 0.46, ease: 'power4.inOut' }, 7.5);
+        tl.to(eq, { attr: { height: 0, y: rowB(2) }, duration: 0.2, ease: 'power4.in', stagger: 0.02 }, 7.44);
+        // the dot leaves the "like" tittle and lands on the giant i
+        arcTo(7.52, [tittleX, tittleY], [gTitX, gTitY], 0.44, 180);
+        squash(7.96, 1.35, 0.72, 0.45);
+
+        // 8.0 HARD CUT: the black letters become windows, a red skirt spins inside them
+        tl.set(exitMusic, { opacity: 0 }, 7.97);
+        tl.set('#win', { opacity: 1 }, 7.97);
+        gsap.set('#winMove', { x: -180, y: -220, scale: 2.0 });
+        tl.to('#winMove', { x: -120, y: -230, scale: 2.12, duration: 1.27, ease: 'none' }, 7.97);
+        // a red skirt shape spins inside the letterforms
+        tl.fromTo('#skirtA', { rotation: -40, svgOrigin: '870 640' }, { rotation: 420, svgOrigin: '870 640', duration: 1.6, ease: 'power1.inOut' }, 7.8);
+        tl.fromTo('#skirtDrift', { x: -60, y: 30 }, { x: 140, y: -20, duration: 1.6, ease: 'sine.inOut' }, 7.8);
+        // pictogram dancer in the panel (Swiss sports-pictogram style): leaps on the beat
+        gsap.set('#armL', { rotation: -160, svgOrigin: '930 369' });
+        gsap.set('#armR', { rotation: -20, svgOrigin: '930 369' });
+        gsap.set('#legL', { rotation: 6, svgOrigin: '931 600' });
+        gsap.set('#legR', { rotation: -6, svgOrigin: '931 600' });
+        gsap.set('#pFig', { y: 80 });
+        [[9.6, 10.0], [10.25, 10.5], [10.75, 11.0]].forEach(([up, peak]) => {
+          tl.to('#pFig', { y: -190, duration: peak - up, ease: 'power2.out' }, up);
+          tl.to('#pFig', { y: 80, duration: 0.24, ease: 'power2.in' }, peak + 0.02);
+          [['#armL', -160, -128], ['#armR', -20, -52]].forEach(([id, r0, r1]) => {
+            tl.to(id, { rotation: r1, svgOrigin: '930 369', duration: peak - up, ease: 'power2.out' }, up);
+            tl.to(id, { rotation: r0, svgOrigin: '930 369', duration: 0.24, ease: 'power2.in' }, peak + 0.02);
+          });
+          [['#legL', 6, 62], ['#legR', -6, -62]].forEach(([id, r0, r1]) => {
+            tl.to(id, { rotation: r1, svgOrigin: '931 600', duration: peak - up, ease: 'power2.out' }, up);
+            tl.to(id, { rotation: r0, svgOrigin: '931 600', duration: 0.24, ease: 'power2.in' }, peak + 0.02);
+          });
+          tl.to('#pSkirt', { rotation: 14, svgOrigin: '930 440', duration: peak - up, ease: 'power2.out' }, up);
+          tl.to('#pSkirt', { rotation: -8, svgOrigin: '930 440', duration: 0.24, ease: 'power2.in' }, peak + 0.02);
+          tl.to('#pShadow', { attr: { rx: 110 }, opacity: 0.08, duration: peak - up, ease: 'power2.out' }, up);
+          tl.to('#pShadow', { attr: { rx: 190 }, opacity: 0.18, duration: 0.24, ease: 'power2.in' }, peak + 0.02);
+          tl.fromTo('#pBody', { scaleY: 0.88, scaleX: 1.06, svgOrigin: '930 800' }, { scaleY: 1, scaleX: 1, svgOrigin: '930 800', duration: 0.3, ease: 'elastic.out(1, 0.5)', immediateRender: false }, peak + 0.26);
+        });
+        pulse(8.0);
+        // beat kicks while the skirt spins
+        [8.5, 9.0].forEach(t => {
+          tl.to(dotPos, { y: gTitY - 46, duration: 0.12, ease: 'power2.out' }, t - 0.12);
+          tl.to(dotPos, { y: gTitY, duration: 0.14, ease: 'power2.in' }, t);
+          squash(t + 0.14, 1.3, 0.75, 0.35);
+          pulse(t, 0.8);
+        });
+
+        // 9.25 BREAKOUT: the stem of the i opens into a full grid panel (cols 4-6), the other letters shear away
+        const PX = colL(3), PY = GY0, PW = GX1 - colL(3), PH = GY1 - GY0;
+        const floorY = rowB(2) - 44;
+        const bars = [];
+        for (let c = 0; c < 3; c++) for (const off of [0, 150]) bars.push(el('rect', { x: colL(c) + off, y: rowB(2), width: 110, height: 0, fill: RED }, world));
+        const eqSets = [[9.75, [260, 420, 340, 560, 300, 200]], [10.0, [420, 300, 600, 260, 380, 240]], [10.5, [220, 520, 300, 460, 600, 340]]];
+        const topOf = hs => { let k = 0; hs.forEach((h, i) => { if (h > hs[k]) k = i; }); return [colL(Math.floor(k / 2)) + (k % 2) * 150 + 55, rowB(2) - hs[k] - 44]; };
+        // dot hops off the word before it breaks, onto the floor where the bars will rise
+        const firstTop = topOf(eqSets[0][1]);
+        arcTo(9.06, [gTitX, gTitY], [firstTop[0], floorY], 0.42, 200);
+        squash(9.48, 1.3, 0.75, 0.4);
+        tl.to(cMus, { x: -1900, duration: 0.34, ease: 'power4.in' }, 9.18);
+        tl.to(cC, { x: 900, duration: 0.34, ease: 'power4.in' }, 9.2);
+        tl.to(cStem, { attr: { x: PX, y: PY, width: PW, height: PH }, duration: 0.52, ease: 'power4.inOut' }, 9.24);
+        tl.to('#winMove', { x: 477, y: 8, scale: 0.9, duration: 0.52, ease: 'power4.inOut' }, 9.24);
+        tl.to('#winPanel', { opacity: 1, duration: 0.4, ease: 'power2.inOut' }, 9.3);
+        tl.to('#winMove', { x: 470, y: 14, scale: 0.93, duration: 1.3, ease: 'none' }, 9.76);
+        pulse(9.75);
+
+        // 9.75 the pictogram dancer leaps in the panel; red EQ bars pulse on the beat; the dot rides the tallest bar
+        let prevH = [0, 0, 0, 0, 0, 0];
+        eqSets.forEach(([t, hs], si) => {
+          bars.forEach((r, i) => tl.to(r, { attr: { height: hs[i], y: rowB(2) - hs[i] }, duration: 0.22, ease: 'power4.out' }, t - 0.04 + i * 0.02));
+          const tp = topOf(hs);
+          if (si === 0) {
+            tl.to(dotPos, { y: tp[1], duration: 0.22, ease: 'power4.out' }, t - 0.04 + 3 * 0.02);
+          } else {
+            const fromTp = topOf(eqSets[si - 1][1]);
+            arcTo(t - 0.2, fromTp, tp, 0.26, 90);
+            squash(t + 0.06, 1.3, 0.75, 0.35);
+          }
+          if (si > 0) pulse(t, 0.8);
+          prevH = hs;
+        });
+        // small black window-word label rises into row 4 under the bars
+        const mu2 = M(WORDS.window, fM);
+        clip('mu2Clip', -400, rowT(3) - 120, 2800, 120 + 152 + 4);
+        const mu2Mask = el('g', { 'clip-path': 'url(#mu2Clip)' }, world);
+        const mu2Rise = el('g', {}, mu2Mask);
+        txt(mu2Rise, WORDS.window, GX0 + mu2.L, rowB(3), fM, INK);
+        gsap.set(mu2Rise, { y: 300 });
+        tl.to(mu2Rise, { y: 0, duration: 0.36, ease: 'expo.out' }, 9.72);
+        bars.forEach(r => world.insertBefore(r, tIn.g));
+        world.insertBefore(mu2Mask, tIn.g);
+
+        // 11.25 out: panel closes back to a slit, bars and label drop
+        tl.to(cStem, { attr: { x: PX + PW / 2, width: 0 }, duration: 0.26, ease: 'power4.in' }, 11.0);
+        tl.set('#win', { opacity: 0 }, 11.28);
+        tl.to(bars, { attr: { height: 0, y: rowB(2) }, duration: 0.2, ease: 'power4.in', stagger: 0.02 }, 11.0);
+        pulse(11.0, 0.8);
+        tl.to(mu2Rise, { y: 300, duration: 0.24, ease: 'power4.in' }, 11.02);
+        tl.set(dotPos, { mixBlendMode: 'normal' }, 11.3);
+
+        // 11.5 tiles stamp down on 16ths
+        [[tIn, 11.5], [tMade, 11.625], [tCode, 11.75]].forEach(([T, t]) => {
+          tl.set(T.lift, { opacity: 1 }, t - 0.15);
+          tl.fromTo(T.lift, { scale: 1.14 }, { scale: 1, duration: 0.15, ease: 'power3.in', immediateRender: false }, t - 0.15);
+          tl.fromTo(T.sh, { attr: { y: 60, opacity: 0.0 } }, { attr: { y: 14, opacity: 0.3 }, duration: 0.15, ease: 'power3.in', immediateRender: false }, t - 0.15);
+          tl.to(T.lift, { scale: 0.985, duration: 0.05, ease: 'power2.out' }, t);
+          tl.to(T.lift, { scale: 1, duration: 0.3, ease: 'elastic.out(1, 0.5)' }, t + 0.05);
+          pulse(t, 0.9);
+        });
+        const lastTop = topOf(eqSets[eqSets.length - 1][1]);
+        arcTo(11.06, [lastTop[0], lastTop[1]], center('BR'), 0.44, 180);
+        squash(11.5, 1.3, 0.75, 0.4);
+
+        // sliding puzzle: 3 moves, the dot swaps places with each tile
+        let gap = 'BR';
+        const moves = [[tCode, 12.0, 0.3], [tIn, 12.5, 0.3], [tMade, 12.75, 0.22]];
+        moves.forEach(([T, beat, dur]) => {
+          const from = T.slot, to = gap;
+          const st = beat - dur * 0.5;
+          const horiz = SLOT[from][1] === SLOT[to][1];
+          tl.to(T.g, { x: SLOT[to][0], y: SLOT[to][1], duration: dur, ease: 'power4.inOut' }, st);
+          tl.fromTo(T.b, { attr: { stdDeviation: '0 0' } }, { keyframes: [{ attr: { stdDeviation: horiz ? '30 0' : '0 22' }, duration: dur * 0.5, ease: 'power2.in' }, { attr: { stdDeviation: '0 0' }, duration: dur * 0.5, ease: 'power2.out' }], immediateRender: false }, st);
+          tl.to(T.lift, { scale: 1.03, duration: dur * 0.45, ease: 'power2.out' }, st);
+          const dx = SLOT[to][0] - SLOT[from][0], dy = SLOT[to][1] - SLOT[from][1];
+          tl.to(T.inner, { x: -Math.sign(dx) * 22, y: -Math.sign(dy) * 16, duration: dur * 0.7, ease: 'power2.in' }, st);
+          tl.to(T.inner, { x: 0, y: 0, duration: 0.45, ease: 'elastic.out(1, 0.5)' }, st + dur * 0.7);
+          tl.to(T.lift, { scale: 1, duration: dur * 0.9, ease: 'back.out(2)' }, st + dur * 0.45);
+          tl.to(T.sh, { attr: { y: 40, opacity: 0.22 }, duration: dur * 0.45, ease: 'power2.out' }, st);
+          tl.to(T.sh, { attr: { y: 14, opacity: 0.3 }, duration: dur * 0.6, ease: 'power2.in' }, st + dur * 0.45);
+          arcTo(st, center(to), center(from), dur, horiz ? 110 : 0);
+          squash(st + dur, 1.25, 0.8, 0.3);
+          T.slot = to; gap = from;
+        });
+
+        // 13.25 the dot becomes the big circle again, in the place it started
+        tl.to(dotPos, { x: 1560, y: 292, duration: 0.5, ease: 'expo.out' }, 13.17);
+        tl.to(dotScale, { scale: 1, duration: 0.6, ease: 'back.out(1.6)' }, 13.17);
+        pulse(13.25);
+        [[tMade, -12, 0], [tCode, 0, 10], [tIn, 0, 10]].forEach(([T, dx, dy], i) => {
+          tl.to(T.lift, { x: dx, y: dy, duration: 0.08, ease: 'power2.out' }, 13.25 + i * 0.02);
+          tl.to(T.lift, { x: 0, y: 0, duration: 0.5, ease: 'elastic.out(1, 0.45)' }, 13.33 + i * 0.02);
+        });
+
+        // slow drifting light across the paper (whole piece)
+        tl.fromTo('#light', { x: -140, y: -40 }, { x: 160, y: 50, duration: DUR, ease: 'none' }, 0);
+        tl.set({}, {}, DUR);
+
+        // ---------- paper grain + ink specks (static, seeded) ----------
+        (function grain() {
+          const W = 1920, H = 1080;
+          const g = document.getElementById('grain').getContext('2d');
+          // low-frequency mottling
+          const sw = 96, shh = 54, small = document.createElement('canvas'); small.width = sw; small.height = shh;
+          const sc = small.getContext('2d'); const sd = sc.createImageData(sw, shh);
+          for (let i = 0; i < sw * shh; i++) { const v = 255 - rnd() * 9; sd.data[i * 4] = v; sd.data[i * 4 + 1] = v - 2; sd.data[i * 4 + 2] = v - 6; sd.data[i * 4 + 3] = 255; }
+          sc.putImageData(sd, 0, 0);
+          g.imageSmoothingEnabled = true; g.drawImage(small, 0, 0, W, H);
+          // fine grain
+          const img = g.getImageData(0, 0, W, H); const d = img.data;
+          for (let i = 0; i < W * H; i++) { const n = rnd(); const k = n * n * 34; d[i * 4] -= k; d[i * 4 + 1] -= k; d[i * 4 + 2] -= k * 1.1; }
+          g.putImageData(img, 0, 0);
+          // paper fibres
+          g.lineCap = 'round';
+          for (let i = 0; i < 520; i++) {
+            const x = rnd() * W, y = rnd() * H, a = rnd() * Math.PI, l = 6 + rnd() * 22;
+            g.strokeStyle = 'rgba(120, 100, 80,' + (0.05 + rnd() * 0.08) + ')'; g.lineWidth = 0.6 + rnd() * 0.8;
+            g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + (rnd() - 0.5) * 6, y + Math.sin(a) * l * 0.5 + (rnd() - 0.5) * 6, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+          }
+          // ink specks: light flecks that only show on black ink (screen blend)
+          const s = document.getElementById('specks').getContext('2d');
+          const si = s.createImageData(W, H); const q = si.data;
+          for (let i = 0; i < W * H; i++) { const n = rnd(); const v = n > 0.985 ? 30 + rnd() * 50 : n * 14; q[i * 4] = v; q[i * 4 + 1] = v; q[i * 4 + 2] = v; q[i * 4 + 3] = 255; }
+          s.putImageData(si, 0, 0);
+        })();
+
+        window.__timelines = window.__timelines || {};
+        window.__timelines['main'] = tl;
+        tl.seek(0);
+      })();
+
+      // Changed a word? Open this page in Chrome, then run measureMET(['yourword', 'yourwo', ...]) in the console
+      // and paste the printed lines into MET. Include every prefix the code asks for (melody prefixes, window prefixes).
+      async function measureMET(words) {
+        await document.fonts.load('700 100px "Inter Tight"');
+        const c = document.createElement('canvas').getContext('2d'); c.font = '700 100px "Inter Tight"';
+        const out = {};
+        words.forEach(w => { const m = c.measureText(w); out[w] = [m.width, m.actualBoundingBoxLeft, m.actualBoundingBoxRight, m.actualBoundingBoxAscent, m.actualBoundingBoxDescent].map(v => Math.round(v * 10) / 10); });
+        console.log(JSON.stringify(out));
+        return out;
+      }
+    </script>
+  </body>
+</html>

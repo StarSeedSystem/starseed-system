@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #BFE3E0; }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; font-family: "Inter", sans-serif; }
+  #cv { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #labels { position: absolute; left: 112px; top: 88px; color: #2D4B53; }
+  .mwrap { position: relative; height: 168px; width: 420px; overflow: visible; }
+  .month { position: absolute; left: -6px; top: 0; font-size: 156px; line-height: 168px; font-weight: 700; letter-spacing: -0.035em; will-change: transform, opacity; }
+  #count { margin-top: 8px; font-size: 44px; line-height: 56px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #count span { font-weight: 500; opacity: 0.62; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="17.5" data-width="1920" data-height="1080">
+  <canvas id="cv" class="clip" width="1920" height="1080" data-start="0" data-duration="17.5" data-track-index="0"></canvas>
+  <div id="labels" class="clip" data-start="0" data-duration="17.5" data-track-index="1">
+    <div class="mwrap"><div class="month" id="mA"></div><div class="month" id="mB"></div></div>
+    <div id="count"></div>
+  </div>
+</div>
+<script>
+/*
+  A city that grows. 17.5 s, 1920x1080, does not loop.
+  An isometric pastel island city drawn on one canvas, plus two labels (month + count).
+  Beat map:
+    0.0 - 6.0   island tiles drop in from the centre, roads draw out, beach ring forms; camera pulls back and orbits
+    0.5 - 8.75  one month every 0.75 s (Jan to Dec): the count rolls up, buildings are born, towers add floors
+    9.0 - 10.6  dusk: sea and land shift to peach and blue-lilac, labels turn cream
+    10.0 - 11.5 windows, lamps and car lights switch on in a wave from the core; labels leave at 10.25 s
+    11.5 - 17.5 night deepens while the camera pushes in slowly; cars, boats and ripples keep moving
+  Change the words: MONTHS, VALS and COUNT_LABEL (SAMPLE DATA, just below).
+  Change the colours: the hex constants in the "colour" block (GRASS, SAND, ROAD, CORAL, BLD, TREE...),
+  the sea gradient in draw(), and the label colours c0 / c1 in labels().
+  Deterministic: one seeded PRNG (mulberry32). Never add unseeded random numbers or clock reads.
+*/
+(() => {
+// SAMPLE DATA: change these. 12 labels, 12 values, one word after the number.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const VALS = [1200, 2100, 3400, 5000, 7200, 10100, 13800, 18500, 24300, 31000, 39000, 48000];
+const COUNT_LABEL = 'followers';
+
+const W = 1920, H = 1080, DUR = 17.5;
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const sh = document.createElement('canvas'); sh.width = W / 2; sh.height = H / 2; const sctx = sh.getContext('2d');
+const gl = document.createElement('canvas'); gl.width = W / 2; gl.height = H / 2; const gctx = gl.getContext('2d');
+const half = c => { c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W / 2, H / 2); c.setTransform(0.5, 0, 0, 0.5, 0, 0); };
+
+// ---------- seeded PRNG ----------
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const R = mulberry32(20261020);
+
+// ---------- easing ----------
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const eOut3 = k => 1 - Math.pow(1 - k, 3);
+const eExpo = k => k >= 1 ? 1 : 1 - Math.pow(2, -10 * k);
+const eInOut = k => -(Math.cos(Math.PI * k) - 1) / 2;
+const eBack = (k, s = 1.9) => { const c3 = s + 1; return 1 + c3 * Math.pow(k - 1, 3) + s * Math.pow(k - 1, 2); };
+const mix3 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)];
+
+// ---------- colour ----------
+const hex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const TINT_D = hex('#6F6A93'), TINT_N = hex('#2C2F6E');
+let DK = 0; // dusk amount 0..1
+let TINT = TINT_D;
+function shade(c, f) { // f: 1 = lit. cool lilac-tinted shade
+  const m = (1 - f) * 0.55;
+  const o = [c[0] * f * (1 - m) + TINT[0] * m, c[1] * f * (1 - m) + TINT[1] * m, c[2] * f * (1 - m) + TINT[2] * m];
+  const w = DK * clamp((f - 0.8) / 0.2) * 0.42;
+  return w > 0 ? mix3(o, [255, 196, 164], w) : o;
+}
+const DUSKM = [0.60, 0.65, 0.80];
+function dk(c) { return [c[0] * lerp(1, DUSKM[0], DK), c[1] * lerp(1, DUSKM[1], DK), c[2] * lerp(1, DUSKM[2], DK)]; }
+function css(c, a = 1) { const d = dk(c); return a >= 1 ? `rgb(${d[0] | 0},${d[1] | 0},${d[2] | 0})` : `rgba(${d[0] | 0},${d[1] | 0},${d[2] | 0},${a})`; }
+const GRASS = hex('#CDE6B8'), SAND = hex('#F3E3C3'), EARTH = hex('#E6D3AE'), ROCK = hex('#C9B28E'), ROAD = hex('#F4EFE6');
+const CORAL = hex('#F27D72');
+const BLD = ['#F7EFDF', '#ECDDC2', '#DDD3EB', '#E9E1F2', '#F4E8E0', '#E4D8C6'].map(hex);
+const HOUSE_ROOF = ['#C9BEDB', '#D8C6AE', '#BFB6D3'].map(hex);
+const GLASS = hex('#A8BED3');
+const TREE = hex('#A9D497'), TREE_HI = hex('#CDEBB8'), TREE_DK = hex('#88BC85');
+const LIT = [255, 226, 160];
+const WL = -0.5; // water level
+
+// ---------- world ----------
+const N = 31, C = 15, RU = 15.6, RV = 11.4;
+const noise = [];
+for (let i = 0; i < N; i++) { noise[i] = []; for (let j = 0; j < N; j++) noise[i][j] = R(); }
+const sn = (i, j) => { let s = 0, c = 0; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const x = i + a, y = j + b; if (x >= 0 && y >= 0 && x < N && y < N) { s += noise[x][y]; c++; } } return s / c; };
+const dist = (i, j) => { const u = i - j, v = i + j - 2 * C; return Math.sqrt((u / RU) ** 2 + (v / RV) ** 2) + (sn(i, j) - 0.5) * 0.22; };
+const land = [], D = [];
+for (let i = 0; i < N; i++) { land[i] = []; D[i] = []; for (let j = 0; j < N; j++) { D[i][j] = dist(i, j); land[i][j] = D[i][j] < 1; } }
+// remove lonely spurs so the coast reads clean
+for (let pass = 0; pass < 2; pass++) for (let i = 1; i < N - 1; i++) for (let j = 1; j < N - 1; j++) {
+  const n = [land[i + 1][j], land[i - 1][j], land[i][j + 1], land[i][j - 1]].filter(Boolean).length;
+  if (land[i][j] && n <= 1) land[i][j] = false; if (!land[i][j] && n >= 3) land[i][j] = true;
+}
+const isLand = (i, j) => i >= 0 && j >= 0 && i < N && j < N && land[i][j];
+const beach = (i, j) => isLand(i, j) && (!isLand(i + 1, j) || !isLand(i - 1, j) || !isLand(i, j + 1) || !isLand(i, j - 1));
+const isRoadLine = (i, j) => (i % 4 === 3) || (j % 4 === 3);
+const isRoad = (i, j) => isLand(i, j) && !beach(i, j) && isRoadLine(i, j);
+const landT = (i, j) => 0.05 + 6.0 * Math.pow(Math.max(0, D[i][j]), 1.45);
+
+const MONTH_T = []; for (let m = 0; m < 12; m++) MONTH_T.push(0.5 + 0.75 * m);
+const snapMonth = t => { for (const mt of MONTH_T) if (mt >= t) return mt; return MONTH_T[11]; };
+
+const tiles = [];
+for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) if (land[i][j]) tiles.push({ i, j, x: i - C, z: j - C, t0: landT(i, j), beach: beach(i, j),
+  open: [[i - 1, j], [i + 1, j], [i, j - 1], [i, j + 1]].map(([a, b2]) => !isLand(a, b2) || (!beach(i, j) && beach(a, b2))) });
+
+// roads: strips drawn outward from the centre cross
+const roadT = {};
+const roadStrips = [];
+for (const q of tiles) {
+  const { i, j } = q;
+  if (!isRoad(i, j)) continue;
+  if (i % 4 === 3) { const tt = Math.max(0.5 + Math.abs(i - C) * 0.10 + Math.abs(j - C) * 0.12, q.t0 + 0.15); roadStrips.push({ i, j, axis: 'j', t0: tt, sgn: Math.sign(j - C) }); roadT[i + ',' + j] = Math.min(roadT[i + ',' + j] ?? 99, tt); }
+  if (j % 4 === 3) { const tt = Math.max(0.5 + Math.abs(j - C) * 0.10 + Math.abs(i - C) * 0.12, q.t0 + 0.15); roadStrips.push({ i, j, axis: 'i', t0: tt, sgn: Math.sign(i - C) }); roadT[i + ',' + j] = Math.min(roadT[i + ',' + j] ?? 99, tt); }
+}
+const nearRoadT = (i, j) => { let m = 99; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const k = (i + a) + ',' + (j + b); if (roadT[k] !== undefined) m = Math.min(m, roadT[k]); } return m === 99 ? 0 : m; };
+
+// buildings + trees + lamps
+const FH = 0.36;
+const buildings = [], trees = [], lamps = [];
+for (const q of tiles) {
+  const { i, j } = q;
+  if (q.beach || isRoad(i, j)) {
+    if (q.beach && !isRoad(i, j) && R() < 0.3) trees.push({ x: i - C + (R() - 0.5) * 0.5, z: j - C + (R() - 0.5) * 0.5, s: 0.7 + R() * 0.35, t0: q.t0 + 0.5 + R() * 0.8, y: -0.36 });
+    if (isRoad(i, j) && i % 4 === 3 && j % 4 === 3) lamps.push({ x: i - C - 0.4, z: j - C + 0.4, t0: (roadT[i + ',' + j] || 0) + 0.3, tl: 9.75 + D[i][j] * 0.5 });
+    continue;
+  }
+  const r = D[i][j];
+  if (R() < 0.13 + r * 0.12) { // park
+    const n = 2 + Math.floor(R() * 3);
+    for (let k = 0; k < n; k++) trees.push({ x: i - C + (R() - 0.5) * 0.62, z: j - C + (R() - 0.5) * 0.62, s: 0.62 + R() * 0.4, t0: snapMonth(q.t0 + 0.35) + 0.1 + k * 0.08 + R() * 0.2 });
+    continue;
+  }
+  const F = Math.max(1, Math.round(1 + 11.5 * Math.pow(Math.max(0, 1 - r), 2.3) + R() * 2.2));
+  const house = F <= 2 && r > 0.45;
+  const ins = house ? 0.17 + R() * 0.05 : 0.1 + R() * 0.07;
+  const tb = snapMonth(Math.max(q.t0 + 0.3, nearRoadT(i, j) + 0.15)) + R() * 0.32;
+  const floors = [];
+  const FF = house ? 1 : F;
+  for (let k = 0; k < FF; k++) {
+    if (k < 3) floors.push(tb + k * 0.1);
+    else { const raw = tb + 0.3 + (k - 2) / Math.max(1, FF - 2) * Math.max(0.2, 8.6 - tb - 0.3); floors.push(Math.min(8.9, snapMonth(raw) + (k % 3) * 0.06 + R() * 0.12)); }
+  }
+  const b = { x0: i - C - 0.5 + ins, x1: i - C + 0.5 - ins, z0: j - C - 0.5 + ins, z1: j - C + 0.5 - ins, cx: i - C, cz: j - C, r,
+    col: BLD[Math.floor(R() * BLD.length)], roof: null, floors, F: FF, tb, house, ridgeX: R() < 0.5,
+    hroof: HOUSE_ROOF[Math.floor(R() * HOUSE_ROOF.length)], split: FF >= 7 ? FF - 2 - Math.floor(R() * 2) : FF,
+    tank: FF >= 4 && R() < 0.65, win: [] };
+  for (let k = 0; k < FF; k++) for (let w = 0; w < 4; w++) b.win.push(R() < 0.8 ? 10.0 + r * 1.0 + k * 0.02 + R() * 0.5 : 99);
+  buildings.push(b);
+}
+{ // coral accent: a few tall roofs + a few houses
+  let n = 0; for (const b of buildings) { if (!b.house && b.F >= 4 && n < 6 && R() < 0.22) { b.roof = CORAL; n++; } }
+  let h = 0; for (const b of buildings) { if (b.house && h < 5 && R() < 0.3) { b.hroof = CORAL; h++; } }
+}
+
+// cars on road lines
+const cars = [], lines = [];
+for (let a = 3; a < N; a += 4) {
+  let lo = 99, hi = -99; for (let j = 0; j < N; j++) if (isRoad(a, j)) { lo = Math.min(lo, j); hi = Math.max(hi, j); }
+  if (hi - lo > 4) lines.push({ axis: 'j', fixed: a, lo, hi });
+  lo = 99; hi = -99; for (let i = 0; i < N; i++) if (isRoad(i, a)) { lo = Math.min(lo, i); hi = Math.max(hi, i); }
+  if (hi - lo > 4) lines.push({ axis: 'i', fixed: a, lo, hi });
+}
+const CARC = ['#FFFBF3', '#DCD2EA', '#EBDCC0', '#BFD0E0', '#FFFBF3'].map(hex);
+for (const L of lines) {
+  const n = Math.max(1, Math.round((L.hi - L.lo) / 4.5));
+  for (let k = 0; k < n; k++) cars.push({ L, dir: R() < 0.5 ? 1 : -1, sp: 1.2 + R() * 0.9, off: R() * 40, col: CARC[Math.floor(R() * CARC.length)] });
+}
+if (cars.length > 3) cars[3].col = CORAL;
+
+// sea life: boats, glints, clouds
+const boats = [{ s: 1.42, a0: 2.2, w: 0.05 }, { s: 1.62, a0: 4.1, w: -0.04 }, { s: 1.33, a0: 0.4, w: 0.045 }, { s: 1.8, a0: 5.4, w: 0.035 }];
+const glints = []; for (let k = 0; k < 90; k++) glints.push({ s: 1.12 + R() * 1.2, a: R() * Math.PI * 2, ph: R() * 6.28, w: 1.2 + R() * 1.6, l: 5 + R() * 9 });
+const PUFFS = [[0, -0.1, 0.95], [-0.8, 0.12, 0.7], [0.85, 0.14, 0.74], [-0.38, -0.42, 0.66], [0.42, -0.46, 0.6], [-1.45, 0.34, 0.48], [1.5, 0.36, 0.5], [0.05, 0.3, 0.8], [-1.05, -0.12, 0.5], [1.12, -0.1, 0.46], [-0.6, 0.42, 0.55], [0.7, 0.44, 0.55], [-1.95, 0.5, 0.3], [2.0, 0.5, 0.32]];
+const clouds = [
+  { sx: -260, sy: -40, sz: 3.0, dir: -1, par: 1.0 }, { sx: 330, sy: 70, sz: 3.4, dir: 1, par: 1.25 },
+  { sx: -40, sy: 300, sz: 2.4, dir: 1, par: 1.5 }, { sx: 120, sy: -330, sz: 2.2, dir: -1, par: 0.8 },
+  { x: -7, z: 3, y: 5.5, sz: 1.5, v: [0.5, -0.2] }, { x: 3, z: -7, y: 6.2, sz: 1.3, v: [0.45, -0.15] }, { x: 7, z: 6, y: 5.2, sz: 1.4, v: [0.4, -0.2] }];
+
+// ---------- camera ----------
+let K = 60, cs = 1, snn = 0, OX = 960, OY = 600;
+function camera(t) {
+  const a = lerp(-16, 10, eInOut(clamp(t / 12))) * Math.PI / 180;
+  cs = Math.cos(a); snn = Math.sin(a);
+  const k1 = eInOut(clamp(t / 8.8)), k2 = eInOut(clamp((t - 8.8) / 3.2));
+  K = lerp(128, 55, Math.pow(k1, 0.85)) + 6 * k2;
+  OX = 1000 + lerp(0, -10, k1); OY = lerp(560, 636, k1) - 16 * k2;
+}
+function P(x, y, z) { const xr = x * cs - z * snn, zr = x * snn + z * cs; return [OX + (xr - zr) * 0.866 * K, OY + (xr + zr) * 0.5 * K - y * K * 0.82]; }
+const depth = (x, z) => (x * cs - z * snn) + (x * snn + z * cs);
+const uvxz = (u, v) => [(u + v) / 2, (v - u) / 2];
+
+function path(c, pts) { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let k = 1; k < pts.length; k++) c.lineTo(pts[k][0], pts[k][1]); c.closePath(); }
+function poly(c, pts, fill) { path(c, pts); c.fillStyle = fill; c.fill(); }
+const sideF = (nx, nz) => { const xr = nx * cs - nz * snn, zr = nx * snn + nz * cs; return { vis: xr + zr > 0.02, f: 0.86 - 0.13 * ((xr - zr) / 1.4142) }; };
+function vgrad(pb, pt, cb, ct, a = 1) { const g = ctx.createLinearGradient(pb[0], pb[1], pt[0], pt[1]); g.addColorStop(0, css(cb, a)); g.addColorStop(1, css(ct, a)); return g; }
+
+// box with gradient sides (ambient occlusion at the base, light toward the top)
+function box(x0, x1, z0, z1, y0, y1, col, topCol, alpha = 1, ao = 0.86) {
+  const faces = [
+    { n: [-1, 0], a: [x0, z1], b: [x0, z0] }, { n: [1, 0], a: [x1, z0], b: [x1, z1] },
+    { n: [0, -1], a: [x0, z0], b: [x1, z0] }, { n: [0, 1], a: [x1, z1], b: [x0, z1] }];
+  const vis = [];
+  for (const fc of faces) {
+    const s = sideF(fc.n[0], fc.n[1]); if (!s.vis) continue;
+    const pts = [P(fc.a[0], y0, fc.a[1]), P(fc.b[0], y0, fc.b[1]), P(fc.b[0], y1, fc.b[1]), P(fc.a[0], y1, fc.a[1])];
+    const mb = [(pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2], mt = [(pts[2][0] + pts[3][0]) / 2, (pts[2][1] + pts[3][1]) / 2];
+    poly(ctx, pts, vgrad(mb, mt, shade(col, s.f * ao), shade(col, Math.min(1.03, s.f * 1.05)), alpha));
+    vis.push({ ...fc, f: s.f });
+  }
+  poly(ctx, [P(x0, y1, z0), P(x1, y1, z0), P(x1, y1, z1), P(x0, y1, z1)], css(shade(topCol || col, 1), alpha));
+  return vis;
+}
+
+function hull(pts) {
+  pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], up = [];
+  for (const p of pts) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let k = pts.length - 1; k >= 0; k--) { const p = pts[k]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  up.pop(); lo.pop(); return lo.concat(up);
+}
+function shadowVec(h) { const vx = h * 0.62, vz = h * 0.05; return [vx * cs + vz * snn, -vx * snn + vz * cs]; }
+
+function cloudPos(c, t) { return [c.x + c.v[0] * t, c.z + c.v[1] * t]; }
+function drawCloud(c, t) {
+  if (!c.dir) return;
+  const e = Math.pow(clamp(t / 1.6), 1.6), e2 = eOut3(clamp(t / 1.6));
+  if (e >= 1) return;
+  const p = [W / 2 + c.sx * (1 + e2 * 0.6) + c.dir * e * 1500 * c.par, H / 2 + c.sy * (1 + e2 * 0.6) - e * 120 * c.par], s = c.sz * 64 * (1 + e2 * 0.5 * c.par);
+  const c2 = gctx; half(c2);
+  c2.fillStyle = 'rgb(214,214,236)';
+  for (const [ox, oy, r] of PUFFS) { c2.beginPath(); c2.arc(p[0] + ox * s, p[1] + oy * s + s * 0.12, r * s * 0.62, 0, Math.PI * 2); c2.fill(); }
+  const gg = c2.createLinearGradient(0, p[1] - s, 0, p[1] + s * 0.6);
+  gg.addColorStop(0, '#ffffff'); gg.addColorStop(0.65, '#fdfcff'); gg.addColorStop(1, '#e9e7f4');
+  c2.fillStyle = gg;
+  for (const [ox, oy, r] of PUFFS) { c2.beginPath(); c2.arc(p[0] + ox * s - s * 0.06, p[1] + oy * s - s * 0.03, r * s * 0.56, 0, Math.PI * 2); c2.fill(); }
+  // flat cloud base
+  c2.globalCompositeOperation = 'destination-out'; c2.fillRect(p[0] - 4 * s, p[1] + s * 0.62, 8 * s, 3 * s); c2.globalCompositeOperation = 'source-over';
+  ctx.save(); ctx.filter = `blur(${(3 + e * 10).toFixed(1)}px)`; ctx.globalAlpha = 0.97; ctx.drawImage(gctx.canvas, 0, 0, W, H); ctx.restore();
+}
+
+// ---------- draw ----------
+function draw(t) {
+  camera(Math.min(t, 11));
+  // from 11.5 s a slow push: 3.15 % per second about the frame centre
+  const zs = Math.pow(1.0315, Math.max(0, t - 11.5));
+  OX = 960 + (OX - 960) * zs; OY = 540 + (OY - 540) * zs; K *= zs;
+  DK = eInOut(clamp((t - 9.0) / 1.6));
+  TINT = mix3(TINT_D, TINT_N, DK);
+  // sea: day teal -> sunset peach/lilac
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, `rgb(${mix3([210, 238, 233], [244, 182, 160], DK).map(v => v | 0)})`);
+  g.addColorStop(0.5, `rgb(${mix3([192, 228, 224], [150, 140, 196], DK).map(v => v | 0)})`);
+  g.addColorStop(1, `rgb(${mix3([172, 214, 214], [80, 90, 150], DK).map(v => v | 0)})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // ripples follow the island outline
+  ctx.lineWidth = 2;
+  for (let k = 0; k < 4; k++) {
+    const ph = ((t * 0.07 + k / 4) % 1);
+    const s = 1.08 + ph * 0.9;
+    ctx.beginPath();
+    for (let a = 0; a <= 72; a++) { const th = a / 72 * Math.PI * 2; const [x, z] = uvxz(s * RU * Math.cos(th), s * RV * Math.sin(th)); const p = P(x, WL, z); a ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }
+    ctx.strokeStyle = `rgba(255,255,255,${(0.30 * Math.sin(ph * Math.PI) * (1 - DK * 0.5)).toFixed(3)})`; ctx.stroke();
+  }
+  // glints
+  ctx.lineCap = 'round';
+  for (const gl_ of glints) {
+    const a = Math.pow(0.5 + 0.5 * Math.sin(t * gl_.w + gl_.ph), 6);
+    if (a < 0.03) continue;
+    const [x, z] = uvxz(gl_.s * RU * Math.cos(gl_.a), gl_.s * RV * Math.sin(gl_.a));
+    const p = P(x, WL, z);
+    ctx.strokeStyle = DK > 0.5 ? `rgba(255,226,200,${(a * 0.8).toFixed(3)})` : `rgba(255,255,255,${(a * 0.8).toFixed(3)})`;
+    ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(p[0] - gl_.l, p[1]); ctx.lineTo(p[0] + gl_.l, p[1]); ctx.stroke();
+  }
+
+  // shallow-water halo
+  half(sctx); sctx.fillStyle = '#fff';
+  for (const q of tiles) { const p = clamp((t - q.t0) / 0.6); if (p <= 0) continue; sctx.globalAlpha = p; const e = 0.5 + 0.9 * p;
+    poly(sctx, [P(q.x - e, WL, q.z - e), P(q.x + e, WL, q.z - e), P(q.x + e, WL, q.z + e), P(q.x - e, WL, q.z + e)], '#fff'); }
+  sctx.globalAlpha = 1;
+  ctx.save(); ctx.filter = 'blur(18px)'; ctx.globalAlpha = 0.4 - DK * 0.3; ctx.drawImage(sh, 0, 0, W, H); ctx.restore();
+  // island drop shadow in the water
+  half(sctx);
+  for (const q of tiles) { const p = clamp((t - q.t0) / 0.4); if (p <= 0) continue; const [dx, dz] = shadowVec(0.6 * p); sctx.globalAlpha = p;
+    poly(sctx, [P(q.x - 0.5 + dx, WL, q.z - 0.5 + dz), P(q.x + 0.5 + dx, WL, q.z - 0.5 + dz), P(q.x + 0.5 + dx, WL, q.z + 0.5 + dz), P(q.x - 0.5 + dx, WL, q.z + 0.5 + dz)], '#2a3d5a'); }
+  sctx.globalAlpha = 1;
+  ctx.save(); ctx.filter = 'blur(10px)'; ctx.globalAlpha = 0.22; ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(sh, 0, 0, W, H); ctx.restore();
+
+  // boats
+  for (const bt of boats) drawBoat(bt, t);
+
+  // ground tiles with strata sides
+  const ts = tiles.filter(q => t > q.t0).sort((a, b) => depth(a.x, a.z) - depth(b.x, b.z));
+  for (const q of ts) {
+    const p = clamp((t - q.t0) / 0.42), e = eBack(p, 1.3);
+    const dy = (1 - e) * 1.4 + (q.beach ? -0.36 : 0);
+    const al = 1;
+    const vr = (noise[q.i][q.j] - 0.5) * 3.5;
+    const top = q.beach ? SAND : GRASS;
+    const tc = [top[0] + vr, top[1] + vr * 0.8, top[2] + vr];
+    const x0 = q.x - 0.5, x1 = q.x + 0.5, z0 = q.z - 0.5, z1 = q.z + 0.5, yt = dy, yb = WL - 0.04 + (1 - e) * 1.4;
+    const faces = [{ n: [-1, 0], a: [x0, z1], b: [x0, z0], o: q.open[0] }, { n: [1, 0], a: [x1, z0], b: [x1, z1], o: q.open[1] }, { n: [0, -1], a: [x0, z0], b: [x1, z0], o: q.open[2] }, { n: [0, 1], a: [x1, z1], b: [x0, z1], o: q.open[3] }];
+    for (const fc of faces) {
+      const s = sideF(fc.n[0], fc.n[1]); if (!s.vis || (!fc.o && p >= 1)) continue;
+      const pts = [P(fc.a[0], yb, fc.a[1]), P(fc.b[0], yb, fc.b[1]), P(fc.b[0], yt, fc.b[1]), P(fc.a[0], yt, fc.a[1])];
+      const mb = [(pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2], mt = [(pts[2][0] + pts[3][0]) / 2, (pts[2][1] + pts[3][1]) / 2];
+      const gg = ctx.createLinearGradient(mb[0], mb[1], mt[0], mt[1]);
+      gg.addColorStop(0, css(shade(ROCK, s.f * 0.92), al)); gg.addColorStop(0.62, css(shade(EARTH, s.f), al));
+      gg.addColorStop(0.8, css(shade(EARTH, s.f * 1.04), al)); gg.addColorStop(0.81, css(shade(top, s.f * 0.97), al)); gg.addColorStop(1, css(shade(top, s.f * 0.97), al));
+      poly(ctx, pts, gg);
+      if (fc.o && p >= 1) { // foam line at the waterline
+        const fa = 0.55 + 0.25 * Math.sin(t * 2.4 + q.i * 0.9 + q.j * 0.6);
+        ctx.strokeStyle = `rgba(255,255,255,${(fa * (1 - DK * 0.35)).toFixed(3)})`; ctx.lineWidth = Math.max(2, K * 0.05);
+        ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1] + 1); ctx.lineTo(pts[1][0], pts[1][1] + 1); ctx.stroke();
+      }
+    }
+    { const e2 = 0.006; poly(ctx, [P(x0 - e2, yt, z0 - e2), P(x1 + e2, yt, z0 - e2), P(x1 + e2, yt, z1 + e2), P(x0 - e2, yt, z1 + e2)], css(shade(tc, 1), al)); }
+  }
+  // roads
+  for (const r of roadStrips) {
+    const p = clamp((t - r.t0) / 0.14); if (p <= 0) continue;
+    const x = r.i - C, z = r.j - C, w = 0.3;
+    let a0, a1; const along = r.axis === 'j' ? z : x;
+    if (r.sgn > 0) { a0 = along - 0.5; a1 = along - 0.5 + p; } else if (r.sgn < 0) { a1 = along + 0.5; a0 = along + 0.5 - p; } else { a0 = along - 0.5 * p; a1 = along + 0.5 * p; }
+    const pts = r.axis === 'j' ? [P(x - w, 0.004, a0), P(x + w, 0.004, a0), P(x + w, 0.004, a1), P(x - w, 0.004, a1)]
+                               : [P(a0, 0.004, z - w), P(a1, 0.004, z - w), P(a1, 0.004, z + w), P(a0, 0.004, z + w)];
+    poly(ctx, pts, css(ROAD));
+    // dashed centre line
+    if (!(r.i % 4 === 3 && r.j % 4 === 3)) {
+      const m0 = Math.max(a0, along - 0.18), m1 = Math.min(a1, along + 0.18);
+      if (m1 > m0) { const d = r.axis === 'j' ? [P(x - 0.025, 0.006, m0), P(x + 0.025, 0.006, m0), P(x + 0.025, 0.006, m1), P(x - 0.025, 0.006, m1)] : [P(m0, 0.006, z - 0.025), P(m1, 0.006, z - 0.025), P(m1, 0.006, z + 0.025), P(m0, 0.006, z + 0.025)];
+        poly(ctx, d, css([226, 216, 200])); }
+    }
+  }
+
+  // object shadows (half res)
+  half(sctx); sctx.fillStyle = '#000';
+  const objs = [];
+  for (const b of buildings) {
+    if (t < b.tb) continue;
+    let h = 0; for (const ft of b.floors) { const p = clamp((t - ft) / 0.32); if (p > 0) h += FH * eBack(p); }
+    if (h <= 0.001) continue;
+    b.h = h; const hh = b.house ? h + 0.2 : h;
+    const [dx, dz] = shadowVec(hh * 1.1 + 0.15);
+    const pts = []; for (const [x, z] of [[b.x0, b.z0], [b.x1, b.z0], [b.x1, b.z1], [b.x0, b.z1]]) { pts.push(P(x, 0, z)); pts.push(P(x + dx, 0, z + dz)); }
+    sctx.globalAlpha = 1; poly(sctx, hull(pts), '#000');
+    objs.push({ k: 0, o: b, d: depth(b.cx, b.cz) });
+  }
+  for (const tr of trees) {
+    const p = clamp((t - tr.t0) / 0.45); if (p <= 0) continue;
+    tr.p = p;
+    const [dx, dz] = shadowVec(0.4 * tr.s); const c = P(tr.x + dx, 0, tr.z + dz);
+    sctx.globalAlpha = p; sctx.beginPath(); sctx.ellipse(c[0], c[1], 0.26 * tr.s * K, 0.15 * tr.s * K, 0, 0, Math.PI * 2); sctx.fill();
+    objs.push({ k: 1, o: tr, d: depth(tr.x, tr.z) });
+  }
+  for (const car of cars) {
+    const L = car.L, len = L.hi - L.lo;
+    const s = ((car.off + car.dir * car.sp * t) % len + len) % len, pos = L.lo + s;
+    const ti = L.axis === 'j' ? L.fixed : Math.round(pos), tj = L.axis === 'j' ? Math.round(pos) : L.fixed;
+    const rt = roadT[ti + ',' + tj]; if (rt === undefined || t < rt + 0.5) continue;
+    const a = clamp((t - rt - 0.5) / 0.4) * clamp(Math.min(s, len - s) / 0.6); if (a <= 0.01) continue;
+    const lane = 0.14 * car.dir;
+    const x = L.axis === 'j' ? L.fixed - C + lane : pos - C, z = L.axis === 'j' ? pos - C : L.fixed - C - lane;
+    objs.push({ k: 2, o: car, x, z, a, d: depth(x, z) });
+  }
+  for (const lp of lamps) { if (t < lp.t0) continue; objs.push({ k: 3, o: lp, d: depth(lp.x, lp.z) }); }
+  for (const c of clouds) { // cloud shadows drift over the city
+    if (c.dir) continue;
+    const [x, z] = cloudPos(c, t); const [dx, dz] = shadowVec(c.y * 0.5); const p = P(x + dx, 0, z + dz);
+    sctx.globalAlpha = 0.3 * clamp((t - 3) / 1.5); sctx.beginPath(); sctx.ellipse(p[0], p[1], c.sz * K * 1.5, c.sz * K * 0.8, 0, 0, Math.PI * 2); sctx.fill();
+  }
+  sctx.globalAlpha = 1;
+  ctx.save(); ctx.filter = 'blur(5px)'; ctx.globalAlpha = 0.26 - DK * 0.08; ctx.globalCompositeOperation = 'multiply';
+  ctx.drawImage(sh, 0, 0, W, H); ctx.restore();
+
+  half(gctx);
+  objs.sort((a, b) => a.d - b.d);
+  for (const ob of objs) {
+    if (ob.k === 0) (ob.o.house ? drawHouse : drawBuilding)(ob.o, t);
+    else if (ob.k === 1) drawTree(ob.o, t);
+    else if (ob.k === 2) drawCar(ob, t);
+    else drawLamp(ob.o, t);
+  }
+  // sunlight wash (top-left warm) -> sunset grade
+  ctx.save(); ctx.globalCompositeOperation = 'soft-light';
+  const sl = ctx.createLinearGradient(0, 0, W, H);
+  sl.addColorStop(0, `rgba(255,${lerp(248, 170, DK) | 0},${lerp(232, 130, DK) | 0},${lerp(0.4, 0.6, DK).toFixed(3)})`);
+  sl.addColorStop(0.55, 'rgba(255,255,255,0)');
+  sl.addColorStop(1, `rgba(${lerp(90, 30, DK) | 0},${lerp(110, 50, DK) | 0},${lerp(170, 140, DK) | 0},${lerp(0.25, 0.65, DK).toFixed(3)})`);
+  ctx.fillStyle = sl; ctx.fillRect(0, 0, W, H); ctx.restore();
+  const nd = eInOut(clamp((t - 11.2) / 5.2));
+  if (nd > 0) { ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = `rgba(58,40,112,${(0.66 * nd).toFixed(3)})`; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  // window + lamp glow
+  if (DK > 0) {
+    ctx.save(); ctx.globalCompositeOperation = 'screen';
+    ctx.filter = 'blur(12px)'; ctx.globalAlpha = 0.85; ctx.drawImage(gl, 0, 0, W, H);
+    ctx.filter = 'blur(3px)'; ctx.globalAlpha = 0.55; ctx.drawImage(gl, 0, 0, W, H); ctx.restore();
+  }
+  // clouds float above everything
+  for (const c of clouds) drawCloud(c, t);
+  // soft vignette
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.42, W / 2, H / 2, H * 1.05);
+  vg.addColorStop(0, 'rgba(60,70,120,0)'); vg.addColorStop(1, `rgba(60,70,120,${(0.12 + DK * 0.16).toFixed(3)})`);
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+}
+
+function windowsOn(b, fc, k0, k1, t, fi, glassBase) {
+  const A = fc.a, B = fc.b;
+  const pt = (u, y) => P(A[0] + (B[0] - A[0]) * u, y, A[1] + (B[1] - A[1]) * u);
+  for (let k = k0; k < k1; k++) {
+    const y0 = k * FH;
+    for (let w = 0; w < 2; w++) {
+      const u0 = 0.15 + w * 0.39, u1 = u0 + 0.27;
+      const q = [pt(u0, y0 + 0.1), pt(u1, y0 + 0.1), pt(u1, y0 + 0.27), pt(u0, y0 + 0.27)];
+      const lt = b.win[k * 4 + (fi % 2) * 2 + w] ?? 99;
+      let lp = clamp((t - lt) / 0.22);
+      if (lp > 0 && t > 11) { const hsh = (lt * 9301.7) % 1; if (hsh < 0.3) lp *= 0.72 + 0.28 * (0.5 + 0.5 * Math.sin(t * (2 + hsh * 9) + hsh * 40)); }
+      const glass = shade(mix3(b.col, GLASS, 0.5), fc.f * glassBase);
+      if (lp > 0) {
+        const d = dk(glass), c = mix3(d, LIT, lp);
+        poly(ctx, q, `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`);
+        gctx.globalAlpha = lp; poly(gctx, q, 'rgb(255,186,118)');
+      } else {
+        poly(ctx, q, css(glass));
+        // sky reflection sliver
+        poly(ctx, [q[2], q[3], pt(u0, y0 + 0.21), pt(u0 + 0.08, y0 + 0.27)].slice(0, 3), css(mix3(glass, [255, 255, 255], 0.35)));
+      }
+    }
+  }
+}
+
+function drawBuilding(b, t) {
+  const h = b.h, splitH = Math.min(h, b.split * FH);
+  const roofCol = b.roof || [Math.min(255, b.col[0] + 7), Math.min(255, b.col[1] + 7), Math.min(255, b.col[2] + 7)];
+  const visLo = box(b.x0, b.x1, b.z0, b.z1, 0, splitH, b.col, h > splitH + 0.001 ? shade(b.col, 0.97) : roofCol);
+  const nLo = Math.floor(splitH / FH + 0.02);
+  visLo.forEach((fc, fi) => windowsOn(b, fc, 0, nLo, t, fi, 0.84));
+  let topH = splitH, x0 = b.x0, x1 = b.x1, z0 = b.z0, z1 = b.z1;
+  if (h > splitH + 0.001) {
+    const s = 0.09; x0 += s; x1 -= s; z0 += s; z1 -= s;
+    const visUp = box(x0, x1, z0, z1, splitH, h, b.col, roofCol);
+    const nUp = Math.floor(h / FH + 0.02);
+    visUp.forEach((fc, fi) => windowsOn(b, fc, b.split, nUp, t, fi, 0.84));
+    topH = h;
+  }
+  const ii = 0.06;
+  poly(ctx, [P(x0 + ii, topH, z0 + ii), P(x1 - ii, topH, z0 + ii), P(x1 - ii, topH, z1 - ii), P(x0 + ii, topH, z1 - ii)], css(shade(roofCol, 0.92)));
+  if (b.tank) {
+    const last = b.floors[b.floors.length - 1];
+    const p = clamp((t - last - 0.2) / 0.3);
+    if (p > 0) { const cx = (x0 + x1) / 2 + 0.05, cz = (z0 + z1) / 2 + 0.05, s = 0.11; box(cx - s, cx + s, cz - s, cz + s, topH, topH + 0.15 * eBack(p), hex('#ECE7F2'), null, p); }
+  }
+}
+
+function drawHouse(b, t) {
+  const hw = b.h * 0.95;
+  const vis = box(b.x0, b.x1, b.z0, b.z1, 0, hw, b.col, b.col);
+  vis.forEach((fc, fi) => windowsOn(b, fc, 0, hw > FH * 0.9 ? 1 : 0, t, fi, 0.84));
+  const rp = clamp((t - b.floors[0] - 0.12) / 0.35); if (rp <= 0) return;
+  const rh = 0.22 * eBack(rp, 2.4), o = 0.05, ry = hw + rh;
+  const rc = b.hroof;
+  let A, Bq, tri;
+  if (b.ridgeX) {
+    const zm = (b.z0 + b.z1) / 2;
+    A = { pts: [P(b.x0 - o, hw, b.z0 - o), P(b.x1 + o, hw, b.z0 - o), P(b.x1 + o, ry, zm), P(b.x0 - o, ry, zm)], n: [0, -1] };
+    Bq = { pts: [P(b.x0 - o, hw, b.z1 + o), P(b.x1 + o, hw, b.z1 + o), P(b.x1 + o, ry, zm), P(b.x0 - o, ry, zm)], n: [0, 1] };
+    tri = [{ pts: [P(b.x0, hw, b.z0), P(b.x0, hw, b.z1), P(b.x0, ry, zm)], n: [-1, 0] }, { pts: [P(b.x1, hw, b.z0), P(b.x1, hw, b.z1), P(b.x1, ry, zm)], n: [1, 0] }];
+  } else {
+    const xm = (b.x0 + b.x1) / 2;
+    A = { pts: [P(b.x0 - o, hw, b.z0 - o), P(b.x0 - o, hw, b.z1 + o), P(xm, ry, b.z1 + o), P(xm, ry, b.z0 - o)], n: [-1, 0] };
+    Bq = { pts: [P(b.x1 + o, hw, b.z0 - o), P(b.x1 + o, hw, b.z1 + o), P(xm, ry, b.z1 + o), P(xm, ry, b.z0 - o)], n: [1, 0] };
+    tri = [{ pts: [P(b.x0, hw, b.z0), P(b.x1, hw, b.z0), P(xm, ry, b.z0)], n: [0, -1] }, { pts: [P(b.x0, hw, b.z1), P(b.x1, hw, b.z1), P(xm, ry, b.z1)], n: [0, 1] }];
+  }
+  const sA = sideF(A.n[0], A.n[1]), sB = sideF(Bq.n[0], Bq.n[1]);
+  const slopes = [[A, sA], [Bq, sB]].sort((m, n) => (m[1].vis ? 1 : 0) - (n[1].vis ? 1 : 0));
+  const al = clamp(rp * 3);
+  poly(ctx, slopes[0][0].pts, css(shade(rc, slopes[0][1].vis ? lerp(1, slopes[0][1].f, 0.6) : 0.8), al));
+  for (const tr of tri) { const s = sideF(tr.n[0], tr.n[1]); if (s.vis) poly(ctx, tr.pts, css(shade(b.col, s.f * 1.02), al)); }
+  poly(ctx, slopes[1][0].pts, css(shade(rc, slopes[1][1].vis ? lerp(1.04, slopes[1][1].f, 0.5) : 0.8), al));
+}
+
+function drawTree(tr, t) {
+  const p = tr.p, e = eBack(p, 2.2);
+  const sc = lerp(0.6, 1, e);
+  const wob = Math.sin(p * Math.PI * 2) * (1 - p) * 0.24;
+  const sway = Math.sin(t * 1.6 + tr.x * 0.7 + tr.z) * 0.012 * K;
+  const sx = sc * (1 + wob), sy = sc * (1 - wob), s = tr.s;
+  const ty = tr.y || 0, base = P(tr.x, ty, tr.z), top = P(tr.x, ty + 0.42 * s * sy, tr.z);
+  ctx.globalAlpha = clamp(p * 3);
+  ctx.strokeStyle = css(hex('#B59C84')); ctx.lineWidth = Math.max(2, 0.05 * K); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(top[0] + sway * 0.5, top[1]); ctx.stroke();
+  const r = 0.2 * s * K, cx = top[0] + sway, cy = top[1] - r * sy * 0.7;
+  ctx.fillStyle = css(TREE_DK); ctx.beginPath(); ctx.ellipse(cx, cy, r * sx, r * sy, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = css(TREE); ctx.beginPath(); ctx.ellipse(cx - r * 0.12 * sx, cy - r * 0.12 * sy, r * 0.86 * sx, r * 0.84 * sy, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = css(TREE_HI); ctx.beginPath(); ctx.ellipse(cx - r * 0.34 * sx, cy - r * 0.36 * sy, r * 0.38 * sx, r * 0.32 * sy, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawCar(ob, t) {
+  const car = ob.o, along = car.L.axis === 'j';
+  const hl = 0.22, hw = 0.115;
+  const bump = Math.abs(Math.sin(t * 9 + car.off)) * 0.006;
+  const X0 = along ? ob.x - hw : ob.x - hl, X1 = along ? ob.x + hw : ob.x + hl, Z0 = along ? ob.z - hl : ob.z - hw, Z1 = along ? ob.z + hl : ob.z + hw;
+  box(X0, X1, Z0, Z1, 0.015, 0.13 + bump, car.col, null, ob.a, 0.92);
+  const cl = 0.11, d = car.dir;
+  const off = along ? [0, -d * 0.03] : [-d * 0.03, 0];
+  const cx0 = along ? ob.x - hw * 0.82 : ob.x - cl + off[0], cx1 = along ? ob.x + hw * 0.82 : ob.x + cl + off[0];
+  const cz0 = along ? ob.z - cl + off[1] : ob.z - hw * 0.82, cz1 = along ? ob.z + cl + off[1] : ob.z + hw * 0.82;
+  box(cx0, cx1, cz0, cz1, 0.13 + bump, 0.22 + bump, mix3(car.col, GLASS, 0.45), car.col, ob.a, 0.95);
+  if (DK > 0.2) {
+    const fx = along ? ob.x : ob.x + d * hl, fz = along ? ob.z + d * hl : ob.z;
+    const p = P(fx, 0.07, fz);
+    gctx.globalAlpha = (DK - 0.2) * ob.a; gctx.fillStyle = 'rgb(255,220,160)'; gctx.beginPath(); gctx.arc(p[0], p[1], 0.11 * K, 0, Math.PI * 2); gctx.fill();
+  }
+}
+
+function drawLamp(lp, t) {
+  const a = clamp((t - lp.t0) / 0.3);
+  const b = P(lp.x, 0, lp.z), tp = P(lp.x, 0.42 * lerp(0.7, 1, eBack(a)), lp.z);
+  ctx.globalAlpha = a; ctx.strokeStyle = css([150, 146, 170]); ctx.lineWidth = Math.max(1.5, 0.035 * K);
+  ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.lineTo(tp[0], tp[1]); ctx.stroke();
+  const on = clamp((t - lp.tl) / 0.2);
+  const hc = mix3(dk([236, 232, 244]), [255, 232, 180], on);
+  ctx.fillStyle = `rgb(${hc[0] | 0},${hc[1] | 0},${hc[2] | 0})`; ctx.beginPath(); ctx.arc(tp[0], tp[1], Math.max(2.5, 0.055 * K), 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  if (on > 0) { gctx.globalAlpha = on; gctx.fillStyle = 'rgb(255,200,130)'; gctx.beginPath(); gctx.arc(tp[0], tp[1], 0.16 * K, 0, Math.PI * 2); gctx.fill();
+    gctx.globalAlpha = on * 0.35; gctx.beginPath(); gctx.ellipse(b[0], b[1], 0.4 * K, 0.22 * K, 0, 0, Math.PI * 2); gctx.fill(); }
+}
+
+function drawBoat(bt, t) {
+  const vis = clamp((t - 1.6) / 0.6); if (vis <= 0) return;
+  const th = bt.a0 + bt.w * t;
+  const [x, z] = uvxz(bt.s * RU * Math.cos(th), bt.s * RV * Math.sin(th));
+  const [x2, z2] = uvxz(bt.s * RU * Math.cos(th + 0.01 * Math.sign(bt.w)), bt.s * RV * Math.sin(th + 0.01 * Math.sign(bt.w)));
+  let hx = x2 - x, hz = z2 - z; const l = Math.hypot(hx, hz); hx /= l; hz /= l;
+  const px = -hz, pz = hx;
+  const bob = Math.sin(t * 2.2 + bt.a0) * 0.02;
+  const y = WL + 0.02 + bob;
+  // wake
+  ctx.lineWidth = 2; ctx.strokeStyle = `rgba(255,255,255,${(0.55 * vis).toFixed(3)})`;
+  for (const sgn of [-1, 1]) { const a = P(x - hx * 0.3, WL, z - hz * 0.3), b2 = P(x - hx * 1.6 + px * sgn * 0.45, WL, z - hz * 1.6 + pz * sgn * 0.45); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b2[0], b2[1]); ctx.stroke(); }
+  const hl = 0.36, hw = 0.12;
+  const hull_ = [P(x + hx * hl, y, z + hz * hl), P(x + px * hw, y, z + pz * hw), P(x - hx * hl * 0.8 + px * hw, y, z - hz * hl * 0.8 + pz * hw), P(x - hx * hl * 0.8 - px * hw, y, z - hz * hl * 0.8 - pz * hw), P(x - px * hw, y, z - pz * hw)];
+  ctx.globalAlpha = vis;
+  const hull2 = hull_.map(p => [p[0], p[1] - 0.09 * K]);
+  poly(ctx, hull([...hull_, ...hull2]), css(shade([250, 246, 238], 0.8)));
+  poly(ctx, hull2, css([252, 249, 242]));
+  const m0 = P(x, y + 0.11, z), m1 = P(x, y + 0.75, z), sb = P(x - hx * 0.3, y + 0.13, z - hz * 0.3), sf = P(x + hx * 0.26, y + 0.13, z + hz * 0.26);
+  poly(ctx, [m1, sb, m0], css([255, 255, 255]));
+  poly(ctx, [m1, sf, m0], css(shade([255, 252, 246], 0.9)));
+  ctx.globalAlpha = 1;
+}
+
+// ---------- labels ----------
+const mA = document.getElementById('mA'), mB = document.getElementById('mB'), cnt = document.getElementById('count'), lab = document.getElementById('labels');
+let lastM = -2, lastCount = '';
+function labels(t) {
+  let m = -1; for (let k = 0; k < 12; k++) if (t >= MONTH_T[k]) m = k;
+  const q = m >= 0 ? t - MONTH_T[m] : 0;
+  if (m !== lastM) { mA.textContent = m >= 0 ? MONTHS[m] : ''; mB.textContent = m > 0 ? MONTHS[m - 1] : ''; lastM = m; }
+  const ein = eExpo(clamp(q / 0.4));
+  mA.style.transform = `translateY(${((1 - ein) * 44).toFixed(2)}px)`; mA.style.opacity = clamp(q / 0.16).toFixed(3);
+  const qo = clamp(q / 0.2);
+  mB.style.transform = `translateY(${(-36 * qo * qo).toFixed(2)}px)`; mB.style.opacity = (m > 0 ? 1 - qo : 0).toFixed(3);
+  const v = m < 0 ? 0 : lerp(m > 0 ? VALS[m - 1] : 0, VALS[m], eOut3(clamp(q / 0.6)));
+  const s = Math.round(v / 10) * 10;
+  const str = m < 0 ? '' : s.toLocaleString('en-US');
+  if (str !== lastCount) { cnt.innerHTML = m < 0 ? '' : str + ' <span>' + COUNT_LABEL + '</span>'; lastCount = str; }
+  cnt.style.opacity = clamp((t - 0.6) / 0.3).toFixed(3);
+  cnt.style.transform = `translateY(${((1 - eExpo(clamp((t - 0.6) / 0.45))) * 24).toFixed(2)}px)`;
+  const dk = eInOut(clamp((t - 9.0) / 1.6));
+  const c0 = [45, 75, 83], c1 = [250, 244, 232];
+  lab.style.color = `rgb(${lerp(c0[0], c1[0], dk) | 0},${lerp(c0[1], c1[1], dk) | 0},${lerp(c0[2], c1[2], dk) | 0})`;
+}
+
+const proxy = { t: 0 };
+const render = () => {
+  draw(proxy.t); labels(Math.min(proxy.t, 11));
+  const lf = clamp((proxy.t - 10.25) / 0.45);
+  lab.style.opacity = (1 - lf * lf).toFixed(3); lab.style.transform = `translateY(${(-24 * lf * lf).toFixed(2)}px)`;
+};
+const tl = gsap.timeline({ paused: true });
+tl.to(proxy, { t: DUR, duration: DUR, ease: 'none', onUpdate: render }, 0);
+window.__timelines = window.__timelines || {};
+window.__timelines['main'] = tl;
+render();
+})();
+</script>
+</body>
+</html>

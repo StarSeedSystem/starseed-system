@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@700;900&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="studio.js"></script>
+<style>
+  /* style: editorial-paper. Every colour comes from these tokens. */
+  :root { --ground: #FFF1E5; --ink: #1A1A1A; --rule: #E3D3C3; --muted: #6B5E55; --accent: #0F5499; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--ground);
+    font-family: 'Inter', sans-serif; color: var(--ink); }
+  .abs { position: absolute; left: 0; top: 0; }
+  .serif { font-family: 'Playfair Display', serif; }
+  .num { font-family: 'Playfair Display', serif; font-weight: 900; font-variant-numeric: lining-nums tabular-nums;
+    font-feature-settings: 'lnum' 1, 'tnum' 1; white-space: nowrap; }
+  .mask { position: absolute; overflow: hidden; }
+  .hl { left: 120px; top: 132px; height: 156px; width: 1300px; white-space: nowrap; }
+  .hl span { position: absolute; top: 0; font-family: 'Playfair Display', serif; font-weight: 700; font-size: 116px;
+    letter-spacing: -0.02em; line-height: 150px; }
+  .grid { position: absolute; top: 368px; width: 2px; height: 576px; background: var(--rule); }
+  .tick { position: absolute; top: 960px; font-size: 26px; font-weight: 500; color: var(--muted); width: 120px;
+    margin-left: -60px; text-align: center; font-variant-numeric: tabular-nums; }
+  .bar { position: absolute; height: 72px; }
+  .val { position: absolute; font-size: 54px; line-height: 72px; }
+  .rank { position: absolute; left: 120px; font-size: 48px; line-height: 72px; color: var(--muted); }
+  .letter { position: absolute; left: 0; top: 0; font-size: 32px; font-weight: 500; line-height: 72px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="10" data-width="1920" data-height="1080"></div>
+<script>
+  const S = STUDIO, root = S.root;
+  const add = (cls, css, html, parent) => { const d = document.createElement('div'); d.className = cls;
+    Object.assign(d.style, css || {}); if (html != null) d.innerHTML = html; (parent || root).appendChild(d); return d; };
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const hex = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const INK = hex(css('--ink')), BLUE = hex(css('--accent')), RULE = hex(css('--rule')), MUTED = hex(css('--muted'));
+  const mixRGB = (a, b, p) => `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * p)).join(',')})`;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  // paper grain: drawn once from a seeded rng, static
+  const cv = document.createElement('canvas'); cv.width = 1920; cv.height = 1080;
+  Object.assign(cv.style, { position: 'absolute', left: 0, top: 0, opacity: 0.55 }); root.appendChild(cv);
+  { const g = cv.getContext('2d'), r = S.rng(7);
+    for (let i = 0; i < 90000; i++) {
+      const dark = r() < 0.6; g.fillStyle = dark ? 'rgba(107,94,85,0.10)' : 'rgba(255,255,255,0.35)';
+      g.fillRect(r() * 1920, r() * 1080, 1 + (r() < 0.2), 1);
+    }
+    for (let i = 0; i < 260; i++) {                                   // a few paper fibres
+      const x = r() * 1920, y = r() * 1080, a = r() * Math.PI, l = 6 + r() * 18;
+      g.strokeStyle = 'rgba(107,94,85,0.07)'; g.lineWidth = 1; g.beginPath();
+      g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+  }
+
+  // layout (12 columns, 120 px margins)
+  const M = 120, X0 = 268, WIDE = 1360, NARROW = 880, ROW0 = 392, PITCH = 112, BH = 72;
+  const rowY = (s) => ROW0 + s * PITCH;
+
+  // masthead: a short ink bar and two hairlines
+  add('abs', { left: M + 'px', top: '104px', width: '84px', height: '10px', background: 'var(--ink)' });
+  add('abs', { left: M + 'px', top: '318px', width: (1920 - 2 * M) + 'px', height: '2px', background: 'var(--ink)' });
+  add('abs', { left: M + 'px', top: '1012px', width: (1920 - 2 * M) + 'px', height: '2px', background: 'var(--rule)' });
+
+  // headlines: each word in its own slot inside one mask
+  const mkHead = (words) => {
+    const m = add('mask hl');
+    const spans = words.map(w => { const s = document.createElement('span'); s.textContent = w; m.appendChild(s); return s; });
+    return spans;
+  };
+  const H1 = mkHead(['Five', 'in', 'the', 'race']);
+  const H2 = mkHead(['One', 'breaks', 'away']);
+  const layoutHead = (spans) => { let x = 0; spans.forEach(s => { s.style.left = x + 'px'; x += s.offsetWidth + 30; }); };
+
+  // the axis: gridlines every 20, zero line in ink
+  const GRID = [0, 20, 40, 60, 80].map(v => ({
+    v, line: add('grid', v === 0 ? { background: 'var(--ink)', width: '3px' } : {}),
+    lab: add('tick', {}, String(v)),
+  }));
+
+  // the rows (sample data). s0/s1: row before and after the re-rank
+  const DATA = [
+    { k: 'A', v0: 54, v1: 50, s0: 0, s1: 1 },
+    { k: 'B', v0: 47, v1: 44, s0: 1, s1: 2 },
+    { k: 'C', v0: 39, v1: 35, s0: 2, s1: 3 },
+    { k: 'D', v0: 31, v1: 72, s0: 3, s1: 0, hero: true },
+    { k: 'E', v0: 22, v1: 19, s0: 4, s1: 4 },
+  ];
+  [1, 2, 3, 4, 5].forEach((n, i) => add('rank num', { top: rowY(i) + 'px' }, String(n)));
+  const ROWS = DATA.map(d => {
+    const r = Object.assign({}, d);
+    r.bar = add('bar'); r.val = add('val num');
+    r.lm = add('mask', { left: '186px', width: '60px', height: BH + 'px' });
+    r.letter = add('letter', {}, d.k, r.lm);
+    return r;
+  });
+  const hero = ROWS[3];
+  hero.bar.style.zIndex = 3; hero.val.style.zIndex = 3;
+
+  // the callout on the right: big number, blue rule, label
+  const CX = 1300;
+  const bigM = add('mask', { left: CX + 'px', top: '360px', width: '540px', height: '340px' });
+  const big = add('num abs', { fontSize: '320px', lineHeight: '340px', letterSpacing: '-0.02em' }, '+41', bigM);
+  const ruleB = add('abs', { top: '716px', height: '8px', background: 'var(--accent)' });
+  const labM = add('mask', { left: CX + 'px', top: '740px', width: '520px', height: '52px' });
+  const lab = add('abs', { fontSize: '32px', fontWeight: 500, lineHeight: '52px', color: 'var(--ink)' }, 'points gained', labM);
+  // the ghost tick: where the blue bar started
+  const gTick = add('abs', { width: '4px', height: '112px', background: 'var(--ink)', zIndex: 4, transformOrigin: '50% 0' });
+  const wasM = add('mask', { top: '330px', width: '200px', height: '38px' });
+  const was = add('abs', { fontSize: '26px', fontWeight: 500, lineHeight: '38px', color: 'var(--muted)' }, 'was 31', wasM);
+
+  window.__timelines["main"] = S.play(function render(t) {
+    layoutHead(H1); layoutHead(H2);
+    const seg = S.seg;
+
+    // headlines: masked word slides, small stagger
+    H1.forEach((s, k) => {
+      const out = seg(t, 0.25 + 0.04 * k, 0.35, 'power2.in'), inn = seg(t, 6.35 + 0.06 * k, 0.7, 'expo.out');
+      s.style.transform = `translateY(${t < 6.35 ? -out * 156 : (1 - inn) * 156}px)`;
+    });
+    H2.forEach((s, k) => {
+      const inn = seg(t, 0.55 + 0.06 * k, 0.7, 'expo.out'), out = seg(t, 5.4 + 0.04 * k, 0.35, 'power2.in');
+      s.style.transform = `translateY(${t < 5.4 ? (1 - inn) * 156 : -out * 156}px)`;
+    });
+
+    // the axis zooms out to fit the leader, then back
+    const max = 60 + 20 * seg(t, 1.1, 1.2, 'power3.inOut') - 20 * seg(t, 6.0, 1.0, 'power3.inOut');
+    // the camera: the chart narrows to make room for the callout, then widens again
+    const W = WIDE - (WIDE - NARROW) * (seg(t, 1.0, 1.1, 'power3.inOut') - seg(t, 5.75, 1.1, 'power3.inOut'));
+    const X = (v) => X0 + v / max * W;
+    GRID.forEach(g => {
+      const x = X(g.v), op = g.v === 0 ? 1 : clamp((X0 + W + 140 - x) / 140, 0, 1);
+      g.line.style.transform = `translateX(${x - (g.v === 0 ? 1.5 : 1)}px)`; g.line.style.opacity = op;
+      g.lab.style.transform = `translateX(${x}px)`; g.lab.style.opacity = op;
+    });
+
+    // bars: grow, break away, retract, regrow
+    const pB = seg(t, 0.7, 1.6, 'power2.inOut'), pBo = seg(t, 0.85, 1.4, 'power2.inOut');
+    // focus: the other bars step back so the blue one stands alone, then return
+    const dim = seg(t, 4.2, 0.6, 'power2.inOut') - seg(t, 5.3, 0.4, 'power2.inOut');
+    const blue = clamp(1 - seg(t, 7.0, 0.1, 'none') + seg(t, 9.4, 0.4, 'power2.inOut'), 0, 1);
+    ROWS.forEach(r => {
+      const b = r.hero ? pB : pBo;
+      const pR = seg(t, 5.7 + 0.06 * (4 - r.s1), 1.2, 'power2.inOut');
+      const pG = seg(t, 7.4 + 0.08 * r.s0, 1.4, 'power2.inOut');
+      const v = r.v0 + (r.v1 - r.v0) * b - r.v1 * pR + r.v0 * pG;
+      // re-rank: the blue bar climbs first, the others step down just after it
+      const delay = r.hero ? 0 : 0.06 + 0.04 * r.s1;
+      const pK = seg(t, 2.5 + delay, 0.9, r.hero ? 'back.inOut(1.3)' : 'power3.inOut') - (t >= 7.05 ? 1 : 0);
+      const y = rowY(r.s0 + (r.s1 - r.s0) * pK);
+      const w = Math.max(0, X(v) - X0 - 1.5);
+      const col = r.hero ? mixRGB(INK, BLUE, blue) : mixRGB(INK, MUTED, dim);
+      const bcol = r.hero ? col : mixRGB(INK, RULE, dim);
+      Object.assign(r.bar.style, { width: w + 'px', background: bcol, transform: `translate(${X0 + 1.5}px, ${y}px)` });
+      r.val.textContent = Math.round(v);
+      Object.assign(r.val.style, { color: col, opacity: clamp((v - 1.5) / 6, 0, 1),
+        transform: `translate(${X0 + w + 20}px, ${y}px)` });
+      // row letter rides its bar; drops out while the chart is empty and the order resets
+      const out = seg(t, 6.55 + 0.04 * r.s1, 0.35, 'power2.in'), inn = seg(t, 7.25 + 0.05 * r.s0, 0.6, 'expo.out');
+      r.lm.style.top = y + 'px';
+      r.letter.style.transform = `translateY(${t < 7.05 ? out * BH : (1 - inn) * BH}px)`;
+      r.letter.style.color = col;
+    });
+
+    // callout: the big number counts in step with the blue bar
+    const bi = seg(t, 1.45, 0.7, 'expo.out'), bo = seg(t, 5.3, 0.35, 'power2.in');
+    big.textContent = '+' + Math.round(41 * pB);
+    big.style.transform = `translateY(${t < 5.3 ? (1 - bi) * 340 : -bo * 340}px)`;
+    const ri = seg(t, 3.5, 0.6, 'power2.inOut'), ro = seg(t, 5.3, 0.35, 'power2.in');
+    const RW = big.offsetWidth;
+    Object.assign(ruleB.style, { left: (CX + 8 + RW * ro) + 'px', width: (RW * (ri - ro)) + 'px' });
+    const li = seg(t, 3.6, 0.7, 'expo.out'), lo = seg(t, 5.3, 0.35, 'power2.in');
+    lab.style.transform = `translateY(${t < 5.3 ? (1 - li) * 52 : -lo * 52}px)`;
+
+    // ghost tick on the blue bar at its old value
+    const ti = seg(t, 4.55, 0.5, 'power3.out'), to = seg(t, 5.3, 0.3, 'power2.in');
+    const tx = X(31);
+    Object.assign(gTick.style, { transform: `translate(${tx - 2}px, ${rowY(0) - 20}px) scaleY(${Math.max(0, ti - to)})` });
+    const wi = seg(t, 4.65, 0.6, 'expo.out'), wo = seg(t, 5.32, 0.35, 'power2.in');
+    wasM.style.left = (tx + 12) + 'px';
+    was.style.transform = `translateY(${t < 5.32 ? (1 - wi) * 38 : -wo * 38}px)`;
+  }, { loop: true });
+</script>
+</body>
+</html>

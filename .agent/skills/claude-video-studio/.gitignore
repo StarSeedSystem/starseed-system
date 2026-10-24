@@ -1,0 +1,14 @@
+# keys never go in git
+.env
+.env.*
+# renders and work files
+examples/out/
+work/
+out/
+*.mov
+renders/
+.hyperframes/
+stills/
+node_modules/
+.DS_Store
+*-silent.mp4

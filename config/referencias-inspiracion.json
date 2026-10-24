@@ -479,6 +479,55 @@
    ]
   },
   {
+   "id": "claude-video-2",
+   "nombre": "Claude Video 2.0",
+   "url": "https://github.com/ItsssssJack/claude-video-2",
+   "tema": "movimiento",
+   "subtema": "animaciones gráficas",
+   "que_es": "Skill de agente (MIT) para motion graphics de estudio hechos en código: galería de 21 looks que se ven como vídeo, cinco preguntas, brief en números, 3 fotogramas puntuados antes de renderizar a MP4 con HyperFrames y GSAP, y comprobaciones de ritmo y de bucle sobre los fotogramas reales; con fotos o clips propios o clips de Higgsfield tras un storyboard con su coste. En StarSeed lleva el look de la casa «starseed-trinity» (intro de canal de 7 s).",
+   "tipo": "codigo-abierto",
+   "acceso": "libre",
+   "clase_uso": "reutilizable",
+   "condiciones": "MIT: conservar el aviso de copyright. Renderiza con HyperFrames (Apache-2.0, npx hyperframes@0.8.181) y GSAP desde jsDelivr (licencia estándar gratuita de GSAP); solo fuentes libres (Google Fonts y Fontshare por su enlace, nunca archivos). Los clips de Higgsfield gastan créditos de la cuenta y solo con un «sí» al storyboard y su coste.",
+   "canales": [
+    "github",
+    "skill",
+    "script"
+   ],
+   "prohibido": [],
+   "actualizacion": [
+    {
+     "tipo": "github",
+     "ref": "ItsssssJack/claude-video-2"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "skill",
+     "ref": "Claude Code de la Mac: ~/.claude/skills/claude-video-studio (con STARSEED.md y el look starseed-trinity)"
+    },
+    {
+     "tipo": "plugin",
+     "ref": "starseed-estudio 0.1.5 · skill claude-video-studio (claude.ai y Cowork)"
+    },
+    {
+     "tipo": "skill",
+     "ref": ".agent/skills/claude-video-studio (agentes del enjambre; sin la galería de vídeos)",
+     "licencia": "MIT"
+    },
+    {
+     "tipo": "npm",
+     "ref": "hyperframes@0.8.181",
+     "licencia": "Apache-2.0",
+     "requiere": "Node 22+ y ffmpeg"
+    }
+   ],
+   "terminos": "https://github.com/ItsssssJack/claude-video-2/blob/main/LICENSE",
+   "og_imagen": null,
+   "verificado": "2026-10-24",
+   "sin_verificar": []
+  },
+  {
    "id": "brandguidelines",
    "nombre": "Brand Guidelines (1042 Studio)",
    "url": "https://www.brandguidelines.net",

@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700,800&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+/* Switzer comes from the Fontshare link above (free, loaded at render time, never shipped).
+   This weight-100 local() face is never used; it only tells the linter the family is declared. */
+@font-face { font-family: 'Switzer'; src: local('Switzer'); font-weight: 100; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #FFFFFF; }
+#root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #FFFFFF;
+  font-family: 'Switzer', system-ui, sans-serif; font-weight: 700; letter-spacing: -0.03em; color: #14213D; }
+.abs { position: absolute; }
+#grid { position: absolute; left: -900px; top: -700px; width: 3720px; height: 2480px; background-image: radial-gradient(circle, rgb(226,226,232) 2.1px, transparent 2.6px); }
+#wash { position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 40%, rgba(255,255,255,0) 55%, rgba(20,33,61,0.06) 100%); }
+#stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 960px 540px; }
+#world { position: absolute; left: 0; top: 0; width: 3200px; height: 1800px; transform-origin: 0 0; }
+#fog { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: linear-gradient(180deg, #FFFFFF 0%, rgba(255,255,255,0.85) 14%, rgba(255,255,255,0) 46%); }
+#grain { position: absolute; inset: 0; opacity: 0.05; mix-blend-mode: multiply; pointer-events: none; }
+
+.ph { position: absolute; border: 3px dashed #E1E4EB; border-radius: 36px; }
+.cast { position: absolute; border-radius: 40px; background: rgba(20,33,61,0.16); filter: blur(34px); }
+.card { position: absolute; border-radius: 36px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #FAFBFD 100%);
+  border: 2px solid #E3E6ED;
+  box-shadow: inset 0 2px 0 #FFFFFF, 0 1px 2px rgba(20,33,61,0.06), 0 10px 20px -6px rgba(20,33,61,0.10), 0 34px 70px -24px rgba(20,33,61,0.22); }
+.ring { position: absolute; inset: -12px; border-radius: 46px; border: 5px solid #2B7EF9; opacity: 0; }
+.hd { position: absolute; left: 32px; top: 30px; height: 68px; display: flex; align-items: center; gap: 20px; }
+.chip { width: 68px; height: 68px; border-radius: 20px; background: #F1F3F8; color: #14213D;
+  display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1.5px #E6E9F0; }
+.chip svg { width: 36px; height: 36px; }
+.lbl { font-size: 50px; font-weight: 800; letter-spacing: -0.035em; line-height: 1; white-space: nowrap; }
+.spark svg { display: block; width: 100%; height: 100%; }
+
+.scene { position: absolute; overflow: hidden; background: linear-gradient(180deg, #DCE8FD 0%, #F3F7FF 80%); }
+.scene .sun { position: absolute; border-radius: 50%; background: radial-gradient(closest-side, rgba(255,255,255,1) 0%, rgba(255,255,255,0.9) 55%, rgba(255,255,255,0) 100%); }
+.scene .gr { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, #23345A 0%, #14213D 40%); }
+.scene .sh { position: absolute; border-radius: 50%; background: radial-gradient(closest-side, rgba(90,155,255,0.75), rgba(43,126,249,0) 100%); }
+.scene .ball { position: absolute; border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #FFFFFF 0%, #A9CBFF 12%, #4F93FB 36%, #2B7EF9 58%, #1546A8 100%);
+  box-shadow: 0 2px 6px rgba(20,33,61,0.25); }
+.scene .ball.bad { background: radial-gradient(circle at 34% 28%, #FFFFFF 0%, #D5DAE3 20%, #A3AABA 60%, #6F7891 100%); }
+.x { position: absolute; border-radius: 50%; border: 3px dashed #2B7EF9; }
+.wire { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.pkt { position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #9CC3FF 0%, #2B7EF9 55%, #1D63D8 100%);
+  border: 5px solid #FFFFFF; box-shadow: 0 4px 12px rgba(43,126,249,0.45), 0 0 0 2px rgba(43,126,249,0.18); opacity: 0; }
+.pkt.sm { width: 22px; height: 22px; margin: -11px 0 0 -11px; border-width: 4px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="14" data-width="1920" data-height="1080">
+  <div id="stage"><div id="grid"></div><div id="world"></div></div>
+  <div id="fog"></div>
+  <div id="wash"></div>
+  <canvas id="grain" width="960" height="540" style="width:1920px;height:1080px"></canvas>
+</div>
+<script>
+/*
+  How an AI makes a video. 14 s, 1920x1080, does not loop.
+  A living system diagram: rounded cards, wires that draw themselves, blue packets that ride the wires,
+  and one camera that flies from card to card. Prompt -> AI -> Code -> Browser -> Frames -> Video.
+  Beat map:
+    0.0 - 2.5   Prompt types and sends; the packet flies to the AI card, then on to Code
+    2.5 - 6.5   Code types 7 lines; a long elbow wire drops to Browser; 6 captures ride into Frames (frame 4 is wrong)
+    7.0 - 9.0   Video plays, stalls on the bad frame; a "Fix" note rides the loop wire back to Code
+    9.0 - 11.0  line 4 retypes in blue; the packet re-runs; frame 4 swaps to the fixed frame; the plane tilts as the camera pulls out
+    11.3 - 14.0 light sweeps the whole circuit, then the camera flies into the Video card and the mini film fills the frame
+  Change the words: the label fields in N (one word per card) and the 'Fix' note text.
+  Change the colours: NAVY, BLUE, TINT, G1 to G5 below, MARK (the AI mark colour), and the hex values in the <style> block.
+  Deterministic: seeded grain (mulberry32); camera and players are pure functions of time.
+*/
+(function () {
+const DUR = 14;
+const MARK = '#D97757'; // the AI mark: a plain 8-ray asterisk
+const NAVY = '#14213D', BLUE = '#2B7EF9', TINT = '#EAF2FE', G1 = '#5B6478', G2 = '#8A93A8', G3 = '#C9CED9', G4 = '#E4E7EE', G5 = '#F4F6FA';
+const root = document.getElementById('root');
+const world = document.getElementById('world');
+const stage = document.getElementById('stage');
+const grid = document.getElementById('grid');
+const fog = document.getElementById('fog');
+const tl = gsap.timeline({ paused: true });
+window.__timelines = window.__timelines || {};
+window.__timelines['main'] = tl;
+
+// seeded PRNG
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+// static grain
+(function () { const c = document.getElementById('grain'), x = c.getContext('2d'), r = mulberry32(8);
+  const im = x.createImageData(960, 540); for (let i = 0; i < im.data.length; i += 4) { const v = 120 + r() * 135 | 0;
+  im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; } x.putImageData(im, 0, 0); })();
+
+function el(parent, css, cls, html) { const e = document.createElement('div'); if (cls) e.className = cls;
+  e.style.position = 'absolute'; Object.assign(e.style, css || {}); if (html != null) e.innerHTML = html; parent.appendChild(e); return e; }
+const px = v => v + 'px';
+
+// ---------- icons ----------
+const S = 'fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"';
+const ICON = {
+  prompt: `<svg viewBox="0 0 32 32" ${S}><path d="M6 9a4 4 0 0 1 4-4h12a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4h-7l-6 5v-5a3 3 0 0 1-3-3z"/><path d="M11 11.5h10M11 15.5h6"/></svg>`,
+  code: `<svg viewBox="0 0 32 32" ${S}><path d="M11 9.5 4.5 16 11 22.5M21 9.5l6.5 6.5-6.5 6.5M18 7l-4 18"/></svg>`,
+  browser: `<svg viewBox="0 0 32 32" ${S}><rect x="4" y="6" width="24" height="20" rx="4"/><path d="M4 12h24"/><path d="M8 9h.01M11 9h.01M14 9h.01" stroke-width="3"/></svg>`,
+  frames: `<svg viewBox="0 0 32 32" ${S}><rect x="5" y="4" width="22" height="24" rx="3.5"/><path d="M10.5 4v24M21.5 4v24M5 10.5h5.5M5 16h5.5M5 21.5h5.5M21.5 10.5H27M21.5 16H27M21.5 21.5H27"/></svg>`,
+  video: `<svg viewBox="0 0 32 32" ${S}><rect x="4" y="6" width="24" height="20" rx="5"/><path d="M13.5 11.5v9l7.5-4.5z" fill="currentColor"/></svg>`,
+  fix: `<svg viewBox="0 0 32 32" ${S}><path d="M20 6.5l5.5 5.5L12 25.5H6.5V20z"/><path d="M16.5 10l5.5 5.5"/></svg>`,
+  send: `<svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 25V8M8.5 15 16 7.5l7.5 7.5"/></svg>`,
+  check: `<svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16.5l5.5 5.5L24.5 10"/></svg>`,
+};
+
+// AI mark: 8 rounded rays (a generic asterisk), drawn inline
+const MARK_SVG = `<svg viewBox="0 0 100 100"><g stroke="${MARK}" stroke-width="11" stroke-linecap="round">${[0, 45, 90, 135].map(a => `<line x1="50" y1="9" x2="50" y2="91" transform="rotate(${a} 50 50)"/>`).join('')}</g></svg>`;
+
+// ---------- layout (world px) ----------
+const N = {
+  prompt:  { cx: 500,  cy: 560,  w: 600,  h: 380, icon: 'prompt',  label: 'Prompt' },
+  ai:      { cx: 1330, cy: 480,  w: 420,  h: 420, icon: 'mark',    label: 'AI' },
+  code:    { cx: 2280, cy: 560,  w: 800,  h: 520, icon: 'code',    label: 'Code' },
+  browser: { cx: 580,  cy: 1400, w: 640,  h: 532, icon: 'browser', label: 'Browser' },
+  frames:  { cx: 1620, cy: 1400, w: 1040, h: 328, icon: 'frames',  label: 'Frames' },
+  video:   { cx: 2580, cy: 1400, w: 600,  h: 512, icon: 'video',   label: 'Video' },
+};
+for (const k in N) { const n = N[k]; n.x = n.cx - n.w / 2; n.y = n.cy - n.h / 2; }
+
+// light pool that follows the action (world space, under everything)
+const pool = el(world, { left: '0px', top: '0px', width: '1400px', height: '1040px', borderRadius: '50%',
+  background: 'radial-gradient(closest-side, rgba(43,126,249,0.15), rgba(43,126,249,0.06) 55%, rgba(43,126,249,0) 100%)' });
+
+gsap.set(pool, { x: N.prompt.cx - 700, y: N.prompt.cy - 520 });
+// wires svg
+const svgNS = 'http://www.w3.org/2000/svg';
+const svg = document.createElementNS(svgNS, 'svg');
+svg.setAttribute('width', 3200); svg.setAttribute('height', 1800); svg.setAttribute('viewBox', '0 0 3200 1800');
+Object.assign(svg.style, { position: 'absolute', left: 0, top: 0, overflow: 'visible' });
+world.appendChild(svg);
+
+function rounded(pts, r) {
+  let d = `M${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [ax, ay] = pts[i - 1], [bx, by] = pts[i], [cx, cy] = pts[i + 1];
+    const l1 = Math.hypot(bx - ax, by - ay), l2 = Math.hypot(cx - bx, cy - by);
+    const rr = Math.min(r, l1 / 2, l2 / 2);
+    const p1 = [bx - (bx - ax) / l1 * rr, by - (by - ay) / l1 * rr], p2 = [bx + (cx - bx) / l2 * rr, by + (cy - by) / l2 * rr];
+    d += ` L${p1[0]} ${p1[1]} Q${bx} ${by} ${p2[0]} ${p2[1]}`;
+  }
+  const e = pts[pts.length - 1]; return d + ` L${e[0]} ${e[1]}`;
+}
+function mk(tag, attrs) { const e = document.createElementNS(svgNS, tag); for (const a in attrs) e.setAttribute(a, attrs[a]); return e; }
+
+const WIRES = {};
+function wire(id, pts, r) {
+  const d = rounded(pts, r);
+  const g = mk('g', {}); svg.appendChild(g);
+  const under = mk('path', { d, class: 'wire', stroke: '#FFFFFF', 'stroke-width': 16 });
+  const track = mk('path', { d, class: 'wire', stroke: '#CDD2DC', 'stroke-width': 6 });
+  const lit = mk('path', { d, class: 'wire', stroke: BLUE, 'stroke-width': 6 });
+  const trail = mk('path', { d, class: 'wire', stroke: BLUE, 'stroke-width': 10, opacity: 0.0 });
+  g.appendChild(under); g.appendChild(track); g.appendChild(lit); g.appendChild(trail);
+  const L = track.getTotalLength();
+  [under, track, lit].forEach(p => { p.setAttribute('stroke-dasharray', `${L} ${L}`); p.setAttribute('stroke-dashoffset', L); });
+  trail.setAttribute('stroke-dasharray', `0 ${L * 2}`);
+  const a = pts[0], b = pts[pts.length - 1];
+  const p0 = mk('circle', { cx: a[0], cy: a[1], r: 11, fill: '#fff', stroke: '#CDD2DC', 'stroke-width': 5, opacity: 0 });
+  const p1 = mk('circle', { cx: b[0], cy: b[1], r: 11, fill: '#fff', stroke: '#CDD2DC', 'stroke-width': 5, opacity: 0 });
+  g.appendChild(p0); g.appendChild(p1);
+  const NS = 600, pts2 = [];
+  for (let i = 0; i <= NS; i++) { const q = track.getPointAtLength(L * i / NS); pts2.push([q.x, q.y]); }
+  const at = l => { const f = Math.max(0, Math.min(NS, l / L * NS)), i = Math.min(NS - 1, Math.floor(f)), r = f - i;
+    return { x: pts2[i][0] + (pts2[i + 1][0] - pts2[i][0]) * r, y: pts2[i][1] + (pts2[i + 1][1] - pts2[i][1]) * r }; };
+  return WIRES[id] = { d, under, track, lit, trail, L, p0, p1, at };
+}
+const P = N;
+wire('c1', [[P.prompt.x + P.prompt.w, 560], [960, 560], [960, 480], [P.ai.x, 480]], 40);
+wire('c2', [[P.ai.x + P.ai.w, 480], [1710, 480], [1710, 560], [P.code.x, 560]], 40);
+wire('c3', [[2100, P.code.y + P.code.h], [2100, 985], [580, 985], [580, P.browser.y]], 64);
+wire('c4', [[P.browser.x + P.browser.w, 1400], [P.frames.x, 1400]], 0);
+wire('c5', [[P.frames.x + P.frames.w, 1400], [P.video.x, 1400]], 0);
+wire('loop', [[P.video.x + P.video.w, 1400], [2990, 1400], [2990, 560], [P.code.x + P.code.w, 560]], 72);
+
+// ---------- nodes ----------
+const NODES = {};
+function node(id) {
+  const n = N[id];
+  const ph = el(world, { left: px(n.x), top: px(n.y), width: px(n.w), height: px(n.h) }, 'ph');
+  const cast = el(world, { left: px(n.x + 30), top: px(n.y + 50), width: px(n.w - 60), height: px(n.h - 40), opacity: 0 }, 'cast');
+  const card = el(world, { left: px(n.x), top: px(n.y), width: px(n.w), height: px(n.h) }, 'card');
+  const ring = el(card, {}, 'ring');
+  const hd = el(card, {}, 'hd');
+  hd.style.position = 'absolute';
+  const chip = el(hd, { position: 'relative' }, 'chip', n.icon === 'mark' ? '' : ICON[n.icon]);
+  if (n.icon === 'mark') { el(chip, { position: 'relative', width: '40px', height: '40px' }, 'spark', MARK_SVG); }
+  const lbl = el(hd, { position: 'relative' }, 'lbl', n.label);
+  gsap.set(card, { opacity: 0, y: 60, scale: 0.9, transformOrigin: '50% 60%' });
+  gsap.set([chip, lbl], { opacity: 0, x: -18 });
+  return NODES[id] = { n, ph, cast, card, ring, chip, lbl };
+}
+Object.keys(N).forEach(node);
+
+// ----- prompt content -----
+const PR = NODES.prompt.card;
+const field = el(PR, { left: '32px', top: '128px', width: '536px', height: '212px', borderRadius: '24px', background: G5, boxShadow: 'inset 0 0 0 2px #E6E9F0' });
+const pbars = [
+  el(field, { left: '32px', top: '40px', height: '22px', width: '0px', borderRadius: '11px', background: NAVY }),
+  el(field, { left: '32px', top: '84px', height: '22px', width: '0px', borderRadius: '11px', background: '#B4BBC9' }),
+];
+const pcaret = el(field, { left: '32px', top: '34px', width: '5px', height: '34px', borderRadius: '3px', background: BLUE });
+const send = el(field, { right: '20px', bottom: '20px', width: '80px', height: '80px', borderRadius: '50%', background: BLUE,
+  boxShadow: '0 10px 22px -6px rgba(43,126,249,0.6), inset 0 2px 0 rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }, '', ICON.send);
+send.firstChild.style.width = '38px'; send.firstChild.style.height = '38px';
+const sendRing = el(field, { right: '20px', bottom: '20px', width: '80px', height: '80px', borderRadius: '50%', border: '4px solid ' + BLUE, opacity: 0 });
+
+// ----- AI content -----
+const CL = NODES.ai.card;
+const orbit = el(CL, { left: '70px', top: '128px', width: '280px', height: '280px', borderRadius: '50%', border: '2.5px dashed #D8DCE5' });
+const sat = el(orbit, { left: '130px', top: '-10px', width: '20px', height: '20px', borderRadius: '50%', background: BLUE, boxShadow: '0 0 0 5px #fff, 0 4px 10px rgba(43,126,249,0.5)', opacity: 0 });
+const ripples = [0, 1, 2].map(() => el(CL, { left: '110px', top: '168px', width: '200px', height: '200px', borderRadius: '50%', border: '3px solid ' + BLUE, opacity: 0 }));
+const sparkWrap = el(CL, { left: '110px', top: '168px', width: '200px', height: '200px' });
+const spark = el(sparkWrap, { left: 0, top: 0, width: '200px', height: '200px' }, 'spark', MARK_SVG);
+const sparkShadow = el(CL, { left: '130px', top: '378px', width: '160px', height: '14px', borderRadius: '50%', background: 'rgba(20,33,61,0.12)', filter: 'blur(6px)' });
+
+// ----- code content -----
+const CO = NODES.code.card;
+const ed = el(CO, { left: '32px', top: '128px', width: '736px', height: '360px', borderRadius: '22px', overflow: 'hidden',
+  background: 'linear-gradient(180deg, #1B2A4A 0%, #14213D 100%)', boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.08)' });
+const LINES = [
+  [0, [[150, BLUE], [190, '#E6EAF2']]],
+  [1, [[110, '#5F6B85'], [230, '#E6EAF2']]],
+  [1, [[180, '#E6EAF2'], [120, BLUE]]],
+  [2, [[90, BLUE], [260, '#E6EAF2'], [70, '#5F6B85']]],
+  [2, [[200, '#E6EAF2'], [110, '#5F6B85']]],
+  [1, [[140, '#5F6B85']]],
+  [0, [[60, BLUE]]],
+];
+const codeLines = []; const LH = 44, LT = 36;
+LINES.forEach((ln, i) => {
+  el(ed, { left: '28px', top: px(LT + i * LH + 6), width: '22px', height: '10px', borderRadius: '5px', background: '#33415F' });
+  const row = el(ed, { left: px(80 + ln[0] * 44), top: px(LT + i * LH), height: '22px', display: 'flex', gap: '14px', clipPath: 'inset(0% 100% 0% 0%)' });
+  let w = 0; const segs = [];
+  ln[1].forEach(([sw, c]) => { const s = el(row, { position: 'relative', width: px(sw), height: '22px', borderRadius: '11px', background: c }); segs.push(s); w += sw + 14; });
+  codeLines.push({ row, segs, x: 80 + ln[0] * 44, w: w - 14, y: LT + i * LH });
+});
+const band = el(ed, { left: '12px', top: px(LT + 3 * LH - 11), width: '712px', height: '44px', borderRadius: '12px', background: 'rgba(43,126,249,0.22)', opacity: 0 });
+ed.insertBefore(band, ed.firstChild);
+const ccaret = el(ed, { left: 0, top: 0, width: '5px', height: '32px', borderRadius: '3px', background: BLUE, opacity: 0 });
+
+// ----- mini scene -----
+function scene(parent, x, y, w, h, rad) {
+  const s = el(parent, { left: px(x), top: px(y), width: px(w), height: px(h), borderRadius: rad || 0 }, 'scene');
+  const gy = Math.round(h * 0.8), r = Math.max(5, Math.round(h * 0.1));
+  el(s, { left: px(w * 0.72), top: px(h * 0.04), width: px(h * 0.42), height: px(h * 0.42) }, 'sun');
+  let dots = '';
+  const dr = Math.max(1.3, h * 0.011);
+  for (let k = 0; k <= 30; k++) { const u = k / 30, X = w * (0.15 + 0.7 * u), Y = gy - r - h * 0.52 * 4 * u * (1 - u);
+    dots += `<circle cx="${X.toFixed(1)}" cy="${Y.toFixed(1)}" r="${dr.toFixed(2)}" fill="#9EBEF6"/>`; }
+  el(s, { left: 0, top: 0, width: px(w), height: px(h) }, '', `<svg width="${w}" height="${h}">${dots}</svg>`);
+  el(s, { top: px(gy), height: px(h - gy) }, 'gr');
+  const sh = el(s, { width: px(r * 3.2), height: px(r * 0.9) }, 'sh');
+  const ball = el(s, { width: px(r * 2), height: px(r * 2) }, 'ball');
+  const o = { s, sh, ball, w, h, gy, r };
+  setScene(o, 0, false); return o;
+}
+function setBall(o, x, y, sx, sy) {
+  o.ball.style.transform = `translate(${x - o.r}px, ${y - o.r}px) scale(${sx}, ${sy})`;
+  o.ball.style.transformOrigin = '50% 100%';
+  o.ball.classList.remove('bad');
+  const lift = Math.max(0, (o.gy - o.r - y) / (o.h * 0.52));
+  o.sh.style.transform = `translate(${x - o.r * 1.6}px, ${o.gy - o.r * 0.45}px) scale(${1 - lift * 0.5})`;
+  o.sh.style.opacity = 1 - lift * 0.55;
+}
+function setScene(o, i, bad) {
+  o.ball.style.transformOrigin = '';
+  const u = i / 5; let x = o.w * (0.15 + 0.7 * u), y = o.gy - o.r - o.h * 0.52 * 4 * u * (1 - u), sy = 1;
+  if (bad) { x = o.w * (0.15 + 0.7 * 0.5); y = o.gy - o.r * 0.72; sy = 0.72; }
+  o.ball.style.transform = `translate(${x - o.r}px, ${y - o.r}px) scaleY(${sy})`;
+  o.ball.classList.toggle('bad', !!bad);
+  const lift = (o.gy - o.r - y) / (o.h * 0.52);
+  o.sh.style.transform = `translate(${x - o.r * 1.6}px, ${o.gy - o.r * 0.45}px) scale(${1 - lift * 0.5})`;
+  o.sh.style.opacity = bad ? 0 : 1 - lift * 0.55;
+}
+
+// ----- browser content -----
+const BR = NODES.browser.card;
+const bwin = el(BR, { left: '32px', top: '128px', width: '576px', height: '372px', borderRadius: '20px', overflow: 'hidden', background: '#fff', boxShadow: 'inset 0 0 0 2px #E6E9F0' });
+const bbar = el(bwin, { left: 0, top: 0, width: '576px', height: '48px', background: G5, borderBottom: '2px solid #E6E9F0' });
+['#D3D8E2', '#D3D8E2', '#D3D8E2'].forEach((c, i) => el(bbar, { left: px(20 + i * 22), top: '18px', width: '12px', height: '12px', borderRadius: '50%', background: c }));
+const url = el(bbar, { left: '150px', top: '12px', width: '300px', height: '24px', borderRadius: '12px', background: '#fff', boxShadow: 'inset 0 0 0 1.5px #E3E6ED' });
+el(url, { left: '14px', top: '8px', width: '8px', height: '8px', borderRadius: '50%', background: BLUE });
+el(url, { left: '32px', top: '9px', width: '120px', height: '6px', borderRadius: '3px', background: '#D3D8E2' });
+const bscene = scene(bwin, 0, 48, 576, 324);
+const flash = el(bwin, { left: 0, top: '48px', width: '576px', height: '324px', background: '#fff', opacity: 0 });
+const brk = el(bwin, { left: '20px', top: '66px', width: '536px', height: '288px', opacity: 0 });
+brk.innerHTML = `<svg width="536" height="288" fill="none" stroke="${BLUE}" stroke-width="6" stroke-linecap="round"><path d="M3 40V3h37M496 3h37v37M533 248v37h-37M40 285H3v-37"/></svg>`;
+
+// ----- frames content -----
+const FR = NODES.frames.card;
+const strip = el(FR, { left: '32px', top: '124px', width: '976px', height: '172px', borderRadius: '18px', overflow: 'hidden',
+  background: 'linear-gradient(180deg, #1B2A4A 0%, #14213D 100%)', boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.07)' });
+for (let i = 0; i < 26; i++) { [16, 172 - 30].forEach(yy => el(strip, { left: px(14 + i * 37.5), top: px(yy), width: '18px', height: '14px', borderRadius: '4px', background: '#2C3A5B' })); }
+const FW = 141, FH = 79, FX0 = 24, FG = 16, FY = 46;
+const frames = [];
+for (let i = 0; i < 6; i++) {
+  const fx = FX0 + i * (FW + FG);
+  el(strip, { left: px(fx), top: px(FY), width: px(FW), height: px(FH), borderRadius: '8px', border: '2px dashed #3A4868' });
+  const holder = el(strip, { left: px(fx), top: px(FY), width: px(FW), height: px(FH), borderRadius: '8px', overflow: 'hidden', opacity: 0 });
+  const good = scene(holder, 0, 0, FW, FH);
+  setScene(good, i, false);
+  let bad = null;
+  if (i === 3) { bad = scene(holder, 0, 0, FW, FH); setScene(bad, 3, true); }
+  gsap.set(holder, { scale: 0.8, y: -14 });
+  frames.push({ holder, good, bad, fx });
+}
+const fring = el(strip, { left: px(FX0 + 3 * (FW + FG) - 8), top: px(FY - 8), width: px(FW + 16), height: px(FH + 16), borderRadius: '12px', border: '4px solid ' + BLUE, opacity: 0 });
+
+// ----- video content -----
+const VI = NODES.video.card;
+const player = el(VI, { left: '32px', top: '128px', width: '536px', height: '352px', borderRadius: '20px', overflow: 'hidden',
+  background: 'linear-gradient(180deg, #1B2A4A 0%, #14213D 100%)' });
+const vscene = scene(player, 0, 0, 536, 302);
+const vx = el(player, { left: px(268 - 56), top: px(214 - 56), width: '112px', height: '112px', opacity: 0, borderWidth: '4px' }, 'x');
+gsap.set(vx, { scale: 0.7 });
+const vtrack = el(player, { left: '24px', top: '324px', width: '488px', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.18)' });
+const vfill = el(vtrack, { left: 0, top: 0, width: '0px', height: '8px', borderRadius: '4px', background: BLUE });
+const vknob = el(vtrack, { left: '-9px', top: '-5px', width: '18px', height: '18px', borderRadius: '50%', background: '#fff', boxShadow: '0 2px 6px rgba(0,0,0,0.3)' });
+const vmark = el(vtrack, { left: px(488 * 3.15 / 5.04 - 3), top: '-10px', width: '6px', height: '28px', borderRadius: '3px', background: '#fff', opacity: 0 });
+const play = el(player, { left: px(268 - 60), top: px(151 - 60), width: '120px', height: '120px', borderRadius: '50%', background: BLUE,
+  boxShadow: '0 16px 36px -8px rgba(43,126,249,0.7), inset 0 3px 0 rgba(255,255,255,0.3)' },
+  '', `<svg width="120" height="120" viewBox="0 0 120 120"><path d="M50 40v40l32-20z" fill="#fff" stroke="#fff" stroke-width="6" stroke-linejoin="round"/></svg>`);
+const check = el(VI, { right: '-26px', top: '-26px', width: '84px', height: '84px', borderRadius: '50%', background: BLUE,
+  boxShadow: '0 0 0 6px #fff, 0 12px 26px -6px rgba(43,126,249,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }, '', ICON.check);
+check.firstChild.style.width = '44px'; check.firstChild.style.height = '44px';
+gsap.set(check, { scale: 0.6 });
+
+// ----- fix note -----
+const note = el(world, { left: 0, top: 0, width: '270px', height: '116px', marginLeft: '-135px', marginTop: '-58px', borderRadius: '30px', background: '#fff',
+  border: '3px solid ' + BLUE, boxShadow: '0 18px 40px -12px rgba(43,126,249,0.55), 0 4px 10px rgba(20,33,61,0.08)',
+  display: 'flex', alignItems: 'center', gap: '16px', paddingLeft: '18px', opacity: 0 });
+const nchip = el(note, { position: 'relative', width: '76px', height: '76px', borderRadius: '22px', background: BLUE, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }, '', ICON.fix);
+nchip.firstChild.style.width = '42px'; nchip.firstChild.style.height = '42px';
+el(note, { position: 'relative' }, 'lbl', 'Fix').style.fontSize = '60px';
+
+// ---------- timeline helpers ----------
+function land(id, t) {
+  const o = NODES[id];
+  tl.to(o.card, { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: 'power3.out' }, t);
+  tl.to(o.cast, { opacity: 1, duration: 0.6, ease: 'power2.out' }, t + 0.1);
+  tl.to(o.ph, { opacity: 0, duration: 0.3, ease: 'power1.in' }, t);
+  tl.to([o.chip, o.lbl], { opacity: 1, x: 0, duration: 0.45, ease: 'power3.out', stagger: 0.07 }, t + 0.12);
+}
+function pulse(id, t, keep) {
+  const o = NODES[id];
+  tl.set(o.ring, { opacity: 0.95, scale: 0.985 }, t);
+  tl.to(o.ring, { opacity: 0, scale: 1.05, duration: 0.7, ease: 'power2.out' }, t);
+  tl.to(o.card, { scale: 1.025, duration: 0.1, ease: 'power2.out' }, t);
+  tl.to(o.card, { scale: 1, duration: 0.5, ease: 'back.out(3)' }, t + 0.1);
+  tl.to(o.chip, { backgroundColor: BLUE, color: '#FFFFFF', duration: 0.12, ease: 'power2.out' }, t);
+  tl.to(o.cast, { backgroundColor: 'rgba(43,126,249,0.34)', duration: 0.15, ease: 'power2.out' }, t);
+  tl.to(o.cast, { backgroundColor: 'rgba(20,33,61,0.16)', duration: 1.0, ease: 'power2.inOut' }, t + 0.35);
+  tl.to(o.chip, { backgroundColor: TINT, color: BLUE, duration: 0.5, ease: 'power2.inOut' }, t + 0.4);
+}
+function drawWire(id, t, dur, ease) {
+  const w = WIRES[id];
+  tl.to([w.under, w.track], { attr: { 'stroke-dashoffset': 0 }, duration: dur, ease: ease || 'power2.inOut' }, t);
+  tl.to(w.p0, { attr: { opacity: 1 }, duration: 0.15 }, t);
+  tl.to(w.p1, { attr: { opacity: 1 }, duration: 0.15 }, t + dur * 0.8);
+}
+// packet with comet trail and lit wire
+function packet(id, t, dur, opts) {
+  opts = opts || {};
+  const w = WIRES[id];
+  const dot = el(world, {}, 'pkt' + (opts.small ? ' sm' : ''));
+  const pr = { u: 0 };
+  const TR = opts.small ? 0 : 220;
+  tl.to(pr, { u: 1, duration: dur, ease: opts.ease || 'power2.inOut', onUpdate: () => {
+    const u = pr.u, on = u > 0 && u < 1;
+    const l = u * w.L, p = w.at(l);
+    dot.style.transform = `translate(${p.x}px, ${p.y}px)`;
+    dot.style.opacity = on ? (opts.small ? Math.min(1, u * 8, (1 - u) * 8) * 0.9 : 1) : 0;
+    if (TR) { const tlen = Math.min(TR, l); w.trail.setAttribute('stroke-dasharray', `${tlen} ${w.L * 2}`);
+      w.trail.setAttribute('stroke-dashoffset', -(l - tlen)); w.trail.setAttribute('opacity', on ? 0.35 : 0); }
+    if (opts.lit) w.lit.setAttribute('stroke-dashoffset', w.L - l);
+  } }, t);
+  if (opts.lit) { tl.to(w.lit, { attr: { opacity: 0.32 }, duration: 0.8, ease: 'power2.inOut' }, t + dur + 0.05); }
+  if (!opts.small) { tl.to(w.p1, { attr: { stroke: BLUE, fill: BLUE }, duration: 0.15 }, t + dur - 0.05); }
+}
+function moveNote(t, dur) {
+  const w = WIRES.loop, pr = { u: 0 };
+  tl.to(pr, { u: 1, duration: dur, ease: 'power2.inOut', onUpdate: () => {
+    const p = w.at(pr.u * w.L);
+    note.style.transform = `translate(${p.x}px, ${p.y}px) scale(${note._s || 1})`;
+    w.lit.setAttribute('stroke-dashoffset', w.L - pr.u * w.L);
+  } }, t);
+}
+function poolTo(id, t, dur) { const n = N[id]; tl.to(pool, { x: n.cx - 700, y: n.cy - 520, duration: dur, ease: 'power2.inOut' }, t); }
+
+// ---------- BEATS ----------
+// 0.0 prompt (already 30% landed on frame 0)
+gsap.set(NODES.prompt.card, { opacity: 0.4, y: 34, scale: 0.94 });
+land('prompt', 0.0);
+tl.to(field, { opacity: 1, duration: 0.01 }, 0);
+tl.to(pbars[0], { width: 360, duration: 0.42, ease: 'steps(9)' }, 0.42);
+tl.to(pcaret, { x: 368, duration: 0.42, ease: 'steps(9)' }, 0.42);
+tl.set(pcaret, { x: 0, y: 44 }, 0.86);
+tl.to(pbars[1], { width: 230, duration: 0.3, ease: 'steps(6)' }, 0.88);
+tl.to(pcaret, { x: 238, duration: 0.3, ease: 'steps(6)' }, 0.88);
+tl.to(pcaret, { opacity: 0, duration: 0.1 }, 1.0);
+tl.to(send, { scale: 0.86, duration: 0.08, ease: 'power2.in' }, 0.92);
+tl.to(send, { scale: 1, duration: 0.45, ease: 'back.out(4)' }, 1.0);
+tl.set(sendRing, { opacity: 0.9, scale: 1 }, 1.0);
+tl.to(sendRing, { opacity: 0, scale: 1.6, duration: 0.5, ease: 'power2.out' }, 1.0);
+pulse('prompt', 1.0);
+// 1.0 -> AI
+drawWire('c1', 0.98, 0.4);
+packet('c1', 1.0, 0.5, { lit: true });
+land('ai', 0.95);
+poolTo('ai', 1.0, 0.6);
+pulse('ai', 1.5);
+tl.to(spark, { rotation: 135, scale: 1, duration: 1.0, ease: 'expo.out' }, 1.5);
+tl.to(spark, { scale: 1.14, duration: 0.12, ease: 'power2.out' }, 1.5);
+tl.to(spark, { scale: 1, duration: 0.6, ease: 'back.out(3)' }, 1.62);
+tl.to(sat, { opacity: 1, duration: 0.2 }, 1.5);
+ripples.forEach((r, i) => { tl.set(r, { opacity: 0.8, scale: 0.7 }, 1.5 + i * 0.12); tl.to(r, { opacity: 0, scale: 1.5, duration: 0.8, ease: 'power2.out' }, 1.5 + i * 0.12); });
+tl.to(orbit, { rotation: 300, duration: 1.2, ease: 'power2.inOut' }, 1.45);
+tl.to(sat, { opacity: 0, duration: 0.3 }, 2.45);
+// 2.0 -> code
+drawWire('c2', 1.98, 0.38);
+packet('c2', 2.0, 0.5, { lit: true });
+land('code', 1.9);
+poolTo('code', 2.0, 0.6);
+pulse('code', 2.5);
+let tt = 2.55;
+codeLines.forEach((c, i) => {
+  const d = 0.1 + c.w / 3600;
+  tl.set(ccaret, { x: c.x, y: c.y - 5, opacity: 1 }, tt);
+  tl.to(c.row, { clipPath: 'inset(0% 0% 0% 0%)', duration: d, ease: 'steps(6)' }, tt);
+  tl.to(ccaret, { x: c.x + c.w + 8, duration: d, ease: 'steps(6)' }, tt);
+  tt += d + 0.03;
+});
+tl.to(ccaret, { opacity: 0, duration: 0.1 }, tt);
+// 3.5 -> browser (long elbow)
+drawWire('c3', 3.45, 0.8, 'power2.inOut');
+packet('c3', 3.5, 0.9, { lit: true, ease: 'power2.inOut' });
+land('browser', 3.85);
+poolTo('browser', 3.5, 0.9);
+pulse('browser', 4.4);
+// captures
+const CAP = [4.5, 4.75, 5.0, 5.25, 5.5, 5.75];
+drawWire('c4', 4.42, 0.25);
+land('frames', 4.3);
+CAP.forEach((t, i) => {
+  tl.set(flash, { opacity: 0.85 }, t); tl.to(flash, { opacity: 0, duration: 0.2, ease: 'power2.out' }, t);
+  tl.set(brk, { opacity: 1, scale: 1.04 }, t); tl.to(brk, { opacity: 0, scale: 1, duration: 0.24, ease: 'power2.in' }, t + 0.02);
+  packet('c4', t + 0.01, 0.26, { ease: 'power1.inOut', lit: i === 0 });
+  const f = frames[i].holder;
+  tl.to(f, { opacity: 1, scale: 1, y: 0, duration: 0.35, ease: 'back.out(2.2)' }, t + 0.25);
+});
+poolTo('frames', 4.8, 0.8);
+pulse('frames', 5.0);
+// 6.0 -> video
+drawWire('c5', 5.98, 0.22);
+packet('c5', 6.0, 0.45, { lit: true });
+land('video', 5.95);
+poolTo('video', 6.0, 0.6);
+pulse('video', 6.5);
+tl.to(play, { scale: 0.84, duration: 0.08, ease: 'power2.in' }, 6.94);
+tl.to(play, { scale: 1.25, opacity: 0, duration: 0.25, ease: 'power2.in' }, 7.02);
+tl.set(vmark, { opacity: 1 }, 7.55);
+tl.to(vx, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(2.5)' }, 7.62);
+tl.to(vx, { rotation: 90, duration: 3.2, ease: 'none' }, 7.62);
+tl.to(vx, { opacity: 0, scale: 0.85, duration: 0.25, ease: 'power2.in' }, 10.9);
+// 8.0 fix note rides the loop back to code
+drawWire('loop', 7.85, 0.95, 'power2.inOut');
+tl.set(note, { opacity: 0 }, 0);
+note._s = 0.8;
+const ns = { s: 0.8 };
+tl.to(note, { opacity: 1, duration: 0.2, ease: 'power2.out' }, 7.98);
+tl.to(ns, { s: 1, duration: 0.45, ease: 'back.out(3)', onUpdate: () => { note._s = ns.s; } }, 7.98);
+moveNote(8.0, 1.0);
+tl.to(WIRES.loop.lit, { attr: { opacity: 0.32 }, duration: 0.8 }, 9.1);
+tl.to(note, { opacity: 0, duration: 0.2, ease: 'power2.in' }, 9.0);
+poolTo('code', 8.2, 0.8);
+pulse('code', 9.0);
+// line 4 retype in blue
+const L4 = codeLines[3];
+tl.to(band, { opacity: 1, duration: 0.2, ease: 'power2.out' }, 9.0);
+tl.to(L4.row, { clipPath: 'inset(0% 100% 0% 0%)', duration: 0.14, ease: 'power2.in' }, 9.05);
+tl.to(L4.segs, { backgroundColor: '#8DB6FC', duration: 0.01 }, 9.19);
+tl.set(ccaret, { x: L4.x, y: L4.y - 5, opacity: 1 }, 9.2);
+tl.to(L4.row, { clipPath: 'inset(0% 0% 0% 0%)', duration: 0.3, ease: 'steps(7)' }, 9.2);
+tl.to(ccaret, { x: L4.x + L4.w + 8, duration: 0.3, ease: 'steps(7)' }, 9.2);
+tl.to(ccaret, { opacity: 0, duration: 0.1 }, 9.55);
+tl.to(band, { opacity: 0.45, duration: 0.6 }, 9.7);
+// 9.5 re-run: code -> browser -> frames
+packet('c3', 9.55, 0.7, { ease: 'power1.inOut' });
+tl.set(flash, { opacity: 0.85 }, 10.25); tl.to(flash, { opacity: 0, duration: 0.22 }, 10.25);
+tl.set(brk, { opacity: 1, scale: 1.04 }, 10.25); tl.to(brk, { opacity: 0, scale: 1, duration: 0.26, ease: 'power2.in' }, 10.27);
+packet('c4', 10.26, 0.24, { ease: 'power1.inOut' });
+tl.to(frames[3].bad.s, { opacity: 0, duration: 0.18 }, 10.5);
+tl.to(frames[3].holder, { y: -10, duration: 0.12, ease: 'power2.out' }, 10.5);
+tl.to(frames[3].holder, { y: 0, duration: 0.45, ease: 'back.out(3)' }, 10.62);
+tl.set(fring, { opacity: 1, scale: 0.96 }, 10.5);
+tl.to(fring, { opacity: 0, scale: 1.18, duration: 0.7, ease: 'power2.out' }, 10.5);
+pulse('frames', 10.5);
+packet('c5', 10.55, 0.4);
+pulse('video', 10.95);
+tl.to(vmark, { opacity: 0, duration: 0.2 }, 10.95);
+// 12.0 finish
+
+// full-circuit light sweep
+['c1', 'c2', 'c3', 'c4', 'c5', 'loop'].forEach((id, i) => { const w = WIRES[id];
+  tl.to(w.lit, { attr: { opacity: 1 }, duration: 0.15, ease: 'power2.out' }, 10.75 + i * 0.08);
+  tl.to(w.lit, { attr: { opacity: 0.4 }, duration: 0.7, ease: 'power2.inOut' }, 10.95 + i * 0.08); });
+// ambient packets: the system keeps living
+[['c1', 0], ['c2', 0.12], ['c3', 0.24], ['c4', 0.36], ['c5', 0.48], ['loop', 0.6]].forEach(([id, o]) => {
+  for (let k = 0; k < 4; k++) { const t = 10.9 + o + k * 0.55; if (t + 0.5 < DUR) packet(id, t, id === 'c3' || id === 'loop' ? 0.9 : 0.5, { small: true, ease: 'none' }); }
+});
+
+// ---------- camera: pure function of time ----------
+const K = [
+  { t: 0.0,  x: 660,  y: 560,  s: 1.80 },
+  { t: 0.95, x: 630,  y: 560,  s: 1.72, e: 'sine.out' },
+  { t: 1.6,  x: 1330, y: 500,  s: 1.70, e: 'power3.inOut' },
+  { t: 1.95, x: 1350, y: 500,  s: 1.66, e: 'none' },
+  { t: 2.6,  x: 2280, y: 560,  s: 1.42, e: 'power3.inOut' },
+  { t: 3.45, x: 2262, y: 556,  s: 1.38, e: 'none' },
+  { t: 4.45, x: 600,  y: 1400, s: 1.42, e: 'power2.inOut', dip: 0.3 },
+  { t: 4.75, x: 610,  y: 1400, s: 1.38, e: 'none' },
+  { t: 5.45, x: 1210, y: 1400, s: 0.94, e: 'power3.inOut' },
+  { t: 5.95, x: 1240, y: 1400, s: 0.91, e: 'none' },
+  { t: 6.6,  x: 2580, y: 1400, s: 1.55, e: 'power3.inOut' },
+  { t: 7.95, x: 2588, y: 1396, s: 1.64, e: 'none' },
+  { t: 8.55, x: 2760, y: 1180, s: 1.02, e: 'power3.inOut' },
+  { t: 9.15, x: 2470, y: 640,  s: 1.16, e: 'power2.inOut' },
+  { t: 9.6,  x: 2455, y: 650,  s: 1.18, e: 'none' },
+  { t: 10.7, x: 1600, y: 960,  s: 0.625, e: 'expo.inOut' },
+  { t: 11.3, x: 1612, y: 962,  s: 0.64,  e: 'none' },
+  { t: 12.35, x: 2580, y: 1440, s: 2.95, e: 'expo.inOut' },
+  { t: 14.0, x: 2580, y: 1438, s: 3.12, e: 'none' },
+];
+K.forEach(k => { if (k.e) k.ef = gsap.parseEase(k.e); });
+function cam(t) {
+  if (t <= K[0].t) return K[0];
+  for (let i = 1; i < K.length; i++) {
+    const a = K[i - 1], b = K[i];
+    if (t <= b.t) {
+      const u = (t - a.t) / (b.t - a.t), e = b.ef(u);
+      let s = Math.exp(Math.log(a.s) + (Math.log(b.s) - Math.log(a.s)) * e);
+      if (b.dip) s *= 1 - b.dip * Math.sin(Math.PI * e);
+      return { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, s };
+    }
+  }
+  return K[K.length - 1];
+}
+
+// ---------- pure state for players ----------
+function videoState(t) {
+  if (t < 7.05) return { i: 0, bad: false, p: 2.65 / 5.04, j: 0 };
+  if (t < 7.55) return { i: Math.min(2, Math.floor((t - 7.05) / 0.1667)), bad: false, p: (2.65 + (t - 7.05)) / 5.04, j: 0 };
+  if (t < 10.95) { const j = t < 7.9 ? Math.sin((t - 7.55) * 90) * 12 * (1 - (t - 7.55) / 0.35) : 0; return { i: 3, bad: true, p: 3.15 / 5.04, j }; }
+  return { clean: true, p: Math.min(1, (1.95 + (t - 10.95)) / 5.04), j: 0 };
+}
+// continuous clean play: arc 10.95 -> land 12.6, squash, hop, settle
+function cleanBall(o, t) {
+  const X = u => o.w * (0.15 + 0.7 * u), G = o.gy - o.r;
+  if (t < 12.6) { const u = (t - 10.95) / 1.65; return setBall(o, X(u), G - o.h * 0.52 * 4 * u * (1 - u), 1, 1); }
+  const x = X(1);
+  if (t < 12.74) { const q = Math.sin(Math.PI * (t - 12.6) / 0.14); return setBall(o, x, G, 1 + 0.28 * q, 1 - 0.3 * q); }
+  if (t < 13.6) { const q = (t - 12.74) / 0.86; return setBall(o, x, G - o.h * 0.26 * 4 * q * (1 - q), 1, 1 + 0.05 * Math.sin(Math.PI * q)); }
+  if (t < 13.7) { const q = Math.sin(Math.PI * (t - 13.6) / 0.1); return setBall(o, x, G, 1 + 0.14 * q, 1 - 0.15 * q); }
+  const q = Math.min(1, (t - 13.7) / 0.3); return setBall(o, x, G - o.h * 0.07 * 4 * q * (1 - q), 1, 1);
+}
+function browserState(t) {
+  let i = 0; CAP.forEach((c, k) => { if (t >= c) i = k; });
+  if (t >= 10.25) return { i: 3, bad: false };
+  if (t < CAP[0]) return { i: 0, bad: false };
+  return { i, bad: i === 3 };
+}
+
+const clock = { t: 0 };
+let lastKey = '';
+function frame(t) {
+  const c = cam(t), c0 = cam(Math.max(0, t - 1 / 30));
+  const s = c.s;
+  world.style.transform = `translate(${960 - c.x * s}px, ${540 - c.y * s}px) scale(${s})`;
+  // tilt from camera velocity (secondary motion)
+  const vx = (c.x - c0.x) * s, vy = (c.y - c0.y) * s, vz = Math.log(c.s / c0.s);
+  const ry = Math.max(-6, Math.min(6, vx * 0.06)), rx = Math.max(-5, Math.min(5, -vy * 0.06));
+  const cl = (v) => Math.max(0, Math.min(1, v));
+  const uo = cl(t / 1.2), eo = Math.pow(1 - uo, 3);
+  const up = cl((t - 9.55) / 1.4), bp = Math.pow(Math.sin(Math.PI * up), 1.3) * (up > 0 && up < 1 ? 1 : 0);
+  const RX = 20 * eo + 24 * bp, RZ = -5 * eo - 4 * bp;
+  stage.style.transform = `perspective(2200px) rotateX(${rx + RX}deg) rotateY(${ry}deg) rotateZ(${RZ}deg)`;
+  fog.style.opacity = Math.min(0.55, RX / 40);
+  // grid sits behind the world: slower pan + softened zoom
+  const g = 38 * Math.pow(s / 1.0, 0.3);
+  grid.style.backgroundSize = `${g}px ${g}px`;
+  const gx = ((1860 - c.x * s * 0.8) % g + g) % g, gy = ((1240 - c.y * s * 0.8) % g + g) % g;
+  grid.style.backgroundPosition = `${gx}px ${gy}px`;
+  // the AI mark turns slowly
+  sparkWrap.style.transform = `rotate(${t * 14}deg)`;
+  const satA = t * 0; sat.style.transform = `rotate(${satA}deg)`;
+  // players
+  const v = videoState(t);
+  if (v.clean) cleanBall(vscene, t); else setScene(vscene, v.i, v.bad);
+  vscene.s.style.transform = `translateX(${v.j}px)`;
+  vfill.style.width = (488 * v.p) + 'px';
+  vknob.style.left = (488 * v.p - 9) + 'px';
+  const b = browserState(t);
+  setScene(bscene, b.i, b.bad);
+}
+tl.to(clock, { t: DUR, duration: DUR, ease: 'none', onUpdate: () => frame(clock.t) }, 0);
+frame(0);
+tl.seek(0);
+})();
+</script>
+</body>
+</html>

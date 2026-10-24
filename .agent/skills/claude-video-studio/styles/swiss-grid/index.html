@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="studio.js"></script>
+<style>
+  /* style: swiss-grid. Every colour comes from these tokens. */
+  :root { --ground: #FFFFFF; --ink: #111111; --grid: #E6E6E6; --accent: #E4002B; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--ground);
+    font-family: 'Inter', sans-serif; color: var(--ink); }
+  .abs { position: absolute; }
+  .vline { position: absolute; top: 0; width: 1px; height: 1080px; background: var(--grid); }
+  .hline { position: absolute; left: 0; height: 1px; width: 1920px; background: var(--grid); }
+  .row { position: absolute; left: 96px; width: 1000px; overflow: hidden; font-size: 290px; font-weight: 900;
+    letter-spacing: -0.045em; line-height: 1.15; height: 1.15em; white-space: nowrap; }
+  .word { position: absolute; left: 0; top: 0; }
+  .probe { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+  .tile { position: absolute; width: 218px; height: 218px; background: var(--ink); }
+  #dot { position: absolute; width: 62px; height: 62px; border-radius: 50%; background: var(--accent); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="9" data-width="1920" data-height="1080"></div>
+<script>
+  const S = STUDIO, root = S.root;
+  const add = (cls, css, html) => { const d = document.createElement('div'); d.className = cls;
+    Object.assign(d.style, css || {}); if (html != null) d.innerHTML = html; root.appendChild(d); return d; };
+
+  // the grid: 12 columns, 96 px margins, 24 px gutters
+  const COL = 122, GUT = 24, M = 96;
+  for (let c = 0; c <= 12; c++) {
+    const x = M + c * (COL + GUT) - (c === 12 ? GUT : 0);
+    add('vline', { left: x + 'px' });
+    if (c > 0 && c < 12) add('vline', { left: (x - GUT) + 'px' });
+  }
+  [M, 1080 - M].forEach(y => add('hline', { top: y + 'px' }));
+
+  // the type: three rows, each its own mask. Row 3 swaps its word: move -> loop -> land -> move
+  // tiles span columns 8 to 12; the type's cap top and last baseline line up with the tile block
+  const T = 218, TG = 24, BX = M + 7 * (COL + GUT), BY = 540 - (3 * T + 2 * TG) / 2, BH = 3 * T + 2 * TG;
+  const FS = 290, CAP = 0.727 * FS, PITCH = (BH - CAP) / 2;
+  const BASE = [BY + CAP, BY + CAP + PITCH, BY + BH];               // the three baselines
+  const rows = [0, 1, 2].map(i => add('row'));
+  const fixed = [['Make'], ['it']];
+  fixed.forEach((w, i) => { rows[i].innerHTML = `<span class="word">${w[0]}</span>`; });
+  const VERBS = ['move', 'loop', 'land'];
+  const verbs = VERBS.map(v => { const s = document.createElement('span'); s.className = 'word';
+    s.innerHTML = v + '<span class="probe"></span>'; rows[2].appendChild(s); return s; });
+  rows[0].firstChild.innerHTML += '<span class="probe"></span>';
+  const dot = add('', {}, ''); dot.id = 'dot';
+
+  // the tiles: 3 x 3 block on the right, one gap that walks a loop of 6 cells
+  const cell = (r, c) => [BX + c * (T + TG), BY + r * (T + TG)];
+  const RING = [[0, 1], [0, 2], [1, 2], [2, 2], [2, 1], [1, 1]];      // the gap visits these, in order
+  const MOVES = [0.5, 2.5, 3.5, 5.5, 6.5, 8.5];                      // one tile slides at each time
+  const tiles = [];
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    if (r === 0 && c === 1) continue;                               // the gap at t = 0
+    const e = add('tile'); tiles.push({ e, r, c });
+  }
+  // precompute each tile's path: at move k the tile in RING[k+1] slides into the gap RING[k]
+  const tileAt = new Map(tiles.map(t => [t.r + ',' + t.c, t]));
+  const path = [];
+  MOVES.forEach((t0, k) => {
+    const from = RING[(k + 1) % 6], to = RING[k];
+    const tile = tileAt.get(from.join(','));
+    path.push({ tile, from, to, t0 });
+    tileAt.delete(from.join(',')); tileAt.set(to.join(','), tile);
+  });
+  // tiles are identical, so after the gap walks the whole ring the block looks exactly like frame 0
+
+  // the word swaps and the dot hops
+  const SWAPS = [1.5, 4.5, 7.5];
+
+  window.__timelines["main"] = S.play(function render(t) {
+    // rows: measure where the baseline sits inside a row box (fonts can load late, so measure every frame)
+    const b = rows[0].querySelector('.probe').offsetTop;
+    rows[0].style.top = (BASE[0] - b) + 'px';
+    rows[1].style.top = (BASE[1] - b) + 'px';
+    // row 3 is a tight mask: from just under row 2's baseline to just under its own descenders
+    const mTop = BASE[1] + 0.07 * FS, mBot = BASE[2] + 0.27 * FS, MH = mBot - mTop;
+    Object.assign(rows[2].style, { top: mTop + 'px', height: MH + 'px' });
+    const wordTop = BASE[2] - mTop - b;                             // puts the word on its baseline
+    // tiles
+    for (const tl of tiles) { tl.x = cell(tl.r, tl.c)[0]; tl.y = cell(tl.r, tl.c)[1]; }
+    const pos = new Map(tiles.map(tl => [tl, cell(tl.r, tl.c)]));
+    for (const m of path) {
+      const p = S.seg(t, m.t0, 0.45, 'power3.inOut');
+      if (t >= m.t0) {
+        const a = cell(...m.from), b = cell(...m.to);
+        pos.set(m.tile, [S.mix(a[0], b[0], p), S.mix(a[1], b[1], p)]);
+      }
+    }
+    for (const tl of tiles) { const [x, y] = pos.get(tl); tl.e.style.transform = `translate(${x}px, ${y}px)`; }
+
+    // which verb is showing, and the swap in progress
+    let k = 0; SWAPS.forEach((s, i) => { if (t >= s) k = i + 1; });
+    const cur = k % 3, prev = (k + 2) % 3, ts = k ? SWAPS[k - 1] : -10;
+    verbs.forEach((v, i) => {
+      // one conveyor move: the old word rises out of the mask and the new one follows right behind it
+      const p = k ? S.seg(t, ts + 0.05, 0.8, 'expo.inOut') : 1;
+      let y = MH * 1.4;                                              // parked below the mask
+      if (i === cur) y = (1 - p) * MH;
+      if (i === prev && k) y = -p * MH;
+      v.style.transform = `translateY(${wordTop + y}px)`;
+    });
+
+    // the dot: sits as the full stop, hops to the next word, squashes on landing
+    const endX = i => M + verbs[i].offsetWidth + 0.035 * FS;
+    const base = BASE[2];                                           // the text baseline
+    const D0 = 62;
+    let x = endX(cur), y = base, sx = 1, sy = 1;
+    if (k && t < ts + 1.0) {
+      const x0 = endX(prev), x1 = endX(cur);
+      const dt = t - ts;
+      if (dt < 0.12) {                                              // anticipation
+        const a = S.seg(t, ts, 0.12, 'power2.out'); x = x0; sx = 1 + 0.18 * a; sy = 1 - 0.22 * a;
+      } else if (dt < 0.66) {                                       // the hop
+        const p = (dt - 0.12) / 0.54, e = S.ease('power2.inOut')(p);
+        x = S.mix(x0, x1, e); y = base - 260 * 4 * p * (1 - p);
+        const v = Math.abs(1 - 2 * p); sx = 0.86 + 0.14 * v; sy = 1.18 - 0.18 * v;
+      } else {                                                      // land, squash, settle
+        const d = dt - 0.66, sq = 0.3 * Math.exp(-9 * d) * Math.cos(16 * d);
+        x = x1; sx = 1 + sq; sy = 1 - sq;
+      }
+    }
+    dot.style.transform = `translate(${x}px, ${y - D0}px) scale(${sx}, ${sy})`;
+    dot.style.transformOrigin = '50% 100%';
+    dot.style.left = '0px'; dot.style.top = '0px';
+  }, { loop: true });
+</script>
+</body>
+</html>

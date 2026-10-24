@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="studio.js"></script>
+<style>
+  /* Paste the style's palette here as tokens. Never hard-code a colour below this block. */
+  :root { --ground: #FFFFFF; --ink: #111111; --accent: #E4002B; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--ground);
+    font-family: 'Inter', sans-serif; color: var(--ink); }
+  .abs { position: absolute; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="9" data-width="1920" data-height="1080">
+  <div id="hero" class="abs" style="left:96px; top:420px; font-size:200px; font-weight:900; letter-spacing:-0.04em;">Hello</div>
+</div>
+<script>
+  // Build the DOM once, then draw every frame from t in render(t).
+  const S = STUDIO, hero = document.getElementById('hero');
+  window.__timelines["main"] = S.play(function render(t) {
+    const p = S.seg(t, 0.2, 0.6, 'expo.out') - S.seg(t, 8.2, 0.4, 'power3.in');
+    hero.style.transform = `translateY(${(1 - p) * 60}px)`;
+    hero.style.opacity = p;
+  }, { loop: true });
+</script>
+</body>
+</html>

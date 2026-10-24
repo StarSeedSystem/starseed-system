@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<!-- Todas las fuentes de la pieza llevan su enlace (regla de HyperFrames). Rajdhani e Inter: SIL OFL. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@300;400&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="studio.js"></script>
+<style>
+  /* style: starseed-trinity · intro de canal de StarSeed OS (siembra → entrada cardinal → horizonte → rótulo).
+     Todos los colores salen de estos tokens (ADN 2026-10-06, assets/tokens.css del estudio StarSeed). */
+  :root {
+    --noche: #0A0F1D; --noche-alta: #141B2E; --nieve: #F8F9FA; --bruma: #AEB6C8; --pizarra: #46506A;
+    --zenith: #007FFF; --horizonte: #10B981; --logica: #FFBF00; --anchor: #DC143C;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--noche); }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--noche);
+    font-family: 'Inter', sans-serif; color: var(--nieve); }
+  .abs { position: absolute; }
+  #reticula { left: 0; top: 0; }
+  #aura { left: 0; top: 0; width: 1920px; height: 1080px;
+    background: radial-gradient(ellipse 520px 420px at 960px 400px, rgba(0,127,255,0.20) 0%, rgba(0,127,255,0.07) 55%, rgba(0,127,255,0) 100%); }
+  /* Paneles cardinales: la Trinity del OS (cortina zenith arriba, cortinas laterales, dock abajo). */
+  .panel { will-change: transform; }
+  #p-zenith   { left: 367px; top: 0; width: 1186px; height: 132px; border-radius: 0 0 42px 42px;
+    background: linear-gradient(180deg, var(--zenith) 0%, var(--zenith) 78%, rgba(0,127,255,0.6) 100%); }
+  #p-horizonte { left: 0; top: 190px; width: 156px; height: 700px; border-radius: 0 42px 42px 0;
+    background: linear-gradient(90deg, var(--horizonte) 0%, var(--horizonte) 78%, rgba(16,185,129,0.6) 100%); }
+  #p-logica   { left: 1764px; top: 190px; width: 156px; height: 700px; border-radius: 42px 0 0 42px;
+    background: linear-gradient(270deg, var(--logica) 0%, var(--logica) 78%, rgba(255,191,0,0.6) 100%); }
+  #p-anchor   { left: 660px; top: 1016px; width: 600px; height: 64px; border-radius: 9999px 9999px 0 0;
+    background: var(--anchor); }
+  .panel { box-shadow: 0 10px 15px rgba(0,0,0,0.25); overflow: hidden; }
+  /* Destello del cristal líquido: una banda de luz que recorre el panel (una vez, sin parpadeo). */
+  .destello { position: absolute; top: -40%; left: 0; width: 260px; height: 180%; will-change: transform;
+    background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.38) 50%, rgba(255,255,255,0) 100%); }
+  .destello-v { position: absolute; left: 0; top: 0; width: 100%; height: 240px; will-change: transform;
+    background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.38) 50%, rgba(255,255,255,0) 100%); }
+  .luz { position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+    background: linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 40%); }
+  /* Símbolo: la siembra (punto → dos círculos → ojo → diamante). Brillo multicapa SOLO aquí: es la pieza protagonista. */
+  #simbolo { left: 580px; top: 20px; width: 760px; height: 760px; overflow: visible;
+    filter: drop-shadow(0 0 32px rgba(0,127,255,0.35)) drop-shadow(0 12px 24px rgba(0,0,0,0.35)); }
+  /* Rótulo y línea de horizonte (jugada rara: cruza la Trinity sin tocar el centro). */
+  #horizonte-izq, #horizonte-der { top: 719px; height: 2px; background: rgba(248,249,250,0.42); }
+  #horizonte-izq { left: 204px; width: 336px; transform-origin: 0 50%; }
+  #horizonte-der { left: 1380px; width: 336px; transform-origin: 100% 50%; }
+  .mascara { overflow: hidden; left: 0; width: 1920px; text-align: center; }
+  #m-rotulo { top: 616px; height: 210px; }
+  #rotulo { display: block; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 192px; line-height: 210px;
+    letter-spacing: 0.02em; color: var(--nieve); will-change: transform; }
+  #m-lema { top: 828px; height: 48px; }
+  #lema { display: block; font-family: 'Inter', sans-serif; font-weight: 300; font-size: 32px; line-height: 48px;
+    letter-spacing: 0.04em; color: var(--bruma); will-change: transform; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="7" data-width="1920" data-height="1080">
+  <canvas id="reticula" class="abs" width="1920" height="1080"></canvas>
+  <div id="aura" class="abs"></div>
+  <div id="p-zenith" class="abs panel"><div class="luz"></div><div id="d-zenith" class="destello"></div></div>
+  <div id="p-horizonte" class="abs panel"><div class="luz"></div><div id="d-horizonte" class="destello-v"></div></div>
+  <div id="p-logica" class="abs panel"><div class="luz"></div><div id="d-logica" class="destello-v"></div></div>
+  <div id="p-anchor" class="abs panel"><div class="luz"></div><div id="d-anchor" class="destello"></div></div>
+  <svg id="simbolo" class="abs" viewBox="0 0 400 400" aria-label="Símbolo StarSeed">
+    <g id="respira">
+      <circle id="punto" cx="200" cy="200" r="10" fill="var(--logica)" />
+      <circle id="c-izq" cx="160" cy="200" r="80" fill="none" stroke="var(--zenith)" stroke-width="7" />
+      <circle id="c-der" cx="240" cy="200" r="80" fill="none" stroke="var(--horizonte)" stroke-width="7" />
+      <ellipse id="ojo" cx="200" cy="200" rx="34" ry="22" fill="var(--nieve)" />
+      <circle id="pupila" cx="200" cy="200" r="11" fill="var(--noche)" />
+      <path id="diamante" d="M200 92 L262 200 L200 308 L138 200 Z" fill="none" stroke="var(--logica)" stroke-width="3"
+            stroke-linejoin="round" />
+    </g>
+  </svg>
+  <div id="horizonte-izq" class="abs"></div>
+  <div id="horizonte-der" class="abs"></div>
+  <div id="m-rotulo" class="abs mascara"><span id="rotulo">StarSeed</span></div>
+  <div id="m-lema" class="abs mascara"><span id="lema">Sistema operativo social</span></div>
+</div>
+<script>
+  // Un solo reloj (hack 4): render(t) dibuja el cuadro entero a partir de t. Mismo t, mismo cuadro.
+  const S = STUDIO, $ = id => document.getElementById(id);
+  const ctx = $('reticula').getContext('2d');
+  const D = 7;
+
+  // Retícula cristalina: los nodos llegan dispersos y se ordenan en una red hexagonal (cristalización).
+  const rnd = S.rng(1618), PASO = 48, NODOS = [];
+  for (let fila = 0; fila * PASO * 0.866 < 1080 + PASO; fila++) {
+    for (let col = 0; col * PASO < 1920 + PASO; col++) {
+      const x = col * PASO + (fila % 2 ? PASO / 2 : 0), y = fila * PASO * 0.866;
+      NODOS.push({ x, y, dx: (rnd() - 0.5) * 220, dy: (rnd() - 0.5) * 220, d: rnd() * 0.5, f: rnd() });
+    }
+  }
+  function reticula(t) {
+    ctx.clearRect(0, 0, 1920, 1080);
+    const vis = S.seg(t, 0.0, 0.8, 'power2.out') * (1 - S.seg(t, 6.25, 0.6, 'power2.in'));
+    if (vis <= 0) return;
+    for (const n of NODOS) {
+      const p = S.seg(t, 0.1 + n.d, 1.5, 'expo.out');                     // ordenarse en la red
+      const deriva = S.wave(t, 1, n.f) * 3;                               // vida ambiente, ciclos enteros
+      const x = n.x + n.dx * (1 - p) + deriva, y = n.y + n.dy * (1 - p);
+      const cerca = Math.hypot(x - 960, y - 400);
+      const halo = Math.max(0, 1 - cerca / 760);                          // más presencia junto al símbolo
+      ctx.fillStyle = `rgba(174,182,200,${(0.10 + 0.22 * halo) * vis})`;
+      ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  const salida = (t, ini) => S.seg(t, ini, 0.45, 'power2.in');            // irse es más corto que llegar
+
+  window.__timelines["main"] = S.play(function render(t) {
+    reticula(t);
+
+    // Siembra del símbolo
+    const brote = S.seg(t, 0.25, 0.4, 'power3.out');
+    const apaga = S.seg(t, 0.65, 0.4, 'power2.in');
+    $('punto').setAttribute('transform', `translate(200 200) scale(${brote * (1 + 0.4 * (1 - apaga))}) translate(-200 -200)`);
+    $('punto').style.opacity = brote * (1 - apaga);
+    const abre = S.seg(t, 0.55, 1.05, 'power3.out');
+    $('c-izq').setAttribute('transform', `translate(${40 * (1 - abre)} 0) translate(160 200) scale(${0.2 + 0.8 * abre}) translate(-160 -200)`);
+    $('c-der').setAttribute('transform', `translate(${-40 * (1 - abre)} 0) translate(240 200) scale(${0.2 + 0.8 * abre}) translate(-240 -200)`);
+    $('c-izq').style.opacity = $('c-der').style.opacity = abre;
+    const mira = S.seg(t, 1.4, 0.45, 'power3.out'), pupila = S.seg(t, 1.6, 0.35, 'power3.out');
+    $('ojo').setAttribute('transform', `translate(0 200) scale(1 ${mira}) translate(0 -200)`);
+    $('pupila').setAttribute('transform', `translate(200 200) scale(${pupila}) translate(-200 -200)`);
+    const traza = S.seg(t, 1.75, 0.7, 'power3.inOut');
+    $('diamante').style.strokeDasharray = 500;               // perímetro del rombo: 498
+    $('diamante').style.strokeDashoffset = 500 * (1 - traza);
+    // Respira (escala 1 → 1,03) durante la espera; sale hacia dentro al final.
+    const resp = 1 + 0.015 * (1 - Math.cos(2 * Math.PI * Math.min(1, Math.max(0, (t - 2.45) / 3.6))));
+    const fuera = salida(t, 6.35);
+    $('respira').setAttribute('transform', `translate(200 200) scale(${resp * (1 - 0.08 * fuera)}) translate(-200 -200)`);
+    $('simbolo').style.opacity = 1 - fuera;
+
+    // Entrada cardinal desde el perímetro (zenith, horizonte, lógica; anchor el último y escaso)
+    const ent = (i) => S.seg(t, 2.1 + i * 0.08, 0.7, 'power3.out');
+    const sal = (i) => salida(t, 6.15 + (3 - i) * 0.05);
+    $('p-zenith').style.transform = `translateY(${-140 * (1 - ent(0)) - 140 * sal(0)}px)`;
+    $('p-horizonte').style.transform = `translateX(${-170 * (1 - ent(1)) - 170 * sal(1)}px)`;
+    $('p-logica').style.transform = `translateX(${170 * (1 - ent(2)) + 170 * sal(2)}px)`;
+    $('p-anchor').style.transform = `translateY(${72 * (1 - ent(3)) + 72 * sal(3)}px)`;
+    $('aura').style.opacity = S.seg(t, 2.1, 0.9, 'power2.out') * (1 - salida(t, 6.3));
+
+    // Rótulo y lema: suben tras su máscara (nunca un fundido blando)
+    const rot = S.seg(t, 2.7, 0.6, 'expo.out'), lem = S.seg(t, 3.0, 0.6, 'expo.out');
+    $('rotulo').style.transform = `translateY(${210 * (1 - rot) - 210 * salida(t, 6.2)}px)`;
+    $('lema').style.transform = `translateY(${48 * (1 - lem) - 48 * salida(t, 6.15)}px)`;
+
+    // La jugada rara: el horizonte se traza desde fuera hacia el rótulo, sin tocar el centro
+    const hz = S.seg(t, 3.4, 0.7, 'power3.inOut') * (1 - salida(t, 6.1));
+    $('horizonte-izq').style.transform = `scaleX(${hz})`;
+    $('horizonte-der').style.transform = `scaleX(${hz})`;
+
+    // La espera respira con luz: un destello cruza la cortina zenith y luego las dos laterales a la vez.
+    // Cada destello dura 0,9 s y entra antes de que acabe el anterior (sin huecos ni parpadeos).
+    const cruza = (ini, largo) => -320 + (largo + 640) * S.seg(t, ini, 0.9, 'power2.inOut');
+    $('d-zenith').style.transform = `translateX(${cruza(3.4, 1186)}px) skewX(-18deg)`;
+    $('d-horizonte').style.transform = `translateY(${cruza(4.2, 700)}px)`;
+    $('d-logica').style.transform = `translateY(${cruza(4.2, 700)}px)`;
+    $('d-anchor').style.transform = `translateX(${cruza(5.0, 600)}px) skewX(-18deg)`;
+  }, { loop: true });
+</script>
+</body>
+</html>

@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #f2e8d5; }
+      #root { position: relative; width: 1920px; height: 1080px; }
+      #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="14" data-width="1920" data-height="1080">
+      <canvas id="stage" class="clip" width="1920" height="1080" data-start="0" data-duration="14" data-track-index="0"></canvas>
+    </div>
+    <script>
+    /*
+     * Cut-paper world. 14 s, 1920x1080, one canvas drawn as a pure function of time.
+     * A pop-up landscape builds sheet by sheet, the day turns to dusk, the camera pushes in on a paper boat.
+     * Beat map (120 BPM, a hit every 0.5 s):
+     *   0.0 to 4.0  far range, hills, sun, meadow with river cut, banks, clouds land one per beat
+     *   4.0         paper boat bobs up, ripple ring, camera push starts
+     *   4.6 to 9.0  light shifts morning > golden > dusk; stars 7.0 to 8.5, rose pennant 7.85
+     *   10.4 to 14  slow close-in on the boat, ripple rings at 10.75, 11.0, 11.5
+     * Change colours in P (palette) below. All light keys are mixed from those six tones + the rose accent.
+     * No words on screen. Geometry is seeded, so changing a seed gives a new hand-cut edge.
+     */
+    (function () {
+      const W = 1920, H = 1080, DUR = 14;
+      const cv = document.getElementById('stage');
+      let ctx = cv.getContext('2d');
+
+      // ---------- deterministic helpers ----------
+      function rng(seed) { let a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+      function noise1(seed) { const r = rng(seed), N = 1024, v = new Float32Array(N); for (let i = 0; i < N; i++) v[i] = r() * 2 - 1; return function (x) { const i = Math.floor(x), f = x - i, a = v[((i % N) + N) % N], b = v[(((i + 1) % N) + N) % N], s = f * f * (3 - 2 * f); return a + (b - a) * s; }; }
+      function hash2(x, y, s) { let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(s, 1442695041)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+      function vnoise(x, y, s, per) { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi; const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy); const m = a => ((a % per) + per) % per; const a = hash2(m(xi), m(yi), s), b = hash2(m(xi + 1), m(yi), s), c = hash2(m(xi), m(yi + 1), s), d = hash2(m(xi + 1), m(yi + 1), s); return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy; }
+      const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+      const g = (x, c, w) => Math.exp(-((x - c) / w) * ((x - c) / w));
+      const ss = v => { v = clamp(v, 0, 1); return v * v * (3 - 2 * v); };
+      const EC = {}; const ease = n => EC[n] || (EC[n] = gsap.parseEase(n));
+      function tw(t, s, d, e) { if (t <= s) return 0; if (t >= s + d) return 1; return ease(e || 'none')((t - s) / d); }
+
+      // ---------- colour: change these six paper tones + the rose accent ----------
+      const P = { cream: '#F2E8D5', sand: '#E3CBA8', sage: '#9CB49A', dsage: '#5E7F6A', teal: '#2F5D62', rose: '#D98C7A', ink: '#2B2B2B' };
+      for (const k in P) { const h = P[k]; P[k] = [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+      const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+      const css = (c, a) => 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + (a === undefined ? 1 : a) + ')';
+      let LT = 0; // 0 morning, 1 golden, 2 dusk
+      const lit = k => LT <= 1 ? mix(k[0], k[1], LT) : mix(k[1], k[2], LT - 1);
+      const C = {
+        skyTop: [mix(P.cream, P.sage, 0.32), mix(P.rose, P.sand, 0.45), mix(P.rose, P.teal, 0.34)],
+        skyMid: [mix(P.cream, P.sage, 0.16), mix(P.sand, P.cream, 0.25), mix(P.rose, P.sand, 0.12)],
+        skyBot: [mix(P.cream, P.sage, 0.08), mix(P.cream, P.sand, 0.35), mix(P.cream, P.sand, 0.45)],
+        far: [mix(P.sage, P.cream, 0.6), mix(P.sand, P.rose, 0.3), mix(P.rose, P.sand, 0.15)],
+        back: [mix(P.sage, P.cream, 0.3), mix(P.sage, P.sand, 0.5), mix(P.rose, P.dsage, 0.5)],
+        mid: [mix(P.sage, P.dsage, 0.12), mix(mix(P.sage, P.dsage, 0.25), P.sand, 0.2), mix(P.dsage, P.rose, 0.22)],
+        floor: [mix(P.sage, P.dsage, 0.45), mix(P.dsage, P.sand, 0.2), mix(P.dsage, P.rose, 0.3)],
+        floorFar: [mix(P.sage, P.cream, 0.12), mix(P.sage, P.sand, 0.45), mix(mix(P.rose, P.sand, 0.35), P.dsage, 0.18)],
+        nearF: [mix(P.sage, P.dsage, 0.62), mix(P.dsage, P.sand, 0.12), mix(P.dsage, P.teal, 0.2)],
+        nearB: [mix(P.dsage, P.teal, 0.2), mix(P.dsage, P.teal, 0.35), mix(P.teal, P.dsage, 0.3)],
+        water: [mix(P.teal, P.sage, 0.3), P.teal, mix(P.teal, P.rose, 0.22)],
+        waterFar: [mix(P.sage, P.cream, 0.35), mix(P.sand, P.teal, 0.25), mix(P.rose, P.sand, 0.2)],
+        strip: [mix(P.cream, P.sage, 0.25), mix(P.cream, P.sand, 0.4), mix(P.rose, P.cream, 0.35)],
+        bank: [P.dsage, mix(P.dsage, P.teal, 0.35), mix(P.teal, P.ink, 0.35)],
+        fern: [P.teal, mix(P.teal, P.ink, 0.25), mix(P.teal, P.ink, 0.6)],
+        treeBack: [mix(P.sage, P.dsage, 0.45), mix(P.dsage, P.sand, 0.2), mix(P.dsage, P.rose, 0.3)],
+        treeMid: [P.dsage, mix(P.dsage, P.teal, 0.3), mix(P.teal, P.rose, 0.12)],
+        treeBank: [P.teal, mix(P.teal, P.dsage, 0.2), mix(P.teal, P.ink, 0.5)],
+        cloud: [P.cream, mix(P.cream, P.sand, 0.45), mix(P.rose, P.cream, 0.5)],
+        sun0: [P.sand, mix(P.sand, P.rose, 0.35), P.rose],
+        sun1: [mix(P.sand, P.cream, 0.5), P.sand, mix(P.rose, P.sand, 0.45)],
+        sun2: [P.cream, mix(P.cream, P.sand, 0.35), mix(P.cream, P.rose, 0.3)],
+        hullL: [P.cream, mix(P.cream, P.sand, 0.25), mix(P.cream, P.rose, 0.25)],
+        hullD: [P.sand, mix(P.sand, P.rose, 0.2), mix(P.rose, P.sand, 0.3)],
+        hullF: [mix(P.sand, P.dsage, 0.18), mix(P.sand, P.rose, 0.35), mix(P.rose, P.ink, 0.15)],
+        bird: [P.ink, P.ink, mix(P.ink, P.teal, 0.2)],
+        rimT: [P.cream, mix(P.cream, P.sand, 0.4), mix(P.rose, P.cream, 0.25)]
+      };
+      let RIMA = 0.4;
+
+      // ---------- grain tile (procedural paper) ----------
+      const GT = 768;
+      const grainC = document.createElement('canvas'); grainC.width = GT; grainC.height = GT;
+      (function () {
+        const x = grainC.getContext('2d'); const id = x.createImageData(GT, GT); const d = id.data;
+        for (let j = 0; j < GT; j++) for (let i = 0; i < GT; i++) {
+          let v = (hash2(i, j, 11) - 0.5) * 0.75 + (vnoise(i / 48, j / 48, 2, GT / 48) - 0.5) * 0.3 + (vnoise(i / 12, j / 12, 3, GT / 12) - 0.5) * 0.22 + (vnoise(i / 3, j / 3, 5, GT / 3) - 0.5) * 0.3;
+          const o = (j * GT + i) * 4, c = v > 0 ? 255 : 0;
+          d[o] = c; d[o + 1] = c; d[o + 2] = c; d[o + 3] = Math.min(255, Math.abs(v) * 78);
+        }
+        x.putImageData(id, 0, 0);
+        const r = rng(77);
+        for (let k = 0; k < 420; k++) {
+          const sx = 20 + r() * (GT - 40), sy = 20 + r() * (GT - 40), a = r() * 6.283, l = 6 + r() * 22;
+          x.strokeStyle = r() < 0.6 ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.10)'; x.lineWidth = 0.6 + r() * 0.7;
+          x.beginPath(); x.moveTo(sx, sy); x.quadraticCurveTo(sx + Math.cos(a + 0.6) * l * 0.6, sy + Math.sin(a + 0.6) * l * 0.6, sx + Math.cos(a) * l, sy + Math.sin(a) * l); x.stroke();
+        }
+      })();
+      let grain = ctx.createPattern(grainC, 'repeat');
+
+      // ---------- hand-cut geometry ----------
+      function cut(pts, seed, step, amp, wob) {
+        step = step || 12; amp = amp === undefined ? 1.1 : amp; wob = wob === undefined ? 2.2 : wob;
+        const r = rng(seed), nz = noise1(seed + 7), n = pts.length, L = [0];
+        for (let i = 1; i <= n; i++) { const a = pts[i - 1], b = pts[i % n]; L.push(L[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+        const tot = L[n], out = []; let s = 0, j = 0;
+        while (s < tot) {
+          while (L[j + 1] < s) j++;
+          const a = pts[j], b = pts[(j + 1) % n], f = (s - L[j]) / ((L[j + 1] - L[j]) || 1);
+          const dx = b[0] - a[0], dy = b[1] - a[1], dl = Math.hypot(dx, dy) || 1;
+          const d = nz(s / 70) * wob + (r() - 0.5) * amp * 2;
+          out.push([a[0] + dx * f - dy / dl * d, a[1] + dy * f + dx / dl * d]);
+          s += step * (0.5 + r());
+        }
+        return out;
+      }
+      function toPath(pts, p) { p = p || new Path2D(); p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); p.closePath(); return p; }
+      function bbox(pts) { let a = 1e9, b = 1e9, c = -1e9, d = -1e9; for (const q of pts) { a = Math.min(a, q[0]); b = Math.min(b, q[1]); c = Math.max(c, q[0]); d = Math.max(d, q[1]); } return [a, b, c, d]; }
+      function ridge(fn, x0, x1, bot) { const p = []; for (let x = x0; x <= x1; x += 4) p.push([x, fn(x)]); p.push([x1, bot]); p.push([x0, bot]); return p; }
+      function circ(cx, cy, r, n) { const p = []; n = n || 120; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; p.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } return p; }
+      function shadowOf(path, bb, blur, rule) {
+        const S = 0.5, pad = blur * 3, w = bb[2] - bb[0] + pad * 2, h = bb[3] - bb[1] + pad * 2;
+        const c = document.createElement('canvas'); c.width = Math.ceil(w * S); c.height = Math.ceil(h * S);
+        const x = c.getContext('2d'); x.filter = 'blur(' + (blur * S) + 'px)';
+        x.setTransform(S, 0, 0, S, (pad - bb[0]) * S, (pad - bb[1]) * S); x.fillStyle = '#000'; x.fill(path, rule || 'nonzero');
+        return { c: c, x0: bb[0] - pad, y0: bb[1] - pad, w: w, h: h };
+      }
+
+      const X0 = -460, X1 = 2380, BOT = 1720;
+      const farFn = x => 440 + 22 * Math.sin(x / 210 + 1) - 120 * g(x, 520, 230) - 165 * g(x, 1180, 250) - 80 * g(x, 1760, 210) - 50 * g(x, -100, 200);
+      const backFn = x => 525 + 16 * Math.sin(x / 170) - 85 * g(x, 240, 290) - 55 * g(x, 960, 240) - 95 * g(x, 1620, 270);
+      const midFn = x => 594 + 10 * Math.sin(x / 130 + 2) - 58 * g(x, 560, 250) - 70 * g(x, 1380, 230) - 24 * g(x, 2000, 200);
+      const floorFn = x => 640 + 7 * Math.sin(x / 240) - 22 * g(x, 1720, 300) - 16 * g(x, 200, 260);
+      const leftFn = x => 800 - 70 * g(x, -150, 300) + 960 * Math.pow(ss((x - 180) / 820), 1.6);
+      const rightFn = x => 846 - 60 * g(x, 2160, 300) + 960 * Math.pow(ss((1840 - x) / 700), 1.6);
+
+      function sheetLayer(pts, seed, col, par, extra) {
+        const c = cut(pts, seed, 13, 1.2, 2.4); const p = toPath(c); const bb = bbox(c);
+        return Object.assign({ p: p, bb: bb, col: col, par: par, s1: shadowOf(p, bb, 22), s2: shadowOf(p, bb, 5), gx: seed * 37 % GT, gy: seed * 91 % GT }, extra || {});
+      }
+      const L = {};
+      L.far = sheetLayer(ridge(farFn, X0, X1, BOT), 101, C.far, 0.22);
+      L.back = sheetLayer(ridge(backFn, X0, X1, BOT), 202, C.back, 0.36);
+      L.mid = sheetLayer(ridge(midFn, X0, X1, BOT), 303, C.mid, 0.5);
+      L.left = sheetLayer(ridge(leftFn, X0, 1020, BOT), 505, C.bank, 0.92, { grad: [760, 1150] });
+      L.right = sheetLayer(ridge(rightFn, 1000, X1, BOT), 606, C.bank, 0.92, { grad: [780, 1150] });
+
+      // ---------- river ----------
+      const RC = [[905, 648], [938, 664], [902, 689], [822, 714], [778, 750], [826, 792], [956, 834], [1096, 878], [1168, 934], [1160, 1010], [1092, 1120], [1012, 1300], [960, 1500], [940, 1760]];
+      const CL = []; // dense centreline
+      for (let i = 0; i < RC.length - 1; i++) {
+        const p0 = RC[Math.max(0, i - 1)], p1 = RC[i], p2 = RC[i + 1], p3 = RC[Math.min(RC.length - 1, i + 2)];
+        for (let s = 0; s < 1; s += 1 / 40) {
+          const s2 = s * s, s3 = s2 * s;
+          const f = (a, b, c, d) => 0.5 * ((2 * b) + (-a + c) * s + (2 * a - 5 * b + 4 * c - d) * s2 + (-a + 3 * b - 3 * c + d) * s3);
+          CL.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
+        }
+      }
+      CL.push(RC[RC.length - 1]);
+      const CLs = [0]; for (let i = 1; i < CL.length; i++) CLs.push(CLs[i - 1] + Math.hypot(CL[i][0] - CL[i - 1][0], CL[i][1] - CL[i - 1][1]));
+      const CLT = CLs[CLs.length - 1];
+      const rw = y => Math.max(1, 0.72 * (y - 642));
+      function onRiver(s) { // s = arc length
+        s = clamp(s, 0, CLT - 0.01); let i = 0; while (CLs[i + 1] < s) i++;
+        const a = CL[i], b = CL[i + 1], f = (s - CLs[i]) / ((CLs[i + 1] - CLs[i]) || 1);
+        const dx = b[0] - a[0], dy = b[1] - a[1], dl = Math.hypot(dx, dy) || 1;
+        return { x: a[0] + dx * f, y: a[1] + dy * f, tx: dx / dl, ty: dy / dl };
+      }
+      function arcAtY(y) { for (let i = 0; i < CL.length; i++) if (CL[i][1] >= y && i > 20) return CLs[i]; return CLT; }
+      function riverOutline(extra) {
+        const Lp = [], Rp = [];
+        for (let s = 0; s < CLT; s += 6) {
+          const q = onRiver(s), w = rw(q.y) / 2 + extra * ss((q.y - 648) / 30);
+          const nx = -q.ty, ny = q.tx;
+          Lp.push([q.x + nx * w, q.y + ny * w * 0.42]); Rp.push([q.x - nx * w, q.y - ny * w * 0.42]);
+        }
+        return Lp.concat(Rp.reverse());
+      }
+      const riverPts = cut(riverOutline(0), 404, 10, 1.0, 2.0);
+      const waterPts = cut(riverOutline(16), 405, 14, 1.0, 2.0);
+      const floorPts = cut(ridge(floorFn, X0, X1, BOT), 406, 13, 1.2, 2.4);
+      const floorPath = toPath(floorPts); toPath(riverPts, floorPath);
+      L.floor = { p: floorPath, rule: 'evenodd', bb: bbox(floorPts), col: C.floor, par: 0.72, gx: 300, gy: 120 };
+      L.floor.s1 = shadowOf(floorPath, L.floor.bb, 22, 'evenodd'); L.floor.s2 = shadowOf(floorPath, L.floor.bb, 5, 'evenodd');
+      const nearFn = x => 806 + 16 * Math.sin(x / 260 + 1) - 46 * g(x, 360, 280) - 40 * g(x, 1560, 320) + 10 * g(x, 960, 200);
+      const nearPts = cut(ridge(nearFn, X0, X1, BOT), 407, 13, 1.2, 2.4);
+      const nearPath = new Path2D();
+      (function () { // two sheets that meet the river banks, so the hole never crosses the ridge
+        const Lp = [], Rp = [];
+        for (let s = 0; s < CLT; s += 6) { const q = onRiver(s), w = rw(q.y) / 2 - 2, nx = -q.ty, ny = q.tx; Lp.push([q.x + nx * w, q.y + ny * w * 0.42]); Rp.push([q.x - nx * w, q.y - ny * w * 0.42]); }
+        const iL = Lp.findIndex(p => p[1] > nearFn(p[0]) + 6), iR = Rp.findIndex(p => p[1] > nearFn(p[0]) + 6);
+        const left = []; for (let x = X0; x < Lp[iL][0]; x += 4) left.push([x, nearFn(x)]);
+        for (let i = iL; i < Lp.length; i++) left.push(Lp[i]); left.push([X0, BOT + 80]);
+        const right = []; for (let i = Rp.length - 1; i >= iR; i--) right.push(Rp[i]);
+        for (let x = Rp[iR][0] + 4; x <= X1; x += 4) right.push([x, nearFn(x)]); right.push([X1, BOT + 80]);
+        toPath(cut(left, 408, 13, 1.2, 2.4), nearPath); toPath(cut(right, 409, 13, 1.2, 2.4), nearPath);
+      })();
+      L.near = { p: nearPath, rule: 'nonzero', bb: bbox(nearPts), col: C.floor, par: 0.72, gx: 520, gy: 260 };
+      L.near.s1 = shadowOf(nearPath, L.near.bb, 22); L.near.s2 = shadowOf(nearPath, L.near.bb, 5);
+      const wp = toPath(waterPts);
+      L.water = { p: wp, bb: bbox(waterPts), col: C.water, par: 0.72, gx: 40, gy: 500 };
+
+      // ---------- trees ----------
+      function treeShape(type, h, seed) {
+        const p = new Path2D(); const r = rng(seed);
+        const tw_ = Math.max(3, h * 0.07);
+        toPath(cut([[-tw_ / 2, 4], [tw_ / 2, 4], [tw_ / 2, -h * 0.3], [-tw_ / 2, -h * 0.3]], seed, 6, 0.4, 0.6), p);
+        if (type === 0) { // pine
+          for (let i = 0; i < 3; i++) { const b = -h * (0.16 + 0.24 * i), a = b - h * 0.44, hw = h * (0.27 - 0.055 * i) * (0.9 + r() * 0.2); toPath(cut([[-hw, b], [hw, b], [r() * 2 - 1, a]], seed + i * 13, 7, 0.5, 0.8), p); }
+        } else if (type === 1) { // round
+          toPath(cut(circ(0, -h * 0.62, h * 0.33, 60), seed + 3, 7, 0.5, 1.0), p);
+        } else { // poplar
+          const e = []; for (let i = 0; i < 60; i++) { const a = i / 60 * Math.PI * 2; e.push([Math.cos(a) * h * 0.17, -h * 0.56 + Math.sin(a) * h * 0.42]); } toPath(cut(e, seed + 5, 7, 0.5, 0.9), p);
+        }
+        return p;
+      }
+      function makeTrees(list, fn, col, seed, sink) {
+        const r = rng(seed);
+        return list.map((d, i) => ({ x: d[0], h: d[1], y: fn(d[0]) + d[1] * sink, p: treeShape(d[2], d[1], seed + i * 31), col: col, delay: i * 0.045 + r() * 0.04 }));
+      }
+      const T = {};
+      T.back = makeTrees([[70, 44, 2], [130, 36, 0], [205, 50, 2], [890, 38, 1], [1000, 46, 0], [1060, 34, 2], [1540, 48, 0], [1610, 40, 2], [1690, 54, 0], [1800, 36, 1]], backFn, C.treeBack, 900, 0.14);
+      T.mid = makeTrees([[360, 70, 0], [430, 92, 0], [505, 64, 2], [640, 80, 1], [1230, 74, 2], [1300, 98, 0], [1372, 70, 0], [1500, 86, 1], [1620, 66, 2], [1880, 90, 0], [1950, 72, 0]], midFn, C.treeMid, 1200, 0.12);
+      T.left = makeTrees([[-90, 250, 0], [40, 300, 0], [170, 220, 2], [300, 170, 0]], leftFn, C.treeBank, 1500, 0.1);
+      T.right = makeTrees([[1650, 200, 2], [1760, 260, 0], [1880, 310, 0], [2020, 230, 2]], rightFn, C.treeBank, 1600, 0.1);
+
+      // ---------- clouds ----------
+      function cloudShape(cx, base, s, circles, seed) {
+        const cs = circles.map(c => [cx + c[0] * s, base - c[2] * s * 0.55 + c[1] * s, c[2] * s]);
+        let xa = 1e9, xb = -1e9; for (const c of cs) { xa = Math.min(xa, c[0] - c[2]); xb = Math.max(xb, c[0] + c[2]); }
+        const top = [], bot = [];
+        for (let x = xa + 1; x < xb - 1; x += 3) {
+          let ty = 1e9, by = -1e9;
+          for (const c of cs) { const dx = x - c[0]; if (Math.abs(dx) < c[2]) { const q = Math.sqrt(c[2] * c[2] - dx * dx); ty = Math.min(ty, c[1] - q); by = Math.max(by, c[1] + q); } }
+          if (ty < 1e9) { top.push([x, ty]); bot.push([x, Math.min(base, by)]); }
+        }
+        const pts = cut(top.concat(bot.reverse()), seed, 9, 0.8, 1.6);
+        return { p: toPath(pts), bb: bbox(pts) };
+      }
+      const CLOUDS = [
+        Object.assign(cloudShape(0, 0, 1.0, [[-130, 0, 58], [-55, -6, 88], [40, -2, 74], [118, 4, 52]], 700), { x: 380, y: 210, par: 0.2, from: -900, t0: 3.2, drift: 9 }),
+        Object.assign(cloudShape(0, 0, 0.8, [[-90, 0, 50], [-20, -8, 78], [70, 0, 58]], 710), { x: 1660, y: 150, par: 0.2, from: 900, t0: 3.35, drift: -7 }),
+        Object.assign(cloudShape(0, 0, 0.62, [[-80, 0, 46], [0, -6, 70], [80, 2, 50], [140, 6, 36]], 720), { x: 860, y: 330, par: 0.27, from: -1100, t0: 3.6, drift: 12 })
+      ];
+
+      // ---------- sun ----------
+      const SUN = [116, 88, 62].map((r, i) => { const pts = cut(circ(0, 0, r, 160), 800 + i, 9, 0.7, 1.4); return { p: toPath(pts), bb: bbox(pts) }; });
+
+      // ---------- ferns ----------
+      function fernCluster(x0, x1, n, seed, dir) {
+        const r = rng(seed), p = new Path2D();
+        for (let j = 0; j < n; j++) {
+          const bx = x0 + (x1 - x0) * (j + r() * 0.6) / n, hgt = 170 + r() * 230, lean = (r() - 0.5) * 160 + dir * 60, hw = 15 + r() * 12;
+          const Lp = [], Rp = [];
+          for (let k = 0; k <= 16; k++) { const s = k / 16; const cx = bx + lean * s * s, cy = 1160 - s * hgt; const w = hw * Math.pow(1 - s, 0.85); const tx = 2 * lean * s, ty = -hgt, tl = Math.hypot(tx, ty); Lp.push([cx - ty / tl * w, cy + tx / tl * w]); Rp.push([cx + ty / tl * w, cy - tx / tl * w]); }
+          toPath(cut(Lp.concat(Rp.reverse()), seed + j * 7, 8, 0.6, 1.0), p);
+        }
+        return p;
+      }
+      const FERN = [{ p: fernCluster(-60, 330, 11, 1900, 1), cx: 140, par: 1.12 }, { p: fernCluster(1600, 1990, 12, 1950, -1), cx: 1800, par: 1.12 }];
+
+      // ---------- boat (local, width 200, waterline y=0) ----------
+      const B = {
+        hull: toPath(cut([[-100, -58], [100, -58], [62, 8], [-62, 8]], 1001, 6, 0.4, 0.6)),
+        fold: toPath(cut([[-54, -58], [54, -58], [0, -12]], 1002, 6, 0.3, 0.5)),
+        sailL: toPath(cut([[-52, -57], [0, -57], [0, -170]], 1003, 6, 0.3, 0.5)),
+        sailR: toPath(cut([[0, -57], [52, -57], [0, -170]], 1004, 6, 0.3, 0.5)),
+        flag: toPath(cut([[0, -224], [40, -210], [0, -197]], 1005, 4, 0.3, 0.4))
+      };
+      const sAt0 = arcAtY(700), sAt1 = arcAtY(820);
+      const BEND = onRiver(sAt1);
+      const F = [BEND.x, BEND.y];
+      const TGT = [1015, 793];
+      const PARF = 0.72;
+      const V = [(TGT[0] - F[0]) / PARF, (TGT[1] - F[1]) / PARF];
+      const ZEND = 1.4;
+      const BWEND = 0.8 * rw(BEND.y);
+      function boatW(t) { // boat width on screen (px) for the slow final close-in, keyed from 8 s
+        const c = t - 8, K = [[0, 77], [1.5, 99], [3, 139], [4.5, 210], [6, 300]];
+        for (let i = 0; i < K.length - 1; i++) if (c <= K[i + 1][0]) { const f = clamp((c - K[i][0]) / (K[i + 1][0] - K[i][0]), 0, 1); return K[i][1] + (K[i + 1][1] - K[i][1]) * f; }
+        return 300;
+      }
+
+      // ---------- water strips ----------
+      const STRIPS = []; (function () { const r = rng(4242); for (let i = 0; i < 46; i++) STRIPS.push({ ph: r(), lat: (r() - 0.5) * 1.3, len: 0.12 + r() * 0.16, sp: 0.032 + r() * 0.02 }); })();
+
+      // ---------- birds ----------
+      const FLOCK = [
+        { t0: 4.4, t1: 10.6, x0: -160, x1: 2150, y: 300, par: 0.34, birds: [[0, 0, 22, 0], [-70, 26, 18, 1.3], [-120, -18, 16, 2.1], [-180, 34, 14, 0.7]] },
+        { t0: 7.3, t1: 12.6, x0: 2150, x1: -200, y: 190, par: 0.3, birds: [[0, 0, 19, 0.4], [60, 22, 15, 1.7], [110, -10, 13, 2.6]] }
+      ];
+
+      // ---------- drawing ----------
+      const SH = { dx: -3, dy: -3 };
+      let CAM = { Z: 1, u: 0 };
+      function setLayer(par, slide, rot) {
+        const k = 1 + (CAM.Z - 1) * par;
+        const tx = F[0] * (1 - k) + V[0] * CAM.u * par, ty = F[1] * (1 - k) + V[1] * CAM.u * par + (slide || 0);
+        ctx.setTransform(k, 0, 0, k, tx, ty);
+        if (rot) { ctx.translate(960, 900); ctx.rotate(rot); ctx.translate(-960, -900); }
+        return k;
+      }
+      function sheet(p, base, o) {
+        o = o || {};
+        const rule = o.rule || 'nonzero', rim = o.rim === undefined ? 2.4 : o.rim;
+        const rimc = mix(base, lit(C.rimT), o.rimAmt === undefined ? RIMA : o.rimAmt);
+        if (o.shadow) { ctx.shadowColor = css(P.ink, o.shadow); ctx.shadowBlur = o.blur || 12; ctx.shadowOffsetX = SH.dx * (o.so || 0.6); ctx.shadowOffsetY = SH.dy * (o.so || 0.6) + (o.sy || 0); }
+        ctx.fillStyle = css(rimc); ctx.fill(p, rule);
+        if (o.shadow) { ctx.shadowColor = 'rgba(0,0,0,0)'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; }
+        ctx.save(); ctx.clip(p, rule);
+        ctx.translate(0, rim); ctx.fillStyle = o.fill || css(base); ctx.fill(p, rule); ctx.translate(0, -rim);
+        if (o.bb) { grain.setTransform(new DOMMatrix([1, 0, 0, 1, o.gx || 0, o.gy || 0])); ctx.globalAlpha = o.ga === undefined ? 1 : o.ga; ctx.fillStyle = grain; ctx.fillRect(o.bb[0] - 4, o.bb[1] - 4, o.bb[2] - o.bb[0] + 8, o.bb[3] - o.bb[1] + 8); ctx.globalAlpha = 1; }
+        ctx.restore();
+      }
+      function bigShadow(Ly, a, lift) {
+        lift = lift || 0; // a sheet still in the air throws a wider, softer shadow that tightens as it lands
+        ctx.globalAlpha = (0.4 + 0.2 * lift) * a; ctx.drawImage(Ly.s1.c, Ly.s1.x0 + SH.dx * 1.6 - lift * 30, Ly.s1.y0 + SH.dy * 1.6 + lift * 70, Ly.s1.w, Ly.s1.h);
+        ctx.globalAlpha = 0.26 * a; ctx.drawImage(Ly.s2.c, Ly.s2.x0 + SH.dx * 0.4, Ly.s2.y0 + SH.dy * 0.4, Ly.s2.w, Ly.s2.h);
+        ctx.globalAlpha = 1;
+      }
+      function bigLayer(Ly, t, land) {
+        const e = tw(t, land - 0.55, 0.55, 'back.out(0.7)');
+        if (e <= 0) return false;
+        const slide = (1 - e) * 820, rot = (1 - tw(t, land - 0.55, 0.75, 'back.out(1.4)')) * -0.014;
+        setLayer(Ly.par, slide, rot);
+        bigShadow(Ly, 1, clamp((1 - e) * 3, 0, 1));
+        let fill;
+        if (Ly.grad) { fill = ctx.createLinearGradient(0, Ly.grad[0], 0, Ly.grad[1]); fill.addColorStop(0, css(mix(lit(Ly.col), lit(C.rimT), 0.16))); fill.addColorStop(1, css(mix(lit(Ly.col), P.ink, 0.12))); }
+        sheet(Ly.p, lit(Ly.col), { rule: Ly.rule, bb: Ly.bb, gx: Ly.gx, gy: Ly.gy, fill: fill });
+        return true;
+      }
+      function drawTrees(list, t, start, par, slideOf) {
+        for (const tr of list) {
+          const e = tw(t, start + tr.delay, 0.42, 'back.out(1.5)');
+          if (e <= 0) continue;
+          setLayer(par, slideOf || 0);
+          ctx.translate(tr.x, tr.y + (1 - e) * tr.h * 1.15);
+          sheet(tr.p, lit(tr.col), { shadow: 0.28, blur: 10, rim: Math.max(1.4, tr.h * 0.012), bb: [-tr.h * 0.4, -tr.h * 1.05, tr.h * 0.4, 6], gx: tr.x, gy: tr.h });
+        }
+      }
+      function birdPath(s, flap) {
+        const wy = Math.sin(flap) * s * 0.55, p = new Path2D();
+        p.moveTo(-s, wy - s * 0.1);
+        p.quadraticCurveTo(-s * 0.5, -s * 0.28 + wy * 0.45, 0, s * 0.06);
+        p.quadraticCurveTo(s * 0.5, -s * 0.28 + wy * 0.45, s, wy - s * 0.1);
+        p.quadraticCurveTo(s * 0.5, -s * 0.06 + wy * 0.5, s * 0.06, s * 0.3);
+        p.lineTo(-s * 0.06, s * 0.3);
+        p.quadraticCurveTo(-s * 0.5, -s * 0.06 + wy * 0.5, -s, wy - s * 0.1);
+        return p;
+      }
+      function drawFlock(fl, t) {
+        if (t < fl.t0 || t > fl.t1) return;
+        const q = (t - fl.t0) / (fl.t1 - fl.t0);
+        for (const b of fl.birds) {
+          setLayer(fl.par, 0);
+          const x = fl.x0 + (fl.x1 - fl.x0) * q + b[0] * Math.sign(fl.x1 - fl.x0), y = fl.y + b[1] + Math.sin(t * 1.7 + b[3]) * 10;
+          ctx.translate(x, y); if (fl.x1 < fl.x0) ctx.scale(-1, 1);
+          ctx.rotate(Math.sin(t * 1.3 + b[3]) * 0.06);
+          const p = birdPath(b[2], t * 15 + b[3] * 2);
+          ctx.shadowColor = css(P.ink, 0.22); ctx.shadowBlur = 6; ctx.shadowOffsetX = SH.dx * 0.8; ctx.shadowOffsetY = 5;
+          ctx.fillStyle = css(lit(C.bird)); ctx.fill(p);
+          ctx.shadowColor = 'rgba(0,0,0,0)'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+        }
+      }
+
+      // ---------- extra set dressing ----------
+      function capsule(cx, cy, w, h, seed) { const p = []; const r = h / 2; for (let i = 0; i <= 30; i++) { const a = -Math.PI / 2 + i / 30 * Math.PI; p.push([cx + w / 2 - r + Math.cos(a) * r, cy + Math.sin(a) * r]); } for (let i = 0; i <= 30; i++) { const a = Math.PI / 2 + i / 30 * Math.PI; p.push([cx - w / 2 + r + Math.cos(a) * r, cy + Math.sin(a) * r]); } const c = cut(p, seed, 10, 0.7, 1.3); return { p: toPath(c), bb: bbox(c) }; }
+      const STRIPC = [
+        Object.assign(capsule(0, 0, 760, 26, 1301), { x: 520, y: 238, par: 0.16, from: -1400, t0: 5.6, drift: 6 }),
+        Object.assign(capsule(0, 0, 520, 20, 1302), { x: 1560, y: 300, par: 0.17, from: 1300, t0: 6.1, drift: -5 }),
+        Object.assign(capsule(0, 0, 640, 22, 1303), { x: 980, y: 168, par: 0.15, from: -1500, t0: 6.6, drift: 7 })
+      ];
+      C.stripC = [mix(P.cream, P.sand, 0.25), mix(P.sand, P.cream, 0.3), mix(P.rose, P.cream, 0.3)];
+      C.field = [mix(P.sage, P.cream, 0.18), mix(P.sage, P.sand, 0.4), mix(P.sand, P.rose, 0.35)];
+      C.field2 = [mix(P.sage, P.dsage, 0.2), mix(P.dsage, P.sand, 0.35), mix(P.dsage, P.rose, 0.4)];
+      C.bush = [mix(P.dsage, P.teal, 0.4), mix(P.dsage, P.teal, 0.3), mix(P.teal, P.dsage, 0.3)];
+      C.reed = [mix(P.teal, P.dsage, 0.25), mix(P.teal, P.dsage, 0.3), mix(P.teal, P.ink, 0.25)];
+      C.pollen = [P.cream, mix(P.cream, P.sand, 0.3), mix(P.cream, P.rose, 0.35)];
+      // fields: perspective lens patches on the meadow, away from the river
+      function lens(cx, cy, w, h, seed) { const p = []; for (let i = 0; i < 70; i++) { const a = i / 70 * Math.PI * 2; p.push([cx + Math.cos(a) * w / 2, cy + Math.sin(a) * h / 2 * (Math.sin(a) < 0 ? 1 : 0.7)]); } const c = cut(p, seed, 9, 0.7, 1.4); return { p: toPath(c), bb: bbox(c) }; }
+      const FIELDS = [[520, 668, 360, 26, 0], [300, 700, 300, 34, 1], [1360, 664, 300, 22, 0], [1560, 690, 420, 30, 1], [640, 760, 240, 40, 1], [1440, 770, 380, 46, 0], [1700, 744, 220, 30, 1], [140, 772, 260, 40, 0]].map((f, i) => Object.assign(lens(f[0], f[1], f[2], f[3], 1400 + i), { alt: f[4], d: i * 0.05 }));
+      const FIELDS2 = [[260, 900, 520, 70], [1600, 880, 460, 60], [620, 840, 240, 34]].map((f, i) => Object.assign(lens(f[0], f[1], f[2], f[3], 1450 + i), { d: i * 0.06 }));
+      // bushes along the river banks
+      const BUSH = []; (function () { const r = rng(1500); for (let i = 0; i < 14; i++) { const y = 728 + i * 16 + r() * 8; const s = arcAtY(y); const q = onRiver(s); const w = rw(q.y); const side = i % 2 ? 1 : -1; const bx = q.x + side * (w * 0.55 + 6 + r() * w * 0.25); const rad = 4 + (y - 640) * 0.075 * (0.7 + r() * 0.5); const pts = cut(circ(0, 0, rad, 40), 1500 + i, 5, 0.4, 0.7); const pp = toPath(pts); const r2 = rad * (0.6 + r() * 0.2); toPath(cut(circ(rad * 0.75 * side, rad * 0.25, r2, 30), 1550 + i, 5, 0.4, 0.6), pp); BUSH.push({ x: bx, y: q.y - rad * 0.4, r: rad, p: pp, d: 0.03 * i }); } })();
+      // reeds at the near banks where the boat lands
+      function reedCluster(bx, by, n, seed, hmax) { const r = rng(seed), p = new Path2D(); for (let j = 0; j < n; j++) { const x = bx + (j - n / 2) * 9 + r() * 6, hgt = hmax * (0.55 + r() * 0.45), lean = (r() - 0.5) * 40, hw = 3.2 + r() * 2; const Lp = [], Rp = []; for (let k = 0; k <= 10; k++) { const s = k / 10, cx = x + lean * s * s, cy = by - s * hgt, w = hw * Math.pow(1 - s, 0.7); Lp.push([cx - w, cy]); Rp.push([cx + w, cy]); } toPath(cut(Lp.concat(Rp.reverse()), seed + j, 5, 0.3, 0.5), p); if (r() < 0.45) { toPath(cut([[x + lean - 4, by - hgt * 0.82], [x + lean + 4, by - hgt * 0.82], [x + lean + 4, by - hgt * 0.62], [x + lean - 4, by - hgt * 0.62]], seed + 50 + j, 4, 0.3, 0.4), p); } } return p; }
+      const REEDS = [{ p: reedCluster(1000, 990, 9, 1700, 120), x: 1000, y: 990 }, { p: reedCluster(1318, 915, 7, 1750, 96), x: 1318, y: 915 }, { p: reedCluster(790, 884, 6, 1800, 70), x: 790, y: 884 }];
+      const STARS = [[560, 200, 22, 7.0], [1180, 165, 17, 7.5], [300, 240, 15, 8.0], [1520, 215, 19, 8.5], [880, 130, 13, 8.25]];
+      const STARP = STARS.map((st, i) => { const p = []; for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 - Math.PI / 2, r = k % 2 ? st[2] * 0.36 : st[2]; p.push([Math.cos(a) * r, Math.sin(a) * r]); } return toPath(cut(p, 2100 + i, 3, 0.2, 0.3)); });
+      const POLLEN = []; (function () { const r = rng(1900); for (let i = 0; i < 46; i++) POLLEN.push({ x: r() * 1900 + 10, y: 380 + r() * 600, r: 1.2 + r() * 2.2, ph: r() * 6.28, sp: 6 + r() * 14 }); })();
+
+      // background buffer for depth of field
+      const bgC = document.createElement('canvas'); bgC.width = W; bgC.height = H;
+      const bgX = bgC.getContext('2d');
+      const grainMain = grain, grainBg = bgX.createPattern(grainC, 'repeat');
+      const mainX = ctx;
+      const fgC = document.createElement('canvas'); fgC.width = W; fgC.height = H;
+      const fgX = fgC.getContext('2d'); const grainFg = fgX.createPattern(grainC, 'repeat');
+      function useCtx(which) { if (which === 'bg') { ctx = bgX; grain = grainBg; } else if (which === 'fg') { ctx = fgX; grain = grainFg; } else { ctx = mainX; grain = grainMain; } }
+
+      let SUNPOS = [1420, 270];
+      function boatState(t) {
+        const ap = tw(t, 3.9, 0.55, 'back.out(1.4)');
+        if (ap <= 0) return null;
+        const tr = tw(t, 4.4, 6.0, 'sine.inOut');
+        const s = sAt0 + (sAt1 - sAt0) * tr;
+        const q = onRiver(s);
+        const bw = 0.8 * rw(q.y);
+        const vel = ss((t - 4.4) / 1.5); // keeps sailing: the wake never stops
+        return { x: q.x, y: q.y, tx: q.tx, ty: q.ty, s: s, bw: bw, ap: ap, o: Math.min(1, ap * 1.6), vel: vel };
+      }
+
+      function draw(t) {
+        LT = 2 * tw(t, 4.6, 4.4, 'sine.inOut');
+        const gl = LT / 2;
+        RIMA = 0.36 + 0.24 * gl;
+        SH.dx = -3 - 13 * gl; SH.dy = -3 + gl;
+        const pre = tw(t, 0, 4.2, 'sine.out'), push = tw(t, 4.0, 6.4, 'power2.inOut');
+        CAM.Z = 1.04 - 0.04 * pre + (ZEND - 1) * push;
+        // 10.4 s on: keep closing in on the boat so it grows smoothly to about 300 px wide by 14 s
+        if (t > 10.4) { const kE = 1 + (ZEND - 1) * PARF, kR = boatW(t) / BWEND, kf = kE + Math.log(1 + Math.exp((kR - kE) * 12)) / 12 - Math.log(2) / 12 * Math.exp(-(t - 10.4) * 6); CAM.Z = 1 + (kf - 1) / PARF; }
+        CAM.u = push;
+
+        // ======== background buffer: sky .. mid hills ========
+        useCtx('bg');
+        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+        setLayer(0.12, 0);
+        const sg = ctx.createLinearGradient(0, -260, 0, 620);
+        sg.addColorStop(0, css(lit(C.skyTop))); sg.addColorStop(0.55, css(lit(C.skyMid))); sg.addColorStop(1, css(lit(C.skyBot)));
+        ctx.fillStyle = sg; ctx.fillRect(-700, -700, 3300, 2000);
+        grain.setTransform(new DOMMatrix([1, 0, 0, 1, 0, 0])); ctx.globalAlpha = 0.85; ctx.fillStyle = grain; ctx.fillRect(-700, -700, 3300, 2000); ctx.globalAlpha = 1;
+
+        // sun
+        const sRise = tw(t, 1.0, 0.6, 'back.out(1.2)'), sSet = tw(t, 5.0, 6.5, 'sine.inOut');
+        if (sRise > 0) {
+          const sy = 640 - 370 * sRise + 105 * sSet, sx = 1420 + 30 * sSet;
+          const cols = [C.sun0, C.sun1, C.sun2];
+          for (let i = 0; i < 3; i++) {
+            const e = tw(t, 1.0 + i * 0.08, 0.6, 'back.out(1.3)');
+            setLayer(0.18, 0); ctx.translate(sx, sy + (1 - e) * 140); ctx.rotate(t * 0.02 * (i % 2 ? -1 : 1));
+            sheet(SUN[i].p, lit(cols[i]), { shadow: 0.2, blur: 18, so: 0.8, rim: 2, bb: SUN[0].bb, gx: i * 200 });
+          }
+          SUNPOS = [sx, sy];
+        }
+        // long sunset strip clouds
+        for (const c of STRIPC) {
+          const e = tw(t, c.t0, 0.8, 'power3.out'); if (e <= 0) continue;
+          setLayer(c.par, 0); ctx.translate(c.x + (1 - e) * c.from + c.drift * (t - c.t0), c.y);
+          sheet(c.p, lit(C.stripC), { shadow: 0.16, blur: 12, so: 1, sy: 4, rim: 1.6, bb: c.bb, gx: c.x });
+        }
+        for (const c of CLOUDS) {
+          const e = tw(t, c.t0, 0.75, 'power3.out'); if (e <= 0) continue;
+          setLayer(c.par, 0); ctx.translate(c.x + (1 - e) * c.from + c.drift * (t - c.t0), c.y + Math.sin(t * 0.7 + c.x) * 3);
+          sheet(c.p, lit(C.cloud), { shadow: 0.2, blur: 16, so: 1, sy: 4, rim: 2, bb: c.bb, gx: c.x });
+        }
+        for (let i = 0; i < STARS.length; i++) {
+          const st = STARS[i], e = tw(t, st[3], 0.5, 'back.out(2.4)'); if (e <= 0) continue;
+          setLayer(0.12, 0); ctx.translate(st[0], st[1]); ctx.rotate(0.3 * (1 - e) + Math.sin(t * 1.5 + i) * 0.05); ctx.scale(0.6 + 0.4 * e, 0.6 + 0.4 * e); ctx.globalAlpha = Math.min(1, e * 2);
+          sheet(STARP[i], lit(C.cloud), { shadow: 0.25, blur: 6, so: 0.4, rim: 1.2, bb: [-30, -30, 30, 30], gx: i * 50 });
+          ctx.globalAlpha = 1;
+        }
+        drawFlock(FLOCK[1], t);
+        bigLayer(L.far, t, 0.5);
+        drawTrees(T.back, t, 1.05, 0.36, 0);
+        bigLayer(L.back, t, 1.0);
+        drawTrees(T.mid, t, 2.0, 0.5, 0);
+        bigLayer(L.mid, t, 2.0);
+
+        // ======== composite background with depth of field ========
+        useCtx('main');
+        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(bgC, 0, 0);
+        const dof = 2.4 * push + 2.2 * clamp((CAM.Z - ZEND) / 2, 0, 1);
+        if (dof > 0.15) { ctx.filter = 'blur(' + dof.toFixed(2) + 'px)'; ctx.drawImage(bgC, 0, 0); ctx.filter = 'none'; }
+        drawFlock(FLOCK[0], t);
+
+        // ======== water, meadow, boat ========
+        const fe = tw(t, 1.95, 0.55, 'back.out(0.7)');
+        const bs = boatState(t);
+        if (fe > 0) {
+          const slide = (1 - fe) * 820;
+          setLayer(PARF, slide);
+          const wg = ctx.createLinearGradient(0, 640, 0, 1150);
+          wg.addColorStop(0, css(lit(C.waterFar))); wg.addColorStop(0.4, css(lit(C.water))); wg.addColorStop(1, css(mix(lit(C.water), P.ink, 0.18)));
+          sheet(L.water.p, lit(C.water), { fill: wg, rim: 0, bb: L.water.bb, gx: 40, gy: 500, ga: 0.7 });
+          ctx.save(); ctx.clip(L.water.p);
+          ctx.lineCap = 'round';
+          const sc = lit(C.strip);
+          // sun glint column on the water at dusk
+          for (const st of STRIPS) {
+            const a = (st.ph + t * st.sp) % 1;
+            const s = Math.pow(a, 1.35) * CLT * 0.86;
+            const q = onRiver(s); const w = rw(q.y);
+            const nx = -q.ty, ny = q.tx;
+            const cx = q.x + nx * w * 0.5 * st.lat, cy = q.y + ny * w * 0.5 * st.lat * 0.42;
+            const hl = w * st.len, th = Math.max(1.2, w * 0.026);
+            ctx.globalAlpha = Math.sin(Math.PI * a) * 0.85;
+            ctx.strokeStyle = css(sc); ctx.lineWidth = th;
+            ctx.beginPath(); ctx.moveTo(cx - hl, cy); ctx.quadraticCurveTo(cx, cy - th * 1.2, cx + hl, cy); ctx.stroke();
+          }
+          ctx.globalAlpha = 1;
+          if (bs) {
+            // wake: two trailing paper strips behind the boat
+            for (let i = 1; i <= 6; i++) {
+              const q = onRiver(bs.s - i * bs.bw * 0.32 - ((t * 40) % (bs.bw * 0.32)));
+              const w = rw(q.y), nx = -q.ty, ny = q.tx, spread = bs.bw * (0.22 + i * 0.09);
+              ctx.globalAlpha = bs.vel * 0.75 * (1 - i / 7) * bs.o; ctx.strokeStyle = css(sc); ctx.lineWidth = Math.max(1.2, w * 0.022);
+              for (const sd of [-1, 1]) { const cx = q.x + nx * spread * sd, cy = q.y + ny * spread * sd * 0.42; ctx.beginPath(); ctx.moveTo(cx - w * 0.06, cy); ctx.lineTo(cx + w * 0.06, cy); ctx.stroke(); }
+            }
+            for (const rt of [4.05, 10.75, 11.0, 11.5]) {
+              if (t < rt || t > rt + 1.5) continue;
+              const q = (t - rt) / 1.5, e = ease('power2.out')(q);
+              const rx = bs.bw * (0.5 + 0.9 * e);
+              ctx.globalAlpha = (1 - q) * 0.9; ctx.strokeStyle = css(sc); ctx.lineWidth = Math.max(1.5, bs.bw * 0.022 * (1 - q * 0.6));
+              ctx.beginPath(); ctx.ellipse(bs.x, bs.y + bs.bw * 0.02, rx, rx * 0.26, 0, 0, Math.PI * 2); ctx.stroke();
+            }
+            ctx.globalAlpha = 0.34 * bs.o;
+            const rg = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+            rg.addColorStop(0, css(P.ink, 0.9)); rg.addColorStop(1, css(P.ink, 0));
+            ctx.save(); ctx.translate(bs.x + SH.dx * 0.5, bs.y + bs.bw * 0.05); ctx.scale(bs.bw * 0.62, bs.bw * 0.11); ctx.fillStyle = rg; ctx.fillRect(-1, -1, 2, 2); ctx.restore();
+            ctx.globalAlpha = 1;
+          }
+          ctx.restore();
+          // meadow sheet with the river cut out
+          setLayer(PARF, slide, (1 - tw(t, 1.95, 0.75, 'back.out(1.4)')) * -0.014);
+          bigShadow(L.floor, 1, clamp((1 - fe) * 3, 0, 1));
+          const fg = ctx.createLinearGradient(0, 630, 0, 1080); fg.addColorStop(0, css(lit(C.floorFar))); fg.addColorStop(0.55, css(mix(lit(C.floorFar), lit(C.floor), 0.75))); fg.addColorStop(1, css(lit(C.floor)));
+          sheet(L.floor.p, lit(C.floor), { rule: 'evenodd', bb: L.floor.bb, gx: 300, gy: 120, fill: fg });
+          // fields + bushes placed onto the meadow
+          for (const f of FIELDS) {
+            const e = tw(t, 2.45 + f.d, 0.4, 'back.out(1.6)'); if (e <= 0) continue;
+            setLayer(PARF, slide); ctx.translate(0, (1 - e) * 30); ctx.globalAlpha = Math.min(1, e * 2);
+            sheet(f.p, lit(f.alt ? C.field2 : C.field), { shadow: 0.2, blur: 8, so: 0.5, rim: 1.6, bb: f.bb, gx: f.bb[0] });
+            { const fb = lit(f.alt ? C.field2 : C.field); ctx.save(); ctx.clip(f.p); const n = 9, fw = f.bb[2] - f.bb[0];
+              for (let i = -2; i <= n + 2; i++) { const x = f.bb[0] + fw * i / n, vx = 960 + (x - 960) * 0.1;
+                ctx.strokeStyle = css(mix(fb, P.ink, 0.22), 0.55); ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x, f.bb[3] + 4); ctx.lineTo(vx, 560); ctx.stroke();
+                ctx.strokeStyle = css(mix(fb, P.cream, 0.4), 0.5); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - 2, f.bb[3] + 4); ctx.lineTo(vx - 1, 560); ctx.stroke(); }
+              ctx.restore(); }
+            ctx.globalAlpha = 1;
+          }
+          const drawBush = (b) => {
+            const e = tw(t, 2.55 + b.d, 0.4, 'back.out(1.8)'); if (e <= 0) return;
+            setLayer(PARF, slide); ctx.translate(b.x, b.y + (1 - e) * b.r * 2);
+            sheet(b.p, lit(C.bush), { shadow: 0.25, blur: 6, so: 0.4, rim: Math.max(1, b.r * 0.08), bb: [-b.r * 2, -b.r * 1.5, b.r * 2, b.r * 1.5], gx: b.x });
+          };
+          for (const b of BUSH) if (b.y < nearFn(b.x) - 4) drawBush(b);
+          // second meadow terrace
+          { const ne = tw(t, 2.15, 0.55, 'back.out(0.7)');
+            if (ne > 0) {
+              setLayer(PARF, slide + (1 - ne) * 700, (1 - tw(t, 2.15, 0.75, 'back.out(1.4)')) * 0.012);
+              bigShadow(L.near, 1, clamp((1 - ne) * 3, 0, 1));
+              const ng = ctx.createLinearGradient(0, 760, 0, 1100); ng.addColorStop(0, css(lit(C.nearF))); ng.addColorStop(1, css(lit(C.nearB)));
+              sheet(L.near.p, lit(C.nearF), { rule: 'nonzero', bb: L.near.bb, gx: 520, gy: 260, fill: ng });
+              for (const f of FIELDS2) {
+                const e = tw(t, 2.7 + f.d, 0.4, 'back.out(1.6)'); if (e <= 0) continue;
+                ctx.save(); ctx.translate(0, (1 - e) * 40); ctx.globalAlpha = Math.min(1, e * 2);
+                sheet(f.p, lit(C.field2), { shadow: 0.22, blur: 8, so: 0.5, rim: 2, bb: f.bb, gx: f.bb[0] });
+                const fb = lit(C.field2); ctx.clip(f.p); const n = 10, fw = f.bb[2] - f.bb[0];
+                for (let i = -2; i <= n + 2; i++) { const x = f.bb[0] + fw * i / n, vx = 960 + (x - 960) * 0.1;
+                  ctx.strokeStyle = css(mix(fb, P.ink, 0.22), 0.55); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, f.bb[3] + 4); ctx.lineTo(vx, 560); ctx.stroke();
+                  ctx.strokeStyle = css(mix(fb, P.cream, 0.4), 0.5); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x - 2.5, f.bb[3] + 4); ctx.lineTo(vx - 1, 560); ctx.stroke(); }
+                ctx.restore(); ctx.globalAlpha = 1;
+              }
+            }
+          }
+          for (const b of BUSH) if (b.y >= nearFn(b.x) - 4) drawBush(b);
+          if (bs) { setLayer(PARF, slide); drawBoat(t, bs); }
+          // reeds in front of the boat
+          for (let i = 0; i < REEDS.length; i++) {
+            const rd = REEDS[i]; const e = tw(t, 2.7 + i * 0.08, 0.45, 'back.out(1.6)'); if (e <= 0) continue;
+            setLayer(PARF, slide); ctx.translate(rd.x, rd.y + (1 - e) * 110); ctx.rotate(Math.sin(t * 1.6 + i * 1.7) * 0.03); ctx.translate(-rd.x, -rd.y);
+            sheet(rd.p, lit(C.reed), { shadow: 0.25, blur: 6, so: 0.5, rim: 1.2, bb: [rd.x - 80, rd.y - 130, rd.x + 80, rd.y + 4], gx: rd.x });
+          }
+        }
+
+        useCtx('fg'); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
+        drawTrees(T.left, t, 3.0, 0.92, 0);
+        drawTrees(T.right, t, 3.1, 0.92, 0);
+        bigLayer(L.left, t, 2.5);
+        bigLayer(L.right, t, 2.62);
+        useCtx('main'); ctx.setTransform(1, 0, 0, 1, 0, 0);
+        { const fd = 3.2 * push; if (fd > 0.15) ctx.filter = 'blur(' + fd.toFixed(2) + 'px)'; ctx.drawImage(fgC, 0, 0); ctx.filter = 'none'; }
+
+        // drifting pollen in the golden light
+        if (gl > 0.02) {
+          setLayer(0.85, 0);
+          ctx.fillStyle = css(lit(C.pollen));
+          for (const p of POLLEN) {
+            const x = p.x + Math.sin(t * 0.9 + p.ph) * 18 + t * p.sp * 0.6, y = p.y - t * p.sp + Math.sin(t * 1.3 + p.ph * 2) * 8;
+            ctx.globalAlpha = Math.min(1, gl * 2) * (0.45 + 0.4 * Math.sin(t * 2 + p.ph));
+            ctx.beginPath(); ctx.arc(x, y, p.r, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        }
+
+        // foreground grass
+        for (let i = 0; i < 2; i++) {
+          const fz = FERN[i]; const e = tw(t, 3.0 + i * 0.1, 0.55, 'back.out(0.9)'); if (e <= 0) continue;
+          setLayer(fz.par, (1 - e) * 600 + tw(t, 5.0, 0.9, 'power2.in') * 900);
+          ctx.translate(fz.cx, 1160); ctx.rotate(Math.sin(t * 1.25 + i * 2) * 0.018 + (1 - e) * 0.05 * (i ? -1 : 1)); ctx.translate(-fz.cx, -1160);
+          sheet(fz.p, lit(C.fern), { shadow: 0.35, blur: 22, so: 1.2, rim: 2.2, bb: [fz.cx - 420, 720, fz.cx + 420, 1180], gx: 77 * i });
+        }
+
+        // light: dusk glow from the sun + vignette
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        const k = 1 + (CAM.Z - 1) * 0.18;
+        const sx = SUNPOS[0] * k + F[0] * (1 - k) + V[0] * CAM.u * 0.18, sy = SUNPOS[1] * k + F[1] * (1 - k) + V[1] * CAM.u * 0.18;
+        if (gl > 0.01) {
+          ctx.globalCompositeOperation = 'soft-light';
+          const rg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 1400);
+          rg.addColorStop(0, css(P.rose, 0.8 * gl)); rg.addColorStop(0.45, css(P.sand, 0.35 * gl)); rg.addColorStop(1, css(P.teal, 0.25 * gl));
+          ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+        }
+        ctx.globalCompositeOperation = 'multiply';
+        const vg = ctx.createRadialGradient(W / 2, H * 0.5, H * 0.5, W / 2, H * 0.5, H * 1.15);
+        vg.addColorStop(0, 'rgba(255,255,255,1)'); vg.addColorStop(1, css(mix(mix(P.cream, P.rose, gl * 0.5), P.ink, 0.13 + 0.1 * gl)));
+        ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+
+      function drawBoat(t, bs) {
+        const sc = bs.bw / 200;
+        ctx.save();
+        ctx.translate(bs.x, bs.y + (1 - bs.ap) * bs.bw * 0.35 + Math.sin(t * 2.6) * bs.bw * 0.012);
+        ctx.rotate(Math.sin(t * 2.1) * 0.035);
+        ctx.scale(sc * (0.8 + 0.2 * bs.ap), sc * (0.8 + 0.2 * bs.ap));
+        ctx.globalAlpha = bs.o;
+        const bb = [-110, -230, 110, 12];
+        sheet(B.hull, lit(C.hullL), { shadow: 0.3, blur: 10, rim: 2, bb: bb, gx: 10, rimAmt: 0.3 });
+        sheet(B.fold, lit(C.hullF), { rim: 1.6, bb: bb, gx: 30, rimAmt: 0.3 });
+        sheet(B.sailR, lit(C.hullD), { shadow: 0.25, blur: 8, so: 0.5, rim: 1.8, bb: bb, gx: 60 });
+        sheet(B.sailL, lit(C.hullL), { rim: 1.8, bb: bb, gx: 90, rimAmt: 0.5 });
+        const fp = tw(t, 7.85, 0.5, 'back.out(2.2)');
+        if (fp > 0) {
+          ctx.save(); ctx.translate(0, -168); ctx.scale(1, 0.6 + 0.4 * fp); ctx.globalAlpha = bs.o * Math.min(1, fp * 2.5);
+          ctx.strokeStyle = css(P.ink); ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(0, -58); ctx.stroke();
+          ctx.translate(0, 168);
+          ctx.translate(0, -217); ctx.scale(1, 1 + Math.sin(t * 7) * 0.08); ctx.translate(0, 217);
+          sheet(B.flag, P.rose, { shadow: 0.25, blur: 6, rim: 1.4, bb: [-4, -230, 46, -190], gx: 5, rimAmt: 0.35 });
+          ctx.restore();
+        }
+        ctx.globalAlpha = bs.o;
+        ctx.save(); ctx.clip(B.hull);
+        ctx.fillStyle = css(lit(C.water), 0.85);
+        ctx.beginPath(); ctx.moveTo(-120, 2); for (let x = -120; x <= 120; x += 10) ctx.lineTo(x, -2 + Math.sin(x * 0.08 + t * 5) * 2.6); ctx.lineTo(120, 30); ctx.lineTo(-120, 30); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+      const tl = gsap.timeline({ paused: true });
+      const pr = { t: 0 };
+      tl.to(pr, { t: DUR, duration: DUR, ease: 'none', onUpdate: () => draw(pr.t) }, 0);
+      window.__timelines = window.__timelines || {};
+      window.__timelines['main'] = tl;
+      draw(0);
+      tl.seek(0);
+    })();
+    </script>
+  </body>
+</html>

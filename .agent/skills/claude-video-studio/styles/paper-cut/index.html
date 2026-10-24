@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@1,500&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="studio.js"></script>
+<style>
+  /* style: paper-cut. Every colour comes from these tokens. */
+  :root { --cream: #F2E8D5; --sand: #E3CBA8; --sage: #9CB49A; --dsage: #5E7F6A; --teal: #2F5D62;
+          --ink: #2B2B2B; --accent: #D98C7A; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--cream); }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--cream);
+    font-family: 'EB Garamond', serif; color: var(--teal); }
+  .cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 960px 540px; }
+  .mov { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  .mov svg { position: absolute; left: 0; top: 0; overflow: visible; }
+  #ground { position: absolute; inset: 0; }
+  .line { position: absolute; left: 0; top: 0; white-space: pre; line-height: 1;
+    font-style: italic; font-weight: 500; }
+  .ch { display: inline-block; transform-origin: 50% 70%; }
+  .probe { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="12" data-width="1920" data-height="1080">
+  <div id="ground"></div>
+</div>
+<script>
+  const S = STUDIO, root = S.root, D = 12, NS = 'http://www.w3.org/2000/svg';
+  const css = getComputedStyle(document.documentElement);
+  const C = {}; ['cream', 'sand', 'sage', 'dsage', 'teal', 'ink', 'accent'].forEach(k => C[k] = css.getPropertyValue('--' + k).trim());
+  const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const mixHex = (a, b, p) => { const A = rgb(a), B = rgb(b); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * p)).join(',') + ')'; };
+  const INK = rgb(C.ink).join(',');
+  const TAU = Math.PI * 2;
+
+  // ---------- paper grain: one seeded, tileable texture (fine tooth + soft mottling + a few fibres)
+  const G = 512, cv = document.createElement('canvas'); cv.width = cv.height = G;
+  const g = cv.getContext('2d'), img = g.createImageData(G, G), gr = S.rng(11);
+  const waves = []; for (let k = 0; k < 7; k++) waves.push([1 + Math.floor(gr() * 4), 1 + Math.floor(gr() * 4), gr() * TAU, 0.4 + gr() * 0.6]);
+  for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) {
+    let m = 0; for (const [kx, ky, ph, a] of waves) m += a * Math.sin(TAU * (kx * x / G + (ky * y / G) * (kx % 2 ? 1 : -1)) + ph);
+    const v = 128 + (gr() - 0.5) * 64 + m * 3.5;
+    const i = (y * G + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  g.lineCap = 'round';
+  for (let f = 0; f < 70; f++) {                                     // fibres
+    const x = gr() * G, y = gr() * G, a = gr() * TAU, l = 6 + gr() * 18;
+    g.strokeStyle = gr() < 0.6 ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.18)'; g.lineWidth = 0.7;
+    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a + 0.6) * l * 0.5, y + Math.sin(a + 0.6) * l * 0.5,
+      x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  const GRAIN = cv.toDataURL('image/png');
+  const ground = document.getElementById('ground');
+  Object.assign(ground.style, {
+    backgroundColor: C.cream,
+    backgroundImage: `radial-gradient(ellipse 75% 70% at 38% 42%, rgba(${INK},0) 55%, rgba(${INK},0.10) 100%), url(${GRAIN})`,
+    backgroundBlendMode: 'normal, soft-light',
+  });
+  const defs = document.createElementNS(NS, 'svg');
+  defs.setAttribute('width', 0); defs.setAttribute('height', 0); defs.style.position = 'absolute';
+  defs.innerHTML = `<defs><pattern id="grain" patternUnits="userSpaceOnUse" width="${G}" height="${G}">
+    <image href="${GRAIN}" width="${G}" height="${G}"/></pattern></defs>`;
+  root.appendChild(defs);
+
+  // ---------- hand-cut shapes: short straight scissor runs with a little wobble
+  const toD = (pts, R) => 'M' + pts.map(([x, y]) => (x + (R() - 0.5) * 1.2).toFixed(1) + ' ' + (y + (R() - 0.5) * 1.2).toFixed(1)).join('L') + 'Z';
+  function disc(cx, cy, r, seed) {
+    const R = S.rng(seed), f = [R() * TAU, R() * TAU, R() * TAU], n = Math.ceil(TAU * r / 13), pts = [];
+    for (let i = 0; i < n; i++) {
+      const a = i / n * TAU;
+      const rr = r * (1 + 0.004 * Math.sin(3 * a + f[0]) + 0.0025 * Math.sin(7 * a + f[1]) + 0.0012 * Math.sin(15 * a + f[2]));
+      pts.push([cx + rr * Math.cos(a), cy + rr * Math.sin(a)]);
+    }
+    return { d: toD(pts, R), box: [cx - r - 10, cy - r - 10, 2 * r + 20, 2 * r + 20] };
+  }
+  function scallops(y0, amp, wl, seed) {                             // a strip with uneven, hand-cut scallops
+    const R = S.rng(seed), pts = [];
+    let x = -1160;
+    while (x < 3080) {
+      const w = wl * (0.72 + 0.56 * R()), a = amp * (0.78 + 0.4 * R()), n = Math.ceil(w / 12);
+      for (let i = 0; i < n; i++) { const u = i / n; pts.push([x + u * w, y0 - a * Math.pow(Math.sin(Math.PI * u), 0.75)]); }
+      x += w;
+    }
+    pts.push([x, y0], [x, 1500], [-1160, 1500]);
+    return { d: toD(pts, R), box: [-1170, y0 - amp * 1.2 - 10, x + 1180, 1520 - y0 + amp * 1.2] };
+  }
+  function leaf(px, py, ang, len, wid, seed, veinCol) {             // stem base at (px, py), pointing at ang degrees
+    const R = S.rng(seed), a = ang * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+    const P = (x, y) => [px + x * ca - y * sa, py + x * sa + y * ca];
+    const n = Math.ceil(len / 11), top = [], bot = [], bend = (R() - 0.5) * 0.12 * len;
+    for (let i = 0; i <= n; i++) {
+      const u = i / n, w = Math.pow(Math.sin(Math.PI * Math.pow(u, 0.85)), 0.9), c = bend * Math.sin(Math.PI * u);
+      top.push(P(u * len, c - wid / 2 * w)); bot.push(P(u * len, c + wid / 2 * w * 0.92));
+    }
+    const stem = [P(-120, -4), P(4, -4), P(4, 4), P(-120, 4)];
+    let d = toD(top.concat(bot.reverse()), R) + toD(stem, R);
+    let vein = `M${P(-110, 0).join(' ')}`;
+    for (let i = 1; i <= 10; i++) { const u = i / 10 * 0.88; vein += `L${P(u * len, bend * Math.sin(Math.PI * u)).join(' ')}`; }
+    for (const u of [0.22, 0.4, 0.58, 0.74]) for (const s of [-1, 1]) {
+      const c = bend * Math.sin(Math.PI * u), w = wid / 2 * 0.62 * Math.pow(Math.sin(Math.PI * u), 0.9);
+      vein += `M${P(u * len, c).join(' ')}L${P(u * len + w * 0.9, c + s * w).join(' ')}`;
+    }
+    const extra = `<path d="${vein}" fill="none" stroke="${veinCol}" stroke-width="3" stroke-linecap="round" opacity="0.55"/>`;
+    const xs = top.concat(bot).map(p => p[0]), ys = top.concat(bot).map(p => p[1]);
+    const x0 = Math.min(...xs, px) - 130, y0 = Math.min(...ys, py) - 130;
+    return { d, extra, box: [x0, y0, Math.max(...xs, px) - x0 + 130, Math.max(...ys, py) - y0 + 130] };
+  }
+
+  // ---------- a sheet: camera wrapper (parallax) > motion wrapper (lift, shadow) > svg
+  let uid = 0;
+  function sheet(shape, color, depth, origin) {
+    const id = 'cp' + (uid++), cam = document.createElement('div'), mov = document.createElement('div');
+    cam.className = 'cam'; mov.className = 'mov'; cam.appendChild(mov); root.appendChild(cam);
+    const rim = mixHex(color, '#FFFFFF', 0.42), [bx, by, bw, bh] = shape.box;
+    mov.innerHTML = `<svg width="1920" height="1080" viewBox="0 0 1920 1080"><defs><clipPath id="${id}"><path d="${shape.d}"/></clipPath></defs>
+      <g clip-path="url(#${id})"><path d="${shape.d}" fill="${rim}"/><path d="${shape.d}" fill="${color}" transform="translate(0.8 2.4)"/>
+      ${shape.extra || ''}<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="url(#grain)" opacity="0.62" style="mix-blend-mode:soft-light"/></g></svg>`;
+    mov.style.transformOrigin = origin[0] + 'px ' + origin[1] + 'px';
+    return { cam, mov, depth };
+  }
+  // lift L in 0..1: 0 = flat on the sheet behind, 1 = held high. Wide soft shadow when high, tight contact when down.
+  const shadow = (L, k) => {
+    k = k || 1;
+    return `drop-shadow(${((3 + 16 * L) * k).toFixed(2)}px ${((5 + 30 * L) * k).toFixed(2)}px ${((6 + 34 * L) * k).toFixed(2)}px rgba(${INK},${(0.34 - 0.13 * L).toFixed(3)}))` +
+      ` drop-shadow(${0.8 * k}px ${1.6 * k}px ${1.4 * k}px rgba(${INK},${(0.32 * (1 - L)).toFixed(3)}))`;
+  };
+
+  // ---------- the scene, back to front
+  const AX = 1580, AY = 1100;
+  const arcs = [[760, C.sand, 0.2], [640, C.sage, 0.3], [520, C.dsage, 0.4], [400, C.cream, 0.5]]
+    .map(([r, col, dep], i) => Object.assign(sheet(disc(AX, AY, r, 20 + i), col, dep, [AX, AY - r]), { i, r }));
+  const sun = sheet(disc(AX, 905, 165, 40), C.accent, 0.55, [AX, 905]);
+
+  // words: paper letters
+  const lines = [
+    { txt: 'Layer', size: 230, base: 488, x: 140, col: C.teal, t0: 3.0, st: 0.05, out: 9.3 },
+    { txt: 'by layer', size: 230, base: 730, x: 228, col: C.teal, t0: 3.6, st: 0.05, out: 9.0 },
+    { txt: 'made by hand', size: 76, base: 858, x: 236, col: C.dsage, t0: 5.3, st: 0.035, out: 8.3 },
+  ];
+  const textCam = document.createElement('div'); textCam.className = 'cam'; root.appendChild(textCam);
+  const lr = S.rng(77);
+  lines.forEach(L => {
+    const el = document.createElement('div'); el.className = 'line';
+    Object.assign(el.style, { fontSize: L.size + 'px', color: L.col, left: L.x + 'px', letterSpacing: '0.01em' });
+    L.chars = [...L.txt].map(c => {
+      const s = document.createElement('span'); s.className = 'ch'; s.textContent = c === ' ' ? ' ' : c; el.appendChild(s);
+      return { s, rot: (lr() - 0.5) * 16, dx: (lr() - 0.5) * 40, dy: -20 - lr() * 40, space: c === ' ' };
+    });
+    L.probe = document.createElement('span'); L.probe.className = 'probe'; el.appendChild(L.probe);
+    L.el = el; textCam.appendChild(el);
+  });
+
+  const backWave = sheet(scallops(940, 48, 320, 50), C.sage, 0.7, [960, 900]);
+  const frontWave = sheet(scallops(1012, 54, 280, 51), C.teal, 0.85, [960, 980]);
+
+  const leaves = [
+    { p: [-30, -30], ang: 30, len: 680, wid: 225, col: C.dsage, dep: 1.0, t0: 4.4, out: 8.55, side: -1 },
+    { p: [-30, -30], ang: 60, len: 390, wid: 150, col: C.sage, dep: 0.92, t0: 4.7, out: 8.75, side: -1 },
+    { p: [-30, -30], ang: 8, len: 540, wid: 165, col: C.teal, dep: 1.06, t0: 4.55, out: 8.65, side: -1 },
+    { p: [1950, -30], ang: 141, len: 620, wid: 215, col: C.sage, dep: 0.95, t0: 4.85, out: 8.85, side: 1 },
+    { p: [1950, -30], ang: 116, len: 430, wid: 150, col: C.dsage, dep: 1.02, t0: 5.0, out: 8.95, side: 1 },
+  ].map((o, i) => Object.assign(sheet(leaf(o.p[0], o.p[1], o.ang, o.len, o.wid, 60 + i, mixHex(o.col, C.ink, 0.45)), o.col, o.dep, o.p), o, { i }));
+
+  // ---------- timing helpers
+  const bump = (t, s, d) => Math.sin(Math.PI * S.seg(t, s, d, 'sine.inOut'));
+  // land: returns [p (0 parked .. 1 set down, with back.out settle), L lift]
+  const land = (t, t0, d, ease) => [S.seg(t, t0, d, ease || 'back.out(1.2)'), 1 - S.seg(t, t0 + 0.25 * d, 0.85 * d, 'power2.inOut')];
+  // leave: lift first, then go. returns [q (0 home .. 1 gone), L]
+  const leave = (t, t1, d) => [S.seg(t, t1 + 0.1, d, 'power2.in'), S.seg(t, t1, 0.22, 'power2.out')];
+  const ARC_IN = [0.0, 0.4, 0.8, 1.2], ARC_OUT = [11.3, 11.05, 10.8, 10.55];
+
+  function place(sh, t, x, y, sc, rot, L, k) {
+    const d = sh.depth, camX = 12 * S.wave(t, 1), camY = 5 * S.wave(t, 1, 0.25);
+    const push = 1 + 0.012 * d * (0.5 - 0.5 * Math.cos(TAU * t / D));
+    sh.cam.style.transform = `translate(${(camX * d).toFixed(2)}px, ${(camY * d).toFixed(2)}px) scale(${push.toFixed(5)})`;
+    sh.mov.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) rotate(${(rot || 0).toFixed(3)}deg) scale(${sc.toFixed(4)})`;
+    sh.mov.style.filter = shadow(Math.max(0, Math.min(1.2, L)), k);
+  }
+
+  window.__timelines["main"] = S.play(function render(t) {
+    // arcs: rise from below, breathe, sink
+    arcs.forEach((a, i) => {
+      const [p, L1] = land(t, ARC_IN[i], 0.8), [q, L2] = leave(t, ARC_OUT[i], 0.42);
+      const b = bump(t, 6.1 + 0.22 * i, 0.8);
+      const y = (1 - p) * 820 + q * 820 - 14 * b;
+      const L = (t < 6 ? L1 : L2) + 0.55 * b;
+      place(a, t, 0, y, 1 + 0.035 * Math.max(L1 * (t < 6), L2) + 0.006 * b, 0, L);
+    });
+    // sun
+    {
+      const [p, L1] = land(t, 1.6, 0.9), [q, L2] = leave(t, 10.25, 0.42), b = bump(t, 7.0, 1.0);
+      const y = (1 - p) * 480 + q * 480 - 44 * b + 5 * S.wave(t, 3);
+      const L = (t < 6 ? L1 : L2) + 0.6 * b;
+      place(sun, t, 0, y, 1 + 0.035 * Math.max(L1 * (t < 6), L2), 0, L);
+    }
+    // waves: slide in from the sides, sway, slide out
+    [[backWave, 2.1, 9.9, -1, 0], [frontWave, 2.5, 9.65, 1, 0.5]].forEach(([w, t0, t1, dir, ph]) => {
+      const p = S.seg(t, t0, 0.85, 'power3.out'), L1 = 1 - S.seg(t, t0 + 0.3, 0.7, 'power2.inOut');
+      const [q, L2] = leave(t, t1, 0.45);
+      const x = dir * (1 - p) * 3300 + dir * q * 3300 + 22 * S.wave(t, 2, ph);
+      const y = 6 * S.wave(t, 2, ph + 0.25);
+      place(w, t, x, y, 1, 0, t < 6 ? L1 : L2);
+    });
+    // leaves: swing in on their stems from the corners
+    leaves.forEach(l => {
+      const [p, L1] = land(t, l.t0, 0.7), [q, L2] = leave(t, l.out, 0.45);
+      const rot = l.side * -105 * (1 - p) + l.side * -105 * q + 1.6 * S.wave(t, 2, l.i * 0.17) - l.side * 6 * bump(t, 7.6 + 0.08 * l.i, 0.75);
+      place(l, t, 0, 0, 1 + 0.04 * (t < 6 ? L1 : L2), rot, (t < 6 ? L1 : L2) * 0.9);
+      l.cam.style.visibility = (p <= 0 || q >= 1) ? 'hidden' : 'visible';
+    });
+    // letters: drop onto the page from just above it, then peel off and away
+    const d = 0.6, camX = 12 * S.wave(t, 1), camY = 5 * S.wave(t, 1, 0.25);
+    const push = 1 + 0.012 * 0.6 * (0.5 - 0.5 * Math.cos(TAU * t / D));
+    textCam.style.transform = `translate(${(camX * 0.6).toFixed(2)}px, ${(camY * 0.6).toFixed(2)}px) scale(${push.toFixed(5)})`;
+    lines.forEach(Ln => {
+      Ln.el.style.top = (Ln.base - Ln.probe.offsetTop) + 'px';
+      let k = 0;
+      Ln.chars.forEach((c, j) => {
+        if (c.space) return;
+        const ti = Ln.t0 + k * Ln.st, to = Ln.out + k * Ln.st * 0.8; k++;
+        const pIn = S.seg(t, ti, 0.6, 'back.out(1.2)'), a = S.seg(t, ti, 0.16, 'power1.out');
+        const Lin = 1 - S.seg(t, ti + 0.12, 0.5, 'power2.inOut');
+        const Lout = S.seg(t, to, 0.22, 'power2.out'), q = S.seg(t, to + 0.06, 0.42, 'power2.in');
+        const L = t < 7 ? Lin : Lout;
+        const sc = 1 + 0.32 * (1 - pIn) + 0.36 * q + 0.03 * L;
+        const x = c.dx * (1 - pIn) - c.dx * q, y = c.dy * (1 - pIn) + c.dy * 1.2 * q;
+        const rot = c.rot * (1 - pIn) - c.rot * q;
+        const op = (t < 7 ? a : 1 - S.seg(t, to + 0.3, 0.18, 'power1.in'));
+        const ks = Ln.size / 230 * 0.55;
+        c.s.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) rotate(${rot.toFixed(2)}deg) scale(${sc.toFixed(4)})`;
+        c.s.style.opacity = op.toFixed(3);
+        c.s.style.textShadow = `${((3 + 16 * L) * ks).toFixed(2)}px ${((5 + 30 * L) * ks).toFixed(2)}px ${((6 + 30 * L) * ks).toFixed(2)}px rgba(${INK},${(0.28 - 0.1 * L).toFixed(3)}), ` +
+          `${0.7 * ks}px ${1.4 * ks}px ${1.2 * ks}px rgba(${INK},${(0.35 * (1 - L)).toFixed(3)})`;
+      });
+    });
+  }, { loop: true });
+</script>
+</body>
+</html>

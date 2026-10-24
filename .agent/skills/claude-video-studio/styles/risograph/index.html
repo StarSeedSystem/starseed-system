@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@700&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="studio.js"></script>
+<style>
+  /* style: risograph. Every colour comes from these tokens. White inside an ink layer = knockout. */
+  :root { --paper: #F5F0E6; --pink: #FF48B0; --blue: #0078BF; --knock: #FFFFFF; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--paper); }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--paper);
+    isolation: isolate; font-family: 'Archivo Black', sans-serif; }
+  .abs { position: absolute; left: 0; top: 0; }
+  .ink { position: absolute; inset: 0; mix-blend-mode: multiply; filter: url(#rough); }
+  .dots { color: transparent; background: radial-gradient(circle, var(--blue) 0 40%, transparent 43%) 0 0 / 19px 19px;
+    -webkit-background-clip: text; background-clip: text; }
+  .scene { position: absolute; inset: 0; }
+  .word { position: absolute; left: 0; top: 0; white-space: nowrap; line-height: 1; letter-spacing: -0.02em;
+    text-transform: uppercase; transform-origin: 50% 62%; }
+  .pink { color: var(--pink); } .blue { color: var(--blue); }
+  .lab { position: absolute; font-family: 'Space Mono', monospace; font-weight: 700; font-size: 28px;
+    letter-spacing: 0.08em; line-height: 40px; height: 40px; overflow: hidden; white-space: nowrap; }
+  .lab span { position: absolute; left: 0; top: 0; }
+  .lab.r span { left: auto; right: 0; }
+  .bar { position: absolute; }
+  canvas { position: absolute; left: 0; top: 0; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><filter id="rough" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
+<div id="root" data-composition-id="main" data-start="0" data-duration="12" data-width="1920" data-height="1080">
+  <div id="blue" class="ink"></div>
+  <div id="pink" class="ink"></div>
+</div>
+<script>
+  const S = STUDIO, root = S.root, W = 1920, H = 1080, M = 80;
+  const OFFSET = 1.5;                      // t = 0 lands just as the halftone disc starts its slide
+  const BLUE = getComputedStyle(document.documentElement).getPropertyValue('--blue').trim();
+  const PINK = getComputedStyle(document.documentElement).getPropertyValue('--pink').trim();
+  const PAPER = getComputedStyle(document.documentElement).getPropertyValue('--paper').trim();
+  const LB = document.getElementById('blue'), LP = document.getElementById('pink');
+  const el = (parent, tag, cls, css, html) => { const d = document.createElement(tag); if (cls) d.className = cls;
+    Object.assign(d.style, css || {}); if (html != null) d.innerHTML = html; parent.appendChild(d); return d; };
+  const hex = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+
+  // ---------- scenes: one container per ink per scene, so the roller wipe can clip a whole sheet
+  const SC = ['A', 'B', 'C'].map(() => ({ b: el(LB, 'div', 'scene'), p: el(LP, 'div', 'scene') }));
+  const word = (parent, cls, text, fs) => el(parent, 'div', 'word ' + cls, { fontSize: fs + 'px' }, text);
+
+  // ---------- halftone: dots on a rotated grid, clipped to a circle
+  function halftone(ctx, cx, cy, R, cell, ang, size, color) {
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = color; const c = Math.cos(ang), s = Math.sin(ang), n = Math.ceil(R / cell) + 2;
+    ctx.beginPath();
+    for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
+      const x = cx + (i * c - j * s) * cell, y = cy + (i * s + j * c) * cell;
+      const dx = x - cx, dy = y - cy; if (dx * dx + dy * dy > (R + cell) * (R + cell)) continue;
+      const r = size((x - cx) / R, (y - cy) / R) * cell; if (r < 0.6) continue;
+      ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, Math.PI * 2);
+    }
+    ctx.fill(); ctx.restore();
+  }
+
+  // ---------- scene A: SAT 9PM
+  const A = SC[0];
+  const discA = el(A.p, 'div', 'abs', { width: '820px', height: '820px', borderRadius: '50%', background: 'var(--pink)' });
+  const htA = el(A.b, 'canvas', '', {}); htA.width = htA.height = 700;
+  halftone(htA.getContext('2d'), 350, 350, 350, 24, 0.26, (u, v) => Math.min(0.62, 0.1 + 0.32 * (1 + 0.7 * u + 0.7 * v)), BLUE);
+  const sat = word(A.p, 'pink', 'SAT', 470), pm = word(A.b, 'blue', '9PM', 470);
+  const bandA = el(A.b, 'div', 'abs', { width: (W - 2 * M) + 'px', height: '132px',
+    background: 'repeating-linear-gradient(90deg, var(--blue) 0 18px, transparent 18px 36px)' });
+  const labA = el(A.b, 'div', 'lab r blue', { width: '400px' }, '<span>DOORS OPEN</span><span>ALL NIGHT</span>');
+
+  // ---------- scene B: LIVE, pink plate then blue plate
+  const B = SC[1];
+  const liveP = word(B.p, 'pink', '', 735), liveB = word(B.b, 'dots', '', 735);
+  const LETTERS = 'LIVE'.split('');
+  const lp = LETTERS.map(ch => el(liveP, 'span', '', { display: 'inline-block', transformOrigin: '50% 70%' }, ch));
+  const lb = LETTERS.map(ch => el(liveB, 'span', '', { display: 'inline-block' }, ch));
+  const bandB = el(B.b, 'div', 'abs', { width: '2800px', height: '250px', transformOrigin: '0 0',
+    background: 'repeating-linear-gradient(90deg, var(--blue) 0 22px, transparent 22px 48px)' });
+  const labB = el(B.p, 'div', 'lab pink', { width: '600px' }, '<span>ONE NIGHT ONLY</span>');
+
+  // ---------- scene C: NEW SOUND, halftone sun and sound rings
+  const C = SC[2];
+  const SUN = { x: 1430, y: 1150, R: 640 };
+  const sunCv = el(C.b, 'canvas', '', {}); sunCv.width = W; sunCv.height = H; const sunX = sunCv.getContext('2d');
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('width', W); svg.setAttribute('height', H);
+  svg.style.position = 'absolute'; svg.style.left = '0'; svg.style.top = '0'; C.p.appendChild(svg);
+  const RINGS = 14, GAP = 96;
+  const rings = Array.from({ length: RINGS }, () => { const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', SUN.x); c.setAttribute('cy', SUN.y); c.setAttribute('fill', 'none'); c.setAttribute('stroke', PINK);
+    svg.appendChild(c); return c; });
+  const knock = word(C.p, '', 'SOUND', 330); knock.style.color = 'var(--knock)';
+  knock.style.webkitTextStroke = '44px var(--knock)';
+  const nw = word(C.b, 'blue', 'NEW', 400), snd = word(C.p, 'pink', 'SOUND', 330);
+  const labC = el(C.b, 'div', 'lab r blue', { width: '400px' }, '<span>TURN IT UP</span>');
+
+  // ---------- registration marks: printed in both inks, so the off-register plate always shows
+  const mark = (parent, color, x, y) => { const m = document.createElementNS(NS, 'svg');
+    m.setAttribute('width', 60); m.setAttribute('height', 60); Object.assign(m.style, { position: 'absolute', left: (x - 30) + 'px', top: (y - 30) + 'px' });
+    m.innerHTML = `<circle cx="30" cy="30" r="16" fill="none" stroke="${color}" stroke-width="4"/>
+      <path d="M30 4V56M4 30H56" stroke="${color}" stroke-width="4"/>`; parent.appendChild(m); };
+  [[40, 40], [W - 40, H - 40]].forEach(([x, y]) => { mark(LP, PINK, x, y); mark(LB, BLUE, x, y); });
+
+  // ---------- roller wipe: blue bars plus one pink bar, offsets measured back from the leading edge
+  const BARS = [{ l: LB, a: 0, b: 128 }, { l: LB, a: 150, b: 186 }, { l: LB, a: 204, b: 216 }, { l: LP, a: 70, b: 172 }]
+    .map(o => Object.assign(o, { e: el(o.l, 'div', 'bar', { background: o.l === LB ? 'var(--blue)' : 'var(--pink)' }) }));
+  const WIPES = [{ T: 3.5, dir: 'LR', s: 0 }, { T: 7.5, dir: 'TB', s: 1 }, { T: 11.5, dir: 'RL', s: 2 }];
+
+  // ---------- fixed paper: grain (multiply) and ink dropout speckle (paper colour on top)
+  const rnd = S.rng(9);
+  const mottle = (seed, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d'), d = x.createImageData(w, h), r = S.rng(seed);
+    for (let i = 0; i < w * h; i++) { const v = r() * 255; d.data.set([v, v, v, 255], i * 4); } x.putImageData(d, 0, 0); return c; };
+  const grain = el(root, 'canvas', '', { mixBlendMode: 'multiply' }); grain.width = W; grain.height = H;
+  { const g = grain.getContext('2d'); g.imageSmoothingEnabled = true; g.drawImage(mottle(3, 40, 23), 0, 0, W, H);
+    const d = g.getImageData(0, 0, W, H), p = d.data;
+    for (let i = 0; i < p.length; i += 4) { const n = rnd(), m = p[i] / 255;
+      const v = 255 - 16 * n * n - 9 * m - (n > 0.9985 ? 70 : 0); p[i] = v; p[i + 1] = v - 1; p[i + 2] = v - 3; p[i + 3] = 255; }
+    g.putImageData(d, 0, 0); }
+  const speck = el(root, 'canvas', '', {}); speck.width = W; speck.height = H;
+  { const g = speck.getContext('2d'); g.globalAlpha = 0.13; g.imageSmoothingEnabled = true; g.drawImage(mottle(5, 64, 36), 0, 0, W, H);
+    const d = g.getImageData(0, 0, W, H), p = d.data, pc = hex(PAPER);
+    for (let i = 0; i < p.length; i += 4) { const a = p[i + 3] * (p[i] / 255) * 1.4; p.set([...pc, a], i); }
+    g.putImageData(d, 0, 0); g.globalAlpha = 1; g.fillStyle = PAPER;
+    for (let i = 0; i < 52000; i++) { const x = rnd() * W, y = rnd() * H, r = 0.5 + 1.4 * rnd() * rnd();
+      g.globalAlpha = 0.45 + 0.55 * rnd(); g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); } }
+
+  // ---------- type metrics: place words by baseline (fonts can land late, so measure in render)
+  const mc = document.createElement('canvas').getContext('2d');
+  function base() { mc.font = '100px "Archivo Black"'; const m = mc.measureText('H');
+    const asc = m.fontBoundingBoxAscent / 100, des = m.fontBoundingBoxDescent / 100;
+    return { off: (1 - asc - des) / 2 + asc, cap: m.actualBoundingBoxAscent / 100 }; }
+  const put = (e, x, baseline, fs, mt, extra) => { e.style.left = x + 'px'; e.style.top = (baseline - mt.off * fs) + 'px';
+    e.style.transform = extra || ''; };
+
+  // stamp: hard landing, scale 1.12 to 1 with a small rotate settle, no fade
+  const stampT = (tt, t0, r0) => { if (tt < t0) return null; const p = S.seg(tt, t0, 0.25, 'power4.out');
+    return `scale(${S.mix(1.12, 1, p)}) rotate(${S.mix(r0 || 0, 0, p)}deg)`; };
+  const show = (e, tr) => { e.style.visibility = tr == null ? 'hidden' : 'visible'; if (tr != null) e.style.transform = tr; };
+
+  // register: the blue plate sits 3 to 6 px off, moves 1 to 2 px each beat, and gets a thump on every stamp
+  const JR = S.rng(21), JIT = Array.from({ length: 24 }, () => [JR() * 3 - 1.5, JR() * 3 - 1.5]);
+  const HITS = [0, 0.5, 1, 4, 4.25, 4.5, 4.75, 6, 8.5, 9, 9.5];
+  const KR = S.rng(33), KICK = HITS.map(() => [(KR() < 0.5 ? -1 : 1) * (4 + 3 * KR()), (KR() < 0.5 ? -1 : 1) * (3 + 3 * KR())]);
+
+  window.__timelines["main"] = S.play(function render(t) {
+    const tt = (t + OFFSET) % S.D, mt = base();
+    const beat = Math.floor(tt * 2 + 1e-6) % 24;
+    let rx = 5 + JIT[beat][0], ry = -3 + JIT[beat][1];
+    HITS.forEach((h, i) => { const d = tt - h; if (d >= 0 && d < 0.6) { const k = Math.exp(-d * 16); rx += KICK[i][0] * k; ry += KICK[i][1] * k; } });
+    LB.style.transform = `translate(${rx.toFixed(2)}px, ${ry.toFixed(2)}px)`;
+
+    // which sheet is on the drum, and the wipe that clears it
+    SC.forEach((sc, i) => { const on = tt >= i * 4 && tt < i * 4 + 4; sc.b.style.display = sc.p.style.display = on ? 'block' : 'none';
+      sc.b.style.clipPath = sc.p.style.clipPath = 'none'; });
+    BARS.forEach(o => o.e.style.display = 'none');
+    WIPES.forEach(w => { if (tt < w.T - 0.1 || tt >= w.T + 0.5) return;
+      const e = S.seg(tt, w.T - 0.1, 0.6, w.dir === 'TB' ? 'sine.inOut' : 'power2.inOut');
+      const L = w.dir === 'TB' ? H : W, lead = S.mix(-40, L + 260, e);
+      const cut = lead - 64;
+      const clip = w.dir === 'LR' ? `inset(0 0 0 ${cut}px)` : w.dir === 'RL' ? `inset(0 ${cut}px 0 0)` : `inset(${cut}px 0 0 0)`;
+      SC[w.s].b.style.clipPath = SC[w.s].p.style.clipPath = clip;
+      BARS.forEach(o => { const s = o.e.style; s.display = 'block'; const a = lead - o.b, len = o.b - o.a;
+        if (w.dir === 'TB') Object.assign(s, { left: '-20px', width: (W + 40) + 'px', top: a + 'px', height: len + 'px' });
+        else if (w.dir === 'LR') Object.assign(s, { top: '-20px', height: (H + 40) + 'px', left: a + 'px', width: len + 'px' });
+        else Object.assign(s, { top: '-20px', height: (H + 40) + 'px', left: (W - a - len) + 'px', width: len + 'px' }); });
+    });
+
+    // ----- scene A
+    if (tt < 4) {
+      discA.style.left = (1330 - 410) + 'px'; discA.style.top = (560 - 410) + 'px';
+      show(discA, stampT(tt, 0, -2));
+      const sA = S.seg(tt, 1.5, 0.5, 'expo.out');
+      htA.style.transform = `translate(${1560 - 350 + (1 - sA) * 260}px, ${250 - 350 - (1 - sA) * 700}px) rotate(${(1 - sA) * 18}deg)`;
+      htA.style.visibility = tt >= 1.5 ? 'visible' : 'hidden';
+      const satT = stampT(tt, 0.5, 1.5), pmT = stampT(tt, 1.0, -1.5);
+      put(sat, M - 8, 92 + mt.cap * 470, 470, mt); show(sat, satT);
+      put(pm, M - 8, H - 92, 470, mt); show(pm, pmT);
+      // stripe band: masked reveal from the left, then steps one stripe pair per beat
+      const r = S.seg(tt, 2.0, 0.5, 'expo.out');
+      bandA.style.left = M + 'px'; bandA.style.top = '478px';
+      bandA.style.clipPath = `inset(0 ${(1 - r) * 100}% 0 0)`; bandA.style.visibility = tt >= 2 ? 'visible' : 'hidden';
+      const st = S.seg(tt, 2.5, 0.4, 'expo.out') + S.seg(tt, 3.0, 0.4, 'expo.out');
+      bandA.style.backgroundPosition = `${st * 54}px 0`;
+      // label: masked slide up, then swaps
+      Object.assign(labA.style, { left: (W - M - 400) + 'px', top: (H - M - 34) + 'px' });
+      const l1 = S.seg(tt, 2.0, 0.4, 'expo.out'), l2 = S.seg(tt, 3.0, 0.4, 'expo.inOut');
+      labA.children[0].style.transform = `translateY(${(1 - l1) * 40 - l2 * 40}px)`;
+      labA.children[1].style.transform = `translateY(${(1 - l2) * 40}px)`;
+    }
+
+    // ----- scene B
+    if (tt >= 4 && tt < 8) {
+      const fs = 735, bl = 540 + mt.cap * fs / 2 + 10;
+      put(liveP, M - 14, bl, fs, mt); put(liveB, M - 14, bl, fs, mt);
+      lp.forEach((s, i) => { const tr = stampT(tt, 4 + i * 0.25, i % 2 ? 2 : -2); s.style.visibility = tr == null ? 'hidden' : 'visible'; if (tr) s.style.transform = tr; });
+      // blue plate: stamps far off register, then snaps home
+      const on = tt >= 6, sn = S.seg(tt, 6.5, 0.35, 'expo.out'), land = S.seg(tt, 6.0, 0.25, 'power4.out');
+      liveB.style.visibility = on ? 'visible' : 'hidden';
+      liveB.style.transform = `translate(${S.mix(64, 18, sn)}px, ${S.mix(-46, 14, sn)}px) scale(${S.mix(1.08, 1, land)})`;
+      // stripe band slides in on a slant, then steps on each beat
+      const sb = S.seg(tt, 5.0, 0.5, 'expo.out');
+      const step = [5.5, 6.0, 6.5, 7.0].reduce((a, b) => a + S.seg(tt, b, 0.4, 'expo.out'), 0);
+      bandB.style.visibility = tt >= 5 ? 'visible' : 'hidden';
+      bandB.style.transform = `translate(${-300 + (1 - sb) * 2400}px, ${700}px) rotate(-11deg)`;
+      bandB.style.backgroundPosition = `${step * 72}px 0`;
+      Object.assign(labB.style, { left: M + 'px', top: (M + 4) + 'px' });
+      labB.children[0].style.transform = `translateY(${(1 - S.seg(tt, 7.0, 0.4, 'expo.out')) * 40}px)`;
+    }
+
+    // ----- scene C
+    if (tt >= 8) {
+      const rise = S.seg(tt, 8.0, 0.6, 'expo.out');
+      const sy = SUN.y + (1 - rise) * 760;
+      let sw = 0; [9.5, 10, 10.5, 11].forEach(b => { const d = tt - b; sw += 0.09 * S.seg(tt, b, 0.3, 'expo.out'); });
+      sunX.clearRect(0, 0, W, H);
+      halftone(sunX, SUN.x, sy, SUN.R, 26, 0.26 + 0.3 * (1 - rise), (u, v) => Math.min(0.66, (0.12 + 0.5 * (v + 1) / 2 + 0.25 * (1 - Math.hypot(u, v))) * (1 + sw)), BLUE);
+      // rings: stamp at 9.5 with the first pulse
+      const rOn = tt >= 9.5, rl = S.seg(tt, 9.5, 0.25, 'power4.out');
+      // a sound wave: every beat sends a thick pulse out through the rings
+      const PULSES = [9.5, 10, 10.5, 11, 11.5];
+      rings.forEach((c, i) => { const r = SUN.R + 40 + i * GAP;
+        let pu = 0; PULSES.forEach(b => { const d = tt - b; if (d >= 0) { const x = (r - SUN.R - 1150 * d) / 110; pu += Math.exp(-x * x); } });
+        const w = (Math.max(7, 20 - (r - SUN.R) / 90) + 26 * Math.min(1, pu)) * S.mix(0.4, 1, rl);
+        c.setAttribute('cy', sy); c.setAttribute('r', Math.max(1, (r + 12 * Math.min(1, pu)) * S.mix(1.04, 1, rl))); c.setAttribute('stroke-width', w);
+        c.style.visibility = rOn ? 'visible' : 'hidden'; });
+      put(nw, M - 8, 92 + mt.cap * 400, 400, mt); show(nw, stampT(tt, 8.5, -1.5));
+      const sT = stampT(tt, 9.0, 1.5);
+      put(snd, M - 6, H - 92, 330, mt); show(snd, sT); put(knock, M - 6, H - 92, 330, mt); show(knock, sT);
+      Object.assign(labC.style, { left: (W - M - 400) + 'px', top: (M + 4) + 'px' });
+      labC.children[0].style.transform = `translateY(${(1 - S.seg(tt, 10.0, 0.4, 'expo.out')) * 40}px)`;
+    }
+  }, { loop: true });
+</script>
+</body>
+</html>

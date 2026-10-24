@@ -1,0 +1,15 @@
+{
+  "title": "Product intro with my photo",
+  "format": "16:9",
+  "seconds": 12,
+  "shots": [
+    {"time": "0.0-3.0", "graphic": "Name lands in a masked slide; dot grid builds behind it",
+     "asset": {"kind": "code"}},
+    {"time": "3.0-8.0", "graphic": "Photo sits in a tall card on the right; the card pushes in; label lands on the left",
+     "asset": {"kind": "generate", "from": "media/photo.jpg", "model": "seedance-2.0",
+               "prompt": "slow push in, the person looks up from the laptop and smiles, soft window light, camera steady",
+               "duration": 5, "resolution": "720p"}},
+    {"time": "8.0-12.0", "graphic": "Three feature chips stack in; the photo card shrinks to a corner",
+     "asset": {"kind": "user_photo", "path": "media/photo.jpg"}}
+  ]
+}

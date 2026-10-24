@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="studio.js"></script>
+<style>
+  /* style: blueprint. Every colour comes from these tokens. */
+  :root { --ground: #0E3A66; --line: #CFE3F7; --grid: #1C4D80; --text: #EAF3FC; --accent: #FFD23F; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--ground);
+    font-family: 'IBM Plex Mono', monospace; color: var(--text); }
+  .abs { position: absolute; left: 0; top: 0; }
+  .grid { position: absolute; left: -240px; top: -210px; width: 2400px; height: 1500px; transform-origin: 1200px 750px; }
+  #fine { opacity: 0.5;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px; background-position: 0 18px; }
+  #heavy { background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 120px 120px; background-position: 96px 66px; }
+  svg { position: absolute; left: 0; top: 0; overflow: visible; }
+  #drawsvg { clip-path: inset(49px); }
+  #cam { --k: 1; }
+  .ln { fill: none; stroke: var(--line); stroke-width: calc(2px * var(--k)); stroke-linejoin: miter; stroke-linecap: butt; stroke-dasharray: 1 1; }
+  .thin { fill: none; stroke: var(--line); stroke-width: calc(1.25px * var(--k)); stroke-linecap: butt; stroke-dasharray: 1 1; }
+  .con { fill: none; stroke: var(--line); stroke-width: calc(1px * var(--k)); stroke-dasharray: 1 1; }
+  .axis { fill: none; stroke: var(--line); stroke-width: calc(1px * var(--k)); opacity: 0.55; }
+  .hid { fill: none; stroke: var(--line); stroke-width: calc(1.5px * var(--k)); stroke-dasharray: 9 7; }
+  .px { fill: none; stroke: var(--ground); stroke-width: calc(2px * var(--k)); stroke-dasharray: 1 1; }
+  .dim { fill: none; stroke: var(--text); stroke-width: calc(1.5px * var(--k)); }
+  .ext { fill: none; stroke: var(--text); stroke-width: calc(1.25px * var(--k)); stroke-dasharray: 1 1; }
+  .head { fill: var(--text); }
+  .sheet { fill: none; stroke: var(--line); stroke-width: 1px; opacity: 0.45; }
+  .lead { fill: none; stroke-width: 1.5px; stroke-dasharray: 1 1; }
+  .mask { position: absolute; overflow: hidden; height: 40px; white-space: nowrap; }
+  .mask > div { font-size: 28px; font-weight: 500; letter-spacing: 0.06em; line-height: 40px; text-transform: uppercase; }
+  .num { position: absolute; overflow: hidden; height: 44px; white-space: nowrap; }
+  .num > div { font-size: 32px; font-weight: 700; letter-spacing: 0.02em; line-height: 44px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="12" data-width="1920" data-height="1080">
+  <div id="fine" class="grid"></div>
+  <div id="heavy" class="grid"></div>
+  <svg id="sheetsvg" width="1920" height="1080"></svg>
+  <svg id="drawsvg" width="1920" height="1080"><defs id="defs"></defs><g id="cam"></g></svg>
+  <svg id="oversvg" width="1920" height="1080"></svg>
+  <div id="labels" class="abs"></div>
+</div>
+<script>
+  const S = STUDIO, NS = 'http://www.w3.org/2000/svg';
+  const css = getComputedStyle(document.documentElement);
+  const tok = n => css.getPropertyValue(n).trim();
+  const C = { line: tok('--line'), text: tok('--text'), accent: tok('--accent') };
+  const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const mixHex = (a, b, p) => { const A = hex(a), B = hex(b);
+    return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * p)).join(',') + ')'; };
+  const el = (tag, parent, attrs) => { const e = document.createElementNS(NS, tag);
+    for (const k in attrs || {}) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const seg = S.seg, mix = S.mix;
+
+  // ---------- the sheet: border, zone ticks, corner marks, title block, scale bar (static) ----------
+  const sheet = document.getElementById('sheetsvg');
+  el('rect', sheet, { x: 48, y: 48, width: 1824, height: 984, class: 'sheet' });
+  for (let x = 288; x < 1872; x += 240) { el('path', sheet, { d: `M${x},48 v12 M${x},1032 v-12`, class: 'sheet' }); }
+  for (let y = 288; y < 1032; y += 240) { el('path', sheet, { d: `M48,${y} h12 M1872,${y} h-12`, class: 'sheet' }); }
+  [[96, 96], [1824, 96], [96, 984], [1824, 984]].forEach(([x, y]) =>
+    el('path', sheet, { d: `M${x - 14},${y} h28 M${x},${y - 14} v28`, class: 'sheet' }));
+  el('path', sheet, { d: 'M1512,1032 V948 H1872 M1512,976 H1872 M1632,948 V1032 M1752,976 V1032', class: 'sheet' });
+  for (let i = 0; i < 10; i++) {
+    el('rect', sheet, { x: 96 + i * 24, y: 1006, width: 24, height: 8, fill: i % 2 ? 'none' : C.line,
+      stroke: C.line, 'stroke-width': 1, opacity: 0.45 });
+  }
+
+  // ---------- the drawing ----------
+  const cam = document.getElementById('cam'), defs = document.getElementById('defs');
+  const strokes = [];   // every line that draws itself
+  const stroke = (parent, d, cls, t0, dur, u0, udur, ease) => {
+    const e = el('path', parent, { d, class: cls, pathLength: 1 });
+    strokes.push({ e, t0, dur, u0, udur, ease: ease || 'power1.inOut' }); return e;
+  };
+  const G = (parent, id) => { const g = el('g', parent); if (id) g.id = id; return g; };
+
+  // optical axis: always there (centre line, long-short dash)
+  el('path', cam, { d: 'M-1400,0 H1400', class: 'axis', 'stroke-dasharray': '48 10 6 10' });
+
+  // construction lines: shoot across, then fade
+  const conG = G(cam);
+  const conH = [-268, -200, -146, 146, 200], conV = [-420, -300, 20, 60, 520];
+  conH.forEach((y, i) => stroke(conG, `M-1300,${y} H1300`, 'con', 0.15 + 0.05 * i, 0.5, null, null, 'expo.out'));
+  conV.forEach((x, i) => stroke(conG, `M${x},-800 V800`, 'con', 0.35 + 0.05 * i, 0.5, null, null, 'expo.out'));
+
+  // parts (local px, optical axis at y = 0, lens points left)
+  const hood = G(cam), lens = G(cam), mount = G(cam), sensor = G(cam), body = G(cam);
+
+  // hood
+  stroke(hood, 'M-300,-136 L-420,-172 V172 L-300,136 Z', 'ln', 1.4, 0.8, 10.9, 0.6);
+  stroke(hood, 'M-408,-166 V166', 'thin', 1.9, 0.5, 10.6, 0.4);
+
+  // lens: barrel, focus ring, ribs, bore, glass
+  stroke(lens, 'M20,-130 H-270 V-142 H-300 V142 H-270 V130 H20 Z', 'ln', 1.0, 0.9, 10.85, 0.6);
+  stroke(lens, 'M-240,-146 H-120 V146 H-240 Z', 'ln', 1.3, 0.7, 10.7, 0.5);
+  stroke(lens, 'M-300,-100 H20 M-300,100 H20', 'thin', 1.5, 0.6, 10.6, 0.4);
+  for (let i = 0; i < 9; i++) {
+    const x = -228 + i * 12;
+    stroke(lens, `M${x},-146 V-130 M${x},130 V146`, 'thin', 2.2 + 0.03 * i, 0.25, 10.45 + 0.02 * i, 0.25);
+  }
+  const glass = [[-275, 94, 22, 'bi'], [-170, 88, 18, 'men'], [-62, 80, 14, 'bi']].map(([x, h, b, k], i) => {
+    const g = G(lens);
+    const d = k === 'bi'
+      ? `M${x - 6},${-h} Q${x - 6 - b},0 ${x - 6},${h} H${x + 6} Q${x + 6 + b},0 ${x + 6},${-h} Z`
+      : `M${x - 8},${-h} Q${x - 8 - b},0 ${x - 8},${h} H${x + 6} Q${x + 6 - b * 0.7},0 ${x + 6},${-h} Z`;
+    stroke(g, d, 'ln', 1.7 + 0.12 * i, 0.7, 10.6 + 0.08 * i, 0.5);
+    return g;
+  });
+
+  // mount: two section walls with hatching, bayonet tabs, thin bore lines
+  const hatch = el('pattern', defs, { id: 'hatch', patternUnits: 'userSpaceOnUse', width: 10, height: 10, patternTransform: 'rotate(45)' });
+  el('path', hatch, { d: 'M0,0 V10', stroke: C.line, 'stroke-width': 1.5, opacity: 0.8 });
+  const hClip = el('clipPath', defs, { id: 'hclip' });
+  const hRect = el('rect', hClip, { x: 20, y: -160, width: 0, height: 320 });
+  const hG = el('g', mount, { 'clip-path': 'url(#hclip)' });
+  el('rect', hG, { x: 20, y: -150, width: 40, height: 38, fill: 'url(#hatch)' });
+  el('rect', hG, { x: 20, y: 112, width: 40, height: 38, fill: 'url(#hatch)' });
+  stroke(mount, 'M20,-150 H60 V-112 H20 Z M20,112 H60 V150 H20 Z', 'ln', 1.2, 0.7, 10.8, 0.5);
+  stroke(mount, 'M20,-120 H4 V-108 H20 M20,120 H4 V108 H20', 'thin', 1.8, 0.4, 10.7, 0.4);
+  stroke(mount, 'M20,-112 V112 M60,-112 V112', 'thin', 1.6, 0.5, 10.75, 0.4);
+
+  // sensor: solid where it is out of the body, dashed (hidden line) where the body covers it
+  const sClipA = el('clipPath', defs, { id: 'sA' }), sRectA = el('rect', sClipA, { x: -2000, y: -400, width: 0, height: 800 });
+  const sClipB = el('clipPath', defs, { id: 'sB' }), sRectB = el('rect', sClipB, { x: 0, y: -400, width: 4000, height: 800 });
+  const fClip = el('clipPath', defs, { id: 'fc' }), fRect = el('rect', fClip, { x: 100, y: 125, width: 50, height: 0 });
+  const SD = 'M100,-125 H150 V125 H100 Z M108,125 V152 H142 V125';
+  const fill = el('rect', sensor, { x: 100, y: -125, width: 50, height: 250, fill: C.accent, 'clip-path': 'url(#fc)' });
+  const pxG = G(sensor);
+  const pxLines = [];
+  for (let i = 0; i < 9; i++) pxLines.push(stroke(pxG, `M100,${-100 + i * 25} H150`, 'px', 6.62 + 0.03 * i, 0.3, 8.22 + 0.02 * i, 0.25, 'expo.out'));
+  pxLines.push(stroke(pxG, 'M125,-125 V125', 'px', 6.7, 0.4, 8.25, 0.3, 'expo.out'));
+  const sSolid = el('g', sensor, { 'clip-path': 'url(#sA)' });
+  stroke(sSolid, SD, 'ln', 2.0, 0.7, 10.5, 0.5);
+  stroke(sSolid, 'M112,-116 V116', 'thin', 2.3, 0.4, 10.5, 0.4);
+  const sHid = el('path', sensor, { d: SD, class: 'hid', 'clip-path': 'url(#sB)' });
+
+  // body: one continuous outline (front, top, finder hump, shutter button, back, bottom)
+  stroke(body, 'M60,0 V-176 Q60,-200 84,-200 H200 L228,-268 H352 L380,-200 H412 V-216 H468 V-200 H496 Q520,-200 520,-176 V176 Q520,200 496,200 H84 Q60,200 60,176 Z',
+    'ln', 0.6, 1.0, 11.0, 0.6);
+  stroke(body, 'M60,-150 H520', 'thin', 1.45, 0.6, 10.5, 0.4);
+  stroke(body, 'M60,150 H520', 'thin', 1.53, 0.6, 10.55, 0.4);
+  stroke(body, 'M440,-90 A50,50 0 1 1 439.9,-90 M440,-90 V-66', 'thin', 1.7, 0.6, 10.6, 0.4);
+  stroke(body, 'M240,-238 H340', 'thin', 1.8, 0.4, 10.6, 0.3);
+  stroke(body, 'M96,96 A12,12 0 1 1 95.9,96', 'thin', 2.0, 0.4, 10.55, 0.3);
+  stroke(body, 'M520,-176 H534 V-140 H520', 'thin', 2.05, 0.35, 10.5, 0.3);
+  const bHid = el('path', body, { d: 'M170,-150 H300 V120 H170 Z M180,-130 L290,0', class: 'hid' });
+  stroke(body, 'M420,70 H480 Q490,70 490,80 V130 Q490,140 480,140 H420 Q410,140 410,130 V80 Q410,70 420,70 Z', 'thin', 1.9, 0.5, 10.65, 0.4);
+
+  // dimensions (local), grown from a gap around their number
+  const dimG = G(cam);
+  function makeDim(cls) {
+    return { a: el('path', dimG, { class: 'dim' }), b: el('path', dimG, { class: 'dim' }),
+             ha: el('path', dimG, { class: 'head' }), hb: el('path', dimG, { class: 'head' }) };
+  }
+  const dimAll = makeDim(), dimSen = makeDim();
+  const extAll = el('path', dimG, { class: 'ext', pathLength: 1 }), extSen = el('path', dimG, { class: 'ext', pathLength: 1 });
+
+  // ---------- labels (screen space) ----------
+  const over = document.getElementById('oversvg'), labels = document.getElementById('labels');
+  const mkMask = (cls, text) => { const m = document.createElement('div'); m.className = cls;
+    const i = document.createElement('div'); i.textContent = text; m.appendChild(i); labels.appendChild(m); return m; };
+  const PARTS = {
+    hood:   { g: hood,   X: -300, ei: 3, ai: 0 },
+    lens:   { g: lens,   X: -170, ei: 2, ai: 1 },
+    mount:  { g: mount,  X: -40,  ei: 1, ai: 2 },
+    sensor: { g: sensor, X: 0,    ei: 9, ai: 9 },
+    body:   { g: body,   X: 170,  ei: 0, ai: 3 },
+  };
+  const LABS = [
+    { text: 'Hood',   part: 'hood',   at: [-360, -154], L: 170, tin: 4.20, tout: 5.85 },
+    { text: 'Lens',   part: 'lens',   at: [-180, -146], L: 230, tin: 4.32, tout: 5.90 },
+    { text: 'Mount',  part: 'mount',  at: [40, -150],   L: 270, tin: 4.44, tout: 5.95 },
+    { text: 'Body',   part: 'body',   at: [290, -268],  L: 130, tin: 4.56, tout: 6.00 },
+    { text: 'Sensor', part: 'sensor', at: [125, -125],  L: 140, tin: 4.68, tout: 8.00 },
+  ].map(l => Object.assign(l, {
+    path: el('path', over, { class: 'lead', pathLength: 1 }),
+    dot: el('circle', over, { r: 4 }),
+    m: mkMask('mask', l.text),
+  }));
+  const numAll = mkMask('num', '1410'), numSen = mkMask('num', '250');
+  numSen.style.transformOrigin = '0 0';
+
+  // ---------- motion helpers ----------
+  const T_EX = 3.2, T_AS = 9.0;
+  function partX(p, t) {
+    const P = PARTS[p]; if (!P.X) return 0;
+    const t0 = T_EX + P.ei * 0.07, t1 = T_AS + P.ai * 0.07;
+    let x = P.X * (seg(t, t0, 1.0, 'power3.inOut') - seg(t, t1, 0.95, 'power3.inOut'));
+    const e0 = t - (t0 + 1.0), e1 = t - (t1 + 0.95);
+    if (e0 > 0) x += P.X * 0.025 * Math.exp(-7 * e0) * Math.sin(2 * Math.PI * 2.2 * e0);
+    if (e1 > 0) x -= P.X * 0.02 * Math.exp(-7 * e1) * Math.sin(2 * Math.PI * 2.4 * e1);
+    return x;
+  }
+  const A = { cx: 50, cy: -34, s: 1.30 }, H = { cx: 120, cy: -40, s: 1.50 }, E = { cx: -15, cy: -35, s: 1.12 }, F = { cx: 130, cy: -10, s: 1.66 };
+  const lerpCam = (a, b, p) => ({ cx: mix(a.cx, b.cx, p), cy: mix(a.cy, b.cy, p), s: mix(a.s, b.s, p) });
+  function camAt(t) {
+    let c = A;
+    c = lerpCam(c, H, seg(t, 1.7, 1.45, 'power2.inOut'));
+    c = lerpCam(c, E, seg(t, 3.15, 1.15, 'power2.inOut'));
+    c = lerpCam(c, F, seg(t, 6.05, 1.3, 'power2.inOut'));
+    c = lerpCam(c, E, seg(t, 8.0, 1.1, 'power2.inOut'));
+    c = lerpCam(c, A, seg(t, 9.0, 1.2, 'power2.inOut'));
+    return Object.assign({ dx: 5 * S.wave(t, 1), dy: 4 * S.wave(t, 1, 0.25) }, c);
+  }
+  function drawStroke(s, t) {
+    const p = seg(t, s.t0, s.dur, s.ease);
+    const q = s.u0 != null ? seg(t, s.u0, s.udur, 'power1.inOut') : 0;
+    s.e.style.strokeDashoffset = p < 1 ? 1 - p : -q;
+    s.e.style.visibility = (p <= 0.0005 || q >= 0.9995) ? 'hidden' : 'visible';
+  }
+  // a dimension: extension lines, then two halves that grow out of the number gap with arrowheads
+  function dimFrame(D, ext, a, b, gap, extD, tin, tout, t, k) {
+    const pin = seg(t, tin, 0.3, 'power2.out') - seg(t, tout + 0.2, 0.25, 'power2.in');
+    ext.setAttribute('d', extD);
+    ext.style.strokeDashoffset = 1 - Math.max(0, pin);
+    ext.style.visibility = pin > 0.001 ? 'visible' : 'hidden';
+    const g = seg(t, tin + 0.15, 0.5, 'expo.out') - seg(t, tout + 0.05, 0.3, 'power2.in');
+    const vis = g > 0.002;
+    [D.a, D.b, D.ha, D.hb].forEach(e => e.style.visibility = vis ? 'visible' : 'hidden');
+    if (!vis) return;
+    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L, half = L / 2;
+    const r0 = gap / 2, r1 = r0 + (half - r0) * g;
+    const P = r => [mx + ux * r, my + uy * r], N = r => [mx - ux * r, my - uy * r];
+    const AH = 16 * k, AW = 5.5 * k;
+    const tri = (tip, dx, dy) => `M${tip[0]},${tip[1]} L${tip[0] - dx * AH - dy * AW},${tip[1] - dy * AH + dx * AW} L${tip[0] - dx * AH + dy * AW},${tip[1] - dy * AH - dx * AW} Z`;
+    const p0 = P(r0), p1 = P(r1), n0 = N(r0), n1 = N(r1);
+    D.a.setAttribute('d', `M${p0[0]},${p0[1]} L${p1[0]},${p1[1]}`);
+    D.b.setAttribute('d', `M${n0[0]},${n0[1]} L${n1[0]},${n1[1]}`);
+    const ho = Math.min(1, g * 3);
+    D.ha.setAttribute('d', tri(p1, ux, uy)); D.hb.setAttribute('d', tri(n1, -ux, -uy));
+    D.ha.style.opacity = D.hb.style.opacity = ho;
+  }
+  function maskFrame(m, x, y, pin, rot) {
+    const inner = m.firstChild;
+    m.style.visibility = pin > 0.001 ? 'visible' : 'hidden';
+    m.style.transform = `translate(${x}px, ${y}px)` + (rot ? ' rotate(-90deg)' : '');
+    inner.style.transform = `translateY(${(1 - pin) * 105}%)`;
+  }
+
+  window.__timelines["main"] = S.play(function render(t) {
+    const c = camAt(t), k = 1 / c.s;
+    const tx = 960 - c.s * c.cx + c.dx, ty = 540 - c.s * c.cy + c.dy;
+    cam.setAttribute('transform', `translate(${tx},${ty}) scale(${c.s})`);
+    cam.style.setProperty('--k', k);
+    const scr = (x, y) => [tx + c.s * x, ty + c.s * y];
+
+    // grid parallax: the far layer moves at 30% of the camera
+    const gs = 1 + 0.3 * (c.s / A.s - 1);
+    const gx = 0.3 * (c.s * (A.cx - c.cx)) + 0.3 * c.dx, gy = 0.3 * (c.s * (A.cy - c.cy)) + 0.3 * c.dy;
+    ['fine', 'heavy'].forEach(id => document.getElementById(id).style.transform = `translate(${gx}px, ${gy}px) scale(${gs})`);
+
+    // parts
+    const X = {}; for (const p in PARTS) { X[p] = partX(p, t); PARTS[p].g.setAttribute('transform', `translate(${X[p]},0)`); }
+    // glass elements trail the barrel and spread a little when it is out
+    const spread = [-14, 0, 18];
+    const lensRaw = tt => PARTS.lens.X * (seg(tt, T_EX + 0.14, 1.0, 'power3.inOut') - seg(tt, T_AS + 0.07, 0.95, 'power3.inOut'));
+    const open = seg(t, T_EX + 0.3, 1.0, 'power3.inOut') - seg(t, T_AS, 0.8, 'power3.inOut');
+    glass.forEach((g, i) => {
+      const lag = 0.06 + 0.05 * i;
+      g.setAttribute('transform', `translate(${lensRaw(t - lag) - lensRaw(t) + spread[i] * open},0)`);
+    });
+
+    strokes.forEach(s => drawStroke(s, t));
+    conG.style.opacity = 1 - seg(t, 2.6, 0.5, 'power2.in');
+
+    // hatching wipe, sensor hidden line, sensor fill
+    const hw = seg(t, 2.3, 0.5, 'power2.inOut') - seg(t, 10.5, 0.3, 'power2.in');
+    hRect.setAttribute('x', 20 + 40 * seg(t, 10.5, 0.3, 'power2.in')); hRect.setAttribute('width', Math.max(0, 40 * hw));
+    const front = 60 + X.body;
+    sRectA.setAttribute('width', 2000 + front); sRectB.setAttribute('x', front);
+    sHid.style.opacity = 0.75 * (seg(t, 2.1, 0.5, 'power2.out') - seg(t, 10.45, 0.4, 'power2.in'));
+    bHid.style.opacity = 0.5 * (seg(t, 2.25, 0.5, 'power2.out') - seg(t, 10.45, 0.4, 'power2.in'));
+    const fIn = seg(t, 6.1, 0.45, 'power3.inOut'), fOut = seg(t, 8.4, 0.4, 'power2.in');
+    const fTop = mix(125, -125, fIn);
+    const top = fOut > 0 ? mix(-125, 125, fOut) : fTop;
+    fRect.setAttribute('y', top); fRect.setAttribute('height', Math.max(0, 125 - top));
+    fill.style.visibility = 125 - top > 0.01 ? 'visible' : 'hidden';
+
+    // dimensions
+    const bodyR = 520 + X.body;
+    const hl = -420 + X.hood;
+    dimFrame(dimAll, extAll, [hl, 290], [bodyR, 290], 128 * k, `M${hl},182 V306 M${bodyR},210 V306`, 4.9, 5.85, t, k);
+    dimFrame(dimSen, extSen, [192, -125], [192, 125], 104 * k, `M158,-125 H204 M158,125 H204`, 7.0, 7.95, t, k);
+
+    // labels
+    LABS.forEach(l => {
+      const [ax, ay] = scr(l.at[0] + X[l.part], l.at[1]);
+      const sy = ay - l.L;
+      const w = l.m.firstChild.offsetWidth;
+      const pl = seg(t, l.tin, 0.4, 'power2.out') - seg(t, l.tout + 0.1, 0.3, 'power2.in');
+      const pt = seg(t, l.tin + 0.22, 0.5, 'expo.out') - seg(t, l.tout, 0.25, 'power2.in');
+      const hot = l.part === 'sensor' ? seg(t, 6.1, 0.35, 'power2.inOut') - seg(t, 7.8, 0.3, 'power2.inOut') : 0;
+      const col = hot > 0 ? mixHex(C.text, C.accent, hot) : C.text;
+      l.path.setAttribute('d', `M${ax},${ay} V${sy} H${ax + 12 + w + 8}`);
+      l.path.style.stroke = col;
+      l.path.style.strokeDashoffset = 1 - Math.max(0, pl);
+      l.path.style.visibility = pl > 0.001 ? 'visible' : 'hidden';
+      l.dot.setAttribute('cx', ax); l.dot.setAttribute('cy', ay);
+      l.dot.setAttribute('r', 4 * Math.min(1, Math.max(0, pl) * 4));
+      l.dot.style.fill = col; l.dot.style.visibility = pl > 0.001 ? 'visible' : 'hidden';
+      l.m.firstChild.style.color = col;
+      maskFrame(l.m, ax + 12, sy - 44, Math.max(0, pt));
+    });
+    // dimension numbers
+    {
+      const [nx, ny] = scr((hl + bodyR) / 2, 290);
+      const w = numAll.firstChild.offsetWidth;
+      const p = seg(t, 5.2, 0.5, 'expo.out') - seg(t, 5.85, 0.25, 'power2.in');
+      maskFrame(numAll, nx - w / 2, ny - 22, Math.max(0, p));
+      const [sx, sy] = scr(192, 0);
+      const ws = numSen.firstChild.offsetWidth;
+      const q = seg(t, 7.35, 0.5, 'expo.out') - seg(t, 7.95, 0.25, 'power2.in');
+      maskFrame(numSen, sx - 22, sy + ws / 2, Math.max(0, q), true);
+    }
+  }, { loop: true });
+</script>
+</body>
+</html>

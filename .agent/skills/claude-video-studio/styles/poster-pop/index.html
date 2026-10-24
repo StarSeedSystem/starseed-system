@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=League+Gothic&family=Archivo+Black&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="studio.js"></script>
+<style>
+  /* style: poster-pop. Every colour comes from these tokens. */
+  :root { --ground: #FFD400; --ink: #111111; --paper: #FFFFFF; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+  #cv { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  /* these make the browser fetch both fonts before the canvas draws with them */
+  .load { position: absolute; left: -9999px; top: 0; font-size: 40px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="12" data-width="1920" data-height="1080">
+  <canvas id="cv" width="1920" height="1080"></canvas>
+  <span class="load" style="font-family:'League Gothic'">THREE 123</span>
+  <span class="load" style="font-family:'Archivo Black'">BOLD FAST LOUD</span>
+</div>
+<script>
+  const S = STUDIO, W = 1920, H = 1080, D = 12;
+  const css = getComputedStyle(document.documentElement);
+  const C = { y: css.getPropertyValue('--ground').trim(), k: css.getPropertyValue('--ink').trim(),
+              w: css.getPropertyValue('--paper').trim() };
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  const LG = 'League Gothic', AB = 'Archivo Black';
+  const OFF = 0.5;                  // video time t = story time u - OFF, so the seam sits inside shot 1
+
+  // ---- type helpers: everything is placed by cap height and baseline, measured from the real font
+  const capCache = {};
+  function capRatio(fam) {
+    if (capCache[fam]) return capCache[fam];
+    ctx.font = `1000px "${fam}"`;
+    const r = ctx.measureText('H').actualBoundingBoxAscent / 1000;
+    if (document.fonts && document.fonts.check(`100px "${fam}"`)) capCache[fam] = r;
+    return r;
+  }
+  const TRACK = 0.01;               // tracking in em
+  function layout(text, fam, cap, maxW) {
+    let fs = cap / capRatio(fam);
+    ctx.font = `${fs}px "${fam}"`;
+    let ws = [...text].map(ch => ctx.measureText(ch).width);
+    let tw = ws.reduce((a, b) => a + b, 0) + TRACK * fs * (ws.length - 1);
+    if (maxW && tw > maxW) { const k = maxW / tw; fs *= k; ws = ws.map(w => w * k); tw = maxW; }
+    return { fs, ws, tw, cap: fs * capRatio(fam) };
+  }
+  // draw a word whose letters slam in one by one from `from` (px offset), stopping dead
+  function word(lt, o) {
+    const L = layout(o.text, o.fam || LG, o.cap, o.maxW);
+    let x = o.x;
+    if (o.align === 'center') x -= L.tw / 2; else if (o.align === 'right') x -= L.tw;
+    ctx.font = `${L.fs}px "${o.fam || LG}"`;
+    ctx.fillStyle = o.color; ctx.textBaseline = 'alphabetic';
+    const n = L.ws.length, stg = o.stg == null ? 0.033 : o.stg, st = o.start || 0;
+    const from = o.from || [0, 0];
+    const rev = from[0] < 0;        // coming from the left: the right-hand letter leads
+    let cx = x;
+    for (let i = 0; i < n; i++) {
+      const order = rev ? n - 1 - i : i;
+      const s0 = st + order * stg;
+      if (lt >= s0) {
+        const p = S.seg(lt, s0, 0.2, 'power4.out');
+        const zs = o.zip && i % 2 ? -1 : 1;          // zip: odd letters come from the other side
+        ctx.fillText(o.text[i], cx + (1 - p) * from[0], o.base + (1 - p) * from[1] * zs);
+      }
+      cx += L.ws[i] + TRACK * L.fs;
+    }
+    return L;
+  }
+  // a paper card that slams in, with its word rising up inside the card's edge a beat later
+  function card(lt, o) {
+    const p = S.seg(lt, o.start, 0.2, 'power4.out');
+    if (lt < o.start) return;
+    const dx = (1 - p) * o.from[0], dy = (1 - p) * o.from[1];
+    const x = o.x + dx, y = o.y + dy;
+    ctx.fillStyle = C.w; ctx.fillRect(x, y, o.w, o.h);
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, o.w, o.h); ctx.clip();
+    const q = S.seg(lt, o.start + 0.067, 0.24, 'power4.out');
+    const L = layout(o.text, AB, o.cap, o.maxW);
+    const base = y + o.h / 2 + L.cap / 2 + (1 - q) * o.h;
+    word(99, { text: o.text, fam: AB, cap: o.cap, maxW: o.maxW, x: x + o.tx, base, color: C.k, stg: 0 });
+    ctx.restore();
+  }
+  // the punch: 1.0 to 1.06 fast, then back over 0.4 s
+  function punch(lt, beats) {
+    let s = 0;
+    for (const b of beats) {
+      const d = lt - b; if (d < 0) continue;
+      const e = d < 0.05 ? S.seg(d, 0, 0.05, 'power2.out') : 1 - S.seg(d, 0.05, 0.4, 'sine.inOut');
+      s = Math.max(s, e);
+    }
+    return 1 + 0.06 * s;
+  }
+  // the land jolt: the poster drops a few px when something hits, then settles
+  function jolt(lt, hits) {
+    let y = 0;
+    for (const h of hits) if (lt >= h) y = 18 * (1 - S.seg(lt, h, 0.15, 'power2.out'));
+    return y;
+  }
+  function frame(bg, sc, jy, ax, ay, draw) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.translate(ax, ay + jy); ctx.scale(sc, sc); ctx.translate(-ax, -ay);
+    draw();
+  }
+  const mid = (cap) => H / 2 + cap / 2;          // baseline that centres a cap height
+
+  // ---- the shots, in story time u
+  const SHOTS = [
+    { u: 0, d: 1, f(lt) {            // THREE
+      frame(C.y, punch(lt, [0.5]), jolt(lt, [0.27]), W / 2, H / 2, () =>
+        word(lt, { text: 'THREE', cap: 0.86 * H, x: W / 2, align: 'center', base: mid(0.86 * H), color: C.k, from: [0, H * 1.1] }));
+    } },
+    { u: 1, d: 1, f(lt) {            // THINGS
+      frame(C.k, punch(lt, [0.5]), jolt(lt, [0.3]), W / 2, H / 2, () =>
+        word(lt, { text: 'THINGS', cap: 0.8 * H, x: W / 2, align: 'center', base: mid(0.8 * H), color: C.y, from: [0, H * 1.2], zip: true }));
+    } },
+    { u: 2, d: 0.5, f(lt) {          // YOU
+      frame(C.y, 1, jolt(lt, [0.12]), W / 2, H / 2, () =>
+        word(lt, { text: 'YOU', cap: 1.04 * H, x: W / 2, align: 'center', base: mid(1.04 * H), color: C.k, from: [0, -H * 1.3] }));
+    } },
+    { u: 2.5, d: 0.5, f(lt) {        // NEED
+      frame(C.k, 1, jolt(lt, [0.15]), W / 2, H / 2, () =>
+        word(lt, { text: 'NEED', cap: 1.0 * H, x: W / 2, align: 'center', base: mid(1.0 * H), color: C.y, from: [0, H * 1.2] }));
+    } },
+    { u: 3, d: 1.5, f(lt) {          // 3 + BOLD
+      frame(C.y, punch(lt, [1.0]), jolt(lt, [0.1, 0.6]), W / 2, H / 2, () => {
+        word(lt, { text: '3', cap: 1.45 * H, x: -80, base: mid(1.45 * H), color: C.k, from: [0, H * 1.6] });
+        card(lt, { start: 0.5, x: 560, y: H / 2 - 260, w: W - 520, h: 520, from: [1400, 0], text: 'BOLD', cap: 340, maxW: 1200, tx: 120 });
+      });
+    } },
+    { u: 4.5, d: 1.5, f(lt) {        // 2 + FAST
+      frame(C.k, punch(lt, [1.0]), jolt(lt, [0.1, 0.6]), W / 2, H / 2, () => {
+        word(lt, { text: '2', cap: 1.45 * H, x: W + 80, align: 'right', base: mid(1.45 * H), color: C.y, from: [0, -H * 1.6] });
+        card(lt, { start: 0.5, x: -40, y: H / 2 - 260, w: 1400, h: 520, from: [-1500, 0], text: 'FAST', cap: 340, maxW: 1200, tx: 144 });
+      });
+    } },
+    { u: 6, d: 1.5, f(lt) {          // 1 + LOUD
+      frame(C.y, punch(lt, [1.0]), jolt(lt, [0.1, 0.6]), W / 2, H / 2, () => {
+        word(lt, { text: '1', cap: 1.45 * H, x: 40, base: mid(1.45 * H), color: C.k, from: [-1200, 0] });
+        card(lt, { start: 0.5, x: 400, y: H / 2 - 260, w: W - 360, h: 520, from: [0, 1000], text: 'LOUD', cap: 340, maxW: 1300, tx: 160 });
+      });
+    } },
+    { u: 7.5, d: 1.5, f(lt) {        // 3 2 1, one per half beat, each too big for the poster
+      const i = Math.min(2, Math.floor(lt / 0.5)), l = lt - i * 0.5;
+      const bg = i === 1 ? C.y : C.k, fg = i === 1 ? C.k : C.y;
+      const P = [ { x: W * 0.3, align: 'center', from: [0, H * 1.6], cap: 1.3 * H },
+                  { x: W / 2, align: 'center', from: [0, -H * 1.6], cap: 1.3 * H },
+                  { x: W * 0.7, align: 'center', from: [W, 0], cap: 1.5 * H } ][i];
+      frame(bg, 1, jolt(l, [0.1]), W / 2, H / 2, () =>
+        word(l, { text: '321'[i], cap: P.cap, x: P.x, align: P.align, base: mid(P.cap), color: fg, from: P.from }));
+    } },
+    { u: 9, d: 1.5, f(lt) {          // GO
+      const inv = lt >= 1.0, bg = inv ? C.k : C.y, fg = inv ? C.y : C.k;
+      const crash = 1.4 - 0.4 * S.seg(lt, 0, 0.2, 'power4.out');
+      frame(bg, crash * punch(lt, [0.5, 1.0]), jolt(lt, [0.12]), W / 2, H / 2, () =>
+        word(lt, { text: 'GO', cap: 1.2 * H, x: W / 2, align: 'center', base: mid(1.2 * H), color: fg, stg: 0 }));
+    } },
+    { u: 10.5, d: 1.5, f(lt) {       // MAKE IT / COUNT
+      frame(C.y, punch(lt, [1.0]), jolt(lt, [0.1, 0.6]), W / 2, H / 2, () => {
+        // paper strip with the support line, then the giant word under it
+        const p = S.seg(lt, 0, 0.2, 'power4.out'), sy = -(1 - p) * 320;
+        ctx.fillStyle = C.w; ctx.fillRect(-40, sy - 40, W + 80, 320);
+        ctx.save(); ctx.beginPath(); ctx.rect(-40, sy - 40, W + 80, 320); ctx.clip();
+        const q = S.seg(lt, 0.067, 0.24, 'power4.out');
+        word(99, { text: 'MAKE IT', fam: AB, cap: 170, x: 64, base: sy + 140 + 85 + (1 - q) * 300, color: C.k, stg: 0 });
+        // an ink arrow at the right end of the strip, pointing down at the word
+        const ax = W - 64 - 100, ay = sy + 30 + (1 - q) * 300;
+        ctx.fillStyle = C.k; ctx.beginPath();
+        ctx.moveTo(ax - 36, ay); ctx.lineTo(ax + 36, ay); ctx.lineTo(ax + 36, ay + 110);
+        ctx.lineTo(ax + 100, ay + 110); ctx.lineTo(ax, ay + 220); ctx.lineTo(ax - 100, ay + 110);
+        ctx.lineTo(ax - 36, ay + 110); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        word(lt, { text: 'COUNT', cap: 760, x: W / 2, align: 'center', base: 1080 - 10, color: C.k, from: [0, 1000], start: 0.5, maxW: W + 120 });
+      });
+    } },
+  ];
+
+  window.__timelines["main"] = S.play(function render(t) {
+    const u = (t + OFF) % D;
+    let sh = SHOTS[0];
+    for (const s of SHOTS) if (u >= s.u) sh = s;
+    sh.f(u - sh.u);
+  }, { loop: true });
+  if (document.fonts) ['League Gothic', 'Archivo Black'].forEach(f => document.fonts.load(`100px "${f}"`));
+</script>
+</body>
+</html>

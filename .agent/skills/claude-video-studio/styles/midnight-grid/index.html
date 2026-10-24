@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="studio.js"></script>
+<style>
+  /* style: midnight-grid. Every colour comes from these tokens. */
+  :root { --ground: #0B1220; --dots: #1E2A44; --panel: #111A2E; --border: #22304D;
+    --text: #E8EDF7; --muted: #8C98B3; --accent: #3D8BFF; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--ground);
+    font-family: 'Inter', sans-serif; color: var(--text); }
+  #world { position: absolute; left: 0; top: 0; width: 4200px; height: 1080px; will-change: transform; }
+  #grid { position: absolute; inset: 0;
+    background-image: radial-gradient(circle at 20px 20px, var(--dots) 2px, transparent 2.6px);
+    background-size: 40px 40px; background-position: -20px -20px; }
+  svg { position: absolute; left: 0; top: 0; overflow: visible; }
+  .wire { fill: none; stroke: var(--border); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .trail { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .node { position: absolute; width: 600px; height: 240px; }
+  .panel { position: absolute; inset: 0; background: var(--panel); border: 2px solid var(--border); border-radius: 16px; }
+  .mask { position: absolute; left: 48px; top: 30px; height: 150px; width: 480px; overflow: hidden; }
+  .label { position: absolute; left: 0; top: 0; font-size: 120px; font-weight: 700; letter-spacing: -0.035em;
+    line-height: 150px; white-space: nowrap; }
+  .sdot { position: absolute; right: 48px; top: 48px; width: 20px; height: 20px; border-radius: 50%; }
+  .track { position: absolute; left: 48px; right: 48px; bottom: 48px; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+  .fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 2px; }
+  .port { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%;
+    background: var(--ground); border: 3px solid var(--border); }
+  #pulse { position: absolute; left: 0; top: 0; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%; background: var(--accent); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="12" data-width="1920" data-height="1080">
+  <div id="grid"></div>
+  <div id="world"></div>
+</div>
+<script>
+  const S = STUDIO, world = document.getElementById('world'), grid = document.getElementById('grid');
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, cls, parent) => { const d = document.createElement(tag); if (cls) d.className = cls; (parent || world).appendChild(d); return d; };
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const C = { border: hex(css('--border')), muted: hex(css('--muted')), text: hex(css('--text')), accent: hex(css('--accent')), dots: hex(css('--dots')) };
+  const mixc = (a, b, p) => `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * p)).join(',')})`;
+
+  // ---- layout: five nodes on the 40 px grid, zig-zag rows ----
+  const NW = 600, NH = 240;
+  const WORDS = ['Idea', 'Brief', 'Build', 'Check', 'Ship'];
+  const POS = [[160, 320], [920, 680], [1680, 320], [2440, 680], [3200, 320]];
+  // timing (s): fill starts, wire starts, lands, leaves
+  const FILL = [0.2, 2.1, 4.0, 5.9, 7.8];
+  const WIRE = [0.9, 2.8, 4.7, 6.6];
+  const LAND = [null, 1.6, 3.5, 5.4, 7.3];
+  const LEAVE = [null, 11.20, 10.94, 10.82, 10.70];
+  const RETRACT = [11.28, 11.00, 10.86, 10.72];
+  const RET0 = 8.6, RETD = 2.0;                    // the pulse goes home
+  const ACT_ON = [10.6, 1.6, 3.5, 5.4, 7.3], ACT_OFF = [0.9, 2.8, 4.7, 6.6, 8.6];
+
+  // ---- wires (rounded orthogonal paths) ----
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('width', 4200); svg.setAttribute('height', 1080); world.appendChild(svg);
+  function route(pts, r) {
+    let d = `M${pts[0][0]},${pts[0][1]}`;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [ax, ay] = pts[i - 1], [bx, by] = pts[i], [cx, cy] = pts[i + 1];
+      const l1 = Math.hypot(bx - ax, by - ay), l2 = Math.hypot(cx - bx, cy - by), rr = Math.min(r, l1 / 2, l2 / 2);
+      const p1 = [bx - (bx - ax) / l1 * rr, by - (by - ay) / l1 * rr], p2 = [bx + (cx - bx) / l2 * rr, by + (cy - by) / l2 * rr];
+      d += ` L${p1[0]},${p1[1]} Q${bx},${by} ${p2[0]},${p2[1]}`;
+    }
+    const e = pts[pts.length - 1]; return d + ` L${e[0]},${e[1]}`;
+  }
+  const mkPath = (d, cls) => { const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); p.setAttribute('class', cls); svg.appendChild(p); return p; };
+  const cy = i => POS[i][1] + NH / 2;
+  const wires = [];
+  for (let i = 0; i < 4; i++) {
+    const x0 = POS[i][0] + NW, x1 = POS[i + 1][0], mx = x0 + 80;
+    const d = route([[x0, cy(i)], [mx, cy(i)], [mx, cy(i + 1)], [x1, cy(i + 1)]], 32);
+    wires.push({ w: mkPath(d, 'wire'), tr: mkPath(d, 'trail') });
+  }
+  const shipBottom = [POS[4][0] + NW / 2, POS[4][1]];
+  const retD = route([shipBottom, [shipBottom[0], 200], [80, 200], [80, cy(0)], [POS[0][0], cy(0)]], 40);
+  const ret = { w: mkPath(retD, 'wire'), tr: mkPath(retD, 'trail') };
+  [...wires, ret].forEach(o => { o.L = o.w.getTotalLength(); });
+
+  // ---- nodes and ports ----
+  const nodes = WORDS.map((w, i) => {
+    const n = el('div', 'node'); n.style.left = POS[i][0] + 'px'; n.style.top = POS[i][1] + 'px';
+    const panel = el('div', 'panel', n), mask = el('div', 'mask', panel), label = el('div', 'label', mask);
+    label.textContent = w;
+    const sdot = el('div', 'sdot', panel), track = el('div', 'track', panel), fill = el('div', 'fill', track);
+    const port = (x, y) => { const p = el('div', 'port'); p.style.left = x + 'px'; p.style.top = y + 'px'; return p; };
+    const pin = port(POS[i][0], cy(i)), pout = i < 4 ? port(POS[i][0] + NW, cy(i)) : port(...shipBottom);
+    return { n, panel, label, sdot, fill, pin, pout };
+  });
+  const pulse = el('div'); pulse.id = 'pulse';
+
+  // ---- helpers ----
+  const seg = S.seg;
+  const bump = (t, t0, d) => { const p = (t - t0) / d; return p > 0 && p < 1 ? Math.sin(Math.PI * p) : 0; };
+  // show only the stretch [a, b] of a path of length L
+  const span = (path, L, a, b) => {
+    if (b - a < 0.5) { path.style.strokeDasharray = `0 ${L + 10}`; path.style.strokeDashoffset = 0; path.style.opacity = 0; return; }
+    path.style.opacity = 1; path.style.strokeDasharray = `${b - a} ${L + 10}`; path.style.strokeDashoffset = -a;
+  };
+  function act(i, t) {
+    if (i === 0) return t < 5 ? 1 - seg(t, ACT_OFF[0], 0.3, 'power2.out') : seg(t, ACT_ON[0], 0.25, 'power2.out');
+    return seg(t, ACT_ON[i], 0.25, 'power2.out') - seg(t, ACT_OFF[i], 0.3, 'power2.out');
+  }
+  // camera rests: Idea centred (-500), then -280, 480, 1240, 2000 (one node pitch per pan), then home.
+  // the dot grid is the far layer: same moves on a slower ease, so it lags mid-pan and lands back on the grid at rest
+  const CAM0 = -500;
+  function cam(t, far) {
+    const E = far ? 'power2.inOut' : 'power3.inOut', k = far ? 1.3 : 1;
+    if (t < 8) return CAM0 + 220 * seg(t, 0.6, 1.0 * k, E)
+      + 760 * (seg(t, 2.5, 1.2 * k, E) + seg(t, 4.4, 1.2 * k, E) + seg(t, 6.3, 1.2 * k, E));
+    return CAM0 + 2500 * (1 - seg(t, RET0, RETD * (far ? 1.15 : 1), E));
+  }
+
+  window.__timelines["main"] = S.play(function render(t) {
+    const c = cam(t);
+    world.style.transform = `translate(${-Math.round(c)}px, 0px)`;
+    grid.style.backgroundPosition = `${-Math.round(cam(t, true)) - 20}px -20px`;
+
+    // nodes
+    nodes.forEach((o, i) => {
+      const land = i === 0 ? 1 : seg(t, LAND[i], 0.5, 'power3.out');
+      const lv = i === 0 ? 0 : seg(t, LEAVE[i], 0.3, 'power2.in');
+      const shown = i === 0 ? 1 : (t >= LAND[i] && lv < 1 ? 1 : 0);
+      o.n.style.visibility = shown ? 'visible' : 'hidden';
+      const inset = lv > 0 ? lv : 1 - land;
+      o.panel.style.clipPath = `inset(-4px ${inset * 100}% -4px -4px round 16px)`;
+      o.n.style.transform = `translateX(${-32 * (1 - land) - 24 * lv}px)`;
+      const lp = i === 0 ? 1 : seg(t, LAND[i] + 0.1, 0.5, 'power3.out');
+      o.label.style.transform = `translateY(${(1 - lp) * 110}%)`;
+      const a = Math.max(0, act(i, t));
+      o.panel.style.borderColor = mixc(C.border, C.accent, a);
+      o.label.style.color = mixc(C.muted, C.text, a);
+      const sp = i === 0 ? 1 : seg(t, LAND[i] + 0.18, 0.35, 'back.out(1.2)');
+      o.sdot.style.background = mixc(C.border, C.accent, a);
+      o.sdot.style.transform = `scale(${0.6 + 0.4 * sp})`; o.sdot.style.opacity = Math.min(1, sp * 1.4);
+      // progress bar: fills blue while active, stays muted when done; Idea's old bar drains when the pulse comes home
+      const f = seg(t, FILL[i], 0.7, 'power2.inOut');
+      const drain = i === 0 ? seg(t, 10.65, 0.45, 'power2.inOut') : 0;
+      o.fill.style.left = drain * 100 + '%'; o.fill.style.width = Math.max(0, f - drain) * 100 + '%';
+      o.fill.style.background = mixc(C.muted, C.accent, a);
+      // ports
+      const pv = i === 0 ? 1 : land * (1 - lv);
+      const hitIn = i === 0 ? bump(t, RET0 + RETD - 0.02, 0.4) : bump(t, LAND[i] - 0.02, 0.4);
+      const hitOut = i < 4 ? bump(t, WIRE[i] - 0.1, 0.3) : bump(t, RET0 - 0.1, 0.3);
+      o.pin.style.opacity = o.pout.style.opacity = pv;
+      o.pin.style.transform = `scale(${(0.6 + 0.4 * pv) * (1 + 0.35 * hitIn)})`;
+      o.pout.style.transform = `scale(${(0.6 + 0.4 * pv) * (1 + 0.35 * hitOut)})`;
+      o.pin.style.borderColor = mixc(C.border, C.accent, Math.max(a * (i === 0 ? 0 : 1), hitIn));
+      o.pout.style.borderColor = mixc(C.border, C.accent, hitOut);
+    });
+
+    // wires: draw with the pulse, pull back into their source at the end
+    let px = null, py = 0, ps = 0;
+    const ride = (o, s0, dur, ease) => {
+      const p = seg(t, s0, dur, ease), head = o.L * p;
+      if (t >= s0 - 0.12 && t < s0 + dur + 0.22) {
+        const pop = seg(t, s0 - 0.12, 0.15, 'back.out(1.2)'), gone = seg(t, s0 + dur, 0.2, 'power2.in');
+        const pt = o.w.getPointAtLength(head); px = pt.x; py = pt.y; ps = (0.6 + 0.4 * pop) * (1 - 0.6 * gone);
+        pulse.style.opacity = Math.min(1, pop * 1.5) * (1 - gone);
+        span(o.tr, o.L, Math.max(0, head - 140 * (1 - gone)), head);
+      } else span(o.tr, o.L, 0, 0);
+      return head;
+    };
+    wires.forEach((o, k) => {
+      const head = ride(o, WIRE[k], 0.7, 'power2.inOut');
+      const r = seg(t, RETRACT[k], 0.35, 'power2.in');
+      span(o.w, o.L, 0, t < WIRE[k] ? 0 : head * (1 - r));
+    });
+    const rh = ride(ret, RET0, RETD, 'power2.inOut');
+    const rr = seg(t, 10.70, 0.7, 'power2.inOut');
+    span(ret.w, ret.L, ret.L * rr, t < RET0 ? 0 : rh);
+    if (px === null) { pulse.style.opacity = 0; }
+    else pulse.style.transform = `translate(${px}px, ${py}px) scale(${ps})`;
+  }, { loop: true });
+</script>
+</body>
+</html>

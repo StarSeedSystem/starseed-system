@@ -73,7 +73,7 @@ describe('validarCatalogo', () => {
     const r = validarCatalogo(catalogoReal);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.catalogo.entradas.length).toBe(34);
+      expect(r.catalogo.entradas.length).toBe(35); // 34 de la lista del 2026-10-18 + Claude Video 2.0 (2026-10-24)
       expect(r.catalogo.temas.length).toBe(7);
     }
   });

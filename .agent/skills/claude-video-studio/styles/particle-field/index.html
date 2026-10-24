@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #0a0f1c; }
+      #root { position: relative; width: 1920px; height: 1080px; background: #0a0f1c; }
+      #cv { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="14.5" data-width="1920" data-height="1080">
+      <canvas id="cv" class="clip" width="1920" height="1080" data-start="0" data-duration="14.5" data-track-index="0"></canvas>
+    </div>
+    <script>
+      // ============================================================
+      // Ten thousand points: one canvas, 10,000 particles, deep ink night. 14.5 s, does not loop.
+      // Every point position is a pure function of time (smoke paths are precomputed once, seeded).
+      // Beats (120 BPM, hits on the 0.5 s grid):
+      //   0.0-3.0   smoke curls up out of the ink, then condenses; 3.0 a lit sphere lands, cyan equator
+      //   3.0-5.5   sphere turns, then peels open into a rippling wave sheet (lands 5.5, cyan crest row)
+      //   5.5-7.7   sheet slams flat into one bright line at 7.0; the line rings like a plucked string
+      //   7.7-14.5  line blooms into an 8-petal rose (lands 9.5); it cups, tilts, a cyan pulse runs, slow push-in
+      // Change colours: GROUND, POINT and ACCENT below (ACCENT is the one accent, on 5% of the points).
+      // No words on screen, by design.
+      // ============================================================
+      (function () {
+        const GROUND = ['#111a2c', '#0a0f1c', '#060912']; // centre, middle, edge of the ink ground
+        const POINT = [243, 238, 228];  // warm white points (#F3EEE4)
+        const ACCENT = [111, 211, 232]; // soft cyan thread (#6FD3E8)
+        const W = 1920, H = 1080, CX = 960, CY = 540, N = 10000, DUR = 14.5;
+        const FOC = 2000, CAM = 2000;
+        const TAU = Math.PI * 2;
+
+        // ---------- seeded PRNG + simplex noise ----------
+        function mulberry32(a) {
+          return function () {
+            a |= 0; a = (a + 0x6d2b79f5) | 0;
+            let t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+          };
+        }
+        const rng = mulberry32(60412);
+        const perm = new Uint8Array(512), pm12 = new Uint8Array(512);
+        (function () {
+          const p = new Uint8Array(256);
+          for (let i = 0; i < 256; i++) p[i] = i;
+          for (let i = 255; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = p[i]; p[i] = p[j]; p[j] = t; }
+          for (let i = 0; i < 512; i++) { perm[i] = p[i & 255]; pm12[i] = perm[i] % 12; }
+        })();
+        const G3 = new Float32Array([1,1,0,-1,1,0,1,-1,0,-1,-1,0,1,0,1,-1,0,1,1,0,-1,-1,0,-1,0,1,1,0,-1,1,0,1,-1,0,-1,-1]);
+        const F3 = 1 / 3, Gs = 1 / 6;
+        function noise3(xin, yin, zin) {
+          let n0, n1, n2, n3;
+          const s = (xin + yin + zin) * F3;
+          const i = Math.floor(xin + s), j = Math.floor(yin + s), k = Math.floor(zin + s);
+          const t = (i + j + k) * Gs;
+          const x0 = xin - (i - t), y0 = yin - (j - t), z0 = zin - (k - t);
+          let i1, j1, k1, i2, j2, k2;
+          if (x0 >= y0) {
+            if (y0 >= z0) { i1=1;j1=0;k1=0;i2=1;j2=1;k2=0; }
+            else if (x0 >= z0) { i1=1;j1=0;k1=0;i2=1;j2=0;k2=1; }
+            else { i1=0;j1=0;k1=1;i2=1;j2=0;k2=1; }
+          } else {
+            if (y0 < z0) { i1=0;j1=0;k1=1;i2=0;j2=1;k2=1; }
+            else if (x0 < z0) { i1=0;j1=1;k1=0;i2=0;j2=1;k2=1; }
+            else { i1=0;j1=1;k1=0;i2=1;j2=1;k2=0; }
+          }
+          const x1 = x0 - i1 + Gs, y1 = y0 - j1 + Gs, z1 = z0 - k1 + Gs;
+          const x2 = x0 - i2 + 2*Gs, y2 = y0 - j2 + 2*Gs, z2 = z0 - k2 + 2*Gs;
+          const x3 = x0 - 1 + 3*Gs, y3 = y0 - 1 + 3*Gs, z3 = z0 - 1 + 3*Gs;
+          const ii = i & 255, jj = j & 255, kk = k & 255;
+          let g, t0 = 0.6 - x0*x0 - y0*y0 - z0*z0;
+          if (t0 < 0) n0 = 0; else { g = pm12[ii + perm[jj + perm[kk]]] * 3; t0 *= t0; n0 = t0*t0*(G3[g]*x0 + G3[g+1]*y0 + G3[g+2]*z0); }
+          let t1 = 0.6 - x1*x1 - y1*y1 - z1*z1;
+          if (t1 < 0) n1 = 0; else { g = pm12[ii+i1 + perm[jj+j1 + perm[kk+k1]]] * 3; t1 *= t1; n1 = t1*t1*(G3[g]*x1 + G3[g+1]*y1 + G3[g+2]*z1); }
+          let t2 = 0.6 - x2*x2 - y2*y2 - z2*z2;
+          if (t2 < 0) n2 = 0; else { g = pm12[ii+i2 + perm[jj+j2 + perm[kk+k2]]] * 3; t2 *= t2; n2 = t2*t2*(G3[g]*x2 + G3[g+1]*y2 + G3[g+2]*z2); }
+          let t3 = 0.6 - x3*x3 - y3*y3 - z3*z3;
+          if (t3 < 0) n3 = 0; else { g = pm12[ii+1 + perm[jj+1 + perm[kk+1]]] * 3; t3 *= t3; n3 = t3*t3*(G3[g]*x3 + G3[g+1]*y3 + G3[g+2]*z3); }
+          return 32 * (n0 + n1 + n2 + n3);
+        }
+
+        // ---------- particle parameters (Fibonacci lattice) ----------
+        const GA = 0.6180339887498949;
+        const U = new Float32Array(N), V = new Float32Array(N), R1 = new Float32Array(N), R2 = new Float32Array(N);
+        const CYAN = new Uint8Array(N);
+        for (let i = 0; i < N; i++) {
+          V[i] = (i + 0.5) / N;
+          U[i] = (i * GA + 0.137) % 1;
+          R1[i] = rng(); R2[i] = rng();
+          CYAN[i] = (V[i] > 0.475 && V[i] < 0.525) ? 1 : 0;
+        }
+
+        // ---------- smoke: seeded curl-noise advection, precomputed lookup ----------
+        const S_T0 = -0.1, S_T1 = 3.7, S_HZ = 30;
+        const S_K = Math.ceil((S_T1 - S_T0) * S_HZ) + 1;
+        const SMK = new Float32Array(N * S_K * 3);
+        (function () {
+          const f1 = 0.0013, f2 = 0.0031, e = 0.02, VMAX = 260, h = 1 / S_HZ;
+          const PRE = 3.0;
+          const steps = Math.round((S_T1 - S_T0 + PRE) * S_HZ);
+          const psi = (X, Y, T) => noise3(X * f1, Y * f1, T * 0.12) + 0.45 * noise3(X * f2 + 31.7, Y * f2 - 12.1, T * 0.21 + 7.3);
+          for (let i = 0; i < N; i++) {
+            // seed: a wide soft ellipse of points filling the frame
+            const a = rng() * TAU, rr = Math.pow(rng(), 0.75);
+            let x = Math.cos(a) * rr * 1020, y = Math.sin(a) * rr * 600, z = (rng() - 0.5) * 700;
+            let T = S_T0 - PRE;
+            for (let s = 0; s <= steps; s++) {
+              if (T >= S_T0 - 1e-6) {
+                const k = Math.round((T - S_T0) * S_HZ);
+                if (k < S_K) { const o = (i * S_K + k) * 3; SMK[o] = x; SMK[o + 1] = y; SMK[o + 2] = z; }
+              }
+              const p0 = psi(x, y, T);
+              const px = psi(x + e / f1, y, T), py = psi(x, y + e / f1, T);
+              const dX = (px - p0) / e, dY = (py - p0) / e;
+              let vx = VMAX * dY * 0.55 - 0.16 * x - 18;
+              let vy = -VMAX * dX * 0.55 - 0.16 * y - 10;
+              let vz = 90 * noise3(x * 0.002 + 50, y * 0.002, T * 0.2) - 0.25 * z;
+              x += vx * h; y += vy * h; z += vz * h;
+              T += h;
+            }
+          }
+        })();
+
+        // ---------- helpers ----------
+        const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+        const io3 = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+        const out4 = (x) => 1 - Math.pow(1 - x, 4);
+        const in3 = (x) => x * x * x;
+        let PX = 0, PY = 0, PZ = 0;
+
+        function smoke(i, t) {
+          const ft = clamp((t - S_T0) * S_HZ, 0, S_K - 1.001);
+          const k = Math.floor(ft), f = ft - k;
+          const o = (i * S_K + k) * 3;
+          PX = SMK[o] + (SMK[o + 3] - SMK[o]) * f;
+          PY = SMK[o + 1] + (SMK[o + 4] - SMK[o + 1]) * f;
+          PZ = SMK[o + 2] + (SMK[o + 5] - SMK[o + 2]) * f;
+          LT = 1;
+        }
+
+        // sphere: spins and holds a tilt
+        let LT = 1;
+        const LX = -0.48, LY = -0.62, LZ = -0.62;
+        function sphere(i, t) {
+          const st = t - 3.0;
+          const R = 440 * (st > 0 ? 1 + 0.035 * Math.exp(-3.2 * st) * Math.sin(st * 9) : 1);
+          const th = TAU * U[i] + 0.62 * t;
+          const cphi = 1 - 2 * V[i], sphi = Math.sqrt(1 - cphi * cphi);
+          const x = R * sphi * Math.cos(th), y = -R * cphi, z = R * sphi * Math.sin(th);
+          const a = 0.36 + 0.06 * Math.sin(t * 0.8), ca = Math.cos(a), sa = Math.sin(a);
+          PX = x; PY = y * ca - z * sa; PZ = y * sa + z * ca;
+          const nx = PX / R, ny = PY / R, nz = PZ / R;
+          const lam = Math.max(0, nx * LX + ny * LY + nz * LZ);
+          const rim = Math.pow(1 - Math.abs(nz), 3);
+          LT = 0.32 + 1.15 * lam + 0.55 * rim;
+        }
+
+        // wave: tilted sheet with travelling ripples
+        function wave(i, t) {
+          const X = (U[i] - 0.5) * 1560, Z = (V[i] - 0.5) * 940;
+          const a1 = 0.0058 * X + 0.0019 * Z - 2.6 * t, a2 = 0.0085 * Z - 0.0021 * X + 1.9 * t;
+          const Y = 92 * Math.sin(a1) + 42 * Math.sin(a2);
+          const dYdX = 0.534 * Math.cos(a1) - 0.088 * Math.cos(a2);
+          const dYdZ = 0.175 * Math.cos(a1) + 0.357 * Math.cos(a2);
+          LT = clamp(0.8 + 1.7 * dYdX + 1.0 * dYdZ, 0.22, 2.4) * (0.8 + 0.35 * (-Y / 116)) * (1.45 - 0.5 * V[i]);
+          const yaw = -0.12 + 0.05 * Math.sin(t * 0.7), cy = Math.cos(yaw), sy = Math.sin(yaw);
+          const x1 = X * cy - Z * sy, z1 = X * sy + Z * cy;
+          const a = 0.56, ca = Math.cos(a), sa = Math.sin(a);
+          PX = x1 * 1.08; PY = Y * ca - z1 * sa + 40; PZ = Y * sa + z1 * ca;
+        }
+
+        // line: one bright horizontal stroke, thickness rings after landing
+        function line(i, t) {
+          const land = 7.0;
+          const dt = t - land;
+          const xn = U[i];
+          const ring = dt > 0 ? 1 + 4.5 * Math.exp(-5 * dt) * Math.sin(dt * 22) : 1;
+          const hum = 1 + 0.25 * Math.sin(t * 9 + xn * 18);
+          // plucked string: two standing modes, damped
+          let pl = 0;
+          if (dt > 0) {
+            const env = Math.exp(-1.6 * dt);
+            pl = env * (46 * Math.sin(Math.PI * xn) * Math.cos(dt * 15) + 18 * Math.sin(3 * Math.PI * xn) * Math.cos(dt * 31 + 0.6));
+          }
+          PX = (xn - 0.5) * 1740;
+          PY = (V[i] - 0.5) * 7 * ring * hum + pl;
+          PZ = 0;
+          LT = 1 + (dt > 0 ? 1.1 * Math.exp(-3.5 * dt) : 0);
+          // embers: a few points never quite settle and hang in the air around the string
+          if (R2[i] < 0.05 && !CYAN[i]) {
+            const k = R2[i] / 0.05;
+            const sp = (R1[i] - 0.5) * 2;
+            PY += sp * Math.abs(sp) * 230 + 16 * noise3(i * 0.11, t * 0.35, 21.0);
+            PX += 40 * noise3(i * 0.11 + 9.0, t * 0.3, 21.0);
+            PZ += (k - 0.5) * 500;
+            LT *= 0.55;
+          }
+        }
+
+        // rose: nested 8-petal curves, cupped toward camera, tilting and turning
+        function rose(i, t) {
+          const R = 455;
+          const a = 0.26 + 0.74 * V[i];
+          const th = TAU * U[i];
+          const rt = t - 9.5;
+          const settle = rt > 0 ? 1 + 0.03 * Math.exp(-3 * rt) * Math.sin(rt * 8) : 1;
+          const r = R * a * Math.cos(4 * th) * (1 + 0.018 * Math.sin(t * 3.1 - a * 4)) * settle;
+          const tw = th + 0.42 * (1 - a) + 0.2 * (t - 7.7);
+          const x = r * Math.cos(tw), y = r * Math.sin(tw);
+          const q = Math.abs(r) / R;
+          let z = -210 * q * q + 40 * (1 - a);
+          let x2 = x, y2 = y;
+          // pollen: a few outer points lift off the petal tips and drift
+          if (rt > 0 && R2[i] < 0.09 && a > 0.72) {
+            const d = Math.pow(rt, 1.25) * 46;
+            x2 += d * (Math.cos(tw) * 0.8 + noise3(i * 0.37, rt * 0.4, 3.3));
+            y2 += d * (Math.sin(tw) * 0.8 + noise3(i * 0.37 + 5.1, rt * 0.4, 3.3)) - d * 0.4;
+            z -= d * 0.6;
+          }
+          const tilt = 0.06 + 0.66 * io3(clamp((t - 9.0) / 3.5, 0, 1));
+          const ca = Math.cos(tilt), sa = Math.sin(tilt);
+          PX = x2; PY = y2 * ca - z * sa - 10; PZ = y2 * sa + z * ca;
+          LT = 0.55 + 0.75 * Math.pow(0.5 + 0.5 * Math.cos(tw - 2.4), 2) + 0.25 * q;
+        }
+
+        // ---------- per-particle schedule ----------
+        const S1 = new Float32Array(N), S2 = new Float32Array(N), S3 = new Float32Array(N), S4 = new Float32Array(N), FADE = new Float32Array(N);
+        const D1 = 0.9, D2 = 0.9, D3 = 0.7, D4 = 1.2;
+        (function () {
+          let maxd = 0; const dd = new Float32Array(N);
+          for (let i = 0; i < N; i++) { smoke(i, 1.6); dd[i] = Math.hypot(PX / 1.6, PY); if (dd[i] > maxd) maxd = dd[i]; }
+          for (let i = 0; i < N; i++) {
+            S1[i] = 1.6 + 0.5 * clamp(dd[i] / maxd, 0, 1);
+            S2[i] = 4.1 + 0.5 * U[i];
+            S3[i] = 6.1 + 0.2 * Math.abs(2 * V[i] - 1);
+            S4[i] = 7.7 + 0.6 * Math.abs(2 * U[i] - 1);
+            FADE[i] = R1[i] * 0.75 - 0.5;
+          }
+        })();
+
+        // blend helper: A already in (ax,ay,az) -> B in PX.. ; adds coherent swirl
+        function mix(ax, ay, az, la, e, amp, seed) {
+          const bx = PX, by = PY, bz = PZ;
+          LT = la + (LT - la) * e;
+          let x = ax + (bx - ax) * e, y = ay + (by - ay) * e, z = az + (bz - az) * e;
+          const s = Math.sin(Math.PI * e) * amp;
+          if (s > 0.5) {
+            const fx = x * 0.0022, fy = y * 0.0022;
+            x += s * noise3(fx, fy, seed);
+            y += s * noise3(fx + 17.3, fy, seed);
+            z += s * noise3(fx, fy + 9.1, seed);
+          }
+          PX = x; PY = y; PZ = z;
+        }
+
+        // returns state weight for brightness: smoke dimmer, line hotter
+        let BR = 1;
+        function pos(i, t) {
+          if (t < S1[i]) { smoke(i, t); BR = 1.55; return; }
+          if (t < S1[i] + D1) {
+            const e = io3((t - S1[i]) / D1);
+            smoke(i, t); const ax = PX, ay = PY, az = PZ, la = LT;
+            sphere(i, t); mix(ax, ay, az, la, e, 150, 1.3); BR = 1.55 - 0.55 * e; return;
+          }
+          if (t < S2[i]) { sphere(i, t); BR = 1; return; }
+          if (t < S2[i] + D2) {
+            const e = io3((t - S2[i]) / D2);
+            sphere(i, t); const ax = PX, ay = PY, az = PZ, la = LT;
+            wave(i, t); mix(ax, ay, az, la, e, 70, 4.7); BR = 1; return;
+          }
+          if (t < S3[i]) { wave(i, t); BR = 1; return; }
+          if (t < S3[i] + D3) {
+            const e = in3((t - S3[i]) / D3);
+            wave(i, t); const ax = PX, ay = PY, az = PZ, la = LT;
+            line(i, t); mix(ax, ay, az, la, e, 18, 8.2); BR = 1 + 0.25 * e; return;
+          }
+          if (t < S4[i]) { line(i, t); BR = 1.25; return; }
+          if (t < S4[i] + D4) {
+            const e = out4((t - S4[i]) / D4);
+            line(i, t); const ax = PX, ay = PY, az = PZ, la = LT;
+            rose(i, t); mix(ax, ay, az, la, e, 110, 12.9); BR = 1.55 - 0.55 * e; return;
+          }
+          rose(i, t); BR = 1;
+        }
+
+        // ---------- sprites ----------
+        function sprite(r, g, b) {
+          const c = document.createElement('canvas'); c.width = c.height = 32;
+          const x = c.getContext('2d');
+          const gr = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+          gr.addColorStop(0, `rgba(${r},${g},${b},1)`);
+          gr.addColorStop(0.35, `rgba(${r},${g},${b},0.85)`);
+          gr.addColorStop(0.7, `rgba(${r},${g},${b},0.18)`);
+          gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+          x.fillStyle = gr; x.fillRect(0, 0, 32, 32);
+          return c;
+        }
+        const SPW = sprite(...POINT), SPC = sprite(...ACCENT);
+
+        // ---------- draw ----------
+        const cv = document.getElementById('cv');
+        const out = cv.getContext('2d');
+        const PL = document.createElement('canvas'); PL.width = W; PL.height = H;
+        const ctx = PL.getContext('2d');
+        const bg = ctx.createRadialGradient(CX, CY + 40, 0, CX, CY + 40, 1180);
+        bg.addColorStop(0, GROUND[0]); bg.addColorStop(0.55, GROUND[1]); bg.addColorStop(1, GROUND[2]);
+        const SUB = 3, HSUB = 1 / 80, WSUB = [1, 0.5, 0.28, 0.14];
+        // bloom chain: halve repeatedly (true box averaging), add back soft
+        const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+        const B1 = mk(960, 540), B2 = mk(480, 270), B3 = mk(240, 135), B4 = mk(120, 68);
+        const b1 = B1.getContext('2d'), b2 = B2.getContext('2d'), b3 = B3.getContext('2d'), b4 = B4.getContext('2d');
+        // seeded film grain tiles
+        const GRAIN = [];
+        (function () {
+          const gr = mulberry32(911);
+          for (let k = 0; k < 4; k++) {
+            const c = mk(256, 256), x = c.getContext('2d'), im = x.createImageData(256, 256);
+            for (let j = 0; j < im.data.length; j += 4) { const v = Math.floor(gr() * 255); im.data[j] = im.data[j + 1] = im.data[j + 2] = v; im.data[j + 3] = 255; }
+            x.putImageData(im, 0, 0); GRAIN.push(out.createPattern(c, 'repeat'));
+          }
+        })();
+
+        function draw(t) {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 1;
+          ctx.clearRect(0, 0, W, H);
+          ctx.globalCompositeOperation = 'lighter';
+          const zoom = 1 + 0.045 * (t / DUR) + 0.07 * io3(clamp((t - 9.6) / 3.4, 0, 1));
+          for (let k = SUB; k >= 0; k--) {
+            const tt = t - k * HSUB;
+            const wk = WSUB[k];
+            const yaw = 0.16 * Math.sin(tt * 0.33 + 0.4), cyw = Math.cos(yaw), syw = Math.sin(yaw);
+            const pitch = 0.05 * Math.sin(tt * 0.27), cpt = Math.cos(pitch), spt = Math.sin(pitch);
+            const pulseOn = tt > 9.4;
+            for (let i = 0; i < N; i++) {
+              let fade = 1;
+              if (tt < 1.6) { fade = clamp((tt - FADE[i]) / 0.55, 0, 1); if (fade <= 0) continue; }
+              pos(i, tt);
+              // camera: slow orbit gives parallax between near and far points
+              const x1 = PX * cyw + PZ * syw, z1 = -PX * syw + PZ * cyw;
+              const y1 = PY * cpt - z1 * spt, z2 = PY * spt + z1 * cpt;
+              const den = CAM + z2;
+              if (den < 200) continue;
+              const s = FOC / den * zoom;
+              const sx = CX + x1 * s, sy = CY + y1 * s;
+              if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
+              const dn = clamp((s - 0.72) / 0.6, 0, 1);
+              const cy = CYAN[i];
+              let al = (0.1 + 0.62 * dn * dn) * BR * LT * fade * wk;
+              if (cy) {
+                al *= 1.6;
+                if (pulseOn) al *= 1 + 2.2 * Math.pow(0.5 + 0.5 * Math.cos(TAU * U[i] - 3.4 * (tt - 9.4)), 10);
+              }
+              ctx.globalAlpha = al > 1 ? 1 : al;
+              const sz = (cy ? 4.8 : 3.8) * s * (0.85 + 0.3 * R1[i]);
+              ctx.drawImage(cy ? SPC : SPW, sx - sz / 2, sy - sz / 2, sz, sz);
+            }
+          }
+          // compose: ink ground, points, soft light from density only, grain
+          ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+          b1.globalCompositeOperation = 'copy'; b1.drawImage(PL, 0, 0, 960, 540);
+          b2.globalCompositeOperation = 'copy'; b2.drawImage(B1, 0, 0, 480, 270);
+          b3.globalCompositeOperation = 'copy'; b3.drawImage(B2, 0, 0, 240, 135);
+          b4.globalCompositeOperation = 'copy'; b4.drawImage(B3, 0, 0, 120, 68);
+          out.globalCompositeOperation = 'source-over'; out.globalAlpha = 1;
+          out.fillStyle = bg; out.fillRect(0, 0, W, H);
+          out.globalCompositeOperation = 'lighter';
+          out.drawImage(PL, 0, 0);
+          out.imageSmoothingQuality = 'high';
+          out.globalAlpha = 0.5; out.drawImage(B3, 0, 0, W, H);
+          out.globalAlpha = 0.65; out.drawImage(B4, 0, 0, W, H);
+          out.globalCompositeOperation = 'overlay';
+          out.globalAlpha = 0.07;
+          out.fillStyle = GRAIN[Math.floor(t * 30 + 0.001) % 4];
+          out.fillRect(0, 0, W, H);
+          out.globalCompositeOperation = 'source-over';
+          out.globalAlpha = 1;
+        }
+
+        const p = { t: 0 };
+        const tl = gsap.timeline({ paused: true });
+        tl.to(p, { t: DUR, duration: DUR, ease: 'none', onUpdate: () => draw(p.t) }, 0);
+        window.__timelines = window.__timelines || {};
+        window.__timelines['main'] = tl;
+        draw(0);
+      })();
+    </script>
+  </body>
+</html>

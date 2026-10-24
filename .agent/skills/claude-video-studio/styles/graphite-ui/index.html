@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="studio.js"></script>
+<style>
+  /* style: graphite-ui. Every colour comes from these tokens. */
+  :root {
+    --ground: #0E0F12; --panel: #17181C; --line: #26282E; --text: #ECEDEF; --muted: #8A8F98; --accent: #3DD68C;
+    --raise: rgba(236, 237, 239, 0.05); --skel: rgba(138, 143, 152, 0.62); --skel2: rgba(138, 143, 152, 0.3);
+    --dot: rgba(138, 143, 152, 0.2); --shadow: rgba(0, 0, 0, 0.6);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--ground);
+    font-family: 'Inter', sans-serif; color: var(--text); }
+  .abs { position: absolute; }
+  #dots { position: absolute; left: -400px; top: -300px; width: 2720px; height: 1680px;
+    background-image: radial-gradient(circle, var(--dot) 1.4px, transparent 1.6px); background-size: 40px 40px; }
+  #stage { position: absolute; inset: 0; perspective: 2200px; perspective-origin: 960px 540px; }
+  #app { position: absolute; left: 0; top: 0; width: 1400px; height: 880px; border-radius: 16px;
+    background: var(--panel); border: 1px solid var(--line); overflow: hidden; transform-origin: 700px 440px;
+    box-shadow: 0 60px 140px var(--shadow); }
+  #float { position: absolute; left: 0; top: 0; width: 1400px; height: 880px; transform-origin: 700px 440px; transform-style: preserve-3d; }
+  #toast { position: absolute; left: 380px; top: 600px; width: 580px; height: 132px; border-radius: 16px; background: var(--panel);
+    border: 1px solid var(--skel2); box-shadow: 0 30px 80px var(--shadow); }
+  #toastDot { position: absolute; left: 32px; top: 36px; width: 60px; height: 60px; border-radius: 50%; background: var(--accent);
+    display: flex; align-items: center; justify-content: center; }
+  .hl { position: absolute; height: 1px; background: var(--line); }
+  .vl { position: absolute; width: 1px; background: var(--line); }
+  .bar { position: absolute; border-radius: 999px; }
+  .mask { position: absolute; overflow: hidden; }
+  #title { left: 364px; top: 92px; font-size: 44px; font-weight: 600; letter-spacing: -0.03em; line-height: 64px; }
+  #btn { position: absolute; left: 1140px; top: 92px; width: 196px; height: 64px; border-radius: 12px;
+    background: var(--accent); overflow: hidden; transform-origin: 50% 50%; }
+  #btnLabel { position: absolute; left: 0; top: 0; width: 196px; height: 64px; line-height: 64px; text-align: center;
+    color: var(--ground); font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+  #btnCheck { position: absolute; left: 0; top: 0; width: 196px; height: 64px; display: flex; align-items: center; justify-content: center; }
+  .row { position: absolute; left: 364px; width: 972px; height: 96px; overflow: hidden; }
+  .box { position: absolute; left: 0; top: 33px; width: 30px; height: 30px; border-radius: 9px; border: 2px solid var(--skel2); }
+  .boxFill { position: absolute; left: -2px; top: -2px; width: 30px; height: 30px; border-radius: 9px; background: var(--accent);
+    display: flex; align-items: center; justify-content: center; }
+  .strike { position: absolute; height: 2px; background: var(--muted); transform-origin: 0 50%; }
+  #headline { position: absolute; left: 120px; top: 0; font-size: 184px; font-weight: 600; letter-spacing: -0.03em; }
+  .hmask { position: absolute; left: 0; overflow: hidden; height: 214px; width: 1000px; }
+  .hword { position: absolute; left: 0; top: 0; line-height: 214px; white-space: nowrap; }
+  #cursor { position: absolute; left: 0; top: 0; width: 44px; height: 52px; }
+  #ring { position: absolute; left: 0; top: 0; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%;
+    border: 2px solid var(--accent); }
+  #wipe { position: absolute; width: 2px; background: var(--text); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="12" data-width="1920" data-height="1080">
+  <div id="dots"></div>
+  <div id="stage"><div id="app"></div><div id="float"></div></div>
+  <div id="headline"></div>
+  <div id="ring"></div>
+  <svg id="cursor" viewBox="0 0 44 52"><path d="M4 3 L4 41 L14 32 L21 47 L28 44 L21 29 L35 29 Z"
+    fill="var(--accent)" stroke="var(--ground)" stroke-width="2.5" stroke-linejoin="round"/></svg>
+</div>
+<script>
+  const S = STUDIO, root = S.root, app = document.getElementById('app');
+  const el = (parent, cls, css, html) => { const d = document.createElement('div'); if (cls) d.className = cls;
+    Object.assign(d.style, css || {}); if (html != null) d.innerHTML = html; parent.appendChild(d); return d; };
+  const px = (v) => v + 'px';
+  const rnd = S.rng(7);
+  const CHECK = (size, stroke, color) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24"><path class="ck" d="M5 12.5 L10 17.5 L19 7"
+    fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round" pathLength="1"
+    stroke-dasharray="1" stroke-dashoffset="1"/></svg>`;
+
+  // ---------- the app (world px, 1400 x 880) ----------
+  el(app, 'hl', { left: 0, top: px(56), width: px(1400) });
+  [24, 46, 68].forEach(x => el(app, 'bar', { left: px(x - 6), top: px(22), width: px(12), height: px(12), background: 'var(--line)' }));
+  el(app, 'bar', { left: px(560), top: px(16), width: px(280), height: px(24), background: 'var(--raise)', border: '1px solid var(--line)' });
+  el(app, 'vl', { left: px(300), top: px(56), height: px(824) });
+  // sidebar
+  const hi = el(app, '', { position: 'absolute', left: px(16), width: px(268), height: px(48), borderRadius: '10px', background: 'var(--raise)' });
+  const SIDE_Y = (i) => 92 + i * 52 + (i > 3 ? 36 : 0);
+  for (let i = 0; i < 7; i++) {
+    const y = SIDE_Y(i);
+    el(app, 'bar', { left: px(36), top: px(y + 14), width: px(20), height: px(20), borderRadius: '6px', background: 'var(--skel2)' });
+    el(app, 'bar', { left: px(72), top: px(y + 18), width: px(90 + Math.round(rnd() * 90)), height: px(12), background: 'var(--skel2)' });
+  }
+  el(app, 'hl', { left: px(32), top: px(SIDE_Y(4) - 18), width: px(236) });
+  // header
+  const title = el(app, 'mask abs', { left: px(364), top: px(92), height: px(64), width: px(400) });
+  title.innerHTML = '<div id="title" style="position:absolute;left:0;top:0">Today</div>';
+  const titleW = title.firstChild;
+  const btn = el(app, ''); btn.id = 'btn';
+  const btnLabel = el(btn, '', {}, 'Complete'); btnLabel.id = 'btnLabel';
+  const btnCheck = el(btn, '', {}, CHECK(34, 3, 'var(--ground)')); btnCheck.id = 'btnCheck';
+  const btnCk = btnCheck.querySelector('.ck');
+  el(app, 'bar', { left: px(364), top: px(186), width: px(972), height: px(6), background: 'var(--line)' });
+  const fill = el(app, 'bar', { left: px(364), top: px(186), width: px(972), height: px(6), background: 'var(--accent)', transformOrigin: '0 50%' });
+  // rows
+  const LIST_Y = 224, ROW_H = 96, N = 6;
+  const rows = [];
+  for (let i = 0; i < N; i++) {
+    const y = LIST_Y + i * ROW_H;
+    const r = el(app, 'row', { top: px(y) });
+    const line = el(r, 'hl', { left: 0, top: 0, width: px(972), transformOrigin: '0 50%' });
+    const box = el(r, 'box');
+    const boxFill = el(box, 'boxFill', {}, CHECK(22, 3.2, 'var(--ground)'));
+    const tw = 300 + Math.round(rnd() * 260), sw = 140 + Math.round(rnd() * 140);
+    const t1 = el(r, 'bar', { left: px(60), top: px(30), width: px(tw), height: px(16), background: 'var(--skel)' });
+    const t2 = el(r, 'bar', { left: px(60), top: px(56), width: px(sw), height: px(10), background: 'var(--skel2)' });
+    const strike = el(r, 'strike', { left: px(52), top: px(37), width: px(tw + 16) });
+    const tag = el(r, 'bar', { left: px(772), top: px(32), width: px(108), height: px(32), border: '2px solid var(--skel2)' });
+    const tagDot = el(r, 'bar', { left: px(788), top: px(44), width: px(8), height: px(8), background: 'var(--skel)' });
+    const av = el(r, 'bar', { left: px(924), top: px(30), width: px(36), height: px(36), background: 'var(--skel2)' });
+    rows.push({ r, line, box, boxFill, ck: boxFill.querySelector('.ck'), parts: [box, t1, t2, tag, tagDot, av], t1, t2, strike, tag, tagDot, av });
+  }
+  const flt = document.getElementById('float');
+  const toast = el(flt, ''); toast.id = 'toast';
+  const toastDot = el(toast, '', {}, CHECK(34, 3.2, 'var(--ground)')); toastDot.id = 'toastDot';
+  const toastCk = toastDot.querySelector('.ck');
+  el(toast, 'bar', { left: px(124), top: px(44), width: px(300), height: px(18), background: 'var(--skel)' });
+  el(toast, 'bar', { left: px(124), top: px(76), width: px(190), height: px(12), background: 'var(--skel2)' });
+  const wipe = el(app, ''); wipe.id = 'wipe';
+  Object.assign(wipe.style, { left: 0, top: px(176), height: px(LIST_Y + N * ROW_H - 176 + 8) });
+
+  // ---------- headline (screen px) ----------
+  const head = document.getElementById('headline');
+  const HL = ['Clear', 'the day.'];
+  const hmasks = HL.map((w, i) => { const m = el(head, 'hmask', { top: px(i * 192) }); const s = el(m, 'hword', {}, w); return s; });
+  head.style.top = px(540 - 203);
+
+  const cursor = document.getElementById('cursor'), ring = document.getElementById('ring'), dots = document.getElementById('dots');
+
+  // ---------- camera keyframes: centre x, centre y, scale, rotateX, rotateY, rotateZ ----------
+  const C0 = [1040, 640, 1.06, 32, 0, -11];
+  const C1 = [770, 650, 1.32, 3, 0, 0];
+  const C2 = [1670, 590, 1.12, 6, 22, 0];
+  const C2b = [1690, 470, 1.15, 8, 24, 0];
+  const mixC = (a, b, p) => a.map((v, i) => S.mix(v, b[i], p));
+
+  const T_WIPE = 9.3, WIPE_D = 0.8, T_RESET = T_WIPE + WIPE_D;
+
+  window.__timelines["main"] = S.play(function render(t) {
+    // camera
+    let c = C0;
+    c = mixC(c, C1, S.seg(t, 1.2, 1.2, 'power3.inOut'));
+    c = mixC(c, C2, S.seg(t, 4.4, 1.2, 'power3.inOut'));
+    c = mixC(c, C2b, S.seg(t, 6.4, 1.2, 'sine.inOut'));
+    c = mixC(c, C0, S.seg(t, 10.1, 1.3, 'power3.inOut'));
+    const dx = 10 * S.wave(t, 1), dy = 6 * S.wave(t, 1, 0.25), drz = 0.35 * S.wave(t, 1, 0.5);
+    const [cx, cy, sc, rx, ry, rz] = c;
+    const camT = `translate(${cx + dx - 700}px, ${cy + dy - 440}px) rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${rz + drz}deg) scale(${sc})`;
+    app.style.transform = camT; flt.style.transform = camT;
+    // the floating toast: rides 110 px above the app, so it slides against it as the camera glides
+    const ti = S.seg(t, 7.5, 0.6, 'expo.out'), to = S.seg(t, 9.0, 0.35, 'power3.in');
+    toast.style.opacity = t < 7.5 || t > 9.4 ? 0 : Math.min(1, S.seg(t, 7.5, 0.2, 'power2.out')) * (1 - to);
+    toast.style.transform = `translateZ(160px) translateY(${(1 - ti) * 40 + to * 28}px) scale(${0.92 + 0.08 * ti})`;
+    toastCk.style.strokeDashoffset = 1 - S.seg(t, 7.75, 0.35, 'power2.out');
+    // parallax: the dot field moves at a third of the camera
+    dots.style.transform = `translate(${(cx + dx - 1000) * 0.3}px, ${(cy + dy - 600) * 0.3}px) scale(${0.9 + sc * 0.12})`;
+
+    // rows: cascade in, tick off, wipe clear
+    const live = t < T_RESET;
+    const edge = S.seg(t, T_WIPE, WIPE_D, 'power3.inOut') * 1000 - 20;
+    let doneSum = 0;
+    rows.forEach((o, i) => {
+      const t0 = 0.1 + i * 0.06;
+      o.parts.forEach((p, k) => {
+        const a = live ? S.seg(t, t0 + k * 0.04, 0.6, 'expo.out') : 0;
+        p.style.transform = `translateY(${(1 - a) * 72}px)`;
+      });
+      const la = live ? S.seg(t, t0, 0.7, 'expo.out') : 0;
+      o.line.style.transform = `scaleX(${la})`;
+      const d = live ? S.seg(t, 3.15 + i * 0.12, 0.5, 'expo.out') : 0;
+      const ds = live ? S.seg(t, 3.15 + i * 0.12, 0.28, 'power2.out') : 0;
+      doneSum += d;
+      o.boxFill.style.opacity = ds > 0 ? 1 : 0;
+      o.boxFill.style.transform = `scale(${0.7 + 0.3 * d})`;
+      o.ck.style.strokeDashoffset = 1 - (live ? S.seg(t, 3.22 + i * 0.12, 0.3, 'power2.out') : 0);
+      o.strike.style.transform = `scaleX(${live ? S.seg(t, 3.25 + i * 0.12, 0.45, 'power3.out') : 0})`;
+      o.t1.style.opacity = 1 - 0.55 * d; o.t2.style.opacity = 1 - 0.5 * d;
+      o.tag.style.opacity = 1 - 0.5 * d; o.tagDot.style.opacity = 1 - 0.5 * d; o.av.style.opacity = 1 - 0.5 * d;
+      o.r.style.clipPath = live && t > T_WIPE ? `inset(0 0 0 ${Math.max(0, edge)}px)` : 'none';
+    });
+    // progress
+    fill.style.transform = `scaleX(${doneSum / N})`;
+    fill.style.clipPath = live && t > T_WIPE ? `inset(0 0 0 ${Math.max(0, edge)}px)` : 'none';
+    // the wipe edge
+    const wOn = live && t > T_WIPE + 0.02;
+    wipe.style.opacity = wOn ? Math.min(1, S.seg(t, T_WIPE, 0.12, 'power2.out')) * (1 - S.seg(t, T_RESET - 0.14, 0.14, 'power2.in')) : 0;
+    wipe.style.transform = `translateX(${364 + edge}px)`;
+
+    // button: press, label swaps to a check, then back during the wipe
+    const press = S.seg(t, 2.88, 0.08, 'power2.out') - S.seg(t, 2.96, 0.4, 'expo.out');
+    btn.style.transform = `scale(${1 - 0.05 * press})`;
+    const out1 = S.seg(t, 2.92, 0.22, 'power3.in'), in1 = S.seg(t, 3.04, 0.6, 'expo.out');
+    const out2 = S.seg(t, 11.0, 0.22, 'power3.in'), in2 = S.seg(t, 11.12, 0.6, 'expo.out');
+    btnLabel.style.transform = `translateY(${(t < 11.0 ? -out1 : 1 - in2) * 64}px)`;
+    btnCheck.style.transform = `translateY(${(t < 11.0 ? 1 - in1 : -out2) * 64}px)`;
+    btnCk.style.strokeDashoffset = t < 11.0 ? 1 - S.seg(t, 3.1, 0.35, 'power2.out') : 0;
+
+    // a new day: the title rolls over through its mask
+    const tr = t < 11.3 ? -S.seg(t, 11.15, 0.22, 'power3.in') : 1 - S.seg(t, 11.37, 0.6, 'expo.out');
+    titleW.style.transform = `translateY(${tr * 64}px)`;
+    // sidebar highlight steps down and back
+    const hp = S.seg(t, 8.0, 0.5, 'power3.inOut') - S.seg(t, 11.0, 0.5, 'power3.inOut');
+    hi.style.top = px(S.mix(SIDE_Y(1), SIDE_Y(2), hp));
+
+    // headline: rises from behind its masks, leaves up
+    hmasks.forEach((w, i) => {
+      const a = S.seg(t, 5.1 + i * 0.1, 0.7, 'expo.out'), b = S.seg(t, 8.4 + i * 0.06, 0.4, 'power3.in');
+      w.style.transform = `translateY(${((1 - a) - b) * 214}px)`;
+    });
+
+    // cursor: arcs in to the button, clicks, rides with it, leaves
+    const br = btn.getBoundingClientRect();
+    const bx = br.left + br.width * 0.56, by = br.top + br.height * 0.58;
+    const OFF = [1990, 1160], OUT = [2010, 1220];
+    let x = OFF[0], y = OFF[1];
+    if (t >= 1.7) {
+      const p = S.seg(t, 1.7, 1.1, 'power3.inOut');
+      x = S.mix(OFF[0], bx, p) - Math.sin(Math.PI * p) * 70;
+      y = S.mix(OFF[1], by, p) + Math.sin(Math.PI * p) * 40;
+    }
+    if (t >= 4.3) {
+      const p = S.seg(t, 4.3, 0.6, 'power2.in');
+      x = S.mix(bx, OUT[0], p); y = S.mix(by, OUT[1], p);
+    }
+    const cs = 1 - 0.14 * (S.seg(t, 2.84, 0.07, 'power2.out') - S.seg(t, 2.91, 0.3, 'expo.out'));
+    cursor.style.transform = `translate(${x - 4}px, ${y - 3}px) scale(${cs})`;
+    cursor.style.transformOrigin = '4px 3px';
+    const rp = S.seg(t, 2.9, 0.55, 'expo.out');
+    ring.style.opacity = t > 2.9 && t < 3.45 ? (1 - S.seg(t, 2.9, 0.55, 'power2.in')) * 0.9 : 0;
+    ring.style.transform = `translate(${bx}px, ${by}px) scale(${0.6 + 0.6 * rp})`;
+  }, { loop: true });
+</script>
+</body>
+</html>

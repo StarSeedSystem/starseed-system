@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600&display=swap" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #F4EFE6; }
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #F4EFE6; }
+      #cv { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="13.8" data-width="1920" data-height="1080">
+      <canvas id="cv" class="clip" data-start="0" data-duration="13.8" data-track-index="0" width="1920" height="1080"></canvas>
+    </div>
+    <script>
+/*
+ * One ink line. 13.8 s, 1920x1080, one canvas drawn as a pure function of time, drawn on twos.
+ * A single sumi brush stroke that never lifts: bird > flight > stem > blossom > falling petals > ripples > enso > seal.
+ * Beat map:
+ *   0.0 to 2.0   pen sweeps in and draws a hummingbird in one stroke; 2.0 to 2.8 the bird hovers (a held beat)
+ *   2.8 to 5.3   bird climbs, dives, skims the water, climbs straight up; its trail becomes the stem
+ *   5.8 to 7.8   bird folds into a bud (hard expo.out zoom), five petals bloom, then sway
+ *   7.8 to 10.8  petals fall flat on the water, turn to ripples, ripples stand up and unwind into one enso
+ *   11.3         vermilion seal stamps down; hold, the line keeps boiling
+ * Change colours in PAPER, INK, SEAL_RED below (also the two CSS backgrounds). Change the seal glyph in SEAL_CHAR.
+ */
+(function () {
+  'use strict';
+  const PAPER = '#F4EFE6';                       // warm washi paper
+  const INK = '#1C1C1C';                         // sumi ink (TONES further down are its six darker/lighter shades)
+  const SEAL_RED = '#D23C2A';                    // the one accent: vermilion seal
+  const SEAL_CHAR = '\u5186';                   // the seal glyph (circle, enso)
+  const SEAL_FONT = '600 92px "Noto Serif JP", serif';
+  const DUR = 13.8, SW = 1920, SH = 1080;
+  const HOLD0 = 2.0, HOLD = 0.8;                 // a 0.8 s hover beat at 2.0 s; everything after shifts by 0.8 s
+  const remap = t => t < HOLD0 ? t : t < HOLD0 + HOLD ? HOLD0 : t - HOLD;
+  let TRQ = 0;                                   // unremapped time on twos, for the hover flutter
+  const N_T = 600, N_SP = 90, N_PET = 162, N_B = N_SP + 5 * N_PET, N = N_T + N_B;
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  const ink = document.createElement('canvas'); ink.width = SW; ink.height = SH;
+  const ictx = ink.getContext('2d');
+  const ink2 = document.createElement('canvas'); ink2.width = SW; ink2.height = SH;
+  const i2 = ink2.getContext('2d');
+  const washC = document.createElement('canvas'); washC.width = SW; washC.height = SH;
+  const wctx = washC.getContext('2d');
+
+  // ---------- math ----------
+  const EZ = {};
+  const ez = n => EZ[n] || (EZ[n] = gsap.parseEase(n));
+  const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const sstep = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+  const seg = (t, a, b, e) => { const p = clamp((t - a) / (b - a), 0, 1); return e ? ez(e)(p) : p; };
+  function hash(i) { i = i | 0; i = Math.imul(i ^ (i >>> 16), 0x45d9f3b); i = Math.imul(i ^ (i >>> 16), 0x45d9f3b); i ^= i >>> 16; return (i >>> 0) / 4294967296; }
+  function vn(x, seed) { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return lerp(hash(i * 7919 + seed * 104729), hash((i + 1) * 7919 + seed * 104729), u); }
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // keyframe track: keys [[t, v, ease]]
+  function track(t, keys) {
+    if (t <= keys[0][0]) return keys[0][1];
+    for (let i = 1; i < keys.length; i++) {
+      if (t <= keys[i][0]) { const a = keys[i - 1], b = keys[i]; const k = (t - a[0]) / (b[0] - a[0]); return lerp(a[1], b[1], ez(b[2] || 'sine.inOut')(k)); }
+    }
+    return keys[keys.length - 1][1];
+  }
+  // monotone cubic through [t, v] points, zero end slopes
+  function monotone(pts) {
+    const n = pts.length, m = new Array(n).fill(0), d = [];
+    for (let i = 0; i < n - 1; i++) d.push((pts[i + 1][1] - pts[i][1]) / (pts[i + 1][0] - pts[i][0]));
+    for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : 2 / (1 / d[i - 1] + 1 / d[i]);
+    return function (t) {
+      if (t <= pts[0][0]) return pts[0][1];
+      if (t >= pts[n - 1][0]) return pts[n - 1][1];
+      let i = 0; while (t > pts[i + 1][0]) i++;
+      const h = pts[i + 1][0] - pts[i][0], s = (t - pts[i][0]) / h, s2 = s * s, s3 = s2 * s;
+      return (2 * s3 - 3 * s2 + 1) * pts[i][1] + (s3 - 2 * s2 + s) * h * m[i] + (-2 * s3 + 3 * s2) * pts[i + 1][1] + (s3 - s2) * h * m[i + 1];
+    };
+  }
+
+  // ---------- centripetal Catmull-Rom path with channels ----------
+  function crPath(ctrl, sub) {
+    const n = ctrl.length, C = ctrl[0].length, pts = [], ci = [];
+    const get = i => {
+      if (i < 0) { const a = ctrl[0], b = ctrl[1]; return a.map((v, k) => 2 * v - b[k]); }
+      if (i >= n) { const a = ctrl[n - 1], b = ctrl[n - 2]; return a.map((v, k) => 2 * v - b[k]); }
+      return ctrl[i];
+    };
+    const dd = (a, b) => Math.pow(Math.hypot(b[0] - a[0], b[1] - a[1]) + 1e-4, 0.5);
+    for (let i = 0; i < n - 1; i++) {
+      const p0 = get(i - 1), p1 = get(i), p2 = get(i + 1), p3 = get(i + 2);
+      const t0 = 0, t1 = dd(p0, p1), t2 = t1 + dd(p1, p2), t3 = t2 + dd(p2, p3);
+      ci.push(pts.length);
+      for (let s = 0; s < sub; s++) {
+        const t = t1 + (t2 - t1) * s / sub, q = [];
+        for (let c = 0; c < 2; c++) {
+          const A1 = (t1 - t) / (t1 - t0) * p0[c] + (t - t0) / (t1 - t0) * p1[c];
+          const A2 = (t2 - t) / (t2 - t1) * p1[c] + (t - t1) / (t2 - t1) * p2[c];
+          const A3 = (t3 - t) / (t3 - t2) * p2[c] + (t - t2) / (t3 - t2) * p3[c];
+          const B1 = (t2 - t) / (t2 - t0) * A1 + (t - t0) / (t2 - t0) * A2;
+          const B2 = (t3 - t) / (t3 - t1) * A2 + (t - t1) / (t3 - t1) * A3;
+          q.push((t2 - t) / (t2 - t1) * B1 + (t - t1) / (t2 - t1) * B2);
+        }
+        const k = s / sub, ks = k * k * (3 - 2 * k);
+        for (let c = 2; c < C; c++) q.push(lerp(p1[c], p2[c], ks));
+        pts.push(q);
+      }
+    }
+    ci.push(pts.length); pts.push(ctrl[n - 1].slice());
+    const cum = new Float64Array(pts.length);
+    for (let i = 1; i < pts.length; i++) cum[i] = cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    return { pts, cum, len: cum[pts.length - 1], ctrlS: ci.map(i => cum[i]), C };
+  }
+  function pathAt(P, s, out) {
+    const cum = P.cum, n = cum.length; s = clamp(s, 0, P.len);
+    let lo = 0, hi = n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= s) lo = m; else hi = m; }
+    const a = P.pts[lo], b = P.pts[hi], den = cum[hi] - cum[lo], k = den > 1e-9 ? (s - cum[lo]) / den : 0;
+    for (let c = 0; c < P.C; c++) out[c] = lerp(a[c], b[c], k);
+    return out;
+  }
+  const tmp = [0, 0, 0, 0, 0];
+
+  // ---------- the flight path (world px) ----------
+  const F = crPath([
+    [-460, 880], [-200, 800], [60, 726], [290, 660],          // lead-in -> B0 (3)
+    [520, 560], [760, 430], [990, 352], [1170, 368],          // climb, apex (7)
+    [1285, 462], [1330, 618], [1345, 760], [1372, 852],       // dive (11)
+    [1420, 893], [1482, 886], [1522, 830],                    // skim the water, root (12)
+    [1534, 740], [1531, 640], [1525, 548], [1521, 476],       // climb, stem top T (18)
+    [1519, 330], [1517, 160]
+  ], 40);
+  const sB0 = F.ctrlS[3], sApex = F.ctrlS[7], sR = F.ctrlS[12], sT = F.ctrlS[18];
+  const R = pathAt(F, sR, [0, 0]).slice(), T = pathAt(F, sT, [0, 0]).slice();
+  const WATER = R[1];
+
+  // ---------- the hummingbird, one stroke (local px, facing +x) [x, y, width, wing] ----------
+  const birdCtrl = [
+    [-215, 82, 1.4, 0], [-160, 62, 5, 0], [-105, 52, 9, 0], [-45, 62, 12, 0], [15, 58, 13, 0],
+    [58, 36, 12, 0], [82, 10, 10, 0], [100, -8, 7.5, 0], [121, -22, 5, 0], [196, -14, 2.8, 0],
+    [276, -5, 1.1, 0], [197, -25, 2.5, 0], [123, -36, 4.5, 0], [112, -55, 6.5, 0], [88, -70, 7.5, 0],
+    [82, -54, 3.6, 0], [90, -45, 4.4, 0], [98, -52, 4.4, 0], [90, -60, 3.8, 0], [74, -64, 5.5, 0],
+    [48, -66, 7.5, 0], [22, -60, 8.5, 0], [0, -52, 9.5, 0],
+    [-28, -98, 9.5, 0.45], [-78, -166, 8.5, 0.85], [-140, -218, 5, 1], [-188, -244, 1.5, 1],
+    [-150, -203, 4, 1], [-100, -142, 7, 0.9], [-64, -90, 8.5, 0.6], [-44, -56, 9.5, 0.15],
+    [-92, -28, 8.5, 0], [-140, -6, 6.5, 0], [-196, 14, 4, 0], [-250, 24, 1.0, 0]
+  ];
+  const BP = crPath(birdCtrl, 30);
+  const bx = new Float32Array(N_B), by = new Float32Array(N_B), bw = new Float32Array(N_B), bwing = new Float32Array(N_B);
+  const ax0 = birdCtrl[0][0], ay0 = birdCtrl[0][1];
+  for (let j = 0; j < N_B; j++) {
+    pathAt(BP, BP.len * j / (N_B - 1), tmp);
+    bx[j] = tmp[0] - ax0; by[j] = tmp[1] - ay0; bw[j] = tmp[2]; bwing[j] = tmp[3];
+  }
+  const SHX = 0 - ax0, SHY = -52 - ay0;
+  // pen-time cost along the bird: slower on tight curves and details
+  const birdCum = new Float32Array(N_B);
+  (function () {
+    let acc = 0;
+    for (let j = 1; j < N_B; j++) {
+      let turn = 0;
+      if (j > 1 && j < N_B - 1) {
+        const a1 = Math.atan2(by[j] - by[j - 1], bx[j] - bx[j - 1]), a2 = Math.atan2(by[j + 1] - by[j], bx[j + 1] - bx[j]);
+        let d = Math.abs(a2 - a1); if (d > Math.PI) d = 2 * Math.PI - d; turn = d;
+      }
+      acc += 1 + 9 * Math.min(turn, 0.6);
+      birdCum[j] = acc;
+    }
+    for (let j = 0; j < N_B; j++) birdCum[j] /= acc;
+  })();
+
+  // ---------- timing ----------
+  const sHead = monotone([[2.0, sB0], [2.95, sApex], [3.72, sR], [4.5, sT]]);
+  const DET = [7.0, 7.16, 7.06, 7.22, 7.11];           // petal detach times
+  const FD = 0.85;                                      // fall duration
+  const LAND = [[-300, -18], [-130, 10], [40, -30], [200, 14], [350, -10]];
+  const RMAX = [150, 120, 175, 135, 160];
+  const SLIDE0 = 7.3, SLIDE1 = 8.45;
+  const C1 = [8.5, 9.25], KS = [8.95, 9.75], KU = [9.3, 10.0];
+  const SEAL_T = 10.5;
+  const Q = 0.24;                                       // water-plane ellipse ratio
+  const RE = 360;                                       // enso radius
+  const THS = 140 * Math.PI / 180, SPAN = 338 * Math.PI / 180;
+  const theta = j => THS + SPAN * j / (N - 1);
+
+  // ---------- state buffers ----------
+  function mk() { return { x: new Float32Array(N), y: new Float32Array(N), w: new Float32Array(N), d: new Float32Array(N) }; }
+  const S = mk(), SA = mk(), SB = mk(), SC = mk();
+
+  // dry brush where the pen moved fast: speed of the bird when it laid that part of the path
+  const DRY_STEP = 4, dryTab = new Float32Array(Math.ceil(F.len / DRY_STEP) + 2);
+  (function () {
+    for (let k = 0; k < dryTab.length; k++) { const sx = k * DRY_STEP; dryTab[k] = sx < sB0 ? 0.32 * sstep(sB0 - 500, sB0 - 120, sx) * 0 + 0.18 : 0; }
+    let prev = sB0;
+    for (let t = 2.0; t <= 4.5; t += 1 / 240) {
+      const sx = sHead(t), v = (sx - prev) * 240; prev = sx;
+      const k = Math.round(sx / DRY_STEP); if (k >= 0 && k < dryTab.length) dryTab[k] = Math.max(dryTab[k], clamp((v - 700) / 1500, 0, 0.62));
+    }
+    for (let it = 0; it < 6; it++) for (let k = 1; k < dryTab.length - 1; k++) dryTab[k] = Math.max(dryTab[k], (dryTab[k - 1] + dryTab[k + 1]) * 0.49);
+  })();
+  const dryAt = sx => dryTab[clamp(Math.round(sx / DRY_STEP), 0, dryTab.length - 1)];
+  function trailWidth(j) {
+    const k = j / (N_T - 1);
+    let w = 12.5 * (0.68 + 0.6 * vn(j * 0.022, 3));
+    w *= lerp(1, 0.22, sstep(0.9, 1, k));
+    return w;
+  }
+
+  // --- flight: trail + bird
+  function birdFigure(t, out, sh) {
+    const sig = t < 2 ? 1.45 : lerp(1.45, 0.95, seg(t, 2.0, 3.7, 'power2.inOut'));
+    const p0 = pathAt(F, sh, [0, 0]);
+    const a = pathAt(F, Math.min(sh + 150, F.len), [0, 0]), b = pathAt(F, Math.max(sh - 20, 0), [0, 0]);
+    let al = clamp(Math.atan2(a[1] - b[1], a[0] - b[0]), -Math.PI / 2 - 0.08, Math.PI / 2);
+    // hover: lift and bob once at the top
+    const hov = sstep(4.35, 4.7, t);
+    const bob = hov * (6 * Math.sin(2 * Math.PI * 1.7 * (t - 4.4)));
+    const flapAmt = sstep(2.0, 2.12, TRQ) * (1 - sstep(5.0, 5.2, t));
+    const psi = -1.25 * flapAmt * (0.5 - 0.5 * Math.cos(2 * Math.PI * 5 * TRQ));
+    const ca = Math.cos(al), sa = Math.sin(al), wsc = 1.05 + 0.35 * sig;
+    for (let j = 0; j < N_B; j++) {
+      let x = bx[j], y = by[j];
+      const ww = bwing[j];
+      if (ww > 0 && psi !== 0) {
+        const an = psi * ww, c = Math.cos(an), s = Math.sin(an), dx = x - SHX, dy = y - SHY, sc = 1 - 0.12 * ww * flapAmt * Math.sin(-psi / 1.25 * Math.PI);
+        x = SHX + (dx * c - dy * s) * sc; y = SHY + (dx * s + dy * c) * sc;
+      }
+      x *= sig; y *= sig;
+      const i = N_T + j;
+      out.x[i] = p0[0] + x * ca - y * sa;
+      out.y[i] = p0[1] + x * sa + y * ca + bob;
+      out.w[i] = bw[j] * wsc;
+      out.d[i] = 0;
+    }
+  }
+  function flightState(t, out) {
+    const sh = t < 2 ? sB0 : sHead(t);
+    const Lt = lerp(1500, sT - sR, seg(t, 3.35, 4.5, 'power2.inOut'));
+    const s0 = Math.min(Math.max(sh - Lt, 0), sR);
+    for (let j = 0; j < N_T; j++) {
+      pathAt(F, s0 + (sh - s0) * j / (N_T - 1), tmp);
+      out.x[j] = tmp[0]; out.y[j] = tmp[1]; out.w[j] = trailWidth(j);
+      const sx = s0 + (sh - s0) * j / (N_T - 1);
+      out.d[j] = Math.max(0.5 * (1 - sstep(0, 0.12, j / (N_T - 1))), dryAt(sx));
+    }
+    birdFigure(t, out, sh);
+  }
+
+  // --- flower
+  const PET_BUD = [-106, -98, -90, -82, -74].map(d => d * Math.PI / 180);
+  const PET_OPEN = [-234, -162, -90, -18, 54].map(d => d * Math.PI / 180);
+  const PET_LEN = [1.0, 1.06, 0.94, 1.04, 0.98];
+  const PET_ORDER = [2, 1, 3, 0, 4];
+  function sway(t) { return 0.04 * Math.sin(2 * Math.PI * 0.62 * (t - 5.7)) * sstep(5.6, 6.3, t); }
+  function stemInto(t, out) {
+    const g = seg(t, 4.6, 5.45, 'power3.out');
+    const sw = sway(t), dxTop = sw * 520;
+    const f0 = 0.36, df = 0.11, LL = 165, LW = 42;
+    const la = -142 * Math.PI / 180, lax = Math.cos(la), lay = Math.sin(la), lnx = -lay, lny = lax;
+    for (let j = 0; j < N_T; j++) {
+      const f = j / (N_T - 1);
+      pathAt(F, sR + (sT - sR) * f, tmp);
+      let x = tmp[0] + dxTop * f * f, y = tmp[1];
+      if (g > 0 && f > f0 && f < f0 + df) {
+        const v = (f - f0) / df, A = g * LL * Math.sin(Math.PI * v), B = g * LW * Math.sin(2 * Math.PI * v) * (1 + 0.15 * sw * 25);
+        x += A * lax + B * lnx; y += A * lay + B * lny;
+      }
+      out.x[j] = x; out.y[j] = y; out.w[j] = trailWidth(j);
+      if (g > 0 && f > f0 && f < f0 + df) { const v = (f - f0) / df; out.w[j] *= 1 + 0.35 * g * Math.sin(Math.PI * v); }
+      out.d[j] = dryAt(sR + (sT - sR) * f) * (f > f0 && f < f0 + df ? 1 - g : 1);
+    }
+    return [dxTop, sw];
+  }
+  function flowerFigure(t, out, dxTop, sw) {
+    const bA = seg(t, 5.25, 6.1, 'power3.out');
+    const sq = lerp(1, 0.64, bA), rot = -0.07 * bA + sw * 1.4;
+    const cr = Math.cos(rot), sr = Math.sin(rot);
+    const cx = T[0] + dxTop, cy = T[1];
+    const put = (i, px, py, w) => {
+      py *= sq; out.x[i] = cx + px * cr - py * sr; out.y[i] = cy + px * sr + py * cr; out.w[i] = w; out.d[i] = 0;
+    };
+    // stamen spiral
+    const rs = lerp(5, 32, bA);
+    for (let j = 0; j < N_SP; j++) {
+      const v = j / (N_SP - 1), r = rs * Math.pow(v, 0.85), an = -Math.PI / 2 + 2 * Math.PI * 1.65 * v;
+      put(N_T + j, r * Math.cos(an), r * Math.sin(an), (3 + 4.5 * v) * (1 - 0.94 * sstep(0.8, 1, v)));
+    }
+    for (let p = 0; p < 5; p++) {
+      const o = PET_ORDER.indexOf(p);
+      const bi = seg(t, 5.25 + 0.07 * o, 6.05 + 0.07 * o, 'back.out(1.7)');
+      const ba = seg(t, 5.25 + 0.07 * o, 6.0 + 0.07 * o, 'power3.out');
+      const a = lerp(PET_BUD[p], PET_OPEN[p], ba);
+      const om = lerp(0.15, 0.62, ba);
+      const L = lerp(250, 268 * PET_LEN[p], bi);
+      const breathe = 1 + 0.025 * Math.sin(2 * Math.PI * 0.9 * t + p) * sstep(6.0, 6.4, t);
+      for (let j = 0; j < N_PET; j++) {
+        const v = j / (N_PET - 1);
+        const ph = a + (v - 0.5) * 2 * om;
+        const notch = 1 - 0.1 * ba * Math.exp(-Math.pow((v - 0.5) / 0.035, 2));
+        const r = L * breathe * Math.pow(Math.sin(Math.PI * v), 0.6) * notch;
+        const w = 0.45 + 15 * Math.pow(Math.sin(Math.PI * v), 1.7) * (0.7 + 0.6 * v);
+        put(N_T + N_SP + p * N_PET + j, r * Math.cos(ph), r * Math.sin(ph), w);
+      }
+    }
+  }
+  function flowerState(t, out) {
+    const [dxTop, sw] = stemInto(t, out);
+    flowerFigure(t, out, dxTop, sw);
+    const mk2 = seg(t, 4.92, 5.5, 'power2.inOut');
+    if (mk2 < 1) {
+      birdFigure(t, SC, sT);
+      for (let j = 0; j < N_B; j++) {
+        const u = j / (N_B - 1), k = clamp((mk2 * 1.45 - u * 0.45) / 1.0, 0, 1), kk = k * k * (3 - 2 * k);
+        const i = N_T + j;
+        out.x[i] = lerp(SC.x[i], out.x[i], kk); out.y[i] = lerp(SC.y[i], out.y[i], kk); out.w[i] = lerp(SC.w[i], out.w[i], kk);
+      }
+    }
+  }
+
+  // --- chain snapshot for the stem being pulled into the water
+  const NCH = N_T + N_SP;
+  const chX = new Float32Array(NCH), chY = new Float32Array(NCH), chS = new Float32Array(NCH);
+  flowerState(SLIDE0, SA);
+  for (let j = 0; j < NCH; j++) { chX[j] = SA.x[j]; chY[j] = SA.y[j]; chS[j] = j ? chS[j - 1] + Math.hypot(chX[j] - chX[j - 1], chY[j] - chY[j - 1]) : 0; }
+  const LCH = chS[NCH - 1];
+  const COIL_K = 50, PSI_FEED = THS + LCH / COIL_K, RHO0 = 20;
+  const E_W = [R[0] - RHO0 * Math.cos(PSI_FEED), WATER - RHO0 * Q * Math.sin(PSI_FEED)];
+  const E = [E_W[0], 560];
+  function chainAt(s, o) {
+    s = clamp(s, 0, LCH); let lo = 0, hi = NCH - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (chS[m] <= s) lo = m; else hi = m; }
+    const den = chS[hi] - chS[lo], k = den > 1e-9 ? (s - chS[lo]) / den : 0;
+    o[0] = lerp(chX[lo], chX[hi], k); o[1] = lerp(chY[lo], chY[hi], k); return o;
+  }
+  const ringStart = p => PSI_FEED + 2 * Math.PI * p;
+  const landPt = p => [E_W[0] + LAND[p][0], WATER + LAND[p][1]];
+  function ringR(p, t) { const tl = DET[p] + FD; return 58 + RMAX[p] * seg(t, tl, tl + 1.7, 'expo.out'); }
+  function ensoW(u) {
+    let w = 1.0 - 0.42 * Math.pow(u, 1.5) + 0.4 * Math.exp(-Math.pow(u / 0.028, 2)) + 0.05 * Math.sin(u * 17 + 1);
+    w *= Math.pow(sstep(1.0, 0.86, u), 0.7) * sstep(0, 0.012, u + 0.004);
+    return 54 * w;
+  }
+  const ensoD = u => clamp(sstep(0.5, 0.97, u) * 0.95, 0, 1);
+
+  function fallState(t, out) {
+    flowerState(Math.min(t, SLIDE0), out);
+    const c1 = seg(t, C1[0], C1[1], 'power3.inOut'), ks = seg(t, KS[0], KS[1], 'power3.inOut'), ku = seg(t, KU[0], KU[1], 'power3.inOut');
+    const q = lerp(Q, 1, ks);
+    const cX = (x) => x, polar = (i, Cx, Cy, rho, phi, w, d) => {
+      // apply close transform: converge, stand up, unwind
+      const Cx2 = lerp(lerp(Cx, E_W[0], c1), E[0], ks), Cy2 = lerp(lerp(Cy, E_W[1], c1), E[1], ks);
+      const u = i / (N - 1), th = theta(i);
+      const rE = RE * (1 + 0.016 * Math.sin(2 * th + 0.7) + 0.008 * Math.sin(5 * th)) + (u - 0.5) * 18;
+      const r2 = lerp(rho, rE, ku), ph2 = lerp(phi, th, seg(t, 8.5, 10.0, 'power2.inOut'));
+      out.x[i] = Cx2 + r2 * Math.cos(ph2); out.y[i] = Cy2 + r2 * q * Math.sin(ph2);
+      out.w[i] = lerp(w, ensoW(u), ku); out.d[i] = lerp(d, ensoD(u), ku);
+    };
+    // stem + stamen: pulled into the water, coiling as a spiral ripple
+    if (t >= SLIDE0) {
+      const dd = LCH * seg(t, SLIDE0, SLIDE1, 'power2.inOut');
+      const grow = 14 * seg(t, SLIDE0, 9.5, 'power1.out');
+      const o = [0, 0];
+      for (let j = 0; j < NCH; j++) {
+        const sg = chS[j];
+        if (sg >= dd && c1 === 0) { chainAt(sg - dd, o); out.x[j] = o[0]; out.y[j] = o[1]; out.w[j] = SA.w[j]; out.d[j] = SA.d[j]; }
+        else {
+          const depth = Math.max(dd - sg, 0), psi = THS + (LCH - depth) / COIL_K;
+          const rho0 = RHO0 + depth * 0.12 + grow * sstep(0, 40, depth);
+          const rho = lerp(rho0, RE - 40 + 80 * (j / NCH) * 0, c1) ;
+          const w = lerp(SA.w[j], 5.6 * (0.8 + 0.4 * vn(j * 0.05, 5)), sstep(0, 26, depth));
+          if (c1 === 0 && ks === 0 && ku === 0) {
+            out.x[j] = E_W[0] + rho0 * Math.cos(psi); out.y[j] = E_W[1] + rho0 * Q * Math.sin(psi); out.w[j] = w; out.d[j] = SA.d[j] * (1 - sstep(0, 26, depth));
+          } else polar(j, E_W[0], E_W[1], lerp(rho0, RE - 42, c1), psi, w, 0);
+        }
+      }
+    }
+    // petals
+    for (let p = 0; p < 5; p++) {
+      if (t < DET[p]) continue;
+      flowerState(DET[p], SB);
+      const i0 = N_T + N_SP + p * N_PET;
+      let mx = 0, my = 0;
+      for (let j = 0; j < N_PET; j++) { mx += SB.x[i0 + j]; my += SB.y[i0 + j]; }
+      mx /= N_PET; my /= N_PET;
+      const lp = landPt(p), tau = clamp((t - DET[p]) / FD, 0, 1);
+      const spin = [1.3, -1.6, 0.9, -1.1, 1.7][p] * ez('power1.out')(tau);
+      const flat = lerp(1, Q, ez('power2.in')(tau));
+      const flut = 1 - 0.35 * Math.sin(Math.PI * tau) * Math.abs(Math.sin(2 * Math.PI * 1.3 * tau));
+      const scl = lerp(1, 0.78, tau);
+      const ccx = lerp(mx, lp[0], ez('sine.inOut')(tau)) + 50 * Math.sin(2 * Math.PI * 0.9 * tau) * (1 - tau) * (p % 2 ? -1 : 1);
+      const ccy = lerp(my, lp[1], ez('power1.in')(tau));
+      const cs = Math.cos(spin), sn = Math.sin(spin);
+      const tl = DET[p] + FD, km = seg(t, tl, tl + 0.34, 'power2.out');
+      const rr = ringR(p, t);
+      const dC = [0, -16, -4, 10, 24, 38][p + 1];
+      for (let j = 0; j < N_PET; j++) {
+        const i = i0 + j, v = j / (N_PET - 1);
+        let rx = (SB.x[i] - mx) * scl, ry = (SB.y[i] - my) * scl;
+        let x = rx * cs - ry * sn, y = (rx * sn + ry * cs) * flat * flut;
+        x += ccx; y += ccy;
+        const phi = ringStart(p) + 2 * Math.PI * v;
+        const wr = 6.2 * Math.pow(Math.sin(Math.PI * v), 0.5) * (0.8 + 0.4 * vn(i * 0.06, 6));
+        if (c1 > 0 || ks > 0 || ku > 0) { polar(i, lp[0], lp[1], lerp(rr, RE + dC, c1), phi, wr, 0); continue; }
+        const xr = lp[0] + rr * Math.cos(phi), yr = lp[1] + rr * Q * Math.sin(phi);
+        out.x[i] = lerp(x, xr, km); out.y[i] = lerp(y, yr, km); out.w[i] = lerp(SB.w[i] * scl, wr, km); out.d[i] = 0;
+      }
+    }
+  }
+
+  function state(t, out) {
+    if (t < 4.5) flightState(t, out);
+    else if (t < DET[0]) flowerState(t, out);
+    else fallState(t, out);
+  }
+
+  // ---------- textures ----------
+  const PX0 = -700, PY0 = -360, PW = 3400, PH = 1840;
+  const paper = document.createElement('canvas'); paper.width = PW; paper.height = PH;
+  const grainTile = document.createElement('canvas'); grainTile.width = 512; grainTile.height = 512;
+  (function buildPaper() {
+    const p = paper.getContext('2d'), rnd = mulberry(20261020);
+    p.fillStyle = PAPER; p.fillRect(0, 0, PW, PH);
+    // low-frequency mottle
+    const mw = Math.ceil(PW / 10), mh = Math.ceil(PH / 10), m = document.createElement('canvas');
+    m.width = mw; m.height = mh; const mc = m.getContext('2d'), id = mc.createImageData(mw, mh);
+    for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
+      let n = 0, a = 1, f = 0.045, tot = 0;
+      for (let o = 0; o < 4; o++) {
+        const X = x * f, Y = y * f, xi = Math.floor(X), yi = Math.floor(Y), fx = X - xi, fy = Y - yi;
+        const h = (i, j) => hash(i * 92821 + j * 68917 + o * 1013);
+        const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+        n += a * lerp(lerp(h(xi, yi), h(xi + 1, yi), ux), lerp(h(xi, yi + 1), h(xi + 1, yi + 1), ux), uy);
+        tot += a; a *= 0.5; f *= 2.1;
+      }
+      n /= tot;
+      const k = (y * mw + x) * 4, v = (n - 0.5);
+      if (v < 0) { id.data[k] = 150; id.data[k + 1] = 120; id.data[k + 2] = 80; id.data[k + 3] = Math.min(255, -v * 170); }
+      else { id.data[k] = 255; id.data[k + 1] = 252; id.data[k + 2] = 244; id.data[k + 3] = Math.min(255, v * 150); }
+    }
+    mc.putImageData(id, 0, 0);
+    p.imageSmoothingEnabled = true; p.imageSmoothingQuality = 'high';
+    p.globalAlpha = 0.26; p.drawImage(m, 0, 0, PW, PH); p.globalAlpha = 1;
+    // fibres
+    for (let i = 0; i < 7000; i++) {
+      const x = rnd() * PW, y = rnd() * PH, L = 6 + rnd() * (rnd() < 0.1 ? 140 : 40), a = rnd() * Math.PI * 2, bend = (rnd() - 0.5) * 18;
+      p.strokeStyle = rnd() < 0.7 ? `rgba(140,112,74,${0.05 + rnd() * 0.07})` : `rgba(255,253,246,${0.25 + rnd() * 0.3})`;
+      p.lineWidth = 0.5 + rnd() * 1.1; p.beginPath(); p.moveTo(x, y);
+      p.quadraticCurveTo(x + Math.cos(a) * L / 2 - Math.sin(a) * bend, y + Math.sin(a) * L / 2 + Math.cos(a) * bend, x + Math.cos(a) * L, y + Math.sin(a) * L);
+      p.stroke();
+    }
+    // grain tile (applied over ink too)
+    const g = grainTile.getContext('2d'), gd = g.createImageData(512, 512);
+    for (let i = 0; i < 512 * 512; i++) {
+      const r = rnd(), k = i * 4;
+      if (r < 0.5) { gd.data[k] = 70; gd.data[k + 1] = 55; gd.data[k + 2] = 38; gd.data[k + 3] = (0.5 - r) * 52; }
+      else { gd.data[k] = 255; gd.data[k + 1] = 251; gd.data[k + 2] = 242; gd.data[k + 3] = (r - 0.5) * 60; }
+    }
+    g.putImageData(gd, 0, 0);
+  })();
+  const grainPat = ctx.createPattern(grainTile, 'repeat');
+  const mottleTile = document.createElement('canvas'); mottleTile.width = 256; mottleTile.height = 256;
+  (function () {
+    const m = mottleTile.getContext('2d'), d = m.createImageData(256, 256);
+    for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+      let n = 0, a = 1, tot = 0;
+      for (let o = 0; o < 3; o++) {
+        const f = [8, 16, 32][o] / 256, X = x * f, Y = y * f, P = [8, 16, 32][o];
+        const xi = Math.floor(X), yi = Math.floor(Y), fx = X - xi, fy = Y - yi, ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+        const h = (i, j) => hash(((i % P + P) % P) * 92821 + ((j % P + P) % P) * 68917 + o * 1013 + 5);
+        n += a * lerp(lerp(h(xi, yi), h(xi + 1, yi), ux), lerp(h(xi, yi + 1), h(xi + 1, yi + 1), ux), uy); tot += a; a *= 0.55;
+      }
+      n /= tot; const k = (y * 256 + x) * 4;
+      d.data[k] = d.data[k + 1] = d.data[k + 2] = 0; d.data[k + 3] = clamp((n - 0.3) * 2.2, 0, 1) * 255;
+    }
+    m.putImageData(d, 0, 0);
+  })();
+  const mottlePat = i2.createPattern(mottleTile, 'repeat');
+  function camMatrix(cam) { const cs = Math.cos(cam.rot) * cam.sc, sn = Math.sin(cam.rot) * cam.sc; return new DOMMatrix([cs, sn, -sn, cs, 960 - (cs * cam.cx - sn * cam.cy), 540 - (sn * cam.cx + cs * cam.cy)]); }
+
+  // ---------- seal ----------
+  const SEAL = 138;
+  const seal = document.createElement('canvas'); seal.width = 200; seal.height = 200;
+  let sealFontOk = false;
+  function buildSeal() {
+    const s = seal.getContext('2d'), rnd = mulberry(77);
+    s.setTransform(1, 0, 0, 1, 0, 0); s.globalAlpha = 1; s.globalCompositeOperation = 'source-over'; s.clearRect(0, 0, 200, 200);
+    sealFontOk = !document.fonts || document.fonts.check(SEAL_FONT, SEAL_CHAR);
+    s.translate(100, 100);
+    s.fillStyle = SEAL_RED;
+    s.beginPath();
+    const h = SEAL / 2;
+    const corners = [[-h, -h], [h, -h], [h, h], [-h, h]];
+    corners.forEach((c, i) => { const jx = (rnd() - 0.5) * 3, jy = (rnd() - 0.5) * 3; i ? s.lineTo(c[0] + jx, c[1] + jy) : s.moveTo(c[0] + jx, c[1] + jy); });
+    s.closePath(); s.fill();
+    s.globalCompositeOperation = 'destination-out';
+    s.strokeStyle = '#000'; s.lineWidth = 3.8; s.strokeRect(-h + 11, -h + 11, SEAL - 22, SEAL - 22);
+    s.fillStyle = '#000'; s.textAlign = 'center'; s.textBaseline = 'middle';
+    s.font = SEAL_FONT;
+    s.fillText(SEAL_CHAR, 0, 4);
+    for (let i = 0; i < 420; i++) {
+      const x = (rnd() - 0.5) * SEAL * 1.05, y = (rnd() - 0.5) * SEAL * 1.05, r = rnd() < 0.9 ? rnd() * 1.3 : 1 + rnd() * 2.6;
+      s.globalAlpha = 0.4 + rnd() * 0.6; s.beginPath(); s.arc(x, y, r, 0, Math.PI * 2); s.fill();
+    }
+    // edge wear
+    for (let i = 0; i < 90; i++) {
+      const side = Math.floor(rnd() * 4), u = (rnd() - 0.5) * SEAL, r = 1 + rnd() * 3;
+      const x = side === 0 ? -h : side === 1 ? h : u, y = side === 2 ? -h : side === 3 ? h : u;
+      s.globalAlpha = 0.8; s.beginPath(); s.arc(x, y, r, 0, Math.PI * 2); s.fill();
+    }
+  }
+  buildSeal();
+  if (document.fonts) document.fonts.load(SEAL_FONT, SEAL_CHAR).then(buildSeal, () => {});
+
+  // ---------- camera ----------
+  function camera(t) {
+    const fx = T[0], fy = T[1];
+    const cx = track(t, [[0, 560], [2.0, 930, 'sine.inOut'], [3.0, 1120, 'sine.inOut'], [3.75, 1350, 'sine.inOut'], [4.6, 1495, 'power2.inOut'], [5.0, 1500, 'none'], [5.9, fx - 10, 'expo.out'], [7.0, fx, 'none'], [8.3, E_W[0] + 20, 'power2.inOut'], [9.8, E[0]], [10.0, E[0]], [12, E[0] + 8, 'none']]);
+    const cy = track(t, [[0, 600], [2.0, 520, 'sine.inOut'], [3.0, 480, 'sine.inOut'], [3.5, 700, 'sine.inOut'], [3.9, 680, 'sine.inOut'], [4.6, 468, 'power2.inOut'], [5.0, 472, 'none'], [5.9, fy + 50, 'expo.out'], [7.0, fy + 58, 'none'], [8.3, WATER - 70, 'power2.inOut'], [9.8, E[1], 'power2.inOut'], [10.0, E[1]], [12, E[1] - 4, 'none']]);
+    let sc = track(t, [[0, 1.16], [2.0, 1.02, 'sine.inOut'], [3.0, 1.0], [3.6, 0.94], [4.6, 1.07], [5.0, 1.08, 'none'], [5.9, 1.42, 'expo.out'], [7.0, 1.46, 'none'], [8.3, 1.28, 'power2.inOut'], [9.8, 1.0, 'power2.inOut'], [10.0, 1.0], [12, 1.03, 'sine.inOut']]);
+    const bump = t > SEAL_T ? 0.008 * Math.exp(-(t - SEAL_T) * 7) * Math.cos((t - SEAL_T) * 26) : 0;
+    sc *= 1 + bump;
+    const rot = 0.0035 * Math.sin(t * 0.45 + 0.4);
+    const dx = 5 * Math.sin(t * 0.37), dy = 4 * Math.sin(t * 0.29 + 1.1);
+    return { cx: cx + dx, cy: cy + dy, sc, rot };
+  }
+  function setCam(c, cam) {
+    const cs = Math.cos(cam.rot) * cam.sc, sn = Math.sin(cam.rot) * cam.sc;
+    // screen = R*S*(world - center) + (960,540)
+    c.setTransform(cs, sn, -sn, cs, 960 - (cs * cam.cx - sn * cam.cy), 540 - (sn * cam.cx + cs * cam.cy));
+  }
+
+  // ---------- drawing ----------
+  const TONES = ['#101010', '#171716', '#1f1e1d', '#292726', '#353230', '#43403c'];
+  const TK = new Uint8Array(N);
+  function strokeLine(c, lo, hi, scale, wf, col, minW) {
+    c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = col;
+    const toned = col === INK;
+    let runW = -1, runK = -1;
+    c.beginPath();
+    for (let i = lo; i < hi; i++) {
+      const raw = (S.w[i] + S.w[i + 1]) * 0.5;
+      if ((minW && raw < minW) || (!minW && raw * scale < 0.8)) { if (runW >= 0) { c.lineWidth = runW; c.stroke(); runW = -1; } continue; }
+      const w = Math.max(0.5 / scale, raw * wf);
+      const kk = toned ? TK[i] : 0;
+      if (runW < 0 || Math.abs(w - runW) > 0.35 / scale || kk !== runK) {
+        if (runW >= 0) { c.lineWidth = runW; c.stroke(); }
+        if (toned) c.strokeStyle = TONES[kk];
+        c.beginPath(); c.moveTo(S.x[i], S.y[i]); runW = w; runK = kk;
+      }
+      c.lineTo(S.x[i + 1], S.y[i + 1]);
+    }
+    if (runW >= 0) { c.lineWidth = runW; c.stroke(); }
+  }
+  function hairLines(c, lo, hi, scale) {
+    c.lineCap = 'round'; c.strokeStyle = INK; c.lineWidth = 0.75 / scale; c.globalAlpha = 0.32;
+    c.beginPath(); let open = false;
+    for (let i = lo; i < hi; i++) {
+      const raw = (S.w[i] + S.w[i + 1]) * 0.5;
+      if (raw * scale >= 0.8) { open = false; continue; }
+      if (!open) { c.moveTo(S.x[i], S.y[i]); open = true; }
+      c.lineTo(S.x[i + 1], S.y[i + 1]);
+    }
+    c.stroke(); c.globalAlpha = 1;
+  }
+  function feathers(c, lo, hi, scale) {
+    c.lineCap = 'round'; c.strokeStyle = INK; c.lineWidth = 0.7 / scale; c.globalAlpha = 0.5;
+    c.beginPath();
+    for (let i = lo + 1; i < hi; i += 2) {
+      const w = S.w[i]; if (w * scale < 6) continue;
+      const h = hash(i * 3 + 1); if (h > 0.32) continue;
+      let tx = S.x[i + 1] - S.x[i - 1], ty = S.y[i + 1] - S.y[i - 1]; const L = Math.hypot(tx, ty) || 1; tx /= L; ty /= L;
+      const side = hash(i * 7 + 2) < 0.5 ? -1 : 1, nx = -ty * side, ny = tx * side;
+      const ang = (hash(i * 11 + 4) - 0.5) * 1.1, ca = Math.cos(ang), sa = Math.sin(ang);
+      const dx = nx * ca - ny * sa, dy = nx * sa + ny * ca, len = (1.5 + hash(i * 5 + 3) * 6) / scale;
+      const bx0 = S.x[i] + nx * w * 0.46, by0 = S.y[i] + ny * w * 0.46;
+      c.moveTo(bx0, by0); c.lineTo(bx0 + dx * len, by0 + dy * len);
+    }
+    c.stroke(); c.globalAlpha = 1;
+  }
+  function dryCuts(c, lo, hi) {
+    c.globalCompositeOperation = 'destination-out';
+    c.lineCap = 'round';
+    c.strokeStyle = '#000';
+    const NBR = 12;
+    for (let b = 0; b < NBR; b++) {
+      const off = (b / (NBR - 1) - 0.5) * 0.92 + (hash(b * 31 + 5) - 0.5) * 0.05;
+      const edge = Math.pow(Math.abs(b / (NBR - 1) - 0.5) * 2, 2) * 0.3;
+      let open = false;
+      for (let i = lo; i < hi; i++) {
+        const d = S.d[i];
+        const nz = vn(i * 0.016 + b * 31.7, 9) * 0.75 + vn(i * 0.09 + b * 7.1, 11) * 0.25;
+        const cut = d >= 0.04 && nz < d * 0.78 + edge * d - 0.06;
+        if (!cut) { if (open) { c.stroke(); open = false; } continue; }
+        const x0 = S.x[i], y0 = S.y[i], x1 = S.x[i + 1], y1 = S.y[i + 1];
+        let nx = -(y1 - y0), ny = x1 - x0; const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L;
+        const w = S.w[i];
+        if (!open) { c.lineWidth = Math.max(0.7, w * (0.05 + 0.05 * d)); c.beginPath(); c.moveTo(x0 + nx * off * w, y0 + ny * off * w); open = true; }
+        c.lineTo(x1 + nx * off * w, y1 + ny * off * w);
+      }
+      if (open) c.stroke();
+    }
+    c.globalCompositeOperation = 'source-over';
+  }
+  function blot(c, x, y, r, a) {
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(28,28,28,${a})`); g.addColorStop(0.55, `rgba(28,28,28,${a * 0.45})`); g.addColorStop(1, 'rgba(28,28,28,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+  }
+
+  function draw(tr) {
+    const fr = Math.round(tr * 30), tq = remap(Math.floor(fr / 2) / 15);   // drawing on twos
+    TRQ = Math.floor(fr / 2) / 15;
+    const t = remap(tr);
+    state(tq, S);
+    // boil
+    const seed = Math.floor(fr / 2);
+    for (let i = 0; i < N; i++) {
+      S.x[i] += (vn(i * 0.04 + seed * 13.1, 1) - 0.5) * 3.4;
+      S.y[i] += (vn(i * 0.04 + seed * 17.7, 2) - 0.5) * 3.4;
+      S.w[i] *= (0.95 + 0.1 * vn(i * 0.03 + seed * 7.3, 4)) * (0.95 + 0.1 * vn(i * 0.55, 12));
+    }
+    for (let i = 0; i < N; i++) {
+      const tone = 0.12 + 0.42 * vn(i * 0.011, 21) + 0.5 * S.d[i] - 0.3 * clamp((S.w[i] - 7) / 16, 0, 1);
+      TK[i] = clamp(Math.floor(tone * 6), 0, 5);
+    }
+    // draw-on range
+    let hi = N - 1, hiF = N - 1;
+    if (tq < 2.0) {
+      if (tq < 0.5) hiF = (N_T - 1) * lerp(0.8, 1, ez('power1.out')(clamp(tq / 0.5, 0, 1)));
+      else {
+        const p = ez('sine.inOut')(clamp((tq - 0.5) / 1.5, 0, 1));
+        let j = 0; while (j < N_B - 1 && birdCum[j + 1] < p) j++;
+        const k = (p - birdCum[j]) / Math.max(1e-6, birdCum[j + 1] - birdCum[j]);
+        hiF = N_T + j + clamp(k, 0, 1);
+      }
+      hi = Math.floor(hiF);
+    }
+    const cam = camera(t);
+    cam.sc *= 1 + 0.035 * sstep(1.5, HOLD0 + HOLD, tr) - 0.035 * sstep(HOLD0 + HOLD, HOLD0 + HOLD + 1.0, tr);
+    // paper
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = PAPER; ctx.fillRect(0, 0, SW, SH);
+    setCam(ctx, cam);
+    ctx.drawImage(paper, PX0, PY0);
+    // ink layer
+    ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.clearRect(0, 0, SW, SH);
+    setCam(ictx, cam);
+    let hx = S.x[hi], hy = S.y[hi];
+    if (hi < N - 1) {
+      const k = hiF - hi; hx = lerp(S.x[hi], S.x[hi + 1], k); hy = lerp(S.y[hi], S.y[hi + 1], k);
+      S.x[hi + 1] = hx; S.y[hi + 1] = hy;
+    }
+    const top = Math.min(hi + 1, N - 1);
+    if (top > 0) {
+      strokeLine(ictx, 0, top, cam.sc, 1, INK);
+      hairLines(ictx, 0, top, cam.sc);
+      feathers(ictx, 0, top, cam.sc);
+      // ink spatter thrown off the heavy start of the enso
+      const sp = seg(tq, 9.85, 10.0, 'power2.out');
+      if (sp > 0) {
+        const th0 = THS, ex = E[0] + RE * Math.cos(th0) * 1.0, ey = E[1] + RE * Math.sin(th0);
+        ictx.fillStyle = INK;
+        for (let k = 0; k < 14; k++) {
+          const a = th0 + Math.PI + (hash(k * 13 + 1) - 0.5) * 2.2, d = 30 + hash(k * 7 + 3) * 70 * sp, r = (0.8 + hash(k * 5 + 9) * 4.2) * (k < 3 ? 1.6 : 1);
+          ictx.beginPath(); ictx.arc(ex + Math.cos(a) * d, ey + Math.sin(a) * d, r * (0.6 + 0.4 * sp), 0, Math.PI * 2); ictx.fill();
+        }
+      }
+      if (hi < N - 1) { ictx.fillStyle = INK; ictx.beginPath(); ictx.arc(hx, hy, Math.max(2.6, S.w[hi] * 0.66), 0, Math.PI * 2); ictx.fill(); }
+      dryCuts(ictx, 0, top);
+      // inner tone: wet ink pools darker at the edges, lighter in the belly of thick strokes
+      i2.setTransform(1, 0, 0, 1, 0, 0); i2.clearRect(0, 0, SW, SH); setCam(i2, cam);
+      strokeLine(i2, 0, top, cam.sc, 0.5, '#7a7068', 7);
+      i2.setTransform(1, 0, 0, 1, 0, 0); i2.globalCompositeOperation = 'destination-in';
+      mottlePat.setTransform(camMatrix(cam)); i2.fillStyle = mottlePat; i2.fillRect(0, 0, SW, SH); i2.globalCompositeOperation = 'source-over';
+      ictx.setTransform(1, 0, 0, 1, 0, 0);
+      ictx.globalCompositeOperation = 'source-atop'; ictx.globalAlpha = 0.42 + 0.22 * sstep(9.6, 10.0, tq) * (1 - seg(t, 10.0, 11.9, 'power1.out')); ictx.filter = 'blur(1.6px)';
+      ictx.drawImage(ink2, 0, 0);
+      ictx.filter = 'none'; ictx.globalAlpha = 1; ictx.globalCompositeOperation = 'source-over';
+    }
+    // diluted ink wash inside petals and leaf, sumi-e style; it dissolves into the water on landing
+    wctx.setTransform(1, 0, 0, 1, 0, 0); wctx.clearRect(0, 0, SW, SH);
+    let washAny = false;
+    if (tq > 4.7 && tq < 9.6) {
+      setCam(wctx, cam); wctx.fillStyle = INK;
+      const poly = (a, b, al) => {
+        if (al <= 0.004) return; washAny = true;
+        wctx.globalAlpha = al; wctx.beginPath(); wctx.moveTo(S.x[a], S.y[a]);
+        for (let i = a + 1; i <= b; i++) wctx.lineTo(S.x[i], S.y[i]);
+        wctx.closePath(); wctx.fill();
+      };
+      for (let q = 0; q < 5; q++) {
+        const o = PET_ORDER.indexOf(q), a = N_T + N_SP + q * N_PET;
+        let al = 0.14 * seg(tq, 5.45 + 0.07 * o, 6.1 + 0.07 * o, 'power2.out');
+        const tl = DET[q] + FD;
+        al *= 1 - 0.55 * seg(tq, DET[q], tl, 'none');
+        if (tq > tl) al *= 0.6 * (1 - seg(tq, tl, tl + 0.9, 'power1.out'));
+        poly(a, a + N_PET - 1, al);
+      }
+      const lf0 = Math.round(0.36 * (N_T - 1)), lf1 = Math.round(0.47 * (N_T - 1));
+      poly(lf0, lf1, 0.16 * seg(tq, 4.8, 5.6, 'power2.out') * (1 - seg(tq, SLIDE0, SLIDE0 + 0.45, 'none')));
+      wctx.globalAlpha = 1;
+      if (washAny) {
+        wctx.setTransform(1, 0, 0, 1, 0, 0); wctx.globalCompositeOperation = 'destination-out';
+        wctx.globalAlpha = 0.3; mottlePat.setTransform(camMatrix(cam)); wctx.fillStyle = mottlePat; wctx.fillRect(0, 0, SW, SH);
+        wctx.globalAlpha = 1; wctx.globalCompositeOperation = 'source-over';
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.filter = 'blur(7px)'; ctx.drawImage(washC, 0, 0); ctx.filter = 'blur(2px)'; ctx.globalAlpha = 0.6; ctx.drawImage(washC, 0, 0);
+        ctx.filter = 'none'; ctx.globalAlpha = 1;
+      }
+    }
+    // composite ink: bleed halo, then body
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 0.07 + 0.07 * seg(t, 9.9, 12, 'power1.out'); ctx.filter = 'blur(14px)'; ctx.drawImage(ink, 0, 0);
+    ctx.globalAlpha = 0.2; ctx.filter = 'blur(3px)'; ctx.drawImage(ink, 0, 0);
+    ctx.filter = 'none'; ctx.globalAlpha = 0.96; ctx.drawImage(ink, 0, 0); ctx.globalAlpha = 1;
+    // bleed blots at the stroke ends
+    setCam(ctx, cam);
+    if (top > 0) {
+      blot(ctx, S.x[0], S.y[0], S.w[0] * 1.6 + 6, 0.24);
+      blot(ctx, hx, hy, S.w[hi] * 1.5 + 6, hi < N - 1 ? 0.32 : 0.16);
+    }
+    // seal
+    if (t > SEAL_T - 0.2) {
+      if (!sealFontOk) buildSeal();
+      const k = clamp((t - (SEAL_T - 0.2)) / 0.2, 0, 1), kin = ez('power2.in')(k);
+      const settle = t > SEAL_T ? 1 - 0.012 * Math.exp(-(t - SEAL_T) * 9) * Math.sin((t - SEAL_T) * 30) : 1;
+      const sc = lerp(1.22, 1, kin) * settle;
+      const sx = E[0] + 440, sy = E[1] + 330;
+      ctx.save(); ctx.translate(sx, sy); ctx.rotate(-0.045); ctx.scale(sc, sc);
+      ctx.globalAlpha = kin * 0.96; ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(seal, -100, -100);
+      ctx.globalCompositeOperation = 'source-over';
+      if (t > SEAL_T) { const s2 = clamp((t - SEAL_T) / 0.6, 0, 1); ctx.globalAlpha = 0.14 * (1 - s2); ctx.filter = 'blur(6px)'; ctx.drawImage(seal, -100, -100); ctx.filter = 'none'; }
+      ctx.restore(); ctx.globalAlpha = 1;
+    }
+    // grain over everything, locked to the paper
+    const cs = Math.cos(cam.rot) * cam.sc, sn = Math.sin(cam.rot) * cam.sc;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    grainPat.setTransform(new DOMMatrix([cs, sn, -sn, cs, 960 - (cs * cam.cx - sn * cam.cy), 540 - (sn * cam.cx + cs * cam.cy)]));
+    ctx.fillStyle = grainPat; ctx.fillRect(0, 0, SW, SH);
+    // light: warm window light from the top left, soft shade to the bottom right
+    ctx.globalCompositeOperation = 'multiply';
+    const sh = ctx.createLinearGradient(300, 0, 1800, 1080);
+    sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(0.55, 'rgba(250,244,232,0)'); sh.addColorStop(1, 'rgba(232,220,198,0.24)');
+    ctx.fillStyle = sh; ctx.fillRect(0, 0, SW, SH);
+    const vg = ctx.createRadialGradient(960, 520, 520, 960, 540, 1180);
+    vg.addColorStop(0, 'rgba(255,255,255,0)'); vg.addColorStop(1, 'rgba(206,188,160,0.22)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, SW, SH);
+    // a slow shaft of window light across the sheet
+    {
+      const ang = -0.42, ox = 760 + 140 * Math.sin(t * 0.21), ca = Math.cos(ang), sa = Math.sin(ang);
+      const g = ctx.createLinearGradient(ox - 700 * ca, 540 - 700 * sa, ox + 700 * ca, 540 + 700 * sa);
+      g.addColorStop(0, 'rgba(236,226,208,0.26)'); g.addColorStop(0.32, 'rgba(255,255,255,0)'); g.addColorStop(0.6, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(236,226,208,0.26)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
+    }
+    ctx.globalCompositeOperation = 'screen';
+    const lx = 520 + 40 * Math.sin(t * 0.3), ly = 260;
+    const lg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 1000);
+    lg.addColorStop(0, 'rgba(70,58,34,0.2)'); lg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = lg; ctx.fillRect(0, 0, SW, SH);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  const p = { t: 0 };
+  const tl = gsap.timeline({ paused: true });
+  tl.to(p, { t: DUR, duration: DUR, ease: 'none', onUpdate: () => draw(p.t) }, 0);
+  window.__timelines = window.__timelines || {};
+  window.__timelines['main'] = tl;
+  draw(0);
+})();
+    </script>
+  </body>
+</html>
