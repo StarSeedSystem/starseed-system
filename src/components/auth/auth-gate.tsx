@@ -9,6 +9,7 @@
 //   • Crear cuenta (recibe su dirección @star.seed e identidad automáticamente)
 //   • Entrar con código por correo (sin contraseña)  →  Supabase OTP
 //   • Explorar sin cuenta  →  sesión anónima (signInAnonymously)
+//   • Conoce StarSeed (sin cuenta)  →  guía de introducción completa sin cuenta
 //
 // Tras entrar (cuenta o invitado), OnboardingGate lanza la guía con Astraura.
 //
@@ -27,6 +28,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { WelcomeGate } from "@/components/welcome/welcome-gate";
 import { iniciarRito, navegarSuave } from "@/lib/onboarding/director-rito";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 
 function traducir(m: string): string {
   const s = (m || "").toLowerCase();
@@ -432,6 +434,19 @@ export function AuthGate() {
           style={{ width: "100%", background: "transparent", border: "none", color: "rgba(255,255,255,.6)", fontSize: 12, marginTop: 14, cursor: "pointer", transition: "color .15s" }}
         >
           {mode === "in" ? "¿No tienes cuenta? Crea una" : "¿Ya tienes cuenta? Inicia sesión"}
+        </button>
+
+        {/* Conoce StarSeed sin entrar (§5 · GUI1021K1): botón secundario visible
+            bajo los dos modos, Entrar y Crear cuenta. Abre la guía completa por la
+            puerta común; no toca el inicio de sesión ni cambia de modo. */}
+        <button
+          type="button"
+          className="ss-auth-soft"
+          onClick={() => abrirGuia({ desde: "login" })}
+          style={{ width: "100%", minHeight: 44, marginTop: 10, border: "1px solid rgba(255,255,255,.16)", borderRadius: 13, padding: "10px 0", color: "rgba(255,255,255,.9)", fontWeight: 600, fontSize: 13.5, cursor: "pointer", transition: "background .15s, border-color .15s, opacity .15s", background: "rgba(255,255,255,.04)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+        >
+          <span aria-hidden>✦</span>
+          Conoce StarSeed (sin cuenta)
         </button>
 
         {/* Propuesta de valor breve y honesta */}
