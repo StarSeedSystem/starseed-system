@@ -49,7 +49,7 @@ export function planDeDecision(
 }
 
 interface RespuestaLayaHttp { answers?: Record<string,
-  { choice?: unknown; confidence?: unknown; }>; }
+  { choice?: unknown; confidence?: unknown; answer_confidence?: unknown; }>; }
 
 export async function decidirConLaya(
   consulta: string, herramientas: HerramientaNeedle[], transporte?: typeof fetch
@@ -77,8 +77,12 @@ export async function decidirConLaya(
     const decision = data.answers?.herramienta;
     if (typeof decision?.choice !== "string"
       || !Object.prototype.hasOwnProperty.call(criteria, decision.choice)) return null;
-    if (typeof decision.confidence !== "number" || !Number.isFinite(decision.confidence)) return null;
-    return { herramienta: decision.choice, confianza: decision.confidence, motor: "laya-local" };
+    // Lectura calibrada (Ola 1018L · LYS1018B): manda `answer_confidence`; `confidence` solo si falta aquella.
+    const cruda = typeof decision.answer_confidence === "number" && Number.isFinite(decision.answer_confidence)
+      ? decision.answer_confidence
+      : decision.confidence;
+    if (typeof cruda !== "number" || !Number.isFinite(cruda)) return null;
+    return { herramienta: decision.choice, confianza: cruda, motor: "laya-local" };
   } catch {
     return null;
   } finally {
