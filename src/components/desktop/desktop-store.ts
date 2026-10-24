@@ -17,6 +17,7 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 // ── Tipos del modelo ─────────────────────────────────────────────
 export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
@@ -1135,6 +1136,59 @@ export interface OpenWindowOptions {
     h?: number;
     /** Si true, NO reutiliza una ventana existente con el mismo contenido. */
     allowDuplicate?: boolean;
+    /**
+     * Posición GUARDADA opcional (2026-10-24 · Ola 1019D): cuando el que abre ya
+     * conoce dónde vivía la ventana (ventana restaurada del escritorio guardado),
+     * la respeta; `posicionVentanaAbierta` la recoloca solo si quedó fuera.
+     */
+    x?: number;
+    y?: number;
+}
+
+// ── Composición centrada (Ola 1019D · decisión de Alex 2026-10-19) ──
+/**
+ * Decide dónde nace una ventana. Sin posición guardada usa la geometría
+ * centrada de `src/lib/design/composicion.ts` (§«Composición centrada» de
+ * `adn-y-tokens.md`: los elementos se centraron en su ventana y cada ventana
+ * en la pantalla); con posición guardada la respeta y SOLO la recoloca si
+ * quedó fuera de la pantalla actual. Pura, sin DOM: el test la prueba sola.
+ */
+export interface PosicionVentanaInput {
+    /** Ancho de la pantalla/viewport actual (px). */
+    vw: number;
+    /** Alto de la pantalla/viewport actual (px). */
+    vh: number;
+    /** Ancho final de la ventana (px). */
+    w: number;
+    /** Alto final de la ventana (px). */
+    h: number;
+    /** Posición guardada previa (opcional). */
+    guardada?: { x: number; y: number };
+}
+
+export function posicionVentanaAbierta(entrada: PosicionVentanaInput): { x: number; y: number } {
+    const { vw, vh, w, h, guardada } = entrada;
+    // Límite lateral que ya usaba el escritorio: margen derecho >= 16.
+    const maxX = Math.max(8, vw - w - 16);
+    const dentro = (valor: number, tope: number): number => Math.min(tope, Math.max(8, valor));
+    if (guardada) {
+        // Posición guardada: se respeta mientras la ventana quepa dentro del
+        // viewport; solo si quedó fuera (otro aparato, otra resolución) se
+        // recoloca al límite que la hace de nuevo visible. B-1: nunca bajo
+        // la banda de la barra superior, y nunca por encima del borde inferior.
+        const topeY = Math.max(DESKTOP_TOP_INSET, vh - h);
+        return {
+            x: dentro(guardada.x, maxX),
+            y: Math.min(topeY, Math.max(DESKTOP_TOP_INSET, guardada.y)),
+        };
+    }
+    // Sin posición: composición centrada de `composicion.ts` (tipo "ventana"),
+    // con la banda de la barra superior (B-1) respetada y margen lateral >= 8.
+    const g = geometriaVentana({ ancho: vw, alto: vh }, { tipo: "ventana", ancho: w, alto: h });
+    return {
+        x: Math.max(8, g.x),
+        y: Math.max(DESKTOP_TOP_INSET, g.y),
+    };
 }
 
 /** Abre una ventana (o enfoca la existente con el mismo contenido). Devuelve su id. */
@@ -1149,28 +1203,45 @@ export function openWindow(
         const existing = dedupe
             ? d.windows.find((w) => w.contentRef.type === contentRef.type && w.contentRef.ref === contentRef.ref)
             : undefined;
+        const vw = isClient() ? window.innerWidth : 1280;
+        const vh = isClient() ? window.innerHeight : 800;
         if (existing) {
             resultId = existing.id;
             const z = nextZ(d);
+            // Posición guardada: se respeta, pero recolocada dentro de la
+            // pantalla si cambió el aparato y quedó fuera. Maximizada o a
+            // pantalla completa su rect lo decide quien la maximiza: no se toca.
+            const restaurada =
+                existing.maximized || existing.fullscreen
+                    ? { x: existing.x, y: existing.y }
+                    : posicionVentanaAbierta({
+                        vw,
+                        vh,
+                        w: existing.w,
+                        h: existing.h,
+                        guardada: { x: existing.x, y: existing.y },
+                    });
             return {
                 ...d,
                 windows: d.windows.map((w) =>
-                    w.id === existing.id ? { ...w, minimized: false, z } : w,
+                    w.id === existing.id ? { ...w, minimized: false, z, ...restaurada } : w,
                 ),
             };
         }
-        const vw = isClient() ? window.innerWidth : 1280;
-        const vh = isClient() ? window.innerHeight : 800;
         const w = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
         const h = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
-        const idx = d.windows.length;
-        // Cascada que NUNCA invade la banda de la barra superior (B-1).
-        const maxY = Math.max(DESKTOP_TOP_INSET, vh - h - 120);
+        // Ola 1019D: sin posición guardada, la ventana nace CENTRADA
+        // (última decisión de diseño 2026-10-19); con `x`/`y` guardados,
+        // se respetan (y se recolocan si quedaron fuera de la pantalla).
+        const guardada = typeof opts?.x === "number" && typeof opts?.y === "number"
+            ? { x: opts.x, y: opts.y }
+            : undefined;
+        const pos = posicionVentanaAbierta({ vw, vh, w, h, guardada });
         const win: DesktopWindow = {
             id: resultId,
             contentRef,
-            x: Math.max(8, Math.min(48 + (idx % 6) * 36, vw - w - 16)),
-            y: Math.min(clampWindowY(DESKTOP_TOP_INSET + 6 + (idx % 6) * 30), maxY),
+            x: pos.x,
+            y: pos.y,
             w,
             h,
             z: nextZ(d),
