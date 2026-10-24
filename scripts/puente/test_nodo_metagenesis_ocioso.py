@@ -62,6 +62,8 @@ class LatidoMedio(unittest.TestCase):
         for latidos in ({"tareas": []}, {"tareas": "chirona"}, None):
             self.assertEqual(self.salud(latidos).get("libres", 0), 0)
         self.assertNotIn("libres", self.salud(viva=False))  # sin cola viva no hay campo nuevo (compatibilidad)
+        # Cola viva con un solo trabajador ocupado: deja libres = trabajadores - vivas
+        self.assertEqual(self.salud({"trabajadores": 2, "tareas": {"A": {"fase": "tsc"}}})["libres"], 1)
 
 
 class RepartirAlimentar(unittest.TestCase):
