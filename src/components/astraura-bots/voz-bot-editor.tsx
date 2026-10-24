@@ -9,11 +9,15 @@
  */
 import { useState } from "react";
 import { EMOCIONES, type Emocion } from "@/lib/astraura-bots/tipos";
+import { leerMedidas } from "@/lib/aurora/medidas-voz";
 import {
   ESTILOS_OPENVOICE,
   MOTORES_VOZ,
+  adaptarVozANeurona,
   estiloDe,
+  huellaVoz,
   normalizarVozBot,
+  timbreUsableDe,
   type EstiloOpenVoice,
   type MotorVoz,
   type VozBot,
@@ -126,6 +130,28 @@ export function EditorVozBot({ valor, onCambiar }: EditorVozBotProps) {
           Volver a la voz de fábrica
         </button>
       </fieldset>
+      <footer className="space-y-1 rounded-md bg-muted/40 p-2 text-xs text-muted-foreground">
+        {(() => {
+          const t = timbreUsableDe(v);
+          const medidas = leerMedidas();
+          const motoresNeurona = MOTORES_VOZ.filter((m) =>
+            medidas.some((x) => x.tipo === "primer-sonido" && x.motor === m));
+          const { motor, aviso } = adaptarVozANeurona(v, motoresNeurona);
+          return (
+            <>
+              <p>
+                Timbre de verdad: {t.origen === "propia" ? `su voz clonada (${t.timbreId})`
+                  : t.origen === "catalogo" ? `del catálogo (${t.timbreId})` : `semilla ${t.semilla}`}.
+              </p>
+              <p>
+                Esta neurona {motor ? `habla con ${motor}` : "no tiene ningún motor de voz: hablará con la voz del sistema"}.
+                {aviso && <> <span className="text-amber-600">{aviso}</span></>}
+              </p>
+              <p>Huella de su voz: <span lang="zxx" className="font-mono">{huellaVoz(v)}</span> — la misma aquí y en todas las neuronas.</p>
+            </>
+          );
+        })()}
+      </footer>
     </div>
   );
 }
