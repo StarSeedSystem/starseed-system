@@ -99,13 +99,15 @@ async function leerFuenteFn(fn: () => Promise<unknown>): Promise<ResultadoFuente
         const ms = Date.now() - inicio;
         clearTimeout(tope);
         return { ok: true, data, ms, motivo: undefined };
-    } catch (e: any) {
+    } catch (e) {
+        const error = e as Error | DOMException;
         clearTimeout(tope);
         const ms = Date.now() - inicio;
-        if (e instanceof DOMException && e.name === "AbortError") {
+        if (error instanceof DOMException && error.name === "AbortError") {
             return { ok: false, data: null, ms, motivo: " tiempo agotado" };
         }
-        return { ok: false, data: null, ms, motivo: e?.message ?? " error desconocido" };
+        const motivo = (error as Error).message ?? " error desconocido";
+        return { ok: false, data: null, ms, motivo };
     }
 }
 
@@ -174,9 +176,9 @@ export async function leerProcesos(o?: { incluirMac?: boolean }): Promise<{
     const pgss = desdePoligenesis(undefined); // poligenesis no tiene fetch directo aquí
     const srs = suenosR.ok && suenosR.data ? desdeSuenos(sueñosR.data) : [];
     const sas = imaginacionR.ok && imaginacionR.data ? desdeImaginacion(imaginacionR.data) : [];
-    const sts = historialR.ok && historialR.data ? desdeActualizaciones(historialR.data as any) : [];
+    const sts = historialR.ok && historialR.data ? desdeActualizaciones(historialR.data) : [];
     const wis = desktopsR.ok && desktopsR.data ? desdeVentanas(desktopsR.data) : [];
-    const insData = instalR.ok && instalR.data ? (instalR.data as any) : [];
+    const insData = instalR.ok && instalR.data ? instalR.data : [];
     const ins = desdeInstalaciones(insData);
 
     const todosProcesos = unirProcesos(ags, mds, nds, pgss, srs, sas, sts, wis, ins);
@@ -185,12 +187,13 @@ export async function leerProcesos(o?: { incluirMac?: boolean }): Promise<{
     const hardware: HardwareServidor[] = [];
 
     if (incluirMac && hardwareR.ok && hardwareR.data) {
-        const h = hardwareDesdeMac(hardwareR.data as any, Date.now());
+        const h = hardwareDesdeMac(hardwareR.data as unknown as Record<string, unknown>, Date.now());
         if (h) hardware.push(h);
     }
 
     try {
-        const neuronasList = neuronasR.ok && neuronasR.data ? (neuronasR.data as any[]) : [];
+        const neuronaData = neuronasR.ok && neuronasR.data ? neuronasR.data : [];
+        const neuronasList = Array.isArray(neuronaData) ? neuronaData : [];
         for (const n of neuronasList) {
             try {
                 const hw = hardwareDesdeNeurona(n, Date.now());
