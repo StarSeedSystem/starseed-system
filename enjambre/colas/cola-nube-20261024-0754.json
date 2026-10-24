@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "IMG1020Ab",
+   "ola": "1020U",
+   "titulo": "ComfyUI · plantillas puras de flujo (texto a imagen, imagen a imagen, escalado y variaciones por formato de publicación)",
+   "archivos": [
+    "src/lib/imagenes/flujos-comfyui.ts",
+    "src/lib/imagenes/__tests__/flujos-comfyui.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2: un ComfyUI real exige el GRAFO del flujo en formato API: objeto `{\"<id>\": {class_type, inputs}}` con enlaces `[\"<id>\", <salida>]`. Escribe constructores puros: `textoAImagen` (CheckpointLoaderSimple → CLIPTextEncode positivo y negativo → EmptyLatentImage → KSampler → VAEDecode → SaveImage), `imagenAImagen` (LoadImage → VAEEncode → KSampler con `denoise`), `escalar` (LoadImage → ImageScaleBy) y `variaciones` (el mismo flujo con N semillas que da quien llama). Formatos de publicación 1:1, 4:5, 9:16 y 16:9 con lados múltiplos de 8, cerca de 1 megapíxel (y una variante de ~0,26 MP para modelos de la gama SD 1.5). Lista blanca de nodos del núcleo (ningún nodo personalizado), muestreadores `euler`, `euler_ancestral`, `dpmpp_2m`, `dpmpp_sde` y planificadores `normal`, `karras`, `simple`; parámetros acotados (pasos 1–60, cfg 1–15, lado ≤ 2048) con error legible si no. Pruebas: cada formato respeta su proporción (±2 %) y múltiplos de 8; todos los enlaces apuntan a nodos que existen; ningún class_type fuera de la lista. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261023-220345`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261023-220345:refs/remotes/origin/nube/a1-20261023-220345\"` y `git cherry-pick --no-commit 7789d9c6e9bb 0a6b9826a0a6 92a849f5f3a7 26b881edc08e 8605987b177c`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/media/media-gen.ts, src/lib/imagenes/__tests__/flujos-comfyui.test.ts, src/lib/imagenes/flujos-comfyui.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261023-220345"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "IMG1020Ab"
+  ]
+ }
+}
