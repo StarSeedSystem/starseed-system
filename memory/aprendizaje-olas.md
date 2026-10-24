@@ -4621,3 +4621,26 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `FSH1018A` — otra cosa: ningún proveedor respondió (todos caídos)
 - `GCA1019H` — pruebas en rojo: vitest falla (rama conservada)
 - `RTRTCOL1012Bdsbbbbbbbbbbc` — otra cosa: ningún proveedor respondió (todos caídos)
+## 2026-10-22 06:25 · mg-oracle-1021-2335
+
+**Lo que se pidió.** Titanio: la red amorfa y la relajación usan el titanio
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTFS1013Ad-d1` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTFS1013Ad-d1 conservada)
+- `RTRTRTS1010-EV-ORACLE-1accbbbbbbb` — no escribió nada
+
+## 2026-10-24 05:43 · mg-oracle-1023-2252
+
+**Lo que se pidió.** reasignada · medio oracle
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (RLB1020Jb, PES1020Bb). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RLB1020Jb` — no escribió nada
+- `PES1020Bb` — no escribió nada
