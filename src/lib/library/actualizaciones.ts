@@ -5,7 +5,8 @@
 // upstream, extrae la versión remota de la respuesta JSON y compara versiones.
 // Importable desde componentes de cliente.
 //
-// Canales por `payload`: commits (por defecto), releases y tags. En tags,
+// Canales (RLB1020Bd): commits (por defecto), releases y tags. Se pueden pasar
+// como texto (`"releases"`) o como `payload` con `canal`; en tags,
 // `payload.patronTag` filtra por expresión regular: RuView publica releases
 // numéricas de CI y sus versiones reales son las etiquetas ruview-harness-*.
 // ════════════════════════════════════════════════════════════════════════════
@@ -13,6 +14,9 @@
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
 export type EstadoActualizacion = "igual" | "hay-actualizacion" | "desconocida";
+
+/** Canal por el que se sigue la versión de un upstream de GitHub. */
+export type CanalActualizacion = "releases" | "tags" | "commits";
 
 export interface VersionLeida {
     version: string;
@@ -24,6 +28,9 @@ export interface PayloadActualizacion {
     canal?: unknown;
     patronTag?: unknown;
 }
+
+/** El segundo argumento puede ser el canal como texto o el payload del paquete. */
+export type CanalOPayload = CanalActualizacion | PayloadActualizacion;
 
 /* ─────────────────── Validación del patrón de etiqueta ─────────────────── */
 
@@ -60,27 +67,48 @@ export function validarPatronTag(texto: unknown): PatronTagValidado {
 const RE_GITHUB = /^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+?)(?:\/.*)?$/;
 const RE_HF = /^https?:\/\/huggingface\.co\/([^/\s]+\/[^/\s]+?)(?:\/.*)?$/;
 
-function canalDeGitHub(payload?: PayloadActualizacion): "commits" | "releases" | "tags" {
-    if (validarPatronTag(payload?.patronTag).patron) return "tags";
-    if (payload?.canal === "tags") return "tags";
-    if (payload?.canal === "releases") return "releases";
-    return "commits";
+interface CanalElegido {
+    canal: CanalActualizacion;
+    patron: RegExp | null;
+}
+
+const SOLO_COMMITS: CanalElegido = { canal: "commits", patron: null };
+
+/**
+ * Valora el segundo argumento de `urlDeConsulta`/`leerVersion`: un texto
+ * (`"releases"` | `"tags"` | `"commits"`) o un `payload` con `canal` y, en
+ * tags, `patronTag`. Un patrón válido manda, porque refina el canal de
+ * etiquetas; uno inválido se ignora y cae al canal que toque.
+ */
+function elegirCanal(opcion?: CanalOPayload): CanalElegido {
+    if (typeof opcion === "string") {
+        if (opcion === "tags" || opcion === "releases") return { canal: opcion, patron: null };
+        return SOLO_COMMITS;
+    }
+    const patron = validarPatronTag(opcion?.patronTag).patron;
+    if (patron) return { canal: "tags", patron };
+    if (opcion?.canal === "tags") return { canal: "tags", patron: null };
+    if (opcion?.canal === "releases") return { canal: "releases", patron: null };
+    return SOLO_COMMITS;
 }
 
 /**
  * A qué URL pública hay que pedir para saber la versión de un upstream.
- * GitHub → commits, releases o tags según `payload`; si hay un `patronTag`
- * válido manda el canal de etiquetas. Hugging Face → ficha del modelo.
- * Un patrón inválido se ignora (vuelve al canal sin filtro). Cualquier otra
- * forma devuelve null.
+ * GitHub → commits, releases o tags según el canal (texto o payload); si hay
+ * un `patronTag` válido manda el canal de etiquetas y pide suficientes para
+ * poder filtrar. Hugging Face → ficha del modelo. Cualquier otra forma
+ * devuelve null.
  */
-export function urlDeConsulta(upstream: string, payload?: PayloadActualizacion): string | null {
+export function urlDeConsulta(upstream: string, canal?: CanalOPayload): string | null {
     const github = RE_GITHUB.exec(upstream);
     if (github) {
         const ruta = github[1].replace(/\.git$/, "");
-        const canal = canalDeGitHub(payload);
-        if (canal === "tags") return `https://api.github.com/repos/${ruta}/tags?per_page=100`;
-        if (canal === "releases") {
+        const elegido = elegirCanal(canal);
+        if (elegido.canal === "tags") {
+            const limite = elegido.patron ? 100 : 1;
+            return `https://api.github.com/repos/${ruta}/tags?per_page=${limite}`;
+        }
+        if (elegido.canal === "releases") {
             return `https://api.github.com/repos/${ruta}/releases/latest`;
         }
         return `https://api.github.com/repos/${ruta}/commits?per_page=1`;
@@ -98,9 +126,8 @@ function esCadena(v: unknown): v is string {
     return typeof v === "string" && v.length > 0;
 }
 
-function leerEtiqueta(json: unknown, payload?: PayloadActualizacion): VersionLeida | null {
+function leerEtiqueta(json: unknown, patron: RegExp | null): VersionLeida | null {
     if (!Array.isArray(json)) return null;
-    const { patron } = validarPatronTag(payload?.patronTag);
     for (const item of json) {
         const etiqueta = item as { name?: unknown };
         if (!esCadena(etiqueta?.name)) continue;
@@ -123,27 +150,25 @@ function leerRelease(json: unknown): VersionLeida | null {
 }
 
 /**
- * Saca `{version, fecha}` del JSON de la consulta: sha corto y fecha del
- * commit en GitHub (lista), la primera etiqueta que case con `patronTag`, la
- * última release, o `sha`/`lastModified` del modelo en HF (objeto). Sin
- * etiqueta coincidente devuelve null: no se inventa una versión.
+ * Saca `{version, fecha}` del JSON de la consulta, según el canal (texto o
+ * payload): sha corto y fecha del commit en GitHub (lista), la primera
+ * etiqueta que case con `patronTag`, la última release
+ * (`tag_name`/`published_at`), o `sha`/`lastModified` del modelo en HF
+ * (objeto). Sin etiqueta coincidente devuelve null: no se inventa una
+ * versión.
  */
-export function leerVersion(
-    upstream: string,
-    json: unknown,
-    payload?: PayloadActualizacion,
-): VersionLeida | null {
+export function leerVersion(upstream: string, json: unknown, canal?: CanalOPayload): VersionLeida | null {
     if (RE_GITHUB.test(upstream)) {
-        const canal = canalDeGitHub(payload);
-        if (canal === "tags") return leerEtiqueta(json, payload);
-        if (canal === "releases") return leerRelease(json);
+        const elegido = elegirCanal(canal);
+        if (elegido.canal === "tags") return leerEtiqueta(json, elegido.patron);
+        if (elegido.canal === "releases") return leerRelease(json);
         if (!Array.isArray(json) || json.length === 0) return null;
         const primero = json[0] as { sha?: unknown; commit?: { committer?: { date?: unknown } } };
         if (!esCadena(primero?.sha)) return null;
         const fecha = primero.commit?.committer?.date;
         return { version: primero.sha.slice(0, 7), fecha: esCadena(fecha) ? fecha : null };
     }
-    if (urlDeConsulta(upstream)?.includes("huggingface.co/api")) {
+    if (urlDeConsulta(upstream, canal)?.includes("huggingface.co/api")) {
         const modelo = json as { sha?: unknown; lastModified?: unknown };
         if (!esCadena(modelo?.sha)) return null;
         const fecha = modelo.lastModified;
@@ -156,20 +181,38 @@ export function leerVersion(
 
 const RE_SHA = /^[0-9a-f]{7,40}$/i;
 
+/** Quita la «v» inicial y el caso, para comparar tags por igualdad textual. */
+function normalizarTag(tag: string): string {
+    return tag.replace(/^v/i, "").toLowerCase();
+}
+
 /**
- * Compara identificadores del mismo tipo. Los upstream consultados entregan un
- * sha, por lo que una versión manual como «1.0.0» no demuestra ni igualdad ni
- * cambio y debe quedar como «desconocida».
+ * Compara identificadores del mismo tipo:
+ * · los dos shas → comparación por prefijo (como siempre);
+ * · los dos tags (un tag no es un sha) → se normaliza (sin «v» inicial) y
+ *   se compara por igualdad textual: iguales → «igual», distintos →
+ *   «hay-actualizacion»;
+ * · mezcla de sha y tag, o un lado vacío → «desconocida», porque un tag no
+ *   demuestra nada de un sha y viceversa.
  */
 export function compararVersiones(
     instalada: string | null | undefined,
     remota: string | null | undefined,
 ): EstadoActualizacion {
     if (!instalada || !remota) return "desconocida";
-    if (!RE_SHA.test(instalada) || !RE_SHA.test(remota)) return "desconocida";
-    const local = instalada.toLowerCase();
-    const upstream = remota.toLowerCase();
-    return local.startsWith(upstream) || upstream.startsWith(local)
-        ? "igual"
-        : "hay-actualizacion";
+    const localEsSha = RE_SHA.test(instalada);
+    const remotaEsSha = RE_SHA.test(remota);
+    if (localEsSha && remotaEsSha) {
+        const local = instalada.toLowerCase();
+        const upstream = remota.toLowerCase();
+        return local.startsWith(upstream) || upstream.startsWith(local)
+            ? "igual"
+            : "hay-actualizacion";
+    }
+    if (!localEsSha && !remotaEsSha) {
+        return normalizarTag(instalada) === normalizarTag(remota)
+            ? "igual"
+            : "hay-actualizacion";
+    }
+    return "desconocida";
 }

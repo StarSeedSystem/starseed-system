@@ -26,6 +26,27 @@ describe("urlDeConsulta", () => {
         expect(urlDeConsulta("https://gitlab.com/algo/raro")).toBeNull();
         expect(urlDeConsulta("no-es-url")).toBeNull();
     });
+
+    it("el canal pasado como texto elige la consulta de GitHub", () => {
+        expect(urlDeConsulta("https://github.com/razorback16/openjev", "releases")).toBe(
+            "https://api.github.com/repos/razorback16/openjev/releases/latest",
+        );
+        expect(urlDeConsulta("https://github.com/razorback16/openjev", "tags")).toBe(
+            "https://api.github.com/repos/razorback16/openjev/tags?per_page=1",
+        );
+        expect(urlDeConsulta("https://github.com/razorback16/openjev", "commits")).toBe(
+            "https://api.github.com/repos/razorback16/openjev/commits?per_page=1",
+        );
+    });
+
+    it("a Hugging Face da igual el canal: siempre la ficha del modelo", () => {
+        expect(urlDeConsulta("https://huggingface.co/AlexWortega/openjev", "releases")).toBe(
+            "https://huggingface.co/api/models/AlexWortega/openjev",
+        );
+        expect(urlDeConsulta("https://huggingface.co/AlexWortega/openjev", "tags")).toBe(
+            "https://huggingface.co/api/models/AlexWortega/openjev",
+        );
+    });
 });
 
 describe("leerVersion", () => {
@@ -51,6 +72,22 @@ describe("leerVersion", () => {
         expect(leerVersion("https://github.com/a/b", [])).toBeNull();
         expect(leerVersion("https://huggingface.co/a/b", {})).toBeNull();
     });
+
+    it("canal releases: tag_name, fecha null si falta published_at y null si falta tag_name", () => {
+        const upstream = "https://github.com/razorback16/openjev";
+        expect(leerVersion(upstream, { tag_name: "v1.2.3" }, "releases")).toEqual({
+            version: "v1.2.3",
+            fecha: null,
+        });
+        expect(leerVersion(upstream, { published_at: "2026-10-01" }, "releases")).toBeNull();
+    });
+
+    it("canal tags con texto: primera etiqueta, sin fecha", () => {
+        expect(leerVersion("https://github.com/a/b", [{ name: "v0.4.2" }], "tags")).toEqual({
+            version: "v0.4.2",
+            fecha: null,
+        });
+    });
 });
 
 describe("compararVersiones", () => {
@@ -70,6 +107,22 @@ describe("compararVersiones", () => {
     it("falta un dato → «desconocida»", () => {
         expect(compararVersiones(undefined, "a1b2c3d")).toBe("desconocida");
         expect(compararVersiones("a1b2c3d", null)).toBe("desconocida");
+    });
+
+    it("tag contra el mismo tag, con o sin «v» → «igual»", () => {
+        expect(compararVersiones("v0.24.6", "v0.24.6")).toBe("igual");
+        expect(compararVersiones("v0.24.6", "0.24.6")).toBe("igual");
+        expect(compararVersiones("V1.0.0", "v1.0.0")).toBe("igual");
+    });
+
+    it("tag contra otro tag → «hay-actualizacion»", () => {
+        expect(compararVersiones("v0.24.6", "v0.24.7")).toBe("hay-actualizacion");
+        expect(compararVersiones("0.24.6", "v0.24.7")).toBe("hay-actualizacion");
+    });
+
+    it("sha contra tag (mezcla) → «desconocida»", () => {
+        expect(compararVersiones("v0.24.6", "a1b2c3d")).toBe("desconocida");
+        expect(compararVersiones("a1b2c3d", "v0.24.6")).toBe("desconocida");
     });
 });
 
