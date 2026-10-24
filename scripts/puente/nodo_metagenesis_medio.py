@@ -279,6 +279,27 @@ def en_curso_de(raiz: str, colas: Union[None, str, Iterable[str]]) -> Optional[L
     return salida
 
 
+def medio_alimentable(n: int, l: Dict[str, Any]) -> Tuple[bool, str]:
+    """PURA. ¿El medio `n` es alimentable? (contrato §3: cola sin tareas nuevas en los últimos 10 min)."""
+    if not isinstance(l, dict):
+        return False, "no hay latido"
+    if not l.get("orquestador_vivo"):
+        return False, "orquestador caído"
+    if not l.get("cola"):
+        return False, "sin cola"
+    if not l.get("libres"):
+        return False, "sin libres"
+    if not l.get("t"):
+        return False, "sin marca de tiempo"
+    try:
+        t = float(l["t"])
+    except (TypeError, ValueError):
+        return False, "marca de tiempo no válida"
+    if time.time() - t > 600:
+        return False, "latido muy viejo"
+    return True, "alimentable"
+
+
 def contenedor_de(disco_gb: Optional[float], ram_mb: Optional[int]) -> Optional[Dict[str, Any]]:
     """Lo que este aparato puede aportar como contenedor, con la memoria y los núcleos REALES (contrato §2).
 
@@ -670,6 +691,25 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
     # Falso mientras nadie sepa seguir la tarea de otro (COL1012E subir puntos al A1, G el líder, H al volver).
     salud["relevo"] = False
 
+    # Resumen de la cola viva (trabajando, esperando, libres)
+    viva = cola_viva()
+    if viva:
+        latidos_path = os.path.join(raiz, "starseed_memory_root", "olas", "latidos-" + viva)
+        lv = leer_json(latidos_path, {})
+        if isinstance(lv, dict):
+            tareas = lv.get("tareas") or {}
+            if isinstance(tareas, dict):
+                salud["trabajando"] = any(
+                    C.tarea_viva(v.get("fase")) for v in tareas.values() if isinstance(v, dict)
+                )
+                salud["esperando"] = any(
+                    str(v.get("fase", "")).startswith("esperando") for v in tareas.values() if isinstance(v, dict)
+                )
+                trab = sum(
+                    1 for v in tareas.values() if isinstance(v, dict) and C.tarea_viva(v.get("fase"))
+                )
+                trabajadores = lv.get("trabajadores", 0) or 0
+                salud["libres"] = max(0, trabajadores - trab)
     return {"medio": medio, "raiz": raiz, "salud": salud, "cap": cap}
 
 
@@ -782,6 +822,21 @@ def ejecutar(a: Dict[str, Any], medio: str, raiz: str, seco: bool,
                     borrados += 1
                 except OSError:
                     pass
+    if que == "repartir":
+        if args.get("modo") == "alimentar":
+            cola = str(args.get("cola") or "")
+            tareas = args.get("tareas") or []
+            if not cola or not tareas:
+                return "fallo", "falta cola o tareas para repartir"
+            ruta = os.path.join(olas, cola + ".json")
+            d = leer_json(ruta, [])
+            lista = d if isinstance(d, list) else (d or {}).get("tareas", []) if isinstance(d, dict) else []
+            ids = {str(t.get("id")) for t in lista if isinstance(t, dict) and t.get("id")}
+            nuevas = [t for t in tareas if isinstance(t, dict) and str(t.get("id")) not in ids]
+            if not nuevas:
+                return "nada", "todas las tareas ya están en la cola"
+            escribir_atomico(ruta, list(lista or []) + nuevas)
+            return "hecha", "%d tarea(s) añadida(s) a %s" % (len(nuevas), cola)
         return "hecha", "registros viejos fuera (%d) y diario de systemd recortado" % borrados
     if que == "contenedor":
         ruta = os.path.join(CARPETA, "contenedor.json")
