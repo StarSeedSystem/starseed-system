@@ -368,7 +368,9 @@ export function normalizeLayers(raw: unknown): BackgroundLayer[] {
       value: typeof l.value === "string" ? l.value : undefined,
       audiomorphic: l.kind === "audiomorphic" ? normalizeAudiomorphic(l.audiomorphic) : undefined,
       preset: l.kind === "shader" ? l.preset : undefined,
-      difusion: l.kind === "difusion" ? l.difusion : undefined,
+      // Copia (nunca muta la config de quien llama) y solo si es un objeto: con `difusion: "x"` la
+      // normalización de abajo asignaba propiedades a un texto y lanzaba TypeError (FSH1018C).
+      difusion: l.kind === "difusion" && l.difusion && typeof l.difusion === "object" ? { ...l.difusion } : undefined,
       transform: l.transform,
       mascara: l.mascara,
     };
