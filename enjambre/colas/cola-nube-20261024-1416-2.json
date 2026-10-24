@@ -1,0 +1,100 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "SGO1024A",
+   "ola": "1024S",
+   "titulo": "Voz · el elector del oído aprende de lo medido (buildRecognition pasa medidas reales a elegirOido)",
+   "archivos": [
+    "src/lib/aurora/engine.ts",
+    "src/lib/aurora/__tests__/elegir-oido-medidas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024A (2026-10-24): buildRecognition llama a elegirOido con `medidas: {}`, así que el elector del oído no aprende de las medidas que ahora sí se anotan (src/lib/aurora/medidas-voz.ts: medidasDe / leerMedidas, tipo «tiempo-real-oido», menor es mejor). Pásale las medidas reales de esta neurona (mediana por motor de las últimas, como hace vozMedida en src/lib/network/capacidades-nodo.ts) sin bloquear el arranque del reconocimiento. Prueba con medidas simuladas: con medidas elige el más rápido; sin medidas, el orden de siempre. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024B",
+   "ola": "1024S",
+   "titulo": "Voz · Chatterbox anota un primer sonido por turno y con idioma (no uno por trozo)",
+   "archivos": [
+    "src/lib/aurora/tts-oss/chatterbox.ts",
+    "src/lib/aurora/tts-oss/__tests__/chatterbox.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024A (2026-10-24): chatterbox.ts anota «primer-sonido» en cada trozo de 280 caracteres y sin idioma, lo que falsea la mediana. Anota UNA medida por turno (el primer trozo) con el idioma del texto, igual que hace speak-router.runLink para los demás motores (VOZ1024A). Ajusta la prueba existente; no relajes ninguna aserción. Máximo 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024F",
+   "ola": "1024S",
+   "titulo": "Malla · la ficha propia de la neurona también lleva su voz medida (medirFichaPropia)",
+   "archivos": [
+    "src/components/brains/device-network-panel.tsx",
+    "src/components/brains/__tests__/ficha-propia-voz.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VZF1015Q (2026-10-24): medirFichaPropia (src/components/brains/device-network-panel.tsx:~231) construye CapacidadesNodo sin la voz; debe pasar `voz: vozMedida(leerMedidas(), {neurona, ahora})` (src/lib/network/capacidades-nodo.ts y src/lib/aurora/medidas-voz.ts). Sin medidas, el campo no aparece. Prueba con testing-library y medidas simuladas. Máximo 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024G",
+   "ola": "1024S",
+   "titulo": "Diagramas · los diagramas incrustados en publicaciones usan VistaDiagrama (zoom, piel y exportar)",
+   "archivos": [
+    "src/components/posts/embedded-content-window.tsx",
+    "src/components/posts/__tests__/diagrama-incrustado.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "DGM1018I (2026-10-24) dejó src/components/diagramas/vista-diagrama.tsx (VistaDiagrama: zoom, desplazamiento, piel clara/oscura y exportar SVG/PNG, iframe aislado) sin usar. El candidato más directo es CodeSandboxBody en src/components/posts/embedded-content-window.tsx, que pinta su propio iframe sin zoom ni exportar: cuando el contenido sea un diagrama de Diagram Design, usa VistaDiagrama (lee architecture/diagramas.md §4 para cómo se reconoce). Lo demás sigue igual. Prueba con testing-library. Máximo 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "FSH1018Q",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Astraura · habilidad de Shaders: crear un fondo describiéndolo",
+   "archivos": [
+    "src/ai/astraura/habilidades/shaders.ts",
+    "src/ai/astraura/habilidades/__tests__/shaders.test.ts"
+   ],
+   "depende": [],
+   "prompt": "A partir de vendor/habilidades/shaders/SKILL.md y components.md (MIT): tarjeta (≤ 60 palabras), resumen (≤ 120) y `presetDesdeRespuesta(texto)` que extrae y valida con sets-fondo.ts el JSON de preset que devuelva un modelo (rechaza types que no existan en el catálogo y cámara). Misma forma que las tarjetas de LYS1018I. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018C",
+    "LYS1018I"
+   ]
+  },
+  {
+   "id": "LYS1018C",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · consenso con las decisiones básicas de 1,58 bits (BitNet, Bonsai, Needle)",
+   "archivos": [
+    "src/lib/astraura/laya/consenso.ts",
+    "src/lib/astraura/laya/__tests__/consenso.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `consensuar({ pequeno: { respuesta, confianza? , motor }, laya: { respuesta, answer_confidence } | null, umbral })` → { decision, quien: \"ambos\"|\"laya\"|\"pequeno\"|\"ninguno\", accion: \"aceptar\"|\"escalar\", motivo }. Si coinciden → aceptar; si no coinciden, manda Laya solo con confianza ≥ umbral; si Laya no llegó a tiempo, se acepta lo pequeño solo si su confianza ≥ umbral; si no, escalar. Pruebas de las cuatro ramas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "LYS1018H",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya en navegador y apps (laya-ts con WebGPU → WASM): cuándo se carga y cuándo se pregunta fuera",
+   "archivos": [
+    "src/lib/astraura/laya/laya-navegador.ts",
+    "src/lib/astraura/laya/__tests__/laya-navegador.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `planLayaLocal(perfilMedio)` → { cargar: boolean, modelo: \"multilingual-int8\"|\"multilingual\"|null, motivo } según capas-autoadaptables §4: visita web nunca (va por la malla); PWA con WebGPU y ≥ 2 GB de almacenamiento persistente y ≥ 4 GB de memoria; app nativa si cabe en su presupuesto; batería < 20 % o pestaña oculta → no. Mientras `vendor/laya-ts` y el modelo exportado (tarea O) no existan, devuelve cargar:false con ese motivo. Pruebas por medio. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018Ib",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Habilidades · tarjetas de ingeniería (especificar, tickets, triage, prototipo, investigación, arquitectura)",
+   "archivos": [
+    "src/ai/astraura/habilidades/ingenieria-b.ts",
+    "src/ai/astraura/habilidades/__tests__/ingenieria-b.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Igual que ingenieria-a.ts con to-spec, to-tickets, triage, prototype, research, improve-codebase-architecture e implement de vendor/habilidades/mattpocock-skills/engineering/. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  }
+ ]
+}
