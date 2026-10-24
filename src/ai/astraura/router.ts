@@ -1997,8 +1997,47 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
             // habla el `text` normal (voz única).
             let vibeVoiceScript: string | null | undefined;
             try {
-              const { resolveActiveVoiceEngine } = await import("@/lib/aurora/tts-oss/engine-registry");
-              if (resolveActiveVoiceEngine() === "vibevoice") vibeVoiceScript = enriched.dialogue;
+              // (SGO1024D) El motor activo se resuelve con la JERARQUÍA real
+              // (agente > personalidad > cerebro > neurona > cuenta), no con el
+              // pin cacheado: sin refrescarlo casi siempre salía openvoice2 y
+              // VibeVoice nunca recibía su guion multi-locutor. Si ningún
+              // ámbito fija motor, se conserva el pin por defecto de la neurona
+              // y, si tampoco hay, manda la cadena AUTO.
+              const { buildVoiceChain, refreshPersonalityVoicePin } = await import(
+                "@/lib/aurora/tts-oss/engine-registry"
+              );
+              const { getVoiceConfig } = await import("@/lib/aurora/tts-oss/voice-config");
+              const { getOverrides } = await import("@/lib/astraura/neuron-persona-store");
+              const {
+                activeEngineFromChain,
+                resolveVoiceChoiceFrom,
+                voiceChoiceFromConfig,
+                voiceChoiceFromOverride,
+                voiceChoiceFromPersonality,
+              } = await import("@/lib/aurora/voice-config");
+              const cfg = getVoiceConfig();
+              let deviceId: string | undefined;
+              try { deviceId = thisDeviceId() || undefined; } catch { deviceId = undefined; }
+              let override: { voz?: { motor?: string } } | null = null;
+              try {
+                if (deviceId) override = getOverrides(deviceId, persona?.id ?? "*");
+              } catch { override = null; }
+              const elegido = resolveVoiceChoiceFrom(
+                {
+                  personalidad: persona?.id
+                    ? { [persona.id]: { motor: voiceChoiceFromPersonality(persona) } }
+                    : undefined,
+                  neurona: deviceId
+                    ? { [deviceId]: { motor: voiceChoiceFromOverride(override) } }
+                    : undefined,
+                  cuenta: { motor: voiceChoiceFromConfig(cfg) },
+                },
+                { personaId: persona?.id, deviceId, agentId: req.agentId, brainId: req.brainId },
+              );
+              const pin = elegido?.motor ?? (await refreshPersonalityVoicePin().catch(() => null));
+              if (activeEngineFromChain(buildVoiceChain(cfg, pin), cfg) === "vibevoice") {
+                vibeVoiceScript = enriched.dialogue;
+              }
             } catch { /* motor de voz no disponible en SSR/runtime → ignorar */ }
             return { ...res, text: enriched.text, route: rec, vibeVoiceScript: vibeVoiceScript ?? null };
           }
