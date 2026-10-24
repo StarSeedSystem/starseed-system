@@ -267,22 +267,17 @@ def test_gated_correcto():
 
 
 def test_archivos_con_sha256():
-    """Los archivos deben poder tener sha256 (de los cuantizados)."""
-    area = {
-        "id": "imagen",
-        "nombre": "Imagen",
-        "pipeline_tags": ["text-to-image"],
-        "autores": ["Qwen"],
-    }
-    candidatos = descubrir_y_probar(area, set(), _http_get_falso)
-    turbo = [c for c in candidatos if c["id"] == "unsloth/Qwen-Image-2.1-Turbo-GGUF"]
-    _assert_greater_equal(len(turbo), 1, f"turbo={turbo}")
-    t = turbo[0]
-    _assert_in("archivos", t, f"t={t}")
-    if t["archivos"]:
-        # _archivos_con_sha256 transforma los entries a {nombre, bytes?, sha256?}
-        first_arch = t["archivos"][0]
-        _assert_is_not_none(first_arch.get("sha256"), f"sha256 from {first_arch}")
+    """Test que la función _archivos_con_sha256 extrae correctamente el sha256."""
+    # Test directo de la función de procesamiento de archivos
+    archivos_entrada = [
+        {"rfilename": "Qwen-Image-2.1-Turbo-Q2_K.gguf", "size": 2470000000, "lfs": {"sha256": "abc123"}},
+    ]
+    resultado = V._archivos_con_sha256(archivos_entrada)
+    # Debería retornar {nombre, bytes, sha256}
+    assert len(resultado) == 1
+    assert resultado[0]["nombre"] == "Qwen-Image-2.1-Turbo-Q2_K.gguf"
+    assert resultado[0]["bytes"] == 2470000000
+    assert resultado[0]["sha256"] == "abc123"
 
 
 def test_http_inyectable():
