@@ -4,7 +4,8 @@
  * VOZ DEL MANDO — capa de UI (Ola 275 · Tarea V2 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
  * Genesis HABLA. Este módulo une la lógica pura de `voz-mando.ts`
- * con el motor único `hablarStarSeed`:
+ * con la PUERTA ÚNICA de la fusión de voz, `hablar()` (contexto «mando»,
+ * Ola 1015V), cuyas opciones traduce `opcionesHablarDe`:
  *
  *  · `useVozDelMando(eventos, estado)` — hook que se monta UNA vez en Genesis.
  *    Carga las preferencias de `GET /api/mando/voces` (con caché en
@@ -17,7 +18,7 @@
  *    por tipo de anuncio, silencio, «Probar anuncio» y «Léeme el estado».
  *
  * Para no solapar dos síntesis, todo pasa por una cola de un elemento en curso:
- * `hablarStarSeed` no se invoca dos veces a la vez.
+ * `hablar()` no se invoca dos veces a la vez.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -29,10 +30,13 @@ import {
     resumenParaLeer,
     validarPreferenciasVoz,
     PREFERENCIAS_VOZ_POR_DEFECTO,
+    CONTEXTO_VOZ_MANDO,
+    opcionesHablarDe,
     type AnuncioVoz,
     type PreferenciasVozMando,
     type VozDeAgente,
 } from "@/lib/mando/voz-mando";
+import type { OpcionesVozUnica } from "@/lib/aurora/voz-unica";
 import { buscarTimbre, TIMBRES } from "@/lib/aurora/timbres";
 import type { EventoRelevo } from "@/lib/mando/tipos";
 
