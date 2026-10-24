@@ -1,0 +1,94 @@
+{
+ "ola": "oracle-20261023",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "VST1018M",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Vigía · vigilar VoiceStudio, HyperFrames, Laya, las skills de Matt Pocock y sus motores",
+   "archivos": [
+    "config/vigia-areas.json",
+    "scripts/puente/test_vigia_areas.py"
+   ],
+   "depende": [],
+   "prompt": "config/vigia-areas.json ya existe (VGM1016A). Añade sin borrar nada: en el área voz, `repos_github` debpalash/VoiceStudio, k2-fsa/OmniVoice, FunAudioLLM/CosyVoice, QwenLM/Qwen3-TTS, KittenML/KittenTTS; en oído moonshine-ai/moonshine; en video heygen-com/hyperframes (paquetes npm `hyperframes` y `@hyperframes/*`); en reflejo NandhaKishorM/laya (PyPI `laya`, HF convaiinnovations/laya, laya-multilingual, laya-typed-decisions); y un área nueva `habilidades` con mattpocock/skills y heygen-com/hyperframes (carpeta skills/), catálogo `src/ai/astraura/skills-ingenieria.ts`. En `licencias_conocidas`: \"cc-by-nc-4.0\": \"personal\", \"agpl-3.0-only\": \"libre\", \"licenseref-gsap-standard\": \"condicionada\". Amplía la prueba existente para que cargue las áreas nuevas. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VGM1016A"
+   ]
+  },
+  {
+   "id": "XR1010AQ",
+   "ola": "Ola 1010X · StarSeed XR: el OS en visores de AR/VR (entrada automática, Trinity espacial, menús 3D, voz de Astraura, mundos, P2P, calidad automática)",
+   "titulo": "Migrar use-sesion-xr.ts: delegar el mensaje de error y la lista de funciones en el núcleo",
+   "archivos": [
+    "src/components/vivo/espacial/use-sesion-xr.ts",
+    "src/components/xr/shell/__tests__/compat-sesion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/starseed-xr.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §3 (a)–(o) son las reglas del área y §1 la investigación fechada (qué existe y qué NO en cada visor). El núcleo puro YA está escrito y probado (214 pruebas) y NO se modifica: `src/lib/xr/{tipos,capacidades,calidad,calidad-perfiles,espacio-trinity,tokens-3d,transiciones,mundo-tipos,mundo-reglas,mundo-saneo,mundo-spec,intenciones-tipos,intenciones-ref,intenciones-destinos,intenciones-clausulas,intenciones-voz,confort,privacidad,vinculos-xr}.ts` (ábrelos y usa sus nombres reales; la tabla del inicio de §3 dice qué da cada uno). Petición de Alex (2026-10-10): StarSeed OS instalable y usable en gafas de AR/VR de todo tipo (Meta Quest, SteamVR, Android XR, Vision Pro, Pico…) o en cualquier navegador con WebXR; se abre solo en su formato (VR o AR); todo el sistema en 3D con el mismo diseño, funciones y estilo; menús 3D completos con animaciones y transiciones autoadaptables; calidad fijada sola por aparato; Astraura y la Protomolécula incluidas, con voz («crea un mundo virtual… e invita a este grupo de amigos», «súbelo a la Biblioteca / a una estación / a una publicación / a un mensaje»); servidores y estaciones públicos o privados como destinos; herramientas configurables para construir entornos, también en pizarras y llamadas.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/starseed-xr.md` y los módulos de `src/lib/xr/` de arriba. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo XR en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Pruebas sin red, sin hardware y sin WebGL: lo del navegador se inyecta; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom; el lienzo 3D (three/R3F/uikit) se simula con `vi.mock` como hace `src/components/vivo/espacial/__tests__/escena-compartida.test.tsx`; los componentes de R3F son cascarones finos y su LÓGICA vive en funciones puras que sí se prueban. Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Dependencias: NO ejecutes `npm install` salvo que tu tarea sea XR1010A; las 7 dependencias XR (§3 n) las añade esa tarea con el visto bueno de Alex; si tu tarea las necesita y `node_modules` no las trae, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: XR1010A (dependencias XR)». El layout raíz no carga motores pesados: three/uikit/rapier/vrm/spark solo dentro de `src/components/xr/shell/**` y de la ruta `/xr/os` (carga perezosa con `next/dynamic` sin SSR o `import()` dentro de una función). Privacidad (§3 k): nunca pidas la función `camera-access`; la cámara del passthrough y el mapa de la habitación no salen del aparato. Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Migra lo persistido si cambias un valor por defecto. Honestidad: no digas que algo «se ve bien» o «funciona en el visor»: di que pasan tsc y vitest; solo Alex lo comprueba con un visor, en `/xr/diagnostico` (tarea XR1010AI). Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (XR1010AQ): Contrato §2.2. Lee `src/components/vivo/espacial/use-sesion-xr.ts` ENTERO (153 líneas; `useSesionXR(gl, raizOverlay)`, `mensajeErrorXR`, `ModoSesionXR`, `EstadoXR`) y quién lo usa (`escena-compartida.tsx`, su prueba `escena-compartida.test.tsx`). Cambio de ≤ 30 líneas, sin reescribirlo y SIN cambiar su API pública ni su comportamiento observable: (1) sus `optionalFeatures` para AR/VR salen de `funcionesAPedir` (`src/components/xr/shell/aplicar-perfil.ts`, XR1010D) en lugar de una lista suelta, conservando `dom-overlay` con la raíz de interfaz en AR de mano; (2) tras `requestSession` llama a `refinarFunciones`-compatible: guarda `session.enabledFeatures` en el estado (campo nuevo opcional `funcionesConcedidas?: string[]`); (3) `mensajeErrorXR` se queda aquí exportado (otros ya lo importan, entre ellos XR1010E) y solo añade el caso `NotAllowedError` por gesto. No toques el resto. Prueba `compat-sesion.test.ts` (jsdom, `navigator.xr` falso): `mensajeErrorXR` conserva sus cinco mensajes; la sesión de AR pide `dom-overlay` y nunca `camera-access`; `funcionesConcedidas` refleja `enabledFeatures`; las pruebas de `escena-compartida` siguen pasando. Si alguna prueba existente falla, arregla el código, no la prueba. Integración: grep de que `escena-compartida.tsx` sigue usándolo.",
+   "dependencias_ya_en_main": [
+    "XR1010D"
+   ]
+  },
+  {
+   "id": "XR1010AR",
+   "ola": "Ola 1010X · StarSeed XR: el OS en visores de AR/VR (entrada automática, Trinity espacial, menús 3D, voz de Astraura, mundos, P2P, calidad automática)",
+   "titulo": "Migrar use-webxr.ts (hub /xr): mismas funciones pedidas y mensajes que el resto",
+   "archivos": [
+    "src/components/dashboard/apps/immersive/use-webxr.ts",
+    "src/components/xr/shell/__tests__/compat-webxr.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/starseed-xr.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §3 (a)–(o) son las reglas del área y §1 la investigación fechada (qué existe y qué NO en cada visor). El núcleo puro YA está escrito y probado (214 pruebas) y NO se modifica: `src/lib/xr/{tipos,capacidades,calidad,calidad-perfiles,espacio-trinity,tokens-3d,transiciones,mundo-tipos,mundo-reglas,mundo-saneo,mundo-spec,intenciones-tipos,intenciones-ref,intenciones-destinos,intenciones-clausulas,intenciones-voz,confort,privacidad,vinculos-xr}.ts` (ábrelos y usa sus nombres reales; la tabla del inicio de §3 dice qué da cada uno). Petición de Alex (2026-10-10): StarSeed OS instalable y usable en gafas de AR/VR de todo tipo (Meta Quest, SteamVR, Android XR, Vision Pro, Pico…) o en cualquier navegador con WebXR; se abre solo en su formato (VR o AR); todo el sistema en 3D con el mismo diseño, funciones y estilo; menús 3D completos con animaciones y transiciones autoadaptables; calidad fijada sola por aparato; Astraura y la Protomolécula incluidas, con voz («crea un mundo virtual… e invita a este grupo de amigos», «súbelo a la Biblioteca / a una estación / a una publicación / a un mensaje»); servidores y estaciones públicos o privados como destinos; herramientas configurables para construir entornos, también en pizarras y llamadas.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/starseed-xr.md` y los módulos de `src/lib/xr/` de arriba. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo XR en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Pruebas sin red, sin hardware y sin WebGL: lo del navegador se inyecta; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom; el lienzo 3D (three/R3F/uikit) se simula con `vi.mock` como hace `src/components/vivo/espacial/__tests__/escena-compartida.test.tsx`; los componentes de R3F son cascarones finos y su LÓGICA vive en funciones puras que sí se prueban. Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Dependencias: NO ejecutes `npm install` salvo que tu tarea sea XR1010A; las 7 dependencias XR (§3 n) las añade esa tarea con el visto bueno de Alex; si tu tarea las necesita y `node_modules` no las trae, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: XR1010A (dependencias XR)». El layout raíz no carga motores pesados: three/uikit/rapier/vrm/spark solo dentro de `src/components/xr/shell/**` y de la ruta `/xr/os` (carga perezosa con `next/dynamic` sin SSR o `import()` dentro de una función). Privacidad (§3 k): nunca pidas la función `camera-access`; la cámara del passthrough y el mapa de la habitación no salen del aparato. Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Migra lo persistido si cambias un valor por defecto. Honestidad: no digas que algo «se ve bien» o «funciona en el visor»: di que pasan tsc y vitest; solo Alex lo comprueba con un visor, en `/xr/diagnostico` (tarea XR1010AI). Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (XR1010AR): Contrato §2.2. Lee `src/components/dashboard/apps/immersive/use-webxr.ts` ENTERO (179 líneas; lo usan `xr-network-hub.tsx` y `use-sesion-xr.ts`) y sus pruebas si existen. Cambio de ≤ 30 líneas, sin reescribirlo y SIN cambiar su API pública: (1) las `optionalFeatures` que pide salen de `funcionesAPedir` (XR1010D) y nunca incluyen `camera-access`; (2) si el navegador ofrece `navigator.xr.offerSession`, NO se llama desde aquí (lo gestiona el almacén de XR1010D en `/xr/os`; este hook sigue siendo el del hub antiguo); (3) los errores de `requestSession` pasan por `mensajeErrorXR` de `use-sesion-xr.ts` en lugar de un texto propio. Prueba `compat-webxr.test.ts` (jsdom, `navigator.xr` falso): el hook conserva su forma de retorno; las funciones pedidas son las del núcleo; un `NotAllowedError` da el mensaje común. Si alguna prueba existente falla, arregla el código, no la prueba. Integración: grep de `xr-network-hub.tsx` y `use-sesion-xr.ts` que lo usan.",
+   "dependencias_ya_en_main": [
+    "XR1010D"
+   ]
+  },
+  {
+   "id": "GCA1019L",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "API de opciones por ámbito",
+   "archivos": [
+    "src/app/api/genesis/conectores/route.ts",
+    "src/app/api/genesis/conectores/__tests__/route.test.ts"
+   ],
+   "depende": [],
+   "prompt": "GET `?ambito=` → catálogo filtrado, sugerencias de `sugerir.ts` y asignaciones del ámbito (sin claves); POST {accion: \"vincular\", proveedor, valor} guarda con la bóveda y responde solo la huella; POST {accion: \"asignar\", clave, cadena}. Sesión obligatoria y permiso del ámbito (`src/lib/mando/permisos.ts`); límite de 20 peticiones por 10 minutos como `/api/genesis/proponer`. Prueba con dependencias falsas. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019J"
+   ],
+   "dependencias_ya_en_main": [
+    "GCA1019K"
+   ]
+  },
+  {
+   "id": "GCA1019R",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Herramientas MCP de Genesis",
+   "archivos": [
+    "src/lib/genesis/mcp/herramientas.ts",
+    "src/lib/genesis/mcp/__tests__/herramientas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Definiciones (nombre, descripción en español, `inputSchema` JSON Schema) y manejadores inyectados para `estado`, `tareas_listar`, `tareas_crear`, `agentes_listar`, `medidores`, `proponer` (operaciones de `src/lib/genesis/operaciones.ts`), `biblioteca_buscar`, `opciones_sugerir` y `chat`. Cada una declara el permiso que necesita. Prueba: esquemas válidos y manejadores llamados con lo validado. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019Q",
+    "GCA1019K"
+   ]
+  },
+  {
+   "id": "DSN1019J",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Aprobación de variaciones de identidad antes de la Librería",
+   "archivos": [
+    "src/lib/variaciones/aprobacion.ts",
+    "src/lib/variaciones/__tests__/aprobacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: estados borrador → propuesta → aprobada | cambios | descartada → publicada; quién aprueba según el ámbito (MetaGenesis: Alex y quien tenga acceso; PoliGenesis democrático: votación; Genesis personal: la persona); solo lo aprobado puede pasar a `publicarVariacion`; guarda quién y cuándo aprobó. Prueba de cada transición prohibida. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019J"
+   ]
+  }
+ ]
+}
