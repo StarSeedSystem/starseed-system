@@ -58,6 +58,9 @@ import { buildLocal158CompactContext } from "./local-158-context";
 // aditivo a las fuentes LOCALES genéricas del catálogo y migración de una sola
 // vez que apaga OmniRoute por defecto. Capa pura: sin I/O ni imports del router.
 import { localPrimeroDelta, migrarLocalPrimero } from "./local-primero";
+// (Ola 1018L · Tarea F) Refinado de dificultad con Laya: capa PURA, import sin
+// ciclo (router-laya solo importa TIPOS del router, borrados en runtime).
+import { refinarConLaya, type RespuestasLaya } from "./router-laya";
 import { findOssService } from "@/lib/services/oss-services";
 // Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
 // la personalidad resuelta por contexto (chat > cerebro > sección > global).
@@ -960,6 +963,13 @@ export interface AstrauraChatRequest {
    * (quizás de vuelta a A): un bucle. Nunca lo pone un llamador normal.
    */
   desdeMalla?: boolean;
+  /**
+   * (Ola 1018L · Tarea F) Respuestas de Laya (punto «plan.dificultad»: score
+   * «dificultad» + noul «basta_pequeno») que YA llegaron en el turno. NUNCA se
+   * espera a Laya (contrato §2); si están, `refinarConLaya` afina la dificultad
+   * con la calibrada `answer_confidence`, sin tocar privacidad ni contexto.
+   */
+  respuestasLaya?: RespuestasLaya | null;
 }
 
 /**
@@ -1538,6 +1548,16 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   }
 
   const profile = classifyTask(messages, req.taskHint);
+  // (Ola 1018L · Laya) Si las respuestas de Laya YA vinieron en la petición (no
+  // se espera a Laya: contrato §2), afina la dificultad — solo la dificultad,
+  // nunca privacidad ni contexto. Defensivo: Laya nunca rompe el turno.
+  if (req.respuestasLaya) {
+    try {
+      profile.difficulty = refinarConLaya(profile, req.respuestasLaya).difficulty;
+    } catch {
+      // ignore
+    }
+  }
   // (Botón «Más ajustes» del compositor) Sesgo de Esfuerzo elegido A MANO: ver
   // el JSDoc de `effortDifficultyDelta` arriba. Aditivo y acotado a 0..1, igual
   // que el resto de ajustes de `profile.difficulty` en esta función.
