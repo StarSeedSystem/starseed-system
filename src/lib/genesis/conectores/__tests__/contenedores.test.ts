@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { contenedoresPara, ContenedorOpcion, CONTENEDORES_OPCIONES } from '../contenedores';
+import { contenedorCompatible, contenedoresPara, ContenedorOpcion, CONTENEDORES_OPCIONES } from '../contenedores';
 
 describe('contenedoresPara', () => {
   it('should return all containers when privado is false or undefined', () => {
@@ -42,8 +42,8 @@ describe('contenedoresPara', () => {
 
     // Extract the free (non-privado, !requierePago)
     const free = result.filter((c) => !c.aptoPrivado && !c.requierePago);
-    // Original order of free: oracle-a1, github-actions
-    expect(free.map((c) => c.id)).toEqual(['oracle-a1', 'github-actions']);
+    // Original order of free: oracle-a1, github-actions, cloudroom
+    expect(free.map((c) => c.id)).toEqual(['oracle-a1', 'github-actions', 'cloudroom']);
 
     // Extract the paid
     const paid = result.filter((c) => !c.aptoPrivado && c.requierePago);
@@ -109,5 +109,46 @@ describe('CONTENEDORES_OPCIONES', () => {
     expect(hf?.requiereCuenta).toBe(true);
     expect(hf?.requierePago).toBe(true);
     expect(hf?.aptoPrivado).toBe(false);
+  });
+
+  // SOP cloudroom-servidor-agentes.md §4.1: gratis CON cupo, no «todo gratis».
+  it('Cloudroom es gratis con cupo y local sin cupo', () => {
+    const cloudroom = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudroom');
+    expect(cloudroom).toBeDefined();
+    expect(cloudroom?.requiereCuenta).toBe(true);
+    expect(cloudroom?.requierePago).toBe(false);
+    expect(cloudroom?.aptoPrivado).toBe(false);
+    expect(cloudroom?.cupo).toMatchObject({ agentesNube: 100, periodoDias: 30, localSinCupo: true });
+    expect(cloudroom?.cupo?.nota).toContain('100 agentes');
+  });
+
+  it('Cloudroom declara sus requisitos de medio', () => {
+    const cloudroom = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudroom');
+    expect(cloudroom?.requisitos).toMatchObject({
+      plataformas: ['macos-arm64', 'linux-x64'],
+      neuronaEscritorio: true,
+      agenteCodigo: true,
+      repositorioGit: true,
+    });
+    expect(cloudroom?.requisitos?.nota).toContain('GitHub');
+  });
+});
+
+describe('contenedorCompatible', () => {
+  const cloudroom = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudroom') as ContenedorOpcion;
+
+  it('no ofrece Cloudroom sin neurona de escritorio o con una plataforma distinta', () => {
+    expect(contenedorCompatible(cloudroom, [])).toBe(false);
+    expect(contenedorCompatible(cloudroom, ['windows-x64'])).toBe(false);
+  });
+
+  it('ofrece Cloudroom con una neurona de escritorio compatible', () => {
+    expect(contenedorCompatible(cloudroom, ['macos-arm64'])).toBe(true);
+    expect(contenedorCompatible(cloudroom, ['linux-x64'])).toBe(true);
+  });
+
+  it('los contenedores sin requisitos de escritorio sirven en cualquier ámbito', () => {
+    const oracle = CONTENEDORES_OPCIONES.find((c) => c.id === 'oracle-a1') as ContenedorOpcion;
+    expect(contenedorCompatible(oracle, [])).toBe(true);
   });
 });

@@ -5,7 +5,7 @@
  * reloj; jamás valores de claves. Lo privado no sale de la cuenta: un papel «local» solo lo cubren sus máquinas. */
 import type { Asignacion } from "./asignaciones";
 import type { Gratis, OpcionCatalogo, Papel, Privacidad } from "./catalogo-opciones";
-import type { ContenedorOpcion } from "./contenedores";
+import { contenedorCompatible, type ContenedorOpcion } from "./contenedores";
 import type { OfertaContexto } from "./escalera";
 
 export interface EntradaSugerir {
@@ -16,6 +16,9 @@ export interface EntradaSugerir {
   vinculadas: ReadonlySet<string>; contenedores: ContenedorOpcion[];
   /** Potencia MEDIDA por id (`puntuarPotencia`); lo no medido va detrás, en el orden de entrada. */
   potencia?: ReadonlyMap<string, number>;
+  /** Plataformas de las neuronas de escritorio del ámbito (`macos-arm64`, `linux-x64`…).
+   *  Sin dato, los contenedores que exigen app de escritorio no se ofrecen. */
+  plataformasEscritorio?: readonly string[];
 }
 
 export interface Sugerencia {
@@ -49,7 +52,8 @@ const deCatalogo = (o: OpcionCatalogo, papeles: Papel[], motivo: string): Sugere
   limite: o.gratis, verificado: o.verificado, privacidad: o.privacidad, variables: [...o.variables], motivo });
 const deContenedor = (c: ContenedorOpcion, motivo: string): Sugerencia => ({
   id: c.id, nombre: c.nombre, tipo: "contenedor", papeles: [], enlaceAlta: c.enlaceAlta, enlaceClave: null,
-  limite: null, verificado: c.verificado, privacidad: privacidadDe(c), variables: [], motivo });
+  limite: c.cupo ? { rpm: null, porDia: null, horasMes: null, almacenamientoGb: null, nota: c.cupo.nota } : null,
+  verificado: c.verificado, privacidad: privacidadDe(c), variables: [], motivo });
 
 /** Más papeles primero; luego lo más privado, lo verificado y el id, para un orden estable. */
 const porUtilidad = (a: Sugerencia, b: Sugerencia) => b.papeles.length - a.papeles.length
@@ -58,6 +62,7 @@ const porUtilidad = (a: Sugerencia, b: Sugerencia) => b.papeles.length - a.papel
 
 export function sugerirParaAmbito(e: EntradaSugerir): GrupoSugerencias[] {
   const { asignaciones, catalogo, ofertas, vinculadas, contenedores, potencia } = e;
+  const plataformasEscritorio = e.plataformasEscritorio ?? [];
   const cubiertos = new Set<Papel>();
   const papelesDe = (filtro: (a: AsigPapel) => boolean) => asignaciones.filter(filtro).map((a) => a.clave);
 
@@ -72,7 +77,8 @@ export function sugerirParaAmbito(e: EntradaSugerir): GrupoSugerencias[] {
       enlaceClave: null, limite: null, verificado: null, privacidad: "local", variables: [],
       motivo: "Capacidad local sin usar: añádela a la cadena de estos papeles." });
   }
-  for (const c of contenedores) if (!vinculadas.has(c.id) && !c.requiereCuenta && !c.requierePago)
+  for (const c of contenedores) if (contenedorCompatible(c, plataformasEscritorio)
+    && !vinculadas.has(c.id) && !c.requiereCuenta && !c.requierePago)
     local.push(deContenedor(c, "Contenedor local: tu neurona o tu servidor corre los procesos de los agentes."));
 
   // 2) Gratis por vincular. Lo «local» del catálogo solo cuenta si una neurona lo ofrece de verdad.
@@ -97,6 +103,7 @@ export function sugerirParaAmbito(e: EntradaSugerir): GrupoSugerencias[] {
   pago.forEach((s) => s.papeles.forEach((p) => cubiertos.add(p)));
   // Contenedores con cuenta: gratis si alguna asignación admite su privacidad; de pago, además con permiso.
   for (const c of contenedores) {
+    if (!contenedorCompatible(c, plataformasEscritorio)) continue;
     const admitido = asignaciones.some((a) => admite(a, privacidadDe(c)) && (!c.requierePago || permitePago(a)));
     if (vinculadas.has(c.id) || !c.requiereCuenta || !admitido) continue;
     if (c.requierePago) pago.push(deContenedor(c, "Contenedor de pago, con el permiso y el tope del ámbito."));

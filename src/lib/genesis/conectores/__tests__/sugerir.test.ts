@@ -91,6 +91,27 @@ describe("sugerirParaAmbito", () => {
       expect(sinOpcion(gs)).toEqual([{ papel: "código", motivo: expect.stringContaining("no permite pago") }]);
     });
 
+    it("Cloudroom solo se sugiere donde hay neurona de escritorio compatible", () => {
+      const cloudroom = CONTENEDORES_OPCIONES.find((c) => c.id === "cloudroom") as ContenedorOpcion;
+      const base = { asignaciones: [asig("escritor")], contenedores: [cloudroom] };
+      expect(ids(sugerir(base), "gratis-por-vincular")).not.toContain("cloudroom");
+      expect(ids(sugerir({ ...base, plataformasEscritorio: ["windows-x64"] }), "gratis-por-vincular"))
+        .not.toContain("cloudroom");
+      const conMac = sugerir({ ...base, plataformasEscritorio: ["macos-arm64"] });
+      expect(ids(conMac, "gratis-por-vincular")).toContain("cloudroom");
+      expect(opciones(conMac, "gratis-por-vincular").find((s) => s.id === "cloudroom")?.limite?.nota)
+        .toContain("100 agentes");
+    });
+
+    it("Cloudroom no entra en lo local: su uso exige cuenta y su nube recibe una copia", () => {
+      const cloudroom = CONTENEDORES_OPCIONES.find((c) => c.id === "cloudroom") as ContenedorOpcion;
+      const gs = sugerir({ asignaciones: [asig("chat", { privacidad: "local" })],
+        contenedores: [cloudroom], plataformasEscritorio: ["macos-arm64"] });
+      expect(ids(gs, "local-por-activar")).not.toContain("cloudroom");
+      expect(ids(gs, "gratis-por-vincular")).not.toContain("cloudroom");
+      expect(sinOpcion(gs).map((s) => s.papel)).toEqual(["chat"]);
+    });
+
     it("con presupuesto va tras lo gratis y solo para papeles que nada más cubre", () => {
       const conTope = { presupuesto: 5 };
       const gs = sugerir({ asignaciones: [asig("escritor", conTope), asig("código", conTope)], catalogo, contenedores });

@@ -1,3 +1,29 @@
+/** Cupo gratis declarado por el medio, si lo tiene. Nunca se inventan cifras. */
+export interface CupoContenedor {
+  /** Agentes en la nube incluidos por cuenta y ciclo; `null` si no consta. */
+  agentesNube: number | null;
+  /** Días del ciclo del cupo; `null` si no consta. */
+  periodoDias: number | null;
+  /** El uso local no consume cupo. */
+  localSinCupo: boolean;
+  /** Texto legible y honesto para la interfaz. */
+  nota: string;
+}
+
+/** Lo que exige el medio para poder usarse en un ámbito. */
+export interface RequisitosContenedor {
+  /** Plataformas compatibles de la neurona de escritorio (`macos-arm64`, `linux-x64`…). */
+  plataformas: readonly string[];
+  /** Exige la app de escritorio instalada: la web o el móvil no bastan. */
+  neuronaEscritorio: boolean;
+  /** Exige un agente de código conectado en la app. */
+  agenteCodigo: boolean;
+  /** Exige un repositorio git del ámbito. */
+  repositorioGit: boolean;
+  /** Resto de requisitos legibles (cuenta, GitHub…). */
+  nota: string;
+}
+
 export interface ContenedorOpcion {
   id: string;
   nombre: string;
@@ -7,6 +33,8 @@ export interface ContenedorOpcion {
   requierePago: boolean;
   aptoPrivado: boolean;
   verificado: boolean | null;
+  cupo?: CupoContenedor | null;
+  requisitos?: RequisitosContenedor | null;
 }
 
 // Datos verificados de contenedores en la nube y locales
@@ -52,6 +80,31 @@ export const CONTENEDORES_OPCIONES: ContenedorOpcion[] = [
     verificado: true,
   },
   {
+    id: 'cloudroom',
+    nombre: 'Cloudroom',
+    enlaceAlta: 'https://cloudroom.dev',
+    guia: null, // TODO: ruta de guía en el repo
+    requiereCuenta: true,
+    // Agentes locales gratis siempre; la nube tiene cupo gratis por cuenta (SOP cloudroom-servidor-agentes.md §4.1).
+    requierePago: false,
+    // La nube recibe una COPIA del proyecto: no sirve para lo privado-local sin consentimiento explícito (§5).
+    aptoPrivado: false,
+    verificado: true,
+    cupo: {
+      agentesNube: 100,
+      periodoDias: 30,
+      localSinCupo: true,
+      nota: '100 agentes en la nube cada 30 días por cuenta; los agentes locales no consumen cupo.',
+    },
+    requisitos: {
+      plataformas: ['macos-arm64', 'linux-x64'],
+      neuronaEscritorio: true,
+      agenteCodigo: true,
+      repositorioGit: true,
+      nota: 'App de escritorio en macOS Apple Silicon ≥ 13 o Linux x64, cuenta de Cloudroom, GitHub y un agente de código conectado.',
+    },
+  },
+  {
     id: 'google-cloud',
     nombre: 'Google Cloud Run',
     enlaceAlta: 'https://cloud.google.com/run',
@@ -76,6 +129,19 @@ export const CONTENEDORES_OPCIONES: ContenedorOpcion[] = [
     verificado: true,
   },
 ];
+
+/**
+ * ¿Puede el contenedor correr en un ámbito con estas plataformas de neurona de escritorio?
+ * Los contenedores sin requisitos de escritorio son compatibles con cualquier ámbito.
+ */
+export function contenedorCompatible(
+  contenedor: ContenedorOpcion,
+  plataformas: readonly string[] = []
+): boolean {
+  const requisitos = contenedor.requisitos;
+  if (!requisitos?.neuronaEscritorio) return true;
+  return requisitos.plataformas.some((plataforma) => plataformas.includes(plataforma));
+}
 
 /**
  * Devuelve las opciones de contenedores disponibles según el ámbito y si se requieren contenedores privados.
