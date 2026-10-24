@@ -214,6 +214,22 @@ def fusionar_statusline(med_claude: dict, ruta: str = ARCHIVO_STATUSLINE) -> dic
     return med
 
 
+def conservar_otros(doc: dict, previo: dict) -> dict:
+    """Con `--solo` solo se refrescan esos medidores: los demás del documento previo se conservan."""
+    medidores = doc.get("medidores") if isinstance(doc.get("medidores"), dict) else {}
+    prev_med = (previo or {}).get("medidores", {}) or {}
+    for mid, med in prev_med.items():
+        if mid not in medidores and isinstance(med, dict):
+            medidores[mid] = med
+    doc["medidores"] = medidores
+    historial = doc.get("historial") if isinstance(doc.get("historial"), dict) else {}
+    for mid, puntos in ((previo or {}).get("historial", {}) or {}).items():
+        if mid not in historial:
+            historial[mid] = puntos
+    doc["historial"] = historial
+    return doc
+
+
 def guardar(doc: dict, ruta: str = ARCHIVO_SALIDA) -> None:
     """Escritura atómica (.tmp + os.replace) con permisos 0600 (§3)."""
     ruta = os.path.expanduser(ruta)
@@ -372,6 +388,8 @@ def main(argv=None) -> int:
     except (OSError, ValueError):
         previo = {}
     doc = recoger(config, previo, ahora)
+    if solo is not None:
+        doc = conservar_otros(doc, previo)
     if "claude" in doc["medidores"]:
         doc["medidores"]["claude"] = fusionar_statusline(doc["medidores"]["claude"])
         puente_limites_claude(doc["medidores"]["claude"], ahora)
