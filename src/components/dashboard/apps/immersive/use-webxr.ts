@@ -21,6 +21,36 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type * as THREE from 'three';
+import { type FuncionXR } from '@/lib/xr/tipos';
+import { type CapacidadesXR } from '@/lib/xr/capacidades';
+import { funcionesAPedir } from '@/components/xr/shell/aplicar-perfil';
+import { mensajeErrorXR } from '@/components/vivo/espacial/use-sesion-xr';
+
+// XR1010AR (contrato `architecture/starseed-xr.md` §2.2): las funciones de la sesión
+// salen de `funcionesAPedir` del núcleo XR (vía `aplicar-perfil`), que solo acepta el
+// vocabulario cerrado de `FUNCIONES_XR` — así `camera-access` no pasa NUNCA (§3 k).
+// El conjunto es el que este hub ya pedía, desglosado por modo. No se marca ninguna
+// función como requerida: este es el hook del hub antiguo y no debe impedir la
+// entrada en aparatos sin `local-floor`. `offerSession` no se usa aquí: lo gestiona
+// el almacén de XR1010D en `/xr/os`.
+const FUNCIONES_HUB: FuncionXR[] = ['local-floor', 'bounded-floor', 'hand-tracking', 'layers'];
+const FUNCIONES_HUB_AR: FuncionXR[] = [...FUNCIONES_HUB, 'hit-test'];
+/** `CapacidadesXR` completas que exige `funcionesAPedir` del núcleo. */
+const CAPACIDADES_HUB: CapacidadesXR = {
+    plataforma: 'desconocida',
+    visor: true,
+    modos: ['3d-pantalla'],
+    recomendado: '3d-pantalla',
+    entradas: ['voz'],
+    funciones: FUNCIONES_HUB,
+    ofrecerSesion: false,
+    motivos: [],
+    avisos: [],
+};
+const CAPACIDADES_HUB_AR: CapacidadesXR = {
+    ...CAPACIDADES_HUB,
+    funciones: FUNCIONES_HUB_AR,
+};
 
 /** Modo de sesión inmersiva soportado por el OS. */
 export type XRMode = 'immersive-vr' | 'immersive-ar';
@@ -103,6 +133,7 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
             setError(null);
             const xr = getXR();
             if (!xr || !gl) {
+                // Este no es un error de `requestSession`: mensaje propio.
                 setError('WebXR no disponible en este dispositivo.');
                 return;
             }
@@ -111,16 +142,16 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
                 await exit();
             }
 
-            // Características opcionales: el navegador concede las que pueda.
-            // 'hit-test' es útil en AR; 'hand-tracking' / suelos en VR.
+            // Características del núcleo XR, por modo. `habitación` queda fuera:
+            // este hub nunca construye «mundo AR con mi habitación».
+            const { opcionales, requeridas } = funcionesAPedir(
+                target === 'immersive-ar' ? CAPACIDADES_HUB_AR : CAPACIDADES_HUB,
+            );
+            // Guardia de privacidad (§3 k): `esFuncionXR` ya garantiza que
+            // `camera-access` no pasa, y se vuelve a filtrar la salida por si acaso.
+            const sinCamera = (f: string): boolean => f !== 'camera-access';
             const sessionInit: XRSessionInit = {
-                optionalFeatures: [
-                    'local-floor',
-                    'bounded-floor',
-                    'hand-tracking',
-                    'layers',
-                    ...(target === 'immersive-ar' ? (['hit-test'] as string[]) : []),
-                ],
+                optionalFeatures: [...requeridas, ...opcionales].filter(sinCamera),
             };
 
             try {
@@ -154,9 +185,7 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
                 } catch {
                     /* noop */
                 }
-                const msg =
-                    e instanceof Error ? e.message : 'No se pudo iniciar la sesión XR.';
-                setError(msg);
+                setError(mensajeErrorXR(e));
                 setInSession(false);
                 setMode(null);
             }
