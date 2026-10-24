@@ -44,6 +44,7 @@
       "pipeline_tags": ["text-to-speech"],
       "autores": ["ResembleAI", "myshell-ai", "SWivid", "coqui", "2Noise", "hexgrad", "FermionResearch", "microsoft"],
       "cuantizadores": ["unsloth", "mlx-community", "onnx-community"],
+      "repos_github": ["debpalash/VoiceStudio","k2-fsa/OmniVoice","FunAudioLLM/CosyVoice","QwenLM/Qwen3-TTS","KittenML/KittenTTS"],
       "catalogo": "src/lib/library/packages.ts"
     },
     {
