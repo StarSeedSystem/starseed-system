@@ -1,5 +1,6 @@
 """Pruebas de interpretación Cloudroom: JSON simulado y ninguna llamada externa."""
 import json
+import os
 from datetime import datetime, timezone
 
 import medidor_cloudroom as M
@@ -67,6 +68,12 @@ def test_crm1024h_ruta_de_la_cli_fuera_del_path():
     assert M.ruta_cli({"CLOUDROOM_CLI": "/x/room-cli"}, existe=lambda p: p == "/x/room-cli",
                       buscar=lambda n: None) == "/x/room-cli"
     assert M.ruta_cli({}, existe=lambda p: False, buscar=lambda n: None) is None
+
+
+def test_crm1024h_ruta_de_launchd_cuando_la_cli_no_esta_en_el_path():
+    """RTCRM1024Hb: launchd no trae room-cli en el PATH; se busca en ~/.local/bin."""
+    local = os.path.expanduser("~/.local/bin/room-cli")
+    assert M.ruta_cli({}, existe=lambda p: p == local, buscar=lambda n: None) == local
 
 
 def test_harnesses_ensenan_sus_modelos_de_la_nube():
