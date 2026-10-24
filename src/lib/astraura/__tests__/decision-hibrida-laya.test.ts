@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MODELO_JEV } from "@/lib/jev/decisiones";
 import {
   decidirConLaya,
   planDeDecision,
@@ -43,13 +44,19 @@ describe("decidirConLaya", () => {
     await expect(decidirConLaya("encuentra un libro", herramientas, transporte)).resolves.toEqual({
       herramienta: "buscar", confianza: 0.81, motor: "laya-local",
     });
+    // Con el cliente único (Ola 1018L · Tarea B) el cuerpo sale de construirPeticion:
+    // formato nativo con `model` y la pregunta abierta del catálogo conserva «ninguna».
     expect(cuerpo).toEqual({
+      model: MODELO_JEV,
       state: "encuentra un libro",
       questions: {
         herramienta: {
           type: "choice",
           instructions: "Elige la herramienta más adecuada para resolver la consulta",
-          criteria: { buscar: "Busca información", guardar: "Guarda el resultado" },
+          criteria: {
+            buscar: "Busca información", guardar: "Guarda el resultado",
+            ninguna: "Ninguna herramienta: basta con conversar",
+          },
         },
       },
     });

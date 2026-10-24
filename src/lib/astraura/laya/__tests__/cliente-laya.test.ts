@@ -105,7 +105,9 @@ describe("preguntarALaya · A1 por la malla", () => {
     const roto = falsoDeps({ local: { estado: 503 }, malla: { roto: true } });
     const salidaRota = await preguntarALaya({ punto: PUNTO, estado: "x", medio: "a1" }, roto.deps);
     expect(salidaRota).toMatchObject({ respuestas: null, donde: null, motivo: /no llegó ni local ni por la malla/ });
-    expect(() => puntoDeLlamada("no.existe.tal")).toThrow(/punto de decisión desconocido/);
+    // Id desconocido: el catálogo solo permite ids tipados, así que uno de fuera cae por la excepción en ejecución.
+    const idAjeno = "no.existe.tal" as unknown as Parameters<typeof puntoDeLlamada>[0];
+    expect(() => puntoDeLlamada(idAjeno)).toThrow(/punto de decisión desconocido/);
   });
 });
 describe("lectura del formato nativo", () => {
