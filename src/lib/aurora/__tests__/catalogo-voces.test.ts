@@ -107,4 +107,24 @@ describe("Catálogo de voces", () => {
     // It should be one of cosyvoice3, qwen3-tts, dots-tts (all have ramMinGB 4)
     expect(["cosyvoice3", "qwen3-tts", "dots-tts"]).toContain(motor.id);
   });
+  it("motorRecomendado con RAM desconocida (NaN, no finita o negativa) elige el ligero por defecto, nunca el pesado", () => {
+    // OPF1024F: con NaN ningún `ramMinGB <= ram` se cumplía y caía al último del catálogo (voicestudio, 8 GB).
+    const ligero = MOTORES_VOZ.filter((m) => m.offline && m.porDefectoEn.length > 0)
+      .sort((a, b) => a.ramMinGB - b.ramMinGB)[0];
+    expect(ligero.id).toBe("kokoro");
+    const plataformas: Plataforma[] = ["macos", "windows", "linux", "android", "ios", "web"];
+    for (const ram of [NaN, Infinity, -Infinity, -1]) {
+      for (const p of plataformas) {
+        for (const ctx of ["personal", "grupo", "comercial"] as const) {
+          const m = motorRecomendado(p, ram, ctx);
+          expect(m.id, `${p} · ram=${ram} · ${ctx}`).toBe(ligero.id);
+          expect(m.ramMinGB).toBeLessThanOrEqual(ligero.ramMinGB);
+          expect(m.plataformas).toContain(p);
+        }
+      }
+    }
+    // Con RAM conocida no cambia nada.
+    expect(motorRecomendado("macos", 8, "personal").id).toBe("voicemorphic");
+    expect(motorRecomendado("web", 4, "personal").id).toBe("kokoro");
+  });
 });

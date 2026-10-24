@@ -270,6 +270,15 @@ export const MOTORES_VOZ: MotorVozCatalogo[] = [
 
 /** Motor por defecto para una plataforma y su RAM. Honesto con el hardware. */
 export function motorRecomendado(plataforma: Plataforma, ramGB: number, contexto: "personal" | "grupo" | "comunidad" | "publico" | "comercial" = "personal"): MotorVozCatalogo {
+    if (!Number.isFinite(ramGB) || ramGB < 0) {
+        // RAM desconocida (NaN, no finita o negativa): lo prudente es el motor ligero por defecto del
+        // catálogo. Sin esto ningún `ramMinGB <= ram` se cumplía y caía al último (el pesado, 8 GB).
+        const ligero = MOTORES_VOZ.filter((m) => m.offline && m.porDefectoEn.length > 0 && m.plataformas.includes(plataforma)
+            && (contexto === "personal" || m.claseLicencia !== "personal"))
+            .sort((a, b) => a.ramMinGB - b.ramMinGB)[0];
+        if (ligero) return ligero;
+        ramGB = 0;
+    }
     const candidatos = MOTORES_VOZ.filter((m) => m.plataformas.includes(plataforma) && m.offline && m.ramMinGB <= ramGB);
     if (contexto !== "personal") {
         // Fuera de contexto personal, excluimos los motores de clase personal
