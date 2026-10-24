@@ -75,7 +75,13 @@ import {
   Gauge,
   Brain,
   BookOpen,
-  Server,
+  Atom,
+  Network,
+  Layers,
+  Landmark,
+  GraduationCap,
+  Palette,
+  ShieldCheck,
   UserCircle,
   MessageCircle,
   MousePointerClick,
@@ -109,6 +115,7 @@ import {
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { copiarGuiaLocalACuenta, marcarGuiaVista } from "@/lib/onboarding/guia-vista";
+import { TODOS_LOS_TEMAS } from "@/lib/onboarding/guia-temas-red";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
@@ -218,16 +225,15 @@ const R = {
   escritorios: "/escritorios",
   dashboard: "/dashboard",
   agent: "/agent",
-  cerebros: "/cerebros",
-  library: "/library",
   profile: "/profile/me",
 } as const;
 
 /**
- * Pasos del tour. El orden lleva de lo más presente (el Orbe, siempre visible)
- * a las grandes superficies del sistema. Cada uno explica el FUNCIONAMIENTO.
+ * Pasos base del tour. El orden lleva de lo más presente (el Orbe, siempre
+ * visible) a las grandes superficies del sistema; los pasos finales de los
+ * temas (ver PASOS_DE_TEMAS) vienen después. Cada uno explica el FUNCIONAMIENTO.
  */
-const STEPS: GuideStep[] = [
+const PASOS_BASE: GuideStep[] = [
   {
     key: "orbe",
     title: "El Orbe de Aurora",
@@ -414,39 +420,55 @@ const STEPS: GuideStep[] = [
     },
     ask: "Aurora, muéstrame mi perfil",
   },
-  {
-    key: "cerebros",
-    title: "Cerebros y Servidores",
-    body:
-      "En Cerebros enlazas servidores y las memorias de cada cerebro en un grafo vivo: conectas fuentes de conocimiento, máquinas y recuerdos para que Aurora piense con más contexto. Es donde tu Exocórtex gana profundidad.",
-    say:
-      "En Cerebros enlazas servidores y memorias en un grafo vivo: fuentes de conocimiento, máquinas y recuerdos para que yo piense con más contexto.",
-    icon: Server,
-    accent: "#22D3EE",
-    targets: ['[data-guide="cerebros"]', '[data-guide="dock-cerebros"]', '[data-guide="dock-cerebro"]'],
-    go: {
-      label: "Ir a Cerebros",
-      run: ({ router }) => safeGoto(router, R.cerebros),
-    },
-    ask: "Aurora, abre los cerebros",
-  },
-  {
-    key: "libreria",
-    title: "La Librería",
-    body:
-      "La Librería es el catálogo unificado de la red: apps, widgets, recursos y saberes que puedes abrir, instalar o vincular. Es tu puerta a lo que el ecosistema StarSeed pone en común.",
-    say:
-      "La Librería es el catálogo unificado de la red: apps, widgets, recursos y saberes que puedes abrir, instalar o vincular. Es tu puerta a lo común.",
-    icon: BookOpen,
-    accent: "#FBBF24",
-    targets: ['[data-guide="libreria"]', '[data-guide="dock-mylib"]', '[data-guide="dock-netlib"]'],
-    go: {
-      label: "Abrir la Librería",
-      run: ({ router }) => safeGoto(router, R.library),
-    },
-    ask: "Aurora, abre la librería",
-  },
 ];
+
+// Icono lucide de cada tema y su color de acento (paleta Trinity del OS).
+const ICONO_DE_TEMA: Record<string, React.ComponentType<{ className?: string }>> = {
+  "protomolecula": Atom,
+  "malla": Network,
+  "capas-conciencia": Layers,
+  "neuronas-cerebro": Brain,
+  "pilar-politica": Landmark,
+  "pilar-educacion": GraduationCap,
+  "pilar-cultura": Palette,
+  "libreria-biblioteca": BookOpen,
+  "genesis": Wand2,
+  "personalizacion-segura": ShieldCheck,
+};
+const COLOR_DE_TEMA: Record<string, string> = {
+  "protomolecula": "#39FF14",   // Horizon · creación
+  "malla": "#007FFF",           // Zenith · enlace
+  "capas-conciencia": "#C9A8FF", // Aurora · inteligencia
+  "neuronas-cerebro": "#22D3EE", // cian · memoria
+  "pilar-politica": "#DC143C",  // Anchor · poder
+  "pilar-educacion": "#9FE870", // lima · aprender
+  "pilar-cultura": "#E879F9",   // fucsia · crear
+  "libreria-biblioteca": "#FBBF24", // ámbar · catálogo
+  "genesis": "#6FE6D6",         // aguamarina · taller
+  "personalizacion-segura": "#F0ABFC", // rosa · núcleo seguro
+};
+
+// ── (Ola 1021G) Pasos de los temas, construidos desde los datos ──────────────
+// Una sola fuente de textos (`TODOS_LOS_TEMAS`): el tour y las tarjetas de la
+// Guía de la red dicen LO MISMO. Los pasos `neuronas-cerebro` y
+// `libreria-biblioteca` entran aquí (sustituyen a los antiguos `cerebros` y
+// `libreria`), con los textos tal cual están en el módulo puro.
+const PASOS_DE_TEMAS: GuideStep[] = TODOS_LOS_TEMAS.map((tema) => ({
+  key: tema.key,
+  title: tema.titulo,
+  body: tema.cuerpo,
+  say: tema.voz,
+  icon: ICONO_DE_TEMA[tema.key] ?? Compass,
+  accent: COLOR_DE_TEMA[tema.key] ?? "#C9A8FF",
+  go: {
+    label: "Ir a la sección",
+    run: ({ router }) => safeGoto(router, tema.ruta),
+  },
+  ask: tema.preguntaAurora,
+}));
+
+/** Los diez temas del tour, a continuación de los pasos base. */
+export const STEPS: GuideStep[] = [...PASOS_BASE, ...PASOS_DE_TEMAS];
 
 // Frase de bienvenida que Aurora narra al empezar en modo voz.
 const INTRO_SAY =
