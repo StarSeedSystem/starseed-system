@@ -82,7 +82,7 @@ it("devuelve true si la capa está completa con todos sus trozos y SHA coincide"
     const almacen = almacenamientoEnMemoria();
     const sha256 = "a".repeat(64);
     const meta = { sha256: "b".repeat(64), completa: true, totalTrozos: 3 };
-    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)));
+    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)).buffer);
     await almacen.escribir("capa/needle3-reflejo/trozo/0", new ArrayBuffer(10));
     await almacen.escribir("capa/needle3-reflejo/trozo/1", new ArrayBuffer(10));
     await almacen.escribir("capa/needle3-reflejo/trozo/2", new ArrayBuffer(10));
@@ -95,7 +95,7 @@ it("devuelve true si la capa está completa con todos sus trozos y SHA coincide"
     const almacen = almacenamientoEnMemoria();
     const sha256 = "a".repeat(64);
     const meta = { sha256, completa: false, totalTrozos: 3 };
-    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)));
+    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)).buffer);
     await almacen.escribir("capa/needle3-reflejo/trozo/0", new ArrayBuffer(10));
     await almacen.escribir("capa/needle3-reflejo/trozo/1", new ArrayBuffer(10));
     await almacen.escribir("capa/needle3-reflejo/trozo/2", new ArrayBuffer(10));
@@ -119,7 +119,7 @@ describe("pedirCapa — selección de fuente por orden §6", () => {
     const almacen = almacenamientoEnMemoria();
     const sha256 = "a".repeat(64);
     const meta = { sha256, completa: true, totalTrozos: 2 };
-    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)));
+    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)).buffer);
     await almacen.escribir("capa/needle3-reflejo/trozo/0", new ArrayBuffer(10));
     await almacen.escribir("capa/needle3-reflejo/trozo/1", new ArrayBuffer(10));
 
