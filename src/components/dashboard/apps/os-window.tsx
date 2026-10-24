@@ -12,7 +12,8 @@
 // ════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, type TargetAndTransition, type Transition } from "framer-motion";
+import { geometriaVentana, type TipoVentana, type Viewport } from "@/lib/design/composicion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
@@ -57,6 +58,46 @@ function apuntarVentana(v: VentanaApilada): () => void {
     };
 }
 
+// ── Apertura centrada por aparato (DSN1019B) ──
+// Posición inicial calculada con `geometriaVentana`: en teléfono la ventana es
+// una HOJA centrada que sube desde abajo (entrada cardinal desde el sur, el
+// punto Anchor de la Trinity); en los demás aparatos, VENTANA centrada en la
+// pantalla. El tamaño sigue siendo `sizeClass` del llamador y el arrastre no
+// cambia. Función pura: entrada → salida, sin `window` ni red (fácil de probar).
+
+export type ModoApertura = "hoja" | "centrada";
+
+export const UMBRAL_TELEFONO = 430; // el mismo umbral de `geometriaVentana`/`tipoAparato`.
+
+export function modoApertura(viewport: Viewport): ModoApertura {
+    const tipo: TipoVentana = viewport.ancho < UMBRAL_TELEFONO ? "hoja" : "ventana";
+    const geo = geometriaVentana(viewport, { tipo });
+    // La hoja del teléfono ancla su borde inferior a la pantalla: sube desde abajo.
+    // La ventana centrada reparte el mismo aire arriba y abajo (y < alto del viewport).
+    const subeDesdeAbajo = viewport.ancho < UMBRAL_TELEFONO && geo.y + geo.alto >= viewport.alto - 0.5;
+    return subeDesdeAbajo ? "hoja" : "centrada";
+}
+
+/** Viewport vivo del aparato (safe en render de servidor). */
+export function leerViewport(): Viewport {
+    if (typeof window === "undefined") return { ancho: 1280, alto: 800 };
+    return { ancho: window.innerWidth, alto: window.innerHeight };
+}
+
+/** Preferencia del sistema sobre el movimiento (movimiento reducido, a11y). */
+export function prefiereMovimientoReducido(): boolean {
+    try {
+        return typeof window !== "undefined"
+            && typeof window.matchMedia === "function"
+            && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch {
+        return false;
+    }
+}
+
+/** Curva orgánica del OS (`--ease-organic`, adn-y-tokens §5). */
+export const CURVA_ORGANICA: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
 export interface OSWindowProps {
     title: string;
     subtitle?: string;
@@ -80,6 +121,36 @@ export function OSWindow({
 }: OSWindowProps) {
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+
+    const [reducido, setReducido] = useState(prefiereMovimientoReducido);
+    useEffect(() => {
+        const consulta = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+        if (!consulta) return;
+        const alCambio = () => setReducido(prefiereMovimientoReducido());
+        consulta.addEventListener("change", alCambio);
+        return () => consulta.removeEventListener("change", alCambio);
+    }, []);
+
+    // Composición centrada por aparato: la geometría decidida al abrir se
+    // mantiene hasta que el usuario arrastra; `resize` solo cambia el modo.
+    const [vp, setVp] = useState<Viewport>(leerViewport);
+    useEffect(() => {
+        const alCambiar = () => setVp(leerViewport());
+        window.addEventListener("resize", alCambiar);
+        return () => window.removeEventListener("resize", alCambiar);
+    }, []);
+    const hoja = modoApertura(vp) === "hoja";
+
+    // Entrada: escritorio mantiene su entrada de siempre (spring + escala); la
+    // hoja del teléfono sube desde el borde sur (entrada cardinal, adn-y-tokens
+    // §5) con la curva orgánica. Movimiento reducido: solo desvanece.
+    const entrada: TargetAndTransition = hoja
+        ? reducido ? { opacity: 0 } : { opacity: 0, y: "100%" }
+        : { opacity: 0, scale: reducido ? 1 : 0.96 };
+    const asentar: TargetAndTransition = { opacity: 1, y: 0, scale: 1 };
+    const transicion: Transition = hoja
+        ? reducido ? { duration: 0.14 } : { duration: 0.24, ease: CURVA_ORGANICA }
+        : { type: "spring", stiffness: 260, damping: 26 };
 
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
@@ -108,7 +179,14 @@ export function OSWindow({
     };
 
     return (
-        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+        <div ref={raizRef}
+            className={cn(
+                "fixed inset-0 z-[120] flex justify-center p-3 sm:p-4",
+                // Hoja del teléfono: pegada al borde inferior, centrada horizontal;
+                // en el resto, centrada vertical y horizontal (composición §7b).
+                hoja ? "items-end pb-0" : "items-center",
+            )}
+            role="dialog" aria-modal="true" aria-label={title}>
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
@@ -116,11 +194,13 @@ export function OSWindow({
                 el centrado y la ventana SIEMPRE abre centrada. */}
             <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                    initial={entrada}
+                    animate={asentar}
+                    transition={transicion}
+                    data-apertura={hoja ? "hoja" : "centrada"}
                     className={cn(
-                        "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
+                        "flex flex-col overflow-hidden border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
+                        hoja ? "rounded-t-2xl" : "rounded-2xl",
                         sizeClass,
                     )}
                 >
