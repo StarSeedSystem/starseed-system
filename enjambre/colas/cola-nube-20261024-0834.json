@@ -1,0 +1,60 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "GUI1021K1",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · «Conoce StarSeed (sin cuenta)» en la pantalla de acceso",
+   "archivos": [
+    "src/components/auth/auth-gate.tsx",
+    "src/components/auth/__tests__/auth-gate-guia.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. En `auth-gate.tsx`, bajo los dos modos (Entrar y Crear cuenta), un botón secundario «Conoce StarSeed (sin cuenta)» que llama a `abrirGuia({desde: 'login'})`. No cambia nada del inicio de sesión. Pruebas: el botón está en ambos modos y lanza el evento con `desde: 'login'`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ]
+  },
+  {
+   "id": "GUI1021O",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · Ajustes: «Ver la guía de introducción» con la lista de temas",
+   "archivos": [
+    "src/components/settings/appearance/guide-button-toggle.tsx",
+    "src/components/settings/appearance/__tests__/guide-button-toggle-temas.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Junto al botón de abrir la guía, una lista de los diez temas de `TODOS_LOS_TEMAS` (título e icono) y cada uno abre la guía en ese tema con `abrirGuia({desde: 'ajustes', temaInicial})`. Nada más cambia. Pruebas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ],
+   "dependencias_ya_en_main": [
+    "GUI1021B"
+   ]
+  },
+  {
+   "id": "GUI1021K2b",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · el mismo acceso en la bienvenida y en retomar sesión",
+   "archivos": [
+    "src/components/welcome/welcome-window.tsx",
+    "src/components/sso/session-resume-prompt.tsx",
+    "src/components/welcome/__tests__/bienvenida-guia.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Añade «Conoce StarSeed» (bienvenida: `desde: 'bienvenida'`; retomar sesión: `desde: 'login'`) con `abrirGuia`, sin tocar nada más. Pruebas de los dos botones. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40097312975`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama (la reasignación apuntaba al run 40099225681 de nube-gh, que ya terminó, y esta rama es de otro medio)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40097312975:refs/remotes/origin/nube/40097312975\"` y `git cherry-pick --no-commit a0cdf6272037`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/sso/session-resume-prompt.tsx, src/components/welcome/__tests__/bienvenida-guia.test.tsx, src/components/welcome/welcome-window.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40097312975"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "GUI1021K1",
+   "GUI1021O",
+   "GUI1021K2b"
+  ]
+ }
+}
