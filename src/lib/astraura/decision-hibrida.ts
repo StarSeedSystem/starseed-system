@@ -3,7 +3,7 @@ import { UMBRAL_EJECUTAR as UMBRAL_NEEDLE_EJECUTAR, zonaDeConfianza,
 import { preguntaTipo } from "@/ai/astraura/habilidades/diagramas";
 // Cliente único de Laya (Ola 1018L · Tarea B): aquí es donde debía usarse `preguntarALaya`,
 // que era la única llamada a Laya del servidor TS, con plazos del catálogo y relé de malla.
-import { preguntarALaya, type RelojLaya, type Siesta } from "./laya/cliente-laya";
+import { preguntarALaya, puntoDeLlamada, type RelojLaya, type Siesta } from "./laya/cliente-laya";
 import { conOpciones, puntoDecision } from "./laya/puntos-decision";
 
 /** ¿La consulta pide dibujar un diagrama? (la petición, no la intención del modelo). */
@@ -134,31 +134,28 @@ export async function decidirConJev(
 export interface RespuestaTipoDiagrama { tipo: string; confianza: number; motor: "laya-local"; }
 
 /** Capa 2b · Laya elige el TIPO de diagrama entre los 45 por la petición
- *  (architecture/diagramas.md §3.1). Con `tipos` (ids de `TIPOS_DIAGRAMA`)
- *  limita las opciones, por ejemplo al bloque afín a la petición. */
+ *  (architecture/diagramas.md §3.1). Pasa por el cliente único de Laya, así que
+ *  hereda los plazos del catálogo y la lectura calibrada. Con `tipos` (ids de
+ *  `TIPOS_DIAGRAMA`) limita las opciones, por ejemplo al bloque afín a la petición. */
 export async function decidirTipoDiagrama(
   consulta: string, tipos?: string[], transporte?: typeof fetch
 ): Promise<RespuestaTipoDiagrama | null> {
-  const gestor = new AbortController();
-  const timer = setTimeout(() => gestor.abort(), 6000);
+  const pregunta = preguntaTipo(tipos);
+  const opciones = pregunta.criteria;
   try {
-    const respuesta = await (transporte ?? fetch)("http://127.0.0.1:4470/v1/systemone", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ state: consulta, questions: { tipo: preguntaTipo(tipos) } }),
-      signal: gestor.signal,
-    });
-    if (!respuesta.ok) return null;
-    const datos = (await respuesta.json()) as RespuestaLayaHttp;
-    const decision = datos.answers?.tipo;
-    const opciones = preguntaTipo(tipos).criteria;
+    const salida = await preguntarALaya(
+      { punto: { ...puntoDeLlamada("habilidad.elegir"), preguntas: { tipo: pregunta } },
+        estado: consulta, medio: "a1" },
+      { ...RELOJ_REAL, fetch: transporte ?? fetch });
+    const decision = salida.respuestas?.tipo as DecisionLaya | undefined;
     if (typeof decision?.choice !== "string"
       || !Object.prototype.hasOwnProperty.call(opciones, decision.choice)) return null;
-    if (typeof decision.confidence !== "number" || !Number.isFinite(decision.confidence)) return null;
-    return { tipo: decision.choice, confianza: decision.confidence, motor: "laya-local" };
+    const cruda = typeof decision.answer_confidence === "number" && Number.isFinite(decision.answer_confidence)
+      ? decision.answer_confidence
+      : decision.confidence;
+    if (typeof cruda !== "number" || !Number.isFinite(cruda)) return null;
+    return { tipo: decision.choice, confianza: cruda, motor: "laya-local" };
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
