@@ -20,6 +20,19 @@ import {
   ErrorTrilium,
   type Pedir,
 } from "../conectores-propios/trilium";
+import {
+  ErrorOpenHands,
+  crearConversacion,
+  ejecutar,
+  enviarMensaje,
+  eventos,
+  pausar,
+  politicaConfirmacion,
+  salud,
+  type ConfigOpenHands,
+  type HerramientaAgente,
+  type PoliticaConfirmacion,
+} from "../agentes/openhands-servidor";
 
 import * as Crawl4AI from "./clients/crawl4ai";
 import * as Firecrawl from "./clients/firecrawl";
@@ -72,6 +85,56 @@ async function desdeTrilium<T>(accion: () => Promise<T>): Promise<IntegrationRes
       error: error instanceof ErrorTrilium ? error.message : "No se pudo contactar con Trilium.",
     };
   }
+}
+
+const POLITICAS_OPENHANDS: readonly PoliticaConfirmacion[] = ["AlwaysConfirm", "ConfirmRisky", "NeverConfirm"];
+
+function esPoliticaOpenHands(valor: unknown): valor is PoliticaConfirmacion {
+  return typeof valor === "string" && (POLITICAS_OPENHANDS as readonly string[]).includes(valor);
+}
+
+/** Texto de entrada sin inventar valores: lo que no sea cadena, vacío. */
+function textoOpenHands(valor: unknown): string {
+  return typeof valor === "string" ? valor.trim() : "";
+}
+
+function cfgOpenHands(c: IntegrationConfig): ConfigOpenHands {
+  return { baseUrl: (c.endpoint ?? "").replace(/\/+$/, ""), timeoutMs: 25_000 };
+}
+
+/** Adapta el cliente OpenHands al contrato del runner sin filtrar la clave. */
+async function desdeOpenHands<T>(accion: () => Promise<T>): Promise<IntegrationResult<T>> {
+  try {
+    return { ok: true, data: await accion() };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof ErrorOpenHands ? error.message : "No se pudo contactar con el Agent Server de OpenHands.",
+    };
+  }
+}
+
+/** Arma la conversación con lo que el llamador da; lo ausente no se inventa. */
+function conversacionOpenHands(entrada: Record<string, unknown>, c: IntegrationConfig) {
+  const modelo = textoOpenHands(entrada.modelo) || textoOpenHands(entrada.model) || c.extra?.model || "";
+  const politica = esPoliticaOpenHands(entrada.politica)
+    ? entrada.politica
+    : esPoliticaOpenHands(c.extra?.politica)
+      ? c.extra.politica
+      : "AlwaysConfirm";
+  const herramientas = Array.isArray(entrada.herramientas)
+    ? (entrada.herramientas as HerramientaAgente[])
+    : undefined;
+  return {
+    modelo,
+    apiKey: textoOpenHands(entrada.apiKey) || c.extra?.apiKey || c.apiKey || "",
+    baseUrlModelo: textoOpenHands(entrada.baseUrlModelo) || c.extra?.baseUrlModelo || undefined,
+    directorioTrabajo:
+      textoOpenHands(entrada.directorioTrabajo) || textoOpenHands(entrada.workingDir) || c.extra?.workingDir || "/workspace",
+    mensajeInicial: textoOpenHands(entrada.mensajeInicial) || undefined,
+    herramientas,
+    politicaConfirmacion: politica,
+  };
 }
 
 /**
@@ -131,9 +194,59 @@ export async function runIntegration(
         if (a === "chat") return await OpenAICompat.chat(id, c, input);
         if (a === "models") return await OpenAICompat.models(id, c);
         break;
-      case "openhands":
-        if (a === "run-task") return await GenericTask.runTask(id, c, input);
+      case "openhands": {
+        const cfg = cfgOpenHands(c);
+        const entrada = (input ?? {}) as Record<string, unknown>;
+        const conversacionId = textoOpenHands(entrada.id) || textoOpenHands(entrada.conversationId);
+        const tarea = textoOpenHands(entrada.task) || textoOpenHands(entrada.instruction) || textoOpenHands(entrada.texto);
+
+        if (a === "salud") return desdeOpenHands(async () => ({ estado: await salud(cfg) }));
+
+        if (a === "crear-conversacion") {
+          const conv = conversacionOpenHands(entrada, c);
+          if (!conv.modelo) return { ok: false, error: "Indica el modelo del agente (modelo o extra.model)." };
+          return desdeOpenHands(() => crearConversacion(cfg, conv));
+        }
+        if (a === "enviar-mensaje") {
+          if (!conversacionId) return { ok: false, error: "Falta el id de la conversación." };
+          const texto = textoOpenHands(entrada.texto) || textoOpenHands(entrada.message) || tarea;
+          if (!texto) return { ok: false, error: "Falta el texto del mensaje." };
+          return desdeOpenHands(() => enviarMensaje(cfg, conversacionId, texto));
+        }
+        if (a === "ejecutar") {
+          if (!conversacionId) return { ok: false, error: "Falta el id de la conversación." };
+          return desdeOpenHands(() => ejecutar(cfg, conversacionId));
+        }
+        if (a === "pausar") {
+          if (!conversacionId) return { ok: false, error: "Falta el id de la conversación." };
+          return desdeOpenHands(() => pausar(cfg, conversacionId));
+        }
+        if (a === "eventos") {
+          if (!conversacionId) return { ok: false, error: "Falta el id de la conversación." };
+          const desde = textoOpenHands(entrada.desde) || textoOpenHands(entrada.timestamp);
+          return desdeOpenHands(() => eventos(cfg, conversacionId, desde || undefined));
+        }
+        if (a === "politica-confirmacion") {
+          if (!conversacionId) return { ok: false, error: "Falta el id de la conversación." };
+          const politica = entrada.politica;
+          if (!esPoliticaOpenHands(politica)) {
+            return { ok: false, error: "Indica la política: AlwaysConfirm, ConfirmRisky o NeverConfirm." };
+          }
+          return desdeOpenHands(() => politicaConfirmacion(cfg, conversacionId, politica));
+        }
+        if (a === "run-task") {
+          if (!tarea) return { ok: false, error: "Indica una tarea/instrucción a ejecutar." };
+          const conv = conversacionOpenHands(entrada, c);
+          if (!conv.modelo) return { ok: false, error: "Indica el modelo del agente (modelo o extra.model)." };
+          return desdeOpenHands(async () => {
+            const creada = await crearConversacion(cfg, conv);
+            const mensaje = await enviarMensaje(cfg, creada.id, tarea);
+            const ejecucion = await ejecutar(cfg, creada.id);
+            return { conversacion: creada, mensaje, ejecucion };
+          });
+        }
         break;
+      }
       case "browser-use":
         if (a === "browser-task") return await GenericTask.runTask(id, c, input);
         break;
@@ -346,6 +459,7 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
       case "localai":
         return await OpenAICompat.health(id, c);
       case "openhands":
+        return await desdeOpenHands(async () => ({ estado: await salud(cfgOpenHands(c)) }));
       case "browser-use":
         return await GenericTask.health(id, c);
       case "audiobookshelf":

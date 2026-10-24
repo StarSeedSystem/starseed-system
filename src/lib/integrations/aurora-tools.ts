@@ -319,9 +319,27 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
   },
   {
     name: "code_task",
-    description: "Envía una tarea de programación a OpenHands (experimental). Entrada: { task }.",
+    description: "Lanza una tarea de programación en OpenHands: crea la conversación, le envía la tarea y la ejecuta pidiendo confirmación. Entrada: { task, modelo, apiKey?, directorioTrabajo?, politica? }.",
     integrationId: "openhands",
     actionId: "run-task",
+  },
+  {
+    name: "code_task_pause",
+    description: "Pausa una conversación de OpenHands. Entrada: { id }.",
+    integrationId: "openhands",
+    actionId: "pausar",
+  },
+  {
+    name: "code_task_events",
+    description: "Lee los eventos de una conversación de OpenHands. Entrada: { id, desde? }.",
+    integrationId: "openhands",
+    actionId: "eventos",
+  },
+  {
+    name: "code_task_policy",
+    description: "Cambia la política de confirmación de OpenHands: AlwaysConfirm, ConfirmRisky o NeverConfirm. Entrada: { id, politica }.",
+    integrationId: "openhands",
+    actionId: "politica-confirmacion",
   },
   {
     name: "local_chat",

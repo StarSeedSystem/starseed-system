@@ -182,17 +182,23 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
     ossId: "openhands",
     label: "OpenHands",
     category: "app-platform",
-    capabilities: ["Agente de software", "Escribe y ejecuta código (experimental)"],
-    defaultEndpoint: "http://localhost:3000",
+    capabilities: ["Agente de software", "Conversaciones, mensajes, ejecutar, pausar, eventos y confirmación"],
+    defaultEndpoint: "http://127.0.0.1:8010",
     needsKey: false,
     // Agente que EJECUTA código: por seguridad jamás debe ser público ni default
     // para todos. Correr siempre aislado (Docker/VM propia). GRATIS: VM Always
     // Free de Oracle Cloud como sandbox dedicado.
     freeHostingHint:
-      "Experimental y ejecuta código: manténlo SIEMPRE aislado, nunca público ni on-by-default. Para pruebas gratis usa una VM Always Free de Oracle Cloud como sandbox dedicado (Docker).",
+      "Ejecuta código: manténlo SIEMPRE aislado, nunca público ni on-by-default. El Agent Server escucha en 127.0.0.1:8010 (en el A1, por el túnel de la Mac); para pruebas gratis usa una VM Always Free de Oracle Cloud como sandbox dedicado (Docker).",
     docsUrl: "https://docs.all-hands.dev/",
     actions: [
-      { id: "run-task", label: "Lanzar tarea", description: "Envía una tarea de programación al servidor de OpenHands (experimental; configura extra.path)." },
+      { id: "run-task", label: "Lanzar tarea", description: "Crea una conversación, le envía la tarea y la ejecuta; por defecto pide confirmación antes de actuar." },
+      { id: "crear-conversacion", label: "Crear conversación", description: "Abre una conversación con el modelo y el directorio indicados (extra.model o entrada.modelo)." },
+      { id: "enviar-mensaje", label: "Enviar mensaje", description: "Añade un mensaje a una conversación sin ejecutarla." },
+      { id: "ejecutar", label: "Ejecutar", description: "Pone en marcha el bucle del agente en una conversación existente." },
+      { id: "pausar", label: "Pausar", description: "Detiene el bucle del agente en una conversación existente." },
+      { id: "eventos", label: "Leer eventos", description: "Lee los eventos de una conversación, opcionalmente desde un instante (desde)." },
+      { id: "politica-confirmacion", label: "Cambiar confirmación", description: "Fija AlwaysConfirm, ConfirmRisky o NeverConfirm para una conversación." },
     ],
   },
   {

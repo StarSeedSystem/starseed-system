@@ -98,7 +98,8 @@ const CATEGORY_ORDER: IntegrationCategory[] = [
  *   • n8n        → extra.webhookPath
  *   • openai-compat (open-webui/ollama/litellm/localai) → extra.model
  *   • dify       → extra.model (id de app / modelo según workflow)
- *   • openhands / browser-use → extra.path (ruta del endpoint, experimental)
+ *   • openhands → extra.model, extra.workingDir y extra.politica
+ *   • browser-use → extra.path (ruta del endpoint, experimental)
  */
 interface ExtraField {
   key: string;
@@ -154,10 +155,22 @@ const EXTRA_FIELDS: Record<string, ExtraField[]> = {
   ],
   openhands: [
     {
-      key: "path",
-      label: "Ruta del endpoint",
-      placeholder: "p.ej. /api/conversations",
-      hint: "Experimental: ruta a la que enviar la tarea.",
+      key: "model",
+      label: "Modelo del agente",
+      placeholder: "p.ej. openrouter/qwen",
+      hint: "Modelo que usará el Agent Server (su clave se pasa al lanzar la tarea).",
+    },
+    {
+      key: "workingDir",
+      label: "Directorio de trabajo",
+      placeholder: "p.ej. /workspace/proyecto",
+      hint: "Carpeta donde opera el agente dentro de su sandbox.",
+    },
+    {
+      key: "politica",
+      label: "Confirmación",
+      placeholder: "AlwaysConfirm",
+      hint: "AlwaysConfirm (por defecto), ConfirmRisky o NeverConfirm.",
     },
   ],
   "browser-use": [
