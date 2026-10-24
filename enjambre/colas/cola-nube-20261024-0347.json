@@ -1,0 +1,120 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "RTPM1010F0Gd",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Panel de la Protomolécula: hook de molécula, añadir herramienta, parámetros, dictado, pendientes e historial",
+   "archivos": [
+    "src/components/protomolecula/__tests__/panel-protomolecula.test.tsx"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea PM1010F0Gd («Panel de la Protomolécula: hook de molécula, añadir herramienta, parámetros, dictado, pendientes e historial») se hizo en main por otro camino; su rama nube/a1-20261014-142215-PM1010F0Gd queda archivada en `refs/archivo/nube/a1-20261014-142215-PM1010F0Gd` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.86)\n\nTU TAREA (RTPM1010F0G · solo estos archivos: src/components/protomolecula/__tests__/panel-protomolecula.test.tsx):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/protomolecula/__tests__/panel-protomolecula.test.tsx\n  it(\"muestra título\", async () => {\n    render(<PanelProtomolecula controlador={ctrlBase as any} autor={autor} />);\n    expect(screen.getByText(/molécula/i)).toBeInTheDocument();\n  });\n\n# src/components/protomolecula/__tests__/panel-protomolecula.test.tsx\n  it(\"avisa sin herramientas\", async () => {\n    render(<PanelProtomolecula controlador={ctrlBase as any} autor={autor} />);\n    expect(screen.getByText(/aún no hay herramientas/i)).toBeInTheDocument();\n  });\n\n# src/components/protomolecula/__tests__/panel-protomolecula.test.tsx\n  it(\"Autonomo crea molécula por defecto\", async () => {\n    render(<PanelProtomoleculaAutonomo />);\n    await waitFor(() => expect(screen.getByText(/mi primera molécula/i)).toBeInTheDocument());\n    expect(mS).toHaveBeenCalled();\n  });\n\n# src/components/protomolecula/__tests__/panel-protomolecula.test.tsx\n  it(\"procesa dictado volumen +3dB\", async () => {\n    // Mock an atom that matches the núcleo types\n    const atomo: AtomoEnUso[] = [{\n      id: \"v\",\n      herramientaId: \"vt\",\n      titulo: \"Volumen\",\n      capaId: undefined,\n      ejecutaEn: undefined,\n      estado: \"activo\"\n    }];\n    (import(\"@/lib/protomolecula/registro-atomos\").listarAtomos as any).mockImplementation(mLA).mockResolvedValue(atomo);\n\n    const resultado = { \n      ok: true, \n      operacion: { \n        tipo: \"exacta\", \n        valor: 53, \n        referencia: { atomoId: \"v\", parametroId: \"n\" } \n      }, \n      resumen: \"sube volumen 3dB\" \n    };\n    (ctrlBase.dictar as any).mockResolvedValue(resultado);\n\n    const { rerender } = render(<PanelProtomolecula controlador={ctrlBase as any} autor={autor} />);\n    await waitFor(() => expect(screen.getByText(/vol/i)).toBeInTheDocument());\n    expect(ctrlBase.dictar).toHaveBeenCalledWith(\"sube el volumen 3 dB\", autor, undefined);\n  });\n\n# src/components/protomolecula/__tests__/panel-protomolecula.test.tsx\n  it(\"muestra deshacer/rehacer\", async () => {\n    const hist = [{ \n      operacion: { \n        tipo: \"exacta\", \n        objetivo: { atomoId: \"v\", parametroId: \"n\" }, \n        accion: { tipo: \"exacta\", valor: 53 }, \n        autor: autor, \n        origen: \"mano\", \n        t: Date.now() \n      }, \n      antes: 50, \n      despues: 60, \n      acotado: false, \n      reversible: true \n    }];\n    (ctrlBase.suscribir as any).mockImplementation((cb) => { \n      cb({ ...molBase, historial: hist }); \n      return vi.fn(); \n    });\n\n    render(<PanelProtomolecula controlador={ctrlBase as any} autor={autor} />);\n    expect(screen.getByRole(\"button\", { name: /deshacer/i })).toBeInTheDocument();\n    expect(screen.getByRole(\"button\", { name: /rehacer/i })).toBeInTheDocument();\n  });\n\n# src/components/protomolecula/__tests__/panel-protomolecula.test.tsx\n  it(\"op agente grupo pendiente\", async () => {\n    const molG: Molecula = { \n      ...molBase, \n      ambito: \"grupo\" \n    };\n    const opAg: Operacion = { \n      id: \"o1\", \n      objetivo: { atomoId: \"v\", parametroId: \"n\" }, \n      accion: { tipo: \"exacta\", valor: 70 }, \n      autor: { tipo: \"agente\", id: \"ag\", nombre: \"Agente\" }, \n      origen: \"agente\", \n      t: Date.now() \n    };\n    const cambio = { \n      operacion: opAg, \n      antes: 50, \n      despues: 70, \n      acotado: false, \n      reversible: true \n    };\n\n    (ctrlBase.obtener as any).mockReturnValue(molG);\n    (ctrlBase.suscribir as any).mockImplementation((cb) => { \n      cb({ ...molG, historial: [cambio] }); \n      return vi.fn(); \n    });\n\n    render(<PanelProtomolecula controlador={ctrlBase as any} autor={autor} />);\n    expect(screen.getByText(/agente/i)).toBeInTheDocument();\n    expect(screen.getByRole(\"button\", { name: /confirmar/i })).toBeEnabled();\n  });\n\n# src/components/protomolecula/__tests__/panel-protomolecula.test.tsx\n  it(\"llama limpiarRegistro al desmontar\", () => {\n    const { unmount } = render(<PanelProtomolecula controlador={ctrlBase as any} autor={autor} />);\n    unmount();\n    expect(mLR).toHaveBeenCalled();\n  });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39731424286`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39731424286:refs/remotes/origin/nube/39731424286\"` y `git cherry-pick --no-commit b161e76ff26e`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/protomolecula/__tests__/panel-protomolecula.test.tsx.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (src/components/protomolecula/__tests__/panel-protomolecula.test.tsx): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39731424286"
+  },
+  {
+   "id": "GCA1019Wc",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Habilidades de la Biblioteca para los agentes de Genesis y PoliGenesis",
+   "archivos": [
+    "src/lib/genesis/conectores/habilidades-agente.ts",
+    "src/lib/genesis/conectores/__tests__/habilidades-agente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `habilidadesPara(papel, ambito, { capacidades: SkillCapability[] de src/ai/astraura/skills.ts, desactivadas })` elige las habilidades útiles por papel o director (por `routing` y etiquetas) en tamaño tarjeta, resumen o completa según la capa del modelo elegido (`architecture/laya-y-habilidades.md`). Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261021-165748-GCA1019Wb`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261021-165748-GCA1019Wb:refs/remotes/origin/nube/a1-20261021-165748-GCA1019Wb\"` y `git cherry-pick --no-commit 6766c7fbfab0`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/lib/genesis/conectores/__tests__/habilidades-agente.test.ts, src/lib/genesis/conectores/habilidades-agente.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GCA1019F"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261021-165748-GCA1019Wb"
+  },
+  {
+   "id": "CNV1023G",
+   "ola": "1023C",
+   "titulo": "Biblioteca · carpetas vigiladas que convierten solas (filee watch)",
+   "archivos": [
+    "src/lib/conversion/vigiladas.ts",
+    "src/lib/conversion/__tests__/vigiladas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nMódulo puro: reglas «carpeta de la Biblioteca → formato» (p. ej. todo lo que entra en «Fotos del móvil» pasa a JPG) guardadas en `starseed.conversion.vigiladas.v1`, y la función que decide qué archivos nuevos convertir (sin repetir, sin bucles: nunca convertir un resultado de conversión). Solo la lógica y sus pruebas; el cableado al Explorador va en otra tarea."
+  },
+  {
+   "id": "RIA1023E",
+   "ola": "1023R",
+   "titulo": "Capas de Astraura · capaEnPropio de verdad (cruzar el SHA con el catálogo local)",
+   "archivos": [
+    "src/lib/astraura/capas/repartir.ts",
+    "src/lib/astraura/capas/__tests__/repartir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\n`capaEnPropio` en `repartir.ts` hoy devuelve siempre false (lo dice su comentario). Hazla real: busca en el almacén la meta de la capa cuyo SHA-256 coincide y comprueba que todos sus trozos están y verificados (usa las claves y metas que ya escribe este módulo; no inventes otro formato). Exportala para probarla. Pruebas: almacén con la capa completa → true; con un trozo que falta → false; con otro SHA → false. Corre `npx vitest run src/lib/astraura/capas` y lee el resumen entero."
+  },
+  {
+   "id": "RIA1023F",
+   "ola": "1023R",
+   "titulo": "Recursos de IA · publicar la oferta de la neurona (OfertaNeurona) desde sus asignaciones",
+   "archivos": [
+    "src/lib/recursos-ia/oferta-desde-asignaciones.ts",
+    "src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nFunción PURA que, a partir del inventario de esta neurona y sus asignaciones de Recursos de IA, construye la `OfertaNeurona` de `src/lib/recursos/oferta.ts` (usa ese tipo tal cual): qué modelos sirve, por qué procesador, si presta su servidor propio de IA (puerto 4480) y con qué alcance (privado → solo la cuenta; grupo/comunidad según la asignación). Nada privado sale con alcance público. Pruebas vitest: neurona sin servidor propio, con servidor propio privado y con alcance de grupo."
+  },
+  {
+   "id": "GRD1021A",
+   "ola": "1021M",
+   "importancia": "capacidad",
+   "titulo": "Guardia de memoria · mira la presión del núcleo, no solo la memoria inactiva",
+   "archivos": [
+    "scripts/puente/guardia-memoria.py",
+    "scripts/puente/test_guardia_memoria.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nCaso real medido (2026-10-21 10:30 UTC): el llama-server de BitNet llevaba 22 h congelado por el guardia (estado T, 1,15 GB residentes) con la swap al 94 % y la presión del núcleo en 2. La regla CNS1010 (`accion_para`) dice matarlo tras 20 min congelado con swap ≥ 80 %, pero nunca se llegaba a aplicar: `decidir` solo pide «reevaluar» si `libres_mb() < CONGELAR_BAJO_MB` (1600), y `libres_mb()` suma la memoria INACTIVA, que con macOS presionado sigue alta. Es la misma trampa que ya se arregló en el gobernador (CLAUDE.md, punto 16: mira `kern.memorystatus_vm_pressure_level`). Claude lo mató a mano y la swap bajó de 7,7 a 5,6 GB.\n\nArreglo en `scripts/puente/guardia-memoria.py`: una función que lea la presión del núcleo (`sysctl -n kern.memorystatus_vm_pressure_level`, None si falla), y `decidir(...)` recibe `presion=None`: con el enjambre vivo, un motor ya congelado pasa a «reevaluar» si `libre_mb < CONGELAR_BAJO_MB` O `presion >= 2`, y uno suelto se congela con esas mismas condiciones. `main` le pasa la presión. Sin presión medida, todo como hoy. La reanudación sigue igual (con la histéresis).\n\nPruebas en `scripts/puente/test_guardia_memoria.py`: congelado + presión 2 + libre alta → «reevaluar»; presión 1 + libre alta → nada; presión None → como hoy; las pruebas actuales en verde. Corre `python3 -m unittest scripts/puente/test_guardia_memoria.py` y lee su resumen entero."
+  },
+  {
+   "id": "APM1017F",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · servir capacidades: admisión con los topes de préstamo, cola, cancelación y registro",
+   "archivos": [
+    "src/lib/recursos/servir-capacidades.ts",
+    "src/lib/recursos/__tests__/servir-capacidades.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión del relé `capacidad.*`: `crearServidor({ manejadores: Partial<Record<tipo, fn>>, oferta, sesiones, ahora })` con `atender(mensaje)` que comprueba la sesión (sesion-prestamo.ts) y los topes de `capacidadPrestable`, encola si está lleno (máx. 4 en cola), corre el manejador, trocea la respuesta y permite cancelar. `prestamos()` devuelve los préstamos vivos y hechos (quién, qué, ms, bytes) para Procesos activos. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D",
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "APM1017J",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · lector multifuente: cada banda de la fuente más rápida, varias a la vez, verificada",
+   "archivos": [
+    "src/lib/recursos/lector-volumen.ts",
+    "src/lib/recursos/__tests__/lector-volumen.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`crearLector({ manifiesto, cache, fuentes: { id, pedirBanda(i): Promise<Uint8Array> }[], verificar, paralelo = 4 })` con `leer(desde, hasta)` → bytes del rango: primero caché, luego `elegirFuentes` de volumen.ts, varias bandas en paralelo, reintento con la siguiente fuente si una falla o el SHA no cuadra (y anota la fuente mala), guarda en la caché. `prebuscar(rango)` para lo que viene después. Las fuentes reales (archivos-malla, Google Drive, el A1) se enchufan desde fuera. Pruebas con fuentes falsas lentas, rotas y mentirosas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017H",
+    "APM1017I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "RTPM1010F0Gd",
+   "GRD1021A",
+   "APM1017F",
+   "CNV1023G",
+   "RIA1023E",
+   "RIA1023F",
+   "GCA1019Wc",
+   "APM1017J"
+  ]
+ }
+}
