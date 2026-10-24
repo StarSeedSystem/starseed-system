@@ -9,6 +9,7 @@ import { programaAUiSpec } from "@/lib/vivo/programas/a-uispec";
 import { basePrograma, buscarMotorProgramas, TIPO_REGISTRO_PROGRAMA } from "@/lib/vivo/programas/motor";
 import { especificacionDePlantilla, type IdPlantilla } from "@/lib/vivo/programas/plantillas";
 import { K, LIM, NOMBRE_TIPO_BLOQUE, TIPOS_BLOQUE_PROG, type BloqueProg, type EstadoPrograma, type TipoBloqueProg } from "@/lib/vivo/programas/tipos";
+import { AvisoSesion } from "../../auth/aviso-sesion";
 import { Aviso, Boton, IndicadorConexion, PresenciaSala, estilos as s } from "../juegos/comun";
 import { EditorBloque } from "./editor-bloque";
 import { idBloqueNuevo } from "./editor-modelo";
@@ -134,13 +135,17 @@ export function SalaPrograma({ spaceId }: PropsSalaPrograma) {
 
     const avisos = (
         <>
-            {inst.fase === "listo" && inst.soloLectura && (
-                <Aviso tipo="info">
-                    {yoUid
-                        ? "Tienes permiso solo para mirar este programa: puedes ver lo que hace el grupo pero no participar."
-                        : "Inicia sesión para participar. Sin cuenta puedes mirar, pero no votar ni escribir."}
-                </Aviso>
-            )}
+            {inst.fase === "listo" && inst.soloLectura &&
+                (yoUid ? (
+                    <Aviso tipo="info">
+                        Tienes permiso solo para mirar este programa: puedes ver lo que hace el grupo pero no participar.
+                    </Aviso>
+                ) : (
+                    <AvisoSesion
+                        compacto
+                        texto="Inicia sesión para participar. Sin cuenta puedes mirar, pero no votar ni escribir."
+                    />
+                ))}
             {inst.aviso && <Aviso alCerrar={() => controlador?.descartarAviso()}>{inst.aviso}</Aviso>}
             {avisoLocal && (
                 <Aviso tipo={avisoLocal.tipo === "info" ? "info" : "aviso"} alCerrar={() => setAvisoLocal(null)}>

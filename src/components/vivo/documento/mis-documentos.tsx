@@ -9,8 +9,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { FilePlus2, FileText, Loader2, LogIn, Presentation, RefreshCw, Users } from "lucide-react";
+import { FilePlus2, FileText, Loader2, Presentation, RefreshCw, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 import { listarEspaciosApp, uidActual, type AppColaborativa, type EntradaListaApp } from "@/lib/vivo/doc-colaborativo/espacios";
 import { crearVivoDocumento, INFO_VIVO_DOCUMENTO, rutaDocumento } from "@/lib/vivo/documento";
 import { crearVivoPresentacion, INFO_VIVO_PRESENTACION, rutaPresentacion } from "@/lib/vivo/presentacion";
@@ -99,17 +100,10 @@ export function MisDocumentos() {
             </header>
 
             {estado.sinCuenta ? (
-                <section className={cn(styles.cristal, "rounded-[24px] p-6 text-center")}>
-                    <LogIn className="mx-auto mb-3 h-7 w-7 text-[#c4b5fd]" aria-hidden="true" />
-                    <p className="text-[16px] font-semibold">Inicia sesión para crear y ver tus documentos</p>
-                    <p className="mt-1 text-[13.5px] text-white/60">Los documentos y presentaciones viven en tu cuenta y se comparten por invitación.</p>
-                    <Link
-                        href="/login"
-                        className="ss-redondo mt-4 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full bg-[#7C5CFF] px-5 text-[14px] font-semibold text-white shadow-[0_6px_18px_#7C5CFF55] transition-transform duration-200 hover:scale-[1.03]"
-                    >
-                        Iniciar sesión
-                    </Link>
-                </section>
+                <AvisoSesion
+                    texto="Inicia sesión para crear y ver tus documentos"
+                    detalle="Los documentos y presentaciones viven en tu cuenta y se comparten por invitación."
+                />
             ) : (
                 <motion.section
                     className={cn(styles.cristal, "rounded-[24px] p-4 sm:p-5")}

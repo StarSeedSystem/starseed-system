@@ -8,6 +8,7 @@ import type { TableroAjedrez as EstadoTableroAjedrez } from "@/lib/vivo/juegos/a
 import { baseDePartida, buscarMotorMesa, juegoDe, type EstadoMesa } from "@/lib/vivo/juegos/mesa";
 import { useSalaViva } from "@/lib/vivo/juegos/usar-sala-viva";
 import { esIdJuego, type Asiento, type Datos, type IdJuego } from "@/lib/vivo/juegos/tipos";
+import { AvisoSesion } from "../../auth/aviso-sesion";
 import { Aviso, Boton, IndicadorConexion, PresenciaSala, estilos as s } from "./comun";
 import { BannerResultado } from "./indicadores";
 import { VistaDibujo } from "./escenario-dibujo";
@@ -160,13 +161,14 @@ export function SalaJuegos({ spaceId }: PropsSalaJuegos) {
 
     const avisos = (
         <>
-            {inst.fase === "listo" && inst.soloLectura && (
-                <Aviso tipo="info">
-                    {yoUid
-                        ? "Tienes permiso solo para mirar esta sala: puedes ver la partida pero no jugar."
-                        : "Inicia sesión para jugar. Sin cuenta puedes mirar, pero no jugar."}
-                </Aviso>
-            )}
+            {inst.fase === "listo" && inst.soloLectura &&
+                (yoUid ? (
+                    <Aviso tipo="info">
+                        Tienes permiso solo para mirar esta sala: puedes ver la partida pero no jugar.
+                    </Aviso>
+                ) : (
+                    <AvisoSesion compacto texto="Inicia sesión para jugar. Sin cuenta puedes mirar, pero no jugar." />
+                ))}
             {inst.aviso && <Aviso alCerrar={() => controlador?.descartarAviso()}>{inst.aviso}</Aviso>}
             {avisoLocal && <Aviso alCerrar={() => setAvisoLocal(null)}>{avisoLocal}</Aviso>}
         </>
