@@ -38,9 +38,13 @@ import {
   snapXToNearestEdge,
   type AuroraOrbPosition,
 } from "@/lib/aurora/aurora-orb-bus";
+import type { CapaActiva } from "@/lib/astraura-bots/capa-pantalla";
+import { EVENTO_CAPA_BOT, capasPanelAhora, retirarCapaPanel } from "@/lib/astraura-bots/adaptadores/ejecutor-acciones";
 
 // Orbes hermanas de los demás bots abiertos (BOT1011C2): perezosas y sin SSR; esta orbe es la del predeterminado.
 const OrbesBots = dynamic(() => import("@/components/astraura-bots/orbes-bots").then((m) => m.OrbesBots), { ssr: false });
+// Capas que los bots ponen sobre la pantalla (BOT1011V): mismas condiciones que las orbes.
+const CapaPantallaBot = dynamic(() => import("@/components/astraura-bots/capa-pantalla-bot").then((m) => m.CapaPantallaBot), { ssr: false });
 
 /**
  * AuroraWidget — el ORBE de Aurora (montado en el layout RAÍZ: presente en
@@ -209,6 +213,21 @@ export function AuroraWidget() {
 
   // Posición del orbe como fracción del viewport (movible + persistida).
   const [pos, setPos] = useState<AuroraOrbPosition>(DEFAULT_ORB_POSITION);
+
+  // Capas de los bots sobre la pantalla (BOT1011V): el anfitrión guarda la lista
+  // (al montar copia el almacén del ejecutor y luego sigue su evento; sin STATE nuevo,
+  // el mismo `EVENTO_CAPA_BOT`). «Quitar» del componente y el deshacer `{retirar: id}`
+  // pasan por `retirarCapaPanel`, el único camino de quitárselas a los bots.
+  const [capasDeBots, setCapasDeBots] = useState<readonly CapaActiva[]>([]);
+  useEffect(() => {
+    setCapasDeBots(capasPanelAhora()); // lo puesto antes de montar no se pierde
+    const alCapa = (e: Event) => {
+      const d = (e as CustomEvent<{ capas?: readonly CapaActiva[] }>).detail;
+      if (d?.capas) setCapasDeBots(d.capas);
+    };
+    window.addEventListener(EVENTO_CAPA_BOT, alCapa);
+    return () => window.removeEventListener(EVENTO_CAPA_BOT, alCapa);
+  }, []);
 
   // ¿Pantalla chica (<640px, smartphones)? SSR-safe: arranca en `false` (igual
   // que el resto de flags de este archivo) y se corrige tras montar. Decide el
@@ -1257,6 +1276,9 @@ export function AuroraWidget() {
           (contratos de open-aurora / AuroraMemoryPanel).
       ══════════════════════════════════════════════════════════════════ */}
       {!esRutaConsola(ruta) && !esRutaMinima(ruta) && <OrbesBots principal={displayPos} />}
+      {!esRutaConsola(ruta) && !esRutaMinima(ruta) && (
+        <CapaPantallaBot capas={capasDeBots} alQuitar={retirarCapaPanel} />
+      )}
       <div className="fixed z-50 select-none" style={orbStyle}>
         <div className="relative flex items-center justify-center" style={{ width: orbSize, height: orbSize }}>
           <button
