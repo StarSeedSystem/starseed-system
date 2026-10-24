@@ -1,40 +1,63 @@
 import os
-from fastapi import FastAPI, File, UploadFile, Header, HTTPException
-from typing import List
-from pydantic import BaseModel
+import sys
+import socket
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import List, Tuple
 
-app = FastAPI()
+# Configuration
+HOST = "127.0.0.1"
+PORT = 8081
+TOKEN: str | None = os.getenv("STARSEED_OIDO_TOKEN")
+EARSHOT_OFFLINE = os.getenv("EARSHOT_OFFLINE") == "1"
+__downloaded = False
 
-class TagsResponse(BaseModel):
-    tags: List[str]
-
-# Dummy tagging logic
+# Dummy earshot classifier
 
 def _classify_audio(data: bytes) -> List[str]:
-    # Real logic would use earshot models, omitted for brevity
-    return ["dummy_tag"]
+    # placeholder: return a tag if the data contains the byte 42
+    return ["placeholder"] if 42 in data else ["none"]
 
-# Authorization handling
-TOKEN = os.getenv("STARSEED_OIDO_TOKEN")
-EOL = os.getenv("EARSHOT_OFFLINE") == "1"
+class oirHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path != "/oir":
+            self.send_error(404)
+            return
+        auth: str | None = self.headers.get("Authorization")
+        if TOKEN:
+            if not auth or not auth.startswith("Bearer "):
+                self.send_response(401)
+                self.end_headers(); return
+            token = auth.split(' ', 1)[1]
+            if token != TOKEN:
+                self.send_response(403)
+                self.end_headers(); return
+        content_type = self.headers.get("Content-Type", "")
+        if not content_type.startswith("audio/"):
+            self.send_error(400, "Invalid media type")
+            return
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            data = self.rfile.read(length)
+        except Exception:
+            self.send_error(500, "Read error")
+            return
+        # Offline mode: allow only first download
+        global __downloaded
+        if EARSHOT_OFFLINE:
+            if not __downloaded:
+                __downloaded = True
+            else:
+                self.send_response(410)
+                self.end_headers(); return
+        tags = _classify_audio(data)
+        response = f'{{"tags":{tags}}}'.replace("'", '"')  # naive json
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(response)))
+        self.end_headers()
+        self.wfile.write(response.encode('utf-8'))
 
-@app.post("/oir", response_model=TagsResponse)
-async def oir(file: UploadFile = File(...), authorization: str | None = Header(None)):
-    if not file.content_type.startswith("audio/"):
-        raise HTTPException(status_code=400, detail="Invalid media type")
-    try:
-        data = await file.read()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    # Enforce size limit 15s ~ ~150 KB maybe; skip for brevity
-    if TOKEN and not authorization:
-        raise HTTPException(status_code=401, detail="Missing token")
-    if TOKEN and not authorization.startswith("Bearer ") or authorization.split()[1] != TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid token")
-    if EOL:
-        if not getattr(_classify_audio, "downloaded", False):
-            _classify_audio.downloaded = True
-        else:
-            raise HTTPException(status_code=410, detail="Offline mode active")
-    tags = _classify_audio(data)
-    return TagsResponse(tags=tags)
+if __name__ == "__main__":
+    server = HTTPServer((HOST, PORT), oirHandler)
+    print(f"Serving oir on {HOST}:{PORT}")
+    server.serve_forever()
