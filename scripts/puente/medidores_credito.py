@@ -180,6 +180,14 @@ def recoger(config: list[dict], previo: dict, ahora: datetime, adaptadores=ADAPT
     return {"version": 1, "t": _iso(ahora), "medidores": medidores, "historial": historial}
 
 
+def fusionar_solo(previo: dict, nuevo: dict, solo: set[str]) -> dict:
+    """Actualiza las entradas elegidas y conserva los demás medidores guardados."""
+    resultado = dict(nuevo)
+    conservados = {k: v for k, v in (previo.get("medidores", {}) or {}).items() if k not in solo}
+    resultado["medidores"] = {**conservados, **(nuevo.get("medidores", {}) or {})}
+    return resultado
+
+
 def fusionar_statusline(med_claude: dict, ruta: str = ARCHIVO_STATUSLINE) -> dict:
     """Si la línea de estado es más reciente que la lectura, actualiza sesion y semana (§4.2)."""
     med = dict(med_claude)
@@ -372,10 +380,14 @@ def main(argv=None) -> int:
     except (OSError, ValueError):
         previo = {}
     doc = recoger(config, previo, ahora)
+    if solo is not None:
+        doc = fusionar_solo(previo, doc, solo)
     if "claude" in doc["medidores"]:
         doc["medidores"]["claude"] = fusionar_statusline(doc["medidores"]["claude"])
         puente_limites_claude(doc["medidores"]["claude"], ahora)
-    alimentar_salud(doc["medidores"], ARCHIVO_SALUD, ARCHIVO_CERROJO, ahora)
+    alimentar_salud(doc["medidores"] if solo is None else
+                    {k: v for k, v in doc["medidores"].items() if k in solo},
+                    ARCHIVO_SALUD, ARCHIVO_CERROJO, ahora)
     guardar(doc)
     for mid in sorted(doc["medidores"]):
         print(resumen_linea(doc["medidores"][mid]))

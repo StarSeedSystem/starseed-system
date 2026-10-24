@@ -42,3 +42,27 @@ def test_sin_estado_no_inventa_cupo():
     assert medidor["ventanas"] == [{"id": "local", "etiqueta": "Agentes locales: sin límite",
                                     "usado_pct": 0, "reinicia": None}]
     assert medidor["error"]
+
+
+def test_crm1024h_nube_por_execution_target_en_ms_y_modelos_de_harnesses():
+    """CRM1024H: hilos reales de room-cli (executionTarget, createdAt en ms) y modelos de cloud status."""
+    ms = int(AHORA.timestamp() * 1000)
+    hilos = {"threads": [
+        {"executionTarget": "cloud", "machine": None, "createdAt": ms - 3600 * 1000},
+        {"executionTarget": "cloud", "machine": None, "createdAt": ms - 2 * 86400 * 1000, "archived": True},
+        {"executionTarget": "local", "createdAt": ms - 3600 * 1000},
+        {"executionTarget": "cloud", "createdAt": ms - 40 * 86400 * 1000},
+    ]}
+    estado = {"ready": True, "account": {"id": "x"}, "plan": None, "planUsage": None,
+              "harnesses": [{"id": "codex", "model": "gpt-6-astra",
+                             "models": [{"model": "gpt-6-luna"}, {"model": "gpt-5.6-terra"}]}]}
+    m = M.interpretar(estado, {"total": 98}, hilos, AHORA)
+    assert m["ventanas"][0]["usado"] == 2 and m["ventanas"][0]["total"] == 100
+    assert m["extras"]["agentes"][0] == {"harness": "codex", "modelo": "gpt-6-astra",
+                                          "modelos": ["gpt-6-luna", "gpt-5.6-terra"]}
+
+
+def test_crm1024h_ruta_de_la_cli_fuera_del_path():
+    assert M.ruta_cli({"CLOUDROOM_CLI": "/x/room-cli"}, existe=lambda p: p == "/x/room-cli",
+                      buscar=lambda n: None) == "/x/room-cli"
+    assert M.ruta_cli({}, existe=lambda p: False, buscar=lambda n: None) is None

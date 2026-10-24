@@ -33,8 +33,16 @@ def _en_nube(hilo):
     maquina = hilo.get("machine", hilo.get("machineType", hilo.get("machine_type")))
     if isinstance(maquina, dict):
         maquina = maquina.get("type", maquina.get("name"))
-    return hilo.get("cloud") is True or str(maquina or "").lower() == "cloud"
+    # (CRM1024H) `room-cli thread list` marca la nube con "executionTarget": "cloud" (machine viene null).
+    return (hilo.get("cloud") is True or str(maquina or "").lower() == "cloud"
+            or str(hilo.get("executionTarget") or "").lower() == "cloud")
 def _fecha(valor):
+    # (CRM1024H) createdAt llega en milisegundos desde la época; también se aceptan segundos.
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool) and valor > 0:
+        try:
+            return datetime.fromtimestamp(valor / 1000 if valor > 1e11 else valor, timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
     if not isinstance(valor, str):
         return None
     try:
@@ -83,6 +91,12 @@ def interpretar(estado, cuenta_hilos, lista_hilos, ahora):
     total_hilos = _numero(cuenta_hilos, ("count", "total", "threads"))
     agentes = []
     vistos = set()
+    # (CRM1024H) Los agentes y sus modelos disponibles en la nube salen de `cloud status` → harnesses.
+    for h in estado.get("harnesses") or []:
+        if isinstance(h, dict) and h.get("id"):
+            modelos = [m.get("model") for m in (h.get("models") or []) if isinstance(m, dict) and m.get("model")]
+            vistos.add((str(h["id"]), str(h.get("model") or "sin modelo")))
+            agentes.append({"harness": str(h["id"]), "modelo": str(h.get("model") or "sin modelo"), "modelos": modelos})
     for hilo in nube:
         harness = hilo.get("harness", hilo.get("provider", hilo.get("agent")))
         modelo = hilo.get("model", hilo.get("modelId", hilo.get("model_id")))
@@ -101,8 +115,19 @@ def interpretar(estado, cuenta_hilos, lista_hilos, ahora):
             "fuente": fuente, "leido": ahora.astimezone().isoformat(), "ok": bool(estado),
             "error": None if estado else "Cloudroom no devolvió el estado del plan"}
 
+def ruta_cli(entorno=None, existe=None, buscar=None):
+    """(CRM1024H) La CLI: CLOUDROOM_CLI, ~/.local/bin/room-cli (launchd no la tiene en el PATH) o el PATH."""
+    import os
+    entorno = os.environ if entorno is None else entorno
+    existe = existe or os.path.exists
+    buscar = buscar or shutil.which
+    for candidata in (entorno.get("CLOUDROOM_CLI"), os.path.expanduser("~/.local/bin/room-cli")):
+        if candidata and existe(candidata):
+            return candidata
+    return buscar("room-cli")
+
 def disponible():
-    return shutil.which("room-cli") is not None
+    return ruta_cli() is not None
 
 def _correr(orden):
     try:
@@ -114,6 +139,8 @@ def _correr(orden):
 def leer_medidor(cfg, ahora):
     if not disponible():
         return interpretar({}, {}, {}, ahora)
-    return interpretar(_correr(["room-cli", "cloud", "status", "--json"]),
-                       _correr(["room-cli", "thread", "count", "--json"]),
-                       _correr(["room-cli", "thread", "list", "--json"]), ahora)
+    cli = ruta_cli()
+    return interpretar(_correr([cli, "cloud", "status", "--json"]),
+                       _correr([cli, "thread", "count", "--json"]),
+                       # (CRM1024H) los archivados y ocultos también gastaron cupo del ciclo
+                       _correr([cli, "thread", "list", "--json", "--include-archived", "--include-hidden"]), ahora)
