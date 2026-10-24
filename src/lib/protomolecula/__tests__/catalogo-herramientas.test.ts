@@ -362,3 +362,61 @@ describe("diagram-design tool", () => {
     expect(diagramDesign?.avisos).toEqual(expect.arrayContaining(["sin telemetría", "fuentes del OS", "animaciones solo en iframe aislado"]));
   });
 });
+
+describe("repos-libreria-1020 · solidcraft, detectron2 y mesh2motion", () => {
+  const FICHAS_1020 = ["solidcraft", "detectron2", "mesh2motion"];
+  const RE_REPO = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/;
+
+  it("las tres fichas existen y cada id es única en todo el catálogo", () => {
+    for (const id of FICHAS_1020) {
+      expect(ids.filter((x) => x === id).length, id).toBe(1);
+    }
+  });
+
+  it.each(FICHAS_1020)("%s: código de GitHub y actualizacion.fuente válida", (id) => {
+    const h = herramientaPorId(id) as HerramientaProto;
+    expect(h.codigo, id).toMatch(RE_REPO);
+    expect(FUENTES, id).toContain(h.actualizacion.fuente);
+    expect(h.actualizacion.ref, id).toMatch(/^[\w.-]+\/[\w.-]+$/);
+    expect(h.verificado, id).toBe("2026-10-20");
+  });
+
+  it("solidcraft: CAD paramétrico con control de agentes, integrable y con el aviso de fijar SHA", () => {
+    const h = herramientaPorId("solidcraft") as HerramientaProto;
+    expect(h.categoria).toBe("arquitectura-cad");
+    expect(h.tipo).toBe("app");
+    expect(h.licencia).toBe("Apache-2.0");
+    expect(h.web).toBe("https://solidcraft.io");
+    expect(h.control.via).toContain("mcp");
+    expect(h.actualizacion).toMatchObject({ fuente: "github-releases", ref: "tangency-labs/solidcraft", ultimaVersion: "v0.16.2", fechaVersion: "2026-10-19" });
+    expect(h.estado).toBe("integrable");
+    expect((h.avisos ?? []).join(" ")).toMatch(/SHA/);
+  });
+
+  it("detectron2: visión de Meta, tipos coherentes y pesos con licencia aparte", () => {
+    const h = herramientaPorId("detectron2") as HerramientaProto;
+    expect(h.categoria).toBe("ia-generativa");
+    expect(h.tipo).toBe("libreria");
+    expect(h.licencia).toBe("Apache-2.0");
+    expect(h.licenciaPesos).toBe("NOASSERTION");
+    expect(h.ia).toEqual(expect.arrayContaining(["detecta-objetos", "segmenta"]));
+    expect(h.actualizacion).toMatchObject({ fuente: "github-tags", ref: "facebookresearch/detectron2", ultimaVersion: "v0.6", fechaVersion: "2021-11-15" });
+    expect((h.avisos ?? []).join(" ")).toMatch(/model zoo/);
+  });
+
+  it("mesh2motion: rigging automático, sin releases y assets CC0", () => {
+    const h = herramientaPorId("mesh2motion") as HerramientaProto;
+    expect(h.categoria).toBe("modelado-3d");
+    expect(h.tipo).toBe("app");
+    expect(h.licencia).toBe("MIT");
+    expect(h.web).toBeNull();
+    expect(h.formatos).toMatchObject({ entrada: ["glb", "gltf"], salida: ["glb", "gltf"] });
+    expect(h.actualizacion).toMatchObject({ fuente: "github-tags", ref: "Mesh2Motion/mesh2motion-app", ultimaVersion: null, fechaVersion: null });
+    expect((h.avisos ?? []).join(" ")).toMatch(/CC0/);
+    expect(h.estado).toBe("integrable");
+  });
+
+  it("zhaoxuya520/reverse-skill no está en ninguna ficha (excluida por seguridad)", () => {
+    expect(JSON.stringify(CATALOGO_PROTOMOLECULA)).not.toContain("reverse-skill");
+  });
+});
