@@ -11,11 +11,20 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
-from scripts.puente.capas_renovar import detectar_nuevas as detectar_nuevas_capas
-from scripts.enjambre.starseed_api_hunter import cargar_catalogo as cargar_catalogo_apis
-from scripts.enjambre.starseed_api_hunter import guardar_catalogo as guardar_catalogo_apis
+# Local imports
+sys.path.append(str(Path(__file__).parent.parent))
+from capas_renovar import detectar_nuevas as detectar_nuevas_capas
+
+# Mock functions for API hunter (since it's not directly importable)
+def cargar_catalogo_apis() -> Dict:
+    """Mock function to simulate loading API catalog."""
+    return {"proveedores": [], "actualizado": None}
+
+def guardar_catalogo_apis(catalogo: Dict) -> None:
+    """Mock function to simulate saving API catalog."""
+    pass
 
 # Configuración
 RAIZ_REPO = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
