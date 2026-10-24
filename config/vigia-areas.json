@@ -1,0 +1,110 @@
+{
+  "esquema": 1,
+  "actualizado": "2026-10-23",
+  "descripcion": "Qué vigila el vigía de modelos de MetaGenesis, como dato (architecture/vigia-modelos.md §2): un especialista por área. Añadir un área = añadir una entrada en «areas». Lo carga y valida scripts/puente/vigia_areas.py (cargar_areas). «cuantizadores» de arriba es la lista de cuantizadores conocidos (cada área elige los suyos de ella; si no los da, hereda todos) y «licencias_conocidas» es la tabla común de clases de licencia (libre · personal · condicionada · desconocida, §3), porque Hugging Face marca muchas como «other»; un área puede añadir las suyas. «catalogo» es la ruta, relativa al repo, del archivo que el vigía propone actualizar: tiene que existir de verdad.",
+  "cuantizadores": ["unsloth", "city96", "QuantStack", "bartowski", "lmstudio-community", "mlx-community", "onnx-community", "Comfy-Org"],
+  "licencias_conocidas": {
+    "apache-2.0": "libre", "mit": "libre", "bsd-2-clause": "libre", "bsd-3-clause": "libre", "cc0-1.0": "libre",
+    "cc-by-4.0": "libre", "cc-by-sa-4.0": "libre", "openrail": "libre", "openrail++": "libre",
+    "creativeml-openrail-m": "libre", "bigscience-openrail-m": "libre", "bigcode-openrail-m": "libre",
+    "nvidia-open-model-license": "libre",
+    "qwen-research": "personal", "cc-by-nc-4.0": "personal", "cc-by-nc-sa-4.0": "personal", "cc-by-nc-nd-4.0": "personal",
+    "flux-1-dev-non-commercial-license": "personal", "mrl": "personal", "apple-amlr": "personal",
+    "stabilityai-ai-community": "condicionada", "llama3": "condicionada", "llama3.1": "condicionada",
+    "llama3.2": "condicionada", "llama3.3": "condicionada", "llama4": "condicionada", "gemma": "condicionada",
+    "qwen": "condicionada", "tencent-hunyuan-community": "condicionada",
+    "other": "desconocida", "unknown": "desconocida"
+  },
+  "areas": [
+    {
+      "id": "imagen", "nombre": "Imagen",
+      "pipeline_tags": ["text-to-image", "image-to-image"],
+      "autores": ["Qwen", "Tongyi-MAI", "black-forest-labs", "stabilityai", "krea", "nvidia", "Efficient-Large-Model"],
+      "cuantizadores": ["unsloth", "city96", "QuantStack", "Comfy-Org"],
+      "catalogo": "src/lib/imagenes/modelos.ts"
+    },
+    {
+      "id": "video", "nombre": "Vídeo",
+      "pipeline_tags": ["text-to-video", "image-to-video"],
+      "autores": ["Wan-AI", "Lightricks", "tencent", "Qwen", "nvidia"],
+      "cuantizadores": ["city96", "QuantStack", "Comfy-Org"],
+      "catalogo": "src/lib/protomolecula/catalogo-herramientas.ts",
+      "nota": "Aún no hay catálogo propio de vídeo (§2: de momento propuestas); Wan 2.2 ya está en el de la Protomolécula."
+    },
+    {
+      "id": "3d", "nombre": "3D",
+      "pipeline_tags": ["image-to-3d", "text-to-3d"],
+      "autores": ["tencent", "TencentARC", "microsoft", "stabilityai", "VAST-AI"],
+      "cuantizadores": [],
+      "catalogo": "src/lib/avatares/adn/motores.ts",
+      "nota": "Motores del taller de avatares 3D. Convive con scripts/protomolecula/vigias_3d.py, que vigila artículos y código en GitHub; este mira Hugging Face."
+    },
+    {
+      "id": "voz", "nombre": "Voz",
+      "pipeline_tags": ["text-to-speech"],
+      "autores": ["ResembleAI", "myshell-ai", "SWivid", "coqui", "2Noise", "hexgrad", "FermionResearch", "microsoft"],
+      "cuantizadores": ["unsloth", "mlx-community", "onnx-community"],
+      "catalogo": "src/lib/library/packages.ts"
+    },
+    {
+      "id": "oido", "nombre": "Oído",
+      "pipeline_tags": ["automatic-speech-recognition"],
+      "autores": ["openai", "nvidia", "microsoft", "mistralai", "Qwen", "FermionResearch"],
+      "cuantizadores": ["mlx-community", "onnx-community"],
+      "catalogo": "src/lib/aurora/stt-oss/motores-oido.ts"
+    },
+    {
+      "id": "palabra", "nombre": "Palabra y razón",
+      "pipeline_tags": ["text-generation"],
+      "autores": ["Qwen", "prism-ml", "microsoft", "google", "meta-llama", "mistralai", "deepseek-ai"],
+      "cuantizadores": ["unsloth", "bartowski", "lmstudio-community", "mlx-community", "onnx-community"],
+      "catalogo": "config/capas-astraura.json",
+      "filtros": { "max_parametros_b": 9 }
+    },
+    {
+      "id": "reflejo", "nombre": "Reflejo",
+      "pipeline_tags": ["text-generation"],
+      "autores": ["Cactus-Compute", "Qwen", "google", "microsoft"],
+      "cuantizadores": ["unsloth", "bartowski", "lmstudio-community", "mlx-community", "onnx-community"],
+      "catalogo": "config/capas-astraura.json",
+      "filtros": { "max_parametros_b": 4, "etiquetas": ["function-calling", "tool-calling", "tool-use"] }
+    },
+    {
+      "id": "vision", "nombre": "Visión",
+      "pipeline_tags": ["image-text-to-text"],
+      "autores": ["Qwen", "google", "apple", "microsoft", "HuggingFaceTB"],
+      "cuantizadores": ["unsloth", "bartowski", "lmstudio-community", "mlx-community", "onnx-community"],
+      "catalogo": "config/capas-astraura.json",
+      "filtros": { "max_parametros_b": 9 }
+    },
+    {
+      "id": "incrustaciones", "nombre": "Incrustaciones",
+      "pipeline_tags": ["sentence-similarity", "feature-extraction"],
+      "autores": ["microsoft", "google", "Qwen", "BAAI", "nomic-ai", "intfloat"],
+      "cuantizadores": ["unsloth", "mlx-community", "onnx-community"],
+      "catalogo": "config/capas-astraura.json",
+      "filtros": { "max_parametros_b": 2 },
+      "nota": "Conocimiento propio: hoy son las capas bitnet-embedding de capas-astraura.json."
+    },
+    {
+      "id": "audio", "nombre": "Audio y música",
+      "pipeline_tags": ["text-to-audio"],
+      "autores": ["ACE-Step", "stabilityai", "facebook"],
+      "cuantizadores": ["QuantStack", "mlx-community"],
+      "catalogo": "src/lib/protomolecula/catalogo-herramientas.ts",
+      "nota": "ACE-Step, Stable Audio Open y MusicGen (pesos CC-BY-NC: solo personal) ya están en el catálogo de la Protomolécula."
+    },
+    {
+      "id": "motores", "nombre": "Motores",
+      "pipeline_tags": [], "autores": [], "cuantizadores": [],
+      "repos_github": ["ggml-org/llama.cpp", "leejet/stable-diffusion.cpp", "ggml-org/whisper.cpp", "Comfy-Org/ComfyUI",
+        "fermionresearch/phonon", "microsoft/onnxruntime", "anomalyco/opencode"],
+      "alias_github": {
+        "ggerganov/llama.cpp": "ggml-org/llama.cpp", "ggerganov/whisper.cpp": "ggml-org/whisper.cpp",
+        "comfyanonymous/ComfyUI": "Comfy-Org/ComfyUI", "sst/opencode": "anomalyco/opencode"
+      },
+      "catalogo": "src/lib/library/packages.ts",
+      "nota": "Releases de GitHub con los nombres actuales; los antiguos de «alias_github» redirigen y aún aparecen en algunos catálogos (duplicados)."
+    }
+  ]
+}
