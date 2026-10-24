@@ -1,8 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { atenderMcp, type HerramientaMcp } from "../protocolo";
+import {
+  atenderMcp,
+  type HerramientaMcp,
+  type RespuestaExitoJsonRpc,
+  type RespuestaErrorJsonRpc,
+} from "../protocolo";
 
 describe("protocolo MCP", () => {
-  const herramientasFalsas = [
+  const herramientasFalsas: HerramientaMcp[] = [
     {
       nombre: "estado",
       descripcion: "Obtiene el estado del sistema",
@@ -34,7 +39,10 @@ describe("protocolo MCP", () => {
     expect(respuesta.id).toBe("1");
     expect("result" in respuesta).toBe(true);
     
-    const result = (respuesta as any).result;
+    const result = (respuesta as RespuestaExitoJsonRpc).result as {
+      serverInfo: { name: string; version: string };
+      capabilities: { tools: Record<string, unknown> };
+    };
     expect(result.serverInfo.name).toBe("starseed-genesis");
     expect(result.serverInfo.version).toBeDefined();
     expect(result.capabilities.tools).toBeDefined();
@@ -53,7 +61,9 @@ describe("protocolo MCP", () => {
     expect(respuesta.id).toBe("2");
     expect("result" in respuesta).toBe(true);
     
-    const result = (respuesta as any).result;
+    const result = (respuesta as RespuestaExitoJsonRpc).result as {
+      tools: Array<{ name: string }>;
+    };
     expect(Array.isArray(result.tools)).toBe(true);
     expect(result.tools).toHaveLength(2);
     expect(result.tools[0].name).toBe("estado");
@@ -77,7 +87,9 @@ describe("protocolo MCP", () => {
     expect(respuesta.id).toBe("3");
     expect("result" in respuesta).toBe(true);
     
-    const result = (respuesta as any).result;
+    const result = (respuesta as RespuestaExitoJsonRpc).result as {
+      contenido: Array<{ tipo: string; texto: string }>;
+    };
     expect(result.contenido).toBeDefined();
     expect(result.contenido[0].texto).toContain("tareas con límite 5");
   });
@@ -99,7 +111,7 @@ describe("protocolo MCP", () => {
     expect(respuesta.id).toBe("4");
     expect("error" in respuesta).toBe(true);
     
-    const error = (respuesta as any).error;
+    const error = (respuesta as RespuestaErrorJsonRpc).error;
     expect(error.code).toBe(-32602);
     expect(error.message).toBe("Herramienta no encontrada");
   });
@@ -117,7 +129,7 @@ describe("protocolo MCP", () => {
     expect(respuesta.id).toBe("5");
     expect("error" in respuesta).toBe(true);
     
-    const error = (respuesta as any).error;
+    const error = (respuesta as RespuestaErrorJsonRpc).error;
     expect(error.code).toBe(-32601);
     expect(error.message).toBe("Método no encontrado");
   });
@@ -134,7 +146,7 @@ describe("protocolo MCP", () => {
     expect(respuesta.id).toBeNull();
     expect("error" in respuesta).toBe(true);
     
-    const error = (respuesta as any).error;
+    const error = (respuesta as RespuestaErrorJsonRpc).error;
     expect(error.code).toBe(-32600);
     expect(error.message).toBe("Solicitud inválida");
   });
@@ -152,7 +164,7 @@ describe("protocolo MCP", () => {
     expect(respuesta.id).toBe("7");
     expect("error" in respuesta).toBe(true);
     
-    const error = (respuesta as any).error;
+    const error = (respuesta as RespuestaErrorJsonRpc).error;
     expect(error.code).toBe(-32602);
   });
 
