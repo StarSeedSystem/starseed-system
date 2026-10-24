@@ -54,6 +54,32 @@ parche, que entra por las MISMAS puertas que la nube: tsc, pruebas, revisión, `
    `room-cli status/cloud status/thread count`), y lanzamiento de tareas a hilos de la nube de
    Cloudroom con el ritmo del cupo (≈ 3/día en el plan gratis) y el resultado por `diff-patch` a las puertas.
 
+### 4.3 Modelos, topes y reanudación (CRM1024J/K · 2026-10-24)
+
+- **Rueda de modelos** (`scripts/puente/cloudroom_modelos.py`): solo lo que la cuenta tiene EN LA NUBE
+  (`room-cli cloud status --json`) más los modelos propios de Pi declarados en
+  `config/cloudroom-pi-modelos.json`. Orden: Pi/opencode gratis (intercalados por proveedor) → Codex
+  (< 80 % de su cuota, que es la del enjambre) → otros → Claude Code sonnet/haiku (semana < 30 %).
+- **Proveedores de Pi en la nube**: los escribe `scripts/cloudroom/setup-nube.sh` en `~/.pi/agent/models.json`
+  de cada sandbox (`room-cli cloud setup set < scripts/cloudroom/setup-nube.sh`): NIM (`$NVIDIA_API_KEY`),
+  xKiro (`$XKIRO_API_KEY`, con su User-Agent) y Gemini OpenAI-compatible (`$GEMINI_API_KEY`); Mistral es un
+  proveedor que Pi ya trae (`MISTRAL_API_KEY`). Solo admiten el razonamiento «none».
+- **Un modelo solo entra si su clave está en la nube** (`claves` de la config frente a `room-cli cloud env
+  list --json`, que da solo NOMBRES). Las claves las pone Alex (`room-cli cloud env set NOMBRE`, el valor por
+  la entrada estándar); nunca el OpenRouter de crédito, xAI, DeepSeek, Anthropic ni Explabs.
+- **Tope de hilos a la vez por proveedor gratuito** (`simultaneos`: NIM 2, xKiro 2, Gemini 1, Mistral 1;
+  2 si no se dice). Medido el 2026-10-24: 15 hilos de Pi a la vez contra NIM → los 15 parados con «429 Too
+  Many Requests» (la clave es la misma que usan el enjambre de la Mac y el de GitHub Actions). Lo que no cabe
+  espera a la próxima pasada sin marcarse ni gastar cupo.
+- **Reanudar antes que perder** (`seguir`): un hilo terminado cuyo log ACABA en un corte del proveedor (429,
+  5xx, saturado) o de su modelo (404/410, sin clave) se reanuda con `room-cli thread tell` —el MISMO hilo, no
+  gasta otro de los 100 del ciclo—: con otro proveedor del mismo harness si lo hay; con el mismo modelo tras
+  20 min parado; con otro modelo si el suyo no existe (la nube contesta 409 «model just changed» y el mensaje
+  se reenvía). Hasta 3 veces y dentro de las 12 h de gracia; después, lo de siempre (diff-patch o devolver).
+- **El medidor «Agentes» dice la verdad**: cada pasada de `seguir` anota `visto` {estado, t, corte} en
+  `~/.starseed/cloudroom-hilos.json`; Genesis pinta «esperando modelo» (corte de cupo o de modelo) o «sin
+  escribir» (terminó; MetaGenesis trae su rama o lo devuelve) en vez de «escribiendo» a ciegas.
+
 ## 5. Reglas
 
 - Privacidad: el sandbox recibe una COPIA del proyecto. Nada privado-local (memoria personal, claves,
