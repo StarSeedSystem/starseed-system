@@ -35,8 +35,8 @@ import { X, Minus, Maximize2, Minimize2, Expand, Shrink, Columns2 } from "lucide
 import { cn } from "@/lib/utils";
 import type { DesktopWindow, DesktopWindowRect } from "./desktop-store";
 import {
-    closeWindow, focusWindow, setWindowMinimized, setWindowRect, toggleWindowMaximized,
-    toggleWindowFullscreen,
+    closeWindow, focusWindow, rectVentanaCentrada, recolocarVentanaEnPantalla,
+    setWindowMinimized, setWindowRect, toggleWindowMaximized, toggleWindowFullscreen,
 } from "./desktop-store";
 import { resolveSnapZone, snapZoneRect, type SnapZone } from "./desktop-window-snap";
 
@@ -176,6 +176,32 @@ export function DesktopWindowFrame({
             if (window.matchMedia?.("(pointer: coarse)").matches) setAsas({ edge: 16, corner: 24 });
         } catch { /* noop */ }
     }, []);
+
+    // ── Ventana restaurada: posición guardada, pero dentro de esta pantalla ──
+    // (Ola 1019D) Un escritorio guardado en otra pantalla puede traer la ventana
+    // fuera de los bordes: se respeta su posición y solo se recoloca lo justo.
+    // Si no trae un rect válido, nace con la composición centrada de `composicion.ts`.
+    // Solo al montar: después mandan el usuario, el snap y el mosaico.
+    useEffect(() => {
+        if (win.maximized || win.fullscreen) return;
+        const viewport = { ancho: window.innerWidth, alto: window.innerHeight };
+        const guardada =
+            Number.isFinite(win.x) && Number.isFinite(win.y) && win.w > 0 && win.h > 0;
+        const base = guardada
+            ? { x: win.x, y: win.y, w: win.w, h: win.h }
+            : rectVentanaCentrada(viewport, {
+                w: Number.isFinite(win.w) && win.w > 0 ? win.w : undefined,
+                h: Number.isFinite(win.h) && win.h > 0 ? win.h : undefined,
+            });
+        const dentro = recolocarVentanaEnPantalla(base, viewport);
+        if (
+            dentro.x !== win.x || dentro.y !== win.y ||
+            dentro.w !== win.w || dentro.h !== win.h
+        ) {
+            setWindowRect(desktopId, win.id, dentro);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [desktopId, win.id]);
 
     // ── Arrastre / redimensión con pointer events globales ──
     // (2026-09-26) El rect vivo se pinta como mucho UNA vez por fotograma (rAF): antes cada
