@@ -126,6 +126,52 @@ class Cadenas_y_parseo(unittest.TestCase):
         self.assertEqual(checkpoint2, "2026-10-23T00:00:00Z")
 
 
+class Estado_en_disco(unittest.TestCase):
+    """El estado se guarda y se relee; si falta o está roto, hay valor por defecto."""
+
+    def _raiz(self):
+        raiz = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(raiz, ignore_errors=True))
+        return raiz
+
+    def test_cargar_json_archivo_inexistente(self):
+        ruta = os.path.join(self._raiz(), "no", "existe.json")
+        self.assertEqual(V.cargar_json(ruta, {"por defecto": "valor"}), {"por defecto": "valor"})
+
+    def test_cargar_json_archivo_roto(self):
+        raiz = self._raiz()
+        ruta = os.path.join(raiz, "roto.json")
+        with open(ruta, "w", encoding="utf-8") as fichero:
+            fichero.write("{ esto no es json")
+        self.assertEqual(V.cargar_json(ruta, []), [])
+
+    def test_guardar_json_crea_la_carpeta_y_se_puede_releer(self):
+        ruta = os.path.join(self._raiz(), "starseed_memory_root", "referencias", "estado.json")
+        datos = {"fuente": {"novedades": [{"url": "https://blog.ejemplo.com/b"}]}}
+        V.guardar_json(ruta, datos)
+        self.assertTrue(os.path.isfile(ruta))
+        self.assertEqual(V.cargar_json(ruta, None), datos)
+
+
+class Canales_incompletos(unittest.TestCase):
+    """Un canal sin tipo o sin referencia no se rastrea ni toca la red."""
+
+    def _contexto(self):
+        def red_prohibida(url):
+            raise AssertionError(f"no debía pedir {url}")
+
+        return {"obtener_url": red_prohibida, "dormir": lambda segundos: None,
+                "registros": {}, "robots_vistos": {}}
+
+    def test_canal_sin_tipo_no_se_rastrea(self):
+        self.assertEqual(V._rastrear_canal({"ref": "https://ejemplo.com/feed"}, {},
+                                           "2026-10-22T00:00:00Z", self._contexto()), [])
+
+    def test_canal_sin_ref_no_se_rastrea(self):
+        self.assertEqual(V._rastrear_canal({"tipo": "rss"}, {},
+                                           "2026-10-22T00:00:00Z", self._contexto()), [])
+
+
 class Extracciones_y_cortes(unittest.TestCase):
     def test_marcas_github(self):
         commits = b'[{"sha": "abc123"}]'
