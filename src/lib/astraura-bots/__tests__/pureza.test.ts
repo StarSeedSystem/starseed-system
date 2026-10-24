@@ -7,6 +7,8 @@ import { EMOCIONES, RASGOS, SENTIDOS, SENTIDOS_INTIMOS, acotar, esBotDeEntidad, 
 const DIR = path.join(__dirname, "..");
 const NUCLEO = readdirSync(DIR).filter((f) => f.endsWith(".ts")).map((f) => f.replace(/\.ts$/, ""));
 const leer = (n: string) => readFileSync(path.join(DIR, `${n}.ts`), "utf8");
+/** Conectores de bots invitados: AG-UI y el alta de invitados externos. */
+const CONECTORES = ["ag-ui", "invitados"] as const;
 
 describe("núcleo puro de los bots de Astraura", () => {
   it("están los seis módulos del contrato (los que se añadan arriba también han de ser puros)", () => {
@@ -25,6 +27,12 @@ describe("núcleo puro de los bots de Astraura", () => {
   it.each(NUCLEO)("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
     const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
     for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
+  });
+  it("los conectores existen y no están vacíos", () => {
+    for (const c of CONECTORES) {
+      expect(NUCLEO).toContain(c);
+      expect(leer(c).split("\n").length).toBeGreaterThan(0);
+    }
   });
 });
 
