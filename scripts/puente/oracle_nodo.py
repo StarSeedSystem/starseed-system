@@ -446,7 +446,7 @@ def _avisar(texto):
 
 #: Módulos de scripts/puente que el nodo de MetaGenesis importa al arrancar (además de los
 #: `nodo_metagenesis*`). La prueba `ModulosDelNodo` falla si uno nuevo no está aquí.
-MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py", "traer_nube.py")
+MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py", "traer_nube.py", "vigia_runs_nube.py")
 
 
 def _paquete(destino):
