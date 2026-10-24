@@ -12,9 +12,10 @@ import type { ComponentType } from "react";
 import type { DefinicionAtomo, VistaProps } from "../registro-atomos";
 import { obtenerAtomo, registrarAtomo } from "../registro-atomos";
 import { SINTETIZADOR } from "./sintetizador";
+import { DOBLAJE } from "./doblaje";
 
 /** Los átomos que el OS trae de serie. Las tareas siguientes (F1E) añaden los suyos aquí. */
-export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR];
+export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE];
 
 /**
  * Registra los átomos propios que falten en el registro. Es idempotente: llamarla dos
