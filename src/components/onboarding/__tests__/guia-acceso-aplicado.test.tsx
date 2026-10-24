@@ -2,8 +2,12 @@
 // `modoGuia`/`accionesDelPaso` reservan «Ir» y «Hazlo por mí», y `zGuia` pinta
 // por encima de la ventana de acceso (240) o en la capa de hoy (95).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Z_GUIA_HOY, Z_GUIA_SOBRE_ACCESO } from "@/lib/onboarding/guia-acceso";
+
+const leer = (ruta: string) => readFileSync(join(process.cwd(), ruta), "utf-8");
 
 let sesion: unknown = null;
 
@@ -89,5 +93,18 @@ describe("guía sin cuenta · aplicación de guia-acceso (GUI1021I)", () => {
     await waitFor(() => expect(dialogo.getAttribute("data-capa")).toBe(String(Z_GUIA_SOBRE_ACCESO)));
     expect(dialogo.getAttribute("data-desde-ventana-acceso")).toBe("1");
     expect(screen.getByText("Abrir el chat de Aurora")).toBeTruthy();
+  });
+});
+
+describe("la puerta común en los puntos de apertura existentes (GUI1021I)", () => {
+  it("Ajustes abre por la puerta común (`desde: ajustes`), no con el evento crudo", () => {
+    const fuente = leer("src/components/settings/appearance/guide-button-toggle.tsx");
+    expect(fuente).toMatch(/abrirGuia\(\{\s*desde:\s*"ajustes"\s*\}\)/);
+    expect(fuente).not.toMatch(/dispatchEvent\(new Event\(OPEN_GUIDE_EVENT\)\)/);
+  });
+
+  it("el aviso «Inicia sesión para…» también abre por la puerta (`desde: aviso`)", () => {
+    const fuente = leer("src/components/auth/aviso-sesion.tsx");
+    expect(fuente).toMatch(/abrirGuia\(\{\s*desde:\s*"aviso"\s*\}\)/);
   });
 });
