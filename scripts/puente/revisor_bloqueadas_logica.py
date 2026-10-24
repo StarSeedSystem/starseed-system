@@ -681,9 +681,23 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
         if hermana:
             h, motivo_h = hermana
             acciones.append(_accion(tid, "ya_hecha", "NO APLICA por su hermana %s: %s" % (h, motivo_h),
-                                    "hermana", estado="sustituida", por=h))
+                                "hermana", estado="sustituida", por=h))
             tocadas.add(tid)
             continue
+
+        # 0a) (2026-10-10) Quieta en disco y su cadena YA sigue por una sucesora viva (PM1010F0B y
+        #     PM1010F0Bb con PM1010F0Bc en marcha): se cede a la sucesora. Si no, la escalera o este
+        #     revisor la rehacían en paralelo a su sucesora, y su corrección vieja la resucitaba
+        #     al morir la tanda.
+        if est_disco in QUIETOS and not id_en_asuntos(tid, asuntos):
+            suc, como = sucesora(tid, progreso, tareas)
+            if como == "viva":
+                acciones.append(_accion(tid, "ceder", "la cadena ya sigue por su sucesora %s (%s): esta copia "
+                                    "se cierra con su rama guardada" % (suc, _estado(progreso, suc) or "en cola"),
+                                    "sucesora", estado="sustituida", por=suc))
+                tocadas.add(tid)
+                continue
+
 
         # 0a) (2026-10-10) Quieta en disco y su cadena YA sigue por una sucesora viva (PM1010F0B y
         #     PM1010F0Bb con PM1010F0Bc en marcha): se cede a la sucesora. Si no, la escalera o este
