@@ -75,6 +75,23 @@ class PruebasEmpaquetar(unittest.TestCase):
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
 
+    def test_solo_los_logs_se_recortan_y_conservan_las_ultimas_lineas(self):
+        """Rescatado de rama nube (GN1010A-d3c): el estado en Markdown viaja ENTERO aunque sea largo;
+        un log por nombre (no solo ``*.jsonl``) se recorta, y se queda con lo más reciente, no con el principio."""
+        largo = espejo_estado.LOG_LINEAS + 100
+        with open(os.path.join(self.olas, "progreso.md"), "w", encoding="utf-8") as f:
+            f.write("".join("Línea %d\n" % i for i in range(largo)))
+        with open(os.path.join(self.olas, "orquestador.log"), "w", encoding="utf-8") as f:
+            f.write("\n".join("registro %d" % i for i in range(largo)))  # sin salto al final
+        with self._tar(["orquestador.log", "progreso.md"]) as tar:
+            md = tar.extractfile("progreso.md").read().decode("utf-8").splitlines()
+            self.assertEqual(len(md), largo)
+            self.assertEqual(md[0], "Línea 0")
+            log = tar.extractfile("orquestador.log").read().decode("utf-8").splitlines()
+            self.assertEqual(len(log), espejo_estado.LOG_LINEAS)
+            self.assertEqual(log[0], "registro %d" % (largo - espejo_estado.LOG_LINEAS))
+            self.assertEqual(log[-1], "registro %d" % (largo - 1))
+
 
 class PruebasEnviarEstado(unittest.TestCase):
     """enviar_estado con ssh falso: freno de 5 min, huella y orden de extracción atómica."""
