@@ -4611,3 +4611,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `VAR1021Bc` — pruebas en rojo: vitest falla (rama conservada)
 - `VZF1015N` — no escribió nada
 - `VZF1015L` — no escribió nada
+
+## 2026-10-24 08:48 · mg-oracle-1024-0059
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTRTRTRTS1010-EV-ORACLE-1acbbbbb, RTRTS1010-EV-ORACLE-1acbbbbbbbbbbb, RTG3D1011Cc, CNV1023Bb). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTRTS1010-EV-ORACLE-1acbbbbb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTS1010-EV-ORACLE-1acbbbbbbbbbbb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTG3D1011Cc` — otra cosa: ningún proveedor respondió (todos caídos)
+- `CNV1023Bb` — otra cosa: ningún proveedor respondió (todos caídos)
