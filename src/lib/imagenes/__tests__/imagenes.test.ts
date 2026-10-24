@@ -126,6 +126,60 @@ describe("paquete base sugerido", () => {
   });
 });
 
+describe("Z-Image-Turbo y el paquete personal", () => {
+  it("Z-Image-Turbo es el rápido libre en un PC de 24 GB y lo dice en el porqué", () => {
+    const s = paqueteBase(PC24, { comercial: false });
+    const rapido = s.instalar.find((x) => x.papel === "rapido");
+    expect(rapido?.modelo.id).toBe("z-image-turbo");
+    expect(rapido?.motor).toBe("diffusers");
+    expect(rapido?.cuantizacion).toBe("nativa");
+    expect(rapido?.porQue).toContain("Modelo libre (Apache-2.0).");
+  });
+  it("sin permitirPersonal el Turbo no se propone aunque quepa", () => {
+    for (const h of [MAC8, A1, PC24]) {
+      const s = paqueteBase(h, { comercial: false });
+      expect(s.instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
+    }
+  });
+  it("Mac de 8 GB con permiso personal: GGUF Q3_K_S (2,72 GB) en el papel de calidad", () => {
+    const s = paqueteBase(MAC8, { comercial: false, permitirPersonal: true });
+    const turbo = s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
+    expect(turbo).toBeDefined();
+    expect(turbo!.papel).toBe("calidad");
+    expect(turbo!.motor).toBe("sdcpp");
+    expect(turbo!.cuantizacion).toBe("q4");
+    expect(turbo!.porQue).toMatch(/GGUF personal \(Q3_K_S 2,72 GB\):/);
+    expect(turbo!.porQue).toMatch(/uso propio/);
+  });
+  it("A1 con permiso personal: Q4_K_M (4,2 GB) porque cabe en su memoria", () => {
+    const s = paqueteBase(A1, { comercial: false, permitirPersonal: true });
+    const turbo = s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
+    expect(turbo?.porQue).toMatch(/GGUF personal \(Q4_K_M 4,2 GB\):/);
+  });
+  it("el permiso personal no salta la regla: nada no comercial en uso comercial", () => {
+    const s = paqueteBase(MAC8, { comercial: true, permitirPersonal: true });
+    expect(s.instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
+  });
+  it("ni iOS (sin stable-diffusion.cpp) ni una neurona de 3 GB reciben el GGUF personal", () => {
+    const ios = paqueteBase({ so: "ios", gpu: "apple", vramGB: null, ramGB: 8, webgpu: false }, { comercial: false, permitirPersonal: true });
+    expect(ios.instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
+    const peque = paqueteBase({ so: "linux", gpu: "ninguna", vramGB: null, ramGB: 3, webgpu: false }, { comercial: false, permitirPersonal: true });
+    expect(peque.instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
+  });
+  it("no repite el papel de calidad: el Turbo sustituye a la calidad normal", () => {
+    const s = paqueteBase(PC24, { comercial: false, permitirPersonal: true });
+    expect(s.instalar.find((x) => x.papel === "rapido")?.modelo.id).toBe("z-image-turbo");
+    const calidades = s.instalar.filter((x) => x.papel === "calidad");
+    expect(calidades).toHaveLength(1);
+    expect(calidades[0].modelo.id).toBe("qwen-image-2.1-turbo");
+  });
+  it("si otra neurona ya ofrece el Turbo, se usa desde la malla y no se duplica", () => {
+    const s = paqueteBase(MAC8, { comercial: false, permitirPersonal: true, enLaMalla: ["qwen-image-2.1-turbo"] });
+    expect(s.instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
+    expect(s.desdeLaMalla.join(" ")).toMatch(/Qwen-Image 2.1-Turbo/);
+  });
+});
+
 describe("núcleo puro", () => {
   const DIR = path.join(__dirname, "..");
   const archivos = readdirSync(DIR).filter((f) => f.endsWith(".ts"));

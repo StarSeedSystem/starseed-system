@@ -5,6 +5,9 @@
  * ESTA neurona: uno rápido, uno de calidad y, si cabe, uno que escriba texto legible o edite. No sugiere lo
  * que ya ofrece otra neurona tuya en la malla (lo usa desde allí) ni nada no comercial si el uso es
  * comercial. El disco lo comprueba el instalador con los tamaños reales de cada archivo. PURO.
+ *
+ * Los modelos de uso personal (Qwen Research, CC-BY-NC…) solo entran si la persona los activa con
+ * `permitirPersonal`; sin ese permiso no se proponen, y nunca se proponen para un uso comercial.
  */
 import { MODELOS_IMAGEN, type ModeloImagen, type MotorImg } from "./modelos";
 import { cabe, type Cuantizacion, type NeuronaImg } from "./plan";
@@ -41,17 +44,44 @@ const PAPEL: Record<Sugerencia["papel"], (m: ModeloImagen) => boolean> = {
 const GAMA = { alta: 0, media: 1, entrada: 2, navegador: 3 } as const;
 const USO = { libre: 0, atribucion: 1, condicionado: 2, "restringido-region": 3, "no-comercial": 4 } as const;
 
+export interface OpcionesPaquete {
+  comercial: boolean;
+  enLaMalla?: readonly string[];
+  /** La persona activó modelos de uso personal (no comercial): solo para su uso propio, nunca comercial. */
+  permitirPersonal?: boolean;
+}
+
+const TURBO_PERSONAL = "qwen-image-2.1-turbo";
+/** GGUF verificados del Turbo, de mayor a menor; se elige el mayor que quepa con margen para el sistema. */
+const GGUF_TURBO = [
+  { archivo: "Q4_K_M", gb: 4.2 },
+  { archivo: "Q3_K_S", gb: 2.72 },
+] as const;
+/** Margen sobre el peso del GGUF: en una Mac de 8 GB (6 GB dedicables) Q3_K_S cabe y Q4_K_M no. */
+const MARGEN_GGUF = 1.6;
+
+const gbConComa = (x: number) => String(x).replace(".", ",");
+
+/** El mayor GGUF del Turbo que cabe en la memoria que esta neurona puede dedicar a imágenes. */
+function ggufTurboQueCabe(h: HierroImg): (typeof GGUF_TURBO)[number] | null {
+  const memoria = h.gpu === "nvidia" || h.gpu === "amd" ? (h.vramGB ?? 0) : h.ramGB;
+  return GGUF_TURBO.find((v) => memoria >= v.gb * MARGEN_GGUF) ?? null;
+}
+
 export function paqueteBase(
-  h: HierroImg, opciones: { comercial: boolean; enLaMalla?: readonly string[] }, catalogo: readonly ModeloImagen[] = MODELOS_IMAGEN,
+  h: HierroImg, opciones: OpcionesPaquete, catalogo: readonly ModeloImagen[] = MODELOS_IMAGEN,
 ): PaqueteBase {
   const yo: NeuronaImg = {
     id: "esta neurona", capa: "dispositivo", gpu: h.gpu, vramGB: h.vramGB, ramLibreGB: h.ramGB,
     motores: motoresPosibles(h).filter((m) => m !== "onnx-web"), instalados: [], ocupada: false,
   };
+  const permitirPersonal = opciones.permitirPersonal ?? false;
   const malla = new Set(opciones.enLaMalla ?? []);
   const soloCpu = h.gpu === "ninguna";
   const validos = catalogo
     .filter((m) => !(opciones.comercial && m.uso === "no-comercial"))
+    // El Turbo es personal: no entra por el reparto normal; solo se propone con permiso y con su motivo.
+    .filter((m) => m.id !== TURBO_PERSONAL)
     // En CPU un modelo de gama alta tarda demasiados minutos por imagen: no se sugiere (sigue disponible a mano).
     .filter((m) => !(soloCpu && m.gama === "alta"))
     .map((m) => ({ m, c: cabe(m, yo) }))
@@ -67,7 +97,28 @@ export function paqueteBase(
     if (!x) continue;
     if (malla.has(x.m.id)) { desdeLaMalla.push(`${x.m.nombre}: ya lo ofrece otra neurona tuya; se usa desde allí.`); continue; }
     const gate = x.m.gated ? " Pide aceptar sus términos con una cuenta de Hugging Face." : "";
-    instalar.push({ papel, modelo: x.m, motor: x.c.motor!, cuantizacion: x.c.cuantizacion!, porQue: x.c.motivo + gate });
+    // Z-Image-Turbo es la opción rápida libre: se dice en el porqué para que la licencia no se adivine.
+    const libre = x.m.id === "z-image-turbo" ? " Modelo libre (Apache-2.0)." : "";
+    instalar.push({ papel, modelo: x.m, motor: x.c.motor!, cuantizacion: x.c.cuantizacion!, porQue: (x.c.motivo + gate + libre).trim() });
+  }
+  // Modelo personal: solo con permiso explícito, fuera del uso comercial y con el GGUF que de verdad cabe.
+  if (permitirPersonal && !opciones.comercial && motoresPosibles(h).includes("sdcpp")) {
+    const turbo = catalogo.find((m) => m.id === TURBO_PERSONAL);
+    const gguf = ggufTurboQueCabe(h);
+    if (turbo && gguf) {
+      if (malla.has(TURBO_PERSONAL)) {
+        desdeLaMalla.push(`${turbo.nombre}: ya lo ofrece otra neurona tuya; se usa desde allí.`);
+      } else {
+        const sugerencia: Sugerencia = {
+          papel: "calidad", modelo: turbo, motor: "sdcpp", cuantizacion: "q4",
+          porQue: `GGUF personal (${gguf.archivo} ${gbConComa(gguf.gb)} GB): ${turbo.nombre} cuantizado para esta neurona; `
+            + "su licencia Qwen Research solo permite investigación o uso propio, nunca publicaciones comerciales.",
+        };
+        // Sustituye a la calidad normal para no repetir el papel (la tarjeta usa el papel como clave).
+        const i = instalar.findIndex((s) => s.papel === "calidad");
+        if (i >= 0) instalar[i] = sugerencia; else instalar.push(sugerencia);
+      }
+    }
   }
   if (h.webgpu && !instalar.length) {
     const web = catalogo.find((m) => m.motores.includes("onnx-web"));
