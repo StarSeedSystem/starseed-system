@@ -41,7 +41,7 @@ export interface PeticionClienteLaya {
   conversacion?: boolean;
 }
 
-/** Resuelve el punto de decisión (objeto del catálogo o su id) — falla con el id desconocado. */
+/** Resuelve el punto de decisión (objeto del catálogo o su id) — falla con el id desconocido. */
 export function puntoDeLlamada(p: PeticionClienteLaya["punto"]): PuntoDecision {
   const punto = typeof p === "string" ? puntoDecision(p) : p;
   if (!punto) throw new Error(`punto de decisión desconocido «${String(p)}»`);

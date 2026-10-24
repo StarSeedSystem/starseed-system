@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MODELO_JEV } from "@/lib/jev/decisiones";
 import {
   decidirConLaya,
+  decidirTipoDiagrama,
   planDeDecision,
   UMBRAL_LAYA_EJECUTAR,
   type RespuestaJev,
@@ -80,6 +81,47 @@ describe("decidirConLaya", () => {
     await expect(decidirConLaya("consulta", herramientas, fallo)).resolves.toBeNull();
     const ajena = async () => respuestaLaya("borrar", 0.95);
     await expect(decidirConLaya("consulta", herramientas, ajena)).resolves.toBeNull();
+  });
+});
+
+describe("decidirTipoDiagrama", () => {
+  it("pasa por el cliente único y lee answer_confidence antes que confidence", async () => {
+    let cuerpo: unknown;
+    const transporte = async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe("http://127.0.0.1:4470/v1/systemone");
+      cuerpo = JSON.parse(String(init?.body)) as unknown;
+      return new Response(JSON.stringify({
+        answers: { tipo: { type: "choice", choice: "flowchart",
+          probabilities: { flowchart: 0.91, gantt: 0.09 },
+          confidence: 0.64, answer_confidence: 0.41 } },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    };
+    await expect(decidirTipoDiagrama("dibuja el flujo", ["flowchart", "gantt"], transporte))
+      .resolves.toEqual({ tipo: "flowchart", confianza: 0.41, motor: "laya-local" });
+    expect(cuerpo).toMatchObject({
+      model: MODELO_JEV,
+      state: "dibuja el flujo",
+      questions: { tipo: { type: "choice", criteria: {
+        flowchart: expect.any(String), gantt: expect.any(String),
+      } } },
+    });
+  });
+
+  it("cae a confidence si falta answer_confidence", async () => {
+    const transporte = async () => new Response(JSON.stringify({
+      answers: { tipo: { type: "choice", choice: "gantt", confidence: 0.72 } },
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    await expect(decidirTipoDiagrama("planifica", ["flowchart", "gantt"], transporte))
+      .resolves.toEqual({ tipo: "gantt", confianza: 0.72, motor: "laya-local" });
+  });
+
+  it("devuelve null ante fallo HTTP o un tipo fuera de las opciones", async () => {
+    const fallo = async () => new Response(null, { status: 503 });
+    await expect(decidirTipoDiagrama("dibuja", ["flowchart"], fallo)).resolves.toBeNull();
+    const ajeno = async () => new Response(JSON.stringify({
+      answers: { tipo: { type: "choice", choice: "sankey", confidence: 0.9 } },
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    await expect(decidirTipoDiagrama("dibuja", ["flowchart"], ajeno)).resolves.toBeNull();
   });
 });
 
