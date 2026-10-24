@@ -1,0 +1,95 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "CNX1020A",
+   "ola": "1020U",
+   "titulo": "Conectores · direcciones de los servicios instalados en el A1 (por el túnel de la Mac) como valores por defecto en localhost",
+   "archivos": [
+    "src/lib/servidores/servicios-a1.ts",
+    "src/lib/servidores/__tests__/servicios-a1.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md (§7, instalado y medido) y el catálogo config/repos-libreria-1020d.json. Módulo puro `SERVICIOS_A1` con cada servicio instalado el 2026-10-20 en el A1 y cómo se llega desde la Mac por el túnel `com.starseed.tunel-servicios-a1` (solo 127.0.0.1): LibreTranslate http://127.0.0.1:5100 (en el A1 es el 5000; en la Mac el 5000 es de AirPlay), Stirling-PDF http://127.0.0.1:8180, ArchiveBox http://127.0.0.1:8001, ComfyUI http://127.0.0.1:8188 y OpenHands Agent Server http://127.0.0.1:8010, con su versión, RAM medida, arranque en frío y que se encienden bajo demanda. `urlPorDefecto(servicio, entorno)` devuelve esa dirección SOLO cuando el OS corre en localhost o en la app nativa de la Mac (una página https no puede llamar a 127.0.0.1) y `null` en cualquier otro medio, con su motivo; las variables `COMFYUI_URL`, `LIBRETRANSLATE_URL`, etc. mandan si existen. `esperaFria(servicio)` dice cuánto puede tardar la primera llamada (p. ej. Stirling-PDF 109 s, ComfyUI 22 s más la carga del modelo) para que quien llama no lo dé por caído antes de tiempo. Pruebas de cada medio y de la prioridad de las variables. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "OHS1020A",
+   "ola": "1020U",
+   "titulo": "OpenHands · cliente puro del Agent Server (conversaciones, mensajes, ejecutar, pausar, eventos y confirmación)",
+   "archivos": [
+    "src/lib/agentes/openhands-servidor.ts",
+    "src/lib/agentes/__tests__/openhands-servidor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md (§2 y §7). La API del Agent Server ya está VERIFICADA: su descripción real (OpenAPI de la versión 1.7.1 instalada en el A1) está en docs/referencias/openhands-agent-server-1.7.1-openapi.json; búscala con grep, no la cargues entera. Escribe un cliente puro con `fetch` inyectado, `redirect: \"manual\"` y tope de tiempo: `salud()` (GET /health), `crearConversacion(cfg)` (POST /api/conversations, con los campos que pide su esquema), `enviarMensaje(id, texto)` (POST /api/conversations/{id}/events con el esquema de mensaje del archivo), `ejecutar(id)` (POST …/run), `pausar(id)` (POST …/pause), `eventos(id, desde?)` (GET …/events/search) y `politicaConfirmacion(id, politica)` (POST …/confirmation_policy). Usa SOLO rutas y campos que estén en ese archivo; si algo no está, no lo pongas. La clave del modelo la pasa quien llama y nunca aparece en errores. Por defecto, política de confirmación que pide permiso antes de acciones (los agentes no actúan sin aprobación). Pruebas con fetch simulado de cada función y de los errores. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "RTS1010-MGR2",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Guardia sin node:* también para /metagenesis",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea S1010-MGR2 («Guardia sin node:* también para /metagenesis») se hizo en main por otro camino; su rama nube/a1-20261014-071705 queda archivada en `refs/archivo/nube/a1-20261014-071705` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTS1010-MGR2 · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "S1010-MGR2",
+    "rama": "nube/a1-20261014-071705"
+   }
+  },
+  {
+   "id": "RTS1010-MGR2b",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Guardia sin node:* también para /metagenesis",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea S1010-MGR2 («Guardia sin node:* también para /metagenesis») se hizo en main por otro camino; su rama nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc queda archivada en `refs/archivo/nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTS1010-MGR2b · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "S1010-MGR2",
+    "rama": "nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc"
+   }
+  },
+  {
+   "id": "GRD1021A",
+   "ola": "1021M",
+   "importancia": "capacidad",
+   "titulo": "Guardia de memoria · mira la presión del núcleo, no solo la memoria inactiva",
+   "archivos": [
+    "scripts/puente/guardia-memoria.py",
+    "scripts/puente/test_guardia_memoria.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nCaso real medido (2026-10-21 10:30 UTC): el llama-server de BitNet llevaba 22 h congelado por el guardia (estado T, 1,15 GB residentes) con la swap al 94 % y la presión del núcleo en 2. La regla CNS1010 (`accion_para`) dice matarlo tras 20 min congelado con swap ≥ 80 %, pero nunca se llegaba a aplicar: `decidir` solo pide «reevaluar» si `libres_mb() < CONGELAR_BAJO_MB` (1600), y `libres_mb()` suma la memoria INACTIVA, que con macOS presionado sigue alta. Es la misma trampa que ya se arregló en el gobernador (CLAUDE.md, punto 16: mira `kern.memorystatus_vm_pressure_level`). Claude lo mató a mano y la swap bajó de 7,7 a 5,6 GB.\n\nArreglo en `scripts/puente/guardia-memoria.py`: una función que lea la presión del núcleo (`sysctl -n kern.memorystatus_vm_pressure_level`, None si falla), y `decidir(...)` recibe `presion=None`: con el enjambre vivo, un motor ya congelado pasa a «reevaluar» si `libre_mb < CONGELAR_BAJO_MB` O `presion >= 2`, y uno suelto se congela con esas mismas condiciones. `main` le pasa la presión. Sin presión medida, todo como hoy. La reanudación sigue igual (con la histéresis).\n\nPruebas en `scripts/puente/test_guardia_memoria.py`: congelado + presión 2 + libre alta → «reevaluar»; presión 1 + libre alta → nada; presión None → como hoy; las pruebas actuales en verde. Corre `python3 -m unittest scripts/puente/test_guardia_memoria.py` y lee su resumen entero."
+  },
+  {
+   "id": "GUI1021C",
+   "ola": "1021G",
+   "titulo": "Guías · los diez temas en el tour de Aurora (y cerebros/librería corregidos)",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx",
+    "src/components/onboarding/__tests__/aurora-guide-temas.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §2 y §3. En `STEPS` de `aurora-guide.tsx`, después de `astraura` y `perfil`, añade un paso por cada tema de `TODOS_LOS_TEMAS` construido desde los datos (key, title=titulo, body=cuerpo, say=voz, ask=preguntaAurora, go → `safeGoto(router, ruta)`), con su icono lucide y su color Trinity; sustituye los pasos `cerebros` y `libreria` por `neuronas-cerebro` y `libreria-biblioteca` (que ya están entre los temas). No cambies nada más del componente. Pruebas: el tour tiene los diez temas en orden, ningún paso repetido, y el paso de cerebro lleva a `/cerebro`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho).",
+   "dependencias_ya_en_main": [
+    "GUI1021B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "GRD1021A",
+   "GUI1021C",
+   "CNX1020A",
+   "OHS1020A",
+   "RTS1010-MGR2",
+   "RTS1010-MGR2b"
+  ]
+ }
+}
