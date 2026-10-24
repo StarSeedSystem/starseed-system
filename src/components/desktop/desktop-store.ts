@@ -17,6 +17,7 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 // ── Tipos del modelo ─────────────────────────────────────────────
 export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
@@ -1137,6 +1138,54 @@ export interface OpenWindowOptions {
     allowDuplicate?: boolean;
 }
 
+/**
+ * Geometría de apertura de ventanas (2026-10-19 · composición centrada).
+ * Alex: «cada ventana abre centrada en la pantalla» (§«Decisiones de Alex
+ * 2026-10-19» de memory/diseno/identidades.md, detalle en adn-y-tokens.md §7b).
+ * La geometría pura la da src/lib/design/composicion.ts; aquí se ajusta a las
+ * reglas propias del escritorio: banda de la barra superior (B-1) y márgenes.
+ * Si la ventana YA tiene posición guardada, se respeta — pero se recoloca
+ * DENTRO de la pantalla si quedó fuera (cambio de aparato, paneo…).
+ * Función PURA: sin DOM, sin store, sin red → testeable sin entorno gráfico.
+ */
+export function geometriaAperturaVentana(
+    vw: number,
+    vh: number,
+    preferida: { w?: number; h?: number },
+    guardada?: DesktopWindowRect | null,
+): DesktopWindowRect {
+    const ancho = Math.max(280, Math.min(preferida.w ?? 760, Math.max(300, vw - 48)));
+    const alto = Math.max(200, Math.min(preferida.h ?? 520, Math.max(220, vh - 150)));
+    // ── Posición guardada: se respeta y solo se recoloca si salió de pantalla ──
+    if (
+        guardada &&
+        typeof guardada.x === "number" && Number.isFinite(guardada.x) &&
+        typeof guardada.y === "number" && Number.isFinite(guardada.y)
+    ) {
+        const gW = Math.max(280, Math.min(guardada.w, vw));
+        const gH = Math.max(200, Math.min(guardada.h, vh));
+        return {
+            x: Math.min(Math.max(0, guardada.x), Math.max(0, vw - gW)),
+            y: clampWindowY(Math.min(Math.max(DESKTOP_TOP_INSET, guardada.y), Math.max(DESKTOP_TOP_INSET, vh - gH))),
+            w: gW,
+            h: gH,
+        };
+    }
+    // ── Sin guardado: se abre CENTRADA con la geometría de composición ──
+    const geo = geometriaVentana(
+        { ancho: vw, alto: vh },
+        { tipo: "ventana", ancho, alto },
+    );
+    // Centrada horizontal; el centro vertical se calcula en el área VISIBLE
+    // bajo la barra superior para no mentir con un centro tapado (B-1).
+    return {
+        x: Math.max(8, Math.min(geo.x, Math.max(8, vw - ancho - 16))),
+        y: clampWindowY(DESKTOP_TOP_INSET + Math.max(0, (vh - DESKTOP_TOP_INSET - alto) / 2)),
+        w: ancho,
+        h: alto,
+    };
+}
+
 /** Abre una ventana (o enfoca la existente con el mismo contenido). Devuelve su id. */
 export function openWindow(
     desktopId: string,
@@ -1152,27 +1201,31 @@ export function openWindow(
         if (existing) {
             resultId = existing.id;
             const z = nextZ(d);
+            const vw = isClient() ? window.innerWidth : 1280;
+            const vh = isClient() ? window.innerHeight : 800;
+            // Respeta su posición guardada; si quedó fuera de pantalla, vuelve a entrar.
+            const rect = geometriaAperturaVentana(vw, vh, {}, existing);
             return {
                 ...d,
                 windows: d.windows.map((w) =>
-                    w.id === existing.id ? { ...w, minimized: false, z } : w,
+                    w.id === existing.id
+                        ? { ...w, minimized: false, z, x: rect.x, y: rect.y, w: rect.w, h: rect.h }
+                        : w,
                 ),
             };
         }
         const vw = isClient() ? window.innerWidth : 1280;
         const vh = isClient() ? window.innerHeight : 800;
-        const w = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
-        const h = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
-        const idx = d.windows.length;
-        // Cascada que NUNCA invade la banda de la barra superior (B-1).
-        const maxY = Math.max(DESKTOP_TOP_INSET, vh - h - 120);
+        // Composición centrada (2026-10-19): la geometría la decide el módulo puro
+        // geometriaAperturaVentana (nula posición guardada → CENTRADA en pantalla).
+        const geoApertura = geometriaAperturaVentana(vw, vh, opts ?? {}, null);
         const win: DesktopWindow = {
             id: resultId,
             contentRef,
-            x: Math.max(8, Math.min(48 + (idx % 6) * 36, vw - w - 16)),
-            y: Math.min(clampWindowY(DESKTOP_TOP_INSET + 6 + (idx % 6) * 30), maxY),
-            w,
-            h,
+            x: geoApertura.x,
+            y: geoApertura.y,
+            w: geoApertura.w,
+            h: geoApertura.h,
             z: nextZ(d),
             minimized: false,
             maximized: false,
