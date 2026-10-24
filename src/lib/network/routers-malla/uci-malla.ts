@@ -13,8 +13,14 @@ type Opciones = Array<[string, string | number]>;
 
 const ANCHOS: Record<BandaWifi, number[]> = { "2g": [20, 40], "5g": [20, 40, 80, 160], "6g": [20, 40, 80, 160] };
 const PREFIJO: Record<BandaWifi, string> = { "2g": "HT", "5g": "VHT", "6g": "HE" };
-/** Canales que existen en cada banda; la tabla legal fina por región (DFS, PIRE) la aplica plan-radios. */
-const CANALES: Record<BandaWifi, [number, number]> = { "2g": [1, 14], "5g": [32, 177], "6g": [1, 233] };
+/** Canales primarios de 20 MHz que existen en cada banda (IEEE 802.11, anexo E): hostapd no arranca con otro
+ * (un 38 o un 37 en 5 GHz no son canales). 5 GHz: 32–144 de 4 en 4 y 149–177; 6 GHz: 1, 5, … 233 y el 2.
+ * La tabla legal fina por región (DFS, PIRE) la aplica plan-radios. */
+const CANALES: Record<BandaWifi, (c: number) => boolean> = {
+  "2g": (c) => c >= 1 && c <= 14,
+  "5g": (c) => (c >= 32 && c <= 144 && c % 4 === 0) || (c >= 149 && c <= 177 && c % 4 === 1),
+  "6g": (c) => c === 2 || (c >= 1 && c <= 233 && c % 4 === 1),
+};
 
 /** htmode: el mayor ancho que admite la banda sin pasarse del pedido (2,4 GHz no llega a 80). */
 const htmode = (b: BandaWifi, mhz: number): string => `${PREFIJO[b]}${ANCHOS[b].filter((a) => a <= mhz).pop() ?? 20}`;
@@ -35,7 +41,7 @@ function validar(e: CfgUciMalla): string {
   // La banda acaba dentro del guion sh: solo pasan las tres conocidas (un JSON guardado podría traer otra cosa)
   if (!Object.keys(PREFIJO).includes(e.troncal.banda)) throw new Error("La banda de la troncal debe ser 2g, 5g o 6g");
   for (const item of [[e.troncal.banda, e.troncal.canal], ["2g", e.cliente.canal]] as Array<[BandaWifi, number]>)
-    if (!Number.isInteger(item[1]) || item[1] < CANALES[item[0]][0] || item[1] > CANALES[item[0]][1]) throw new Error(`El canal ${item[1]} no existe en ${item[0]}`);
+    if (!Number.isInteger(item[1]) || !CANALES[item[0]](item[1])) throw new Error(`El canal ${item[1]} no existe en ${item[0]}`);
   if (!(e.troncal.pireDbm >= 0 && e.troncal.pireDbm <= 36)) throw new Error("La PIRE de la troncal: de 0 a 36 dBm");
   return pais;
 }

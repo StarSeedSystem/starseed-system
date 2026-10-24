@@ -7,7 +7,8 @@ const CLAVE_AP = "wifi-casa-456";
 
 const cfg = (banda: BandaWifi = "5g", anchoMhz = 80, extra: Partial<CfgUciMalla> = {}): CfgUciMalla => ({
   router: "Salón", meshId: "starseed-malla", claveMalla: CLAVE_MALLA, region: "es", cliente: { canal: 6, ssid: "StarSeed", clave: CLAVE_AP },
-  troncal: { banda, canal: banda === "2g" ? 1 : 36, anchoMhz, pireDbm: 23.7 }, ...extra,
+  // 36 no es canal de 6 GHz (allí van 1, 5, … 233): su primario más cercano es el 37
+  troncal: { banda, canal: banda === "2g" ? 1 : banda === "6g" ? 37 : 36, anchoMhz, pireDbm: 23.7 }, ...extra,
 });
 
 /** Secciones UCI por nombre: «config tipo 'nombre'» → sus líneas de opción, sin sangría. */
@@ -55,6 +56,26 @@ describe("uciMalla", () => {
     expect(guionAplicar(cfg("2g", 20))).not.toContain("RC=");
   });
 
+  it("troncal 6g: radio con band '6g' y HE; el AP sigue en su radio de 2,4 GHz", () => {
+    const w = secciones(uciMalla(cfg("6g", 80)).wireless);
+    expect(w.radio_troncal).toEqual(expect.arrayContaining(["option band '6g'", "option channel '37'", "option htmode 'HE80'"]));
+    expect(w.malla0).toEqual(expect.arrayContaining(["option device 'radio_troncal'", "option encryption 'sae'"]));
+    expect(w.radio_cliente).toEqual(expect.arrayContaining(["option band '2g'", "option htmode 'HT20'"]));
+    expect(w.ap0).toContain("option device 'radio_cliente'");
+  });
+
+  it.each([
+    ["5g", 149], ["5g", 165], ["5g", 177], ["5g", 32], ["5g", 144], ["6g", 1], ["6g", 2], ["6g", 233], ["2g", 14],
+  ] as Array<[BandaWifi, number]>)("acepta el canal primario de 20 MHz %s/%i", (banda, canal) => {
+    expect(uciMalla(cfg(banda, 20, { troncal: { ...cfg(banda).troncal, canal } })).wireless).toContain(`option channel '${canal}'`);
+  });
+
+  it.each([
+    ["5g", 38], ["5g", 37], ["5g", 146], ["5g", 150], ["6g", 36], ["6g", 3], ["6g", 237], ["2g", 0],
+  ] as Array<[BandaWifi, number]>)("rechaza %s/%i: no es un canal primario y hostapd no arrancaría", (banda, canal) => {
+    expect(() => uciMalla(cfg(banda, 20, { troncal: { ...cfg(banda).troncal, canal } }))).toThrow(`El canal ${canal} no existe en ${banda}`);
+  });
+
   it("escapa la comilla simple como uci export", () => {
     expect(uciMalla(cfg("5g", 80, { claveMalla: "ab'cdefgh" })).wireless).toContain("option key 'ab'\\''cdefgh'");
   });
@@ -75,6 +96,10 @@ describe("uciMalla", () => {
 describe("guionAplicar", () => {
   const g = guionAplicar(cfg());
   const pos = (t: string): number => { const i = g.indexOf(t); expect(i, t).toBeGreaterThanOrEqual(0); return i; };
+
+  it("es un guion de sh: la primera línea es #!/bin/sh", () => {
+    expect(g.split("\n")[0]).toBe("#!/bin/sh");
+  });
 
   it("hace la copia y comprueba radios y br-lan antes de instalar o escribir nada", () => {
     const copia = pos("cp -p /etc/config/$f /etc/config/$f.antes-starseed");
