@@ -20,6 +20,7 @@
  */
 
 import { getInstalledFunctionIds, getInstalledPackageIds } from "@/lib/library/packages";
+import { HABILIDADES_INGENIERIA_A } from "./habilidades/ingenieria-a";
 import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
@@ -649,6 +650,19 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     skillIds: ["aurora-writing-for-agents"],
     packageIds: ["iatool-writing-for-agents"],
   },
+  /* ═══ INGENIERÍA A · Habilidades de ingeniería de Matt Pocock (LYS1018I) ═══
+   * Mismo formato y lugar que las de productividad. Fuente única de verdad:
+   * habilidades/ingenieria-a.ts — ni ids ni textos aquí; se registran con el
+   * RESUMEN (≤ 120 palabras, capas razón/profunda/nube) más la atribución MIT
+   * y la rutaCompleta del SKILL.md original para pedir el texto íntegro. */
+  ...HABILIDADES_INGENIERIA_A.map((h) => ({
+    id: h.id,
+    label: h.nombre,
+    systemPrompt: `${h.resumen} (Matt Pocock, MIT; ${h.rutaCompleta})`,
+    routing: {},
+    skillIds: [`aurora-${h.id}`],
+    packageIds: [`iatool-${h.id}`],
+  })),
 ];
 
 function isClient(): boolean {
