@@ -47,6 +47,17 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { connectionsForService } from "@/lib/services/oss-connections";
+import {
+  TIEMPO_FLUJO_MS,
+  checkpointsDisponibles,
+  ejecutarFlujo,
+  errorLegible,
+  imagenesDeHistorial,
+  parseaCheckpoints,
+  parseaSalud,
+  urlDeImagen,
+  type ImagenComfy,
+} from "@/lib/imagenes/adaptadores/comfyui-cliente";
 import type { GaleriaImagenes } from "./proveedor-neuronas";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -847,16 +858,104 @@ async function fooocusImage(opts: GenerateImageOptions): Promise<MediaGenResult>
   return postForMedia(joinUrl(endpoint, "/v1/generation/text-to-image"), "fooocus", "image", body, LOCAL_TIMEOUT_MS);
 }
 
+/** Grafo API mínimo de texto a imagen con nodos del núcleo de ComfyUI (sin nodos de terceros). */
+function flujoTextoAImagen(checkpoint: string, opts: GenerateImageOptions): Record<string, unknown> {
+  const aLado = (n: unknown, porDefecto: number): number => {
+    const v = typeof n === "number" && Number.isFinite(n) && n > 0 ? n : porDefecto;
+    return Math.max(64, Math.min(2048, Math.round(v / 8) * 8));
+  };
+  const ancho = aLado(opts.width, 512), alto = aLado(opts.height, 512);
+  const semilla =
+    typeof opts.seed === "number" && Number.isFinite(opts.seed) && opts.seed >= 0
+      ? Math.floor(opts.seed)
+      : Math.floor(Math.random() * 2 ** 31);
+  return {
+    "1": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: checkpoint } },
+    "2": { class_type: "CLIPTextEncode", inputs: { text: opts.prompt, clip: ["1", 1] } },
+    "3": { class_type: "CLIPTextEncode", inputs: { text: (opts.negative ?? "").trim(), clip: ["1", 1] } },
+    "4": { class_type: "EmptyLatentImage", inputs: { width: ancho, height: alto, batch_size: 1 } },
+    "5": { class_type: "KSampler", inputs: { seed: semilla, steps: 20, cfg: 7, sampler_name: "euler",
+      scheduler: "normal", denoise: 1, model: ["1", 0], positive: ["2", 0], negative: ["3", 0], latent_image: ["4", 0] } },
+    "6": { class_type: "VAEDecode", inputs: { samples: ["5", 0], vae: ["1", 2] } },
+    "7": { class_type: "SaveImage", inputs: { images: ["6", 0], filename_prefix: "starseed" } },
+  };
+}
+
+/** Motivo honesto cuando ComfyUI no ofrece checkpoints: lee qué declara de verdad (nada se estima). */
+async function diagnosticoComfyUI(endpoint: string): Promise<string> {
+  const [info, stats] = await Promise.all([
+    safeFetchJson(`${endpoint}/object_info/CheckpointLoaderSimple`, { method: "GET" }, LOCAL_TIMEOUT_MS),
+    safeFetchJson(`${endpoint}/system_stats`, { method: "GET" }, LOCAL_TIMEOUT_MS),
+  ]);
+  const rechazo = errorLegible(info.data) ?? errorLegible(stats.data);
+  if (rechazo) return rechazo;
+  const checkpoints = parseaCheckpoints(info.data);
+  const salud = parseaSalud(stats.data);
+  const partes: string[] = [
+    checkpoints.length
+      ? `Checkpoints: ${checkpoints.slice(0, 6).join(", ")}.`
+      : "No declara ningún checkpoint instalado.",
+  ];
+  if (salud) {
+    const gpu = salud.dispositivos.find((d) => d.tipo !== "cpu") ?? salud.dispositivos[0];
+    partes.push(
+      gpu
+        ? `${gpu.nombre}: ${gpu.vramLibreMB} MB de VRAM libres de ${gpu.vramTotalMB} MB.`
+        : "No declara dispositivos.",
+    );
+  } else {
+    partes.push("No se pudo leer /system_stats.");
+  }
+  return partes.join(" ");
+}
+
+/** Normaliza las imágenes del flujo con las mismas reglas del cliente y la URL del endpoint configurado. */
+function normalizaImagenes(imagenes: readonly ImagenComfy[], base: string, promptId: string): ImagenComfy[] {
+  const historial = {
+    [promptId]: {
+      outputs: {
+        resultado: {
+          images: imagenes.map(({ filename, subfolder, type }) => ({ filename, subfolder, type })),
+        },
+      },
+    },
+  };
+  return imagenesDeHistorial(historial, base, promptId).map((img) => ({ ...img, url: urlDeImagen(base, img) }));
+}
+
 async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
   const endpoint = resolveEndpoint("comfyui", getMediaPrefs());
   if (!endpoint) {
     return {
       ok: false,
       provider: "comfyui",
-      error: "No hay un endpoint de ComfyUI configurado. Necesita un proxy/API compatible con un flujo txt2img simple.",
+      error: "No hay un endpoint de ComfyUI configurado (aquí o en /servicios).",
     };
   }
-  return postForMedia(joinUrl(endpoint, "/prompt"), "comfyui", "image", { prompt: opts.prompt }, LOCAL_TIMEOUT_MS, true);
+  const checkpoints = await checkpointsDisponibles(endpoint);
+  if (!checkpoints.length) {
+    const detalle = await diagnosticoComfyUI(endpoint);
+    return {
+      ok: false,
+      provider: "comfyui",
+      error: `ComfyUI no ofrece ningún checkpoint para generar. ${detalle}`,
+    };
+  }
+  const resultado = await ejecutarFlujo(endpoint, flujoTextoAImagen(checkpoints[0], opts), {
+    tiempoMs: TIEMPO_FLUJO_MS,
+  });
+  if (!resultado.ok) return { ok: false, provider: "comfyui", error: resultado.motivo };
+  const imagenes = normalizaImagenes(resultado.imagenes, endpoint, resultado.promptId);
+  const primera = imagenes[0];
+  if (!primera) {
+    return {
+      ok: false,
+      provider: "comfyui",
+      error: "ComfyUI terminó el flujo pero no devolvió ninguna imagen.",
+    };
+  }
+  const blob = await safeFetchBlob(primera.url, {}, LOCAL_TIMEOUT_MS, true);
+  return { ok: true, url: primera.url, blob: blob ?? undefined, provider: "comfyui" };
 }
 
 async function customEndpointImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
