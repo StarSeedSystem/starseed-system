@@ -1,0 +1,121 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "ola": "Rescate de las ramas de la nube",
+   "id": "RTMGP1011-1ECCC4dobjbbbbbbbb-d1b",
+   "titulo": "Rescate de pruebas · Puerta de publicación en rojo: CI en rojo · objeción del revisor (parte 1 de 2)",
+   "archivos": [
+    "src/lib/astraura-bots/__tests__/acciones-creacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea MGP1011-1ECCC4dobjbbbbbbb («Puerta de publicación en rojo: CI en rojo · objeción del revisor») se hizo en main por otro camino; su rama nube/a1-20261021-040512-MGP1011-1ECCC4dobjbbbbbbb queda archivada en `refs/archivo/nube/a1-20261021-040512-MGP1011-1ECCC4dobjbbbbbbb` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.74)\n\nTU TAREA (RTMGP1011-1ECCC4dobjbbbbbbb · solo estos archivos: src/lib/astraura-bots/__tests__/acciones-creacion.test.ts, src/lib/malla/cristal/__tests__/triangulacion.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/astraura-bots/__tests__/acciones-creacion.test.ts\n  it(\"devuelve error de entenderVoz\", async () => {\n     const a = voz(\"frase no entendida\");\n     const d = { onStatus: vi.fn() };\n     const intencionesVoz = await import(\"@/lib/xr/intenciones-voz\");\n     const m: ResultadoVoz = { ok: false, razon: \"no-entendido\", pregunta: \"¿Qué quieres decir?\", sugerencias: [] };\n    entenderVozSpy = vi.spyOn(intencionesVoz, \"entenderVoz\").mockReturnValue(m);\n    const r = await ejecutarIntencionXR(a, ctxVoz, d);\n    expect(r.ok).toBe(false);\n    expect(r.motivo).toBe(\"¿Qué quieres decir?\");\n    expect(r.previo).toEqual({});\n    expect(r.tarjeta).toBeNull();\n  });\n\n# src/lib/astraura-bots/__tests__/acciones-creacion.test.ts\n  it(\"devuelve tarjeta\", async () => {\n     const a = voz(\"crea un mundo\");\n     const d = { onStatus: vi.fn() };\n     const m: ResultadoVoz = { ok: true, pasos: [], confirmar: false, tarjeta: null };\n     const intencionesVoz = await import(\"@/lib/xr/intenciones-voz\");\n     entenderVozSpy = vi.spyOn(intencionesVoz, \"entenderVoz\").mockReturnValue(m);\n    const r = await ejecutarIntencionXR(a, ctxVoz, d);\n    expect(r.ok).toBe(true);\n    expect(r.motivo).toBe(\"Tarjeta lista: no se hace nada hasta que la confirmes.\");\n    expect(r.previo).toEqual({});\n     expect(r.tarjeta).not.toBeNull();\n      expect(r.tarjeta!.titulo).toBe(TITULO_PROPUESTA_BOT);\n   });\n\n# src/lib/astraura-bots/__tests__/acciones-creacion.test.ts\n  it(\"error frase no válida\", async () => {\n    const a = { tipo: \"xr.intencion\", args: { frase: 123 } as any } as AccionBot;\n    const r = await ejecutarIntencionXR(a, ctxVoz);\n    expect(r.ok).toBe(false);\n    expect(r.motivo).toBe(\"Esta pieza solo traduce «xr.intencion», no «xr.intencion».\");\n    expect(r.previo).toEqual({});\n  });\n\n# src/lib/astraura-bots/__tests__/acciones-creacion.test.ts\n  it(\"error frase vacía\", async () => {\n    const a = { tipo: \"xr.intencion\", args: { frase: \"\" } as any } as AccionBot;\n    const r = await ejecutarIntencionXR(a, ctxVoz);\n    expect(r.ok).toBe(false);\n    expect(r.motivo).toBe(\"No te he oído. Dime qué quieres hacer.\");\n    expect(r.previo).toEqual({});\n  });\n\n# src/lib/malla/cristal/__tests__/triangulacion.test.ts\n    it('elimina puntos duplicados, mantiene el id menor', () => {\n      const puntos: Punto[] = [\n        { id: 'b', x: 0, y: 0 },\n        { id: 'a', x: 0, y: 0 },\n        { id: 'c', x: 1, y: 0 },\n      ];\n      const aristas = delaunay(puntos);\n      // Puntos únicos: a(0,0) y c(1,0)\n      expect(aristas).toEqual([[\"a\", \"c\"]]);\n    });\n\n# src/lib/malla/cristal/__tests__/triangulacion.test.ts\n    it('pentagono convexo da 7 aristas', () => {\n      const puntos: Punto[] = [\n        { id: 'a', x: 0, y: 0 },\n        { id: 'b', x: 1, y: 0 },\n        { id: 'c', x: 2, y: 1 },\n        { id: 'd', x: 1, y: 2 },\n        { id: 'e', x: 0, y: 1 },\n      ];\n      const aristas = delaunay(puntos);\n      expect(aristas.length).toBe(7);\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39935411845`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39935411845:refs/remotes/origin/nube/39935411845\"` y `git cherry-pick --no-commit 8605ad377fce`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/astraura-bots/__tests__/acciones-creacion.test.ts.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (src/lib/astraura-bots/__tests__/acciones-creacion.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).",
+   "revisor": {
+    "origen": "RTMGP1011-1ECCC4dobjbbbbbbbb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39935411845"
+  },
+  {
+   "id": "PG1013H",
+   "ola": "Ola 1013P · ProtoGenesis: la génesis multiagéntica de cada molécula (Genesis · PoliGenesis · MetaGenesis)",
+   "titulo": "ProtoGenesis: panel del encargo, sus pasos, agentes, verificación y decisión",
+   "archivos": [
+    "src/components/protogenesis/panel-protogenesis.tsx",
+    "src/components/protogenesis/__tests__/panel-protogenesis.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/protogenesis.md (léelo entero) y architecture/protomolecula.md §3, §7 y §8. Tipos de la Protomolécula SIEMPRE de src/lib/protomolecula/tipos.ts (Molecula, Ambito, Operacion, Cambio, EstadoValores, Computo, ReferenciaEntidad). 'use client' `PanelProtoGenesis({moleculaId, ambito, rol?, democratico?, esDueno})`: escribir la intención y los criterios (lista editable; sin criterios el botón «Encargar» queda desactivado con el motivo), el plan como árbol por niveles (`nivelesDe`) con el estado y el agente de cada paso, el progreso, los fallos de verificación con su motivo y el botón de decisión según `decidirResultado` («Aceptar en mi molécula», «Proponer al grupo», «Pedir a MetaGenesis» o el motivo de no poder). Diseño del OS (Crystal Liquid Glass), iconos lucide, sin emojis, cursor pointer, legible en móvil. Guarda con almacen-encargos. Pruebas jsdom: sin criterios no deja encargar; un plan de dos niveles pinta dos filas; en un grupo democrático el botón dice «Proponer al grupo».",
+   "revisor_quitadas": [
+    "PG1013B",
+    "PG1013C",
+    "PG1013D"
+   ],
+   "dependencias_ya_en_main": [
+    "PG1013A",
+    "PG1013G"
+   ]
+  },
+  {
+   "id": "FSH1018Q",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Astraura · habilidad de Shaders: crear un fondo describiéndolo",
+   "archivos": [
+    "src/ai/astraura/habilidades/shaders.ts",
+    "src/ai/astraura/habilidades/__tests__/shaders.test.ts"
+   ],
+   "depende": [],
+   "prompt": "A partir de vendor/habilidades/shaders/SKILL.md y components.md (MIT): tarjeta (≤ 60 palabras), resumen (≤ 120) y `presetDesdeRespuesta(texto)` que extrae y valida con sets-fondo.ts el JSON de preset que devuelva un modelo (rechaza types que no existan en el catálogo y cámara). Misma forma que las tarjetas de LYS1018I. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018C",
+    "LYS1018I"
+   ]
+  },
+  {
+   "id": "LYS1018C",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · consenso con las decisiones básicas de 1,58 bits (BitNet, Bonsai, Needle)",
+   "archivos": [
+    "src/lib/astraura/laya/consenso.ts",
+    "src/lib/astraura/laya/__tests__/consenso.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `consensuar({ pequeno: { respuesta, confianza? , motor }, laya: { respuesta, answer_confidence } | null, umbral })` → { decision, quien: \"ambos\"|\"laya\"|\"pequeno\"|\"ninguno\", accion: \"aceptar\"|\"escalar\", motivo }. Si coinciden → aceptar; si no coinciden, manda Laya solo con confianza ≥ umbral; si Laya no llegó a tiempo, se acepta lo pequeño solo si su confianza ≥ umbral; si no, escalar. Pruebas de las cuatro ramas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "LYS1018H",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya en navegador y apps (laya-ts con WebGPU → WASM): cuándo se carga y cuándo se pregunta fuera",
+   "archivos": [
+    "src/lib/astraura/laya/laya-navegador.ts",
+    "src/lib/astraura/laya/__tests__/laya-navegador.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `planLayaLocal(perfilMedio)` → { cargar: boolean, modelo: \"multilingual-int8\"|\"multilingual\"|null, motivo } según capas-autoadaptables §4: visita web nunca (va por la malla); PWA con WebGPU y ≥ 2 GB de almacenamiento persistente y ≥ 4 GB de memoria; app nativa si cabe en su presupuesto; batería < 20 % o pestaña oculta → no. Mientras `vendor/laya-ts` y el modelo exportado (tarea O) no existan, devuelve cargar:false con ese motivo. Pruebas por medio. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018Ib",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Habilidades · tarjetas de ingeniería (especificar, tickets, triage, prototipo, investigación, arquitectura)",
+   "archivos": [
+    "src/ai/astraura/habilidades/ingenieria-b.ts",
+    "src/ai/astraura/habilidades/__tests__/ingenieria-b.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Igual que ingenieria-a.ts con to-spec, to-tickets, triage, prototype, research, improve-codebase-architecture e implement de vendor/habilidades/mattpocock-skills/engineering/. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018M",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · aprende de cada decisión y recalibra su umbral por punto y ámbito",
+   "archivos": [
+    "src/lib/astraura/laya/aprendizaje-laya.ts",
+    "src/lib/astraura/laya/__tests__/aprendizaje-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `anotar(registro, { punto, ambito, p, donde, ms, resultado: \"aceptada\"|\"corregida\"|\"escalada\", privado, estado })` guarda el estado SOLO como huella si es privado; `umbralRecalibrado(registro, punto, ambito)` devuelve el umbral que minimiza correcciones con ≥ 30 casos (si hay menos: el del catálogo); `exportarJSONL` saca los casos no privados en el formato del cuaderno de afinado de Laya. Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "SUC1018C",
+   "ola": "Ola 1018S · Sucesoras del ultracode: lo que los revisores Opus dejaron por cablear o arreglar",
+   "titulo": "Bots · el ejecutor pinta y retira las capas sobre la pantalla (BOT1011V)",
+   "archivos": [
+    "src/lib/astraura-bots/adaptadores/ejecutor-acciones.ts",
+    "src/lib/astraura-bots/__tests__/ejecutor-capas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Integrado `capa-pantalla.ts` (`normalizarCapa`, `apilar`, `retirar`, `retirarDeBot`) y el componente `capa-pantalla-bot.tsx`. En el ejecutor, la acción de capa (`uiSpec`, resaltar, nota, flecha) pasa por `normalizarCapa`, se apila (máx. 8 por bot) en el almacén de capas que lee el componente (evento o almacén existente; no inventes otro si ya hay uno) y su deshacer es `{retirar: id}`. Pruebas de normalizar, apilar y deshacer. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; pruebas sin red; nunca valores de claves; textos y comentarios en español con acentos; lee antes el contrato del área y CLAUDE.md (trampa 11: nada de `node:*` en código de cliente).",
+   "dependencias_ya_en_main": [
+    "SUC1018B"
+   ]
+  }
+ ]
+}
