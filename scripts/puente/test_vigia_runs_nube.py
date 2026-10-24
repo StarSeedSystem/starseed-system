@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Pruebas del vigía de runs de la nube (2026-10-13): duplicados, sin máquina, preparación atascada,
-pasados de tope y «sin dato del paso» (solo aviso). Lo puro, sin red ni GitHub."""
+pasados de tope y «sin dato del paso» (solo aviso). Lo puro, sin red ni GitHub.
+(OPS1024E, 2026-10-24) Las «reasignada · nube (run N)» varadas: con el run N ya terminado y más
+de 6 h desde su último cambio vuelven a «pendiente» sin gastar envío; run vivo o sin dato, se quedan."""
+import json
 import os
 import sys
 import unittest
@@ -147,6 +150,122 @@ class Actuar(unittest.TestCase):
         self.assertEqual(VR.actuar(resumen, self.dir, ahora=1300.0), [])
         self.assertEqual(self.cancelados, [])
         self.assertEqual(len(self.avisos), 1)
+
+
+class Varadas(unittest.TestCase):
+    """(OPS1024E, 2026-10-24) Varadas: run N terminado y más de 6 h del último cambio vuelven; run vivo, otro medio o sin dato, no."""
+
+    VIEJA = "2026-10-13T10:00:00Z"  # ~12 h antes de AHORA
+    JOVEN = "2026-10-13T20:00:00Z"  # ~2 h antes de AHORA
+    NOTA = "movida a nube-gh (run 9) desde Genesis"
+
+    def v(self, t=VIEJA, **k):
+        d = {"estado": "reasignada", "medio": "nube", "nota": self.NOTA, "t": t}
+        d.update(k); return d
+
+    def test_run_terminado_vuelve(self):
+        t = {"VZF": self.v(), "Bien": {"estado": "commit"}}
+        self.assertEqual(VR.varadas(t, {"9": "completed"}, AHORA), [("VZF", "9")])
+
+    def test_run_vivo_se_queda(self):
+        t = {"VZF": self.v()}
+        for estado in ("in_progress", "queued", "pending", "waiting"):
+            self.assertEqual(VR.varadas(t, {"9": estado}, AHORA), [])
+
+    def test_sin_dato_del_run_se_queda(self):
+        t = {"VZF": self.v()}
+        for estados in (None, {}, {"8": "completed"}):
+            self.assertEqual(VR.varadas(t, estados, AHORA), [])
+
+    def test_otro_medio_o_otra_nota_se_quedan(self):
+        t = {"VZR": self.v(medio="oracle"),
+             "DGM": {"estado": "reasignada", "medio": None, "nota": "movida a oracle desde Genesis", "t": self.VIEJA}}
+        self.assertEqual(VR.varadas(t, {"9": "completed"}, AHORA), [])
+
+    def test_estado_no_reasignada_o_cambio_reciente_o_sin_t_no(self):
+        t = {"A": self.v(estado="pendiente"), "B": self.v(t=self.JOVEN), "C": self.v(t=None)}
+        self.assertEqual(VR.varadas(t, {"9": "completed"}, AHORA), [])
+
+    def test_sin_medio_pero_nota_nube_gh_cuenta(self):
+        """Como `reclamar_varadas`: las soltadas a nube-gh pueden quedar sin medio."""
+        t = {"Q": self.v(medio=None)}
+        self.assertEqual(VR.varadas(t, {"9": "completed"}, AHORA), [("Q", "9")])
+
+    def test_devolucion_varadas_es_la_misma_del_vigia(self):
+        prog = {"VZF": self.v(), "DGM": {"estado": "commit"}}
+        nuevo, hechas = VR.devolver_varadas(prog, [("VZF", "9"), ("DGM", "9")], "20261024")
+        self.assertEqual(hechas, ["VZF"])
+        e = nuevo["VZF"]
+        self.assertEqual((e["estado"], e["medio"]), ("pendiente", None))
+        self.assertIn("no cuenta como envío", e["nota"])
+        self.assertIn("run 9", e["nota"])
+        self.assertEqual(prog["VZF"]["estado"], "reasignada")  # no muta lo recibido
+
+
+class VaradasActuar(unittest.TestCase):
+    """`actuar` con la API del RUN simulada (sin red): devuelve y avisa UNA línea con cuántas."""
+
+    def setUp(self):
+        import tempfile
+        from unittest import mock
+
+        self.dir = tempfile.mkdtemp()
+        olas = os.path.join(self.dir, "starseed_memory_root", "olas")
+        os.makedirs(olas)
+        self.progreso = os.path.join(olas, "progreso.json")
+        v = Varadas()
+        self._guardar({"VZF": v.v(), "DGM": v.v(t=v.JOVEN), "ORA": {"estado": "reasignada", "medio": "oracle", "nota": v.NOTA, "t": v.VIEJA}})
+        self.hechas, self.avisos, self.estado = [], [], "completed"
+
+        def gh(orden, **k):  # la API del RUN simulada: lo que diría GitHub, sin red
+            r = mock.Mock(returncode=0, stderr=""); r.stdout = self.estado; return r
+
+        self.p = [
+            mock.patch.object(VR, "MEMORIA", os.path.join(self.dir, "m.json")),
+            mock.patch.object(VR.subprocess, "run", side_effect=gh),
+            mock.patch.object(VR, "_avisar", side_effect=self.avisos.append),
+            mock.patch("repartir_nube.anotar_reaperturas", side_effect=lambda ids, _t: self.hechas.append(ids)),
+        ]
+        for x in self.p:
+            x.start()
+
+    def tearDown(self):
+        for x in self.p:
+            x.stop()
+
+    def _guardar(self, datos):
+        with open(self.progreso, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False)
+
+    def _leer(self):
+        with open(self.progreso, encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_run_terminado_devuelve_y_avisa_una_vez(self):
+        hecho = VR.actuar({"runs": []}, self.dir, ahora=AHORA)
+        self.assertEqual(len(hecho), 1)
+        self.assertIn("1 tarea(s)", hecho[0])
+        self.assertEqual(self.hechas, [["VZF"]])  # reapertura anotada: no cuenta envío
+        prog = self._leer()
+        self.assertEqual(prog["VZF"]["estado"], "pendiente")
+        self.assertIsNone(prog["VZF"]["medio"])
+        self.assertIn("no cuenta como envío", prog["VZF"]["nota"])
+        self.assertEqual(prog["DGM"]["estado"], "reasignada")  # vieja SOLO de 2 h
+        self.assertEqual(prog["ORA"]["estado"], "reasignada")  # medio oracle: se queda
+        self.assertEqual(self.avisos, hecho)  # UNA línea con cuántas
+        self.assertEqual(len(VR.actuar({"runs": []}, self.dir, ahora=AHORA)), 0)  # ya no hay varadas
+
+    def test_run_vivo_o_sin_dato_no_toca_nada(self):
+        for self.estado in ("in_progress", ""):
+            self.assertEqual(VR.actuar({"runs": []}, self.dir, ahora=AHORA), [])
+            self.assertEqual(self._leer()["VZF"]["estado"], "reasignada")
+        self.assertEqual(self.avisos, [])
+
+    def test_progreso_con_clave_tareas_tambien(self):
+        self._guardar({"tareas": {"VZF": Varadas().v()}})
+        hecho = VR.actuar({"runs": []}, self.dir, ahora=AHORA)
+        self.assertEqual(len(hecho), 1)
+        self.assertEqual(self._leer()["tareas"]["VZF"]["estado"], "pendiente")
 
 
 if __name__ == "__main__":
