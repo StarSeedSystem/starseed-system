@@ -270,8 +270,95 @@ def instalar_periodico(etiqueta, fuente):
                                      "cargado" if r.returncode == 0 else (r.stderr.strip()[:50] or "error")))
 
 
+# (2026-10-24) Chatterbox TTS local (VOZ1024C dejó servidor.py en 127.0.0.1:4505;
+# SGO1024E lo arranca como servicio launchd). MISMO patrón que los demás servicios de
+# voz: lanzador-tcc.py como padre, ruta absoluta del intérprete, ProcessType
+# Interactive. Sólo se instala si el paquete «chatterbox» ya está en algún intérprete
+# conocido; si no, no se instala y lo dice. Nunca descarga pesos: servidor.py fuerza
+# HF_HUB_OFFLINE=1 y el plist lo declara también. Con STARSEED_CHATTERBOX_PY se fija
+# el intérprete a probar (instalación fuera de los sitios de costumbre).
+PLANTILLA_CHATTERBOX = os.path.join(
+    RAIZ, "native", "astraura-voice", "chatterbox", "com.starseed.chatterbox.plist"
+)
+
+
+def chatterbox_instalado_en(py):
+    """¿Puede ese intérprete importar chatterbox? find_spec no ejecuta el paquete."""
+    print("  chatterbox   probando %s" % py)
+    return (
+        subprocess.run(
+            [
+                py,
+                "-c",
+                "import importlib.util,sys;"
+                "sys.exit(0 if importlib.util.find_spec('chatterbox') else 1)",
+            ],
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+
+def interprete_chatterbox():
+    """Primera ruta absoluta con el paquete, o None si no hay ninguna."""
+    extra = os.environ.get("STARSEED_CHATTERBOX_PY", "")
+    if extra:
+        # El que dice quien instala manda, pero igual se comprueba que tenga el paquete.
+        rutas = [extra]
+    else:
+        rutas = [
+            os.path.join(HOME, ".starseed", "astraura-voice", nombre, "bin", "python")
+            for nombre in ("chatterbox-venv", "rt-venv")
+        ]
+        if os.path.isabs(PY3) and os.path.exists(PY3):
+            rutas.append(PY3)
+    for py in rutas:
+        if os.path.exists(py) and chatterbox_instalado_en(py):
+            return py
+    return None
+
+
+def instalar_chatterbox():
+    """Instala com.starseed.chatterbox sólo si el paquete chatterbox está: si no, lo dice."""
+    interp = interprete_chatterbox()
+    if interp is None:
+        print(
+            "  chatterbox   OMITIDO · el paquete chatterbox no está instalado: "
+            "pip install chatterbox-tts (el servicio nunca descarga pesos)"
+        )
+        return
+    if not os.path.exists(PLANTILLA_CHATTERBOX):
+        print("  chatterbox   OMITIDO · falta la plantilla %s" % PLANTILLA_CHATTERBOX)
+        return
+    with open(PLANTILLA_CHATTERBOX, encoding="utf-8") as f:
+        texto = (
+            f.read()
+            .replace("__RAIZ__", RAIZ)
+            .replace("__PYTHON__", PY3)  # padre: lanzador-tcc.py hereda el TCC
+            .replace("__INTERPRETE__", interp)
+            .replace("__HOME__", HOME.rstrip("/"))
+        )
+    ruta = os.path.join(AG, "com.starseed.chatterbox.plist")
+    with open(ruta, "w", encoding="utf-8") as f:
+        f.write(texto)
+    ok = subprocess.run(["plutil", "-lint", ruta], capture_output=True).returncode == 0
+    subprocess.run(["launchctl", "unload", ruta], capture_output=True)
+    r = subprocess.run(["launchctl", "load", ruta], capture_output=True, text=True)
+    print(
+        "  %-10s plist %s · %s (intérprete: %s)"
+        % (
+            "chatterbox",
+            "ok" if ok else "INVÁLIDO",
+            "cargado" if r.returncode == 0 else (r.stderr.strip()[:50] or "error"),
+            interp,
+        )
+    )
+
+
 # Reinstalar TODOS reinicia Genesis y los directores; con STARSEED_SOLO se toca solo lo nombrado.
 SOLO = {n.strip() for n in os.environ.get("STARSEED_SOLO", "").split(",") if n.strip()}
+if not SOLO or "chatterbox" in SOLO:
+    instalar_chatterbox()
 for nombre, (orden, log, siempre) in SERVICIOS.items():
     if SOLO and nombre not in SOLO:
         continue
