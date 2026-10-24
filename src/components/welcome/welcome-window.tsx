@@ -41,6 +41,7 @@ import {
   type SensesConfig,
 } from "@/lib/senses/senses";
 import { InstallButton } from "@/components/welcome/install-button";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 import {
   Sparkles,
   ShieldCheck,
@@ -387,6 +388,16 @@ export function WelcomeWindow({ onContinue, className }: WelcomeWindowProps) {
               <Compass size={14} aria-hidden /> Volver
             </button>
           ) : null}
+
+          {/* (GUI1021K2) La guía completa sin cuenta, por la puerta común */}
+          <button
+            type="button"
+            className="ss-wel-soft"
+            onClick={() => abrirGuia({ desde: "bienvenida" })}
+            style={{ width: "100%", border: "1px solid rgba(255,255,255,.16)", borderRadius: 13, padding: "10px 0", minHeight: 44, color: "rgba(255,255,255,.85)", fontWeight: 600, fontSize: 13, cursor: "pointer", background: "rgba(255,255,255,.04)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+          >
+            <Compass size={14} aria-hidden /> Conoce StarSeed (sin cuenta)
+          </button>
 
           <button
             type="button"
