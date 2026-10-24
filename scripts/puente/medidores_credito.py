@@ -323,6 +323,23 @@ def alimentar_salud(medidores: dict, ruta_salud: str = ARCHIVO_SALUD,
         fcntl.flock(cerrojo, fcntl.LOCK_UN)
 
 
+def _conservar_otros(doc: dict, previo: dict, solo: set[str] | None) -> dict:
+    """Con --solo, actualiza esos medidores y CONSERVA tal cual los demás del documento previo."""
+    if solo is None:
+        return doc
+    medidores = doc.get("medidores")
+    if not isinstance(medidores, dict):
+        medidores = {}
+        doc["medidores"] = medidores
+    previos = (previo or {}).get("medidores")
+    if isinstance(previos, dict):
+        for mid, med in previos.items():
+            # También conserva un medidor de --solo que no se pudo leer: un fallo no borra lo bueno.
+            if mid not in medidores and isinstance(med, dict):
+                medidores[mid] = med
+    return doc
+
+
 def _a_txt(valor) -> str:
     if isinstance(valor, float):
         return f"{valor:g}"
@@ -372,6 +389,7 @@ def main(argv=None) -> int:
     except (OSError, ValueError):
         previo = {}
     doc = recoger(config, previo, ahora)
+    doc = _conservar_otros(doc, previo, solo)
     if "claude" in doc["medidores"]:
         doc["medidores"]["claude"] = fusionar_statusline(doc["medidores"]["claude"])
         puente_limites_claude(doc["medidores"]["claude"], ahora)
