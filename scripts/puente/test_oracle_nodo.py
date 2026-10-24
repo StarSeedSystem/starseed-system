@@ -110,6 +110,33 @@ class Prestamo(unittest.TestCase):
         p = {"T": {"estado": "reasignada", "medio": "nube"}}
         self.assertEqual(N.devolver_de_oracle(p, [{"rama": "r", "ids": ["T"], "t": 0}], {"r": {}}, True, 1), [])
 
+    def test_movida_desde_genesis_vuelve_sin_estar_en_lanzamientos(self):
+        """(2026-10-21) La reasignación de Genesis no apunta en `lanzamientos`: la rama que cita la
+        nota manda. Rama de 20261018-231246, A1 sin ella y pasadas más de las 3 h de gracia."""
+        import calendar
+        nacida = calendar.timegm((2026, 10, 18, 23, 12, 46, 0, 0, 0))
+        p = {"T": {"estado": "reasignada", "medio": "oracle",
+                   "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"}}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3 * 3600 + 60), ["T"])
+
+    def test_movida_desde_genesis_no_vuelve_si_la_cola_vive_o_dentro_de_gracia(self):
+        import calendar
+        nacida = calendar.timegm((2026, 10, 18, 23, 12, 46, 0, 0, 0))
+        p = {"T": {"estado": "reasignada", "medio": "oracle",
+                   "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"}}
+        # El nodo la tiene en curso: no se le pisa el trabajo.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3 * 3600 + 60,
+                                              colas_vivas=("colas/oracle-20261018-231246",)), [])
+        # Dentro de la gracia encima: tampoco.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3600), [])
+        # Si el A1 la terminó, vuelve aunque la gracia no pase.
+        self.assertEqual(N.devolver_de_oracle(p, [], {"colas/oracle-20261018-231246": {}}, True, nacida + 60), ["T"])
+        # Nota sin rama citada, y lo que no es «reasignada · oracle»: nada.
+        p2 = {"U": {"estado": "reasignada", "medio": "oracle", "nota": "sin rama"},
+              "V": {"estado": "commit", "medio": "oracle",
+                    "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"}}
+        self.assertEqual(N.devolver_de_oracle(p2, [], {}, True, nacida + 3 * 3600 + 60), [])
+
 
 class Resumen(unittest.TestCase):
     def test_sin_urls_ni_ips_y_con_la_sonda_publica(self):
