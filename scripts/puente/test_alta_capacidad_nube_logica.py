@@ -41,6 +41,7 @@ class CupoNube(unittest.TestCase):
         ok, motivo, hoy = L.cupo_nube(credito(), AHORA, 3, max_vivas=3)
         self.assertFalse(ok)
         self.assertIn("vivas", motivo)
+        self.assertIn("ya hay 3", motivo)  # el motivo sale de ALT1022A: dice cuántas hay
         self.assertGreater(hoy, 0)
 
     def test_presupuesto_con_13_dias(self):
@@ -105,6 +106,11 @@ class Seguir(unittest.TestCase):
     def test_seguir_devuelve_pasada_la_gracia(self):
         reg = _registro("A", t=AHORA - 9 * 3600)
         self.assertEqual(L.seguir(reg, set(), {"A": PRESTADA}, AHORA, gracia_h=8), {"A": "devolver"})
+
+    def test_seguir_justo_en_la_gracia_aun_espera(self):
+        """Rescatado de ALT1022A: el límite exacto (t == gracia) cuenta como dentro de la gracia."""
+        reg = _registro("A", t=AHORA - 8 * 3600)
+        self.assertEqual(L.seguir(reg, set(), {"A": PRESTADA}, AHORA, gracia_h=8), {"A": "esperar"})
 
     def test_seguir_olvida_lo_que_ya_no_esta_prestada(self):
         reg = _registro("A")
