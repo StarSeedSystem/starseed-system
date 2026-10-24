@@ -34,6 +34,12 @@ describe("átomos propios", () => {
     expect(VISTAS_COMPONENTE).toBeTypeOf("object");
   });
 
+  it("VISTAS_COMPONENTE solo guarda cargadores de componente", () => {
+    for (const carga of Object.values(VISTAS_COMPONENTE)) {
+      expect(typeof carga).toBe("function");
+    }
+  });
+
   it("cada definición pasa registrarAtomo", () => {
     for (const def of ATOMOS_PROPIOS) {
       limpiarRegistro();
