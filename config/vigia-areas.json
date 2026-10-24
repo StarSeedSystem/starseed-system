@@ -44,12 +44,14 @@
       "pipeline_tags": ["text-to-speech"],
       "autores": ["ResembleAI", "myshell-ai", "SWivid", "coqui", "2Noise", "hexgrad", "FermionResearch", "microsoft"],
       "cuantizadores": ["unsloth", "mlx-community", "onnx-community"],
+      "repos_github": ["debpalash/VoiceStudio", "k2-fsa/OmniVoice", "FunAudioLLM/CosyVoice", "QwenLM/Qwen3-TTS", "KittenML/KittenTTS"],
       "catalogo": "src/lib/library/packages.ts"
     },
     {
       "id": "oido", "nombre": "Oído",
       "pipeline_tags": ["automatic-speech-recognition"],
       "autores": ["openai", "nvidia", "microsoft", "mistralai", "Qwen", "FermionResearch"],
+      "repos_github": ["moonshine-ai/moonshine"],
       "cuantizadores": ["mlx-community", "onnx-community"],
       "catalogo": "src/lib/aurora/stt-oss/motores-oido.ts"
     },
