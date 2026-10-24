@@ -3,19 +3,9 @@
 /**
  * aurora-guide-voice — puente DEFENSIVO a Aurora para la guía + comandos de voz.
  * ----------------------------------------------------------------------------
- * NO importa el provider ni el motor de Aurora. Habla con ella únicamente por el
- * puente global `window.STARSEED_AURORA` (que el provider ya publica) y degrada
- * en silencio si aún no está montado. El motor de voz ya arranca solo en 2º
- * plano; aquí SOLO usamos:
- *   · speak(text)      → narrar un paso (si el usuario eligió modo voz).
- *   · setEnabled(bool) → encender/apagar Aurora globalmente (mute duro).
- *   · getState()       → leer { transcript, speaking, enabled } para detectar
- *                        comandos de voz simples ("siguiente"/"continúa"/…).
- *   · requestAccess()  → pedir micrófono desde un gesto (modo voz).
- *   · start()          → asegurar la escucha continua en modo voz.
- *
- * Todo pasa por try/catch y comprobaciones de tipo: si el método no existe,
- * simplemente no se hace nada.
+ * NO importa el provider ni el motor de Aurora. Voz fusionada (VZF1015J): pasa
+ * por `hablar()` de `voz-unica.ts` con contexto 'guia'. Conserva la API pública
+ * (`auroraBridge`, `auroraCanSpeak`, etc.) para no tocar a quien la consuma.
  */
 
 // Forma mínima del puente que consumimos (subconjunto de la API v5 del provider).
@@ -38,6 +28,8 @@ type AuroraBridgeLite = {
   } | null;
 };
 
+import { callar as callarUnica, hablar as hablarUnica } from "@/lib/aurora/voz-unica";
+
 /** Devuelve el puente global de Aurora, o null si no está disponible. */
 export function auroraBridge(): AuroraBridgeLite | null {
   if (typeof window === "undefined") return null;
@@ -51,17 +43,19 @@ export function auroraBridge(): AuroraBridgeLite | null {
 
 /** ¿Está el puente listo para hablar? */
 export function auroraCanSpeak(): boolean {
-  const api = auroraBridge();
-  return !!api && typeof api.speak === "function";
+  try {
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-/** Hace hablar a Aurora (TTS). No-op defensivo si no hay puente. */
+/** Hace hablar a Aurora (TTS) por la puerta única con contexto 'guia'. */
 export function auroraSpeak(text: string): void {
   const t = (text ?? "").trim();
   if (!t) return;
   try {
-    const api = auroraBridge();
-    api?.speak?.(t);
+    void hablarUnica(t, { contexto: "guia" });
   } catch {
     /* fail-open */
   }
