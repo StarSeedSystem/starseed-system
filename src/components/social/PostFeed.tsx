@@ -11,6 +11,7 @@ import { FeedControls } from "@/components/social/feed-controls";
 import { useFeedPrefs, useFeedFiltered } from "@/lib/social/feed-filters";
 import { fetchMyProfile } from "@/lib/social/os-profiles";
 import { useCafePosts } from "@/hooks/use-cafe-posts";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 import { useRealtime } from "@/lib/realtime/realtime";
 import {
     changeKey,
@@ -20,7 +21,7 @@ import {
     FEED_GLOBAL_ENTITY,
     FEED_GLOBAL_TOPIC,
 } from "@/lib/sync/live-signal";
-import { Sparkles, PenSquare } from "lucide-react";
+import { PenSquare } from "lucide-react";
 
 interface PostFeedProps {
     groupId?: string;
@@ -174,12 +175,7 @@ export function PostFeed({
 
     return (
         <div className="space-y-4">
-            {usingFallback && (
-                <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-                    <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span className="min-w-0">{fallbackNotice}</span>
-                </div>
-            )}
+            {usingFallback && <AvisoSesion texto={fallbackNotice} compacto />}
 
             {/* Barra de control (solo si hay algo que filtrar/ordenar). */}
             {posts.length > 0 && (

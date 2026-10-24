@@ -20,6 +20,7 @@
 
 import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -112,7 +113,9 @@ export function SaveSharePanel({ family, value: o, meta, onMetaChange, onLoadTok
 
     async function handlePublishFlow() {
         if (!selfRef) {
-            toast.error("Inicia sesión para publicar en la Librería.");
+            toast.error("Inicia sesión para publicar en la Librería.", {
+                action: { label: "Conoce StarSeed", onClick: () => abrirGuia({ desde: "aviso" }) },
+            });
             return;
         }
         const title = meta.name || `${family} — Estudio de Diseño`;
