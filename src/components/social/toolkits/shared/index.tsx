@@ -25,6 +25,47 @@ import {
 
 export const GOLD = "#E9C46A";
 
+// ── Keys estables para listas dinámicas (SA092931) ──
+// Un índice de array como key rompe la reconciliación al reordenar, y un nombre
+// repetido colisiona con sus duplicados. Preferimos un `id`/`slug` real; si el
+// dato no lo trae, derivamos una clave de contenido determinista.
+type ConClave = { id?: unknown; slug?: unknown; key?: unknown };
+
+export function keyPorContenido(item: unknown): string {
+    if (typeof item === "string") return item.trim() || "vacio";
+    if (typeof item === "number" || typeof item === "boolean") return String(item);
+    if (item === null || item === undefined || typeof item !== "object") return "item";
+    const conClave = item as ConClave;
+    for (const campo of ["id", "slug", "key"] as const) {
+        const valor = conClave[campo];
+        if (typeof valor === "string" && valor.trim()) return valor.trim();
+        if (typeof valor === "number") return String(valor);
+    }
+    const partes: string[] = [];
+    if (item !== null && "name" in item && item !== null) {
+        const nom = (item as { name?: unknown }).name;
+        if (typeof nom === "string" && nom.trim()) partes.push(nom.trim());
+    }
+    const resto = item as Record<string, unknown>;
+    for (const campo of ["title", "label", "time", "role", "href"] as const) {
+        const valor = resto[campo];
+        if (typeof valor === "string" && valor.trim()) partes.push(valor.trim());
+    }
+    return partes.length > 0 ? partes.join("·") : "item";
+}
+
+// Keys hermanas únicas: ante contenido repetido, el segundo y siguientes llevan
+// sufijo por orden de aparición (estable porque el contenido es idéntico).
+export function keysUnicas<T>(items: readonly T[]): string[] {
+    const vistos = new Map<string, number>();
+    return items.map((item) => {
+        const base = keyPorContenido(item);
+        const n = vistos.get(base) ?? 0;
+        vistos.set(base, n + 1);
+        return n === 0 ? base : `${base}#${n}`;
+    });
+}
+
 function hex(accent: string | undefined, alpha = ""): string {
     return `${accent || GOLD}${alpha}`;
 }
@@ -425,19 +466,21 @@ export function LinkCard({
 
 // ── TimelineItem / Timeline: agenda, actas, hitos ──
 export interface TimelineEntry {
+    id?: string;
     time?: string;
     title: string;
     detail?: string;
     status?: "done" | "active" | "upcoming";
 }
 export function Timeline({ entries, accent }: { entries: TimelineEntry[]; accent?: string }) {
+    const claves = keysUnicas(entries);
     return (
         <ol className="relative space-y-4 border-l border-white/10 pl-5">
             {entries.map((e, i) => {
                 const color =
                     e.status === "done" ? "#34d399" : e.status === "active" ? accent || GOLD : "#64748b";
                 return (
-                    <li key={i} className="relative">
+                    <li key={claves[i]} className="relative">
                         <span
                             className="absolute -left-[26px] top-1 h-3 w-3 rounded-full border-2 border-background"
                             style={{ background: color }}

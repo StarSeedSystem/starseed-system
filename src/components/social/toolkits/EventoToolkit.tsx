@@ -16,6 +16,7 @@ import {
   EmptyHint,
   EntityQuickActions,
   GOLD,
+  keysUnicas,
 } from "@/components/social/toolkits/shared";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
@@ -136,14 +137,17 @@ export function EventoToolkit({
               <EmptyHint>Los ponentes se anunciarán próximamente.</EmptyHint>
             ) : (
               <div className="space-y-2">
-                {data.speakers.map((s) => (
-                  <PersonRow
-                    key={s.name}
-                    name={s.name}
-                    role={s.role}
-                    accent={ac}
-                  />
-                ))}
+                {keysUnicas(data.speakers).map((clave, i) => {
+                  const s = data.speakers[i];
+                  return (
+                    <PersonRow
+                      key={clave}
+                      name={s.name}
+                      role={s.role}
+                      accent={ac}
+                    />
+                  );
+                })}
               </div>
             )}
           </ToolSection>
