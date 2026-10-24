@@ -16,6 +16,7 @@
  */
 import { planImagen, type CapaImg, type NeuronaImg, type OpcionImagen, type PeticionImagen } from "@/lib/imagenes/plan";
 import { modeloPorId, MOTORES_IMG, type CapacidadImg, type MotorImg } from "@/lib/imagenes/modelos";
+import { ejecutarEspacioImagen, atribucionEspacio } from "@/lib/imagenes/adaptadores/espacios-imagen";
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 
 /** Una opción de la galería que ve la Protomolécula: de dónde salió, con qué licencia y cuánto tardó. */
@@ -155,9 +156,10 @@ export function armarOpcion(
     op.capa === "web-gratis" ? "la web gratis" :
     op.capa === "espacio" ? `su Space de Hugging Face` :
     op.neuronaId ? `tu neurona «${op.neuronaId}»` : "tu aparato";
-  const atribucion = m
-    ? `Generada con ${m.nombre} (${m.licencia}) en ${donde}.`
-    : "Generada con Pollinations (web gratis).";
+  const atribucion =
+    op.capa === "espacio" && m ? atribucionEspacio(m) :
+    m ? `Generada con ${m.nombre} (${m.licencia}) en ${donde}.` :
+    "Generada con Pollinations (web gratis).";
   return {
     ...(res.url ? { url: res.url } : {}),
     ...(res.ref ? { ref: res.ref } : {}),
@@ -252,7 +254,7 @@ export async function ejecutarOpcionReal(
     const r = await generadorTab(prompt, op.semilla).catch(() => null);
     return r && (r.url || r.ref) ? { ...r, segundos: tardado() } : null;
   }
-  if (op.motor === "espacio-hf") return null; // El cliente de Spaces aún no está conectado: descarte honesto.
+  if (op.motor === "espacio-hf") return ejecutarEspacioImagen(op, prompt); // ESP1011D: sale del navegador de cada persona, con SU cuota de ZeroGPU.
   if (op.motor === "externo") return null; // Los servicios de pago se piden con tu clave aparte.
   // Capas locales (dispositivo/neurona/malla): el servicio de imágenes de IMG1011A en esa neurona.
   const endpoint = endpointsPorNeurona[op.neuronaId ?? ""];
