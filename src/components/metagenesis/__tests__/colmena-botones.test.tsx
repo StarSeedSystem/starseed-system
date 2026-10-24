@@ -610,6 +610,27 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         expect(screen.getByTestId(id("info", "mac-aaaaaa"))).toHaveTextContent("2 agentes · contenedor activo");
     });
 
+    it("con el relevo activo y el contenedor ya activo: «Dejar de usar como contenedor» sale con el texto del contrato", async () => {
+        estado.lectura = lectura([nodo({ relevo: true, contenedor: { activo: true, agentes: 2, apto: true, motivo: "" } })]);
+        pintar();
+        const boton = await screen.findByTestId(id("contenedor"));
+        expect(boton).toHaveTextContent("Dejar de usar como contenedor");
+        expect(boton).not.toBeDisabled();
+        // Todo en su sitio: la razón no se repite en la tarjeta, va en el title.
+        expect(boton).toHaveAttribute("title", "Termina lo que lleva y no coge más.");
+    });
+
+    it("con el relevo activo, el contenedor activo y trabajo en curso: «Dejar de usar» pide confirmar y su razón se ve en la tarjeta", async () => {
+        estado.lectura = lectura([nodo({ relevo: true, enCurso: [tarea("t1", 60_000)], contenedor: { activo: true, agentes: 2, apto: true, motivo: "" } })]);
+        pintar();
+        const boton = await screen.findByTestId(id("contenedor"));
+        fireEvent.click(boton);
+        expect(boton).toHaveTextContent("¿Seguro? Pulsa otra vez");
+        // La razón se ve en la tarjeta, no solo en el title: en el móvil el title no se lee.
+        expect(screen.getByTestId(id("contenedor-explica"))).toHaveTextContent("Termina lo que lleva y no coge más.");
+        expect(enviarOrden).not.toHaveBeenCalled();
+    });
+
     it("con el relevo activo: Desconectar con trabajo pide confirmar y manda la orden AL NODO (no a «lider»)", async () => {
         estado.lectura = lectura([nodo({ relevo: true, enCurso: [tarea("task-1", 60_000)] })]);
         pintar();
@@ -667,6 +688,15 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
     });
 
     // ── casos que no dependen del relevo ──────────────────────────────────────────────────────────────────
+    it("sin ningún medio que haya latido, dice cómo se arranca el trabajador", async () => {
+        // La tarjeta de un nodo hoy NO tiene botón de instalar (el comando aún no existe): el sitio donde se
+        // dice cómo arrancar el trabajador es la lista vacía de medios.
+        estado.lectura = lectura([]);
+        pintar();
+        expect(await screen.findByText(/Aún no ha latido ningún medio/i)).toBeInTheDocument();
+        expect(screen.getByText("python3 scripts/puente/nodo_metagenesis.py instalar")).toBeInTheDocument();
+    });
+
     it("no apto: el botón de contenedor se ve desactivado con el motivo visible", async () => {
         estado.lectura = lectura([nodo({ contenedor: { activo: false, agentes: 0, apto: false, motivo: "Faltan herramientas: opencode." } })]);
         pintar();
