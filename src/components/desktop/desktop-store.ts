@@ -17,6 +17,7 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import { geometriaVentana, type Viewport } from "@/lib/design/composicion";
 
 // ── Tipos del modelo ─────────────────────────────────────────────
 export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
@@ -350,6 +351,70 @@ function normalizeIcon(raw: unknown, depth = 0): DesktopIcon | null {
  */
 function clampWindowY(y: number): number {
     return Math.max(DESKTOP_TOP_INSET, y);
+}
+
+/** Entrada de la geometría de apertura: tamaño pedido y posición ya guardada. */
+export interface AperturaVentanaEntrada {
+    /** Ancho pedido por quien abre la ventana (se acota a la pantalla). */
+    ancho?: number;
+    /** Alto pedido por quien abre la ventana (se acota a la pantalla). */
+    alto?: number;
+    /** Rect guardado; ausente o null ⇒ la ventana todavía no tiene posición. */
+    guardada?: DesktopWindowRect | null;
+    /** Banda superior que ninguna ventana debe invadir (barra del Escritorio). */
+    margenSuperior?: number;
+}
+
+/** Resultado de la apertura: rect final y si hubo que recolocar una guardada. */
+export interface AperturaVentana extends DesktopWindowRect {
+    recolocada: boolean;
+}
+
+/** ¿El rect cabe entero dentro de la pantalla útil? */
+function rectDentroDePantalla(viewport: Viewport, rect: DesktopWindowRect, margenSuperior: number): boolean {
+    const tolerancia = 1;
+    return (
+        rect.x >= -tolerancia &&
+        rect.y >= margenSuperior - tolerancia &&
+        rect.x + rect.w <= viewport.ancho + tolerancia &&
+        rect.y + rect.h <= viewport.alto + tolerancia
+    );
+}
+
+/**
+ * Geometría de apertura de una ventana del Escritorio (pura, sin DOM).
+ *
+ * Decisión de Alex (2026-10-19, `adn-y-tokens.md` §7b): las ventanas abren
+ * CENTRADAS en la pantalla. Si ya tienen posición guardada se respeta tal
+ * cual; solo se recoloca (con la misma composición centrada) cuando una
+ * pantalla más pequeña la dejó fuera. El alto nunca invade la barra superior.
+ */
+export function geometriaAperturaVentana(
+    viewport: Viewport,
+    entrada: AperturaVentanaEntrada = {},
+): AperturaVentana {
+    const margen = entrada.margenSuperior ?? DESKTOP_TOP_INSET;
+    const guardada = entrada.guardada ?? null;
+    if (guardada && rectDentroDePantalla(viewport, guardada, margen)) {
+        return { ...guardada, recolocada: false };
+    }
+    const altoPedido = entrada.alto ?? guardada?.h;
+    const geo = geometriaVentana(viewport, {
+        tipo: "ventana",
+        ancho: entrada.ancho ?? guardada?.w,
+        // La banda de la barra superior no es espacio disponible: el alto se
+        // acota a la pantalla útil para que una ventana vieja no se desborde.
+        alto: altoPedido === undefined ? undefined : Math.min(altoPedido, Math.max(0, viewport.alto - margen)),
+    });
+    const yMin = Math.min(margen, viewport.alto);
+    const yMax = Math.max(yMin, viewport.alto - geo.alto);
+    return {
+        x: Math.max(0, Math.min(geo.x, Math.max(0, viewport.ancho - geo.ancho))),
+        y: Math.max(yMin, Math.min(geo.y, yMax)),
+        w: geo.ancho,
+        h: geo.alto,
+        recolocada: guardada !== null,
+    };
 }
 
 function normalizeWindow(raw: unknown): DesktopWindow | null {
@@ -1133,6 +1198,11 @@ function rebaseZ(windows: DesktopWindow[]): DesktopWindow[] {
 export interface OpenWindowOptions {
     w?: number;
     h?: number;
+    /**
+     * Posición guardada que debe respetarse (Adenda 1019): si falta, la
+     * ventana abre centrada; si se salió de la pantalla, se recoloca.
+     */
+    rect?: DesktopWindowRect;
     /** Si true, NO reutiliza una ventana existente con el mismo contenido. */
     allowDuplicate?: boolean;
 }
@@ -1144,6 +1214,8 @@ export function openWindow(
     opts?: OpenWindowOptions,
 ): string {
     let resultId = newId("win");
+    const vw = isClient() ? window.innerWidth : 1280;
+    const vh = isClient() ? window.innerHeight : 800;
     mutateDesktop(desktopId, (d) => {
         const dedupe = !opts?.allowDuplicate && contentRef.type !== "browser";
         const existing = dedupe
@@ -1152,27 +1224,37 @@ export function openWindow(
         if (existing) {
             resultId = existing.id;
             const z = nextZ(d);
+            // Posición YA guardada: se respeta; solo se recoloca si quedó fuera.
+            const abierta = geometriaAperturaVentana({ ancho: vw, alto: vh }, {
+                guardada: { x: existing.x, y: existing.y, w: existing.w, h: existing.h },
+            });
+            const recolocada = abierta.recolocada
+                ? { x: abierta.x, y: abierta.y, w: abierta.w, h: abierta.h }
+                : {};
             return {
                 ...d,
                 windows: d.windows.map((w) =>
-                    w.id === existing.id ? { ...w, minimized: false, z } : w,
+                    w.id === existing.id ? { ...w, ...recolocada, minimized: false, z } : w,
                 ),
             };
         }
-        const vw = isClient() ? window.innerWidth : 1280;
-        const vh = isClient() ? window.innerHeight : 800;
         const w = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
         const h = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
-        const idx = d.windows.length;
-        // Cascada que NUNCA invade la banda de la barra superior (B-1).
-        const maxY = Math.max(DESKTOP_TOP_INSET, vh - h - 120);
+        // Decisión de Alex (2026-10-19): abrir CENTRADA en la pantalla. La
+        // geometría de `composicion.ts` reparte el espacio por aparato; una
+        // posición guardada que quepa se respeta sin tocar.
+        const abierta = geometriaAperturaVentana({ ancho: vw, alto: vh }, {
+            ancho: w,
+            alto: h,
+            guardada: opts?.rect ?? null,
+        });
         const win: DesktopWindow = {
             id: resultId,
             contentRef,
-            x: Math.max(8, Math.min(48 + (idx % 6) * 36, vw - w - 16)),
-            y: Math.min(clampWindowY(DESKTOP_TOP_INSET + 6 + (idx % 6) * 30), maxY),
-            w,
-            h,
+            x: abierta.x,
+            y: abierta.y,
+            w: abierta.w,
+            h: abierta.h,
             z: nextZ(d),
             minimized: false,
             maximized: false,
