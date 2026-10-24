@@ -393,7 +393,8 @@ describe("registro y cadena de voz", () => {
   it("un orden guardado de antes conserva lo que la persona ordenó y suma Chatterbox detrás de OpenVoice", () => {
     const viejo = ["kokoro", "openvoice2", "omnivoice", "voicebox", "voxcpm", "bark", "gpt-sovits", "kitten", "browser"];
     const nuevo = completarPrioridad(viejo);
-    expect(nuevo).toEqual(["kokoro", "openvoice2", "chatterbox", "omnivoice", "voicebox", "voxcpm", "bark", "gpt-sovits", "kitten", "browser"]);
+    // (VOZ1024B) La voz 1.58-bit y VibeVoice entran delante, su sitio en el registro.
+    expect(nuevo).toEqual(["voice158", "vibevoice", "kokoro", "openvoice2", "chatterbox", "omnivoice", "voicebox", "voxcpm", "bark", "gpt-sovits", "kitten", "browser"]);
     expect(completarPrioridad("roto")).toEqual([]);
     expect(completarPrioridad(["inventado"])).toEqual([]);
   });

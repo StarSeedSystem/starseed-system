@@ -144,6 +144,11 @@ export const NEURAL_VOICE_ENGINES: readonly NeuralVoiceEngine[] = [
   "gpt-sovits",
   "omnivoice",
   "openvoice2",
+  // (VOZ1024B) VibeVoice y la voz 1.58-bit: sin estar aquí, `sanitizeEngines`
+  // tiraba su endpoint al guardar y la ventana de voz no dejaba ponérselo, así
+  // que nunca llegaban a la cadena aunque AUTO los ponga primero.
+  "vibevoice",
+  "voice158",
   // xAI Voice Agent — conversacional en tiempo real (WebSocket, server-side key).
   "xai",
 ];
@@ -157,6 +162,9 @@ export function isNeuralEngine(e: unknown): e is NeuralVoiceEngine {
     e === "gpt-sovits" ||
     e === "omnivoice" ||
     e === "openvoice2" ||
+    // (VOZ1024B) Sin ellos, `speak-router.runLink` los rechazaba en silencio.
+    e === "vibevoice" ||
+    e === "voice158" ||
     e === "xai" ||
     e === "chatterbox"
   );
@@ -574,6 +582,10 @@ const VALID_ENGINES: readonly AuroraVoiceEngine[] = [
   "xai",
   // Chatterbox (local o Spaces públicos) — VZR1011B.
   "chatterbox",
+  // (VOZ1024B) Elegibles a mano y fijables por personalidad o neurona: antes la
+  // elección se perdía al leerla (volvía a «navegador») y el pin se ignoraba.
+  "vibevoice",
+  "voice158",
 ];
 
 /** ¿Es un id de motor de voz válido? (Útil para pins de personalidad.) */

@@ -23,7 +23,8 @@
  *   pin de la personalidad activa (si fija motor de voz)
  *     → motor elegido por el usuario (si no es el navegador)
  *     → SELECCIÓN AUTOMÁTICA: el mejor motor CONFIGURADO por realismo
- *       (VoxCPM → Voicebox → GPT-SoVITS → Bark → OmniVoice)
+ *       (VoxCPM → Voicebox → GPT-SoVITS → Bark → OmniVoice; delante, la voz
+ *       1.58-bit y VibeVoice si su servidor responde — VOZ1024B)
  *     → Kokoro (local, si su modelo está listo o el usuario autorizó la descarga)
  *     → `false` ⇒ el engine usa la voz del NAVEGADOR (que a su vez elige la
  *       MEJOR RANKEADA vía browser-voices.ts). Este último eslabón NUNCA falla.
@@ -253,6 +254,19 @@ export function detectSpokenLang(text: string): SpokenLangDetection {
   return { lang: best, confident };
 }
 
+/**
+ * (VOZ1024B) Motores de SERVIDOR PROPIO que pueden estar apagados: la voz
+ * 1.58-bit del backend Astraura y VibeVoice (GPU). Antes de pedirles audio se
+ * mira su salud —la que ya existe: `pingNeuralEngine`, caché de 60 s por
+ * endpoint— para no esperar su presupuesto entero (hasta 120 s VibeVoice) contra
+ * un servidor que no está. Si no responde, el eslabón declina EN SILENCIO (sin
+ * `onError`, sin gastar el turno) y habla el siguiente de la cadena.
+ */
+const MOTORES_CON_SALUD_PREVIA: ReadonlySet<VoiceChainLink> = new Set<VoiceChainLink>([
+  "voice158",
+  "vibevoice",
+]);
+
 /** Resultado interno de un eslabón de la cadena. */
 type LinkOutcome =
   | "spoke" // habló entero → cadena terminada con éxito
@@ -423,10 +437,14 @@ async function runLink(
   }
 
   if (isNeuralEngine(link)) {
-    const { neuralSpeak, neuralEngineConfigured } = await import(
+    const { neuralSpeak, neuralEngineConfigured, pingNeuralEngine } = await import(
       "@/lib/aurora/tts-oss/neural-tts"
     );
     if (!neuralEngineConfigured(link)) return "declined";
+    if (MOTORES_CON_SALUD_PREVIA.has(link)) {
+      const salud = await pingNeuralEngine(link).catch(() => "unreachable" as const);
+      if (salud !== "ok") return "declined"; // apagado: sin error visible, siguiente eslabón
+    }
     // AUTO-DETECCIÓN DE IDIOMA: con detección CONFIABLE, anulamos aquí el
     // `lang` persistido de ESTE motor solo para esta locución (el timbre/voz
     // configurados no cambian; solo el código de idioma que viaja al

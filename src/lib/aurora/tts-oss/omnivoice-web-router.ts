@@ -110,6 +110,12 @@ export function getWebVoiceDiscoveryInfo() {
 // de voz. OmniVoice lo respeta en tiempo de habla reordenando la cadena.
 const VOICE_CHAIN_PRIORITY_KEY = "starseed.aurora.voice.priority.v1";
 const DEFAULT_CHAIN_PRIORITY = [
+  // (VOZ1024B) Voz 1.58-bit y VibeVoice en el sitio que les da el registro
+  // (`AUTO_ENDPOINT_ORDER`: los dos primeros). Sin estar aquí iban al final,
+  // DETRÁS de Kokoro. Solo entran en la cadena con su servidor configurado y,
+  // si no responde, el router los salta sin coste (salud previa).
+  "voice158",
+  "vibevoice",
   "voicebox",
   "omnivoice",
   "openvoice2",

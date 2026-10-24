@@ -584,22 +584,36 @@ async function neuralSpeakVoice158(
   if (!clean) return null;
   if (typeof window === "undefined") return null;
 
-  // URL del backend Astraura (neurona local / túnel / nube). Fallback 127.0.0.1.
+  // (VOZ1024B) Primero el endpoint de Ajustes → Voz: es el MISMO cuya salud mira
+  // la cadena (`pingNeuralEngine`). Antes se ignoraba y la síntesis iba siempre
+  // al backend de la neurona aunque la salud se hubiera comprobado en otro.
+  // Sin endpoint propio: backend Astraura de la neurona (o 127.0.0.1:8000).
+  const propio = normalizeEndpoint((opts.settings ?? getEngineSettings(engine)).endpoint);
   let base = "http://127.0.0.1:8000";
-  try {
-    const { astraura158EndpointOf } = await import("@/lib/neurons/neurons");
-    base = astraura158EndpointOf(/* deviceId */ undefined as any) || base;
-  } catch { /* usa fallback */ }
+  if (!propio) {
+    try {
+      const { astraura158EndpointOf } = await import("@/lib/neurons/neurons");
+      base = astraura158EndpointOf(/* deviceId */ undefined as any) || base;
+    } catch { /* usa fallback */ }
+  }
 
-  const url = `${base.replace(/\/$/, "")}/api/voice/synthesize`;
+  const url = propio
+    ? candidateUrls(engine, propio)[0]
+    : `${base.replace(/\/$/, "")}/api/voice/synthesize`;
   // El backend elige el voice pack del micelio para el speaker por defecto.
   const speaker = "Speaker-0";
 
+  // (VOZ1024B) Tope de su presupuesto (ENGINE_TIMEOUT_MS, que no se usaba): un
+  // backend colgado ya no se queda con el turno; la cadena pasa al siguiente.
+  const controller = new AbortController();
+  const killer = setTimeout(() => { try { controller.abort(); } catch { /* */ } },
+    ENGINE_TIMEOUT_MS[engine] ?? NEURAL_TTS_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: clean, speaker }),
+      signal: controller.signal,
     });
     if (!res.ok) {
       const err = await res.text().catch(() => "");
@@ -614,6 +628,8 @@ async function neuralSpeakVoice158(
     return audio;
   } catch (e: any) {
     return opts.onError?.(`voice158: ${e?.message || e}`) ?? null;
+  } finally {
+    clearTimeout(killer);
   }
 }
 

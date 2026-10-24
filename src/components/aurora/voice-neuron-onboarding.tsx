@@ -87,6 +87,8 @@ export {
 
 // Etiqueta legible de cada motor para la UI de jerarquía (Adenda 94).
 const CHAIN_LABELS: Record<string, string> = {
+  voice158: "Voz 1.58-bit · backend Astraura (CPU)",
+  vibevoice: "VibeVoice · multi-locutor (GPU propia)",
   omnivoice: "OmniVoice · híbrido local/nube",
   openvoice2: "OpenVoice · nube gratis (por defecto)",
   chatterbox: "Chatterbox · local o Space gratis",
