@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Plus, Loader2, Globe, Users, GraduationCap, CalendarDays, Landmark } from "lucide-react";
 import { toast } from "sonner";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 import { PasoActualizaciones, TIPO_DE_CLASE } from "@/components/actualizaciones/paso-actualizaciones";
 import { guardarPoliticaSistema, idSistema } from "@/lib/actualizaciones/almacen-politicas";
 import { politicaPorDefecto, type PoliticaSistema } from "@/lib/actualizaciones/politica";
@@ -67,6 +68,7 @@ export function CreateEntityDialog({ triggerClassName }: { triggerClassName?: st
             if (!uid) {
                 toast.error("Inicia sesión para crear en la red", {
                     description: "Tu cuenta StarSeed es el ancla soberana de lo que creas.",
+                    action: { label: "Conoce StarSeed", onClick: () => abrirGuia({ desde: "aviso" }) },
                 });
                 setBusy(false);
                 return;
