@@ -122,7 +122,7 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
             setError(null);
             const xr = getXR();
             if (!xr || !gl) {
-                setError(mensajeErrorXR('WebXR no disponible en este dispositivo.' as any));
+                setError(mensajeErrorXR(new Error('WebXR no disponible en este dispositivo.')));
                 return;
             }
             // Si ya hay sesión, primero la cerramos limpiamente.
@@ -135,8 +135,13 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
             const { opcionales, requeridas } = funcionesAPedir(capacidades, {
                 habitacion: target === 'immersive-ar',
             });
+            // §2.2 (XR1010AR): nunca `camera-access`; `offerSession` no se usa
+            // desde este hook (lo gestiona el almacén de XR1010D en `/xr/os`).
+            const sinCamera = (f: string): boolean => f !== 'camera-access';
+            const opcionalesFiltrados = opcionales.filter((f) => sinCamera(f));
+            const requeridasFiltradas = requeridas.filter((f) => sinCamera(f));
             const sessionInit: XRSessionInit = {
-                optionalFeatures: [...requeridas, ...opcionales],
+                optionalFeatures: [...requeridasFiltradas, ...opcionalesFiltrados],
             };
 
             try {
