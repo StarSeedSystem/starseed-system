@@ -602,6 +602,94 @@ def tarea_de_reparacion(pub: Dict[str, Any], archivos: Sequence[str], ahora: flo
     }
 
 
+# ─── reparaciones superadas (MGB1021B, 2026-10-24) ──────────────────────────────────────
+#
+# Caso real (2026-10-21): MGP1014-C715AA nació por el CI en rojo del 14-10; otra tarea lo arregló
+# y la autopublicación volvió a publicar, pero su cadena (los -dN y las letras) siguió
+# reintentándose UNA SEMANA hasta quedar sin salida. Ahora el líder cierra en la misma pasada
+# (con `nodo_metagenesis.cerrar_reparaciones`) las que ya NO APLICAN: la puerta volvió a verde.
+
+#: El título con el que `tarea_de_reparacion` nombra siempre a sus reparaciones.
+PREFIJO_REPARACION = "Puerta de publicación en rojo"
+#: Fases de `autopublicar-estado.json` con la puerta VERDE (la producción está publicada o al día).
+FASES_VERDES = ("publicada", "ok", "al-dia")
+_RE_SHA_ROJO = re.compile(r"frenada en\s+([0-9a-f]{6,12})")
+
+
+def sha_rojo_de_prompt(prompt: Any) -> str:
+    """PURA. El sha por el que la puerta estaba en rojo al CREARSE la reparación (su prompt lo
+    guarda: «…frenada en <sha> por…»). «» si el prompt no lo conserva."""
+    m = _RE_SHA_ROJO.search(str(prompt or ""))
+    return m.group(1).lower() if m else ""
+
+
+def publicacion_verde(publicacion: Dict[str, Any], sha_rojo: str = "") -> bool:
+    """PURA. ¿La puerta de publicación está HOY en verde para una tarea con `sha_rojo` en su
+    prompt? Verde: fase publicada/ok/al-día, o ya se publica un sha distinto del que la puso en
+    rojo (ese problema ya pasó). Con la puerta aún roja por el MISMO sha, no: la reparación sigue."""
+    p = publicacion or {}
+    if str(p.get("fase") or "").lower() in FASES_VERDES:
+        return True
+    pub = str(p.get("sha") or "").lower()
+    if pub and sha_rojo and not pub.startswith(sha_rojo) and not sha_rojo.startswith(pub):
+        return True
+    return False
+
+
+def _es_reparacion_pub(t: Dict[str, Any]) -> bool:
+    """¿Esta tarea es una reparación de puerta de publicación del nodo (nació con `tarea_de_reparacion`)?"""
+    return str(t.get("origen") or "") == "metagenesis" and \
+        str(t.get("titulo") or "").startswith(PREFIJO_REPARACION)
+
+
+def _en_cadena(tid: str, madre: str) -> bool:
+    """¿`tid` es la reparación `madre` o una sucesora suya (-dN, -dNd, Xb, Xbc…)? (los sufijos que
+    dan los reintentos del orquestador y `traer_nube.siguiente_id`; el resto del id acaba tras el
+    primer trozo de esa forma: toda otra cadena parecida es OTRA tarea)."""
+    if tid == madre or not tid.startswith(madre):
+        return False
+    resto = tid[len(madre):]
+    # Lo que sigue a la madre solo puede ser sufijos: cualquier otra cadena parecida es OTRA tarea.
+    return bool(re.fullmatch(r"-d\d+[a-z]?|[a-z]{1,2}", resto))
+
+
+def reparaciones_superadas(tareas: Iterable[Any], progreso: Dict[str, Any],
+                           publicacion: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """PURA. (MGB1021B) [(id, nota)] de las reparaciones de puerta de publicación en rojo (y sus
+    sucesoras -dN, -b, -c…) que ya NO APLICAN: la puerta de publicación está HOY en verde y el
+    progreso no las tiene cerradas aún. Con la puerta aún roja por el MISMO sha que la tarea
+    guarda en su prompt, no se cierra nada. Nunca borra ni toca estados: el llamador las cierra
+    con el progreso como `sustituida`, con la nota que dice por qué."""
+    p = progreso if isinstance(progreso, dict) else {}
+    pub = publicacion or {}
+    salida: List[Tuple[str, str]] = []
+    vistas: set = set()
+    tareas = list(tareas or ())
+    for t in tareas:
+        if not isinstance(t, dict) or not _es_reparacion_pub(t) or not t.get("id"):
+            continue
+        madre = str(t["id"])
+        if not publicacion_verde(pub, sha_rojo_de_prompt(t.get("prompt"))):
+            continue
+        sha = str(pub.get("sha") or "")[:12]
+        por_que = "publicado %s" % sha if sha else \
+            "la puerta está en fase %s" % (str(pub.get("fase") or ""))
+
+        for t2 in tareas:
+            if not isinstance(t2, dict) or not t2.get("id"):
+                continue
+            tid2 = str(t2["id"])
+            if tid2 in vistas or not _en_cadena(tid2, madre):
+                continue
+            vistas.add(tid2)
+            e = p.get(tid2)
+            estado = e.get("estado") if isinstance(e, dict) else ""
+            if estado in CERRADAS:
+                continue
+            salida.append((tid2, "NO APLICA: la puerta de publicación volvió a verde (%s)" % por_que))
+    return salida
+
+
 def prestable(t: Any) -> bool:
     """PURA. ¿Puede trabajarse esta tarea en otro medio? (≤ 3 archivos, con prompt, sin visto bueno
     humano y sin nada que solo tenga la Mac)."""
