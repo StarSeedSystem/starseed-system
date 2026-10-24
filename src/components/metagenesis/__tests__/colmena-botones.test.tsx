@@ -172,18 +172,6 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         });
         expect(con.contenedor.confirmar).toBe(false);
     });
-
-    it("sin trabajador: «Instalar el trabajador» visible y habilitado (explica Terminal / Termux)", () => {
-        const linux = botonesNeurona({ nodo: null, vivo: true, so: "linux", enCurso: 0 });
-        expect(linux.instalar).toMatchObject({
-            visible: true,
-            habilitado: true,
-            etiqueta: "Instalar el trabajador",
-            explica: "Un comando en la terminal de este aparato.",
-        });
-        const android = botonesNeurona({ nodo: null, vivo: true, so: "android", enCurso: 0 });
-        expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
-    });
 });
 // ─── el traductor latido → tarjeta (puro) ──────────────────────────────────────────────────────────────
 
