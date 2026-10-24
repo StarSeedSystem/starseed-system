@@ -138,6 +138,11 @@ export type NeuralVoiceEngine =
  * endpoint), Voicebox después (estudio de voz local), y luego los históricos.
  */
 export const NEURAL_VOICE_ENGINES: readonly NeuralVoiceEngine[] = [
+  // VibeVoice y voice158 (VOZ1024B): esta lista sanea `cfg.engines` al leer la
+  // config — sin ellos aquí, sus endpoint guardados se DESCARTABAN en silencio
+  // y nunca entraban en la cadena AUTO a pesar del registro.
+  "vibevoice",
+  "voice158",
   "voxcpm",
   "voicebox",
   "bark",
@@ -156,6 +161,11 @@ export function isNeuralEngine(e: unknown): e is NeuralVoiceEngine {
     e === "bark" ||
     e === "gpt-sovits" ||
     e === "omnivoice" ||
+    // VibeVoice y voice158 (VOZ1024B): estaban en el TIPO desde siempre pero no
+    // aquí, así que `speak-router.runLink` los rechazaba en silencio aunque AUTO
+    // los pusiera primero en la cadena. Ahora son motores neurales de verdad.
+    e === "vibevoice" ||
+    e === "voice158" ||
     e === "openvoice2" ||
     e === "xai" ||
     e === "chatterbox"
@@ -572,6 +582,10 @@ const VALID_ENGINES: readonly AuroraVoiceEngine[] = [
   "openvoice2",
   // xAI Voice Agent (WebSocket en tiempo real) — conversacional.
   "xai",
+  // VibeVoice y voice158 (VOZ1024B) — en el TIPO desde su ola; faltaban aquí y
+  // `isVoiceEngineId` los daba por inválidos (pins/selectiones los caían).
+  "vibevoice",
+  "voice158",
   // Chatterbox (local o Spaces públicos) — VZR1011B.
   "chatterbox",
 ];

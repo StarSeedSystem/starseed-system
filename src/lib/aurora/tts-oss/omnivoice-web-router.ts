@@ -111,6 +111,12 @@ export function getWebVoiceDiscoveryInfo() {
 const VOICE_CHAIN_PRIORITY_KEY = "starseed.aurora.voice.priority.v1";
 const DEFAULT_CHAIN_PRIORITY = [
   "voicebox",
+  // voice158 y vibevoice (VOZ1024B): en el orden AUTO del registro van PRIMERO
+  // (engine-registry.ts · AUTO_ENDPOINT_ORDER: instalación cero queda
+  // [voice158? → vibevoice? → omnivoice → openvoice2 → chatterbox → kokoro]).
+  // Sin estar aquí, `applyVoiceChainPriority` los mandaba DETRÁS de Kokoro.
+  "voice158",
+  "vibevoice",
   "omnivoice",
   "openvoice2",
   // Chatterbox (VZR1011B): detrás de OmniVoice/OpenVoice y antes de Kokoro. Sin

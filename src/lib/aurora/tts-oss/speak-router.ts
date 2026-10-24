@@ -275,6 +275,14 @@ export async function isConfiguredOssEngineReady(): Promise<boolean> {
     const engine = resolveActiveVoiceEngine(cfg);
     if (isNeuralEngine(engine)) {
       const { pingNeuralEngine } = await import("@/lib/aurora/tts-oss/neural-tts");
+      // voice158/vibevoice (VOZ1024B): salud contra el endpoint EFECTIVO (la
+      // neurona 1.58 / el guardado), no contra un `endpoint` de config que no
+      // existe — de lo contrario diríamos «no» con el servidor respirando.
+      if (engine === "voice158" || engine === "vibevoice") {
+        const s = await salud158(engine);
+        if (!s.endpoint) return false;
+        return (await pingNeuralEngine(engine, { settings: s })) === "ok";
+      }
       return (await pingNeuralEngine(engine)) === "ok";
     }
     if (engine === "kokoro") {
@@ -313,6 +321,58 @@ function recordarMotorQueSono(link: string): void {
 export function motorQueSono(): string | null {
   if (typeof window === "undefined") return null;
   try { return window.localStorage.getItem(MOTOR_QUE_SONO_KEY); } catch { return null; }
+}
+
+// ── Relevo de voice158 y vibevoice (VOZ1024B) ────────────────────────────────
+//
+// Los dos motores nuevos del relevo llegaban a `runLink` sin rama propia y el
+// `return` final los rechazaba EN SILENCIO: Aurora hablaba por otros aunque su
+// servidor estuviera vivo y AUTO los pusiera primero (AUTO_ENDPOINT_ORDER).
+// La SALUD ya existía (neural-tts.ts::pingNeuralEngine): ahora la usamos —
+// servidor responde → hablan; no responde → siguiente eslabón SIN marcar error
+// (un servidor apagado no es un fallo de Aurora) y SIN perder el turno.
+
+/** Base del backend Astraura 1.58 cuando nadie la declaró (neuralSpeakVoice158). */
+export const VOZ158_BASE_FALLBACK = "http://127.0.0.1:8000";
+
+/** Estado de salud que reporta `pingNeuralEngine` (mismo juego de valores). */
+export type EstadoSalud158 = "ok" | "unreachable" | "no-endpoint";
+
+/**
+ * Endpoint EFECTIVO para la salud de voice158, PURA y exportada para las
+ * pruebas: lo que la neurona declaró (trim, sin barra final) o el local por
+ * defecto — el campo `endpoint` de la config NO entra: `neuralSpeakVoice158`
+ * lo ignora y habla por el puente Astraura 1.58.
+ */
+export function base158De(endpointNeurona?: string | null): string {
+  const t = (endpointNeurona || "").trim().replace(/\/+$/, "");
+  return t || VOZ158_BASE_FALLBACK;
+}
+
+/**
+ * La regla del relevo, PURA y exportada para las pruebas: salud «ok» → el
+ * motor se atiende; cualquier otra cosa → siguiente eslabón del turno sin
+ * error y sin consumir lo que Aurora tenía que decir.
+ */
+export function intenta158PorSalud(estado: EstadoSalud158): boolean {
+  return estado === "ok";
+}
+
+/**
+ * Settings de SALUD del motor (VOZ1024B). Para `voice158`, el backend que de
+ * VERDAD habla es el de la neurona (Astraura 1.58-bit: su ajuste propio o el
+ * local por defecto). Para `vibevoice`, vale lo que el usuario guardó, sin
+ * inventar nada. NUNCA lanza.
+ */
+async function salud158(engine: "voice158" | "vibevoice"): Promise<NeuralEngineSettings> {
+  const s = getEngineSettings(engine);
+  if (engine === "vibevoice") return s;
+  try {
+    const n = await import("@/lib/neurons/neurons");
+    return { ...s, endpoint: base158De(n.astraura158EndpointOf(n.thisDeviceId())) };
+  } catch {
+    return { ...s, endpoint: VOZ158_BASE_FALLBACK };
+  }
 }
 
 /**
@@ -417,11 +477,26 @@ async function runLink(
     return started ? "started" : "declined";
   }
 
+  // VOZ1024B — relevo de los motores nuevos (voice158 · vibevoice): la cadena
+  // los INTENTA cuando su servidor responde (siguen en el bloque neural de
+  // abajo). Si la salud dice que no, siguiente eslabón sin error y sin perder
+  // el turno — el suelo (navegador u otro motor) ya lo cubre.
+  if (link === "voice158" || link === "vibevoice") {
+    const { pingNeuralEngine } = await import("@/lib/aurora/tts-oss/neural-tts");
+    const salud = await salud158(link);
+    if (!intenta158PorSalud(await pingNeuralEngine(link, { settings: salud }))) {
+      return "declined";
+    }
+  }
+
   if (isNeuralEngine(link)) {
     const { neuralSpeak, neuralEngineConfigured } = await import(
       "@/lib/aurora/tts-oss/neural-tts"
     );
-    if (!neuralEngineConfigured(link)) return "declined";
+    // voice158 (VOZ1024B): su salud ya pasó arriba contra el backend que de
+    // verdad habla (el de la neurona 1.58); el gate del `endpoint` del usuario
+    // no aplica — su síntesis usa el puente Astraura, no la config.
+    if (!neuralEngineConfigured(link) && link !== "voice158") return "declined";
     // AUTO-DETECCIÓN DE IDIOMA: con detección CONFIABLE, anulamos aquí el
     // `lang` persistido de ESTE motor solo para esta locución (el timbre/voz
     // configurados no cambian; solo el código de idioma que viaja al
