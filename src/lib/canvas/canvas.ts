@@ -27,6 +27,10 @@ export type BlockKind =
   // Tarjeta de Previsualización (portada obligatoria) del Lienzo Universal.
   | "cover";
 
+// Único dato del bloque «protomolecula»: el bloque CITA una molécula del
+// almacén (Entidad Única, architecture/protomolecula.md §3.1), nunca la copia.
+export type ProtomoleculaBlockData = { moleculaId: string };
+
 export type CanvasBlock = {
   id: string;
   kind: BlockKind;
@@ -153,6 +157,14 @@ export const BLOCK_KINDS: BlockKindDef[] = [
     connect: "Indica nombre del widget + configuración.",
   },
   {
+    kind: "protomolecula",
+    category: "herramientas",
+    label: "Protomolécula",
+    icon: "Atom",
+    blurb: "Ventana Protomolécula: una molécula viva del almacén, editable en el bloque.",
+    connect: "Indica el id de la molécula ({moleculaId}); las aristas la alimentan o se alimentan de ella.",
+  },
+  {
     kind: "browser",
     category: "medios",
     label: "Navegador",
@@ -189,14 +201,30 @@ export function genId(prefix = "blk"): string {
 // no se solapen perfectamente.
 export function defaultBlock(kind: BlockKind, index = 0): CanvasBlock {
   const def = blockKindDef(kind);
+  // La Protomolécula nace con su único dato vacío: la ventana abre la molécula
+  // más reciente (o crea una) y su id se cita en PropertiesData (Entidad Única).
+  const data =
+    kind === "protomolecula" ? { moleculaId: "" } : {};
   return {
     id: genId(),
     kind,
     x: 40 + (index % 5) * 36,
     y: 40 + (index % 5) * 36,
-    w: kind === "browser" || kind === "image" ? 360 : 280,
-    h: kind === "browser" ? 260 : kind === "text" ? 180 : 200,
-    data: {},
+    w:
+      kind === "protomolecula"
+        ? 420
+        : kind === "browser" || kind === "image"
+          ? 360
+          : 280,
+    h:
+      kind === "protomolecula"
+        ? 360
+        : kind === "browser"
+          ? 260
+          : kind === "text"
+            ? 180
+            : 200,
+    data,
     title: def?.label,
   };
 }
