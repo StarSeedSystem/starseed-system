@@ -1,7 +1,3 @@
-import { describe, it, expect } from "vitest";
-
-
-
 export function privacidadEfectiva(params: {
   marcada: "persona" | "ámbito";
   reglas: string;
