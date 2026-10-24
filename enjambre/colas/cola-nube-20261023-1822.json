@@ -1,0 +1,104 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "VPU1019O",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Ventana «Variaciones públicas»",
+   "archivos": [
+    "src/components/variaciones/ventana-variaciones.tsx",
+    "src/components/variaciones/__tests__/ventana-variaciones.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Pestañas Variaciones, Notas, Repos externos y Fuentes y versiones; buscador, filtros y orden (`orden.ts`); estado vacío honesto («Aún nadie ha publicado una variación de este elemento») y aviso si la tabla no está disponible. Usa datos y fuentes inyectados. Prueba con Testing Library. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019J",
+    "VPU1019K",
+    "VPU1019L",
+    "VPU1019M"
+   ]
+  },
+  {
+   "id": "VPU1019Q",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Publicar mi variación desde el programa del elemento",
+   "archivos": [
+    "src/components/variaciones/publicar-variacion.tsx",
+    "src/components/variaciones/__tests__/publicar-variacion.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Captura con el adaptador de la clave, pide título, etiquetas, tema y licencia, valida y ofrece: publicar en la Librería (`publicarVariacion` y, si se quiere, también como publicación con `references.elemento`), guardar en la Biblioteca (cadena de `SaveSharePanel`: `saveItem` → `PublishDialog`) o compartir (`ShareToDialog`). Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019J",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "FSH1018H",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Fondos · alcance con herencia: cuenta › perfil › app › página › sección, y entidades",
+   "archivos": [
+    "src/lib/appearance/alcance-fondos.ts",
+    "src/lib/appearance/__tests__/alcance-fondos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: amplía la idea de `BackgroundScopeMode` (src/context/appearance-context.tsx, no lo toques) con app y sección: `fondoEfectivo({ cuenta, perfil, apps, paginas, secciones, entidad }, { perfilId, appId, ruta, seccionId, entidad? })` → { set, de: \"cuenta\"|\"perfil\"|\"app\"|\"pagina\"|\"seccion\"|\"entidad\" }; lo más concreto gana; la entidad (grupo, página, comunidad, publicación, mensaje) manda dentro de su vista. Pruebas. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018C"
+   ]
+  },
+  {
+   "id": "FSH1018I",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Fondos · guardar sets en cualquier carpeta de la Biblioteca propia o de una página, grupo, mensaje o publicación",
+   "archivos": [
+    "src/lib/appearance/fondos-biblioteca.ts",
+    "src/lib/appearance/__tests__/fondos-biblioteca.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Con las funciones de src/lib/library/media-library.ts (`ensureMediaFolders`, `saveMediaToLibrary`, `moveMediaItem`) y `libraryRef` de entity-library.ts: `guardarSet(ref, set, carpetaId?)` guarda el `.starseed-fondo.json` (y su vista previa) en la carpeta elegida o en «Fondos» (la crea si falta); `listarSets(ref)` los lee y valida con sets-fondo.ts. Dependencias inyectables en las pruebas. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018C"
+   ]
+  },
+  {
+   "id": "FSH1018M",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Diseño · paleta del fondo (de los colores del preset y de una muestra del fotograma)",
+   "archivos": [
+    "src/lib/design/paleta-fondo.ts",
+    "src/lib/design/__tests__/paleta-fondo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `paletaDePreset(preset)` recoge los colores de las props; `paletaDeMuestra(pixeles RGBA, k=5)` agrupa con k-medias determinista (semillas fijas); `paletaFondo(set, muestra?)` fusiona y ordena por peso y luminancia. Pruebas. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018C"
+   ]
+  },
+  {
+   "id": "FSH1018Q",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Astraura · habilidad de Shaders: crear un fondo describiéndolo",
+   "archivos": [
+    "src/ai/astraura/habilidades/shaders.ts",
+    "src/ai/astraura/habilidades/__tests__/shaders.test.ts"
+   ],
+   "depende": [],
+   "prompt": "A partir de vendor/habilidades/shaders/SKILL.md y components.md (MIT): tarjeta (≤ 60 palabras), resumen (≤ 120) y `presetDesdeRespuesta(texto)` que extrae y valida con sets-fondo.ts el JSON de preset que devuelva un modelo (rechaza types que no existan en el catálogo y cámara). Misma forma que las tarjetas de LYS1018I. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018C",
+    "LYS1018I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "FSH1018H",
+   "FSH1018I",
+   "FSH1018M",
+   "VPU1019O",
+   "FSH1018Q",
+   "VPU1019Q"
+  ]
+ }
+}
