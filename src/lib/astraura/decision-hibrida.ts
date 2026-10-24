@@ -1,5 +1,6 @@
 import { UMBRAL_EJECUTAR as UMBRAL_NEEDLE_EJECUTAR, zonaDeConfianza,
   type DecisionNeedle, type LlamadaNeedle, type HerramientaNeedle } from "./needle3-client";
+import { consensuar, type RespuestaPequena, type RespuestaLLaya } from "./laya/consenso";
 
 export type AccionPlan = "ejecutar" | "confirmar" | "escalar_jev" | "escalar_llm";
 export type CapaDecision = "needle" | "laya" | "jev" | "llm";
@@ -8,7 +9,9 @@ export const UMBRAL_LAYA_EJECUTAR = 0.6;
 export const UMBRAL_JEV_EJECUTAR = 0.75;
 export const UMBRAL_JEV_CONFIRMAR = 0.5;
 
-export interface RespuestaLaya { herramienta: string; confianza: number; motor: "laya-local"; }
+export interface RespuestaLaya { herramienta: string; confianza: number;
+  /** Confianza calibrada de Laya: es la única que puede decidir con umbral. */
+  answer_confidence?: number; motor: "laya-local"; }
 export interface RespuestaJev { ok: boolean; probabilidad: number | null; llamada?: LlamadaNeedle;
   razonamiento?: string; error?: string; }
 export interface PlanDecision { accion: AccionPlan; capa: CapaDecision;
@@ -33,7 +36,29 @@ export function planDeDecision(
     "Needle 3 determinó ejecución directa con alta confianza", needle?.llamadas?.[0]);
   if (zona === "confirmar") return plan("needle", "confirmar",
     "Needle 3 requiere confirmación por confianza media", needle?.llamadas?.[0]);
-  if (laya && laya.confianza >= UMBRAL_LAYA_EJECUTAR) return plan("laya", "ejecutar",
+  // Decisiones básicas de 1,58 bits: si Needle escaló pero eligió una herramienta, se
+  // consensúa con Laya sobre la MISMA pregunta. Solo cuenta `answer_confidence`
+  // (calibrada); `confidence` no decide aquí.
+  const llamada = needle?.ok ? needle.llamadas?.[0] : undefined;
+  const pequeno: RespuestaPequena | null = llamada ? {
+    respuesta: llamada.nombre,
+    ...(typeof needle?.confianza === "number" ? { confianza: needle.confianza } : {}),
+    motor: needle?.motor ?? "needle",
+  } : null;
+  const respuestaLLaya: RespuestaLLaya | null = laya
+    && typeof laya.answer_confidence === "number" && Number.isFinite(laya.answer_confidence)
+    ? { respuesta: laya.herramienta, answer_confidence: laya.answer_confidence }
+    : null;
+  const consenso = pequeno && respuestaLLaya
+    ? consensuar({ pequeno, laya: respuestaLLaya }) : null;
+  if (consenso?.accion === "aceptar" && typeof consenso.decision === "string") {
+    return plan(consenso.quien === "laya" ? "laya" : "needle", "ejecutar",
+      `Consenso de las decisiones básicas: ${consenso.motivo}`,
+      { nombre: consenso.decision, argumentos: {} });
+  }
+  // Si el consenso manda escalar, no se acepta Laya por su cuenta: se sube a Jev.
+  const saltarLaya = consenso?.accion === "escalar";
+  if (!saltarLaya && laya && laya.confianza >= UMBRAL_LAYA_EJECUTAR) return plan("laya", "ejecutar",
     "Laya local eligió una herramienta con confianza suficiente (≥ 0,6)",
     { nombre: laya.herramienta, argumentos: {} });
   if (jev && jev.ok && typeof jev.probabilidad === "number") {
@@ -49,7 +74,7 @@ export function planDeDecision(
 }
 
 interface RespuestaLayaHttp { answers?: Record<string,
-  { choice?: unknown; confidence?: unknown; }>; }
+  { choice?: unknown; confidence?: unknown; answer_confidence?: unknown; }>; }
 
 export async function decidirConLaya(
   consulta: string, herramientas: HerramientaNeedle[], transporte?: typeof fetch
@@ -77,8 +102,14 @@ export async function decidirConLaya(
     const decision = data.answers?.herramienta;
     if (typeof decision?.choice !== "string"
       || !Object.prototype.hasOwnProperty.call(criteria, decision.choice)) return null;
-    if (typeof decision.confidence !== "number" || !Number.isFinite(decision.confidence)) return null;
-    return { herramienta: decision.choice, confianza: decision.confidence, motor: "laya-local" };
+    const confianza = typeof decision.confidence === "number"
+      && Number.isFinite(decision.confidence) ? decision.confidence : undefined;
+    const answerConfidence = typeof decision.answer_confidence === "number"
+      && Number.isFinite(decision.answer_confidence) ? decision.answer_confidence : undefined;
+    if (confianza === undefined && answerConfidence === undefined) return null;
+    return { herramienta: decision.choice, confianza: confianza ?? answerConfidence ?? 0,
+      ...(answerConfidence !== undefined ? { answer_confidence: answerConfidence } : {}),
+      motor: "laya-local" };
   } catch {
     return null;
   } finally {

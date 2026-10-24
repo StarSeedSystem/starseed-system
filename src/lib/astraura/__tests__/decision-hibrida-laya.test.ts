@@ -55,6 +55,28 @@ describe("decidirConLaya", () => {
     });
   });
 
+  it("lee `answer_confidence` (calibrada) sin confundirla con `confidence`", async () => {
+    const transporte = async () => new Response(JSON.stringify({
+      answers: { herramienta: { type: "choice", choice: "buscar",
+        confidence: 0.4, answer_confidence: 0.83 } },
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+
+    await expect(decidirConLaya("consulta", herramientas, transporte)).resolves.toMatchObject({
+      herramienta: "buscar", confianza: 0.4, answer_confidence: 0.83,
+    });
+  });
+
+  it("acepta la forma real de Laya aunque solo traiga `answer_confidence`", async () => {
+    const transporte = async () => new Response(JSON.stringify({
+      answers: { herramienta: { type: "choice", choice: "buscar",
+        probabilities: { buscar: 0.71, guardar: 0.29 }, answer_confidence: 0.83 } },
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+
+    await expect(decidirConLaya("consulta", herramientas, transporte)).resolves.toMatchObject({
+      herramienta: "buscar", answer_confidence: 0.83,
+    });
+  });
+
   it("devuelve null ante fallo HTTP o una herramienta ajena al catálogo", async () => {
     const fallo = async () => new Response(null, { status: 503 });
     await expect(decidirConLaya("consulta", herramientas, fallo)).resolves.toBeNull();
@@ -89,6 +111,37 @@ describe("planDeDecision con Laya local", () => {
   it("escala al LLM cuando Laya y Jev no deciden", () => {
     expect(planDeDecision(needleEscala, null, null)).toMatchObject({
       accion: "escalar_llm", capa: "llm",
+    });
+  });
+});
+
+describe("planDeDecision · consenso con las decisiones básicas de 1,58 bits", () => {
+  const needleConLlamada = (nombre: string, confianza = 0.2): DecisionNeedle => ({
+    ok: true, confianza, llamadas: [{ nombre, argumentos: {} }],
+  });
+
+  it("si Needle escaló pero coincide con Laya, se acepta sin subir", () => {
+    const laya: RespuestaLaya = { herramienta: "buscar", confianza: 0.2,
+      answer_confidence: 0.2, motor: "laya-local" };
+    const plan = planDeDecision(needleConLlamada("buscar"), laya, jevAlta);
+    expect(plan).toMatchObject({ accion: "ejecutar", capa: "needle",
+      llamada: { nombre: "buscar" } });
+    expect(plan.motivo).toMatch(/Coinciden/);
+  });
+
+  it("si difieren, manda Laya con `answer_confidence` ≥ umbral", () => {
+    const laya: RespuestaLaya = { herramienta: "buscar", confianza: 0.2,
+      answer_confidence: 0.83, motor: "laya-local" };
+    expect(planDeDecision(needleConLlamada("guardar"), laya, jevAlta)).toMatchObject({
+      accion: "ejecutar", capa: "laya", llamada: { nombre: "buscar" },
+    });
+  });
+
+  it("si Laya duda en `answer_confidence`, se sube aunque su `confidence` sea alta", () => {
+    const laya: RespuestaLaya = { herramienta: "buscar", confianza: 0.99,
+      answer_confidence: 0.2, motor: "laya-local" };
+    expect(planDeDecision(needleConLlamada("guardar"), laya, jevAlta)).toMatchObject({
+      accion: "ejecutar", capa: "jev", llamada: { nombre: "guardar" },
     });
   });
 });
