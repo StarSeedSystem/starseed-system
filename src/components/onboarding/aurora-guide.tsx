@@ -87,6 +87,11 @@ import {
   Volume2,
   VolumeX,
   Mic,
+  Atom,
+  Vote,
+  Shield,
+  GraduationCap,
+  Palette,
   Radio,
   EarOff,
 } from "lucide-react";
@@ -116,6 +121,7 @@ import { useNivelMovimiento } from "@/hooks/use-nivel-movimiento";
 import { useDeslizarPasos } from "@/hooks/use-deslizar-pasos";
 import { useDireccionPaso } from "@/components/movimiento/paso-animado";
 import { transicionPaso, variantesPaso, type Direccion } from "@/lib/movimiento/transiciones";
+import { TODOS_LOS_TEMAS } from "@/lib/onboarding/guia-temas-red";
 import type { PerfilEntrada } from "@/lib/gestos";
 
 // ── contratos externos (solo strings/constantes; sin importar el motor) ──────
@@ -414,38 +420,47 @@ const STEPS: GuideStep[] = [
     },
     ask: "Aurora, muéstrame mi perfil",
   },
-  {
-    key: "cerebros",
-    title: "Cerebros y Servidores",
-    body:
-      "En Cerebros enlazas servidores y las memorias de cada cerebro en un grafo vivo: conectas fuentes de conocimiento, máquinas y recuerdos para que Aurora piense con más contexto. Es donde tu Exocórtex gana profundidad.",
-    say:
-      "En Cerebros enlazas servidores y memorias en un grafo vivo: fuentes de conocimiento, máquinas y recuerdos para que yo piense con más contexto.",
-    icon: Server,
-    accent: "#22D3EE",
-    targets: ['[data-guide="cerebros"]', '[data-guide="dock-cerebros"]', '[data-guide="dock-cerebro"]'],
+  ...TODOS_LOS_TEMAS.map((t) => ({
+    key: t.key,
+    title: t.titulo,
+    body: t.cuerpo,
+    say: t.voz,
+    icon: (() => {
+      const mapa: Record<string, React.ComponentType<{ className?: string }>> = {
+        protomolecula: Atom,
+        malla: Radio,
+        "capas-conciencia": Shield,
+        "neuronas-cerebro": Brain,
+        "pilar-politica": Vote,
+        "pilar-educacion": GraduationCap,
+        "pilar-cultura": Palette,
+        "libreria-biblioteca": BookOpen,
+        genesis: Compass,
+        "personalizacion-segura": Shield,
+      };
+      return mapa[t.key] || Compass;
+    })(),
+    accent: (() => {
+      const mapa: Record<string, string> = {
+        protomolecula: "#E879F9",
+        malla: "#6FE6D6",
+        "capas-conciencia": "#007FFF",
+        "neuronas-cerebro": "#22D3EE",
+        "pilar-politica": "#10B981",
+        "pilar-educacion": "#9FE870",
+        "pilar-cultura": "#FBBF24",
+        "libreria-biblioteca": "#FBBF24",
+        genesis: "#F0ABFC",
+        "personalizacion-segura": "#DC143C",
+      };
+      return mapa[t.key] || "#C9A8FF";
+    })(),
+    ask: t.preguntaAurora,
     go: {
-      label: "Ir a Cerebros",
-      run: ({ router }) => safeGoto(router, R.cerebros),
+      label: `Ir a ${t.titulo}`,
+      run: ({ router }: GuideCtx) => safeGoto(router, t.ruta),
     },
-    ask: "Aurora, abre los cerebros",
-  },
-  {
-    key: "libreria",
-    title: "La Librería",
-    body:
-      "La Librería es el catálogo unificado de la red: apps, widgets, recursos y saberes que puedes abrir, instalar o vincular. Es tu puerta a lo que el ecosistema StarSeed pone en común.",
-    say:
-      "La Librería es el catálogo unificado de la red: apps, widgets, recursos y saberes que puedes abrir, instalar o vincular. Es tu puerta a lo común.",
-    icon: BookOpen,
-    accent: "#FBBF24",
-    targets: ['[data-guide="libreria"]', '[data-guide="dock-mylib"]', '[data-guide="dock-netlib"]'],
-    go: {
-      label: "Abrir la Librería",
-      run: ({ router }) => safeGoto(router, R.library),
-    },
-    ask: "Aurora, abre la librería",
-  },
+  })),
 ];
 
 // Frase de bienvenida que Aurora narra al empezar en modo voz.
