@@ -1,0 +1,85 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "OPS1024B",
+   "ola": "1024R",
+   "titulo": "laya-y-habilidades.md · el commit de origen de las habilidades no coincide con ORIGEN.md",
+   "archivos": [
+    "architecture/laya-y-habilidades.md"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta. architecture/laya-y-habilidades.md da como commit de origen de las habilidades de ingeniería 546c06669, pero vendor/habilidades/mattpocock-skills/ORIGEN.md y src/ai/astraura/habilidades/ingenieria-a.ts dicen 49dd158. Lee los dos y deja el documento con el commit que de verdad se copió (el de ORIGEN.md, que es la fuente) y, si 546c06669 es otra cosa (p. ej. el commit de StarSeed que lo integró), dilo con esas palabras en vez de borrarlo. Solo documentación: no toques código."
+  },
+  {
+   "id": "OPS1024C",
+   "ola": "1024R",
+   "titulo": "CLAUDE.md §2 · «Google Cloud Run activo» está desfasado (facturación de Google desactivada el 2026-09-25)",
+   "archivos": [
+    "CLAUDE.md"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta. En CLAUDE.md §2 («Servidor / deployment») la línea dice que Google Cloud Run está activo como alternativa soberana. Las fuentes más recientes del repo (architecture/repos-libreria-1020d.md, architecture/genesis-conectores-abiertos.md, architecture/oracle-nube.md, architecture/director-produccion.md y el comentario de google-cloud en src/lib/genesis/conectores/contenedores.ts tras OPF1024J) dicen que la facturación de Google está DESACTIVADA desde el 2026-09-25 y que Cloud Run necesita facturación. Corrige SOLO esa frase: que diga que el Dockerfile y cloudbuild.yaml siguen en el repo para cuando se reactive la facturación, que hoy no hay Cloud Run en marcha y que lo nuevo debe seguir funcionando en standalone y por variables de entorno. No cambies nada más del archivo."
+  },
+  {
+   "id": "RTSUC1018Ec",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Bots · una sola clave para las orbes abiertas, sincronizada entre neuronas (BOT1011C2 / BOT1011Y)",
+   "archivos": [
+    "src/lib/protomolecula/__tests__/bloque-en-muro.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea SUC1018E («Bots · una sola clave para las orbes abiertas, sincronizada entre neuronas (BOT1011C2 / BOT1011Y)») se hizo en main por otro camino; su rama nube/a1-20261019-184723-SUC1018D queda archivada en `refs/archivo/nube/a1-20261019-184723-SUC1018D` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.75)\n\nTU TAREA (RTSUC1018E · solo estos archivos: src/lib/protomolecula/__tests__/bloque-en-muro.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/protomolecula/__tests__/bloque-en-muro.test.ts\n    it(\"returns false for undefined code\", () => {\n        const block: PostBlock = { id: \"1\", type: \"protomolecula\" };\n        expect(blockHasContent(block)).toBe(false);\n    });\n\n# src/lib/protomolecula/__tests__/bloque-en-muro.test.ts\n    it(\"returns false for null code\", () => {\n        const block: PostBlock = { id: \"1\", type: \"protomolecula\", code: null as unknown as string };\n        expect(blockHasContent(block)).toBe(false);\n    });\n\n# src/lib/protomolecula/__tests__/bloque-en-muro.test.ts\n    it(\"returns false for empty string\", () => {\n        const block: PostBlock = { id: \"1\", type: \"protomolecula\", code: \"\" };\n        expect(blockHasContent(block)).toBe(false);\n    });\n\n# src/lib/protomolecula/__tests__/bloque-en-muro.test.ts\n    it(\"returns false for whitespace only\", () => {\n        const block: PostBlock = { id: \"1\", type: \"protomolecula\", code: \"   \" };\n        expect(blockHasContent(block)).toBe(false);\n    });\n\n# src/lib/protomolecula/__tests__/bloque-en-muro.test.ts\n    it(\"returns true for non-empty code\", () => {\n        const block: PostBlock = { id: \"1\", type: \"protomolecula\", code: \"{\" };\n        expect(blockHasContent(block)).toBe(true);\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39543382756`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39543382756:refs/remotes/origin/nube/39543382756\"` y `git cherry-pick --no-commit 24dc81490625`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/protomolecula/__tests__/bloque-en-muro.test.ts.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (src/lib/protomolecula/__tests__/bloque-en-muro.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39543382756"
+  },
+  {
+   "id": "OPS1024A",
+   "ola": "1024R",
+   "titulo": "asignaciones_agentes.py · RAIZ apunta a scripts/ (mismo fallo que vigia_referencias, OPF1024A)",
+   "archivos": [
+    "scripts/puente/asignaciones_agentes.py",
+    "scripts/puente/test_asignaciones_agentes.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA con la prueba. En scripts/puente/asignaciones_agentes.py (línea ~35) la constante RAIZ se calcula como la carpeta scripts/ y no como la raíz del repositorio, así que las rutas que lee y escribe quedan dentro de scripts/. Arréglalo con la MISMA forma que usa scripts/puente/vigia_referencias.py desde el commit OPF1024A: os.environ.get('STARSEED_ROOT') o dos niveles por encima de scripts/puente/. Añade a scripts/puente/test_asignaciones_agentes.py (créalo si no existe) dos casos: la raíz por defecto es la del repo (contiene CLAUDE.md) y respeta STARSEED_ROOT. Sin red. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "OPS1024D",
+   "ola": "1024R",
+   "titulo": "Habilidades de ingeniería (ingenieria-a.ts) visibles: cablearlas en skills.ts junto a productividad",
+   "archivos": [
+    "src/ai/astraura/skills.ts",
+    "src/ai/astraura/__tests__/skills-ingenieria.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta (grep 'ingenieria-a' en src/ fuera de __tests__: si ya lo importa alguien, NO APLICA). src/ai/astraura/habilidades/ingenieria-a.ts (tarjetas TDD, diagnóstico, diseño de módulos, dominio y revisión; commit LYS1018I) no lo importa nadie fuera de su prueba; src/ai/astraura/skills.ts solo importa las de productividad (productividad.ts). Regístralas en skills.ts EXACTAMENTE igual que se registran las de productividad (mismo formato, mismo lugar, sin duplicar ids) y añade una prueba que compruebe que las cinco aparecen en el registro con su rutaCompleta. No cambies ingenieria-a.ts. Máximo 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "VPU1019N",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Clic derecho global montado en toda la app",
+   "archivos": [
+    "src/components/variaciones/clic-derecho-global.tsx",
+    "src/app/(app)/app-globals.tsx",
+    "src/components/variaciones/__tests__/clic-derecho-global.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente que escucha `contextmenu` y la pulsación larga (patrón de `use-context-trigger.ts`) en el documento: si el objetivo tiene menú propio (marca `data-ss-menu-propio`) no hace nada; en campos de texto y con Mayúsculas deja el menú del navegador; si hay clave, muestra un menú con «Variaciones públicas», «Publicar mi variación» y «Copiar enlace al elemento». Teclado: tecla de menú y Mayúsculas+F10. En `app-globals.tsx` SOLO añade el montaje de este componente y de `variaciones-host`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A",
+    "VPU1019M"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "RTSUC1018Ec",
+   "VPU1019N",
+   "OPS1024A",
+   "OPS1024B",
+   "OPS1024C",
+   "OPS1024D"
+  ]
+ }
+}
