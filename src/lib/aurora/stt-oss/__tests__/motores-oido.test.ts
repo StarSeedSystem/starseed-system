@@ -33,6 +33,12 @@ describe("catálogo MOTORES_OIDO", () => {
     expect(m?.idiomas).toEqual(['en','es']);
     expect(m?.tamanoMB).toBe(60);
   });
+
+  it("voicestudio es tipo endpoint y moonshine tipo local", () => {
+    // RTVST1018I: lo demás ya estaba probado, el campo tipo no.
+    expect(MOTORES_OIDO.find((x) => x.id === 'voicestudio')?.tipo).toBe('endpoint');
+    expect(MOTORES_OIDO.find((x) => x.id === 'moonshine')?.tipo).toBe('local');
+  });
 });
 
 describe("elegirOido", () => {
@@ -137,5 +143,27 @@ describe("elegirOido", () => {
     });
     // moonshine debe ser elegido antes que whisper-web
     expect(r.motor).toBe('moonshine');
+  });
+
+  it("voicestudio se elige en final para español cuando parakeet-v3 no está disponible", () => {
+    // RTVST1018I: main nunca comprobaba a voicestudio como ganador real.
+    const r = elegirOido({
+      idioma: 'es',
+      disponibles: ['voicestudio', 'whisper-web'],
+      fase: 'final',
+    });
+    expect(r.motor).toBe('voicestudio');
+    expect(r.motivo).toContain('fase final: mayor precisión para es');
+  });
+
+  it("voicestudio se elige en final para inglés, antes que moonshine", () => {
+    // Orden en inglés: phonon-2, voicestudio, parakeet-v3, moonshine…
+    const r = elegirOido({
+      idioma: 'en',
+      disponibles: ['voicestudio', 'moonshine'],
+      fase: 'final',
+    });
+    expect(r.motor).toBe('voicestudio');
+    expect(r.motivo).toContain('inglés: voicestudio por defecto');
   });
 });

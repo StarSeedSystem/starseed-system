@@ -127,4 +127,26 @@ describe("Catálogo de voces", () => {
     expect(motorRecomendado("macos", 8, "personal").id).toBe("voicemorphic");
     expect(motorRecomendado("web", 4, "personal").id).toBe("kokoro");
   });
+
+  it("sistema y voicestudio declaran su licenciaPesos (los únicos valores no cubiertos)", () => {
+    // RTVST1018I: los demás motores están cubiertos en los casos de arriba.
+    // sistema y voicestudio solo probaban claseLicencia, su licenciaPesos no estaba.
+    const sistema = MOTORES_VOZ.find((m) => m.id === "sistema");
+    expect(sistema?.licenciaPesos).toBe("VARIES");
+    const voicestudio = MOTORES_VOZ.find((m) => m.id === "voicestudio");
+    expect(voicestudio?.licenciaPesos).toBe("Múltiple (según motor)");
+  });
+
+  it("con poca RAM (0,4 GB) devuelve la voz del sistema, igual en contexto personal y en grupo", () => {
+    // Con 0,4 GB solo cabe el motor `sistema` (ramMinGB 0), que es libre:
+    // en ambos contextos sale el mismo motor.
+    expect(motorRecomendado("macos", 0.4, "personal").id).toBe("sistema");
+    expect(motorRecomendado("macos", 0.4, "grupo").id).toBe("sistema");
+  });
+
+  it("respeta la RAM mínima: con 3,9 GB no devuelve voicemorphic (pide 4 GB)", () => {
+    const motor = motorRecomendado("macos", 3.9, "personal");
+    expect(motor.id).not.toBe("voicemorphic");
+    expect(motor.ramMinGB).toBeLessThanOrEqual(3.9);
+  });
 });
