@@ -81,6 +81,18 @@ describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
     expect(plan).toEqual([...SIEMPRE_2A].filter((id) => id !== "lib-vikunja"));
   });
 
+  it("un id que no está en el catálogo no se siembra (puerta defensiva)", () => {
+    const plan = selectSeedIds({
+      currentVersion: SEED_VERSION - 1,
+      seedVersion: SEED_VERSION,
+      recommendedIds: ["lib-celld", "iatool-inexistente"],
+      catalog: catalogo(["lib-celld"]),
+      alreadyOffered: [],
+      installedIds: [],
+    });
+    expect(plan).toEqual(["lib-celld"]);
+  });
+
   it("respeta lo instalado, los descargables y los comingSoon", () => {
     const plan = selectSeedIds({
       currentVersion: 0,
@@ -108,5 +120,11 @@ describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
       installedIds: [],
     });
     expect(plan).toEqual([]);
+  });
+});
+
+describe("RECOMMENDED_PACKAGE_IDS · invariantes de la lista completa", () => {
+  it("cada id aparece una sola vez (sin duplicados)", () => {
+    expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
   });
 });
