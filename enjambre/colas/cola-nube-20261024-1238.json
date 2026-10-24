@@ -1,0 +1,121 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "DSN1019C",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Ventanas del Escritorio: abrir centradas",
+   "archivos": [
+    "src/components/desktop/desktop-store.ts",
+    "src/components/desktop/__tests__/ventana-centrada.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En `openWindow` usa la geometría centrada de `composicion.ts` cuando la ventana no tiene posición guardada; si la tiene, la respeta (y la recoloca dentro de la pantalla si quedó fuera). Solo añadir. Prueba. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DSN1019A"
+   ]
+  },
+  {
+   "id": "DSN1019F",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Fondos de la marca en el registro de fondos",
+   "archivos": [
+    "src/lib/design/backgrounds.ts",
+    "src/lib/design/__tests__/fondos-marca.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Añade a `BACKGROUND_REGISTRY` (solo añadir) las entradas vacio-profundo, degradado-claridad, degradado-profundidad, degradado-natural y degradado-cristal usando `sombras-fondos.ts`. Prueba que existen y no rompen las actuales. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DSN1019E"
+   ]
+  },
+  {
+   "id": "VPU1019D",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de widgets y Dashboard",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/widgets.ts",
+    "src/lib/variaciones/adaptadores/__tests__/widgets.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familia widget: clave `widget:<WidgetType>` (de `src/components/dashboard/dashboard-types.ts`); capturar toma la configuración visual y de opciones del widget (no sus datos personales), aplicar la fusiona con la instancia elegida y devuelve deshacer; respeta `getSizeConstraints` de `src/components/dashboard/widget-manifest.ts`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019H",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de publicaciones y mensajes (estilos del editor)",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/publicaciones.ts",
+    "src/lib/variaciones/adaptadores/__tests__/publicaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familias post y mensaje con parte `#estilo`, `#plantilla` o `#decoracion`: captura estilos y plantillas del editor rico (`src/components/messages/rico/`) y del compositor de publicaciones, nunca el texto ni los destinatarios; aplicar sobre el borrador actual con deshacer. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019P",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Tarjeta de variación: vista previa, probar, aplicar y deshacer",
+   "archivos": [
+    "src/components/variaciones/tarjeta-variacion.tsx",
+    "src/components/variaciones/__tests__/tarjeta-variacion.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Vista previa del adaptador, «Probar» (aplica y deshace al cerrar o al pulsar de nuevo), «Aplicar» con deshacer visible, «Guardar en la Biblioteca» (`SaveToLibrary`), «Compartir» (`ShareToDialog`), «Ver origen», valoración y licencia; las de código piden confirmación y se abren aisladas. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019O"
+   ]
+  },
+  {
+   "id": "VPU1019U",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Sugerencias de variaciones con Astraura (local primero)",
+   "archivos": [
+    "src/lib/variaciones/sugerir-astraura.ts",
+    "src/lib/variaciones/__tests__/sugerir-astraura.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`sugerirVariaciones(clave, contexto, deps)` pide al enrutador de Astraura (inyectado; escalera local primero de `genesis-conectores-abiertos.md`) 3 variaciones del payload capturado, las valida con `validar.ts` y con las pruebas del ADN del contexto (`memory/diseno/adn/*/dna.json`, inyectado) y devuelve solo las que pasan, con su motivo. Prueba con modelo falso. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "FSH1018I",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Fondos · guardar sets en cualquier carpeta de la Biblioteca propia o de una página, grupo, mensaje o publicación",
+   "archivos": [
+    "src/lib/appearance/fondos-biblioteca.ts",
+    "src/lib/appearance/__tests__/fondos-biblioteca.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Con las funciones de src/lib/library/media-library.ts (`ensureMediaFolders`, `saveMediaToLibrary`, `moveMediaItem`) y `libraryRef` de entity-library.ts: `guardarSet(ref, set, carpetaId?)` guarda el `.starseed-fondo.json` (y su vista previa) en la carpeta elegida o en «Fondos» (la crea si falta); `listarSets(ref)` los lee y valida con sets-fondo.ts. Dependencias inyectables en las pruebas. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018C"
+   ]
+  },
+  {
+   "id": "FSH1018M",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Diseño · paleta del fondo (de los colores del preset y de una muestra del fotograma)",
+   "archivos": [
+    "src/lib/design/paleta-fondo.ts",
+    "src/lib/design/__tests__/paleta-fondo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `paletaDePreset(preset)` recoge los colores de las props; `paletaDeMuestra(pixeles RGBA, k=5)` agrupa con k-medias determinista (semillas fijas); `paletaFondo(set, muestra?)` fusiona y ordena por peso y luminancia. Pruebas. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018C"
+   ]
+  }
+ ]
+}
