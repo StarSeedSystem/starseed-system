@@ -263,6 +263,53 @@ def ids_de_colas_jovenes(carpeta, ahora_ts, max_s=COLA_JOVEN_S):
     return jovenes
 
 
+def ordenar_reapertura_en_colas_vivas(ids):
+    """Pide al orquestador local que retome las tareas devueltas por la nube."""
+    if not ids:
+        return
+    try:
+        import nodo_metagenesis_medio as NM
+
+        colas = NM.colas_vivas()
+    except Exception as e:
+        print("director-nube: no pude detectar colas vivas: %s: %s" % (type(e).__name__, e), flush=True)
+        return
+    por_cola = {}
+    for nombre in colas:
+        ruta_cola = os.path.join(RAIZ, "starseed_memory_root", "olas", nombre)
+        ids_cola = _ids_de_ruta(ruta_cola)
+        if ids_cola is None:
+            continue
+        for tid in ids:
+            if tid in ids_cola:
+                por_cola.setdefault(nombre, []).append(tid)
+    marca_tiempo = time.strftime("%Y-%m-%d %H:%M:%S")
+    olas = os.path.join(RAIZ, "starseed_memory_root", "olas")
+    for nombre, tareas in por_cola.items():
+        ruta = os.path.join(olas, "control-" + nombre)
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                ordenes = json.load(f)
+            if not isinstance(ordenes, dict):
+                ordenes = {}
+        except (OSError, ValueError):
+            ordenes = {}
+        for tid in tareas:
+            ordenes[tid] = {
+                "accion": "reabrir",
+                "quien": "director-nube",
+                "motivo": "devuelta de la nube: su run terminó",
+                "t": marca_tiempo,
+            }
+        tmp = ruta + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(ordenes, f, ensure_ascii=False, indent=1)
+            os.replace(tmp, ruta)
+        except OSError as e:
+            print("director-nube: no pude pedir reapertura en %s: %s" % (nombre, e), flush=True)
+
+
 def reclamar_varadas_de_la_nube(runs_vivos):
     """Devuelve a `pendiente` lo que se prestó a la nube y allí ya no lo hace nadie.
 
@@ -308,6 +355,7 @@ def reclamar_varadas_de_la_nube(runs_vivos):
     ids = RN.reclamar_varadas(tareas, runs_vivos, ids_vivos=ids_vivos, colas_jovenes=jovenes)
     if not ids:
         return []
+    ordenar_reapertura_en_colas_vivas(ids)
     # (2026-09-24) Con cuántas veces se mandó y con lo que dijo la nube: si ya van tres,
     # a «Bloqueadas» con el motivo, no otra vez a «pendiente» (y otra vez a la nube).
     # (2026-10-05) Con las reaperturas descontadas: la misma cuenta que usa el reparto.

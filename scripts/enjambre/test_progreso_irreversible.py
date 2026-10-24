@@ -67,3 +67,64 @@ class ReabrirConPeldanoTest(unittest.TestCase):
         enjambre.MIAS.discard("T9")
         enjambre.PROG.pop("T9", None)
         enjambre.REABRIR.discard("T9")
+
+    def test_tarea_soltada_reabierta_se_quita_de_los_cierres_en_memoria(self):
+        from unittest import mock
+
+        tid = "PRESTADA"
+        enjambre.MIAS.add(tid)
+        enjambre.SOLTADAS.add(tid)
+        enjambre.CORTADOS.add(tid)
+        enjambre.PROG[tid] = {"estado": "pendiente"}
+        orden = {tid: {"accion": "reabrir", "motivo": "devuelta de la nube"}}
+        try:
+            with mock.patch.object(enjambre, "consumir_control", return_value=orden), \
+                    mock.patch.object(enjambre, "entregar_mensajes"), \
+                    mock.patch.object(enjambre, "guardar_prog"), \
+                    mock.patch.object(enjambre, "evento"):
+                enjambre.atender_control()
+            self.assertNotIn(tid, enjambre.SOLTADAS)
+            self.assertNotIn(tid, enjambre.CORTADOS)
+            self.assertEqual("pendiente", enjambre.PROG[tid]["estado"])
+        finally:
+            enjambre.MIAS.discard(tid)
+            enjambre.SOLTADAS.discard(tid)
+            enjambre.CORTADOS.discard(tid)
+            enjambre.REABRIR.discard(tid)
+            enjambre.PROG.pop(tid, None)
+
+
+class ReaperturaDevolucionNubeTest(unittest.TestCase):
+    def test_pide_reabrir_en_la_cola_viva_y_fusiona_control(self):
+        from unittest import mock
+
+        import importlib.util
+        import json
+        import tempfile
+        import shutil
+
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "puente", "director-nube.py")
+        spec = importlib.util.spec_from_file_location("director_nube_reapertura", ruta)
+        director = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(director)
+        raiz_antes = director.RAIZ
+        temporal = tempfile.mkdtemp()
+        director.RAIZ = temporal
+        self.addCleanup(setattr, director, "RAIZ", raiz_antes)
+        self.addCleanup(shutil.rmtree, temporal, True)
+        olas = os.path.join(temporal, "starseed_memory_root", "olas")
+        os.makedirs(olas)
+        with open(os.path.join(olas, "cola-auto-viva.json"), "w", encoding="utf-8") as f:
+            json.dump({"tareas": [{"id": "T1"}]}, f)
+        control = os.path.join(olas, "control-cola-auto-viva.json")
+        with open(control, "w", encoding="utf-8") as f:
+            json.dump({"T0": {"accion": "soltar"}}, f)
+        medio = type("Medio", (), {"colas_vivas": staticmethod(lambda: ["cola-auto-viva.json"])})
+        with mock.patch.dict(sys.modules, {"nodo_metagenesis_medio": medio}):
+            director.ordenar_reapertura_en_colas_vivas(["T1"])
+        with open(control, encoding="utf-8") as f:
+            ordenes = json.load(f)
+        self.assertEqual({"accion": "soltar"}, ordenes["T0"])
+        self.assertEqual("reabrir", ordenes["T1"]["accion"])
+        self.assertEqual("director-nube", ordenes["T1"]["quien"])
+        self.assertEqual("devuelta de la nube: su run terminó", ordenes["T1"]["motivo"])
