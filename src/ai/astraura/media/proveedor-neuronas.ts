@@ -17,7 +17,12 @@
  */
 import { planImagen, type CapaImg, type NeuronaImg, type OpcionImagen, type PeticionImagen } from "@/lib/imagenes/plan";
 import { modeloPorId, MOTORES_IMG, type CapacidadImg, type MotorImg } from "@/lib/imagenes/modelos";
-import { ejecutarOpcionEspacio } from "@/lib/imagenes/adaptadores/espacios-imagen";
+import {
+  espacioDeModelo,
+  ejecutarOpcionEspacio,
+  fichaDeEspacio,
+  opcionesEspacioDelPlan,
+} from "@/lib/imagenes/adaptadores/espacios-imagen";
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 
 /** Una opción de la galería que ve la Protomolécula: de dónde salió, con qué licencia y cuánto tardó. */
@@ -32,6 +37,9 @@ export interface OpcionGaleria {
   licencia: string;
   uso: UsoLicencia | "libre";
   atribucion: string;
+  /** Solo en la capa «espacio»: el Space público del que salió y su frase honesta de origen. */
+  origen?: string;
+  espacio?: string;
   segundos: number;
 }
 
@@ -153,23 +161,26 @@ export function armarOpcion(
   res: { url?: string; ref?: string; segundos: number },
 ): OpcionGaleria {
   const m = op.modelo;
-  const donde =
-    op.capa === "web-gratis" ? "la web gratis" :
-    op.capa === "espacio" ? `su Space de Hugging Face` :
-    op.neuronaId ? `tu neurona «${op.neuronaId}»` : "tu aparato";
-  const atribucion = m
-    ? `Generada con ${m.nombre} (${m.licencia}) en ${donde}.`
-    : "Generada con Pollinations (web gratis).";
+  // La capa «espacio» lleva la ficha del adaptador: modelo, licencia Apache-2.0 del
+  // catálogo verificado y «hecho en un Space público» a la vista, no solo la capa.
+  const ficha = op.capa === "espacio" && m ? fichaDeEspacio(m.id) : null;
+  const donde = op.capa === "web-gratis" ? "la web gratis" : op.neuronaId ? `tu neurona «${op.neuronaId}»` : "tu aparato";
+  const atribucion = ficha
+    ? `Imagen generada con ${ficha.modelo} (licencia ${ficha.licencia}); ${ficha.origen} de Hugging Face (${ficha.espacio}).`
+    : m
+      ? `Generada con ${m.nombre} (${m.licencia}) en ${donde}.`
+      : "Generada con Pollinations (web gratis).";
   return {
     ...(res.url ? { url: res.url } : {}),
     ...(res.ref ? { ref: res.ref } : {}),
-    modelo: m ? m.nombre : null,
+    modelo: ficha?.modelo ?? (m ? m.nombre : null),
     capa: op.capa,
     ...(op.neuronaId ? { neurona: op.neuronaId } : {}),
     semilla: op.semilla,
-    licencia: m ? m.licencia : LICENCIA_WEB,
+    licencia: ficha?.licencia ?? (m ? m.licencia : LICENCIA_WEB),
     uso: m ? m.uso : "libre",
     atribucion,
+    ...(ficha ? { origen: ficha.origen, espacio: ficha.espacio } : {}),
     segundos: res.segundos,
   };
 }
@@ -255,6 +266,11 @@ export async function ejecutarOpcionReal(
     return r && (r.url || r.ref) ? { ...r, segundos: tardado() } : null;
   }
   if (op.motor === "espacio-hf") {
+    // Solo se llama a los Spaces que el adaptador tiene verificados (FLUX.1 schnell y
+    // Qwen-Image); cualquier otro modelo de la capa se descarta con su motivo.
+    if (!opcionesEspacioDelPlan([op]).length) {
+      return { segundos: 0, motivo: `${op.modelo?.nombre ?? "El modelo"} no tiene un Space público verificado; no se llama a Hugging Face.` };
+    }
     // El Space se llama desde ESTE navegador (ESP1011A/ESP1011D): cuota y token de la persona.
     const r = await ejecutarOpcionEspacio(op, prompt);
     return r.ok
@@ -335,6 +351,9 @@ export async function generarGaleriaImagenes(
     }
     if (entrada.neuronasExtra) neuronas.push(...entrada.neuronasExtra);
 
+    // Solo pasan a `planImagen` los modelos de la tabla del adaptador; un id sin Space
+    // verificado (p. ej. Qwen-Image 2.1, que corre en CPU) no se ofrece como capa.
+    const espacios = (entrada.espacios ?? []).filter((id) => !!espacioDeModelo(id));
     const peticion: PeticionImagen = {
       opciones: Math.min(8, pedidas * 2), // pide de más para tener sustitutas si alguna falla
       prioridad: entrada.prioridad ?? "calidad",
@@ -343,7 +362,7 @@ export async function generarGaleriaImagenes(
       conReferencia: entrada.conReferencia === true,
       permisoRemoto: entrada.permisoRemoto === true,
       permitirDePago: false, // los servicios de pago se piden con tu clave aparte
-      ...(entrada.espacios && entrada.espacios.length ? { espacios: entrada.espacios } : {}),
+      ...(espacios.length ? { espacios } : {}),
     };
     const plan = planImagen(peticion, neuronas, entrada.semillaBase ?? 1);
     descartes.push(...plan.descartes);

@@ -9,6 +9,7 @@ import {
   aNeuronaImg,
   neuronaTab,
   armarOpcion,
+  ejecutarOpcionReal,
   extraerResultadoLocal,
   generarGaleriaImagenes,
   type EjecutarOpcion,
@@ -156,6 +157,61 @@ describe("armarOpcion", () => {
     expect(o.uso).toBe("libre");
     expect(o.licencia.toLowerCase()).toContain("pollinations");
     expect(o.atribucion).toContain("Pollinations");
+  });
+
+  it("una opción de Space público lleva modelo, licencia y «hecho en un Space público»", () => {
+    const space: OpcionImagen = {
+      capa: "espacio",
+      modelo: modeloPorId("flux1-schnell")!,
+      motor: "espacio-hf",
+      cuantizacion: "nativa",
+      semilla: 9,
+      motivo: "Space verificado",
+    };
+    const o = armarOpcion(space, { url: "blob:space", segundos: 4 });
+    expect(o.modelo).toBe("FLUX.1 [schnell]");
+    expect(o.licencia).toBe("Apache-2.0");
+    expect(o.origen).toBe("hecho en un Space público");
+    expect(o.espacio).toBe("black-forest-labs/FLUX.1-schnell");
+    expect(o.atribucion).toContain("hecho en un Space público");
+  });
+});
+
+describe("capa espacio del proveedor", () => {
+  it("la galería aplica los Spaces permitidos y devuelve su ficha", async () => {
+    const ejecutar: EjecutarOpcion = async (op) =>
+      op.motor === "espacio-hf" ? { url: `blob:${op.modelo?.id}`, segundos: 5 } : null;
+    const g = await generarGaleriaImagenes(
+      {
+        prompt: "un faro violeta",
+        opciones: 1,
+        neuronas: [],
+        espacios: ["flux1-schnell", "qwen-image"],
+        permisoRemoto: true,
+      },
+      ejecutar,
+    );
+    expect(g.ok).toBe(true);
+    expect(g.opciones).toHaveLength(1);
+    const o = g.opciones[0];
+    expect(o.capa).toBe("espacio");
+    expect(o.modelo).toBe("Qwen-Image");
+    expect(o.licencia).toBe("Apache-2.0");
+    expect(o.atribucion).toContain("hecho en un Space público");
+  });
+
+  it("un modelo de la capa sin Space verificado no se llama a Hugging Face", async () => {
+    const op: OpcionImagen = {
+      capa: "espacio",
+      modelo: modeloPorId("qwen-image-2.1")!,
+      motor: "espacio-hf",
+      cuantizacion: "nativa",
+      semilla: 1,
+      motivo: "CPU básica: no se usa",
+    };
+    const r = await ejecutarOpcionReal(op, "x", undefined);
+    expect(r).toMatchObject({ segundos: 0 });
+    expect(r?.motivo).toMatch(/no tiene un Space público verificado/);
   });
 });
 

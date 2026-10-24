@@ -47,6 +47,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { connectionsForService } from "@/lib/services/oss-connections";
+import { ESPACIOS_IMAGEN } from "@/lib/imagenes/adaptadores/espacios-imagen";
 import type { GaleriaImagenes } from "./proveedor-neuronas";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -704,6 +705,8 @@ export interface GenerateImageOptions {
   comercial?: boolean;
   conReferencia?: boolean;
   permisoRemoto?: boolean;
+  /** Modelos con Space público permitidos para esta persona; por defecto, los verificados. */
+  espacios?: readonly string[];
 }
 
 /** Construye la imagen con Pollinations (siempre disponible; nunca lanza, siempre `ok:true` si hay prompt). */
@@ -951,6 +954,7 @@ export async function generateImage(opts: GenerateImageOptions): Promise<MediaGe
         comercial: opts.comercial === true,
         conReferencia: opts.conReferencia === true,
         permisoRemoto: opts.permisoRemoto === true,
+        espacios: opts.espacios ?? Object.keys(ESPACIOS_IMAGEN),
         semillaBase:
           typeof opts.seed === "number" && Number.isFinite(opts.seed) ? Math.floor(opts.seed) : 1,
         viaWebGratis: async (semilla) => {
