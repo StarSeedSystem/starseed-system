@@ -4611,3 +4611,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `VAR1021Bc` — pruebas en rojo: vitest falla (rama conservada)
 - `VZF1015N` — no escribió nada
 - `VZF1015L` — no escribió nada
+
+## 2026-10-24 04:18 · mg-oracle-1023-2120
+
+**Lo que se pidió.** cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (RIA1023F, APM1017T). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
+- `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
+- `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
