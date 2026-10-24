@@ -6,14 +6,26 @@ import { resolve } from "node:path";
 const REPO_ROOT = process.cwd();
 const CONFIG_1_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020.json");
 const CONFIG_2_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020b.json");
+const CONFIG_3_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020c.json");
 
 const repos1 = JSON.parse(readFileSync(CONFIG_1_PATH, "utf-8"));
 const repos2 = JSON.parse(readFileSync(CONFIG_2_PATH, "utf-8"));
+const repos3 = JSON.parse(readFileSync(CONFIG_3_PATH, "utf-8"));
 
 const EXCLUIDA_1: string[] = [repos1.excluida?.repo ?? ""].filter((v): v is string => v !== "");
 const EXCLUIDAS_2: string[] = repos2.excluidas?.map((e: { repo: string }) => e.repo) ?? [];
+const EXCLUIDAS_3: string[] = repos3.excluidas?.map((e: { repo: string }) => e.repo) ?? [];
 
-export const REPOS_EXCLUIDOS: string[] = [...EXCLUIDA_1, ...EXCLUIDAS_2];
+export const REPOS_EXCLUIDOS: string[] = [...EXCLUIDA_1, ...EXCLUIDAS_2, ...EXCLUIDAS_3];
+
+export interface RepoYaPresente {
+  repo: string;
+  id: string;
+}
+
+export const REPOS_YA_PRESENTES: RepoYaPresente[] = [
+  { repo: "penpot/penpot", id: "iatool-penpot" },
+];
 
 function mapaPatronTag(patron_tag: string): string {
   return patron_tag ?? "";
@@ -37,7 +49,9 @@ export interface ReposExternosPaquete {
   motivoComingSoon?: string;
 }
 
-function transformaPaquete(p: typeof repos1.paquetes[0] | (typeof repos2.paquetes)[0]): ReposExternosPaquete {
+function transformaPaquete(
+  p: typeof repos1.paquetes[0] | (typeof repos2.paquetes)[0] | (typeof repos3.paquetes)[0],
+): ReposExternosPaquete {
   const efecto = p.efecto ?? "";
   const preinstalar = p.preinstalar ?? "";
   const claude = p.claude ?? false;
@@ -78,10 +92,16 @@ function transformaPaquete(p: typeof repos1.paquetes[0] | (typeof repos2.paquete
 
 const paquetes1 = (repos1.paquetes ?? []).map(transformaPaquete);
 const paquetes2 = (repos2.paquetes ?? []).map(transformaPaquete);
+const paquetes3 = (repos3.paquetes ?? []).map(transformaPaquete);
 
 const reposExcluidosSet = new Set(REPOS_EXCLUIDOS);
+const reposYaPresentesSet = new Set(REPOS_YA_PRESENTES.map((r) => r.repo));
 
 export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
-  ...paquetes1.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-  ...paquetes2.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-];
+  ...paquetes1,
+  ...paquetes2,
+  ...paquetes3,
+].filter(
+  (p: ReposExternosPaquete) =>
+    !reposExcluidosSet.has(p.repo) && !reposYaPresentesSet.has(p.repo),
+);
