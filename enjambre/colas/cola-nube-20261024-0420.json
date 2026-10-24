@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "CRM1024H",
+   "ola": "1024C",
+   "importancia": "capacidad",
+   "adelantar": "Alex 2026-10-24: priorizar Cloudroom",
+   "titulo": "Medidor de Cloudroom: contar los agentes de la nube de verdad, listar sus modelos y no borrar los otros medidores con --solo",
+   "archivos": [
+    "scripts/puente/medidor_cloudroom.py",
+    "scripts/puente/test_medidor_cloudroom.py",
+    "scripts/puente/medidores_credito.py"
+   ],
+   "depende": [],
+   "prompt": "Medido en la Mac el 2026-10-24 con CRM1024G ya en main: (1) el medidor da «Agentes en la nube (30 días): 0/100» con 4 hilos de la nube creados en el ciclo. Causa: `room-cli thread list --json` marca la nube con `\"executionTarget\": \"cloud\"` (machine, machineId y hostId vienen null) y _en_nube no mira ese campo; además los hilos ARCHIVADOS también gastaron cupo y la lista por defecto no los trae: usa `room-cli thread list --json --include-archived --include-hidden`. createdAt viene en milisegundos. (2) extras.agentes sale vacío: los agentes y modelos están en `room-cli cloud status --json` → `harnesses`: lista de {id, model, provider, models:[{model, reasoning_levels}]} (p. ej. codex con gpt-6-luna, gpt-5.6-terra…; claude-code con sonnet, opus…); devuelve por harness sus modelos disponibles en la nube. (3) `medidores_credito.py recoger --solo cloudroom` reescribió ~/.starseed/medidores-credito.json SOLO con cloudroom y borró claude, codex y oracle: con --solo debe actualizar esas entradas y conservar las demás del documento anterior. (4) _correr usa 'room-cli' a secas: usa la misma ruta que disponible() (~/.local/bin/room-cli o CLOUDROOM_CLI), porque launchd no tiene ~/.local/bin en el PATH. Pruebas con salidas simuladas para los cuatro puntos (sin ejecutar room-cli, sin red). Máximo 3 archivos y 120 líneas nuevas por archivo.",
+   "dependencias_ya_en_main": [
+    "CRM1024G"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "CRM1024H"
+  ]
+ }
+}
