@@ -579,8 +579,9 @@ const OPENVOICE2_STYLE_IDS: readonly string[] = [
 
 /**
  * Habla UNA locución puntual con un diseño de voz ad-hoc, SIN tocar la config
- * persistente. Emite el indicador de procesamiento y garantiza voz (fallback al
- * navegador). Nunca lanza.
+ * persistente. Emite el indicador de procesamiento y garantiza voz: si el
+ * diseño ad-hoc no suena, cae a la puerta única `hablar()` (contexto «aviso»),
+ * que degrada sola hasta el navegador. Nunca lanza.
  */
 async function speakOnceAdHoc(
   texto: string,
@@ -618,11 +619,13 @@ async function speakOnceAdHoc(
     }
   } catch { /* */ }
   end();
-  // Suelo garantizado: Aurora SIEMPRE habla.
+  // Suelo garantizado: Aurora SIEMPRE habla. Ya no hay `SpeechSynthesisUtterance`
+  // suelto: falla el diseño ad-hoc y toca la PUERTA ÚNICA de la fusión de voz
+  // (contexto «aviso», Ola 1015V): voz en tiempo real, cadena del registro y, si
+  // nada, el navegador de suelo. Nunca lanza.
   try {
-    const u = new SpeechSynthesisUtterance(texto);
-    window.speechSynthesis?.speak(u);
-    return true;
+    const { hablar } = await import("@/lib/aurora/voz-unica");
+    return !!(await hablar(texto, { contexto: "aviso" }));
   } catch {
     return false;
   }

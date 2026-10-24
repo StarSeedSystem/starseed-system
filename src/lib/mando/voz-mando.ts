@@ -7,11 +7,15 @@
  * propia voz.
  *
  * Este módulo es PURO: nada de React, Node ni `window`. Decide QUÉ decir, en
- * qué orden y con qué timbre; la síntesis la hace la capa de UI llamando al
- * motor único `hablarStarSeed()` (contexto "aviso").
+ * qué orden y con qué timbre; la síntesis la hace la capa de UI llamando a la
+ * PUERTA ÚNICA de la fusión de voz, `hablar()` de `src/lib/aurora/voz-unica.ts`
+ * (contexto «mando»; Ola 1015V). `opcionesHablarDe` traduce cada anuncio a sus
+ * opciones de puerta: lo urgente (prioridad 1) sustituye a su nivel y lo demás
+ * espera al silencio, sin cortar nunca la conversación.
  */
 
 import type { EventoRelevo } from "./tipos";
+import type { ContextoVozUnica, OpcionesVozUnica } from "@/lib/aurora/voz-unica";
 
 /** Preferencias persistentes de la voz de Genesis. */
 export interface PreferenciasVozMando {
@@ -292,6 +296,27 @@ export function planificar(
     if (ahoraMs - ultimoMs >= pausa) return anuncios.slice();
     const urgente = anuncios.find((a) => a.prioridad === 1);
     return urgente ? [urgente] : [];
+}
+
+// ── Puerta única de la fusión de voz (Ola 1015V · VZF1015K) ──────────────────
+
+/** Contexto con el que habla Genesis en la puerta única `hablar()`. */
+export const CONTEXTO_VOZ_MANDO: ContextoVozUnica = "mando";
+
+/**
+ * Opciones de la puerta única `hablar()` (src/lib/aurora/voz-unica.ts) para un
+ * anuncio de Genesis. El urgente (prioridad 1: visto bueno, fallo o
+ * publicación) sustituye a su nivel (prioridad 2 de la puerta: corta lo de
+ * Genesis que suena, nunca la conversación); el resto suena como aviso
+ * (prioridad 1: espera al silencio y, si una conversación no cesa, se descarta
+ * sin cortar). La identidad del timbre la resuelve la puerta: sigue siendo
+ * única por persona/agente, no aquí.
+ */
+export function opcionesHablarDe(a: AnuncioVoz): OpcionesVozUnica {
+    return {
+        contexto: CONTEXTO_VOZ_MANDO,
+        prioridad: a.prioridad === 1 ? 2 : 1,
+    };
 }
 
 // ── Voces por agente ──────────────────────────────────────────────────────────

@@ -6,14 +6,18 @@
  * - `planificar` respeta el silencio salvo UN aviso urgente (prioridad 1).
  * - `asignarVozAutomatica` es determinista por hash del id.
  * - `validarPreferenciasVoz` acota el silencio a un mínimo de 5 segundos.
+ * - `opcionesHablarDe` traduce cada anuncio a la puerta única `hablar()`
+ *   (contexto «mando»): lo urgente sustituye a su nivel, el resto espera.
  */
 
 import { describe, expect, it } from "vitest";
 
 import {
     PREFERENCIAS_VOZ_POR_DEFECTO,
+    CONTEXTO_VOZ_MANDO,
     anunciosDe,
     asignarVozAutomatica,
+    opcionesHablarDe,
     planificar,
     resumenParaLeer,
     validarPreferenciasVoz,
@@ -151,6 +155,25 @@ describe("validarPreferenciasVoz", () => {
     it("ante basura devuelve los valores por defecto", () => {
         expect(validarPreferenciasVoz(null)).toEqual(PREFERENCIAS_VOZ_POR_DEFECTO);
         expect(validarPreferenciasVoz("texto").activa).toBe(false);
+    });
+});
+
+describe("opcionesHablarDe", () => {
+    const mk = (prioridad: 1 | 2 | 3) => ({ clave: `a${prioridad}`, prioridad, texto: "prueba" });
+
+    it("todo anuncio entra por la puerta con contexto «mando» y sin timbre propio", () => {
+        for (const p of [1, 2, 3] as const) {
+            const o = opcionesHablarDe(mk(p));
+            expect(o.contexto).toBe("mando");
+            expect(o.contexto).toBe(CONTEXTO_VOZ_MANDO);
+            expect(o.persona).toBeUndefined();
+        }
+    });
+
+    it("el urgente (1) sustituye a su nivel (prioridad 2 de la puerta); el resto espera al silencio", () => {
+        expect(opcionesHablarDe(mk(1)).prioridad).toBe(2);
+        expect(opcionesHablarDe(mk(2)).prioridad).toBe(1);
+        expect(opcionesHablarDe(mk(3)).prioridad).toBe(1);
     });
 });
 

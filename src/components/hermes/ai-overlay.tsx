@@ -3,8 +3,9 @@
 
 /**
  * AI Overlay omnipresente — botón flotante DRAGGABLE + ventana de chat sobre
- * la pantalla.  Reconoce voz (Web Speech API), responde por voz (speechSynthesis)
- * y ejecuta acciones del sistema:
+ * la pantalla.  Reconoce voz (Web Speech API) y responde por la PUERTA ÚNICA
+ * de voz de la fusión (hablar() · contexto «lectura»; Ola 1015V y ejecuta
+ * acciones del sistema:
  *   - Navegar a cualquier sección (`/dashboard`, `/hub`, etc.)
  *   - Crear conexiones en el Cerebro
  *   - Añadir eventos al Sincrómetro
@@ -42,6 +43,9 @@ import { PROVIDERS } from '@/ai/providers';
 // ÚNICO de Aurora (src/lib/aurora/engine.ts) a través del puente global. Ver el
 // comentario de `toggleListen`.
 import { toggleAuroraVoice, isAuroraReady } from '@/lib/aurora/open-aurora';
+// UNA SOLA PUERTA DE VOZ (Ola 1015V): este overlay ya no lleva su propio
+// `speechSynthesis`; contesta por la puerta única de la fusión de voz.
+import { hablar } from '@/lib/aurora/voz-unica';
 
 interface OverlayMessage {
   role: 'user' | 'agent';
@@ -171,11 +175,17 @@ export function AiOverlay() {
   };
 
   // ── Voice: TTS ──────────────────────────────────────────────────────
+  /**
+   * PUERTA ÚNICA DE VOZ (Ola 1015V · VZF1015K): antes había aquí un
+   * `SpeechSynthesisUtterance` propio, una de las puertas de voz en paralelo
+   * del OS. Ahora contesta por `hablar()` con contexto «lectura» — la misma
+   * identidad de voz, la misma prioridad (sustituye a su nivel, no corta la
+   * conversación) y el mismo `callar()` que todo el resto. La puerta nunca
+   * lanza: si el motor no responde, degrada sola hasta el navegador.
+   */
   const speak = (text: string) => {
     try {
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'es-ES';
-      window.speechSynthesis.speak(u);
+      void hablar(text, { contexto: 'lectura' });
     } catch { /* noop */ }
   };
 
