@@ -73,36 +73,7 @@ export function linkedServerToOfertaNeurona(servidor: LinkedServer): OfertaNeuro
       t: Date.now(),
     };
   }
-  const { role } = servidor.link;
-  const isCompute = role === "compute";
-  const isStorage = role === "storage";
-  return {
-    nodoId: servidor.id,
-    cuentaId: servidor.owner ?? "",
-    medio: "nube",
-    computo: {
-      nucleos: isCompute ? 1 : 0,
-      ramLibreMb: isCompute ? 1024 : 0,
-      gpu: false,
-      vramMb: undefined,
-      motores: [],
-    },
-    almacen: {
-      prestaMb: isStorage ? 1024 : 0,
-      volumenes: [],
-    },
-    apps: [],
-    enlaces: { subidaKbps: undefined, bajadaKbps: undefined, latenciaMs: undefined },
-    energia: { bateriaPct: undefined, cargando: false, enUso: false },
-    presta: {
-      cuenta: !!servidor.owner,
-      grupos: [],
-      publico: !!(servidor.owner && servidor.shared),
-      topes: { cpuPct: 0, ramMb: 0, discoMb: 0, horas: undefined, soloCargando: false },
-    },
-    t: Date.now(),
-  };
-}
+
 
 export function candidatoToOfertaNeurona(candidato: Candidato): OfertaNeurona {
     return {
@@ -129,30 +100,7 @@ export function candidatoToOfertaNeurona(candidato: Candidato): OfertaNeurona {
       t: Date.now(),
     };
   }
-  return {
-    nodoId: candidato.neuronaId ?? "",
-    cuentaId: "",
-    medio: "desconocido",
-    computo: {
-      nucleos: 1,
-      ramLibreMb: candidato.libreMB,
-      gpu: candidato.gpu,
-      vramMb: undefined,
-      motores: [],
-    },
-    almacen: { prestaMb: 0, volumenes: [] },
-    apps: [],
-    enlaces: { subidaKbps: undefined, bajadaKbps: undefined, latenciaMs: undefined },
-    energia: { bateriaPct: undefined, cargando: false, enUso: false },
-    presta: {
-      cuenta: candidato.cuentaPropia,
-      grupos: [],
-      publico: !candidato.cuentaPropia,
-      topes: { cpuPct: 0, ramMb: 0, discoMb: 0, horas: undefined, soloCargando: false },
-    },
-    t: Date.now(),
-  };
-}
+
 
 export function ofertaNeuronaToCandidato(oferta: OfertaNeurona): Candidato {
   let tipo: "navegador" | "app-nativa" | "neurona-nas" | "neurona-procesador" | "nube" | "oracle-a1" = "navegador";
