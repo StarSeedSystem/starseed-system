@@ -446,7 +446,9 @@ def _avisar(texto):
 
 #: Módulos de scripts/puente que el nodo de MetaGenesis importa al arrancar (además de los
 #: `nodo_metagenesis*`). La prueba `ModulosDelNodo` falla si uno nuevo no está aquí.
-MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py", "traer_nube.py")
+# (2026-10-24) `traer_nube` importa `vigia_runs_nube` al arrancar (OPS1024E): sin él el nodo
+# moría con ModuleNotFoundError nada más reinstalarlo, igual que el COL1012.
+MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py", "vigia_runs_nube.py", "traer_nube.py")
 
 
 def _paquete(destino):
