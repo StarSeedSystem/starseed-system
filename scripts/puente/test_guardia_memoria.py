@@ -141,6 +141,54 @@ class AccionPara(unittest.TestCase):
         self.assertEqual("matar", G.accion_para("llama-server", 25, 80))
 
 
+class PresionDelNucleo(unittest.TestCase):
+    """(2026-10-21) La memoria inactiva engaña: manda la presión del núcleo."""
+
+    def test_congelado_con_presion_2_y_libre_alta_se_reevalua(self):
+        # Caso real: llama-server 22 h congelado, swap al 94 %, núcleo en 2, y
+        # libres_mb() seguía alto por la memoria inactiva.
+        acciones = G.decidir(
+            True, SOBRE + 1, {"llama-server"}, ["llama-server"], presion=2
+        )
+        self.assertEqual([("llama-server", "reevaluar")], acciones)
+
+    def test_presion_1_y_libre_alta_no_hace_nada(self):
+        self.assertEqual(
+            [], G.decidir(True, SOBRE + 1, {"llama-server"}, ["llama-server"], presion=1)
+        )
+
+    def test_presion_none_se_comporta_como_antes(self):
+        self.assertEqual(
+            [], G.decidir(True, SOBRE + 1, {"llama-server"}, ["llama-server"], presion=None)
+        )
+        self.assertEqual(
+            [("llama-server", "congelar")],
+            G.decidir(True, BAJO - 1, set(), ["llama-server"], presion=None),
+        )
+
+    def test_suelto_se_congela_con_presion_2_aunque_haya_libre(self):
+        self.assertEqual(
+            [("llama-server", "congelar")],
+            G.decidir(True, SOBRE + 1, set(), ["llama-server"], presion=2),
+        )
+
+    def test_sin_enjambre_la_presion_no_descongela(self):
+        # La reanudación sigue igual: exige holgura real de memoria.
+        self.assertEqual(
+            [],
+            G.decidir(False, SOBRE - 1, {"llama-server"}, ["llama-server"], presion=2),
+        )
+
+    def test_presion_nucleo_lee_el_nivel_y_devuelve_none_si_falla(self):
+        from unittest import mock
+
+        with mock.patch.object(G.subprocess, "run") as correr:
+            correr.return_value.stdout = "2\n"
+            self.assertEqual(2, G.presion_nucleo())
+        with mock.patch.object(G.subprocess, "run", side_effect=OSError("sin sysctl")):
+            self.assertIsNone(G.presion_nucleo())
+
+
 if __name__ == "__main__":
     unittest.main()
 
