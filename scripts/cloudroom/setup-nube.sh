@@ -191,9 +191,6 @@ cat > "$HOME/.pi/agent/models.json" <<'JSON'
    "models": [
     {
      "id": "z-ai/glm-5.3"
-    },
-    {
-     "id": "nvidia/nemotron-3-super-120b-a12b"
     }
    ]
   },

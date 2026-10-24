@@ -2,9 +2,12 @@
  "_nota": "Modelos de proveedores gratuitos que el agente Pi de Cloudroom puede usar en la nube. Deben coincidir con ~/.pi/agent/models.json que escribe scripts/cloudroom/setup-nube.sh (room-cli cloud setup set < scripts/cloudroom/setup-nube.sh). Solo admiten el nivel de razonamiento «none».",
  "modelos": [
   "nvidia/z-ai/glm-5.3",
-  "nvidia/nvidia/nemotron-3-super-120b-a12b",
   "xkiro/qwen/qwen3-coder-plus:free",
   "xkiro/minimax/minimax-m3:free",
   "xkiro/qwen/qwen3.8-max:free"
- ]
+ ],
+ "_retirados": {
+  "nvidia/nvidia/nemotron-3-super-120b-a12b": "NIM 404 «Function not found for account» (2026-10-24)",
+  "nvidia/moonshotai/kimi-k3": "NIM 410, fin de vida el 2026-10-15"
+ }
 }
