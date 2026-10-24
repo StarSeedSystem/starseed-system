@@ -245,4 +245,39 @@ export const FICHAS_REPOS_OS: LibraryPackage[] = [
             corre_aqui: false,
         },
     },
+    {
+        id: "repo-cloudroom",
+        kind: "project",
+        name: "Cloudroom · servidor de agentes local y en la nube",
+        description:
+            "App de escritorio (núcleo de código abierto) que ejecuta agentes de código (Claude Code, Codex, opencode, Hermes…) " +
+            "en tu neurona o en sandboxes de la nube: cada agente con su sandbox aislado y una rama de git por agente, y los de la nube " +
+            "siguen aunque se cierre el aparato. Núcleo abierto en davidondrej/cloudroom-core. En StarSeed OS es una opción MÁS para " +
+            "los servidores de los agentes (nunca la única): se sugiere solo si el contexto lo soporta y lo gratuito da; el parche " +
+            "que traen sus hilos entra por las MISMAS puertas que la nube (tsc, pruebas, revisión). Abrir lleva a la sección de " +
+            "contenedores de agentes de Genesis (MetaGenesis).",
+        icon: "Container",
+        tags: ["agentes", "contenedores", "sandbox", "nube", "local", "metagenesis", "ramas"],
+        version: "119.0.0",
+        author: "davidondrej",
+        sourceRepoId: "starseed-labs",
+        free: true,
+        payload: {
+            upstream: "https://github.com/davidondrej/cloudroom-gui",
+            canal: "releases",
+            externalUrl: "https://www.cloudroom.dev",
+            licencia: "código abierto (núcleo cloudroom-core)",
+            requisitos:
+                "App de escritorio en macOS Apple Silicon 13+ o Linux x64 (alfa); Windows y móvil: próximamente (sin builds oficiales). " +
+                "Cuenta de Cloudroom, GitHub y un agente de código conectado. Las claves las pone su dueño en la app (room-cli cloud env).",
+            servicio: "room-cli (status · thread spawn → wait · environment diff-patch) · versión por las releases de davidondrej/cloudroom-gui",
+            gratis: "local sin límite · 100 agentes en la nube cada 30 días por cuenta",
+            route: "/metagenesis",
+            corre_aqui: false,
+            note:
+                "Entra con la ola 1024C como opción de contenedores de agentes de Genesis (catálogo de conectores, cupo por contexto). " +
+                "El sandbox recibe una COPIA del proyecto: nada privado-local se manda sin consentimiento explícito del contexto, y " +
+                "se dice honesto cuando la neurona no tiene la app o la cuenta no tiene cupo.",
+        },
+    },
 ];
