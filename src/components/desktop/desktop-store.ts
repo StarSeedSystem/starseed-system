@@ -233,6 +233,16 @@ export function iconsOfPage(d: Desktop, page: number): DesktopIcon[] {
     return d.icons.filter((i) => iconPage(i) === page);
 }
 
+/**
+ * Archivo convertible de un icono (Filee, contrato `architecture/conversion-archivos.md`).
+ * Solo los iconos de ARCHIVO con URL pueden convertirse; si no, `null` y el menú
+ * no enseña «Convertir a…». Estructuralmente es un `ArchivoConvertible`.
+ */
+export function archivoConvertibleDeIcono(icon: Pick<DesktopIcon, "kind" | "name" | "url">): { nombre: string; url: string } | null {
+    if (icon.kind !== "file" || !icon.url) return null;
+    return { nombre: icon.name || "archivo", url: icon.url };
+}
+
 export interface DesktopsState {
     desktops: Desktop[];
     activeId: string;

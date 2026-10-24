@@ -16,6 +16,9 @@
 import React from "react";
 import { Volume2 } from "lucide-react";
 import { useAurora } from "@/components/aurora/aurora-provider";
+import { Replace } from "lucide-react";
+import { descargarBlob, type Convertido } from "@/lib/conversion/cliente";
+import { useConversionMenu } from "@/components/conversion/use-conversion-menu";
 import {
     FolderPlus, StickyNote, Link2, LayoutGrid, ArrowUpDown, List, Grid3x3,
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
@@ -29,7 +32,7 @@ import {
     addIcon, createNoteIcon, sortIcons, autoArrangeIcons, setSnap, updateIcon,
     duplicateIcon, removeIcon, moveIconToFolder, setDesktopView, DEFAULT_DESKTOP_VIEW,
     moveIconToPage, desktopPageCount, iconPage, addDesktopPage, removeDesktopPage,
-    MAX_DESKTOP_PAGES,
+    MAX_DESKTOP_PAGES, archivoConvertibleDeIcono,
 } from "./desktop-store";
 import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./desktop-clipboard";
 import { canEditIcon } from "./desktop-open";
@@ -40,23 +43,27 @@ const MENU_W = 210;
 
 // ── Primitivas de menú ───────────────────────────────────────────
 export function MenuItem({
-    icon: Icon, label, shortcut, danger, active, onClick,
+    icon: Icon, label, shortcut, danger, active, disabled, onClick,
 }: {
     icon?: LucideIcon;
     label: string;
     shortcut?: string;
     danger?: boolean;
     active?: boolean;
+    /** Opción no operativa (p. ej. «Convertir a…» sin conversor en este medio). */
+    disabled?: boolean;
     onClick: () => void;
 }): React.ReactElement {
     return (
         <button
             type="button"
             role="menuitem"
+            disabled={disabled}
             onClick={onClick}
             className={cn(
                 "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[12px] font-semibold transition-colors cursor-pointer",
                 danger ? "text-red-300 hover:bg-red-500/15" : "text-foreground/90 hover:bg-white/10",
+                disabled && "cursor-default text-muted-foreground/50 hover:bg-transparent",
                 active && "bg-white/[0.06]",
             )}
         >
@@ -291,6 +298,17 @@ export function IconContextMenu({
     // Pegar DENTRO de este folder (destino natural del portapapeles).
     const canPasteHere = Boolean(clip) && icon.kind === "folder";
 
+    // «Convertir a…» (Filee): solo iconos de archivo con URL. El resultado se
+    // descarga al disco del navegador — el escritorio no guarda conversiones.
+    const guardarDescarga = React.useCallback(
+        async (c: Convertido): Promise<string | null> => {
+            descargarBlob(c.blob, c.nombre);
+            return null;
+        },
+        [],
+    );
+    const conversion = useConversionMenu(archivoConvertibleDeIcono(icon), guardarDescarga);
+
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
             <MenuItem icon={ExternalLink} label="Abrir" onClick={() => run(() => onOpen(icon))} />
@@ -299,6 +317,29 @@ export function IconContextMenu({
             )}
             {onQuickLook && (
                 <MenuItem icon={Share2} label="Compartir…" onClick={() => run(() => onQuickLook(icon, "preview", true))} />
+            )}
+            {conversion && (
+                <SubMenu icon={Replace} label="Convertir a…">
+                    {conversion.estado === "cargando" && (
+                        <MenuItem disabled label="Mirando formatos…" onClick={() => { /* en espera de la neurona */ }} />
+                    )}
+                    {conversion.estado === "no-disponible" && (
+                        <MenuItem
+                            disabled
+                            label={conversion.motivo ?? "Aquí no hay conversor."}
+                            onClick={() => { /* honestidad: sin Filee en este medio */ }}
+                        />
+                    )}
+                    {conversion.estado === "listo" &&
+                        conversion.principales.map((f) => (
+                            <MenuItem key={f} label={conversion.etiqueta(f)} onClick={() => run(() => conversion.onConvertir(f))} />
+                        ))}
+                    <MenuItem
+                        icon={Settings2}
+                        label={conversion.resto > 0 ? `Más formatos (${conversion.resto})…` : "Abrir el conversor…"}
+                        onClick={() => run(conversion.onMas)}
+                    />
+                </SubMenu>
             )}
             {editable && onEdit && (
                 <MenuItem icon={PenLine} label="Editar" onClick={() => run(() => { onEdit(icon) || onRename(icon.id); })} />
