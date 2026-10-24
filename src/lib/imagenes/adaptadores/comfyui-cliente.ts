@@ -26,17 +26,11 @@ export type ResultadoComfy =
 
 export interface OpcionesFlujo { reloj?: RelojComfy; intervaloMs?: number; tiempoTopeMs?: number }
 
-export function textoErrorPrompt(datos: unknown): string | null;
-export function parseaSalidasHistorial(datos: unknown): InfoImagen[];
-export function urlView(base: string, i: InfoImagen): string;
-export function parseaCheckpoints(datos: unknown): string[];
+const baseLimpia = (b: string) => b.replace(/\/+$/, "");
+const PEQUE = (s: string) => s.slice(0, 160);
 
 export interface DispositivoComfy { nombre: string; tipo: string | null; vramTotalBytes: number | null; vramLibreBytes: number | null }
 export interface SaludComfy { dispositivos: DispositivoComfy[] }
-export function parseaSalud(datos: unknown): SaludComfy;
-
-const baseLimpia = (b: string) => b.replace(/\/+$/, "");
-const PEQUE = (s: string) => s.slice(0, 160);
 
 /** Texto legible en español para `error` y `node_errors` de /prompt; `null` si no hay nada que contar. */
 export function textoErrorPrompt(datos: unknown): string | null {
@@ -146,7 +140,7 @@ export async function enviarFlujo(base: string, flujo: FlujoComfy, clienteId: st
   for (;;) {
     const h = await pedirRuta(b, `/history/${encodeURIComponent(promptId)}`, "GET", undefined, f);
     if (!h.ok) return mal(h.fallo, h.motivo);
-    const salidas = parseaSalidasHistorial((h.datos as Record<string, unknown>)[promptId]);
+    const salidas = parseaSalidasHistorial(h.datos);
     if (salidas.length)
       return { ok: true, promptId, imagenes: salidas.map((i) => ({ info: i, url: urlView(b, i) })), ms: reloj.ahora() - t0 };
     if (reloj.ahora() - t0 + intervalo >= topeMs) {
