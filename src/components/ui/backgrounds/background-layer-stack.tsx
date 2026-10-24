@@ -48,6 +48,14 @@ const AudiomorphicCanvas = dynamic(
     { ssr: false, loading: () => null },
 );
 
+// Capa shader (WebGPU del paquete `shaders`): solo en cliente, import dinámico;
+// el paquete y el dispositivo GPU se cargan DENTRO (capa-shader.tsx), así que
+// una pila sin capas shader ni siquiera descarga el efecto. (Contrato §5.)
+const CapaShader = dynamic(
+    () => import("@/components/backgrounds/capa-shader").then((m) => m.CapaShader),
+    { ssr: false, loading: () => null },
+);
+
 const IFRAME_ALLOW =
     "microphone; camera; autoplay; fullscreen; gyroscope; accelerometer; magnetometer; xr-spatial-tracking";
 
@@ -79,6 +87,9 @@ function LayerBody({ layer }: { layer: BackgroundLayer }) {
                     playsInline
                 />
             ) : null;
+        case "shader":
+            // WebGPU: ¿queda vacío el preset (migration regression), no se pinta nada?
+            return layer.preset?.components?.length ? <CapaShader capa={layer} /> : null;
         default:
             return null;
     }
