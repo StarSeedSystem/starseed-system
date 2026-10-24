@@ -47,6 +47,13 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { connectionsForService } from "@/lib/services/oss-connections";
+import {
+  FORMATOS_PUBLICACION,
+  textoAImagen,
+  type EscalaImagen,
+  type FormatoPublicacion,
+  type PeticionFlujo,
+} from "@/lib/imagenes/flujos-comfyui";
 import type { GaleriaImagenes } from "./proveedor-neuronas";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -142,7 +149,7 @@ export const MEDIA_PROVIDERS: MediaProvider[] = [
     access: "local-endpoint",
     needsKey: false,
     note:
-      "Tu propio servidor ComfyUI (imagen y flujos de vídeo tipo AnimateDiff/SVD). Necesita un endpoint compatible con un flujo simple; un ComfyUI \"puro\" con grafos personalizados puede necesitar un proxy REST delante que traduzca {prompt} → tu workflow.",
+      "Tu propio servidor ComfyUI. Un ComfyUI REAL pide el GRAFO del flujo en formato API, y esto el OS ya lo construye: usa las plantillas puras de nodos del núcleo (flujos-comfyui) y manda {prompt: grafo} a /prompt. Para flujos de vídeo especiales (AnimateDiff/SVD) sigue valiendo un proxy delante.",
   },
   {
     id: "muapi",
@@ -847,16 +854,59 @@ async function fooocusImage(opts: GenerateImageOptions): Promise<MediaGenResult>
   return postForMedia(joinUrl(endpoint, "/v1/generation/text-to-image"), "fooocus", "image", body, LOCAL_TIMEOUT_MS);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// ComfyUI de verdad: plantillas puras → grafo en formato API (IMG1020A + §2)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Checkpoint por defecto: SD 1.5, el instalado en el A1 (repos-libreria-1020d.md §7). Si el servidor no tiene ese archivo exacto, ComfyUI responde con node_errors y el fallo sale legible. */
+const COMFYUI_CHECKPOINT_DEFECTO = "v1-5-pruned-emaonly.safetensors";
+
+/** Proporción (ancho ÷ alto) de cada formato de publicación. */
+const PROPORCION_FORMATO: Record<FormatoPublicacion, number> = { "1:1": 1, "4:5": 0.8, "9:16": 9 / 16, "16:9": 16 / 9 };
+
+/** El formato de publicación cuya proporción más se acerca a la pedida; sin tamaño pedido, 1:1. */
+export function formatoComfyuiMasCercano(ancho?: number, alto?: number): FormatoPublicacion {
+  if (!ancho || !alto) return "1:1";
+  const objetivo = ancho / alto;
+  return FORMATOS_PUBLICACION.reduce((mejor, f) =>
+    Math.abs(PROPORCION_FORMATO[f] - objetivo) < Math.abs(PROPORCION_FORMATO[mejor] - objetivo) ? f : mejor,
+  );
+}
+
+/** Traduce la petición de imagen del OS a una plantilla pura del flujo (los lados son del formato; pasos/CFG/muestreo: valores sanos por defecto, acotados como pide la plantilla). */
+export function peticionFlujoComfyui(opts: GenerateImageOptions): PeticionFlujo {
+  const checkpoint = (opts.model || "").trim() || COMFYUI_CHECKPOINT_DEFECTO;
+  const escala: EscalaImagen = /sd15|v1-5|1[.,]5/.test(checkpoint) ? "sd15" : "estandar";
+  const semilla =
+    typeof opts.seed === "number" && Number.isFinite(opts.seed)
+      ? Math.max(0, Math.floor(opts.seed))
+      : Math.floor(Math.random() * 2 ** 31);
+  return {
+    checkpoint,
+    positivo: opts.prompt,
+    negativo: (opts.negative || "").trim(),
+    formato: formatoComfyuiMasCercano(clampDim(opts.width), clampDim(opts.height)),
+    escala,
+    semilla,
+    pasos: 20,
+    cfg: 7,
+    muestreador: "euler",
+    planificador: "normal",
+  };
+}
+
 async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
   const endpoint = resolveEndpoint("comfyui", getMediaPrefs());
   if (!endpoint) {
     return {
       ok: false,
       provider: "comfyui",
-      error: "No hay un endpoint de ComfyUI configurado. Necesita un proxy/API compatible con un flujo txt2img simple.",
+      error: "No hay un endpoint de ComfyUI configurado (aquí o en /servicios).",
     };
   }
-  return postForMedia(joinUrl(endpoint, "/prompt"), "comfyui", "image", { prompt: opts.prompt }, LOCAL_TIMEOUT_MS, true);
+  // Un ComfyUI real no admite {prompt: "texto"}: pide el GRAFO en formato API, que se construye aquí con las plantillas puras de flujos-comfyui. Seguir /history y bajar por /view lo completa el cliente de flujos (IMG1020B).
+  const grafo = textoAImagen(peticionFlujoComfyui(opts));
+  return postForMedia(joinUrl(endpoint, "/prompt"), "comfyui", "image", { prompt: grafo }, LOCAL_TIMEOUT_MS, true);
 }
 
 async function customEndpointImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
