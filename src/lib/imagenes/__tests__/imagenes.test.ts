@@ -124,6 +124,62 @@ describe("paquete base sugerido", () => {
     expect(s.nada).toMatch(/malla/);
     expect(motoresPosibles({ so: "ios", gpu: "apple", vramGB: null, ramGB: 6, webgpu: true })).toEqual(["onnx-web"]);
   });
+  it("PC con NVIDIA de 24 GB: Z-Image-Turbo (libre) como opción rápida de calidad", () => {
+    const s = paqueteBase(PC24, { comercial: false });
+    const rapido = s.instalar.find((x) => x.papel === "rapido");
+    expect(rapido?.modelo.id).toBe("z-image-turbo");
+    expect(rapido?.modelo.uso).toBe("libre");
+    expect(rapido?.porQue).toMatch(/Hugging Face/);
+    expect(s.instalar.some((x) => x.modelo.id === "z-image-turbo")).toBe(true);
+  });
+  it("Z-Image-Turbo solo donde cabe: ni la Mac de 8 GB ni la A1 lo proponen", () => {
+    for (const h of [MAC8, A1]) {
+      expect(paqueteBase(h, { comercial: false }).instalar.some((x) => x.modelo.id === "z-image-turbo")).toBe(false);
+    }
+  });
+  it("sin permiso personal, el Turbo GGUF no se propone ni en la Mac ni en la A1", () => {
+    for (const h of [MAC8, A1]) {
+      expect(paqueteBase(h, { comercial: false }).instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
+      expect(paqueteBase(h, { comercial: false, permitirPersonal: false }).instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
+    }
+  });
+  it("Mac de 8 GB con modelos personales: Turbo GGUF Q3_K_S (2,72 GB) como calidad y con su motivo", () => {
+    const s = paqueteBase(MAC8, { comercial: false, permitirPersonal: true });
+    const calidad = s.instalar.find((x) => x.papel === "calidad");
+    expect(calidad?.modelo.id).toBe("qwen-image-2.1-turbo");
+    expect(calidad?.gguf).toBe("Q3_K_S");
+    expect(calidad?.cuantizacion).toBe("q4");
+    expect(calidad?.porQue).toContain("Q3_K_S");
+    expect(calidad?.porQue).toContain("2,72 GB");
+    expect(calidad?.porQue).toMatch(/personal/i);
+    expect(calidad?.porQue).toMatch(/comercial/i);
+    expect(s.instalar.find((x) => x.papel === "rapido")?.modelo.id).toBe("sd-turbo");
+  });
+  it("A1 con modelos personales: Turbo GGUF Q4_K_M (4,2 GB) y el resto del paquete igual", () => {
+    const s = paqueteBase(A1, { comercial: false, permitirPersonal: true });
+    const calidad = s.instalar.find((x) => x.papel === "calidad");
+    expect(calidad?.modelo.id).toBe("qwen-image-2.1-turbo");
+    expect(calidad?.gguf).toBe("Q4_K_M");
+    expect(calidad?.porQue).toContain("Q4_K_M");
+    expect(calidad?.porQue).toContain("4,2 GB");
+    expect(s.instalar.find((x) => x.papel === "rapido")?.modelo.id).toBe("flux1-schnell");
+    expect(s.instalar.find((x) => x.papel === "texto")?.modelo.id).toBe("sd35-medium");
+  });
+  it("uso comercial: el Turbo personal no entra aunque esté activado", () => {
+    for (const h of [MAC8, A1, PC24]) {
+      const s = paqueteBase(h, { comercial: true, permitirPersonal: true });
+      expect(s.instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
+    }
+  });
+  it("con modelos personales, si el Turbo ya está en la malla se usa desde allí", () => {
+    const s = paqueteBase(MAC8, { comercial: false, permitirPersonal: true, enLaMalla: ["qwen-image-2.1-turbo"] });
+    expect(s.instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
+    expect(s.desdeLaMalla.join(" ")).toMatch(/Turbo/);
+  });
+  it("iPhone sin stable-diffusion.cpp: ni con permiso personal entra el Turbo GGUF", () => {
+    const s = paqueteBase({ so: "ios", gpu: "apple", vramGB: null, ramGB: 6, webgpu: false }, { comercial: false, permitirPersonal: true });
+    expect(s.instalar).toEqual([]);
+  });
 });
 
 describe("núcleo puro", () => {

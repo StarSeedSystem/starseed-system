@@ -2,9 +2,11 @@
  * Imágenes locales de Astraura · PAQUETE BASE SUGERIDO POR NEURONA (IMG1011). Contrato: architecture/astraura-imagenes.md §5.
  *
  * Al instalar la app (o cuando cambia el hierro o sale un modelo nuevo), Astraura sugiere qué instalar en
- * ESTA neurona: uno rápido, uno de calidad y, si cabe, uno que escriba texto legible o edite. No sugiere lo
- * que ya ofrece otra neurona tuya en la malla (lo usa desde allí) ni nada no comercial si el uso es
- * comercial. El disco lo comprueba el instalador con los tamaños reales de cada archivo. PURO.
+ * ESTA neurona: uno rápido (Z-Image-Turbo si cabe), uno de calidad y, si cabe, uno que escriba texto legible
+ * o edite. No sugiere lo que ya ofrece otra neurona tuya en la malla (lo usa desde allí) ni nada no comercial
+ * si el uso es comercial. Los modelos personales (Qwen-Image-2.1-Turbo en GGUF) solo entran si la persona los
+ * activó con `permitirPersonal`, nunca por defecto y nunca en uso comercial. El disco lo comprueba el
+ * instalador con los tamaños reales de cada archivo. PURO.
  */
 import { MODELOS_IMAGEN, type ModeloImagen, type MotorImg } from "./modelos";
 import { cabe, type Cuantizacion, type NeuronaImg } from "./plan";
@@ -20,8 +22,30 @@ export interface HierroImg {
   webgpu: boolean;
 }
 
-export interface Sugerencia { papel: "rapido" | "calidad" | "texto"; modelo: ModeloImagen; motor: MotorImg; cuantizacion: Cuantizacion; porQue: string }
+/** Variantes GGUF verificadas del Turbo personal (unsloth), con el tamaño de sus pesos. */
+export const GGUF_TURBO = [
+  { archivo: "Q3_K_S", gb: 2.72, texto: "2,72 GB" },
+  { archivo: "Q4_K_M", gb: 4.2, texto: "4,2 GB" },
+] as const;
+export type GgufTurbo = (typeof GGUF_TURBO)[number]["archivo"];
+
+export interface Sugerencia {
+  papel: "rapido" | "calidad" | "texto";
+  modelo: ModeloImagen;
+  motor: MotorImg;
+  cuantizacion: Cuantizacion;
+  /** Variante GGUF concreta (afina la cuantización «q4»); solo en modelos personales. */
+  gguf?: GgufTurbo;
+  porQue: string;
+}
 export interface PaqueteBase { instalar: Sugerencia[]; desdeLaMalla: string[]; nada?: string }
+
+export interface OpcionesPaquete {
+  comercial: boolean;
+  enLaMalla?: readonly string[];
+  /** La persona activó modelos de uso personal (no comercial) para su propio uso. Falso por defecto. */
+  permitirPersonal?: boolean;
+}
 
 /** Motores que la app puede poner en cada sistema (stable-diffusion.cpp en todos menos iOS). */
 export function motoresPosibles(h: HierroImg): MotorImg[] {
@@ -41,8 +65,25 @@ const PAPEL: Record<Sugerencia["papel"], (m: ModeloImagen) => boolean> = {
 const GAMA = { alta: 0, media: 1, entrada: 2, navegador: 3 } as const;
 const USO = { libre: 0, atribucion: 1, condicionado: 2, "restringido-region": 3, "no-comercial": 4 } as const;
 
+/**
+ * Qwen-Image-2.1-Turbo en GGUF para uso personal. Solo se propone con `permitirPersonal` y nunca en uso
+ * comercial. En la Mac de 8 GB se elige el Q3_K_S (deja sitio al codificador de texto); con más memoria
+ * para imágenes, el Q4_K_M. La variante va en `gguf` y en el motivo para que el instalador sepa el archivo.
+ */
+function sugerenciaPersonal(h: HierroImg, catalogo: readonly ModeloImagen[]): Sugerencia | null {
+  const m = catalogo.find((x) => x.id === "qwen-image-2.1-turbo");
+  if (!m || m.uso !== "no-comercial" || !motoresPosibles(h).includes("sdcpp")) return null;
+  const v = h.ramGB <= 8 ? GGUF_TURBO[0] : GGUF_TURBO[1];
+  if (h.ramGB < v.gb) return null;
+  return {
+    papel: "calidad", modelo: m, motor: "sdcpp", cuantizacion: "q4", gguf: v.archivo,
+    porQue: `Turbo personal en GGUF ${v.archivo} (${v.texto}): cabe en esta neurona. `
+      + `Licencia ${m.licencia}: solo para tu uso personal, nunca para uso comercial ni para la malla.`,
+  };
+}
+
 export function paqueteBase(
-  h: HierroImg, opciones: { comercial: boolean; enLaMalla?: readonly string[] }, catalogo: readonly ModeloImagen[] = MODELOS_IMAGEN,
+  h: HierroImg, opciones: OpcionesPaquete, catalogo: readonly ModeloImagen[] = MODELOS_IMAGEN,
 ): PaqueteBase {
   const yo: NeuronaImg = {
     id: "esta neurona", capa: "dispositivo", gpu: h.gpu, vramGB: h.vramGB, ramLibreGB: h.ramGB,
@@ -61,9 +102,17 @@ export function paqueteBase(
       || (a.c.cuantizacion === "q4" ? 1 : 0) - (b.c.cuantizacion === "q4" ? 1 : 0) || (soloCpu ? a.m.pasos - b.m.pasos : 0));
   const instalar: Sugerencia[] = [];
   const desdeLaMalla: string[] = [];
+  // El Turbo GGUF solo entra si la persona activó modelos personales y el uso no es comercial.
+  const personal = opciones.permitirPersonal && !opciones.comercial ? sugerenciaPersonal(h, catalogo) : null;
   for (const papel of ["rapido", "calidad", "texto"] as const) {
+    if (papel === "calidad" && personal) {
+      if (malla.has(personal.modelo.id)) desdeLaMalla.push(`${personal.modelo.nombre}: ya lo ofrece otra neurona tuya; se usa desde allí.`);
+      else instalar.push(personal);
+      continue;
+    }
     const lista = validos.filter((x) => PAPEL[papel](x.m) && !instalar.some((s) => s.modelo.id === x.m.id));
-    const x = lista[0];
+    // Z-Image-Turbo (libre) es la opción rápida de calidad: si cabe, va antes que cualquier otra.
+    const x = (papel === "rapido" ? lista.find((y) => y.m.id === "z-image-turbo") : undefined) ?? lista[0];
     if (!x) continue;
     if (malla.has(x.m.id)) { desdeLaMalla.push(`${x.m.nombre}: ya lo ofrece otra neurona tuya; se usa desde allí.`); continue; }
     const gate = x.m.gated ? " Pide aceptar sus términos con una cuenta de Hugging Face." : "";
