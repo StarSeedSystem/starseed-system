@@ -117,4 +117,13 @@ describe("lector-volumen", () => {
     expect((await lector.leer(2, 1)).bytes.byteLength).toBe(0);
     expect(f.llamadas).toEqual([]);
   });
+  it("prebuscar no lanza si la fuente falla y deja el rango vacío en cero", async () => {
+    const bandas = [bytesDe(5)];
+    const rota = fuente("rota", bandas, { falla: true });
+    const { lector } = await montar(bandas, [rota]);
+    await expect(lector.prebuscar({ desde: 0, hasta: 0 })).resolves.toBe(0);
+    expect(rota.llamadas).toEqual([0]);
+    expect((await lector.leer(2, 1)).bytes.byteLength).toBe(0);
+    await expect(lector.leer(0, 0)).rejects.toThrow("banda 0 sin fuente verificable");
+  });
 });
