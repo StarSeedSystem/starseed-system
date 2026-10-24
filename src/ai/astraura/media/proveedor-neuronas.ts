@@ -11,11 +11,13 @@
  *
  * Honestidad («basta de ilusiones»): lo que no corre aquí se dice por qué en `descartes` (el servicio
  * de imágenes de una neurona no está encendido, la pestaña no tiene el generador WebGPU registrado,
- * los Spaces de Hugging Face aún no se llaman desde aquí). Nunca se instala ni se descarga nada, nunca
- * se sondea Supabase (las capacidades llegan con el latido de `listNeurons`, con su caché de 5 min).
+ * un Space dormido o lleno). Los Spaces de Hugging Face se llaman desde ESTE navegador con la cuota y
+ * el token de la persona (ESP1011A/ESP1011D). Nunca se instala ni se descarga nada, nunca se sondea
+ * Supabase (las capacidades llegan con el latido de `listNeurons`, con su caché de 5 min).
  */
 import { planImagen, type CapaImg, type NeuronaImg, type OpcionImagen, type PeticionImagen } from "@/lib/imagenes/plan";
 import { modeloPorId, MOTORES_IMG, type CapacidadImg, type MotorImg } from "@/lib/imagenes/modelos";
+import { ejecutarOpcionEspacio } from "@/lib/imagenes/adaptadores/espacios-imagen";
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 
 /** Una opción de la galería que ve la Protomolécula: de dónde salió, con qué licencia y cuánto tardó. */
@@ -176,7 +178,7 @@ export function armarOpcion(
 export type EjecutarOpcion = (
   op: OpcionImagen,
   prompt: string,
-) => Promise<{ url?: string; ref?: string; segundos: number } | null>;
+) => Promise<{ url?: string; ref?: string; segundos: number; motivo?: string } | null>;
 
 const TIMEOUT_LOCAL_MS = 180000;
 
@@ -238,7 +240,7 @@ export async function ejecutarOpcionReal(
   op: OpcionImagen,
   prompt: string,
   viaWebGratis: EntradaGaleria["viaWebGratis"],
-): Promise<{ url?: string; ref?: string; segundos: number } | null> {
+): Promise<{ url?: string; ref?: string; segundos: number; motivo?: string } | null> {
   const t0 = Date.now();
   const tardado = () => Math.round(((Date.now() - t0) / 1000) * 10) / 10;
   if (op.motor === "pollinations") {
@@ -252,7 +254,13 @@ export async function ejecutarOpcionReal(
     const r = await generadorTab(prompt, op.semilla).catch(() => null);
     return r && (r.url || r.ref) ? { ...r, segundos: tardado() } : null;
   }
-  if (op.motor === "espacio-hf") return null; // El cliente de Spaces aún no está conectado: descarte honesto.
+  if (op.motor === "espacio-hf") {
+    // El Space se llama desde ESTE navegador (ESP1011A/ESP1011D): cuota y token de la persona.
+    const r = await ejecutarOpcionEspacio(op, prompt);
+    return r.ok
+      ? { ...(r.url ? { url: r.url } : {}), segundos: r.segundos }
+      : { segundos: 0, motivo: r.motivo };
+  }
   if (op.motor === "externo") return null; // Los servicios de pago se piden con tu clave aparte.
   // Capas locales (dispositivo/neurona/malla): el servicio de imágenes de IMG1011A en esa neurona.
   const endpoint = endpointsPorNeurona[op.neuronaId ?? ""];
@@ -352,15 +360,15 @@ export async function generarGaleriaImagenes(
 
     // Lanza las primeras `pedidas` en paralelo; las que fallen promueven la siguiente del plan.
     const nombreDe = (op: OpcionImagen) => op.modelo?.nombre ?? op.motor;
-    const pendientes = new Map<number, Promise<OpcionGaleria | null>>();
+    const pendientes = new Map<number, Promise<{ hecha: OpcionGaleria } | { fallo: string } | null>>();
     const lanzar = (i: number): void => {
       if (pendientes.has(i) || i >= plan.opciones.length) return;
       const op = plan.opciones[i];
       pendientes.set(
         i,
         correr(op, prompt)
-          .then((r) => (r ? armarOpcion(op, r) : null))
-          .catch(() => null),
+          .then((r) => (r && (r.url || r.ref) ? { hecha: armarOpcion(op, r) } : r?.motivo ? { fallo: r.motivo } : null))
+          .catch((e) => ({ fallo: e instanceof Error && e.message ? e.message : "falló sin decir por qué" })),
       );
     };
     for (let i = 0; i < Math.min(pedidas, plan.opciones.length); i++) lanzar(i);
@@ -370,11 +378,12 @@ export async function generarGaleriaImagenes(
     for (let i = 0; i < plan.opciones.length && opciones.length < pedidas; i++) {
       lanzar(i);
       const r = await pendientes.get(i);
-      if (r) {
-        opciones.push(r);
+      if (r && "hecha" in r) {
+        opciones.push(r.hecha);
         continue;
       }
-      descartes.push(`${nombreDe(plan.opciones[i])} (${plan.opciones[i].capa}): no respondió; se intentó la siguiente del plan.`);
+      const motivo = r && "fallo" in r ? r.fallo : "no respondió; se intentó la siguiente del plan.";
+      descartes.push(`${nombreDe(plan.opciones[i])} (${plan.opciones[i].capa}): ${motivo}`);
       if (siguiente < plan.opciones.length) {
         lanzar(siguiente);
         siguiente++;
