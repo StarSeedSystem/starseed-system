@@ -26,7 +26,7 @@ export interface PeticionSugerencias { clave: string; familia: string; contexto:
 export type EnrutadorAstraura = (peticion: PeticionSugerencias) => Promise<CandidatoSugerido[]>;
 export interface DepsSugerir { enrutador: EnrutadorAstraura; adn?: AdnContexto | null; escalera?: readonly EscalonAstraura[] }
 export interface VariacionSugerida { titulo: string; descripcion?: string; payload: unknown; licencia: string;
-  etiquetas: string[]; origen: string; requiereAislamiento: boolean; motivo: string }
+  etiquetas: string[]; origen: string; requiereAislamiento: boolean; motivo: string; metricas?: MetricasAdn }
 export interface DescartadaSugerencia { titulo: string; motivos: string[] }
 export interface ResultadoSugerencias { disponible: boolean; escalera: EscalonAstraura[]; variaciones: VariacionSugerida[];
   descartadas: DescartadaSugerencia[]; error?: string }
@@ -100,7 +100,7 @@ export async function sugerirVariaciones(clave: string, contexto: ContextoVariac
     if (sinMedir.length) motivo.push(`ADN sin medir: ${sinMedir.join(", ")}`);
     base.variaciones.push({ titulo, descripcion: candidato.descripcion?.trim() || undefined, payload: candidato.payload,
       licencia, etiquetas: [...(candidato.etiquetas ?? [])].slice(0, 8), origen: candidato.origen ?? "astraura",
-      requiereAislamiento: datos.requiereAislamiento, motivo: motivo.join(" · ") });
+      requiereAislamiento: datos.requiereAislamiento, motivo: motivo.join(" · "), metricas: candidato.metricas });
   }
   return base;
 }
