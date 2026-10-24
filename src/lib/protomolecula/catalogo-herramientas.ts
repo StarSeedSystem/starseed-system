@@ -424,18 +424,19 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
   },
   {
     id: "penpot", nombre: "Penpot", categoria: "vector-diseno", tipo: "app", origen: "github",
-    descripcion: "Plataforma de diseño y prototipado abierta (alternativa a Figma) con SVG nativo, componentes, diseño responsivo (flex/grid) y sistema de plugins.",
+    descripcion: "Plataforma de diseño y prototipado abierta (alternativa a Figma) con SVG nativo, componentes, diseño responsivo (flex/grid), sistema de plugins y servidor MCP oficial. Se puede autoalojar con Docker.",
     licencia: "MPL-2.0", codigo: "https://github.com/penpot/penpot", web: "https://penpot.app",
     medios: { web: "embebible", android: true, ios: true, macos: true, windows: true, linux: true, servidor: true },
     integracion: "servidor-remoto",
     formatos: { entrada: ["svg", "png", "jpeg", "penpot"], salida: ["svg", "png", "jpeg", "pdf", "penpot"] },
-    control: { via: ["http", "js"], notas: "Servidor autoalojable con Docker; API HTTP y plugins en JavaScript que corren en un iframe." },
+    control: { via: ["http", "js", "mcp"], notas: "Servidor autoalojable con Docker (PostgreSQL y Valkey); API HTTP, plugins en JavaScript que corren en un iframe y servidor MCP oficial para que los agentes lean y creen diseños." },
     actualizacion: { fuente: "github-releases", ref: "penpot/penpot", ultimaVersion: "2.18.3", fechaVersion: "2026-10-06" },
-    ia: [],
-    estado: "integrable", motivo: "Servidor propio o servicio abierto de terceros; el OS lo llama por HTTP con la clave solo por nombre de variable.",
-    verificado: "2026-10-10",
+    ia: ["mcp"],
+    estado: "integrable", motivo: "Conector autoalojado: el OS lo llama por HTTP y su MCP oficial deja a Astraura y a los agentes leer y crear diseños. El servidor es pesado y vive en una neurona como la A1 de Oracle.",
+    verificado: "2026-10-20",
     avisos: [
-      "Pide servidor propio (Postgres, Redis y backend): encaja en una neurona de servidor como la A1 de Oracle.",
+      "Pide servidor propio (PostgreSQL, Valkey y backend): encaja en una neurona de servidor como la A1 de Oracle.",
+      "Su MCP actúa sobre la pestaña abierta y ejecuta código de plugins: úsalo con cuidado.",
     ],
   },
   {
@@ -724,7 +725,7 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
   // ── pizarras-diagramas ──────────────────────────────────────────
   {
     id: "excalidraw", nombre: "Excalidraw", categoria: "pizarras-diagramas", tipo: "app", origen: "github",
-    descripcion: "Pizarra virtual de trazo a mano con colaboración en tiempo real cifrada de extremo a extremo; se embebe como componente de React con API imperativa.",
+    descripcion: "Pizarra virtual de trazo a mano con colaboración en tiempo real cifrada de extremo a extremo; se embebe como componente de React con API imperativa. Pensada para la pizarra de la Protomolécula y para las notas dibujadas de los cerebros.",
     licencia: "MIT", codigo: "https://github.com/excalidraw/excalidraw", web: "https://excalidraw.com",
     medios: { web: "embebible", android: true, ios: true, macos: true, windows: true, linux: true, servidor: false },
     integracion: "libreria-js",
@@ -732,8 +733,12 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     control: { via: ["js"], notas: "`ExcalidrawImperativeAPI`: updateScene, getSceneElements, setActiveTool…" },
     actualizacion: { fuente: "npm", ref: "@excalidraw/excalidraw", ultimaVersion: "0.18.1", fechaVersion: "2026-04-20" },
     ia: [],
-    estado: "integrable", motivo: "Se importa como librería JavaScript dentro del paquete de la Biblioteca, detrás de los parámetros del átomo.",
-    verificado: "2026-10-10",
+    estado: "integrable", motivo: "Componente React MIT (@excalidraw/excalidraw): la integración está EN CURSO y aún no está montada en la pizarra ni en las notas. Falta añadir la dependencia y cargarla a demanda; la ficha solo registra la vía.",
+    verificado: "2026-10-20",
+    avisos: [
+      "Componente pesado: se carga solo al abrir la pizarra; la colaboración en vivo va por la sincronía propia del OS.",
+      "Añadir la dependencia cambia package.json y el lock: lo integra una tarea con npm y build, no una tarea del enjambre.",
+    ],
   },
   {
     id: "drawio", nombre: "draw.io (diagrams.net)", categoria: "pizarras-diagramas", tipo: "app", origen: "github",
@@ -1749,6 +1754,23 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     verificado: "2026-10-10",
   },
   {
+    id: "img2threejs", nombre: "img2threejs", categoria: "modelado-3d", tipo: "libreria", origen: "github",
+    descripcion: "Skill para agentes de código que reconstruye un objeto de una imagen como módulo three.js procedural (primitivas, materiales y shaders) con puertas de calidad. No es un modelo de IA ni una malla pesada: el agente escribe la escena.",
+    licencia: "Apache-2.0", codigo: "https://github.com/img2threejs/img2threejs", web: "https://github.com/img2threejs/img2threejs",
+    medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "servicio-local",
+    formatos: { entrada: ["png", "jpeg", "webp"], salida: ["js", "three.js"] },
+    control: { via: ["ninguno"], notas: "Se instala como skill del agente de código; el agente produce el módulo y el visor 3D de la Protomolécula lo carga. No hay API del OS ni MCP verificado." },
+    actualizacion: { fuente: "github-releases", ref: "img2threejs/img2threejs", ultimaVersion: null, fechaVersion: null },
+    ia: ["imagen-a-threejs", "cli-agentes"],
+    estado: "integrable", motivo: "La vía es el agente: se instala la skill en su neurona y este escribe el módulo three.js. Hoy no hay átomo automático montado en la Protomolécula: la ficha registra la herramienta, no una integración que ya corra.",
+    verificado: "2026-10-20",
+    avisos: [
+      "Caro en tokens y de calidad variable: úsalo con objetos sencillos y revisión humana.",
+      "No corre dentro del OS por sí solo: depende del agente de código que lo invoca.",
+    ],
+  },
+  {
     id: "meshlab", nombre: "MeshLab", categoria: "modelado-3d", tipo: "app", origen: "github",
     descripcion: "Procesamiento y limpieza de mallas 3D y nubes de puntos: reparar, simplificar, remallar, medir y convertir entre formatos.",
     licencia: "GPL-3.0-or-later", codigo: "https://github.com/cnr-isti-vclab/meshlab", web: "https://www.meshlab.net",
@@ -1872,6 +1894,29 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     ia: [],
     estado: "integrable", motivo: "Se importa como librería JavaScript dentro del paquete de la Biblioteca, detrás de los parámetros del átomo.",
     verificado: "2026-10-10",
+  },
+  {
+    id: "supra-tex", nombre: "SUPRA-Tex", categoria: "materiales-shaders", tipo: "modelo", origen: "github",
+    descripcion: "Genera recursos 3D con textura PBR (color, metálico y rugosidad) muy alineada desde una sola imagen y texturiza mallas existentes. Hoy hay pesos y una demo en Hugging Face; el código de inferencia aún no se ha publicado.",
+    licencia: "MIT (pesos de completado) + LicenseRef-Qwen-Research-NonCommercial (adaptador de materiales)",
+    licenciaPesos: "MIT (pesos de completado) + LicenseRef-Qwen-Research-NonCommercial (adaptador de materiales)",
+    codigo: "https://github.com/Supra-3D/SUPRA-Tex", web: "https://huggingface.co/spaces/Supra-3D/SUPRA-Tex",
+    medios: { web: "no", android: false, ios: false, macos: false, windows: true, linux: true, servidor: true },
+    integracion: "solo-enlace",
+    formatos: { entrada: ["png", "jpeg", "webp", "glb", "obj"], salida: ["glb", "png", "exr"] },
+    control: { via: ["ninguno"], notas: "Sin código de inferencia publicado («Inference code will follow»): solo pesos y el Space de demostración. No hay API del OS." },
+    actualizacion: { fuente: "web", ref: "https://huggingface.co/spaces/Supra-3D/SUPRA-Tex", ultimaVersion: null, fechaVersion: null },
+    ia: ["imagen-a-pbr", "texturiza-malla"],
+    estado: "solo-enlace", motivo: "Sus pesos y su demo se pueden consultar, pero el código de inferencia aún no está publicado y el adaptador de materiales tiene licencia NO comercial: no se integra en el OS; solo enlace.",
+    verificado: "2026-10-20",
+    sinComprobar: [
+      "El código de inferencia aún no se ha publicado: solo hay pesos y una demo en Hugging Face.",
+      "No hay releases ni etiquetas que permitan comprobar una versión del repositorio.",
+    ],
+    avisos: [
+      "Licencia NO comercial en el adaptador de materiales: no para usos comerciales.",
+      "Requisito estimado de 16 GB de GPU CUDA; la demo envía la imagen a Hugging Face.",
+    ],
   },
 
   // ── splats-fotogrametria ────────────────────────────────────────
