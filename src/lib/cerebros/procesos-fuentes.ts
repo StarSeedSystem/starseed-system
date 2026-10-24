@@ -79,7 +79,7 @@ async function leerFuenteFetch(url: string): Promise<ResultadoFuente> {
             return { ok: false, data: null, ms, motivo: " tiempo agotado" };
         }
         if ((error as { status?: number }).status !== undefined) {
-            const motivo = [401, 403, 404].includes((error as { status?: number }).status)
+            const motivo = [401, 403, 404].includes((error as { status?: number }).status!)
                 ? " no disponible aquí"
                 : ` error ${(error as { status?: number }).status}`;
             return { ok: false, data: null, ms, motivo };
@@ -213,5 +213,3 @@ export async function leerProcesos(o?: { incluirMac?: boolean; atrasos?: unknown
     };
 }
 
-/** Mantiene la firma original exportada para compatibilidad. */
-export { type FuentesProcesos };
