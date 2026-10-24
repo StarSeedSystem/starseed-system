@@ -3,8 +3,7 @@
  * Botón y diálogo «Crear en 3D desde una imagen» (G3D1011E). Contrato: architecture/astraura-avatares-3d.md §11.
  * El destino lo pone quien lo monta (Protomolécula, avatar, bot o pieza). Enseña el plan por etapa con su motor
  * o el porqué, qué neurona podría, pide permiso si solo queda el Space remoto y guarda el GLB en la Biblioteca.
- * Basta de ilusiones: el taller local (servicios/taller-3d, AV1011F) aún no existe, así que por defecto no se
- * conecta; el Space va por POST /api/avatares/espacio-hf y la Biblioteca por la subida de archivos del OS.
+ * Los Spaces públicos se llaman DESDE EL NAVEGADOR de cada persona (su cuota). No se usa proxy compartido al servidor.
  */
 import { useId, useMemo, useState } from "react";
 import { procedenciaDe } from "@/lib/avatares/adn/canalizacion";
@@ -12,27 +11,34 @@ import { MOTORES_3D } from "@/lib/avatares/adn/motores";
 import type { Destino3D } from "@/lib/avatares/adn/optimizacion";
 import { hierroDeCapacidades } from "@/lib/avatares/adaptadores/reparto-taller";
 import { useGenerar3d, type Contexto3D, type Dependencias3D } from "@/lib/avatares/adaptadores/use-generar-3d";
+import { generar3DEspacios } from "@/lib/avatares/adaptadores/espacios-3d";
 import { uploadFile } from "@/lib/files/os-files";
 import { saveResource, useSavedLibrary } from "@/lib/library-store";
 
 const ETAPA: Record<string, string> = { generar: "Generar la malla", remallar: "Remallar", riggear: "Esqueleto", detallar: "Mejorar detalle", animar: "Animar" };
 const DESTINO: Record<Destino3D, string> = { protomolecula: "Protomolécula", impresion: "Impresión", avatar: "Avatar", bot: "Cuerpo del bot", pieza: "Pieza" };
-const aDataUrl = (b: Blob) => new Promise<string>((ok, mal) => { const f = new FileReader(); f.onload = () => ok(String(f.result)); f.onerror = () => mal(f.error); f.readAsDataURL(b); });
 
-/** Lo de verdad por defecto: sin taller local (no existe aún), Space por la ruta del OS y la Biblioteca. */
-function dependenciasDelOs(cuenta: string | null): Dependencias3D {
+/** Lo de verdad por defecto: sin taller local (no existe aún). Los Spaces se llaman desde el navegador con el adaptador ESP1011C. */
+function dependenciasDelOs(cuenta: string | null, destino?: Destino3D): Dependencias3D {
   return {
     taller: null,
     espacio: async (img, op) => {
-      const r = await fetch("/api/avatares/espacio-hf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        imagen: await aDataUrl(img), personaId: cuenta ?? undefined, permiso: op.permisoRemoto, esFotoDePersonas: op.esFotoDePersonas,
-        consentimientoPersonas: op.consentimientoPersonas, usoHoyDeclarado: op.usoHoy ?? 0 }) });
-      if (!r.ok || (r.headers.get("Content-Type") ?? "").includes("json")) {
-        const j = (await r.json().catch(() => ({}))) as { motivo?: string };
-        return { ok: false, fallo: "otro", motivo: j.motivo ?? `El Space respondió ${r.status}.` };
+      const r = await generar3DEspacios(
+        {
+          imagen: img,
+          titulo: op.titulo ?? "modelo-3d",
+          destino,
+          permisoRemoto: op.permisoRemoto,
+          esFotoDePersonas: op.esFotoDePersonas,
+          consentimientoPersonas: op.consentimientoPersonas,
+        },
+        {},
+      );
+      if (!r.ok) {
+        return { ok: false, fallo: "otro", motivo: r.motivo };
       }
-      const motor = MOTORES_3D.find((m) => m.id === r.headers.get("X-Motor"));
-      return { ok: true, glb: await r.blob(), lods: [], procedencia: motor ? [procedenciaDe(motor)] : [] };
+      const avisos = r.aviso ? [r.aviso] : [];
+      return { ok: true, glb: r.archivo.blob, lods: [], procedencia: r.procedencia, avisos };
     },
     guardar: async (e) => {
       const archivo = new File([e.glb], `${e.titulo || "modelo-3d"}.glb`, { type: "model/gltf-binary" });
@@ -58,7 +64,7 @@ export function Generar3D({ destino, contexto, dependencias, etiqueta = "Crear e
     hierro: typeof navigator === "undefined" ? null : hierroDeCapacidades({ platform: navigator.platform, memoryGb: (navigator as Navigator & { deviceMemory?: number }).deviceMemory }),
     ...contexto,
   }), [destino, contexto]);
-  const deps = useMemo(() => dependencias ?? dependenciasDelOs(c.cuenta), [dependencias, c.cuenta]);
+  const deps = useMemo(() => dependencias ?? dependenciasDelOs(c.cuenta, destino), [dependencias, c.cuenta, destino]);
   const { preparado: p, estado, generar, reiniciar } = useGenerar3d(c, deps);
   const remota = p.via === "remota", ocupado = estado.fase === "generando";
   const puede = !!img && p.via !== "ninguna" && !ocupado && (!remota || (permiso && (!personas || consiente)));

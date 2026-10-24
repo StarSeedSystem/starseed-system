@@ -15,9 +15,9 @@ import {
   motivoSinPermiso,
   type ArchivoDescargado,
   type EntradaEspacio,
+  type IntentoFallido,
   type OpcionEspacio,
   type OpcionesEjecucion,
-  type ResultadoConRespaldo,
 } from "@/lib/espacios/cliente-espacios";
 import { procedenciaDe } from "@/lib/avatares/adn/canalizacion";
 import { MOTORES_3D } from "@/lib/avatares/adn/motores";
@@ -56,14 +56,14 @@ export interface ResultadoGenerar3DEspacio {
   motorId: "pixal3d-espacio" | "trellis2-espacio";
   procedencia: Procedencia[];
   segundosGpu: number;
-  intentos: ResultadoConRespaldo extends { ok: false; intentos: infer I } ? I : [];
+  intentos: IntentoFallido[];
   aviso?: string;
 }
 
 export interface FalloGenerar3DEspacio {
   ok: false;
   motivo: string;
-  intentos: ResultadoConRespaldo extends { ok: false; intentos: infer I } ? I : [];
+  intentos: IntentoFallido[];
 }
 
 /** Plan por defecto: Pixal3D primero, TRELLIS.2 como respaldo (decisión Alex 2026-10-11). */
@@ -204,7 +204,8 @@ export async function generar3DEspacioDirecto(
       intentos: [],
     };
   } catch (e: any) {
-    return { ok: false, motivo: e?.message ?? "Error desconocido", intentos: e?.espacioId ? [{ espacioId: e.espacioId, tipo: e.tipo, motivo: e.message }] : [] };
+    const intentos: IntentoFallido[] = e?.espacioId ? [{ espacioId: e.espacioId, tipo: e.tipo, motivo: e?.message ?? "Error desconocido" }] : [];
+    return { ok: false, motivo: e?.message ?? "Error desconocido", intentos };
   }
 }
 
