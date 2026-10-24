@@ -4611,3 +4611,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `VAR1021Bc` — pruebas en rojo: vitest falla (rama conservada)
 - `VZF1015N` — no escribió nada
 - `VZF1015L` — no escribió nada
+
+## 2026-10-24 12:22 · mg-oracle-1024-0446
+
+**Lo que se pidió.** para tareas muy complicadas … que requieran más capacidad de detalle en su producción y desarrollo técnico y creativo puedes utilizar agentes potentes más especializados (Claude Opus 5.5 en un contenedor en la nube, los más nuevos de Gemini y ChatGPT, o los gratuitos más potentes) supervisando los créditos para no agotarlos
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — pruebas en rojo (ALT1021Bb, RIA1023Hc). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (RTRTRTS1010-EV-ORACLE-1abbbbbb-d2d, RIA1023Gc). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `ALT1021Bb` — pruebas en rojo: vitest falla (rama conservada)
+- `RTRTRTS1010-EV-ORACLE-1abbbbbb-d2d` — no escribió nada
+- `RIA1023Hc` — pruebas en rojo: vitest falla (rama conservada)
+- `RIA1023Gc` — no escribió nada
