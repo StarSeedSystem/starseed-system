@@ -54,13 +54,13 @@ import {
 // indicador con soporte real de hardware y prueba de síntesis corta.
 import { detectarCapacidades } from "@/lib/aurora/voz-starseed/capacidades";
 import {
-  hablarStarSeed,
   soporteSupertonic,
   nivelParaVoz,
   type SoporteSupertonic,
   type NivelVozSuptonica,
 } from "@/lib/aurora/voz-starseed/motor";
-import { buscarTimbre, TIMBRE_PREDETERMINADO } from "@/lib/aurora/timbres";
+// La puerta única (Ola 1015V): Señales no habla por su cuenta, entra por `hablar()`.
+import { hablar } from "@/lib/aurora/voz-unica";
 
 const ICON: Record<SignalKind, LucideIcon> = {
   mesh: RadioTower, wifi: Wifi, cellular: Signal, bluetooth: Bluetooth,
@@ -248,10 +248,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
     if (hablandoVoz) return;
     setHablandoVoz(true);
     try {
-      const timbre = buscarTimbre(TIMBRE_PREDETERMINADO.femenina);
-      const ok = timbre
-        ? await hablarStarSeed("Antenas de esta neurona listas. Voz de borde en marcha.", { timbre, contexto: "aviso" })
-        : false;
+      const ok = await hablar("Antenas de esta neurona listas. Voz de borde en marcha.", { contexto: "aviso" });
       if (!ok) toast("No se pudo sintetizar la voz en esta neurona");
     } finally {
       setHablandoVoz(false);
