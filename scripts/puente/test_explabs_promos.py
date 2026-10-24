@@ -60,10 +60,10 @@ class Clasificar(unittest.TestCase):
 
 class Env(unittest.TestCase):
     def test_solo_cambia_la_linea_de_modelos(self):
-        texto = "A=1\nSTARSEED_PASARELA_EXPLABS_KEY=xpl_secreta\nSTARSEED_PASARELA_EXPLABS_MODELOS=viejo\nB=2\n"
+        texto = "A=1\nSTARSEED_PASARELA_EXPLABS_KEY=xpl_de_prueba\nSTARSEED_PASARELA_EXPLABS_MODELOS=viejo\nB=2\n"
         nuevo = E.actualizar_env(texto, ["m1", "m2"])
         self.assertIn("STARSEED_PASARELA_EXPLABS_MODELOS=m1,m2\n", nuevo)
-        self.assertIn("STARSEED_PASARELA_EXPLABS_KEY=xpl_secreta", nuevo)
+        self.assertIn("STARSEED_PASARELA_EXPLABS_KEY=xpl_de_prueba", nuevo)
         self.assertEqual(nuevo.count("\n"), texto.count("\n"))
         self.assertEqual(E.actualizar_env(texto, []), texto)  # sin modelos no se toca
         self.assertEqual(E.actualizar_env("A=1\n", ["m"]), "A=1\n")  # sin la línea, no se añade nada
