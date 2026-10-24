@@ -9,9 +9,12 @@ import {
   UMBRAL_LAYA_EJECUTAR,
   decidirConJev,
   decidirConLaya,
+  decidirTipoDiagrama,
+  esPeticionDeDiagrama,
   planDeDecision,
   type RespuestaJev,
   type RespuestaLaya,
+  type RespuestaTipoDiagrama,
 } from "@/lib/astraura/decision-hibrida";
 import { esConsultaDePato, decidirConNeedlePato } from "@/lib/astraura/needle-pato";
 import { type Astraura158Target } from "@/lib/astraura/astraura-158-client";
@@ -67,6 +70,16 @@ export async function POST(req: Request) {
       msLaya = Date.now() - t1;
     }
 
+    // Capa 2b: si la petición pide un diagrama, Laya elige el tipo entre los 45
+    // (architecture/diagramas.md §3.1); falla en silencio como el resto de capas.
+    let tipoRes: RespuestaTipoDiagrama | null = null;
+    let msTipo: number | undefined = undefined;
+    if (esPeticionDeDiagrama(body.consulta)) {
+      const t3 = Date.now();
+      tipoRes = await decidirTipoDiagrama(body.consulta);
+      msTipo = Date.now() - t3;
+    }
+
     // Capa 3: Jev (solo si Laya no decidió y hay clave en el servidor)
     if (zona === "escalar" && (!layaRes || layaRes.confianza < UMBRAL_LAYA_EJECUTAR) && apiKey) {
       const t2 = Date.now();
@@ -96,6 +109,12 @@ export async function POST(req: Request) {
           ms: msJev,
           probabilidad: jevRes?.probabilidad ?? null,
           ok: jevRes?.ok ?? false,
+        } : null,
+        tipo: msTipo !== undefined ? {
+          ms: msTipo,
+          tipo: tipoRes?.tipo ?? null,
+          confianza: tipoRes?.confianza ?? null,
+          ok: tipoRes !== null,
         } : null,
       },
     });

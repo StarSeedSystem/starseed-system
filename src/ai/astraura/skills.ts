@@ -21,6 +21,9 @@
 
 import { getInstalledFunctionIds, getInstalledPackageIds } from "@/lib/library/packages";
 import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
+import {
+  ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
+} from "./habilidades/diagramas";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -648,6 +651,22 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: {},
     skillIds: ["aurora-writing-for-agents"],
     packageIds: ["iatool-writing-for-agents"],
+  },
+  /* ═══ DIAGRAMAS · Habilidad Diagram Design por capas (Ola 1018D · DGM1018G) ═══
+   * La tarjeta (≤ 60 palabras) va a Needle y BitNet, el resumen (≤ 120) a Bonsai
+   * pequeño y la guía completa (rutaCompleta) a las capas Razón, Profunda y Nube.
+   * Contrato: architecture/diagramas.md §3. Laya elige el tipo de diagrama entre
+   * los 45 con `preguntaTipo` (src/ai/astraura/habilidades/diagramas.ts).
+   * Se activa al instalar la ficha «Diagram Design» de la Biblioteca
+   * (fn-diagram-design → payload.skillId «diagram-design»), encendida por defecto. */
+  {
+    ...comoCapacidad(HABILIDAD_DIAGRAMAS, "resumen"),
+    systemPrompt:
+      `${HABILIDAD_DIAGRAMAS.resumen} Guía completa en ${HABILIDAD_DIAGRAMAS.rutaCompleta} ` +
+      `— con la tarjeta basta para Needle y BitNet, y elige el tipo de diagrama con Laya antes de dibujar. ${ATRIBUCION_DIAGRAMAS}`,
+    routing: { preferStrong: true },
+    defaultOn: true,
+    skillIds: ["diagram-design"],
   },
 ];
 
