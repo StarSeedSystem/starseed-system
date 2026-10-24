@@ -34,6 +34,25 @@ class TestAsignacionesAgentes(unittest.TestCase):
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def test_raiz_por_defecto_es_repo_con_claude_md(self):
+        """La raíz por defecto es la del repo (contiene CLAUDE.md)."""
+        import asignaciones_agentes
+
+        raiz = asignaciones_agentes.RAIZ
+        self.assertTrue(os.path.isdir(raiz))
+        self.assertTrue(os.path.exists(os.path.join(raiz, "CLAUDE.md")))
+
+    def test_respeta_starseed_root(self):
+        """Respeta STARSEED_ROOT."""
+        import importlib
+
+        with patch.dict(os.environ, {"STARSEED_ROOT": self.temp_dir}, clear=False):
+            import asignaciones_agentes
+            importlib.reload(asignaciones_agentes)
+            self.assertEqual(asignaciones_agentes.RAIZ, self.temp_dir)
+        # Restaurar estado
+        importlib.reload(asignaciones_agentes)
+
     def test_leer_asignaciones_agentes_con_archivo(self):
         """Test que leer_asignaciones_agentes lee desde el JSON cuando existe."""
         # Datos de prueba
