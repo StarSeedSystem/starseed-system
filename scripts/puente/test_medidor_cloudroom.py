@@ -1,4 +1,5 @@
 """Pruebas de interpretación Cloudroom: JSON simulado y ninguna llamada externa."""
+import json
 from datetime import datetime, timezone
 
 import medidor_cloudroom as M
@@ -66,3 +67,74 @@ def test_crm1024h_ruta_de_la_cli_fuera_del_path():
     assert M.ruta_cli({"CLOUDROOM_CLI": "/x/room-cli"}, existe=lambda p: p == "/x/room-cli",
                       buscar=lambda n: None) == "/x/room-cli"
     assert M.ruta_cli({}, existe=lambda p: False, buscar=lambda n: None) is None
+
+
+def test_harnesses_ensenan_sus_modelos_de_la_nube():
+    """RTCRM1024H: varios harnesses a la vez, cada uno lista sus modelos disponibles."""
+    estado = json.dumps({
+        "account": {"name": "cuenta"}, "plan": None,
+        "harnesses": [
+            {"id": "codex", "model": "gpt-6-luna", "provider": "openai",
+             "models": [{"model": "gpt-6-luna", "reasoning_levels": ["high"]},
+                        {"model": "gpt-5.6-terra", "reasoning_levels": []}]},
+            {"id": "claude-code", "model": "sonnet", "provider": "anthropic",
+             "models": [{"model": "sonnet"}, {"model": "opus"}]},
+        ]})
+    medidor = M.interpretar(estado, "{}", [], AHORA)
+    # (RTCRM1024H) la rama archivada pedía también "proveedor" por agente; main no lo emite y
+    # el proveedor del medidor queda en la estructura de medidores_credito (§4.1), no por agente.
+    assert medidor["extras"]["agentes"] == [
+        {"harness": "codex", "modelo": "gpt-6-luna", "modelos": ["gpt-6-luna", "gpt-5.6-terra"]},
+        {"harness": "claude-code", "modelo": "sonnet", "modelos": ["sonnet", "opus"]},
+    ]
+
+
+def test_solo_conserva_los_otros_medidores():
+    """RTCRM1024H: con --solo los medidores que no se volvieron a leer no se pierden."""
+    import medidores_credito as MC
+    previo = {"version": 1, "t": "antes",
+              "medidores": {"claude": {"id": "claude", "ok": True},
+                            "codex": {"id": "codex", "ok": True},
+                            "oracle": {"id": "oracle", "ok": True}},
+              "historial": {"claude": [{"t": "x", "v": {}}]}}
+    doc = MC.recoger([{"id": "cloudroom", "tipo": "t"}], previo, AHORA,
+                     adaptadores={"t": lambda cfg, ahora: {"id": "cloudroom", "ok": True}})
+    resultado = MC.fusionar_solo(previo, doc, {"cloudroom"})
+    assert set(resultado["medidores"]) == {"cloudroom", "claude", "codex", "oracle"}
+    assert resultado["medidores"]["claude"] == {"id": "claude", "ok": True}
+    assert resultado["historial"]["claude"] == [{"t": "x", "v": {}}]
+    assert resultado["medidores"]["cloudroom"]["ok"] is True
+
+
+def test_lista_hilos_incluye_archivados_y_ocultos(monkeypatch):
+    """RTCRM1024H: leer_medidor pide hilos archivados y ocultos (también gastaron ciclo)."""
+    ordenes = []
+    monkeypatch.setenv("CLOUDROOM_CLI", "/opt/falsa/room-cli")
+    monkeypatch.setattr(M, "ruta_cli", lambda: "/opt/falsa/room-cli")
+    monkeypatch.setattr(M, "_correr", lambda orden: ordenes.append(list(orden)) or "{}")
+    M.leer_medidor({}, AHORA)
+    assert ["/opt/falsa/room-cli", "thread", "list", "--json",
+            "--include-archived", "--include-hidden"] in ordenes
+    assert ["/opt/falsa/room-cli", "cloud", "status", "--json"] in ordenes
+
+
+def test_correr_usa_la_ruta_de_la_cli_no_el_nombre_suelto(monkeypatch):
+    """RTCRM1024H: disponible() honra CLOUDROOM_CLI y _correr pasa la orden verbatim."""
+    llamadas = []
+
+    class Resultado:
+        returncode = 0
+        stdout = '{"ok":true}'
+
+    def falso_run(orden, **kwargs):
+        llamadas.append(list(orden))
+        return Resultado()
+
+    import os
+    monkeypatch.setenv("CLOUDROOM_CLI", "/opt/falsa/room-cli")
+    # (medidor_cloudroom importa `os` dentro de ruta_cli; el parche va al módulo `os` real)
+    monkeypatch.setattr("os.path.exists", lambda p: p == "/opt/falsa/room-cli")
+    monkeypatch.setattr(M.subprocess, "run", falso_run)
+    assert M.disponible() is True
+    assert M._correr(["/opt/falsa/room-cli", "cloud", "status", "--json"]) == '{"ok":true}'
+    assert llamadas == [["/opt/falsa/room-cli", "cloud", "status", "--json"]]
