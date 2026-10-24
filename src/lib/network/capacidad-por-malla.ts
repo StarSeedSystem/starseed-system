@@ -7,6 +7,17 @@
  * Cliente `pedirCapacidad` nunca lanza: {ok:false, motivo}.
  */
 
+import {
+  VIDEO_MALLA_NS,
+  VIDEO_MALLA_MAX_HTML_BYTES,
+  VIDEO_MALLA_MAX_DURACION_S,
+  admiteVideoMalla,
+  validarPeticionVideoMalla,
+  manejarPeticionVideoMalla,
+  type DepsVideoMalla,
+  type ReglasAdmisionVideo,
+} from "@/lib/network/video-por-malla";
+
 export const CAPACIDAD_MALLA_NS = "capacidad.";
 export const CAPACIDAD_MALLA_MAX_BYTES = 16 * 1024;
 const MARGEN = 256;
@@ -82,6 +93,39 @@ export function pedirCapacidad(
       else if (msg.t === "capacidad.error") resolve({ ok: false, motivo: msg.mensaje });
     };
   });
+}
+
+/** Topes que este relé anuncia para la capacidad de vídeo (los fija `video-por-malla`). */
+export const LIMITES_VIDEO_CAPACIDAD = Object.freeze({
+  namespace: VIDEO_MALLA_NS,
+  maxHtmlBytes: VIDEO_MALLA_MAX_HTML_BYTES,
+  maxDuracionS: VIDEO_MALLA_MAX_DURACION_S,
+});
+
+export type ResultadoAtenderCapacidad =
+  | { aceptado: true; trabajoId: string }
+  | { aceptado: false; motivo: string };
+
+/**
+ * atenderPeticionCapacidadMalla — punto de entrada del relé para una petición ya
+ * recibida. El render de vídeo se valida y se admite con `video-por-malla` y se
+ * encola con las dependencias inyectadas (reloj, ids y cola); el resto de
+ * capacidades aún no tiene manejador y se rechaza con un motivo legible.
+ */
+export function atenderPeticionCapacidadMalla(
+  peticion: MsgPedir,
+  reglas: ReglasAdmisionVideo,
+  deps: DepsVideoMalla = {},
+): ResultadoAtenderCapacidad {
+  if (peticion.tipo !== "render")
+    return { aceptado: false, motivo: `Rechazo: esta neurona no sirve la capacidad «${peticion.tipo}».` };
+  // Se comprueba en dos pasos explícitos para poder responder al relé con el
+  // motivo exacto antes de tocar la cola; el manejador vuelve a validar (es puro).
+  const validada = validarPeticionVideoMalla(peticion.cuerpo);
+  if (!validada.ok) return { aceptado: false, motivo: validada.motivo };
+  const admitida = admiteVideoMalla(validada.peticion, reglas);
+  if (!admitida.aceptado) return { aceptado: false, motivo: admitida.motivo };
+  return manejarPeticionVideoMalla(validada.peticion, reglas, deps);
 }
 
 function esObjeto(x: unknown): x is Record<string, unknown> { return !!x && typeof x === "object"; }
