@@ -16,6 +16,8 @@ export interface EntradaSugerir {
   vinculadas: ReadonlySet<string>; contenedores: ContenedorOpcion[];
   /** Potencia MEDIDA por id (`puntuarPotencia`); lo no medido va detrás, en el orden de entrada. */
   potencia?: ReadonlyMap<string, number>;
+  /** Tarea larga de código o que debe seguir con el aparato apagado, en un repo git compatible. */
+  relevanteCloudroom?: boolean;
 }
 
 export interface Sugerencia {
@@ -97,10 +99,13 @@ export function sugerirParaAmbito(e: EntradaSugerir): GrupoSugerencias[] {
   pago.forEach((s) => s.papeles.forEach((p) => cubiertos.add(p)));
   // Contenedores con cuenta: gratis si alguna asignación admite su privacidad; de pago, además con permiso.
   for (const c of contenedores) {
+    if (c.id === "cloudroom" && (!e.relevanteCloudroom || !ofertas.some((o) => o.escritorioCompatible === true))) continue;
     const admitido = asignaciones.some((a) => admite(a, privacidadDe(c)) && (!c.requierePago || permitePago(a)));
     if (vinculadas.has(c.id) || !c.requiereCuenta || !admitido) continue;
     if (c.requierePago) pago.push(deContenedor(c, "Contenedor de pago, con el permiso y el tope del ámbito."));
-    else gratis.push(deContenedor(c, "Contenedor gratis para los procesos de los agentes: crea tu cuenta y emparéjalo."));
+    else gratis.push(deContenedor(c, c.id === "cloudroom"
+      ? "Cloudroom: tu neurona de escritorio es compatible; cuenta con 100 agentes en la nube por ciclo de 30 días."
+      : "Contenedor gratis para los procesos de los agentes: crea tu cuenta y emparéjalo."));
   }
 
   // 4) Sin opción: papeles sin ningún candidato, con el porqué.

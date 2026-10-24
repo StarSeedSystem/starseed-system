@@ -7,6 +7,10 @@ export interface ContenedorOpcion {
   requierePago: boolean;
   aptoPrivado: boolean;
   verificado: boolean | null;
+  /** Requisitos del medio que deben mostrarse antes de vincularlo. */
+  requisitos?: string[];
+  /** Cupo explícito del servicio; no equivale a un coste de dinero. */
+  cupo?: string;
 }
 
 // Datos verificados de contenedores en la nube y locales
@@ -50,6 +54,18 @@ export const CONTENEDORES_OPCIONES: ContenedorOpcion[] = [
     requierePago: false,
     aptoPrivado: false,
     verificado: true,
+  },
+  {
+    id: 'cloudroom',
+    nombre: 'Cloudroom',
+    enlaceAlta: 'https://cloudroom.dev',
+    guia: null,
+    requiereCuenta: true,
+    requierePago: false,
+    aptoPrivado: false,
+    verificado: true,
+    cupo: '100 agentes en la nube cada 30 días por cuenta; agentes locales sin cupo.',
+    requisitos: ['App de escritorio en macOS 13+ con Apple Silicon o Linux x64', 'Cuenta de Cloudroom', 'GitHub conectado', 'Agente de código conectado'],
   },
   {
     id: 'google-cloud',

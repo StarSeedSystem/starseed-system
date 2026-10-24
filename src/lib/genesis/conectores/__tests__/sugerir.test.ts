@@ -78,6 +78,17 @@ describe("sugerirParaAmbito", () => {
     expect(sinOpcion(gs).map((s) => s.papel)).toEqual(["chat", "escritor"]);
   });
 
+  it("solo sugiere Cloudroom cuando hay una neurona de escritorio compatible", () => {
+    const base = { asignaciones: [asig("código")], contenedores: CONTENEDORES_OPCIONES };
+    expect(ids(sugerir(base), "gratis-por-vincular")).not.toContain("cloudroom");
+    const gs = sugerir({ ...base, relevanteCloudroom: true,
+      ofertas: [{ ...oferta("neurona", ["código"]), escritorioCompatible: true }] });
+    expect(ids(gs, "gratis-por-vincular")).toContain("cloudroom");
+    expect(opciones(gs, "gratis-por-vincular").find((s) => s.id === "cloudroom")?.motivo).toContain("100 agentes");
+    expect(ids(sugerir({ ...base, ofertas: [{ ...oferta("neurona", ["código"]), escritorioCompatible: true }] }),
+      "gratis-por-vincular")).not.toContain("cloudroom");
+  });
+
   describe("de pago solo con permiso del ámbito (contenedores reales)", () => {
     const catalogo = [op("pago-1", { gratis: null, papeles: ["escritor", "código"] }), op("nube-a")];
     const contenedores = CONTENEDORES_OPCIONES;

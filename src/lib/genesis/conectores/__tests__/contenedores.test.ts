@@ -42,8 +42,8 @@ describe('contenedoresPara', () => {
 
     // Extract the free (non-privado, !requierePago)
     const free = result.filter((c) => !c.aptoPrivado && !c.requierePago);
-    // Original order of free: oracle-a1, github-actions
-    expect(free.map((c) => c.id)).toEqual(['oracle-a1', 'github-actions']);
+    // Orden original de las opciones gratis.
+    expect(free.map((c) => c.id)).toEqual(['oracle-a1', 'github-actions', 'cloudroom']);
 
     // Extract the paid
     const paid = result.filter((c) => !c.aptoPrivado && c.requierePago);
@@ -109,5 +109,11 @@ describe('CONTENEDORES_OPCIONES', () => {
     expect(hf?.requiereCuenta).toBe(true);
     expect(hf?.requierePago).toBe(true);
     expect(hf?.aptoPrivado).toBe(false);
+  });
+
+  it('declara el cupo y los requisitos de Cloudroom sin marcarlo como de pago', () => {
+    const cloudroom = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudroom');
+    expect(cloudroom).toMatchObject({ requiereCuenta: true, requierePago: false, aptoPrivado: false,
+      cupo: expect.stringContaining('100 agentes'), requisitos: expect.arrayContaining(['GitHub conectado', 'Agente de código conectado']) });
   });
 });
