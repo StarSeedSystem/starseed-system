@@ -88,7 +88,38 @@ import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
-import { anotarMedida, medidasDe } from "@/lib/aurora/medidas-voz";
+import { anotarMedida } from "@/lib/aurora/medidas-voz";
+
+// ── MEDIDAS DE VOZ (medidas-voz.ts · parole VZF1015P/VZF1015Q) ───────────
+// Nadie las anotaba (el motor las importaba y no las usaba). Reglas: cada
+// medida es HONESTA y se anota con motor, neurona (dentro de medidas-voz.ts),
+// idioma y flujo; ninguna medida puede romper el habla ni la escucha.
+
+/** Desde cuándo corre el intento de síntesis en vuelo (0 = ninguno). */
+let primerSonidoDesdeMs = 0;
+
+/** Marca el arranque del intento: el primer sonido audible medirá desde aquí. */
+function prepararPrimerSonido(): void {
+  primerSonidoDesdeMs = Date.now();
+}
+
+/** Anota `primer-sonido` (ms del intento al primer audio, en pura) y libera la marca. */
+function anotarPrimerSonido(motor: string, idioma: string): void {
+  try {
+    if (!primerSonidoDesdeMs) return;
+    const desde = primerSonidoDesdeMs;
+    primerSonidoDesdeMs = 0;
+    anotarMedida({ motor, tipo: "primer-sonido", valor: Math.max(1, Date.now() - desde), idioma });
+  } catch { /* la medida nunca rompe el habla */ }
+}
+
+/** Anota `tiempo-real-oido` (ms del último parcial — o del arranque del ciclo — al texto final). */
+function anotarOidoFinal(motor: string, idioma: string, flujo: boolean, anclaMs: number): void {
+  try {
+    if (!anclaMs) return;
+    anotarMedida({ motor, tipo: "tiempo-real-oido", valor: Math.max(1, Date.now() - anclaMs), idioma, flujo });
+  } catch { /* la medida nunca rompe la escucha */ }
+}
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -871,10 +902,12 @@ export function useAuroraEngine(): AuroraEngine {
     }
 
     try {
+      prepararPrimerSonido();
       window.speechSynthesis.cancel();
       const u = resolveBrowserUtterance(clean, p);
       u.onstart = () => {
         setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
+        anotarPrimerSonido("navegador", (u.lang || "es-MX").split("-")[0]);
         markTtsSpeaking(true); // anti-eco GLOBAL: ignora la voz propia
       };
       // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
@@ -919,6 +952,7 @@ export function useAuroraEngine(): AuroraEngine {
     const bucle = vigilarBucleVoz(cleanChain || clean);
     if (bucle.cortar) { cortarBucleRef.current(bucle.motivo); return; }
     const p = forcePersonality || activeRef.current;
+    const idiomaVoz = (p.voice?.lang || "es-MX").split("-")[0];
     // Decir algo NUEVO (no reanudar) quita la pausa, igual que `vozRT().detener()`.
     pausedRef.current = false;
     pendienteTrasPausaRef.current = null;
@@ -946,10 +980,12 @@ export function useAuroraEngine(): AuroraEngine {
       // configurado de siempre. Los guiones multi-locutor (VibeVoice) siguen su camino.
       if (!vibeVoiceScript) {
         try {
+          prepararPrimerSonido();
           const hablo = await decirRT(cleanChain || clean, p?.id, {
             cortar: true,
             onInicio: () => {
               handedOff = true;
+              anotarPrimerSonido("voz-rt", idiomaVoz);
               try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
               setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
               markTtsSpeaking(true);
@@ -967,9 +1003,11 @@ export function useAuroraEngine(): AuroraEngine {
 
       try {
         const { speakWithConfiguredEngine } = await import("@/lib/aurora/tts-oss/speak-router");
+        prepararPrimerSonido();
         const spoke = await speakWithConfiguredEngine(cleanChain, {
           onStart: () => {
             handedOff = true;
+            anotarPrimerSonido("cadena-oss", idiomaVoz);
             // Corta cualquier voz nativa por si acaso (una sola voz a la vez).
             try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
             setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
@@ -1053,9 +1091,11 @@ export function useAuroraEngine(): AuroraEngine {
       if (ok) return true;
     }
     try {
+      prepararPrimerSonido();
       const u = resolveBrowserUtterance(clean, p);
       u.onstart = () => {
         setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
+        anotarPrimerSonido("navegador", (u.lang || "es-MX").split("-")[0]);
       };
       // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
       u.onboundary = () => emitAuroraSpeak("boundary");
@@ -1177,6 +1217,8 @@ export function useAuroraEngine(): AuroraEngine {
             .then((m) => m.anticiparLocal([siguiente.cleanChain], timbre))
             .catch(() => { /* la anticipación es opcional */ });
         }
+        prepararPrimerSonido();
+        const idiomaClau = (next.p?.voice?.lang || "es-MX").split("-")[0];
         const sono = await hablarStarSeed(next.cleanChain, {
           timbre,
           contexto: "conversacion",
@@ -1189,6 +1231,7 @@ export function useAuroraEngine(): AuroraEngine {
           ...(next.intensidad !== undefined ? { intensidad: next.intensidad } : {}),
           alEmpezar: () => {
             handedOff = true;
+            anotarPrimerSonido("voz-starseed", idiomaClau);
             setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
           },
         });
@@ -1241,8 +1284,10 @@ export function useAuroraEngine(): AuroraEngine {
     // (2026-09-23) Voz en tiempo real: cada cláusula a la MISMA voz fija, sin huecos. Solo si
     // la cola de siempre NO está sonando ya (una respuesta nunca mezcla dos motores).
     if (!ttsQueueBusyRef.current) {
+      prepararPrimerSonido();
       const aRT = decirRTYa(cleanChain || clean, p?.id, {
         onInicio: () => {
+          anotarPrimerSonido("voz-rt", (p.voice?.lang || "es-MX").split("-")[0]);
           try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
           setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
           markTtsSpeaking(true);
@@ -1959,6 +2004,7 @@ export function useAuroraEngine(): AuroraEngine {
       medidas: {},
     });
     if (eleccionOido.motor === "phonon-2") return buildFlujoOido();
+    const motorOido = eleccionOido.motor;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return null;
     const rec = new SR();
@@ -1975,6 +2021,8 @@ export function useAuroraEngine(): AuroraEngine {
     let startedAt = 0;
     let sawResult = false;
     let lastErr = "";
+    /** Cuándo llegó la ÚLTIMA parcial de este ciclo (0 = ninguna): ancla del oído. */
+    let ultimoParcialAt = 0;
 
     rec.lang = activeRef.current.voice?.lang || "es-MX";
     rec.interimResults = true;
@@ -2098,6 +2146,7 @@ export function useAuroraEngine(): AuroraEngine {
       // este ciclo es SANO y se resetea el backoff anti-loop.
       sawResult = true;
       sttRestartsRef.current = 0;
+      if (interimText) ultimoParcialAt = Date.now();
 
       // ── MODO PASIVO (fondo): NO procesamos nada como comando ni mostramos el
       //    interim; solo esperamos oír "aurora". Al oírla, ACTIVAMOS (engaged) y,
@@ -2121,6 +2170,9 @@ export function useAuroraEngine(): AuroraEngine {
       touchEngagedRef.current(); // reinicia el temporizador de inactividad
       if (interimText) setInterim(interimText);
       if (finalText) {
+        // Oído MEDIDO (medidas-voz.ts): del último parcial (o del arranque del
+        // ciclo) al texto final, con motor, idioma y sí venía en flujo.
+        anotarOidoFinal(motorOido, (rec.lang || "es-MX").split("-")[0], ultimoParcialAt > 0, ultimoParcialAt || startedAt);
         setInterim("");
         // ANTI-ECO TARDÍO (2026-09-27): la cola de su propia voz puede llegar
         // después de la ventana del guard (altavoz de tablet, Bluetooth). Si lo
@@ -2161,6 +2213,8 @@ export function useAuroraEngine(): AuroraEngine {
     let sawResult = false;
     let lastErr = "";
     let stopped = false;
+    /** Cuándo llegó la ÚLTIMA parcial de este ciclo (0 = ninguna): ancla del oído. */
+    let ultimoParcialAt = 0;
     let flujo: OidoFlujo | null = null;
     let audioCtx: AudioContext | null = null;
     let mediaStream: MediaStream | null = null;
@@ -2217,6 +2271,7 @@ export function useAuroraEngine(): AuroraEngine {
       if (stopped || gen !== recGenRef.current) return; // flujo obsoleto: ignora
       if (ttsGuardActive()) return; // ANTI-ECO GLOBAL: su propia voz no es mandato
       if (finalText || interimText) { sawResult = true; sttRestartsRef.current = 0; }
+      if (interimText) ultimoParcialAt = Date.now();
       if (!engagedRef.current) {
         // PASIVO: solo "aurora" enciende el modo activo (y hasta ejecuta lo que traiga la frase).
         const heard = finalText || interimText;
@@ -2236,6 +2291,9 @@ export function useAuroraEngine(): AuroraEngine {
       touchEngagedRef.current();
       if (interimText) setInterim(interimText);
       if (finalText) {
+        // Oído MEDIDO (medidas-voz.ts): del último parcial (o del arranque del
+        // ciclo) al texto final; Phonon-2 viene de verdad en flujo.
+        anotarOidoFinal("phonon-2", (rec.lang || "es-MX").split("-")[0], ultimoParcialAt > 0, ultimoParcialAt || startedAt);
         setInterim("");
         if (esEcoPropio(finalText, Date.now())) return; // ANTI-ECO TARDÍO
         turnoVozPendiente = {
