@@ -1,0 +1,79 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "SGO1024A",
+   "ola": "1024S",
+   "titulo": "Voz · el elector del oído aprende de lo medido (buildRecognition pasa medidas reales a elegirOido)",
+   "archivos": [
+    "src/lib/aurora/engine.ts",
+    "src/lib/aurora/__tests__/elegir-oido-medidas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024A (2026-10-24): buildRecognition llama a elegirOido con `medidas: {}`, así que el elector del oído no aprende de las medidas que ahora sí se anotan (src/lib/aurora/medidas-voz.ts: medidasDe / leerMedidas, tipo «tiempo-real-oido», menor es mejor). Pásale las medidas reales de esta neurona (mediana por motor de las últimas, como hace vozMedida en src/lib/network/capacidades-nodo.ts) sin bloquear el arranque del reconocimiento. Prueba con medidas simuladas: con medidas elige el más rápido; sin medidas, el orden de siempre. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024B",
+   "ola": "1024S",
+   "titulo": "Voz · Chatterbox anota un primer sonido por turno y con idioma (no uno por trozo)",
+   "archivos": [
+    "src/lib/aurora/tts-oss/chatterbox.ts",
+    "src/lib/aurora/tts-oss/__tests__/chatterbox.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024A (2026-10-24): chatterbox.ts anota «primer-sonido» en cada trozo de 280 caracteres y sin idioma, lo que falsea la mediana. Anota UNA medida por turno (el primer trozo) con el idioma del texto, igual que hace speak-router.runLink para los demás motores (VOZ1024A). Ajusta la prueba existente; no relajes ninguna aserción. Máximo 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024F",
+   "ola": "1024S",
+   "titulo": "Malla · la ficha propia de la neurona también lleva su voz medida (medirFichaPropia)",
+   "archivos": [
+    "src/components/brains/device-network-panel.tsx",
+    "src/components/brains/__tests__/ficha-propia-voz.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VZF1015Q (2026-10-24): medirFichaPropia (src/components/brains/device-network-panel.tsx:~231) construye CapacidadesNodo sin la voz; debe pasar `voz: vozMedida(leerMedidas(), {neurona, ahora})` (src/lib/network/capacidades-nodo.ts y src/lib/aurora/medidas-voz.ts). Sin medidas, el campo no aparece. Prueba con testing-library y medidas simuladas. Máximo 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024G",
+   "ola": "1024S",
+   "titulo": "Diagramas · los diagramas incrustados en publicaciones usan VistaDiagrama (zoom, piel y exportar)",
+   "archivos": [
+    "src/components/posts/embedded-content-window.tsx",
+    "src/components/posts/__tests__/diagrama-incrustado.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "DGM1018I (2026-10-24) dejó src/components/diagramas/vista-diagrama.tsx (VistaDiagrama: zoom, desplazamiento, piel clara/oscura y exportar SVG/PNG, iframe aislado) sin usar. El candidato más directo es CodeSandboxBody en src/components/posts/embedded-content-window.tsx, que pinta su propio iframe sin zoom ni exportar: cuando el contenido sea un diagrama de Diagram Design, usa VistaDiagrama (lee architecture/diagramas.md §4 para cómo se reconoce). Lo demás sigue igual. Prueba con testing-library. Máximo 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "RLB1020K",
+   "titulo": "Biblioteca · el cargador lee también la 3.ª tanda, quita excluidas y no duplica repos que ya están",
+   "archivos": [
+    "src/lib/library/repos-externos-1020.ts",
+    "src/lib/library/__tests__/repos-externos-1020c.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020c.md y el catálogo verificado config/repos-libreria-1020c.json (14 `paquetes`, `duplicadas` y `excluidas`; datos reales, NO los cambies). `src/lib/library/repos-externos-1020.ts` ya lee las tandas 1020 y 1020b (RLB1020A y RLB1020D): súmale config/repos-libreria-1020c.json con el mismo mapeo. Añade a `REPOS_EXCLUIDOS` los `excluidas` de la 3.ª tanda (Kritt-ai/open-kritt). No dupliques: si un paquete builtin de `src/lib/library/packages.ts` ya apunta al mismo repo de GitHub por `payload.externalUrl` (p. ej. `iatool-penpot` → penpot/penpot), no se crea otro paquete con ese repo: exporta `REPOS_YA_PRESENTES: {repo, id}[]` para que se vea. Pruebas: ids únicos en las tres tandas; ningún repo excluido; penpot/penpot no aparece dos veces; las 13 restantes de la 3.ª tanda están. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical.",
+   "ola": "Ola 1020T · 3.ª tanda de repos para agentes, Astraura, Protomolécula, educación, mensajes, backend y servidores",
+   "dependencias_ya_en_main": [
+    "RLB1020D"
+   ]
+  },
+  {
+   "id": "BOT1011H1",
+   "ola": "Ola 1011B · Bots/dots de Astraura: la orbe es el bot (varios bots sincronizados, sentidos con consentimiento e indicador, acciones tipadas, gobierno democrático, computadora por bot, invitados AG-UI y Grok)",
+   "titulo": "Hook del bucle por bot: sentidos, propuestas, confirmación, registro persistente y deshacer",
+   "archivos": [
+    "src/lib/astraura-bots/adaptadores/use-bucle-bot.ts",
+    "src/lib/astraura-bots/__tests__/use-bucle-bot.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-bots.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §0 son las reglas del área y §15 da los nombres reales del núcleo. El núcleo puro YA está escrito y probado (91 pruebas) y NO se modifica: `src/lib/astraura-bots/{tipos,permisos,personalidad-adaptable,acciones,reparto-de-modelo,bucle}.ts` (ábrelos y usa sus nombres reales). Petición de Alex (2026-10-11): la ORBE flotante de Astraura es el BOT; observa y reacciona a la pantalla, el código, los archivos del cerebro y la red, y crea y modifica en tiempo real con acciones tipadas; cada persona tiene varios bots abiertos y sincronizados (el de su perfil y los de sus grupos/páginas), cada uno con su personalidad, sentidos, permisos y memoria; los bots de grupo se gobiernan democráticamente desde PoliGenesis; Astraura local (Needle 3, Bonsai, BitNet, Jev, Laya) es el predeterminado y las APIs o bots externos (Grok, AG-UI) son invitados; cada bot tiene su computadora aislada en la nube.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/astraura-bots.md` y los seis módulos de `src/lib/astraura-bots/`. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos núcleos) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo de bots en main» para que el director la reencole cuando llegue.\nReglas de la casa (CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea de qué tarea queda pendiente). Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; el código que sintetiza un bot es un CANDIDATO que nunca se ejecuta en el OS (solo se previsualiza en el iframe sandbox sin allow-same-origin de `src/lib/aurora/code-runtime.ts`), y nada apunta al núcleo intocable (`NUCLEO_INTOCABLE` de `acciones.ts`). Toda acción de un bot pasa por `validarAccion` + `decidirAccion` y por el bucle (`avanzar` de `bucle.ts`): jamás se llama a un ejecutor saltándose eso. Todo sentido pasa por `decidirSentido` y su indicador queda visible mientras esté activo. Los bots invitados y los de grupo NUNCA leen memoria personal (`puedeLeerMemoria`). Nada de `node:*` en código que llegue al navegador (un módulo de servidor lleva sus tipos en un archivo aparte que el cliente importa). Claves solo por NOMBRE de variable y en el servidor; en pruebas, cualquier cadena con forma de clave se monta en tiempo de ejecución (`[\"s\",\"k-\"].join(\"\")…`). Pruebas sin red y sin hardware: lo del navegador y Supabase se inyecta o se simula con `vi.mock`; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom. Español claro en toda cadena visible; iconos Lucide, nunca emojis; cursor pointer en lo clicable; transiciones de 150–300 ms; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». NO instales paquetes. El layout raíz no carga nada pesado de forma estática (`next/dynamic` sin SSR o `import()` dentro de un efecto). Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Si cambias un valor persistido o un valor por defecto, migra lo guardado (las cuentas existentes también deben verlo). Un módulo PURO nuevo en la raíz de `src/lib/astraura-bots/` cumple la guardia `__tests__/pureza.test.ts` (sin React, red, DOM, reloj ni `node:*`; ≤ 200 líneas; solo importa del propio núcleo o de `@/lib/nucleo/{alcance-memoria,ui-spec,paquete-sistema}`); lo que use React, Supabase o red va en `src/lib/astraura-bots/adaptadores/` o en `src/components/astraura-bots/`. Honestidad: di que pasan tsc y vitest; no digas que «se ve bien» ni que «funciona»: eso se verifica en Genesis en localhost. Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (BOT1011H1): `use-bucle-bot.ts` ('use client'): separa una clase/funciones puras-testables `crearControlBucle(dep)` de un hook fino `useBucleBot(bot, ctx)`. Mantiene un `EstadoBucle` por bot (`bucleInicial`/`avanzar`); `proponer(bruto, nivel, rol)` = `validarAccion` → `decidirAccion` → evento `proponer`; si queda `actuando` llama a `ejecutarAccion` (BOT1011G) y emite `aplicada` con su `previo` o `fallo`; `confirmar(quien)` y `rechazar(quien)`; `deshacer(quien)` ejecuta la acción inversa (pasa también por `ejecutarAccion`) o dice por qué no se puede; `encenderSentido(s)` usa el puente (BOT1011F) y emite `observar`/`soltar`; `pausar(quien)`. Persistencia del registro: localStorage `starseed.astraura.bots.registro.<botId>.v1` (los últimos 200) y, con sesión, inserción best-effort en `astraura_bots_registro` (BOT1011B). El nivel por defecto es `NIVEL_POR_DEFECTO` de `permisos.ts`. Pruebas (≥ 8, node, con dependencias simuladas): proponer → esperar → confirmar → ejecutar → registro; lo prohibido nunca llama al ejecutor; fallo del ejecutor; deshacer llama a la inversa; pausar suelta sentidos; registro recortado; sin sesión no lanza. Integración: lo usan BOT1011H2 y BOT1011I1.",
+   "dependencias_ya_en_main": [
+    "BOT1011Ab",
+    "BOT1011F",
+    "BOT1011G"
+   ]
+  }
+ ]
+}
