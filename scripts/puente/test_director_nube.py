@@ -208,6 +208,98 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class VolverDeLaNubeALaTandaViva(unittest.TestCase):
+    """(2026-10-21, VAR1021Bd) Soltar a la nube y devolver no puede dejar la tarea varada.
+
+    Caso medido: Claude devolvió a `pendiente` en progreso.json 43 tareas prestadas cuya
+    run ya había muerto; volvían a «reasignada» porque la copia en memoria del orquestador
+    de la tanda viva manda sobre el disco (sus MIAS). Además de devolverla en disco, el
+    director pide la reapertura al canal de control de ESE orquestador."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        raiz_antes, D.RAIZ = D.RAIZ, self.tmp
+        self.addCleanup(setattr, D, "RAIZ", raiz_antes)
+        self.olas = os.path.join(self.tmp, "starseed_memory_root", "olas")
+        os.makedirs(self.olas, exist_ok=True)
+
+    def _cola_viva(self, nombre, ids):
+        with open(os.path.join(self.olas, nombre), "w", encoding="utf-8") as f:
+            json.dump({"tareas": [{"id": i} for i in ids]}, f)
+
+    def _control(self, nombre):
+        ruta = os.path.join(self.olas, "control-" + nombre)
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return {}
+
+    def _pedir(self, ids, colas):
+        previas, D.colas_vivas_de_esta_maquina = D.colas_vivas_de_esta_maquina, lambda: colas
+        self.addCleanup(setattr, D, "colas_vivas_de_esta_maquina", previas)
+        return D.pedir_reapertura_en_colas_vivas(ids)
+
+    def test_la_devuelta_que_es_de_la_cola_viva_recibe_la_orden(self):
+        self._cola_viva("cola-auto-1020-121122.json", ["IMG1020A", "OTRA"])
+        self._pedir(["IMG1020A"], ["cola-auto-1020-121122.json"])
+        orden = self._control("cola-auto-1020-121122.json").get("IMG1020A")
+        self.assertEqual(orden.get("accion"), "reabrir")
+        self.assertEqual(orden.get("quien"), "director-nube")
+        self.assertEqual(orden.get("motivo"), "devuelta de la nube: su run terminó")
+        self.assertTrue(orden.get("t"))
+
+    def test_la_que_no_esta_en_ninguna_cola_viva_no_recibe_orden(self):
+        self._cola_viva("cola-auto-1020-121122.json", ["OTRA"])
+        self.assertEqual(self._pedir(["IMG1020A"], ["cola-auto-1020-121122.json"]), [])
+        self.assertEqual(self._control("cola-auto-1020-121122.json"), {})
+
+    def test_se_fusiona_con_lo_que_hubiera_en_el_canal(self):
+        # Otra orden ya estaba en el canal: se conserva; y la suya ADEMÁS de la otra.
+        ruta = os.path.join(self.olas, "control-cola-auto-1020-121122.json")
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump({"OTRA": {"accion": "refrescar_proveedores", "quien": "flota"}}, f)
+        self._cola_viva("cola-auto-1020-121122.json", ["IMG1020A", "OTRA"])
+        self.assertEqual(self._pedir(["IMG1020A"], ["cola-auto-1020-121122.json"]), ["IMG1020A"])
+        canal = self._control("cola-auto-1020-121122.json")
+        self.assertEqual(canal["OTRA"]["accion"], "refrescar_proveedores")
+        self.assertEqual(canal["IMG1020A"]["accion"], "reabrir")
+
+    def test_la_cola_viva_ilegible_no_rompe_el_reparto_a_las_demas(self):
+        self._cola_viva("cola-rota.json", ["X"])
+        with open(os.path.join(self.olas, "cola-rota.json"), "w", encoding="utf-8") as f:
+            f.write("{ mal json")
+        self._cola_viva("cola-buena.json", ["IMG1020A"])
+        self.assertEqual(self._pedir(["IMG1020A"], ["cola-rota.json", "cola-buena.json"]),
+                         ["IMG1020A"])
+        self.assertEqual(self._control("cola-buena.json")["IMG1020A"]["accion"], "reabrir")
+
+    def test_sin_ids_no_toca_nada(self):
+        self.assertEqual(self._pedir([], ["cola-auto-1020-121122.json"]), [])
+        self.assertEqual(self._control("cola-auto-1020-121122.json"), {})
+
+    def test_la_medida_de_colas_vivas_filtrada_y_a_prueba_de_fallo(self):
+        # Solo colas `cola-*.json` de orquestadores de esta máquina, y una medida que
+        # falla devuelve vacío sin colgar el director.
+        import sys
+        import types
+
+        buena = types.ModuleType("nodo_metagenesis_medio")
+        buena.colas_vivas = lambda lineas=None: ["cola-1.json", "cola-2.txt", 17, None]
+        mala = types.ModuleType("nodo_metagenesis_medio")
+
+        def falla(lineas=None):
+            raise RuntimeError("sin ps")
+
+        mala.colas_vivas = falla
+        sys.modules["nodo_metagenesis_medio"] = buena
+        self.addCleanup(sys.modules.pop, "nodo_metagenesis_medio", None)
+        self.assertEqual(D.colas_vivas_de_esta_maquina(), ["cola-1.json"])
+        sys.modules["nodo_metagenesis_medio"] = mala
+        self.assertEqual(D.colas_vivas_de_esta_maquina(), [])
+
+
 class EnrutarAlContenedorConMasSitio(unittest.TestCase):
     """Alex (2026-09-22): «que los directores usen esa información para enrutar procesos a
     agentes en todos los contenedores y siempre se aproveche la mayor cantidad disponible»."""

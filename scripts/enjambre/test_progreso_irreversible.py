@@ -67,3 +67,42 @@ class ReabrirConPeldanoTest(unittest.TestCase):
         enjambre.MIAS.discard("T9")
         enjambre.PROG.pop("T9", None)
         enjambre.REABRIR.discard("T9")
+
+
+class ReabrirUnaSoltadaTest(unittest.TestCase):
+    """(2026-10-21) Soltada a la nube y devuelta: vuelve a pendientes y NO se marca hecha.
+
+    Caso medido (03:20 UTC): Claude devolvió a `pendiente` en progreso.json 43 tareas
+    prestadas a la nube cuyo run había muerto; minutos después volvían a «reasignada»,
+    porque la copia en memoria del orquestador manda sobre el disco para sus propias
+    tareas (MIAS). Y la orden `reabrir` tampoco servía: el bucle hace
+    `if tid in SOLTADAS: pendientes.pop(tid); hechas.add(tid)` y SOLTADAS nunca se vacía.
+    El `reabrir` tiene que quitar la tarea de SOLTADAS (y de CORTADOS) antes de nada.
+    """
+
+    def test_reabrir_saca_la_tarea_de_soltadas_y_de_cortados(self):
+        from unittest import mock
+
+        enjambre.MIAS.add("T8")
+        enjambre.SOLTADAS.add("T8")
+        enjambre.CORTADOS.add("T8")
+        enjambre.REABRIR.discard("T8")
+        enjambre.PROG["T8"] = {"estado": "reasignada", "medio": "nube", "nota": "prestada"}
+        orden = {"T8": {"accion": "reabrir", "quien": "director-nube",
+                        "motivo": "devuelta de la nube: su run terminó"}}
+        with mock.patch.object(enjambre, "consumir_control", return_value=orden), \
+                mock.patch.object(enjambre, "entregar_mensajes"), \
+                mock.patch.object(enjambre, "guardar_prog"), \
+                mock.patch.object(enjambre, "evento"), \
+                mock.patch.object(enjambre, "asegurar_modelo_opencode", return_value=True):
+            enjambre.atender_control()
+        # Vuelve a pendiente para el orquestador que la tiene en memoria…
+        self.assertEqual("pendiente", enjambre.PROG["T8"]["estado"])
+        # …y ya no la soltará de la tanda: el bucle no la marca hecha.
+        self.assertNotIn("T8", enjambre.SOLTADAS)
+        self.assertNotIn("T8", enjambre.CORTADOS)
+        enjambre.MIAS.discard("T8")
+        enjambre.SOLTADAS.discard("T8")
+        enjambre.CORTADOS.discard("T8")
+        enjambre.PROG.pop("T8", None)
+        enjambre.REABRIR.discard("T8")

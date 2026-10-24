@@ -329,6 +329,82 @@ def reclamar_varadas_de_la_nube(runs_vivos):
     return ids
 
 
+#: (2026-10-21, VAR1021Bd) La orden `reabrir` que se manda al orquestador dueño de la cola.
+AQUI = "starseed_memory_root", "olas"
+
+
+def orden_reabrir_de_nube():
+    """La orden de control `reabrir` para una tarea devuelta de la nube: misma forma que
+    `vigilante-enjambre.orden_reabrir`, con firma y motivo propios."""
+    return {
+        "accion": "reabrir",
+        "quien": "director-nube",
+        "motivo": "devuelta de la nube: su run terminó",
+        "t": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+def pedir_reapertura_en_colas_vivas(ids, colas_vivas=None):
+    """(2026-10-21, VAR1021Bd) A las devueltas de la nube que son de una tanda VIVA de esta
+    máquina les manda a su orquestador la orden de control `reabrir`. Devolverlas solo en
+    `progreso.json` no basta (la copia en memoria del orquestador manda sobre el disco,
+    `guardar_prog` → `fusionar_progreso`) y la orden `reabrir` del enjambre saca la tarea
+    de SOLTADAS y CORTADOS: sin eso el bucle la marca hecha y SOLTADAS nunca se vacía.
+
+    Devuelve los ids cuya orden se escribió. Escritura atómica (.tmp + os.replace), fusionando
+    con lo que ya hubiera en el canal, igual que hace el vigilante con `orden_reabrir`.
+    """
+    falta = {str(t) for t in (ids or [])}
+    if not falta:
+        return []
+    if colas_vivas is None:
+        colas_vivas = colas_vivas_de_esta_maquina()
+    pedidas = []
+    for cola in colas_vivas:
+        ids_cola = _ids_de_ruta(os.path.join(RAIZ, *AQUI, cola))
+        if ids_cola is None:
+            continue
+        aqui = sorted(falta & ids_cola)
+        if not aqui:
+            continue
+        ruta_ctrl = os.path.join(RAIZ, *AQUI, "control-" + cola)
+        try:
+            ordenes = json.load(open(ruta_ctrl, encoding="utf-8"))
+        except (OSError, ValueError):
+            ordenes = {}
+        if not isinstance(ordenes, dict):
+            ordenes = {}
+        for tid in aqui:
+            ordenes[tid] = orden_reabrir_de_nube()
+        tmp = ruta_ctrl + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(ordenes, f, ensure_ascii=False, indent=1)
+            os.replace(tmp, ruta_ctrl)
+        except OSError:
+            continue
+        pedidas.extend(aqui)
+    return pedidas
+
+
+def colas_vivas_de_esta_maquina(lineas=None):
+    """(2026-10-21, VAR1021Bd) Las colas con un orquestador vivo en esta máquina, medidas
+    del mismo sitio que `vigilante-enjambre.cola_viva`: los argumentos del proceso por `ps`
+    (`nodo_metagenesis_medio.colas_vivas`). Nunca lanza: sin medición, vacío."""
+    try:
+        import nodo_metagenesis_medio as NMM
+
+        return [
+            str(c)
+            for c in NMM.colas_vivas(lineas)
+            if isinstance(c, str) and c.startswith("cola-") and c.endswith(".json")
+        ]
+    except Exception as e:
+        print("director-nube: no pude medir las colas vivas: %s: %s"
+              % (type(e).__name__, e), flush=True)
+        return []
+
+
 def veredictos_del_ultimo_run(ids, timeout=90):
     """{id: (estado, nota)} de lo que dijo la nube sobre esas tareas en su último run
     terminado, leído del artefacto que sube el workflow (progreso.json). Nunca lanza: si no
@@ -394,6 +470,13 @@ def main():
             if devueltas:
                 print("[%s] devueltas de la nube a pendiente (allí no quedaba nadie): %s"
                       % (time.strftime("%H:%M"), ", ".join(devueltas)), flush=True)
+                # (2026-10-21, VAR1021Bd) Si la devuelta es de la tanda viva de esta máquina,
+                # el progreso.json escrito no sobrevive a la memoria del orquestador: además
+                # se le manda a su canal la orden `reabrir` (ver `pedir_reapertura_en_colas_vivas`).
+                reabiertas = pedir_reapertura_en_colas_vivas(devueltas)
+                if reabiertas:
+                    print("[%s] pedida la reapertura en la cola viva: %s"
+                          % (time.strftime("%H:%M"), ", ".join(reabiertas)), flush=True)
             # El inventario MIDE la capacidad; el director ya no la supone. Si mañana se
             # abre Colab o Cloud Run, el tope sube solo y sin tocar este archivo.
             inv = inventario_de_contenedores()

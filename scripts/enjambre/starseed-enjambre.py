@@ -6073,6 +6073,13 @@ def atender_control():
             # causa (un proveedor mudo, un mensaje suyo mal formado, una objeción ya
             # respondida) y la tarea vive en esta cola, así que `progreso.json` no basta:
             # la copia en memoria de este proceso manda. Se reabre aquí.
+            # (2026-10-21) Si la tarea estaba soltada a la nube y su run murió, el creador
+            # vuelve a pedir devolverla a la tanda; pero si sigue en SOLTADAS el bucle
+            # siguiente la saca de pendientes y la marca hecha, y SOLTADAS nunca se vacía:
+            # queda varada hasta el fin de la tanda. Al reabrir se la quita de SOLTADAS y
+            # de CORTADOS para que vuelva a correr aquí de verdad.
+            SOLTADAS.discard(tid)
+            CORTADOS.discard(tid)
             REABRIR.add(tid)
             # (2026-10-09) La escalera del director sube de peldaño (más intentos, otro modelo):
             # la orden trae el contador y el modelo, y aquí se respetan. Sin esto la copia en
