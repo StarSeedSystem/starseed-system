@@ -16,6 +16,7 @@ import { motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
