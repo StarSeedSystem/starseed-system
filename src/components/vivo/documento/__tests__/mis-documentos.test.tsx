@@ -43,7 +43,7 @@ describe("MisDocumentos", () => {
         est.uid = null;
         render(<MisDocumentos />);
         expect(await screen.findByText("Inicia sesión para crear y ver tus documentos")).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
+        expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/bienvenida");
     });
 
     test("lista los tuyos y los compartidos, filtra y crea uno nuevo con su título", async () => {
