@@ -178,6 +178,27 @@ class Extracciones_y_cortes(unittest.TestCase):
                          "https://registry.npmjs.org/@lottiefiles/dotlottie-react/latest")
 
 
+class Carga_y_guardado_de_json(unittest.TestCase):
+    """La configuración y el estado viven en disco: qué pasa si falta o se guarda."""
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.raiz, ignore_errors=True))
+
+    def test_cargar_json_que_no_existe_o_esta_roto_da_el_defecto(self):
+        defecto = {"por": "defecto"}
+        self.assertEqual(V.cargar_json(os.path.join(self.raiz, "no-existe.json"), defecto), defecto)
+        roto = os.path.join(self.raiz, "roto.json")
+        with open(roto, "w", encoding="utf-8") as fichero:
+            fichero.write("{no es json")
+        self.assertEqual(V.cargar_json(roto, defecto), defecto)
+
+    def test_guardar_json_crea_la_carpeta_y_se_vuelve_a_leer(self):
+        ruta = os.path.join(self.raiz, "nueva", "carpeta", "estado.json")
+        V.guardar_json(ruta, {"entrada": {"novedades": []}})
+        self.assertEqual(V.cargar_json(ruta, None), {"entrada": {"novedades": []}})
+
+
 class VigiaConRaizTemp(unittest.TestCase):
     """Recorridos completos con red, espera y reloj falsos (sin conexión)."""
 
