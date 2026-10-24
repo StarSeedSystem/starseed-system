@@ -112,7 +112,7 @@ class CliReal(unittest.TestCase):
                     ["--permission-mode", "full"], ["--request-id", "starseed-X1-1"], ["--prompt", "brief"]):
             i = orden.index(par[0])
             self.assertEqual(orden[i:i + 2], par)
-        self.assertIn("--new-environment", orden)
+        self.assertNotIn("--new-environment", orden)  # pide un valor; suelto rompía el spawn
         self.assertIn("--json", orden)
         self.assertNotIn("--status", orden)
         self.assertNotIn("--project", orden)
@@ -296,3 +296,14 @@ class Maquina(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProyectoDelRepo(unittest.TestCase):
+    def test_elige_el_proyecto_cuya_fuente_es_el_repo(self):
+        lista = [{"id": "proj_a", "sources": [{"path": "/x/otro"}]},
+                 {"id": "proj_b", "sources": [{"path": "/x/starseed-os-main"}]}]
+        self.assertEqual(C.proyecto_del_repo(lista, "/x/starseed-os-main"), "proj_b")
+        self.assertEqual(C.proyecto_del_repo({"projects": lista}, "/x/starseed-os-main"), "proj_b")
+        self.assertEqual(C.proyecto_del_repo(lista, "/y"), "")
+        self.assertEqual(C.proyecto_del_repo(None, "/y"), "")
+

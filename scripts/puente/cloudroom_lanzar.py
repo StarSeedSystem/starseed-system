@@ -220,7 +220,9 @@ def orden_spawn(cli, tarea, texto, harness, modelo, peticion, proyecto=""):
     if not harness or not modelo:
         raise ValueError("sin modelo de la nube")
     titulo = ("%s · %s" % (tarea.get("id"), tarea.get("titulo") or "")).strip(" ·")[:90]
-    orden = [cli, "thread", "spawn", "--machine", "cloud", "--new-environment", "--base-branch", "main",
+    # (2026-10-24) Sin «--new-environment»: pide un valor (personal|worktree) y, suelto, room-cli tomaba el
+    # siguiente argumento como posicional («too many arguments for 'spawn'»). En la nube el sandbox ya es nuevo.
+    orden = [cli, "thread", "spawn", "--machine", "cloud", "--base-branch", "main",
              "--provider", harness, "--model", modelo, "--permission-mode", PERMISOS, "--title", titulo,
              "--request-id", peticion, "--json"]
     return orden + (["--project", proyecto] if proyecto else []) + ["--prompt", texto]
@@ -369,6 +371,20 @@ def _json_cli(run, orden, timeout=30):
         return None, type(e).__name__
 
 
+def proyecto_del_repo(proyectos, raiz):
+    """PURA: id del proyecto de Cloudroom cuya fuente local es `raiz` («--project» es obligatorio en
+    `thread spawn`; sin él cada lanzamiento fallaba: medido el 2026-10-24). "" si no hay ninguno."""
+    lista = proyectos if isinstance(proyectos, list) else (proyectos or {}).get("projects", []) if isinstance(proyectos, dict) else []
+    destino = os.path.realpath(raiz)
+    for p in lista:
+        if not isinstance(p, dict):
+            continue
+        for fuente in p.get("sources") or []:
+            if isinstance(fuente, dict) and fuente.get("path") and os.path.realpath(str(fuente["path"])) == destino:
+                return str(p.get("id") or "")
+    return ""
+
+
 def _git(run, args, timeout=120, **kw):
     p = run(["git", *args], cwd=traer_nube.RAIZ, capture_output=True, text=True, timeout=timeout, **kw)
     if p.returncode:
@@ -419,11 +435,14 @@ def lanzar(ids, seco=False, priorizar=False, medio=None, ahora=None, run=subproc
     except (OSError, subprocess.SubprocessError, RuntimeError):
         base = ""
     fecha = time.strftime("%Y%m%d", time.localtime(ahora))
+    proyecto = os.environ.get("STARSEED_CLOUDROOM_PROYECTO", "")
+    if not proyecto:
+        lista, _err = _json_cli(run, [cli, "project", "list", "--json"])
+        proyecto = proyecto_del_repo(lista, traer_nube.RAIZ)
     for t in elegidas:
         tid = str(t["id"])
         n = sum(1 for x in _filas(registro) if str(x["tarea"]) == tid) + 1
-        orden = orden_spawn(cli, t, brief(t, fecha), harness, modelo, "starseed-%s-%d" % (tid, n),
-                            os.environ.get("STARSEED_CLOUDROOM_PROYECTO", ""))
+        orden = orden_spawn(cli, t, brief(t, fecha), harness, modelo, "starseed-%s-%d" % (tid, n), proyecto)
         datos, err = _json_cli(run, orden, timeout=180)
         hilo = id_hilo(datos)
         if not hilo:
