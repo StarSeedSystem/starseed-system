@@ -78,6 +78,26 @@ describe("sugerirParaAmbito", () => {
     expect(sinOpcion(gs).map((s) => s.papel)).toEqual(["chat", "escritor"]);
   });
 
+  it("el cupo de la cuenta se aplica: el ritmo diario de cloudroom es su límite gratis (Cloudroom §4.1–§4.2)", () => {
+    const gs = sugerir({
+      asignaciones: [asig("chat", { privacidad: "nube-con-retencion" })],
+      contenedores: [cont("cloudroom", { requiereCuenta: true, aptoPrivado: false, verificado: true,
+        cupoNubeTotal: 100, diasCicloCupo: 30 })],
+    });
+    const s = opciones(gs, "gratis-por-vincular")[0];
+    expect(s?.id).toBe("cloudroom");
+    expect(s?.limite).toMatchObject({ rpm: null, porDia: 3, horasMes: null, almacenamientoGb: null });
+    expect(s?.limite?.nota).toContain("100 en la nube cada 30 días");
+  });
+
+  it("un contenedor sin cupo declarado no lleva límite (no se inventa)", () => {
+    const gs = sugerir({
+      asignaciones: [asig("chat", { privacidad: "nube-con-retencion" })],
+      contenedores: [cont("a1", { requiereCuenta: true, aptoPrivado: false })],
+    });
+    expect(opciones(gs, "gratis-por-vincular")[0]?.limite).toBeNull();
+  });
+
   describe("de pago solo con permiso del ámbito (contenedores reales)", () => {
     const catalogo = [op("pago-1", { gratis: null, papeles: ["escritor", "código"] }), op("nube-a")];
     const contenedores = CONTENEDORES_OPCIONES;

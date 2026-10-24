@@ -6,6 +6,7 @@
 import type { Asignacion } from "./asignaciones";
 import type { Gratis, OpcionCatalogo, Papel, Privacidad } from "./catalogo-opciones";
 import type { ContenedorOpcion } from "./contenedores";
+import { ritmoDiario } from "./cupo-cloudroom";
 import type { OfertaContexto } from "./escalera";
 
 export interface EntradaSugerir {
@@ -47,9 +48,15 @@ const privacidadDe = (c: ContenedorOpcion): Privacidad => (c.aptoPrivado ? "loca
 const deCatalogo = (o: OpcionCatalogo, papeles: Papel[], motivo: string): Sugerencia => ({
   id: o.id, nombre: o.nombre, tipo: o.tipo, papeles, enlaceAlta: o.enlaceAlta, enlaceClave: o.enlaceClave,
   limite: o.gratis, verificado: o.verificado, privacidad: o.privacidad, variables: [...o.variables], motivo });
+/** Cupo del contenedor aplicado: su ritmo diario (cupo ÷ días del ciclo, redondeo abajo) es lo que se ofrece por día. */
+const limiteDeContenedor = (c: ContenedorOpcion): Gratis | null => {
+  if (!c.cupoNubeTotal || !c.diasCicloCupo) return null;
+  return { rpm: null, porDia: ritmoDiario(c.cupoNubeTotal, c.diasCicloCupo), horasMes: null,
+    almacenamientoGb: null, nota: `${c.cupoNubeTotal} en la nube cada ${c.diasCicloCupo} días; lo local no gasta cupo` };
+};
 const deContenedor = (c: ContenedorOpcion, motivo: string): Sugerencia => ({
   id: c.id, nombre: c.nombre, tipo: "contenedor", papeles: [], enlaceAlta: c.enlaceAlta, enlaceClave: null,
-  limite: null, verificado: c.verificado, privacidad: privacidadDe(c), variables: [], motivo });
+  limite: limiteDeContenedor(c), verificado: c.verificado, privacidad: privacidadDe(c), variables: [], motivo });
 
 /** Más papeles primero; luego lo más privado, lo verificado y el id, para un orden estable. */
 const porUtilidad = (a: Sugerencia, b: Sugerencia) => b.papeles.length - a.papeles.length

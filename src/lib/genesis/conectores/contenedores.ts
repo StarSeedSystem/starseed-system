@@ -1,3 +1,5 @@
+import { CUPO_GRATIS_CICLO, DIAS_CICLO } from "./cupo-cloudroom";
+
 export interface ContenedorOpcion {
   id: string;
   nombre: string;
@@ -7,6 +9,10 @@ export interface ContenedorOpcion {
   requierePago: boolean;
   aptoPrivado: boolean;
   verificado: boolean | null;
+  /** Cupo gratis de la CUENTA en la nube, tal como consta en su SOP; lo local no lo gasta. */
+  cupoNubeTotal?: number;
+  /** Días del ciclo en que se renueva el cupo, para calcular su ritmo diario. */
+  diasCicloCupo?: number;
 }
 
 // Datos verificados de contenedores en la nube y locales
@@ -50,6 +56,18 @@ export const CONTENEDORES_OPCIONES: ContenedorOpcion[] = [
     requierePago: false,
     aptoPrivado: false,
     verificado: true,
+  },
+  {
+    id: 'cloudroom',
+    nombre: 'Cloudroom',
+    enlaceAlta: 'https://cloudroom.dev',
+    guia: 'architecture/cloudroom-servidor-agentes.md',
+    requiereCuenta: true,
+    requierePago: false,
+    aptoPrivado: false,
+    verificado: true,
+    cupoNubeTotal: CUPO_GRATIS_CICLO,
+    diasCicloCupo: DIAS_CICLO,
   },
   {
     id: 'google-cloud',

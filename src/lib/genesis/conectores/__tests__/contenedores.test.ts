@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CUPO_GRATIS_CICLO, DIAS_CICLO } from '../cupo-cloudroom';
 import { contenedoresPara, ContenedorOpcion, CONTENEDORES_OPCIONES } from '../contenedores';
 
 describe('contenedoresPara', () => {
@@ -42,8 +43,8 @@ describe('contenedoresPara', () => {
 
     // Extract the free (non-privado, !requierePago)
     const free = result.filter((c) => !c.aptoPrivado && !c.requierePago);
-    // Original order of free: oracle-a1, github-actions
-    expect(free.map((c) => c.id)).toEqual(['oracle-a1', 'github-actions']);
+    // Original order of free: oracle-a1, github-actions, cloudroom
+    expect(free.map((c) => c.id)).toEqual(['oracle-a1', 'github-actions', 'cloudroom']);
 
     // Extract the paid
     const paid = result.filter((c) => !c.aptoPrivado && c.requierePago);
@@ -109,5 +110,23 @@ describe('CONTENEDORES_OPCIONES', () => {
     expect(hf?.requiereCuenta).toBe(true);
     expect(hf?.requierePago).toBe(true);
     expect(hf?.aptoPrivado).toBe(false);
+  });
+
+  // Cloudroom · SOP architecture/cloudroom-servidor-agentes.md §4.1: entrada gratis con cupo por cuenta
+  it('cloudroom está en el catálogo: gratis con cupo, cuenta y no apto para privado', () => {
+    const cr = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudroom');
+    expect(cr).toBeDefined();
+    expect(cr?.enlaceAlta).toContain('https://');
+    expect(cr?.requiereCuenta).toBe(true);
+    expect(cr?.requierePago).toBe(false);
+    expect(cr?.aptoPrivado).toBe(false);
+  });
+
+  it('el cupo de cloudroom nace del módulo de cupo, no de una cifra escrita a mano', () => {
+    const cr = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudroom');
+    expect(cr?.cupoNubeTotal).toBe(CUPO_GRATIS_CICLO);
+    expect(cr?.diasCicloCupo).toBe(DIAS_CICLO);
+    const sinCupo = CONTENEDORES_OPCIONES.filter((c) => c.id !== 'cloudroom');
+    expect(sinCupo.every((c) => c.cupoNubeTotal === undefined && c.diasCicloCupo === undefined)).toBe(true);
   });
 });
