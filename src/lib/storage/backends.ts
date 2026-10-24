@@ -28,6 +28,10 @@ import {
   subirArchivo as gdriveSubirArchivo,
 } from "./gdrive-driver";
 
+// Driver REAL de NEURONA/A1 (Ola 1017A · tarea K): volumen por bandas en otra
+// neurona o en el A1, con el transporte del anfitrión inyectado (ver abajo).
+import { crearDriverNeurona, type DriverNeurona, type TransporteNeurona } from "./neurona-driver";
+
 export type StorageKindId =
   | "starseed"
   | "gdrive"
@@ -50,7 +54,9 @@ export type StorageKindId =
   | "cloudrun"     // Google Cloud Run (hosting/cómputo soberano)
   | "vercel-blob"  // Vercel Blob store
   | "casaos"       // CasaOS / neurona propia (servidor casero por endpoint)
-  | "ipfs";        // IPFS (almacenamiento por contenido, descentralizado)
+  | "ipfs"         // IPFS (almacenamiento por contenido, descentralizado)
+  // Volumen por bandas en otra neurona o en el A1 (Ola 1017A · tarea K)
+  | "neurona";
 
 export type StorageScope = "account" | "profile" | "group" | "page" | "brain" | "vault";
 
@@ -443,6 +449,20 @@ export const STORAGE_KINDS: StorageKind[] = [
     defaultRules: { oss: true, contentAddressed: true, decentralized: true },
     defaultQuotaMb: null,
     oss: true,
+  },
+  {
+    id: "neurona",
+    label: "Neurona / A1 (volumen por bandas)",
+    icon: "🧠",
+    blurb:
+      "REAL (Ola 1017A): guarda cada objeto como VOLUMEN POR BANDAS (manifiesto + bandas de 4 MiB con SHA-256) en OTRO aparato prestado: una neurona de tu cuenta, o el A1 del cerebro. Solo se lee lo que se abre, verificado banda a banda; lo privado nunca sale de tu cuenta. Requiere el transporte del anfitrión vivo en este medio.",
+    fields: [
+      { key: "nodoId", label: "Id de la neurona o del A1 anfitrión" },
+      { key: "privado", label: "¿Privado? (sí/no — por defecto sí)", placeholder: "sí" },
+    ],
+    unlimited: true,
+    defaultRules: { realDriver: true, porBandas: true, prestado: true, prefersLarge: true },
+    defaultQuotaMb: null,
   },
 ];
 
@@ -877,7 +897,7 @@ export async function resolveBackendFor(
  * ─────────────────────────────────────────────────────────────────────────── */
 
 /** Kinds cuyo driver de lectura/escritura es REAL (no andamiaje). */
-export const REAL_DRIVER_KINDS: string[] = ["starseed", "gcs", "gdrive"];
+export const REAL_DRIVER_KINDS: string[] = ["starseed", "gcs", "gdrive", "neurona"];
 
 /** Token vigente de Google Drive, o el motivo honesto por el que no lo hay. */
 async function gdriveToken(): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
@@ -899,6 +919,42 @@ async function gdriveCarpetaDelBackend(token: string, b: StorageBackend): Promis
 
 export function isRealBackend(kind: string): boolean {
   return REAL_DRIVER_KINDS.includes(kind);
+}
+
+/* ── Neurona / A1 (volumen por bandas · tarea K) ────────────────────────────
+ * El driver (`neurona-driver.ts`) es real y el transporte es INYECTADO: la
+ * malla, el daemon o el A1 registran aquí su canal cuando están vivos
+ * (`registrarTransporteNeurona`). Sin transporte registrado el backend dice
+ * la verdad: registrado y guardado, pero sin canal en ESTE medio todavía.
+ * Lo privado jamás sale de la cuenta (el driver lleva manifiesto privado). */
+
+const transportesNeurona = new Map<string, TransporteNeurona>();
+
+/** La malla, el daemon o el A1 enchufan aquí su canal vivo para esa neurona. */
+export function registrarTransporteNeurona(nodoId: string, t: TransporteNeurona): void {
+  transportesNeurona.set(nodoId, t);
+}
+
+/** Elimina el transporte registrado (anfitrión desaparecido o revocado). */
+export function quitarTransporteNeurona(nodoId: string): boolean {
+  return transportesNeurona.delete(nodoId);
+}
+
+/** El transporte vivo registrado para esa neurona/A1, o null si no hay canal aún. */
+export function transporteNeuronaRegistrado(nodoId: string): TransporteNeurona | null {
+  return transportesNeurona.get(nodoId) ?? null;
+}
+
+/** Resuelve el driver «neurona» de un backend, o el motivo honesto por el que no puede. */
+function driverNeuronaDeBackend(b: StorageBackend): DriverNeurona | { falta: string } {
+  const cfg = (b.config as Record<string, unknown>) || {};
+  const nodoId = typeof cfg.nodoId === "string" ? cfg.nodoId.trim() : "";
+  if (!nodoId) return { falta: "Falta el id de la neurona o del A1 anfitrión en la configuración de este backend." };
+  const t = transporteNeuronaRegistrado(nodoId);
+  if (!t) return { falta: "La neurona/A1 «" + nodoId + "» está registrada pero no tiene canal de transporte vivo en este medio: llama a probar cuando la malla o el A1 lo hayan registrado." };
+  // privado por defecto: un volumen prestado jamás sale de la cuenta del dueño.
+  const privado = typeof cfg.privado === "string" ? cfg.privado.trim().toLowerCase() !== "no" : cfg.privado !== false;
+  return crearDriverNeurona(t, { privado });
 }
 
 export interface BackendIoResult {
@@ -986,6 +1042,14 @@ export async function testBackend(b: StorageBackend): Promise<BackendTestResult>
         (typeof cfg.folderId === "string" && cfg.folderId ? "Carpeta configurada." : "Sin carpeta elegida todavía: se creará una por defecto al usarse."),
     };
   }
+  if (b.kind === "neurona") {
+    const drv = driverNeuronaDeBackend(b);
+    if ("falta" in drv) return { ok: false, real: true, detail: drv.falta };
+    const vivo = await drv.probar();
+    return vivo
+      ? { ok: true, real: true, detail: "La neurona/A1 anfitriona respondió a la sonda: canal de bandas vivo." }
+      : { ok: false, real: true, detail: "La neurona/A1 no respondió a la sonda: el canal está registrado pero el anfitrión no contesta." };
+  }
   return {
     ok: false,
     real: false,
@@ -1020,6 +1084,14 @@ export async function putObjectToBackend(
       return { ok: r.ok, path, error: r.error };
     }
     const r = await gdriveSubirArchivo(t.token, { carpetaId: carpeta.folderId, nombre, contenido: file, mime: contentType, appProperties: { osPath: path } });
+    options.onProgress?.(100);
+    return { ok: r.ok, path, error: r.error };
+  }
+  if (b.kind === "neurona") {
+    const drv = driverNeuronaDeBackend(b);
+    if ("falta" in drv) return { ok: false, error: drv.falta };
+    const datos = new Uint8Array(await (file as Blob).arrayBuffer());
+    const r = await drv.poner(path, datos);
     options.onProgress?.(100);
     return { ok: r.ok, path, error: r.error };
   }
@@ -1068,6 +1140,13 @@ export async function deleteObjectFromBackend(b: StorageBackend, path: string): 
     if (!fileId) return { ok: true, path }; // ya no está: el resultado deseado se cumple igual
     const r = await gdriveBorrar(t.token, fileId);
     return { ok: r.ok, path, error: r.error };
+  }
+  if (b.kind === "neurona") {
+    const drv = driverNeuronaDeBackend(b);
+    if ("falta" in drv) return { ok: false, path, error: drv.falta };
+    // Borrar el volumen borra el manifiesto y sus bandas en el anfitrión.
+    const borrado = await drv.borrar(path);
+    return borrado ? { ok: true, path } : { ok: false, path, error: "El anfitrión no atendió el borrado del volumen." };
   }
   return scaffoldResult(b);
 }
