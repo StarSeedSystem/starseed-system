@@ -4166,6 +4166,17 @@ def tsc_en_a1(cwd, log=None, comprobar=None):
     return (0, []) if ok else (1, errores_de_a1(detalle))
 
 
+def _anotar_en_log(ruta_log, texto):
+    """Escribe una línea en el log del trabajo (aquí `log` es una RUTA de archivo, no una llamada)."""
+    if not ruta_log:
+        return
+    try:
+        with open(ruta_log, "a", encoding="utf-8") as f:
+            f.write("\n%s\n" % texto)
+    except Exception:  # noqa: BLE001 — una anotación nunca tumba la puerta
+        pass
+
+
 def tsc(cwd, log):
     if repo_es_python(cwd):
         # Compilación de los .py cambiados respecto a main (o todos los del diff sin commit).
@@ -4190,6 +4201,26 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
+    # TSC1021A: si el diff de la tarea no toca nada que tsc mire, un turno de tsc completo no puede
+    # cambiar el resultado (el worktree está al día con main y main está en verde). Si el diff
+    # viene vacío o git falla, se corre el tsc de hoy: ante la menor duda, no se salta.
+    try:
+        if os.path.exists(os.path.join(cwd or ".", "tsconfig.json")):
+            rc_d, cambiados = sh(
+                "git diff --name-only main...HEAD; git diff --name-only",
+                cwd=cwd,
+                timeout=60,
+            )
+            archivos_diff = [
+                l.strip() for l in str(cambiados or "").splitlines() if l.strip()
+            ]
+            if rc_d == 0 and archivos_diff and not diff_necesita_tsc(archivos_diff):
+                _anotar_en_log(
+                    log, "tsc no hace falta: el diff no toca TypeScript (%d archivos)" % len(archivos_diff)
+                )
+                return 0, []
+    except Exception:  # noqa: BLE001 — el atajo falla: tsc entero, como hoy
+        pass
     # TRA1012Bc-d1: en la Mac el tsc completo pesa ~3,5 GB; si el A1 responde, la puerta se hace allí.
     remoto = tsc_en_a1(cwd, log)
     if remoto is not None:
@@ -4223,6 +4254,36 @@ def tsc(cwd, log):
 #: y, si tsc reventaba por memoria («JavaScript heap out of memory», heap 2560 MB con la Mac en
 #: swap), no había ninguna: «0 errores». Así entró CC1003F con 4 errores de tipos en su prueba.
 TSC_SIN_TERMINAR = "tsc no terminó"
+
+
+def diff_necesita_tsc(archivos):
+    """PURA: si el diff de la tarea toca algo que tsc compila o configura, hace falta el turno de tsc.
+
+    Caso medido (2026-10-21 10:30 UTC, Mac de 8 GB con la swap al 94 % y presión del núcleo 2):
+    tres tareas llevaban 5, 30 y 49 min en la fase «tsc», haciendo cola para un tsc completo, y en
+    3 h la Mac no integró nada. Una (VAR1021A) solo tocaba .py de scripts/puente/: su diff no podía
+    cambiar el resultado, porque cada worktree se pone al día con main (poner_al_dia) y main está
+    en verde. Si el diff no toca ningún .ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs (incluido .d.ts), ni
+    tsconfig*.json, package.json, package-lock.json ni next-env.d.ts, ni nada dentro de src/ o
+    types/, NO hace falta tsc. Ante la menor duda (lista vacía o con entradas huecas) → True: se
+    corre como hoy."""
+    utiles = [str(a).strip().replace("\\", "/") for a in archivos]
+    utiles = [a for a in utiles if a and a.strip("/")]
+    if not utiles:
+        return True
+    for archivo in utiles:
+        ruta = archivo
+        partes = [p for p in ruta.split("/") if p]
+        base = partes[-1] if partes else ruta
+        if base.lower().endswith((".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")):
+            return True
+        if base in ("package.json", "package-lock.json", "next-env.d.ts"):
+            return True
+        if base.startswith("tsconfig") and base.endswith(".json"):
+            return True
+        if len(partes) > 1 and partes[0] in ("src", "types"):
+            return True
+    return False
 
 
 def tsc_sin_terminar(rc, salida, errores):
