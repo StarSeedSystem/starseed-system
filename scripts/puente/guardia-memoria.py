@@ -102,6 +102,25 @@ def libres_mb():
         return None
 
 
+def presion_nucleo():
+    """Presión de memoria que mide el propio núcleo (1 normal · 2 aviso · 4 crítica).
+
+    (2026-10-21) `libres_mb()` suma la memoria INACTIVA, y con macOS presionado esa
+    inactiva sigue alta: el guardia veía holgura mientras la swap estaba al 94 % y el
+    núcleo en 2. Un `llama-server` llevaba 22 h congelado sin que se reevaluara. La
+    señal buena es esta, no el porcentaje de swap (macOS añade archivos de swap según
+    se llenan y el porcentaje nunca llega). None si no se puede medir (fuera de macOS).
+    """
+    try:
+        s = subprocess.run(
+            ["sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
+            capture_output=True, text=True, timeout=5
+        ).stdout.strip()
+        return int(s) if s.isdigit() else None
+    except Exception:
+        return None
+
+
 def procesos():
     """({motor: {pid: estado}}, orquestador_vivo, ps_ok), solo de los motores vigilados.
 
@@ -238,18 +257,26 @@ def accion_para(motor, congelado_min, swap_pct):
     return "nada"
 
 
-def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False):
-    """Que hacer, pura: lista de (motor, 'congelar'|'descongelar').
+def decidir(
+    orquestador_vivo, libre_mb, congelados, motores, conversando=False, presion=None
+):
+    """Que hacer, pura: lista de (motor, 'congelar'|'descongelar'|'reevaluar').
 
     `congelados` son los motores que el guardia tiene marcados Y verificados como
     parados (estado «T») en este ciclo — nunca solo porque quede un archivo en /tmp.
+    `presion` es el nivel del núcleo (1 normal · 2 aviso · 4 crítica) o None si no
+    se pudo medir.
 
     Reglas:
       · Sin medida de memoria (`libre_mb is None`) no se toca nada, en ningun sentido.
-      · Enjambre vivo y menos de CONGELAR_BAJO_MB libres: se congela todo motor suelto.
+      · Enjambre vivo y menos de CONGELAR_BAJO_MB libres O presión del núcleo >= 2:
+        se congela todo motor suelto y se REEVALÚA el ya congelado. La presión entra
+        porque la inactiva engaña: con el núcleo en aviso se congela aunque `libre_mb`
+        parezca holgado (2026-10-21, BitNet 22 h congelado con la swap al 94 %).
       · Sin enjambre y mas de REANUDAR_SOBRE_MB libres: se reanuda lo congelado por
         nosotros. Entre ambos umbrales no se hace nada (histeresis): sin esa banda el
-        motor iria y volveria en cada ciclo.
+        motor iria y volveria en cada ciclo. La reanudación no mira la presión: si
+        hubiera presión, el enjambre estaría vivo o no habría holgura.
       · Un motor marcado cuyo proceso ya no esta parado («T») NO es `congelado`: no se
         le manda SIGCONT a un proceso vivo y el marcador se borra fuera, asi un motor
         nuevo con el mismo nombre vuelve a poder congelarse. Ver `main`.
@@ -261,19 +288,22 @@ def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False):
         return [(m, "descongelar") for m in motores if m in congelados]
     if libre_mb is None:
         return acciones
+    falta = libre_mb < CONGELAR_BAJO_MB or (presion is not None and presion >= 2)
     for motor in motores:  # orden estable = el de la lista viva
         if motor not in congelados:
-            if orquestador_vivo and libre_mb < CONGELAR_BAJO_MB:
+            if orquestador_vivo and falta:
                 acciones.append((motor, "congelar"))
         elif not orquestador_vivo and libre_mb > REANUDAR_SOBRE_MB:
             acciones.append((motor, "descongelar"))
-        elif orquestador_vivo and libre_mb < CONGELAR_BAJO_MB:
+        elif orquestador_vivo and falta:
             # (2026-10-11) Ya congelado y sigue faltando memoria: se REEVALÚA con
             # `accion_para`. Antes nunca se volvía a mirar un motor congelado, así que
             # la regla CNS1010 (tts-server siempre muerto; llama-server muerto tras
             # 20 min congelado con swap >= 80 %) no se cumplía nunca para los que ya
             # estaban parados: el tts-server pasó 13 h congelado reteniendo ~900 MB
             # con la swap al 95 % y el enjambre atascado.
+            # (2026-10-21) Y con la presión del núcleo en 2 también, aunque `libre_mb`
+            # diga que hay holgura: es el caso que dejó a BitNet 22 h congelado.
             acciones.append((motor, "reevaluar"))
     return acciones
 
@@ -310,7 +340,10 @@ def main():
             congelados = obtener_congelados(motores) if ps_ok else set()
 
             conversando = _conv.activa(_conv.leer_concesion())
-            acciones = decidir(orq, libres_mb(), congelados, vivos, conversando)
+            presion = presion_nucleo()
+            acciones = decidir(
+                orq, libres_mb(), congelados, vivos, conversando, presion
+            )
             # El enjambre cede la RAM mientras dura la conversación y vuelve al acabar.
             if conversando or _conv.leer_marca():
                 print("conversación: %s" % _conv.aplicar(), flush=True)

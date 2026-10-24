@@ -158,3 +158,59 @@ class ConAlexHablandoLosMotoresNoSeCongelan(unittest.TestCase):
     def test_sin_conversacion_la_regla_de_siempre(self):
         self.assertEqual(G.decidir(True, 10, set(), ["llama-server"], conversando=False),
                          [("llama-server", "congelar")])
+
+
+class PresionDelNucleo(unittest.TestCase):
+    """(2026-10-21) La inactiva engañaba: con la swap al 94 % y el núcleo en 2,
+    `libre_mb` parecía holgado y BitNet llevaba 22 h congelado sin reevaluarse."""
+
+    def test_congelado_con_presion_2_y_libre_alta_se_reevalua(self):
+        acciones = G.decidir(
+            True, SOBRE + 1, {"llama-server"}, ["llama-server"], presion=2
+        )
+        self.assertEqual([("llama-server", "reevaluar")], acciones)
+
+    def test_presion_1_y_libre_alta_no_hace_nada(self):
+        self.assertEqual(
+            [],
+            G.decidir(
+                True, SOBRE + 1, {"llama-server"}, ["llama-server"], presion=1
+            ),
+        )
+
+    def test_presion_none_se_comporta_como_siempre(self):
+        self.assertEqual(
+            [],
+            G.decidir(
+                True, SOBRE + 1, {"llama-server"}, ["llama-server"], presion=None
+            ),
+        )
+        self.assertEqual(
+            [("llama-server", "congelar")],
+            G.decidir(
+                True, BAJO - 1, set(), ["llama-server"], presion=None
+            ),
+        )
+
+    def test_suelto_con_presion_2_y_libre_alta_se_congela(self):
+        acciones = G.decidir(
+            True, SOBRE + 1, set(), ["llama-server", "tts-server"], presion=2
+        )
+        self.assertEqual(
+            [("llama-server", "congelar"), ("tts-server", "congelar")], acciones
+        )
+
+    def test_sin_medida_de_memoria_la_presion_no_autoriza_nada(self):
+        self.assertEqual(
+            [], G.decidir(True, None, set(), ["llama-server"], presion=2)
+        )
+
+    def test_sin_enjambre_la_presion_no_impide_reanudar(self):
+        acciones = G.decidir(
+            False, SOBRE + 1, {"tts-server"}, ["tts-server"], presion=2
+        )
+        self.assertEqual([("tts-server", "descongelar")], acciones)
+
+    def test_presion_nucleo_devuelve_entero_o_none(self):
+        nivel = G.presion_nucleo()
+        self.assertTrue(nivel is None or isinstance(nivel, int))
