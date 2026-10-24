@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MODELO_JEV } from "@/lib/jev/decisiones";
 import {
   decidirConLaya,
   planDeDecision,
@@ -25,9 +26,11 @@ const layaAlta: RespuestaLaya = {
 const jevAlta: RespuestaJev = { ok: true, probabilidad: 0.9,
   llamada: { nombre: "guardar", argumentos: {} } };
 
-function respuestaLaya(choice = "buscar", confidence = 0.81): Response {
+function respuestaLaya(choice = "buscar", confidence = 0.81,
+  answerConfidence?: number): Response {
   return new Response(JSON.stringify({
-    answers: { herramienta: { type: "choice", choice, confidence } },
+    answers: { herramienta: { type: "choice", choice, confidence,
+      ...(answerConfidence === undefined ? {} : { answer_confidence: answerConfidence }) } },
   }), { status: 200, headers: { "Content-Type": "application/json" } });
 }
 
@@ -43,15 +46,32 @@ describe("decidirConLaya", () => {
     await expect(decidirConLaya("encuentra un libro", herramientas, transporte)).resolves.toEqual({
       herramienta: "buscar", confianza: 0.81, motor: "laya-local",
     });
+    // Con el cliente único (Ola 1018L · Tarea B) el cuerpo sale de construirPeticion:
+    // formato nativo con `model` y la pregunta abierta del catálogo conserva «ninguna».
     expect(cuerpo).toEqual({
+      model: MODELO_JEV,
       state: "encuentra un libro",
       questions: {
         herramienta: {
           type: "choice",
           instructions: "Elige la herramienta más adecuada para resolver la consulta",
-          criteria: { buscar: "Busca información", guardar: "Guarda el resultado" },
+          criteria: {
+            buscar: "Busca información", guardar: "Guarda el resultado",
+            ninguna: "Ninguna herramienta: basta con conversar",
+          },
         },
       },
+    });
+  });
+
+  it("lee la confianza calibrada: manda answer_confidence y confidence solo si falta", async () => {
+    const calibrada = async () => respuestaLaya("buscar", 0.95, 0.42);
+    await expect(decidirConLaya("consulta", herramientas, calibrada)).resolves.toEqual({
+      herramienta: "buscar", confianza: 0.42, motor: "laya-local",
+    });
+    const sinCalibrar = async () => respuestaLaya("buscar", 0.77);
+    await expect(decidirConLaya("consulta", herramientas, sinCalibrar)).resolves.toEqual({
+      herramienta: "buscar", confianza: 0.77, motor: "laya-local",
     });
   });
 
