@@ -210,7 +210,9 @@ export function DesignStudio() {
                             </DropdownMenuItem>
                         ))}
                         {pageTargets.length === 0 && (
-                            <p className="px-2 py-1.5 text-[10px] text-white/40">Inicia sesión y administra páginas/grupos para aplicar ahí.</p>
+                            <div className="p-2">
+                                <AvisoSesion texto="Inicia sesión y administra páginas/grupos para aplicar ahí." compacto className="w-full" />
+                            </div>
                         )}
                     </DropdownMenuContent>
                 </DropdownMenu>

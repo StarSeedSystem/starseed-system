@@ -1452,11 +1452,15 @@ export function XRNetworkHub({ ctx }: { ctx?: string | null }) {
 
             {noData && (
                 <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 px-6 text-center">
-                    <p className="text-sm font-semibold text-white/70">
-                        {uid
-                            ? 'Aún no hay nodos en tu red. Crea cerebros, memorias o pizarras para verlos aquí en 3D.'
-                            : 'Inicia sesión para ver tu red real en 3D. Mientras tanto puedes explorar el espacio.'}
-                    </p>
+                    {uid ? (
+                        <p className="text-sm font-semibold text-white/70">
+                            Aún no hay nodos en tu red. Crea cerebros, memorias o pizarras para verlos aquí en 3D.
+                        </p>
+                    ) : (
+                        <div className="mx-auto max-w-md pointer-events-auto">
+                            <AvisoSesion texto="Inicia sesión para ver tu red real en 3D. Mientras tanto puedes explorar el espacio." compacto />
+                        </div>
+                    )}
                 </div>
             )}
 

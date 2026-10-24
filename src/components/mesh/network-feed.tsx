@@ -10,6 +10,8 @@
  */
 
 import { useMemo } from "react";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
+import { useAuth } from "@/hooks/use-auth";
 import Link from "next/link";
 import { Radio, Trash2, Inbox, FileText, MessageSquare, Signal, ShieldAlert, ShieldCheck, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -65,6 +67,7 @@ function present(body: unknown): { title: string; detail?: string; href?: string
 export function NetworkFeed({ embedded = false }: { embedded?: boolean }) {
   const inbox = useNetworkInbox();
   const items = useMemo(() => inbox.slice(0, 100), [inbox]);
+  const auth = useAuth();
 
   return (
     <div className="space-y-3">
@@ -108,10 +111,16 @@ export function NetworkFeed({ embedded = false }: { embedded?: boolean }) {
         <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-12 text-center">
           <Inbox className="h-8 w-8 text-white/25" />
           <p className="text-[13px] font-medium text-white/70">Aún no ha llegado nada</p>
-          <p className="max-w-md text-[11px] leading-snug text-white/45">
-            Cuando otra neurona de la red publique o te envíe algo, aparecerá aquí. Inicia sesión y ten el
-            internet público encendido en Señales para participar en el feed.
-          </p>
+          {auth?.user ? (
+            <p className="max-w-md text-[11px] leading-snug text-white/45">
+              Cuando otra neurona de la red publique o te envíe algo, aparecerá aquí. Ten el internet público
+              encendido en Señales para participar en el feed.
+            </p>
+          ) : (
+            <div className="mt-2 w-full max-w-md pointer-events-auto">
+              <AvisoSesion texto="Inicia sesión para ver el feed de red y participar con otras neuronas." compacto />
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
