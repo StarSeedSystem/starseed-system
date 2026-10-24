@@ -473,7 +473,10 @@ def _avisar(texto):
 
 #: Módulos de scripts/puente que el nodo de MetaGenesis importa al arrancar (además de los
 #: `nodo_metagenesis*`). La prueba `ModulosDelNodo` falla si uno nuevo no está aquí.
-MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py", "traer_nube.py")
+MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py", "traer_nube.py",
+                    # (2026-10-24) `traer_nube.py` importa `vigia_runs_nube` al arrancar (solo
+                    # biblioteca estándar): sin él en el paquete, reinstalar el nodo lo tumba igual.
+                    "vigia_runs_nube.py")
 
 
 def _paquete(destino):
@@ -805,8 +808,8 @@ def traer(estado_a1=None):
     terminadas = {c.get("rama"): c for c in colas if isinstance(c, dict) and c.get("rama")}
     devueltas = []
     lanzamientos = datos.get("lanzamientos") or []
-    kanssa = time.time()
-    vivo = nodo_vivo(estado_a1, kanssa)
+    ahora = time.time()
+    vivo = nodo_vivo(estado_a1, ahora)
     # La cola que el nodo tiene EN CURSO: su en-curso.json guarda la rama tal cual (estado.json
     # solo enseña el basename del archivo de cola, que no casa con la rama de la nota). Solo
     # cuenta como viva si el nodo late: si el servicio murió, es basura de una cola a medias y
