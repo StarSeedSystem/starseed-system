@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Sparkles } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import {
     detectStarSeedSession,
@@ -26,6 +27,7 @@ import {
     isStarSeedEmail,
     type DetectedIdentity,
 } from "@/lib/sso/detect-session";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 
 export interface SessionResumePromptProps {
     /** A dónde llevar tras adoptar la sesión (por defecto el panel del OS). */
@@ -318,6 +320,35 @@ export function SessionResumePrompt({
                     }}
                 >
                     Usar otra cuenta
+                </button>
+
+                {/* (GUI1021K) «Conoce StarSeed»: la guía de introducción también aquí,
+                    sin cuenta y sin cerrar el aviso (§5 de la SOP de guías). */}
+                <button
+                    type="button"
+                    className="ss-sso-other"
+                    onClick={() => abrirGuia({ desde: "login" })}
+                    disabled={entering}
+                    aria-label="Conoce StarSeed: abre la guía de introducción sin cuenta"
+                    style={{
+                        width: "100%",
+                        background: "transparent",
+                        border: "none",
+                        color: "rgba(255,255,255,.6)",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        marginTop: 10,
+                        padding: "10px 0",
+                        minHeight: 44,
+                        cursor: entering ? "default" : "pointer",
+                        transition: "color .15s",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                    }}
+                >
+                    <Sparkles size={14} aria-hidden /> Conoce StarSeed
                 </button>
 
                 <p
