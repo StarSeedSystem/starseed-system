@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Pruebas de director_dream.py: el que convierte el Dream en encargos."""
+"""Pruebas de director_dream.py: el que convierte la imaginación diaria en encargos."""
 
 import os
 import sys
@@ -54,7 +54,7 @@ class TestFormaDelEncargo(unittest.TestCase):
         self.assertIn(P["seccion"], prompt)
 
     def test_deja_salida_si_ya_no_aplica(self):
-        # El Dream lo escriben modelos gratuitos leyendo registros: a veces
+        # La imaginación diaria la escriben modelos gratuitos leyendo registros: a veces
         # proponen algo ya hecho. El encargo tiene que permitir decirlo.
         self.assertIn("NO APLICA", DD.tarea_de(P, "2026-09-17", 0)["prompt"])
 
