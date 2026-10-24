@@ -15,7 +15,7 @@ import { SINTETIZADOR } from "./sintetizador";
 import { DOBLAJE } from "./doblaje";
 
 /** Los átomos que el OS trae de serie. Las tareas siguientes (F1E) añaden los suyos aquí. */
-export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE];
+export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, VIDEO_HTML];
 
 /**
  * Registra los átomos propios que falten en el registro. Es idempotente: llamarla dos
