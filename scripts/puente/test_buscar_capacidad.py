@@ -587,3 +587,130 @@ class ZenCuentaEnLaNube(unittest.TestCase):
         uno = B.tope_runs_nube(36, ["nvidia"])[0]
         dos = B.tope_runs_nube(36, ["nvidia", "opencode"])[0]
         self.assertGreater(dos, uno)
+
+
+class CloudroomEnLaPasada(unittest.TestCase):
+    """(CRM1024I) «Buscar más capacidad» y la autocuración usan Cloudroom: el medio y el lanzador
+    van simulados (sin room-cli, sin red)."""
+
+    class Lanzador:
+        def __init__(self, lanzado=None, falla_seguir=False, falla_lanzar=False):
+            self.llamadas, self.lanzado = [], lanzado or {"lanzadas": [], "quedan": 100, "motivo": ""}
+            self.falla_seguir, self.falla_lanzar = falla_seguir, falla_lanzar
+
+        def seguir(self, aplicar=True, ahora=None):
+            self.llamadas.append(("seguir", aplicar))
+            if self.falla_seguir:
+                raise TimeoutError()
+            return {"acciones": {"X": "traer", "Y": "esperar"}, "errores": []}
+
+        def lanzar(self, ids, seco=False, priorizar=False, medio=None, ahora=None):
+            self.llamadas.append(("lanzar", list(ids), seco, priorizar, medio))
+            if self.falla_lanzar:
+                raise OSError("roto")
+            return dict(self.lanzado, lanzadas=list(self.lanzado["lanzadas"]) if not seco else ids[:1])
+
+    USABLE = {"id": "cloudroom", "estado": "usable", "detalle": "cuenta conectada"}
+
+    def test_parte_con_lanzadas_y_lo_que_queda(self):
+        linea = B.texto_cloudroom({"lanzadas": ["A", "B"], "quedan": 95}, {"acciones": {"X": "traer", "Y": "parche"}})
+        self.assertTrue(linea.startswith("Cloudroom: 2 lanzadas, quedan 95 del ciclo"))
+        self.assertIn("1 traída(s), 1 por diff-patch", linea)
+
+    def test_parte_dice_por_que_no(self):
+        self.assertEqual(B.texto_cloudroom({"lanzadas": [], "quedan": None, "motivo": "app sin instalar"}),
+                         "Cloudroom: app sin instalar")
+        self.assertEqual(B.texto_cloudroom({"lanzadas": [], "motivo": "sin sesión (inicia sesión en la app)"}),
+                         "Cloudroom: sin sesión (inicia sesión en la app)")
+        sin = B.texto_cloudroom({"lanzadas": [], "quedan": 0, "motivo": "sin cupo: 100 de 100 hilos de la nube usados en 30 días"})
+        self.assertTrue(sin.startswith("Cloudroom: sin cupo:"))
+        self.assertNotIn("quedan", sin)
+        hoy = B.texto_cloudroom({"lanzadas": [], "quedan": 97, "motivo": "sin cupo hoy: ya van 3 (ritmo 3.3 al día)"})
+        self.assertIn("quedan 97 del ciclo", hoy)
+        self.assertIn("no se abrió: A: error", B.texto_cloudroom({"lanzadas": [], "quedan": 99, "errores": ["A: error"]}))
+
+    def test_comprobar_dice_lo_que_haria(self):
+        self.assertTrue(B.texto_cloudroom({"lanzadas": ["A"], "quedan": 98}, aplicado=False).startswith("Cloudroom: lanzaría 1 (A)"))
+
+    def test_aplicar_sigue_y_luego_lanza_por_prioridad_las_cedibles(self):
+        cr = self.Lanzador({"lanzadas": ["B"], "quedan": 97, "motivo": ""})
+        sumadas, linea, ids = B.cloudroom(True, ["A", "B"], AHORA, cr=cr, sondear=lambda: self.USABLE)
+        self.assertEqual((sumadas, ids), (1, ["B"]))
+        self.assertEqual(cr.llamadas[0], ("seguir", True))
+        self.assertEqual(cr.llamadas[1], ("lanzar", ["A", "B"], False, True, self.USABLE))
+        self.assertIn("Cloudroom: 1 lanzadas, quedan 97 del ciclo", linea)
+        self.assertIn("1 trabajando", linea)
+
+    def test_comprobar_no_sigue_ni_suma(self):
+        cr = self.Lanzador()
+        sumadas, linea, ids = B.cloudroom(False, ["A", "B"], AHORA, cr=cr, sondear=lambda: self.USABLE)
+        self.assertEqual((sumadas, ids), (0, []))
+        self.assertEqual([c[0] for c in cr.llamadas], ["lanzar"])
+        self.assertTrue(cr.llamadas[0][2])  # en seco
+        self.assertIn("lanzaría 1 (A)", linea)
+
+    def test_un_fallo_no_rompe_la_pasada(self):
+        cr = self.Lanzador(falla_seguir=True)
+        sumadas, linea, _ = B.cloudroom(True, ["A"], AHORA, cr=cr, sondear=lambda: self.USABLE)
+        self.assertEqual(sumadas, 0)
+        self.assertIn("aviso: no pude seguir los hilos (TimeoutError)", linea)
+        roto = B.cloudroom(True, ["A"], AHORA, cr=self.Lanzador(falla_lanzar=True), sondear=lambda: self.USABLE)
+        self.assertEqual(roto, (0, "Cloudroom: no pude mirarlo (OSError)", []))
+
+    def test_lo_que_coge_cloudroom_no_se_reparte_a_github(self):
+        from unittest import mock
+        import asignar_huecos
+
+        vistas = {}
+
+        def plan(elegibles, *a, **k):
+            vistas["elegibles"] = list(elegibles or [])
+            return {"lanzar": 0, "reabrir": [], "trabajadores": 3, "por_que": "nada"}
+
+        carpeta = tempfile.mkdtemp()
+        nube = {"clases": {"elegibles": ["A", "B", "C"]}, "pausa": None, "runs": 0, "error": None, "mac": {}}
+        with mock.patch.object(B, "ESTADO", os.path.join(carpeta, "estado.json")), \
+                mock.patch.object(B, "SALUD", os.path.join(carpeta, "salud.json")), \
+                mock.patch.object(B, "reunir_nube", lambda *a, **k: nube), \
+                mock.patch.object(B, "cloudroom", lambda *a, **k: (1, "Cloudroom: 1 lanzadas, quedan 99 del ciclo · B", ["B"])), \
+                mock.patch.object(B, "plan_nube", plan), \
+                mock.patch.object(B, "claude_nube", lambda *a, **k: (0, "Claude en la nube: 0")), \
+                mock.patch.object(B, "_avisar", lambda *a, **k: None), \
+                mock.patch.object(RN, "leer_reaperturas", lambda *a, **k: {}), \
+                mock.patch.object(asignar_huecos, "reunir", lambda: {"listas": [], "tope": 3}), \
+                mock.patch.object(asignar_huecos, "decidir", lambda e: {"puede": False}):
+            r = B.buscar(aplicar=True, sondear_medios=False, mac=False, origen="autocuracion", ahora=AHORA)
+        self.assertEqual(vistas["elegibles"], ["A", "C"])
+        self.assertEqual(r["sumados"], 1)
+        self.assertIn("Cloudroom: 1 hilo(s) en la nube (B)", r["hechas"])
+        self.assertIn("· Cloudroom: 1 lanzadas, quedan 99 del ciclo · B", r["resumen"])
+
+    def test_medio_registrado_tras_claude_y_honesto_si_falla(self):
+        import medios_disponibles as M
+
+        self.assertEqual(M.sondear_cloudroom(lambda: self.USABLE), self.USABLE)
+
+        def rota():
+            raise ModuleNotFoundError("medio_cloudroom")
+
+        caida = M.sondear_cloudroom(rota)
+        self.assertEqual((caida["id"], caida["estado"]), ("cloudroom", "no_disponible"))
+        self.assertIn("ModuleNotFoundError", caida["detalle"])
+        self.assertEqual(M.sondear_cloudroom(lambda: {"estado": "conectado"})["estado"], "no_disponible")
+        fuente = open(M.__file__, encoding="utf-8").read()
+        self.assertLess(fuente.index("medios.append(clasificar_claude(reg, ahora))"),
+                        fuente.index("medios.append(sondear_cloudroom())"))
+
+    def test_su_linea_no_sale_dos_veces_en_otros_medios(self):
+        from unittest import mock
+        import contenedores_nube
+        import medios_disponibles as M
+
+        medios = {"medios": [{"id": "mac"}, self.USABLE, {"id": "hf", "estado": "requiere_alex"}]}
+        inventariados = []
+        with mock.patch.object(M, "sondear", lambda: medios), \
+                mock.patch.object(contenedores_nube, "inventario", lambda m: inventariados.append(m) or {}), \
+                mock.patch.object(contenedores_nube, "escribir", lambda d: d):
+            otros = B._otros_medios()
+        self.assertEqual([m["id"] for m in otros], ["hf"])
+        self.assertIn(self.USABLE, inventariados[0])  # el medidor Contenedores sí lo ve

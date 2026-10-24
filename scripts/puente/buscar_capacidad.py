@@ -25,13 +25,19 @@ sea solo uno fusionado funcional»—, y la autocuración de Genesis cada 30 min
    solo están fuera por los envíos (una reapertura devuelve un envío; como mucho
    `REAPERTURAS_MAX` por tarea en dos días y separadas `REABRIR_ESPERA_S`), dejando siempre
    en la Mac trabajo para su tope entero. Luego lanza los jobs en segundo plano.
+2a. **Cloudroom** (2026-10-24, CRM1024I · `architecture/cloudroom-servidor-agentes.md` §4.3): si el
+   medio es usable, `cloudroom_lanzar` sigue los hilos abiertos (trae la rama que empujó el agente,
+   sube su diff-patch o devuelve lo varado) y lanza, por prioridad y con el ritmo del cupo (100 en la
+   nube cada 30 días en el plan gratis), las MISMAS tareas que la Mac cede a la nube; lo que coge sale
+   de lo que se reparte a GitHub Actions. El parte dice «Cloudroom: N lanzadas, quedan M del ciclo» o
+   por qué no («sin cupo», «sin sesión», «app sin instalar»).
 3. **Los demás medios** (contenedor de Claude, Google Cloud, Hugging Face, Colab): sondeo de
    `medios_disponibles` con lo que falta para encenderlos, y con ese mismo sondeo se vuelve a
    medir el inventario de contenedores (`contenedores_nube`). Desde aquí no se encienden: o
    requieren a Alex o un medio que aún no existe, y se dice cuál.
 
 Las decisiones son PURAS (`plan_nube`, `puede_reabrir`, `texto_mac`, `texto_nube`,
-`resumen`) y tienen sus pruebas en `test_buscar_capacidad.py`.
+`texto_cloudroom`, `resumen`) y tienen sus pruebas en `test_buscar_capacidad.py`.
 
 Uso: python3 buscar_capacidad.py buscar [--aplicar] [--sin-medios] [--sin-mac] [--json]
                                          [--origen boton|autocuracion]
@@ -115,6 +121,7 @@ NOMBRES = {
     "nube-gh": "Nube (GitHub Actions)",
     "claude": "Contenedor de Claude",
     "claude-nube": "Claude en la nube",
+    "cloudroom": "Cloudroom",
     "gcloud": "Google Cloud",
     "hf": "Hugging Face",
     "colab": "Colab / Kaggle",
@@ -371,6 +378,58 @@ def claude_nube(aplicar, ahora):
         lanzado = "el lanzador aún no está en main"
     vivas = CN.vivas_claude_nube(CN._leer_json(CN.REGISTRO_CLAUDE, {}), CN._leer_json(CN.PROGRESO, {}))
     return sumadas, texto_claude_nube(vivas, CN.tope_claude_nube(), credito, ahora, lanzado)
+
+
+def texto_cloudroom(lanzado, seguido=None, aplicado=True):
+    """PURA: la línea de Cloudroom: «Cloudroom: N lanzadas, quedan M del ciclo» o por qué no («sin
+    cupo», «sin sesión», «app sin instalar»), y lo que dejaron los hilos que ya estaban abiertos.
+    Sin `aplicado` (solo comprobar) dice lo que HARÍA."""
+    lanzado = lanzado if isinstance(lanzado, dict) else {}
+    ids, quedan = list(lanzado.get("lanzadas") or []), lanzado.get("quedan")
+    del_ciclo = (", quedan %d del ciclo" % quedan) if isinstance(quedan, int) else ""
+    if ids and aplicado:
+        linea = "%s: %d lanzadas%s · %s" % (NOMBRES["cloudroom"], len(ids), del_ciclo, ", ".join(ids))
+    elif ids:
+        linea = "%s: lanzaría %d (%s)%s" % (NOMBRES["cloudroom"], len(ids), ", ".join(ids), del_ciclo)
+    else:
+        motivo = lanzado.get("motivo") or "nada que lanzar"
+        linea = "%s: %s%s" % (NOMBRES["cloudroom"], motivo, "" if motivo.startswith("sin cupo:") else del_ciclo)
+    errores = list(lanzado.get("errores") or [])
+    if errores:
+        linea += " · no se abrió: %s" % "; ".join(errores[:2])
+    acciones = list(((seguido or {}).get("acciones") or {}).values())
+    partes = ["%d %s" % (acciones.count(a), nombre) for a, nombre in
+              (("traer", "traída(s)"), ("parche", "por diff-patch"), ("devolver", "devuelta(s)"), ("esperar", "trabajando"))
+              if acciones.count(a)]
+    if partes:
+        linea += " · hilos: %s" % ", ".join(partes)
+    avisos = list((seguido or {}).get("errores") or [])
+    return linea + (" · aviso: %s" % avisos[0] if avisos else "")
+
+
+def cloudroom(aplicar, elegibles, ahora, cr=None, sondear=None):
+    """Cloudroom en esta pasada (CRM1024I). Con `aplicar`, primero sigue los hilos abiertos y luego
+    lanza por prioridad las `elegibles` (las que la Mac cede a la nube) que caben en el ritmo del día;
+    sin él, solo dice lo que haría. Devuelve (sumadas, línea, ids lanzadas). Nunca falla."""
+    try:
+        if cr is None:
+            import cloudroom_lanzar as cr
+        if sondear is None:
+            import medio_cloudroom
+
+            sondear = medio_cloudroom.sondear
+        medio = sondear()
+        seguido = None
+        if aplicar:
+            try:
+                seguido = cr.seguir(aplicar=True, ahora=ahora)
+            except Exception as e:  # noqa: BLE001 — seguir no frena el lanzamiento
+                seguido = {"acciones": {}, "errores": ["no pude seguir los hilos (%s)" % type(e).__name__]}
+        lanzado = cr.lanzar(list(elegibles or []), seco=not aplicar, priorizar=True, medio=medio, ahora=ahora)
+    except Exception as e:  # noqa: BLE001
+        return 0, "%s: no pude mirarlo (%s)" % (NOMBRES["cloudroom"], type(e).__name__), []
+    ids = [str(i) for i in lanzado.get("lanzadas") or []] if aplicar else []
+    return len(ids), texto_cloudroom(lanzado, seguido, aplicado=aplicar), ids
 
 
 #: Claves de `salud-proveedores.json` que no son proveedores.
@@ -724,7 +783,8 @@ def _otros_medios():
         contenedores_nube.escribir(contenedores_nube.inventario(medios))
     except Exception:
         pass
-    return [m for m in medios if m.get("id") not in ("mac", "nube-gh")]
+    # Cloudroom tiene su propia línea (paso 2a), con lo que lanzó y lo que queda del ciclo.
+    return [m for m in medios if m.get("id") not in ("mac", "nube-gh", "cloudroom")]
 
 
 def _avisar(texto):
@@ -819,6 +879,13 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
 
         # 2 · Nube
         nube = reunir_nube(ahora, estado_mac)
+        # 2a · Cloudroom (CRM1024I): antes que GitHub Actions, para que lo que coja no se reparta dos veces.
+        sumadas_cr, linea_cr, ids_cr = cloudroom(aplicar, nube["clases"].get("elegibles") or [], ahora)
+        if sumadas_cr:
+            sumados += sumadas_cr
+            hechas.append("Cloudroom: %d hilo(s) en la nube (%s)" % (sumadas_cr, ", ".join(ids_cr)))
+        if ids_cr:
+            nube["clases"]["elegibles"] = [t for t in nube["clases"].get("elegibles") or [] if t not in ids_cr]
         vivos = nube["runs"] + en_camino(estado_prev, ahora)
         reaperturas = RN.leer_reaperturas(ahora)
         # (2026-10-10, CAP1010) El tope crece con el trabajo y con los escritores vivos que
@@ -849,6 +916,7 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             hechas.append(lanzados)
         lineas.append(texto_nube(nube["clases"], plan, vivos, lanzados, aplicado=aplicar, mac=nube.get("mac"),
                                  tope=tope))
+        lineas.append(linea_cr)
 
         # 2b · Sesiones de Claude Code en la nube (crédito propio, no el límite semanal).
         try:

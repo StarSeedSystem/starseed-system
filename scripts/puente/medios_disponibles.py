@@ -14,6 +14,8 @@ ya usadas… (que no sea Oracle)». Sondea, sin inventar y sin imprimir jamás u
   · gcloud    — Google Cloud: gcloud instalado y autenticado, proyecto, servicios de Cloud Run
                 (180.000 vCPU·s/mes gratis) y Cloud Shell (60 h/semana) como medio de tanda
   · colab     — Google Colab / Kaggle: sin API; medio por abrir con un cuaderno lanzador
+  · cloudroom — Cloudroom (2026-10-24, CRM1024D/I): agentes de código en hilos de su nube (100 cada
+                30 días en el plan gratis); sonda de `medio_cloudroom` (status, cloud status, thread count)
 Salida: JSON por stdout (`--json`) o texto. Funciones puras (clasificar_*) probadas.
 """
 from __future__ import annotations
@@ -225,6 +227,25 @@ def clasificar_oracle(datos: dict | None, medios: dict | None, ahora: float, con
     )
 
 
+def sondear_cloudroom(sondear=None) -> dict:
+    """Cloudroom, por la sonda de `medio_cloudroom` (CRM1024D). Si la sonda falla, devuelve algo que
+    no se entiende o aún no está en main, el medio sale «no_disponible» con el motivo: nunca tumba el
+    sondeo de los demás medios."""
+    try:
+        if sondear is None:
+            import medio_cloudroom
+
+            sondear = medio_cloudroom.sondear
+        m = sondear()
+        if isinstance(m, dict) and m.get("estado") in ESTADOS:
+            return m
+        motivo = "respuesta sin estado"
+    except Exception as e:  # noqa: BLE001
+        motivo = type(e).__name__
+    return medio("cloudroom", "Cloudroom", "no_disponible", "100 agentes en la nube / 30 días (plan gratis)",
+                 "no pude sondearlo (%s)" % motivo, "comprueba scripts/puente/medio_cloudroom.py")
+
+
 def clasificar_gcloud(instalado: bool, cuentas: list[str], proyecto: str, servicios: list[dict]) -> dict:
     if not instalado:
         return medio("gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "requiere_alex", "Cloud Run Jobs 180.000 vCPU·s/mes gratis (Cloud Shell no sirve para agentes desatendidos)", "gcloud no instalado", "brew install --cask google-cloud-sdk && gcloud auth login")
@@ -251,6 +272,7 @@ def sondear() -> dict:
     except Exception:
         reg = None
     medios.append(clasificar_claude(reg, ahora))
+    medios.append(sondear_cloudroom())
     rc, _, _ = _sh(["gh", "auth", "status"])
     wf = os.path.exists(os.path.join(RAIZ, ".github", "workflows", "enjambre-nube.yml"))
     rc_s, out_s, _ = _sh(["gh", "secret", "list", "--json", "name"], cwd=RAIZ)
