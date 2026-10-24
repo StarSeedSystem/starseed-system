@@ -7,7 +7,7 @@
  * `/xr`): la sesión se conecta al renderer de R3F y R3F pasa solo a `setAnimationLoop`. Cambia en
  * dos cosas que la sala compartida necesita:
  *   · en AR pide `dom-overlay` con la capa de interfaz, para que en el móvil sigan a mano
- *     «Salir», «Añadir» y la lista de personas encima de la cámara;
+ *     "Salir", "Añadir" y la lista de personas encima de la cámara;
  *   · en AR limpia en transparente (la escena se ve sobre tu habitación) y lo restaura al salir.
  *
  * `entrar` debe llamarse desde un clic: el navegador solo abre XR con un gesto de la persona.
@@ -15,6 +15,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as THREE from "three";
+import { funcionesAPedir } from "@/components/xr/shell/aplicar-perfil";
+import type { CapacidadesXR } from "@/lib/xr/capacidades";
 
 export type ModoSesionXR = "immersive-vr" | "immersive-ar";
 
@@ -26,6 +28,14 @@ export interface EstadoXR {
     error: string | null;
     entrar: (modo: ModoSesionXR) => Promise<void>;
     salir: () => Promise<void>;
+    funcionesConcedidas?: string[];
+}
+
+export interface OpcionesUseSesionXR {
+    capacidades?: {
+        funciones: readonly string[];
+        habitacion?: boolean;
+    };
 }
 
 function xrDelNavegador(): XRSystem | undefined {
