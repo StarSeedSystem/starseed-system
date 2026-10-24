@@ -22,6 +22,7 @@ vi.mock("../../../vivo/espacial/use-sesion-escena", () => ({
 }));
 
 // Importing the actual hooks to test
+import { funcionesAPedir } from "../aplicar-perfil";
 import { useSesionXR, mensajeErrorXR, type EstadoXR, type OpcionesUseSesionXR } from "../../../vivo/espacial/use-sesion-xr";
 import type { ModoSesionXR } from "../../../vivo/espacial/use-sesion-xr";
 import type { XRInyectable } from "../sondeo-navegador";
