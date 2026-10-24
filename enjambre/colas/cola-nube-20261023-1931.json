@@ -1,0 +1,51 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "CRM1024A",
+   "ola": "1024C",
+   "titulo": "Biblioteca · ficha de Cloudroom (servidor de agentes local y en la nube) con comprobación de versión",
+   "archivos": [
+    "src/lib/library/repos-os.ts",
+    "src/lib/library/__tests__/repos-os.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/cloudroom-servidor-agentes.md ENTERO. Comprueba primero si ya existe una ficha de Cloudroom en src/lib/library/repos-os.ts (grep -i cloudroom); si existe, NO APLICA. Añade la ficha repo-cloudroom con el MISMO formato que las fichas vecinas (p. ej. la de Filee o la de CodeGraph): nombre «Cloudroom», qué es (agentes de código en local o en sandboxes de la nube, una rama de git por agente), licencia «código abierto (núcleo cloudroom-core)», enlaces https://www.cloudroom.dev y https://github.com/davidondrej/cloudroom-gui, comprobación de versión por las releases de davidondrej/cloudroom-gui, lo gratis («local sin límite · 100 agentes en la nube cada 30 días por cuenta»), plataformas (macOS Apple Silicon ≥ 13 y Linux x64 alfa; el resto comingSoon con su motivo) y que abrir la ficha lleve a la sección de contenedores de agentes de Genesis si existe una ruta para ello (busca con grep la ruta que usan otras fichas de tipo proyecto). Amplía la prueba de repos-os con la ficha nueva. Máximo 120 líneas nuevas por archivo. Sin red."
+  },
+  {
+   "id": "CRM1024C",
+   "ola": "1024C",
+   "titulo": "Cupo de Cloudroom por cuenta repartido entre contextos (personal, grupos, páginas) con ritmo diario",
+   "archivos": [
+    "src/lib/genesis/conectores/cupo-cloudroom.ts",
+    "src/lib/genesis/conectores/__tests__/cupo-cloudroom.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/cloudroom-servidor-agentes.md ENTERO (§4.2). Escribe el módulo PURO src/lib/genesis/conectores/cupo-cloudroom.ts (sin red, disco ni reloj: la fecha se inyecta). Exporta: tipo PlanCloudroom ('gratis' con 100 agentes en la nube por ciclo de 30 días; 'pro' | 'super' | 'ultra' con cupo que DECLARA la persona, nunca inventado), tipo Consumo {contextoId, t, n}, y funciones: cupoRestante(plan, consumos, inicioCiclo, ahora); ritmoDiario(restante, diasQueQuedan) (nunca agota antes del reinicio; redondeo hacia abajo, mínimo 0); repartir(restante, contextos: {id, peso, reservado?}[]) que reparte por peso respetando reservas y sin dar decimales (lo que sobra por redondeo va al de más peso); y puedeLanzar(contextoId, ...) → {ok, motivo} con un motivo legible en español. Pruebas: ciclo nuevo, cupo agotado, reparto con reservas, redondeos, plan de pago sin cifra declarada → no lanza y lo dice. Máximo 120 líneas por archivo."
+  },
+  {
+   "id": "CRM1024D",
+   "ola": "1024C",
+   "titulo": "MetaGenesis · Cloudroom como medio: sonda de room-cli en medios_disponibles",
+   "archivos": [
+    "scripts/puente/medio_cloudroom.py",
+    "scripts/puente/test_medio_cloudroom.py"
+   ],
+   "depende": [],
+   "importancia": "capacidad",
+   "prompt": "Lee architecture/cloudroom-servidor-agentes.md ENTERO (§3 y §4.3) y mira cómo describe sus medios scripts/puente/medios_disponibles.py (busca con grep la forma que devuelve cada medio: nombre, usable, motivo, capacidad). Escribe scripts/puente/medio_cloudroom.py: localiza room-cli (~/.local/bin/room-cli o la variable CLOUDROOM_CLI), ejecuta con lista de argumentos y tope de 15 s `room-cli status --json` y `room-cli cloud status --json` (si alguna falla o no existe, el medio queda NO usable con su motivo honesto: «app sin instalar», «sin iniciar sesión en Cloudroom», etc.), y devuelve el medio con la forma que espera medios_disponibles, incluyendo el cupo gratis declarado (100 agentes en la nube cada 30 días) y cuántos hilos hay abiertos (`room-cli thread count --json` si existe). La parte que interpreta las salidas JSON va en funciones puras; las pruebas usan salidas simuladas (sin ejecutar room-cli, sin red). NO lo registres aún en medios_disponibles.py si eso obliga a tocar más de 3 archivos: di en tu respuesta la línea exacta que hay que añadir. Máximo 120 líneas por archivo."
+  },
+  {
+   "id": "CRM1024B",
+   "ola": "1024C",
+   "titulo": "Contenedores de agentes · Cloudroom como opción gratis con cupo, sugerida solo donde el contexto la soporta",
+   "archivos": [
+    "src/lib/genesis/conectores/contenedores.ts",
+    "src/lib/genesis/conectores/__tests__/contenedores.test.ts",
+    "src/lib/genesis/conectores/__tests__/sugerir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/cloudroom-servidor-agentes.md ENTERO (§4.1 y §5). Añade a src/lib/genesis/conectores/contenedores.ts la entrada id 'cloudroom' con el mismo formato que las demás: gratis (requierePago: false) CON cupo (100 agentes en la nube cada 30 días por cuenta; local sin cupo), requisitos (app de escritorio en macOS Apple Silicon o Linux x64, cuenta de Cloudroom, GitHub y un agente de código conectado) y los campos que use sugerir.ts para decidir relevancia. Si el tipo no tiene un campo para el cupo o para los requisitos del medio, añádelo opcional (sin romper las entradas existentes). Que sugerirParaAmbito (src/lib/genesis/conectores/sugerir.ts) NO la ofrezca a un ámbito sin neurona de escritorio compatible y SÍ a uno con ella. Pruebas en los dos archivos de prueba de la lista. Máximo 120 líneas nuevas por archivo. Sin red."
+  }
+ ]
+}
