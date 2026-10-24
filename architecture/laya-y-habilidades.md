@@ -83,8 +83,11 @@ la persona ni de sus servidores propios.
   sesiones (`handoff`), enseñar (`teach`) y escribir para agentes.
 - **Para nosotros:** instaladas como plugin «Skills For Real Engineers» del directorio de Anthropic (se sincroniza al
   Claude Code de la Mac).
-- **Para Astraura:** copia en `vendor/habilidades/mattpocock-skills/` (commit 546c06669) convertida en capacidades con
-  TRES tamaños, porque cada capa tiene su ventana: **tarjeta** (≤ 60 palabras, para Needle y BitNet), **resumen**
+- **Para Astraura:** copia en `vendor/habilidades/mattpocock-skills/` del commit 49dd158 (2026-10-09) del upstream
+  `https://github.com/mattpocock/skills` — el que de verdad se copió, según `vendor/habilidades/mattpocock-skills/ORIGEN.md`
+  (el commit de StarSeed que integró esta copia en el repo es el 546c06669 del 18-10-2026, no el del upstream) —
+  convertida en capacidades con TRES tamaños, porque cada capa tiene su ventana:
+  **tarjeta** (≤ 60 palabras, para Needle y BitNet), **resumen**
   (≤ 250 palabras, para Bonsai 1,7–4B) y **completa** (el texto original, para razón, profunda y nube). Laya elige
   qué habilidad aplica; el planificador elige el tamaño según la capa que va a responder.
 - **En todos los contextos, automáticamente:** chats personales y de grupo, agentes, bots, Genesis y los escritores
