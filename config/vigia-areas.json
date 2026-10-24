@@ -105,6 +105,19 @@
       },
       "catalogo": "src/lib/library/packages.ts",
       "nota": "Releases de GitHub con los nombres actuales; los antiguos de «alias_github» redirigen y aún aparecen en algunos catálogos (duplicados)."
+    },
+    {
+        "id": "habilidades",
+        "nombre": "Habilidades",
+        "pipeline_tags": [],
+        "autores": [],
+        "cuantizadores": [],
+        "repos_github": ["mattpocock/skills","heygen-com/hyperframes"],
+        "alias_github": {
+            "mattpocock/skills": "mattpocock/skills",
+            "heygen-com/hyperframes": "heygen-com/hyperframes"
+        },
+        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
     }
   ]
 }
