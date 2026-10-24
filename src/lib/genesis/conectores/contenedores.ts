@@ -57,7 +57,11 @@ export const CONTENEDORES_OPCIONES: ContenedorOpcion[] = [
     enlaceAlta: 'https://cloud.google.com/run',
     guia: null, // TODO: ruta de guía en el repo
     requiereCuenta: true,
-    requierePago: false,
+    // Cloud Run solo corre en un proyecto con facturación (método de pago), también dentro de su capa
+    // gratuita. La de la fundación está desactivada desde el 2026-09-25 y volver a activarla es decisión
+    // de Alex (architecture/repos-libreria-1020d.md, estado del 2026-10-20; genesis-conectores-abiertos.md).
+    // El «Google Cloud Run activo» de CLAUDE.md §2 es del estado de mayo de 2026 y quedó superado.
+    requierePago: true,
     aptoPrivado: false,
     verificado: true,
   },

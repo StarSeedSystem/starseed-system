@@ -42,15 +42,13 @@ describe('contenedoresPara', () => {
 
     // Extract the free (non-privado, !requierePago)
     const free = result.filter((c) => !c.aptoPrivado && !c.requierePago);
-    // Original order of free: oracle-a1, github-actions, google-cloud
-    expect(free[0].id).toBe('oracle-a1');
-    expect(free[1].id).toBe('github-actions');
-    expect(free[2].id).toBe('google-cloud');
+    // Original order of free: oracle-a1, github-actions
+    expect(free.map((c) => c.id)).toEqual(['oracle-a1', 'github-actions']);
 
     // Extract the paid
     const paid = result.filter((c) => !c.aptoPrivado && c.requierePago);
-    // Only one paid: huggingface-spaces
-    expect(paid[0].id).toBe('huggingface-spaces');
+    // De pago, en su orden: google-cloud (pide facturación) y huggingface-spaces (Docker pide PRO)
+    expect(paid.map((c) => c.id)).toEqual(['google-cloud', 'huggingface-spaces']);
   });
 });
 
@@ -92,6 +90,17 @@ describe('CONTENEDORES_OPCIONES', () => {
     expect(gh?.requiereCuenta).toBe(true);
     expect(gh?.requierePago).toBe(false);
     expect(gh?.aptoPrivado).toBe(false);
+  });
+
+  // OPF1024J · Cloud Run solo corre en un proyecto con facturación (método de pago), también en su
+  // capa gratuita; la de la fundación está desactivada desde el 2026-09-25
+  // (architecture/repos-libreria-1020d.md, architecture/genesis-conectores-abiertos.md).
+  it('Google Cloud Run pide cuenta y facturación: no es un contenedor «sin pago»', () => {
+    const gc = CONTENEDORES_OPCIONES.find((c) => c.id === 'google-cloud');
+    expect(gc).toBeDefined();
+    expect(gc?.requiereCuenta).toBe(true);
+    expect(gc?.requierePago).toBe(true);
+    expect(gc?.aptoPrivado).toBe(false);
   });
 
   it('should have correct values for Hugging Face Spaces', () => {
