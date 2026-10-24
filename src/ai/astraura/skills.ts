@@ -21,6 +21,7 @@
 
 import { getInstalledFunctionIds, getInstalledPackageIds } from "@/lib/library/packages";
 import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
+import { HABILIDADES_INGENIERIA_A, comoCapacidad } from "./habilidades/ingenieria-a";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -46,6 +47,12 @@ export interface SkillCapability {
    * y sigue siendo filtrable por chat/personalidad con `only` en skillsSystemPrompt.
    */
   defaultOn?: boolean;
+  /**
+   * Ruta (relativa a la raíz del repo) del SKILL.md completo cuando la
+   * capacidad proviene de una habilidad de ingeniería. El prompt lleva el
+   * resumen; las capas razón, profunda y nube pueden cargar el texto íntegro.
+   */
+  rutaCompleta?: string;
 }
 
 /** Manifiesto: skills de la Biblioteca → capacidad viva de Aurora. */
@@ -649,6 +656,16 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     skillIds: ["aurora-writing-for-agents"],
     packageIds: ["iatool-writing-for-agents"],
   },
+  /* ═══ INGENIERÍA · Habilidades de ingeniería de Matt Pocock ═══════════════
+   * Mismas cinco habilidades de `habilidades/ingenieria-a.ts` (MIT), visibles
+   * en el registro junto a las de productividad: Ajustes, los agentes y el
+   * router las ofrecen. `comoCapacidad` usa el resumen (≤ 120 palabras) y
+   * `rutaCompleta` conserva el SKILL.md íntegro para las capas mayores. */
+  ...HABILIDADES_INGENIERIA_A.map((h) => ({
+    ...comoCapacidad(h, "resumen"),
+    routing: {},
+    rutaCompleta: h.rutaCompleta,
+  })),
 ];
 
 function isClient(): boolean {
