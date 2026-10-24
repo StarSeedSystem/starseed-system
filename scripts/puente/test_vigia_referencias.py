@@ -316,5 +316,36 @@ class VigiaConRaizTemp(unittest.TestCase):
             __import__("shutil").rmtree(raiz, ignore_errors=True)
 
 
+class RaizDelRepositorio(unittest.TestCase):
+    """OPF1024A: RAIZ es la raíz del repositorio (no `scripts/`) y respeta STARSEED_ROOT."""
+
+    def _recargar(self, entorno):
+        import importlib
+        from unittest import mock
+        with mock.patch.dict(os.environ, entorno, clear=False):
+            if "STARSEED_ROOT" not in entorno:
+                os.environ.pop("STARSEED_ROOT", None)
+            importlib.reload(V)
+            return V.RAIZ, V.CONFIG_PATH, V.ESTADO_PATH
+
+    def tearDown(self):
+        import importlib
+        importlib.reload(V)
+
+    def test_raiz_por_defecto_es_la_del_repositorio(self):
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        raiz, config, estado = self._recargar({})
+        self.assertEqual(os.path.abspath(raiz), repo)
+        self.assertTrue(os.path.isfile(config), config)
+        self.assertEqual(estado, os.path.join(repo, "starseed_memory_root", "referencias", "estado.json"))
+
+    def test_raiz_respeta_starseed_root(self):
+        otra = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(otra, ignore_errors=True))
+        raiz, config, _ = self._recargar({"STARSEED_ROOT": otra})
+        self.assertEqual(raiz, otra)
+        self.assertEqual(config, os.path.join(otra, "config", "referencias-inspiracion.json"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -27,7 +27,10 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from urllib.robotparser import RobotFileParser
 
-RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Raíz del repositorio: este archivo vive en scripts/puente/, así que son dos niveles por encima
+# de su carpeta (la misma forma que aprobador_automatico.py, asignar_huecos.py y los demás vecinos).
+DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
+RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
 CONFIG_PATH = os.path.join(RAIZ, "config", "referencias-inspiracion.json")
 ESTADO_PATH = os.path.join(RAIZ, "starseed_memory_root", "referencias", "estado.json")
 AGENTE_USUARIO = "StarSeedOS-VigiaReferencias/1.0 (+https://starseed-os.vercel.app; vigía de novedades de la Biblioteca)"
