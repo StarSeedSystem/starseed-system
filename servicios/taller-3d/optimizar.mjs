@@ -5,7 +5,7 @@
  * Solo CPU, sin red y un trabajo cada vez (A1 y Mac). Librerías SOLO aquí: `cd servicios/taller-3d && npm install`
  * (glTF Transform y meshoptimizer, MIT; sharp, Apache-2.0, con libvips LGPL-3.0 enlazada aparte: uso comercial libre).
  * Uso: node optimizar.mjs <entrada.glb> <plan.json> <carpeta-salida>  (0 bien · 1 fallo · 2 uso · 3 ocupado) */
-import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -32,6 +32,24 @@ export function comprobarGlb(b) {
   if (v.getUint32(4, true) !== 2) throw new Error(`GLB de versión ${v.getUint32(4, true)}: solo se admite glTF 2.0.`);
   if (v.getUint32(8, true) !== b.byteLength) throw new Error("El GLB está cortado o le sobran bytes (su cabecera no cuadra).");
 }
+
+export function escribirManifiesto(manifiesto, ruta) {
+  return writeFile(ruta, JSON.stringify(manifiesto, null, 2));
+}
+
+export function parseArgs(args) {
+  const entradaIndex = args.indexOf("--entrada");
+  const planIndex = args.indexOf("--plan");
+  const salidaIndex = args.indexOf("--salida");
+  if (planIndex === -1) {
+    throw new Error("plan required");
+  }
+  const entrada = entradaIndex !== -1 ? args[entradaIndex + 1] : undefined;
+  const plan = args[planIndex + 1];
+  const salida = salidaIndex !== -1 ? args[salidaIndex + 1] : "salida";
+  return { entrada, plan, salida };
+}
+
 /** Aplica el plan con `motor` (crearMotorGltf o uno simulado) y `escribir(nombre, datos)`. Todo va en memoria y
  *  solo se escribe si TODOS los niveles caben en `pesoMaxMB`. */
 export async function optimizar({ glb, plan, motor, escribir }) {
@@ -117,4 +135,12 @@ async function principal([entrada, rutaPlan, salida]) {
   } catch (e) { return console.error(`No se pudo optimizar: ${e.code === "ENOENT" ? `no existe «${e.path}»` : e.message}`), 1; } finally { await rm(cerrojo, { force: true }); }
 }
 // Por la ruta real: lanzado desde el enlace del «bin» (node_modules/.bin) también arranca, en vez de callar.
+
+export function validarPesoMax(lods, pesoMaxMB) {
+  for (const l of lods) {
+    if (l.pesoMB > pesoMaxMB) {
+      throw new Error("pesoMaxMB");
+    }
+  }
+}
 if (process.argv[1] && import.meta.url === pathToFileURL(await realpath(process.argv[1]).catch(() => process.argv[1])).href) process.exitCode = await principal(process.argv.slice(2));
