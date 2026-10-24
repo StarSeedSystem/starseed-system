@@ -1,0 +1,76 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "RTRTCOL1012Bdsbbbbbbbcbbbbbbbbbbbbbbbbb",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos del latido · lo que fa",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTCOL1012Bdsbbbbbbb («Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos del latido · lo que faltó: src/components/metagenesis/__tests__/colmena-botones.test.tsx») se hizo en main por otro camino; su rama nube/38622533724 queda archivada en `refs/archivo/nube/38622533724` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTRTCOL1012Bdsbbbbbbb · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40106027827`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40106027827:refs/remotes/origin/nube/40106027827\"` y `git cherry-pick --no-commit 226446c4f04d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/metagenesis/__tests__/colmena-botones.test.tsx.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (src/components/metagenesis/__tests__/colmena-botones.test.tsx): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40106027827"
+  },
+  {
+   "id": "RTPM1010F1C-d3",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Átomo propio 1: sintetizador Web Audio, y el índice de átomos propios con su prueba general (parte 3 de 3)",
+   "archivos": [
+    "src/lib/protomolecula/atomos/__tests__/atomos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea PM1010F1C-d3 («Átomo propio 1: sintetizador Web Audio, y el índice de átomos propios con su prueba general (parte 3 de 3)») se hizo en main por otro camino; su rama nube/39732448483 queda archivada en `refs/archivo/nube/39732448483` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.84)\n\nTU TAREA (RTPM1010F1C-d3 · solo estos archivos: src/lib/protomolecula/atomos/__tests__/atomos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/protomolecula/atomos/__tests__/atomos.test.ts\n  it(\"registrarAtomosPropios es idempotente: dos llamadas no duplican nada\", () => {\n    registrarAtomosPropios();\n    registrarAtomosPropios();\n    expect(listarAtomos().length).toBe(ATOMOS_PROPIOS.length);\n  });\n\n# src/lib/protomolecula/atomos/__tests__/atomos.test.ts\n  it(\"VISTAS_COMPONENTE solo guarda cargadores de componente\", () => {\n    for (const carga of Object.values(VISTAS_COMPONENTE)) {\n      expect(typeof carga).toBe(\"function\");\n    }\n  });\n\n# src/lib/protomolecula/atomos/__tests__/atomos.test.ts\n  it(\"sintetizador: el dictado resuelve «sube la frecuencia 2 kHz» y «pon el volumen en menos 6 decibelios»\", () => {\n    registrarAtomosPropios();\n    const sint = ATOMOS_PROPIOS[0];\n    expect(sint.herramientaId).toBe(\"sintetizador-web-audio\");\n    const cands = candidatosDe(moleculaCon([atomoActivo(\"a-sint\", sint.herramientaId, \"Sintetizador\")]));\n    expect(cands.length).toBeGreaterThan(0);\n\n    const sube = entenderDictado(\"sube la frecuencia 2 kHz\", cands, ctxDictado);\n    expect(sube.ok).toBe(true);\n    if (sube.ok) {\n      expect(sube.operacion.objetivo.parametroId).toBe(\"frecuencia\");\n      expect(sube.operacion.accion).toEqual({ tipo: \"relativa\", cantidad: 2000, modo: \"delta\" });\n    }\n\n    const baja = entenderDictado(\"pon el volumen en menos 6 decibelios\", cands, ctxDictado);\n    expect(baja.ok).toBe(true);\n    if (baja.ok) {\n      expect(baja.operacion.objetivo.parametroId).toBe(\"volumen\");\n      expect(baja.operacion.accion).toEqual({ tipo: \"exacta\", valor: -6 });\n    }\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "PM1010F1C-d3",
+    "rama": "nube/39732448483"
+   }
+  },
+  {
+   "id": "SGO1024A",
+   "ola": "1024S",
+   "titulo": "Voz · el elector del oído aprende de lo medido (buildRecognition pasa medidas reales a elegirOido)",
+   "archivos": [
+    "src/lib/aurora/engine.ts",
+    "src/lib/aurora/__tests__/elegir-oido-medidas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024A (2026-10-24): buildRecognition llama a elegirOido con `medidas: {}`, así que el elector del oído no aprende de las medidas que ahora sí se anotan (src/lib/aurora/medidas-voz.ts: medidasDe / leerMedidas, tipo «tiempo-real-oido», menor es mejor). Pásale las medidas reales de esta neurona (mediana por motor de las últimas, como hace vozMedida en src/lib/network/capacidades-nodo.ts) sin bloquear el arranque del reconocimiento. Prueba con medidas simuladas: con medidas elige el más rápido; sin medidas, el orden de siempre. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024B",
+   "ola": "1024S",
+   "titulo": "Voz · Chatterbox anota un primer sonido por turno y con idioma (no uno por trozo)",
+   "archivos": [
+    "src/lib/aurora/tts-oss/chatterbox.ts",
+    "src/lib/aurora/tts-oss/__tests__/chatterbox.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024A (2026-10-24): chatterbox.ts anota «primer-sonido» en cada trozo de 280 caracteres y sin idioma, lo que falsea la mediana. Anota UNA medida por turno (el primer trozo) con el idioma del texto, igual que hace speak-router.runLink para los demás motores (VOZ1024A). Ajusta la prueba existente; no relajes ninguna aserción. Máximo 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024F",
+   "ola": "1024S",
+   "titulo": "Malla · la ficha propia de la neurona también lleva su voz medida (medirFichaPropia)",
+   "archivos": [
+    "src/components/brains/device-network-panel.tsx",
+    "src/components/brains/__tests__/ficha-propia-voz.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VZF1015Q (2026-10-24): medirFichaPropia (src/components/brains/device-network-panel.tsx:~231) construye CapacidadesNodo sin la voz; debe pasar `voz: vozMedida(leerMedidas(), {neurona, ahora})` (src/lib/network/capacidades-nodo.ts y src/lib/aurora/medidas-voz.ts). Sin medidas, el campo no aparece. Prueba con testing-library y medidas simuladas. Máximo 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024G",
+   "ola": "1024S",
+   "titulo": "Diagramas · los diagramas incrustados en publicaciones usan VistaDiagrama (zoom, piel y exportar)",
+   "archivos": [
+    "src/components/posts/embedded-content-window.tsx",
+    "src/components/posts/__tests__/diagrama-incrustado.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "DGM1018I (2026-10-24) dejó src/components/diagramas/vista-diagrama.tsx (VistaDiagrama: zoom, desplazamiento, piel clara/oscura y exportar SVG/PNG, iframe aislado) sin usar. El candidato más directo es CodeSandboxBody en src/components/posts/embedded-content-window.tsx, que pinta su propio iframe sin zoom ni exportar: cuando el contenido sea un diagrama de Diagram Design, usa VistaDiagrama (lee architecture/diagramas.md §4 para cómo se reconoce). Lo demás sigue igual. Prueba con testing-library. Máximo 120 líneas nuevas por archivo."
+  }
+ ]
+}
