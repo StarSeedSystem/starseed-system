@@ -83,3 +83,32 @@ describe("tanda del 2026-10-23 (3D, contexto, oído y motores de agentes)", () =
         expect(new Set(ids).size).toBe(ids.length);
     });
 });
+
+describe("tanda del 2026-10-24 (Cloudroom, servidor de agentes local y en la nube)", () => {
+    it("entra con su licencia, lo gratis, los enlaces y la comprobación por releases", () => {
+        const cr = FICHAS_REPOS_OS.find((p) => p.id === "repo-cloudroom")!;
+        expect(cr.kind).toBe("project");
+        expect(cr.comingSoon).toBeFalsy();
+        expect(cr.payload.upstream).toBe("https://github.com/davidondrej/cloudroom-gui");
+        expect(cr.payload.canal).toBe("releases");
+        expect(cr.payload.externalUrl).toBe("https://www.cloudroom.dev");
+        expect(String(cr.payload.licencia)).toMatch(/código abierto \(núcleo cloudroom-core\)/);
+        expect(String(cr.payload.gratis)).toMatch(/local sin límite/);
+        expect(String(cr.payload.gratis)).toMatch(/100 agentes en la nube cada 30 días/);
+    });
+
+    it("declara sus plataformas y las que faltan honestas (próximamente)", () => {
+        const cr = FICHAS_REPOS_OS.find((p) => p.id === "repo-cloudroom")!;
+        const reqs = String(cr.payload.requisitos);
+        expect(reqs).toMatch(/macOS Apple Silicon 13\+/);
+        expect(reqs).toMatch(/Linux x64 \(alfa\)/);
+        expect(reqs).toMatch(/próximamente/);
+        expect(String(cr.payload.servicio)).toContain("room-cli");
+    });
+
+    it("abrir la ficha lleva a la sección de contenedores de agentes de MetaGenesis", () => {
+        const cr = FICHAS_REPOS_OS.find((p) => p.id === "repo-cloudroom")!;
+        expect(cr.payload.route).toBe("/metagenesis");
+        expect(FICHAS_REPOS_OS.map((p) => p.id)).toContain("repo-cloudroom");
+    });
+});
