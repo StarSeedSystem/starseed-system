@@ -6,11 +6,21 @@ import { Volume2 } from "lucide-react";
 import { FRAME_ALLOW, FRAME_SANDBOX } from "@/components/browser/web-frame";
 import { conParent, detectarFormato } from "@/lib/estaciones/formato";
 import type { Estacion } from "@/lib/estaciones/tipos";
+import {
+    crearCargadorHlsMalla,
+    contextoAptoMalla,
+    type AdaptadorMallaHls,
+} from "@/lib/recursos/hls-malla-loader";
 
 interface Props {
-    estacion: Pick<Estacion, "enlace" | "tipo" | "titulo">;
+    estacion: Pick<Estacion, "enlace" | "tipo" | "titulo"> &
+        Partial<Pick<Estacion, "id" | "en_malla" | "visibilidad">>;
     className?: string;
     compacto?: boolean;
+    /** Adaptador de malla inyectado; sin él se baja siempre del origen. */
+    malla?: AdaptadorMallaHls;
+    /** El contexto es de la propia cuenta aunque no sea público. */
+    deLaCuenta?: boolean;
 }
 
 /** Barras del ecualizador de la barra de audio; quietas con prefers-reduced-motion. */
@@ -26,7 +36,7 @@ function BarrasAudio() {
 }
 
 /** Reproductor autoadaptable de una estación: nativo, HLS, marco aislado, interno o pestaña. */
-export function ReproductorEstacion({ estacion, className, compacto }: Props) {
+export function ReproductorEstacion({ estacion, className, compacto, malla, deLaCuenta }: Props) {
     const { enlace, tipo, titulo } = estacion;
     const f = useMemo(() => detectarFormato(enlace, tipo), [enlace, tipo]);
     const medio = useRef<HTMLMediaElement | null>(null);
@@ -43,14 +53,20 @@ export function ReproductorEstacion({ estacion, className, compacto }: Props) {
             if (!vivo) { return; }
             const Hls = m.default;
             if (Hls.isSupported()) {
-                const instancia = new Hls();
+                const adaptador = malla && contextoAptoMalla(estacion, malla.hayMalla(), deLaCuenta) ? malla : null;
+                const instancia = new Hls(adaptador ? {
+                    fLoader: crearCargadorHlsMalla({
+                        base: Hls.DefaultConfig.loader,
+                        contexto: { ...adaptador, elemento: estacion.id ?? enlace },
+                    }),
+                } : undefined);
                 instancia.loadSource(enlace);
                 instancia.attachMedia(v);
                 hls = instancia;
             } else { setForzarPestana(true); }
         }).catch(() => { if (vivo) setForzarPestana(true); });
         return () => { vivo = false; hls?.destroy(); };
-    }, [f.reproductor, enlace]);
+    }, [f.reproductor, enlace, estacion.id, estacion.en_malla, estacion.visibilidad, malla, deLaCuenta]);
 
     const activarSonido = () => {
         setSilencio(false);
