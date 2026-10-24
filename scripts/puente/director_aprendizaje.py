@@ -226,7 +226,11 @@ def _resolver_una_pasada(texto):
         # Si hay líneas vacías al inicio o final que generen espacios extra, las mantenemos para ser fieles.
         # Reemplazamos el bloque completo (desde <<<<<<< hasta >>>>>>>, incluyendo los marcadores y sus líneas)
         # con el texto_resuelto.
-        texto = texto[:i_start] + texto_resuelto + texto[i_end + len(">>>>>>> "):]
+        # Encontramos el final de la línea del marcador de cierre.
+        fin_linea = texto.find("\n", i_end)
+        if fin_linea == -1:
+            fin_linea = len(texto)
+        texto = texto[:i_start] + texto_resuelto + texto[fin_linea:]
         resuelto = True
     return texto if resuelto else texto
 
@@ -330,12 +334,30 @@ def main():
         notas_humanas=[nota] if nota else (),
     )
 
+    # Antes de escribir: si hay marcas en la memoria existente, las resolvemos.
+    contenido_previo = ""
+    if os.path.exists(MEMORIA):
+        with open(MEMORIA, encoding="utf-8") as f:
+            contenido_previo = f.read()
+        contenido_previo = resolver_marcas(contenido_previo)
+
     os.makedirs(os.path.dirname(MEMORIA), exist_ok=True)
     nuevo = not os.path.exists(MEMORIA)
-    with open(MEMORIA, "a", encoding="utf-8") as f:
+    with open(MEMORIA, "w", encoding="utf-8") as f:
         if nuevo:
             f.write(CABECERA)
-        f.write("\n" + texto)
+            contenido_final = texto
+        else:
+            contenido_final = contenido_previo + ("\n" + texto if texto else "")
+        contenido_final = resolver_marcas(contenido_final)
+        f.write(contenido_final)
+
+    # Antes de commitear: nunca se commitea un archivo con marcas.
+    with open(MEMORIA, encoding="utf-8") as f:
+        contenido_commit = f.read()
+    contenido_commit = resolver_marcas(contenido_commit)
+    with open(MEMORIA, "w", encoding="utf-8") as f:
+        f.write(contenido_commit)
 
     commitear_memoria(nombre)
 
