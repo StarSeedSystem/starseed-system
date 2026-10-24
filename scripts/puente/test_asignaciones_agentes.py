@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import importlib
 import os
 import sys
 import json
@@ -215,6 +216,41 @@ class TestAsignacionesAgentes(unittest.TestCase):
 
         for director in ["chat", "optimizador", "diseño", "producción", "nube", "medidores", "aprendizaje"]:
             self.assertFalse(habilitar_director(director, asignaciones))
+
+    def test_raiz_por_defecto_es_la_del_repositorio(self):
+        """Sin STARSEED_ROOT, RAIZ es la raíz del repo (contiene CLAUDE.md), no scripts/."""
+        import asignaciones_agentes
+
+        entorno = os.environ.copy()
+        entorno.pop("STARSEED_ROOT", None)
+        try:
+            with patch.dict(os.environ, entorno, clear=True):
+                recargado = importlib.reload(asignaciones_agentes)
+
+            directorio = os.path.dirname(os.path.abspath(asignaciones_agentes.__file__))
+            esperado = os.path.dirname(os.path.dirname(directorio))
+            self.assertEqual(recargado.RAIZ, esperado)
+            self.assertTrue(
+                os.path.isfile(os.path.join(recargado.RAIZ, "CLAUDE.md")),
+                f"RAIZ no es la raíz del repo: {recargado.RAIZ}",
+            )
+        finally:
+            importlib.reload(asignaciones_agentes)
+
+    def test_raiz_respeta_starseed_root(self):
+        """Con STARSEED_ROOT, RAIZ y RUTA_ASIGNACIONES cuelgan de esa carpeta."""
+        import asignaciones_agentes
+
+        with tempfile.TemporaryDirectory() as raiz_falsa:
+            with patch.dict(os.environ, {"STARSEED_ROOT": raiz_falsa}):
+                recargado = importlib.reload(asignaciones_agentes)
+                self.assertEqual(recargado.RAIZ, raiz_falsa)
+                self.assertEqual(
+                    recargado.RUTA_ASIGNACIONES,
+                    os.path.join(raiz_falsa, "starseed_memory_root", "mando", "asignaciones-agentes.json"),
+                )
+
+            importlib.reload(asignaciones_agentes)
 
 
 if __name__ == "__main__":
