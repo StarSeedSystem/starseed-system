@@ -1,0 +1,45 @@
+// Fichas de la Protomolécula en la Biblioteca: cómo llega una herramienta que
+// todavía NO corre. Contrato: architecture/protomolecula.md §F2 («una ficha por
+// herramienta… con descripción, licencia, enlaces y estado real»).
+// Módulo puro: la proyección no toca disco ni red.
+
+import { describe, it, expect, beforeEach } from "vitest";
+import { listProtoLibraryItems } from "@/lib/library/oss-catalog-bridge";
+import { CATALOGO_PROTOMOLECULA, CATEGORIAS_PROTOMOLECULA } from "../catalogo-herramientas";
+import { limpiarRegistro } from "../registro-atomos";
+
+describe("fichas de la Protomolécula en la Biblioteca", () => {
+  beforeEach(() => limpiarRegistro());
+
+  it("ninguna herramienta «proximamente» se anuncia como verificada", () => {
+    const proximas = CATALOGO_PROTOMOLECULA.filter((h) => h.estado === "proximamente");
+    expect(proximas.length).toBeGreaterThan(0);
+
+    const items = listProtoLibraryItems();
+    for (const herramienta of proximas) {
+      const item = items.find((i) => i.id === `proto-${herramienta.id}`);
+      expect(item).toBeDefined();
+      expect(item!.verified).toBe(false);
+      expect(item!.description).toContain(`próximamente: ${herramienta.motivo}`);
+    }
+  });
+
+  it("una herramienta del catálogo llega con su licencia, su grupo y sus enlaces", () => {
+    const herramienta = CATALOGO_PROTOMOLECULA.find(
+      (h) => h.estado === "proximamente" && h.web !== null && h.codigo !== null,
+    );
+    expect(herramienta).toBeDefined();
+
+    const item = listProtoLibraryItems().find((i) => i.id === `proto-${herramienta!.id}`);
+    expect(item).toBeDefined();
+    expect(item!.title).toBe(herramienta!.nombre);
+    expect(item!.category).toBe("protomolecula");
+    expect(item!.license).toBe(herramienta!.licencia);
+    expect(item!.tags).toContain("protomolecula");
+
+    const grupo = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === herramienta!.categoria)?.grupo;
+    expect(item!.tags).toContain(grupo);
+    expect(item!.links?.find((l) => l.label === "Web oficial")?.url).toBe(herramienta!.web);
+    expect(item!.links?.find((l) => l.label === "Repositorio")?.url).toBe(herramienta!.codigo);
+  });
+});
