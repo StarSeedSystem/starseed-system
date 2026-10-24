@@ -21,6 +21,7 @@
 
 import { getInstalledFunctionIds, getInstalledPackageIds } from "@/lib/library/packages";
 import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
+import { HABILIDADES_INGENIERIA_A, comoCapacidad } from "./habilidades/ingenieria-a";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -39,6 +40,9 @@ export interface SkillCapability {
   skillIds?: string[];
   /** Paquetes (INSTALLED_KEY) que disparan esta capacidad. */
   packageIds?: string[];
+  /** Ruta del documento fuente (SKILL.md) cuando la capacidad viene de una
+   *  habilidad empaquetada; relativa a la raíz del repositorio. */
+  rutaCompleta?: string;
   /**
    * Adenda 138 · Capacidad ENCENDIDA POR DEFECTO para todas las cuentas, sin
    * instalar nada (p. ej. la generación audiovisual gratis-primero). Está activa
@@ -649,6 +653,20 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     skillIds: ["aurora-writing-for-agents"],
     packageIds: ["iatool-writing-for-agents"],
   },
+  /* ═══ INGENIERÍA · Habilidades de ingeniería de Matt Pocock ═══
+   * Las cinco habilidades de ingeniería (TDD, diagnóstico de fallos, diseño de
+   * módulos profundos, modelo de dominio y revisión de código) como capacidades
+   * vivas, con el mismo formato que las de productividad. El texto que recibe
+   * el cerebro es el `resumen` (≤ 120 palabras); `rutaCompleta` apunta al
+   * SKILL.md original del que sale cada una.
+   */
+  ...HABILIDADES_INGENIERIA_A.map((h) => ({
+    ...comoCapacidad(h, "resumen"),
+    routing: {},
+    skillIds: [`aurora-${h.id}`],
+    packageIds: [`iatool-${h.id}`],
+    rutaCompleta: h.rutaCompleta,
+  })),
 ];
 
 function isClient(): boolean {
