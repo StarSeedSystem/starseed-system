@@ -11,11 +11,13 @@
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
 // ════════════════════════════════════════════════════════════════
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana } from "@/lib/design/composicion";
+import type { Viewport } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -57,6 +59,49 @@ function apuntarVentana(v: VentanaApilada): () => void {
     };
 }
 
+/* ── Composición centrada por aparato (DSN1019B) ─────────────────────────
+   §7b de adn-y-tokens.md y «Decisiones de Alex 2026-10-19»: cada ventana abre
+   CENTRADA en la pantalla; en teléfono lo es como Hoja, anclada al borde inferior
+   y con ENTRADA CARDINAL desde abajo (entrada cardinal del vocabulario de
+   movimiento, solo transform/opacity). La posición la decide `geometriaVentana`
+   (src/lib/design/composicion.ts): mide la diferencia entre el anclaje de hoja y
+   el de ventana centrada y traslada el bloque animado ese desfase; en escritorio
+   el desfase es 0 y el comportamiento queda EXACTAMENTE como estaba (mismo flex
+   centrado, mismo arrastre de la capa envolvente). Con movimiento reducido no
+   hay ascenso cardinal: la hoja está en su sitio y solo hace fundido. */
+const UMBRAL_TELEFONO = 430; // mismo umbral `isPhone` de composicion.ts
+
+/** Viewport vivo, medido al montar (client) y seguido en `resize`. */
+function useViewport(): Viewport {
+    const [puerta, setPuerta] = useState<Viewport>(() =>
+        typeof window === "undefined" ? { ancho: 0, alto: 0 } : { ancho: window.innerWidth, alto: window.innerHeight },
+    );
+    useEffect(() => {
+        const medir = () => setPuerta({ ancho: window.innerWidth, alto: window.innerHeight });
+        medir();
+        window.addEventListener("resize", medir);
+        return () => window.removeEventListener("resize", medir);
+    }, []);
+    return puerta;
+}
+
+/** Movimiento reducido: `prefers-reduced-motion`; si no hay matchMedia, falso. */
+function useMovimientoReducido(): boolean {
+    const [reducido, setReducido] = useState<boolean>(() => {
+        if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+        return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    });
+    useEffect(() => {
+        if (typeof window.matchMedia !== "function") return;
+        const consulta = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const escuchar = (evento: MediaQueryListEvent) => setReducido(evento.matches);
+        if (typeof consulta.addEventListener !== "function") return;
+        consulta.addEventListener("change", escuchar);
+        return () => consulta.removeEventListener("change", escuchar);
+    }, []);
+    return reducido;
+}
+
 export interface OSWindowProps {
     title: string;
     subtitle?: string;
@@ -80,6 +125,40 @@ export function OSWindow({
 }: OSWindowProps) {
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+
+    // ── Posición inicial por aparato (DSN1019B) ──────────────────────────
+    const puerta = useViewport();
+    const esTelefono = puerta.ancho > 0 && puerta.ancho < UMBRAL_TELEFONO;
+    const reducido = useMovimientoReducido();
+    const marcoRef = useRef<HTMLDivElement>(null);
+    const [altoMedido, setAltoMedido] = useState(0);
+    useLayoutEffect(() => {
+        const el = marcoRef.current;
+        if (!el) return;
+        setAltoMedido(el.offsetHeight || 0);
+        if (typeof ResizeObserver === "undefined") return;
+        const observador = new ResizeObserver(() => setAltoMedido(el.offsetHeight || 0));
+        observador.observe(el);
+        return () => observador.disconnect();
+    }, []);
+    // Altura con la que se compone: la medida real en cuanto exista layout;
+    // mientras tanto (sin ResizeObserver), la de hoja de geometriaVentana.
+    const altoCompone = altoMedido > 0 ? altoMedido : geometriaVentana(puerta, { tipo: "hoja" }).alto;
+    // Desfase del centro de la pantalla al anclaje de hoja (abajo en teléfono);
+    // en escritorio es 0: queda el centrado por flex de siempre, sin cambios.
+    const anclajeHoja = esTelefono
+        ? geometriaVentana(puerta, { tipo: "hoja", alto: altoCompone }).y - geometriaVentana(puerta, { tipo: "ventana", alto: altoCompone }).y
+        : 0;
+    // Entrada cardinal en teléfono: nace bajo el borde inferior y asciende a su
+    // anclaje; con movimiento reducido no sube ni escala: la hoja está ya en su
+    // anclaje (y en escritorio, centrada) y solo funde la opacidad.
+    const entradaY = esTelefono && !reducido ? anclajeHoja + altoCompone + 16 : anclajeHoja;
+    const aparienciaInicial = reducido
+        ? { opacity: 0, y: anclajeHoja }
+        : { opacity: 0, scale: 0.96, y: entradaY };
+    const aparienciaFinal = reducido
+        ? { opacity: 1, y: anclajeHoja }
+        : { opacity: 1, scale: 1, y: anclajeHoja };
 
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
@@ -108,16 +187,21 @@ export function OSWindow({
     };
 
     return (
-        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title} data-hoja={esTelefono ? "true" : undefined}>
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
                 aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
-                el centrado y la ventana SIEMPRE abre centrada. */}
+                el centrado y la ventana SIEMPRE abre centrada. Todo el arrastre queda
+                intacto: el anclaje de hoja (DSN1019B) viva en la capa animada, no aquí. */}
             <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    ref={marcoRef}
+                    // Apariencia por aparato: en escritorio es {opacity, scale} y {opacity,
+                    // scale} con y=0 — exactamente el mismo comportamiento de antes; en
+                    // teléfono se añade el y de la hoja (anclaje + entrada cardinal).
+                    initial={aparienciaInicial}
+                    animate={aparienciaFinal}
                     transition={{ type: "spring", stiffness: 260, damping: 26 }}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
