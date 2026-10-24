@@ -4,12 +4,14 @@
  * El destino lo pone quien lo monta (Protomolécula, avatar, bot o pieza). Enseña el plan por etapa con su motor
  * o el porqué, qué neurona podría, pide permiso si solo queda el Space remoto y guarda el GLB en la Biblioteca.
  * Basta de ilusiones: el taller local (servicios/taller-3d, AV1011F) aún no existe, así que por defecto no se
- * conecta; el Space va por POST /api/avatares/espacio-hf y la Biblioteca por la subida de archivos del OS.
+ * conecta; el Space va DESDE EL NAVEGADOR de cada persona (adaptador de los
+ * Spaces de Pixal3D y TRELLIS.2, cuota ZeroGPU de cada quien; la ruta del
+ * servidor /api/avatares/espacio-hf queda solo como respaldo) y la Biblioteca
+ * por la subida de archivos del OS.
  */
 import { useId, useMemo, useState } from "react";
-import { procedenciaDe } from "@/lib/avatares/adn/canalizacion";
-import { MOTORES_3D } from "@/lib/avatares/adn/motores";
 import type { Destino3D } from "@/lib/avatares/adn/optimizacion";
+import { espaciosComoDependencia } from "@/lib/avatares/adaptadores/espacios-3d";
 import { hierroDeCapacidades } from "@/lib/avatares/adaptadores/reparto-taller";
 import { useGenerar3d, type Contexto3D, type Dependencias3D } from "@/lib/avatares/adaptadores/use-generar-3d";
 import { uploadFile } from "@/lib/files/os-files";
@@ -17,23 +19,14 @@ import { saveResource, useSavedLibrary } from "@/lib/library-store";
 
 const ETAPA: Record<string, string> = { generar: "Generar la malla", remallar: "Remallar", riggear: "Esqueleto", detallar: "Mejorar detalle", animar: "Animar" };
 const DESTINO: Record<Destino3D, string> = { protomolecula: "Protomolécula", impresion: "Impresión", avatar: "Avatar", bot: "Cuerpo del bot", pieza: "Pieza" };
-const aDataUrl = (b: Blob) => new Promise<string>((ok, mal) => { const f = new FileReader(); f.onload = () => ok(String(f.result)); f.onerror = () => mal(f.error); f.readAsDataURL(b); });
 
-/** Lo de verdad por defecto: sin taller local (no existe aún), Space por la ruta del OS y la Biblioteca. */
-function dependenciasDelOs(cuenta: string | null): Dependencias3D {
+/** Lo de verdad por defecto: sin taller local (no existe aún), Space desde el navegador de la persona y la Biblioteca. */
+function dependenciasDelOs(): Dependencias3D {
   return {
     taller: null,
-    espacio: async (img, op) => {
-      const r = await fetch("/api/avatares/espacio-hf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        imagen: await aDataUrl(img), personaId: cuenta ?? undefined, permiso: op.permisoRemoto, esFotoDePersonas: op.esFotoDePersonas,
-        consentimientoPersonas: op.consentimientoPersonas, usoHoyDeclarado: op.usoHoy ?? 0 }) });
-      if (!r.ok || (r.headers.get("Content-Type") ?? "").includes("json")) {
-        const j = (await r.json().catch(() => ({}))) as { motivo?: string };
-        return { ok: false, fallo: "otro", motivo: j.motivo ?? `El Space respondió ${r.status}.` };
-      }
-      const motor = MOTORES_3D.find((m) => m.id === r.headers.get("X-Motor"));
-      return { ok: true, glb: await r.blob(), lods: [], procedencia: motor ? [procedenciaDe(motor)] : [] };
-    },
+    // La llamada sale del navegador, con la cuota ZeroGPU de la persona y el
+    // token de su aparato; si Pixal3D no puede, respaldo en TRELLIS.2.
+    espacio: espaciosComoDependencia(),
     guardar: async (e) => {
       const archivo = new File([e.glb], `${e.titulo || "modelo-3d"}.glb`, { type: "model/gltf-binary" });
       const sub = await uploadFile(archivo, { folder: "biblioteca/modelos-3d", meta: { destino: e.destino, lods: e.lods, procedencia: e.procedencia, atribuciones: e.atribuciones } });
@@ -58,7 +51,7 @@ export function Generar3D({ destino, contexto, dependencias, etiqueta = "Crear e
     hierro: typeof navigator === "undefined" ? null : hierroDeCapacidades({ platform: navigator.platform, memoryGb: (navigator as Navigator & { deviceMemory?: number }).deviceMemory }),
     ...contexto,
   }), [destino, contexto]);
-  const deps = useMemo(() => dependencias ?? dependenciasDelOs(c.cuenta), [dependencias, c.cuenta]);
+  const deps = useMemo(() => dependencias ?? dependenciasDelOs(), [dependencias]);
   const { preparado: p, estado, generar, reiniciar } = useGenerar3d(c, deps);
   const remota = p.via === "remota", ocupado = estado.fase === "generando";
   const puede = !!img && p.via !== "ninguna" && !ocupado && (!remota || (permiso && (!personas || consiente)));
@@ -95,7 +88,7 @@ export function Generar3D({ destino, contexto, dependencias, etiqueta = "Crear e
       {remota && (
         <fieldset className="mt-3 rounded-xl border border-amber-400/60 p-3">
           <legend className="px-1 font-medium">Aviso: tu imagen sale de este aparato</legend>
-          <p>Se envía, a través del servidor de StarSeed, al Space público de Hugging Face (TencentARC/Pixal3D). Gasta cuota gratuita compartida y lo que subas deja de estar solo contigo.</p>
+          <p>Se envía desde tu navegador al Space público de Hugging Face (TencentARC/Pixal3D; si no puede, respaldo en microsoft/TRELLIS.2). Gasta TU cuota gratuita de ZeroGPU y lo que subas deja de estar solo contigo. Un token de Hugging Face, si lo pones, vive solo en este aparato.</p>
           <label className="mt-2 flex cursor-pointer gap-2"><input type="checkbox" checked={permiso} onChange={(e) => setPermiso(e.target.checked)} />Doy permiso para enviar esta imagen.</label>
           <label className="mt-1 flex cursor-pointer gap-2"><input type="checkbox" checked={personas} onChange={(e) => setPersonas(e.target.checked)} />La imagen contiene personas.</label>
           {personas && <label className="mt-1 flex cursor-pointer gap-2"><input type="checkbox" checked={consiente} onChange={(e) => setConsiente(e.target.checked)} />Las personas que aparecen han dado su consentimiento.</label>}
