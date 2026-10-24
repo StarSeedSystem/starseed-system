@@ -18,6 +18,16 @@ import {
   inferirInstaladosDesdeCercana,
   inferirOcupadaDesdeCercana
 } from "@/lib/imagenes/adaptadores/malla-imagenes";
+import type { DispositivoMallaRow, FichaDispositivo, NeuronaCercanaRow } from "@/lib/network/malla-neuronas";
+
+const ficha = (o: Partial<FichaDispositivo> = {}): FichaDispositivo => ({
+  v: 1, syncDeviceId: "s-1", neuronDeviceId: "n-1", nombre: "PC del grupo", tipo: "desktop", plataforma: "linux", versionOS: "1",
+  ramClase: "16 GB", backendLocal: false, capas: { local: true, mesh: true, nube: true, colectiva: true }, at: 0, ...o,
+});
+const dispositivo = (o: Partial<DispositivoMallaRow> = {}): DispositivoMallaRow => ({
+  neuronId: "n-1", syncDeviceId: "s-1", nombre: "Mac de casa", plataforma: "macOS", tipo: "desktop", online: true,
+  esEsteDispositivo: false, enlace: { estado: "conectado" }, ficha: undefined, ...o,
+});
 
 describe("malla-imagenes adaptador - funciones puras", () => {
   describe("inferirTipoGPU", () => {
@@ -125,5 +135,35 @@ describe("malla-imagenes adaptador - funciones puras", () => {
     });
   });
 
-  // Podemos añadir más tests según sea necesario
+  describe("inferirRAMLibreGB (fila real del registro)", () => {
+    it("la RAM libre es la mitad de la clase de la ficha, sin dividirla otra vez; sin ficha, 2 GB", () => {
+      const libre = (ramClase: FichaDispositivo["ramClase"]) => inferirRAMLibreGB(dispositivo({ ficha: ficha({ ramClase }) }));
+      expect(libre("≤4 GB")).toBe(2);
+      expect(libre("8 GB")).toBe(4);
+      expect(libre("16 GB")).toBe(8);
+      expect(libre(">16 GB")).toBe(16);
+      expect(libre("desconocida")).toBe(2);
+      expect(inferirRAMLibreGB(dispositivo())).toBe(2);
+    });
+  });
+
+  describe("inferirOcupada (fila real del registro)", () => {
+    it("una neurona apagada o sin enlace conectado no recibe trabajo; encendida y conectada, sí", () => {
+      expect(inferirOcupada(dispositivo())).toBe(false);
+      expect(inferirOcupada(dispositivo({ online: false }))).toBe(true);
+      for (const estado of ["sin-vinculo", "conectando", "fallido"] as const) {
+        expect(inferirOcupada(dispositivo({ enlace: { estado } }))).toBe(true);
+      }
+    });
+  });
+
+  describe("neurona cercana con la forma real del faro (sin plataforma publicada)", () => {
+    it("se trata sin GPU: solo sdcpp y onnx-web, sin VRAM y con 2 GB libres", () => {
+      const c: NeuronaCercanaRow = { deviceId: "c-1", etiqueta: "Neurona del grupo", detectadaHaceMs: 1200, ofreceInternetPublico: false };
+      expect(inferirTipoGPUDesdeCercana(c)).toBe("ninguna");
+      expect(inferirMotoresDesdeCercana(c)).toEqual(["sdcpp", "onnx-web"]);
+      expect(inferirVRAMGBDesdeCercana(c)).toBeNull();
+      expect(inferirRAMLibreGBDesdeCercana(c)).toBe(2);
+    });
+  });
 });

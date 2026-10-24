@@ -106,17 +106,13 @@ export function inferirVRAMGB(disp: any): number | null {
  * Infiere la RAM libre GB basada en la información disponible
  */
 export function inferirRAMLibreGB(disp: any): number {
-  // Intentamos obtener la memoria total y asumir una fracción libre
-  // En una implementación real, esto vendría de monitoreo en tiempo real
-  const memoriaTotalGB = disp.ficha?.ramClase ? 
-    convertirRamClaseAGB(disp.ficha.ramClase) : 4; // Valor por defecto conservador
-  
-  // Asumimos que alrededor del 50% está libre (valor conservador para compartir)
-  return Math.max(1, Math.floor(memoriaTotalGB * 0.5));
+  // `convertirRamClaseAGB` ya da la RAM LIBRE estimada (la mitad de la clase): no se vuelve a dividir.
+  // En una implementación real, esto vendría de monitoreo en tiempo real.
+  return Math.max(1, disp.ficha?.ramClase ? convertirRamClaseAGB(disp.ficha.ramClase) : 2);
 }
 
 /**
- * Convierte una clase de RAM a GB aproximado
+ * RAM libre estimada (GB) de una clase de RAM declarada: la mitad de la clase, con 2 GB si es dudosa
  */
 export function convertirRamClaseAGB(clase: string): number {
   switch (clase) {
@@ -163,9 +159,9 @@ export function inferirInstalados(disp: any): readonly string[] {
  * Infiere si la neurona está ocupada basado en la información disponible
  */
 export function inferirOcupada(disp: any): boolean {
-  // En una implementación real, esto vendría de estado de uso en tiempo real
-  // Por ahora, asumimos que no está ocupada para ofrecer oportunidades de uso
-  return false;
+  // Apagada o sin enlace conectado no puede recibir trabajo (contrato §4: las ocupadas no reciben trabajo).
+  // El uso en tiempo real (otra generación en marcha) aún no se publica: con enlace, se ofrece.
+  return disp.online !== true || disp.enlace?.estado !== "conectado";
 }
 
 /* Funciones similares para procesar neuronas cercanas (de otras cuentas) */
