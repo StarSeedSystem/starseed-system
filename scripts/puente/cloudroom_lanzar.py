@@ -1,0 +1,569 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Cloudroom como contenedor en la nube de MetaGenesis: lanza tareas a hilos y sigue lo que entregan
+(Ola 1024C, CRM1024E/Eb · contrato `architecture/cloudroom-servidor-agentes.md` §3–§5).
+
+  cloudroom_lanzar.py lanzar --ids A,B [--seco] [--json]
+  cloudroom_lanzar.py seguir [--seco] [--json]
+
+`lanzar` abre por tarea un hilo de la nube (`room-cli thread spawn --machine cloud`) con el brief y
+las puertas del enjambre y un modelo que la cuenta tiene EN LA NUBE (`cloud status --json`, nunca uno
+fijo), y deja la tarea `reasignada · cloudroom` (préstamo, no traspaso). Ritmo: lo que queda del ciclo
+de 30 días (100 hilos en el plan gratis) entre los días que faltan, con `MAX_VIVOS` hilos abiertos.
+`seguir` no se queda esperando (`thread list`, no `thread wait`): si el agente EMPUJÓ su rama
+`nube/cr-<fecha>/ola/<ID>`, la tarea vuelve a `pendiente` y se lanza `traer_nube`, que la trae con sus
+puertas (tsc, pruebas, revisión); si el hilo terminó sin rama, `environment diff-patch` se convierte
+en un commit sobre la base del hilo y se sube como esa misma rama. Nunca integra en main.
+El registro `~/.starseed/cloudroom-hilos.json` no se poda: de él salen el consumo y lo que no se
+relanza. Decisiones PURAS probadas en `test_cloudroom_lanzar.py` (sin room-cli, sin red).
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from datetime import datetime, timezone
+
+DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
+if DIRECTORIO not in sys.path:
+    sys.path.insert(0, DIRECTORIO)
+
+import alta_capacidad_nube_logica as L  # noqa: E402  (brief y bloqueo por historial)
+import prioridad_logica as P  # noqa: E402
+import repartir_nube as RN  # noqa: E402
+import traer_nube  # noqa: E402
+
+MEDIO = "cloudroom"
+REGISTRO = os.path.expanduser("~/.starseed/cloudroom-hilos.json")
+CICLO_DIAS, DIA_S = 30, 86400
+#: Hilos de la nube abiertos a la vez, como el carril de Claude en la nube.
+MAX_VIVOS = 3
+#: Una tarea no se relanza en 24 h ni más de 2 veces (la lección del carril de Claude, 23-10).
+REPETIR_TRAS_H, MAX_POR_TAREA = 24, 2
+#: Sin rama ni hilo terminado en 12 h, la tarea vuelve al enjambre.
+GRACIA_H = 12
+#: Un hilo «terminado» recién abierto puede no haber empezado: el diff-patch espera 10 min.
+MIN_PARCHE_S = 600
+#: El agente trabaja solo en su sandbox: tiene que correr npm, tsc, pruebas y `git push` sin pedir permiso.
+PERMISOS = "full"
+TRABAJANDO = frozenset({"running", "working", "busy", "queued", "starting", "pending", "in_progress",
+                        "active", "thinking", "streaming"})
+TERMINADO = frozenset({"idle", "completed", "complete", "done", "finished", "stopped", "succeeded",
+                       "success", "failed", "error", "errored", "cancelled", "canceled", "archived", "exited"})
+
+PLANTILLA = """Eres un agente de StarSeed OS en un hilo de la nube de Cloudroom: un sandbox con una COPIA del repo, no la Mac de Alex (aquí no hay Genesis, ni ~/.starseed, ni orquestador). Haces UNA tarea de la cola del enjambre, solo y sin preguntar: nadie contestará hasta que termines.
+
+## Reglas
+- Lee CLAUDE.md y AGENTS.md (lo que afecta a escribir código y pruebas) y el contrato que nombre la tarea.
+- Solo los archivos declarados ({ARCHIVOS}); si de verdad hace falta otro, lo mínimo, y lo dices.
+- `npm ci` está permitido; NO añadas dependencias ni cambies package.json / package-lock.json.
+- Puertas: `NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit --skipLibCheck -p .` antes (línea base) y al final (cero errores nuevos), y tus pruebas en verde (`npx vitest run <pruebas>` o `python3 -m pytest -q <pruebas>`). Si una prueba falla se arregla el código, no la prueba.
+- Si main ya lo cubre, no lo dupliques: `NO APLICA: <motivo>` sin commit.
+- Prohibido: push a main, desplegar, tocar secretos, vercel.json, .github/ o la CI, abrir pull requests y subir datos privados.
+
+## Al terminar
+1. Un solo commit con el asunto exacto `Ola {OLA} · Cloudroom · {ID}: {TITULO}`.
+2. `git push origin HEAD:refs/heads/nube/cr-{FECHA}/ola/{ID}` (si no puedes empujar, deja el commit en tu entorno y no insistas: la dirección lo recoge).
+3. La última línea es UNA de estas: `INTEGRABLE · rama <nombre> · tsc y pruebas en verde (<n>)` · `PENDIENTE-DE: <qué>` · `NO APLICA: <motivo>`.
+
+## La tarea {ID}
+Título: {TITULO}
+
+{PROMPT}
+"""
+
+
+# ── decisiones (puras) ──────────────────────────────────────────────────────────────────────────
+
+def _filas(registro):
+    return [x for x in (registro or []) if isinstance(x, dict) and x.get("tarea") and x.get("hilo")]
+
+
+def _t(x):
+    try:
+        return float(x.get("t") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _lista(valor):
+    return [valor] if isinstance(valor, str) else list(valor or [])
+
+
+def abiertos(registro):
+    """Los hilos del registro sin estado final («traida», «parche», «devuelta», «olvidada»)."""
+    return [x for x in _filas(registro) if not x.get("final")]
+
+
+def ritmo(registro, ahora, total=100, usados_cuenta=0, max_vivos=MAX_VIVOS):
+    """PURA. {"hoy", "quedan", "motivo"}: cuántos hilos caben AHORA sin agotar el ciclo.
+
+    Cada hilo cuenta 30 días (ventana móvil); lo usado es lo mayor entre el registro y lo que diga la
+    cuenta. Ritmo = lo que quedaba al empezar el día ÷ días hasta que el hilo más viejo salga del ciclo
+    (30 sin ninguno): 100/30 → 3 al día. Con menos de uno al día, uno cada 1/ritmo días."""
+    ventana = sorted(_t(x) for x in _filas(registro) if ahora - _t(x) < CICLO_DIAS * DIA_S)
+    usados = max(len(ventana), int(usados_cuenta or 0))
+    quedan = max(0, int(total) - usados)
+    if quedan <= 0:
+        return {"hoy": 0, "quedan": 0, "motivo": "sin cupo: %d de %d hilos de la nube usados en %d días"
+                % (usados, total, CICLO_DIAS)}
+    vivos = len(abiertos(registro))
+    if vivos >= max_vivos:
+        return {"hoy": 0, "quedan": quedan, "motivo": "sin cupo ahora: %d hilos abiertos (tope %d)" % (vivos, max_vivos)}
+    hoy_ya = sum(1 for t in ventana if ahora - t < DIA_S)
+    dias = max(1.0, (ventana[0] + CICLO_DIAS * DIA_S - ahora) / DIA_S) if ventana else float(CICLO_DIAS)
+    por_dia = (quedan + hoy_ya) / dias
+    if por_dia >= 1:
+        hoy = int(por_dia) - hoy_ya
+    else:
+        hoy = 1 if not hoy_ya and (not ventana or ahora - ventana[-1] >= DIA_S / por_dia) else 0
+    hoy = max(0, min(hoy, quedan, max_vivos - vivos))
+    motivo = ("caben %d" % hoy) if hoy else ("sin cupo hoy: ya van %d (ritmo %.1f al día)" % (hoy_ya, por_dia))
+    return {"hoy": hoy, "quedan": quedan, "motivo": motivo}
+
+
+def no_relanzar(registro, ahora):
+    """PURA: tareas con hilo abierto, lanzadas hace menos de 24 h o ya `MAX_POR_TAREA` veces."""
+    return (L.bloqueadas_por_historial(_filas(registro), ahora, REPETIR_TRAS_H, MAX_POR_TAREA)
+            | {str(x["tarea"]) for x in abiertos(registro)})
+
+
+def por_prioridad(ids, tareas, progreso, ahora):
+    """PURA: `ids` en el orden de `prioridad_logica.ordenar` (lo que pidió Alex, la capacidad, lo que
+    desbloquea…); las que esperan una dependencia sin cerrar, fuera: un hilo solo ve main."""
+    lista = [tareas[i] for i in dict.fromkeys(str(x) for x in ids or ()) if isinstance(tareas.get(i), dict)]
+    listas, _ = P.ordenar(lista, progreso if isinstance(progreso, dict) else {}, datetime.fromtimestamp(ahora))
+    return [str(t["id"]) for t, _p, _r in listas]
+
+
+def seleccionar(ids, tareas, progreso, registro, ahora, cupo):
+    """PURA. Las tareas de `ids` (en su orden, hasta `cupo`) que se lanzan: el reparto las daría
+    (estado repartible), no son privadas, sus dependencias están cerradas y no se relanzan."""
+    progreso = progreso if isinstance(progreso, dict) else {}
+    fuera, salida = no_relanzar(registro, ahora), []
+    for tid in dict.fromkeys(str(i) for i in ids or ()):
+        t = tareas.get(tid)
+        e = progreso.get(tid) if isinstance(progreso.get(tid), dict) else {}
+        if (len(salida) >= cupo or not isinstance(t, dict) or tid in fuera or t.get("privada") or RN.es_privada(t)
+                or e.get("estado") not in RN.ESTADOS_REPARTIBLES
+                or not all(P.dependencia_cerrada(d, progreso) for d in _lista(t.get("depende") or t.get("depende_de")))):
+            continue
+        salida.append(t)
+    return salida
+
+
+def marca(modelo, ahora):
+    """Los campos de progreso de una tarea prestada a un hilo de Cloudroom."""
+    return {"estado": "reasignada", "medio": MEDIO, "nota": "reasignada · cloudroom (%s)" % modelo, "t": ahora}
+
+
+def motivo_medio(medio):
+    """PURA: por qué no se puede usar el medio (vacío si se puede), en las palabras del parte."""
+    medio = medio if isinstance(medio, dict) else {}
+    estado, detalle = medio.get("estado"), str(medio.get("detalle") or "")
+    if estado in ("usable", "listo"):
+        return ""
+    if estado == "requiere_alex":
+        return "sin sesión (%s)" % (medio.get("siguiente_paso") or detalle or "inicia sesión en la app Cloudroom")
+    return "app sin instalar" if "sin instalar" in detalle or not detalle else "no disponible (%s)" % detalle
+
+
+def modelos_nube(estado):
+    """PURA: [(harness, modelo)] de `cloud status --json` (harnesses[].models[].model), en su orden."""
+    d = estado.get("data", estado) if isinstance(estado, dict) else {}
+    pares = []
+    for h in (d.get("harnesses") if isinstance(d, dict) else None) or []:
+        if not isinstance(h, dict) or h.get("available") is False or h.get("connected") is False:
+            continue
+        nombre = next((str(h[k]) for k in ("id", "harness", "name", "provider") if isinstance(h.get(k), str) and h[k]), "")
+        for m in h.get("models") or []:
+            modelo = m.get("model") if isinstance(m, dict) else m
+            if nombre and isinstance(modelo, str) and modelo.strip():
+                pares.append((nombre, modelo.strip()))
+    return pares
+
+
+def elegir_modelo(estado, preferido=""):
+    """PURA: (harness, modelo) de los que la cuenta tiene EN LA NUBE; el `preferido`, solo si está."""
+    pares = modelos_nube(estado)
+    for h, m in pares:
+        if preferido and preferido in (m, "%s/%s" % (h, m)):
+            return h, m
+    return pares[0] if pares else ("", "")
+
+
+def uso_cuenta(estado, ahora):
+    """PURA: (total, usados) del ciclo según `cloud status` (el lector del medidor de créditos)."""
+    import medidor_cloudroom as M
+
+    ventanas = M.interpretar(estado or {}, {}, [], datetime.fromtimestamp(ahora, timezone.utc))["ventanas"]
+    v = next((x for x in ventanas if x.get("id") == "cloudroom_30d"), {})
+    return int(v.get("total") or M.CUPO_GRATIS), int(v.get("usado") or 0)
+
+
+def rama_pedida(tid, fecha):
+    return "nube/cr-%s/ola/%s" % (fecha, tid)
+
+
+def brief(tarea, fecha):
+    """PURA: el encargo del hilo: la plantilla con su asunto y su rama, y el prompt de la tarea."""
+    return L.brief(PLANTILLA.replace("{OLA}", str(tarea.get("ola") or fecha)), tarea, fecha)
+
+
+def orden_spawn(cli, tarea, texto, harness, modelo, peticion, proyecto=""):
+    """PURA: `room-cli thread spawn` con sus flags reales (verificados en la Mac el 2026-10-24).
+    `--request-id` hace idempotente un reintento: el mismo id no abre dos hilos."""
+    if not harness or not modelo:
+        raise ValueError("sin modelo de la nube")
+    titulo = ("%s · %s" % (tarea.get("id"), tarea.get("titulo") or "")).strip(" ·")[:90]
+    orden = [cli, "thread", "spawn", "--machine", "cloud", "--new-environment", "--base-branch", "main",
+             "--provider", harness, "--model", modelo, "--permission-mode", PERMISOS, "--title", titulo,
+             "--request-id", peticion, "--json"]
+    return orden + (["--project", proyecto] if proyecto else []) + ["--prompt", texto]
+
+
+def _campo(datos, claves, anidado):
+    if not isinstance(datos, dict):
+        return ""
+    datos = datos.get("data", datos) if isinstance(datos.get("data"), dict) else datos
+    sub = datos.get(anidado) if isinstance(datos.get(anidado), dict) else {}
+    return str(next((datos[k] for k in claves if datos.get(k)), "") or sub.get("id") or "")
+
+
+def id_hilo(datos):
+    return _campo(datos, ("id", "threadId", "thread_id"), "thread")
+
+
+def entorno_de(datos):
+    return _campo(datos, ("environmentId", "environment_id"), "environment")
+
+
+def hilos_por_id(datos):
+    """PURA: {id: hilo} de `thread list --json` (lista, o {"threads"|"data": lista})."""
+    if isinstance(datos, dict):
+        datos = datos.get("data", datos)
+    if isinstance(datos, dict):
+        datos = datos.get("threads") or []
+    return {id_hilo(h): h for h in datos if isinstance(h, dict) and id_hilo(h)} if isinstance(datos, list) else {}
+
+
+def estado_hilo(hilo):
+    """PURA: «trabajando» | «terminado» | «desconocido» (lo desconocido se trata como trabajando)."""
+    if not isinstance(hilo, dict):
+        return "desconocido"
+    s = str(hilo.get("status") or hilo.get("state") or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if s in TERMINADO or hilo.get("archived") is True:
+        return "terminado"
+    return "trabajando" if s in TRABAJANDO else "desconocido"
+
+
+def _prestada(progreso, tid):
+    e = progreso.get(tid) if isinstance(progreso, dict) else None
+    return isinstance(e, dict) and e.get("estado") == "reasignada" and e.get("medio") == MEDIO
+
+
+def decidir(fila, ramas, hilos, progreso, ahora, gracia_h=GRACIA_H):
+    """PURA: qué hacer con un hilo abierto: «traer» | «parche» | «devolver» | «esperar» | «olvidar».
+
+    `ramas`: las `nube/cr-*` del remoto (None si no se pudieron leer: entonces solo se espera, para no
+    subir un parche encima de una rama que quizá ya existe). `hilos`: {id: hilo} o None."""
+    tid = str(fila["tarea"])
+    if not _prestada(progreso, tid):
+        return "olvidar"
+    if ramas is None:
+        return "esperar"
+    if fila.get("rama_pedida") in ramas or any(r.startswith("nube/cr-") and r.endswith("/ola/" + tid) for r in ramas):
+        return "traer"
+    edad = ahora - _t(fila)
+    if hilos is not None and estado_hilo(hilos.get(str(fila["hilo"]))) == "terminado" and edad >= MIN_PARCHE_S:
+        return "devolver" if int(fila.get("intentos_parche") or 0) >= 3 else "parche"
+    return "devolver" if edad > gracia_h * 3600 else "esperar"
+
+
+def huerfanas(progreso, registro, ahora, reserva_s=MIN_PARCHE_S):
+    """PURA: `reasignada · cloudroom` sin hilo abierto en el registro (y no recién reservadas): nadie
+    las devolvería nunca."""
+    abiertas = {str(x["tarea"]) for x in abiertos(registro)}
+    return sorted(tid for tid, v in (progreso or {}).items()
+                  if _prestada(progreso, tid) and tid not in abiertas and ahora - _t(v) > reserva_s)
+
+
+def extraer_parche(salida):
+    """PURA: el parche de `environment diff-patch` (texto tal cual, o JSON con `patch`)."""
+    texto = salida if isinstance(salida, str) else ""
+    datos = None
+    if texto.strip() and texto.lstrip()[0] in "[{":
+        try:
+            datos = json.loads(texto)
+        except ValueError:
+            datos = None
+    if isinstance(datos, dict):
+        datos = datos.get("data", datos)
+    if isinstance(datos, dict):
+        datos = [datos]
+    if isinstance(datos, list):
+        partes = [str(x.get("patch") or x.get("diff") or "") for x in datos if isinstance(x, dict)]
+        return "".join(p if p.endswith("\n") else p + "\n" for p in partes if p.strip())
+    return texto if "diff --git" in texto else ""
+
+
+def ramas_de(ls_remote):
+    """PURA: nombres de rama de la salida de `git ls-remote`."""
+    return {p[1][len("refs/heads/"):].strip() for p in (l.split("\t") for l in (ls_remote or "").splitlines())
+            if len(p) == 2 and p[1].startswith("refs/heads/")}
+
+
+def ids_argumento(argv):
+    valor = next((a.split("=", 1)[1] for a in argv if a.startswith("--ids=")), "")
+    if not valor and "--ids" in argv:
+        i = argv.index("--ids")
+        valor = argv[i + 1] if i + 1 < len(argv) and not argv[i + 1].startswith("--") else ""
+    return [x.strip() for x in valor.split(",") if x.strip()]
+
+
+# ── la máquina ──────────────────────────────────────────────────────────────────────────────────
+
+def leer_registro():
+    try:
+        with open(REGISTRO, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return []
+    return d if isinstance(d, list) else []
+
+
+def _registrar(cambiar):
+    """Lee, cambia y guarda el registro con su cerrojo (lanzar y seguir pueden correr a la vez)."""
+    with traer_nube._Cerrojo("cloudroom-hilos", 60):
+        reg = leer_registro()
+        cambiar(reg)
+        os.makedirs(os.path.dirname(REGISTRO), exist_ok=True)
+        tmp = "%s.tmp-%d" % (REGISTRO, os.getpid())
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(reg, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, REGISTRO)
+
+
+def _devolver(cambios):
+    """Aplica {tid: campos} SOLO a las que siguen prestadas a Cloudroom (otro actor pudo cogerlas)."""
+    with traer_nube._Cerrojo("progreso", 60):
+        p = traer_nube._progreso()
+        for tid, campos in cambios.items():
+            if _prestada(p, tid):
+                p[tid] = dict(p[tid], **campos)
+        traer_nube._escribir_json(traer_nube.PROGRESO, p)
+
+
+def _json_cli(run, orden, timeout=30):
+    """(JSON, error) de una orden de room-cli; nunca lanza."""
+    try:
+        p = run(orden, cwd=traer_nube.RAIZ, capture_output=True, text=True, timeout=timeout)
+        if p.returncode:
+            return None, ((p.stderr or p.stdout or "").strip().splitlines() or ["salió con %s" % p.returncode])[-1][:200]
+        return json.loads(p.stdout or "null"), ""
+    except (OSError, subprocess.SubprocessError, ValueError) as e:
+        return None, type(e).__name__
+
+
+def _git(run, args, timeout=120, **kw):
+    p = run(["git", *args], cwd=traer_nube.RAIZ, capture_output=True, text=True, timeout=timeout, **kw)
+    if p.returncode:
+        raise RuntimeError("git %s: %s" % (args[0], (p.stderr or p.stdout or "?").strip()[-300:]))
+    return (p.stdout or "").strip()
+
+
+def lanzar(ids, seco=False, priorizar=False, medio=None, ahora=None, run=subprocess.run, cli=None):
+    """Abre hilos de la nube para las tareas de `ids` que caben hoy. Nunca lanza una excepción por
+    el medio: devuelve {"lanzadas", "quedan", "hoy", "motivo", "errores"}. `medio` y `cli` los da
+    la sonda de CRM1024D (`medio_cloudroom`) si no vienen dados."""
+    ahora = time.time() if ahora is None else ahora
+    res = {"lanzadas": [], "quedan": None, "hoy": 0, "motivo": "", "errores": []}
+    if medio is None or cli is None:
+        import medio_cloudroom
+
+        medio = medio_cloudroom.sondear(run=run) if medio is None else medio
+        cli = medio_cloudroom.cli_path() if cli is None else cli
+    res["motivo"] = motivo_medio(medio)
+    if res["motivo"]:
+        return res
+    estado, err = _json_cli(run, [cli, "cloud", "status", "--json"])
+    harness, modelo = elegir_modelo(estado, os.environ.get("STARSEED_CLOUDROOM_MODELO", ""))
+    if not modelo:
+        res["motivo"] = "sin modelos en la nube para esta cuenta (%s)" % (err or "conecta un agente en la app")
+        return res
+    registro = leer_registro()
+    r = ritmo(registro, ahora, *uso_cuenta(estado, ahora))
+    res.update(quedan=r["quedan"], hoy=r["hoy"])
+    if r["hoy"] <= 0:
+        res["motivo"] = r["motivo"]
+        return res
+    tareas = {tid: t for tid, (_n, t) in traer_nube._colas_por_id().items()}
+    with RN.CerrojoReparto():
+        progreso = traer_nube._progreso()
+        orden = por_prioridad(ids, tareas, progreso, ahora) if priorizar else ids
+        elegidas = seleccionar(orden, tareas, progreso, registro, ahora, r["hoy"])
+        if not elegidas:
+            res["motivo"] = ("0 lanzadas: ninguna de las %d cedible(s) cabe (privadas, dependencias o ya "
+                             "lanzadas)" % len(ids) if ids else "0 lanzadas: no hay tareas cedibles para la nube")
+            return res
+        if seco:
+            res.update(lanzadas=[str(t["id"]) for t in elegidas], motivo="en seco · %s/%s" % (harness, modelo))
+            return res
+        traer_nube._actualizar_progreso({str(t["id"]): marca(modelo, ahora) for t in elegidas})
+    try:
+        base = _git(run, ["rev-parse", "--verify", "-q", "origin/main^{commit}"])
+    except (OSError, subprocess.SubprocessError, RuntimeError):
+        base = ""
+    fecha = time.strftime("%Y%m%d", time.localtime(ahora))
+    for t in elegidas:
+        tid = str(t["id"])
+        n = sum(1 for x in _filas(registro) if str(x["tarea"]) == tid) + 1
+        orden = orden_spawn(cli, t, brief(t, fecha), harness, modelo, "starseed-%s-%d" % (tid, n),
+                            os.environ.get("STARSEED_CLOUDROOM_PROYECTO", ""))
+        datos, err = _json_cli(run, orden, timeout=180)
+        hilo = id_hilo(datos)
+        if not hilo:
+            _devolver({tid: {"estado": "pendiente", "medio": "", "nota": "Cloudroom no abrió el hilo: %s" % (err or "sin id")}})
+            res["errores"].append("%s: %s" % (tid, err or "spawn sin id de hilo"))
+            continue
+        fila = {"tarea": tid, "hilo": hilo, "entorno": entorno_de(datos), "t": ahora, "rama_pedida": rama_pedida(tid, fecha),
+                "base": base, "harness": harness, "modelo": modelo, "titulo": t.get("titulo") or "", "ola": t.get("ola") or fecha}
+        _registrar(lambda reg, fila=fila: reg.append(fila))
+        res["lanzadas"].append(tid)
+    res["quedan"] = max(0, r["quedan"] - len(res["lanzadas"]))
+    return res
+
+
+def subir_parche(parche, base, rama, mensaje, run=subprocess.run):
+    """Commit = árbol de `base` + `parche` en un índice temporal (no toca ninguna carpeta ni el índice
+    de nadie) y push a `rama`, la que `traer_nube` ya sabe traer por sus puertas. Devuelve el sha."""
+    carpeta = tempfile.mkdtemp(prefix="cloudroom-indice-")
+    env = dict(os.environ, GIT_INDEX_FILE=os.path.join(carpeta, "index"))
+    try:
+        _git(run, ["read-tree", base], env=env)
+        _git(run, ["apply", "--cached", "--whitespace=nowarn"], env=env, input=parche)
+        sha = _git(run, ["commit-tree", _git(run, ["write-tree"], env=env), "-p", base, "-m", mensaje], env=env)
+        _git(run, ["push", "-q", "origin", "%s:refs/heads/%s" % (sha, rama)], timeout=300)
+        return sha
+    finally:
+        shutil.rmtree(carpeta, ignore_errors=True)
+
+
+def _parche(fila, hilo, cli, run):
+    """(«subido», sha) | («vacio», "") | («error», motivo) del diff-patch de un hilo terminado."""
+    entorno = entorno_de(hilo) or fila.get("entorno") or fila["hilo"]
+    try:
+        p = run([cli, "environment", "diff-patch", str(entorno)], cwd=traer_nube.RAIZ, capture_output=True,
+                text=True, timeout=120)
+        if p.returncode:
+            return "error", "diff-patch: %s" % (p.stderr or "falló").strip()[-200:]
+        parche = extraer_parche(p.stdout)
+        if not parche:
+            return "vacio", ""
+        mensaje = ("Ola %s · Cloudroom · %s: %s\n\nTraído del hilo %s con `environment diff-patch` (el agente no "
+                   "empujó su rama); entra por las puertas de traer_nube." % (fila.get("ola") or "cloudroom",
+                   fila["tarea"], fila.get("titulo") or "", fila["hilo"]))
+        return "subido", subir_parche(parche, fila.get("base") or "origin/main", fila["rama_pedida"], mensaje, run)
+    except (OSError, subprocess.SubprocessError, RuntimeError) as e:
+        return "error", str(e)[-200:] or type(e).__name__
+
+
+def traer_en_fondo():
+    """La misma pasada de traer de la autocuración (A1 primero y luego `traer_nube`), en segundo plano."""
+    import autocuracion_mando
+
+    return autocuracion_mando._traer_en_fondo()
+
+
+def seguir(aplicar=True, ahora=None, run=subprocess.run, traer=traer_en_fondo, cli=None):
+    """Mira los hilos abiertos y, con `aplicar`, trae, sube el diff-patch, devuelve u olvida.
+    Devuelve {"acciones": {tid: acción}, "errores": [...]}."""
+    ahora = time.time() if ahora is None else ahora
+    registro, progreso = leer_registro(), traer_nube._progreso()
+    filas, huer = abiertos(registro), huerfanas(progreso, registro, ahora)
+    res = {"acciones": {}, "errores": []}
+    if not filas and not huer:
+        return res
+    try:
+        ramas = ramas_de(_git(run, ["ls-remote", "origin", "refs/heads/nube/cr-*"], timeout=120))
+    except (OSError, subprocess.SubprocessError, RuntimeError) as e:
+        ramas = None
+        res["errores"].append("no pude leer las ramas del remoto (%s)" % type(e).__name__)
+    if cli is None:
+        import medio_cloudroom
+
+        cli = medio_cloudroom.cli_path()
+    datos, err = _json_cli(run, [cli, "thread", "list", "--json", "--include-archived", "--include-hidden"]) if cli else (None, "app sin instalar")
+    hilos = hilos_por_id(datos) if datos is not None else None
+    if hilos is None and filas:
+        res["errores"].append("no pude listar los hilos (%s)" % err)
+    acciones = {str(f["tarea"]): decidir(f, ramas, hilos, progreso, ahora) for f in filas}
+    for tid in huer:
+        acciones.setdefault(tid, "devolver")
+    res["acciones"] = acciones
+    if not aplicar:
+        return res
+    cambios, finales = {}, {}
+    for f in filas:
+        tid = str(f["tarea"])
+        if acciones[tid] == "parche":
+            resultado, dato = _parche(f, (hilos or {}).get(str(f["hilo"])), cli, run)
+            if resultado == "error":
+                res["errores"].append("%s: %s" % (tid, dato))
+                acciones[tid] = "esperar"
+                finales[tid] = {"intentos_parche": int(f.get("intentos_parche") or 0) + 1}
+                continue
+            acciones[tid] = "parche" if resultado == "subido" else "devolver"
+            nota = ("traída de Cloudroom por diff-patch (%s)" % f["rama_pedida"]) if resultado == "subido" else "el hilo de Cloudroom terminó sin cambios"
+        elif acciones[tid] == "traer":
+            nota = "traída de Cloudroom: el hilo empujó %s" % f["rama_pedida"]
+        elif acciones[tid] == "devolver":
+            nota = "devuelta de Cloudroom: sin rama tras %d h (hilo %s)" % ((ahora - _t(f)) // 3600, f["hilo"])
+        elif acciones[tid] == "olvidar":
+            finales[tid] = {"final": "olvidada", "t_final": ahora}
+            continue
+        else:
+            continue
+        cambios[tid] = {"estado": "pendiente", "medio": "", "nota": nota}
+        finales[tid] = {"final": {"traer": "traida", "parche": "parche"}.get(acciones[tid], "devuelta"), "t_final": ahora}
+    for tid in huer:
+        cambios.setdefault(tid, {"estado": "pendiente", "medio": "", "nota": "devuelta: prestada a Cloudroom sin hilo en el registro"})
+    if cambios:
+        _devolver(cambios)
+    if finales:
+        abiertos_ids = {(str(f["tarea"]), str(f["hilo"])) for f in filas}
+
+        def cerrar(reg):
+            for x in reg:
+                if isinstance(x, dict) and (str(x.get("tarea")), str(x.get("hilo"))) in abiertos_ids:
+                    x.update(finales.get(str(x["tarea"]), {}))
+        _registrar(cerrar)
+    if any(a in ("traer", "parche") for a in acciones.values()) and traer:
+        traer()
+    return res
+
+
+def main(argv):
+    uso = "uso: cloudroom_lanzar.py lanzar --ids A,B [--seco] [--json] | seguir [--seco] [--json]"
+    if argv[:1] == ["lanzar"]:
+        ids = ids_argumento(argv[1:])
+        if not ids:
+            raise SystemExit(uso)
+        r = lanzar(ids, seco="--seco" in argv)
+        texto = ("lanzadas: %s · quedan %s del ciclo" % (", ".join(r["lanzadas"]), r["quedan"])
+                 if r["lanzadas"] else r["motivo"]) + "".join("\n· " + e for e in r["errores"])
+    elif argv[:1] == ["seguir"]:
+        r = seguir(aplicar="--seco" not in argv)
+        texto = "\n".join(["%-9s %s" % (a, t) for t, a in sorted(r["acciones"].items())] + ["· " + e for e in r["errores"]])
+    else:
+        raise SystemExit(uso)
+    print(json.dumps(r, ensure_ascii=False) if "--json" in argv else (texto or "nada que seguir"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
