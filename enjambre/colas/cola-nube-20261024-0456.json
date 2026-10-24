@@ -1,0 +1,128 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "VOZ1024C",
+   "ola": "1024V",
+   "capacidad": "alta",
+   "importancia": "capacidad",
+   "titulo": "Chatterbox · el servicio local levanta de verdad su servidor HTTP (127.0.0.1:4505)",
+   "archivos": [
+    "native/astraura-voice/chatterbox/servidor.py",
+    "native/astraura-voice/chatterbox/test_servidor.py"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VZR1011B (2026-10-24): native/astraura-voice/chatterbox/servidor.py (VZR1011A) solo define las funciones de los endpoints y no levanta ningún servidor HTTP, así que el cliente src/lib/aurora/tts-oss/chatterbox.ts siempre encuentra el puerto 4505 cerrado. Levanta un servidor con la biblioteca estándar (http.server, solo 127.0.0.1, puerto por argumento o 4505) con GET /salud y POST /generar EXACTAMENTE con el contrato que espera chatterbox.ts (léelo). Si el paquete chatterbox no está instalado o no cabe en memoria, /salud lo dice (disponible: false y motivo) y /generar responde 503 sin colgarse; nunca descarga modelos solo. Pruebas Python sin modelo (servidor en un puerto libre, cliente urllib)."
+  },
+  {
+   "id": "VZF1015R",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Malla · protocolo `voz-por-malla`: oído y voz a otra neurona en trozos firmados",
+   "archivos": [
+    "src/lib/network/voz-por-malla.ts",
+    "src/lib/network/__tests__/voz-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Toma como modelo `ia-por-malla.ts` (mensajes `ia.pedir/trozo/fin/error/cancelar`, una petición en vuelo por par, permiso `capaMeshCompartiendo()`) y `archivos-malla.ts` (trozos base64 con sha256). Crea los mensajes `oido.pedir` (audio en trozos de 16 KB, idioma, hotwords), `oido.texto` (parcial/final), `voz.pedir` (texto, timbre) y `voz.trozo` (audio), con `cancelar` y `error`; funciones PURAS para trocear, rearmar y validar (sha y orden) y un despachador con el transporte inyectado. Regla de privacidad del §3: el audio solo va a tus neuronas o al servidor de la sesión de tu grupo; validarlo antes de enviar. Pruebas. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015Q"
+   ]
+  },
+  {
+   "id": "VZF1015S",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Malla · elección autogestionada del servidor de voz de la sesión (con relevo solo)",
+   "archivos": [
+    "src/lib/network/servidor-voz-sesion.ts",
+    "src/lib/network/__tests__/servidor-voz-sesion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elegirServidorVoz({ sesion: { miembros, tipo }, fichas, ahora, actual? })` → `{ oido?: neurona, habla?: neurona, motivo }`: la de menor latencia medida (fichas del §5), con RAM libre suficiente, viva (latido < 2 min) y de confianza (tus neuronas o las de los miembros de la sesión), con histéresis (solo cambia si la nueva es un 30 % mejor o la actual dejó de latir). Incluye el A1 (24/7) cuando está en las fichas. Pruebas: elección, histéresis, relevo, privacidad. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015Q"
+   ]
+  },
+  {
+   "id": "VOZ1024A",
+   "ola": "1024V",
+   "capacidad": "alta",
+   "importancia": "capacidad",
+   "titulo": "Voz · las medidas de oído y habla se anotan de verdad (idioma, flujo, recorte y migración)",
+   "archivos": [
+    "src/lib/aurora/medidas-voz.ts",
+    "src/lib/aurora/voz-starseed/engine.ts",
+    "src/lib/aurora/__tests__/medidas-voz.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VZF1015Q (2026-10-24): nadie llama a anotarMedida (engine.ts la importa junto a medidasDe y no usa ninguna), así que ninguna neurona anuncia voz medida en la malla; MedidaVoz no guarda idioma ni flujo; anotarMedida nunca recorta su lista (llenará localStorage); y migrarDeV1 recibe el texto de safeGet y lo trata como una lista (no migra nada). Comprueba primero qué dejó a medias VZF1015P (grep en git log y en el código). Arregla: anota una medida al primer sonido de cada síntesis (primer-sonido) y al terminar cada reconocimiento (tiempo-real-oido), con motor, neurona, idioma y flujo; recorta a un máximo razonable por motor y tipo; corrige migrarDeV1; pruebas sin red ni micrófono (reloj y almacenamiento inyectados)."
+  },
+  {
+   "id": "VOZ1024B",
+   "ola": "1024V",
+   "capacidad": "alta",
+   "importancia": "capacidad",
+   "titulo": "Voz · voice158 y vibevoice alcanzables en la cadena (hoy se descartan en silencio)",
+   "archivos": [
+    "src/lib/aurora/speak-router.ts",
+    "src/lib/aurora/omnivoice-web-router.ts",
+    "src/lib/aurora/__tests__/speak-router-motores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VZR1011B (2026-10-24): voice158 y vibevoice no están en isNeuralEngine y speak-router.runLink los rechaza en silencio aunque AUTO los ponga primero; además completarPrioridad (omnivoice-web-router.ts) deja detrás de Kokoro a todo motor que no esté en DEFAULT_CHAIN_PRIORITY. Haz que la cadena los intente en su lugar cuando su servidor responde (la salud ya existe: búscala con grep) y que, si no, pase al siguiente sin perder el turno ni decirlo como error; que su posición en la prioridad respete la del registro. Pruebas con los motores simulados (sin red ni audio)."
+  },
+  {
+   "id": "DGM1018L",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · 3D y XR: de la estructura del SVG a una escena que se gira y se recorre",
+   "archivos": [
+    "src/lib/diagramas/diagrama-3d.ts",
+    "src/components/vivo/espacial/diagrama-3d.tsx",
+    "src/lib/diagramas/__tests__/diagrama-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "diagrama-3d.ts PURO: `estructuraDeSvg(svg)` saca nodos (rect, círculo, texto agrupados), aristas (path/line con marcador) y capas (grupos `g` con id o clase de capa) y `escena3d(estructura, tipo)` coloca: tipos de capas, despiece y planta axonométrica apilados en Z con separación proporcional; tipos de grafo repartidos en 3D sin solaparse; textos siempre de cara a la cámara. El componente lo pinta con @react-three/fiber (ya en el OS) dentro de `escena-compartida` (solo el componente). Pruebas con example-layers.html y example-architecture.html de la skill. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DGM1018I"
+   ]
+  },
+  {
+   "id": "VZR1011C",
+   "ola": "Ola 1011I · Voces locales fluidas (Chatterbox, OpenVoice V2; F5/XTTS opcionales personales) y el pato Open Duck Mini como cuerpo de bots y agentes",
+   "titulo": "Licencias de voz: F5-TTS y XTTS-v2 como opcionales de uso personal; ChatTTS solo ficha",
+   "archivos": [
+    "src/lib/aurora/tts-oss/voces-no-comerciales.ts",
+    "src/lib/aurora/tts-oss/__tests__/voces-no-comerciales.test.ts",
+    "src/lib/library/packages.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-voces-y-robots.md` (léelo ENTERO; el §1 tiene licencias y datos VERIFICADOS el 2026-10-11 — no inventes otros). Reutiliza lo que YA existe y no lo dupliques: `architecture/aurora-voz-motores.md` + `src/lib/aurora/tts-oss/engine-registry.ts` (cadena `buildVoiceChain`, `AUTO_ENDPOINT_ORDER`, OpenVoice V2 ya es el motor principal), `architecture/forja-voz-158.md` §4 (en producto solo MIT/Apache), `src/lib/aurora/voz-starseed/` (motor único por niveles, Supertonic: la voz F1 de Astraura que le gusta a Alex se mantiene), `src/lib/voces/` (clonación con consentimiento obligatorio, trocear, perfil neuronal), `src/lib/astraura/needle3-client.ts` y `decision-hibrida.ts` (capa Needle), `architecture/astraura-bots.md` y `src/lib/astraura-bots/` (cuerpos, acciones con META y riesgo). Reglas: «basta de ilusiones»; nunca descargas automáticas de pesos (solo con permiso y tras comprobar ≥ 3 veces el espacio); en la Mac de Alex (8 GB) los motores pesados ceden ante el enjambre (`scripts/puente/guardia-memoria.py`); clonar una voz exige consentimiento explícito de su dueño y jamás se imita a una persona real sin él; nada no comercial en uso comercial; nada de claves en código; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Toda repo o modelo que entre lleva su ficha en la Biblioteca (`src/lib/library/packages.ts`, `kind: \"ai-source\"` o `\"repo\"`) con comprobación de versión (regla de CLAUDE.md). Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto.\n\nTAREA: F5-TTS (pesos CC-BY-NC) y XTTS-v2 (Coqui Public Model License) entran como motores OPCIONALES de uso personal no comercial: apagados por defecto, solo si la persona los instala y acepta su licencia en una casilla que la explica, nunca en contextos comerciales (páginas o grupos con fines comerciales) ni en la cadena AUTO por defecto; respetan la regla de la forja §4 para el producto. ChatTTS (modelo CC BY-NC 4.0 «solo académico», sin español) NO se integra: solo su ficha. Fichas en la Biblioteca para Chatterbox, OpenVoice V2, F5-TTS, XTTS-v2 y ChatTTS con licencia exacta del contrato y comprobación de versión. Pruebas del filtro comercial.",
+   "dependencias_ya_en_main": [
+    "VZR1011B"
+   ]
+  },
+  {
+   "id": "VZR1011D",
+   "ola": "Ola 1011I · Voces locales fluidas (Chatterbox, OpenVoice V2; F5/XTTS opcionales personales) y el pato Open Duck Mini como cuerpo de bots y agentes",
+   "titulo": "Plática fluida: latencia medida, voz por trozos, interrumpir y voces de la malla",
+   "archivos": [
+    "src/lib/aurora/tts-oss/conversacion-fluida.ts",
+    "src/lib/aurora/tts-oss/__tests__/conversacion-fluida.test.ts",
+    "src/lib/aurora/tts-oss/speak-router.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-voces-y-robots.md` (léelo ENTERO; el §1 tiene licencias y datos VERIFICADOS el 2026-10-11 — no inventes otros). Reutiliza lo que YA existe y no lo dupliques: `architecture/aurora-voz-motores.md` + `src/lib/aurora/tts-oss/engine-registry.ts` (cadena `buildVoiceChain`, `AUTO_ENDPOINT_ORDER`, OpenVoice V2 ya es el motor principal), `architecture/forja-voz-158.md` §4 (en producto solo MIT/Apache), `src/lib/aurora/voz-starseed/` (motor único por niveles, Supertonic: la voz F1 de Astraura que le gusta a Alex se mantiene), `src/lib/voces/` (clonación con consentimiento obligatorio, trocear, perfil neuronal), `src/lib/astraura/needle3-client.ts` y `decision-hibrida.ts` (capa Needle), `architecture/astraura-bots.md` y `src/lib/astraura-bots/` (cuerpos, acciones con META y riesgo). Reglas: «basta de ilusiones»; nunca descargas automáticas de pesos (solo con permiso y tras comprobar ≥ 3 veces el espacio); en la Mac de Alex (8 GB) los motores pesados ceden ante el enjambre (`scripts/puente/guardia-memoria.py`); clonar una voz exige consentimiento explícito de su dueño y jamás se imita a una persona real sin él; nada no comercial en uso comercial; nada de claves en código; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Toda repo o modelo que entre lleva su ficha en la Biblioteca (`src/lib/library/packages.ts`, `kind: \"ai-source\"` o `\"repo\"`) con comprobación de versión (regla de CLAUDE.md). Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto.\n\nTAREA: Para el contexto de conversación: elige el motor por la latencia MEDIDA en esta neurona (primer audio y factor de tiempo real guardados por motor; presupuesto ≤ 0,8 s hasta el primer sonido) y no por la teórica; empieza a hablar con la primera frase mientras el modelo de lenguaje sigue escribiendo (`src/lib/voces/trocear.ts`) y sintetiza la siguiente mientras suena la anterior; si la persona empieza a hablar, corta al instante (interrumpir) y escucha. Capas: aparato › otra neurona de la cuenta en la red local (sus servicios de voz publicados en el registro de neuronas que ya existe) › malla del grupo › Spaces › voz del sistema; lo que no llega al presupuesto pasa al siguiente sin silencios. En lectura o narración manda la calidad. Pruebas con relojes y motores simulados (ningún silencio > presupuesto, interrupción < 100 ms).",
+   "dependencias_ya_en_main": [
+    "VZR1011B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "VZF1015R",
+   "VZF1015S",
+   "VZR1011C",
+   "VZR1011D",
+   "DGM1018L"
+  ]
+ }
+}
