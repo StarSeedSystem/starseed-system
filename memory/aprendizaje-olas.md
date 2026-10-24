@@ -4644,3 +4644,16 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RLB1020Jb` — no escribió nada
 - `PES1020Bb` — no escribió nada
+
+## 2026-10-24 13:45 · mg-oracle-1024-0626
+
+**Lo que se pidió.** reasignada · medio oracle
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- opencode/glm-5.3-flash-free integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `RTGCA1019W` — pruebas en rojo: vitest falla (rama conservada)
+- `RIA1023Fb` — otra cosa: ningún proveedor respondió (todos caídos)
