@@ -6,6 +6,7 @@
  * almacenamiento local inyectado por el propio módulo de medidas.
  */
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import "@testing-library/jest-dom/vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { useEffect, useState } from "react";
 
