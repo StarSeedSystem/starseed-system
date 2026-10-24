@@ -54,6 +54,24 @@ describe("habilidadesPara · por papel", () => {
     expect(ids(habilidadesPara("imagen", "cuenta", OPCIONES))).toEqual(["av-gen", "vision"]);
   });
 
+  it("la habilidad con routing vacío o con todos los flags apagados es neutra en cualquier papel", () => {
+    const neutras: SkillCapability[] = [
+      { id: "vacia", label: "Vacía", systemPrompt: "x", routing: {} },
+      {
+        id: "apagada",
+        label: "Apagada",
+        systemPrompt: "x",
+        routing: { preferStrong: false, planning: false, web: false, vision: false },
+      },
+    ];
+    for (const rol of ["escritor", "revisor", "visión", "código", "voz", "imagen"] as const) {
+      expect(ids(habilidadesPara(rol, "cuenta", { capacidades: neutras, desactivadas: [] })), rol).toEqual([
+        "vacia",
+        "apagada",
+      ]);
+    }
+  });
+
   it("excluir las habilidades desactivadas en el ámbito", () => {
     const out = ids(
       habilidadesPara("escritor", "cuenta", {
