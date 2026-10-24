@@ -40,47 +40,72 @@ def _una_pasada(texto):
             if pila:
                 inicio = pila.pop()
                 bloques.append((inicio, i))
-    # Si hay bloques, resolvemos los que no contienen otros bloques internos
-    # Es decir, bloques cuya distancia es la mínima.
-    if not bloques:
+    # Resolver TODOS los bloques internos que no se solapen entre sí
+    internos = []
+    for inicio, fin in bloques:
+        es_interno = True
+        for o_inicio, o_fin in bloques:
+            if inicio == o_inicio:
+                continue
+            if inicio < o_inicio < fin:
+                es_interno = False
+                break
+        if es_interno:
+            internos.append((inicio, fin))
+    internos.sort(key=lambda b: b[1] - b[0])
+    # Filtrar los que se solapen con los ya seleccionados
+    seleccionados = []
+    ocupados = set()
+    for inicio, fin in internos:
+        overlap = False
+        for idx in range(inicio, fin+1):
+            if idx in ocupados:
+                overlap = True
+                break
+        if not overlap:
+            seleccionados.append((inicio, fin))
+            for idx in range(inicio, fin+1):
+                ocupados.add(idx)
+    if not seleccionados:
         return texto, False
-    # Ordenar por distancia (más cortos = más internos) y resolver uno
-    bloques.sort(key=lambda b: b[1] - b[0])
-    inicio, fin = bloques[0]
-    # Ahora resolvemos este bloque específico
-    bloque_lineas = lineas[inicio:fin+1]
-    # Separar HEAD y alternativa
-    head = []
-    alt = []
-    estado = "head"
-    for l in bloque_lineas[1:]:  # saltar la línea `<<<<<<< ...`
-        if l.startswith("======="):
-            estado = "alt"
-        elif l.startswith(">>>>>>>"):
-            # Fin del bloque; no incluir esta línea en ninguna parte
-            break
-        else:
-            if estado == "head":
-                head.append(l)
+    # Resolver cada bloque seleccionado (de izquierda a derecha)
+    # Como no se solapan, podemos hacer todos los reemplazos
+    # Pero debemos procesarlos de derecha a izquierda para no afectar índices
+    reemplazos = []
+    for inicio, fin in seleccionados:
+        bloque_lineas = lineas[inicio:fin+1]
+        head = []
+        alt = []
+        estado = "head"
+        for l in bloque_lineas[1:]:
+            if l.startswith("======="):
+                estado = "alt"
+            elif l.startswith(">>>>>>>"):
+                break
             else:
-                alt.append(l)
-    # Resolver recursivamente cada parte (por si hay sub-bloques dentro)
-    head_resuelto = resolver_marcas("".join(head))
-    alt_resuelto = resolver_marcas("".join(alt))
-    # Unir sin duplicados: HEAD primero, luego alt sin repetir líneas que ya existan en HEAD
-    head_lineas_unicas = head_resuelto.splitlines(keepends=True)
-    alt_lineas = alt_resuelto.splitlines(keepends=True)
-    visto = set()
-    unido = []
-    for l in head_lineas_unicas:
-        visto.add(l)
-        unido.append(l)
-    for l in alt_lineas:
-        if l not in visto:
+                if estado == "head":
+                    head.append(l)
+                else:
+                    alt.append(l)
+        head_resuelto = resolver_marcas("".join(head))
+        alt_resuelto = resolver_marcas("".join(alt))
+        head_lineas_unicas = head_resuelto.splitlines(keepends=True)
+        alt_lineas = alt_resuelto.splitlines(keepends=True)
+        visto = set()
+        unido = []
+        for l in head_lineas_unicas:
             visto.add(l)
             unido.append(l)
-    # Reemplazar el bloque en las líneas originales
-    nuevas_lineas = lineas[:inicio] + unido + lineas[fin+1:]
+        for l in alt_lineas:
+            if l not in visto:
+                visto.add(l)
+                unido.append(l)
+        reemplazos.append((inicio, fin, unido))
+    # Aplicar reemplazos de derecha a izquierda para preservar índices
+    reemplazos.sort(key=lambda r: r[0], reverse=True)
+    nuevas_lineas = list(lineas)
+    for inicio, fin, unido in reemplazos:
+        nuevas_lineas = nuevas_lineas[:inicio] + unido + nuevas_lineas[fin+1:]
     return "".join(nuevas_lineas), True
 
 
