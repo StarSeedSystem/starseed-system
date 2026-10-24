@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { operacionASdkOrder, SdkOrder } from "../operaciones-sdk";
-import type { Operacion } from "@/lib/protomolecula/tipos";
+import type { Accion, Operacion } from "@/lib/protomolecula/tipos";
 
 describe("operacionASdkOrder", () => {
-  const makeOperacion = (parametroId: string, accion: any): Operacion => ({
+  const makeOperacion = (parametroId: string, accion: Accion): Operacion => ({
     id: "test-id",
     objetivo: {
       atomoId: "test-atomo",
@@ -57,7 +57,7 @@ describe("operacionASdkOrder", () => {
   });
 
   it("should throw for GSAP property", () => {
-    const op = makeOperacion("elemento1::gsapTween", { tipo: "exacta", valor: {} });
+    const op = makeOperacion("elemento1::gsapTween", { tipo: "exacta", valor: "gsap" });
     expect(() => operacionASdkOrder(op)).toThrow(/GSAP properties are not allowed/);
   });
 
@@ -73,6 +73,16 @@ describe("operacionASdkOrder", () => {
 
   it("should throw for non-exacta action", () => {
     const op = makeOperacion("elemento1::textContent", { tipo: "relativa", cantidad: 1, modo: "delta" });
+    expect(() => operacionASdkOrder(op)).toThrow(/Only exacta actions are supported/);
+  });
+
+  it("debe rechazar una acción alternar (no es exacta)", () => {
+    const op = makeOperacion("elemento1::disabled", { tipo: "alternar" });
+    expect(() => operacionASdkOrder(op)).toThrow(/Only exacta actions are supported/);
+  });
+
+  it("debe rechazar una acción disparo (no es exacta)", () => {
+    const op = makeOperacion("elemento1::play", { tipo: "disparo" });
     expect(() => operacionASdkOrder(op)).toThrow(/Only exacta actions are supported/);
   });
 
