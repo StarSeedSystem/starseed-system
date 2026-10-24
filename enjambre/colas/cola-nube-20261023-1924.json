@@ -1,0 +1,89 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "VPU1019R",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Ayudante común y entrada en el menú del Finder",
+   "archivos": [
+    "src/components/variaciones/accion-variaciones.ts",
+    "src/components/library/finder/finder-view.tsx",
+    "src/components/variaciones/__tests__/accion-variaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`accionVariaciones(clave)` devuelve la acción { label: \"Variaciones públicas\", icon, onClick } que abre la ventana. En `finder-view.tsx` añádela con `extraActionsFor` para paquetes y elementos con clave (solo añadir). Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019M"
+   ]
+  },
+  {
+   "id": "LYS1018B",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · cliente único por medio (servidor local → A1 por la malla → regla) y lectura calibrada",
+   "archivos": [
+    "src/lib/astraura/laya/cliente-laya.ts",
+    "src/lib/astraura/decision-hibrida.ts",
+    "src/lib/astraura/laya/__tests__/cliente-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`preguntarALaya({ punto, estado, privado, medio }, deps)` con fetch, reloj y relé de malla inyectados: prueba el servidor local 127.0.0.1:4470 `/v1/systemone` (formato nativo, cabecera X-Prioridad solo si es conversación), luego el A1 por la malla (solo si no es privado o el A1 es servidor propio de la cuenta) y si no, devuelve null con motivo. Plazos del punto por medio (catálogo de A). Devuelve { respuestas, donde, ms }. En decision-hibrida.ts cambia SOLO la lectura de la confianza: usa `answer_confidence` y cae a `confidence` si falta. Pruebas con fetch falso. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "LYS1018F",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Router · el planificador consulta a Laya la dificultad y si basta un modelo pequeño",
+   "archivos": [
+    "src/ai/astraura/router-laya.ts",
+    "src/ai/astraura/router.ts",
+    "src/ai/astraura/__tests__/router-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "router-laya.ts PURO: `refinarConLaya(clasificacion de classifyTask/estimateDifficulty, respuestasLaya | null)` ajusta la dificultad solo si answer_confidence ≥ umbral y nunca cambia la privacidad ni el contexto; sin Laya devuelve la clasificación tal cual. En router.ts añade como mucho 20 líneas: si hay respuestas de Laya ya disponibles en la petición (no las espera), pasa por `refinarConLaya`. Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "VZF1015J",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Ventanas, guía e introducciones por la puerta única",
+   "archivos": [
+    "src/lib/aurora/narracion-ventana.ts",
+    "src/lib/aurora/voz-rito.ts",
+    "src/components/onboarding/aurora-guide-voice.ts"
+   ],
+   "depende": [],
+   "prompt": "Que `useNarracionVentana` (contexto 'ventana'), `auroraSpeak` de la guía ('guia') y `hablarRito` ('rito') hablen por `hablar()` de `voz-unica.ts` y que `callarRito` llame a `callar()`. Conserva sus firmas públicas y su comportamiento (la narración sigue dependiendo de `starseed.voz.rito`). Si `aurora-guide-voice.ts` no existe con ese nombre, busca el archivo de la guía que exporta `auroraSpeak` y dilo en el commit. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015I"
+   ]
+  },
+  {
+   "id": "VZF1015K",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Genesis, acciones y la superposición de Hermes por la puerta única",
+   "archivos": [
+    "src/lib/mando/voz-mando.ts",
+    "src/lib/aurora/actions.ts",
+    "src/components/hermes/ai-overlay.tsx"
+   ],
+   "depende": [],
+   "prompt": "`voz-mando.ts` habla hoy con `hablarStarSeed` directo, `actions.ts` (l. ~585-629, `speakOnceAdHoc`) con `new Audio` y un `SpeechSynthesisUtterance` suelto, y `ai-overlay.tsx` (l. ~176) con su propio `speechSynthesis`. Que los tres usen `hablar()` (contextos 'mando', 'aviso' y 'lectura'), sin perder lo que hacen hoy. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "VPU1019R",
+   "LYS1018B",
+   "LYS1018F",
+   "VZF1015J",
+   "VZF1015K"
+  ]
+ }
+}
