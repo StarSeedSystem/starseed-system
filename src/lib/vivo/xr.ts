@@ -15,6 +15,8 @@
  */
 
 import type { PermisoVivo } from "@/lib/mensajeria/formato-tipos";
+import type { DatosNavegador } from "@/lib/xr/capacidades";
+import { plataformaDeDatos } from "@/lib/xr/capacidades";
 import { docVacio } from "@/lib/vivo/espacial/modelo";
 import { crearFilaEscena, listarEscenasPropias, MENSAJES_ERROR } from "@/lib/vivo/espacial/persistencia";
 
@@ -60,12 +62,23 @@ export async function listarMiosXr(): Promise<{ refId: string; titulo: string; r
 export type PlataformaXR = "quest" | "visionos" | "android" | "ios" | "escritorio";
 
 export function plataformaDe(ua: string, tactil = false): PlataformaXR {
-    const u = ua.toLowerCase();
-    if (/oculusbrowser|quest|pico/.test(u)) return "quest";
-    if (/visionos|apple vision/.test(u)) return "visionos";
-    if (/android/.test(u)) return "android";
-    if (/iphone|ipad|ipod/.test(u) || (/macintosh/.test(u) && tactil)) return "ios";
-    return "escritorio";
+    // Delega en el sondeo fino del núcleo XR (tarea XR1010AK); sin datos de WebXR se cae en la
+    // plataforma móvil/escritorio equivalente. El API antiguo sólo tiene 5 salidas: pico,
+    // magic-leap y spectacles no tienen categoría propia aquí y se etiquetan como escritorio.
+    const datos: DatosNavegador = {
+        ua, seguro: true, tieneXR: false, vr: null, ar: null,
+        ofreceSesion: false, tactil, webgl2: false, webgpu: false, instalada: false,
+    };
+    switch (plataformaDeDatos(datos)) {
+        case "quest": return "quest";
+        case "visionos": return "visionos";
+        case "ios": return "ios";
+        case "android-xr":
+        case "android-movil":
+            return "android";
+        default:
+            return "escritorio";
+    }
 }
 
 export interface SoporteXR {
