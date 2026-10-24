@@ -33,6 +33,7 @@ import {
 import { getVoiceConfig, isNeuralEngine, isVoiceEngineId } from "@/lib/aurora/tts-oss/voice-config";
 import { applyVoiceChainPriority, completarPrioridad } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import { safeRemove, safeSet } from "@/lib/safe-storage";
+import { setVoiceIdentity } from "@/lib/aurora/tts-oss/voice-identity";
 
 // ── Contratos reales (sondeo del 2026-10-24) ────────────────────────────────
 
@@ -118,7 +119,7 @@ function montar(esc: Escenario = {}) {
   const almacen = new Map<string, string>();
   let reloj = 1_000_000;
   const llamadasGradio: { base: string; fn: string; data: unknown[] }[] = [];
-  const medidas: { tipo: string; valor: number }[] = [];
+  const medidas: { tipo: string; valor: number; idioma?: string }[] = [];
   const pedidas: string[] = [];
   const fetchFalso = vi.fn(async (url: string, init?: RequestInit): Promise<Response> => {
     pedidas.push(url);
@@ -152,8 +153,8 @@ function montar(esc: Escenario = {}) {
       return (esc.spacesQueHablan ?? []).includes(base) ? [{ url: `${base}/gradio_api/file=out.wav` }] : null;
     },
     audioDeSalida: async (out) => (out ? new Blob([new Uint8Array([0x52, 0x49, 0x46, 0x46])], { type: "audio/wav" }) : null),
-    anotar: (tipo, valor) => {
-      medidas.push({ tipo, valor });
+    anotar: (tipo, valor, idioma) => {
+      medidas.push({ tipo, valor, idioma });
     },
   };
   return {
@@ -171,7 +172,23 @@ function montar(esc: Escenario = {}) {
 const MTL = CHATTERBOX_SPACES_INTEGRADOS[0];
 const ING = CHATTERBOX_SPACES_INTEGRADOS[1];
 
-beforeEach(() => _reiniciarChatterboxParaPruebas());
+/** Identidad congelada MÍNIMA del mensaje (para el turno de varios trozos). */
+function identidadDeTurno(spoke: boolean) {
+  return {
+    token: 7,
+    engine: "chatterbox" as const,
+    settings: {},
+    params: { rate: 1, pitch: 1, volume: 1, energy: 50 },
+    playbackMod: null,
+    fingerprint: "f",
+    spoke,
+  };
+}
+
+beforeEach(() => {
+  _reiniciarChatterboxParaPruebas();
+  setVoiceIdentity(null); // sin turno abierto: cada prueba empieza limpia
+});
 
 // ── Contrato y piezas puras ──────────────────────────────────────────────────
 
@@ -236,7 +253,24 @@ describe("cliente Chatterbox", () => {
     expect(r.factorTiempoReal).toBe(2.5);
     expect(m.llamadasGradio).toHaveLength(0);
     expect(m.medidas.map((x) => x.tipo)).toEqual(["primer-sonido", "tiempo-real-voz"]);
+    // (SGO1024B) La medida lleva el idioma REAL del texto («es-ES» → «es»).
+    expect(m.medidas[0].idioma).toBe("es");
+    expect(m.medidas[1].idioma).toBe("es");
     expect(estadoChatterbox(m.deps)).toBe("listo");
+  });
+
+  it("(SGO1024B) un turno de varios trozos anota UN solo «primer-sonido», con el idioma del texto", async () => {
+    setVoiceIdentity(identidadDeTurno(false));
+    const m = montar({ local: "vivo" });
+    const r0 = await sintetizarChatterbox("Hola, soy Astraura.", { idioma: "es-ES" }, m.deps);
+    expect(r0.blob).toBeInstanceOf(Blob);
+    // El trozo 0 ganó y la voz quedó marcada (`markVoiceIdentitySpoke`): los
+    // trozos 1..N del mismo turno ya NO vuelven a anotar el primer sonido.
+    setVoiceIdentity(identidadDeTurno(true));
+    await sintetizarChatterbox("Sigo con el mismo turno.", { idioma: "es-ES" }, m.deps);
+    const primeros = m.medidas.filter((x) => x.tipo === "primer-sonido");
+    expect(primeros).toHaveLength(1);
+    expect(primeros[0].idioma).toBe("es");
   });
 
   it("si el local está en modo simulado (sin audio) pasa al Space multilingüe para español", async () => {
@@ -251,6 +285,8 @@ describe("cliente Chatterbox", () => {
     expect(llamada.data[2]).toBeNull(); // nunca se clona aquí
     expect(llamada.data[5]).toBe(semillaEstable("aurora"));
     expect(r.latenciaMs).toBe(4_000);
+    // (SGO1024B) el «primer-sonido» que sale por Space también lleva idioma.
+    expect(m.medidas.find((x) => x.tipo === "primer-sonido")?.idioma).toBe("es");
     expect(latenciaMedidaChatterbox(m.deps)).toContain("Space 4,0 s");
   });
 

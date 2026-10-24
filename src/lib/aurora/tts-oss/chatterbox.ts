@@ -44,6 +44,7 @@
 import { safeGet, safeSet } from "@/lib/safe-storage";
 import { spaceIdToHost } from "@/lib/aurora/tts-oss/openvoice-discovery";
 import type { AuroraVoiceEmotion } from "@/lib/aurora/tts-oss/voice-config";
+import { getVoiceIdentity } from "@/lib/aurora/tts-oss/voice-identity";
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 
@@ -120,8 +121,13 @@ export interface ChatterboxDeps {
   ) => Promise<unknown[] | null>;
   /** Primer audio de la salida de un Space (por defecto `firstAudioFromGradio`). */
   audioDeSalida: (out: unknown[] | null, base: string, signal: AbortSignal) => Promise<Blob | null>;
-  /** Anota la medida en las medidas de voz de la neurona (por defecto `medidas-voz.ts`). */
-  anotar: (tipo: "primer-sonido" | "tiempo-real-voz", valor: number) => void;
+  /** Anota la medida en las medidas de voz de la neurona (por defecto `medidas-voz.ts`), con el idioma del texto. */
+  anotar: (
+    tipo: "primer-sonido" | "tiempo-real-voz",
+    valor: number,
+    /** Idioma del tramo sintetizado («es», «en»…), si se conoce. */
+    idioma?: string,
+  ) => void;
 }
 
 export interface PeticionChatterbox {
@@ -213,9 +219,9 @@ function depsPorDefecto(): ChatterboxDeps {
       const { firstAudioFromGradio } = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
       return firstAudioFromGradio(out, base, signal);
     },
-    anotar: (tipo, valor) => {
+    anotar: (tipo, valor, idioma) => {
       void import("@/lib/aurora/medidas-voz")
-        .then((m) => m.anotarMedida({ motor: "chatterbox", tipo, valor }))
+        .then((m) => m.anotarMedida({ motor: "chatterbox", tipo, valor, idioma }))
         .catch(() => null);
     },
   };
@@ -686,6 +692,24 @@ async function sintetizarLocal(
 let ganador: { id: string; at: number } | null = null;
 
 /**
+ * (SGO1024B) ¿Primer trozo del TURNO? La identidad congelada del mensaje
+ * (`voice-identity.ts`) marca `spoke` en cuanto gana el trozo 0, así que los
+ * trozos 1..N del MISMO turno la ven marcada y no vuelven a anotar
+ * «primer-sonido» (antes se anotaba UNO POR TROZO de 280 caracteres, sin
+ * idioma, y falseaba la mediana; hallado por VOZ1024A, igual que `runLink`
+ * mide a los demás motores: UNA medida por turno). Sin identidad viva es un
+ * turno de un mensaje: primer (y único) trozo.
+ */
+function esPrimerTrozoDelTurno(): boolean {
+  try {
+    const id = getVoiceIdentity();
+    return !id || !id.spoke;
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Sintetiza con Chatterbox: servicio local primero y, si no hay, Spaces públicos.
  * Devuelve el audio y por dónde salió, o el motivo honesto si no hubo voz.
  */
@@ -718,8 +742,8 @@ export async function sintetizarChatterbox(
       if (r) {
         const lat = d.ahora() - t0;
         marcarResultadoChatterbox(CHATTERBOX_ID_LOCAL, true, lat, d);
-        d.anotar("primer-sonido", lat);
-        if (r.rtf) d.anotar("tiempo-real-voz", r.rtf);
+        if (esPrimerTrozoDelTurno()) d.anotar("primer-sonido", lat, idioma);
+        if (r.rtf) d.anotar("tiempo-real-voz", r.rtf, idioma);
         ganador = { id: CHATTERBOX_ID_LOCAL, at: d.ahora() };
         return { blob: r.blob, via: "local", endpoint: CHATTERBOX_ID_LOCAL, latenciaMs: lat, factorTiempoReal: r.rtf };
       }
@@ -750,7 +774,7 @@ export async function sintetizarChatterbox(
       if (blob) {
         const lat = d.ahora() - t1;
         marcarResultadoChatterbox(sp.id, true, lat, d);
-        d.anotar("primer-sonido", lat);
+        if (esPrimerTrozoDelTurno()) d.anotar("primer-sonido", lat, idioma);
         ganador = { id: sp.id, at: d.ahora() };
         return { blob, via: "space", endpoint: sp.id, latenciaMs: lat };
       }
