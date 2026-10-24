@@ -1,0 +1,107 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "S1010-ACT2d",
+   "ola": "Ola 1010S · Actualizaciones por capas: lo que faltaba",
+   "titulo": "Política de actualización por sistema y capa",
+   "archivos": [
+    "src/lib/actualizaciones/politica.ts",
+    "src/lib/actualizaciones/__tests__/politica.test.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo /home/claude/starseed-system (Next 15, TypeScript, vitest). REGLAS: módulo PURO (sin React/red/node:*); español; producto = Genesis; máx. 3 archivos y 120 líneas por archivo; sin git ni next build; `npx vitest run src/lib/actualizaciones`. DEPENDE de ACT1: importa `CapaActualizacion` y `CAPAS_ORDEN` de './manifiesto' (si aún no existe, declara una copia local idéntica marcada TODO). Contrato: architecture/actualizaciones-por-capas-y-niveles.md §4. CREA src/lib/actualizaciones/politica.ts con: `export type ModoPolitica = \"automatica-todas\"|\"automatica-esta\"|\"programada\"|\"manual\"; export interface PoliticaCapa { modo: ModoPolitica; ventana?: { desdeH: number; hastaH: number } }; export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>; export type TipoEntidad = \"perfil-privado\"|\"pagina-publica\"|\"grupo-jerarquico\"|\"grupo-democratico\"`; `export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema` (perfil-privado: datos e interfaz automatica-todas, sw automatica-esta, servicios/modelos/nativa manual; pagina-publica: todas las capas permitidas siguen automáticamente la rama estable → automatica-todas salvo servicios/modelos/nativa manual; grupo-jerarquico: como perfil-privado; grupo-democratico: igual pero marcado en el resultado de decidir como «requiere aprobación»); `export function decidirPolitica(p: PoliticaCapa, ctx: { ahoraH: number; esNeuronaElegida: boolean; aprobada: boolean; requiereAprobacion: boolean }): \"aplicar\"|\"avisar\"|\"esperar\"` (sin aprobación cuando se requiere → siempre 'esperar'; manual → 'avisar'; automatica-esta → 'aplicar' solo si esNeuronaElegida, si no 'avisar'; programada → 'aplicar' dentro de la ventana [desdeH,hastaH) con cruce de medianoche si desdeH>hastaH, fuera 'esperar'; automatica-todas → 'aplicar'). Validación: `export function sanearPolitica(x: unknown): PoliticaSistema` que rellena con manual lo que falte o venga mal. Pruebas ≥ 14 casos (cada modo, cruce de medianoche, aprobación, saneado de basura).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261016-070944-S1010-ACT2c`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261016-070944-S1010-ACT2c:refs/remotes/origin/nube/a1-20261016-070944-S1010-ACT2c\"` y `git cherry-pick --no-commit 93bd64f58c60 fde450df87cc bc5224e76449 413ee9681443 940ecf8ecccc 361407a79bc0 70e58ebd453d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/actualizaciones/__tests__/politica.test.ts, src/lib/actualizaciones/politica.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261016-070944-S1010-ACT2c"
+  },
+  {
+   "id": "DGM1018O",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Vigía · vigilar Diagram Design y renovar su copia",
+   "archivos": [
+    "config/vigia-areas.json",
+    "scripts/puente/test_vigia_areas.py"
+   ],
+   "depende": [],
+   "prompt": "Añade (sin borrar nada) en el área `habilidades` el repo cathrynlavery/diagram-design con su manifiesto `.claude-plugin/plugin.json` (campo version) como señal de versión y la carpeta de destino vendor/habilidades/diagram-design. Amplía la prueba. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VST1018M"
+   ]
+  },
+  {
+   "id": "DSN1019D",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Fuentes de la marca por papel: Satoshi, Rajdhani, Inter, Quicksand y JetBrains Mono",
+   "archivos": [
+    "src/components/theme/fuentes-marca.tsx",
+    "src/components/theme/__tests__/fuentes-marca.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente que carga bajo demanda (una sola vez) la hoja de Satoshi de Fontshare `https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap` cuando el registro o la pieza usa el papel «display editorial», y Quicksand de Google Fonts para el tema Natural; expone las variables `--ss-font-display`, `--ss-font-titular`, `--ss-font-organica` con respaldos. Sin archivos de Satoshi en el repo. Prueba que no duplica enlaces y que hay respaldo. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DSN1019G",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Biblioteca de movimiento StarSeed (WAAPI, puro)",
+   "archivos": [
+    "src/lib/design/movimiento-starseed.ts",
+    "src/lib/design/__tests__/movimiento-starseed.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Keyframes y opciones para siembra, entrada cardinal (por punto de la Trinity), fundido con desenfoque, elemento compartido, barrido de horizonte, respiración, cristalización y alquimia, con las curvas reales (`cubic-bezier(0.22, 1, 0.36, 1)`, `cubic-bezier(0.16, 1, 0.3, 1)`, `cubic-bezier(0.22, 0.9, 0.3, 1)`) y duraciones de interfaz (140/220/240 ms) y de escena (600–900 ms); `opcionesReducidas()` para movimiento reducido. Copia el comportamiento de `memory/diseno/estudio-audiovisual/examples/transiciones.html` y `siembra.html`. Prueba: solo propiedades permitidas. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DSN1019J",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Aprobación de variaciones de identidad antes de la Librería",
+   "archivos": [
+    "src/lib/variaciones/aprobacion.ts",
+    "src/lib/variaciones/__tests__/aprobacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: estados borrador → propuesta → aprobada | cambios | descartada → publicada; quién aprueba según el ámbito (MetaGenesis: Alex y quien tenga acceso; PoliGenesis democrático: votación; Genesis personal: la persona); solo lo aprobado puede pasar a `publicarVariacion`; guarda quién y cuándo aprobó. Prueba de cada transición prohibida. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019J"
+   ]
+  },
+  {
+   "id": "AV1011H",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Protomolécula: fichas verificadas de las herramientas de avatares 3D",
+   "archivos": [
+    "src/lib/protomolecula/catalogo-herramientas.ts",
+    "src/lib/protomolecula/__tests__/catalogo-avatares-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Añade fichas `HerramientaProto` con ESTOS datos verificados el 2026-10-11 (no inventes nada; lo no comprobado va en `sinComprobar`): unimate (proximamente; código MIT anunciado, inferencia no publicada; pesos en Hugging Face Linzhan/UniMate sin licencia declarada; texto → movimiento para cualquier esqueleto; https://github.com/Friedrich-M/UniMate); image-to-3dlab (integrable, servicio-local, solo macOS Apple Silicon, 32 GB recomendados; salida GLB con PBR + provenance.json; motores Hunyuan3D-MLX [MIT código, pesos Tencent sin licencia en UE, Reino Unido y Corea del Sur], TRELLIS.2 [MIT + DINOv3, comercial condicionado], Stable Fast 3D [Stability Community]); unirig (integrable, MIT, GPU NVIDIA ≥ 8 GB, entrada obj/fbx/glb/vrm, salida fbx/glb; https://github.com/VAST-AI-Research/UniRig); instant-meshes (BSD-3-Clause; https://github.com/wjakob/instant-meshes); smart-remesh (solo-enlace: complemento de Blender 4.2–5.2, GPL, 17 USD, de 3DRedbox Studio; https://superhivemarket.com/products/smart-remesh); three-vrm (MIT, pixiv; https://github.com/pixiv/three-vrm); characterstudio (MIT, M3-org; https://github.com/M3-org/CharacterStudio); filigree3d (proximamente, solo artículo https://arxiv.org/abs/2609.34900); btc3d (proximamente, solo artículo https://arxiv.org/abs/2609.39709); meshy (solo-enlace, servicio: plan gratis 100 créditos/mes con salida CC BY 4.0; https://www.meshy.ai); tripo (solo-enlace, servicio; precios y licencia sin comprobar; https://www.tripo3d.ai); 3daistudio (solo-enlace, https://www.3daistudio.com); hi3d (solo-enlace, https://www.hi3d.ai); hitem3d (solo-enlace, web null y en sinComprobar: el enlace recibido apuntaba a 3daistudio); meta-horizon (solo-enlace, plataforma cerrada de Meta sin API pública ni pesos; https://developers.meta.com/horizon). NUNCA guardes parámetros de afiliado (`?aff=`, `?via=`, `utm_`). Antes de añadir, mira si ya existen (trellis, triposr, hunyuan3d): no dupliques; a hunyuan3d añádele el aviso de región si le falta. Respeta los tipos y categorías existentes y deja en verde las pruebas de la Protomolécula."
+  },
+  {
+   "id": "MC1012W",
+   "titulo": "Panel «Retícula» en Señales: estado vítreo, temperatura, puentes y misma huella en todas",
+   "archivos": [
+    "src/components/malla/panel-reticula.tsx",
+    "src/components/malla/__tests__/panel-reticula.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Componente 'use client' `PanelReticula({estado})` (recibe el `estado()` del motor de MC1012Q; sin efectos propios): cabecera «Sólido amorfo en tiempo real» con el estado en palabras (fundido: las señales cambian y la red se recoloca / subenfriado / vítreo: estable y congelada), la temperatura media en una barra y una línea de qué significa; «Misma retícula en N de M neuronas» con la huella corta; lista de puentes (neurona ↔ neurona, medio, calidad en %, coste) ordenada por coste; coordinación de cada neurona frente a su máximo; estado vacío honesto si no hay teselas («aún no llegó ninguna señal de otra neurona»). Diseño del OS (Tailwind, Lucide, tarjetas translúcidas), legible en móvil. Pruebas jsdom con un estado fabricado.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012Q"
+   ]
+  },
+  {
+   "id": "COL1012H",
+   "titulo": "Al volver, el aparato suelta lo que otro siguió mientras estaba fuera",
+   "archivos": [
+    "scripts/puente/nodo_metagenesis.py",
+    "scripts/puente/test_colmena_volver.py"
+   ],
+   "depende": [],
+   "prompt": "Al arrancar o al recuperar la conexión (primer latido tras más de `colmena_logica.silencio_max`), el nodo calcula `colmena_logica.al_volver(yo, ids en curso de su orquestador, asignadas del bus, su último latido)` y, para cada tarea a soltar, escribe la orden `soltar` en `olas/control-<cola>.json` (el orquestador ya la entiende: corta y marca `reasignada`) después de forzar un último punto de control y enviarlo (`oracle_nodo.enviar_puntos`): la sucesora puede combinarlo. Lo demás lo sigue él. Pruebas con disco y bus falsos.\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).",
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "dependencias_ya_en_main": [
+    "COL1012G"
+   ]
+  }
+ ]
+}
