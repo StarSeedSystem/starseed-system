@@ -1,29 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { atenderMcp, type HerramientaMcp } from "@/lib/genesis/mcp/protocolo";
+import { atenderMcp } from "@/lib/genesis/mcp/protocolo";
+import { HERRAMIENTAS_GENESIS } from "@/lib/genesis/mcp/herramientas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function herramientasPredeterminadas(): HerramientaMcp[] {
-  return [
-    {
-      nombre: "estado",
-      descripcion: "Obtiene el estado del sistema",
-      esquema: { type: "object", properties: {} },
-      ejecutar: async () => ({
-        contenido: [{ tipo: "texto", texto: "ok" }],
-      }),
-    },
-    {
-      nombre: "tareas_listar",
-      descripcion: "Lista tareas",
-      esquema: { type: "object", properties: { limite: { type: "number" } } },
-      ejecutar: async (args: Record<string, unknown>) => ({
-        contenido: [{ tipo: "texto", texto: `tareas con límite ${args.limite ?? 10}` }],
-      }),
-    },
-  ];
-}
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
