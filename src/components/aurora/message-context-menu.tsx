@@ -14,8 +14,13 @@
  * Guardar en Biblioteca. Ver architecture/astraura-inteligencia.md §17.4.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { SubmenuConvertir } from "@/components/conversion/submenu-convertir";
+import { useConversionMenu, type ArchivoConvertible } from "@/components/conversion/use-conversion-menu";
+import { descargarBlob, type Convertido } from "@/lib/conversion/cliente";
+import { normalizeAttachments } from "@/lib/aurora/attachments";
+import { uploadFile } from "@/lib/files/os-files";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +46,12 @@ export interface ChatMessagePayload {
   text: string;
   ts: number;
   meta?: AuroraMessageMeta;
+  /**
+   * (Aditivo · Filee 2026-10-23) Adjuntos del mensaje (jsonb de
+   * `astraura_messages.attachments`), con él el menú ofrece «Convertir a…».
+   * Los mensajes antiguos sin adjuntos se leen con normalidad.
+   */
+  attachments?: unknown[] | null;
   /**
    * Historial (rol/texto/ts) hasta ESTE mensaje incluido, del array de origen
    * (vivo o cargado). Contrato: el ÚLTIMO elemento de `history` es siempre
@@ -89,6 +100,26 @@ export function MessageContextMenu({
     })
     .filter(Boolean) as PersonalityProfile[];
   const defaultPersonality = aurora?.activePersonality;
+
+  // ── Filee (conversion-archivos.md): «Convertir a…» si el mensaje lleva archivo ──
+  // El primer adjunto con URL real (subida o data URL ≤200KB) es el convertible.
+  const archivoDelMensaje: ArchivoConvertible | null = (() => {
+    const adjuntos = normalizeAttachments(payload.attachments);
+    const a = adjuntos.find((x) => !!x.url);
+    return a?.url ? { nombre: a.name || "adjunto", url: a.url, tipoMime: a.mime } : null;
+  })();
+  // El resultado se sube a tus archivos (carpeta «conversiones») y se descarga
+  // en este dispositivo para seguir con él.
+  const guardarConvertido = useCallback(async (c: Convertido): Promise<string | null> => {
+    const subido = await uploadFile(new File([c.blob], c.nombre, { type: c.blob.type || undefined }), {
+      folder: "conversiones",
+      meta: { context: "conversion", motor: c.motor },
+    });
+    if (!subido.ok || !subido.file?.url) throw new Error(subido.error || "No pude guardar el archivo convertido.");
+    try { descargarBlob(c.blob, c.nombre); } catch { /* la descarga no echa a perder el guardado */ }
+    return "descargado y guardado en «conversiones»";
+  }, []);
+  const conversion = useConversionMenu(archivoDelMensaje, guardarConvertido);
 
   useEffect(() => {
     if (!isAurora || !onRetryMessage) return;
@@ -203,6 +234,8 @@ export function MessageContextMenu({
         <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(copyToChat)}>
           <MessageSquarePlus className="h-3.5 w-3.5" /> Copiar al chat
         </DropdownMenuItem>
+
+        {conversion && <SubmenuConvertir conversion={conversion} alElegir={onClose} />}
 
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="cursor-pointer gap-2 text-xs">
