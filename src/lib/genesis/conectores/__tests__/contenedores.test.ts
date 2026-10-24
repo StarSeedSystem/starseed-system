@@ -116,4 +116,16 @@ describe('CONTENEDORES_OPCIONES', () => {
     expect(cloudroom).toMatchObject({ requiereCuenta: true, requierePago: false, aptoPrivado: false,
       cupo: expect.stringContaining('100 agentes'), requisitos: expect.arrayContaining(['GitHub conectado', 'Agente de código conectado']) });
   });
+
+  it('Cloudroom no pone cupo a los agentes locales', () => {
+    const cloudroom = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudroom');
+    expect(cloudroom?.cupo).toContain('locales sin cupo');
+  });
+
+  it('Cloudroom declara las plataformas de su app de escritorio', () => {
+    const cloudroom = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudroom');
+    const requisitos = cloudroom?.requisitos?.join(' ') ?? '';
+    expect(requisitos).toContain('macOS 13+');
+    expect(requisitos).toContain('Linux x64');
+  });
 });
