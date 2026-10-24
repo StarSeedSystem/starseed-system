@@ -1,216 +1,324 @@
-// src/lib/cerebros/telepatia-aplicar.ts
+"use client";
+
 /**
- * Aplica la Telepatía de un cerebro (contrato cerebros-fusion-telepatia.md §5).
- * Guardar y quitar vínculos van vía `saveBrain` con `conVinculo`/`sinVinculo`.
- * La sincronización «de verdad» (otro cerebro tuyo) planifica con `planSincronizacion`,
- * escribe cada archivo con `meta.telepatia = v.id`, nunca borra ni mezcla, y copia
- * las claves `starseed.brain.<id>.<config>` de localStorage según las ops de config.
+ * Aplica un vínculo de Telepatía de verdad (§5).
+ *
+ * · Otro cerebro tuyo: copia lo más nuevo y NUNCA borra en el otro lado.
+ * · Grupo, comunidad o página: registra el permiso con `upsertGrant`.
+ * · Cuenta externa: crea el vínculo con su token, que se enseña una sola vez.
+ *
+ * No es un módulo puro: toca Supabase y el almacenamiento del aparato. Los
+ * planes se calculan con `telepatia.ts`, que sí es puro y está probado.
  */
-import { type Brain, saveBrain } from "@/lib/brains/brains";
-import { createClient } from "@/utils/supabase/client";
-import { listMemoryFiles, type MemoryFile, saveMemoryFile } from "@/lib/cerebro/memory-files";
+
+import { listMemoryFiles, saveMemoryFile } from "@/lib/cerebro/memory-files";
+import { saveBrain, type Brain } from "@/lib/brains/brains";
+import { upsertGrant } from "@/lib/sharing/access";
 import { pushPreferences } from "@/lib/settings-sync";
-import { upsertGrant, type AccessGrant, type ResourceRef } from "@/lib/sharing/access";
 import {
-  CONFIGURACIONES_TELEPATIA,
+  ambitoExterno,
+  clavesDeAlcance,
   conVinculo,
+  esConfiguracionDelCerebro,
   estaCaducado,
   planSincronizacion,
-  sinVinculo,
   type VinculoTelepatico,
-} from "./telepatia";
+} from "@/lib/cerebros/telepatia";
 
-export interface ResultadoSincronizacion {
+export interface EntidadVinculo {
+  id: string;
+  tipo: string;
+  nombre: string;
+  slug?: string;
+}
+
+export interface ResultadoTelepatia {
   ok: boolean;
   operaciones: number;
-  estado: VinculoTelepatico["estado"];
-  motivo?: string;
+  errores: string[];
+  avisos: string[];
   token?: string;
 }
 
-export async function guardarVinculo(cerebro: Brain, v: VinculoTelepatico): Promise<Brain | null> {
-  return saveBrain({ ...cerebro, config: conVinculo(cerebro.config, v) });
+export interface OpcionesAplicar {
+  cerebros: Brain[];
+  entidades: EntidadVinculo[];
 }
 
-export async function quitarVinculo(cerebro: Brain, id: string): Promise<Brain | null> {
-  return saveBrain({ ...cerebro, config: sinVinculo(cerebro.config, id) });
+
+function vacio(): ResultadoTelepatia {
+  return { ok: true, operaciones: 0, errores: [], avisos: [] };
 }
 
-function claveCerebro(brainId: string, conf: string): string {
-  return `starseed.brain.${brainId}.${conf}`;
+function clavePref(brainId: string, clave: string): string {
+  return `starseed.brain.${brainId}.${clave}`;
 }
 
-/** Lee las preferencias por cerebro de localStorage: { <config>: valor }. */
-function leerPrefs(brainId: string, confs: readonly string[]): Record<string, unknown> {
-  if (typeof window === "undefined" || !window.localStorage) return {};
-  const prefs: Record<string, unknown> = {};
-  for (const conf of confs) {
-    try {
-      const raw = window.localStorage.getItem(claveCerebro(brainId, conf));
-      if (raw !== null) prefs[conf] = JSON.parse(raw);
-    } catch {
-      /* preferencia ilegible: se salta, no se inventa nada */
-    }
-  }
-  return prefs;
-}
-
-/** Copia una preferencia por cerebro de un lacito de localStorage a otro. */
-function copiarConfig(conf: string, de: string, a: string): boolean {
-  if (typeof window === "undefined" || !window.localStorage) return false;
+function leerPref(brainId: string, clave: string): unknown {
+  if (typeof window === "undefined") return undefined;
   try {
-    const raw = window.localStorage.getItem(claveCerebro(de, conf));
-    if (raw === null) return false;
-    window.localStorage.setItem(claveCerebro(a, conf), raw);
+    const raw = window.localStorage.getItem(clavePref(brainId, clave));
+    return raw === null ? undefined : (JSON.parse(raw) as unknown);
+  } catch {
+    return undefined;
+  }
+}
+
+function escribirPref(brainId: string, clave: string, valor: unknown): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    window.localStorage.setItem(clavePref(brainId, clave), JSON.stringify(valor));
     return true;
   } catch {
     return false;
   }
 }
 
-/** Escribe en el cerebro destino el archivo del origen (insert por fá, update por id si existe). */
-async function escribirArchivo(
-  v: VinculoTelepatico,
-  deId: string,
-  aId: string,
-  fuente: MemoryFile | undefined,
-  existente: MemoryFile | undefined,
-): Promise<boolean> {
-  const escrito = await saveMemoryFile({
-    ...(existente?.id ? { id: existente.id } : {}),
-    brain_id: aId,
-    name: fuente?.name ?? existente?.name ?? "",
-    content: fuente?.content ?? "",
-    source: fuente?.source || existente?.source || "starseed",
-    server_config: fuente?.server_config ?? {},
-    meta: { ...(fuente?.meta ?? {}), telepatia: v.id },
-    sync: false,
-  });
-  return !!escrito;
+/**
+ * Lee las configuraciones de un cerebro: las del CEREBRO (base de datos) y las
+ * de este aparato (preferencias `starseed.brain.<id>.<clave>`).
+ * Lo que no está guardado no se inventa: no aparece.
+ */
+function leerConfiguraciones(cerebro: Brain, claves: string[]): Record<string, unknown> {
+  const valores: Record<string, unknown> = {};
+  for (const clave of claves) {
+    if (esConfiguracionDelCerebro(clave)) {
+      const lista = cerebro.includes?.personalities;
+      if (Array.isArray(lista) && lista.length > 0) valores[clave] = lista;
+      continue;
+    }
+    const valor = leerPref(cerebro.id, clave);
+    if (valor !== undefined) valores[clave] = valor;
+  }
+  return valores;
 }
 
-async function sincronizarCerebroPropio(
+/** Escribe una configuración en el destino y dice si se pudo. */
+async function escribirConfiguracion(clave: string, valor: unknown, destino: Brain): Promise<boolean> {
+  if (esConfiguracionDelCerebro(clave)) {
+    const lista = Array.isArray(valor) ? valor.map((v) => String(v)) : [];
+    const guardado = await saveBrain({ ...destino, includes: { ...destino.includes, personalities: lista } });
+    return Boolean(guardado);
+  }
+  return escribirPref(destino.id, clave, valor);
+}
+
+
+async function guardarUltimaSync(cerebro: Brain, vinculo: VinculoTelepatico): Promise<string | null> {
+  const config = conVinculo(cerebro.config, { ...vinculo, ultimaSync: new Date().toISOString() });
+  const guardado = await saveBrain({ ...cerebro, config });
+  return guardado ? null : "Se sincronizó, pero no se pudo guardar la hora de la última sincronización.";
+}
+
+async function sincronizarCerebros(
+  vinculo: VinculoTelepatico,
   cerebro: Brain,
-  v: VinculoTelepatico,
-): Promise<ResultadoSincronizacion> {
-  if (v.estado !== "activo") {
-    return { ok: false, operaciones: 0, estado: v.estado, motivo: "El vínculo no está activo." };
+  otro: Brain,
+): Promise<ResultadoTelepatia> {
+  const r = vacio();
+  if (vinculo.destino.tipo !== "cerebro") return r;
+  if (vinculo.destino.id === cerebro.id) {
+    r.ok = false;
+    r.errores.push("Un cerebro no puede vincularse consigo mismo.");
+    return r;
   }
-  if (estaCaducado(v, Date.now())) {
-    return { ok: false, operaciones: 0, estado: v.estado, motivo: "La caducidad del vínculo ya pasó." };
-  }
-  const origenId = cerebro.id;
-  const destinoId = v.destino.id;
-  const archivosOrigen = await listMemoryFiles(origenId);
-  const archivosDestino = await listMemoryFiles(destinoId);
-  const confs = v.alcance.completo ? [...CONFIGURACIONES_TELEPATIA] : v.alcance.configuraciones;
+
+  const archivosCerebro = await listMemoryFiles(cerebro.id);
+  const archivosOtro = await listMemoryFiles(otro.id);
+  const claves = clavesDeAlcance(vinculo);
+  const prefsCerebro = leerConfiguraciones(cerebro, claves);
+  const prefsOtro = leerConfiguraciones(otro, claves);
+
   const plan = planSincronizacion(
-    v,
-    { archivos: archivosOrigen, prefs: leerPrefs(origenId, confs) },
-    { archivos: archivosDestino, prefs: leerPrefs(destinoId, confs) },
+    vinculo,
+    {
+      archivos: archivosCerebro.map((a) => ({ name: a.name, content: a.content, updated_at: a.updated_at ?? null })),
+      prefs: prefsCerebro,
+    },
+    {
+      archivos: archivosOtro.map((a) => ({ name: a.name, content: a.content, updated_at: a.updated_at ?? null })),
+      prefs: prefsOtro,
+    },
   );
-  let hechas = 0;
-  let fallidas = 0;
-  let configCopiada = false;
+
+  const mapaCerebro = new Map(archivosCerebro.map((a) => [a.name, a]));
+  const mapaOtro = new Map(archivosOtro.map((a) => [a.name, a]));
+  let cambiosEnEsteAparato = false;
+
   for (const op of plan) {
-    if (op.tipo === "carpeta") continue; // raíces de carpeta: se cablean con su tarea (§5)
-    const deId = op.de === "origen" ? origenId : destinoId;
-    const aId = op.a === "origen" ? origenId : destinoId;
-    if (op.tipo === "archivo") {
-      const fuente = (op.de === "origen" ? archivosOrigen : archivosDestino).find((f) => f.name === op.nombre);
-      const existente = (op.a === "origen" ? archivosOrigen : archivosDestino).find((f) => f.name === op.nombre);
-      const bien = await escribirArchivo(v, deId, aId, fuente, existente);
-      if (bien) hechas += 1; else fallidas += 1;
-    } else {
-      configCopiada = copiarConfig(op.nombre, deId, aId) || configCopiada;
-      if (configCopiada) hechas += 1; else fallidas += 1;
+    if (op.tipo === "carpeta") {
+      r.avisos.push(`La carpeta «${op.nombre}» se sincroniza desde su conector; aquí solo queda registrado el vínculo.`);
+      continue;
+    }
+    if (op.tipo === "config") {
+      const desde = op.de === "origen" ? cerebro : otro;
+      const hacia = op.a === "destino" ? otro : cerebro;
+      const valor = op.de === "origen" ? prefsCerebro[op.nombre] : prefsOtro[op.nombre];
+      if (valor === undefined) {
+        r.avisos.push(`La configuración «${op.nombre}» no está guardada en «${desde.name}»; no se copió.`);
+      } else if (await escribirConfiguracion(op.nombre, valor, hacia)) {
+        r.operaciones += 1;
+        if (!esConfiguracionDelCerebro(op.nombre)) cambiosEnEsteAparato = true;
+      } else {
+        r.errores.push(`No se pudo guardar la configuración «${op.nombre}» en «${hacia.name}».`);
+      }
+      continue;
+    }
+    const desdeMapa = op.de === "origen" ? mapaCerebro : mapaOtro;
+    const haciaId = op.a === "destino" ? otro.id : cerebro.id;
+    const haciaMapa = op.a === "destino" ? mapaOtro : mapaCerebro;
+    const origenArchivo = desdeMapa.get(op.nombre);
+    if (!origenArchivo) continue;
+    const existente = haciaMapa.get(op.nombre);
+    const guardado = await saveMemoryFile({
+      ...(existente ? { id: existente.id } : {}),
+      brain_id: haciaId,
+      name: origenArchivo.name,
+      content: origenArchivo.content,
+      source: origenArchivo.source,
+      server_config: origenArchivo.server_config,
+      meta: { ...origenArchivo.meta, telepatia: vinculo.id },
+      sync: origenArchivo.sync,
+    });
+    if (guardado) r.operaciones += 1;
+    else r.errores.push(`No se pudo copiar la memoria «${op.nombre}».`);
+  }
+
+  if (cambiosEnEsteAparato) {
+    // Las preferencias del cerebro viajan a la cuenta: sin esto, el otro aparato no las ve.
+    const subida = await pushPreferences();
+    if (!subida.ok) {
+      r.avisos.push("Se copió en este aparato, pero no se pudo subir a tu cuenta: la otra neurona aún no lo ve.");
     }
   }
-  if (configCopiada) await pushPreferences();
-  await guardarVinculo(cerebro, { ...v, ultimaSync: new Date().toISOString() });
-  return {
-    ok: fallidas === 0,
-    operaciones: hechas,
-    estado: v.estado,
-    motivo: fallidas > 0 ? `${fallidas} operaciones no se pudieron escribir.` : undefined,
-  };
-}
 
-async function darAccesoEntidad(
-  cerebro: Brain,
-  v: VinculoTelepatico,
-): Promise<ResultadoSincronizacion> {
-  try {
-    const supa = createClient();
-    const tabla = v.destino.tipo === "pagina" ? "os_pages" : "os_groups";
-    const { data, error } = await supa.from(tabla).select("slug").eq("id", v.destino.id).single();
-    const slug = error ? undefined : (data?.slug as string | undefined);
-    if (!slug) return { ok: false, operaciones: 0, estado: v.estado, motivo: "No se pudo leer el identificador del destino: sin slug, nada se comparte." };
-    const ref: ResourceRef = { type: "brain", id: cerebro.id, ownerId: cerebro.owner, title: cerebro.name };
-    const grant: AccessGrant = {
-      granteeKind: v.destino.tipo === "pagina" ? "page" : "group",
-      granteeId: slug,
-      role: v.acceso === "escribir" ? "edit" : "view",
-      sections: v.alcance.memorias.length > 0 ? v.alcance.memorias : undefined,
-    };
-    await upsertGrant(ref, grant);
-    await guardarVinculo(cerebro, { ...v, estado: "activo", ultimaSync: new Date().toISOString() });
-    return {
-      ok: true,
-      operaciones: 1,
-      estado: "activo",
-      motivo: "Con la lectura compartida ya aplicada, sus miembros leen este cerebro; la escritura sigue siendo solo del dueño.",
-    };
-  } catch (e) {
-    return { ok: false, operaciones: 0, estado: v.estado, motivo: e instanceof Error ? e.message : "No se pudo dar acceso." };
+  if (r.errores.length === 0) {
+    const aviso = await guardarUltimaSync(cerebro, vinculo);
+    if (aviso) r.errores.push(aviso);
   }
+  r.ok = r.errores.length === 0;
+  return r;
 }
 
-async function crearVinculoCuenta(
+async function registrarPermiso(
+  vinculo: VinculoTelepatico,
   cerebro: Brain,
-  v: VinculoTelepatico,
-): Promise<ResultadoSincronizacion> {
-  const soloCarpetas = !v.alcance.completo && v.alcance.memorias.length === 0 && v.alcance.configuraciones.length === 0 && v.alcance.carpetas.length > 0;
-  const soloMemoria = !v.alcance.completo && v.alcance.carpetas.length === 0 && v.alcance.configuraciones.length === 0 && v.alcance.memorias.length === 1;
-  const ambitoTipo = soloCarpetas ? "carpeta" : soloMemoria ? "memoria" : "cerebro";
-  const ambitoId = soloCarpetas ? v.alcance.carpetas[0] : soloMemoria ? v.alcance.memorias[0] : v.destino.id;
+  entidad: EntidadVinculo,
+): Promise<ResultadoTelepatia> {
+  const r = vacio();
+  if (vinculo.destino.tipo === "cerebro" || vinculo.destino.tipo === "cuenta") return r;
+  if (!entidad.slug) {
+    r.ok = false;
+    r.errores.push(`La entidad «${entidad.nombre}» no tiene slug; no se pudo registrar el permiso.`);
+    return r;
+  }
+
+  const secciones = vinculo.alcance.completo
+    ? undefined
+    : [...vinculo.alcance.memorias, ...vinculo.alcance.carpetas, ...vinculo.alcance.configuraciones];
   try {
-    const resp = await fetch("/api/externos/vinculos", {
+    await upsertGrant(
+      { type: "brain", id: cerebro.id, ownerId: cerebro.owner, title: cerebro.name },
+      {
+        granteeKind: vinculo.destino.tipo === "pagina" ? "page" : "group",
+        granteeId: entidad.slug,
+        role: vinculo.acceso === "escribir" ? "edit" : "view",
+        label: entidad.nombre,
+        ...(secciones && secciones.length ? { sections: secciones } : {}),
+      },
+    );
+    r.operaciones = 1;
+    const aviso = await guardarUltimaSync(cerebro, vinculo);
+    if (aviso) r.errores.push(aviso);
+  } catch (e) {
+    r.errores.push(e instanceof Error ? e.message : "No se pudo registrar el permiso.");
+  }
+  r.ok = r.errores.length === 0;
+  return r;
+}
+
+
+async function crearCuentaExterna(
+  vinculo: VinculoTelepatico,
+  cerebro: Brain,
+): Promise<ResultadoTelepatia> {
+  const r = vacio();
+  const dias = vinculo.expiraEn
+    ? Math.max(1, Math.ceil((Date.parse(vinculo.expiraEn) - Date.now()) / 86_400_000))
+    : null;
+  const ambito = ambitoExterno(vinculo, cerebro.id);
+  const incluyeMemorias = vinculo.alcance.completo || vinculo.alcance.memorias.length > 0;
+  try {
+    const respuesta = await fetch("/api/externos/vinculos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         accion: "crear",
-        ambitoTipo,
-        ambitoId,
-        nombre: `Telepatía · ${cerebro.name}`,
-        permisos: { leer: true, escribir: v.acceso === "escribir", memoria: v.alcance.completo, hablar: false, herramientas: false },
+        ambitoTipo: ambito.ambitoTipo,
+        ambitoId: ambito.ambitoId,
+        nombre: vinculo.destino.id,
+        permisos: {
+          leer: true,
+          escribir: vinculo.acceso === "escribir",
+          memoria: incluyeMemorias,
+          hablar: false,
+          herramientas: false,
+        },
+        ...(dias ? { caducaEn: dias } : {}),
       }),
     });
-    const data = (await resp.json()) as { error?: string; token?: string; vinculo?: { id?: string; prefijo?: string } };
-    if (!resp.ok || !data.token) throw new Error(data.error || "No se pudo crear el vínculo externo.");
-    await guardarVinculo(cerebro, {
-      ...v,
-      estado: "activo",
-      ultimaSync: new Date().toISOString(),
-      destino: { ...v.destino, id: data.vinculo?.id || data.vinculo?.prefijo || v.destino.id },
-    });
-    return { ok: true, operaciones: 1, estado: "activo", token: data.token };
+    const cuerpo = (await respuesta.json()) as { token?: string; error?: string };
+    if (!respuesta.ok || !cuerpo.token) {
+      r.ok = false;
+      r.errores.push(cuerpo.error ?? "No se pudo crear el vínculo externo.");
+      return r;
+    }
+    r.token = cuerpo.token;
+    r.operaciones = 1;
+    const aviso = await guardarUltimaSync(cerebro, vinculo);
+    if (aviso) r.errores.push(aviso);
   } catch (e) {
-    return { ok: false, operaciones: 0, estado: v.estado, motivo: e instanceof Error ? e.message : "No se pudo crear el vínculo externo." };
+    r.errores.push(e instanceof Error ? e.message : "No se pudo crear el vínculo externo.");
   }
+  r.ok = r.errores.length === 0;
+  return r;
 }
 
-export async function sincronizarAhora(cerebro: Brain, v: VinculoTelepatico): Promise<ResultadoSincronizacion> {
-  switch (v.destino.tipo) {
-    case "cerebro":
-      return sincronizarCerebroPropio(cerebro, v);
-    case "grupo":
-    case "comunidad":
-    case "pagina":
-      return darAccesoEntidad(cerebro, v);
-    case "cuenta":
-      return crearVinculoCuenta(cerebro, v);
-    default:
-      return { ok: false, operaciones: 0, estado: v.estado, motivo: "Tipo de destino no soportado." };
+
+/**
+ * Aplica un vínculo según su destino. Devuelve el token solo para cuentas externas.
+ *
+ * Con una cuenta externa, el token se entrega UNA vez (al crear el vínculo). Por eso,
+ * un vínculo que ya se entregó no crea otro: avisa de que el token no se puede volver a leer.
+ */
+export async function aplicarVinculoTelepatia(
+  vinculo: VinculoTelepatico,
+  cerebro: Brain,
+  opciones: OpcionesAplicar,
+): Promise<ResultadoTelepatia> {
+  if (vinculo.estado !== "activo") {
+    return { ...vacio(), ok: false, errores: ["El vínculo está pausado o pendiente; reanúdalo antes de sincronizar."] };
   }
+  if (estaCaducado(vinculo, Date.now())) {
+    return { ...vacio(), ok: false, errores: ["El vínculo caducó; crea uno nuevo para seguir compartiendo."] };
+  }
+  if (vinculo.destino.tipo === "cerebro") {
+    const otro = opciones.cerebros.find((c) => c.id === vinculo.destino.id);
+    if (!otro) return { ...vacio(), ok: false, errores: ["No se encontró el cerebro de destino."] };
+    return sincronizarCerebros(vinculo, cerebro, otro);
+  }
+  if (vinculo.destino.tipo === "cuenta") {
+    if (vinculo.ultimaSync) {
+      return {
+        ...vacio(),
+        avisos: [
+          "El token de la cuenta externa ya se entregó y no se vuelve a mostrar. Para compartir otra cosa, crea otro vínculo.",
+        ],
+      };
+    }
+    return crearCuentaExterna(vinculo, cerebro);
+  }
+  const entidad = opciones.entidades.find((e) => e.id === vinculo.destino.id && e.tipo === vinculo.destino.tipo);
+  if (!entidad) return { ...vacio(), ok: false, errores: ["No se encontró el grupo, la comunidad o la página de destino."] };
+  return registrarPermiso(vinculo, cerebro, entidad);
 }
