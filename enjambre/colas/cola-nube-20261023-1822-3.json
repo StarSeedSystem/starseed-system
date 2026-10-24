@@ -1,0 +1,106 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "VZF1015O",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Plática · acuse ≤ 0,8 s y voz del trabajo (narra lo que hacen agentes y tareas, sin atosigar)",
+   "archivos": [
+    "src/lib/aurora/voz-del-trabajo.ts",
+    "src/lib/aurora/__tests__/voz-del-trabajo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "(1) Acuse: al recibir una petición hablada, `acusar(persona)` dice al momento una frase corta de una lista por persona («Voy», «Lo miro», «Dame un segundo») ya sintetizada y en caché. (2) Voz del trabajo: escucha los eventos `aurora:bg-tasks` (task-manager) y los pasos de agentes, y convierte cada cambio en una frase corta («empiezo X», «llevo 3 de 5», «listo», «necesito tu visto bueno») con un tope de una frase cada 8 s, nunca mientras la persona habla y nunca si el modo silencio está activo; usa `hablar()` contexto 'aviso'. Funciones de decisión PURAS con reloj inyectable; pruebas del ritmo y de los textos. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015I"
+   ]
+  },
+  {
+   "id": "RTDGM1018C",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Diagramas · aislar y validar el HTML generado antes de mostrarlo",
+   "archivos": [
+    "src/components/creation/__tests__/pizarras-panel-form.test.tsx",
+    "src/components/creation/__tests__/selector-fuente-form.test.tsx",
+    "src/lib/diagramas/__tests__/aislar-diagrama.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea DGM1018Cc («Diagramas · aislar y validar el HTML generado antes de mostrarlo») se hizo en main por otro camino; su rama nube/39711481854 queda archivada en `refs/archivo/nube/39711481854` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.93)\n\nTU TAREA (RTDGM1018C · solo estos archivos: src/components/creation/__tests__/pizarras-panel-form.test.tsx, src/components/creation/__tests__/selector-fuente-form.test.tsx, src/lib/diagramas/__tests__/aislar-diagrama.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/creation/__tests__/pizarras-panel-form.test.tsx\n    test(\"el textarea de comentario lleva aria-label (sin label visible)\", async () => {\n        await renderConPizarraNube();\n\n        fireEvent.click(screen.getByText(\"Compartir como publicación\"));\n\n        const comentario = await screen.findByLabelText(\"Comentario de la publicación (opcional)\");\n        expect(comentario).toBeInstanceOf(HTMLTextAreaElement);\n    });\n\n# src/components/creation/__tests__/selector-fuente-form.test.tsx\n    test(\"las etiquetas URL y Etiqueta quedan ligadas a su input por id\", () => {\n        renderPicker([\"url\"]);\n\n        const urlInput = screen.getByLabelText(\"URL\");\n        const etiquetaInput = screen.getByLabelText(\"Etiqueta (opcional)\");\n\n        expect(urlInput).toBeInstanceOf(HTMLInputElement);\n        expect(etiquetaInput).toBeInstanceOf(HTMLInputElement);\n        expect(urlInput.id).toBeTruthy();\n        expect(etiquetaInput.id).toBeTruthy();\n        // ids únicos aunque el picker se renderice varias veces en la página.\n        expect(urlInput.id).not.toBe(etiquetaInput.id);\n    });\n\n# src/components/creation/__tests__/selector-fuente-form.test.tsx\n    test(\"el input de archivo del dispositivo lleva aria-label (sin label visible)\", () => {\n        renderPicker([\"device\"]);\n\n        const archivo = screen.getByLabelText(\"Archivo del dispositivo\");\n        expect(archivo).toBeInstanceOf(HTMLInputElement);\n        expect((archivo as HTMLInputElement).type).toBe(\"file\");\n    });\n\n# src/lib/diagramas/__tests__/aislar-diagrama.test.ts\n  it(\"rechaza sin <!DOCTYPE> o con más de uno\", () => {\n    expect(prepararDiagrama(\"<html><svg></svg></html>\").ok).toBe(false);\n    const doble = prepararDiagrama(\"<!DOCTYPE html><!DOCTYPE html><html><svg></svg></html>\");\n    expect(doble.ok).toBe(false);\n    expect(doble.motivos.some((m) => m.includes(\"espera exactamente\"))).toBe(true);\n  });\n\n# src/lib/diagramas/__tests__/aislar-diagrama.test.ts\n  it(\"acepta una plantilla de diagram-design sin recursos remotos\", () => {\n    const r = prepararDiagrama(PLANTILLA, { permitirAnimacion: false });\n    expect(r.ok).toBe(true);\n    expect(r.sandbox).toBe(\"\");\n    expect(r.srcdoc).not.toContain(\"<link\");\n    expect(r.srcdoc).not.toContain(\"@import\");\n    expect(r.srcdoc).not.toContain(\"https://fonts.googleapis.com\");\n    expect(r.srcdoc).not.toContain(\"cdn.example.com\");\n    expect(r.srcdoc).toContain(\"<svg\");\n    expect(r.motivos.length).toBeGreaterThan(0);\n  });\n\n# src/lib/diagramas/__tests__/aislar-diagrama.test.ts\n  it(\"inserta la CSP sin script cuando no hay animación\", () => {\n    const r = prepararDiagrama(PLANTILLA, { permitirAnimacion: false });\n    expect(r.srcdoc).toContain('<meta http-equiv=\"Content-Security-Policy\"');\n    expect(r.srcdoc).toContain(\"default-src 'none'\");\n    expect(r.srcdoc).toContain(\"style-src 'unsafe-inline'\");\n    expect(r.srcdoc).toContain(\"img-src data:\");\n    expect(r.srcdoc).toContain(\"font-src data:\");\n    expect(r.srcdoc).not.toContain(\"script-src\");\n  });\n\n# src/lib/diagramas/__tests__/aislar-diagrama.test.ts\n  it(\"conserva el script inline solo con animación permitida\", () => {\n    const con = prepararDiagrama(PLANTILLA_MOTION, { permitirAnimacion: true });\n    expect(con.ok).toBe(true);\n    expect(con.sandbox).toBe(\"allow-scripts\");\n    expect(con.srcdoc).toContain(\"script-src 'unsafe-inline'\");\n    expect(con.srcdoc).toContain(\"querySelector\");\n    expect(con.srcdoc).not.toContain(\"cdn.example.com\");\n\n    const sin = prepararDiagrama(PLANTILLA_MOTION, { permitirAnimacion: false });\n    expect(sin.ok).toBe(true);\n    expect(sin.sandbox).toBe(\"\");\n    expect(sin.srcdoc).not.toContain(\"<script\");\n    expect(sin.srcdoc).not.toContain(\"querySelector\");\n    expect(sin.srcdoc).not.toContain(\"script-src\");\n  });\n\n# src/lib/diagramas/__tests__/aislar-diagrama.test.ts\n  it(\"neutraliza HTML malicioso en lugar de mostrarlo\", () => {\n    const r = prepararDiagrama(MALICIOSO, { permitirAnimacion: true });\n    expect(r.ok).toBe(true);\n    const doc = r.srcdoc ?? \"\";\n    expect(doc).not.toContain(\"<iframe\");\n    expect(doc).not.toContain(\"<object\");\n    expect(doc).not.toContain(\"<embed\");\n    expect(doc).not.toContain(\"<form\");\n    expect(doc).not.toContain(\"<link\");\n    expect(doc).not.toMatch(/\\son[a-z]+\\s*=/i);\n    expect(doc).not.toContain(\"javascript:\");\n    expect(doc).toContain(\"<svg\");\n    expect(doc).toContain(\"Content-Security-Policy\");\n  });\n\n# src/lib/diagramas/__tests__/aislar-diagrama.test.ts\n  it(\"nunca usa allow-same-origin\", () => {\n    for (const permitirAnimacion of [true, false]) {\n      const r = prepararDiagrama(PLANTILLA, { permitirAnimacion });\n      expect(r.sandbox).not.toContain(\"allow-same-origin\");\n      expect(r.srcdoc).not.toContain(\"allow-same-origin\");\n    }\n    expect(prepararDiagrama(PLANTILLA, { permitirAnimacion: true }).sandbox).toBe(\"allow-scripts\");\n    expect(prepararDiagrama(PLANTILLA, { permitirAnimacion: false }).sandbox).toBe(\"\");\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "DGM1018Cc",
+    "rama": "nube/39711481854"
+   }
+  },
+  {
+   "id": "GUI1021M1",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión de los programas, juegos y documentos en vivo",
+   "archivos": [
+    "src/components/vivo/programas/sala-programa.tsx",
+    "src/components/vivo/juegos/sala-juegos.tsx",
+    "src/components/vivo/documento/mis-documentos.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  },
+  {
+   "id": "GUI1021M2",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión del hub XR, la red y el estudio de diseño",
+   "archivos": [
+    "src/components/xr/xr-network-hub.tsx",
+    "src/components/mesh/network-feed.tsx",
+    "src/components/estudio/DesignStudio.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  },
+  {
+   "id": "GUI1021M3",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión de publicaciones y entidades",
+   "archivos": [
+    "src/components/social/PostCard.tsx",
+    "src/components/social/governance-entity-page.tsx",
+    "src/components/social/entity-header.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. En PostCard, los avisos que son un botón pequeño dentro de la tarjeta usan `compacto`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  },
+  {
+   "id": "GUI1021M4",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión de grupos, miembros y voto",
+   "archivos": [
+    "src/components/social/toolkits/shared/index.tsx",
+    "src/components/social/MemberAvatars.tsx",
+    "src/components/social/group-roster.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "GUI1021M1",
+   "GUI1021M2",
+   "GUI1021M3",
+   "GUI1021M4",
+   "RTDGM1018C",
+   "VZF1015O"
+  ]
+ }
+}
