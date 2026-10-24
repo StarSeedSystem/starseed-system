@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "ola": "Ola 1018K · Capacidad: el A1 no se queda parado con una cola que solo espera escritor",
+   "importancia": "capacidad",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261019-093206-CAP1018A",
+   "id": "CAP1018Ab-d3",
+   "titulo": "MetaGenesis · al A1 con trabajadores ociosos se le alimenta su cola viva (UN orquestador), no se le deja 40 min parado (parte 3 de 3)",
+   "archivos": [
+    "scripts/puente/test_nodo_metagenesis_ocioso.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-18 13:35 (hora de la Mac): el A1 tenía 0 opencode, carga 0,00 y 9,9 GB libres durante más de 40 min, porque su cola prestada (cola-mg-oracle-1018-1150, 4 tareas) tenía 3 hechas y 1 «esperando proveedor», y `medio_ocioso()` responde «ya trabaja una cola» en cuanto `salud.orquestadores` > 0. Regla del proyecto: UN orquestador por medio (CLAUDE.md), así que NO se lanza una segunda cola: se alimenta la viva, igual que hace el vigilante en la Mac (`alimentar_tanda_viva`: el orquestador relee su archivo de cola y toma las tareas nuevas). (1) En el latido del medio (`nodo_metagenesis_medio.py`) añade a `salud` el resumen de su cola viva leído de `latidos-<cola>.json`: `trabajando` (fases de escritura, tsc, pruebas, revisión, integración), `esperando` y `libres` (= trabajadores − trabajando). (2) En `nodo_metagenesis_logica.py`, una función PURA `medio_alimentable(n, l)` → (bool, motivo): orquestador vivo, `libres` ≥ 1, y su cola sin tareas nuevas en los últimos 10 min; y que el plan del líder, cuando no hay medio ocioso pero sí alimentable, proponga la acción `repartir` con `destino` y un campo nuevo `modo: \"alimentar\"` (como mucho `libres × 2` tareas). (3) En el medio, la orden `repartir` con `modo: alimentar` añade las tareas al archivo de SU cola viva de forma atómica (tmp + os.replace), sin duplicar ids y nunca si no hay orquestador vivo. Pruebas: libre, ocupado, sin campo nuevo (compatibilidad), sin duplicados, nunca dos orquestadores. Reglas: ≤ 120 líneas nuevas por archivo; no toques otros archivos; nunca IPs ni claves en mensajes; comentarios en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261019-093206-CAP1018A`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261019-093206-CAP1018A:refs/remotes/origin/nube/a1-20261019-093206-CAP1018A\"` y `git cherry-pick --no-commit 6f535e4c940b ce0085623c1a bcd592a0b01b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/nodo_metagenesis_logica.py, scripts/puente/nodo_metagenesis_medio.py, scripts/puente/test_nodo_metagenesis_ocioso.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió CAP1018Ab: falla por sí misma (tarea:escalera))\nEn esta parte tocas SOLO: scripts/puente/test_nodo_metagenesis_ocioso.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CAP1018Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:escalera)"
+   },
+   "dependencias_ya_en_main": [
+    "CAP1018Ab-d2b"
+   ]
+  }
+ ]
+}
