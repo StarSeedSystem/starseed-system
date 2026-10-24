@@ -17,7 +17,7 @@ export interface MedidaVoz {
 
 const CLAVE = "starseed.voz.medidas.v2";
 
-function leerMedidas(neurona?: string): MedidaVoz[] {
+export function leerMedidas(neurona?: string): MedidaVoz[] {
   try {
     const raw = safeGet(CLAVE);
     if (!raw) return [];

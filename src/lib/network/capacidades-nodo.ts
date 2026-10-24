@@ -3,6 +3,8 @@
  * Anuncio, deliberación con BitNet, reflejo con Needle y resumen de red.
  */
 
+import type { MedidaVoz } from "@/lib/aurora/medidas-voz"; // solo el tipo: este módulo sigue puro
+
 export type MedioNodo = "navegador" | "mac" | "linux" | "android" | "ios" | "nube";
 
 /** Ámbitos que un nodo puede servir (§7 del contrato de capas). */
@@ -41,6 +43,117 @@ export interface CapacidadesNodo {
   enSegundoPlano?: boolean;
   /** Qué ámbitos sirve este nodo (§7). */
   ambitos?: AmbitoFicha[];
+  /** (VZF1015Q) Oído y habla MEDIDOS; sin medidas el campo no existe. */
+  voz?: VozNodo;
+}
+
+/* ---- Voz medida (VZF1015Q · architecture/voz-fusionada-astraura.md §5) ---- */
+
+/** Un oído que este nodo usó de verdad: sale de sus medidas, nunca de la ficha del motor. */
+export interface OidoMedido {
+  motor: string;
+  /** Idiomas de los tramos medidos («es», «en»…). Vacío = ningún idioma medido aún. */
+  idiomas: string[];
+  /** Mediana de `tiempo-real-oido`, en la misma unidad con que lo anotó quien midió. */
+  tiempoReal: number;
+  /** true solo si alguna medida se tomó en flujo (con parciales). */
+  flujo: boolean;
+}
+
+/** Una voz que este nodo usó de verdad (mediana del primer sonido medido, en ms). */
+export interface HablaMedida { motor: string; primerSonidoMs: number }
+
+/** Capacidades de voz MEDIDAS de un nodo (la de `FichaDispositivo` y la de `CapacidadesNodo`). */
+export interface VozNodo { oido: OidoMedido[]; habla: HablaMedida[] }
+
+/** La medida de `medidas-voz.ts`, más el idioma y el flujo cuando quien mide los conoce. */
+export type MedidaVozEntrada = MedidaVoz & { idioma?: string; flujo?: boolean };
+
+/** Una medida más vieja que esto ya no dice nada del motor de hoy (puede estar desinstalado). */
+export const VOZ_VIGENCIA_MS = 7 * 24 * 60 * 60 * 1000;
+export const VOZ_MEDIDAS_POR_MOTOR = 20; // las más recientes de cada motor entran en la mediana
+export const VOZ_MAX_MOTORES = 8; // tope por lista: la ficha viaja en cada latido
+
+const esPositivo = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+const esMotor = (v: unknown): v is string => typeof v === "string" && v.trim() !== "" && v.length <= 64;
+/** «es-ES» → «es»; lo que no parezca un idioma, fuera. */
+const idiomaCorto = (v: unknown): string | null => {
+  const base = typeof v === "string" ? v.trim().toLowerCase().split(/[-_]/)[0] : "";
+  return /^[a-z]{2,3}$/.test(base) ? base : null;
+};
+const mediana = (valores: number[]): number => {
+  const o = [...valores].sort((a, b) => a - b);
+  const m = Math.floor(o.length / 2);
+  return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
+};
+
+/** Entradas válidas de una lista (quizá ajena): sin motor o sin número, fuera; cada motor, una vez. */
+function entradas<T extends { motor: string }>(lista: unknown, leer: (r: Record<string, unknown>, motor: string) => T | null): T[] {
+  const salida: T[] = [];
+  for (const e of Array.isArray(lista) ? lista : []) {
+    const r = (e && typeof e === "object" ? e : {}) as Record<string, unknown>;
+    const motor = r.motor;
+    const t = esMotor(motor) && !salida.some((s) => s.motor === motor) ? leer(r, motor) : null;
+    if (t) salida.push(t);
+  }
+  return salida.slice(0, VOZ_MAX_MOTORES);
+}
+
+/**
+ * Sanea una `voz` (la propia o la que llega de otra neurona). Nunca lanza: lo que no
+ * encaja se descarta y, si no queda ningún motor, devuelve undefined (no se anuncia).
+ */
+export function normalizarVoz(x: unknown): VozNodo | undefined {
+  try {
+    const o = (x && typeof x === "object" ? x : {}) as { oido?: unknown; habla?: unknown };
+    const oido = entradas<OidoMedido>(o.oido, (r, motor) => {
+      if (!esPositivo(r.tiempoReal)) return null;
+      const idiomas = new Set((Array.isArray(r.idiomas) ? r.idiomas : []).map(idiomaCorto).filter((i): i is string => i !== null));
+      return { motor, idiomas: [...idiomas].sort().slice(0, 30), tiempoReal: Number(r.tiempoReal.toPrecision(3)), flujo: r.flujo === true };
+    });
+    const habla = entradas<HablaMedida>(o.habla, (r, motor) =>
+      esPositivo(r.primerSonidoMs) ? { motor, primerSonidoMs: Math.max(1, Math.round(r.primerSonidoMs)) } : null,
+    );
+    return oido.length > 0 || habla.length > 0 ? { oido, habla } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * vozMedida — de las medidas de `medidas-voz.ts` a la `voz` que anuncia el nodo. Puro y
+ * con reloj inyectable. Solo cuenta lo medido en `neurona` dentro de la vigencia: un motor
+ * sin medidas no aparece aunque esté configurado, y sin ninguna medida devuelve undefined.
+ * El oído sale de `tiempo-real-oido` y la habla de `primer-sonido` (mediana de las últimas).
+ */
+export function vozMedida(
+  medidas: readonly MedidaVozEntrada[] | null | undefined,
+  opciones: { neurona?: string; ahora?: number; vigenciaMs?: number } = {},
+): VozNodo | undefined {
+  try {
+    const ahora = opciones.ahora ?? Date.now();
+    const vigencia = opciones.vigenciaMs ?? VOZ_VIGENCIA_MS;
+    const porMotor = (tipo: MedidaVoz["tipo"]): [string, MedidaVozEntrada[]][] => {
+      const grupos = new Map<string, MedidaVozEntrada[]>();
+      for (const m of Array.isArray(medidas) ? medidas : []) {
+        if (!m || m.tipo !== tipo || !esMotor(m.motor) || !esPositivo(m.valor)) continue;
+        if (opciones.neurona !== undefined && m.neurona !== opciones.neurona) continue;
+        if (typeof m.timestamp !== "number" || m.timestamp > ahora || ahora - m.timestamp > vigencia) continue;
+        grupos.set(m.motor, [...(grupos.get(m.motor) ?? []), m]);
+      }
+      const ultimas = (l: MedidaVozEntrada[]) => [...l].sort((a, b) => a.timestamp - b.timestamp).slice(-VOZ_MEDIDAS_POR_MOTOR);
+      return Array.from(grupos, ([motor, lista]) => [motor, ultimas(lista)]);
+    };
+    const oido = porMotor("tiempo-real-oido")
+      .map(([motor, l]) => ({ motor, idiomas: l.map((m) => m.idioma), tiempoReal: mediana(l.map((m) => m.valor)), flujo: l.some((m) => m.flujo === true) }))
+      .sort((a, b) => a.motor.localeCompare(b.motor));
+    const habla = porMotor("primer-sonido")
+      .map(([motor, l]) => ({ motor, primerSonidoMs: mediana(l.map((m) => m.valor)) }))
+      .sort((a, b) => a.primerSonidoMs - b.primerSonidoMs || a.motor.localeCompare(b.motor));
+    return normalizarVoz({ oido, habla });
+  } catch {
+    return undefined;
+  }
 }
 
 export interface MensajeCapacidades {
@@ -73,6 +186,8 @@ export interface DatosFichaNodo {
   needle?: InfoNeedle | null;
   bitnet?: InfoBitnet | null;
   ambitos?: AmbitoFicha[];
+  /** Voz medida (`vozMedida`); vacía o ausente → la ficha no la anuncia. */
+  voz?: VozNodo;
 }
 
 /**
@@ -84,6 +199,7 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
   const capaNeedle = capas.find((c) => c.toLowerCase().startsWith("needle"));
   const versionNeedle = capaNeedle?.split("@")[1]?.split("#")[0];
   const tokBitnet = d.tokS?.["bitnet"];
+  const voz = normalizarVoz(d.voz);
   return {
     nodoId: d.nodoId,
     medio: d.medio,
@@ -103,6 +219,7 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
     bateriaPct: d.bateriaPct ?? null,
     enSegundoPlano: d.enSegundoPlano ?? false,
     ambitos: d.ambitos ?? ["propio"],
+    ...(voz ? { voz } : {}),
   };
 }
 

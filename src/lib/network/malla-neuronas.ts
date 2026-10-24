@@ -79,6 +79,9 @@ import {
   type ResumenRadar,
 } from "@/lib/network/radar-por-malla";
 import { recibirResumen, setResumenLocal } from "@/lib/network/radar-remoto-store";
+// (VZF1015Q) Voz medida en la ficha: medidas locales (módulo hoja) + saneado puro.
+import { leerMedidas, type MedidaVoz } from "@/lib/aurora/medidas-voz";
+import { normalizarVoz, vozMedida, type VozNodo } from "@/lib/network/capacidades-nodo";
 
 /* ------------------------------------------------------------------ */
 /* Constantes                                                        */
@@ -180,6 +183,39 @@ export interface FichaDispositivo {
    * fuente pedida.
    */
   fuentesServibles?: string[];
+  /**
+   * (VZF1015Q) Oído y habla MEDIDOS en esta neurona (`medidas-voz.ts`), nunca lo
+   * declarado: sin medidas el campo no existe, y las fichas viejas no lo traen.
+   */
+  voz?: VozNodo;
+}
+
+/**
+ * vozDeEstaNeurona — la `voz` que anuncia la ficha: solo lo medido en ESTA neurona.
+ * Lectura y reloj inyectables (pruebas sin almacenamiento real); nunca lanza.
+ */
+export function vozDeEstaNeurona(
+  neuronDeviceId: string,
+  leer: (neurona: string) => readonly MedidaVoz[] = leerMedidas,
+  ahora: number = Date.now(),
+): VozNodo | undefined {
+  if (!neuronDeviceId) return undefined;
+  try {
+    return vozMedida(leer(neuronDeviceId), { neurona: neuronDeviceId, ahora });
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * fichaRecibida — ficha de otra neurona lista para guardar: su `voz` se sanea (lo que
+ * no encaja se descarta) y una ficha vieja sin el campo se queda tal cual.
+ */
+export function fichaRecibida(f: FichaDispositivo): FichaDispositivo {
+  if (!("voz" in f)) return f;
+  const { voz, ...resto } = f;
+  const limpia = normalizarVoz(voz);
+  return limpia ? { ...resto, voz: limpia } : resto;
 }
 
 /**
@@ -329,6 +365,8 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
   // que Astraura arriba): una neurona que no comparte no debe atraer turnos
   // del relé genérico para devolverlos en error.
   const fuentesServibles = capaMeshCompartiendo() ? fuentesListasSnapshot().ids : [];
+  // (VZF1015Q) Solo lo medido aquí; sin medidas, la ficha no lleva `voz`.
+  const voz = vozDeEstaNeurona(ids.neuronDeviceId);
   return {
     v: 1,
     syncDeviceId: ids.syncDeviceId,
@@ -344,6 +382,7 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
     sirveAstraura,
     astrauraLatenciaMs,
     fuentesServibles,
+    ...(voz ? { voz } : {}),
   };
 }
 
@@ -670,7 +709,7 @@ export function useMallaNeuronas(deps?: {
             return;
           }
           if (esMensajeFicha(msg)) {
-            setFichas((prev) => ({ ...prev, [deviceId]: msg.ficha }));
+            setFichas((prev) => ({ ...prev, [deviceId]: fichaRecibida(msg.ficha) }));
             return;
           }
           // (RDV13) Radar de la otra neurona: guarda su resumen como oído "p2p".
