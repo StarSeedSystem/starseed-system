@@ -9,45 +9,56 @@ export function crearSalas({ maxSalas = 200, maxPorSala = 500, maxBytes = 40000 
   // Expresión regular para validar el tema
   const temaValido = /^estacion-(vivo|p):[A-Za-z0-9_:-]{8,80}$/;
 
+  // Saca la conexión de su sala (y borra la sala si queda vacía, para ahorrar memoria).
+  function salir(conexion) {
+    const tema = connectionToTema.get(conexion);
+    if (tema === undefined) return;
+    const conexiones = salas.get(tema);
+    if (conexiones) {
+      conexiones.delete(conexion);
+      if (conexiones.size === 0) {
+        salas.delete(tema);
+      }
+    }
+    connectionToTema.delete(conexion);
+  }
+
   return {
     entrar(tema, conexion) {
       // Validar tema
       if (!temaValido.test(tema)) {
         return { ok: false, motivo: 'Tema inválido' };
       }
+      // Una conexión vive en UNA sola sala (el cliente abre `/ws?tema=…`).
+      const anterior = connectionToTema.get(conexion);
+      if (anterior === tema) {
+        return { ok: true };
+      }
+      // La sala que deja vacía al irse no cuenta para el límite.
+      const liberaSala = anterior !== undefined && salas.get(anterior)?.size === 1;
       // Límite de salas
-      if (salas.size >= maxSalas && !salas.has(tema)) {
+      if (!salas.has(tema) && salas.size - (liberaSala ? 1 : 0) >= maxSalas) {
         return { ok: false, motivo: 'Límite de salas alcanzado' };
       }
-      // Obtener o crear el set de conexiones para el tema
+      // Límite de conexiones por sala
+      const existente = salas.get(tema);
+      if (existente && existente.size >= maxPorSala) {
+        return { ok: false, motivo: 'Límite de conexiones por sala alcanzado' };
+      }
+      // Solo cuando la nueva sala la acepta sale de la anterior: si la rechaza, se queda donde estaba.
+      if (anterior !== undefined) {
+        salir(conexion);
+      }
       let conexiones = salas.get(tema);
       if (!conexiones) {
         conexiones = new Set();
         salas.set(tema, conexiones);
       }
-      // Límite de conexiones por sala
-      if (conexiones.size >= maxPorSala) {
-        return { ok: false, motivo: 'Límite de conexiones por sala alcanzado' };
-      }
-      // Añadir conexión
       conexiones.add(conexion);
       connectionToTema.set(conexion, tema);
       return { ok: true };
     },
-    salir(conexion) {
-      const tema = connectionToTema.get(conexion);
-      if (tema) {
-        const conexiones = salas.get(tema);
-        if (conexiones) {
-          conexiones.delete(conexion);
-          // Si la sala queda vacía, opcionalmente eliminarla para ahorrar memoria
-          if (conexiones.size === 0) {
-            salas.delete(tema);
-          }
-          connectionToTema.delete(conexion);
-        }
-      }
-    },
+    salir,
     difundir(conexion, texto) {
       // Validar texto
       if (typeof texto !== 'string' || texto.length > maxBytes || !texto.startsWith('{"t":"est"')) {

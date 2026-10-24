@@ -162,7 +162,8 @@ de Realtime (2 M de mensajes al mes) con audiencias grandes.
 - **Protocolo con el servidor** (contrato que debe cumplir ORACLE-1b): el cliente abre
   `<base>/ws?tema=<tema codificado>`. El servidor solo reparte, a los demás de la misma sala, textos que
   empiezan por `{"t":"est"` y miden como mucho 40 000 (`servicios/estaciones-rele/salas.mjs`: temas
-  `^estacion-(vivo|p):[A-Za-z0-9_:-]{8,80}$`, 200 salas, 500 por sala). Cada vez que cambia la sala manda a cada conectado
+  `^estacion-(vivo|p):[A-Za-z0-9_:-]{8,80}$`, 200 salas, 500 por sala; una conexión vive en UNA sala: `entrar` en otra
+  la saca de la anterior y, si la nueva la rechaza, se queda donde estaba — OPF1024G). Cada vez que cambia la sala manda a cada conectado
   `{"t":"rele","n":N}` con N = conectados contándole a él; el cliente muestra N − 1 y NO entrega ese mensaje a la
   sesión. Cierres que el cliente entiende: 1008 (sala rechazada: tema no válido o sala llena), 1009 (mensaje
   demasiado grande), 1013 (saturado); cualquier otro código se muestra tal cual.

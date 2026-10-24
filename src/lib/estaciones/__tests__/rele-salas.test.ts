@@ -210,4 +210,57 @@ describe('crearSalas', () => {
     salas.salir(conexion);
     expect(salas.temaDe(conexion)).toBeUndefined();
   });
+
+  // OPF1024G: una conexión vive en UNA sola sala (el cliente abre `/ws?tema=…`).
+  describe('cambio de sala (OPF1024G)', () => {
+    const t1 = 'estacion-vivo:SalaUno12345';
+    const t2 = 'estacion-vivo:SalaDos12345';
+
+    it('al entrar en otra sala sale de la anterior: cada sala cuenta lo exacto', () => {
+      const salas = crearSalas();
+      const a = {};
+      const b = {};
+      salas.entrar(t1, a);
+      salas.entrar(t1, b);
+      expect(salas.entrar(t2, a).ok).toBe(true);
+      expect(salas.temaDe(a)).toBe(t2);
+      expect(salas.presencia(t1)).toBe(1);
+      expect(salas.presencia(t2)).toBe(1);
+      // Lo que b difunde en la sala 1 ya no le llega a a.
+      expect(salas.difundir(b, '{"t":"est","x":1}')).toEqual([]);
+    });
+
+    it('al cerrar tras cambiar de sala no queda contada en ninguna', () => {
+      const salas = crearSalas();
+      const a = {};
+      salas.entrar(t1, a);
+      salas.entrar(t2, a);
+      salas.salir(a);
+      expect(salas.presencia(t1)).toBe(0);
+      expect(salas.presencia(t2)).toBe(0);
+      expect(salas.temaDe(a)).toBeUndefined();
+    });
+
+    it('si la nueva sala la rechaza, se queda donde estaba', () => {
+      const salas = crearSalas({ maxPorSala: 1 });
+      const a = {};
+      const b = {};
+      salas.entrar(t1, a);
+      salas.entrar(t2, b);
+      const r = salas.entrar(t2, a);
+      expect(r.ok).toBe(false);
+      expect(salas.temaDe(a)).toBe(t1);
+      expect(salas.presencia(t1)).toBe(1);
+      expect(salas.presencia(t2)).toBe(1);
+    });
+
+    it('la sala que deja vacía no cuenta para el límite de salas', () => {
+      const salas = crearSalas({ maxSalas: 1 });
+      const a = {};
+      salas.entrar(t1, a);
+      expect(salas.entrar(t2, a).ok).toBe(true);
+      expect(salas.presencia(t1)).toBe(0);
+      expect(salas.presencia(t2)).toBe(1);
+    });
+  });
 });
