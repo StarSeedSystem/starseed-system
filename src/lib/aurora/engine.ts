@@ -88,7 +88,7 @@ import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
-import { cronometroHabla, cronometroOido } from "@/lib/aurora/medidas-voz";
+import { cronometroHabla, cronometroOido, medidasOidoActuales } from "@/lib/aurora/medidas-voz";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -1965,7 +1965,11 @@ export function useAuroraEngine(): AuroraEngine {
         (m) => !(m.id === "phonon-2" && phononCaidoRef.current),
       ).map((m) => m.id),
       fase: "parcial",
-      medidas: {},
+      // (SGO1024A) Las medidas REALES del oído en esta neurona (mediana de las
+      // últimas por motor, como `vozMedida`) deciden el motor. Sin medidas el
+      // elector mantiene su orden de siempre. Lectura local y síncrona: no
+      // bloquea el arranque del reconocimiento.
+      medidas: medidasOidoActuales(),
     });
     if (eleccionOido.motor === "phonon-2") return buildFlujoOido();
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -2444,7 +2448,9 @@ export function useAuroraEngine(): AuroraEngine {
       idioma: (activeRef.current.voice?.lang || "es").split("-")[0],
       disponibles,
       fase: "parcial",
-      medidas: {},
+      // (SGO1024A) La MISMA decisión medida que toma `buildRecognition`: si aquí
+      // dijera otro motor, exigiríamos Web Speech para un oído que no lo usa.
+      medidas: medidasOidoActuales(),
     });
     if (eleccionOido.motor !== "phonon-2") {
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;

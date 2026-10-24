@@ -237,6 +237,69 @@ export function medidasDe(neurona: string, deps?: Partial<DepsMedidas>): {
   return { mediaMovil: media, p90, recientes: valores.length };
 }
 
+/** Mediana de una lista no vacía de números (pura). */
+function mediana(valores: number[]): number {
+  const ordenados = [...valores].sort((a, b) => a - b);
+  const medio = Math.floor(ordenados.length / 2);
+  return ordenados.length % 2 ? ordenados[medio] : (ordenados[medio - 1] + ordenados[medio]) / 2;
+}
+
+/** Una medida de oído más vieja que esto ya no dice nada del motor de hoy. */
+export const VIGENCIA_MEDIDAS_OIDO_MS = 7 * 24 * 60 * 60 * 1000;
+/** Cuántas de las últimas medidas de cada motor entran en la mediana del elector. */
+export const MEDIDAS_OIDO_POR_MOTOR = 20;
+
+/**
+ * medidasOido — de las medidas guardadas al mapa `motor → latencia` que espera
+ * `elegirOido`: la MEDIANA de las últimas `tiempo-real-oido` de cada motor, como
+ * hace `vozMedida` en `capacidades-nodo.ts`. Solo cuenta lo medido en `neurona`
+ * dentro de la vigencia; sin nada devuelve `{}` y el elector usa su orden de
+ * siempre. Pura, con reloj inyectable y nunca lanza.
+ */
+export function medidasOido(
+  medidas: readonly MedidaVoz[] | null | undefined,
+  opciones: { neurona?: string; ahora?: number; vigenciaMs?: number; maxPorMotor?: number } = {},
+): Record<string, number> {
+  try {
+    const ahora = opciones.ahora ?? Date.now();
+    const vigencia = opciones.vigenciaMs ?? VIGENCIA_MEDIDAS_OIDO_MS;
+    const maxPorMotor = Math.max(1, opciones.maxPorMotor ?? MEDIDAS_OIDO_POR_MOTOR);
+    const grupos = new Map<string, MedidaVoz[]>();
+    for (const m of Array.isArray(medidas) ? medidas : []) {
+      if (!m || m.tipo !== "tiempo-real-oido" || !esTexto(m.motor, 64)) continue;
+      if (!esNumero(m.valor) || m.valor <= 0 || !esNumero(m.timestamp)) continue;
+      if (opciones.neurona !== undefined && m.neurona !== opciones.neurona) continue;
+      if (m.timestamp > ahora || ahora - m.timestamp > vigencia) continue;
+      const motor = m.motor.trim();
+      grupos.set(motor, [...(grupos.get(motor) ?? []), m]);
+    }
+    const salida: Record<string, number> = {};
+    for (const [motor, lista] of grupos) {
+      const ultimas = [...lista].sort((a, b) => a.timestamp - b.timestamp).slice(-maxPorMotor);
+      salida[motor] = mediana(ultimas.map((m) => m.valor));
+    }
+    return salida;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * medidasOidoActuales — las medidas del oído de ESTA neurona, listas para
+ * `elegirOido`. Lee el almacén local (síncrono y pequeño) con las deps de
+ * siempre; nunca lanza y sin almacén devuelve `{}`. Pensada para el arranque
+ * del STT: no espera a la red ni a nada asíncrono.
+ */
+export function medidasOidoActuales(deps?: Partial<DepsMedidas>): Record<string, number> {
+  try {
+    const d = con(deps);
+    const neurona = d.neurona();
+    return medidasOido(leerMedidas(neurona, d), { neurona, ahora: d.ahora() });
+  } catch {
+    return {};
+  }
+}
+
 /** Una entrada de la v1: sin motor no se puede atribuir a nadie y se descarta. */
 function desdeV1(x: unknown, neurona: string): MedidaVoz | null {
   if (!x || typeof x !== "object") return null;
