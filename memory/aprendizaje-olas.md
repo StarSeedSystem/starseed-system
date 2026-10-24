@@ -4590,6 +4590,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-10-23 05:00 · mg-oracle-1022-2210
 
 **Lo que se pidió.** Pestañas del hub: los cerebros compartidos contigo, en solo lectura
+## 2026-10-23 23:26 · mg-oracle-1023-1608
+
+**Lo que se pidió.** cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible
 
 **Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
 
@@ -4614,3 +4617,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCB1013Xb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/RTCB1013Xb conservada)
 - `RTTIP1013Cc` — no escribió nada
 - `RTRTRTRTCOL1012Bdsbbbbbc-d2d` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTRTRTRTCOL1012Bdsbbbbbc-d2d conservada)
+- 3 tareas se fueron por lo mismo — pruebas en rojo (RIA1023J, RIA1023G, RLB1020J). Es 75 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RIA1023J` — pruebas en rojo: Traceback (most recent call last):
+- `RIA1023G` — pruebas en rojo: Traceback (most recent call last):
+- `RLB1020J` — pruebas en rojo: vitest falla (rama conservada)
