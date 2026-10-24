@@ -1,0 +1,37 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "MGP1024-0D7DB1",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: pruebas del puente en rojo",
+   "archivos": [
+    "scripts/puente/test_oracle_nodo.py"
+   ],
+   "depende": [],
+   "origen": "metagenesis",
+   "prompt": "NOTA DE METAGENESIS (2026-10-24 06:05): la autopublicación lleva más de 60 min frenada en 6d11f818 por «pruebas del puente en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n  self.raw_requestline = self.rfile.readline(65537)\n                           ~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py\", line 729, in readinto\n    return self._sock.recv_into(b)\n           ~~~~~~~~~~~~~~~~~~~~^^^\nConnectionResetError: [Errno 54] Connection reset by peer\n----------------------------------------\n............................................................................................................................................Error al intentar generar catálogo: Error al ejecutar\n..Error al procesar opción opcion1: Error de conexión\n...............................................................................................\n======================================================================\nFAIL: test_lo_que_el_nodo_importa_al_arrancar_viaja_con_el (test_oracle_nodo.ModulosDelNodo.test_lo_que_el_nodo_importa_al_arrancar_viaja_con_el)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/Users/alex/.starseed/produccion/arbol-pruebas/scripts/puente/test_oracle_nodo.py\", line 264, in test_lo_que_el_nodo_importa_al_arrancar_viaja_con_el\n    self.assertIn(m.group(1), viajan, \"%s importa %s al arrancar\" % (nombre, m.group(1)))\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'vigia_runs_nube' not found in {'puerta_datos_cliente', 'nodo_metagenesis_bus', 'nodo_metagenesis_logica', 'nodo_metagenesis_medio', 'colmena_logica', 'traer_nube', 'nodo_metagenesis'} : traer_nube importa vigia_runs_nube al arrancar\n\n----------------------------------------------------------------------\nRan 3352 tests in 100.924s\n\nFAILED (failures=1, skipped=5)\n\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `python3 -m unittest scripts/puente/test_oracle_nodo.py`."
+  },
+  {
+   "id": "APM1017K",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Almacenamiento · tipo «neurona»: una neurona o el A1 como almacenamiento de un cerebro",
+   "archivos": [
+    "src/lib/storage/neurona-driver.ts",
+    "src/lib/storage/__tests__/neurona-driver.test.ts",
+    "src/lib/storage/backends.ts"
+   ],
+   "depende": [],
+   "prompt": "Driver que guarda y lee objetos como volúmenes por bandas en otra neurona o en el A1, con el transporte inyectado: `probar`, `poner(ruta, bytes)` (trocea, manifiesto y bandas), `obtener(ruta)` (con lector-volumen.ts) y `borrar`. En backends.ts, solo lo mínimo: añadir `neurona` a `REAL_DRIVER_KINDS` y una rama que delegue en el driver en `testBackend`, `putObjectToBackend` y `deleteObjectFromBackend` (sin tocar las demás ramas). Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017J"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "MGP1024-0D7DB1",
+   "APM1017K"
+  ]
+ }
+}
