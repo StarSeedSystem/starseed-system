@@ -1749,6 +1749,27 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     verificado: "2026-10-10",
   },
   {
+    id: "mesh2motion", nombre: "Mesh2Motion", categoria: "modelado-3d", tipo: "app", origen: "github",
+    descripcion: "Aplicación web para importar un modelo 3D humanoide, asignarle un esqueleto y animaciones de su biblioteca y exportar el resultado; su código es MIT y los modelos, rigs y animaciones son CC0.",
+    licencia: "MIT", codigo: "https://github.com/Mesh2Motion/mesh2motion-app", web: null,
+    medios: { web: "embebible", android: true, ios: true, macos: true, windows: true, linux: true, servidor: false },
+    integracion: "iframe-aislado",
+    formatos: { entrada: ["glb", "gltf", "fbx", "obj"], salida: ["glb", "gltf", "fbx"] },
+    control: { via: ["ninguno"], notas: "Sin API de control documentada: se embebe el build propio y el intercambio es «solo ventana» más archivos." },
+    actualizacion: { fuente: "github-tags", ref: "Mesh2Motion/mesh2motion-app", ultimaVersion: null, fechaVersion: null },
+    ia: [],
+    estado: "proximamente", motivo: "El código es MIT y los assets CC0, y la vía natural es un iframe con su build web; pero aún no publica releases ni un build listo, así que hay que compilarlo y verificar el rigging antes de ofrecerlo.",
+    verificado: "2026-10-20",
+    sinComprobar: [
+      "Los formatos exactos de importación y exportación.",
+      "Si el build propio expone alguna API de control además de la ventana.",
+    ],
+    avisos: [
+      "Assets (modelos, rigs y animaciones) en CC0; aun así, revisa cada modelo concreto antes de redistribuirlo.",
+      "Sin releases todavía: el canal real es el último commit y hay que compilar desde el repositorio.",
+    ],
+  },
+  {
     id: "meshlab", nombre: "MeshLab", categoria: "modelado-3d", tipo: "app", origen: "github",
     descripcion: "Procesamiento y limpieza de mallas 3D y nubes de puntos: reparar, simplificar, remallar, medir y convertir entre formatos.",
     licencia: "GPL-3.0-or-later", codigo: "https://github.com/cnr-isti-vclab/meshlab", web: "https://www.meshlab.net",
@@ -2194,6 +2215,26 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     verificado: "2026-10-10",
     avisos: [
       "GPL: solo como programa aparte, no enlazado en el paquete del OS.",
+    ],
+  },
+  {
+    id: "solidcraft", nombre: "SolidCraft", categoria: "arquitectura-cad", tipo: "app", origen: "github",
+    descripcion: "CAD 3D paramétrico escrito en Rust, con versión de escritorio y web, que expone un servidor MCP para que los agentes construyan y modifiquen piezas por parámetros.",
+    licencia: "Apache-2.0", codigo: "https://github.com/tangency-labs/solidcraft", web: "https://solidcraft.io",
+    medios: { web: "wasm", android: false, ios: false, macos: true, windows: true, linux: true, servidor: false },
+    integracion: "iframe-aislado",
+    formatos: { entrada: ["step", "stl", "obj", "glb", "gltf"], salida: ["step", "stl", "obj", "glb", "gltf"] },
+    control: { via: ["mcp", "cli"], notas: "Su servidor MCP por stdio deja a los agentes modelar; el build web se aloja aparte y ahí el control es «solo ventana»." },
+    actualizacion: { fuente: "github-releases", ref: "tangency-labs/solidcraft", ultimaVersion: "v0.16.2", fechaVersion: "2026-10-19" },
+    ia: ["mcp", "modelado-parametrico"],
+    estado: "integrable", motivo: "Se aloja su build web como origen aparte en un iframe con sandbox; el control por MCP exige el binario nativo en una neurona de escritorio.",
+    verificado: "2026-10-20",
+    sinComprobar: [
+      "La lista exacta de formatos de importación y exportación.",
+      "Si el build web cubre todo el CAD o solo una parte.",
+    ],
+    avisos: [
+      "Proyecto joven y con versiones casi diarias: fija siempre la versión por SHA o tag antes de alojar o depender de un build.",
     ],
   },
   {
@@ -2934,6 +2975,26 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     verificado: "2026-10-10",
     avisos: [
       "Los modelos de MediaPipe tienen términos propios; el código es Apache-2.0.",
+    ],
+  },
+  {
+    id: "detectron2", nombre: "Detectron2", categoria: "ia-generativa", tipo: "libreria", origen: "github",
+    descripcion: "Plataforma de visión por computador de Meta AI sobre PyTorch para detección de objetos, segmentación, pose y panóptica; se usa desde Python tanto para entrenar como para inferir.",
+    licencia: "Apache-2.0", licenciaPesos: "NOASSERTION", codigo: "https://github.com/facebookresearch/detectron2", web: "https://detectron2.readthedocs.io/en/latest/",
+    medios: { web: "no", android: false, ios: false, macos: true, windows: false, linux: true, servidor: true },
+    integracion: "servicio-local",
+    formatos: { entrada: ["jpeg", "png", "bmp", "tiff", "video"], salida: ["json", "png"] },
+    control: { via: ["python", "cli"], notas: "API de Python sobre PyTorch y herramientas de línea de órdenes (`train_net.py`, `demo.py`); para entrenar con comodidad pide GPU NVIDIA con CUDA." },
+    actualizacion: { fuente: "github-tags", ref: "facebookresearch/detectron2", ultimaVersion: "v0.6", fechaVersion: "2021-11-15" },
+    ia: ["detecta", "segmenta", "pose"],
+    estado: "proximamente", motivo: "El código es Apache-2.0, pero los pesos del model zoo tienen licencias propias por modelo: hay que elegir solo pesos libres antes de ofrecerlo, y necesita PyTorch con GPU en una neurona con recursos.",
+    verificado: "2026-10-20",
+    sinComprobar: [
+      "Qué pesos concretos del model zoo son de uso libre.",
+    ],
+    avisos: [
+      "Los pesos del model zoo se publican con licencias propias por modelo: usa solo los de uso libre.",
+      "Windows no está soportado de forma oficial; el camino probado es Linux (o macOS con limitaciones).",
     ],
   },
   {

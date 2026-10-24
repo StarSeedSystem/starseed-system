@@ -337,6 +337,61 @@ describe("aPaqueteBiblioteca", () => {
   });
 });
 
+describe("fichas de la ola repos-libreria-1020", () => {
+  const NUEVAS = ["solidcraft", "detectron2", "mesh2motion"] as const;
+
+  it.each(NUEVAS)("%s existe una sola vez, con código de GitHub y fuente de versión válida", (id) => {
+    const h = herramientaPorId(id) as HerramientaProto;
+    expect(h).toBeDefined();
+    expect(ids.filter((x) => x === id)).toHaveLength(1);
+    expect(h.codigo).toMatch(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/);
+    expect(FUENTES).toContain(h.actualizacion.fuente);
+    expect(h.actualizacion.ref).toMatch(/^[\w.-]+\/[\w.-]+$/);
+    expect(h.verificado).toBe("2026-10-20");
+  });
+
+  it("solidcraft es un CAD paramétrico con MCP y aviso de fijar SHA", () => {
+    const h = herramientaPorId("solidcraft") as HerramientaProto;
+    expect(h).toMatchObject({ categoria: "arquitectura-cad", tipo: "app", licencia: "Apache-2.0" });
+    expect(h.actualizacion).toMatchObject({
+      fuente: "github-releases",
+      ref: "tangency-labs/solidcraft",
+      ultimaVersion: "v0.16.2",
+      fechaVersion: "2026-10-19",
+    });
+    expect(h.control.via).toContain("mcp");
+    expect((h.avisos ?? []).join(" ")).toMatch(/SHA/i);
+  });
+
+  it("detectron2 separa la licencia del código y la de los pesos", () => {
+    const h = herramientaPorId("detectron2") as HerramientaProto;
+    expect(h).toMatchObject({ tipo: "libreria", licencia: "Apache-2.0", licenciaPesos: "NOASSERTION" });
+    expect(h.actualizacion).toMatchObject({
+      fuente: "github-tags",
+      ref: "facebookresearch/detectron2",
+      ultimaVersion: "v0.6",
+      fechaVersion: "2021-11-15",
+    });
+    expect((h.avisos ?? []).join(" ")).toMatch(/pesos/i);
+  });
+
+  it("mesh2motion es MIT con assets CC0, sin releases y sin web propia", () => {
+    const h = herramientaPorId("mesh2motion") as HerramientaProto;
+    expect(h).toMatchObject({ categoria: "modelado-3d", tipo: "app", licencia: "MIT", web: null });
+    expect(h.actualizacion).toMatchObject({
+      fuente: "github-tags",
+      ref: "Mesh2Motion/mesh2motion-app",
+      ultimaVersion: null,
+      fechaVersion: null,
+    });
+    expect((h.avisos ?? []).join(" ")).toMatch(/CC0/);
+  });
+
+  it("la repo excluida por seguridad no entra al catálogo", () => {
+    expect(JSON.stringify(todas)).not.toMatch(/reverse-skill/i);
+  });
+});
+
 describe("diagram-design tool", () => {
   it("la herramienta de Diagram Design está presente y tiene propiedades básicas", () => {
     expect(ids).toContain("diagram-design");
