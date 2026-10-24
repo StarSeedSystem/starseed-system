@@ -822,12 +822,18 @@ def ejecutar(a: Dict[str, Any], medio: str, raiz: str, seco: bool,
                     borrados += 1
                 except OSError:
                     pass
+        return "hecha", "registros viejos fuera (%d) y diario de systemd recortado" % borrados
     if que == "repartir":
+        # (CAP1018Ab) UN orquestador por medio: «alimentar» AÑADE tareas a SU cola viva (tmp +
+        # os.replace, sin duplicar ids); jamás lanza una segunda cola ni crea un archivo nuevo.
         if args.get("modo") == "alimentar":
+            olas = os.path.join(raiz, "starseed_memory_root", "olas")
             cola = str(args.get("cola") or "")
             tareas = args.get("tareas") or []
             if not cola or not tareas:
                 return "fallo", "falta cola o tareas para repartir"
+            if not re.match(r"^cola-[A-Za-z0-9._-]{1,80}$", cola):
+                return "fallo", "nombre de cola no válido"
             ruta = os.path.join(olas, cola + ".json")
             d = leer_json(ruta, [])
             lista = d if isinstance(d, list) else (d or {}).get("tareas", []) if isinstance(d, dict) else []
@@ -837,7 +843,7 @@ def ejecutar(a: Dict[str, Any], medio: str, raiz: str, seco: bool,
                 return "nada", "todas las tareas ya están en la cola"
             escribir_atomico(ruta, list(lista or []) + nuevas)
             return "hecha", "%d tarea(s) añadida(s) a %s" % (len(nuevas), cola)
-        return "hecha", "registros viejos fuera (%d) y diario de systemd recortado" % borrados
+        return "nada", "reparto normal: las colas las reparte el medio con las listas"
     if que == "contenedor":
         ruta = os.path.join(CARPETA, "contenedor.json")
         try:
