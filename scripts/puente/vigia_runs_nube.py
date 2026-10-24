@@ -23,12 +23,17 @@ SOLO CANCELA con datos fiables del RUN (no de sus pasos): el duplicado de una co
 otro run y el que lleva 30 min sin máquina; devuelve sus tareas sin gastarles un envío. Lo que
 sale de los PASOS de GitHub (preparación larga, «sin dato del paso», pasado de tope) solo se
 avisa: el 13-10 a las 16:21 la primera versión canceló por los pasos dos runs que escribían.
+
+(2026-10-24) ADEMÁS, en cada pasada: las «reasignada · nube» con nota «movida a nube-gh (run N)»
+cuyo run N ya terminó (dato del RUN de la API; llevan >6 h sin cambio) vuelven a «pendiente»
+SIN gastar un envío, como las de los runs cancelados. Run vivo o sin dato: no se toca.
 """
 from __future__ import annotations
 
 import datetime as _dt
 import json
 import os
+import re
 import subprocess
 import time
 
@@ -46,6 +51,9 @@ FINALES = ("entregar", "tachar", "rastro", "post ", "complete job")
 MEMORIA = os.path.expanduser("~/.starseed/nube-vigia.json")
 #: Un atasco que pide confirmación se actúa solo si se ve igual en otra pasada, al menos tanto después.
 CONFIRMAR_S = 200
+RUN_VIVOS = ("in_progress", "queued", "pending", "waiting", "requested")  # run en marcha según la API; los PASOS nunca se creen
+RUN_EN_NOTA = re.compile(r"movida a nube-gh \(run (\d+)\)")  # nota con que Genesis soltó la tarea: «run N» citado
+VARADAS_H = 6  # horas sin cambio de una tarea movida a nube-gh antes de dar su run por varado
 
 
 def _segundos_desde(iso, ahora):
@@ -121,8 +129,9 @@ def ids_de_cola(datos) -> list:
     return [str(t.get("id")) for t in tareas or [] if isinstance(t, dict) and t.get("id")]
 
 
-def devolver(progreso, ids, run, motivo, fecha):
-    """PURA. Copia del progreso con las que siguen «reasignada · nube» de vuelta a pendiente. → (nuevo, ids)."""
+def devolver(progreso, ids, run, motivo, fecha, cierre="el director lo canceló"):
+    """PURA. Copia del progreso con las que siguen «reasignada · nube» de vuelta a pendiente.
+    `cierre` (2026-10-24) dice qué no lleva ya el run: misma devolución, nota honesta. → (nuevo, ids)."""
     salida, hechas = dict(progreso or {}), []
     for tid in ids:
         v = salida.get(tid)
@@ -131,11 +140,58 @@ def devolver(progreso, ids, run, motivo, fecha):
         if isinstance(v, dict) and v.get("estado") == "reasignada" and de_la_nube:
             v = dict(v)
             v.update(estado="pendiente", medio=None,
-                     nota="devuelta de la nube %s: el run %s %s y el director lo canceló; no cuenta como envío"
-                     % (fecha, run, motivo))
+                     nota="devuelta de la nube %s: el run %s %s y %s; no cuenta como envío"
+                          % (fecha, run, motivo, cierre))
             salida[tid] = v
             hechas.append(tid)
     return salida, hechas
+
+
+def _ts_de(v):
+    """PURA. El último cambio: epoch, «AAAA-MM-DD HH:MM:SS» local (lo que escribe `set_estado`)
+    o ISO. None si no se sabe — y sin dato de hora, no se toca la tarea."""
+    if isinstance(v, (int, float)):
+        return float(v)
+    texto = str(v or "").strip()
+    try:
+        return float(texto)
+    except ValueError:
+        pass
+    try:
+        return _dt.datetime.fromisoformat(texto.replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def _runs_en_notas(tareas):
+    """PURA. Los ids de run citados en notas «movida a nube-gh (run N)»."""
+    return {m.group(1) for v in (tareas or {}).values() if isinstance(v, dict)
+            for m in [RUN_EN_NOTA.search(str(v.get("nota") or ""))] if m}
+
+
+def varadas_a_devolver(tareas, estados_run, ahora):
+    """PURA. Ids de las «reasignada» con nota «movida a nube-gh (run N)» que van a volver: el
+    run N ya no está en marcha (dato del RUN de la API) y llevan >VARADAS_H sin cambio. Medio
+    «nube» (o ninguno, así quedaron las que soltó Genesis). Run vivo, SIN DATO, otro medio o
+    cambio reciente: no se toca."""
+    salida = []
+    for tid, v in (tareas or {}).items():
+        if not isinstance(v, dict) or v.get("estado") != "reasignada" \
+                or v.get("medio") not in (None, "", "nube"):
+            continue
+        m = RUN_EN_NOTA.search(str(v.get("nota") or ""))
+        if not m:
+            continue
+        dato = (estados_run or {}).get(m.group(1))
+        if not isinstance(dato, dict) or not str(dato.get("status") or ""):
+            continue  # sin dato de la API: no se puede saber; no se toca
+        if str(dato.get("status") or "").lower() in RUN_VIVOS:
+            continue  # run vivo: su tarea no está varada
+        ts = _ts_de(v.get("t"))
+        if ts is None or (ahora - ts) <= VARADAS_H * 3600:
+            continue  # sin hora de cambio, o cambiada hace poco: no se toca
+        salida.append(tid)
+    return sorted(salida)
 
 
 def _leer(ruta, defecto):
@@ -160,6 +216,65 @@ def _avisar(texto):
         director_chat.publicar(texto, de="director-nube", rol="director", tipo="aviso")
     except Exception:
         print("director-nube: no pude avisar en el Chat Director", flush=True)
+
+
+def estado_de_run(run, raiz=None, timeout=45):
+    """El estado del RUN en la API de GitHub ({status, conclusion}), NUNCA el de sus pasos.
+    None si no se puede consultar (sin «gh», red caída, run inexistente): no se toca."""
+    try:
+        orden = ["gh", "api", "/repos/{owner}/{repo}/actions/runs/%s" % run,
+                 "--jq", "{status: .status, conclusion: .conclusion}"]
+        p = subprocess.run(orden, cwd=raiz, capture_output=True, text=True, timeout=timeout)
+        if p.returncode != 0:
+            return None
+        d = json.loads(p.stdout or "null")
+    except Exception:
+        return None
+    return d if isinstance(d, dict) and str(d.get("status") or "").strip() else None
+
+
+def devolver_varadas(resumen, raiz, ahora=None):
+    """En cada pasada de `director-nube.py`: las «movida a nube-gh (run N)» varadas vuelven a
+    «pendiente» SIN gastar envío (la devolución de los runs cancelados) y se dice en el Chat
+    Director cuántas. El resumen trae solo los runs vivos: los citados que no estén se
+    consultan a la API (nivel RUN). Run vivo o sin dato: no se toca."""
+    import repartir_nube as RN
+
+    ahora = time.time() if ahora is None else ahora
+    ruta_prog = os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json")
+    prog = _leer(ruta_prog, {})
+    tareas = prog.get("tareas") if isinstance(prog, dict) and "tareas" in prog else prog
+    if not isinstance(tareas, dict):
+        return []
+    estados = {str(f.get("run")): {"status": f.get("estado")}
+               for f in (resumen or {}).get("runs") or [] if isinstance(f, dict) and f.get("run")}
+    for rid in sorted(_runs_en_notas(tareas) - set(estados)):
+        dato = estado_de_run(rid, raiz)
+        if dato is not None:
+            estados[rid] = dato
+    ids = varadas_a_devolver(tareas, estados, ahora)
+    if not ids:
+        return []
+    por_run = {}
+    for tid in ids:
+        m = RUN_EN_NOTA.search(str((tareas.get(tid) or {}).get("nota") or ""))
+        por_run.setdefault(m.group(1), []).append(tid)
+    novas, hechas = tareas, []
+    for run_id, grupo in por_run.items():
+        novas, devueltas = devolver(novas, grupo, run_id, "ya terminó", time.strftime("%Y%m%d"),
+                                    cierre="nadie lo lleva en marcha")
+        hechas += devueltas
+    if not hechas:
+        return []
+    try:
+        _escribir(ruta_prog, {"tareas": novas} if isinstance(prog, dict) and "tareas" in prog else novas)
+        RN.anotar_reaperturas(hechas, ahora)
+    except OSError:
+        return []
+    texto = ("Nube · devolví %d tarea(s) soltadas a nube-gh cuyo run ya terminó, sin gastar envío: %s"
+             % (len(hechas), ", ".join(hechas[:8])))
+    _avisar(texto)
+    return [texto]
 
 
 def actuar(resumen, raiz, ahora=None):
@@ -216,6 +331,7 @@ def actuar(resumen, raiz, ahora=None):
         clave = run if a.get("cancelar") else "aviso:%s:%s" % (run, a.get("tipo"))
         memoria[clave] = {"t": ahora, "tipo": a.get("tipo")}
         hecho.append(texto)
+    hecho += devolver_varadas(resumen, raiz, ahora)
     try:
         os.makedirs(os.path.dirname(MEMORIA), exist_ok=True)
         _escribir(MEMORIA, memoria)

@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Pruebas del vigía de runs de la nube (2026-10-13): duplicados, sin máquina, preparación atascada,
-pasados de tope y «sin dato del paso» (solo aviso). Lo puro, sin red ni GitHub."""
+pasados de tope y «sin dato del paso» (solo aviso); OPS1024E (2026-10-24): con la API simulada,
+las «movida a nube-gh (run N)» varadas vuelven, y un run vivo o sin dato se queda."""
+import json
 import os
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vigia_runs_nube as VR  # noqa: E402
 
 AHORA = 1791929400.0  # 2026-10-13 22:10 UTC
+FIN = {"status": "completed", "conclusion": "failure"}  # como la API del 2026-10-24
+VIVO = {"status": "in_progress"}
+
+
+def t_hace(horas):
+    """Un «t» como lo escribe `set_estado` del orquestador («AAAA-MM-DD HH:MM:SS» local)."""
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(AHORA - horas * 3600))
 
 
 def fila(**k):
@@ -146,6 +156,119 @@ class Actuar(unittest.TestCase):
         self.assertEqual(len(VR.actuar(resumen, self.dir, ahora=1000.0)), 1)
         self.assertEqual(VR.actuar(resumen, self.dir, ahora=1300.0), [])
         self.assertEqual(self.cancelados, [])
+        self.assertEqual(len(self.avisos), 1)
+
+
+class VaradasMovidas(unittest.TestCase):
+    """(OPS1024E) Las «movida a nube-gh (run N)» varadas, con la API simulada: run terminado →
+    vuelve (medio «nube» o sin medio, como las soltó Genesis); vivo, sin dato, otro medio o
+    cambio reciente → se queda."""
+
+    def _t(self, medio="nube", run="8", t=t_hace(7)):
+        v = {"estado": "reasignada", "medio": medio,
+             "nota": "movida a nube-gh (run %s) desde Genesis" % run}
+        if t is not None:
+            v["t"] = t
+        return {"X": v}
+
+    def test_run_terminado_vuelve(self):
+        self.assertEqual(VR.varadas_a_devolver(self._t(), {"8": FIN}, AHORA), ["X"])
+        self.assertEqual(VR.varadas_a_devolver(self._t(medio=None), {"8": FIN}, AHORA), ["X"])
+        self.assertEqual(VR._runs_en_notas({"A": {"nota": "movida a nube-gh (run 5) desde Genesis"},
+                                            "B": {"nota": "commit · ok"}}), {"5"})
+
+    def test_run_vivo_y_sin_dato_se_quedan(self):
+        self.assertEqual(VR.varadas_a_devolver(self._t(), {"8": VIVO}, AHORA), [])
+        self.assertEqual(VR.varadas_a_devolver(self._t(), {"8": {"status": "queued"}}, AHORA), [])
+        for sin_dato in ({}, {"8": {}}, {"8": None}):
+            self.assertEqual(VR.varadas_a_devolver(self._t(), sin_dato, AHORA), [])
+
+    def test_otro_medio_cambio_recente_y_sin_hora_se_quedan(self):
+        for caso in ({"medio": "oracle"}, {"t": t_hace(2)}, {"t": None}):
+            self.assertEqual(VR.varadas_a_devolver(self._t(**caso), {"8": FIN}, AHORA), [])
+        self.assertIsNone(VR._ts_de("ayer quizá"))
+
+    def test_devolver_con_cierre_honesto(self):
+        prog = {"Q": {"estado": "reasignada", "medio": None, "nota": "movida a nube-gh (run 9) desde Genesis"}}
+        nuevo, hechas = VR.devolver(prog, ["Q"], 9, "ya terminó", "20261024", cierre="nadie lo lleva en marcha")
+        self.assertEqual(hechas, ["Q"])
+        self.assertIn("el run 9 ya terminó y nadie lo lleva en marcha", nuevo["Q"]["nota"])
+
+
+class DevolverMovidas(unittest.TestCase):
+    """`devolver_varadas` con la API simulada (`estado_de_run`), el disco en un temporal y el
+    Chat Director capturado: pregunta a la API solo de los runs que el resumen no trae vivos."""
+
+    def setUp(self):
+        import tempfile
+        from unittest import mock
+
+        self.raiz = tempfile.mkdtemp()
+        olas = os.path.join(self.raiz, "starseed_memory_root", "olas")
+        os.makedirs(olas)
+        self.ruta_prog = os.path.join(olas, "progreso.json")
+        movida = {"estado": "reasignada", "t": t_hace(7)}
+        self.tareas = {
+            "A": {"medio": "nube", "nota": "movida a nube-gh (run 100) desde Genesis", **movida},
+            "B": {"medio": "nube", "nota": "movida a nube-gh (run 200) desde Genesis", **movida},
+            "C": {"estado": "reasignada", "medio": None, "nota": "movida a nube-gh (run 300) desde Genesis",
+                  "t": t_hace(30)},
+            "OR": {"medio": "oracle", "nota": "movida a nube-gh (run 400) y a oracle", **movida},
+            "E": {"medio": "nube", "nota": "movida a nube-gh (run 500) desde Genesis", **movida},
+            "F": {"medio": "nube", "nota": "movida a nube-gh (run 600) desde Genesis", "t": t_hace(2)},
+            "G": {"medio": "nube", "nota": "movida a nube-gh (run 700) desde Genesis", **movida},
+            "H": {"estado": "commit", "medio": "nube", "nota": "movida a nube-gh (run 800), integrada"},
+        }
+        with open(self.ruta_prog, "w", encoding="utf-8") as f:
+            json.dump({"generado": "", "tareas": self.tareas}, f, ensure_ascii=False)
+        self.api = {"100": FIN, "200": None, "300": FIN, "400": FIN, "600": FIN}
+        self.consultados, self.avisos, self.reabiertas = [], [], []
+        import repartir_nube
+        self.p = [mock.patch.object(VR, "estado_de_run", side_effect=lambda r, *a, **k:
+                                    (self.consultados.append(r), self.api.get(r))[1]),
+                  mock.patch.object(VR, "_avisar", side_effect=self.avisos.append),
+                  mock.patch.object(repartir_nube, "anotar_reaperturas", side_effect=self.reabiertas.append)]
+        for x in self.p:
+            x.start()
+
+    def tearDown(self):
+        for x in self.p:
+            x.stop()
+
+    def _ejecutar(self):
+        return VR.devolver_varadas({"runs": [{"run": 500, "estado": "in_progress"}]}, self.raiz,
+                                   ahora=AHORA)
+
+    def test_terminadas_vuelven_y_las_demas_se_quedan(self):
+        hecho = self._ejecutar()
+        # Solo piden API los runs que el resumen no trae vivos (500); por orden de run.
+        self.assertEqual(self.consultados, ["100", "200", "300", "400", "600", "700", "800"])
+        self.assertEqual(self.reabiertas, [["A", "C"]])
+        self.assertEqual(len(self.avisos), 1)
+        self.assertIn("devolví 2 tarea(s)", self.avisos[0])
+        self.assertIn("A", hecho[0])
+        self.assertIn("C", hecho[0])
+        with open(self.ruta_prog, encoding="utf-8") as f:
+            fuera = json.load(f)["tareas"]
+        self.assertEqual(fuera["A"]["estado"], "pendiente")
+        self.assertIn("el run 100 ya terminó y nadie lo lleva en marcha", fuera["A"]["nota"])
+        self.assertIn("no cuenta como envío", fuera["A"]["nota"])
+        self.assertEqual(fuera["B"], self.tareas["B"])  # sin dato de la API: se queda
+        self.assertEqual(fuera["E"], self.tareas["E"])  # run vivo en el resumen: se queda
+        self.assertEqual(fuera["F"], self.tareas["F"])  # cambio reciente: se queda
+        self.assertEqual(fuera["G"], self.tareas["G"])  # la API no lo conoce: se queda
+        self.assertEqual(fuera["H"], self.tareas["H"])  # ya integrada: no se toca
+
+    def test_nada_que_devolver_no_toca_nada(self):
+        self.api.clear()  # la API no conoce ninguno: todas se quedan
+        self.assertEqual(self._ejecutar(), [])
+        self.assertEqual(self.reabiertas, [])
+        self.assertEqual(self.avisos, [])
+
+    def test_segunda_pasada_no_repite(self):
+        self._ejecutar()
+        self.assertEqual(len(self.avisos), 1)
+        self._ejecutar()  # ya están «pendiente»: no hay candidatos ni aviso nuevo
         self.assertEqual(len(self.avisos), 1)
 
 
