@@ -1,0 +1,104 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "LYS1018Bb",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · cliente único por medio (servidor local → A1 por la malla → regla) y lectura calibrada",
+   "archivos": [
+    "src/lib/astraura/laya/cliente-laya.ts",
+    "src/lib/astraura/decision-hibrida.ts",
+    "src/lib/astraura/laya/__tests__/cliente-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`preguntarALaya({ punto, estado, privado, medio }, deps)` con fetch, reloj y relé de malla inyectados: prueba el servidor local 127.0.0.1:4470 `/v1/systemone` (formato nativo, cabecera X-Prioridad solo si es conversación), luego el A1 por la malla (solo si no es privado o el A1 es servidor propio de la cuenta) y si no, devuelve null con motivo. Plazos del punto por medio (catálogo de A). Devuelve { respuestas, donde, ms }. En decision-hibrida.ts cambia SOLO la lectura de la confianza: usa `answer_confidence` y cae a `confidence` si falta. Pruebas con fetch falso. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40049647113`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40049647113:refs/remotes/origin/nube/40049647113\"` y `git cherry-pick --no-commit d62ee7513a0d a814c9cb3c19`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/astraura/__tests__/decision-hibrida-laya.test.ts, src/lib/astraura/decision-hibrida.ts, src/lib/astraura/laya/__tests__/cliente-laya.test.ts, src/lib/astraura/laya/cliente-laya.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40049647113",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "GUI1021M5b",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · el muro y los toasts que piden sesión ofrecen la guía",
+   "archivos": [
+    "src/components/social/PostFeed.tsx",
+    "src/components/social/create-entity-dialog.tsx",
+    "src/components/estudio/SaveSharePanel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. En `PostFeed.tsx` el aviso de ejemplo pasa a `AvisoSesion` con el mismo texto. En los toasts «Inicia sesión para…» de `create-entity-dialog.tsx` y `SaveSharePanel.tsx` añade la acción del toast «Conoce StarSeed» que llama a `abrirGuia({desde: 'aviso'})`. Nada más cambia. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40044719866`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40044719866:refs/remotes/origin/nube/40044719866\"` y `git cherry-pick --no-commit 17d591888848`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/estudio/SaveSharePanel.tsx, src/components/social/PostFeed.tsx, src/components/social/create-entity-dialog.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40044719866",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  },
+  {
+   "id": "GUI1021M3b",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión de publicaciones y entidades",
+   "archivos": [
+    "src/components/social/PostCard.tsx",
+    "src/components/social/governance-entity-page.tsx",
+    "src/components/social/entity-header.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. En PostCard, los avisos que son un botón pequeño dentro de la tarjeta usan `compacto`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40044703604`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40044703604:refs/remotes/origin/nube/40044703604\"` y `git cherry-pick --no-commit 5dea5279b4d1`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/social/PostCard.tsx, src/components/social/entity-header.tsx, src/components/social/governance-entity-page.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40044703604",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  },
+  {
+   "id": "RIA1023Ib",
+   "ola": "1023R",
+   "titulo": "App nativa · discos (internos y externos, con velocidad de lectura) y NPU en la detección de Recursos de IA",
+   "archivos": [
+    "native/src-tauri/src/recursos_ia.rs",
+    "native/src-tauri/src/lib.rs",
+    "src/lib/recursos-ia/deteccion.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nLa app nativa vive en `native/src-tauri/` (NO en `src-tauri/`, que está retirada). Añade un comando Tauri `recursos_ia_detectar` que devuelve volúmenes (punto de montaje, total, libre, interno/externo, sistema de archivos) y, si se puede sin permisos especiales, si hay NPU (Apple Neural Engine en Apple Silicon; NPU de Intel/AMD/Qualcomm por el nombre de la CPU). Regístralo en `lib.rs` como los demás comandos. En `deteccion.ts`, si existe `window.__TAURI__`, pide ese comando y mezcla el resultado con lo que ya detecta el navegador (lo nativo gana; `fuente: \"medido\"`). Prueba: `cargo check --manifest-path native/src-tauri/Cargo.toml` si hay cargo; si no, dilo y deja que lo compruebe el CI (`tauri-check`). Y `npx vitest run src/lib/recursos-ia`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40028720503`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40028720503:refs/remotes/origin/nube/40028720503\"` y `git cherry-pick --no-commit f327896ae1fa`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: native/src-tauri/src/lib.rs, native/src-tauri/src/recursos_ia.rs, src/lib/recursos-ia/__tests__/deteccion.test.ts, src/lib/recursos-ia/deteccion.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40028720503"
+  },
+  {
+   "id": "ESP1011Bb",
+   "ola": "Ola 1011H · Versiones públicas (Spaces de Hugging Face) mientras no haya computadora con NVIDIA: 3D con Pixal3D/TRELLIS.2 e imágenes con FLUX schnell/Qwen-Image, desde el navegador de cada persona",
+   "titulo": "Ajustes: «Versiones públicas» y cuenta de Hugging Face opcional",
+   "archivos": [
+    "src/components/espacios/ajustes-espacios.tsx",
+    "src/lib/espacios/permiso-espacios.ts",
+    "src/lib/espacios/__tests__/permiso-espacios.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATOS: `architecture/astraura-avatares-3d.md` §11.2 (decisión de Alex del 2026-10-11) y `architecture/astraura-imagenes.md` §3. Léelos ENTEROS. Núcleos puros YA probados que NO se modifican: `src/lib/avatares/adn/` (motores `pixal3d-espacio` y `trellis2-espacio`, requisito `espacio-hf`, `capacidadesDe` con `permiteEspacioHf`) y `src/lib/imagenes/` (campo `espacio` del catálogo, capa `espacio` y `PeticionImagen.espacios` en `planImagen`). Reglas: los Spaces se llaman DESDE EL NAVEGADOR de cada persona (cada quien gasta su cuota de Hugging Face: ZeroGPU 2 min/día sin cuenta, 5 con cuenta gratis, 40 con PRO), nunca con una cuota compartida desde nuestro servidor; el token de Hugging Face de cada persona, si lo pone, se guarda solo en su aparato (`src/lib/safe-storage.ts`) y nunca viaja a nuestros servidores ni a registros; con imagen de referencia, permiso; fotos de personas, consentimiento siempre; «basta de ilusiones»: si un Space está dormido, lleno o cambió su API, se dice y se pasa a la siguiente opción del plan; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Pruebas vitest sin red (Spaces simulados). Al terminar, resumen honesto.\n\nTAREA: Sección en los ajustes de Astraura: interruptor «Usar versiones públicas (Spaces de Hugging Face)» con explicación clara (qué sale del aparato, a quién, cuánto da la cuota gratis) y campo opcional para el token de Hugging Face de la persona, con enlace directo a https://huggingface.co/settings/tokens y explicación de qué es (una llave de solo lectura de su cuenta). `permiso-espacios.ts`: el permiso vive por cuenta en las preferencias sincronizadas que ya existen (sin migraciones); por defecto apagado y se pregunta UNA vez al primer uso; para la cuenta de Alex queda encendido porque él lo decidió el 2026-10-11 (identifícala como ya lo haga el OS para su cuenta de administración, sin escribir su correo en el código). Las fotos de personas piden además un consentimiento por imagen. Devuelve `permiteEspacioHf` para `capacidadesDe` y la lista `espacios` para `planImagen`. Pruebas.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39853167748`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39853167748:refs/remotes/origin/nube/39853167748\"` y `git cherry-pick --no-commit 0d8c9c8a3362 238ee68239be`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/media/proveedor-neuronas.ts, src/components/astraura/inteligencia-section.tsx, src/components/avatares/generar-3d.tsx, src/components/espacios/ajustes-espacios.tsx, src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts, src/lib/avatares/adaptadores/use-generar-3d.ts, src/lib/espacios/__tests__/permiso-espacios.test.ts, src/lib/espacios/permiso-espacios.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39853167748",
+   "dependencias_ya_en_main": [
+    "ESP1011A"
+   ]
+  },
+  {
+   "id": "GUI1021K2b",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · el mismo acceso en la bienvenida y en retomar sesión",
+   "archivos": [
+    "src/components/welcome/welcome-window.tsx",
+    "src/components/sso/session-resume-prompt.tsx",
+    "src/components/welcome/__tests__/bienvenida-guia.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Añade «Conoce StarSeed» (bienvenida: `desde: 'bienvenida'`; retomar sesión: `desde: 'login'`) con `abrirGuia`, sin tocar nada más. Pruebas de los dos botones. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40097312975`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama (la reasignación apuntaba al run 40099225681 de nube-gh, que ya terminó, y esta rama es de otro medio)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40097312975:refs/remotes/origin/nube/40097312975\"` y `git cherry-pick --no-commit a0cdf6272037`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/sso/session-resume-prompt.tsx, src/components/welcome/__tests__/bienvenida-guia.test.tsx, src/components/welcome/welcome-window.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40097312975"
+  }
+ ]
+}
