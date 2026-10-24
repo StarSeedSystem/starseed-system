@@ -58,6 +58,8 @@ export interface WebXRState {
     exit: () => Promise<void>;
 }
 
+export type FuncionesXR = FuncionXR;
+
 /** Acceso seguro al sistema XR del navegador (undefined en SSR o sin soporte). */
 function getXR(): XRSystem | undefined {
     if (typeof navigator === 'undefined') return undefined;
