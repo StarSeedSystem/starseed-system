@@ -101,4 +101,44 @@ describe("apilar y retirar", () => {
   it("retirarDeBot quita solo lo de ese bot (al pausarlo nada suyo queda en pantalla)", () => {
     expect(retirarDeBot([capa("a1"), capa("b1", "bot-b"), capa("a2")], "bot-a").map((c) => c.id)).toEqual(["b1"]);
   });
+
+  it("con menos de 8 añade al final sin tocar las demás y conserva la capa tal cual", () => {
+    const antes = [capa("a1"), capa("b1", "bot-b")];
+    const nueva: CapaActiva = { forma: "flecha", objetivo: "boton-enviar", texto: "Envía aquí", id: "a2", botId: "bot-a", nombreBot: "Bot A" };
+    const despues = apilar(antes, nueva);
+    expect(despues).toHaveLength(3);
+    expect(despues[2]).toBe(nueva);
+    expect(despues.slice(0, 2)).toEqual(antes);
+    expect(antes).toHaveLength(2);
+  });
+
+  it("apilar cuando hay menos de 8", () => {
+    const capas: CapaActiva[] = [
+      { forma: "resaltar", objetivo: "1", id: "1", botId: "bot1", nombreBot: "Bot1" },
+      { forma: "nota", texto: "Nota 1", id: "2", botId: "bot1", nombreBot: "Bot1" }
+    ];
+
+    const nueva: CapaActiva = { forma: "flecha", texto: "Flecha 1", id: "3", botId: "bot1", nombreBot: "Bot1" };
+    const resultado = apilar(capas, nueva);
+
+    expect(resultado.length).toBe(3);
+    expect(resultado[2]).toBe(nueva);
+  });
+
+  it("eliminar la capa más vieja cuando hay 8 o más", () => {
+    const capas: CapaActiva[] = Array.from({ length: 8 }, (_, i) => ({
+      forma: "resaltar",
+      objetivo: `${i + 1}`,
+      id: `${i + 1}`,
+      botId: "bot1",
+      nombreBot: "Bot1"
+    }));
+
+    const nueva: CapaActiva = { forma: "nota", texto: "Nueva nota", id: "9", botId: "bot1", nombreBot: "Bot1" };
+    const resultado = apilar(capas, nueva);
+
+    expect(resultado.length).toBe(8);
+    expect(resultado[0]).not.toBe(capas[0]);
+    expect(resultado[7]).toBe(nueva);
+  });
 });
