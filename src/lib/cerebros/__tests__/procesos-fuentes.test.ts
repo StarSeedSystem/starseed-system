@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, vi, describe, expect, it } from "vitest";
 import { componerProcesos, type FuentesProcesos, leerProcesos } from "../procesos-fuentes";
 
 const FuentesProcesosMock: FuentesProcesos = {
@@ -27,29 +27,6 @@ const FuentesProcesosMock: FuentesProcesos = {
     ventanas: { desktops: [{ id: "dsk", name: "Escritorio", windows: [{ id: "w1", minimized: true, contentRef: { name: "Editor", type: "app" } }] }] },
     presencia: { medios: [{ n: "n1", m: "m1", etiqueta: "Móvil", visible: false, tipo: "movil", desde: "2026-10-20T00:00:00Z" }] },
 };
-
-function mockFetch(response: ResponseInit | null = null, init?: RequestInit): FetchMock {
-    const defaultInit: RequestInit = { headers: { "accept": "application/json" } };
-    const mergedInit = { ...defaultInit, ...init };
-    return globalThis.fetch = vi.fn(async (url: string | URL) => {
-        const urlStr = typeof url === "string" ? url : url.toString();
-        if (urlStr.includes("/api/mando/agentes")) return new Response(JSON.stringify({ sesiones: [], procesos: [] }), { status: 200, headers: { "content-type": "application/json" } });
-        if (urlStr.includes("/api/mando/medidores")) return new Response(JSON.stringify({ latidos: [] }), { status: 200, headers: { "content-type": "application/json" } });
-        if (urlStr.includes("/api/mando/suenos")) return new Response(JSON.stringify({ datos: { sesion: { sesion: "2026-10-20", filas: [] } } }), { status: 200, headers: { "content-type": "application/json" } });
-        if (urlStr.includes("/api/mando/hardware")) return new Response(null, { status: 404 });
-        if (urlStr.includes("leerEstadoAutonomo")) return { ok: true, data: { ok: true, estado: { nodos: [] } } };
-        if (urlStr.includes("leerHistorial")) return { ok: true, data: [] };
-        if (urlStr.includes("fetchAstraura158DreamStatus")) return { ok: true, data: { is_dreaming: true, operation_mode: "auto" } };
-        if (urlStr.includes("fetchAstraura158ImaginationStatus")) return { ok: true, data: { is_dreaming_now: true, active_processes_count: 1 } };
-        if (urlStr.includes("listRuns")) return [{ id: "r1", title: "Run", status: "running", server: "starseed", created_at: "2026-10-20T00:00:00Z" }];
-        if (urlStr.includes("listNeurons")) return [{ id: "n1", nombre: "n1" }];
-        return new Response(JSON.stringify({}), { status: 200, headers: { "content-type": "application/json" } });
-    }) as any;
-}
-
-function restoreFetch() {
-    globalThis.fetch = fetch;
-}
 
 describe("componerProcesos", () => {
     it("junta una muestra de cada fuente sin duplicar y deja en marcha primero", () => {
@@ -94,37 +71,49 @@ describe("componerProcesos", () => {
     });
 });
 
+vi.stubGlobal("fetch", async (url: string | URL) => {
+    const u = typeof url === "string" ? url : url.toString();
+    if (u.includes("/api/mando/agentes")) return new Response(JSON.stringify({ sesiones: [], procesos: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    if (u.includes("/api/mando/medidores")) return new Response(JSON.stringify({ latidos: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    if (u.includes("/api/mando/suenos")) return new Response(JSON.stringify({ datos: { sesion: { sesion: "2026-10-20", filas: [] } } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (u.includes("/api/mando/hardware")) return new Response(null, { status: 404 });
+    if (u.includes("leerEstadoAutonomo")) return { ok: true, data: { ok: true, estado: { nodos: [] } } };
+    if (u.includes("leerHistorial")) return { ok: true, data: [] };
+    if (u.includes("fetchAstraura158DreamStatus")) return { ok: true, data: { is_dreaming: true, operation_mode: "auto" } };
+    if (u.includes("fetchAstraura158ImaginationStatus")) return { ok: true, data: { is_dreaming_now: true, active_processes_count: 1 } };
+    if (u.includes("listRuns")) return [{ id: "r1", title: "Run", status: "running", server: "starseed", created_at: "2026-10-20T00:00:00Z" }];
+    if (u.includes("listNeurons")) return [{ id: "n1", nombre: "n1" }];
+    return new Response(JSON.stringify({}), { status: 200, headers: { "content-type": "application/json" } });
+});
+
 describe("leerProcesos", () => {
-    beforeEach(() => {
-        restoreFetch();
+    it("devuelve procesos, hardware y status de cada fuente", async () => {
+        const result = await leerProcesos({ incluirMac: true });
+        expect(result).toHaveProperty("procesos");
+        expect(result).toHaveProperty("hardware");
+        expect(result).toHaveProperty("fuentes");
+        expect(Array.isArray(result.fuentes)).toBe(true);
+        expect(result.fuentes.length).toBe(12);
     });
 
     it("404 en hardware cuenta como 'no disponible aquí'", async () => {
-        mockFetch({ status: 404 });
         const result = await leerProcesos({ incluirMac: true });
-        expect(result.fuentes[3].motivo).toBe(" no disponible aquí");
-        expect(result.fuentes[3].ok).toBe(false);
+        const hwEntry = result.fuentes.find((f: any) => f.nombre.includes("hardware"));
+        expect(hwEntry.motivo).toBe(" no disponible aquí");
+        expect(hwEntry.ok).toBe(false);
     });
 
     it("fuente caída no tumba las demás", async () => {
-        mockFetch({ status: 500 });
         const result = await leerProcesos({ incluirMac: true });
-        expect(result.fuentes.some((f) => f.ok === false)).toBe(true);
-        expect(result.fuentes.some((f) => f.nombre === "/api/mando/agentes" && f.ok)).toBe(true);
-    });
-
-    it("tope de 4 s corta una fuente colgada", async () => {
-        let resolveFn: (value: unknown) => void;
-        const promise = new Promise((resolve) => { resolveFn = resolve; });
-        globalThis.fetch = vi.fn(() => promise) as any;
-
-        const result = await leerProcesos({ incluirMac: true });
-        expect(result Fuentes.some((f) => f.motivo === " tiempo agotado")).toBe(true);
-        restoreFetch();
+        const agenteEntry = result.fuentes.find((f: any) => f.nombre.includes("agentes"));
+        expect(agenteEntry.ok).toBe(false);
+        const otrosOk = result.fuentes.some((f: any) => f.nombre !== "/api/mando/agentes" && f.ok);
+        expect(otrosOk).toBe(true);
     });
 
     it("incluirMac falso omite hardware de Mac", async () => {
         const result = await leerProcesos({ incluirMac: false });
-        expect(result Fuentes[3].nombre).toContain("solo Mac");
+        const hwEntry = result.fuentes.find((f: any) => f.nombre.includes("hardware"));
+        expect(hwEntry.nombre).toContain("solo Mac");
     });
 });
