@@ -99,7 +99,7 @@ def _es_seguro_bs(candidato: dict[str, Any], modelos_aceptados: list[str] | None
     Args:
         candidato: dict con claves "id", "tags", "quantizacion" (opcional).
         modelos_aceptados: lista de modelos (ids de HF) que ya pasaron el filtro.
-            Si es None, se usa la lista vacía (cualquier tercero es rechazado).
+            Si es None o vacío, ningún tercero entra (sin base de comparación).
 
     Returns:
         True si el candidato es seguro, False en caso contrario.
@@ -114,27 +114,30 @@ def _es_seguro_bs(candidato: dict[str, Any], modelos_aceptados: list[str] | None
             return False
 
     # Terceros: solo entran si cuantizan un modelo ya aceptado
-    if modelos_aceptados is None:
-        modelos_aceptados = []
-
-    quant = candidato.get("quantizacion", "")
     if not modelos_aceptados:
-        # Si no hay modelos aceptados previos, cualquier tercero con cuantizacion
-        # aún está fuera (no hay base de comparación)
-        return True  # Pasó el filtro de palabras prohibidas; pero sin modelos base es "arriesgado"
-        # Devolvemos True porque el filtro de seguridad principal (palabras) ya pasó;
-        # la decisión de "terceros" la hará el caller con el contexto de modelos aceptados.
-
-    # El tercero cuantiza un modelo ya aceptado → seguro
-    for base in modelos_aceptados:
-        if base.lower() in quant or quant.lower() in base.lower():
-            return True
-
-    # No coincide con nada aceptado y tiene cuantizacion → fuera
-    if quant:
+        # Si no hay modelos aceptados previos, ningún tercero entra
         return False
 
-    return True
+    quant = candidato.get("quantizacion", "")
+    if not quant:
+        return False
+
+    # Matching: check if any token from the accepted model's ID appears in the quant string.
+    # Esto cubre casos como Q3_K_S al lado de Qwen/Qwen-Image-2.1 (tokens compartidos por el familia).
+    for base in modelos_aceptados:
+        # Extraer todas las palabras clave del ID aceptado
+        base_palabras = set(base.lower().replace("/", " ").replace("-", " ").split())
+        # Normalizar el quant: dividir por guiones y underscores también
+        quant_normalizado = quant.lower().replace("-", " ").replace("_", " ")
+        # Check: any word from the accepted model appears in the quant string
+        if any(palabra in quant_normalizado for palabra in base_palabras):
+            return True
+        # Reverse check: any word from quant appears in the accepted model ID
+        quant_palabras = set(quant_normalizado.split())
+        if base_palabras & quant_palabras:
+            return True
+
+    return False
 
 
 def es_seguro(candidato: dict[str, Any], modelos_aceptados: list[str] | None = None) -> bool:
@@ -217,51 +220,31 @@ def _motor_para_bs(archivo: str, archivos: list[str] | None = None) -> str:
     if archivos is None:
         archivos = [archivo]
 
-    # Detectar tipo por extensión
-    extensiones_gguf = {".gguf", ".quant"}
-    extensiones_onnx = {".onnx"}
-    extensiones_mlx = {".mlx"}
-    extensiones_coreml = {".coreML", ".mlmodel"}
-    extensiones_safetensors = {".safetensors"}
+    # Detectar tipo por extensión (comparación case-insensitive)
+    nombre = (archivo or "").lower()
 
-    motores_asignados: list[str] = []
+    # Verificar extensiones GGUF (peso principal)
+    if any(nombre.endswith(ext.lower()) for ext in [".gguf", ".quant"]):
+        return "sdcpp"  # stable-diffusion.cpp / llama.cpp
 
-    for arch in archivos:
-        nombre = (arch or "").lower()
+    # ONNX
+    if any(nombre.endswith(ext.lower()) for ext in [".onnx"]):
+        return "onnx"
 
-        # Verificar extensiones GGUF (peso principal)
-        if any(ext in nombre for ext in extensiones_gguf):
-            motores_asignados.append("sdcpp")  # stable-diffusion.cpp / llama.cpp
-            continue
+    # MLX
+    if any(nombre.endswith(ext.lower()) for ext in [".mlx"]):
+        return "mlx"
 
-        # ONNX
-        if any(ext in nombre for ext in extensiones_onnx):
-            motores_asignados.append("onnx")
-            continue
+    # Core ML
+    if any(nombre.endswith(ext.lower()) for ext in [".coreml", ".mlmodel"]):
+        return "coreml"
 
-        # MLX
-        if any(ext in nombre for ext in extensiones_mlx):
-            motores_asignados.append("mlx")
-            continue
+    # Safetensors
+    if any(nombre.endswith(ext.lower()) for ext in [".safetensors"]):
+        return "diffusers"
 
-        # Core ML
-        if any(ext in nombre for ext in extensiones_coreml):
-            motores_asignados.append("coreml")
-            continue
-
-        # Safetensors
-        if any(ext in nombre for ext in extensiones_safetensors):
-            motores_asignados.append("diffusers")
-            continue
-
-        # Por defecto: safetensors → diffusers
-        motores_asignados.append("diffusers")
-
-    if len(motores_asignados) == 1:
-        return motores_asignados[0]
-
-    # Retornar la preferencia principal
-    return motores_asignados[0] if motores_asignados else "diffusers"
+    # Por defecto: safetensors → diffusers
+    return "diffusers"
 
 
 def motor_para(archivo: str | list[str], archivos: list[str] | None = None) -> str:
