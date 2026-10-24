@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "GUI1021K2",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · el mismo acceso en la bienvenida y en retomar sesión",
+   "archivos": [
+    "src/components/welcome/welcome-window.tsx",
+    "src/components/sso/session-resume-prompt.tsx",
+    "src/components/welcome/__tests__/bienvenida-guia.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Añade «Conoce StarSeed» (bienvenida: `desde: 'bienvenida'`; retomar sesión: `desde: 'login'`) con `abrirGuia`, sin tocar nada más. Pruebas de los dos botones. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "GUI1021K2"
+  ]
+ }
+}
