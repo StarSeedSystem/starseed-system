@@ -147,10 +147,15 @@ def seguir(registro, ramas_remotas, progreso, ahora, gracia_h=8):
             salida[tid] = "olvidar"
         elif s.get("rama_pedida") in ramas_remotas:
             salida[tid] = "traer"
-        elif ahora - float(s.get("t") or 0) > gracia_h * 3600:
-            salida[tid] = "devolver"
         else:
-            salida[tid] = "esperar"
+            try:
+                t = float(s.get("t") or 0)
+            except (TypeError, ValueError):
+                t = None
+            if t is not None and ahora - t > gracia_h * 3600:
+                salida[tid] = "devolver"
+            else:
+                salida[tid] = "esperar"
     return salida
 
 

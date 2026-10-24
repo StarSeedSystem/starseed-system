@@ -117,6 +117,13 @@ class Seguir(unittest.TestCase):
         self.assertEqual(L.seguir(reg, {L.rama_pedida("A", "20261022")}, {"A": {"estado": "commit"}}, AHORA),
                          {"A": "olvidar"})
 
+    def test_seguir_con_fecha_ilegible_no_se_juzga_devolver(self):
+        """Rescatado de ALT1022A: una fecha que no se entiende no se cuenta como gracia pasada."""
+        reg = _registro("zN9")
+        reg["sesiones"][0]["t"] = "ayer sin formato"
+        progreso = {"zN9": dict(PRESTADA)}
+        self.assertEqual(L.seguir(reg, set(), progreso, AHORA), {"zN9": "esperar"})
+
     def test_seguir_ignora_las_ya_cerradas(self):
         reg = _registro("A")
         reg["sesiones"][0]["final"] = "traida"
