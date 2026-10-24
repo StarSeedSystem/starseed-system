@@ -1,0 +1,105 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "VAR1021Cd",
+   "ola": "1021V",
+   "importancia": "capacidad",
+   "titulo": "A1 · lo movido al A1 desde Genesis vuelve si su cola ya no corre allí (no se queda prestado para siempre)",
+   "archivos": [
+    "scripts/puente/oracle_nodo.py",
+    "scripts/puente/test_oracle_nodo.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nCaso real medido (2026-10-21 17:20 UTC): 36 tareas llevaban en progreso.json «reasignada · medio oracle» desde el 12-10 al 21-10 con el A1 SIN ningún orquestador vivo (el nodo decía «nada que hacer» cada 5 min). Todas tenían la nota «movida a oracle (colas/oracle-…) desde Genesis»: las movió la reasignación de Genesis (`reasignarTarea` → orden `soltar` + lanzamiento en el A1), que NO las apunta en los `lanzamientos` que lee `oracle_nodo.devolver_de_oracle`, así que nunca volvían. Y `traer_nube.py` tampoco traía sus ramas `nube/a1-*` porque «la tarea está reasignada ahora mismo: no se le pisa el trabajo»: bloqueo mutuo. Claude las devolvió a mano con el orquestador de la Mac parado.\n\nArreglo en `scripts/puente/oracle_nodo.py` (+ su prueba `scripts/puente/test_oracle_nodo.py`): `devolver_de_oracle` también devuelve las «reasignada · oracle» cuya nota cita una rama `colas/oracle-<fecha>` que el A1 ya no corre (no está en las colas vivas que da el nodo) y que lleva más de `gracia_s` sin moverse, aunque no esté en `lanzamientos`. Mientras el nodo diga que esa cola sigue viva, no se toca. Docstring en español con el caso medido. Pruebas: nota «movida a oracle (colas/oracle-20261018-231246) desde Genesis» con el A1 sin esa cola y más de 3 h → vuelve; con esa cola viva → no; las pruebas actuales en verde. Corre `python3 -m unittest scripts/puente/test_oracle_nodo.py` y lee su resumen entero.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-134548`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-134548:refs/remotes/origin/nube/a1-20261024-134548\"` y `git cherry-pick --no-commit 4a784de7fd0a 36e5a59e5afc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, scripts/puente/oracle_nodo.py, scripts/puente/test_oracle_nodo.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-134548"
+  },
+  {
+   "id": "CRM1024Ab",
+   "ola": "1024C",
+   "titulo": "Biblioteca · ficha de Cloudroom (servidor de agentes local y en la nube) con comprobación de versión",
+   "archivos": [
+    "src/lib/library/repos-os.ts",
+    "src/lib/library/__tests__/repos-os.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/cloudroom-servidor-agentes.md ENTERO. Comprueba primero si ya existe una ficha de Cloudroom en src/lib/library/repos-os.ts (grep -i cloudroom); si existe, NO APLICA. Añade la ficha repo-cloudroom con el MISMO formato que las fichas vecinas (p. ej. la de Filee o la de CodeGraph): nombre «Cloudroom», qué es (agentes de código en local o en sandboxes de la nube, una rama de git por agente), licencia «código abierto (núcleo cloudroom-core)», enlaces https://www.cloudroom.dev y https://github.com/davidondrej/cloudroom-gui, comprobación de versión por las releases de davidondrej/cloudroom-gui, lo gratis («local sin límite · 100 agentes en la nube cada 30 días por cuenta»), plataformas (macOS Apple Silicon ≥ 13 y Linux x64 alfa; el resto comingSoon con su motivo) y que abrir la ficha lleve a la sección de contenedores de agentes de Genesis si existe una ruta para ello (busca con grep la ruta que usan otras fichas de tipo proyecto). Amplía la prueba de repos-os con la ficha nueva. Máximo 120 líneas nuevas por archivo. Sin red.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40050172574`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama (la reasignación apuntaba al run 40073425475 de nube-gh, que ya terminó, y esta rama es de otro medio)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40050172574:refs/remotes/origin/nube/40050172574\"` y `git cherry-pick --no-commit d9bd602f4328`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/repos-os.test.ts, src/lib/library/repos-os.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "importancia": "capacidad",
+   "adelantar": "Alex 2026-10-24: priorizar Cloudroom como contenedor en la nube de los agentes",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40050172574"
+  },
+  {
+   "id": "ALT1021Cd",
+   "ola": "1021A",
+   "importancia": "capacidad",
+   "titulo": "Carril de alta capacidad · `alta-capacidad.py` lista las candidatas y el cupo de Claude para la dirección",
+   "archivos": [
+    "scripts/puente/alta-capacidad.py",
+    "scripts/puente/test_alta_capacidad_cli.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (regla de Alex, 2026-10-21): «para tareas muy complicadas … que requieran más capacidad de detalle en su producción y desarrollo técnico y creativo puedes utilizar agentes potentes más especializados (Claude Opus 5.5 en un contenedor en la nube, los más nuevos de Gemini y ChatGPT, o los gratuitos más potentes) supervisando los créditos para no agotarlos». Es el «carril de alta capacidad» de `memory/orquestacion-economica.md` §0. Hoy lo opera a mano la sesión de dirección (Cowork); estas tareas le dan una lista honesta de qué tareas lo necesitan y si hay cupo de Claude para ellas. Piloto medido: GUI1021D/E (dos agentes Opus, ~240k y ~280k tokens, 12/12 y 14/14 pruebas, tsc limpio).\n\nCrea `scripts/puente/alta-capacidad.py` (ejecutable, sin dependencias nuevas): lee `starseed_memory_root/olas/progreso.json`, las colas fuente (usa el MISMO cargador de colas que ya usa `scripts/puente/revisor_bloqueadas.py` o `reconciliar_progreso.py`; no escribas otro) y `limites_claude.leer()`. Con `alta_capacidad_logica` imprime: una línea de cupo («Cupo de Claude: sí/no · motivo»), y debajo las candidatas (id · título · estado · intentos) y cuáles elegiría ahora con `--en-marcha N` (por defecto 0). Con `--json` devuelve lo mismo como objeto {cupo:{ok,motivo}, candidatas:[…], elegidas:[…]}. Solo lee: no toca `progreso.json` ni lanza agentes.\n\nPruebas en `scripts/puente/test_alta_capacidad_cli.py`: con un directorio temporal de colas y progreso falsos (inyecta las rutas por variables de entorno o argumentos, como hacen los otros scripts del puente) comprueba la salida `--json`. Corre `python3 -m unittest scripts/puente/test_alta_capacidad_cli.py` y lee su resumen entero.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261023-080030`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261023-080030:refs/remotes/origin/nube/a1-20261023-080030\"` y `git cherry-pick --no-commit afcc9232d670 0a3d983f495c 6f3512e3b9cc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, scripts/puente/alta-capacidad.py, scripts/puente/test_alta_capacidad_cli.py, scripts/puente/test_alta_capacidad_nube.py, scripts/puente/test_alta_capacidad_nube_logica.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "ALT1021Ab"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261023-080030"
+  },
+  {
+   "id": "VOZ1024C",
+   "ola": "1024V",
+   "capacidad": "alta",
+   "importancia": "capacidad",
+   "titulo": "Chatterbox · el servicio local levanta de verdad su servidor HTTP (127.0.0.1:4505)",
+   "archivos": [
+    "native/astraura-voice/chatterbox/servidor.py",
+    "native/astraura-voice/chatterbox/test_servidor.py"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VZR1011B (2026-10-24): native/astraura-voice/chatterbox/servidor.py (VZR1011A) solo define las funciones de los endpoints y no levanta ningún servidor HTTP, así que el cliente src/lib/aurora/tts-oss/chatterbox.ts siempre encuentra el puerto 4505 cerrado. Levanta un servidor con la biblioteca estándar (http.server, solo 127.0.0.1, puerto por argumento o 4505) con GET /salud y POST /generar EXACTAMENTE con el contrato que espera chatterbox.ts (léelo). Si el paquete chatterbox no está instalado o no cabe en memoria, /salud lo dice (disponible: false y motivo) y /generar responde 503 sin colgarse; nunca descarga modelos solo. Pruebas Python sin modelo (servidor en un puerto libre, cliente urllib)."
+  },
+  {
+   "id": "VST1018K",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Malla · voz y oído de VoiceStudio servidos a otras neuronas de la cuenta y el grupo",
+   "archivos": [
+    "src/lib/network/voz-por-malla.ts",
+    "src/lib/network/__tests__/voz-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Manejadores PUROS para las capacidades `voz.hablar` y `oido.transcribir` del relé `capacidad.*` (src/lib/network/capacidad-por-malla.ts): admiten solo peticiones de la misma cuenta o de un grupo con permiso, rechazan audio de terceros sin permiso (clonacion.ts si existe; si no, solo la voz del propio solicitante), aplican licencia-voz.ts al contexto de la petición y devuelven { motor, motivo } o un rechazo legible. Sin red en las pruebas. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "VST1018C"
+   ],
+   "dependencias_ya_en_main": [
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "RLB1020K",
+   "titulo": "Biblioteca · el cargador lee también la 3.ª tanda, quita excluidas y no duplica repos que ya están",
+   "archivos": [
+    "src/lib/library/repos-externos-1020.ts",
+    "src/lib/library/__tests__/repos-externos-1020c.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020c.md y el catálogo verificado config/repos-libreria-1020c.json (14 `paquetes`, `duplicadas` y `excluidas`; datos reales, NO los cambies). `src/lib/library/repos-externos-1020.ts` ya lee las tandas 1020 y 1020b (RLB1020A y RLB1020D): súmale config/repos-libreria-1020c.json con el mismo mapeo. Añade a `REPOS_EXCLUIDOS` los `excluidas` de la 3.ª tanda (Kritt-ai/open-kritt). No dupliques: si un paquete builtin de `src/lib/library/packages.ts` ya apunta al mismo repo de GitHub por `payload.externalUrl` (p. ej. `iatool-penpot` → penpot/penpot), no se crea otro paquete con ese repo: exporta `REPOS_YA_PRESENTES: {repo, id}[]` para que se vea. Pruebas: ids únicos en las tres tandas; ningún repo excluido; penpot/penpot no aparece dos veces; las 13 restantes de la 3.ª tanda están. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical.",
+   "ola": "Ola 1020T · 3.ª tanda de repos para agentes, Astraura, Protomolécula, educación, mensajes, backend y servidores",
+   "dependencias_ya_en_main": [
+    "RLB1020D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "CRM1024Ab",
+   "VAR1021Cd",
+   "ALT1021Cd",
+   "VOZ1024C",
+   "RLB1020K",
+   "VST1018K"
+  ]
+ }
+}
