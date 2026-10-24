@@ -7,18 +7,31 @@
  * conecta; el Space va DESDE EL NAVEGADOR de cada persona (adaptador de los
  * Spaces de Pixal3D y TRELLIS.2, cuota ZeroGPU de cada quien; la ruta del
  * servidor /api/avatares/espacio-hf queda solo como respaldo) y la Biblioteca
- * por la subida de archivos del OS.
+ * por la subida de archivos del OS. Y lo que el Space no da (malla cerrada y
+ * niveles de detalle) queda encargado a la neurona que pueda con
+ * `encargoDeCierre` y el reparto de G3D1011D, leído del registro de MetaGenesis.
  */
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Destino3D } from "@/lib/avatares/adn/optimizacion";
-import { espaciosComoDependencia } from "@/lib/avatares/adaptadores/espacios-3d";
-import { hierroDeCapacidades } from "@/lib/avatares/adaptadores/reparto-taller";
+import { encargoDeCierre, espaciosComoDependencia } from "@/lib/avatares/adaptadores/espacios-3d";
+import { hierroDeCapacidades, type NeuronaTaller } from "@/lib/avatares/adaptadores/reparto-taller";
 import { useGenerar3d, type Contexto3D, type Dependencias3D } from "@/lib/avatares/adaptadores/use-generar-3d";
+import { leerEstadoAutonomo } from "@/lib/metagenesis/remoto-nodos-cliente";
 import { uploadFile } from "@/lib/files/os-files";
 import { saveResource, useSavedLibrary } from "@/lib/library-store";
 
 const ETAPA: Record<string, string> = { generar: "Generar la malla", remallar: "Remallar", riggear: "Esqueleto", detallar: "Mejorar detalle", animar: "Animar" };
 const DESTINO: Record<Destino3D, string> = { protomolecula: "Protomolécula", impresion: "Impresión", avatar: "Avatar", bot: "Cuerpo del bot", pieza: "Pieza" };
+
+/**
+ * Las neuronas del registro de MetaGenesis (G3D1011D): la parte `taller` que `resumirBus` adjunta a cada
+ * `NodoVista`. null si aquí no se leyó el registro (no se dice que no haya ninguna).
+ */
+function neuronasDelRegistro(): Promise<readonly NeuronaTaller[] | null> {
+  return leerEstadoAutonomo().then((e) =>
+    e.ok ? e.estado.nodos.map((n) => n.taller).filter((t): t is NeuronaTaller => !!t) : null,
+  ).catch(() => null);
+}
 
 /** Lo de verdad por defecto: sin taller local (no existe aún), Space desde el navegador de la persona y la Biblioteca. */
 function dependenciasDelOs(): Dependencias3D {
@@ -37,22 +50,52 @@ function dependenciasDelOs(): Dependencias3D {
     },
   };
 }
-export interface Generar3DProps { destino: Destino3D; contexto?: Partial<Omit<Contexto3D, "destino">>; dependencias?: Dependencias3D; etiqueta?: string }
+export interface Generar3DProps {
+  destino: Destino3D;
+  contexto?: Partial<Omit<Contexto3D, "destino">>;
+  dependencias?: Dependencias3D;
+  etiqueta?: string;
+  /** Las neuronas del registro de MetaGenesis; por defecto se leen de verdad al abrir el diálogo. */
+  leerNeuronas?: () => Promise<readonly NeuronaTaller[] | null>;
+}
 
-export function Generar3D({ destino, contexto, dependencias, etiqueta = "Crear en 3D desde una imagen" }: Generar3DProps) {
+export function Generar3D({ destino, contexto, dependencias, etiqueta = "Crear en 3D desde una imagen", leerNeuronas }: Generar3DProps) {
   const id = useId();
   const [abierto, setAbierto] = useState(false);
   const [img, setImg] = useState<{ blob: Blob; nombre: string } | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [permiso, setPermiso] = useState(false), [personas, setPersonas] = useState(false), [consiente, setConsiente] = useState(false);
+  const [neuronas, setNeuronas] = useState<readonly NeuronaTaller[] | null>(null);
+  const [cierre, setCierre] = useState<{ encargado: boolean; texto: string } | null>(null);
+  const cierreDeRef = useRef<string | null>(null);
+  // El encargo de cierre solo se calcula con el registro YA leído: si quien lo monta lo trae, ya está.
+  const [neuronasLeidas, setNeuronasLeidas] = useState(contexto?.neuronas !== undefined);
+  const leoNeuronas = useMemo(() => leerNeuronas ?? neuronasDelRegistro, [leerNeuronas]);
   const imagenes = useSavedLibrary().items.filter((r) => r.kind === "image" && r.url);
   const c = useMemo<Contexto3D>(() => ({
-    destino, region: null, comercial: false, cuenta: null, neuronas: null,
+    destino, region: null, comercial: false, cuenta: null, neuronas,
     hierro: typeof navigator === "undefined" ? null : hierroDeCapacidades({ platform: navigator.platform, memoryGb: (navigator as Navigator & { deviceMemory?: number }).deviceMemory }),
     ...contexto,
-  }), [destino, contexto]);
+  }), [destino, contexto, neuronas]);
   const deps = useMemo(() => dependencias ?? dependenciasDelOs(), [dependencias]);
   const { preparado: p, estado, generar, reiniciar } = useGenerar3d(c, deps);
+  // Al abrir el diálogo se lee el registro de neuronas de MetaGenesis (una vez, no en cada latido).
+  useEffect(() => {
+    if (!abierto) return;
+    let vivo = true;
+    setCierre(null);
+    cierreDeRef.current = null;
+    void leoNeuronas().then((n) => { if (vivo) { setNeuronas(n); setNeuronasLeidas(true); } });
+    return () => { vivo = false; };
+  }, [abierto, leoNeuronas]);
+  // Guardado el GLB, lo que el Space no da (malla cerrada y LOD) se le encarga a la neurona que pueda (§11.1/§11.2).
+  useEffect(() => {
+    if (estado.fase !== "hecha" || !neuronasLeidas) return;
+    if (cierreDeRef.current === estado.ref) return;
+    cierreDeRef.current = estado.ref;
+    const encargo = encargoDeCierre(destino, { cuenta: c.cuenta ?? null, grupos: c.grupos, region: c.region, comercial: c.comercial }, c.neuronas);
+    setCierre({ encargado: encargo.encargado, texto: encargo.encargado ? `Cierre y niveles de detalle: ${encargo.motivo} (la orden ya está formada para el préstamo de MetaGenesis).` : `Cierre y niveles de detalle pendientes: ${encargo.motivo}` });
+  }, [estado, destino, c, neuronasLeidas]);
   const remota = p.via === "remota", ocupado = estado.fase === "generando";
   const puede = !!img && p.via !== "ninguna" && !ocupado && (!remota || (permiso && (!personas || consiente)));
   const deBiblioteca = async (url: string, nombre: string) => {
@@ -102,6 +145,7 @@ export function Generar3D({ destino, contexto, dependencias, etiqueta = "Crear e
         {estado.fase === "hecha" && <div className="text-emerald-300"><p>Guardado en tu Biblioteca ({estado.ref}){estado.lods.length ? ` con niveles de detalle ${estado.lods.join(" · ")}` : ""}.</p>
           {estado.atribuciones.length > 0 && <p>Atribución obligatoria: {estado.atribuciones.join(" · ")}</p>}
           {estado.avisos.map((a) => <p key={a} className="text-amber-300">{a}</p>)}</div>}
+        {cierre && <p className={cierre.encargado ? "text-emerald-300" : "text-amber-300"}>{cierre.texto}</p>}
       </div>
       <div className="mt-3 flex gap-2">
         <button type="button" disabled={!puede} className="cursor-pointer rounded-xl border px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50"
