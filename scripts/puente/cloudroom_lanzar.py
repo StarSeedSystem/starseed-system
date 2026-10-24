@@ -7,13 +7,17 @@
   cloudroom_lanzar.py seguir [--seco] [--json]
 
 `lanzar` abre por tarea un hilo de la nube (`room-cli thread spawn --machine cloud`) con el brief y
-las puertas del enjambre y un modelo que la cuenta tiene EN LA NUBE (`cloud status --json`, nunca uno
-fijo), y deja la tarea `reasignada · cloudroom` (préstamo, no traspaso). Ritmo: lo que queda del ciclo
-de 30 días (100 hilos en el plan gratis) entre los días que faltan, con `MAX_VIVOS` hilos abiertos.
+las puertas del enjambre, y deja la tarea `reasignada · cloudroom (<harness>/<modelo>)` (préstamo, no
+traspaso). Los modelos (CRM1024J, `cloudroom_modelos`): solo los que la cuenta tiene EN LA NUBE
+(`cloud status --json`, nunca uno inventado), repartidos en rueda entre opencode/pi gratis, Codex
+(< 80 % de su cuota, la del enjambre) y Claude Code sonnet/haiku (semana < 30 %); si un spawn falla
+por el modelo, la tarea prueba el siguiente sin gastarse. Ritmo: lo que queda del ciclo de 30 días
+(100 hilos en el plan gratis) entre los días que faltan, con `MAX_VIVOS` hilos abiertos.
 `seguir` no se queda esperando (`thread list`, no `thread wait`): si el agente EMPUJÓ su rama
 `nube/cr-<fecha>/ola/<ID>`, la tarea vuelve a `pendiente` y se lanza `traer_nube`, que la trae con sus
 puertas (tsc, pruebas, revisión); si el hilo terminó sin rama, `environment diff-patch` se convierte
-en un commit sobre la base del hilo y se sube como esa misma rama. Nunca integra en main.
+en un commit sobre la base del hilo y se sube como esa misma rama. Un hilo cuyo sandbox no tenía el
+repo vuelve a `pendiente` como fallo del MEDIO (no gasta la tarea). Nunca integra en main.
 El registro `~/.starseed/cloudroom-hilos.json` no se poda: de él salen el consumo y lo que no se
 relanza. Decisiones PURAS probadas en `test_cloudroom_lanzar.py` (sin room-cli, sin red).
 """
@@ -21,11 +25,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 from datetime import datetime, timezone
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
@@ -33,6 +39,7 @@ if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
 import alta_capacidad_nube_logica as L  # noqa: E402  (brief y bloqueo por historial)
+import cloudroom_modelos as CM  # noqa: E402  (qué modelos de la nube caben y su rueda)
 import prioridad_logica as P  # noqa: E402
 import repartir_nube as RN  # noqa: E402
 import traer_nube  # noqa: E402
@@ -52,6 +59,21 @@ MIN_PARCHE_S = 600
 PERMISOS = "full"
 TRABAJANDO = frozenset({"running", "working", "busy", "queued", "starting", "pending", "in_progress",
                         "active", "thinking", "streaming"})
+#: Final de un hilo cuyo sandbox no tenía el repo: cuenta para el cupo de la cuenta (el hilo se abrió)
+#: pero no para la tarea (ni las 24 h ni `MAX_POR_TAREA`).
+FALLO_MEDIO = "medio"
+#: Dos fallos del medio seguidos paran los lanzamientos este tiempo: relanzar quemaría cupo en balde.
+PAUSA_MEDIO_H = 12
+#: El agente dice que su sandbox no tiene el proyecto (o git lo dice por él). Sin acentos ni mayúsculas.
+SIN_REPO = re.compile(
+    r"no es un repositorio( de)? git|not a git repository|"
+    r"no hay (una |ninguna )?copia del (proyecto|repo|repositorio)|"
+    r"(sandbox|entorno|carpeta|directorio)[^.\n]{0,40}\b(no tiene|no contiene|sin) (el |ningun |un )?(repo|repositorio|proyecto)\b|"
+    r"no hay (ningun |un )?(repo|repositorio|proyecto) en (el|este) (sandbox|entorno)|"
+    r"(does not|doesn't) (contain|have) (the|a) (repo|repository|project)")
+#: Campos de `thread list --json` donde puede venir lo último que dijo el hilo («preview» no: puede ser el prompt).
+CLAVES_FINAL = ("lastMessage", "last_message", "lastAssistantMessage", "last_assistant_message", "finalMessage",
+                "final_message", "lastResponse", "result", "summary", "output", "error", "statusMessage", "status_message")
 TERMINADO = frozenset({"idle", "completed", "complete", "done", "finished", "stopped", "succeeded",
                        "success", "failed", "error", "errored", "cancelled", "canceled", "archived", "exited"})
 
@@ -127,9 +149,27 @@ def ritmo(registro, ahora, total=100, usados_cuenta=0, max_vivos=MAX_VIVOS):
 
 
 def no_relanzar(registro, ahora):
-    """PURA: tareas con hilo abierto, lanzadas hace menos de 24 h o ya `MAX_POR_TAREA` veces."""
-    return (L.bloqueadas_por_historial(_filas(registro), ahora, REPETIR_TRAS_H, MAX_POR_TAREA)
+    """PURA: tareas con hilo abierto, lanzadas hace menos de 24 h o ya `MAX_POR_TAREA` veces. Un hilo
+    que acabó por fallo del medio (`FALLO_MEDIO`) no cuenta: la tarea no tuvo su oportunidad."""
+    contadas = [x for x in _filas(registro) if x.get("final") != FALLO_MEDIO]
+    return (L.bloqueadas_por_historial(contadas, ahora, REPETIR_TRAS_H, MAX_POR_TAREA)
             | {str(x["tarea"]) for x in abiertos(registro)})
+
+
+def pausa_por_medio(registro, ahora, horas=PAUSA_MEDIO_H):
+    """PURA: por qué no se lanza nada ahora ("" si se lanza): los dos últimos hilos cerrados acabaron
+    sin el repo en su sandbox hace menos de `horas`. Sin esta pausa, devolver sin gastar la tarea
+    haría que la siguiente pasada la relanzara una y otra vez contra el mismo medio roto."""
+    def t_final(x):
+        try:
+            return float(x.get("t_final") or x.get("t") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    ultimas = sorted((x for x in _filas(registro) if x.get("final")), key=t_final)[-2:]
+    if len(ultimas) < 2 or any(x.get("final") != FALLO_MEDIO for x in ultimas) or ahora - t_final(ultimas[-1]) >= horas * 3600:
+        return ""
+    return ("pausa: los 2 últimos hilos acabaron sin el repo en su sandbox (revisa el proyecto conectado en la app "
+            "Cloudroom); vuelve a probar a las %s" % time.strftime("%H:%M", time.localtime(t_final(ultimas[-1]) + horas * 3600)))
 
 
 def por_prioridad(ids, tareas, progreso, ahora):
@@ -156,9 +196,10 @@ def seleccionar(ids, tareas, progreso, registro, ahora, cupo):
     return salida
 
 
-def marca(modelo, ahora):
-    """Los campos de progreso de una tarea prestada a un hilo de Cloudroom."""
-    return {"estado": "reasignada", "medio": MEDIO, "nota": "reasignada · cloudroom (%s)" % modelo, "t": ahora}
+def marca(modelo, ahora, harness=""):
+    """Los campos de progreso de una tarea prestada a un hilo de Cloudroom (la nota dice harness y modelo)."""
+    etiqueta = "%s/%s" % (harness, modelo) if harness else modelo
+    return {"estado": "reasignada", "medio": MEDIO, "nota": "reasignada · cloudroom (%s)" % etiqueta, "t": ahora}
 
 
 def motivo_medio(medio):
@@ -174,26 +215,14 @@ def motivo_medio(medio):
 
 def modelos_nube(estado):
     """PURA: [(harness, modelo)] de `cloud status --json` (harnesses[].models[].model), en su orden."""
-    d = estado.get("data", estado) if isinstance(estado, dict) else {}
-    pares = []
-    for h in (d.get("harnesses") if isinstance(d, dict) else None) or []:
-        if not isinstance(h, dict) or h.get("available") is False or h.get("connected") is False:
-            continue
-        nombre = next((str(h[k]) for k in ("id", "harness", "name", "provider") if isinstance(h.get(k), str) and h[k]), "")
-        for m in h.get("models") or []:
-            modelo = m.get("model") if isinstance(m, dict) else m
-            if nombre and isinstance(modelo, str) and modelo.strip():
-                pares.append((nombre, modelo.strip()))
-    return pares
+    return [(h, m) for h, _d, modelos in CM.harnesses_nube(estado) for m in modelos]
 
 
 def elegir_modelo(estado, preferido=""):
-    """PURA: (harness, modelo) de los que la cuenta tiene EN LA NUBE; el `preferido`, solo si está."""
+    """PURA: (harness, modelo) de los que la cuenta tiene EN LA NUBE; el `preferido`, solo si está.
+    (`lanzar` ya no elige uno para todas: reparte con `cloudroom_modelos`.)"""
     pares = modelos_nube(estado)
-    for h, m in pares:
-        if preferido and preferido in (m, "%s/%s" % (h, m)):
-            return h, m
-    return pares[0] if pares else ("", "")
+    return CM.modelo_fijado(estado, preferido) or (pares[0] if pares else ("", ""))
 
 
 def uso_cuenta(estado, ahora):
@@ -263,16 +292,52 @@ def estado_hilo(hilo):
     return "trabajando" if s in TRABAJANDO else "desconocido"
 
 
+def _normal(texto):
+    """Minúsculas y sin acentos, para buscar frases del agente sin depender de cómo las escribió."""
+    return "".join(c for c in unicodedata.normalize("NFKD", str(texto or "")) if not unicodedata.combining(c)).lower()
+
+
+def sin_repo(texto):
+    """PURA: el texto dice que el sandbox no tenía el repo («no es un repositorio Git», «no hay una
+    copia del proyecto», «fatal: not a git repository»)."""
+    return bool(texto) and bool(SIN_REPO.search(_normal(texto)))
+
+
+def _textos(valor, prof=0):
+    if isinstance(valor, str):
+        return [valor]
+    if prof >= 3:
+        return []
+    if isinstance(valor, dict):
+        return [t for k in ("text", "content", "message", "body", "summary") for t in _textos(valor.get(k), prof + 1)]
+    if isinstance(valor, list):
+        return [t for v in valor[-3:] for t in _textos(v, prof + 1)]
+    return []
+
+
+def texto_final(hilo):
+    """PURA: lo último que dijo el hilo según `thread list --json` (los campos de `CLAVES_FINAL` y el
+    último de `messages`), como mucho 4.000 caracteres; "" si no trae nada."""
+    if not isinstance(hilo, dict):
+        return ""
+    partes = [t for k in CLAVES_FINAL for t in _textos(hilo.get(k))]
+    if isinstance(hilo.get("messages"), list) and hilo["messages"]:
+        partes += _textos(hilo["messages"][-1])
+    return "\n".join(partes)[-4000:]
+
+
 def _prestada(progreso, tid):
     e = progreso.get(tid) if isinstance(progreso, dict) else None
     return isinstance(e, dict) and e.get("estado") == "reasignada" and e.get("medio") == MEDIO
 
 
 def decidir(fila, ramas, hilos, progreso, ahora, gracia_h=GRACIA_H):
-    """PURA: qué hacer con un hilo abierto: «traer» | «parche» | «devolver» | «esperar» | «olvidar».
+    """PURA: qué hacer con un hilo abierto: «traer» | «parche» | «devolver» | «medio» | «esperar» | «olvidar».
 
     `ramas`: las `nube/cr-*` del remoto (None si no se pudieron leer: entonces solo se espera, para no
-    subir un parche encima de una rama que quizá ya existe). `hilos`: {id: hilo} o None."""
+    subir un parche encima de una rama que quizá ya existe). `hilos`: {id: hilo} o None. Un hilo
+    terminado que dice que su sandbox no tenía el repo va igual al diff-patch (nada se tira sin
+    mirar), sin esperar los 10 min; si el diff-patch ya falló 3 veces, «medio»: vuelve sin gastarse."""
     tid = str(fila["tarea"])
     if not _prestada(progreso, tid):
         return "olvidar"
@@ -281,8 +346,13 @@ def decidir(fila, ramas, hilos, progreso, ahora, gracia_h=GRACIA_H):
     if fila.get("rama_pedida") in ramas or any(r.startswith("nube/cr-") and r.endswith("/ola/" + tid) for r in ramas):
         return "traer"
     edad = ahora - _t(fila)
-    if hilos is not None and estado_hilo(hilos.get(str(fila["hilo"]))) == "terminado" and edad >= MIN_PARCHE_S:
-        return "devolver" if int(fila.get("intentos_parche") or 0) >= 3 else "parche"
+    hilo = hilos.get(str(fila["hilo"])) if hilos is not None else None
+    if hilos is not None and estado_hilo(hilo) == "terminado":
+        medio_roto = sin_repo(texto_final(hilo))
+        if int(fila.get("intentos_parche") or 0) >= 3:
+            return FALLO_MEDIO if medio_roto else "devolver"
+        if edad >= MIN_PARCHE_S or medio_roto:
+            return "parche"
     return "devolver" if edad > gracia_h * 3600 else "esperar"
 
 
@@ -336,6 +406,20 @@ def leer_registro():
     except (OSError, ValueError):
         return []
     return d if isinstance(d, list) else []
+
+
+def _leer_json(ruta, defecto):
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return defecto
+
+
+def leer_fuentes():
+    """(medidores, límites de Claude, salud de proveedores) del disco, para `cloudroom_modelos`. Lo
+    que falte se lee vacío: Codex queda «sin lectura» (se usa) y Claude Code fuera (pide lectura fresca)."""
+    return _leer_json(CM.MEDIDORES, {}), _leer_json(CM.LIMITES, {}), _leer_json(CM.SALUD, {})
 
 
 def _registrar(cambiar):
@@ -393,11 +477,12 @@ def _git(run, args, timeout=120, **kw):
 
 
 def lanzar(ids, seco=False, priorizar=False, medio=None, ahora=None, run=subprocess.run, cli=None):
-    """Abre hilos de la nube para las tareas de `ids` que caben hoy. Nunca lanza una excepción por
-    el medio: devuelve {"lanzadas", "quedan", "hoy", "motivo", "errores"}. `medio` y `cli` los da
-    la sonda de CRM1024D (`medio_cloudroom`) si no vienen dados."""
+    """Abre hilos de la nube para las tareas de `ids` que caben hoy, cada una con su modelo de la
+    rueda (`cloudroom_modelos`). Nunca lanza una excepción por el medio: devuelve {"lanzadas",
+    "quedan", "hoy", "motivo", "errores", "modelos": {tarea: "harness/modelo"}}. `medio` y `cli` los
+    da la sonda de CRM1024D (`medio_cloudroom`) si no vienen dados."""
     ahora = time.time() if ahora is None else ahora
-    res = {"lanzadas": [], "quedan": None, "hoy": 0, "motivo": "", "errores": []}
+    res = {"lanzadas": [], "quedan": None, "hoy": 0, "motivo": "", "errores": [], "modelos": {}}
     if medio is None or cli is None:
         import medio_cloudroom
 
@@ -406,12 +491,20 @@ def lanzar(ids, seco=False, priorizar=False, medio=None, ahora=None, run=subproc
     res["motivo"] = motivo_medio(medio)
     if res["motivo"]:
         return res
-    estado, err = _json_cli(run, [cli, "cloud", "status", "--json"])
-    harness, modelo = elegir_modelo(estado, os.environ.get("STARSEED_CLOUDROOM_MODELO", ""))
-    if not modelo:
-        res["motivo"] = "sin modelos en la nube para esta cuenta (%s)" % (err or "conecta un agente en la app")
-        return res
     registro = leer_registro()
+    res["motivo"] = pausa_por_medio(registro, ahora)
+    if res["motivo"]:
+        return res
+    estado, err = _json_cli(run, [cli, "cloud", "status", "--json"])
+    evaluado = CM.evaluar_modelos(estado, *leer_fuentes(), ahora)
+    candidatos = evaluado["candidatos"]
+    fijo = CM.modelo_fijado(estado, os.environ.get("STARSEED_CLOUDROOM_MODELO", ""))
+    fijo = (fijo[0], fijo[1], "fijado por STARSEED_CLOUDROOM_MODELO") if fijo else None
+    if not candidatos and not fijo:
+        descartes = CM.texto_descartes(evaluado["descartes"])
+        res["motivo"] = ("sin modelos en la nube que quepan ahora (%s)" % descartes if descartes else
+                         "sin modelos en la nube para esta cuenta (%s)" % (err or "conecta un agente en la app"))
+        return res
     r = ritmo(registro, ahora, *uso_cuenta(estado, ahora))
     res.update(quedan=r["quedan"], hoy=r["hoy"])
     if r["hoy"] <= 0:
@@ -426,10 +519,14 @@ def lanzar(ids, seco=False, priorizar=False, medio=None, ahora=None, run=subproc
             res["motivo"] = ("0 lanzadas: ninguna de las %d cedible(s) cabe (privadas, dependencias o ya "
                              "lanzadas)" % len(ids) if ids else "0 lanzadas: no hay tareas cedibles para la nube")
             return res
+        # La rueda: cada tarea empieza en el candidato siguiente al anterior (también entre pasadas).
+        ordenes = CM.orden_por_tarea(len(elegidas), candidatos, CM.inicio_rueda(candidatos, registro), fijo)
+        plan = {str(t["id"]): o[0] for t, o in zip(elegidas, ordenes)}
+        res["modelos"] = {tid: "%s/%s" % (c[0], c[1]) for tid, c in plan.items()}
         if seco:
-            res.update(lanzadas=[str(t["id"]) for t in elegidas], motivo="en seco · %s/%s" % (harness, modelo))
+            res.update(lanzadas=list(plan), motivo="en seco · %s" % ", ".join("%s→%s" % x for x in res["modelos"].items()))
             return res
-        traer_nube._actualizar_progreso({str(t["id"]): marca(modelo, ahora) for t in elegidas})
+        traer_nube._actualizar_progreso({tid: marca(c[1], ahora, c[0]) for tid, c in plan.items()})
     try:
         base = _git(run, ["rev-parse", "--verify", "-q", "origin/main^{commit}"])
     except (OSError, subprocess.SubprocessError, RuntimeError):
@@ -439,18 +536,39 @@ def lanzar(ids, seco=False, priorizar=False, medio=None, ahora=None, run=subproc
     if not proyecto:
         lista, _err = _json_cli(run, [cli, "project", "list", "--json"])
         proyecto = proyecto_del_repo(lista, traer_nube.RAIZ)
-    for t in elegidas:
+    rechazados = set()  # (harness, modelo) que la nube rechazó en esta pasada: no se prueban más
+    for t, intentos in zip(elegidas, ordenes):
         tid = str(t["id"])
         n = sum(1 for x in _filas(registro) if str(x["tarea"]) == tid) + 1
-        orden = orden_spawn(cli, t, brief(t, fecha), harness, modelo, "starseed-%s-%d" % (tid, n), proyecto)
-        datos, err = _json_cli(run, orden, timeout=180)
-        hilo = id_hilo(datos)
+        texto = brief(t, fecha)
+        probar = [c for c in intentos if (c[0], c[1]) not in rechazados][:CM.MAX_MODELOS_POR_TAREA]
+        datos, err, hilo, usado, fallidos = None, "" if probar else "la nube rechazó todos los modelos probados", "", None, []
+        for k, (h, m, _por) in enumerate(probar):
+            # Cada modelo con su `--request-id`: el mismo id sigue siendo idempotente para un reintento.
+            peticion = "starseed-%s-%d" % (tid, n) + ("-%d" % (k + 1) if k else "")
+            datos, err = _json_cli(run, orden_spawn(cli, t, texto, h, m, peticion, proyecto), timeout=180)
+            hilo = id_hilo(datos)
+            if hilo:
+                usado = (h, m)
+                break
+            if not CM.fallo_de_modelo(err):
+                break  # un fallo que no es del modelo (o un tiempo agotado: quizá se abrió) no se reintenta
+            rechazados.add((h, m))
+            fallidos.append("%s/%s" % (h, m))
         if not hilo:
-            _devolver({tid: {"estado": "pendiente", "medio": "", "nota": "Cloudroom no abrió el hilo: %s" % (err or "sin id")}})
-            res["errores"].append("%s: %s" % (tid, err or "spawn sin id de hilo"))
+            probados = " (probados: %s)" % ", ".join(fallidos) if fallidos else ""
+            _devolver({tid: {"estado": "pendiente", "medio": "", "nota": "Cloudroom no abrió el hilo: %s%s" % (err or "sin id", probados)}})
+            res["errores"].append("%s: %s%s" % (tid, err or "spawn sin id de hilo", probados))
+            res["modelos"].pop(tid, None)
             continue
+        harness, modelo = usado
+        if usado != tuple(plan[tid][:2]):
+            _devolver({tid: {"nota": marca(modelo, ahora, harness)["nota"]}})
+        res["modelos"][tid] = "%s/%s" % usado
         fila = {"tarea": tid, "hilo": hilo, "entorno": entorno_de(datos), "t": ahora, "rama_pedida": rama_pedida(tid, fecha),
                 "base": base, "harness": harness, "modelo": modelo, "titulo": t.get("titulo") or "", "ola": t.get("ola") or fecha}
+        if fallidos:
+            fila["modelos_rechazados"] = fallidos
         _registrar(lambda reg, fila=fila: reg.append(fila))
         res["lanzadas"].append(tid)
     res["quedan"] = max(0, r["quedan"] - len(res["lanzadas"]))
@@ -529,15 +647,23 @@ def seguir(aplicar=True, ahora=None, run=subprocess.run, traer=traer_en_fondo, c
     cambios, finales = {}, {}
     for f in filas:
         tid = str(f["tarea"])
+        nota_medio = ("devuelta de Cloudroom por fallo del MEDIO: el sandbox del hilo %s no tenía el repo "
+                      "(no gasta la tarea)" % f["hilo"])
         if acciones[tid] == "parche":
-            resultado, dato = _parche(f, (hilos or {}).get(str(f["hilo"])), cli, run)
-            if resultado == "error":
+            hilo = (hilos or {}).get(str(f["hilo"]))
+            resultado, dato = _parche(f, hilo, cli, run)
+            if resultado != "subido" and (sin_repo(texto_final(hilo)) or (resultado == "error" and sin_repo(dato))):
+                acciones[tid], nota = FALLO_MEDIO, nota_medio  # sin parche que salvar: el medio, no la tarea
+            elif resultado == "error":
                 res["errores"].append("%s: %s" % (tid, dato))
                 acciones[tid] = "esperar"
                 finales[tid] = {"intentos_parche": int(f.get("intentos_parche") or 0) + 1}
                 continue
-            acciones[tid] = "parche" if resultado == "subido" else "devolver"
-            nota = ("traída de Cloudroom por diff-patch (%s)" % f["rama_pedida"]) if resultado == "subido" else "el hilo de Cloudroom terminó sin cambios"
+            else:
+                acciones[tid] = "parche" if resultado == "subido" else "devolver"
+                nota = ("traída de Cloudroom por diff-patch (%s)" % f["rama_pedida"]) if resultado == "subido" else "el hilo de Cloudroom terminó sin cambios"
+        elif acciones[tid] == FALLO_MEDIO:
+            nota = nota_medio
         elif acciones[tid] == "traer":
             nota = "traída de Cloudroom: el hilo empujó %s" % f["rama_pedida"]
         elif acciones[tid] == "devolver":
@@ -548,7 +674,8 @@ def seguir(aplicar=True, ahora=None, run=subprocess.run, traer=traer_en_fondo, c
         else:
             continue
         cambios[tid] = {"estado": "pendiente", "medio": "", "nota": nota}
-        finales[tid] = {"final": {"traer": "traida", "parche": "parche"}.get(acciones[tid], "devuelta"), "t_final": ahora}
+        finales[tid] = {"final": {"traer": "traida", "parche": "parche", FALLO_MEDIO: FALLO_MEDIO}.get(acciones[tid], "devuelta"),
+                        "t_final": ahora}
     for tid in huer:
         cambios.setdefault(tid, {"estado": "pendiente", "medio": "", "nota": "devuelta: prestada a Cloudroom sin hilo en el registro"})
     if cambios:
@@ -573,7 +700,8 @@ def main(argv):
         if not ids:
             raise SystemExit(uso)
         r = lanzar(ids, seco="--seco" in argv)
-        texto = ("lanzadas: %s · quedan %s del ciclo" % (", ".join(r["lanzadas"]), r["quedan"])
+        texto = ("lanzadas: %s · quedan %s del ciclo" % (", ".join("%s (%s)" % (t, r["modelos"].get(t, "?")) for t in r["lanzadas"]),
+                                                         r["quedan"])
                  if r["lanzadas"] else r["motivo"]) + "".join("\n· " + e for e in r["errores"])
     elif argv[:1] == ["seguir"]:
         r = seguir(aplicar="--seco" not in argv)

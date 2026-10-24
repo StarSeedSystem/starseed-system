@@ -95,6 +95,12 @@ class Seleccion(unittest.TestCase):
         m = C.marca("gpt-6-luna", 123)
         self.assertEqual((m["estado"], m["medio"]), ("reasignada", "cloudroom"))
         self.assertIn("reasignada · cloudroom", m["nota"])
+        self.assertEqual(C.marca("nvidia/kimi-k3", 1, "opencode")["nota"], "reasignada · cloudroom (opencode/nvidia/kimi-k3)")
+
+    def test_el_fallo_del_medio_no_gasta_la_tarea(self):
+        reg = [fila("A", AHORA - 3600, final="medio"), fila("A", AHORA - 2 * DIA, hilo="h2", final="medio"),
+               fila("B", AHORA - 3600, final="devuelta")]
+        self.assertEqual([t["id"] for t in C.seleccionar(["A", "B"], self.tareas, {}, reg, AHORA, 9)], ["A"])
 
 
 class CliReal(unittest.TestCase):
@@ -169,9 +175,42 @@ class CliReal(unittest.TestCase):
         self.assertEqual(C.ids_argumento(["--ids=B, C", "--seco"]), ["B", "C"])
 
 
+class SinRepo(unittest.TestCase):
+    def test_frases_del_agente_y_de_git(self):
+        for texto in ("PENDIENTE-DE: el sandbox no es un repositorio Git", "No hay una copia del proyecto en /workspace",
+                      "fatal: not a git repository (or any of the parent directories): .git",
+                      "El entorno no tiene el repositorio de StarSeed", "NO ES UN REPOSITORIO DE GIT"):
+            self.assertTrue(C.sin_repo(texto), texto)
+        for texto in ("INTEGRABLE · rama nube/cr-1/ola/A · tsc y pruebas en verde (12)", "no pude empujar: sin permiso",
+                      "", None, C.PLANTILLA, C.brief({"id": "X", "titulo": "t", "prompt": "haz"}, "20261024")):
+            self.assertFalse(C.sin_repo(texto), texto)
+
+    def test_lo_ultimo_que_dijo_el_hilo(self):
+        self.assertEqual(C.texto_final({"lastMessage": {"content": [{"text": "uno"}, {"text": "dos"}]}}), "uno\ndos")
+        self.assertIn("no es un repositorio", C.texto_final({"messages": [{"content": "hola"}, {"text": "no es un repositorio Git"}]}))
+        self.assertEqual(C.texto_final({"preview": "el prompt", "title": "X"}), "")
+        self.assertEqual(C.texto_final(None), "")
+
+    def test_dos_fallos_del_medio_seguidos_paran_los_lanzamientos(self):
+        dos = [fila("A", AHORA - 7200, final="medio", t_final=AHORA - 3600), fila("B", AHORA - 7200, final="medio", t_final=AHORA - 600)]
+        self.assertTrue(C.pausa_por_medio(dos, AHORA).startswith("pausa: los 2 últimos"))
+        self.assertEqual(C.pausa_por_medio(dos, AHORA + 13 * 3600), "")
+        self.assertEqual(C.pausa_por_medio(dos[:1], AHORA), "")
+        bien = dos + [fila("C", AHORA - 7200, final="traida", t_final=AHORA - 60)]
+        self.assertEqual(C.pausa_por_medio(bien, AHORA), "")
+        self.assertEqual(C.pausa_por_medio(dos + [fila("D", AHORA - 60)], AHORA)[:5], "pausa")  # uno abierto no cuenta
+
+
 class Seguir(unittest.TestCase):
     def setUp(self):
         self.p = {"A": {"estado": "reasignada", "medio": "cloudroom"}}
+
+    def test_sandbox_sin_repo_va_al_diff_patch_y_luego_es_del_medio(self):
+        f = fila("A", AHORA - 60, rama_pedida="nube/cr-1/ola/A")
+        hilos = {"h-A": {"status": "idle", "lastMessage": "PENDIENTE-DE: no hay una copia del proyecto"}}
+        self.assertEqual(C.decidir(f, set(), hilos, self.p, AHORA), "parche")  # sin esperar los 10 min
+        self.assertEqual(C.decidir(dict(f, intentos_parche=3), set(), hilos, self.p, AHORA), "medio")
+        self.assertEqual(C.decidir(f, {"nube/cr-1/ola/A"}, hilos, self.p, AHORA), "traer")
 
     def test_rama_empujada_se_trae(self):
         f = fila("A", AHORA - 3600, rama_pedida="nube/cr-20261024/ola/A")
@@ -217,9 +256,15 @@ class Maquina(unittest.TestCase):
                    mock.patch.object(C.traer_nube, "PROGRESO", self.progreso),
                    mock.patch.object(C.traer_nube, "CERROJOS", self.dir),
                    mock.patch.object(C.RN, "CerrojoReparto", lambda *a, **k: nullcontext()),
+                   # las lecturas de cuotas, en la carpeta temporal (vacías salvo que la prueba las escriba)
+                   mock.patch.object(C.CM, "MEDIDORES", os.path.join(self.dir, "medidores.json")),
+                   mock.patch.object(C.CM, "LIMITES", os.path.join(self.dir, "limites.json")),
+                   mock.patch.object(C.CM, "SALUD", os.path.join(self.dir, "salud.json")),
+                   mock.patch.dict(os.environ, {"STARSEED_CLOUDROOM_MODELO": "", "STARSEED_CLOUDROOM_PROYECTO": "proj"}),
                    mock.patch.object(C.traer_nube, "_colas_por_id", lambda: {
                        "A": ("cola-x.json", {"id": "A", "titulo": "uno", "ola": "1024C", "prompt": "haz A"}),
-                       "B": ("cola-x.json", {"id": "B", "titulo": "dos", "prompt": "haz B"})})]
+                       "B": ("cola-x.json", {"id": "B", "titulo": "dos", "prompt": "haz B"}),
+                       "C": ("cola-x.json", {"id": "C", "titulo": "tres", "prompt": "haz C"})})]
         for p in parches:
             p.start()
             self.addCleanup(p.stop)
@@ -259,6 +304,124 @@ class Maquina(unittest.TestCase):
             (lambda o: o[1:3] == ["cloud", "status"], Hecho(out=json.dumps({"authenticated": True, "harnesses": []})))]))
         self.assertIn("sin modelos en la nube", r["motivo"])
         self.assertEqual(self.ordenes[-1][0][1:3], ["cloud", "status"])  # no se lanzó nada
+
+    NUBE = {"harnesses": [ESTADO_NUBE["harnesses"][0],
+                          {"id": "opencode", "models": [{"model": "nvidia/kimi-k3"}, {"model": "xkiro/qwen3-coder-plus"}]}]}
+
+    def spawns(self):
+        return [o for o, _ in self.ordenes if o[1:3] == ["thread", "spawn"]]
+
+    @staticmethod
+    def campo(orden, flag):
+        return orden[orden.index(flag) + 1]
+
+    def abre(self, falla=lambda o: None):
+        """room-cli simulado: cloud status con NUBE y cada spawn abre «h-<tarea>-<modelo>» salvo que `falla` diga el error."""
+        def spawn(o):
+            error = falla(o)
+            if error:
+                return Hecho(rc=1, err=error)
+            return Hecho(out=json.dumps({"thread": {"id": "h-%s-%s" % (self.campo(o, "--title")[0], self.campo(o, "--model"))}}))
+        def correr(orden, **kw):
+            self.ordenes.append((orden, kw.get("input")))
+            if orden[1:3] == ["cloud", "status"]:
+                return Hecho(out=json.dumps(self.NUBE))
+            return spawn(orden) if orden[1:3] == ["thread", "spawn"] else Hecho()
+        return correr
+
+    def test_lanzar_reparte_en_rueda_gratis_primero_y_anota_harness_y_modelo(self):
+        json.dump({"medidores": {"codex": {"ventanas": [{"usado_pct": 32}]}}}, open(C.CM.MEDIDORES, "w"))
+        r = C.lanzar(["A", "B", "C"], medio={"estado": "usable"}, ahora=AHORA, run=self.abre(), cli="room-cli")
+        self.assertEqual(r["lanzadas"], ["A", "B", "C"])
+        self.assertEqual(r["modelos"], {"A": "opencode/nvidia/kimi-k3", "B": "opencode/xkiro/qwen3-coder-plus", "C": "codex/gpt-6-luna"})
+        self.assertEqual([(self.campo(o, "--provider"), self.campo(o, "--model")) for o in self.spawns()],
+                         [("opencode", "nvidia/kimi-k3"), ("opencode", "xkiro/qwen3-coder-plus"), ("codex", "gpt-6-luna")])
+        self.assertEqual([(x["harness"], x["modelo"]) for x in C.leer_registro()],
+                         [("opencode", "nvidia/kimi-k3"), ("opencode", "xkiro/qwen3-coder-plus"), ("codex", "gpt-6-luna")])
+        p = json.load(open(self.progreso))
+        self.assertEqual(p["C"]["nota"], "reasignada · cloudroom (codex/gpt-6-luna)")
+        # la pasada siguiente sigue la rueda donde quedó (otro día, con las tres ya lanzadas cerradas)
+        reg = [dict(x, final="traida") for x in C.leer_registro()]
+        json.dump(reg, open(C.REGISTRO, "w"))
+        json.dump({}, open(self.progreso, "w"))
+        self.ordenes.clear()
+        r2 = C.lanzar(["A", "B"], medio={"estado": "usable"}, ahora=AHORA + 2 * DIA, run=self.abre(), cli="room-cli")
+        self.assertEqual(list(r2["modelos"].values()), ["codex/gpt-5.6-terra", "codex/gpt-5.6-luna"])
+
+    def test_spawn_que_falla_por_el_modelo_prueba_el_siguiente_sin_gastar_la_tarea(self):
+        rechazo = "HTTP 400: Cloud supports new Codex, Pi, … threads"
+        r = C.lanzar(["A", "B"], medio={"estado": "usable"}, ahora=AHORA, cli="room-cli",
+                     run=self.abre(lambda o: rechazo if self.campo(o, "--model") == "nvidia/kimi-k3" else None))
+        self.assertEqual(r["lanzadas"], ["A", "B"])
+        self.assertEqual(r["errores"], [])
+        hechos = [(self.campo(o, "--request-id"), self.campo(o, "--model")) for o in self.spawns()]
+        self.assertEqual(hechos, [("starseed-A-1", "nvidia/kimi-k3"), ("starseed-A-1-2", "xkiro/qwen3-coder-plus"),
+                                  ("starseed-B-1", "xkiro/qwen3-coder-plus")])  # B ya no prueba el rechazado
+        reg = C.leer_registro()
+        self.assertEqual((reg[0]["modelo"], reg[0]["modelos_rechazados"]), ("xkiro/qwen3-coder-plus", ["opencode/nvidia/kimi-k3"]))
+        p = json.load(open(self.progreso))
+        self.assertEqual((p["A"]["estado"], p["A"]["nota"]), ("reasignada", "reasignada · cloudroom (opencode/xkiro/qwen3-coder-plus)"))
+
+    def test_si_ningun_modelo_abre_el_hilo_la_tarea_vuelve(self):
+        r = C.lanzar(["A"], medio={"estado": "usable"}, ahora=AHORA, cli="room-cli",
+                     run=self.abre(lambda o: "Select a model with --model for Cloud"))
+        self.assertEqual(r["lanzadas"], [])
+        self.assertEqual(len(self.spawns()), C.CM.MAX_MODELOS_POR_TAREA)
+        self.assertIn("probados:", r["errores"][0])
+        self.assertEqual(json.load(open(self.progreso))["A"]["estado"], "pendiente")
+        self.assertEqual(C.leer_registro(), [])
+        # un tiempo agotado no se reintenta con otro modelo: el hilo quizá se abrió
+        self.ordenes.clear()
+        C.lanzar(["B"], medio={"estado": "usable"}, ahora=AHORA, cli="room-cli", run=self.abre(lambda o: "TimeoutExpired"))
+        self.assertEqual(len(self.spawns()), 1)
+
+    def test_respeta_el_modelo_fijado_por_entorno(self):
+        with mock.patch.dict(os.environ, {"STARSEED_CLOUDROOM_MODELO": "gpt-5.6-luna"}):
+            r = C.lanzar(["A", "B"], medio={"estado": "usable"}, ahora=AHORA, run=self.abre(), cli="room-cli")
+        self.assertEqual(set(r["modelos"].values()), {"codex/gpt-5.6-luna"})
+
+    def test_sin_modelos_que_quepan_dice_por_que_y_no_abre_nada(self):
+        json.dump({"medidores": {"codex": {"ventanas": [{"usado_pct": 85}]}}}, open(C.CM.MEDIDORES, "w"))
+        json.dump({"nim": {"estado": "caido"}, "xkiro": {"estado": "caído"}}, open(C.CM.SALUD, "w"))
+        r = C.lanzar(["A"], medio={"estado": "usable"}, ahora=AHORA, run=self.abre(), cli="room-cli")
+        self.assertTrue(r["motivo"].startswith("sin modelos en la nube que quepan ahora"))
+        self.assertIn("Codex al 85 %", r["motivo"])
+        self.assertEqual(self.spawns(), [])
+
+    def test_en_seco_dice_el_modelo_de_cada_tarea(self):
+        r = C.lanzar(["A", "B"], seco=True, medio={"estado": "usable"}, ahora=AHORA, run=self.abre(), cli="room-cli")
+        self.assertEqual(r["motivo"], "en seco · A→opencode/nvidia/kimi-k3, B→opencode/xkiro/qwen3-coder-plus")
+        self.assertEqual(self.spawns(), [])
+
+    def test_pausa_por_el_medio_no_llama_a_room_cli(self):
+        json.dump([fila("A", AHORA - 7200, final="medio", t_final=AHORA - 3600),
+                   fila("B", AHORA - 7200, final="medio", t_final=AHORA - 60)], open(C.REGISTRO, "w"))
+        r = C.lanzar(["C"], medio={"estado": "usable"}, ahora=AHORA, run=self.abre(), cli="room-cli")
+        self.assertTrue(r["motivo"].startswith("pausa:"))
+        self.assertEqual(self.ordenes, [])
+
+    def test_seguir_devuelve_por_fallo_del_medio_sin_gastar_la_tarea(self):
+        json.dump({x: {"estado": "reasignada", "medio": "cloudroom"} for x in "AB"}, open(self.progreso, "w"))
+        json.dump([fila("A", AHORA - 3600, hilo="hA", rama_pedida="nube/cr-1/ola/A"),
+                   fila("B", AHORA - 3600, hilo="hB", rama_pedida="nube/cr-1/ola/B")], open(C.REGISTRO, "w"))
+        correr = self.falso([
+            (lambda o: o[:2] == ["git", "ls-remote"], Hecho(out="")),
+            (lambda o: o[1:3] == ["thread", "list"], Hecho(out=json.dumps({"threads": [
+                {"id": "hA", "status": "completed", "lastMessage": {"text": "PENDIENTE-DE: el sandbox no es un repositorio Git"}},
+                {"id": "hB", "status": "completed", "environmentId": "eB"}]}))),
+            (lambda o: o[1:4] == ["environment", "diff-patch", "eB"], Hecho(rc=1, err="fatal: not a git repository")),
+            (lambda o: o[1:3] == ["environment", "diff-patch"], Hecho(out="")),
+        ])
+        r = C.seguir(ahora=AHORA, run=correr, traer=None, cli="room-cli")
+        self.assertEqual(r["acciones"], {"A": "medio", "B": "medio"})
+        self.assertEqual(r["errores"], [])
+        p = json.load(open(self.progreso))
+        self.assertEqual((p["A"]["estado"], p["B"]["estado"]), ("pendiente", "pendiente"))
+        self.assertIn("fallo del MEDIO", p["A"]["nota"])
+        reg = C.leer_registro()
+        self.assertEqual([x["final"] for x in reg], ["medio", "medio"])
+        tareas = {x: {"id": x} for x in "AB"}
+        self.assertEqual([t["id"] for t in C.seleccionar(["A", "B"], tareas, p, reg, AHORA + 60, 9)], ["A", "B"])
 
     def test_seguir_trae_lo_empujado_y_sube_el_diff_patch(self):
         json.dump({"A": {"estado": "reasignada", "medio": "cloudroom"}, "B": {"estado": "reasignada", "medio": "cloudroom"}},
