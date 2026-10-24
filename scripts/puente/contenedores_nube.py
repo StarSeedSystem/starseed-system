@@ -122,6 +122,16 @@ CATALOGO = {
         "coste": "Always Free (gratis para siempre): 2 OCPU · 12 GB · 10 TB/mes de salida",
         "lanza": "",
     },
+    # (2026-10-24) Cloudroom: hilos de su nube con Pi (proveedores gratuitos) o Codex; cupo de la cuenta.
+    "cloudroom": {
+        "servicio": "Cloudroom (agentes en su nube)",
+        "proveedor": "Cloudroom · Pi con NIM/xKiro gratis o Codex",
+        "horas_job": 0,
+        "jobs_simultaneos": 30,
+        "agentes_por_job": 1,
+        "coste": "100 agentes en la nube cada 30 días (plan gratis); los modelos, de cada proveedor",
+        "lanza": "python3 scripts/puente/cloudroom_lanzar.py lanzar --ids …",
+    },
     "claude-nube": {
         "servicio": "Sesiones de Claude Code en la nube",
         "proveedor": "Anthropic (crédito de sesiones en la nube)",
@@ -290,6 +300,23 @@ def resumir(contenedores: list) -> dict:
     }
 
 
+REGISTRO_CLOUDROOM = os.path.expanduser("~/.starseed/cloudroom-hilos.json")
+
+
+def vivos_cloudroom(registro, progreso) -> int:
+    """PURA: hilos de Cloudroom vivos = tareas con una fila sin `final` que siguen `reasignada` con
+    `medio: cloudroom` (como agentes-cloudroom.ts). Acepta la lista o el {hilos: […]} del piloto."""
+    filas = registro if isinstance(registro, list) else (registro or {}).get("hilos", []) if isinstance(registro, dict) else []
+    vivas = set()
+    for f in filas:
+        if not isinstance(f, dict) or f.get("final") or not isinstance(f.get("tarea"), str):
+            continue
+        e = (progreso or {}).get(f["tarea"])
+        if isinstance(e, dict) and e.get("estado") == "reasignada" and e.get("medio") == "cloudroom":
+            vivas.add(f["tarea"])
+    return len(vivas)
+
+
 def _vivos_por_medio() -> dict:
     """Agentes y runs vivos por medio, del mismo lector que alimenta el medidor de agentes."""
     try:
@@ -301,6 +328,8 @@ def _vivos_por_medio() -> dict:
         vivos = {}
     n = vivas_claude_nube(_leer_json(REGISTRO_CLAUDE, {}), _leer_json(PROGRESO, {}))
     vivos["claude-nube"] = {"agentes": n, "runs": n}
+    c = vivos_cloudroom(_leer_json(REGISTRO_CLOUDROOM, []), _leer_json(PROGRESO, {}))
+    vivos["cloudroom"] = {"agentes": c, "runs": c}
     return vivos
 
 

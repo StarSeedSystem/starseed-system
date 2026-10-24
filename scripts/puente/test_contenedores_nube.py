@@ -220,3 +220,15 @@ class ClaudeEnLaNube(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VivosCloudroom(unittest.TestCase):
+    def test_cuenta_hilos_vivos_por_tarea(self):
+        import contenedores_nube as CN
+        reg = [{"tarea": "A", "hilo": "1"}, {"tarea": "A", "hilo": "2"}, {"tarea": "B", "final": "traida"},
+               {"tarea": "C"}, "basura"]
+        prog = {"A": {"estado": "reasignada", "medio": "cloudroom"}, "B": {"estado": "reasignada", "medio": "cloudroom"},
+                "C": {"estado": "commit", "medio": "cloudroom"}}
+        self.assertEqual(CN.vivos_cloudroom(reg, prog), 1)
+        self.assertEqual(CN.vivos_cloudroom({"hilos": reg}, prog), 1)
+        self.assertEqual(CN.vivos_cloudroom(None, prog), 0)
