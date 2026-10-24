@@ -93,7 +93,7 @@ def tarea_de(p, fecha, i):
         # Dream se procesaran CADA VEZ que ocurren; con ids repetidos solo se
         # procesaba el primero.
         "id": "DR%s-%d" % (str(fecha).replace("-", "")[4:], i + 1),
-        "ola": "Ola Dream %s · lo que el análisis nocturno encontró" % fecha,
+        "ola": "Ola Imaginación %s · lo que el análisis nocturno encontró" % fecha,
         "titulo": p["titulo"],
         "archivos": [],
         "depende": [],
@@ -142,7 +142,7 @@ def main():
         return 0
 
     cola = [tarea_de(p, fecha, i) for i, p in enumerate(propuestas)]
-    destino = os.path.join(OLAS, "cola-dream-%s.json" % fecha)
+    destino = os.path.join(OLAS, "cola-imaginacion-%s.json" % fecha)
     os.makedirs(OLAS, exist_ok=True)
     with open(destino, "w", encoding="utf-8") as f:
         json.dump(cola, f, ensure_ascii=False, indent=2)
