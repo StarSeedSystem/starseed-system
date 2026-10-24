@@ -33,6 +33,15 @@ class Ritmo(unittest.TestCase):
         self.assertEqual((r["hoy"], r["quedan"]), (0, 97))
         self.assertIn("sin cupo hoy", r["motivo"])
 
+    def test_ritmo_diario_y_ventana(self):
+        # Tres lanzados hoy agotan el día; el de ayer no cuenta como hoy pero sí ocupa el ciclo.
+        ahora = AHORA - 2 * DIA
+        reg = [fila("A", ahora - 10, final="traida"), fila("B", ahora - 20, final="traida"),
+               fila("C", ahora - 30, final="traida"), fila("D", ahora - DIA - 1, final="traida")]
+        r = C.ritmo(reg, ahora)
+        self.assertEqual((r["hoy"], r["quedan"]), (0, 96))
+        self.assertIn("sin cupo hoy", r["motivo"])
+
     def test_ciclo_agotado_dice_sin_cupo(self):
         r = C.ritmo([], AHORA, total=100, usados_cuenta=100)
         self.assertEqual(r["hoy"], 0)
