@@ -111,6 +111,35 @@ class Disponible(unittest.TestCase):
             mock.patch.stopall()
 
 
+class HayNvidia(unittest.TestCase):
+    """`_hay_nvidia` lee `nvidia-smi -L` (simulado: aquí no hay GPU ni se lanza nada)."""
+
+    def _run(self, **kw):
+        return mock.patch.object(pa.subprocess, "run", **kw)
+
+    def test_nvidia_smi_con_gpu_y_comfyui_listo_dice_que_si(self):
+        listado = mock.MagicMock(returncode=0, stdout=b"GPU 0: NVIDIA GeForce RTX 3080 (UUID: GPU-x)")
+        with mock.patch.object(pa.platform, "system", return_value="Windows"), \
+             self._run(return_value=listado) as run:
+            self.assertTrue(pa.disponible(ComfyFalso())["ok"])
+        self.assertEqual(run.call_args.args[0], ["nvidia-smi", "-L"])
+
+    def test_sin_gpu_en_el_listado_o_con_error_dice_que_no(self):
+        for r in (mock.MagicMock(returncode=0, stdout=b"No devices were found"),
+                  mock.MagicMock(returncode=9, stdout=b"GPU 0: NVIDIA (fallo del driver)")):
+            with self._run(return_value=r):
+                self.assertFalse(pa._hay_nvidia())
+
+    def test_sin_nvidia_smi_o_si_se_cuelga_dice_que_no_sin_romper_disponible(self):
+        for fallo in (FileNotFoundError("nvidia-smi"), pa.subprocess.TimeoutExpired(["nvidia-smi", "-L"], 10)):
+            with self._run(side_effect=fallo):
+                self.assertFalse(pa._hay_nvidia())
+            with mock.patch.object(pa.platform, "system", return_value="Windows"), self._run(side_effect=fallo):
+                r = pa.disponible(ComfyFalso())
+            self.assertFalse(r["ok"])
+            self.assertIn("sin GPU NVIDIA", r["fallo"])
+
+
 class ParchearFlujo(unittest.TestCase):
     def test_cambia_solo_entrada_y_resolucion(self):
         f = pa.parchear_flujo(FLUJO_EJEMPLO, "avatar.png", 1536)

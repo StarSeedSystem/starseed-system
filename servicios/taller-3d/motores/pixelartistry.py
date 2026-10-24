@@ -43,7 +43,7 @@ def _hay_nvidia() -> bool:
     try:
         r = subprocess.run(["nvidia-smi", "-L"], capture_output=True, timeout=10)
         return r.returncode == 0 and b"GPU" in r.stdout
-    except OSError:
+    except (OSError, subprocess.SubprocessError):  # sin nvidia-smi, o colgado (TimeoutExpired no es OSError)
         return False
 
 def nodos_instalados(comfy: Any) -> list:
