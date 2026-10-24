@@ -19,6 +19,7 @@ import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-oper
 import { ENLACE_USO_CLAUDE, estadoCreditoClaude, resumenCreditoClaude, type ConfigCreditoClaude } from "./credito-claude";
 import { estadoLimitesClaude, resumenLimitesClaude } from "./limites-claude";
 import { DONDE_CLAUDE_NUBE, TEXTO_CLAUDE_NUBE } from "./agentes-claude-nube";
+import { DONDE_CLOUDROOM, TEXTO_CLOUDROOM } from "./agentes-cloudroom";
 import { estadoCreditos, type DocCreditos } from "./creditos-pago-tipos";
 import {
     resumirBloqueadas,
@@ -784,6 +785,8 @@ export function dondeLegible(donde: string | undefined): string {
             return "GitHub Actions (nube)";
         case DONDE_CLAUDE_NUBE:
             return "Sesión de Claude Code en la nube (crédito de sesiones)";
+        case DONDE_CLOUDROOM:
+            return "Hilo de la nube de Cloudroom";
         default:
             return donde;
     }
@@ -800,6 +803,8 @@ export function dondeCorto(donde: string | undefined): string {
             return "GitHub Actions";
         case DONDE_CLAUDE_NUBE:
             return "Claude en la nube";
+        case DONDE_CLOUDROOM:
+            return "Cloudroom";
         case "nube-cowork":
         case "cowork":
             return "Cowork";
@@ -2181,6 +2186,9 @@ export function detalleDeMedidor(
                 } else if (l.donde === DONDE_CLAUDE_NUBE) {
                     estado = "escribiendo";
                     porque = `${TEXTO_CLAUDE_NUBE}${l.url ? ` · ${l.url}` : ""}`;
+                } else if (l.donde === DONDE_CLOUDROOM) {
+                    estado = "escribiendo";
+                    porque = `${TEXTO_CLOUDROOM}${l.modelo ? ` · ${l.modelo}` : ""}`;
                 } else if (externo) {
                     estado = "trabajando fuera";
                     porque = `fase: ${l.fase ?? "sin fase"} · avisa al cambiar de fase (no escribe registro en la Mac)`;

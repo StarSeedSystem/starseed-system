@@ -23,6 +23,7 @@ import { lanzarPublicacion, leerDiario } from "@/lib/mando/publicador";
 import { POST as reintentarTareas } from "@/app/api/mando/reintentar/route";
 import { leerCreditosPago } from "@/lib/mando/creditos-pago";
 import { agentesDeClaudeNube } from "@/lib/mando/agentes-claude-nube";
+import { agentesDeCloudroom } from "@/lib/mando/agentes-cloudroom";
 import {
     colaInteligente,
     enjambreEnMarcha,
@@ -378,6 +379,16 @@ async function leerSesionesClaudeNube(progreso: Record<string, { estado?: unknow
     try {
         const crudo = await readFile(path.join(os.homedir(), ".starseed", "alta-capacidad-nube.json"), "utf8");
         return agentesDeClaudeNube(JSON.parse(crudo) as { sesiones?: unknown }, progreso);
+    } catch {
+        return [];
+    }
+}
+
+/** (2026-10-24) Los hilos de la nube de Cloudroom vivos, del registro de su lanzador (cloudroom_lanzar.py). */
+async function leerHilosCloudroom(progreso: Record<string, { estado?: unknown; medio?: unknown }>) {
+    try {
+        const crudo = await readFile(path.join(os.homedir(), ".starseed", "cloudroom-hilos.json"), "utf8");
+        return agentesDeCloudroom(JSON.parse(crudo), progreso);
     } catch {
         return [];
     }
@@ -799,7 +810,12 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         titulos,
         // Los de la nube se SUMAN a los de la Mac: el medidor de agentes tiene que contar
         // toda la capacidad viva, no solo la de esta máquina.
-        latidos: [...latidosDeAqui, ...agentesNube, ...(await leerSesionesClaudeNube(progreso))],
+        latidos: [
+            ...latidosDeAqui,
+            ...agentesNube,
+            ...(await leerSesionesClaudeNube(progreso)),
+            ...(await leerHilosCloudroom(progreso)),
+        ],
         escritores,
         fantasmas,
         // (2026-10-09) Lo que el director ya decidió y el vigilante aún no aplicó (espera a que
