@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "VGM1016N",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Paquete base de imágenes con los nuevos: Z-Image-Turbo por defecto donde quepa, Turbo GGUF solo como personal",
+   "archivos": [
+    "src/lib/imagenes/sugerencias.ts",
+    "src/lib/imagenes/__tests__/imagenes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Que `paqueteBase` proponga Z-Image-Turbo (libre) como opción rápida de calidad donde quepa, y Qwen-Image-2.1-Turbo en GGUF (Q3_K_S 2,72 GB en la Mac de 8 GB, Q4_K_M 4,2 GB en el A1) solo cuando la persona activó modelos de uso personal (parámetro nuevo opcional `permitirPersonal`, falso por defecto), siempre con su motivo en `porQue`. No cambies el comportamiento sin ese parámetro salvo añadir Z-Image-Turbo. Pruebas. Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español.",
+   "dependencias_ya_en_main": [
+    "VGM1016M"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "VGM1016N"
+  ]
+ }
+}
