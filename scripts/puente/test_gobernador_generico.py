@@ -24,6 +24,7 @@ import colmena_logica as C  # noqa: E402
 from gobernador_generico import (  # noqa: E402
     de_meminfo, de_sysctl, de_bateria_linux, de_pmset,
     herramientas, medir, _version_a_numero, _es_android,
+    _es_wsl, _obtener_red, _obtener_nucleos, _obtener_disco_libre_gb, _obtener_bateria,
 )
 
 
@@ -413,6 +414,51 @@ class TestMedir(unittest.TestCase):
         self.assertGreater(len(veredicto["motivo"]), 0)
         self.assertIsInstance(veredicto["falta"], list)
     
+    def test_es_wsl_consistente_con_proc_version(self):
+        try:
+            with open("/proc/version", "r") as f:
+                contenido = f.read().lower()
+            esperado = "microsoft" in contenido or "wsl" in contenido
+        except OSError:
+            esperado = False
+        self.assertEqual(_es_wsl(), esperado)
+
+    def test_obtener_red_sin_dato_no_se_inventa(self):
+        self.assertEqual(_obtener_red(), {})
+
+    def test_obtener_nucleos_al_menos_uno(self):
+        nucleos = _obtener_nucleos()
+        self.assertIsInstance(nucleos, int)
+        self.assertGreaterEqual(nucleos, 1)
+
+    def test_disco_libre_del_repo_positivo(self):
+        disco = _obtener_disco_libre_gb()
+        self.assertIsNotNone(disco)
+        if disco is not None:
+            self.assertGreater(disco, 0.0)
+
+    def test_obtener_bateria_con_forma_valida_si_presente(self):
+        bateria = _obtener_bateria()
+        if bateria:
+            self.assertIn("nivel", bateria)
+            self.assertIn("cargando", bateria)
+            self.assertIsInstance(bateria["cargando"], bool)
+            self.assertGreaterEqual(bateria["nivel"], 0.0)
+            self.assertLessEqual(bateria["nivel"], 1.0)
+
+    def test_pytest_recoge_test_gobernador_desde_la_raiz(self):
+        """El caso real que tumbaron a la nube: pytest sobre ESTE archivo desde la raíz."""
+        import subprocess, os
+        r = subprocess.run(
+            [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
+             os.path.join("scripts", "puente", os.path.basename(__file__))],
+            cwd=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            capture_output=True, text=True, timeout=120,
+        )
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("ModuleNotFoundError", r.stdout + r.stderr)
+        self.assertIn("test_gobernador_generico.py", r.stdout)
+
     def test_medir_so_valido(self):
         """Verifica que el SO detectado sea uno de los esperados."""
         resultado = medir()
