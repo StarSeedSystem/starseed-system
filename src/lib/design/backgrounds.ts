@@ -46,6 +46,31 @@ export const BACKGROUND_REGISTRY: Record<string, BackgroundDef> = {
         name: "Clima en vivo",
         description: "Refleja el clima REAL de tu ubicación (lluvia, nieve, niebla o sol) y la hora del día.",
     },
+    "vacio-profundo": {
+        id: "vacio-profundo",
+        name: "Vacío profundo",
+        description: "Fondo cósmico profundo para escenas Astraura, XR y red de nodos.",
+    },
+    "degradado-claridad": {
+        id: "degradado-claridad",
+        name: "Degradado Claridad",
+        description: "Degradado radiante claro para documentos y páginas luminosas.",
+    },
+    "degradado-profundidad": {
+        id: "degradado-profundidad",
+        name: "Degradado Profundidad",
+        description: "Degradado nocturno profundo para atmósferas cósmicas.",
+    },
+    "degradado-natural": {
+        id: "degradado-natural",
+        name: "Degradado Natural",
+        description: "Degradado orgánico boscoso para materia viva y ecología.",
+    },
+    "degradado-cristal": {
+        id: "degradado-cristal",
+        name: "Degradado Cristal",
+        description: "Degradado cristalino técnico para interfaces futuristas.",
+    },
 };
 
 export function listBackgrounds(): BackgroundDef[] {
