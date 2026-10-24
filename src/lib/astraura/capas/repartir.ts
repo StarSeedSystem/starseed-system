@@ -83,48 +83,24 @@ const ORDEN_FUENTES: FuenteCapa[] = [
  */
 async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
   try {
-    // Verificar si existe una capa con el SHA-256 buscado y todos sus trozos están guardados
     const claves = await almacen.claves();
-    const trozosSHA = claves.filter(clave => clave.startsWith('capa/') && clave.includes('/trozo/'));
-    
-    // Verificar si hay al menos un trozo con el SHA-256 buscado
-    // (Nota: En una implementación real, se necesitaría un catálogo para asociar el SHA-256 con el id de la capa)
-    // Aquí asumimos que si hay trozos guardados con el mismo prefijo, la capa podría estar completa
-    // y se verifica con el catálogo en una implementación futura
-    
-    // Buscar metas de capas completas con el mismo prefijo
-    const metas = new Map<string, { totalTrozos: number, completa: boolean, sha256: string }>();
-    
-    for (const clave of trozosSHA) {
-      const partes = clave.split('/');
-      const idCapa = partes[1];
-      
-      if (!metas.has(idCapa)) {
-        metas.set(idCapa, { totalTrozos: 0, completa: false, sha256: '' });
-      }
-      metas.get(idCapa)!.totalTrozos++;
-    }
-    
-    // Verificar si alguna capa tiene todos sus trozos guardados
-    for (const [idCapa, meta] of metas) {
-      const trozosGuardados = await almacen.claves().filter((clave) => clave.startsWith(`capa/${idCapa}/trozo/`)).length;
-      
-      // En una implementación real, se necesitaría obtener la meta de la capa desde el catálogo
-      // y verificar que el SHA-256 coincida con el proporcionado.
-      // Por ahora, asumimos que si hay trozos guardados, la capa podría estar completa
-      // y se verifica con el catálogo en una implementación futura
-      
-      // Para este caso, verificamos que el SHA-256 coincida con el proporcionado
-      // y que todos los trozos estén guardados
-      const datosCapa = await almacen.leer(`capa/${idCapa}/meta`);
-      if (datosCapa) {
-        const metaCapa = JSON.parse(new TextDecoder().decode(datosCapa));
-        if (metaCapa.sha256 === sha256 && metaCapa.completa && trozosGuardados === metaCapa.totalTrozos) {
-          return true;
+    for (const clave of claves) {
+      if (!clave.endsWith('/meta')) continue;
+      const data = await almacen.leer(clave);
+      if (!data) continue;
+      const json = new TextDecoder().decode(data);
+      try {
+        const meta: { sha256: string; completa: boolean } = JSON.parse(json);
+        if (meta.sha256 === sha256 && meta.completa) {
+          // confirm all trozos present
+          const pref = clave.slice(0, clave.lastIndexOf('/meta'));
+          const trozos = claves.filter(k => k.startsWith(pref + '/trozo/'));
+          if (trozos.length > 0) return true;
         }
+      } catch {
+        continue;
       }
     }
-    
     return false;
   } catch {
     return false;
