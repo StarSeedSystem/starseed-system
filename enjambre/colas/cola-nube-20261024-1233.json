@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "LSD1020A",
+   "ola": "1020U",
+   "titulo": "LocalSend · protocolo v2 puro (anuncio, registro, subida, cancelar, PIN) y su paso al motor de archivos de la malla",
+   "archivos": [
+    "src/lib/malla/localsend/protocolo.ts",
+    "src/lib/malla/localsend/__tests__/protocolo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2. Protocolo v2 verificado el 2026-10-20 (github.com/localsend/protocol): puerto 53317 (TCP y UDP), multidifusión 224.0.0.167; anuncio `{alias, version: \"2.0\", deviceModel, deviceType, fingerprint, port, protocol, download, announce}`; respuesta por `POST /api/localsend/v2/register`; subida `POST /api/localsend/v2/prepare-upload` (`{info, files: {<id>: {id, fileName, size, fileType, sha256?, preview?}}}` → `{sessionId, files: {<id>: token}}`; 204 nada que enviar, 401 PIN, 403 rechazado), `POST /api/localsend/v2/upload?sessionId&fileId&token` (422 si el sha256 no casa) y `POST /api/localsend/v2/cancel?sessionId`; PIN con `?pin=`. Escribe tipos, constructores y lectores validados (lo mal formado → null), las URL con URLSearchParams y `ofertaDesdeLocalSend` / `archivoParaLocalSend` hacia y desde `MsgOferta` de `src/lib/network/archivos-malla.ts`. La descarga por navegador (HTTP sin cifrar) no se implementa. Pruebas de ida y vuelta y de cada error. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "PDF1020A",
+   "ola": "1020U",
+   "titulo": "Stirling-PDF · el cliente ofrece solo las operaciones que la instancia tiene (rotar, dividir, páginas, comprimir, OCR, marca de agua)",
+   "archivos": [
+    "src/lib/integrations/clients/stirling-pdf.ts",
+    "src/lib/integrations/clients/__tests__/stirling-pdf-operaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2. Añade `operacionesDisponibles(cfg)`, que lee la descripción de API de la instancia (`GET {endpoint}/v1/api-docs`) y devuelve las rutas que existen, y un catálogo `OPERACIONES_PDF` con sus campos: rotar (`/api/v1/general/rotate-pdf`, `angle`), dividir (`/api/v1/general/split-pages`, `pageNumbers`), quitar páginas (`/api/v1/general/remove-pages`, `pageNumbers`), reordenar (`/api/v1/general/rearrange-pages`, `pageOrder`), comprimir (`/api/v1/misc/compress-pdf`, `optimizeLevel`), OCR (`/api/v1/misc/ocr-pdf`, `languages`) y marca de agua (`/api/v1/security/add-watermark`, `watermarkType`, `watermarkText`), además de las que ya hay. Verificadas el 2026-10-20 en la instancia del A1 (Stirling-PDF 3.2.0: 319 rutas en /v1/api-docs, todas estas presentes; rotar un PDF de 2 páginas tardó 0,29 s). Aun así se ofrecen SOLO si la instancia que toque las tiene; si no, no aparecen. `ejecutarOperacion(cfg, id, archivo, parametros)` con el `proxyUpload` existente y campo `fileInput`; el código nuevo sin `any`. Pruebas con fetch simulado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "CNX1020A",
+   "ola": "1020U",
+   "titulo": "Conectores · direcciones de los servicios instalados en el A1 (por el túnel de la Mac) como valores por defecto en localhost",
+   "archivos": [
+    "src/lib/servidores/servicios-a1.ts",
+    "src/lib/servidores/__tests__/servicios-a1.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md (§7, instalado y medido) y el catálogo config/repos-libreria-1020d.json. Módulo puro `SERVICIOS_A1` con cada servicio instalado el 2026-10-20 en el A1 y cómo se llega desde la Mac por el túnel `com.starseed.tunel-servicios-a1` (solo 127.0.0.1): LibreTranslate http://127.0.0.1:5100 (en el A1 es el 5000; en la Mac el 5000 es de AirPlay), Stirling-PDF http://127.0.0.1:8180, ArchiveBox http://127.0.0.1:8001, ComfyUI http://127.0.0.1:8188 y OpenHands Agent Server http://127.0.0.1:8010, con su versión, RAM medida, arranque en frío y que se encienden bajo demanda. `urlPorDefecto(servicio, entorno)` devuelve esa dirección SOLO cuando el OS corre en localhost o en la app nativa de la Mac (una página https no puede llamar a 127.0.0.1) y `null` en cualquier otro medio, con su motivo; las variables `COMFYUI_URL`, `LIBRETRANSLATE_URL`, etc. mandan si existen. `esperaFria(servicio)` dice cuánto puede tardar la primera llamada (p. ej. Stirling-PDF 109 s, ComfyUI 22 s más la carga del modelo) para que quien llama no lo dé por caído antes de tiempo. Pruebas de cada medio y de la prioridad de las variables. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "OHS1020A",
+   "ola": "1020U",
+   "titulo": "OpenHands · cliente puro del Agent Server (conversaciones, mensajes, ejecutar, pausar, eventos y confirmación)",
+   "archivos": [
+    "src/lib/agentes/openhands-servidor.ts",
+    "src/lib/agentes/__tests__/openhands-servidor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md (§2 y §7). La API del Agent Server ya está VERIFICADA: su descripción real (OpenAPI de la versión 1.7.1 instalada en el A1) está en docs/referencias/openhands-agent-server-1.7.1-openapi.json; búscala con grep, no la cargues entera. Escribe un cliente puro con `fetch` inyectado, `redirect: \"manual\"` y tope de tiempo: `salud()` (GET /health), `crearConversacion(cfg)` (POST /api/conversations, con los campos que pide su esquema), `enviarMensaje(id, texto)` (POST /api/conversations/{id}/events con el esquema de mensaje del archivo), `ejecutar(id)` (POST …/run), `pausar(id)` (POST …/pause), `eventos(id, desde?)` (GET …/events/search) y `politicaConfirmacion(id, politica)` (POST …/confirmation_policy). Usa SOLO rutas y campos que estén en ese archivo; si algo no está, no lo pongas. La clave del modelo la pasa quien llama y nunca aparece en errores. Por defecto, política de confirmación que pide permiso antes de acciones (los agentes no actúan sin aprobación). Pruebas con fetch simulado de cada función y de los errores. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "RTS1010-MGR2",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Guardia sin node:* también para /metagenesis",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea S1010-MGR2 («Guardia sin node:* también para /metagenesis») se hizo en main por otro camino; su rama nube/a1-20261014-071705 queda archivada en `refs/archivo/nube/a1-20261014-071705` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTS1010-MGR2 · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "S1010-MGR2",
+    "rama": "nube/a1-20261014-071705"
+   }
+  },
+  {
+   "id": "RTS1010-MGR2b",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Guardia sin node:* también para /metagenesis",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea S1010-MGR2 («Guardia sin node:* también para /metagenesis») se hizo en main por otro camino; su rama nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc queda archivada en `refs/archivo/nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTS1010-MGR2b · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "S1010-MGR2",
+    "rama": "nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc"
+   }
+  }
+ ]
+}
