@@ -16,7 +16,7 @@
  */
 import { planImagen, type CapaImg, type NeuronaImg, type OpcionImagen, type PeticionImagen } from "@/lib/imagenes/plan";
 import { modeloPorId, MOTORES_IMG, type CapacidadImg, type MotorImg } from "@/lib/imagenes/modelos";
-import { ejecutarEspacio } from "@/lib/imagenes/adaptadores/espacios-imagen";
+import { ejecutarEspacio, infoEspacio } from "@/lib/imagenes/adaptadores/espacios-imagen";
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 
 /** Una opción de la galería que ve la Protomolécula: de dónde salió, con qué licencia y cuánto tardó. */
@@ -156,9 +156,12 @@ export function armarOpcion(
     op.capa === "web-gratis" ? "la web gratis" :
     op.capa === "espacio" ? `su Space de Hugging Face` :
     op.neuronaId ? `tu neurona «${op.neuronaId}»` : "tu aparato";
-  const atribucion = m
-    ? `Generada con ${m.nombre} (${m.licencia}) en ${donde}.`
-    : "Generada con Pollinations (web gratis).";
+  const infoEsp = op.capa === "espacio" && op.modelo ? infoEspacio(op.modelo.espacio ?? "", op.modelo) : null;
+  const licenciaEsp = infoEsp ? infoEsp.licencia : (m ? m.licencia : LICENCIA_WEB);
+  const hechoEnSpace = infoEsp ? infoEsp.hechoEnSpace : "";
+  const atribucion = op.capa === "espacio" && infoEsp
+    ? `Generada con ${m ? m.nombre : "Space público"} (${licenciaEsp}) — ${hechoEnSpace}`
+    : (m ? `Generada con ${m.nombre} (${m.licencia}) en ${donde}.` : "Generada con Pollinations (web gratis).");
   return {
     ...(res.url ? { url: res.url } : {}),
     ...(res.ref ? { ref: res.ref } : {}),
@@ -166,7 +169,7 @@ export function armarOpcion(
     capa: op.capa,
     ...(op.neuronaId ? { neurona: op.neuronaId } : {}),
     semilla: op.semilla,
-    licencia: m ? m.licencia : LICENCIA_WEB,
+    licencia: licenciaEsp,
     uso: m ? m.uso : "libre",
     atribucion,
     segundos: res.segundos,
