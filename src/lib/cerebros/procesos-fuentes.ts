@@ -71,13 +71,21 @@ async function leerFuenteFetch(url: string): Promise<ResultadoFuente> {
         }
         const data = await r.json().catch(() => null);
         return { ok: true, data, ms, motivo: undefined };
-    } catch (e: any) {
+    } catch (e) {
+        const error = e as Error | DOMException | { message?: string; status?: number };
         clearTimeout(tope);
         const ms = Date.now() - inicio;
-        if (e instanceof DOMException && e.name === "AbortError") {
+        if (error instanceof DOMException && error.name === "AbortError") {
             return { ok: false, data: null, ms, motivo: " tiempo agotado" };
         }
-        return { ok: false, data: null, ms, motivo: e?.message ?? " error desconocido" };
+        if (error.status !== undefined) {
+            const motivo = [401, 403, 404].includes(error.status)
+                ? " no disponible aquí"
+                : ` error ${error.status}`;
+            return { ok: false, data: null, ms, motivo };
+        }
+        const motivo = (error as Error).message ?? " error desconocido";
+        return { ok: false, data: null, ms, motivo };
     }
 }
 
