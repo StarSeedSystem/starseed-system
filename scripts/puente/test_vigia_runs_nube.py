@@ -218,6 +218,22 @@ class VaradasPuras(unittest.TestCase):
         prog = {"X": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 9}}
         self.assertEqual(VR.varadas_tras_su_run(prog, {"9": "completed"}, set(), HOY, ids_vivos={"X"}), [])
 
+    def test_otro_medio_o_otra_nota_se_quedan(self):
+        """El vigía de nube-gh no toca las de `oracle`/`claude-nube` ni las que no citan su run."""
+        prog = {
+            "ORACLE": {"estado": "reasignada", "medio": "oracle", "nota": MOVIDA % 9},
+            "OPUS": {"estado": "reasignada", "medio": "claude-nube", "nota": MOVIDA % 9},
+            "OTRA": {"estado": "reasignada", "medio": None, "nota": "movida a oracle desde Genesis",
+                     "t": "2026-10-20 08:00:00"},
+            "PEND": {"estado": "pendiente", "nota": MOVIDA % 9},
+        }
+        self.assertEqual(VR.varadas_tras_su_run(prog, {"9": "completed"}, set(), HOY), [])
+
+    def test_sin_medio_pero_nota_nube_gh_cuenta(self):
+        """Como `reclamar_varadas`: las soltadas a nube-gh pueden quedar sin medio."""
+        prog = {"Q": {"estado": "reasignada", "medio": None, "nota": MOVIDA % 9}}
+        self.assertEqual([h[0] for h in VR.varadas_tras_su_run(prog, {"9": "completed"}, set(), HOY)], ["Q"])
+
 
 class DevolverVaradas(unittest.TestCase):
     """OPS1024E: `devolver_varadas` con la API de GitHub y el Chat Director simulados."""
@@ -299,6 +315,13 @@ class DevolverVaradas(unittest.TestCase):
             hecho = VR.actuar({"runs": []}, self.dir, ahora=HOY)
         self.assertEqual(len(hecho), 1)
         self.assertEqual(self._leer()["DGM1018I"]["estado"], "pendiente")
+
+    def test_devuelve_y_avisa_una_sola_vez(self):
+        """Segunda pasada: ya no hay varadas, así que ni toca el progreso ni repite el aviso."""
+        texto = VR.devolver_varadas({"runs": []}, self.dir, ahora=HOY, estado_run=self._api)
+        self.assertIn("devolví 2 tarea(s)", texto)
+        self.assertIsNone(VR.devolver_varadas({"runs": []}, self.dir, ahora=HOY, estado_run=self._api))
+        self.assertEqual(self.avisos, [texto])
 
 
 if __name__ == "__main__":
