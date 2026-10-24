@@ -62,6 +62,7 @@ import {
 import { listPersonalityProfiles, type PersonalityProfile } from "@/lib/aurora/personalities";
 import { proceduralAvatarDataUrl } from "@/lib/aurora/persona-avatar";
 import type { Gesto } from "@/lib/avatares/movimiento/motor";
+import { registrarFallo } from "@/lib/avatares/movimiento/daemon";
 
 /* ──────────────────────────────────────────────────────────────────────────
  *  Detección de entorno (WebGL real + prefers-reduced-motion)
@@ -652,7 +653,8 @@ export function MundoAvatares({
         try {
             const lista = listPersonalityProfiles();
             return lista.slice(0, MAX_HABITANTES);
-        } catch {
+        } catch (error) {
+            registrarFallo("mundo-avatares.listPersonalityProfiles", error);
             return [];
         }
     }, [personalidadesProp]);

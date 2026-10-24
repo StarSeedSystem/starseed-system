@@ -30,6 +30,14 @@ export type { EsqueletoMovimiento, MovimientoClip } from "./motor";
 /** Puerto fijo del demonio de movimiento (Kimodo) en esta neurona. */
 export const PUERTO_MOVIMIENTO = 4600;
 
+/** Registra un fallo local sin enviar datos ni incluir mensajes potencialmente privados. */
+export function registrarFallo(contexto: string, error: unknown): void {
+    console.warn("[avatares] fallo", {
+        contexto,
+        error: error instanceof Error ? error.name : typeof error,
+    });
+}
+
 /** Origen interno del demonio (solo bucle local, jamás configurable). */
 const ORIGEN = `http://127.0.0.1:${PUERTO_MOVIMIENTO}`;
 
@@ -238,7 +246,8 @@ export async function generarMovimiento(
         };
         guardarEnCache(clave, clip);
         return clip;
-    } catch {
+    } catch (error) {
+        registrarFallo("daemon.generarMovimiento", error);
         return null;
     } finally {
         clearTimeout(temporizador);

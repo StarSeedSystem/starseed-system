@@ -33,6 +33,7 @@ import {
     type AvatarPersonalidad,
 } from "@/lib/aurora/persona-avatar-vivo";
 import { cn } from "@/lib/utils";
+import { registrarFallo } from "@/lib/avatares/movimiento/daemon";
 
 /** Estilo fijo según la esquina elegida. */
 function estiloEsquina(esquina: AvatarPersonalidad["acompanante"]["esquina"]): React.CSSProperties {
@@ -71,7 +72,8 @@ export function AcompanantePersonalidad() {
             }
             const config = avatarDePersonalidad(perfil.id);
             setEstado(config.acompanante.mostrar ? { config, perfil } : null);
-        } catch {
+        } catch (error) {
+            registrarFallo("acompanante-personalidad.refrescar", error);
             setEstado(null);
         }
     }, []);
