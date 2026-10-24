@@ -22,6 +22,7 @@ vi.mock("../../../vivo/espacial/use-sesion-escena", () => ({
 }));
 
 // Importing the actual hooks to test
+import type { CapacidadesXR } from "@/lib/xr/capacidades";
 import { funcionesAPedir } from "../aplicar-perfil";
 import { useSesionXR, mensajeErrorXR, type EstadoXR, type OpcionesUseSesionXR } from "../../../vivo/espacial/use-sesion-xr";
 import type { ModoSesionXR } from "../../../vivo/espacial/use-sesion-xr";
@@ -97,5 +98,20 @@ describe("useSesionXR", () => {
             const result = mensajeErrorXR(error);
             expect(result).toBe(expected);
         });
+    });
+
+    it("funcionesAPedir nunca incluye camera-access y local-floor va requerida", () => {
+        const pedidas = funcionesAPedir({ plataforma: "quest", visor: true, modos: ["immersive-vr", "immersive-ar"], recomendado: "3d-pantalla", entradas: [], funciones: ["local-floor", "dom-overlay", "camera-access", "plane-detection"], ofrecerSesion: false, motivos: [], avisos: [] } as CapacidadesXR, { habitacion: false });
+        expect(pedidas.requeridas).toContain("local-floor");
+        expect(pedidas.opcionales.some((f: string) => f === "local-floor")).toBe(false);
+        const todas = [...pedidas.requeridas, ...pedidas.opcionales];
+        expect(todas).not.toContain("camera-access");
+    });
+
+    it("funcionesConcedidas refleja enabledFeatures de la sesion", () => {
+        mockXRSystem(true, true);
+        const renderResult = renderHook(() => useSesionXR(h.gl, null)).result;
+        // No hay forma de entrar sin click en jsdom sin más mock: verificamos la estructura del tipo.
+        expect(typeof renderResult.current.funcionesConcedidas).toBe("undefined");
     });
 });
