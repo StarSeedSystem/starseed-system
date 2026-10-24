@@ -56,6 +56,181 @@ def leer_json(ruta, por_defecto):
         return por_defecto
 
 
+def resolver_marcas(texto):
+    """Une los bloques de conflicto (<<<<<<< HEAD ... ======= ... >>>>>>> ...)
+
+    Pura: sin disco ni red. El reloj no interviene (no hace falta). Resuelve
+    recursivamente bloques anidados: toma la UNIÓN de ambas partes (HEAD y la
+    otra rama) sin duplicar líneas idénticas, conservando el orden.
+    """
+    if not texto:
+        return texto
+    # Procesa de forma recursiva: resuelve el bloque más interno primero.
+    # Buscamos los marcadores de forma secuencial para evitar anidamiento roto.
+    lines = texto.splitlines(keepends=True)
+    # Si las líneas no terminan en \n, splitlines(keepends=True) puede no ser ideal,
+    # pero para este archivo de texto plano es suficiente. Trabajemos con cadenas.
+    resultado = texto
+    # Resolvemos iterativamente hasta que no queden marcas.
+    cambiado = True
+    while cambiado:
+        cambiado = False
+        resultado = _resolver_una_pasada(resultado)
+        if resultado != texto:
+            cambiado = True
+        texto = resultado
+    return resultado
+
+
+def _resolver_una_pasada(texto):
+    # Procesamos por líneas para manejar saltos de línea y anidamiento correctamente.
+    # Encontramos el bloque más profundo (el que no tiene otro <<<<<<< entre su inicio y su sep).
+    lineas = texto.splitlines(keepends=True)
+    # Pero para preservar exactamente, trabajemos con índices de carácter.
+    # Encontramos todos los marcadores con sus posiciones.
+    marcas_inicio = []
+    marcas_sep = []
+    marcas_fin = []
+    pos = 0
+    while True:
+        p = texto.find("<<<<<<< ", pos)
+        if p == -1:
+            break
+        marcas_inicio.append(p)
+        pos = p + 1
+    pos = 0
+    while True:
+        p = texto.find("=======", pos)
+        if p == -1:
+            break
+        marcas_sep.append(p)
+        pos = p + 1
+    pos = 0
+    while True:
+        p = texto.find(">>>>>>> ", pos)
+        if p == -1:
+            break
+        marcas_fin.append(p)
+        pos = p + 1
+    if not marcas_inicio:
+        return texto
+    # Emparejamos por anidamiento: para cada inicio, buscamos el primer sep y el primer fin
+    # que esté después del sep, sin otro inicio entre el inicio y ese fin (para el bloque más profundo).
+    # Para simplificar: resolvemos desde el último bloque hacia atrás, ya que el último inicio
+    # corresponde al bloque más interno si los bloques están correctamente anidados.
+    # Pero para ser robustos con anidamiento, resolvemos iterativamente: en cada pasada,
+    # resolvemos todos los bloques que no contienen otros inicios dentro de ellos.
+    # Esto es equivalente a resolver de adentro hacia afuera.
+    resuelto = False
+    # Encontramos bloques que no contienen otro inicio dentro.
+    for idx_inicio in range(len(marcas_inicio) - 1, -1, -1):
+        i_start = marcas_inicio[idx_inicio]
+        # Buscamos el primer sep después de i_start
+        i_sep = -1
+        for s in marcas_sep:
+            if s > i_start:
+                i_sep = s
+                break
+        if i_sep == -1:
+            continue
+        # Buscamos el primer fin después de i_sep
+        i_end = -1
+        for e in marcas_fin:
+            if e > i_sep:
+                i_end = e
+                break
+        if i_end == -1:
+            continue
+        # Verificamos que no haya otro inicio entre i_start e i_end (bloque más profundo)
+        hay_interno = False
+        for otro_inicio in marcas_inicio:
+            if otro_inicio > i_start and otro_inicio < i_end:
+                hay_interno = True
+                break
+        if hay_interno:
+            continue  # no es el más profundo, saltamos
+        # Resolvemos este bloque.
+        # Extraemos contenido head y no-head por líneas para evitar problemas con índices.
+        # Usamos los índices exactos del texto.
+        head_texto = texto[i_start + len("<<<<<<< "):i_sep]
+        # El marcador HEAD ocupa hasta el salto de línea del marcador; quitamos la primera línea (el identificador)
+        # y cualquier salto inicial.
+        # Pero como los bloques pueden ser líneas enteras, dividimos por líneas.
+        head_lineas = head_texto.splitlines(keepends=True)
+        # Quitamos la primera línea (el identificador, ej. "HEAD")
+        if head_lineas and head_lineas[0].strip() == "HEAD" or (len(head_lineas) > 0 and head_lineas[0].strip().startswith("HEAD")):
+            head_lineas = head_lineas[1:]
+        # También puede ser un identificador como "f4a37b5d ..."; quitamos cualquier línea que no sea contenido útil.
+        # Según el enunciado: la unión de ambas partes. Las líneas de contenido son todas las líneas entre los marcadores.
+        # Así que mantenemos todas las líneas del bloque, incluyendo cualquier línea inicial (como el identificador)
+        # ya que no está claro si debe eliminarse. El enunciado dice "unión de ambas partes"; las partes son todo
+        # lo que está entre los marcadores. Mantengamos todo el contenido entre los marcadores, excepto los
+        # marcadores mismos.
+        head_texto = texto[i_start + len("<<<<<<< "):i_sep]
+        # Pero para ser precisos, dividimos el bloque en líneas y quitamos la línea del identificador si es solo eso.
+        # Re-examinemos el archivo real: los bloques empiezan con "<<<<<<< HEAD\n" y luego el contenido,
+        # luego "=======\n" y luego contenido, luego ">>>>>>> ...\n".
+        # El identificador está en la misma línea que <<<<<<<; no hay línea extra de identificador.
+        # Por ejemplo: "<<<<<<< HEAD\n## 2026-10-13..."
+        # Así que `head_texto` empieza con "HEAD\n" o con "HEAD\r\n"? No, `i_start` es la posición de "<<<<<<< ",
+        # y `i_sep` es la posición de "=======". Entre ellos está todo, incluyendo "HEAD\n" y luego el contenido.
+        # Por lo tanto, `head_texto` empieza con "HEAD\n" (o similar). Debemos quitar ese prefijo.
+        head_texto = texto[i_start + len("<<<<<<< "):i_sep]
+        # Quitamos la primera línea del head_texto (el identificador del marcador)
+        # Dividimos por líneas para preservar saltos.
+        head_lineas_raw = head_texto.splitlines(keepends=True)
+        # Si la primera línea es el identificador (ej. "HEAD" o "f4a37b5d (chore..."), la quitamos.
+        # En este archivo, para HEAD es solo "HEAD" (o con espacio). Para la parte no-HEAD, no hay prefijo similar.
+        # Pero el bloque tiene dos partes: head (entre <<<<<<< y =======) y otra (entre ======= y >>>>>>>).
+        # La parte head incluye el identificador en su primera línea. Lo quitamos.
+        if head_lineas_raw:
+            primera = head_lineas_raw[0].rstrip("\n\r")
+            # Quitamos la primera línea si parece ser el identificador del conflicto.
+            # En los casos observados: "HEAD", "f4a37b5d (chore(memoria): ..."
+            head_lineas_raw = head_lineas_raw[1:]
+        head_texto_limpio = "".join(head_lineas_raw)
+        # La parte no-HEAD es todo entre i_sep y i_end, sin el marcador final.
+        otra_texto = texto[i_sep + len("======="):i_end]
+        otra_lineas_raw = otra_texto.splitlines(keepends=True)
+        # No hay prefijo en la parte otra, excepto que a veces empieza con salto de línea; mantenemos todo.
+        # Unimos ambas partes sin duplicados, conservando orden: primero head, luego otra,
+        # quitando líneas duplicadas que aparezcan en ambas, manteniendo el orden de aparición.
+        # Pero el enunciado dice "unión de ambas partes, sin duplicar líneas idénticas y conservando el orden".
+        # Eso puede interpretarse como: la secuencia resultante es la concatenación de las líneas de head
+        # y las líneas de otra, pero sin repetir líneas idénticas (es decir, si una línea aparece en ambas,
+        # solo se mantiene la primera aparición).
+        # Haremos eso: unir head + otra, luego eliminar duplicados preservando orden.
+        head_lineas = head_texto_limpio.splitlines()
+        otra_lineas = otra_texto.splitlines()
+        # Pero mantenemos saltos de línea. Trabajemos con líneas como cadenas sin el salto para comparar,
+        # y luego reconstruimos con los saltos originales. Como es texto simple, usaremos líneas completas (incluido salto).
+        # Para simplificar: trabajemos con líneas sin salto para deduplicar, luego reconstruimos.
+        head_sin_salto = [l.rstrip("\n\r") for l in head_texto_limpio.splitlines(keepends=True) if l.rstrip("\n\r") != ""]
+        # Espera, no quitemos líneas vacías innecesariamente. Solo deduplicamos líneas idénticas.
+        head_lineas_con_salto = head_texto_limpio.splitlines(keepends=True)
+        otra_lineas_con_salto = otra_texto.splitlines(keepends=True)
+        # Quitamos líneas que sean solo espacios en blanco? No, el enunciado no dice eso.
+        unidas = []
+        vistas = set()
+        for linea in head_lineas_con_salto:
+            clave = linea.rstrip("\n\r")
+            if clave not in vistas:
+                vistas.add(clave)
+                unidas.append(linea)
+        for linea in otra_lineas_con_salto:
+            clave = linea.rstrip("\n\r")
+            if clave not in vistas:
+                vistas.add(clave)
+                unidas.append(linea)
+        texto_resuelto = "".join(unidas)
+        # Si hay líneas vacías al inicio o final que generen espacios extra, las mantenemos para ser fieles.
+        # Reemplazamos el bloque completo (desde <<<<<<< hasta >>>>>>>, incluyendo los marcadores y sus líneas)
+        # con el texto_resuelto.
+        texto = texto[:i_start] + texto_resuelto + texto[i_end + len(">>>>>>> "):]
+        resuelto = True
+    return texto if resuelto else texto
+
+
 def pedido_de(tareas):
     """El encargo de Alex viene copiado literal dentro del prompt de cada tarea.
 
