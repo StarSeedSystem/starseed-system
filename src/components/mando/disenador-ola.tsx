@@ -99,7 +99,7 @@ function tareaVacia(n: number, ola: string): TareaCola {
 
 /**
  * `colaInicial` (2026-09-29): abre el Diseñador con esa cola ya importada — lo usa «Abrir en
- * Diseñador» de los sueños profundos con la cola propuesta, que NUNCA se lanza sola: se revisa
+ * Diseñador» de la imaginación profunda con la cola propuesta, que NUNCA se lanza sola: se revisa
  * aquí, se guarda con otro nombre y se lanza a mano (cada tarea pide visto bueno al integrar).
  */
 export function DisenadorOla({ onCerrar, colaInicial }: { onCerrar: () => void; colaInicial?: string }) {
@@ -163,7 +163,7 @@ export function DisenadorOla({ onCerrar, colaInicial }: { onCerrar: () => void; 
                     setNombre(`${mayor + 1}-suenos-${fecha}`);
                     setAviso({
                         tipo: "info",
-                        texto: `Importadas ${inicial.tareas.length} tareas de la propuesta de los sueños (cola-${inicial.nombre}). Revísalas, guárdalas con este nombre u otro y lánzalas: cada una espera tu visto bueno antes de integrarse.`,
+                        texto: `Importadas ${inicial.tareas.length} tareas de la propuesta de la imaginación profunda (cola-${inicial.nombre}). Revísalas, guárdalas con este nombre u otro y lánzalas: cada una espera tu visto bueno antes de integrarse.`,
                     });
                     return;
                 }
