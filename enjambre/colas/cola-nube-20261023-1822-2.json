@@ -1,0 +1,100 @@
+{
+ "ola": "nube-20261023",
+ "tareas": [
+  {
+   "id": "LYS1018C",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · consenso con las decisiones básicas de 1,58 bits (BitNet, Bonsai, Needle)",
+   "archivos": [
+    "src/lib/astraura/laya/consenso.ts",
+    "src/lib/astraura/laya/__tests__/consenso.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `consensuar({ pequeno: { respuesta, confianza? , motor }, laya: { respuesta, answer_confidence } | null, umbral })` → { decision, quien: \"ambos\"|\"laya\"|\"pequeno\"|\"ninguno\", accion: \"aceptar\"|\"escalar\", motivo }. Si coinciden → aceptar; si no coinciden, manda Laya solo con confianza ≥ umbral; si Laya no llegó a tiempo, se acepta lo pequeño solo si su confianza ≥ umbral; si no, escalar. Pruebas de las cuatro ramas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "LYS1018D",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · «¿basta la respuesta?» y escalado por la cadena de capas del plan",
+   "archivos": [
+    "src/lib/astraura/laya/escalado.ts",
+    "src/lib/astraura/laya/__tests__/escalado.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `siguientePaso({ plan (cadena de respaldo del planificador de capas), capaActual, laya: noul de respuesta.basta | null, intentos })` → { aceptar } o { subirA: capa, motivo }. Nunca sube más de 3 veces; si la siguiente capa es privada-incompatible (va a nube) y el estado es privado, se queda y lo dice. Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "LYS1018G",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Malla · `capacidad.decision.laya`: el A1 decide para las neuronas de la cuenta",
+   "archivos": [
+    "src/lib/network/laya-por-malla.ts",
+    "src/lib/network/__tests__/laya-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Manejador PURO para el relé `capacidad.*`: admite peticiones de la misma cuenta (y de otras solo si el estado no es privado y el anfitrión presta la capacidad), limita a 20 preguntas y 8.192 tokens estimados por petición, reenvía al servidor local de Laya (fetch inyectado) y devuelve { respuestas, ms } o un rechazo legible. Sin red en las pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A",
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "LYS1018M",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · aprende de cada decisión y recalibra su umbral por punto y ámbito",
+   "archivos": [
+    "src/lib/astraura/laya/aprendizaje-laya.ts",
+    "src/lib/astraura/laya/__tests__/aprendizaje-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `anotar(registro, { punto, ambito, p, donde, ms, resultado: \"aceptada\"|\"corregida\"|\"escalada\", privado, estado })` guarda el estado SOLO como huella si es privado; `umbralRecalibrado(registro, punto, ambito)` devuelve el umbral que minimiza correcciones con ≥ 30 casos (si hay menos: el del catálogo); `exportarJSONL` saca los casos no privados en el formato del cuaderno de afinado de Laya. Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "VGM1016B",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Vigía · descubrir: tendencia, familias vigiladas, hermanos de lo que ya tenemos y sus cuantizados",
+   "archivos": [
+    "scripts/puente/vigia_descubrir.py",
+    "scripts/puente/test_vigia_descubrir.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-16 con la API pública de Hugging Face: `models?pipeline_tag=text-to-image&sort=likes&limit=10` da FLUX.1-dev, SDXL, SD 1.4… y NO trae Qwen/Qwen-Image-2.1-Turbo (publicado el 2026-10-09); con `sort=trendingScore` sale el PRIMERO, y `author=Qwen&sort=createdAt` también. En la misma lista de tendencia aparecen re-subidas «Uncensored» de terceros (abenzerps/…, AtomicChat/…-Uncensored-GGUF, KasugaiSakura/…) que NO deben entrar. Crea `descubrir(area, catalogo_ids, http_get, ahora)` → lista de candidatos `{id, autor, creado, modificado, pipeline_tag, likes, trending, licencia_hf, gated, archivos:[{nombre, bytes, sha256?}]}` con cuatro fuentes: (1) `models?pipeline_tag=<tag>&sort=trendingScore&direction=-1&limit=30`; (2) por autor vigilado `models?author=<a>&sort=createdAt&direction=-1&limit=20` (solo lo creado en los últimos 60 días); (3) hermanos: repos cuyo nombre empieza por el de uno del catálogo (`Qwen-Image-2.1` → `Qwen-Image-2.1-Turbo`); (4) para cada candidato, sus cuantizados (`models?search=<nombre>&author=<cuantizador>`). Detalle de archivos con `models/<id>?blobs=true` (siblings con `size` y `lfs.sha256`). Máximo 120 peticiones por pasada, pausa de 1 s, `HF_TOKEN` en la cabecera solo si existe en el entorno. Sin duplicados. Pruebas con respuestas grabadas (incluye el caso real del Turbo y su `unsloth/Qwen-Image-2.1-Turbo-GGUF`). Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español.",
+   "dependencias_ya_en_main": [
+    "VGM1016A"
+   ]
+  },
+  {
+   "id": "VGM1016C",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Vigía · evaluar: clase de licencia, seguridad, tamaño por medio, motor y mejora real",
+   "archivos": [
+    "scripts/puente/vigia_evaluar.py",
+    "scripts/puente/test_vigia_evaluar.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-16 con la API pública de Hugging Face: `models?pipeline_tag=text-to-image&sort=likes&limit=10` da FLUX.1-dev, SDXL, SD 1.4… y NO trae Qwen/Qwen-Image-2.1-Turbo (publicado el 2026-10-09); con `sort=trendingScore` sale el PRIMERO, y `author=Qwen&sort=createdAt` también. En la misma lista de tendencia aparecen re-subidas «Uncensored» de terceros (abenzerps/…, AtomicChat/…-Uncensored-GGUF, KasugaiSakura/…) que NO deben entrar. Funciones PURAS del §3 del contrato: `clase_licencia(licencia_hf, tags, conocidas)` → libre | personal | condicionada | desconocida (Hugging Face marca muchas como «other»: usa la tabla de `licencias_conocidas` y el nombre del archivo LICENSE si viene); `es_seguro(candidato)` (fuera «uncensored», «abliterated», «nsfw», «lewd» en id o tags, y terceros que no cuantizan un modelo ya aceptado); `cabe_en(candidato, medios)` con los topes del §3 (navegador/PWA ≤ 1 GB, Mac 8 GB ≤ 4,5 GB de pesos, A1 ≤ 8 GB, app nativa ≤ 15 % del disco) eligiendo el archivo cuantizado que cabe; `motor_para(archivos)` (gguf → sdcpp/llamacpp, onnx → onnx, mlx/coreml → apple, safetensors → diffusers/comfyui); `es_mejora(candidato, mejor_actual)` y `puntuar(...)` con su motivo. Pruebas con el Turbo (personal, cabe en la Mac con Q3_K_S 2,72 GB), Z-Image-Turbo (libre) y una re-subida «Uncensored» (fuera). Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español.",
+   "dependencias_ya_en_main": [
+    "VGM1016A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "VGM1016B",
+   "VGM1016C",
+   "LYS1018M",
+   "LYS1018C",
+   "LYS1018D",
+   "LYS1018G"
+  ]
+ }
+}
