@@ -110,6 +110,14 @@ describe("lector-volumen", () => {
     await lector.leer(1, 2);
     expect([...f.llamadas].sort()).toEqual([1, 2]);
   });
+  it("prebuscar no lanza si la fuente falla y deja la banda fuera de la caché", async () => {
+    const bandas = [bytesDe(4)];
+    const rota = fuente("rota", bandas, { falla: true });
+    const { cache, lector } = await montar(bandas, [rota]);
+    await expect(lector.prebuscar({ desde: 0, hasta: 0 })).resolves.toBe(0);
+    expect(cache.mapa.size).toBe(0);
+    expect(lector.fuentesMalas()).toEqual([{ fuente: "rota", banda: 0, motivo: "fallo" }]);
+  });
   it("devuelve un rango vacío sin tocar las fuentes", async () => {
     const bandas = [bytesDe(4)];
     const f = fuente("a", bandas);
