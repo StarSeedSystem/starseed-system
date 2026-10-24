@@ -4611,3 +4611,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `VAR1021Bc` — pruebas en rojo: vitest falla (rama conservada)
 - `VZF1015N` — no escribió nada
 - `VZF1015L` — no escribió nada
+
+## 2026-10-24 03:16 · mg-oracle-1023-2029
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTS1010-EV-ORACLE-1accbbbbbbbbb` — no escribió nada
+- `RTIMN1021Db` — pruebas en rojo: vitest falla (rama conservada)
