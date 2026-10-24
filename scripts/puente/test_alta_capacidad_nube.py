@@ -7,7 +7,10 @@ import importlib.util
 import json
 import os
 import pathlib
+<<<<<<< HEAD
 import shutil
+=======
+>>>>>>> fa22f0915 (salvavidas · ALT1021Cb: trabajo del agente antes de las puertas (tsc / vitest))
 import sys
 import tempfile
 import time
@@ -27,6 +30,17 @@ SALIDA_OK = ("\x1b[>4m Created cloud session: Canal P2P\r\n"
              "View: https://claude.ai/code/session_01HW1xkHMRPYXUF5bjHiWxyd?from=cli&m=0")
 
 
+<<<<<<< HEAD
+=======
+def _progreso():
+    return traer_nube._progreso()
+
+
+def _registro():
+    return cli.leer_registro()["sesiones"]
+
+
+>>>>>>> fa22f0915 (salvavidas · ALT1021Cb: trabajo del agente antes de las puertas (tsc / vitest))
 class Lanzador:
     def __init__(self, salida=SALIDA_OK):
         self.salida, self.llamadas = salida, []
@@ -36,6 +50,7 @@ class Lanzador:
         return self.salida
 
 
+<<<<<<< HEAD
 class Entorno(unittest.TestCase):
     """El entorno del fixture: rutas a una carpeta temporal y la variable de control fuera."""
 
@@ -75,7 +90,28 @@ class Entorno(unittest.TestCase):
         self._pon(cli, "PAUSA", str(st / "alta-nube-pausada.json"))
         self._pon(cli, "HISTORIAL", str(st / "alta-nube-historial.jsonl"))
         self._quita_env("STARSEED_ALTA_NUBE_MAX")
+<<<<<<< HEAD
         self._quita_env("STARSEED_ALTA_NUBE_DIA")
+=======
+=======
+class TestAltaCapacidadNube(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.raiz = pathlib.Path(self.tmp.name)
+        self._previos = {}
+        olas = self.raiz / "olas"
+        olas.mkdir()
+        st = self.raiz / "starseed"
+        self._parchear(traer_nube, "OLAS", str(olas))
+        self._parchear(traer_nube, "PROGRESO", str(olas / "progreso.json"))
+        self._parchear(traer_nube, "CERROJOS", str(st / "cerrojos"))
+        self._parchear(cli, "REGISTRO", str(st / "alta-capacidad-nube.json"))
+        self._parchear(cli, "CREDITO", str(st / "credito-claude-nube.json"))
+        self._parchear(cli, "BRIEFS", str(st / "alta-capacidad-nube"))
+        self._parchear(cli, "PAUSA", str(st / "alta-nube-pausada.json"))
+        self._max_previo = os.environ.pop("STARSEED_ALTA_NUBE_MAX", None)
+>>>>>>> fa22f0915 (salvavidas · ALT1021Cb: trabajo del agente antes de las puertas (tsc / vitest))
+>>>>>>> afcc9232d (salvavidas · ALT1021Cc: trabajo del agente antes de las puertas (tsc / vitest))
         vence = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(AHORA + 13 * 86400))
         cli._escribir_json(cli.CREDITO, {"total_usd": 250, "restante_usd": 240, "vence": vence})
         tareas = [
@@ -86,6 +122,7 @@ class Entorno(unittest.TestCase):
         ]
         (olas / "cola-1022-prueba.json").write_text(json.dumps({"tareas": tareas}), encoding="utf-8")
 
+<<<<<<< HEAD
     def _progreso(self):
         return traer_nube._progreso()
 
@@ -290,5 +327,177 @@ class Plist(unittest.TestCase):
         self.assertEqual(p["StartInterval"], 900)
 
 
+=======
+    def tearDown(self):
+        for (modulo, nombre), valor in self._previos.items():
+            setattr(modulo, nombre, valor)
+        if self._max_previo is None:
+            os.environ.pop("STARSEED_ALTA_NUBE_MAX", None)
+        else:
+            os.environ["STARSEED_ALTA_NUBE_MAX"] = self._max_previo
+        self.tmp.cleanup()
+
+    def _parchear(self, modulo, nombre, valor):
+        self._previos[(modulo, nombre)] = getattr(modulo, nombre)
+        setattr(modulo, nombre, valor)
+
+    def test_cupo_agotado_no_lanza(self):
+        cli._escribir_json(cli.CREDITO, {"restante_usd": 5, "vence": "2099-01-01T00:00:00+00:00"})
+        lz, dicho = Lanzador(), []
+        self.assertEqual(cli.lanzar(ids=["T1"], ahora=AHORA, lanzador=lz, decir=dicho.append), [])
+        self.assertEqual(lz.llamadas, [])
+        self.assertIn("sin cupo", dicho[0])
+        self.assertEqual(_progreso(), {})
+        self.assertEqual(_registro(), [])
+
+    def test_lanzamiento_feliz_anota_y_marca(self):
+        lz = Lanzador()
+        filas = cli.lanzar(ids=["T1"], ahora=AHORA, lanzador=lz, decir=lambda *_: None)
+        self.assertEqual(len(filas), 1)
+        orden = lz.llamadas[0]
+        self.assertEqual(orden[:4], ["claude", "--model", "sonnet", "--cloud"])
+        self.assertIn("Haz {uno}.", orden[4])
+        self.assertEqual(_progreso()["T1"]["estado"], "reasignada")
+        self.assertEqual(_progreso()["T1"]["medio"], "claude-nube")
+        s = _registro()[0]
+        self.assertEqual(s["sesion"], "session_01HW1xkHMRPYXUF5bjHiWxyd")
+        self.assertEqual(s["coste_usd"], 1.0)
+        self.assertEqual(s["rama_pedida"],
+                         "nube/cc-%s/ola/T1" % time.strftime("%Y%m%d", time.localtime(AHORA)))
+        self.assertTrue(os.path.exists(os.path.join(cli.BRIEFS, "T1.md")))
+
+    def test_modelo_forzado_por_opcion(self):
+        lz = Lanzador()
+        cli.lanzar(ids=["T1"], modelo="claude-opus-5-5", ahora=AHORA, lanzador=lz, decir=lambda *_: None)
+        self.assertEqual(lz.llamadas[0][2], "claude-opus-5-5")
+        self.assertEqual(_registro()[0]["coste_usd"], 3.0)
+
+    def test_salida_sin_sesion_devuelve_a_pendiente(self):
+        lz, dicho = Lanzador("Error: --cloud requires an interactive terminal"), []
+        self.assertEqual(cli.lanzar(ids=["T1"], ahora=AHORA, lanzador=lz, decir=dicho.append), [])
+        self.assertEqual(_progreso()["T1"]["estado"], "pendiente")
+        self.assertEqual(_registro(), [])
+        self.assertTrue(any("no salió" in d for d in dicho))
+
+    def test_seco_no_toca_nada(self):
+        lz = Lanzador()
+        cli.lanzar(ids=["T1"], seco=True, ahora=AHORA, lanzador=lz, decir=lambda *_: None)
+        self.assertEqual(lz.llamadas, [])
+        self.assertEqual(_progreso(), {})
+        self.assertEqual(_registro(), [])
+
+    def test_auto_elige_sin_dependencias_ni_privadas_y_en_orden(self):
+        lz = Lanzador()
+        filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=lz, decir=lambda *_: None, fuera_de_otros=set)
+        self.assertEqual([f["tarea"] for f in filas], ["T2", "T1"])
+        self.assertEqual([f["modelo"] for f in filas], ["claude-opus-5-5", "sonnet"])
+
+    def test_auto_respeta_el_maximo(self):
+        os.environ["STARSEED_ALTA_NUBE_MAX"] = "1"
+        filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=Lanzador(), decir=lambda *_: None,
+                           fuera_de_otros=set)
+        self.assertEqual([f["tarea"] for f in filas], ["T2"])
+
+    def test_auto_no_coge_lo_que_la_mac_se_queda(self):
+        """(2026-10-22) CAP1018Ab-d1b se lanzó en la nube mientras la Mac la escribía."""
+        filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=Lanzador(), decir=lambda *_: None,
+                           fuera_de_otros=lambda: {"T2"})
+        self.assertEqual([f["tarea"] for f in filas], ["T1"])
+
+    def test_auto_sin_foto_de_la_mac_no_lanza(self):
+        dicho = []
+        filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=Lanzador(), decir=dicho.append,
+                           fuera_de_otros=lambda: None)
+        self.assertEqual(filas, [])
+        self.assertTrue(any("sin la foto" in d for d in dicho))
+
+    def test_seguir_trae_y_devuelve(self):
+        cli.lanzar(ids=["T1", "T2"], ahora=AHORA - 10 * 3600, lanzador=Lanzador(), decir=lambda *_: None)
+        rama_t1 = _registro()[0]["rama_pedida"]
+        traidas = []
+
+        def traer():
+            traidas.append(_progreso()["T1"]["estado"])
+            return 0, ""
+
+        ls = "abc\trefs/heads/%s\n" % rama_t1
+        acciones = cli.seguir(aplicar=True, ahora=AHORA, ramas=lambda: cli.ramas_de_ls_remote(ls),
+                              traer=traer, decir=lambda *_: None)
+        self.assertEqual(acciones, {"T1": "traer", "T2": "devolver"})
+        self.assertEqual(traidas, ["pendiente"])
+        self.assertIn("sin rama tras 10 h", _progreso()["T2"]["nota"])
+        finales = {s["tarea"]: s.get("final") for s in _registro()}
+        self.assertEqual(finales, {"T1": "traida", "T2": "devuelta"})
+
+    def test_seguir_sin_aplicar_solo_informa(self):
+        cli.lanzar(ids=["T1"], ahora=AHORA - 10 * 3600, lanzador=Lanzador(), decir=lambda *_: None)
+        antes = _progreso()
+        llamado = []
+        cli.seguir(aplicar=False, ahora=AHORA, ramas=set, traer=lambda: llamado.append(1), decir=lambda *_: None)
+        self.assertEqual(_progreso(), antes)
+        self.assertEqual(llamado, [])
+        self.assertIsNone(_registro()[0].get("final"))
+
+    def test_seguir_olvida_lo_que_ya_no_esta_prestada(self):
+        cli.lanzar(ids=["T1"], ahora=AHORA, lanzador=Lanzador(), decir=lambda *_: None)
+        traer_nube._actualizar_progreso({"T1": {"estado": "commit", "medio": ""}})
+        cli.seguir(aplicar=True, ahora=AHORA, ramas=set, traer=lambda: (0, ""), decir=lambda *_: None)
+        self.assertEqual(_registro(), [])
+
+    def test_ciclo_no_lanza_con_la_pausa(self):
+        cli._escribir_json(cli.PAUSA, {"motivo": "Alex lo pidió"})
+        lz, dicho = Lanzador(), []
+        self.assertEqual(cli.ciclo(ahora=AHORA, ramas=set, traer=lambda: (0, ""), lanzador=lz,
+                                   decir=dicho.append), [])
+        self.assertEqual(lz.llamadas, [])
+        self.assertTrue(any("pausa" in d for d in dicho))
+
+    def test_ciclo_sin_pausa_lanza(self):
+        filas = cli.ciclo(ahora=AHORA, ramas=set, traer=lambda: (0, ""), lanzador=Lanzador(),
+                          decir=lambda *_: None)
+        self.assertEqual(len(filas), 2)
+
+    def test_ver_resume_sin_claves(self):
+        cli.lanzar(ids=["T1"], ahora=AHORA, lanzador=Lanzador(), decir=lambda *_: None)
+        v = cli.ver(ahora=AHORA)
+        self.assertEqual(v["vivas"], 1)
+        self.assertEqual(v["restante_usd"], 240)
+        self.assertGreater(v["presupuesto_hoy_usd"], 0)
+        self.assertTrue(v["sesiones"][0]["url"].startswith("https://claude.ai/code/session_"))
+
+    def test_plist_del_servicio_corre_ciclo_cada_15_min(self):
+        import plistlib
+
+        with open(os.path.join(AQUI, "com.starseed.alta-nube.plist"), "rb") as f:
+            p = plistlib.load(f)
+        self.assertEqual(p["Label"], "com.starseed.alta-nube")
+        self.assertEqual(p["StartInterval"], 900)
+        self.assertEqual(p["Nice"], 10)
+        self.assertEqual(p["ProgramArguments"][-2:], [os.path.join(
+            "/Users/alex/Documents/starseed-os-main/scripts/puente", "alta-capacidad-nube.py"), "ciclo"])
+        self.assertTrue(p["EnvironmentVariables"]["PATH"].startswith("/Users/alex/.local/bin:"))
+        self.assertTrue(p["StandardOutPath"].endswith("/.starseed/alta-nube.log"))
+        self.assertNotIn("KeepAlive", p)
+
+    def test_instalar_servicios_solo_alta_nube_adapta_rutas(self):
+        import plistlib
+
+        from test_instalar_servicios_produccion import _cargar_con_solo
+
+        mod = _cargar_con_solo(str(self.raiz), solo="alta-nube")
+        ag = self.raiz / "Library" / "LaunchAgents"
+        self.assertEqual(sorted(os.listdir(ag)), ["com.starseed.alta-nube.plist"])
+        with open(ag / "com.starseed.alta-nube.plist", "rb") as f:
+            p = plistlib.load(f)
+        # La raíz la decide el entorno de quien corre la prueba (la Mac, la carpeta de traer_nube, la nube):
+        # basta con que el servicio apunte al lanzador de ESTE repo.
+        self.assertTrue(p["ProgramArguments"][2].endswith(
+            os.path.join("scripts", "puente", "alta-capacidad-nube.py")))
+        self.assertTrue(p["EnvironmentVariables"]["PATH"].startswith(str(self.raiz) + "/.local/bin:"))
+        self.assertEqual(p["StandardOutPath"], str(self.raiz) + "/.starseed/alta-nube.log")
+        self.assertEqual(p["StartInterval"], 900)
+
+
+>>>>>>> fa22f0915 (salvavidas · ALT1021Cb: trabajo del agente antes de las puertas (tsc / vitest))
 if __name__ == "__main__":
     unittest.main()
