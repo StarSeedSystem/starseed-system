@@ -67,6 +67,8 @@ const P = (modo: ModoPolitica, ventana?: VentanaHoraria): PoliticaCapa => (venta
  *   · el OS → igual que un perfil, pero los modelos (descargas grandes) en la ventana nocturna.
  * Lo que una entidad democrática PUBLICA se vota antes (eso es la aprobación del manifiesto,
  * no esta política): lo ya aprobado llega automático a quien lo tenga así.
+ * Lo que una entidad democrática PUBLICA se vota antes: en `decidirPolitica` se le pasa
+ * `requiereAprobacion` y nada se aplica sin `aprobada` (contrato §4).
  */
 export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
   const base: PoliticaSistema = {
@@ -77,6 +79,7 @@ export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
     modelos: P("manual"),
     nativa: P("manual"),
   };
+  if (tipo === "pagina") return { ...base, sw: P("automatica-todas") }; // pública: sigue la rama estable sola
   if (tipo === "os") return { ...base, modelos: P("programada", VENTANA_NOCTURNA) };
   return base;
 }
@@ -86,6 +89,10 @@ export interface ContextoDecision {
   ahoraH: number;
   /** Esta neurona es la elegida para «automática solo en esta neurona». */
   esNeuronaElegida: boolean;
+  /** La versión ya pasó la aprobación que su gobierno exige (contrato §4: en un grupo democrático, la votación). */
+  aprobada?: boolean;
+  /** El sistema exige aprobación antes de publicar nada (grupo democrático). */
+  requiereAprobacion?: boolean;
 }
 
 export type Decision = "aplicar" | "avisar" | "esperar";
@@ -97,6 +104,7 @@ function dentroDeVentana(h: number, v: VentanaHoraria): boolean {
 
 /** Qué hacer con una capa pendiente en ESTA neurona según su política. */
 export function decidirPolitica(p: PoliticaCapa, ctx: ContextoDecision): Decision {
+  if (ctx.requiereAprobacion && !ctx.aprobada) return "esperar"; // sin voto, nada se aplica (§4)
   switch (p.modo) {
     case "automatica-todas":
       return "aplicar";
