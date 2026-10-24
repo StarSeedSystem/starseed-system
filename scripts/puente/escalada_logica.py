@@ -105,7 +105,8 @@ def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None, c
         ahora: str 'YYYY-MM-DD HH:MM:SS' (por defecto: se ignora y se genera si es None)
 
     Devuelve:
-        dict con campos {estado, modelo, cuenta, motivo}
+        dict con campos {estado, modelo, cuenta, motivo} — y `alta_capacidad: True`
+        cuando la escalera se agota (marca para el carril de alta capacidad) —
         o None si el estado no es recuperable.
 
     El estado devuelto puede ser 'pendiente' (seguir reintentando) o
@@ -135,6 +136,9 @@ def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None, c
             "modelo": None,
             "cuenta": None,
             "motivo": "escalada agotada tras %d intentos (%s): requiere una persona" % (n, resumen),
+            # (2026-10-22) Marcada para el carril de alta capacidad de la orquestación §0:
+            # el listador de candidatas la recoge y la atiende la persona o el cupo de Claude.
+            "alta_capacidad": True,
         }
 
     nivel = niveles[n]
@@ -256,6 +260,14 @@ def aplicar(progreso, tid, paso, ahora):
         entrada["intentos_auto"] = entrada.get("intentos_auto", 0) + 1
     entrada["nota"] = "director: " + paso["motivo"]
     entrada["t"] = ahora
+
+    # (2026-10-22) El carril de alta capacidad viaja con la tarea: si el paso lo trae, se
+    # copia a la entrada de progreso.json; si el paso es «pendiente» (la escalera volvió
+    # a tener peldaño), se quita para que vuelva a subir la escalera como las demás.
+    if paso.get("alta_capacidad"):
+        entrada["alta_capacidad"] = paso["alta_capacidad"]
+    if paso["estado"] == "pendiente":
+        entrada.pop("alta_capacidad", None)
 
     if paso["modelo"] is not None:
         entrada["modelo_siguiente"] = paso["modelo"]

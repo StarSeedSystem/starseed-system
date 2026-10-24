@@ -398,6 +398,59 @@ class TestFalloDelMedio(unittest.TestCase):
     def test_nota_de_la_escalera_cuenta(self):
         self.assertFalse(E.es_fallo_del_medio({"nota": "director: reintento gratuito 1/8"}))
 
+
+class TestAltaCapacidad(unittest.TestCase):
+    """(2026-10-22) Escalera agotada → la tarea queda marcada para el carril de alta
+    capacidad (memoria orquestación §0); un reintento posterior quita la marca."""
+
+    def setUp(self):
+        self.hoy = "2026-10-22"
+        self.ahora = "2026-10-22 10:00:00"
+        self.tarea = {"estado": "fallo_tests", "intentos_auto": 5,
+                      "nota": "vitest falla (rama conservada)"}
+
+    def paso_agotado(self):
+        return siguiente_paso(self.tarea, {}, {}, self.hoy, [], self.ahora)
+
+    def test_escalada_agotada_marca_el_paso(self):
+        paso = self.paso_agotado()
+        self.assertEqual("bloqueante", paso["estado"])
+        self.assertTrue(paso.get("alta_capacidad"))
+        self.assertIn("escalada agotada", paso["motivo"])
+
+    def test_aplicar_copia_la_marca_a_la_entrada(self):
+        paso = self.paso_agotado()
+        nuevo = aplicar({"T": dict(self.tarea)}, "T", paso, self.ahora)
+        self.assertTrue(nuevo["T"].get("alta_capacidad"))
+        self.assertEqual("bloqueante", nuevo["T"]["estado"])
+
+    def test_aplicar_sin_marca_no_toca_la_entrada(self):
+        paso = {
+            "estado": "bloqueante",
+            "modelo": None,
+            "cuenta": None,
+            "motivo": "escalada desactivada: requiere una persona",
+        }
+        nuevo = aplicar({"T": {}}, "T", paso, self.ahora)
+        self.assertNotIn("alta_capacidad", nuevo["T"])
+
+    def test_un_reintento_posterior_quita_la_marca(self):
+        entrada = {
+            "estado": "bloqueante",
+            "intentos_auto": 5,
+            "alta_capacidad": True,
+            "nota": "director: escalada agotada tras 5 intentos (libre×5): requiere una persona",
+        }
+        niveles = ("libre",) * 6  # aparecen peldaños nuevos: vuelve a subir la escalera
+        self.assertTrue(E.reabrible(entrada, niveles))
+        paso = siguiente_paso(entrada, {}, {"escalada": {"niveles": list(niveles)}}, self.hoy, [], self.ahora)
+        self.assertEqual("pendiente", paso["estado"])
+        nuevo = aplicar({"T": dict(entrada)}, "T", paso, self.ahora)
+        self.assertNotIn("alta_capacidad", nuevo["T"])
+        # aplicar() no muta el original: la entrada fuente conserva la marca puesta
+        self.assertTrue(entrada.get("alta_capacidad"))
+
+
 if __name__ == "__main__":
     unittest.main()
 
