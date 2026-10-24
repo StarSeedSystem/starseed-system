@@ -10,7 +10,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vigia_areas as V
 
-AREAS_DEL_CONTRATO = ["imagen", "video", "3d", "voz", "oido", "palabra", "reflejo", "vision", "incrustaciones", "audio", "motores"]
+AREAS_DEL_CONTRATO = ["imagen", "video", "3d", "voz", "oido", "palabra", "reflejo", "vision", "incrustaciones", "audio", "motores", "habilidades"]
 MOTORES = {"ggml-org/llama.cpp", "leejet/stable-diffusion.cpp", "ggml-org/whisper.cpp", "Comfy-Org/ComfyUI",
            "fermionresearch/phonon", "microsoft/onnxruntime", "anomalyco/opencode"}
 BASE = {"cuantizadores": ["unsloth", "city96", "QuantStack"],
@@ -44,10 +44,22 @@ class AreasDelVigia(unittest.TestCase):
             self.assertTrue(os.path.isfile(os.path.join(V.RAIZ_REPO, a["catalogo"])), a["catalogo"])
             self.assertEqual(a["licencias_conocidas"]["qwen-research"], "personal")
             self.assertEqual(a["licencias_conocidas"]["apache-2.0"], "libre")
-            self.assertEqual(bool(a["repos_github"]), a["id"] == "motores")
-        motores = areas[-1]
+        areas_con_repos = {"motores", "voz", "oido", "video", "reflejo", "habilidades"}
+        for a in areas:
+            self.assertEqual(bool(a["repos_github"]), a["id"] in areas_con_repos)
+        motores = areas[-2]  # penúltimo (antes de habilidades)
         self.assertEqual(set(motores["repos_github"]), MOTORES)
         self.assertEqual(motores["alias_github"]["comfyanonymous/ComfyUI"], "Comfy-Org/ComfyUI")
+        voz = next(a for a in areas if a["id"] == "voz")
+        self.assertEqual(set(voz["repos_github"]), {"debpalash/VoiceStudio", "k2-fsa/OmniVoice", "FunAudioLLM/CosyVoice", "QwenLM/Qwen3-TTS", "KittenML/KittenTTS"})
+        oido = next(a for a in areas if a["id"] == "oido")
+        self.assertEqual(set(oido["repos_github"]), {"moonshine-ai/moonshine"})
+        video = next(a for a in areas if a["id"] == "video")
+        self.assertEqual(set(video["repos_github"]), {"heygen-com/hyperframes"})
+        reflejo = next(a for a in areas if a["id"] == "reflejo")
+        self.assertEqual(set(reflejo["repos_github"]), {"NandhaKishorM/laya"})
+        habilidades = areas[-1]
+        self.assertEqual(set(habilidades["repos_github"]), {"mattpocock/skills"})
         self.assertTrue({"Qwen", "Tongyi-MAI"} <= set(areas[0]["autores"]) and "text-to-image" in areas[0]["pipeline_tags"])
         self.assertTrue({"unsloth", "city96", "QuantStack"} <= set(areas[0]["cuantizadores"]))
 

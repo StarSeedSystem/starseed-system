@@ -28,6 +28,7 @@
       "pipeline_tags": ["text-to-video", "image-to-video"],
       "autores": ["Wan-AI", "Lightricks", "tencent", "Qwen", "nvidia"],
       "cuantizadores": ["city96", "QuantStack", "Comfy-Org"],
+      "repos_github": ["heygen-com/hyperframes"],
       "catalogo": "src/lib/protomolecula/catalogo-herramientas.ts",
       "nota": "Aún no hay catálogo propio de vídeo (§2: de momento propuestas); Wan 2.2 ya está en el de la Protomolécula."
     },
@@ -68,6 +69,7 @@
       "pipeline_tags": ["text-generation"],
       "autores": ["Cactus-Compute", "Qwen", "google", "microsoft"],
       "cuantizadores": ["unsloth", "bartowski", "lmstudio-community", "mlx-community", "onnx-community"],
+      "repos_github": ["NandhaKishorM/laya"],
       "catalogo": "config/capas-astraura.json",
       "filtros": { "max_parametros_b": 4, "etiquetas": ["function-calling", "tool-calling", "tool-use"] }
     },
@@ -107,6 +109,13 @@
       },
       "catalogo": "src/lib/library/packages.ts",
       "nota": "Releases de GitHub con los nombres actuales; los antiguos de «alias_github» redirigen y aún aparecen en algunos catálogos (duplicados)."
+    },
+    {
+      "id": "habilidades", "nombre": "Habilidades",
+      "pipeline_tags": [], "autores": ["mattpocock", "heygen-com"], "cuantizadores": [],
+      "repos_github": ["mattpocock/skills"],
+      "catalogo": "src/ai/astraura/skills-ingenieria.ts",
+      "nota": "Skills y extensiones de Matt Pocock (carpeta skills/) y HyperFrames (npm hyperframes y @hyperframes/*)."
     }
   ]
 }
