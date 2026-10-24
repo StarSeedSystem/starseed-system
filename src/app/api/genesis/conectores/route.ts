@@ -4,7 +4,7 @@ import { rateLimit } from "@/lib/security/rate-limit";
 import { esPeticionDeEstaMaquina } from "@/lib/seguridad/misma-maquina";
 import { guardianMando } from "@/lib/mando/guardian";
 import { ambitoDesde } from "@/lib/genesis/ambito";
-import { sugerirParaAmbito } from "@/lib/genesis/conectores/sugerir";
+import { sugerirParaAmbito } from "@/lib/genesis/conectores/sugerir-conector";
 import { guardarEnBoveda, obtenerAsignacionesPorAmbito, asignarClave, obtenerCatalogo } from "@/lib/genesis/conectores/vacio";
 
 export const runtime = "nodejs";
