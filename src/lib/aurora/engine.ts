@@ -88,7 +88,9 @@ import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
-import { cronometroHabla, cronometroOido } from "@/lib/aurora/medidas-voz";
+import { cronometroHabla, cronometroOido, leerMedidas } from "@/lib/aurora/medidas-voz";
+import { medidasOido } from "@/lib/aurora/oido-medidas";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -198,6 +200,20 @@ export interface ActionLogEntry {
 
 /** Cuántas respuestas/entradas guardamos como mucho (ring buffer). */
 const HISTORY_LIMIT = 50;
+
+/**
+ * medidasOidoDeEstaNeurona — las medidas reales de oído de ESTA neurona, en la
+ * forma que entiende `elegirOido` (motor → mediana de las últimas). La lectura
+ * del almacén local es síncrona y pequeña; si falla, el elector mantiene su
+ * orden de siempre. Nunca lanza ni espera red: no bloquea el arranque del STT.
+ */
+function medidasOidoDeEstaNeurona(): Record<string, number> {
+  try {
+    return medidasOido(leerMedidas(neuronDeviceIdActual()));
+  } catch {
+    return {};
+  }
+}
 
 const ROUTES: { keys: string[]; path: string }[] = [
   { keys: ["memorias 3d", "memoria 3d", "mapa 3d", "mapa tridimensional", "grafo 3d"], path: "/memorias-3d" },
@@ -1965,7 +1981,7 @@ export function useAuroraEngine(): AuroraEngine {
         (m) => !(m.id === "phonon-2" && phononCaidoRef.current),
       ).map((m) => m.id),
       fase: "parcial",
-      medidas: {},
+      medidas: medidasOidoDeEstaNeurona(),
     });
     if (eleccionOido.motor === "phonon-2") return buildFlujoOido();
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -2444,7 +2460,7 @@ export function useAuroraEngine(): AuroraEngine {
       idioma: (activeRef.current.voice?.lang || "es").split("-")[0],
       disponibles,
       fase: "parcial",
-      medidas: {},
+      medidas: medidasOidoDeEstaNeurona(),
     });
     if (eleccionOido.motor !== "phonon-2") {
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
