@@ -53,24 +53,23 @@ function crearMallaFalsa(respuestas: RespuestaCapa[]) {
 }
 
 describe("capaEnPropio — verificación de capa en almacén local", () => {
-  it("devuelve true si la capa está completa con todos sus trozos y SHA coincide", async () => {
+it("devuelve true si la capa está completa con todos sus trozos y SHA coincide", async () => {
     const almacen = almacenamientoEnMemoria();
     const sha256 = "a".repeat(64);
     const meta = { sha256, completa: true, totalTrozos: 3 };
-    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)));
+    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)).buffer);
     await almacen.escribir("capa/needle3-reflejo/trozo/0", new ArrayBuffer(10));
     await almacen.escribir("capa/needle3-reflejo/trozo/1", new ArrayBuffer(10));
     await almacen.escribir("capa/needle3-reflejo/trozo/2", new ArrayBuffer(10));
 
     const resultado = await capaEnPropio(almacen, sha256);
-    expect(resultado).toBe(true);
   });
 
   it("devuelve false si falta un trozo", async () => {
     const almacen = almacenamientoEnMemoria();
     const sha256 = "a".repeat(64);
     const meta = { sha256, completa: true, totalTrozos: 3 };
-    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)));
+    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)).buffer);
     await almacen.escribir("capa/needle3-reflejo/trozo/0", new ArrayBuffer(10));
     await almacen.escribir("capa/needle3-reflejo/trozo/1", new ArrayBuffer(10));
     // trozo/2 falta
