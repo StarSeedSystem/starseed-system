@@ -2,6 +2,7 @@
 """Pruebas de las decisiones puras del lado de la neurona (oracle_nodo.py, OPO1011)."""
 import os
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -109,6 +110,69 @@ class Prestamo(unittest.TestCase):
     def test_no_toca_lo_prestado_a_la_nube_de_github(self):
         p = {"T": {"estado": "reasignada", "medio": "nube"}}
         self.assertEqual(N.devolver_de_oracle(p, [{"rama": "r", "ids": ["T"], "t": 0}], {"r": {}}, True, 1), [])
+
+    def test_movida_desde_genesis_vuelve_sin_estar_en_lanzamientos(self):
+        """(2026-10-21) La reasignación de Genesis no apunta en `lanzamientos`: manda la rama que
+        cita la nota. Rama de 20261018-231246, el A1 sin ella y pasadas más de las 3 h de gracia."""
+        rama = "colas/oracle-20261018-231246"
+        nacida = N._epoch_local(rama[len(N.PREFIJO_COLA):], "%Y%m%d-%H%M%S")
+        p = {"T": {"estado": "reasignada", "medio": "oracle",
+                   "nota": "movida a oracle (%s) desde Genesis" % rama}}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3 * 3600 + 60), ["T"])
+        # La gracia no ha pasado: sigue prestada.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3600), [])
+
+    def test_movida_desde_genesis_no_vuelve_si_la_cola_vive(self):
+        rama = "colas/oracle-20261018-231246"
+        nacida = N._epoch_local(rama[len(N.PREFIJO_COLA):], "%Y%m%d-%H%M%S")
+        p = {"T": {"estado": "reasignada", "medio": "oracle",
+                   "nota": "movida a oracle (%s) desde Genesis" % rama}}
+        tarde = nacida + 3 * 3600 + 60
+        # El nodo la tiene en curso: no se le pisa el trabajo aunque la gracia haya pasado.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, tarde, colas_vivas=(rama,)), [])
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, tarde, colas_vivas={rama: {}}), [])
+        # Si el A1 ya la terminó, vuelve aunque la gracia no pase.
+        self.assertEqual(N.devolver_de_oracle(p, [], {rama: {}}, True, nacida + 60), ["T"])
+        # Otra cola viva no la protege.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, tarde,
+                                              colas_vivas=("colas/oracle-20261018-999999",)), ["T"])
+
+    def test_la_gracia_mira_cuando_se_movio_la_tarea(self):
+        """«Sin moverse» es la tarea: si su último cambio es reciente, no vuelve aunque la rama
+        que cita sea vieja; y al revés, la tarea quieta desde hace días vuelve sin esperar a que
+        la rama cumpla la gracia."""
+        rama = "colas/oracle-20261018-231246"
+        nacida = N._epoch_local(rama[len(N.PREFIJO_COLA):], "%Y%m%d-%H%M%S")
+        nota = "movida a oracle (%s) desde Genesis" % rama
+        reciente = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(nacida + 30 * 24 * 3600))
+        movido = N._epoch_local(reciente, "%Y-%m-%d %H:%M:%S")
+        p = {"T": {"estado": "reasignada", "medio": "oracle", "nota": nota, "t": reciente}}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, movido + 600), [])
+        viejo = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(nacida - 4 * 3600))
+        p["T"]["t"] = viejo
+        # La rama nació hace un minuto (dentro de la gracia), pero la tarea lleva 4 h quieta.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 60), ["T"])
+
+    def test_ramas_vivas_mira_en_curso_y_el_estado_del_nodo(self):
+        rama = "colas/oracle-20261018-231246"
+        self.assertEqual(N.ramas_vivas({}, {"rama": rama, "sha": "x"}, True), {rama})
+        # Sin `en-curso.json`, el archivo de cola de `estado.json` se traduce a la rama.
+        self.assertEqual(N.ramas_vivas({"cola": "cola-oracle-20261018-231246.json"}, None, True), {rama})
+        # Nodo muerto: lo que quedara a medias no protege nada.
+        self.assertEqual(N.ramas_vivas({"cola": "cola-oracle-20261018-231246.json"},
+                                       {"rama": rama}, False), set())
+        self.assertEqual(N.ramas_vivas({"cola": "otra.txt"}, {"no": "rama"}, True), set())
+
+    def test_nota_sin_rama_y_lo_que_no_es_prestamo_de_oracle(self):
+        rama = "colas/oracle-20261018-231246"
+        nacida = N._epoch_local(rama[len(N.PREFIJO_COLA):], "%Y%m%d-%H%M%S")
+        p = {"U": {"estado": "reasignada", "medio": "oracle", "nota": "sin rama"},
+             "V": {"estado": "commit", "medio": "oracle",
+                   "nota": "movida a oracle (%s) desde Genesis" % rama},
+             "W": {"estado": "reasignada", "medio": "nube",
+                   "nota": "movida a oracle (%s) desde Genesis" % rama},
+             "X": "basura"}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3 * 3600 + 60), [])
 
 
 class Resumen(unittest.TestCase):
