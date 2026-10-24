@@ -29,8 +29,7 @@ export async function GET(req: NextRequest) {
   }
 
   const contexto = undefined;
-  const herramientas = herramientasPredeterminadas();
-  const respuesta = await atenderMcp(peticion, { herramientas, contexto });
+  const respuesta = await atenderMcp(peticion, { herramientas: HERRAMIENTAS_GENESIS, contexto });
 
   return NextResponse.json(respuesta);
 }
@@ -55,8 +54,7 @@ export async function POST(req: NextRequest) {
   }
 
   const contexto = undefined;
-  const herramientas = herramientasPredeterminadas();
-  const respuesta = await atenderMcp(peticion, { herramientas, contexto });
+  const respuesta = await atenderMcp(peticion, { herramientas: HERRAMIENTAS_GENESIS, contexto });
 
   return NextResponse.json(respuesta);
 }
