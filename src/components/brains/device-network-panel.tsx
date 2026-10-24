@@ -63,10 +63,12 @@ import {
   elegirReflejo,
   iniciarPublicacionCapacidades,
   resumenRed,
+  vozMedida,
   type CapacidadesNodo,
   type MedioNodo,
   type PublicacionCapacidades,
 } from "@/lib/network/capacidades-nodo";
+import { leerMedidas } from "@/lib/aurora/medidas-voz";
 
 /* ------------------------------------------------------------------ */
 /* Utilidades de presentación                                        */
@@ -236,6 +238,8 @@ async function medirFichaPropia(device: DeviceInfo): Promise<CapacidadesNodo> {
     bateriaPct,
     enSegundoPlano: typeof document !== "undefined" ? document.hidden : false,
     ambitos: ["propio", "cuenta"],
+    // (VZF1015Q) Voz MEDIDA de esta neurona: sin medidas, el campo no aparece.
+    voz: vozMedida(leerMedidas(), { neurona: device.id, ahora: Date.now() }),
   });
 }
 
@@ -681,6 +685,14 @@ export default function DeviceNetworkPanel() {
                   {fichaPropia.tokS ? "tok/s medidos" : "tok/s sin medir"}
                   {fichaPropia.bateriaPct != null && ` · batería ${fichaPropia.bateriaPct} %`}
                   {fichaPropia.enSegundoPlano && " · en 2.º plano"}
+                  {fichaPropia.voz && (
+                    <span>
+                      {fichaPropia.voz.habla.length > 0 &&
+                        ` · voz hablada medida: ${fichaPropia.voz.habla.map((h) => h.motor).join(", ")}`}
+                      {fichaPropia.voz.oido.length > 0 &&
+                        ` · voz oída medida: ${fichaPropia.voz.oido.map((o) => o.motor).join(", ")}`}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
