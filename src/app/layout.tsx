@@ -75,6 +75,12 @@ import { CursorFxHost } from "@/components/desktop/cursor-fx";
 import { PerfController, PerfHeavyOnly, PerfStaticBackdrop } from "@/components/perf/perf-gate";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
 import { MediaMiniDock } from "@/components/dashboard/apps/media/media-mini-dock";
+// Botón universal «Entrar en VR/AR» (contrato starseed-xr §3 c, XR1010E). Va en
+// el RAÍZ (su sitio según el enunciado) para ofrecer la entrada inmersiva desde
+// cualquier ruta; el almacén XR (@react-three/xr) se importa DENTRO del clic
+// (import perezoso) y el botón en sí no arrastra three. En rutas de consola no
+// se monta. En pantallas sin XR pinta un aviso honesto o nada.
+import { BotonEntradaXR } from "@/components/xr/shell/boton-entrada-xr";
 import { SovereignSyncMount } from "@/components/system/sovereign-sync-mount";
 // Motor de sincronización en TIEMPO REAL entre dispositivos de la cuenta
 // (escritorios, memorias, chats de Aurora, ajustes…): src/lib/sync/realtime-sync.ts.
@@ -324,6 +330,9 @@ export default function RootLayout({
                         <SoloFueraDeConsola><PinnedWidgetOverlay /></SoloFueraDeConsola>
                         {/* Mini-reproductor global del media center (aparece al reproducir). */}
                         <SoloFueraDeConsola><MediaMiniDock /></SoloFueraDeConsola>
+                        {/* Entrada XR universal (§3 c): flotante abajo a la derecha, en toda
+                            ruta salvo consola. Sin XR muestra el aviso honesto de su aparato. */}
+                        <SoloFueraDeConsola><BotonEntradaXR variante="flotante" /></SoloFueraDeConsola>
                         {/* Sincronización soberana: biblioteca/apps/dashboards ↔ Supabase (defensiva). */}
                         <SovereignSyncMount />
                         {/* Sincronización en TIEMPO REAL entre dispositivos de la cuenta (defensiva). */}
