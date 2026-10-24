@@ -68,6 +68,23 @@ describe("leerRespuesta", () => {
         expect(d.prioridad_feed.confianza).toBe(0.7);
     });
 
+    it("conserva answer_confidence (la calibrada de system_one) como confianza", () => {
+        // Forma real de system_one / Laya (scripts/puente/laya_exportar.py): `answer_confidence`.
+        const d = leerRespuesta({
+            answers: {
+                etiquetas: { type: "choice", choice: "ciencia", probabilities: { ciencia: 0.8, arte: 0.2 }, answer_confidence: 0.83 },
+                permitida: { type: "noul", noul: 0.42, probabilities: {}, answer_confidence: 0.61 },
+            },
+        });
+        expect(d.etiquetas.confianza).toBe(0.83);
+        expect(d.permitida).toEqual({ tipo: "noul", valor: 0.42, probabilidades: {}, confianza: 0.61 });
+        // Si vienen las dos, manda la calibrada; si la calibrada no es un número, queda `confidence`.
+        const ambas = leerRespuesta({ answers: { x: { type: "noul", noul: 0.5, answer_confidence: 0.7, confidence: 0.9 } } });
+        expect(ambas.x.confianza).toBe(0.7);
+        const rota = leerRespuesta({ answers: { x: { type: "noul", noul: 0.5, answer_confidence: "alta", confidence: 0.9 } } });
+        expect(rota.x.confianza).toBe(0.9);
+    });
+
     it("tolera respuestas parciales", () => {
         expect(leerRespuesta({})).toEqual({});
         const d = leerRespuesta({ answers: { x: { type: "noul" } } });

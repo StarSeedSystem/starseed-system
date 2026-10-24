@@ -84,7 +84,9 @@ export function leerRespuesta(json: unknown): Record<string, Decision> {
         } else if (tipo === "score") {
             valor = typeof a.score === "string" ? a.score : typeof a.score === "number" ? a.score : (Object.keys(probs)[0] ?? "");
         }
-        out[nombre] = { tipo, valor, probabilidades: probs, confianza: numero(a.confidence) };
+        // system_one (openjev/Laya) da `answer_confidence`, la calibrada; OpenRouter, `confidence`.
+        const confianza = numero(a.answer_confidence, numero(a.confidence));
+        out[nombre] = { tipo, valor, probabilidades: probs, confianza };
     }
     return out;
 }
