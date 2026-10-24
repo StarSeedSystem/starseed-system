@@ -112,6 +112,10 @@ import {
   Monitor,
   RadioTower,
   UserCircle,
+  Atom,
+  Landmark,
+  GraduationCap,
+  Theater,
   type LucideIcon,
 } from "lucide-react";
 
@@ -149,10 +153,13 @@ export type AreaTip = {
   accent: string;
 };
 
-const AREAS: AreaTip[] = [
+// (GUI1021G) Tarjetas de la Guía de la red. Se exporta para la prueba de los
+// temas nuevos; la explicación de cada una vive en areas-explicadas.tsx, que
+// la toma de TODOS_LOS_TEMAS (fuente de verdad de los textos).
+export const AREAS: AreaTip[] = [
   { path: "/agent", label: "Agente · Aurora", icon: Brain, accent: "text-fuchsia-300", tip: "Usar: configura tu IA y habla con Aurora por voz o texto." },
   { path: "/memorias", label: "Memorias", icon: BookOpen, accent: "text-amber-300", tip: "Crear: guarda notas, ideas y archivos; vincúlalos en baúles." },
-  { path: "/cerebros", label: "Cerebros", icon: Network, accent: "text-cyan-300", tip: "Conectar: enlaza memorias y skills en un grafo vivo." },
+  { path: "/cerebro", label: "Cerebro", icon: Network, accent: "text-cyan-300", tip: "Conectar: un cerebro por cuenta guarda memorias, baúles, IA y permisos." },
   { path: "/decisiones", label: "Decisiones", icon: Vote, accent: "text-emerald-300", tip: "Publicar: propón y vota decisiones de la red." },
   { path: "/pizarra", label: "Pizarra", icon: PenSquare, accent: "text-violet-300", tip: "Crear: dibuja y co-crea ideas en un lienzo compartido." },
   { path: "/navegador", label: "Navegador", icon: Globe, accent: "text-sky-300", tip: "Usar: explora la red y descubre contenidos y nodos." },
@@ -161,10 +168,15 @@ const AREAS: AreaTip[] = [
   { path: "/seguridad", label: "Seguridad", icon: Lock, accent: "text-rose-300", tip: "Usar: gestiona claves, recuperación y privacidad." },
   { path: "/library", label: "Biblioteca", icon: Library, accent: "text-yellow-300", tip: "Crear: instala apps, skills y recursos de la colección común." },
   { path: "/hub", label: "Hub · Comunidades", icon: Users, accent: "text-teal-300", tip: "Conectar: únete a comunidades y nodos territoriales (Sanghas)." },
+  { path: "/network/politics", label: "Política", icon: Landmark, accent: "text-emerald-300", tip: "Decidir: propones, debatas y votas sin intermediarios; delegas y revocas." },
+  { path: "/network/education", label: "Educación", icon: GraduationCap, accent: "text-amber-300", tip: "Aprender: mapa del conocimiento y estudio con Aurora con insignias." },
+  { path: "/network/culture", label: "Cultura", icon: Theater, accent: "text-pink-300", tip: "Compartir: publica, mira lo en vivo y entra al Multiverso." },
   { path: "/crear", label: "Crear · Lienzo Universal", icon: Palette, accent: "text-lime-300", tip: "Crear: publica entidades únicas que se referencian, no se duplican." },
+  { path: "/protomolecula", label: "Protomolécula", icon: Atom, accent: "text-violet-300", tip: "Crear: moléculas vivas de átomos de imagen, audio, vídeo y 3D." },
+  { path: "/genesis", label: "Genesis", icon: Wand2, accent: "text-fuchsia-300", tip: "Personalizar: pides cambios del sistema en tus palabras y ves la propuesta antes de aceptar." },
   { path: "/profile", label: "Perfil", icon: UserCircle, accent: "text-orange-300", tip: "Usar: tus facetas públicas (cívica, artística, profesional) de la cuenta." },
   { path: "/escritorios", label: "Escritorios", icon: Monitor, accent: "text-purple-300", tip: "Usar: tu espacio principal con widgets, apps y el OmniDock." },
-  { path: "/red-mesh", label: "Red Mesh", icon: RadioTower, accent: "text-red-300", tip: "Conectar: malla LoRa nodo a nodo, sin depender de un servidor central." },
+  { path: "/red-mesh", label: "Red Mesh", icon: RadioTower, accent: "text-red-300", tip: "Conectar: malla de tus aparatos, sin internet por QR y por radio LoRa." },
 ];
 
 export default function OnboardingWizard({ onClose }: { onClose?: () => void }) {
