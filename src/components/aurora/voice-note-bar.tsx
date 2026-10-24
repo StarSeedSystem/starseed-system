@@ -7,27 +7,21 @@
  * · Si existe una NOTA DE VOZ guardada para el texto del mensaje (el audio real
  *   que sonó, capturado por `voice-notes.ts`), muestra un mini reproductor
  *   elegante: play/pause + duración estimada + icono Volume2.
- * · SIEMPRE ofrece «Regenerar voz» (visible al hover) con selector de motor
- *   (OpenVoice · OmniVoice · Kokoro · Navegador). Al elegir: borra la nota y
- *   pide al motor que hable — los motores NEURALES (OpenVoice/OmniVoice) emiten
- *   el evento `starseed:voice-note`, así que la nota se RE-CAPTURA y se RE-ADJUNTA
- *   sola. Kokoro y el navegador hablan en vivo (no dejan nota: honesto).
+ * · SIEMPRE ofrece «Regenerar voz» (visible al hover). Al pulsar: borra la nota
+ *   y pide la voz por la puerta única `hablar()` (Ola 1015V), que elige el
+ *   motor —voz en vivo, cadena del registro o suelo del navegador— como manda
+ *   `voz-fusionada-astraura.md` §3. Los motores NEURALES siguen emitiendo el
+ *   evento `starseed:voice-note`, así que la nota se RE-CAPTURA y se RE-ADJUNTA
+ *   sola; Kokoro y el navegador hablan en vivo (no dejan nota: honesto).
  *
  * La nota se liga al mensaje por `voiceTextHash(texto)` — sin ids, sin DDL.
  * SSR-safe, defensivo, nunca lanza al render.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Cloud, Cpu, Loader2, Monitor, Pause, Play, RefreshCw, Volume2, Waves } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Loader2, Pause, Play, RefreshCw, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { hablar } from "@/lib/aurora/voz-unica";
 import {
   cleanTextForVoiceChain,
   deleteVoiceNote,
@@ -41,15 +35,6 @@ import {
   type VoiceNote,
   type VoiceNotePlayback,
 } from "@/lib/aurora/voice-notes";
-
-type RegenEngine = "openvoice2" | "omnivoice" | "kokoro" | "browser";
-
-const ENGINE_OPTIONS: { id: RegenEngine; label: string; hint: string; Icon: typeof Cloud }[] = [
-  { id: "openvoice2", label: "OpenVoice", hint: "web gratis + emociones", Icon: Cloud },
-  { id: "omnivoice", label: "OmniVoice", hint: "híbrido local ↔ nube", Icon: Waves },
-  { id: "kokoro", label: "Kokoro", hint: "local en el navegador", Icon: Cpu },
-  { id: "browser", label: "Navegador", hint: "voz del sistema", Icon: Monitor },
-];
 
 /** "1:04", "12s" o "~8s" (estimada). */
 function formatDur(ms: number): string {
@@ -85,7 +70,7 @@ export function VoiceNoteBar({ text, className, convId }: VoiceNoteBarProps) {
   const [durationMs, setDurationMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [regenerating, setRegenerating] = useState<RegenEngine | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
   const playbackRef = useRef<VoiceNotePlayback | null>(null);
 
   const reload = useCallback(async () => {
@@ -175,57 +160,34 @@ export function VoiceNoteBar({ text, className, convId }: VoiceNoteBarProps) {
     }
   }, [hash, paused, resetPlayback]);
 
-  const speakBrowser = useCallback((t: string) => {
+  const regenerate = useCallback(async () => {
+    if (regenerating) return;
+    setRegenerating(true);
+    // Corta lo que suene y borra la nota vieja (se re-adjunta sola si es neural).
     try {
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(t);
-      u.lang = "es-ES";
-      synth.speak(u);
+      playbackRef.current?.stop();
     } catch {
       /* */
     }
-  }, []);
-
-  const regenerate = useCallback(
-    async (engine: RegenEngine) => {
-      if (regenerating) return;
-      setRegenerating(engine);
-      // Corta lo que suene y borra la nota vieja (se re-adjunta sola si es neural).
-      try {
-        playbackRef.current?.stop();
-      } catch {
-        /* */
-      }
-      resetPlayback();
-      stopVoiceNotePlayback();
-      try {
-        await deleteVoiceNote(hash);
-        setNote(null);
-        setDurationMs(0);
-        // Habla el texto YA LIMPIO (igual que la cadena normal): así la nota que
-        // el motor neural re-emite casa con el hash canónico de este mensaje.
-        if (engine === "openvoice2" || engine === "omnivoice") {
-          // Motor NEURAL: emite `starseed:voice-note` → la captura re-adjunta la nota.
-          const { neuralSpeak } = await import("@/lib/aurora/tts-oss/neural-tts");
-          await neuralSpeak(engine, spokenText);
-        } else if (engine === "kokoro") {
-          const { kokoroSpeak } = await import("@/lib/aurora/tts-oss/kokoro");
-          await kokoroSpeak(spokenText, { autoDownload: true });
-        } else {
-          speakBrowser(spokenText);
-        }
-      } catch {
-        /* la cadena de voz nunca debe romper la UI */
-      } finally {
-        setRegenerating(null);
-        // Los trozos neurales pueden seguir llegando: refresca un momento después.
-        setTimeout(() => void reload(), 1200);
-      }
-    },
-    [hash, regenerating, resetPlayback, speakBrowser, spokenText, reload],
-  );
+    resetPlayback();
+    stopVoiceNotePlayback();
+    try {
+      await deleteVoiceNote(hash);
+      setNote(null);
+      setDurationMs(0);
+      // Habla el texto YA LIMPIO (igual que la cadena normal): así la nota que
+      // el motor neural re-emite casa con el hash canónico de este mensaje.
+      // Una sola puerta: `hablar()` decide el motor (vivo → cadena → suelo) y
+      // nunca lanza; los neurales siguen emitiendo la nota para re-capturarla.
+      await hablar(spokenText, { contexto: "lectura" });
+    } catch {
+      /* la cadena de voz nunca debe romper la UI */
+    } finally {
+      setRegenerating(false);
+      // Los trozos neurales pueden seguir llegando: refresca un momento después.
+      setTimeout(() => void reload(), 1200);
+    }
+  }, [hash, regenerating, resetPlayback, spokenText, reload]);
 
   const hasAudio = !!note && note.chunks.length > 0;
   const durLabel = durationMs > 0 ? formatDur(durationMs) : "";
@@ -259,39 +221,21 @@ export function VoiceNoteBar({ text, className, convId }: VoiceNoteBarProps) {
         </button>
       )}
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            disabled={!!regenerating}
-            className={cn(
-              "inline-flex cursor-pointer items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-white/50 transition-all hover:border-white/25 hover:text-white/80",
-              // Con audio, se revela al hover del mensaje; sin audio la barra entera
-              // ya está oculta hasta el hover, así que aquí va visible.
-              hasAudio && !regenerating ? "opacity-0 group-hover:opacity-100 focus-visible:opacity-100" : "opacity-100",
-            )}
-            title="Regenerar la voz con otro motor"
-          >
-            {regenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            <span>{regenerating ? "Regenerando…" : "Regenerar voz"}</span>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="border-white/10 bg-black/90 backdrop-blur-xl">
-          <DropdownMenuLabel className="text-[11px] text-white/60">Regenerar voz con…</DropdownMenuLabel>
-          <DropdownMenuSeparator className="bg-white/10" />
-          {ENGINE_OPTIONS.map((opt) => (
-            <DropdownMenuItem
-              key={opt.id}
-              className="cursor-pointer gap-2 text-xs"
-              onClick={() => void regenerate(opt.id)}
-            >
-              <opt.Icon className="h-3.5 w-3.5 text-sky-300/80" />
-              <span className="font-medium text-white/85">{opt.label}</span>
-              <span className="ml-auto pl-3 text-[10px] text-white/40">{opt.hint}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <button
+        type="button"
+        disabled={regenerating}
+        onClick={() => void regenerate()}
+        className={cn(
+          "inline-flex cursor-pointer items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-white/50 transition-all hover:border-white/25 hover:text-white/80 disabled:cursor-default",
+          // Con audio, se revela al hover del mensaje; sin audio la barra entera
+          // ya está oculta hasta el hover, así que aquí va visible.
+          hasAudio && !regenerating ? "opacity-0 group-hover:opacity-100 focus-visible:opacity-100" : "opacity-100",
+        )}
+        title="Regenerar la voz de este mensaje por la puerta única"
+      >
+        {regenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+        <span>{regenerating ? "Regenerando…" : "Regenerar voz"}</span>
+      </button>
     </div>
   );
 }
