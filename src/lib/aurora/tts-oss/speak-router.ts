@@ -67,6 +67,7 @@ import {
   applyVoiceChainPriority,
 } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import { BrainApiManager } from "@/lib/aurora/tts-oss/brain-api-manager";
+import { cronometroHabla } from "@/lib/aurora/medidas-voz";
 import {
   getEngineSettings,
   getVoiceConfig,
@@ -329,9 +330,13 @@ async function runLink(
   detectedLang?: string,
 ): Promise<LinkOutcome> {
   let started = false;
+  // (VOZ1024A) Primer sonido de ESTE eslabón, desde que se le pide la locución. Chatterbox
+  // ya anota el suyo dentro de `chatterbox.ts`: aquí no se cuenta dos veces.
+  const habla = link === "chatterbox" ? null : cronometroHabla({ motor: link, idioma: detectedLang });
   const safe = {
     onStart: () => {
       started = true;
+      habla?.sono();
       try { opts.onStart?.(); } catch { /* */ }
     },
     onEnd: () => {

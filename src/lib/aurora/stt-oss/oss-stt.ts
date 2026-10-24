@@ -45,6 +45,7 @@ import {
   getOssSttLangCode,
   type OssSttModelId,
 } from "@/lib/aurora/stt-oss/opt-in";
+import { cronometroOido } from "@/lib/aurora/medidas-voz";
 
 // ── CDN + configuración de bajo nivel ────────────────────────────────────────
 
@@ -501,7 +502,7 @@ export async function startOssStt(opts: StartOssSttOptions): Promise<OssSttSessi
 
   // Transcribe un buffer PCM (Float32, mono, a inputRate) — remuestrea a 16k.
   // Con reintento defensivo ante fallos transitorios (WASM ocupado, GC…).
-  const transcribeSegment = async (pcm: Float32Array) => {
+  const transcribeSegment = async (pcm: Float32Array, oido?: ReturnType<typeof cronometroOido>) => {
     const asr = pipelinePromise ? await pipelinePromise.catch(() => null) : null;
     if (!asr) return;
     let audio = pcm;
@@ -527,6 +528,7 @@ export async function startOssStt(opts: StartOssSttOptions): Promise<OssSttSessi
         const raw = typeof out?.text === "string" ? out.text : "";
         const text = cleanTranscript(raw);
         if (text && !HALLUCINATION_RE.test(raw) && !stopped) {
+          oido?.final(); // (VOZ1024A) retraso del oído: de la última voz del tramo al texto
           try {
             opts.onResult(text);
           } catch {
@@ -566,8 +568,11 @@ export async function startOssStt(opts: StartOssSttOptions): Promise<OssSttSessi
       offset += c.length;
     }
     resetSegment();
+    // (VOZ1024A) Whisper en el navegador, por tramos: la última voz se oyó hace esto.
+    const oido = cronometroOido({ motor: "whisper-web", idioma: effectiveLang || undefined, flujo: false });
+    oido.oyendo(Math.max(0, performance.now() - lastVoiceAt));
     // Transcribe sin bloquear el hilo de audio (fire-and-forget defensivo).
-    void transcribeSegment(merged);
+    void transcribeSegment(merged, oido);
   };
 
   processor.onaudioprocess = (ev: AudioProcessingEvent) => {

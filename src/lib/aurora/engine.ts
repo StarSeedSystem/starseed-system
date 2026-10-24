@@ -88,7 +88,7 @@ import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
-import { anotarMedida, medidasDe } from "@/lib/aurora/medidas-voz";
+import { cronometroHabla, cronometroOido } from "@/lib/aurora/medidas-voz";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -626,6 +626,15 @@ function resolveBrowserUtterance(clean: string, p: Personality): SpeechSynthesis
     u.pitch = Math.max(0, Math.min(2, u.pitch * aj.pitch));
     u.rate = Math.max(0.1, Math.min(2, u.rate * aj.rate));
   } catch { /* sin modo elegido: queda la cadena de siempre */ }
+  // (VOZ1024A) Primer sonido de la voz del navegador, medido desde aquí. Si ya suena o
+  // hay cola, el arranque esperaría a las anteriores y no mediría al motor: no se mide.
+  try {
+    const ss = window.speechSynthesis;
+    if (!ss.speaking && !ss.pending) {
+      const habla = cronometroHabla({ motor: "navegador", idioma: u.lang || undefined });
+      u.addEventListener("start", () => { habla.sono(); });
+    }
+  } catch { /* sin medida: la voz suena igual */ }
   return u;
 }
 
@@ -1978,6 +1987,8 @@ export function useAuroraEngine(): AuroraEngine {
 
     rec.lang = activeRef.current.voice?.lang || "es-MX";
     rec.interimResults = true;
+    // (VOZ1024A) Retraso del oído del navegador en ESTA neurona: del último parcial al final.
+    const oidoMedido = cronometroOido({ motor: "navegador", idioma: rec.lang, flujo: true });
     // Móvil: NO continuo (Android termina tras cada frase; lo reiniciamos aquí).
     rec.continuous = !isMobile;
     rec.maxAlternatives = 1;
@@ -2098,6 +2109,8 @@ export function useAuroraEngine(): AuroraEngine {
       // este ciclo es SANO y se resetea el backoff anti-loop.
       sawResult = true;
       sttRestartsRef.current = 0;
+      if (finalText) oidoMedido.final();
+      if (interimText) oidoMedido.oyendo();
 
       // ── MODO PASIVO (fondo): NO procesamos nada como comando ni mostramos el
       //    interim; solo esperamos oír "aurora". Al oírla, ACTIVAMOS (engaged) y,
@@ -2161,6 +2174,8 @@ export function useAuroraEngine(): AuroraEngine {
     let sawResult = false;
     let lastErr = "";
     let stopped = false;
+    // (VOZ1024A) Retraso del oído en flujo (Phonon-2) en ESTA neurona: del último parcial al final.
+    const oidoMedido = cronometroOido({ motor: "phonon-2", idioma: activeRef.current.voice?.lang || "es-MX", flujo: true });
     let flujo: OidoFlujo | null = null;
     let audioCtx: AudioContext | null = null;
     let mediaStream: MediaStream | null = null;
@@ -2217,6 +2232,8 @@ export function useAuroraEngine(): AuroraEngine {
       if (stopped || gen !== recGenRef.current) return; // flujo obsoleto: ignora
       if (ttsGuardActive()) return; // ANTI-ECO GLOBAL: su propia voz no es mandato
       if (finalText || interimText) { sawResult = true; sttRestartsRef.current = 0; }
+      if (finalText) oidoMedido.final();
+      if (interimText) oidoMedido.oyendo();
       if (!engagedRef.current) {
         // PASIVO: solo "aurora" enciende el modo activo (y hasta ejecuta lo que traiga la frase).
         const heard = finalText || interimText;

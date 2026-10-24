@@ -36,6 +36,7 @@ import {
     type MedidasVoz,
 } from "@/lib/aurora/colchon-voz";
 import { pedirLimiteFondo } from "@/lib/perf/fondo-vivo";
+import { anotarMedida } from "@/lib/aurora/medidas-voz";
 
 const BASE = "/api/voz-rt";
 /** (2026-09-24) Lo medido en este equipo: RTF del motor, ritmo del texto, duración típica. */
@@ -370,6 +371,8 @@ class VozRT {
 
     /** Programa buffers en el AudioContext, uno detrás de otro, sin huecos. */
     private programar(buffers: AudioBuffer[], esContenido = true): void {
+        // (VOZ1024A) ¿Primer audio de contenido del turno? Entonces se mide su primer sonido.
+        let medirPrimero = esContenido && !this.contenidoEmpezado && this.turnoInicio > 0;
         if (esContenido) this.contenidoEmpezado = true;
         const ctx = this.contexto();
         if (!ctx || !buffers.length) return;
@@ -382,6 +385,12 @@ class VozRT {
             src.connect(ctx.destination);
             const cuando = Math.max(ctx.currentTime + 0.02, this.finProgramado);
             src.start(cuando);
+            if (medirPrimero) {
+                medirPrimero = false;
+                // Desde que se encoló la primera frase hasta que suena (lo programado cuenta).
+                const valor = Date.now() + Math.max(0, cuando - ctx.currentTime) * 1000 - this.turnoInicio;
+                anotarMedida({ motor: "supertonic", tipo: "primer-sonido", valor: Math.max(1, Math.round(valor)), idioma: "es", flujo: true });
+            }
             this.finProgramado = cuando + buffer.duration;
             if (esContenido) this.turnoAudio += buffer.duration;
             this.fuentes.add(src);
