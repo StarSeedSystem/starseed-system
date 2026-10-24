@@ -40,34 +40,7 @@ export function capacidadesNodoToOfertaNeurona(nodo: CapacidadesNodo): OfertaNeu
     const estado = leerEstado();
     return ofertaDesdeAsignaciones(estado);
   }
-  return {
-    nodoId: nodo.nodoId,
-    cuentaId: "",
-    medio: nodo.medio,
-    computo: {
-      nucleos: 1,
-      ramLibreMb: nodo.ramLibreMb,
-      gpu: false,
-      vramMb: undefined,
-      motores: [],
-    },
-    almacen: { prestaMb: 0, volumenes: [] },
-    apps: [],
-    enlaces: { subidaKbps: undefined, bajadaKbps: undefined, latenciaMs: undefined },
-    energia: {
-      bateriaPct: nodo.bateriaPct !== null ? nodo.bateriaPct : undefined,
-      cargando: false,
-      enUso: false,
-    },
-    presta: {
-      cuenta: false,
-      grupos: [],
-      publico: false,
-      topes: { cpuPct: 0, ramMb: 0, discoMb: 0, horas: undefined, soloCargando: false },
-    },
-    t: nodo.t,
-  };
-}
+
 
 export function linkedServerToOfertaNeurona(servidor: LinkedServer): OfertaNeurona {
     const { role } = servidor.link;
