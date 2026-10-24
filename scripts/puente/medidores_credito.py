@@ -20,6 +20,7 @@ import medidor_claude_terminal
 import medidor_codex_terminal
 import medidor_http_json
 import medidor_oracle
+import medidor_cloudroom
 
 DIR = os.path.expanduser("~/.starseed")
 ARCHIVO_SALIDA = os.path.join(DIR, "medidores-credito.json")
@@ -38,6 +39,7 @@ ADAPTADORES = {
     "declarado": lambda cfg, ahora: medidor_http_json.leer_declarado(cfg, ahora),
     # (OC1010) Oracle Cloud por su CLI: gasto, prueba, límites gratis y reclamación (cada ≥ 15 min).
     "oracle_cli": lambda cfg, ahora: medidor_oracle.leer_medidor(cfg, ahora),
+    "cloudroom": lambda cfg, ahora: medidor_cloudroom.leer_medidor(cfg, ahora),
 }
 
 
@@ -76,6 +78,8 @@ def cargar_config(ruta: str = ARCHIVO_CONFIG) -> list[dict]:
         entradas.append({"id": "codex", "tipo": "codex_terminal"})
     if "oracle" not in ids_activos and "oracle" not in apagados and medidor_oracle.disponible():
         entradas.append({"id": "oracle", "tipo": "oracle_cli", "cada_min": medidor_oracle.CADA_MIN})
+    if "cloudroom" not in ids_activos and "cloudroom" not in apagados and medidor_cloudroom.disponible():
+        entradas.append({"id": "cloudroom", "tipo": "cloudroom", "cada_min": medidor_cloudroom.CADA_MIN})
     return [e for e in entradas if e.get("activo", True) is not False]
 
 
