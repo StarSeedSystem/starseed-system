@@ -1,6 +1,10 @@
 import { UMBRAL_EJECUTAR as UMBRAL_NEEDLE_EJECUTAR, zonaDeConfianza,
   type DecisionNeedle, type LlamadaNeedle, type HerramientaNeedle } from "./needle3-client";
 import { preguntaTipo } from "@/ai/astraura/habilidades/diagramas";
+// Cliente único de Laya (Ola 1018L · Tarea B): aquí es donde debía usarse `preguntarALaya`,
+// que era la única llamada a Laya del servidor TS, con plazos del catálogo y relé de malla.
+import { preguntarALaya, type RelojLaya, type Siesta } from "./laya/cliente-laya";
+import { conOpciones, puntoDecision } from "./laya/puntos-decision";
 
 /** ¿La consulta pide dibujar un diagrama? (la petición, no la intención del modelo). */
 const RX_PETE_DIAGRAMA = /\b(diagrama?s?|dibuja|dibujar|dibujo|esquema?s?|organigrama|gantt|sankey|wardley|flowchart|flujograma)\b/i;
@@ -56,41 +60,44 @@ export function planDeDecision(
     "Sin respuesta de Jev en escalado de Needle 3, se escala a LLM");
 }
 
-interface RespuestaLayaHttp { answers?: Record<string,
-  { choice?: unknown; confidence?: unknown; }>; }
+interface DecisionLaya { choice?: unknown; confidence?: unknown; answer_confidence?: unknown; }
+
+/** Siesta del reloj real: se cancela (el temporizador se retira) si el trabajo gana el plazo. */
+function siesta(ms: number): Siesta {
+  let cancelar: () => void = () => {};
+  const promesa: Promise<void> = new Promise((resolver) => {
+    const t = setTimeout(resolver, ms);
+    cancelar = () => clearTimeout(t);
+  });
+  return { promesa, cancelar };
+}
+
+const RELOJ_REAL: RelojLaya = { ahora: () => Date.now(), dormir: siesta };
 
 export async function decidirConLaya(
   consulta: string, herramientas: HerramientaNeedle[], transporte?: typeof fetch
 ): Promise<RespuestaLaya | null> {
   if (herramientas.length === 0) return null;
+  const punto = puntoDecision("reflejo.herramienta");
+  if (!punto) return null;
   const criteria = Object.fromEntries(herramientas.map(
     ({ name, description }) => [name, description]));
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
   try {
-    const respuesta = await (transporte ?? fetch)("http://127.0.0.1:4470/v1/systemone", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        state: consulta,
-        questions: {
-          herramienta: { type: "choice",
-            instructions: "Elige la herramienta más adecuada para resolver la consulta", criteria },
-        },
-      }),
-      signal: controller.signal,
-    });
-    if (!respuesta.ok) return null;
-    const data = (await respuesta.json()) as RespuestaLayaHttp;
-    const decision = data.answers?.herramienta;
+    const salida = await preguntarALaya(
+      { punto: { ...punto, preguntas: conOpciones(punto, "herramienta", criteria) },
+        estado: consulta, medio: "a1" },
+      { ...RELOJ_REAL, fetch: transporte ?? fetch });
+    const decision = salida.respuestas?.herramienta as DecisionLaya | undefined;
     if (typeof decision?.choice !== "string"
       || !Object.prototype.hasOwnProperty.call(criteria, decision.choice)) return null;
-    if (typeof decision.confidence !== "number" || !Number.isFinite(decision.confidence)) return null;
-    return { herramienta: decision.choice, confianza: decision.confidence, motor: "laya-local" };
+    // Lectura calibrada (Ola 1018L · LYS1018B): manda `answer_confidence`; `confidence` solo si falta aquella.
+    const cruda = typeof decision.answer_confidence === "number" && Number.isFinite(decision.answer_confidence)
+      ? decision.answer_confidence
+      : decision.confidence;
+    if (typeof cruda !== "number" || !Number.isFinite(cruda)) return null;
+    return { herramienta: decision.choice, confianza: cruda, motor: "laya-local" };
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
