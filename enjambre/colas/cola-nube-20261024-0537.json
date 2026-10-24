@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "RLB1020S",
+   "ola": "1020U",
+   "titulo": "Hub de Conectores · ComfyUI, LibreTranslate, Coolify, OpenHands Agent Server y ArchiveBox autoalojados",
+   "archivos": [
+    "src/lib/connectors/registry.ts",
+    "src/lib/connectors/__tests__/registry-1020d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). Añade a `BUILTIN_CONNECTORS` (mismo tipo `Connector`) cinco conectores autoalojados: ComfyUI (URL en `COMFYUI_URL`, puerto 8188 por defecto, sin clave), LibreTranslate (URL en `LIBRETRANSLATE_URL`, puerto 5000, clave opcional en `LIBRETRANSLATE_API_KEY`), Coolify (URL en `COOLIFY_URL`, token Bearer en `COOLIFY_API_TOKEN`; la descripción dice que va en solo lectura hasta verificar las rutas de despliegue), OpenHands Agent Server (descripción honesta: ficha y conector, cliente pendiente de verificar su API) y ArchiveBox (aviso: el envío a archive.org va apagado). Solo nombres de variables, nunca valores. Si ya existe un conector con ese id o ese repo, amplíalo en vez de duplicar. `recommended` solo ComfyUI y LibreTranslate. Pruebas: ids únicos en todo el registro, los cinco existen, ninguno lleva un valor de clave. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).",
+   "dependencias_ya_en_main": [
+    "RLB1020M"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1021-112746.json": [
+   "RLB1020S"
+  ]
+ }
+}
