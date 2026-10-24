@@ -1,5 +1,13 @@
 import { UMBRAL_EJECUTAR as UMBRAL_NEEDLE_EJECUTAR, zonaDeConfianza,
   type DecisionNeedle, type LlamadaNeedle, type HerramientaNeedle } from "./needle3-client";
+import { preguntaTipo } from "@/ai/astraura/habilidades/diagramas";
+
+/** ¿La consulta pide dibujar un diagrama? (la petición, no la intención del modelo). */
+const RX_PETE_DIAGRAMA = /\b(diagrama?s?|dibuja|dibujar|dibujo|esquema?s?|organigrama|gantt|sankey|wardley|flowchart|flujograma)\b/i;
+
+export function esPeticionDeDiagrama(consulta: string): boolean {
+  return RX_PETE_DIAGRAMA.test(consulta);
+}
 
 export type AccionPlan = "ejecutar" | "confirmar" | "escalar_jev" | "escalar_llm";
 export type CapaDecision = "needle" | "laya" | "jev" | "llm";
@@ -91,8 +99,7 @@ export async function decidirConJev(
 ): Promise<RespuestaJev> {
   if (!apiKey) return { ok: false, probabilidad: null, error: "Sin clave de API de OpenRouter" };
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
-  try {
+  const timer = setTimeout(() => controller.abort(), 6000);  try {
     const res = await (transporte ?? fetch)("https://openrouter.ai/api/alpha/decisions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -114,5 +121,37 @@ export async function decidirConJev(
   } catch (err: unknown) {
     clearTimeout(timer);
     return { ok: false, probabilidad: null, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export interface RespuestaTipoDiagrama { tipo: string; confianza: number; motor: "laya-local"; }
+
+/** Capa 2b · Laya elige el TIPO de diagrama entre los 45 por la petición
+ *  (architecture/diagramas.md §3.1). Con `tipos` (ids de `TIPOS_DIAGRAMA`)
+ *  limita las opciones, por ejemplo al bloque afín a la petición. */
+export async function decidirTipoDiagrama(
+  consulta: string, tipos?: string[], transporte?: typeof fetch
+): Promise<RespuestaTipoDiagrama | null> {
+  const gestor = new AbortController();
+  const timer = setTimeout(() => gestor.abort(), 6000);
+  try {
+    const respuesta = await (transporte ?? fetch)("http://127.0.0.1:4470/v1/systemone", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: consulta, questions: { tipo: preguntaTipo(tipos) } }),
+      signal: gestor.signal,
+    });
+    if (!respuesta.ok) return null;
+    const datos = (await respuesta.json()) as RespuestaLayaHttp;
+    const decision = datos.answers?.tipo;
+    const opciones = preguntaTipo(tipos).criteria;
+    if (typeof decision?.choice !== "string"
+      || !Object.prototype.hasOwnProperty.call(opciones, decision.choice)) return null;
+    if (typeof decision.confidence !== "number" || !Number.isFinite(decision.confidence)) return null;
+    return { tipo: decision.choice, confianza: decision.confidence, motor: "laya-local" };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
