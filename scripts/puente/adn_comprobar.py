@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Comprobador común del ADN: medir pruebas p1-p8 con métricas reales."""
-import json, re, sys
+import json, os, re, sys
 
 def evaluar(dna, m):
     r=[]
@@ -44,9 +44,9 @@ def _p1(c,mt):
 
 def _p2(c,mt):
     # máximo 3 tamaños
-    ma=re.search(r"máximo\s+(\d+)\s+tamaños",c)
+    ma=re.search(r"máximo\s+(\d+)\s+tama(?:ñ|n)os",c)
     if not ma:
-        ma=re.search(r"max\s+(\d+)\s+tamaños",c)
+        ma=re.search(r"max\s+(\d+)\s+tama(?:ñ|n)os",c)
     if not ma:
         return ("manual","No se pudo extraer número máximo de tamaños")
     try:
@@ -97,7 +97,7 @@ def _p4(c,mt):
 
 def _p5(c,mt):
     # cuerpo ≤ 65 caracteres
-    ma=re.search(r"cuerpo\s*(?:<=|≤)\s*(\d+)\s*caracteres",c)
+    ma=re.search(r"cuerpo\s*(?:<=|≤)\s*(\d+)\s*(?:caracteres|chars?)",c)
     if not ma:
         ma=re.search(r"longitud\s*línea\s*(?:<=|≤)\s*(\d+)\s*caracteres",c)
     if not ma:
@@ -168,6 +168,22 @@ def _p8(c,mt):
     if dia >= min_diana:
         return ("aprobado",f"Tamaño mínimo de diana {dia}px ≥ {min_diana}px")
     return ("suspenso",f"Tamaño mínimo de diana {dia}px < {min_diana}px")
+
+def main(carpeta):
+    """Mide el ADN indicado con las métricas que entrega diseno_adn.py."""
+    try:
+        with open(os.path.join(carpeta, "dna.json"), encoding="utf-8") as f:
+            dna = json.load(f)
+        metricas = json.load(sys.stdin)
+    except (OSError, json.JSONDecodeError) as error:
+        print(f"Error al cargar ADN o métricas: {error}", file=sys.stderr)
+        sys.exit(1)
+    medidos = {pid: (estado, detalle) for pid, estado, detalle in evaluar(dna, metricas)}
+    for i in range(1, 9):
+        pid = f"p{i}"
+        estado, detalle = medidos.get(pid, ("manual", "prueba sin definición"))
+        print(f"{pid}: {estado} · {detalle}")
+    sys.exit(1 if any(estado == "suspenso" for estado, _ in medidos.values()) else 0)
 
 if __name__=="__main__":
     if len(sys.argv)!=3:
