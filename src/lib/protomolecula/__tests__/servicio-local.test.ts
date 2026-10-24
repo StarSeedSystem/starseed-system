@@ -100,6 +100,33 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
   });
 });
 
+describe("servicio-local · HyperFrames en los servicios conocidos", () => {
+  const hyperframes = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes");
+  it("la definición de HyperFrames es válida y declara su puerto, ruta y tiempo de render", () => {
+    expect(hyperframes).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
+    expect(hyperframes && validarDefinicion(hyperframes)).toBeNull();
+  });
+  it("su salud se consulta solo en 127.0.0.1, en /salud y con el tiempo corto de sondeo", async () => {
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"ok":true}'));
+    expect(hyperframes).toBeDefined();
+    if (!hyperframes) return;
+    expect((await sondearServicio(hyperframes, f)).vivo).toBe(true);
+    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];
+    expect(url).toBe("http://127.0.0.1:4490/salud");
+    expect(new URL(url).hostname).toBe("127.0.0.1");
+    expect(init).toMatchObject({ method: "GET", redirect: "manual" });
+  });
+  it("la salud no espera los 15 minutos de render: usa el plazo corto de sondeo", async () => {
+    const { reloj, avanzar } = relojFalso();
+    let senal: AbortSignal | undefined;
+    const colgado: FetchLocal = (_u, i) => { senal = i.signal; return new Promise((_, rej) => i.signal.addEventListener("abort", () => rej(new Error("abortado")))); };
+    const p = sondearServicio(hyperframes as DefinicionServicio, colgado, { reloj });
+    avanzar(3_000);
+    expect(await p).toMatchObject({ vivo: false, ms: 3_000 });
+    expect(senal?.aborted).toBe(true);
+  });
+});
+
 describe("servicio-local · lanzador nativo (lista blanca y confirmación siempre)", () => {
   const ctx: ContextoLanzamiento = { rol: "dueno", origen: "mano", ambito: "personal", appNativa: true, ahora: 7 };
   it("binario fuera de la lista blanca cerrada: rechazado", () => {
