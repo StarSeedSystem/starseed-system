@@ -2,8 +2,9 @@
 """Las reglas del guardia de memoria, sin tocar ningun proceso.
 
 La decision es una funcion pura: decidir(orquestador_vivo, libre_mb, congelados,
-motores) -> [(motor, 'congelar'|'descongelar')]. Aqui se fija lo que debe pasar en
-cada caso, umbrales e histeresis incluidos.
+motores, conversando=False, presion=None) -> [(motor, 'congelar'|'descongelar')].
+Aqui se fija lo que debe pasar en cada caso, umbrales, presion del nucleo e
+histeresis incluidos.
 """
 
 import importlib.util
@@ -141,8 +142,55 @@ class AccionPara(unittest.TestCase):
         self.assertEqual("matar", G.accion_para("llama-server", 25, 80))
 
 
-if __name__ == "__main__":
-    unittest.main()
+class PresionDelNucleo(unittest.TestCase):
+    """(2026-10-21) La memoria INACTIVA alta esconde el aprieto: con macOS
+    presionado, `libres_mb()` sigue por encima del umbral y la regla CNS1010
+    nunca se aplicaba. El nivel de presión del núcleo (1 normal … 4 crítica)
+    también cuenta como aprieto; sin presión medida, todo como hoy."""
+
+    def test_congelado_con_presion_2_y_libre_alta_se_reevalua(self):
+        # El caso real medido: llama-server 22 h congelado, swap al 94 %,
+        # presión 2 y «libres» por encima del umbral de congelar.
+        acciones = G.decidir(
+            True, BAJO + 1, {"llama-server"}, ["llama-server"], presion=2
+        )
+        self.assertEqual([("llama-server", "reevaluar")], acciones)
+
+    def test_suelto_con_presion_2_y_libre_alta_se_congela(self):
+        acciones = G.decidir(True, BAJO + 1, set(), ["llama-server"], presion=2)
+        self.assertEqual([("llama-server", "congelar")], acciones)
+
+    def test_presion_1_con_libre_alta_no_hace_nada(self):
+        # Presión «normal»: sin aprieto de memoria no hay acción ninguna.
+        self.assertEqual(
+            [], G.decidir(True, BAJO + 1, {"llama-server"}, ["llama-server"], presion=1)
+        )
+        self.assertEqual(
+            [], G.decidir(True, BAJO + 1, set(), ["llama-server"], presion=1)
+        )
+
+    def test_presion_none_deja_todo_como_hoy(self):
+        # Sin pasar presión (o con None explícito), la regla de siempre: solo
+        # cuenta `libre_mb`.
+        self.assertEqual(
+            [], G.decidir(True, BAJO + 1, {"llama-server"}, ["llama-server"])
+        )
+        self.assertEqual(
+            [("llama-server", "reevaluar")],
+            G.decidir(True, BAJO - 1, {"llama-server"}, ["llama-server"], presion=None),
+        )
+
+    def test_la_presion_no_cambia_la_reanudacion(self):
+        # La reanudación sigue con su histéresis: sin enjambre y con holgura se
+        # reanuda aunque el núcleo siga presionado.
+        acciones = G.decidir(
+            False, SOBRE + 1, {"llama-server"}, ["llama-server"], presion=3
+        )
+        self.assertEqual([("llama-server", "descongelar")], acciones)
+
+    def test_presion_nucleo_none_o_nivel_valido(self):
+        nivel = G.presion_nucleo()
+        self.assertTrue(nivel is None or (isinstance(nivel, int) and nivel >= 1))
 
 
 class ConAlexHablandoLosMotoresNoSeCongelan(unittest.TestCase):
@@ -158,3 +206,7 @@ class ConAlexHablandoLosMotoresNoSeCongelan(unittest.TestCase):
     def test_sin_conversacion_la_regla_de_siempre(self):
         self.assertEqual(G.decidir(True, 10, set(), ["llama-server"], conversando=False),
                          [("llama-server", "congelar")])
+
+
+if __name__ == "__main__":
+    unittest.main()
