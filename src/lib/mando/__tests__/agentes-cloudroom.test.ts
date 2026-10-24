@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { agentesDeCloudroom, filasCloudroom, tareaEnCloudroom, DONDE_CLOUDROOM } from "../agentes-cloudroom";
+import { agentesDeCloudroom, filasCloudroom, paradoDe, tareaEnCloudroom, DONDE_CLOUDROOM, VISTO_VIGENTE_MS } from "../agentes-cloudroom";
 
 const AHORA = Date.UTC(2026, 9, 24, 20, 0, 0);
 const s = (minutosAntes: number) => (AHORA - minutosAntes * 60_000) / 1000; // el lanzador escribe segundos
@@ -49,5 +49,24 @@ describe("agentes de Cloudroom (hilos de la nube vivos)", () => {
         expect(filasCloudroom(null)).toEqual([]);
         expect(agentesDeCloudroom("x", progreso, AHORA)).toEqual([]);
         expect(tareaEnCloudroom(undefined)).toBe(false);
+    });
+
+    it("CRM1024K: un hilo que seguir vio parado no se pinta escribiendo (y dice por qué)", () => {
+        const registro = [
+            { tarea: "A", hilo: "thr_a", t: s(40), harness: "pi", modelo: "nvidia/z-ai/glm-5.3", visto: { estado: "terminado", t: s(2), corte: "cupo" }, reanudaciones: 1 },
+            { tarea: "B", hilo: "thr_b", t: s(40), harness: "pi", modelo: "nvidia/x", visto: { estado: "trabajando", t: s(2), corte: "" } },
+        ];
+        const [a, b] = agentesDeCloudroom(registro, progreso, AHORA);
+        expect(a).toMatchObject({ fase: "parado", parado: "cupo", reanudaciones: 1 });
+        expect(b.fase).toBe("escribiendo");
+        expect(b.parado).toBeUndefined();
+    });
+
+    it("CRM1024K: paradoDe solo cree un «visto» reciente", () => {
+        expect(paradoDe({ estado: "terminado", t: s(1), corte: "modelo" }, AHORA)).toBe("modelo");
+        expect(paradoDe({ estado: "terminado", t: s(1), corte: "" }, AHORA)).toBe("terminado");
+        expect(paradoDe({ estado: "terminado", t: (AHORA - VISTO_VIGENTE_MS - 60_000) / 1000, corte: "cupo" }, AHORA)).toBe("");
+        expect(paradoDe({ estado: "trabajando", t: s(1) }, AHORA)).toBe("");
+        expect(paradoDe(null, AHORA)).toBe("");
     });
 });

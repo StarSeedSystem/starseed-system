@@ -212,6 +212,16 @@ cat > "$HOME/.pi/agent/models.json" <<'JSON'
      "id": "qwen/qwen3.8-max:free"
     }
    ]
+  },
+  "gemini": {
+   "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+   "api": "openai-completions",
+   "apiKey": "$GEMINI_API_KEY",
+   "models": [
+    {
+     "id": "gemini-3.6-flash"
+    }
+   ]
   }
  }
 }

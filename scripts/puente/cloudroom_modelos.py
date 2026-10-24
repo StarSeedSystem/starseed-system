@@ -65,15 +65,103 @@ PI_MODELOS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.pat
                           "config", "cloudroom-pi-modelos.json")
 
 
-def pi_declarados(ruta=None):
-    """Los modelos de Pi declarados en config/cloudroom-pi-modelos.json ([] si no se puede leer)."""
+def _config_pi(ruta=None):
     try:
         with open(ruta or PI_MODELOS, encoding="utf-8") as f:
-            datos = json.load(f)
+            return json.load(f)
     except (OSError, ValueError):
-        return []
+        return {}
+
+
+def pi_declarados(ruta=None):
+    """Los modelos de Pi declarados en config/cloudroom-pi-modelos.json ([] si no se puede leer)."""
+    datos = _config_pi(ruta)
     lista = datos.get("modelos") if isinstance(datos, dict) else datos
     return [str(m).strip() for m in lista or [] if isinstance(m, str) and m.strip()]
+
+
+#: (2026-10-24, CRM1024K) Los 15 hilos de Pi abiertos A LA VEZ contra NIM se quedaron quietos con
+#: «429 Too Many Requests»: la clave de un proveedor gratuito aguanta pocos agentes a la vez (y es la
+#: MISMA clave que usa el enjambre de la Mac). Tope de hilos vivos por proveedor gratuito: el de la
+#: config (`simultaneos`) o este.
+SIMULTANEOS_DEFECTO = 2
+
+
+def _dict_config(clave, ruta=None):
+    datos = _config_pi(ruta)
+    d = datos.get(clave) if isinstance(datos, dict) else None
+    return d if isinstance(d, dict) else {}
+
+
+def simultaneos_declarados(ruta=None):
+    """{proveedor: tope de hilos vivos a la vez} de la config (`simultaneos`); {} si no lo dice."""
+    return {str(k).lower(): int(v) for k, v in _dict_config("simultaneos", ruta).items()
+            if isinstance(v, int) and not isinstance(v, bool) and v >= 0}
+
+
+def claves_declaradas(ruta=None):
+    """{proveedor: NOMBRE de la variable con su clave en la nube de Cloudroom} (`claves`). Solo nombres."""
+    return {str(k).lower(): str(v) for k, v in _dict_config("claves", ruta).items() if isinstance(v, str) and v}
+
+
+def nombres_env(lista_env):
+    """PURA: los NOMBRES de `room-cli cloud env list --json` ({"variables": [{"name"}]}); None si no se
+    pudo leer (entonces no se filtra nada: mejor probar que dejar la nube sin modelos)."""
+    d = lista_env.get("data", lista_env) if isinstance(lista_env, dict) else None
+    if not isinstance(d, dict) or not isinstance(d.get("variables"), list):
+        return None
+    return {str(v.get("name")) for v in d["variables"] if isinstance(v, dict) and v.get("name")}
+
+
+def pi_con_clave(declarados, claves, nombres):
+    """PURA: los modelos declarados cuyo proveedor tiene su clave en la nube (o no pide ninguna
+    conocida). Sin `nombres` (no se pudo leer la lista) se quedan todos."""
+    if nombres is None:
+        return list(declarados or [])
+    salida = []
+    for m in declarados or []:
+        var = claves.get(m.split("/", 1)[0].lower(), "")
+        if not var or var in nombres:
+            salida.append(m)
+    return salida
+
+
+def proveedor_fila(fila):
+    """PURA: el proveedor gratuito de una fila del registro de hilos («nvidia» de pi/nvidia/z-ai/…);
+    "" si el hilo no es de un harness gratuito (Codex y Claude tienen sus propios topes)."""
+    if not isinstance(fila, dict) or fila.get("harness") not in GRATIS:
+        return ""
+    modelo = str(fila.get("modelo") or "")
+    return modelo.split("/", 1)[0].lower() if "/" in modelo else ""
+
+
+def vivos_por_proveedor(filas):
+    """PURA: {proveedor: hilos abiertos} de las filas abiertas del registro."""
+    vivos = {}
+    for f in filas or []:
+        prov = proveedor_fila(f)
+        if prov:
+            vivos[prov] = vivos.get(prov, 0) + 1
+    return vivos
+
+
+def repartir_por_tope(ordenes, vivos, topes, defecto=SIMULTANEOS_DEFECTO):
+    """PURA: cada orden de candidatos sin los de proveedores gratuitos ya en su tope, contando los que
+    este mismo reparto va dando (el primero de cada orden es el que se usará). Una tarea sin candidato
+    con hueco queda en None: espera a la próxima pasada sin gastar un hilo del cupo."""
+    cuenta, salida = dict(vivos or {}), []
+    for orden in ordenes or []:
+        libres = []
+        for c in orden:
+            prov = proveedor_fila({"harness": c[0], "modelo": c[1]})
+            if not prov or cuenta.get(prov, 0) < topes.get(prov, defecto):
+                libres.append(c)
+        if libres:
+            prov = proveedor_fila({"harness": libres[0][0], "modelo": libres[0][1]})
+            if prov:
+                cuenta[prov] = cuenta.get(prov, 0) + 1
+        salida.append(libres or None)
+    return salida
 
 
 def harnesses_nube(estado, declarados=None):
@@ -126,10 +214,14 @@ def _hasta(valor):
     return str(valor or "").replace("T", " ")[:19]
 
 
+#: Proveedores propios de Pi en la nube con otro nombre en la salud compartida (la clave es la misma).
+SALUD_PI = {"gemini": "google"}
+
+
 def estado_proveedor(salud, prov, ahora_txt):
     """PURA: por qué la salud compartida aparta al proveedor ("" si no lo aparta). Mira su nombre en
     la salud («nvidia» → «nim») y el de opencode, igual que `buscar_capacidad`."""
-    for nombre in dict.fromkeys((B.SALUD_DE.get(prov, prov), prov)):
+    for nombre in dict.fromkeys((B.SALUD_DE.get(prov, prov), SALUD_PI.get(prov, prov), prov)):
         e = (salud or {}).get(nombre) if isinstance(salud, dict) else None
         if not isinstance(e, dict):
             continue
@@ -189,7 +281,7 @@ def _intercalar(grupos):
     return salida
 
 
-def evaluar_modelos(estado_cloud, medidores, limites, salud, ahora):
+def evaluar_modelos(estado_cloud, medidores, limites, salud, ahora, declarados=None):
     """PURA. {"candidatos": [(harness, modelo, motivo)], "descartes": [(harness, motivo)]}: los
     modelos de la nube que pueden abrir un hilo ahora, en el orden de las reglas del módulo, y por
     qué se quedan fuera los demás (un motivo por harness y causa, para decirlo en el parte)."""
@@ -200,7 +292,7 @@ def evaluar_modelos(estado_cloud, medidores, limites, salud, ahora):
         if (h, motivo) not in descartes:
             descartes.append((h, motivo))
 
-    for h, datos, modelos in harnesses_nube(estado_cloud):
+    for h, datos, modelos in harnesses_nube(estado_cloud, declarados):
         if h in GRATIS:
             for m in modelos:
                 prov = proveedor_de(datos, m)

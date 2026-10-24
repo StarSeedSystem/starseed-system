@@ -196,6 +196,12 @@ def seleccionar(ids, tareas, progreso, registro, ahora, cupo):
     return salida
 
 
+def sin_ola(valor):
+    """PURA: «1019A · ADN…» de «Ola 1019A · ADN…»: la plantilla ya pone «Ola» delante (el asunto salía
+    «Ola Ola 1019A …», medido en main el 2026-10-24)."""
+    return re.sub(r"^\s*ola\s+", "", str(valor or ""), flags=re.I).strip()
+
+
 def marca(modelo, ahora, harness=""):
     """Los campos de progreso de una tarea prestada a un hilo de Cloudroom (la nota dice harness y modelo)."""
     etiqueta = "%s/%s" % (harness, modelo) if harness else modelo
@@ -240,7 +246,7 @@ def rama_pedida(tid, fecha):
 
 def brief(tarea, fecha):
     """PURA: el encargo del hilo: la plantilla con su asunto y su rama, y el prompt de la tarea."""
-    return L.brief(PLANTILLA.replace("{OLA}", str(tarea.get("ola") or fecha)), tarea, fecha)
+    return L.brief(PLANTILLA.replace("{OLA}", sin_ola(tarea.get("ola")) or fecha), tarea, fecha)
 
 
 def orden_spawn(cli, tarea, texto, harness, modelo, peticion, proyecto=""):
@@ -359,6 +365,103 @@ def decidir(fila, ramas, hilos, progreso, ahora, gracia_h=GRACIA_H):
     return "devolver" if edad > gracia_h * 3600 else "esperar"
 
 
+#: (CRM1024K, 2026-10-24) Un hilo que se paró porque el PROVEEDOR de su modelo cortó (429, saturado,
+#: 5xx) o porque su modelo no existe para la cuenta (404/410, sin clave) no se da por perdido: se le
+#: escribe otra vez (`thread tell`: el MISMO hilo, no gasta otro de los 100 del ciclo), con otro modelo
+#: del mismo harness si hace falta. Medido: 15 hilos de Pi contra NIM a la vez → los 15 parados con 429.
+MAX_REANUDAR = 3
+#: Tras un corte por cupo, el mismo proveedor no se vuelve a probar en ese hilo antes de esto.
+ESPERA_CUPO_S = 20 * 60
+CORTE_CUPO = re.compile(r"\b429\b|too many requests|rate.?limit|overloaded|\b50[234]\b|service unavailable|quota", re.I)
+CORTE_MODELO = re.compile(r"\b404\b[^\n]{0,160}\bnot found|\b410\b|end of life|model[^\n]{0,40}not found|"
+                          r"no api key found|unknown model|invalid model|\b401\b", re.I)
+_CABECERA_LOG = re.compile(r"^\s*── (.+?) ─*\s*$")
+
+
+def secciones_log(texto):
+    """PURA: [(cabecera, cuerpo)] del `thread log` en formato «minimal» («── Error ───» y lo que sigue)."""
+    secciones = []
+    for linea in (texto or "").splitlines():
+        m = _CABECERA_LOG.match(linea)
+        if m:
+            secciones.append([m.group(1).strip(), []])
+        elif secciones:
+            secciones[-1][1].append(linea)
+    return [(c, "\n".join(cuerpo).strip()) for c, cuerpo in secciones]
+
+
+def corte_de(log):
+    """PURA: «modelo» | «cupo» | "" según cómo ACABA el log del hilo: solo cuenta si lo último es un
+    bloque de error (un 429 a mitad de un trabajo que luego siguió no es un corte)."""
+    secciones = [x for x in secciones_log(log) if not x[0].lower().startswith("(showing")]
+    if not secciones or "error" not in secciones[-1][0].lower():
+        return ""
+    cuerpo = secciones[-1][1]
+    return "modelo" if CORTE_MODELO.search(cuerpo) else "cupo" if CORTE_CUPO.search(cuerpo) else ""
+
+
+def instante_hilo(hilo, clave="updatedAt"):
+    """PURA: segundos epoch de un campo de tiempo de `thread list` (ms, s o ISO); None sin dato."""
+    v = hilo.get(clave) if isinstance(hilo, dict) else None
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0:
+        return v / 1000.0 if v > 1e11 else float(v)
+    if isinstance(v, str) and v:
+        try:
+            f = datetime.fromisoformat(v.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return (f if f.tzinfo else f.replace(tzinfo=timezone.utc)).timestamp()
+    return None
+
+
+def reanudable(accion, fila, corte, ahora, gracia_h=GRACIA_H):
+    """PURA: ¿se reanuda en vez de traer el parche o devolverla? Solo un hilo terminado por un corte, con
+    reanudaciones libres y dentro de la gracia (pasada, se devuelve como siempre)."""
+    return (accion in ("parche", "devolver") and corte in ("cupo", "modelo")
+            and int(fila.get("reanudaciones") or 0) < MAX_REANUDAR and ahora - _t(fila) <= gracia_h * 3600)
+
+
+def plan_reanudar(fila, corte, candidatos, ocupados, topes, ahora, parado_t=None):
+    """PURA: (harness, modelo) con el que reanudar, o None si ahora no se puede (sigue abierto).
+    · corte «modelo»: otro modelo del mismo harness con hueco.
+    · corte «cupo»: otro PROVEEDOR del mismo harness con hueco; si no hay, el mismo modelo cuando el hilo
+      lleve `ESPERA_CUPO_S` parado, su proveedor tenga hueco y siga entre los candidatos."""
+    h, m = fila.get("harness"), fila.get("modelo")
+    actual = CM.proveedor_fila(fila)
+
+    def prov(c):
+        return CM.proveedor_fila({"harness": c[0], "modelo": c[1]})
+
+    con_hueco = [c for c in candidatos or [] if c[0] == h and (not prov(c) or ocupados.get(prov(c), 0) < topes.get(prov(c), CM.SIMULTANEOS_DEFECTO))]
+    if corte == "modelo":
+        otro = next((c for c in con_hueco if c[1] != m), None)
+        return (otro[0], otro[1]) if otro else None
+    if corte == "cupo":
+        otro = next((c for c in con_hueco if prov(c) != actual), None)
+        if otro:
+            return otro[0], otro[1]
+        if parado_t is not None and ahora - parado_t >= ESPERA_CUPO_S and any(c[1] == m for c in con_hueco):
+            return h, m
+    return None
+
+
+def mensaje_reanudar(fila, corte, modelo_nuevo=""):
+    """PURA: lo que se le escribe al hilo para que siga (en el idioma y con las reglas del brief)."""
+    motivo = ("su modelo no estaba disponible para esta cuenta" if corte == "modelo"
+              else "el proveedor de su modelo cortó por cupo (429 o saturado)")
+    return ("Continúa la tarea %s donde la dejaste: te detuviste porque %s.%s Si tu trabajo sigue en el "
+            "sandbox, sigue tu plan sin empezar de cero; si se reinició y no está, hazla desde el principio. "
+            "Termina con las reglas de tu primer mensaje: tsc y pruebas en verde, un solo commit, `git push "
+            "origin HEAD:refs/heads/%s` y la última línea INTEGRABLE · PENDIENTE-DE · NO APLICA."
+            % (fila.get("tarea"), motivo, (" Ahora usas otro modelo: %s." % modelo_nuevo) if modelo_nuevo else "",
+               fila.get("rama_pedida") or "nube/cr-<fecha>/ola/%s" % fila.get("tarea")))
+
+
+def orden_tell(cli, hilo, mensaje, modelo=""):
+    """PURA: `room-cli thread tell` (en la nube, en cola). Con `modelo`, el hilo cambia de modelo."""
+    return [cli, "thread", "tell", str(hilo), mensaje, "--json"] + (["--model", modelo] if modelo else [])
+
+
 def huerfanas(progreso, registro, ahora, reserva_s=MIN_PARCHE_S):
     """PURA: `reasignada · cloudroom` sin hilo abierto en el registro (y no recién reservadas): nadie
     las devolvería nunca."""
@@ -419,6 +522,13 @@ def _leer_json(ruta, defecto):
         return defecto
 
 
+def pi_disponibles(run, cli):
+    """(CRM1024K) Los modelos de Pi declarados cuya clave está en la nube de Cloudroom (`cloud env
+    list`, solo nombres). Un modelo sin su clave abre un hilo que muere con «No API key found»."""
+    lista, _err = _json_cli(run, [cli, "cloud", "env", "list", "--json"]) if cli else (None, "")
+    return CM.pi_con_clave(CM.pi_declarados(), CM.claves_declaradas(), CM.nombres_env(lista))
+
+
 def leer_fuentes():
     """(medidores, límites de Claude, salud de proveedores) del disco, para `cloudroom_modelos`. Lo
     que falte se lee vacío: Codex queda «sin lectura» (se usa) y Claude Code fuera (pide lectura fresca)."""
@@ -456,6 +566,26 @@ def _json_cli(run, orden, timeout=30):
         return json.loads(p.stdout or "null"), ""
     except (OSError, subprocess.SubprocessError, ValueError) as e:
         return None, type(e).__name__
+
+
+def _log_hilo(run, cli, hilo):
+    """El último turno del log del hilo (formato «minimal»); "" si no se pudo leer."""
+    try:
+        p = run([cli, "thread", "log", str(hilo), "--limit", "1"], cwd=traer_nube.RAIZ, capture_output=True,
+                text=True, timeout=60)
+        return (p.stdout or "")[-6000:] if not p.returncode else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _reanudar(run, cli, fila, plan, mensaje):
+    """(ok, error): escribe al hilo. Al cambiar de modelo la nube contesta 409 «model just changed»: el
+    modelo ya cambió y el mensaje se manda otra vez, sin `--model`."""
+    cambio = plan[1] if plan[1] != fila.get("modelo") else ""
+    datos, err = _json_cli(run, orden_tell(cli, fila["hilo"], mensaje, cambio), timeout=90)
+    if datos is None and cambio and re.search(r"409|model just changed", err or "", re.I):
+        datos, err = _json_cli(run, orden_tell(cli, fila["hilo"], mensaje), timeout=90)
+    return datos is not None, err
 
 
 def proyecto_del_repo(proyectos, raiz):
@@ -498,8 +628,9 @@ def lanzar(ids, seco=False, priorizar=False, medio=None, ahora=None, run=subproc
     res["motivo"] = pausa_por_medio(registro, ahora)
     if res["motivo"]:
         return res
+    declarados = pi_disponibles(run, cli)
     estado, err = _json_cli(run, [cli, "cloud", "status", "--json"])
-    evaluado = CM.evaluar_modelos(estado, *leer_fuentes(), ahora)
+    evaluado = CM.evaluar_modelos(estado, *leer_fuentes(), ahora, declarados=declarados)
     candidatos = evaluado["candidatos"]
     fijo = CM.modelo_fijado(estado, os.environ.get("STARSEED_CLOUDROOM_MODELO", ""))
     fijo = (fijo[0], fijo[1], "fijado por STARSEED_CLOUDROOM_MODELO") if fijo else None
@@ -524,6 +655,15 @@ def lanzar(ids, seco=False, priorizar=False, medio=None, ahora=None, run=subproc
             return res
         # La rueda: cada tarea empieza en el candidato siguiente al anterior (también entre pasadas).
         ordenes = CM.orden_por_tarea(len(elegidas), candidatos, CM.inicio_rueda(candidatos, registro), fijo)
+        # (CRM1024K) Y ningún proveedor gratuito por encima de su tope de hilos a la vez: lo que no cabe
+        # espera a la próxima pasada (no se marca ni gasta cupo).
+        ordenes = CM.repartir_por_tope(ordenes, CM.vivos_por_proveedor(abiertos(registro)), CM.simultaneos_declarados())
+        pares = [(t, o) for t, o in zip(elegidas, ordenes) if o]
+        if not pares:
+            res["motivo"] = ("0 lanzadas: los proveedores gratuitos están en su tope de hilos a la vez (%s) y "
+                             "no queda otro modelo" % ", ".join("%s %d" % x for x in sorted(CM.vivos_por_proveedor(abiertos(registro)).items())))
+            return res
+        elegidas, ordenes = [t for t, _ in pares], [o for _, o in pares]
         plan = {str(t["id"]): o[0] for t, o in zip(elegidas, ordenes)}
         res["modelos"] = {tid: "%s/%s" % (c[0], c[1]) for tid, c in plan.items()}
         if seco:
@@ -605,7 +745,7 @@ def _parche(fila, hilo, cli, run):
         if not parche:
             return "vacio", ""
         mensaje = ("Ola %s · Cloudroom · %s: %s\n\nTraído del hilo %s con `environment diff-patch` (el agente no "
-                   "empujó su rama); entra por las puertas de traer_nube." % (fila.get("ola") or "cloudroom",
+                   "empujó su rama); entra por las puertas de traer_nube." % (sin_ola(fila.get("ola")) or "cloudroom",
                    fila["tarea"], fila.get("titulo") or "", fila["hilo"]))
         return "subido", subir_parche(parche, fila.get("base") or "origin/main", fila["rama_pedida"], mensaje, run)
     except (OSError, subprocess.SubprocessError, RuntimeError) as e:
@@ -642,12 +782,48 @@ def seguir(aplicar=True, ahora=None, run=subprocess.run, traer=traer_en_fondo, c
     if hilos is None and filas:
         res["errores"].append("no pude listar los hilos (%s)" % err)
     acciones = {str(f["tarea"]): decidir(f, ramas, hilos, progreso, ahora) for f in filas}
+    # (CRM1024K) Los parados por un corte del proveedor o de su modelo se reanudan, no se pierden.
+    cortes = {}
+    for f in filas:
+        tid = str(f["tarea"])
+        if hilos is not None and cli and estado_hilo(hilos.get(str(f["hilo"]))) == "terminado" and \
+                reanudable(acciones[tid], f, "cupo", ahora):
+            corte = corte_de(_log_hilo(run, cli, f["hilo"]))
+            if reanudable(acciones[tid], f, corte, ahora):
+                cortes[tid], acciones[tid] = corte, "reanudar"
     for tid in huer:
         acciones.setdefault(tid, "devolver")
     res["acciones"] = acciones
     if not aplicar:
         return res
     cambios, finales = {}, {}
+    if cortes:
+        declarados = pi_disponibles(run, cli)
+        estado, _err = _json_cli(run, [cli, "cloud", "status", "--json"])
+        candidatos = CM.evaluar_modelos(estado, *leer_fuentes(), ahora, declarados=declarados)["candidatos"]
+        ocupados = CM.vivos_por_proveedor([f for f in filas if estado_hilo((hilos or {}).get(str(f["hilo"]))) != "terminado"])
+        topes = CM.simultaneos_declarados()
+        for f in filas:
+            tid = str(f["tarea"])
+            if tid not in cortes:
+                continue
+            plan = plan_reanudar(f, cortes[tid], candidatos, ocupados, topes, ahora,
+                                 instante_hilo((hilos or {}).get(str(f["hilo"]))))
+            nuevo = plan[1] if plan and plan[1] != f.get("modelo") else ""
+            ok, err = _reanudar(run, cli, f, plan, mensaje_reanudar(f, cortes[tid], nuevo)) if plan else (False, "")
+            if not ok:
+                acciones[tid] = "esperar"  # sigue abierto: la próxima pasada lo vuelve a mirar
+                if err:
+                    res["errores"].append("%s: no pude reanudar el hilo (%s)" % (tid, err))
+                continue
+            prov = CM.proveedor_fila({"harness": plan[0], "modelo": plan[1]})
+            if prov:
+                ocupados[prov] = ocupados.get(prov, 0) + 1
+            finales[tid] = {"reanudaciones": int(f.get("reanudaciones") or 0) + 1, "t_reanudado": ahora,
+                            "intentos_parche": 0, "harness": plan[0], "modelo": plan[1]}
+            if nuevo:
+                finales[tid]["modelos_previos"] = list(f.get("modelos_previos") or []) + [f.get("modelo")]
+                _devolver({tid: {"nota": marca(plan[1], ahora, plan[0])["nota"]}})
     for f in filas:
         tid = str(f["tarea"])
         nota_medio = ("devuelta de Cloudroom por fallo del MEDIO: el sandbox del hilo %s no tenía el repo "
@@ -683,6 +859,13 @@ def seguir(aplicar=True, ahora=None, run=subprocess.run, traer=traer_en_fondo, c
         cambios.setdefault(tid, {"estado": "pendiente", "medio": "", "nota": "devuelta: prestada a Cloudroom sin hilo en el registro"})
     if cambios:
         _devolver(cambios)
+    # (CRM1024K) Lo que se vio del hilo en esta pasada: lo lee el medidor «Agentes» de Genesis para no
+    # pintar «escribiendo» un hilo parado (basta de ilusiones).
+    for f in filas:
+        tid = str(f["tarea"])
+        if hilos is not None and "final" not in finales.get(tid, {}):
+            visto = "trabajando" if acciones[tid] == "reanudar" else estado_hilo(hilos.get(str(f["hilo"])))
+            finales.setdefault(tid, {})["visto"] = {"estado": visto, "t": ahora, "corte": cortes.get(tid, "") if visto == "terminado" else ""}
     if finales:
         abiertos_ids = {(str(f["tarea"]), str(f["hilo"])) for f in filas}
 

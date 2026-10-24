@@ -177,3 +177,46 @@ def test_pi_declarados_lee_la_config_y_tolera_que_falte(tmp_path):
     ruta.write_text(json.dumps({"modelos": ["nvidia/z-ai/glm-5.3", "", 3]}))
     assert CM.pi_declarados(str(ruta)) == ["nvidia/z-ai/glm-5.3"]
     assert CM.pi_declarados(str(tmp_path / "no-existe.json")) == []
+
+
+def test_topes_y_claves_de_la_config(tmp_path):
+    """CRM1024K: los topes de hilos a la vez y los NOMBRES de las claves salen de la config."""
+    import json
+    import cloudroom_modelos as CM
+    ruta = tmp_path / "pi.json"
+    ruta.write_text(json.dumps({"simultaneos": {"NVIDIA": 2, "xkiro": True, "mal": -1, "groq": 0},
+                                "claves": {"nvidia": "NVIDIA_API_KEY", "mistral": "", "xkiro": 3}}))
+    assert CM.simultaneos_declarados(str(ruta)) == {"nvidia": 2, "groq": 0}
+    assert CM.claves_declaradas(str(ruta)) == {"nvidia": "NVIDIA_API_KEY"}
+    assert CM.simultaneos_declarados(str(tmp_path / "no.json")) == {}
+
+
+def test_solo_los_modelos_de_pi_cuya_clave_esta_en_la_nube():
+    import cloudroom_modelos as CM
+    declarados = ["nvidia/z-ai/glm-5.3", "mistral/devstral-medium-latest", "gemini/gemini-3.6-flash", "otro/x"]
+    claves = {"nvidia": "NVIDIA_API_KEY", "mistral": "MISTRAL_API_KEY", "gemini": "GEMINI_API_KEY"}
+    nombres = CM.nombres_env({"variables": [{"name": "NVIDIA_API_KEY", "hint": "nvap"}, {"name": "GEMINI_API_KEY"}, {}], "repos": []})
+    assert nombres == {"NVIDIA_API_KEY", "GEMINI_API_KEY"}
+    assert CM.pi_con_clave(declarados, claves, nombres) == ["nvidia/z-ai/glm-5.3", "gemini/gemini-3.6-flash", "otro/x"]
+    assert CM.pi_con_clave(declarados, claves, None) == declarados  # sin poder leer la lista, no se filtra
+    assert CM.nombres_env(None) is None and CM.nombres_env({"error": "x"}) is None
+
+
+def test_reparto_con_tope_por_proveedor_gratuito():
+    import cloudroom_modelos as CM
+    nim, kiro, codex = ("pi", "nvidia/z-ai/glm-5.3", ""), ("pi", "xkiro/qwen/qwen3-coder-plus:free", ""), ("codex", "gpt-6-luna", "")
+    filas = [{"harness": "pi", "modelo": "nvidia/z-ai/glm-5.3"}, {"harness": "codex", "modelo": "gpt-6-luna"},
+             {"harness": "pi", "modelo": "sin-proveedor"}, "basura"]
+    assert CM.vivos_por_proveedor(filas) == {"nvidia": 1}
+    ordenes = [[nim, kiro, codex], [nim, kiro, codex], [kiro, nim, codex], [nim, kiro]]
+    salida = CM.repartir_por_tope(ordenes, {"nvidia": 1}, {"nvidia": 2, "xkiro": 1})
+    assert [o[0] if o else None for o in salida] == [nim, kiro, codex, None]
+    assert salida[1] == [kiro, codex]  # el que ya no cabe sale también de los de reserva
+    assert CM.repartir_por_tope([[codex]] * 5, {}, {}) == [[codex]] * 5  # Codex no lo cuenta este tope
+
+
+def test_gemini_de_pi_mira_la_salud_de_google():
+    import cloudroom_modelos as CM
+    salud = {"google": {"estado": "vivo", "sin_cupo_hasta": "2099-01-01 00:00:00"}}
+    assert "gemini sin cupo" in CM.estado_proveedor(salud, "gemini", "2026-10-24 12:00:00")
+    assert CM.estado_proveedor({}, "gemini", "2026-10-24 12:00:00") == ""

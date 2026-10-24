@@ -244,6 +244,81 @@ class Seguir(unittest.TestCase):
         self.assertEqual(C.huerfanas(p, [fila("C", AHORA - 3600)], AHORA), ["A"])
 
 
+LOG_429 = """── Assistant ──────────
+Voy a aplicar solo lo aprovechable.
+── Ran tool bash { command: git cherry-pick --no-commit c0dfe6784... }
+── Error ──────────────
+  429 {"status":429,"title":"Too Many Requests"}
+── Error ──────────────
+  429 {"status":429,"title":"Too Many Requests"}
+"""
+LOG_404 = """── Provisioned thread ──────
+  Starting Pi (1s)
+── Error ───────────
+  System error
+  404 {"status":404,"title":"Not Found","detail":"Function 'x': Not found for account 'y'"}
+"""
+
+
+class Reanudar(unittest.TestCase):
+    """CRM1024K: los hilos parados por el proveedor o por su modelo se reanudan (mismo hilo, sin gastar cupo)."""
+
+    def test_corte_segun_como_acaba_el_log(self):
+        self.assertEqual(C.corte_de(LOG_429), "cupo")
+        self.assertEqual(C.corte_de(LOG_404), "modelo")
+        siguio = LOG_429 + "── Assistant ──────\nINTEGRABLE · rama nube/cr-1/ola/A\n"
+        self.assertEqual(C.corte_de(siguio), "")  # un 429 a mitad que luego siguió no es un corte
+        self.assertEqual(C.corte_de("── Error ──\n  TypeError: x is undefined\n"), "")  # error del agente, no del proveedor
+        self.assertEqual(C.corte_de(""), "")
+        pie = LOG_429 + "(Showing the newest 1 user-message turns; older history omitted.)\n"
+        self.assertEqual(C.corte_de(pie), "cupo")
+
+    def test_reanudable_con_limite_y_dentro_de_la_gracia(self):
+        f = fila("A", AHORA - 3600)
+        self.assertTrue(C.reanudable("parche", f, "cupo", AHORA))
+        self.assertTrue(C.reanudable("devolver", f, "modelo", AHORA))
+        self.assertFalse(C.reanudable("traer", f, "cupo", AHORA))
+        self.assertFalse(C.reanudable("parche", f, "", AHORA))
+        self.assertFalse(C.reanudable("parche", dict(f, reanudaciones=C.MAX_REANUDAR), "cupo", AHORA))
+        self.assertFalse(C.reanudable("parche", fila("A", AHORA - 13 * 3600), "cupo", AHORA))
+
+    CANDS = [("pi", "nvidia/z-ai/glm-5.3", ""), ("pi", "xkiro/qwen/qwen3-coder-plus:free", ""), ("codex", "gpt-6-luna", "")]
+
+    def test_plan_cupo_otro_proveedor_y_si_no_espera(self):
+        f = fila("A", AHORA - 3600, harness="pi", modelo="nvidia/z-ai/glm-5.3")
+        self.assertEqual(C.plan_reanudar(f, "cupo", self.CANDS, {}, {}, AHORA, AHORA - 60), ("pi", "xkiro/qwen/qwen3-coder-plus:free"))
+        lleno = {"xkiro": 2}
+        self.assertIsNone(C.plan_reanudar(f, "cupo", self.CANDS, lleno, {}, AHORA, AHORA - 60))  # parado hace 1 min: espera
+        self.assertEqual(C.plan_reanudar(f, "cupo", self.CANDS, lleno, {}, AHORA, AHORA - C.ESPERA_CUPO_S), ("pi", "nvidia/z-ai/glm-5.3"))
+        self.assertIsNone(C.plan_reanudar(f, "cupo", self.CANDS, {"xkiro": 2, "nvidia": 2}, {}, AHORA, AHORA - 9999))
+        self.assertIsNone(C.plan_reanudar(f, "cupo", self.CANDS[1:], lleno, {}, AHORA, AHORA - 9999))  # su modelo ya no es candidato
+
+    def test_plan_modelo_otro_del_mismo_harness(self):
+        f = fila("A", AHORA - 3600, harness="pi", modelo="nvidia/nvidia/nemotron-3-super-120b-a12b")
+        self.assertEqual(C.plan_reanudar(f, "modelo", self.CANDS, {}, {}, AHORA), ("pi", "nvidia/z-ai/glm-5.3"))
+        self.assertEqual(C.plan_reanudar(f, "modelo", self.CANDS, {"nvidia": 1}, {"nvidia": 1}, AHORA),
+                         ("pi", "xkiro/qwen/qwen3-coder-plus:free"))
+        self.assertIsNone(C.plan_reanudar(f, "modelo", [self.CANDS[2]], {}, {}, AHORA))  # nunca cambia de harness
+
+    def test_mensaje_orden_e_instante(self):
+        f = fila("A", AHORA, rama_pedida="nube/cr-1/ola/A")
+        m = C.mensaje_reanudar(f, "modelo", "nvidia/z-ai/glm-5.3")
+        self.assertIn("Continúa la tarea A", m)
+        self.assertIn("git push origin HEAD:refs/heads/nube/cr-1/ola/A", m)
+        self.assertIn("otro modelo: nvidia/z-ai/glm-5.3", m)
+        self.assertEqual(C.orden_tell("rc", "h1", "hola"), ["rc", "thread", "tell", "h1", "hola", "--json"])
+        self.assertEqual(C.orden_tell("rc", "h1", "hola", "m")[-2:], ["--model", "m"])
+        self.assertEqual(C.instante_hilo({"updatedAt": 1792874699098}), 1792874699.098)
+        self.assertEqual(C.instante_hilo({"updatedAt": "2026-10-24T20:00:00Z"}), 1792872000.0)
+        self.assertIsNone(C.instante_hilo({}))
+
+    def test_sin_ola_repetida(self):
+        self.assertEqual(C.sin_ola("Ola 1019A · ADN de diseño"), "1019A · ADN de diseño")
+        self.assertEqual(C.sin_ola("1024C"), "1024C")
+        self.assertEqual(C.sin_ola(None), "")
+        self.assertIn("`Ola 1019A · ADN · Cloudroom · A: uno`", C.brief({"id": "A", "titulo": "uno", "ola": "Ola 1019A · ADN", "prompt": "x"}, "20261024"))
+
+
 class Hecho:
     def __init__(self, rc=0, out="", err=""):
         self.returncode, self.stdout, self.stderr = rc, out, err
@@ -455,6 +530,100 @@ class Maquina(unittest.TestCase):
         p = json.load(open(self.progreso))
         self.assertEqual((p["A"]["estado"], p["B"]["estado"]), ("pendiente", "pendiente"))
         self.assertEqual([x["final"] for x in C.leer_registro()], ["traida", "parche"])
+
+    PI = {"harnesses": [{"id": "pi", "models": []}, ESTADO_NUBE["harnesses"][0]]}
+
+    def _pi(self, declarados):
+        parche = mock.patch.object(C.CM, "pi_declarados", lambda ruta=None: list(declarados))
+        parche.start()
+        self.addCleanup(parche.stop)
+
+    def _parado(self, modelo, minutos, log=LOG_429, tell=None):
+        json.dump({"A": {"estado": "reasignada", "medio": "cloudroom"}}, open(self.progreso, "w"))
+        json.dump([fila("A", AHORA - 3600, hilo="hA", rama_pedida="nube/cr-1/ola/A", harness="pi", modelo=modelo, intentos_parche=3)],
+                  open(C.REGISTRO, "w"))
+        return self.falso([
+            (lambda o: o[:2] == ["git", "ls-remote"], Hecho(out="")),
+            (lambda o: o[1:3] == ["thread", "list"], Hecho(out=json.dumps([{"id": "hA", "status": "idle",
+                                                                            "updatedAt": (AHORA - minutos * 60) * 1000}]))),
+            (lambda o: o[1:3] == ["thread", "log"], Hecho(out=log)),
+            (lambda o: o[1:3] == ["cloud", "status"], Hecho(out=json.dumps(self.PI))),
+            (lambda o: o[1:3] == ["thread", "tell"] and tell is not None, tell),
+            (lambda o: o[1:3] == ["thread", "tell"], Hecho(out=json.dumps({"ok": True, "delivery": "sent"}))),
+        ])
+
+    def test_seguir_reanuda_el_parado_por_429_con_otro_proveedor_sin_abrir_otro_hilo(self):
+        self._pi(["nvidia/z-ai/glm-5.3", "xkiro/qwen/qwen3-coder-plus:free"])
+        r = C.seguir(ahora=AHORA, run=self._parado("nvidia/z-ai/glm-5.3", 2), traer=None, cli="room-cli")
+        self.assertEqual(r["acciones"], {"A": "reanudar"})
+        tells = [o for o, _ in self.ordenes if o[1:3] == ["thread", "tell"]]
+        self.assertEqual(len(tells), 1)
+        self.assertEqual(tells[0][3], "hA")
+        self.assertEqual(tells[0][-2:], ["--model", "xkiro/qwen/qwen3-coder-plus:free"])
+        self.assertFalse([o for o, _ in self.ordenes if o[1:3] == ["thread", "spawn"]])  # no gasta otro de los 100
+        x = C.leer_registro()[0]
+        self.assertNotIn("final", x)
+        self.assertEqual((x["reanudaciones"], x["intentos_parche"], x["modelo"]), (1, 0, "xkiro/qwen/qwen3-coder-plus:free"))
+        self.assertEqual(x["modelos_previos"], ["nvidia/z-ai/glm-5.3"])
+        self.assertEqual(x["visto"]["estado"], "trabajando")
+        self.assertEqual(json.load(open(self.progreso))["A"]["estado"], "reasignada")  # sigue prestada
+
+    def test_seguir_reenvia_tras_el_409_del_cambio_de_modelo(self):
+        self._pi(["nvidia/z-ai/glm-5.3", "xkiro/qwen/qwen3-coder-plus:free"])
+        cambio = Hecho(rc=1, err="Error: HTTP 409: This thread's model just changed. Send your message again.")
+        correr = self._parado("nvidia/z-ai/glm-5.3", 2)
+
+        def con_409(orden, **kw):
+            if orden[1:3] == ["thread", "tell"] and "--model" in orden:
+                self.ordenes.append((orden, None))
+                return cambio
+            return correr(orden, **kw)
+        r = C.seguir(ahora=AHORA, run=con_409, traer=None, cli="room-cli")
+        self.assertEqual(r["acciones"], {"A": "reanudar"})
+        tells = [o for o, _ in self.ordenes if o[1:3] == ["thread", "tell"]]
+        self.assertEqual(["--model" in o for o in tells], [True, False])
+        self.assertEqual(C.leer_registro()[0]["reanudaciones"], 1)
+
+    def test_seguir_espera_al_mismo_proveedor_y_el_medidor_lo_sabe(self):
+        self._pi(["nvidia/z-ai/glm-5.3"])
+        r = C.seguir(ahora=AHORA, run=self._parado("nvidia/z-ai/glm-5.3", 2), traer=None, cli="room-cli")
+        self.assertEqual(r["acciones"], {"A": "esperar"})
+        self.assertFalse([o for o, _ in self.ordenes if o[1:3] == ["thread", "tell"]])
+        x = C.leer_registro()[0]
+        self.assertNotIn("final", x)
+        self.assertEqual((x["visto"]["estado"], x["visto"]["corte"]), ("terminado", "cupo"))
+        # pasados los 20 min, el mismo modelo
+        self.ordenes.clear()
+        r = C.seguir(ahora=AHORA, run=self._parado("nvidia/z-ai/glm-5.3", 25), traer=None, cli="room-cli")
+        self.assertEqual(r["acciones"], {"A": "reanudar"})
+        tells = [o for o, _ in self.ordenes if o[1:3] == ["thread", "tell"]]
+        self.assertNotIn("--model", tells[0])
+
+    def test_seguir_cambia_de_modelo_si_el_suyo_no_existe(self):
+        self._pi(["nvidia/z-ai/glm-5.3"])
+        r = C.seguir(ahora=AHORA, run=self._parado("nvidia/nvidia/nemotron-3-super-120b-a12b", 1, log=LOG_404),
+                     traer=None, cli="room-cli")
+        self.assertEqual(r["acciones"], {"A": "reanudar"})
+        self.assertEqual(C.leer_registro()[0]["modelo"], "nvidia/z-ai/glm-5.3")
+        self.assertIn("pi/nvidia/z-ai/glm-5.3", json.load(open(self.progreso))["A"]["nota"])
+
+    def test_lanzar_no_pasa_del_tope_de_hilos_a_la_vez_por_proveedor(self):
+        json.dump([fila("X", AHORA - 600, harness="opencode", modelo="nvidia/kimi-k3")], open(C.REGISTRO, "w"))
+        tope = mock.patch.object(C.CM, "simultaneos_declarados", lambda ruta=None: {"nvidia": 1})
+        tope.start()
+        self.addCleanup(tope.stop)
+        r = C.lanzar(["A", "B"], medio={"estado": "usable"}, ahora=AHORA, run=self.abre(), cli="room-cli")
+        self.assertTrue(r["lanzadas"])
+        self.assertNotIn("nvidia/kimi-k3", [self.campo(o, "--model") for o in self.spawns()])
+        solo_nim = {"harnesses": [{"id": "opencode", "models": [{"model": "nvidia/kimi-k3"}]}]}
+        self.NUBE, self.ordenes[:] = solo_nim, []
+        json.dump([fila("X", AHORA - 600, harness="opencode", modelo="nvidia/kimi-k3")], open(C.REGISTRO, "w"))
+        json.dump({}, open(self.progreso, "w"))
+        r = C.lanzar(["B"], medio={"estado": "usable"}, ahora=AHORA, run=self.abre(), cli="room-cli")
+        self.assertEqual(r["lanzadas"], [])
+        self.assertIn("tope de hilos a la vez", r["motivo"])
+        self.assertFalse(self.spawns())
+        self.assertNotEqual(json.load(open(self.progreso)).get("B", {}).get("estado"), "reasignada")  # no se marcó
 
     def test_seguir_sin_hilos_abiertos_no_llama_a_nadie(self):
         self.assertEqual(C.seguir(ahora=AHORA, run=self.falso([]), traer=None, cli="room-cli"), {"acciones": {}, "errores": []})

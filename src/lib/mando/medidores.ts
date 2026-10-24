@@ -1318,6 +1318,11 @@ export interface DatosMedidores {
         pasoViejo?: boolean;
         /** (ALT1022C) Sesión de Claude Code en la nube: su URL. */
         url?: string;
+        /** (CRM1024K) Hilo de Cloudroom parado según la última pasada de `seguir`: «cupo» (su proveedor
+         *  cortó con 429), «modelo» (su modelo no existe para la cuenta) o «terminado». */
+        parado?: string;
+        /** (CRM1024K) Veces que MetaGenesis reanudó el hilo (mismo hilo: no gasta otro del cupo). */
+        reanudaciones?: number;
     }[];
     /**
      * Inventario de contenedores en la nube, tal como lo escribe
@@ -2187,8 +2192,20 @@ export function detalleDeMedidor(
                     estado = "escribiendo";
                     porque = `${TEXTO_CLAUDE_NUBE}${l.url ? ` · ${l.url}` : ""}`;
                 } else if (l.donde === DONDE_CLOUDROOM) {
-                    estado = "escribiendo";
-                    porque = `${TEXTO_CLOUDROOM}${l.modelo ? ` · ${l.modelo}` : ""}`;
+                    // (CRM1024K) Lo que vio `seguir` en el hilo, no un «escribiendo» a ciegas: 14 hilos
+                    // parados por un 429 de NIM salían escribiendo (2026-10-24).
+                    const base = `${TEXTO_CLOUDROOM}${l.modelo ? ` · ${l.modelo}` : ""}`;
+                    const veces = l.reanudaciones ? ` · reanudado ${l.reanudaciones} ${l.reanudaciones === 1 ? "vez" : "veces"}` : "";
+                    if (l.parado === "cupo" || l.parado === "modelo") {
+                        estado = "esperando modelo";
+                        porque = `${base} · ${l.parado === "cupo" ? "su proveedor cortó por cupo (429)" : "su modelo no existe para esta cuenta"}: MetaGenesis lo reanuda en el MISMO hilo (sin gastar otro del cupo) cuando haya hueco, con otro modelo si hace falta${veces}`;
+                    } else if (l.parado) {
+                        estado = "sin escribir";
+                        porque = `${base} · el hilo terminó: MetaGenesis trae su rama o su diff-patch, o devuelve la tarea al enjambre${veces}`;
+                    } else {
+                        estado = "escribiendo";
+                        porque = `${base}${veces}`;
+                    }
                 } else if (externo) {
                     estado = "trabajando fuera";
                     porque = `fase: ${l.fase ?? "sin fase"} · avisa al cambiar de fase (no escribe registro en la Mac)`;
