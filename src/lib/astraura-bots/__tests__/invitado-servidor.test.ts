@@ -17,9 +17,9 @@ const fragmento = (alcance: FragmentoMemoria["alcance"]): FragmentoMemoria => ({
 const entrada = (extra: Partial<EntradaTurno> = {}): EntradaTurno => ({ endpoint: "https://bot.invitado.example/agente", mensajes: [{ id: "m1", role: "user", content: "Hola" }], contextoPermitido: [], ...extra });
 const leer = async (s: ReadableStream<Uint8Array>) => new TextDecoder().decode(await new Response(s).arrayBuffer());
 function preparar(respuestas: Array<Response | ((signal: AbortSignal) => Promise<Response>)>, extra: Partial<DepInvitado> = {}) {
-  const llamadas: Array<{ url: string; headers: Record<string, string>; body: string }> = [], registros: RegistroTurno[] = [];
+  const llamadas: Array<{ url: string; metodo: string; headers: Record<string, string>; body: string }> = [], registros: RegistroTurno[] = [];
   const pedir: Pedir = async (url, init) => {
-    const r = respuestas[llamadas.push({ url: url.toString(), headers: { ...init.headers }, body: init.body }) - 1];
+    const r = respuestas[llamadas.push({ url: url.toString(), metodo: init.method, headers: { ...init.headers }, body: init.body }) - 1];
     if (!r) throw new Error("sin respuesta simulada"); return typeof r === "function" ? r(init.signal) : r;
   };
   return { llamadas, registros, dep: { resolver: dns, pedir, registrar: (r: RegistroTurno) => registros.push(r), nuevoId: () => "id-fijo", ...extra } };
@@ -55,6 +55,8 @@ describe("reenviarTurno", () => {
     const p = preparar([sse()]);
     const r = await reenviarTurno(entrada({ contextoPermitido: [fragmento("publica")] }), p.dep);
     expect(r.ok && (await leer(r.flujo))).toBe('data: {"type":"RUN_FINISHED"}\n\n');
+    expect(p.llamadas[0].metodo).toBe("POST");
+    expect(p.llamadas[0].headers).toMatchObject({ "Content-Type": "application/json", Accept: "text/event-stream" });
     const cuerpo = JSON.parse(p.llamadas[0].body);
     expect(cuerpo).toMatchObject({ threadId: "id-fijo", runId: "id-fijo", tools: [], state: {}, context: [{ description: "pagina", value: "Agenda pública del grupo" }] });
     expect(cuerpo.messages).toEqual([{ id: "m1", role: "user", content: "Hola" }]);
@@ -100,6 +102,7 @@ describe("reenviarTurno", () => {
     const r = await reenviarTurno(entrada(), caida.dep);
     expect(r).toMatchObject({ ok: false, status: 502 });
     expect(JSON.stringify(r)).not.toContain("ECONNREFUSED");
+    expect(caida.registros[0]).toMatchObject({ host: "bot.invitado.example", status: 502 });
   });
   it("tope de 1 MB: el flujo se corta con un RUN_ERROR legible", async () => {
     const grande = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new Uint8Array(700_000)); c.enqueue(new Uint8Array(700_000)); c.close(); } });
