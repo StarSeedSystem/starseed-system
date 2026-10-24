@@ -4621,3 +4621,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `FSH1018A` — otra cosa: ningún proveedor respondió (todos caídos)
 - `GCA1019H` — pruebas en rojo: vitest falla (rama conservada)
 - `RTRTCOL1012Bdsbbbbbbbbbbc` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-24 15:33 · mg-oracle-1024-0747
+
+**Lo que se pidió.** Cloudroom
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (CRM1024Ab, APM1017V, RTCRM1024Hd, RTCRM1024Dc). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CRM1024Ab` — otra cosa: ningún proveedor respondió (todos caídos)
+- `APM1017V` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCRM1024Hd` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCRM1024Dc` — otra cosa: ningún proveedor respondió (todos caídos)
