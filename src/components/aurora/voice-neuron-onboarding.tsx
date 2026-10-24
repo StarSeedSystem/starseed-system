@@ -89,6 +89,7 @@ export {
 const CHAIN_LABELS: Record<string, string> = {
   omnivoice: "OmniVoice · híbrido local/nube",
   openvoice2: "OpenVoice · nube gratis (por defecto)",
+  chatterbox: "Chatterbox · local o Space gratis",
   kokoro: "Kokoro · respaldo local",
   voxcpm: "VoxCPM · endpoint propio",
   voicebox: "Voicebox · estudio local",

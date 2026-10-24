@@ -113,6 +113,9 @@ const DEFAULT_CHAIN_PRIORITY = [
   "voicebox",
   "omnivoice",
   "openvoice2",
+  // Chatterbox (VZR1011B): detrás de OmniVoice/OpenVoice y antes de Kokoro. Sin
+  // estar aquí, `applyVoiceChainPriority` lo mandaba al final, DETRÁS de Kokoro.
+  "chatterbox",
   "kokoro",
   "voxcpm",
   "bark",
@@ -147,6 +150,27 @@ export function motorVivoDeEstaNeurona(): string | null {
   try { return ls.getItem(MOTOR_VIVO_KEY); } catch { return null; }
 }
 
+/**
+ * (VZR1011B) Completa un orden guardado con los motores que llegaron después:
+ * cada uno entra justo detrás del que le precede en el orden recomendado, sin
+ * tocar lo que la persona ordenó. Antes, un motor nuevo hacía que el orden
+ * guardado dejara de «valer» y se perdía entero. Devuelve [] si no queda nada.
+ */
+export function completarPrioridad(guardada: unknown): string[] {
+  if (!Array.isArray(guardada)) return [];
+  const out: string[] = [];
+  for (const m of guardada) {
+    if (typeof m === "string" && DEFAULT_CHAIN_PRIORITY.includes(m) && !out.includes(m)) out.push(m);
+  }
+  if (!out.length) return [];
+  DEFAULT_CHAIN_PRIORITY.forEach((m, i) => {
+    if (out.includes(m)) return;
+    const previo = i > 0 ? out.indexOf(DEFAULT_CHAIN_PRIORITY[i - 1]) : -1;
+    out.splice(previo + 1, 0, m);
+  });
+  return out;
+}
+
 /** Lee el orden de prioridad de motores (o el recomendado si no hay/inválido). */
 export function getVoiceChainPriority(): string[] {
   const ls = safeLS();
@@ -154,8 +178,7 @@ export function getVoiceChainPriority(): string[] {
   try {
     const raw = ls.getItem(VOICE_CHAIN_PRIORITY_KEY);
     if (!raw) return conMotorVivoDelante([...DEFAULT_CHAIN_PRIORITY], ls);
-    const arr = JSON.parse(raw) as string[];
-    const valid = arr.filter((m) => DEFAULT_CHAIN_PRIORITY.includes(m));
+    const valid = completarPrioridad(JSON.parse(raw));
     if (valid.length === DEFAULT_CHAIN_PRIORITY.length) return valid;
     return conMotorVivoDelante([...DEFAULT_CHAIN_PRIORITY], ls);
   } catch {
@@ -168,7 +191,7 @@ export function setVoiceChainPriority(order: string[]): void {
   const ls = safeLS();
   if (!ls) return;
   try {
-    const valid = order.filter((m) => DEFAULT_CHAIN_PRIORITY.includes(m));
+    const valid = completarPrioridad(order);
     if (valid.length === DEFAULT_CHAIN_PRIORITY.length) {
       ls.setItem(VOICE_CHAIN_PRIORITY_KEY, JSON.stringify(valid));
     }

@@ -166,6 +166,9 @@ export const ENGINE_TIMEOUT_MS: Record<NeuralVoiceEngine, number> = {
   // voice158 (motor 1.58-bit del backend, CPU pura): síntesis streaming rápida.
   // 30 s cubre turnos largos en CPU; el backend ya trocea eficientemente.
   voice158: 30_000,
+  // Chatterbox (VZR1011B): el cliente reparte este tope entre el servicio local y
+  // hasta tres Spaces (ZeroGPU tiene cola); un Space caído cede el turno antes.
+  chatterbox: 60_000,
 };
 
 /** TTL de la caché de disponibilidad (ping), en ms. */
@@ -193,6 +196,8 @@ const ENGINE_PATHS: Record<NeuralVoiceEngine, string[]> = {
   xai: [],
   // voice158: servidor FastAPI del backend Astraura (`/api/voice/synthesize`).
   voice158: ["/api/voice/synthesize"],
+  // Chatterbox habla por su cliente (servicio local + Spaces Gradio): sin rutas.
+  chatterbox: [],
 };
 
 /**
@@ -276,6 +281,13 @@ export const NEURAL_ENGINE_META: Record<
     voicePlaceholder: "Speaker-0 (el micelio asigna el voice pack)",
     defaultVoice: "Speaker-0",
     repo: "https://github.com/0xShug0/audio.cpp",
+  },
+  chatterbox: {
+    label: "Chatterbox (motor)",
+    hint: "Resemble AI (MIT): emoción por exageración; servicio local de la neurona o Space público gratis",
+    voicePlaceholder: "voz por defecto del modelo",
+    defaultVoice: "", // sin referencia: clonar solo con consentimiento (voces/clonacion.ts)
+    repo: "https://github.com/resemble-ai/chatterbox",
   },
 };
 
@@ -775,6 +787,35 @@ export async function neuralSynthesize(
     }).catch(() => null);
   }
 
+  // Chatterbox (VZR1011B): servicio local de la neurona y, si no, Spaces públicos
+  // desde ESTE navegador. La emoción viaja como exageración y la semilla por
+  // personalidad mantiene la misma voz en todos los trozos.
+  if (engine === "chatterbox") {
+    try {
+      const { sintetizarChatterbox } = await import("@/lib/aurora/tts-oss/chatterbox");
+      const r = await sintetizarChatterbox(clean, {
+        idioma: s.lang,
+        emocion: frozen?.params.emotion ?? s.emotion,
+        energia: frozen?.params.energy ?? s.energy,
+        personalityId: opts.personalityId ?? frozen?.personalityId,
+        signal: opts.signal,
+        presupuestoMs: opts.budgetCapMs ?? ENGINE_TIMEOUT_MS.chatterbox,
+      });
+      if (!r.blob && r.motivo && r.motivo !== "cancelado") {
+        try {
+          opts.onError?.(
+            r.motivo === "texto-largo"
+              ? "Chatterbox: el texto pasa de 300 caracteres y no hay servicio local."
+              : "Chatterbox: ni el servicio local ni ningún Space público respondió (cuota o Space dormido).",
+          );
+        } catch { /* */ }
+      }
+      return r.blob;
+    } catch {
+      return null;
+    }
+  }
+
   const endpoint = normalizeEndpoint(s.endpoint);
   if (!endpoint) {
     // OmniVoice sin endpoint manual = MODO HÍBRIDO INTEGRADO (daemon local ↔ nube).
@@ -1252,6 +1293,8 @@ export function chunkBudgetFor(
   if (engine === "omnivoice" && route?.route === "local") return { first: 130, rest: 230 };
   if (engine === "omnivoice") return { first: 160, rest: 340 };
   if (engine === "openvoice2") return { first: 160, rest: 380 };
+  // Chatterbox: los Spaces cortan en 300 caracteres → trozos que caben siempre.
+  if (engine === "chatterbox") return { first: 160, rest: 280 };
   return { first: 220, rest: 220 };
 }
 
@@ -2021,7 +2064,7 @@ export async function neuralSpeak(
     fallbackVoiceIdentity(engine, opts.settings),
   );
   identityToken = identity.token;
-  if (engine === "openvoice2" || engine === "omnivoice") {
+  if (engine === "openvoice2" || engine === "omnivoice" || engine === "chatterbox") {
     const chunks = planVoiceChunks(text, chunkBudgetFor(engine, identity.omniRoute));
     if (chunks.length > 1) {
       stopNeural({ keepIdentity: identity.token }); // una voz a la vez
@@ -2248,6 +2291,8 @@ export function neuralEngineConfigured(engine: NeuralVoiceEngine): boolean {
     if (engine === "omnivoice") return true;
     // OpenVoice V2 (web): Space integrado, CERO config → siempre "configurado".
     if (engine === "openvoice2") return true;
+    // Chatterbox (VZR1011B): local o Spaces públicos, CERO config → «configurado».
+    if (engine === "chatterbox") return true;
     const s = getEngineSettings(engine);
     if (!normalizeEndpoint(s.endpoint)) return false;
     if (engine === "voicebox" && !(s.profileId || s.voice)) return false;

@@ -842,7 +842,7 @@ export async function callGradioSpace(
 }
 
 /** Primer Blob de audio dentro del array de salida de un Space. */
-async function firstAudioFromGradio(
+export async function firstAudioFromGradio(
   out: unknown[] | null,
   base: string,
   signal: AbortSignal,

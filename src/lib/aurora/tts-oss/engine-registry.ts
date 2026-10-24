@@ -28,7 +28,8 @@
  *      (`config.engine`), si no es el navegador.
  *   3. AUTO (config.auto, ON por defecto) — el MEJOR motor disponible por
  *      realismo, entre los que están CONFIGURADOS (tienen endpoint y cumplen sus
- *      requisitos): VoxCPM → Voicebox → GPT-SoVITS → Bark → OmniVoice → OpenVoice V2.
+ *      requisitos): VoxCPM → Voicebox → GPT-SoVITS → Bark → OmniVoice → OpenVoice V2
+ *      → Chatterbox (VZR1011B: local o Spaces públicos, cero configuración).
  *      Un motor sin endpoint NO se prueba: cero red, cero latencia, cero coste
  *      para quien no tiene servidores.
  *   4. KOKORO — local en el navegador, si su modelo ya está descargado (o el
@@ -75,6 +76,9 @@ import { thisDeviceId } from "@/lib/neurons/neurons";
 // de `safe-storage` → importarlo aquí es barato y NO crea ciclos.
 // ⚠️ NUNCA importar `neuron-persona-systems.ts` (ese sí importa este módulo).
 import { getOverrides as getNeuronPersonaOverrides } from "@/lib/astraura/neuron-persona-store";
+// (VZR1011B) Estado SÍNCRONO de Chatterbox (solo memoria de salud, sin red). El
+// cliente es ligero: lo pesado (Gradio) lo carga él con `import()` al hablar.
+import { estadoChatterbox, latenciaMedidaChatterbox } from "@/lib/aurora/tts-oss/chatterbox";
 
 // ── Metadatos por motor ──────────────────────────────────────────────────────
 
@@ -244,7 +248,9 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
     emotions: false, // el color emocional lo aporta la semilla/entonación, no un parámetro
     cloning: true, // clona timbre desde una referencia (semilla sintética o audio propio)
     latency: "~3-8 s (nube, cola)",
-    license: "MIT (código) · CC-BY-NC (checkpoints)",
+    // V2 es MIT con uso comercial libre según su README (código y checkpoints);
+    // la «CC-BY-NC» era de los checkpoints de la V1 (VZR1011B · contrato §1).
+    license: "MIT (código y checkpoints V2) · uso comercial libre",
     repo: "https://github.com/myshell-ai/OpenVoice",
     requirements: ["Ninguno: funciona en la web. Usa una semilla de identidad sintética o tu propio audio."],
   },
@@ -337,6 +343,34 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
       "Requiere permiso de micrófono para la conversación en tiempo real.",
     ],
   },
+  // ── Chatterbox (Resemble AI) — VZR1011B ──
+  // Contrato `architecture/astraura-voces-y-robots.md` §1: MIT, español en su
+  // Multilingual (23 idiomas), clonación zero-shot y dial de EXAGERACIÓN
+  // emocional; marca de agua Perth en todo lo generado. Cero configuración:
+  // servicio local de la neurona (VZR1011A, 127.0.0.1:4505) o, si no hay, Spaces
+  // públicos de HF descubiertos y llamados desde el navegador de cada persona.
+  chatterbox: {
+    id: "chatterbox",
+    label: "Chatterbox (motor)",
+    hint: "Voz expresiva de Resemble AI: la emoción se dosifica con su dial de exageración. Local si tu neurona lo tiene; si no, un Space público gratis.",
+    kind: "endpoint",
+    realism: 4,
+    requiresEndpoint: false,
+    requiresDownload: false, // el navegador no descarga pesos; el servicio local los trae con permiso
+    free: true,
+    langs: "23 idiomas en Multilingual (es · en · fr · pt…); Turbo y Nano solo inglés",
+    spanish: true,
+    emotions: true, // dial de exageración (0,25–0,9) desde la emoción y la energía del estilo
+    cloning: true, // zero-shot, solo por la puerta con consentimiento (src/lib/voces/clonacion.ts)
+    latency: "se mide en esta neurona (primer audio local o del Space; los Spaces tienen cola)",
+    license: "MIT",
+    repo: "https://github.com/resemble-ai/chatterbox",
+    requirements: [
+      "Ninguno para empezar: usa el servicio local de tu neurona si está encendido o un Space público de Hugging Face con la cuota de tu navegador.",
+      "Todo lo que genera lleva la marca de agua Perth de Resemble AI.",
+      "Clonar una voz exige el consentimiento explícito de su dueño; sin él habla con la voz por defecto del modelo.",
+    ],
+  },
   kokoro: {
     id: "kokoro",
     label: "Kokoro",
@@ -411,8 +445,11 @@ export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
   "bark",
   "omnivoice",
   // OpenVoice V2 va SIEMPRE justo detrás del híbrido OmniVoice (Adenda V2-VOZ):
-  // en instalación CERO la cadena queda [voice158? → vibevoice? → omnivoice → openvoice2 → kokoro].
+  // en instalación CERO la cadena queda [voice158? → vibevoice? → omnivoice → openvoice2 → chatterbox → kokoro].
   "openvoice2",
+  // Chatterbox (VZR1011B): detrás del híbrido OmniVoice (y de OpenVoice, pegado
+  // a él) y antes de Kokoro. Sin quitar a nadie.
+  "chatterbox",
 ];
 
 /**
@@ -540,6 +577,9 @@ function endpointEngineConfigured(id: NeuralVoiceEngine, cfg: AuroraVoiceConfig)
   // AUTO_ENDPOINT_ORDER (gratis-primero manda) y si el server no da acceso,
   // declina limpio y la cadena sigue.
   if (id === "xai") return true;
+  // Chatterbox (VZR1011B): cero config (local o Spaces públicos). Solo se salta
+  // cuando TODO está apartado por fallos recientes: así no cuesta ni un ms.
+  if (id === "chatterbox") return estadoChatterbox() !== "fuera";
   const s = cfg.engines?.[id];
   if (!s?.endpoint || !s.endpoint.trim()) return false;
   // Voicebox exige perfil de voz: sin él su API responde 404 (no es "configurado").
@@ -578,6 +618,8 @@ function availabilityOffline(
       if (id === "openvoice2") return "configured";
       // xAI: acceso server-side (token/proxy) → usable sin endpoint del usuario.
       if (id === "xai") return "configured";
+      // Chatterbox: integrado; «fuera» = todo apartado por fallos recientes.
+      if (id === "chatterbox") return estadoChatterbox() === "fuera" ? "unreachable" : "configured";
       const s = cfg.engines?.[id];
       if (!s?.endpoint || !s.endpoint.trim()) return "needs-endpoint";
       if (id === "voicebox" && !(s.profileId || s.voice)) return "needs-profile";
@@ -876,6 +918,19 @@ export function resolveActiveVoiceEngine(cfg?: AuroraVoiceConfig): AuroraVoiceEn
 // ── API PÚBLICA para el Centro de Configuración ──────────────────────────────
 
 /**
+ * (VZR1011B) La latencia de Chatterbox que enseña la UI es la MEDIDA en esta
+ * neurona en cuanto la hay (copia de la ficha: el registro no se toca).
+ */
+function conLatenciaMedida(meta: VoiceEngineMeta): VoiceEngineMeta {
+  try {
+    const medida = latenciaMedidaChatterbox();
+    return medida ? { ...meta, latency: medida } : meta;
+  } catch {
+    return meta;
+  }
+}
+
+/**
  * listVoiceEngines — TODOS los motores con su ficha y su estado OFFLINE (sin
  * tocar la red: instantáneo, seguro de llamar en un render). Ordenados por
  * utilidad real: primero los que pueden hablar ya, luego por realismo.
@@ -891,8 +946,9 @@ export function listVoiceEngines(cfg?: AuroraVoiceConfig): VoiceEngineStatus[] {
     const config = cfg ?? getVoiceConfig();
     const active = resolveActiveVoiceEngine(config);
     const out: VoiceEngineStatus[] = [];
-    for (const meta of Object.values(VOICE_ENGINE_REGISTRY)) {
-      const availability = availabilityOffline(meta.id, config);
+    for (const meta0 of Object.values(VOICE_ENGINE_REGISTRY)) {
+      const availability = availabilityOffline(meta0.id, config);
+      const meta = meta0.id === "chatterbox" ? conLatenciaMedida(meta0) : meta0;
       out.push({
         meta,
         availability,
@@ -958,6 +1014,12 @@ export async function listVoiceEnginesWithStatus(
           } catch {
             row.availability = "configured";
           }
+          return;
+        }
+        // Chatterbox: lo que de verdad pasó en este navegador (memoria de salud).
+        if (row.meta.id === "chatterbox") {
+          const st = estadoChatterbox();
+          row.availability = st === "listo" ? "ready" : st === "fuera" ? "unreachable" : "configured";
           return;
         }
         if (row.availability !== "configured") return; // sin endpoint: nada que pingar

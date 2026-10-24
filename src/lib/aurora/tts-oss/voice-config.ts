@@ -108,7 +108,10 @@ export type AuroraVoiceEngine =
   // cualquier neurona (M1 8GB incluido). Ver backend/app/core/voice_bridge.py.
   | "voice158"
   // xAI Voice Agent (grok-voice) — conversacional en tiempo real por WebSocket.
-  | "xai";
+  | "xai"
+  // Chatterbox (Resemble AI, MIT) — exageración emocional, 23 idiomas en su
+  // Multilingual. Servicio local de la neurona o Spaces públicos (chatterbox.ts).
+  | "chatterbox";
 
 /** Motores NEURALES por endpoint (servidores Python: neurona/CasaOS u hospedados). */
 export type NeuralVoiceEngine =
@@ -124,7 +127,10 @@ export type NeuralVoiceEngine =
   | "openvoice2"
   // xAI Voice Agent: WebSocket en tiempo real (no es un endpoint HTTP del
   // usuario — el server-side usa process.env.XAI_API_KEY). Siempre "configurado".
-  | "xai";
+  | "xai"
+  // Chatterbox: servicio local (127.0.0.1:4505) o Spaces públicos de HF, sin
+  // endpoint del usuario (VZR1011B · chatterbox.ts).
+  | "chatterbox";
 
 /**
  * Lista canónica de motores por endpoint (para iterar en UI/router), ORDENADA
@@ -151,7 +157,8 @@ export function isNeuralEngine(e: unknown): e is NeuralVoiceEngine {
     e === "gpt-sovits" ||
     e === "omnivoice" ||
     e === "openvoice2" ||
-    e === "xai"
+    e === "xai" ||
+    e === "chatterbox"
   );
 }
 
@@ -565,6 +572,8 @@ const VALID_ENGINES: readonly AuroraVoiceEngine[] = [
   "openvoice2",
   // xAI Voice Agent (WebSocket en tiempo real) — conversacional.
   "xai",
+  // Chatterbox (local o Spaces públicos) — VZR1011B.
+  "chatterbox",
 ];
 
 /** ¿Es un id de motor de voz válido? (Útil para pins de personalidad.) */

@@ -1899,10 +1899,10 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
   {
     id: "iatool-chatterbox", kind: "function", name: "Voz Chatterbox (Resemble AI)",
     description:
-      "Motor de voz open source (MIT) de Resemble AI: clonación zero-shot desde 5-20 s, control de emoción, 23-25 idiomas (español incluido). En evaluaciones del fabricante supera a ElevenLabs. Es un motor OPCIONAL por endpoint dentro de OmniVoice (servidor propio con GPU, o servidor comunitario compatible OpenAI /v1/audio/speech). Pégale su URL en Ajustes → Voz. Requiere GPU (~6 GB VRAM) para fluidez; sin GPU, usa un host de pago o Kokoro. Integración plena prevista para la próxima ola.",
+      "Motor de voz open source (MIT) de Resemble AI: dial de exageración emocional, 23 idiomas en su Multilingual (español incluido) y clonación zero-shot, que solo se usa con el consentimiento explícito de la persona. Ya habla en la cadena de voz de Astraura, detrás de OmniVoice y OpenVoice y antes de Kokoro, sin configurar nada: usa el servicio local de tu neurona si está encendido y, si no, un Space público de Hugging Face llamado desde tu navegador, con tu cuota. Todo lo que genera lleva la marca de agua Perth de Resemble AI.",
     icon: "Volume2", tags: ["skill", "aurora", "voz", "tts", "clonacion", "chatterbox", "omnivoice", "oss"], version: "1.0.0",
     author: "Resemble AI", sourceRepoId: "starseed-ia-tools", free: true,
-    payload: { skillId: "aurora-voice-neural", externalUrl: "https://github.com/resemble-ai/chatterbox", note: "Motor por endpoint dentro de OmniVoice. Integración plena (registro en engine-registry.ts) prevista para la próxima ola — ver plan." },
+    payload: { skillId: "aurora-voice-neural", externalUrl: "https://github.com/resemble-ai/chatterbox", note: "Integrado (VZR1011B): motor «chatterbox» en engine-registry.ts y cliente tts-oss/chatterbox.ts (servicio local 127.0.0.1:4505 → Spaces públicos con salud por endpoint)." },
   },
 
   /* ══ HERRAMIENTAS DE PRODUCCIÓN (architecture/director-produccion.md §9) ══

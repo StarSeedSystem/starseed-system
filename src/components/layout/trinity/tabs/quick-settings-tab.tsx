@@ -89,6 +89,7 @@ const AURORA_ENGINE_LABEL: Record<AuroraVoiceEngine, string> = {
     xai: "xAI · Grok Voice (tiempo real)",
     vibevoice: "VibeVoice (clonación neuronal)",
     voice158: "Voz 1.58-bit (Astro · CPU local)",
+    chatterbox: "Chatterbox (local o Space gratis)",
 };
 
 const PERF_OPTIONS: Array<{ id: PerfMode; label: string; Icon: React.ComponentType<{ className?: string }> }> = [

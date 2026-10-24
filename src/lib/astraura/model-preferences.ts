@@ -646,7 +646,10 @@ export function voiceEngineAccessClass(engine: string): ModelAccessClass {
   const id = String(engine ?? "").toLowerCase().trim();
   if (!id) return "local"; // desconocido → soberanía-primero para la voz
   if (id.includes("xai") || id.includes("grok")) return "api-external";
-  if (id.includes("omnivoice") || id.includes("openvoice")) return "starseed";
+  // Chatterbox (VZR1011B) es del mismo tipo que OpenVoice: integrado, cero config
+  // (servicio local o Space público). Como «local» saltaba POR DELANTE del híbrido
+  // OmniVoice en la cadena AUTO, cuando su sitio es detrás.
+  if (id.includes("omnivoice") || id.includes("openvoice") || id.includes("chatterbox")) return "starseed";
   return "local";
 }
 
