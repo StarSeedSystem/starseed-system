@@ -89,6 +89,15 @@ describe("sugerirParaAmbito", () => {
       "gratis-por-vincular")).not.toContain("cloudroom");
   });
 
+  it("Cloudroom no entra en lo local: su uso exige cuenta y su nube recibe una copia", () => {
+    const cloudroom = CONTENEDORES_OPCIONES.find((c) => c.id === "cloudroom") as ContenedorOpcion;
+    const gs = sugerir({ asignaciones: [asig("chat", { privacidad: "local" })], contenedores: [cloudroom],
+      relevanteCloudroom: true, ofertas: [{ ...oferta("neurona", ["código"]), escritorioCompatible: true }] });
+    expect(ids(gs, "local-por-activar")).not.toContain("cloudroom");
+    expect(ids(gs, "gratis-por-vincular")).not.toContain("cloudroom");
+    expect(sinOpcion(gs).map((s) => s.papel)).toEqual(["chat"]);
+  });
+
   describe("de pago solo con permiso del ámbito (contenedores reales)", () => {
     const catalogo = [op("pago-1", { gratis: null, papeles: ["escritor", "código"] }), op("nube-a")];
     const contenedores = CONTENEDORES_OPCIONES;
