@@ -22,6 +22,7 @@
       "@/*": ["./src/*"]
     }
   },
+  "files": ["src/types/three-orden-aumentos.d.ts"],
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next-build/types/**/*.ts"],
   "exclude": [
     "node_modules",
