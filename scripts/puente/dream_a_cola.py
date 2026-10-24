@@ -144,4 +144,4 @@ def resumen(propuestas, total_leidas=None):
         return "Imaginación diaria leída: nada accionable nuevo que encargar."
     titulos = "; ".join(p["titulo"] for p in propuestas)
     cola = " de %d leídas" % total_leidas if total_leidas else ""
-    return "Dream leído: encargo %d%s — %s" % (len(propuestas), cola, titulos)
+    return "Imaginación diaria leída: encargo %d%s — %s" % (len(propuestas), cola, titulos)
