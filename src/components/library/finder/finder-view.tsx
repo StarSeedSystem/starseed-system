@@ -92,6 +92,8 @@ import { updateProfile, activeProfileId } from "@/lib/profiles/profiles";
 import { listZipEntries } from "@/lib/files/simple-zip";
 // Recursos de IA (2026-10-23): «Dónde se guarda y se procesa…» desde el menú contextual.
 import { abrirSelectorMedio, refDeBiblioteca, SelectorMedioGlobal } from "@/components/recursos-ia/abrir-selector-medio";
+// Variaciones públicas (Ola 1019V · §3): «Variaciones públicas» del clic derecho.
+import { accionVariaciones, claveDeItemBiblioteca } from "@/components/variaciones/accion-variaciones";
 
 const TYPE_FILTERS: Array<{ key: "todos" | SavedItemType; label: string }> = [
     { key: "todos", label: "Todo" },
@@ -604,6 +606,15 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     const buildExtraActions = useCallback((item: SavedItem): FinderExtraAction[] => {
         const fmt = itemFormat(item);
         const actions: FinderExtraAction[] = [];
+
+        // Variaciones públicas (Ola 1019V · §3): paquetes y elementos con clave estable
+        // llevan «Variaciones públicas» al frente delMenú; los demás, no (sin instancia).
+        const claveVariacion = claveDeItemBiblioteca(item);
+        if (claveVariacion) {
+            actions.unshift(
+                accionVariaciones(claveVariacion, { nombre: item.title || undefined }),
+            );
+        }
 
         const imageUrl = fmt === "image" ? item.url : undefined;
         if (imageUrl) {
