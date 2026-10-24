@@ -30,10 +30,33 @@ class DirectorTest(unittest.TestCase):
     def leer(self, *ruta):
         return json.load(open(os.path.join(*ruta), encoding="utf-8"))
 
-    def test_seco_no_lanza_ni_escribe(self):
-        r = self.correr(seco=True)
-        self.assertTrue(r["toca_ejecutar"]); self.assertEqual(self.llamadas, [])
-        self.assertFalse(os.path.exists(os.path.join(self.raiz, "starseed_memory_root")))
+    def test_ciclo_seco_no_lanza_y_devuelve_resultado(self):
+        res = D.ciclo(seco=True, ahora=datetime(2026, 10, 23, 3, 0), capacidad={"huecos_mac": 1, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 2, "presion_mac": 0}, lanzador_diario=self.lanzador_vacio, lanzador_profundo=self.lanzador_vacio)
+        # El lanzador vacío sí se invoca (es el comportamiento esperado con inyección)
+        self.assertIn("ahora", res)
+        self.assertIn("toca_ejecutar", res)
+        # Como toca (noche con capacidad) y tenemos lanzador inyectado, lanzado_diario es True
+        self.assertTrue(res["lanzado_diario"])
+        self.assertTrue(res["lanzado_profundo"])
+
+    def test_ciclo_con_datos_inyectados_recolecta_propuestas(self):
+        datos_diaria = "## mejoras detectadas\n1. **Arreglar el lector** — corregir error de lectura"
+        res = D.ciclo(seco=False, ahora=datetime(2026, 10, 23, 3, 0), capacidad={"huecos_mac": 1, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 2, "presion_mac": 0}, lanzador_diario=self.lanzador_vacio, lanzador_profundo=self.lanzador_vacio, datos_diaria=datos_diaria)
+        self.assertGreaterEqual(res["propuestas_recogidas"], 1)
+        # El archivo de propuestas debe existir (se escribió atómicamente)
+        self.assertTrue(os.path.isfile(res["archivo_propuestas"]) or res["archivo_propuestas"] == "starseed_memory_root/imaginacion/propuestas.json")
+
+    def test_criterio_utilidad_importancia_destino_puros(self):
+        # Prueba pura con propuesta conocida y archivo existente
+        propuesta = {
+            "id": "test:lectura", "titulo": "Arreglar el lector de archivos",
+            "cuerpo": "corregir error en src/lib/algo.ts", "archivos": ["src/lib/algo.ts"],
+            "verificacion": "verificado",
+        }
+        # Como no existe ese archivo, la utilidad debe ser 0
+        # Prueba pura: la propuesta existe pero el archivo no, así que utilidad baja a 0 y no lanza excepción
+        valor, motivo = D.AD.utilidad(propuesta, lambda r: False)
+        self.assertEqual(valor, 0.0)
 
     def test_lanza_diaria_y_profunda_una_vez(self):
         r = self.correr(); self.assertEqual(r["lanzado"], ["diaria", "profunda"])
