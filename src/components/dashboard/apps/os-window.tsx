@@ -7,6 +7,7 @@
 // cierre por Escape, acciones de cabecera y opcional barra inferior.
 // La usan AppWindow (launcher) y ContentWindow (abridor universal).
 // Render: el llamador la porta a document.body (vía createPortal).
+// Escape: con varias apiladas cierra SOLO la de arriba (pila compartida, abajo).
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
 // ════════════════════════════════════════════════════════════════
 
@@ -15,6 +16,46 @@ import { motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+
+/* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
+   Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
+   pulsación, la de arriba: la última en el orden del documento, que es la que se pinta encima (todas son
+   `fixed z-[120]`) y la que un anfitrión trae al frente al reordenar su lista. Con un oyente por ventana,
+   Escape las cerraba todas a la vez. Si alguien dentro ya atendió el Escape (`preventDefault`, como un
+   desplegable o un diálogo de Radix), no se cierra ninguna. */
+interface VentanaApilada {
+    raiz: React.RefObject<HTMLDivElement | null>;
+    cerrar: React.MutableRefObject<() => void>;
+}
+
+const pilaVentanas: VentanaApilada[] = [];
+
+function ventanaDeArriba(): VentanaApilada | undefined {
+    let arriba: VentanaApilada | undefined;
+    for (const v of pilaVentanas) {
+        const el = v.raiz.current;
+        if (!el || !el.isConnected) continue;
+        const actual = arriba?.raiz.current;
+        // FOLLOWING también vale para una ventana anidada dentro de otra: la interior queda arriba.
+        if (!actual || actual.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) arriba = v;
+    }
+    return arriba;
+}
+
+function alPulsarEscape(e: KeyboardEvent) {
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    ventanaDeArriba()?.cerrar.current();
+}
+
+function apuntarVentana(v: VentanaApilada): () => void {
+    if (pilaVentanas.length === 0) window.addEventListener("keydown", alPulsarEscape);
+    pilaVentanas.push(v);
+    return () => {
+        const i = pilaVentanas.indexOf(v);
+        if (i >= 0) pilaVentanas.splice(i, 1);
+        if (pilaVentanas.length === 0) window.removeEventListener("keydown", alPulsarEscape);
+    };
+}
 
 export interface OSWindowProps {
     title: string;
@@ -40,11 +81,10 @@ export function OSWindow({
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [onClose]);
+    const raizRef = useRef<HTMLDivElement>(null);
+    const cerrarRef = useRef(onClose);
+    useEffect(() => { cerrarRef.current = onClose; }, [onClose]);
+    useEffect(() => apuntarVentana({ raiz: raizRef, cerrar: cerrarRef }), []);
 
     useEffect(() => {
         const onMove = (e: PointerEvent) => {
@@ -68,7 +108,7 @@ export function OSWindow({
     };
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va

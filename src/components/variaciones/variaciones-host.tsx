@@ -9,14 +9,14 @@
  * `OSWindow` por elemento abierto, portada a `document.body`. Varias a la vez (pila): reabrir la clave de una
  * ventana ya abierta la trae al frente en vez de duplicarla (`apilarVariaciones`). Sin estado en módulo.
  *
- * `OSWindow` cierra con Escape escuchando en `window`, así que con varias apiladas Escape las cerraría todas:
- * el anfitrión marca la tecla en fase de captura y solo deja cerrar la de arriba.
+ * Escape cierra solo la de arriba: lo resuelve la pila compartida de `OSWindow` (OPF1024H), que toma por arriba
+ * la última en el orden del documento, así que la que `apilarVariaciones` trae al frente es la que cierra.
  *
  * El contenido de cada ventana lo pone quien monta el anfitrión (`renderContenido`); sin él, un aviso honesto.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Layers } from "lucide-react";
 import { OSWindow } from "@/components/dashboard/apps/os-window";
@@ -46,24 +46,11 @@ function SinContenido({ entrada }: { entrada: EntradaVariaciones }) {
 export function VariacionesHost({ renderContenido }: VariacionesHostProps) {
   const [pila, setPila] = useState<EntradaVariaciones[]>([]);
   const [montado, setMontado] = useState(false);
-  const escape = useRef(false);
 
   useEffect(() => setMontado(true), []);
   useEffect(() => suscribirVariaciones((detalle) => setPila((previa) => apilarVariaciones(previa, detalle))), []);
 
-  // Captura: corre antes que los oyentes de cada OSWindow y dura solo lo que dura esa pulsación.
-  useEffect(() => {
-    const marcar = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      escape.current = true;
-      setTimeout(() => { escape.current = false; }, 0);
-    };
-    window.addEventListener("keydown", marcar, true);
-    return () => window.removeEventListener("keydown", marcar, true);
-  }, []);
-
-  const cerrar = useCallback((clave: string, arriba: boolean) => {
-    if (escape.current && !arriba) return;
+  const cerrar = useCallback((clave: string) => {
     setPila((previa) => cerrarVariacion(previa, clave));
   }, []);
 
@@ -71,9 +58,9 @@ export function VariacionesHost({ renderContenido }: VariacionesHostProps) {
 
   return createPortal(
     <>
-      {pila.map((entrada, i) => {
+      {pila.map((entrada) => {
         const { titulo, subtitulo } = tituloVariaciones(entrada);
-        const alCerrar = () => cerrar(entrada.clave, i === pila.length - 1);
+        const alCerrar = () => cerrar(entrada.clave);
         return (
           <OSWindow
             key={entrada.clave}
@@ -85,7 +72,7 @@ export function VariacionesHost({ renderContenido }: VariacionesHostProps) {
             sizeClass="w-[min(94vw,920px)] h-[min(86vh,700px)]"
           >
             <div data-ss-variaciones={entrada.clave} className="absolute inset-0 overflow-hidden">
-              {renderContenido ? renderContenido(entrada, () => cerrar(entrada.clave, true)) : <SinContenido entrada={entrada} />}
+              {renderContenido ? renderContenido(entrada, alCerrar) : <SinContenido entrada={entrada} />}
             </div>
           </OSWindow>
         );
