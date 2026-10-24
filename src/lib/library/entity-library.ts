@@ -70,6 +70,7 @@ import {
 } from "@/lib/sync/live-signal";
 import { createClient } from "@/utils/supabase/client";
 import { useCallback, useEffect, useState } from "react";
+import { uploadFile } from "@/lib/files/os-files";
 
 // ─────────────────────────── Tipos ───────────────────────────
 
@@ -2197,6 +2198,84 @@ export interface LibraryDestination {
     ref: EntityRef;
     label: string;
     hint?: string;
+}
+
+/** Guarda un set de fondos en la biblioteca. */
+export interface GuardarSetInput {
+    ref: EntityRef;
+    set: any;
+    carpetaId?: string | null;
+}
+
+export interface GuardarSetResult {
+    ok: boolean;
+    error?: string;
+    setId?: string;
+    archivo?: string;
+}
+
+export async function guardarSet(input: GuardarSetInput): Promise<GuardarSetResult> {
+    try {
+        const { ref, set, carpetaId } = input;
+
+        let targetFolderId: string | null = null;
+
+        if (carpetaId) {
+            targetFolderId = carpetaId;
+        } else {
+            const doc = await listLibrary(ref);
+            let fondosFolder = doc.folders.find((f) => f.name === "Fondos" && f.parentId === null);
+            if (!fondosFolder) {
+                targetFolderId = await createFolder(ref, "Fondos", null);
+            } else {
+                targetFolderId = fondosFolder.id;
+            }
+        }
+
+        const savedSetId = await saveItem(ref, {
+            type: "file",
+            title: set.nombre,
+            note: "Fondo con shader guardado",
+            tags: ["fondo", "shader"],
+            folderId: targetFolderId,
+            mime: "application/json",
+            content: JSON.stringify(set),
+        });
+
+        return { ok: true, setId: savedSetId, archivo: `${set.nombre.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.starseed-fondo.json` };
+    } catch (error: any) {
+        return { ok: false, error: error?.message || "Error al guardar el fondo" };
+    }
+}
+
+/** Lista todos los sets de fondos en la biblioteca. */
+export interface ListarSetsResult {
+    ok: boolean;
+    error?: string;
+    sets?: any[];
+}
+
+export async function listarSets(ref: EntityRef): Promise<ListarSetsResult> {
+    try {
+        const doc = await listLibrary(ref);
+        const sets: any[] = [];
+
+        for (const item of doc.items) {
+            if (item.type === "file" && item.title && (item.title.includes("fondo") || item.title.includes("Fondo"))) {
+                try {
+                    const set = typeof item.content === "string" ? JSON.parse(item.content) : item.content;
+                    if (set && set.formato === "starseed-fondo") {
+                        sets.push(set);
+                    }
+                } catch {
+                }
+            }
+        }
+
+        return { ok: true, sets };
+    } catch (error: any) {
+        return { ok: false, error: error?.message || "Error al listar fondos" };
+    }
 }
 
 /** Resuelve, de una sola vez, todas las bibliotecas a las que el usuario tiene acceso. */
