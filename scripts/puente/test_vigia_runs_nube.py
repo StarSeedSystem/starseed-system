@@ -149,5 +149,157 @@ class Actuar(unittest.TestCase):
         self.assertEqual(len(self.avisos), 1)
 
 
+def _local(texto):
+    """Epoch local de «AAAA-MM-DD HH:MM:SS», el mismo reloj que `ultimo_cambio`."""
+    import time
+
+    return time.mktime(time.strptime(texto, "%Y-%m-%d %H:%M:%S"))
+
+
+HOY = _local("2026-10-24 12:00:00")
+MOVIDA = "movida a nube-gh (run %s) desde Genesis"
+
+
+class VaradasPuras(unittest.TestCase):
+    """OPS1024E: las «reasignada · nube» cuyo run ya terminó, decididas sin red."""
+
+    def test_run_de_la_nota(self):
+        self.assertEqual(VR.run_de_la_nota(MOVIDA % 39588171249), "39588171249")
+        self.assertIsNone(VR.run_de_la_nota("reasignada a la nube 20261021"))
+        self.assertIsNone(VR.run_de_la_nota(None))
+
+    def test_que_es_reasignada_a_la_nube(self):
+        self.assertTrue(VR.es_reasignada_a_la_nube({"estado": "reasignada", "medio": "nube", "nota": "x"}))
+        self.assertTrue(VR.es_reasignada_a_la_nube({"estado": "reasignada", "nota": MOVIDA % 5}))
+        for v in ({"estado": "reasignada", "medio": "oracle"}, {"estado": "reasignada", "medio": "claude-nube"},
+                  {"estado": "pendiente", "medio": "nube"}, {"estado": "reasignada", "nota": "movida a nube"}, None):
+            self.assertFalse(VR.es_reasignada_a_la_nube(v), v)
+
+    def test_run_vivo_solo_con_el_dato_del_run(self):
+        self.assertIs(VR.run_vivo("completed"), False)
+        self.assertIs(VR.run_vivo("in_progress"), True)
+        self.assertIs(VR.run_vivo("queued"), True)
+        self.assertIsNone(VR.run_vivo(None))
+        self.assertIsNone(VR.run_vivo("raro"))
+
+    def test_ultimo_cambio_toma_el_mayor(self):
+        """`marcar` no reescribe `t`: la fecha de la nota (fin de ese día) manda si es más nueva."""
+        v = {"t": "2026-10-20 08:00:00", "nota": "reasignada a la nube 20261023"}
+        self.assertEqual(VR.ultimo_cambio(v), _local("2026-10-24 00:00:00"))
+        self.assertEqual(VR.ultimo_cambio({"t": "2026-10-22 09:30:00"}), _local("2026-10-22 09:30:00"))
+        self.assertIsNone(VR.ultimo_cambio({"nota": "sin fecha"}))
+
+    def test_runs_a_consultar_sin_los_vivos_y_con_tope(self):
+        prog = {"A": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 10},
+                "B": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 11},
+                "C": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 12},
+                "D": {"estado": "commit", "nota": MOVIDA % 13}}
+        self.assertEqual(VR.runs_a_consultar(prog, {"11"}), ["12", "10"])
+        self.assertEqual(VR.runs_a_consultar(prog, set(), maximo=1), ["12"])
+
+    def test_run_terminado_vuelve_vivo_o_sin_dato_se_queda(self):
+        prog = {"VZF1015Q": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 39588171249},
+                "VIVA": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 2},
+                "ENRESUMEN": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 3},
+                "SINDATO": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 4}}
+        estados = {"39588171249": "completed", "2": "in_progress", "3": "completed", "4": None}
+        hechas = VR.varadas_tras_su_run(prog, estados, {"3"}, HOY)
+        self.assertEqual([h[0] for h in hechas], ["VZF1015Q"])
+        self.assertIn("39588171249", hechas[0][2])
+
+    def test_sin_run_solo_pasadas_24_h(self):
+        prog = {"VIEJA": {"estado": "reasignada", "medio": "nube", "nota": "reasignada a la nube 20261021"},
+                "NUEVA": {"estado": "reasignada", "medio": "nube", "nota": "reasignada a la nube 20261024"},
+                "AYER": {"estado": "reasignada", "medio": "nube", "nota": "x", "t": "2026-10-23 13:00:00"},
+                "SINFECHA": {"estado": "reasignada", "medio": "nube", "nota": "x"}}
+        self.assertEqual([h[0] for h in VR.varadas_tras_su_run(prog, {}, set(), HOY)], ["VIEJA"])
+
+    def test_nunca_las_de_la_cola_de_un_run_vivo(self):
+        prog = {"X": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 9}}
+        self.assertEqual(VR.varadas_tras_su_run(prog, {"9": "completed"}, set(), HOY, ids_vivos={"X"}), [])
+
+
+class DevolverVaradas(unittest.TestCase):
+    """OPS1024E: `devolver_varadas` con la API de GitHub y el Chat Director simulados."""
+
+    def setUp(self):
+        import json
+        import tempfile
+        from unittest import mock
+
+        import repartir_nube as RN
+
+        self.dir = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.dir, "starseed_memory_root", "olas"))
+        os.makedirs(os.path.join(self.dir, "enjambre", "colas"))
+        self.ruta = os.path.join(self.dir, "starseed_memory_root", "olas", "progreso.json")
+        self.prog = {
+            "VZF1015Q": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 39588171249},
+            "DGM1018I": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 39576180546},
+            "VIVA": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 77},
+            "SINDATO": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 88},
+            "OTRA": {"estado": "pendiente"},
+        }
+        with open(self.ruta, "w", encoding="utf-8") as f:
+            json.dump({"tareas": self.prog}, f)
+        self.estados = {"39588171249": "completed", "39576180546": "completed", "77": "in_progress", "88": None}
+        self.preguntados, self.avisos = [], []
+        self.p = [mock.patch.object(VR, "_avisar", side_effect=self.avisos.append),
+                  mock.patch.object(RN, "REAPERTURAS_NUBE", os.path.join(self.dir, "reaperturas.json"))]
+        for x in self.p:
+            x.start()
+
+    def tearDown(self):
+        for x in self.p:
+            x.stop()
+
+    def _api(self, run):
+        self.preguntados.append(run)
+        return self.estados.get(run)
+
+    def _leer(self):
+        import json
+
+        with open(self.ruta, encoding="utf-8") as f:
+            return json.load(f)["tareas"]
+
+    def test_vuelven_las_de_runs_terminados_y_se_dice_cuantas(self):
+        texto = VR.devolver_varadas({"runs": []}, self.dir, ahora=HOY, estado_run=self._api)
+        t = self._leer()
+        self.assertEqual(t["VZF1015Q"]["estado"], "pendiente")
+        self.assertEqual(t["DGM1018I"]["estado"], "pendiente")
+        self.assertIn("no cuenta como envío", t["VZF1015Q"]["nota"])
+        self.assertIsNone(t["VZF1015Q"]["medio"])
+        self.assertEqual(t["VIVA"]["estado"], "reasignada")       # run vivo: se queda
+        self.assertEqual(t["SINDATO"]["estado"], "reasignada")    # API sin dato: se queda
+        self.assertEqual(t["OTRA"], {"estado": "pendiente"})
+        self.assertIn("devolví 2 tarea(s)", texto)
+        self.assertEqual(self.avisos, [texto])
+        import repartir_nube as RN
+
+        self.assertEqual(set(RN.leer_reaperturas(HOY, RN.REAPERTURAS_NUBE)), {"VZF1015Q", "DGM1018I"})
+
+    def test_run_vivo_en_el_resumen_ni_se_pregunta(self):
+        self.estados["39588171249"] = "completed"
+        VR.devolver_varadas({"runs": [{"run": 39588171249, "cola": "enjambre/colas/no-esta.json"}]},
+                            self.dir, ahora=HOY, estado_run=self._api)
+        self.assertNotIn("39588171249", self.preguntados)
+        self.assertEqual(self._leer()["VZF1015Q"]["estado"], "reasignada")
+
+    def test_api_sin_dato_no_toca_nada_ni_avisa(self):
+        self.assertIsNone(VR.devolver_varadas({"runs": []}, self.dir, ahora=HOY, estado_run=lambda r: None))
+        self.assertEqual(self._leer(), self.prog)
+        self.assertEqual(self.avisos, [])
+
+    def test_actuar_las_devuelve_en_cada_pasada(self):
+        from unittest import mock
+
+        with mock.patch.object(VR, "estado_del_run", side_effect=lambda r, raiz: self._api(r)), \
+                mock.patch.object(VR, "MEMORIA", os.path.join(self.dir, "m.json")):
+            hecho = VR.actuar({"runs": []}, self.dir, ahora=HOY)
+        self.assertEqual(len(hecho), 1)
+        self.assertEqual(self._leer()["DGM1018I"]["estado"], "pendiente")
+
+
 if __name__ == "__main__":
     unittest.main()

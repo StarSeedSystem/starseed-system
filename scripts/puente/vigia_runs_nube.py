@@ -23,12 +23,21 @@ SOLO CANCELA con datos fiables del RUN (no de sus pasos): el duplicado de una co
 otro run y el que lleva 30 min sin máquina; devuelve sus tareas sin gastarles un envío. Lo que
 sale de los PASOS de GitHub (preparación larga, «sin dato del paso», pasado de tope) solo se
 avisa: el 13-10 a las 16:21 la primera versión canceló por los pasos dos runs que escribían.
+
+(OPS1024E, 2026-10-24, MEDIDO EN LA MAC) Decenas de tareas seguían «reasignada · nube» con la nota
+«movida a nube-gh (run N) desde Genesis» días después de que su run terminara (VZF1015Q, VZR1011B y
+DGM1018I desde el 21-10, runs 39588171249 y 39576180546): `reclamar_varadas_de_la_nube` no devuelve
+NADA mientras algún run vivo no diga su cola, y casi siempre hay alguno. `devolver_varadas` mira el
+run de CADA tarea por su número: si la API dice que ese RUN ya terminó (nunca por sus pasos), o la
+nota no lleva run y no cambia desde hace 24 h, vuelve a pendiente sin gastar envío. Run vivo o API
+sin dato: no se toca.
 """
 from __future__ import annotations
 
 import datetime as _dt
 import json
 import os
+import re
 import subprocess
 import time
 
@@ -46,6 +55,15 @@ FINALES = ("entregar", "tachar", "rastro", "post ", "complete job")
 MEMORIA = os.path.expanduser("~/.starseed/nube-vigia.json")
 #: Un atasco que pide confirmación se actúa solo si se ve igual en otra pasada, al menos tanto después.
 CONFIRMAR_S = 200
+#: (OPS1024E) Estados del RUN (dato de la API, no de sus pasos) en que aún lleva sus tareas.
+RUN_EN_MARCHA = ("in_progress",) + ESPERAN
+#: Una reasignación sin número de run que no cambia en tanto tiempo ya no la lleva nadie: un job
+#: de GitHub muere a las 6 h (`timeout-minutes: 355`).
+SIN_RUN_MAX_S = 24 * 3600
+#: Como mucho tantos runs distintos se preguntan a GitHub en una pasada (cada 240 s).
+MAX_RUNS_CONSULTA = 12
+_RUN_EN_NOTA = re.compile(r"\(run (\d+)\)")
+_FECHA_EN_NOTA = re.compile(r"reasignada a la nube (\d{8})\b")
 
 
 def _segundos_desde(iso, ahora):
@@ -121,8 +139,9 @@ def ids_de_cola(datos) -> list:
     return [str(t.get("id")) for t in tareas or [] if isinstance(t, dict) and t.get("id")]
 
 
-def devolver(progreso, ids, run, motivo, fecha):
-    """PURA. Copia del progreso con las que siguen «reasignada · nube» de vuelta a pendiente. → (nuevo, ids)."""
+def devolver(progreso, ids, run, motivo, fecha, nota=None):
+    """PURA. Copia del progreso con las que siguen «reasignada · nube» de vuelta a pendiente. → (nuevo, ids).
+    `nota` (OPS1024E) sustituye a la de siempre, que dice que el director canceló el run."""
     salida, hechas = dict(progreso or {}), []
     for tid in ids:
         v = salida.get(tid)
@@ -131,11 +150,98 @@ def devolver(progreso, ids, run, motivo, fecha):
         if isinstance(v, dict) and v.get("estado") == "reasignada" and de_la_nube:
             v = dict(v)
             v.update(estado="pendiente", medio=None,
-                     nota="devuelta de la nube %s: el run %s %s y el director lo canceló; no cuenta como envío"
+                     nota=nota or "devuelta de la nube %s: el run %s %s y el director lo canceló; no cuenta como envío"
                      % (fecha, run, motivo))
             salida[tid] = v
             hechas.append(tid)
     return salida, hechas
+
+
+def run_de_la_nota(nota):
+    """PURA. El run de nube-gh al que apunta una reasignación («movida a nube-gh (run N) desde
+    Genesis»), como texto, o None si la nota no lo dice («reasignada a la nube AAAAMMDD»)."""
+    m = _RUN_EN_NOTA.search(str(nota or ""))
+    return m.group(1) if m else None
+
+
+def es_reasignada_a_la_nube(v) -> bool:
+    """PURA. ¿Está «reasignada» a la nube de GitHub? Medio «nube», o sin medio con la nota de la tanda
+    y su run («movida a nube-gh (run N)…»): lo mismo que `devolver` sabe devolver. Las del A1
+    («oracle») o del carril Opus («claude-nube») tienen sus propios directores."""
+    if not isinstance(v, dict) or v.get("estado") != "reasignada":
+        return False
+    medio = v.get("medio") or ""
+    nota = str(v.get("nota") or "")
+    return medio == "nube" or (not medio and nota.startswith("movida a nube") and run_de_la_nota(nota) is not None)
+
+
+def ultimo_cambio(v):
+    """PURA. Epoch (hora local) del último cambio conocido de una entrada del progreso, o None.
+
+    El MAYOR entre `t` y el final del día de la nota («reasignada a la nube AAAAMMDD»): `marcar` no
+    reescribe `t`, así que `t` puede ser de antes de la reasignación; con el mayor, una reasignación
+    reciente nunca parece vieja."""
+    if not isinstance(v, dict):
+        return None
+    candidatos = []
+    try:
+        candidatos.append(time.mktime(time.strptime(str(v.get("t") or ""), "%Y-%m-%d %H:%M:%S")))
+    except (ValueError, OverflowError):
+        pass
+    m = _FECHA_EN_NOTA.search(str(v.get("nota") or ""))
+    if m:
+        try:
+            candidatos.append(time.mktime(time.strptime(m.group(1), "%Y%m%d")) + 86400)
+        except (ValueError, OverflowError):
+            pass
+    return max(candidatos) if candidatos else None
+
+
+def run_vivo(estado_api):
+    """PURA. Del `status` de un RUN según la API: True si sigue en marcha, False si terminó
+    («completed», con la conclusión que sea), None sin dato o con un estado que no conocemos."""
+    e = str(estado_api or "").strip().lower()
+    if e == "completed":
+        return False
+    return True if e in RUN_EN_MARCHA else None
+
+
+def runs_a_consultar(progreso, vivos, maximo=MAX_RUNS_CONSULTA):
+    """PURA. Los runs de las notas de las «reasignada · nube» que el resumen NO da en marcha y hay
+    que preguntar a GitHub: los más nuevos primero (número mayor), como mucho `maximo`."""
+    runs = {run_de_la_nota(v.get("nota")) for v in (progreso or {}).values() if es_reasignada_a_la_nube(v)}
+    runs = sorted((r for r in runs if r and r not in vivos), key=int, reverse=True)
+    return runs[:maximo]
+
+
+def varadas_tras_su_run(progreso, estados, vivos, ahora, ids_vivos=()):
+    """PURA. Las «reasignada · nube» que ya no lleva ningún run → [(tid, run o None, motivo)].
+
+    `estados`: {run: status de la API o None}; `vivos`: runs en marcha según el resumen;
+    `ids_vivos`: ids de las colas de esos runs (no se tocan nunca). Con run en la nota: vuelve solo
+    si la API dice que ese RUN terminó; en marcha o sin dato, se queda. Sin run: vuelve si su último
+    cambio tiene más de `SIN_RUN_MAX_S`; sin fecha legible, se queda."""
+    salida = []
+    for tid, v in sorted((progreso or {}).items()):
+        if not es_reasignada_a_la_nube(v) or tid in ids_vivos:
+            continue
+        run = run_de_la_nota(v.get("nota"))
+        if run:
+            if run not in vivos and run_vivo((estados or {}).get(run)) is False:
+                salida.append((tid, run, "su run %s ya terminó según GitHub" % run))
+            continue
+        cambio = ultimo_cambio(v)
+        if cambio is not None and ahora - cambio > SIN_RUN_MAX_S:
+            salida.append((tid, None, "no dice su run y no cambia desde hace %d h" % ((ahora - cambio) // 3600)))
+    return salida
+
+
+def texto_varadas(devueltas):
+    """PURA. La línea del Chat Director: cuántas volvieron y cuáles (las 8 primeras)."""
+    ids = [d[0] for d in devueltas]
+    return ("Nube · devolví %d tarea(s) «reasignada» que ya no llevaba ningún run (su run terminó según "
+            "GitHub, o sin run y más de 24 h sin cambios) a la cola sin gastarles un envío: %s%s."
+            % (len(ids), ", ".join(ids[:8]), "…" if len(ids) > 8 else ""))
 
 
 def _leer(ruta, defecto):
@@ -160,6 +266,61 @@ def _avisar(texto):
         director_chat.publicar(texto, de="director-nube", rol="director", tipo="aviso")
     except Exception:
         print("director-nube: no pude avisar en el Chat Director", flush=True)
+
+
+def estado_del_run(run, raiz, timeout=30):
+    """El `status` del RUN según la API de GitHub («completed», «in_progress»…), o None sin dato.
+    Nunca lanza. Es el dato del run, el mismo que da `gh run list`; jamás el de sus pasos."""
+    try:
+        p = subprocess.run(["gh", "api", "/repos/{owner}/{repo}/actions/runs/%s" % run, "--jq", ".status"],
+                           cwd=raiz, capture_output=True, text=True, timeout=timeout)
+    except Exception:
+        return None
+    if p.returncode != 0:
+        return None
+    return (p.stdout or "").strip() or None
+
+
+def devolver_varadas(resumen, raiz, ahora=None, estado_run=None):
+    """Devuelve a pendiente, sin gastarles un envío, las «reasignada · nube» cuyo run ya terminó (o
+    sin run y 24 h quietas). Una línea en el Chat Director. → el texto, o None. Nunca lanza.
+    `estado_run(run)` se inyecta en las pruebas; por defecto pregunta a GitHub."""
+    import repartir_nube as RN
+
+    ahora = time.time() if ahora is None else ahora
+    estado_run = estado_run or (lambda r: estado_del_run(r, raiz))
+    ruta_prog = os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json")
+    prog = _leer(ruta_prog, {})
+    tareas = prog.get("tareas") if isinstance(prog, dict) and "tareas" in prog else prog
+    if not isinstance(tareas, dict) or not tareas:
+        return None
+    runs_resumen = [f for f in (resumen or {}).get("runs") or [] if isinstance(f, dict)]
+    vivos = {str(f.get("run")) for f in runs_resumen if f.get("run") is not None}
+    ids_vivos = set()
+    for f in runs_resumen:
+        cola = str(f.get("cola") or "")
+        if cola and ".." not in cola and not os.path.isabs(cola):
+            ids_vivos |= set(ids_de_cola(_leer(os.path.join(raiz, cola), [])))
+    estados = {r: estado_run(r) for r in runs_a_consultar(tareas, vivos)}
+    elegidas = varadas_tras_su_run(tareas, estados, vivos, ahora, ids_vivos)
+    if not elegidas:
+        return None
+    fecha, hechas = time.strftime("%Y%m%d", time.localtime(ahora)), []
+    for tid, run, motivo in elegidas:
+        nota = "devuelta de la nube %s: %s y nadie la devolvía; no cuenta como envío" % (fecha, motivo)
+        tareas, una = devolver(tareas, [tid], run or "", motivo, fecha, nota=nota)
+        hechas.extend(una)
+    if not hechas:
+        return None
+    if isinstance(prog, dict) and "tareas" in prog:
+        prog["tareas"] = tareas
+    else:
+        prog = tareas
+    _escribir(ruta_prog, prog)
+    RN.anotar_reaperturas(hechas, ahora)
+    texto = texto_varadas([d for d in elegidas if d[0] in set(hechas)])
+    _avisar(texto)
+    return texto
 
 
 def actuar(resumen, raiz, ahora=None):
@@ -216,6 +377,13 @@ def actuar(resumen, raiz, ahora=None):
         clave = run if a.get("cancelar") else "aviso:%s:%s" % (run, a.get("tipo"))
         memoria[clave] = {"t": ahora, "tipo": a.get("tipo")}
         hecho.append(texto)
+    # (OPS1024E) Las que se quedaron «reasignada» con su run ya terminado: nadie más las devolvía.
+    try:
+        texto = devolver_varadas(resumen, raiz, ahora)
+        if texto:
+            hecho.append(texto)
+    except Exception as e:  # noqa: BLE001 — el vigía nunca tumba la pasada del director
+        print("director-nube: no pude devolver las varadas: %s: %s" % (type(e).__name__, e), flush=True)
     try:
         os.makedirs(os.path.dirname(MEMORIA), exist_ok=True)
         _escribir(MEMORIA, memoria)

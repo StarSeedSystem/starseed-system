@@ -295,3 +295,117 @@ class DuenoDeSueltos(unittest.TestCase):
     def test_rama_de_cola_con_tareas_y_sin_ellas(self):
         self.assertEqual(T.dueno_de_sueltos("nube/a1-20261011-220038", {"X1": []}), "X1")
         self.assertIsNone(T.dueno_de_sueltos("nube/a1-20261011-220038", {}))
+
+
+def _local(texto):
+    import time
+
+    return time.mktime(time.strptime(texto, "%Y-%m-%d %H:%M:%S"))
+
+
+HOY = _local("2026-10-24 12:00:00")
+RAMA_CR = "nube/cr-20261024/ola/CRM1024B"
+
+
+def reasignada(run=39588171249, t="2026-10-24 10:00:00", **k):
+    v = {"estado": "reasignada", "medio": "nube", "nota": "movida a nube-gh (run %s) desde Genesis" % run, "t": t}
+    v.update(k)
+    return v
+
+
+class LibreDeSuReasignacion(unittest.TestCase):
+    """OPS1024E: una rama de OTRO medio no espera a un run de nube-gh que ya no lleva la tarea."""
+
+    def test_run_de_rama(self):
+        self.assertEqual(T.run_de_rama("nube/39588171249"), "39588171249")
+        self.assertEqual(T.run_de_rama("nube/123/ola/X"), "123")
+        self.assertIsNone(T.run_de_rama(RAMA_CR))
+        self.assertIsNone(T.run_de_rama("nube/a1-20261012-114650-COL1012B"))
+
+    def test_run_terminado_y_otro_medio_entra(self):
+        motivo = T.libre_de_su_reasignacion(RAMA_CR, reasignada(), False, HOY)
+        self.assertIn("39588171249", motivo)
+        self.assertIn("ya terminó", motivo)
+
+    def test_otro_medio_con_el_run_vivo_espera(self):
+        self.assertIsNone(T.libre_de_su_reasignacion(RAMA_CR, reasignada(t="2026-10-21 08:00:00"), True, HOY))
+
+    def test_la_rama_del_mismo_run_espera_como_hoy(self):
+        self.assertIsNone(T.libre_de_su_reasignacion("nube/39588171249", reasignada(), False, HOY))
+
+    def test_sin_dato_del_run_solo_pasadas_6_h(self):
+        self.assertIsNone(T.libre_de_su_reasignacion(RAMA_CR, reasignada(t="2026-10-24 08:00:00"), None, HOY))
+        self.assertIn("más de 6 h", T.libre_de_su_reasignacion(RAMA_CR, reasignada(t="2026-10-24 05:00:00"), None, HOY))
+
+    def test_sin_run_en_la_nota(self):
+        vieja = {"estado": "reasignada", "medio": "nube", "nota": "reasignada a la nube 20261022"}
+        self.assertIn("más de 6 h", T.libre_de_su_reasignacion(RAMA_CR, vieja, None, HOY))
+        self.assertIsNone(T.libre_de_su_reasignacion("nube/555", vieja, None, HOY))  # podría ser la suya
+        hoy = {"estado": "reasignada", "medio": "nube", "nota": "reasignada a la nube 20261024"}
+        self.assertIsNone(T.libre_de_su_reasignacion(RAMA_CR, hoy, None, HOY))
+
+    def test_otros_medios_y_estados_no_cambian(self):
+        self.assertIsNone(T.libre_de_su_reasignacion(RAMA_CR, {"estado": "reasignada", "medio": "claude-nube"}, False, HOY))
+        self.assertIsNone(T.libre_de_su_reasignacion(RAMA_CR, dict(reasignada(), estado="en_curso"), False, HOY))
+
+    def test_decidir_con_libre(self):
+        commits = [c("salvavidas"), c("ola")]
+        accion, motivo = T.decidir("CRM1024B", commits, False, "reasignada", "cola-cr.json", libre="ya terminó")
+        self.assertEqual(accion, "traer")
+        self.assertIn("ya terminó", motivo)
+        self.assertEqual(T.decidir("X", [c("salvavidas")], False, "reasignada", "c.json", libre="m")[0], "reparar")
+        # `libre` solo vale para «reasignada»: lo que la Mac escribe ahora sigue esperando.
+        self.assertEqual(T.decidir("X", commits, False, "en_curso", "c.json", libre="m")[0], "esperar")
+
+
+class RevisarConReasignadas(unittest.TestCase):
+    """OPS1024E: `revisar` (sin aplicar) con el inventario, el progreso y la API de GitHub simulados."""
+
+    def setUp(self):
+        from unittest import mock
+
+        self.dir = tempfile.mkdtemp()
+        self.preguntados = []
+        self.estados = {}
+        self.progreso = {}
+        self.filas = []
+        self.p = [
+            mock.patch.object(T, "ESTADO", os.path.join(self.dir, "traer.json")),
+            mock.patch.object(T, "inventario", side_effect=lambda: [dict(f) for f in self.filas]),
+            mock.patch.object(T, "_progreso", side_effect=lambda: self.progreso),
+            mock.patch.object(T, "_colas_por_id", return_value={}),
+            mock.patch.object(T, "_git", return_value=(0, "")),
+            mock.patch.object(T.VR, "estado_del_run", side_effect=self._api),
+            mock.patch.object(T.time, "time", return_value=HOY),
+        ]
+        for x in self.p:
+            x.start()
+
+    def tearDown(self):
+        for x in self.p:
+            x.stop()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _api(self, run, raiz):
+        self.preguntados.append(run)
+        return self.estados.get(run)
+
+    def _plan(self, tid, rama, run_estado, entrada=None):
+        self.filas = [{"rama": rama, "tid": tid, "commits": [c("salvavidas"), c("ola")], "fecha": "2026-10-24"}]
+        self.progreso = {tid: entrada or reasignada()}
+        self.estados = {"39588171249": run_estado}
+        return {p["tid"]: p["accion"] for p in T.revisar(aplicar=False)["plan"]}
+
+    def test_run_terminado_la_rama_de_cloudroom_entra(self):
+        self.assertEqual(self._plan("CRM1024B", RAMA_CR, "completed"), {"CRM1024B": "traer"})
+        self.assertEqual(self.preguntados, ["39588171249"])
+
+    def test_run_vivo_espera(self):
+        self.assertEqual(self._plan("CRM1024C", RAMA_CR, "in_progress"), {"CRM1024C": "esperar"})
+
+    def test_sin_dato_y_reciente_espera(self):
+        self.assertEqual(self._plan("CRM1024D", RAMA_CR, None), {"CRM1024D": "esperar"})
+
+    def test_la_rama_del_mismo_run_espera_sin_preguntar(self):
+        self.assertEqual(self._plan("VZF1015Q", "nube/39588171249", "completed"), {"VZF1015Q": "esperar"})
+        self.assertEqual(self.preguntados, [])

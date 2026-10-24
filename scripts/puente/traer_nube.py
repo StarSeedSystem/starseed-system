@@ -34,8 +34,10 @@ Una pasada (`revisar`), automática desde la autocuración de Genesis cada 30 mi
    (`refs/archivo/…` + paquete en `starseed_memory_root/archivo/`), se anota lo aprendido y
    solo entonces se borra del remoto. `--sin-revision` lo salta.
 
-Decisiones PURAS (`tid_de_asunto`, `decidir`, `elegir_por_tarea`, `siguiente_id`,
-`tarea_reparacion`, `texto_informe`) con sus pruebas en `test_traer_nube.py`.
+Decisiones PURAS (`tid_de_asunto`, `decidir`, `libre_de_su_reasignacion`, `elegir_por_tarea`,
+`siguiente_id`, `tarea_reparacion`, `texto_informe`) con sus pruebas en `test_traer_nube.py`.
+Una «reasignada» a un run de nube-gh espera, salvo que la rama sea de OTRO medio y ese run ya no
+esté vivo según la API (o, sin dato del run, la reasignación pase de 6 h): OPS1024E, 2026-10-24.
 
 Uso: python3 traer_nube.py [revisar] [--aplicar] [--json]
      python3 traer_nube.py borrar --ramas nube/1/ola/X nube/2 …   (solo con la palabra de Alex)
@@ -55,6 +57,8 @@ RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECT
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
+import vigia_runs_nube as VR  # noqa: E402 — la misma lectura de la reasignación que el vigía
+
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 PROGRESO = os.path.join(OLAS, "progreso.json")
 COLA_REPARAR = os.path.join(OLAS, "cola-reparar-nube.json")
@@ -67,6 +71,8 @@ DECIDIDAS = {"sustituida", "descartada", "duplicada", "commit", "hecho", "integr
 #: La Mac la está escribiendo ahora, o la nube la tiene: se espera a la próxima pasada.
 OCUPADAS = {"en_curso", "reasignada"}
 PREFIJO_SUENOS = "cola-suenos-"
+#: (OPS1024E) Una reasignación a nube-gh de más de esto ya no la lleva ningún run (el job muere a las 6 h).
+REASIGNADA_VIEJA_S = 6 * 3600
 
 _ID = re.compile(r"·\s*([A-Za-z][A-Za-z0-9-]*\d[A-Za-z0-9-]*)\s*:")
 
@@ -92,11 +98,46 @@ def tid_de_asunto(asunto):
     return "otro", tid
 
 
-def decidir(tid, commits, en_main, estado, cola):
+def run_de_rama(rama):
+    """PURA. El run de GitHub de una rama `nube/<run>[/…]`, o None si es de otro medio
+    (`nube/cr-<fecha>/ola/<ID>` de Cloudroom, `nube/a1-…` del A1)."""
+    partes = str(rama or "").split("/")
+    return partes[1] if len(partes) > 1 and partes[0] == "nube" and partes[1].isdigit() else None
+
+
+def libre_de_su_reasignacion(rama, entrada, run_vivo, ahora):
+    """PURA (OPS1024E). ¿La rama llega de OTRO medio que el de una reasignación a nube-gh que ya no
+    lleva nadie? → el motivo (entra en las puertas normales) o None (se espera, como siempre).
+
+    (2026-10-24, MEDIDO) CRM1024B/C/D llegaron hechas por Cloudroom (`nube/cr-20261024/ola/…`, pruebas
+    en verde) y se quedaban «esperar» para siempre porque la tarea figuraba reasignada a un run de
+    nube-gh que ya había terminado. `run_vivo`: True | False | None (sin dato) del run de la nota.
+    Run vivo, o la rama ES la de ese run: se espera. Sin dato del run, solo con más de 6 h."""
+    if not VR.es_reasignada_a_la_nube(entrada):
+        return None
+    run = VR.run_de_la_nota(entrada.get("nota"))
+    de_la_rama = run_de_rama(rama)
+    cambio = VR.ultimo_cambio(entrada)
+    vieja = cambio is not None and ahora - cambio > REASIGNADA_VIEJA_S
+    if run:
+        if de_la_rama == run or run_vivo is True:
+            return None
+        if run_vivo is False:
+            return "la reasignación apuntaba al run %s de nube-gh, que ya terminó, y esta rama es de otro medio" % run
+        return ("la reasignación al run %s tiene más de 6 h, GitHub no da su estado y esta rama es de otro medio"
+                % run) if vieja else None
+    # Sin run en la nota no se sabe cuál la lleva: una rama de un run de GitHub podría ser la suya.
+    if de_la_rama is None and vieja:
+        return "la reasignación a la nube tiene más de 6 h y esta rama es de otro medio"
+    return None
+
+
+def decidir(tid, commits, en_main, estado, cola, libre=None):
     """PURA. Qué hacer con el trabajo de UNA tarea en UNA rama: (accion, motivo).
 
     accion: «traer» | «reparar» | «superada» (se pregunta antes de tocarla) | «esperar».
-    `commits`: [{tipo, nuevo, vacio}] de esa tarea en la rama."""
+    `commits`: [{tipo, nuevo, vacio}] de esa tarea en la rama. `libre` (OPS1024E): el motivo de
+    `libre_de_su_reasignacion`; con él, una «reasignada» no espera y entra en las puertas normales."""
     estado = (estado or "").lower()
     if en_main:
         return "superada", "ya está en main (la integró la Mac u otra rama)"
@@ -114,11 +155,13 @@ def decidir(tid, commits, en_main, estado, cola):
     trabajo = [c for c in commits if c.get("tipo") in ("salvavidas", "ola", "otro")]
     if not any(c.get("nuevo") or c.get("tipo") == "ola" for c in trabajo):
         return "superada", "no aporta nada que main no tenga"
-    if estado in OCUPADAS:
+    libre = libre if estado == "reasignada" else None
+    if estado in OCUPADAS and not libre:
         return "esperar", "la tarea está «%s» ahora mismo: no se le pisa el trabajo" % estado
+    extra = " (%s)" % libre if libre else ""
     if any(c.get("tipo") == "ola" for c in commits):
-        return "traer", "la nube la integró (pasó sus puertas) y main aún no la tiene"
-    return "reparar", "trabajo a medias que no pasó las puertas: se continúa desde la rama"
+        return "traer", "la nube la integró (pasó sus puertas) y main aún no la tiene" + extra
+    return "reparar", "trabajo a medias que no pasó las puertas: se continúa desde la rama" + extra
 
 
 def elegir_por_tarea(entradas):
@@ -678,6 +721,13 @@ def _revisar(aplicar, espera_integrar_s):
 
     asuntos = asuntos.splitlines()
     entradas = []
+    vivos_por_run = {}  # una pregunta a GitHub por run y pasada
+
+    def _vivo(run):
+        if run not in vivos_por_run:
+            vivos_por_run[run] = VR.run_vivo(VR.estado_del_run(run, RAIZ))
+        return vivos_por_run[run]
+
     for fila in inventario():
         tid = fila["tid"]
         if not tid:  # commits que no son de ninguna tarea: ni se traen ni se reparan
@@ -687,8 +737,15 @@ def _revisar(aplicar, espera_integrar_s):
         if previa.get("accion") in ("traida", "reparada"):
             continue
         entrada_p = progreso.get(tid) if isinstance(progreso.get(tid), dict) else {}
-        accion, motivo = decidir(tid, fila["commits"], bool(tid) and id_en_asuntos(tid, asuntos),
-                                 entrada_p.get("estado"), (colas.get(tid) or ("", {}))[0])
+        en_main, cola_t = bool(tid) and id_en_asuntos(tid, asuntos), (colas.get(tid) or ("", {}))[0]
+        accion, motivo = decidir(tid, fila["commits"], en_main, entrada_p.get("estado"), cola_t)
+        if accion == "esperar" and VR.es_reasignada_a_la_nube(entrada_p):
+            # (OPS1024E) ¿La rama es de otro medio y el run de la reasignación ya no la lleva?
+            run = VR.run_de_la_nota(entrada_p.get("nota"))
+            vivo = _vivo(run) if run and run_de_rama(fila["rama"]) != run else None
+            libre = libre_de_su_reasignacion(fila["rama"], entrada_p, vivo, time.time())
+            if libre:
+                accion, motivo = decidir(tid, fila["commits"], en_main, entrada_p.get("estado"), cola_t, libre=libre)
         entradas.append(dict(fila, accion=accion, motivo=motivo, clave=clave))
     entradas = elegir_por_tarea(entradas)
 
