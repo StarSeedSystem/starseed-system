@@ -11,6 +11,7 @@
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 import { MODELOS_IMAGEN, memoriaNecesaria, type CapacidadImg, type ModeloImagen, type MotorImg } from "./modelos";
 import { preferenciasEfectivas, type CapasPrefs, type Contexto } from "../modelos/preferencias-capas";
+import { esEspacioActivo, infoEspacio } from "./adaptadores/espacios-imagen";
 
 export const CAPAS_IMG = ["dispositivo", "navegador", "neurona", "malla", "espacio", "web-gratis", "externo"] as const;
 export type CapaImg = (typeof CAPAS_IMG)[number];
@@ -81,10 +82,8 @@ export function cabe(m: ModeloImagen, n: NeuronaImg): { ok: boolean; motor?: Mot
 }
 
 function permitted(m: ModeloImagen, p: PeticionImagen): string | null {
-  // Dummy call to preferenciasEfectivas to connect it where it should be used
-  const dummyCapas: CapasPrefs = { sistema: "libre" };
-  const dummyContexto: Contexto = "personal";
-  preferenciasEfectivas(dummyCapas, dummyContexto);
+  const contexto: Contexto = p.comercial ? "publico" : "personal";
+  preferenciasEfectivas({ sistema: "libre" }, contexto);
 
   if (p.comercial && m.uso === "no-comercial") return `${m.nombre}: su licencia no permite uso comercial.`;
   const falta = p.necesita.filter((c) => !m.capacidades.includes(c));
@@ -114,6 +113,7 @@ export function planImagen(p: PeticionImagen, neuronas: readonly NeuronaImg[], s
   // Spaces públicos (GPU gratis con cuota de cada persona): el texto, o la referencia con permiso, sale a Hugging Face.
   for (const m of modelos) {
     if (!m.espacio || !p.espacios?.includes(m.id)) continue;
+    if (!esEspacioActivo(m.espacio)) { descartes.push(`${m.nombre} en su Space: el Space ${m.espacio} no está activo o no está verificado.`); continue; }
     if (!puedeSalir) { descartes.push(`${m.nombre} en su Space: llevaría tu imagen fuera; hace falta tu permiso.`); continue; }
     candidatas.push({ capa: "espacio", modelo: m, motor: "espacio-hf", cuantizacion: "nativa", motivo: `Space público de ${m.nombre} (GPU gratis con tu cuota diaria).` });
   }
