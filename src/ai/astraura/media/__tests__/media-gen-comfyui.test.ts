@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { NODOS_NUCLEO, textoAImagen, type GrafoComfyUI } from "@/lib/imagenes/flujos-comfyui";
-import { formatoComfyuiMasCercano, peticionFlujoComfyui } from "../media-gen";
+import { NODOS_NUCLEO, type GrafoComfyUI } from "@/lib/imagenes/flujos-comfyui";
+import {
+  formatoComfyuiMasCercano,
+  grafoComfyuiDe,
+  peticionFlujoComfyui,
+} from "../media-gen";
 
 describe("formatoComfyuiMasCercano", () => {
   it("sin tamaño pedido contesta 1:1", () => {
@@ -44,7 +48,7 @@ describe("peticionFlujoComfyui", () => {
     expect(p.positivo).toBe("luz de alba");
   });
   it("la petición del OS construye un grafo válido con las plantillas puras: solo nodos del núcleo y enlaces que apuntan a nodos que existen", () => {
-    const grafo: GrafoComfyUI = textoAImagen(peticionFlujoComfyui({ ...base, width: 1080, height: 1080 }));
+    const grafo: GrafoComfyUI = grafoComfyuiDe({ ...base, width: 1080, height: 1080 });
     for (const nodo of Object.values(grafo)) {
       expect(NODOS_NUCLEO as readonly string[]).toContain(nodo.class_type);
     }
@@ -54,6 +58,53 @@ describe("peticionFlujoComfyui", () => {
           expect(Object.keys(grafo)).toContain(String(valor[0]));
         }
       }
+    }
+  });
+});
+
+describe("peticionFlujoComfyui · muestreo según la lista blanca", () => {
+  it("aplica el muestreador y el planificador elegidos de la lista blanca", () => {
+    const p = peticionFlujoComfyui({ prompt: "una órbita", muestreador: "dpmpp_2m", planificador: "karras" });
+    expect(p.muestreador).toBe("dpmpp_2m");
+    expect(p.planificador).toBe("karras");
+  });
+  it("un muestreador o planificador fuera de la lista blanca cae a euler y normal, nunca sale del núcleo", () => {
+    const p = peticionFlujoComfyui({ prompt: "una órbita", muestreador: "ddim", planificador: "sgm_uniform" });
+    expect(p.muestreador).toBe("euler");
+    expect(p.planificador).toBe("normal");
+  });
+});
+
+describe("grafoComfyuiDe · texto a imagen o imagen a imagen", () => {
+  const base = { prompt: "retrato con niebla", seed: 5 };
+
+  it("sin imagen de entrada construye el flujo de TEXTO a imagen (sin LoadImage, con EmptyLatentImage)", () => {
+    const grafo = grafoComfyuiDe(base);
+    expect(Object.values(grafo).some((n) => n.class_type === "EmptyLatentImage")).toBe(true);
+    expect(Object.values(grafo).some((n) => n.class_type === "LoadImage")).toBe(false);
+  });
+
+  it("con imagenEntrada construye IMAGEN a imagen: LoadImage → VAEEncode, no hay EmptyLatentImage y el denoise por defecto es 0,75", () => {
+    const grafo = grafoComfyuiDe({ ...base, imagenEntrada: " entrada.png " });
+    expect(grafo["1"].class_type).toBe("LoadImage");
+    expect(grafo["1"].inputs.image).toBe("entrada.png");
+    expect(Object.values(grafo).some((n) => n.class_type === "VAEEncode")).toBe(true);
+    expect(Object.values(grafo).some((n) => n.class_type === "EmptyLatentImage")).toBe(false);
+    const ksampler = Object.values(grafo).find((n) => n.class_type === "KSampler");
+    expect(ksampler?.inputs.denoise).toBe(0.75);
+  });
+
+  it("aplica el denoise pedido y falla con error legible si sale de rango", () => {
+    const grafo = grafoComfyuiDe({ ...base, imagenEntrada: "base.png", denoise: 0.3 });
+    const ksampler = Object.values(grafo).find((n) => n.class_type === "KSampler");
+    expect(ksampler?.inputs.denoise).toBe(0.3);
+    expect(() => grafoComfyuiDe({ ...base, imagenEntrada: "base.png", denoise: 2 })).toThrow(/denoise/);
+  });
+
+  it("el flujo de imagen a imagen también cae entero dentro de la lista blanca del núcleo", () => {
+    const grafo = grafoComfyuiDe({ ...base, imagenEntrada: "base.png", denoise: 0.5 });
+    for (const nodo of Object.values(grafo)) {
+      expect(NODOS_NUCLEO as readonly string[]).toContain(nodo.class_type);
     }
   });
 });

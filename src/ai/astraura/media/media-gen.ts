@@ -49,9 +49,18 @@
 import { connectionsForService } from "@/lib/services/oss-connections";
 import {
   FORMATOS_PUBLICACION,
+  MUESTREADORES_COMFYUI,
+  PLANIFICADORES_COMFYUI,
+  NODOS_NUCLEO,
+  MEGAPIXELES,
+  imagenAImagen,
+  ladosFormato,
   textoAImagen,
   type EscalaImagen,
   type FormatoPublicacion,
+  type GrafoComfyUI,
+  type MuestreadorComfyUI,
+  type PlanificadorComfyUI,
   type PeticionFlujo,
 } from "@/lib/imagenes/flujos-comfyui";
 import type { GaleriaImagenes } from "./proveedor-neuronas";
@@ -711,6 +720,14 @@ export interface GenerateImageOptions {
   comercial?: boolean;
   conReferencia?: boolean;
   permisoRemoto?: boolean;
+  /** ComfyUI (imagen a imagen): nombre del archivo de entrada YA subido a /input del servidor (subirlo lo hace el cliente de flujos, IMG1020B). Con él, el flujo usa `imagenAImagen` en vez de `textoAImagen`. */
+  imagenEntrada?: string;
+  /** ComfyUI (imagen a imagen): cuánto reescribe el KSampler, de 0 a 1 (0,75 si no llega: revisa sin olvidar lo pedido). */
+  denoise?: number;
+  /** ComfyUI: muestreador del KSampler, de la lista blanca del núcleo (euler si no llega o no está en la lista). */
+  muestreador?: string;
+  /** ComfyUI: planificador del KSampler, de la lista blanca del núcleo (normal si no llega o no está en la lista). */
+  planificador?: string;
 }
 
 /** Construye la imagen con Pollinations (siempre disponible; nunca lanza, siempre `ok:true` si hay prompt). */
@@ -881,6 +898,8 @@ export function peticionFlujoComfyui(opts: GenerateImageOptions): PeticionFlujo 
     typeof opts.seed === "number" && Number.isFinite(opts.seed)
       ? Math.max(0, Math.floor(opts.seed))
       : Math.floor(Math.random() * 2 ** 31);
+  const texto: string = opts.muestreador || "";
+  const tiempo: string = opts.planificador || "";
   return {
     checkpoint,
     positivo: opts.prompt,
@@ -890,22 +909,61 @@ export function peticionFlujoComfyui(opts: GenerateImageOptions): PeticionFlujo 
     semilla,
     pasos: 20,
     cfg: 7,
-    muestreador: "euler",
-    planificador: "normal",
+    muestreador: (MUESTREADORES_COMFYUI as readonly string[]).includes(texto)
+      ? (opts.muestreador as MuestreadorComfyUI)
+      : "euler",
+    planificador: (PLANIFICADORES_COMFYUI as readonly string[]).includes(tiempo)
+      ? (opts.planificador as PlanificadorComfyUI)
+      : "normal",
   };
+}
+
+/**
+ * El GRAFO ComfyUI de una petición del OS, con el flujo que pide su enunciado:
+ * `imagenAImagen` (LoadImage → VAEEncode → KSampler con `denoise`) cuando llega
+ * `imagenEntrada`; `textoAImagen` en los demás casos. PURO: construye el grafo
+ * en formato API, no lo envía (el envío lo hace `comfyuiImage`).
+ * Nunca se deja sin valor un `denoise` de imagen a imagen: 0,75 si no llega.
+ */
+export function grafoComfyuiDe(opts: GenerateImageOptions): GrafoComfyUI {
+  const base = peticionFlujoComfyui(opts);
+  const entrada = (opts.imagenEntrada || "").trim();
+  return entrada
+    ? imagenAImagen({
+        ...base,
+        imagen: entrada,
+        denoise:
+          typeof opts.denoise === "number" && Number.isFinite(opts.denoise) ? opts.denoise : 0.75,
+      })
+    : textoAImagen(base);
 }
 
 async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
   const endpoint = resolveEndpoint("comfyui", getMediaPrefs());
   if (!endpoint) {
+    // Mensaje honesto con lo que el flujo ABRÍA hecho: el formato de publicación, sus lados reales (ladosFormato) y el megapíxel objetivo (MEGAPIXELES: ≈1 MP general, ≈0,26 MP en la gama SD 1.5).
+    const p = peticionFlujoComfyui(opts);
+    const lados = ladosFormato(p.formato, p.escala ?? "estandar");
+    const mp = String(MEGAPIXELES[p.escala ?? "estandar"]).replace(".", ",");
     return {
       ok: false,
       provider: "comfyui",
-      error: "No hay un endpoint de ComfyUI configurado (aquí o en /servicios).",
+      error: `No hay un endpoint de ComfyUI configurado (aquí o en /servicios). El flujo habría sido ${p.formato} a ${lados.ancho}×${lados.alto} (≈${mp} MP).`,
     };
   }
-  // Un ComfyUI real no admite {prompt: "texto"}: pide el GRAFO en formato API, que se construye aquí con las plantillas puras de flujos-comfyui. Seguir /history y bajar por /view lo completa el cliente de flujos (IMG1020B).
-  const grafo = textoAImagen(peticionFlujoComfyui(opts));
+  // Un ComfyUI real no admite {prompt: "texto"}: pide el GRAFO en formato API, que se construye aquí con las plantillas puras de flujos-comfyui — texto a imagen, o imagen a imagen cuando llega `imagenEntrada`. Seguir /history y bajar por /view lo completa el cliente de flujos (IMG1020B).
+  const grafo = grafoComfyuiDe(opts);
+  // Lista blanca ANTES de enviar: solo nodos del núcleo de ComfyUI (ningún nodo personalizado de terceros, que ejecuta código). Si una plantilla dejara colar uno, fallo legible y no envío.
+  const fuera = [...new Set(Object.values(grafo).map((n) => n.class_type))].filter(
+    (tipo) => !(NODOS_NUCLEO as readonly string[]).includes(tipo),
+  );
+  if (fuera.length) {
+    return {
+      ok: false,
+      provider: "comfyui",
+      error: `El grafo lleva nodos fuera de la lista blanca del núcleo (${fuera.join(", ")}): no se envía.`,
+    };
+  }
   return postForMedia(joinUrl(endpoint, "/prompt"), "comfyui", "image", { prompt: grafo }, LOCAL_TIMEOUT_MS, true);
 }
 
