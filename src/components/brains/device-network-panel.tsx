@@ -63,10 +63,13 @@ import {
   elegirReflejo,
   iniciarPublicacionCapacidades,
   resumenRed,
+  vozMedida,
   type CapacidadesNodo,
   type MedioNodo,
   type PublicacionCapacidades,
 } from "@/lib/network/capacidades-nodo";
+import { leerMedidas } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 
 /* ------------------------------------------------------------------ */
 /* Utilidades de presentación                                        */
@@ -218,8 +221,10 @@ function medioDesdePlataforma(platform: string): MedioNodo {
 /**
  * Mide la ficha de ESTE dispositivo. Lo que el navegador no puede medir
  * (tok/s por capa, RAM libre) queda sin dato («sin medir»), nunca inventado.
+ * También la voz MEDIDA de esta neurona (SGO1024F): solo lo anotado por
+ * `medidas-voz.ts`; sin medidas, el campo no existe.
  */
-async function medirFichaPropia(device: DeviceInfo): Promise<CapacidadesNodo> {
+export async function medirFichaPropia(device: DeviceInfo): Promise<CapacidadesNodo> {
   let bateriaPct: number | null = null;
   try {
     const nav = navigator as Navigator & { getBattery?: () => Promise<{ level?: number }> };
@@ -228,6 +233,10 @@ async function medirFichaPropia(device: DeviceInfo): Promise<CapacidadesNodo> {
   } catch {
     /* sin API de batería: se anuncia sin dato */
   }
+  // (SGO1024F) La voz se filtra por la NEURONA que el propio módulo de medidas
+  // anota (`neuronDeviceIdActual`, `starseed.neuron.device-id`): otra neurona o
+  // una ficha del motor nunca cuentan. Nunca lanza: `vozMedida` devuelve undefined.
+  const voz = vozMedida(leerMedidas(), { neurona: neuronDeviceIdActual(), ahora: Date.now() });
   return crearFichaNodo({
     nodoId: device.id,
     medio: medioDesdePlataforma(device.platform),
@@ -236,6 +245,7 @@ async function medirFichaPropia(device: DeviceInfo): Promise<CapacidadesNodo> {
     bateriaPct,
     enSegundoPlano: typeof document !== "undefined" ? document.hidden : false,
     ambitos: ["propio", "cuenta"],
+    ...(voz ? { voz } : {}),
   });
 }
 
