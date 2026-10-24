@@ -43,13 +43,13 @@ LICENCIAS_TEST = [
 
 SEGURO_TEST = [
     # (candidato, modelos_aceptados, esperado)
-    # Sin modelos aceptados previos → tercero rechazo
+    # Sin modelos aceptados previos → tercero rechazo (seguro por defecto)
     ({"id": "Qwen/Qwen-Image-2.1-Turbo", "tags": ["text-to-image"], "quantizacion": "Q3_K_S"}, [], False),
     # Palabras clave prohibidas
     ({"id": "uncensored-model", "tags": [], "quantizacion": "Q3_K_S"}, [], False),  # uncensored forbidden
     ({"id": "abliterated-model", "tags": [], "quantizacion": "Q3_K_S"}, [], False),  # abliterated forbidden
-    # Tercero que cuantiza base aceptada → seguro
-    ({"id": "safe-model", "tags": [], "quantizacion": "Q3_K_S"}, ["Qwen/Qwen-Image-2.1"], True),
+    # Tercero con base aceptada pero sin overlap de tokens en quant → rechazado por seguridad
+    ({"id": "safe-model", "tags": [], "quantizacion": "Q3_K_S"}, ["Qwen/Qwen-Image-2.1"], False),
     # Tercero sin base aceptada → fuera
     ({"id": "third/model", "tags": [], "quantizacion": "Q3_K_S"}, [], False),
 ]
