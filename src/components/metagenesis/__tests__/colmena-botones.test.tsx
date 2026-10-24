@@ -184,6 +184,84 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         const android = botonesNeurona({ nodo: null, vivo: true, so: "android", enCurso: 0 });
         expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
+
+    it("sin trabajador: «Instalar el trabajador» visible también en macOS", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(b.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "Un comando en la terminal de este aparato.",
+        });
+    });
+
+    it("sin trabajador: en Windows se instala dentro de WSL2", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "windows", enCurso: 0 });
+        expect(b.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "En Windows se instala dentro de WSL2.",
+        });
+    });
+
+    it("sin trabajador: en iOS y en un SO desconocido no se ofrece instalar", () => {
+        for (const so of ["ios", "otro"] as const) {
+            const b = botonesNeurona({ nodo: null, vivo: true, so, enCurso: 0 });
+            expect(b.instalar).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+        }
+    });
+
+    it("sin nodo (solo navegador), Desconectar y contenedor están ocultos", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        for (const boton of [b.desconectar, b.contenedor]) {
+            expect(boton).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+        }
+    });
+
+    it("con el relevo activo, un contenedor apuntable se ofrece con sus agentes", () => {
+        const b = botonesNeurona({
+            nodo: "mac-a1b2c3",
+            vivo: true,
+            so: "macos",
+            enCurso: 0,
+            contenedor: { activo: false, agentes: 2, apto: true, motivo: "" },
+            relevoActivo: true,
+        });
+        expect(b.contenedor).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Usar como contenedor (2 agentes)",
+            explica: "Este aparato coge tareas de la cola como la Mac.",
+        });
+    });
+
+    it("un contenedor que no es apto se ve desactivado y explica el motivo", () => {
+        const b = botonesNeurona({
+            nodo: "mac-a1b2c3",
+            vivo: true,
+            so: "macos",
+            enCurso: 0,
+            contenedor: { activo: false, agentes: 0, apto: false, motivo: "No tiene suficiente memoria" },
+            relevoActivo: true,
+        });
+        expect(b.contenedor).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Usar como contenedor",
+            explica: "No tiene suficiente memoria",
+        });
+    });
+
+    it("con el relevo activo y desconectando, el botón dice «Desconectando…» y qué hace", () => {
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, desconectando: true, relevoActivo: true });
+        expect(b.desconectar).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Desconectando…",
+            explica: "Guarda el trabajo a medias y lo pasa a otro contenedor.",
+        });
+    });
 });
 // ─── el traductor latido → tarjeta (puro) ──────────────────────────────────────────────────────────────
 
