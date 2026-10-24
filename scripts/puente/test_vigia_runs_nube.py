@@ -207,6 +207,18 @@ class VaradasPuras(unittest.TestCase):
         self.assertEqual([h[0] for h in hechas], ["VZF1015Q"])
         self.assertIn("39588171249", hechas[0][2])
 
+    def test_sin_medio_pero_la_nota_nombra_el_run_cuenta(self):
+        """Las soltadas a nube-gh pueden quedar sin `medio`: la nota con su run las delata."""
+        prog = {"Q": {"estado": "reasignada", "nota": MOVIDA % 9}}
+        hechas = VR.varadas_tras_su_run(prog, {"9": "completed"}, set(), HOY)
+        self.assertEqual([(h[0], h[1]) for h in hechas], [("Q", "9")])
+
+    def test_otro_medio_o_nota_ajena_se_quedan(self):
+        prog = {"ORACLE": {"estado": "reasignada", "medio": "oracle", "nota": MOVIDA % 9},
+                "NOTA": {"estado": "reasignada", "medio": None,
+                         "nota": "movida a oracle desde Genesis", "t": "2026-10-21 12:00:00"}}
+        self.assertEqual(VR.varadas_tras_su_run(prog, {"9": "completed"}, set(), HOY), [])
+
     def test_sin_run_solo_pasadas_24_h(self):
         prog = {"VIEJA": {"estado": "reasignada", "medio": "nube", "nota": "reasignada a la nube 20261021"},
                 "NUEVA": {"estado": "reasignada", "medio": "nube", "nota": "reasignada a la nube 20261024"},
