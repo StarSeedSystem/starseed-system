@@ -88,6 +88,10 @@ import {
   sha256,
 } from "./lib.mjs";
 
+// Puerta local hacia VoiceStudio (Ola 1018V · G): detección con caché y
+// reenvío de su API compatible con OpenAI. Ver voicestudio-proxy.mjs.
+import { detectar, reenviar } from "./voicestudio-proxy.mjs";
+
 // ── Vocabulario e instruct por personalidad (Adenda 89) ──────────────────────
 // DESCUBRIMIENTO CLAVE (leyendo el código fuente de `tts-server`): `instructions`
 // NO admite texto libre — sólo acepta estos TOKENS EN INGLÉS separados por
@@ -2914,7 +2918,7 @@ async function reconocerConServidorOido(req, res, cors, baseUrl, audioBuf, mimeH
 
 // ── /status ──────────────────────────────────────────────────────────────────
 
-function handleStatus(res, cors) {
+async function handleStatus(res, cors) {
   const state = readiness();
   const cfg = state.cfg || {};
   // 2026-09-06 (Ola 255): residente = proceso vivo y listo; cargandoDesdeMs =
@@ -2987,10 +2991,54 @@ function handleStatus(res, cors) {
     },
   };
   if (!state.ready) payload.reasons = state.reasons;
+  // Ola 1018V (tarea G): línea de salud para VoiceStudio. La detección lleva
+  // caché de 60 s (en el proxy), así que /status seguido no tumba con pings.
+  payload.voicestudio = (await detectar()) ? "vivo" : "ausente";
   sendJson(res, 200, cors, payload);
 }
 
 // ── Servidor HTTP ────────────────────────────────────────────────────────────
+
+// ── /voicestudio/* (Ola 1018V · G) ───────────────────────────────────────────
+/**
+ * Puerta local hacia el estudio de voz de VoiceStudio. DETECTA (descubrimiento
+ * con caché de 60 s), REENVÍA las tres rutas del API compatible con OpenAI y
+ * SE APARTA (404) si VoiceStudio no está vivo — el daemon sigue con su voz
+ * propia y ninguna petición rara tumba el proceso. GET /voicestudio/salud
+ * sirve una línea de Cover: el estado del estudio.
+ */
+async function handleVoicestudio(req, res, cors, url, metodo) {
+  const ruta = url.replace(/^\/voicestudio/, "") || "/";
+  if (ruta === "/salud" && metodo === "GET") {
+    return sendJson(res, 200, cors, { ok: true, voicestudio: (await detectar()) ? "vivo" : "ausente" });
+  }
+  if (metodo !== "GET" && metodo !== "POST") {
+    return sendJson(res, 405, cors, { ok: false, error: "método no permitido" });
+  }
+  if (!(await detectar())) {
+    return sendJson(res, 404, cors, { ok: false, voicestudio: "ausente", error: "voicestudio no está vivo" });
+  }
+  let cuerpo = undefined;
+  if (metodo === "POST") {
+    cuerpo = await readBody(req);
+    if (cuerpo === null) {
+      return sendJson(res, 413, cors, { ok: false, error: "cuerpo demasiado grande" });
+    }
+  }
+  const resultado = await reenviar(ruta, cuerpo);
+  if (resultado.datoAudio || resultado.audio) {
+    res.writeHead(resultado.status, {
+      ...cors,
+      "Content-Type": resultado.tipo || "application/octet-stream",
+      "X-Astraura-Voz-Clonada": "si",
+    });
+    return res.end(Buffer.from(resultado.audio));
+  }
+  if (resultado.datos !== undefined) {
+    return sendJson(res, resultado.status, cors, resultado.datos);
+  }
+  return sendJson(res, resultado.status, cors, { ok: false, error: resultado.error });
+}
 
 function buildCors(origin) {
   // Sólo emitimos ACAO si el Origin casa con la allowlist. Sin Origin: {} (no
@@ -3060,6 +3108,9 @@ const server = http.createServer(async (req, res) => {
      if (req.method === "GET" && url === "/ceder") {
        return sendJson(res, 405, cors, { ok: false, error: "método no permitido" });
      }
+     if ((req.method === "GET" || req.method === "POST") && (url === "/voicestudio" || url.startsWith("/voicestudio/"))) {
+       return await handleVoicestudio(req, res, cors, url, req.method);
+     }
      // Oído local: estado y proxy a servidores de oído
      if (req.method === "GET" && url === "/oido/estado") {
        const phononOk = await comprobarServidorOido(ASTRAURA_OIDO_PHONON_URL);
@@ -3073,7 +3124,7 @@ const server = http.createServer(async (req, res) => {
        return await proxyASR(req, res, cors, ASTRAURA_OIDO_PARAKEET_URL);
      }
 
-     return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity", "POST /warm", "POST /asr", "POST /clonar", "GET /clones", "DELETE /clonar", "POST /ceder", "GET /oido/estado", "POST /oido/phonon", "POST /oido/parakeet"] });
+     return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity", "POST /warm", "POST /asr", "POST /clonar", "GET /clones", "DELETE /clonar", "POST /ceder", "GET /oido/estado", "POST /oido/phonon", "POST /oido/parakeet", "GET|POST /voicestudio/*"] });
   } catch (e) {
     // Blindaje total: ninguna petición mala tumba el daemon.
     try {
