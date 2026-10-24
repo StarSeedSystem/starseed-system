@@ -1,0 +1,94 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "VPU1019H",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de publicaciones y mensajes (estilos del editor)",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/publicaciones.ts",
+    "src/lib/variaciones/adaptadores/__tests__/publicaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familias post y mensaje con parte `#estilo`, `#plantilla` o `#decoracion`: captura estilos y plantillas del editor rico (`src/components/messages/rico/`) y del compositor de publicaciones, nunca el texto ni los destinatarios; aplicar sobre el borrador actual con deshacer. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019U",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Sugerencias de variaciones con Astraura (local primero)",
+   "archivos": [
+    "src/lib/variaciones/sugerir-astraura.ts",
+    "src/lib/variaciones/__tests__/sugerir-astraura.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`sugerirVariaciones(clave, contexto, deps)` pide al enrutador de Astraura (inyectado; escalera local primero de `genesis-conectores-abiertos.md`) 3 variaciones del payload capturado, las valida con `validar.ts` y con las pruebas del ADN del contexto (`memory/diseno/adn/*/dna.json`, inyectado) y devuelve solo las que pasan, con su motivo. Prueba con modelo falso. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "SUC1018C",
+   "ola": "Ola 1018S · Sucesoras del ultracode: lo que los revisores Opus dejaron por cablear o arreglar",
+   "titulo": "Bots · el ejecutor pinta y retira las capas sobre la pantalla (BOT1011V)",
+   "archivos": [
+    "src/lib/astraura-bots/adaptadores/ejecutor-acciones.ts",
+    "src/lib/astraura-bots/__tests__/ejecutor-capas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Integrado `capa-pantalla.ts` (`normalizarCapa`, `apilar`, `retirar`, `retirarDeBot`) y el componente `capa-pantalla-bot.tsx`. En el ejecutor, la acción de capa (`uiSpec`, resaltar, nota, flecha) pasa por `normalizarCapa`, se apila (máx. 8 por bot) en el almacén de capas que lee el componente (evento o almacén existente; no inventes otro si ya hay uno) y su deshacer es `{retirar: id}`. Pruebas de normalizar, apilar y deshacer. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; pruebas sin red; nunca valores de claves; textos y comentarios en español con acentos; lee antes el contrato del área y CLAUDE.md (trampa 11: nada de `node:*` en código de cliente).",
+   "dependencias_ya_en_main": [
+    "SUC1018B"
+   ]
+  },
+  {
+   "id": "MC1012I",
+   "titulo": "Malla cristalina: las mejores rutas sobre los puentes",
+   "archivos": [
+    "src/lib/malla/cristal/rutas.ts",
+    "src/lib/malla/cristal/__tests__/rutas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Exporta `interface Ruta {saltos: string[]; medios: Medio[]; coste: number; motivo: string}` y `mejoresRutas(cristal: Cristal, r: Reticula, dato: Dato, ctx, k = 3): Ruta[]` (ctx igual que en viabilidad): grafo = puentes del cristal; coste de un salto = 1 − viabilidad(dato, señal del puente) y se excluyen los no aptos; Dijkstra y Yen para k rutas sin bucles; orden por coste y desempate por saltos. Si destino es null (difusión), devuelve el árbol de caminos mínimos a todas como rutas de un salto cada una desde el origen hacia sus vecinos directos. Pruebas: ruta directa si existe; rodeo cuando el directo está vetado por privacidad; k rutas distintas; sin ruta → [].",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "revisor_quitadas": [
+    "MC1012H"
+   ],
+   "dependencias_ya_en_main": [
+    "MC1012F"
+   ]
+  },
+  {
+   "id": "MC1012W",
+   "titulo": "Panel «Retícula» en Señales: estado vítreo, temperatura, puentes y misma huella en todas",
+   "archivos": [
+    "src/components/malla/panel-reticula.tsx",
+    "src/components/malla/__tests__/panel-reticula.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Componente 'use client' `PanelReticula({estado})` (recibe el `estado()` del motor de MC1012Q; sin efectos propios): cabecera «Sólido amorfo en tiempo real» con el estado en palabras (fundido: las señales cambian y la red se recoloca / subenfriado / vítreo: estable y congelada), la temperatura media en una barra y una línea de qué significa; «Misma retícula en N de M neuronas» con la huella corta; lista de puentes (neurona ↔ neurona, medio, calidad en %, coste) ordenada por coste; coordinación de cada neurona frente a su máximo; estado vacío honesto si no hay teselas («aún no llegó ninguna señal de otra neurona»). Diseño del OS (Tailwind, Lucide, tarjetas translúcidas), legible en móvil. Pruebas jsdom con un estado fabricado.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012Q"
+   ]
+  },
+  {
+   "id": "COL1012H",
+   "titulo": "Al volver, el aparato suelta lo que otro siguió mientras estaba fuera",
+   "archivos": [
+    "scripts/puente/nodo_metagenesis.py",
+    "scripts/puente/test_colmena_volver.py"
+   ],
+   "depende": [],
+   "prompt": "Al arrancar o al recuperar la conexión (primer latido tras más de `colmena_logica.silencio_max`), el nodo calcula `colmena_logica.al_volver(yo, ids en curso de su orquestador, asignadas del bus, su último latido)` y, para cada tarea a soltar, escribe la orden `soltar` en `olas/control-<cola>.json` (el orquestador ya la entiende: corta y marca `reasignada`) después de forzar un último punto de control y enviarlo (`oracle_nodo.enviar_puntos`): la sucesora puede combinarlo. Lo demás lo sigue él. Pruebas con disco y bus falsos.\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).",
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "dependencias_ya_en_main": [
+    "COL1012G"
+   ]
+  }
+ ]
+}
