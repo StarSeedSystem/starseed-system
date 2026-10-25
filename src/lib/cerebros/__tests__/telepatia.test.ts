@@ -52,6 +52,11 @@ describe('validarVinculo', () => {
     expect(validarVinculo(v).ok).toBe(false);
   });
 
+  it('rechaza destino vacío o sin id', () => {
+    expect(validarVinculo({ id: 'v', destino: {} }).ok).toBe(false);
+    expect(validarVinculo({ id: 'v', destino: { tipo: 'grupo' } }).ok).toBe(false);
+  });
+
   it('rechaza destino tipo inválido', () => {
     const v = { ...vinculoValido, destino: { tipo: 's', id: '1' } };
     expect(validarVinculo(v).ok).toBe(false);
@@ -80,6 +85,19 @@ describe('normalizarVinculos', () => {
 
   it('filtra inválidos', () => {
     const config = { telepatia: [vinculoValido, { id: '' }] };
+    const res = normalizarVinculos(config);
+    expect(res).toHaveLength(1);
+    expect(res[0].id).toBe('v1');
+  });
+
+  it('devuelve [] si el config no trae lista válida', () => {
+    expect(normalizarVinculos({})).toEqual([]);
+    expect(normalizarVinculos({ telepatia: 'roto' })).toEqual([]);
+  });
+
+  it('descarta el vínculo al que le faltan campos obligatorios', () => {
+    // La API de hoy es estricta: sin direccion, acceso, auto ni estado no hay valores por defecto.
+    const config = { telepatia: [vinculoValido, { id: 'v-corto', destino: { tipo: 'cuenta', id: 'c1' } }] };
     const res = normalizarVinculos(config);
     expect(res).toHaveLength(1);
     expect(res[0].id).toBe('v1');

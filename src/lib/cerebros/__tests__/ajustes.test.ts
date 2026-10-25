@@ -463,6 +463,23 @@ describe("ajustes del cerebro", () => {
       expect(resultado).toEqual(ajustes.cerebro);
     });
 
+    it("hereda del cerebro lo que la memoria no pisa", () => {
+      const ajustes: AjustesCerebro = {
+        cerebro: {
+          privacidad: "privado",
+          cifradoLocal: false,
+          medios: { capacidades: {}, almacenamiento: ["local"] },
+          sync: { direccion: "ambas", auto: true, destinos: [] },
+          acceso: []
+        },
+        memorias: { "m1.md": { privacidad: "grupo" } },
+        carpetas: {}
+      };
+      const eff = ajustesEfectivos(ajustes, { tipo: "memoria", id: "m1.md" });
+      expect(eff.privacidad).toBe("grupo");
+      expect(eff.medios.almacenamiento).toContain("local");
+    });
+
     it("debe aplicar ajustes de memoria cuando existen", () => {
       const ajustes: AjustesCerebro = {
         cerebro: {
