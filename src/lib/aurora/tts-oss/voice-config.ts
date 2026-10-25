@@ -552,6 +552,155 @@ export function preferredOmniGender(explicit?: unknown): "Male / 男" | "Female 
   return preferredVoiceGender(explicit) === "m" ? "Male / 男" : "Female / 女";
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// JERARQUÍA DEL PIN DE VOZ (SGO1024D) — capa pura, SSR-safe, testeable.
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * El motor de voz primero en la cadena (`engine-registry.ts::buildVoiceChain`)
+ * usa hoy un PIN que casi siempre acaba siendo el predeterminado: la jerarquía
+ * de ámbitos no se aplicaba de verdad. Aquí vive el RESOLUTOR PURO usando el
+ * mismo patrón que `src/lib/astraura/primary-system.ts::resolvePrimaryFrom` y
+ * la capa neurona×personalidad (Adenda 149) que ya lee el registro de voz:
+ *
+ *   neurona×personalidad > agente > personalidad > cerebro > neurona >
+ *   cuenta > defecto (`defaultEngine`, que pasa el llamador).
+ *
+ * PURA: sin red, sin disco, sin window. Nunca lanza. El motor `"browser"` en
+ * un mapa NO cuenta como decisión (espeja `buildVoiceChain`, que salta el pin
+ * del navegador y sigue con la cadena): se hereda del ámbito inferior.
+ */
+
+export type VoicePinProvenance =
+  | "neurona-personalidad"
+  | "agente"
+  | "personalidad"
+  | "cerebro"
+  | "neurona"
+  | "cuenta"
+  | "defecto";
+
+/** Mapa ámbitId → motor (los valores inválidos se descartan al sanear). */
+export type VoicePinMap = Record<string, string>;
+
+/** Store del pin de voz, por ámbito (mismo espíritu que `PrimarySystemStore`). */
+export interface VoicePinStore {
+  cuenta?: AuroraVoiceEngine;
+  porNeurona?: VoicePinMap;
+  porCerebro?: VoicePinMap;
+  porPersonalidad?: VoicePinMap;
+  porAgente?: VoicePinMap;
+  /** deviceId → personaId → motor: la capa neurona×personalidad (A149). */
+  porNeuronaPersona?: Record<string, VoicePinMap>;
+}
+
+/** Contexto del turno: ids que activan cada ámbito (los vacíos no deciden). */
+export interface VoicePinContext {
+  deviceId?: string | null;
+  personaId?: string | null;
+  agentId?: string | null;
+  brainId?: string | null;
+}
+
+/** Pin resuelto: motor primero en la cadena DE VERDAD + de dónde salió. */
+export interface ResolvedVoicePin {
+  engine: AuroraVoiceEngine;
+  provenance: VoicePinProvenance;
+  /** Id del ámbito que decidió (deviceId/personaId/agentId/brainId), si aplica. */
+  scopeId?: string;
+}
+
+/** Etiquetas legibles (chips/UI) de la procedencia del pin. */
+export const VOICE_PIN_PROVENANCE_LABEL: Record<VoicePinProvenance, string> = {
+  "neurona-personalidad": "Fijado por esta neurona para la personalidad",
+  agente: "Fijado por el agente",
+  personalidad: "Fijado por la personalidad",
+  cerebro: "Fijado por el cerebro",
+  neurona: "Fijado por esta neurona",
+  cuenta: "Ajuste de la cuenta",
+  defecto: "Predeterminado de la cadena de voz",
+};
+
+/** Sanea un mapa de pines: solo ids de ámbito recortados y motores válidos. */
+function sanitizePinMap(raw: unknown): VoicePinMap | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: VoicePinMap = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>).slice(0, 500)) {
+    const id = typeof k === "string" ? k.trim().slice(0, 160) : "";
+    const engine = isVoiceEngineId(v) ? v : undefined;
+    if (id && engine && engine !== "browser") out[id] = engine;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Sanea el store entero del pin de voz (cualquier basura → fuera). Nunca lanza. */
+export function sanitizeVoicePinStore(raw: unknown): VoicePinStore {
+  if (!raw || typeof raw !== "object") return {};
+  const r = raw as Record<string, unknown>;
+  const out: VoicePinStore = {};
+  if (r.cuenta !== "browser" && isVoiceEngineId(r.cuenta)) out.cuenta = r.cuenta;
+  const carpetas: Array<[keyof Omit<VoicePinStore, "cuenta" | "porNeuronaPersona">, unknown]> = [
+    ["porNeurona", r.porNeurona],
+    ["porCerebro", r.porCerebro],
+    ["porPersonalidad", r.porPersonalidad],
+    ["porAgente", r.porAgente],
+  ];
+  for (const [clave, valor] of carpetas) {
+    const limpio = sanitizePinMap(valor);
+    if (limpio) out[clave] = limpio;
+  }
+  if (r.porNeuronaPersona && typeof r.porNeuronaPersona === "object") {
+    const np: Record<string, VoicePinMap> = {};
+    for (const [dev, mapa] of Object.entries(r.porNeuronaPersona).slice(0, 200)) {
+      const idDev = typeof dev === "string" ? dev.trim().slice(0, 160) : "";
+      const limpio = sanitizePinMap(mapa);
+      if (idDev && limpio) np[idDev] = limpio;
+    }
+    if (Object.keys(np).length) out.porNeuronaPersona = np;
+  }
+  return out;
+}
+
+/** Sanea un mapa y devuelve el motor de UN ámbito (o undefined si no decide). */
+function pinOf(
+  mapa: VoicePinMap | undefined,
+  id: string | null | undefined,
+): AuroraVoiceEngine | undefined {
+  if (!id || !mapa) return undefined;
+  const v = mapa[id];
+  return isVoiceEngineId(v) ? v : undefined;
+}
+
+/**
+ * Resuelve el PIN DE VOZ efectivo para un turno sobre un store dado (pura).
+ * Precedencia: neurona×personalidad > agente > personalidad > cerebro >
+ * neurona > cuenta > defecto. La división `neurona-browser` no existe: un pin
+ * al navegador no es una decisión (la cadena del registro ya lo salta).
+ */
+export function resolveVoiceEnginePin(
+  store: VoicePinStore | undefined | null,
+  ctx: VoicePinContext,
+  defaultEngine: AuroraVoiceEngine,
+): ResolvedVoicePin {
+  const s = sanitizeVoicePinStore(store);
+  const pick = (
+    engine: AuroraVoiceEngine | undefined,
+    provenance: VoicePinProvenance,
+    scopeId?: string,
+  ): ResolvedVoicePin | null => (engine ? { engine, provenance, scopeId } : null);
+  const npEngine = ctx.personaId && ctx.deviceId
+    ? pinOf(s.porNeuronaPersona?.[ctx.deviceId], ctx.personaId)
+    : undefined;
+  return (
+    pick(npEngine, "neurona-personalidad", ctx.personaId || undefined) ??
+    pick(pinOf(s.porAgente, ctx.agentId), "agente", ctx.agentId || undefined) ??
+    pick(pinOf(s.porPersonalidad, ctx.personaId), "personalidad", ctx.personaId || undefined) ??
+    pick(pinOf(s.porCerebro, ctx.brainId), "cerebro", ctx.brainId || undefined) ??
+    pick(pinOf(s.porNeurona, ctx.deviceId), "neurona", ctx.deviceId || undefined) ??
+    (s.cuenta ? { engine: s.cuenta, provenance: "cuenta" } : null) ??
+    { engine: defaultEngine, provenance: "defecto" }
+  );
+}
+
 /**
  * Config por defecto: navegador + estilo ORGÁNICO (cálido/sereno), sin
  * autodescarga y con SELECCIÓN AUTOMÁTICA de motor encendida (si algún día
