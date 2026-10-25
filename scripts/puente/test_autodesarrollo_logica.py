@@ -111,5 +111,42 @@ class Lotes(unittest.TestCase):
         self.assertEqual(L.lotes(-3, 2), [0, 0])
 
 
+class AjustesAuto(unittest.TestCase):
+    """Ola 1024I §3: el botón «Aprobación y reimaginación automática» (IMG1024C)."""
+
+    def test_defecto_apagado_y_fuente_agentes_encendida(self):
+        r = L.validar_ajustes({})
+        self.assertEqual(r["auto"], {"aprobar": False, "reimaginar": False, "umbral": 0.75, "max_reimaginaciones": 2})
+        self.assertTrue(r["fuentes"]["agentes"])
+        self.assertFalse(L.validar_ajustes({"fuentes": {"agentes": False}})["fuentes"]["agentes"])
+
+    def test_valida_cada_campo(self):
+        r = L.validar_ajustes({"auto": {"aprobar": True, "reimaginar": True, "umbral": 0.9, "max_reimaginaciones": 4}})
+        self.assertEqual(r["auto"], {"aprobar": True, "reimaginar": True, "umbral": 0.9, "max_reimaginaciones": 4})
+        r = L.validar_ajustes({"auto": {"aprobar": "si", "reimaginar": 1, "umbral": True, "max_reimaginaciones": 2.5}})
+        self.assertEqual(r["auto"], L.AJUSTES_POR_DEFECTO["auto"])
+        self.assertEqual(L.validar_ajustes({"auto": "encendido"})["auto"], L.AJUSTES_POR_DEFECTO["auto"])
+
+    def test_umbral_acotado_y_nunca_bajo_el_suelo(self):
+        umbral = lambda v: L.validar_ajustes({"auto": {"umbral": v}})["auto"]["umbral"]
+        self.assertEqual(umbral(0.2), 0.6)
+        self.assertEqual(umbral(7), 1.0)
+        self.assertEqual(umbral(1), 1.0)
+        self.assertEqual(umbral(0.8123), 0.81)
+        self.assertEqual(umbral(float("nan")), 0.75)
+        self.assertEqual(umbral(float("inf")), 0.75)
+        self.assertEqual(umbral("0.9"), 0.75)
+
+    def test_tope_de_reimaginaciones_acotado(self):
+        tope = lambda v: L.validar_ajustes({"auto": {"max_reimaginaciones": v}})["auto"]["max_reimaginaciones"]
+        self.assertEqual(tope(-3), 0)
+        self.assertEqual(tope(99), L.MAX_REIMAGINACIONES)
+        self.assertEqual(tope(False), 2)
+
+    def test_suelo_es_el_de_la_utilidad(self):
+        import autodesarrollo_decidir as AD
+        self.assertEqual(L.UMBRAL_MINIMO, AD.UMBRAL_UTIL)
+
+
 if __name__ == "__main__":
     unittest.main()

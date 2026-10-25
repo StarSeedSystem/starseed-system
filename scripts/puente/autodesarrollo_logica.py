@@ -1,26 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Ajustes y horario del autodesarrollo (PURO: sin red ni disco, reloj por parámetro).
-Contrato: architecture/imaginacion-autodesarrollo.md §4. Días 0 = lunes … 6 = domingo; una
-franja que cruza la medianoche pertenece al día en que EMPIEZA. «Lo importante con visto
-bueno» NO es un ajuste: ninguna clave lo apaga."""
+Contrato: architecture/imaginacion-autodesarrollo.md §4 y contrato de la Ola 1024I §3 (`auto`:
+el botón «Aprobación y reimaginación automática»). Días 0 = lunes … 6 = domingo; una franja que
+cruza la medianoche pertenece al día en que EMPIEZA. «Lo importante con visto bueno» NO es un
+ajuste: ninguna clave lo apaga (ni `auto.aprobar`: alta y crítica nunca se aprueban solas)."""
 from __future__ import annotations
 
 import copy
+import math
 import re
 from datetime import datetime, timedelta
 
 AJUSTES_POR_DEFECTO = {
     "automatico": True,
     "rango": {"min": 0, "max": 10},
-    "fuentes": {"diaria": True, "profunda": True, "astraura": True, "directores": True},
+    "fuentes": {"diaria": True, "profunda": True, "astraura": True, "directores": True, "agentes": True},
     "horario": {
         "modo": "inteligente",
         "franjas": [{"dias": [0, 1, 2, 3, 4, 5, 6], "desde": "02:00", "hasta": "06:00"}],
         "repartir": True,
     },
     "profunda": {"cada_dias": 7},
+    # Ola 1024I §3. Encendido: lo bajo/medio con utilidad ≥ umbral se integra solo; lo que no llega
+    # y aún tiene reimaginaciones libres en su cadena se reimagina solo; lo demás, a la lista manual.
+    "auto": {"aprobar": False, "reimaginar": False, "umbral": 0.75, "max_reimaginaciones": 2},
 }
+#: El suelo de utilidad de §5.4 (= autodesarrollo_decidir.UMBRAL_UTIL): el umbral del automático
+#: nunca baja de aquí, así que nada se integra solo con menos utilidad que hoy.
+UMBRAL_MINIMO = 0.6
+MAX_REIMAGINACIONES = 10
 _HORA = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
 
@@ -31,6 +40,12 @@ def _min(hhmm):
 
 def _entero(v, defecto, lo, hi):
     return defecto if isinstance(v, bool) or not isinstance(v, int) else max(lo, min(hi, v))
+
+
+def _real(v, defecto, lo, hi):
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return defecto
+    return round(max(lo, min(hi, float(v))), 2)
 
 
 def _franja(f):
@@ -71,6 +86,13 @@ def validar_ajustes(d):
             r["horario"]["franjas"] = validas
     p = d.get("profunda") if isinstance(d.get("profunda"), dict) else {}
     r["profunda"]["cada_dias"] = _entero(p.get("cada_dias"), 7, 0, 365)
+    au = d.get("auto") if isinstance(d.get("auto"), dict) else {}
+    for k in ("aprobar", "reimaginar"):
+        if isinstance(au.get(k), bool):
+            r["auto"][k] = au[k]
+    r["auto"]["umbral"] = _real(au.get("umbral"), r["auto"]["umbral"], UMBRAL_MINIMO, 1.0)
+    r["auto"]["max_reimaginaciones"] = _entero(au.get("max_reimaginaciones"), r["auto"]["max_reimaginaciones"],
+                                               0, MAX_REIMAGINACIONES)
     return r
 
 

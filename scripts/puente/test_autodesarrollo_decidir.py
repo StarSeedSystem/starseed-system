@@ -116,5 +116,147 @@ class DestinoTest(unittest.TestCase):
         critica = D.destino(propuesta(archivos=["src/lib/nucleo/x.ts"]), False)
         self.assertTrue(critica["aprobacion_diff"])
 
+# ─────────────── Ola 1024I · IMG1024C: el automático ───────────────
+import itertools
+import autodesarrollo_logica as L
+
+def ajustes(automatico=True, aprobar=True, reimaginar=True, umbral=0.75, maximo=2):
+    return L.validar_ajustes({"automatico": automatico, "auto": {"aprobar": aprobar, "reimaginar": reimaginar,
+                                                                "umbral": umbral, "max_reimaginaciones": maximo}})
+
+def decidida(**cambios):
+    """Propuesta ya puntuada como lo hace el director (utilidad e importancia antes del destino)."""
+    cambios.setdefault("fuente", "diaria")
+    p = propuesta(**cambios)
+    p["utilidad"], p["motivo"] = D.utilidad(p, existe)
+    return p
+
+class ImportanciaDeclaradaTest(unittest.TestCase):
+    def test_solo_sube_nunca_baja(self):
+        self.assertEqual(D.importancia(propuesta(importancia_declarada="critica")), "critica")
+        self.assertEqual(D.importancia(propuesta(importancia_declarada="alta")), "alta")
+        self.assertEqual(D.importancia(propuesta(archivos=["src/lib/nucleo/x.ts"], importancia_declarada="baja")), "critica")
+        self.assertEqual(D.importancia(propuesta(importancia_declarada="rara")), D.importancia(propuesta()))
+    def test_nivel_y_visible(self):
+        self.assertEqual([D.nivel(x) for x in ("Crítica", "critical", "HIGH", "normal", "baja", "x")],
+                         ["critica", "critica", "alta", "media", "baja", ""])
+        self.assertEqual(D.importancia_visible("critica"), "crítica")
+        self.assertEqual(D.importancia_visible("media"), "media")
+
+class AutomaticaTest(unittest.TestCase):
+    def test_baja_media_con_utilidad_se_integra_sola(self):
+        r = D.automatica(decidida(), ajustes())
+        self.assertEqual(r["destino"], "autodesarrollo")
+        self.assertIn("se integra sola", r["motivo"])
+        self.assertFalse(r["aprobacion_diff"])
+
+    def test_alta_y_critica_nunca_se_integran_solas(self):
+        """Ninguna combinación de interruptores, umbral, tope ni consejo de Jev las integra."""
+        importantes = [
+            decidida(archivos=["src/lib/algo.ts", "src/lib/otro.ts", "docs/x.md", "src/ai/astraura/router.ts"]),
+            decidida(titulo="Arreglar y eliminar el lector viejo"),
+            decidida(archivos=["src/ai/astraura/router.ts"]),
+            decidida(archivos=["src/lib/nucleo/x.ts"]),
+            decidida(archivos=["supabase/migrations/1.sql"]),
+            decidida(importancia_declarada="crítica"),
+            decidida(importancia_declarada="alta", fuente="agentes", tipo="diseno"),
+        ]
+        jevs = [None, lambda p: {"p": 1.0, "prioridad": "subir"}, lambda p: {"p": 0.99, "aprobar": True},
+                lambda p: {"p": 0.99, "veta": True}, lambda p: 1 / 0]
+        for p in importantes:
+            self.assertIn(D.importancia(p), ("alta", "critica"))
+            for auto, apr, rei, umbral, maximo, jev in itertools.product((True, False), (True, False), (True, False),
+                                                                          (0.6, 0.75, 1.0), (0, 2, 10), jevs):
+                r = D.automatica(p, ajustes(auto, apr, rei, umbral, maximo), existe, jev)
+                self.assertNotIn(r["destino"], ("autodesarrollo", "reimaginando"), (p["titulo"], p["archivos"]))
+                self.assertEqual(r["aprobacion_diff"], D.importancia(p) == "critica")
+
+    def test_no_llega_se_reimagina_con_la_critica(self):
+        p = decidida(verificacion="sin verificar", archivos=["src/lib/algo.ts", "src/no-existe.ts"])
+        r = D.automatica(p, ajustes(), existe)
+        self.assertEqual(r["destino"], "reimaginando")
+        self.assertIn("utilidad 0,4 < umbral 0,75", r["notas"])
+        self.assertIn("src/no-existe.ts", r["notas"])
+        self.assertIn("le quedan 2", r["motivo"])
+        sin_archivos = D.automatica(decidida(archivos=["src/fantasma.ts"]), ajustes(), existe)
+        self.assertEqual(sin_archivos["destino"], "reimaginando")
+        self.assertIn("ninguno de los archivos", sin_archivos["notas"])
+        cita = D.automatica(decidida(cita="src/viejo.ts"), ajustes(), existe)
+        self.assertIn("ya no está en el código", cita["notas"])
+
+    def test_tope_de_la_cadena_deja_en_la_lista(self):
+        p = decidida(verificacion="sin verificar", version=3)
+        self.assertEqual(D.reimaginaciones_libres(p, 2), 0)
+        r = D.automatica(p, ajustes(maximo=2), existe)
+        self.assertEqual(r["destino"], "nueva")
+        self.assertIn("sin reimaginaciones libres", r["motivo"])
+        self.assertEqual(D.automatica(p, ajustes(maximo=3), existe)["destino"], "reimaginando")
+
+    def test_jev_solo_veta_con_p_alto_y_nunca_convierte_no_en_si(self):
+        p = decidida()
+        self.assertEqual(D.automatica(p, ajustes(), existe, lambda q: {"p": 0.9, "veta": True})["destino"], "nueva")
+        self.assertEqual(D.automatica(p, ajustes(), existe, lambda q: {"p": 0.79, "veta": True})["destino"], "autodesarrollo")
+        self.assertEqual(D.automatica(p, ajustes(), existe, lambda q: 1 / 0)["destino"], "autodesarrollo")  # Jev calla
+        self.assertEqual(D.automatica(p, ajustes(), existe, lambda q: None)["destino"], "autodesarrollo")
+        flojo = decidida(verificacion="sin verificar")
+        si = lambda q: {"p": 1.0, "prioridad": "subir", "aprobar": True}
+        for aj in (ajustes(reimaginar=False), ajustes(maximo=0)):
+            self.assertNotEqual(D.automatica(flojo, aj, existe, si)["destino"], "autodesarrollo")
+        llamadas = []
+        D.automatica(flojo, ajustes(reimaginar=False), existe, lambda q: llamadas.append(q) or {"p": 1})
+        self.assertEqual(llamadas, [], "a Jev solo se le pregunta lo que la regla ya integraría")
+
+    def test_lo_de_alex_y_otras_fuentes_no_se_tocan_solos(self):
+        publicar = decidida(titulo="Publicar el paquete")
+        for aj in (ajustes(), ajustes(automatico=False)):
+            r = D.automatica(publicar, aj, existe)
+            self.assertIn(r["destino"], ("pregunta", "esperando-aprobacion"))
+            self.assertEqual(r["notas"], "")
+        for fuente in ("directores", "astraura"):
+            p = decidida(fuente=fuente, archivos=[])
+            self.assertEqual(D.automatica(p, ajustes(), existe), dict(D.destino(p, True, existe), notas=""))
+
+    def test_ambito_y_tipo(self):
+        self.assertEqual(D.automatica(decidida(ambito="personal"), ajustes(), existe)["destino"], "nueva")
+        contenido = decidida(tipo="contenido", archivos=["src/fantasma.ts"])
+        self.assertEqual(D.automatica(contenido, ajustes(), existe)["destino"], "pregunta")
+        diseno = decidida(tipo="diseno", archivos=["src/fantasma.ts"])
+        self.assertEqual(D.automatica(diseno, ajustes(), existe)["destino"], "reimaginando")
+
+    def test_umbral_del_automatico_o_el_de_siempre(self):
+        media = decidida(verificacion="ajustado")  # 0,8
+        self.assertEqual(D.automatica(media, ajustes(umbral=0.9, reimaginar=False), existe)["destino"], "nueva")
+        self.assertEqual(D.automatica(media, ajustes(umbral=0.8), existe)["destino"], "autodesarrollo")
+        # «aprobar» apagado: integra el Automático de siempre con su 0,6; lo que no llega ya no queda en un limbo
+        self.assertEqual(D.automatica(decidida(verificacion="sin dato"), ajustes(aprobar=False, reimaginar=False), existe)["destino"], "autodesarrollo")
+        self.assertEqual(D.automatica(decidida(verificacion="sin verificar"), ajustes(aprobar=False, reimaginar=False), existe)["destino"], "nueva")
+        self.assertEqual(D.umbral_efectivo(ajustes(aprobar=False, umbral=0.9)), 0.6)
+        self.assertEqual(D.umbral_efectivo(ajustes(umbral=0.9)), 0.9)
+
+    def test_todo_apagado_es_el_destino_de_siempre(self):
+        aj = ajustes(automatico=False, aprobar=False, reimaginar=False)
+        for p in (decidida(), decidida(archivos=["docs/x.md"]), decidida(es_codigo=False), decidida(archivos=["src/lib/nucleo/x.ts"])):
+            self.assertEqual(D.automatica(p, aj, existe), dict(D.destino(p, False, existe), notas=""))
+
+    def test_solo_reimaginar_con_automatico_apagado(self):
+        aj = ajustes(automatico=False, aprobar=False, reimaginar=True)
+        self.assertEqual(D.automatica(decidida(), aj, existe)["destino"], "esperando-aprobacion")
+        self.assertEqual(D.automatica(decidida(verificacion="sin verificar"), aj, existe)["destino"], "reimaginando")
+
+    def test_firma_cambia_con_los_ajustes(self):
+        self.assertNotEqual(D.firma(ajustes()), D.firma(ajustes(umbral=0.8)))
+        self.assertNotEqual(D.firma(ajustes()), D.firma(ajustes(maximo=3)))
+        self.assertEqual(D.firma(ajustes()), D.firma(ajustes()))
+
+    def test_cuantas_con_umbral_del_automatico(self):
+        utiles = [{"id": "a", "utilidad": 0.7}, {"id": "b", "utilidad": 0.9}]
+        self.assertEqual([p["id"] for p in D.cuantas(utiles, {"min": 0, "max": 5}, 0.8)["elegidas"]], ["b"])
+        self.assertEqual(len(D.cuantas(utiles, {"min": 0, "max": 5}, 0.1)["elegidas"]), 2)  # nunca bajo 0,6
+        self.assertIn("0,95", D.cuantas(utiles, {"min": 0, "max": 5}, 0.95)["motivo"])
+
+    def test_critica_acotada(self):
+        p = decidida(cuerpo="x" * 5000, motivo="m" * 5000, archivos=["src/f%d.ts" % i for i in range(50)])
+        self.assertLessEqual(len(D.critica(p, 0.75, existe)), D.MAX_NOTAS)
+
 if __name__ == "__main__":
     unittest.main()
