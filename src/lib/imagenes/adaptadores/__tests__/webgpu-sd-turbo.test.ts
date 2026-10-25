@@ -9,6 +9,8 @@ import {
   TOKENIZER_CLIP_SD_TURBO, VERSION_ONNXRUNTIME_WEB, detectaSDTurbo, generaEnPestana, planPesos, textoBytes,
   type ImagenSDTurbo, type MotorSDTurbo, type SondasWebGPU,
 } from "../webgpu-sd-turbo";
+import { modeloPorId } from "../../modelos";
+
 
 const BUENAS: SondasWebGPU = { hayWebGPU: true, hayAdaptador: true, f16: true };
 const IMAGEN: ImagenSDTurbo = { ancho: 512, alto: 512, pixeles: new Uint8Array(4), motor: "sd-turbo" };
@@ -43,9 +45,23 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
     expect(TOKENIZER_CLIP_SD_TURBO).toBe("Xenova/clip-vit-base-patch16");
   });
 
+  it("el catálogo lo describe con su licencia «sin comprobar del todo» y el motor onnx-web entre los suyos", () => {
+    const ficha = modeloPorId(MODELO_SD_TURBO);
+    expect(ficha).toBeDefined();
+    expect(ficha!.nota).toContain("sin comprobar del todo");
+    expect(ficha!.motores).toContain("onnx-web");
+    expect(ficha!.uso).toBe("condicionado");
+  });
+
   it("solo los TRES archivos necesarios: ni encoder del VAE ni scheduler", () => {
     expect(PESOS_SD_TURBO.map((p) => p.ruta)).toEqual(["unet/model.onnx", "text_encoder/model.onnx", "vae_decoder/model.onnx"]);
     for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
+  });
+
+  it("el total de pesos cuadra con los 2,51 GB documentados: solo algo por debajo de 2,5·10⁹ y en claro «2,3 GB»", () => {
+    expect(BYTES_PESOS_SD_TURBO).toBeGreaterThan(Math.round(2.5e9));
+    expect(textoBytes(BYTES_PESOS_SD_TURBO)).toBe("2,3 GB");
+    expect(textoBytes(BYTES_PESOS_SD_TURBO)).not.toBe("3,0 GB");
   });
 
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
@@ -113,6 +129,15 @@ describe("generaEnPestana · flujo completo con el motor simulado", () => {
     const llamadas: string[] = [];
     expect(await generaEnPestana(motor({}, llamadas), { ...PETICION, permisoDescarga: false })).toMatchObject({ ok: false, accion: "pedir-permiso" });
     expect(await generaEnPestana(motor({ cuotaLibre: async () => BYTES_PESOS_SD_TURBO }, llamadas), PETICION)).toMatchObject({ ok: false, accion: "sin-espacio" });
+    expect(llamadas).toEqual([]);
+  });
+
+  it("cuota INMEDIBLE (null) también corta el flujo entero antes de descargar, y lo dice con el motivo del plan", async () => {
+    const llamadas: string[] = [];
+    const r = await generaEnPestana(motor({ cuotaLibre: async () => null }, llamadas), PETICION);
+    expect(r).toMatchObject({ ok: false, accion: "sin-espacio" });
+    expect(r.imagen).toBeUndefined();
+    expect(r.motivo).toContain("No se puede comprobar el espacio libre");
     expect(llamadas).toEqual([]);
   });
 
