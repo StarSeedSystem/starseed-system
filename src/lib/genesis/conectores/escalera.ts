@@ -43,6 +43,11 @@ interface Candidato {
   candidatoId: string;
   peldano: 1 | 2 | 3 | 4 | 5 | 6;
   motivo: string;
+  source: {
+    id: string;
+    privacy: string;
+  };
+  score: number;
 }
 
 /**
@@ -65,6 +70,124 @@ function isAvailableAtStep1(option: OpcionCatalogo, tarea: Tarea, ofertas: Ofert
     return false;
   }
   // Por ahora, omitimos la verificación de potencia basada en tamano y medidas.
+  return true;
+}
+
+/**
+ * Determina si una opción está disponible en el paso 2 (Otros modelos locales del contexto).
+ */
+function isAvailableAtStep2(option: OpcionCatalogo, tarea: Tarea, ofertas: OfertaContexto[]): boolean {
+  // Para el paso 2, consideramos otros modelos locales (no Astraura 1.58) que estén en las ofertas.
+  if (option.tipo !== 'modelo') {
+    return false;
+  }
+  // Excluimos las opciones de Astraura 1.58 (asumimos que tienen id que contiene "astraura-158")
+  if (option.id.includes('astraura-158')) {
+    return false;
+  }
+  // Verificamos si la opción está en las ofertas (disponible localmente)
+  const isInOfertas = ofertas.some(oferta => oferta.id === option.id);
+  if (!isInOfertas) {
+    return false;
+  }
+  // Verificamos coincidencia de papel
+  const papelMatch = option.papeles.includes(tarea.papel);
+  if (!papelMatch) {
+    return false;
+  }
+  // Omitimos verificación de potencia por ahora.
+  return true;
+}
+
+/**
+ * Determina si una opción está disponible en el paso 3 (Bolsa de la malla).
+ */
+function isAvailableAtStep3(option: OpcionCatalogo, tarea: Tarea, preferencias: Preferencias): boolean {
+  // El paso 3 está prohibido para tareas privadas.
+  if (tarea.privado) {
+    return false;
+  }
+  // Consideramos modelos y proveedores que sean gratuitos y no prohibidos.
+  if (option.tipo !== 'modelo' && option.tipo !== 'proveedor') {
+    return false;
+  }
+  // Verificamos que sea gratuito (gratis no nulo)
+  if (option.gratis === null) {
+    return false;
+  }
+  // Verificamos que no esté prohibido (usando la lista de preferencias)
+  if (preferencias.prohibidos.includes(option.id)) {
+    return false;
+  }
+  // Omitimos otros factores como confianza y capacidad pública por ahora.
+  return true;
+}
+
+/**
+ * Determina si una opción está disponible en el paso 4 (Contenedores gratuitos del contexto).
+ */
+function isAvailableAtStep4(option: OpcionCatalogo, tarea: Tarea, preferencias: Preferencias): boolean {
+  // Consideramos solo contenedores que sean gratuitos.
+  if (option.tipo !== 'contenedor') {
+    return false;
+  }
+  // Verificamos que sea gratuito
+  if (option.gratis === null) {
+    return false;
+  }
+  // Omitimos verificación de disponibilidad local de contenedores por ahora.
+  return true;
+}
+
+/**
+ * Determina si una opción está disponible en el paso 5 (Proveedores gratuitos en la nube vinculados).
+ */
+function isAvailableAtStep5(option: OpcionCatalogo, tarea: Tarea, vinculadas: Set<string>, preferencias: Preferencias): boolean {
+  // Consideramos solo proveedores que sean gratuitos y vinculados.
+  if (option.tipo !== 'proveedor') {
+    return false;
+  }
+  // Verificamos que sea gratuito
+  if (option.gratis === null) {
+    return false;
+  }
+  // Verificamos que esté vinculado (su ID está en el conjunto de vinculadas)
+  if (!vinculadas.has(option.id)) {
+    return false;
+  }
+  // Verificamos que no esté prohibido (usando la lista de preferencias)
+  if (preferencias.prohibidos.includes(option.id)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Determina si una opción está disponible en el paso 6 (De pago con permiso).
+ */
+function isAvailableAtStep6(option: OpcionCatalogo, tarea: Tarea, preferencias: Preferencias): boolean {
+  // El paso 6 solo se considera si se permite el pago.
+  if (!preferencias.permitirPago) {
+    return false;
+  }
+  // Consideramos solo proveedores de pago.
+  if (option.tipo !== 'proveedor') {
+    return false;
+  }
+  // Un proveedor de pago se identifica por tener gratis: null (en el catálogo unificado, los gratuitos tienen gratis no nulo).
+  if (option.gratis !== null) {
+    return false;
+  }
+  // Verificamos que no esté prohibido (usando la lista de preferencias)
+  if (preferencias.prohibidos.includes(option.id)) {
+    return false;
+  }
+  // Verificamos el tope diario: si se especifica un tope, asumimos que podemos usarlo si el tope es mayor que 0.
+  // En una implementación real, verificaríamos el uso actual contra el tope.
+  if (preferencias.topeDiario !== null && preferencias.topeDiario <= 0) {
+    return false;
+  }
+  // Omitimos verificación de papel por ahora.
   return true;
 }
 
@@ -230,10 +353,19 @@ export function elegirCandidatos(params: {
 
     // Si encontramos un peldano válido, agregamos el candidato.
     if (peldano !== null) {
+      const sourceId = option.id;
+      const sourcePrivacy = option.privacidad ?? "desconocida";
+      // Calcular un score simple basado en el peldano
+      const score = 100 - peldano * 10;
       candidatos.push({
         candidatoId: option.id,
         peldano,
         motivo,
+        source: {
+          id: sourceId,
+          privacy: sourcePrivacy,
+        },
+        score,
       });
     }
   }
@@ -249,4 +381,80 @@ export function elegirCandidatos(params: {
   return candidatos;
 }
 
-export type { Tarea, OfertaContexto, Preferencias, Candidato };
+/** Un puente que une las candidaturas con el catálogo y la ruta del papel. */
+export interface Puente {
+  tarea: Tarea;
+  candidaturas: Candidato[];
+  /** Cadena de papeles de los proveedores (escritor → revisor → chat → director). */
+  papelRuta: string;
+  /** Opciones de la persona: permite pago, tope diario, prohibidos. */
+  opciones: {
+    personaAllowsPaid: boolean | null;
+    topeDiario: number | null;
+    prohibidos: string[];
+  };
+  /** Catálogo completo unificado. */
+  catalogo: OpcionCatalogo[];
+}
+
+/** Convertir papel de la tarea a papel en la ruta (revisor → revisor, chat → director, visión → director). */
+export function papelRutaDe(papel: Papel): string {
+  switch (papel) {
+    case "revisor": return "revisor";
+    case "chat": return "director";
+    case "visión": return "director";
+    default: return papel;
+  }
+}
+
+/** Aplica la escalera al contexto, generando una lista de opciones ordenadas. */
+export function aplicarEscalera(params: {
+  tarea: Tarea;
+  candidatos: Candidato[];
+  catalogo: OpcionCatalogo[];
+  preferencias: Preferencias;
+}): Puente {
+  const { tarea, candidatos, catalogo, preferencias } = params;
+  const papelRuta = tarea.papel === "escritor" || tarea.papel === "revisor" || tarea.papel === "chat" || tarea.papel === "visión" || tarea.papel === "imagen"
+    ? papelRutaDe(tarea.papel)
+    : "escritor"; // Valor por defecto
+
+  const personaAllowsPaid = (tarea.papel === "escritor" || tarea.papel === "revisor") && preferencias.permitirPago
+    ? (preferencias.topeDiario ?? 0) > 0
+    : null;
+
+  return {
+    tarea,
+    candidaturas: candidatos,
+    papelRuta,
+    opciones: {
+      personaAllowsPaid,
+      topeDiario: preferencias.topeDiario,
+      prohibidos: preferencias.prohibidos,
+    },
+    catalogo,
+  };
+}
+
+// TAREAS Y OFERTAS GENERALES (temporales)
+export const TAREA_ESCRITOR: Tarea = { papel: "escritor", privado: false, tamano: 1000 };
+export const OFERTA_LOCAL: OfertaContexto = { id: "astraura-158-local", nombre: "Astraura 1.58 local", tipo: "modelo", papel: ["escritor"] };
+
+/** Crea una opción para el catálogo de pruebas. */
+export function opcion(id: string, nombre: string, tipo: OpcionCatalogo["tipo"], papeles: Papel[]): OpcionCatalogo {
+  return {
+    id,
+    nombre,
+    tipo,
+    papeles,
+    gratis: null,
+    requiereCuenta: false,
+    enlaceAlta: null,
+    enlaceClave: null,
+    variables: [],
+    privacidad: "local",
+    licencia: null,
+    verificado: null,
+    fuente: "prueba",
+  };
+}
