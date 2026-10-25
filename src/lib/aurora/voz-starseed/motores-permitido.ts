@@ -5,7 +5,7 @@
  * Decide qué motores de voz pueden usarse según el contexto de uso y
  * las capas (layers) activadas por el usuario.
  */
-import type { MotorVozCatalogo } from "./catalogo-voces";
+import type { MotorVozCatalogo } from "../catalogo-voces";
 
 export type CapaVoz = {
   /** Contexto personal: permite omnivoice en contexto personal */

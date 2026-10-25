@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 
 import { motoresPermitidos, motivo, ids } from "../motores-permitido";
-import type { MotorVozCatalogo } from "../catalogo-voces";
+import type { MotorVozCatalogo } from "../../aurora/catalogo-voces";
 
 const MOTORES: readonly MotorVozCatalogo[] = [
   { id: "voicemorphic", nombre: "VoiceMorphic", origen: "sistema", repo: "", formato: "GGUF", ramMinGB: 4, gpu: "opcional", offline: true, plataformas: ["macos", "windows", "linux"], porDefectoEn: ["macos", "windows", "linux"], velocidad: "~4×", calidad: "alta", licenciaPesos: "CC-BY-NC", claseLicencia: "personal" },
