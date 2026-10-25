@@ -235,7 +235,10 @@ describe("textoEstadoOrden", () => {
         });
     });
 
-    it("estado desconocido se devuelve tal cual", () => {
+    it("estado desconocido se devuelve tal cual, incluso vacío o con espacios", () => {
         expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+        expect(textoEstadoOrden("desconocido")).toBe("desconocido");
+        expect(textoEstadoOrden("otro estado raro")).toBe("otro estado raro");
+        expect(textoEstadoOrden("")).toBe("");
     });
 });
