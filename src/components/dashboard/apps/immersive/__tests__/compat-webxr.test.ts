@@ -32,7 +32,7 @@ describe("compat-webxr (XR1010AR)", () => {
         };
         const pedidas = funcionesAPedir(cap, { habitacion: false });
         const todas = [...pedidas.requeridas, ...pedidas.opcionales];
-        expect(todas.some((f) => f === "camera-access")).toBe(false);
+        expect(todas.some((f) => String(f) === "camera-access")).toBe(false);
         expect(pedidas.requeridas).toContain("local-floor");
         expect(pedidas.opcionales).toContain("hand-tracking");
     });
@@ -57,7 +57,10 @@ describe("compat-webxr (XR1010AR)", () => {
 });
 
 describe("compat-webxr · hook con navigator.xr falso (XR1010AR)", () => {
-    type RInfalsificable = { isSessionSupported?(modo: string): Promise<boolean> };
+    type RInfalsificable = {
+        isSessionSupported?(modo: string): Promise<boolean>;
+        requestSession?(modo: string, init?: unknown): Promise<unknown>;
+    };
 
     /** Instala (y desinstala al terminar) un `navigator.xr` falso de jsdom. */
     function ponerXR(falsa: Partial<RInfalsificable>): void {
