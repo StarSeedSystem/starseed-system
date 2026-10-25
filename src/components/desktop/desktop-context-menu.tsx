@@ -21,7 +21,7 @@ import {
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
     Trash2, Magnet, FolderInput, Sparkles, Check, PictureInPicture2,
     Eye, Info, Grid2x2, Columns2, Rows2, Frame, Home, Share2, PenLine,
-    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, type LucideIcon,
+    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, Replace, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize, TileMode } from "./desktop-store";
@@ -35,6 +35,8 @@ import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./deskto
 import { canEditIcon } from "./desktop-open";
 import { hasRichThumb } from "./desktop-thumbs";
 import type { QuickLookTab } from "./desktop-quick-look";
+import { useConversionMenu } from "@/components/conversion/use-conversion-menu";
+import { archivoConvertibleDeIcono, guardarDescarga } from "./desktop-conversion";
 
 const MENU_W = 210;
 
@@ -290,6 +292,10 @@ export function IconContextMenu({
     const editable = canEditIcon(icon);
     // Pegar DENTRO de este folder (destino natural del portapapeles).
     const canPasteHere = Boolean(clip) && icon.kind === "folder";
+    // Filee (CNV1023C): «Convertir a…» para iconos que apuntan a un archivo con URL.
+    // El hook no hace nada si el icono no es un archivo con URL (o si Filee no lo
+    // reconoce); el resultado se descarga al navegador.
+    const conversion = useConversionMenu(archivoConvertibleDeIcono(icon), guardarDescarga);
 
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
@@ -299,6 +305,33 @@ export function IconContextMenu({
             )}
             {onQuickLook && (
                 <MenuItem icon={Share2} label="Compartir…" onClick={() => run(() => onQuickLook(icon, "preview", true))} />
+            )}
+            {conversion && (
+                <SubMenu icon={Replace} label="Convertir a…">
+                    <p className="px-2.5 pb-0.5 pt-1 text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground/60">
+                        Con Filee · sin subir nada
+                    </p>
+                    {conversion.estado === "cargando" && (
+                        <p className="px-2.5 py-1 text-[11px] text-muted-foreground">Mirando formatos…</p>
+                    )}
+                    {conversion.estado === "no-disponible" && (
+                        <p className="whitespace-normal px-2.5 py-1 text-[11px] leading-snug text-muted-foreground">
+                            {conversion.motivo ?? "Aquí no hay conversor."}
+                        </p>
+                    )}
+                    {conversion.estado === "listo" && (
+                        <div className="grid grid-cols-2 gap-0.5">
+                            {conversion.principales.map((f) => (
+                                <MenuItem key={f} label={conversion.etiqueta(f)} onClick={() => run(() => conversion.onConvertir(f))} />
+                            ))}
+                        </div>
+                    )}
+                    <MenuItem
+                        icon={Settings2}
+                        label={conversion.resto > 0 ? `Más formatos (${conversion.resto})…` : "Abrir el conversor…"}
+                        onClick={() => run(() => conversion.onMas())}
+                    />
+                </SubMenu>
             )}
             {editable && onEdit && (
                 <MenuItem icon={PenLine} label="Editar" onClick={() => run(() => { onEdit(icon) || onRename(icon.id); })} />
