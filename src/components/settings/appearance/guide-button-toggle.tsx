@@ -15,7 +15,7 @@ import { useEffect, useState } from "react";
 import { LifeBuoy, LogIn, Play, Sparkles } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { OPEN_GUIDE_EVENT } from "@/components/onboarding/aurora-guide";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 import { abrirPrimerArranque } from "@/lib/onboarding/primer-arranque";
 import {
   getGuideButtonVisible,
@@ -72,7 +72,7 @@ export function GuideButtonToggle() {
         onClick={() => {
           const w = window as unknown as { openStarseedGuide?: () => void };
           if (typeof w.openStarseedGuide === "function") w.openStarseedGuide();
-          else window.dispatchEvent(new Event(OPEN_GUIDE_EVENT));
+          else abrirGuia({ desde: "ajustes" });
         }}
       >
         <Play className="h-3.5 w-3.5" aria-hidden />
