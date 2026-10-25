@@ -39,7 +39,12 @@ Decisiones PURAS (`tid_de_asunto`, `decidir`, `libre_de_su_reasignacion`, `elegi
 Una «reasignada» a un run de nube-gh espera, salvo que la rama sea de OTRO medio y ese run ya no
 esté vivo según la API (o, sin dato del run, la reasignación pase de 6 h): OPS1024E, 2026-10-24.
 
+(2026-10-25, CAP1025A) La integración se reconoce por su CUERPO («Enjambre libre v2»), no solo por un asunto
+«Ola N · …»: las olas «1020U», «Rescate de las ramas de la nube» o «MetaGenesis · …» salían «a medias» y se
+reparaban sin fin. `rescatar` trae, por las mismas puertas, lo que una pasada antigua reparó así.
+
 Uso: python3 traer_nube.py [revisar] [--aplicar] [--json]
+     python3 traer_nube.py rescatar [--aplicar] [--max N] [--json]   (sin --aplicar solo dice qué traería)
      python3 traer_nube.py borrar --ramas nube/1/ola/X nube/2 …   (solo con la palabra de Alex)
 """
 from __future__ import annotations
@@ -75,17 +80,28 @@ PREFIJO_SUENOS = "cola-suenos-"
 REASIGNADA_VIEJA_S = 6 * 3600
 
 _ID = re.compile(r"·\s*([A-Za-z][A-Za-z0-9-]*\d[A-Za-z0-9-]*)\s*:")
+#: (2026-10-25, CAP1025A) El cuerpo que el orquestador escribe en CADA integración
+#: (`starseed-enjambre.py`: «<ola> · <ID>: <título>\n\nEnjambre libre v2 (opencode · …)»).
+MARCA_INTEGRACION = "Enjambre libre v2"
 
 
 # ── decisiones (puras) ──────────────────────────────────────────────────────────
 
-def tid_de_asunto(asunto):
+def tid_de_asunto(asunto, cuerpo=""):
     """PURA: (tipo, id) de un commit de una rama de la nube.
 
     tipo: «reparto» (papeleo de la cola), «salvavidas» (trabajo del agente antes de las
     puertas), «ola» (la integración: pasó las puertas en la nube) u «otro». El id es el PRIMER
     «· ID:» con algún dígito: en «Ola 1005H · Producción: … · PRD1005L: …» es PRD1005L, no
-    «Producción»."""
+    «Producción».
+
+    (2026-10-25, CAP1025A, medido) El asunto de la integración empieza por el campo `ola` de la
+    tarea, que ya no es siempre «Ola N» ni un número: «1020U · CLF1020Ab: …», «Rescate de las
+    ramas de la nube · RTSUC1018Ed: …», «MetaGenesis · … · MGP1011-1ECCC4: …». Esas salían «otro»,
+    `decidir` las tomaba por «trabajo a medias» y creaba una sucesora que heredaba los envíos de la
+    cadena: 279 integraciones de la nube en ramas vivas y 966 archivadas nunca llegaron a main, y
+    132 de las 292 «agotadas» del 25-10 eran trabajo que la nube YA había integrado. Manda el cuerpo
+    (`cuerpo`, la marca `MARCA_INTEGRACION`); sin cuerpo, el asunto con «Ola …» o «<número>[letras] ·»."""
     a = (asunto or "").strip()
     if a.startswith("enjambre: reparto"):
         return "reparto", None
@@ -93,9 +109,26 @@ def tid_de_asunto(asunto):
     tid = m.group(1) if m else None
     if a.startswith("salvavidas"):
         return "salvavidas", tid
-    if tid and re.match(r"^(Ola\b|\d+\s*·)", a):
+    if tid and (re.match(r"^(Ola\b|\d+[A-Za-z]*\s*·)", a) or MARCA_INTEGRACION in str(cuerpo or "")):
         return "ola", tid
     return "otro", tid
+
+
+#: Formato de `git log` con el cuerpo: campos con 0x1f y commits con 0x1e (un cuerpo tiene saltos de línea).
+FORMATO_LOG = "%H%x1f%s%x1f%b%x1e"
+
+
+def commits_de_log(texto):
+    """PURA: [(sha, asunto, cuerpo)] de la salida de `git log --format=FORMATO_LOG`."""
+    salida = []
+    for bloque in str(texto or "").split("\x1e"):
+        bloque = bloque.strip("\n")
+        if "\x1f" not in bloque:
+            continue
+        sha, asunto, cuerpo = (bloque.split("\x1f", 2) + ["", ""])[:3]
+        if sha.strip():
+            salida.append((sha.strip(), asunto.strip(), cuerpo))
+    return salida
 
 
 def run_de_rama(rama):
@@ -209,6 +242,68 @@ def sucesores_en_cadena(tid, progreso):
     base = base_de(tid)
     return sorted(k for k in (progreso or {}) if k != base and len(k) == len(base) + 1
                   and k.startswith(base) and k[-1] in "bcdefghijklmnopqrstuvwxyz")
+
+
+#: (2026-10-25, CAP1025A) Integraciones mal leídas que se traen por pasada: cada una pasa las puertas
+#: completas (tsc en el A1 ~5 min), y la pasada de la autocuración vuelve cada 30 min.
+RESCATES_POR_PASADA = int(os.environ.get("STARSEED_TRAER_RESCATES") or 4)
+#: Estados con los que una tarea ya no se toca: cerrada o decidida por otro camino.
+_CERRADAS_RESCATE = {"commit", "hecho", "integrada", "sustituida", "descartada", "duplicada", "rechazada",
+                     "informe"}
+#: Alguien la está haciendo (o espera visto bueno con un trabajador ocupado): se espera a otra pasada.
+_OCUPADAS_RESCATE = OCUPADAS | {"esperando_aprobacion"}
+
+
+def posteriores_en_cadena(tid, progreso, nuevo=None):
+    """PURA: las sucesoras de `tid` que vienen DESPUÉS de él (`X` → `Xb`, `Xc`…; `Xb` → `Xc`…), con la
+    `nuevo` que anotó la reparación aunque el progreso aún no la tenga."""
+    salida = {k for k in sucesores_en_cadena(tid, progreso) if k > tid}
+    if nuevo:
+        salida.add(str(nuevo))
+    salida.discard(tid)
+    return sorted(salida)
+
+
+def decidir_rescate(tid, previa, commits, en_main, progreso, en_main_de=lambda _k: False):
+    """PURA (CAP1025A). Una entrada que una pasada antigua dio por «reparada»: ¿era una integración de la
+    nube que hay que traer ahora? → (accion, motivo, a_cerrar).
+
+    accion: «traer» (se intenta con las puertas de siempre), «nunca» (no hay nada que rescatar: no se
+    vuelve a mirar) o «luego» (alguien la está haciendo: se mira en otra pasada). `a_cerrar`: las
+    sucesoras abiertas que la reparación creó y que, si la integración entra, ya no hacen falta."""
+    previa = previa or {}
+    progreso = progreso or {}
+    if previa.get("accion") != "reparada":
+        return "nunca", "no es una reparación", []
+    if not any(c.get("tipo") == "ola" for c in commits or ()):
+        return "nunca", "la rama no trae la integración de la nube: sí era trabajo a medias", []
+    if en_main:
+        return "nunca", "ya está en main", []
+    e = progreso.get(tid) if isinstance(progreso.get(tid), dict) else {}
+    if e.get("estado") != "sustituida" or not str(e.get("nota") or "").startswith("continúa como"):
+        return "nunca", "en progreso figura «%s»: lo decidió otro camino" % (e.get("estado") or "—"), []
+    posteriores = posteriores_en_cadena(tid, progreso, previa.get("nuevo"))
+    for k in posteriores:
+        est = (progreso.get(k) or {}).get("estado") if isinstance(progreso.get(k), dict) else None
+        if est in ("commit", "hecho", "integrada") or en_main_de(k):
+            return "nunca", "su sucesora %s ya llegó a main" % k, []
+        if est in _OCUPADAS_RESCATE:
+            return "luego", "su sucesora %s está «%s» ahora mismo" % (k, est), []
+    a_cerrar = [k for k in posteriores
+                if ((progreso.get(k) or {}).get("estado") if isinstance(progreso.get(k), dict) else None)
+                not in _CERRADAS_RESCATE]
+    return ("traer", "la nube la integró (cuerpo «%s») y una pasada antigua la tomó por «a medias»"
+            % MARCA_INTEGRACION, a_cerrar)
+
+
+def cambios_de_rescate(tid, rama, detalle, a_cerrar):
+    """PURA: lo que se escribe en el progreso cuando la integración rescatada entra en main."""
+    cambios = {tid: {"estado": "commit", "nota": ("traída de la nube (%s): %s · rescate CAP1025A: la nube la había "
+                                                   "integrado y se tomó por «a medias»" % (rama, detalle))[:400]}}
+    for k in a_cerrar or ():
+        cambios[k] = {"estado": "sustituida", "sustituida_por": tid,
+                      "nota": "su trabajo llegó a main con %s, traída de %s (rescate CAP1025A)" % (tid, rama)}
+    return cambios
 
 
 def es_rescate(tid):
@@ -422,32 +517,33 @@ def inventario():
         if "|" not in linea:
             continue
         ref, fecha = linea.split("|", 1)
-        rama = ref.replace("origin/", "", 1)
-        _, cherry = _git(["cherry", "main", ref])
-        nuevos = {l[2:].strip() for l in cherry.splitlines() if l.startswith("+ ")}
-        _, log = _git(["log", "--reverse", "--format=%H\t%s", "main.." + ref])
-        por_tid = {}
-        for l in log.splitlines():
-            if "\t" not in l:
-                continue
-            sha, asunto = l.split("\t", 1)
-            tipo, tid = tid_de_asunto(asunto)
-            if tipo == "reparto":
-                continue
-            _, nombres = _git(["diff-tree", "--no-commit-id", "--name-only", "-r", sha])
-            archivos = [n for n in nombres.splitlines() if n.strip()]
-            por_tid.setdefault(tid, []).append({"sha": sha, "asunto": asunto, "tipo": tipo,
-                                                 "nuevo": sha in nuevos, "vacio": not archivos,
-                                                 "archivos": archivos})
-        # Lo que no lleva id propio (un arreglo suelto en la rama de una tarea) va con esa tarea.
-        sueltos = por_tid.pop(None, [])
-        if sueltos:
-            dueno = dueno_de_sueltos(rama, por_tid)
-            if dueno:
-                por_tid.setdefault(dueno, []).extend(sueltos)
-        for tid, commits in por_tid.items():
-            filas.append({"rama": rama, "tid": tid, "commits": commits, "fecha": fecha.strip()})
+        filas += filas_de_ref(ref, ref.replace("origin/", "", 1), fecha.strip())
     return filas
+
+
+def filas_de_ref(ref, rama, fecha=""):
+    """[{rama, tid, commits, fecha}] de UNA ref (viva `origin/nube/…` o archivada `refs/archivo/nube/…`)
+    con lo que main no tiene. La misma lectura para `inventario` y para el rescate (CAP1025A)."""
+    _, cherry = _git(["cherry", "main", ref])
+    nuevos = {l[2:].strip() for l in cherry.splitlines() if l.startswith("+ ")}
+    _, log = _git(["log", "--reverse", "--format=" + FORMATO_LOG, "main.." + ref])
+    por_tid = {}
+    for sha, asunto, cuerpo in commits_de_log(log):
+        tipo, tid = tid_de_asunto(asunto, cuerpo)
+        if tipo == "reparto":
+            continue
+        _, nombres = _git(["diff-tree", "--no-commit-id", "--name-only", "-r", sha])
+        archivos = [n for n in nombres.splitlines() if n.strip()]
+        por_tid.setdefault(tid, []).append({"sha": sha, "asunto": asunto, "tipo": tipo,
+                                             "nuevo": sha in nuevos, "vacio": not archivos,
+                                             "archivos": archivos})
+    # Lo que no lleva id propio (un arreglo suelto en la rama de una tarea) va con esa tarea.
+    sueltos = por_tid.pop(None, [])
+    if sueltos:
+        dueno = dueno_de_sueltos(rama, por_tid)
+        if dueno:
+            por_tid.setdefault(dueno, []).extend(sueltos)
+    return [{"rama": rama, "tid": tid, "commits": commits, "fecha": fecha} for tid, commits in por_tid.items()]
 
 
 def _progreso():
@@ -710,6 +806,83 @@ def _avisar(texto):
         pass
 
 
+def integradas_fuera_de_main():
+    """{id: {refs}} de las integraciones de la nube (vivas o archivadas) que main no tiene: UN solo `git log`
+    con `--source` (la ref por la que se llega a cada commit)."""
+    _, salida = _git(["log", "--source", "--glob=refs/remotes/origin/nube/*", "--glob=refs/archivo/nube/*",
+                      "--not", "main", "--format=%S%x1f%s%x1f%b%x1e"], timeout=600)
+    ids = {}
+    for ref, asunto, cuerpo in commits_de_log(salida):
+        tipo, tid = tid_de_asunto(asunto, cuerpo)
+        if tipo == "ola" and tid:
+            ids.setdefault(tid, set()).add(ref if ref.startswith("refs/") else "refs/" + ref)
+    return ids
+
+
+def rescatar(hechas_antes, asuntos, aplicar=False, maximo=RESCATES_POR_PASADA, espera_integrar_s=60):
+    """(CAP1025A) Trae las integraciones de la nube que una pasada antigua tomó por «a medias».
+
+    Recorre las entradas «reparada» de `hechas_antes` (el estado de traer) que aún no se miraron con la
+    lectura nueva, de la más reciente a la más vieja. Lo barato primero: un solo `git log` dice qué ramas
+    llevan una integración y `decidir_rescate` mira el progreso; solo lo que se va a traer lee su rama
+    entera. Con `aplicar` trae como mucho `maximo` (con `_traer`: carpeta aparte, puertas y avance rápido)
+    y cierra las sucesoras que la reparación creó. Marca con `rescate` lo ya mirado para no volver a
+    mirarlo, salvo «luego» y los fallos del medio. → {plan, traidas, no_pasan}."""
+    from vigilante_logica import id_en_asuntos
+
+    pendientes = {k: v for k, v in (hechas_antes or {}).items()
+                  if isinstance(v, dict) and v.get("accion") == "reparada" and not v.get("rescate") and "|" in k}
+    salida = {"plan": [], "traidas": [], "no_pasan": []}
+    if not pendientes:
+        return salida
+    con_integracion = integradas_fuera_de_main()
+    progreso = _progreso()
+    hechas, vistas = 0, set()
+    for clave, previa in sorted(pendientes.items(), key=lambda kv: str(kv[1].get("t") or ""), reverse=True):
+        rama, tid = clave.split("|", 1)
+        refs = con_integracion.get(tid) or set()
+        if not refs:
+            previa["rescate"] = "sin integración: era trabajo a medias"
+            continue
+        if tid in vistas:
+            continue  # otra rama de la misma tarea ya está en el plan de esta pasada
+        vistas.add(tid)
+        # La integración de ESTA rama o, si fue otro envío el que la integró, la más reciente de la tarea.
+        ref = next((r for r in ("refs/remotes/origin/" + rama, "refs/archivo/" + rama) if r in refs),
+                   None) or sorted(refs)[-1]
+        if ref not in ("refs/remotes/origin/" + rama, "refs/archivo/" + rama):
+            rama = ref[len("refs/remotes/origin/"):] if ref.startswith("refs/remotes/origin/") else ref[len("refs/archivo/"):]
+        accion, motivo, a_cerrar = decidir_rescate(tid, previa, [{"tipo": "ola"}], id_en_asuntos(tid, asuntos),
+                                                   progreso, lambda k: id_en_asuntos(k, asuntos))
+        salida["plan"].append({"rama": rama, "tid": tid, "accion": accion, "motivo": motivo, "cierra": a_cerrar,
+                               "ref": ref})
+        if accion == "nunca":
+            previa["rescate"] = motivo
+            continue
+        if accion != "traer" or not aplicar:
+            continue
+        if hechas >= maximo:
+            break  # el resto, en las próximas pasadas
+        fila = next((f for f in filas_de_ref(ref, rama) if f["tid"] == tid), None)
+        if fila is None or not any(c.get("tipo") == "ola" for c in fila["commits"]):
+            previa["rescate"] = "la rama no trae commits de %s que main no tenga" % tid
+            continue
+        hechas += 1
+        ok, detalle, del_medio = _traer(fila, espera_integrar_s)
+        if ok:
+            _actualizar_progreso(cambios_de_rescate(tid, rama, detalle, a_cerrar))
+            progreso = _progreso()
+            previa.update(accion="traida", rescate="traída (CAP1025A)", t_rescate=time.strftime("%Y-%m-%d %H:%M:%S"))
+            salida["traidas"].append({"tid": tid, "rama": rama, "cierra": a_cerrar})
+        elif del_medio:
+            # La máquina no puede ahora (memoria, main ocupado): la próxima pasada, sin marcar nada.
+            break
+        else:
+            previa["rescate"] = "no pasa en la Mac: %s" % detalle[:200]
+            salida["no_pasan"].append({"tid": tid, "rama": rama, "motivo": detalle[:200]})
+    return salida
+
+
 def revisar(aplicar=False, espera_integrar_s=60):
     """Una pasada. Sin `aplicar` solo dice lo que haría. Con `aplicar`, una sola a la vez."""
     if aplicar:
@@ -796,8 +969,16 @@ def _revisar(aplicar, espera_integrar_s):
                 continue
             nuevo = _crear_reparacion(e, e["motivo"], colas, progreso)
             progreso = _progreso()
-            hechas_antes[e["clave"]] = {"accion": "reparada", "nuevo": nuevo, "t": time.strftime("%Y-%m-%d %H:%M:%S")}
+            # `rescate` ya mirado: con la lectura nueva (CAP1025A) una «reparada» es de verdad trabajo a medias.
+            hechas_antes[e["clave"]] = {"accion": "reparada", "nuevo": nuevo, "t": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                        "rescate": "reparada con la lectura de CAP1025A"}
             reparadas.append({"tid": e["tid"], "nuevo": nuevo, "motivo": e["motivo"][:160]})
+        # (2026-10-25, CAP1025A) Lo que una pasada antigua tomó por «a medias» siendo una integración de la nube.
+        try:
+            rescate = rescatar(hechas_antes, asuntos, aplicar=True, espera_integrar_s=espera_integrar_s)
+            traidas += [{"tid": x["tid"], "rama": x["rama"]} for x in rescate["traidas"]]
+        except Exception as e:  # noqa: BLE001 — el rescate nunca tumba la pasada de traer
+            print("rescate CAP1025A: %s: %s" % (type(e).__name__, e), flush=True)
     for e in entradas:
         if e["accion"] == "esperar":
             esperando.append({"tid": e["tid"], "motivo": e["motivo"]})
@@ -839,6 +1020,37 @@ def main(argv):
     if orden == "borrar":
         ramas = argv[argv.index("--ramas") + 1:] if "--ramas" in argv else []
         print(json.dumps(borrar(ramas), ensure_ascii=False))
+        return 0
+    if orden == "rescatar":
+        # (CAP1025A) Sin --aplicar solo dice qué traería (no escribe nada). Con --aplicar, una pasada a la vez.
+        maximo = int(argv[argv.index("--max") + 1]) if "--max" in argv else RESCATES_POR_PASADA
+        _, asuntos = _git(["log", "main", "--format=%s"])
+        if "--aplicar" not in argv:
+            r = rescatar((_leer_json(ESTADO, {}) or {}).get("ramas") or {}, asuntos.splitlines(), aplicar=False)
+        else:
+            try:
+                with _Cerrojo("traer-nube", 0):
+                    estado = _leer_json(ESTADO, {}) or {}
+                    ramas = estado.get("ramas") or {}
+                    r = rescatar(ramas, asuntos.splitlines(), aplicar=True, maximo=maximo)
+                    estado.update(ramas=ramas, visto=time.strftime("%Y-%m-%d %H:%M:%S"))
+                    _escribir_json(ESTADO, estado)
+                if r["traidas"]:
+                    _avisar("Traer la nube · rescate CAP1025A: traídas a main %d integración(es) de la nube que se "
+                            "habían tomado por «a medias»: %s." % (len(r["traidas"]), ", ".join(x["tid"] for x in r["traidas"])))
+            except TimeoutError:
+                print("ya hay otra pasada de traer la nube en marcha: prueba en unos minutos")
+                return 1
+        if "--json" in argv:
+            print(json.dumps(r, ensure_ascii=False, indent=1))
+        else:
+            from collections import Counter
+
+            for p in r["plan"]:
+                print("%-6s %-24s %-44s %s%s" % (p["accion"], p["tid"], p["rama"], p["motivo"],
+                                                 (" · cierra " + ", ".join(p["cierra"])) if p.get("cierra") else ""))
+            print("plan: %s · traídas %d · no pasan %d" % (dict(Counter(p["accion"] for p in r["plan"])),
+                                                        len(r["traidas"]), len(r["no_pasan"])))
         return 0
     r = revisar(aplicar="--aplicar" in argv)
     if "--aplicar" in argv and "--sin-revision" not in argv and not r.get("ocupado"):
