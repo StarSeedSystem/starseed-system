@@ -200,6 +200,34 @@ describe('crearSalas', () => {
     expect(salas.presencia(tema)).toBe(1);
   });
 
+  it('debería aceptar temas con guiones y guiones bajos', () => {
+    const salas = crearSalas();
+    const tema = 'estacion-vivo:ABC_DEF-123';
+    const conexion = {};
+    const result = salas.entrar(tema, conexion);
+    expect(result.ok).toBe(true);
+  });
+
+  it('debería rechazar tema demasiado largo (>80)', () => {
+    const salas = crearSalas();
+    const tema = 'estacion-vivo:' + 'A'.repeat(81);
+    const conexion = {};
+    const result = salas.entrar(tema, conexion);
+    expect(result.ok).toBe(false);
+    expect(result.motivo).toBe('Tema inválido');
+  });
+
+  it('debería aceptar el mismo objeto conexion repetidamente', () => {
+    const salas = crearSalas();
+    const tema = 'estacion-vivo:TemaTest';
+    const conexion = {};
+    const first = salas.entrar(tema, conexion);
+    const second = salas.entrar(tema, conexion);
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(salas.presencia(tema)).toBe(1);
+  });
+
   it('debería devolver el tema de una conexión', () => {
     const salas = crearSalas();
     const tema = 'estacion-p:TemaX12345678';
