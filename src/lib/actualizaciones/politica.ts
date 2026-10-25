@@ -43,8 +43,23 @@ export interface PoliticaCapa {
 
 export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>;
 
-/** Tipos de sistema/entidad que reciben versiones (los del diálogo «Crear en la red» y el perfil). */
-export type TipoEntidad = "perfil" | "pagina" | "grupo" | "comunidad" | "estudio" | "evento" | "os";
+/**
+ * Tipos de sistema/entidad que reciben versiones. Los nombres cortos son los del diálogo «Crear
+ * en la red» y las pantallas; los del contrato (§4) describen la misma cosa con más precisión y
+ * se aceptan para que una política guardada con ellos no pierda el modo democrático.
+ */
+export type TipoEntidad =
+  | "perfil"
+  | "pagina"
+  | "grupo"
+  | "comunidad"
+  | "estudio"
+  | "evento"
+  | "os"
+  | "perfil-privado"
+  | "pagina-publica"
+  | "grupo-jerarquico"
+  | "grupo-democratico";
 
 export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
   perfil: "perfil privado",
@@ -54,6 +69,10 @@ export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
   estudio: "grupo de estudio",
   evento: "evento",
   os: "StarSeed OS",
+  "perfil-privado": "perfil privado",
+  "pagina-publica": "página pública",
+  "grupo-jerarquico": "grupo jerárquico",
+  "grupo-democratico": "grupo democrático",
 };
 
 export const VENTANA_NOCTURNA: VentanaHoraria = { desdeH: 3, hastaH: 6 };
@@ -62,11 +81,12 @@ const P = (modo: ModoPolitica, ventana?: VentanaHoraria): PoliticaCapa => (venta
 
 /**
  * Política por defecto según el tipo (contrato §4):
- *   · perfil privado → datos e interfaz automáticas; servicios, modelos y app nativa avisan;
- *   · página o espacio público de un grupo → sigue la rama estable sola en lo declarativo;
+ *   · perfil privado (o grupo jerárquico) → datos e interfaz automáticas; el resto avisa;
+ *   · página pública → lo declarativo (datos, interfaz y sin conexión) sigue la rama estable;
  *   · el OS → igual que un perfil, pero los modelos (descargas grandes) en la ventana nocturna.
- * Lo que una entidad democrática PUBLICA se vota antes (eso es la aprobación del manifiesto,
- * no esta política): lo ya aprobado llega automático a quien lo tenga así.
+ * Un grupo democrático usa la misma política que un perfil, pero `requiereAprobacionPrevia`
+ * marca que nada se aplica hasta que la votación lo apruebe: lo ya aprobado llega automático
+ * a quien lo tenga así.
  */
 export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
   const base: PoliticaSistema = {
@@ -77,8 +97,14 @@ export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
     modelos: P("manual"),
     nativa: P("manual"),
   };
+  if (tipo === "pagina" || tipo === "pagina-publica") return { ...base, sw: P("automatica-todas") };
   if (tipo === "os") return { ...base, modelos: P("programada", VENTANA_NOCTURNA) };
   return base;
+}
+
+/** ¿Este tipo exige aprobación previa (votación del grupo) antes de aplicar una versión? */
+export function requiereAprobacionPrevia(tipo: TipoEntidad): boolean {
+  return tipo === "grupo-democratico";
 }
 
 export interface ContextoDecision {
@@ -86,6 +112,10 @@ export interface ContextoDecision {
   ahoraH: number;
   /** Esta neurona es la elegida para «automática solo en esta neurona». */
   esNeuronaElegida: boolean;
+  /** La versión ya se aprobó (votación o permiso de quien gobierna). */
+  aprobada?: boolean;
+  /** Esta capa exige aprobación previa (p. ej. los sistemas de un grupo democrático). */
+  requiereAprobacion?: boolean;
 }
 
 export type Decision = "aplicar" | "avisar" | "esperar";
@@ -97,6 +127,8 @@ function dentroDeVentana(h: number, v: VentanaHoraria): boolean {
 
 /** Qué hacer con una capa pendiente en ESTA neurona según su política. */
 export function decidirPolitica(p: PoliticaCapa, ctx: ContextoDecision): Decision {
+  // Sin aprobación previa no importa el modo: jamás se aplica (ni se avisa como «lista»).
+  if (ctx.requiereAprobacion && ctx.aprobada !== true) return "esperar";
   switch (p.modo) {
     case "automatica-todas":
       return "aplicar";
@@ -111,7 +143,10 @@ export function decidirPolitica(p: PoliticaCapa, ctx: ContextoDecision): Decisio
 
 const hora = (x: unknown): number | null => (Number.isInteger(x) && (x as number) >= 0 && (x as number) <= 23 ? (x as number) : null);
 
-/** Sanea una política que llega del almacenamiento: lo que falte o venga mal queda en manual. */
+/**
+ * Sanea una política que llega del almacenamiento: un modo ausente o desconocido queda en
+ * manual y una programada sin ventana válida cae en la nocturna. Nunca lanza.
+ */
 export function sanearPolitica(x: unknown): PoliticaSistema {
   const src = x && typeof x === "object" ? (x as Record<string, unknown>) : {};
   const out = {} as PoliticaSistema;
