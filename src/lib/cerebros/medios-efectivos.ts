@@ -3,10 +3,13 @@
  *
  * Contrato: architecture/apps-en-la-malla.md §2 y §12. Módulo PURO: sin red, disco, procesos ni reloj.
  * Lo privado nunca sale de la cuenta ni va a vecinos públicos ni a la nube compartida.
+ * Los servicios pesados se colocan aquí con `colocarServicio` (architecture/repos-libreria-1020d.md §3):
+ * lo que pide RAM o GPU lo colocan la malla y las capas de conciencia, nunca la neurona por su cuenta.
  */
 import type { LinkedServer } from "../brains/servers";
 import { linkedServerToOfertaNeurona } from "../recursos/adaptadores";
 import { capacidadPrestable, ofertaVisiblePara, type OfertaNeurona } from "../recursos/oferta";
+import { colocarServicio, REQUISITOS_SERVICIO, type Colocacion, type Contexto, type ServicioId } from "../recursos/servicios-pesados";
 
 export type Oferta = OfertaNeurona;
 
