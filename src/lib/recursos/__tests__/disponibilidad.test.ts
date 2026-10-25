@@ -30,6 +30,12 @@ describe("disponibilidad.ts", () => {
       expect([...decodificar("QUJD")]).toEqual([65, 66, 67]);
     });
 
+    it("un texto vacío o de puro relleno da un mapa vacío", () => {
+      expect([...decodificar("")]).toEqual([]);
+      expect(decodificar("").length).toBe(0);
+      expect(decodificar("====").length).toBe(0);
+    });
+
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
     });
@@ -98,6 +104,12 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+
+    it("sin nada que anunciar no emite piezas", () => {
+      expect(anuncio("nodo-silencioso", "volumen-vacio", 10, [], 0)).toEqual([]);
+      // ni siquiera un índice fuera de rango justifica un mensaje
+      expect(anuncio("nodo-silencioso", "volumen-vacio", 10, [11, 12], 0)).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
@@ -107,6 +119,12 @@ describe("disponibilidad.ts", () => {
       ...uno.map((a) => ({ anuncio: a, recibidoEn: AHORA - 20_000 })),
       ...dos.map((a) => ({ anuncio: a, recibidoEn: AHORA - 5_000 })),
     ];
+
+    it("sin anuncios el registro queda vacío", () => {
+      const registro = fusionar([]);
+      expect(registro.size).toBe(0);
+      expect(registro.get("cualquier-elemento")).toBeUndefined();
+    });
 
     it("une piezas de dos nodos y sirve el índice a quien corresponden", () => {
       const uno = fusionar(
