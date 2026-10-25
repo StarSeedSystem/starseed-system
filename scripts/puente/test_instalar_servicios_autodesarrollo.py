@@ -76,6 +76,12 @@ class ServicioAutodesarrollo(unittest.TestCase):
         self.assertEqual(resto[3:], ["ciclo"])
         self.assertTrue(all(os.path.isabs(a) for a in (args[0], args[1], resto[0], resto[2])))
 
+    def test_no_usa_un_shell(self):
+        # En esta Mac el permiso de disco lo tiene python3, no /bin/zsh ni /bin/bash:
+        # un servicio cuyo programa sea un shell muere con 126/127 al leer ~/Documents.
+        for arg in self.plist["ProgramArguments"]:
+            self.assertNotIn(os.path.basename(arg), ("zsh", "bash", "sh"))
+
     def test_carga_por_launchctl_simulado_y_solo_ese(self):
         ag = os.path.join(self.tmp.name, "Library", "LaunchAgents")
         self.assertEqual(sorted(os.listdir(ag)), ["com.starseed.autodesarrollo.plist"])
