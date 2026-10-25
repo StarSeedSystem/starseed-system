@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  StarSeed OS — Servicio Chatterbox TTS (SGO1024E)
+  Plantilla launchd (macOS) · referencia del servicio que instala
+  scripts/puente/instalar-servicios.py (mismo patrón que los demás servicios de
+  voz: lanzador-tcc.py como padre para heredar el TCC, ruta absoluta del
+  intérprete, ProcessType Interactive; instalado en
+  ~/Library/LaunchAgents/com.starseed.chatterbox.plist y cargado con launchctl,
+  SOLO si el paquete «chatterbox-tts» está en ese intérprete — el guion lo
+  comprueba con find_spec, sin importarlo, y si falta no crea el servicio y lo
+  dice). Nunca descarga pesos: servidor.py fuerza HF_HUB_OFFLINE=1.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.starseed.chatterbox</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/alex/Documents/starseed-os-main/scripts/puente/lanzador-tcc.py</string>
+        <string>--</string>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>-u</string>
+        <string>/Users/alex/Documents/starseed-os-main/native/astraura-voice/chatterbox/servidor.py</string>
+    </array>
+
+    <!-- El rango de Ola 1024C: 127.0.0.1:4505, el puerto que espera chatterbox.ts. -->
+    <key>WorkingDirectory</key>
+    <string>/Users/alex/Documents/starseed-os-main</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <!-- Servicio permanente: launchd lo revive si muere (instalar-servicios.py no lo
+         crea si el paquete chatterbox-tts no está, con lo que aquí puede ser true). -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/starseed-chatterbox.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/starseed-chatterbox.log</string>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>STARSEED_ROOT</key>
+        <string>/Users/alex/Documents/starseed-os-main</string>
+    </dict>
+</dict>
+</plist>
