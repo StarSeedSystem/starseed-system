@@ -9,6 +9,7 @@ import {
   TOKENIZER_CLIP_SD_TURBO, VERSION_ONNXRUNTIME_WEB, detectaSDTurbo, generaEnPestana, planPesos, textoBytes,
   type ImagenSDTurbo, type MotorSDTurbo, type SondasWebGPU,
 } from "../webgpu-sd-turbo";
+import { modeloPorId } from "../../modelos";
 
 const BUENAS: SondasWebGPU = { hayWebGPU: true, hayAdaptador: true, f16: true };
 const IMAGEN: ImagenSDTurbo = { ancho: 512, alto: 512, pixeles: new Uint8Array(4), motor: "sd-turbo" };
@@ -48,12 +49,30 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
     for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
   });
 
+  it("cada peso trae su tamaño MEDIDO en los tres ONNX del ejemplo oficial y el total supera 2,4 GB", () => {
+    const medidas = [1733430199, 681393168, 99094314];
+    expect(PESOS_SD_TURBO.map((p) => p.bytes)).toEqual(medidas);
+    expect(BYTES_PESOS_SD_TURBO).toBe(medidas.reduce((t, b) => t + b, 0));
+    expect(BYTES_PESOS_SD_TURBO).toBeGreaterThan(2.4 * 10 ** 9);
+  });
+
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
     expect(textoBytes(BYTES_PESOS_SD_TURBO)).toMatch(/^\d+,\d GB$/);
+    expect(textoBytes(BYTES_PESOS_SD_TURBO)).toBe("2,3 GB");
     expect(textoBytes(640 * 1024 ** 2)).toBe("640 MB");
     expect(textoBytes(0)).toBe("0 MB");
     expect(textoBytes(NaN)).toBe("tamaño desconocido");
     expect(textoBytes(-1)).toBe("tamaño desconocido");
+  });
+
+  it("la ficha del CATÁLOGO y el repo de pesos del adaptador hablan de lo mismo", () => {
+    const ficha = modeloPorId(MODELO_SD_TURBO);
+    expect(ficha).toBeDefined();
+    expect(ficha!.licencia).toContain("Stability");
+    expect(ficha!.uso).toBe("condicionado");
+    expect(ficha!.nota).toContain("sin comprobar del todo");
+    expect(ficha!.motores).toContain("onnx-web");
+    expect(REPO_ONNX_SD_TURBO).toContain("schmuell/sd-turbo-ort-web");
   });
 });
 
@@ -86,6 +105,7 @@ describe("planPesos · reglas de la descarga (contrato §8)", () => {
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: null })).toMatchObject({ accion: "sin-espacio", bytes: BYTES_PESOS_SD_TURBO });
     expect(planPesos({ enCache: true, permiso: false, cuotaLibreBytes: null }).motivo).toContain("no se descarga nada");
     expect(planPesos({ enCache: false, permiso: false, cuotaLibreBytes: 1e12 }).motivo).toContain("sin que lo permitas");
+    expect(planPesos({ enCache: false, permiso: false, cuotaLibreBytes: 1e12 }).motivo).toContain(textoBytes(BYTES_PESOS_SD_TURBO));
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: null }).motivo).toContain("No se puede comprobar el espacio libre");
   });
 
