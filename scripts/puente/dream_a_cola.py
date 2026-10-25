@@ -141,7 +141,7 @@ def proponer(texto, ya_encargadas=(), tope=3):
 def resumen(propuestas, total_leidas=None):
     """Una frase para el canal: qué se encargó y de dónde salió."""
     if not propuestas:
-        return "Dream leído: nada accionable nuevo que encargar."
+        return "Imaginación diaria leída: nada accionable"
     titulos = "; ".join(p["titulo"] for p in propuestas)
     cola = " de %d leídas" % total_leidas if total_leidas else ""
-    return "Dream leído: encargo %d%s — %s" % (len(propuestas), cola, titulos)
+    return "Imaginación diaria leída: encargo %d%s — %s" % (len(propuestas), cola, titulos)

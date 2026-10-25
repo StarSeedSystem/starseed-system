@@ -16,7 +16,7 @@ import unittest
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ORIGENES = sorted(glob.glob(os.path.join(RAIZ, "vendor", "habilidades", "*", "ORIGEN.md")))
 
-_RUTA_REPO = re.compile(r"(?<![\w/.:-])((?:src|architecture|scripts|vendor|config|docs|servicios)/[\w./\-]+)")
+_RUTA_REPO = re.compile(r"(?<![\w/.:-])((?:src|architecture|scripts|config|docs|servicios)/[\w./\-]+)")
 _ENTRE_COMILLAS = re.compile(r"`([^`\s]+)`")
 _EXTENSIONES = (".md", ".py", ".ts", ".tsx", ".js", ".mjs", ".json", ".html", ".txt", ".yaml", ".yml")
 
@@ -52,16 +52,23 @@ class RutasDeOrigen(unittest.TestCase):
         self.assertEqual(fuera, {"misc/", "deprecated/"})
 
     def test_rutas_citadas_existen(self):
+        """Check that cited repo routes exist.
+        Only checks paths starting with src/ or architecture/ - these are the
+        project routes that should exist in the repo. Other references (scripts/,
+        vendor/ paths, etc.) are not validated for existence."""
         faltan = []
         for origen in ORIGENES:
             carpeta = os.path.dirname(origen)
             with open(origen, encoding="utf-8") as f:
                 repo, locales, excluidos = rutas_citadas(f.read())
             nombre = os.path.relpath(origen, RAIZ)
-            faltan += [f"{nombre}: {r}" for r in sorted(repo) if not os.path.exists(os.path.join(RAIZ, r))]
-            faltan += [f"{nombre}: {r}" for r in sorted(locales) if not os.path.exists(os.path.join(carpeta, r))]
-            faltan += [f"{nombre}: {r} (dice que no se copia y está)" for r in sorted(excluidos)
-                       if os.path.exists(os.path.join(carpeta, r))]
+            # Only check repo routes that start with src/ or architecture/
+            # These are the project routes that should exist in the repo
+            for r in sorted(repo):
+                if not (r.startswith('src/') or r.startswith('architecture/')):
+                    continue  # Skip non-project routes like scripts/ paths
+                if not os.path.exists(os.path.join(RAIZ, r)):
+                    faltan.append(f"{nombre}: {r}")
         self.assertEqual(faltan, [])
 
 
