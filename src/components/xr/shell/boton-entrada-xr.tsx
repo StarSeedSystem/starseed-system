@@ -74,11 +74,13 @@ export function BotonEntradaXR({ modo = "auto", variante = "insertado", alEntrar
     );
 
     if (estado === "sondeando" || botones.length === 0) {
-        // Sin modo inmersivo (o aún sondeando): sin botón que no funcione; el aviso honesto de `textoEntrada`.
-        if (texto.aviso === null) return null;
-        const sitio = variante === "flotante" ? "fixed bottom-4 right-4 z-50 max-w-72" : "max-w-sm";
+        // Sin modo inmersivo (o aún sondeando): sin botón que no funcione.
+        // (XR1025A) El botón FLOTANTE de la esquina no pinta NADA —ni texto ni contenedor—: «Este aparato no
+        // tiene VR ni AR.» y «Comprobando tu visor…» eran ruido fijo en cada pantalla del OS. El aviso honesto
+        // de `textoEntrada` sigue en la variante insertada (ajustes), donde alguien lo busca a propósito.
+        if (variante === "flotante" || texto.aviso === null) return null;
         return (
-            <div className={sitio} data-testid="boton-entrada-xr">
+            <div className="max-w-sm" data-testid="boton-entrada-xr">
                 <p className="text-xs text-[#B9C0D8]" role="status" data-testid="aviso-entrada-xr">
                     {texto.aviso}
                 </p>

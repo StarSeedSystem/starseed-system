@@ -108,6 +108,59 @@ describe("BotonEntradaXR", () => {
         await act(async () => { await Promise.resolve(); });
         expect(screen.getByRole("alert").textContent).toBe("Permiso denegado para entrar en realidad virtual o aumentada.");
     });
+    // (XR1025A) El botón FLOTANTE de la esquina no pinta nada sin modos inmersivos: ni aviso ni contenedor.
+    describe("variante flotante (esquina del layout raíz)", () => {
+        it("sin VR ni AR en el aparato no pinta NADA (ni «Este aparato no tiene VR ni AR.»)", () => {
+            darAparato("Mozilla/5.0 (X11; Linux x86_64) Chrome/130.0 Safari/537.36", { tieneXR: true, vr: false, ar: false });
+            const { container } = render(<BotonEntradaXR variante="flotante" />);
+            expect(container.firstChild).toBeNull();
+            expect(screen.queryByTestId("boton-entrada-xr")).toBeNull();
+            expect(screen.queryByTestId("aviso-entrada-xr")).toBeNull();
+            expect(container.textContent).toBe("");
+        });
+        it("el aviso «Este aparato no tiene VR ni AR.» sigue siendo el motivo del plan, pero en la esquina no sale", () => {
+            const resultado = aparato("Mozilla/5.0 (X11; Linux x86_64) Chrome/130.0 Safari/537.36", { tieneXR: true, vr: false, ar: false });
+            usarHook.mockReturnValue(resultado);
+            const { container } = render(<BotonEntradaXR variante="flotante" />);
+            expect(resultado.plan.motivo).toBe("Este aparato no tiene VR ni AR.");
+            expect(container.textContent).not.toContain("no tiene VR ni AR");
+        });
+        it("mientras sondea tampoco pinta nada: ni «Comprobando tu visor…» ni contenedor", () => {
+            darAparato(UA_QUEST, { vr: true, ar: true }, false);
+            const { container } = render(<BotonEntradaXR variante="flotante" />);
+            expect(container.firstChild).toBeNull();
+            expect(screen.queryByText("Comprobando tu visor…")).toBeNull();
+        });
+        it("en iPhone y sin https tampoco: el mensaje honesto queda para la variante insertada", () => {
+            darAparato(UA_IPHONE, { tieneXR: false, vr: false });
+            const iphone = render(<BotonEntradaXR variante="flotante" />);
+            expect(iphone.container.firstChild).toBeNull();
+            iphone.unmount();
+            darAparato(UA_QUEST, { seguro: false, tieneXR: false, vr: false });
+            const sinHttps = render(<BotonEntradaXR variante="flotante" />);
+            expect(sinHttps.container.firstChild).toBeNull();
+        });
+        it("con VR y AR el botón sigue como hoy: abajo a la derecha y con su acción", async () => {
+            darAparato(UA_QUEST, { vr: true, ar: true });
+            const pedidos = enterado(true);
+            almacen.mockResolvedValue(pedidos as never);
+            render(<BotonEntradaXR variante="flotante" />);
+            const caja = screen.getByTestId("boton-entrada-xr");
+            expect(caja.className).toContain("fixed");
+            expect(caja.className).toContain("bottom-4");
+            expect(caja.className).toContain("right-4");
+            expect(screen.getByRole("button", { name: "Entrar en VR" })).toBeTruthy();
+            expect(screen.getByRole("button", { name: "Entrar en AR" })).toBeTruthy();
+            fireEvent.click(screen.getByRole("button", { name: "Entrar en VR" }));
+            await act(async () => { await Promise.resolve(); });
+            expect(pedidos.enterVR).toHaveBeenCalledTimes(1);
+        });
+    });
+    it("la variante insertada (ajustes) conserva el aviso honesto cuando no hay modos inmersivos", () => {
+        darAparato("Mozilla/5.0 (X11; Linux x86_64) Chrome/130.0 Safari/537.36", { tieneXR: true, vr: false, ar: false });
+        render(<BotonEntradaXR variante="insertado" />);
+        expect(screen.getByTestId("aviso-entrada-xr").textContent).toBe("Este aparato no tiene VR ni AR.");
+    });
     it("con `offerSession` (el navegador ofrece su botón) el nuestro sigue visible como respaldo", () => {
         const resultado = aparato(UA_QUEST, { vr: true, ar: true, ofreceSesion: true });
         usarHook.mockReturnValue(resultado);
