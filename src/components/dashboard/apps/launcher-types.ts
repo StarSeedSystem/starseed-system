@@ -9,6 +9,9 @@
 // ════════════════════════════════════════════════════════════════
 
 import type { LucideIcon } from "lucide-react";
+// Tipos puros de la malla (fuente de verdad en src/lib/recursos/modos-app.ts,
+// architecture/apps-en-la-malla.md §3 y §5): solo `import type`, no contamina el bundle.
+import type { ModoEjecucion, RequisitosApp } from "@/lib/recursos/modos-app";
 
 /** Modos de apertura de una app. La complejidad vive en el sistema (asimetría funcional). */
 export type OpenMode =
@@ -53,6 +56,13 @@ export interface StarseedApp {
     status?: AppStatus;
     /** Marca apps con modo inmersivo (VR/AR — Fase 3). */
     vrCapable?: boolean;
+    /**
+     * Modos de ejecución en la malla (§5 de apps-en-la-malla): local, por-bandas,
+     * montada, transmitida o ramificada. Sin campo = ['local'], como hoy.
+     */
+    ejecucion?: ModoEjecucion[];
+    /** Requisitos medidos para correr en una neurona (§3); los comproba la bolsa. */
+    requisitos?: RequisitosApp;
 }
 
 // ── Presets de personalización ───────────────────────────────────
