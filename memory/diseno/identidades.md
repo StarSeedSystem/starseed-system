@@ -144,3 +144,31 @@ Fuente: chat de Cowork del 2026-10-19. Detalle y valores en `memory/diseno/estud
 - **Variaciones de identidad:** animaciones, transiciones, elementos 3D animados, tipografía, paletas, composición, iconos y
   sonido, con fundamentos, ejemplos desarrollados y referencias estudiadas de varios medios (se mide el patrón y se crea uno
   propio). Lo que Alex aprueba pasa a la Librería como variaciones públicas de su elemento.
+
+## Intro canónica de StarSeed · «Génesis del símbolo» (aprobada por Alex el 2026-10-25)
+
+Es **la** introducción de todo StarSeed (canales, redes, presentaciones, conferencias y vídeos del OS). Toda pieza de
+vídeo que abra o cierre con la marca parte de ella; no se rehace por libre. Idea original: el doc de Alex «Identidad En
+Movimiento» (Drive `1W8WFAbG31emQQPu0-QqnzJ6WoOBaEr4afwhT79O8VFE`), escena 1.
+
+- **Archivos** (no versionados; viajan con el espejo de Drive): `starseed_memory_root/identidad/intro/escena1-v3.mp4`
+  (27,6 s, 1920×1080, 30 fps, H.264, sin audio), su hoja de contactos, `NOTAS-v3.md` (línea de tiempo al fotograma) y
+  `fuentes-intro-v3.tgz` (composición HyperFrames con un solo canvas WebGL2; `build_v3.py` genera `index.html` y las
+  partes a renderizar).
+- **Recorrido:** punto de luz → inversión → mitosis y dos esferas que orbitan y se funden líquidas → yin-yang → ojo →
+  **taijitu áureo** (12,3–16,1 s: el yin-yang de espirales de Alex, con crecimiento φ por cuarto de vuelta, brotes con
+  retraso 1/φ; cromo, nácar, laca y acero) → vesica → ignición del ojo, volumen 3D y prismas → la luz del ojo **descubre
+  el mundo de madera viva** (ramas talladas, constelaciones, flor de la vida que se traza, cristales y neón en los rayos;
+  pases de Blender) → símbolo oficial estable.
+- **Cierre (desde 20,45 s):** el símbolo se reduce a 0,73 y sube; el wordmark **«StarSeed» en Rajdhani 700** sube tras una
+  máscara en su línea base (mayúscula ≈ 97 px a 1080p, cara de nácar, bisel y canto de cromo extruido 8 px, contraste
+  12,7:1), un destello diagonal, **fundido a negro de todo menos el ojo** (1,8 s) y **apagado de tele vieja**: párpados
+  que aplastan la imagen en vertical (0,42 s) → línea brillante (0,12 s) → contracción al punto (0,30 s) → punto (0,15 s) →
+  fósforo que decae (0,30 s) → negro. El punto final rima con el primero: la pieza puede ir en bucle.
+- **Reglas que se heredan:** el centro es sagrado (composición centrada y centro óptico vertical); la luz principal llega
+  de arriba a la derecha; el material del símbolo es cristal y metal pulido sobre materia orgánica; el movimiento nace del
+  centro y vuelve a él; los empalmes se hacen por corte invisible (diferencia media < 0,04/255), no por fundidos.
+- **Pendiente:** el logo sonoro. Seis opciones en `starseed_memory_root/identidad/logo-sonoro/logo-sonoro-opciones.tgz`
+  (Siembra, Vesica, Ojo de cristal, Trinidad, Pulso, Semilla estelar; 48 kHz, −14 LUFS, pico real ≤ −1 dBTP). Cuando Alex
+  elija, se compone la banda sonora por capas (latido, mitosis, fusiones, formación del yin-yang, ignición del ojo y
+  apagado) y se monta en la intro. Los vídeos de presentación con animaciones gráficas se hacen después, en otro chat.
