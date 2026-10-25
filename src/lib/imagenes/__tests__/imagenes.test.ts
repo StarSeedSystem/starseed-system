@@ -131,9 +131,16 @@ describe("Z-Image-Turbo y el paquete personal", () => {
     const s = paqueteBase(PC24, { comercial: false });
     const rapido = s.instalar.find((x) => x.papel === "rapido");
     expect(rapido?.modelo.id).toBe("z-image-turbo");
+    expect(rapido?.modelo.uso).toBe("libre");
     expect(rapido?.motor).toBe("diffusers");
     expect(rapido?.cuantizacion).toBe("nativa");
     expect(rapido?.porQue).toContain("Modelo libre (Apache-2.0).");
+    expect(rapido?.porQue).toMatch(/Hugging Face/);
+  });
+  it("Z-Image-Turbo solo donde cabe: ni la Mac de 8 GB ni la A1 lo proponen", () => {
+    for (const h of [MAC8, A1]) {
+      expect(paqueteBase(h, { comercial: false }).instalar.some((x) => x.modelo.id === "z-image-turbo")).toBe(false);
+    }
   });
   it("sin permitirPersonal el Turbo no se propone aunque quepa", () => {
     for (const h of [MAC8, A1, PC24]) {
@@ -150,15 +157,21 @@ describe("Z-Image-Turbo y el paquete personal", () => {
     expect(turbo!.cuantizacion).toBe("q4");
     expect(turbo!.porQue).toMatch(/GGUF personal \(Q3_K_S 2,72 GB\):/);
     expect(turbo!.porQue).toMatch(/uso propio/);
+    expect(s.instalar.find((x) => x.papel === "rapido")?.modelo.id).toBe("sd-turbo");
   });
   it("A1 con permiso personal: Q4_K_M (4,2 GB) porque cabe en su memoria", () => {
     const s = paqueteBase(A1, { comercial: false, permitirPersonal: true });
     const turbo = s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
+    expect(turbo?.papel).toBe("calidad");
     expect(turbo?.porQue).toMatch(/GGUF personal \(Q4_K_M 4,2 GB\):/);
+    expect(s.instalar.find((x) => x.papel === "rapido")?.modelo.id).toBe("flux1-schnell");
+    expect(s.instalar.find((x) => x.papel === "texto")?.modelo.id).toBe("sd35-medium");
   });
   it("el permiso personal no salta la regla: nada no comercial en uso comercial", () => {
-    const s = paqueteBase(MAC8, { comercial: true, permitirPersonal: true });
-    expect(s.instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
+    for (const h of [MAC8, A1, PC24]) {
+      const s = paqueteBase(h, { comercial: true, permitirPersonal: true });
+      expect(s.instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
+    }
   });
   it("ni iOS (sin stable-diffusion.cpp) ni una neurona de 3 GB reciben el GGUF personal", () => {
     const ios = paqueteBase({ so: "ios", gpu: "apple", vramGB: null, ramGB: 8, webgpu: false }, { comercial: false, permitirPersonal: true });
