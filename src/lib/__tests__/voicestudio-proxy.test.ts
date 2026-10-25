@@ -24,7 +24,6 @@ const resAudio = (status: number, bytes: ArrayBuffer, mime = "audio/mpeg") => ({
   headers: { get: (nombre: string) => (nombre === "content-type" ? mime : null) },
   arrayBuffer: async () => bytes,
 });
-
 beforeEach(() => {
   reiniciarDeteccion();
 });
@@ -68,10 +67,7 @@ describe("Puente del demonio de voz hacia VoiceStudio", () => {
   it("reenviar devuelve 404 para cualquier ruta fuera del contrato, sin salir a la red", async () => {
     const fetchFalso = vi.fn();
     expect(await reenviar("/otra/ruta", {}, fetchFalso)).toEqual({ status: 404, error: "No encontrado" });
-    expect(await reenviar("/v1/audio/speech/../etc", {}, fetchFalso)).toEqual({
-      status: 404,
-      error: "No encontrado",
-    });
+    expect(await reenviar("/v1/audio/speech/../etc", {}, fetchFalso)).toEqual({ status: 404, error: "No encontrado" });
     expect(fetchFalso).not.toHaveBeenCalled();
   });
 
