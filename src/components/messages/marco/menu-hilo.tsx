@@ -19,6 +19,8 @@ import {
 import { cn } from "@/lib/utils";
 import { OPCIONES_SILENCIO } from "@/lib/mensajeria/ajustes";
 import { describirSilencio } from "./formato-tiempo";
+// Variaciones públicas (Ola 1019V): la entrada común del clic derecho en todo el OS.
+import { accionVariaciones } from "@/components/variaciones/accion-variaciones";
 
 export interface AccionExtraMenu {
     id: string;
@@ -78,6 +80,9 @@ export function MenuHilo({
     const [verSilencio, setVerSilencio] = useState(false);
     const silencio = describirSilencio(silencioHasta, formato24h);
     const Icono = orientacion === "vertical" ? MoreVertical : MoreHorizontal;
+    // Entrada común «Variaciones públicas» del hilo (la clave nombra el TIPO, nunca la instancia ni datos privados).
+    const variaciones = accionVariaciones("mensaje:hilo");
+    const IconoVariaciones = variaciones.icon;
 
     const extra = (a: AccionExtraMenu) => {
         const I = a.icono;
@@ -115,6 +120,8 @@ export function MenuHilo({
                 align="end"
                 sideOffset={6}
                 collisionPadding={12}
+                // Marca de menú propio (Ola 1019V): clave canónica del elemento que este menú representa.
+                data-ss-menu-propio="mensaje:hilo"
                 className="z-[130] w-[min(88vw,260px)] rounded-2xl border-white/10 bg-[rgba(12,14,34,0.94)] p-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)] backdrop-blur-xl"
             >
                 {extrasAntes.map(extra)}
@@ -167,6 +174,12 @@ export function MenuHilo({
                     <span className="flex-1">{archivado ? "Desarchivar" : "Archivar"}</span>
                 </DropdownMenuItem>
                 {extrasDespues.map(extra)}
+
+                {/* Variaciones públicas del hilo (Ola 1019V · contrato §3): lo publicado por todas las personas. */}
+                <DropdownMenuItem className={CLASE_ITEM} onSelect={() => variaciones.onClick()}>
+                    <IconoVariaciones className="h-4 w-4 shrink-0 opacity-90" />
+                    <span className="flex-1">{variaciones.label}</span>
+                </DropdownMenuItem>
 
                 <DropdownMenuSeparator className="my-1 bg-white/10" />
                 <DropdownMenuItem className={CLASE_ITEM} onSelect={() => onAjustes()}>

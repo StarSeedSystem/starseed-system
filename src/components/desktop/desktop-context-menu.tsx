@@ -32,6 +32,8 @@ import {
     MAX_DESKTOP_PAGES,
 } from "./desktop-store";
 import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./desktop-clipboard";
+// Variaciones públicas (Ola 1019V): la entrada común del clic derecho en todo el OS.
+import { accionVariaciones } from "@/components/variaciones/accion-variaciones";
 import { canEditIcon } from "./desktop-open";
 import { hasRichThumb } from "./desktop-thumbs";
 import type { QuickLookTab } from "./desktop-quick-look";
@@ -110,11 +112,13 @@ function SubMenu({
 
 // ── Contenedor posicionado (auto-clamp a bordes del lienzo) ──────
 function MenuShell({
-    x, y, canvasRef, children,
+    x, y, canvasRef, menuPropio, children,
 }: {
     x: number;
     y: number;
     canvasRef: React.RefObject<HTMLDivElement | null>;
+    /** Marca de menú propio (Ola 1019V): clave canónica del elemento que este menú representa. */
+    menuPropio?: string;
     children: React.ReactNode;
 }): React.ReactElement {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -127,6 +131,7 @@ function MenuShell({
     return (
         <div
             role="menu"
+            data-ss-menu-propio={menuPropio}
             style={{ left, top, width: MENU_W, maxHeight: maxH - top - 10 }}
             className="absolute z-[62] overflow-y-auto rounded-2xl border border-white/12 bg-card/95 p-1.5 shadow-2xl backdrop-blur-2xl"
         >
@@ -177,9 +182,11 @@ export function CanvasContextMenu({
             window.dispatchEvent(new CustomEvent("aurora:suggest", { detail: { context: "desktop-canvas", desktopName: desktop.name } }));
         } catch { /* noop */ }
     };
+    // La entrada común «Variaciones públicas» del lienzo (la clave nombra el TIPO de elemento).
+    const variacionesLienzo = accionVariaciones("escritorio:lienzo");
 
     return (
-        <MenuShell x={x} y={y} canvasRef={canvasRef}>
+        <MenuShell x={x} y={y} canvasRef={canvasRef} menuPropio="escritorio:lienzo">
             <MenuLabel>Nuevo</MenuLabel>
             <MenuItem icon={FolderPlus} label="Folder" onClick={() => run(() => addIcon(desktop.id, { kind: "folder", name: "Nuevo folder", accent: "#FFBF00", ...(pasteSpot ?? {}) }))} />
             <MenuItem icon={StickyNote} label="Nota" onClick={() => run(() => createNoteIcon(desktop.id, "Nota"))} />
@@ -250,6 +257,13 @@ export function CanvasContextMenu({
             <MenuDivider />
             <MenuItem icon={ImageIcon} label="Cambiar fondo…" onClick={() => run(onChangeBackground)} />
             <MenuItem icon={Settings2} label="Ajustes del escritorio…" onClick={() => run(onOpenSettings)} />
+            {/* Variaciones públicas del lienzo (Ola 1019V · contrato §3): la que publicó todo el OS. */}
+            <MenuDivider />
+            <MenuItem
+                icon={variacionesLienzo.icon}
+                label={variacionesLienzo.label}
+                onClick={() => run(variacionesLienzo.onClick)}
+            />
         </MenuShell>
     );
 }
@@ -290,9 +304,11 @@ export function IconContextMenu({
     const editable = canEditIcon(icon);
     // Pegar DENTRO de este folder (destino natural del portapapeles).
     const canPasteHere = Boolean(clip) && icon.kind === "folder";
+    // La entrada común «Variaciones públicas» del icono (escritorio:icono, el TIPO, no la instancia).
+    const variacionesIcono = accionVariaciones("escritorio:icono");
 
     return (
-        <MenuShell x={x} y={y} canvasRef={canvasRef}>
+        <MenuShell x={x} y={y} canvasRef={canvasRef} menuPropio="escritorio:icono">
             <MenuItem icon={ExternalLink} label="Abrir" onClick={() => run(() => onOpen(icon))} />
             {onQuickLook && (
                 <MenuItem icon={Eye} label="Vista previa" shortcut="Espacio" onClick={() => run(() => onQuickLook(icon, "preview"))} />
@@ -340,6 +356,13 @@ export function IconContextMenu({
                     onClick={() => run(() => updateIcon(desktop.id, icon.id, { viewMode: icon.viewMode === "preview" ? "icon" : "preview" }))}
                 />
             )}
+
+            {/* Variaciones públicas del icono (Ola 1019V · contrato §3). */}
+            <MenuItem
+                icon={variacionesIcono.icon}
+                label={variacionesIcono.label}
+                onClick={() => run(variacionesIcono.onClick)}
+            />
 
             <MenuDivider />
             <MenuLabel>Tamaño</MenuLabel>
