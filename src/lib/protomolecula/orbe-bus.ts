@@ -10,6 +10,19 @@ export const PROTO_ORB_FAB_KEY = "starseed.protomolecula.orbe.enabled.v1";
 export const PROTO_ORB_FAB_EVENT = "starseed:protomolecula-orb-fab";
 /** Lo emite la acción del agente (F0M) y lo escucha la orbe (F0L). */
 export const PROTO_ORB_ABRIR_EVENT = "starseed:protomolecula-abrir";
+/** Pedir el cierre/apagado de la orbe (botón del lienzo de creación o zona Horizon). */
+export const PROTO_ORB_CERRAR_EVENT = "starseed:protomolecula-cerrar";
+
+/**
+ * Dependencias inyectables de la puerta de activación: almacén, emisor de
+ * eventos y empuje a la cuenta. Todos opcionales; con `window` existen por
+ * defecto y sin `window` la puerta no toca nada (no lanza).
+ */
+export interface DepsActivacion {
+  almacen?: AlmacenLocal;
+  emitir?: (e: Event) => boolean;
+  empujar?: () => void;
+}
 
 export const TAMANO_ORBE = 56;
 /** Separación horizontal respecto a la orbe de Aurora. */
@@ -125,4 +138,59 @@ export function guardarActivada(almacen: AlmacenLocal, activada: boolean): void 
   } catch {
     /* defensivo */
   }
+}
+
+// ── Puerta única de activación (PMO1020A) ────────────────────────────────────
+// La usan el botón del lienzo de creación (Trinidad izquierda) y Astraura
+// desde cualquier medio: guardar + evento en vivo en esta pestaña + empuje a
+// la cuenta para que las demás neuronas lo reciban al instante.
+
+/** `window.localStorage` si hay ventana; si no, nada (la puerta no toca DISCO). */
+function almacenPorDefecto(): AlmacenLocal | undefined {
+  try {
+    return typeof window !== "undefined" ? window.localStorage : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Empuje por defecto: sube la preferencia a la cuenta SIN esperar y SIN lanzar. */
+function empujarPorDefecto(): void {
+  try {
+    void import("@/lib/settings-sync")
+      .then((m) => m.pushPreferences())
+      .catch(() => undefined);
+  } catch {
+    /* defensivo */
+  }
+}
+
+/**
+ * Guarda el estado de la orbe, emite `PROTO_ORB_FAB_EVENT` con
+ * `detail: { activada }` y empuja la preferencia a la cuenta (las demás
+ * neuronas la reciben por realtime-sync). Devuelve el valor guardado.
+ */
+export function fijarOrbeActivada(activada: boolean, deps?: DepsActivacion): boolean {
+  const almacen = deps?.almacen ?? almacenPorDefecto();
+  if (almacen) guardarActivada(almacen, activada);
+  const detalle = { activada };
+  if (typeof CustomEvent !== "undefined") {
+    const evento = new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: detalle });
+    try {
+      if (deps?.emitir) deps.emitir(evento);
+      else window.dispatchEvent(evento);
+    } catch { /* un emisor roto no debe tirar la puerta */ }
+  }
+  try {
+    if (deps?.empujar) deps.empujar();
+    else empujarPorDefecto();
+  } catch { /* el empuje va a best-effort: nunca lanza */ }
+  return activada;
+}
+
+/** Invierte el estado guardado y lo fija por la misma puerta. */
+export function alternarOrbe(deps?: DepsActivacion): boolean {
+  const almacen = deps?.almacen ?? almacenPorDefecto();
+  const ahora = almacen ? leerActivada(almacen) : true;
+  return fijarOrbeActivada(!ahora, deps);
 }
