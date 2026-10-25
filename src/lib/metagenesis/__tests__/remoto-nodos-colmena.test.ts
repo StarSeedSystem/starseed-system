@@ -51,9 +51,13 @@ describe("acciones colmena: desconectar y contenedor", () => {
         expect(validarArgs("contenedor", { activo: true, trabajadores: 2 })).toBeNull();
     });
 
-    it("contenedor con activo false rechaza trabajadores", () => {
+    it("contenedor con activo false rechaza trabajadores (fuera de rango cae primero en 1–4)", () => {
         expect(validarArgs("contenedor", { activo: false })).toBeNull();
         expect(validarArgs("contenedor", { activo: false, trabajadores: 2 })).toContain("trabajadores solo se permite");
+        // Del rescate de la rama de la nube (96103248dcce): el rango 1–4 se comprueba ANTES de la regla
+        // de activo:false, así que 0 cae en «fuera de 1–4» y 1 cae en «solo se permite».
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 1 })).toContain("trabajadores solo se permite");
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBe("trabajadores fuera de 1–4");
     });
 });
 
