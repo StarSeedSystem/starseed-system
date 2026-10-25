@@ -7,12 +7,13 @@
  * Todas las áreas ABREN de verdad su destino (Adenda 63).
  */
 
-import React from "react";
-import { ArrowLeft, BookOpen, Copy, Layout, Library, Maximize2, Palette, Pencil, Plus, Send, Sparkles, Trash2, Users } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { ArrowLeft, BookOpen, Copy, Layout, Library, Maximize2, Orbit, Palette, Pencil, Plus, Power, Send, Sparkles, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useBoardSystem } from "@/context/board-context";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
+import { PROTO_ORB_FAB_EVENT, PROTO_ORB_FAB_KEY, fijarOrbeActivada, leerActivada } from "@/lib/protomolecula/orbe-bus";
 import { usePanelCortina } from "./panel-cortina";
 
 const formatearFecha = (ts: number) =>
@@ -27,6 +28,28 @@ export function ContenidoHorizon({ ir, abrirEditor }: { ir: (href: string) => vo
         : "o desliza el panel hacia la izquierda";
 
     const crearPizarra = () => createBoard(`Nueva Pizarra ${boards.length + 1}`);
+
+    // Estado vivo de la orbe de la Protomolécula: la puerta (PMO1020A) guarda,
+    // emite y empuja; aquí reflejamos lo que llega por evento o de otra neurona.
+    const [orbeActivada, setOrbeActivada] = useState(true);
+    useEffect(() => {
+        setOrbeActivada(leerActivada(window.localStorage));
+        const alCambiar = (e: Event) => {
+            const d = (e as CustomEvent<{ activada?: boolean }>).detail;
+            setOrbeActivada(typeof d?.activada === "boolean" ? d.activada : leerActivada(window.localStorage));
+        };
+        const alSincronizar = (e: StorageEvent) => {
+            if (e.key === PROTO_ORB_FAB_KEY || e.key === null) setOrbeActivada(leerActivada(window.localStorage));
+        };
+        window.addEventListener(PROTO_ORB_FAB_EVENT, alCambiar);
+        window.addEventListener("storage", alSincronizar);
+        return () => {
+            window.removeEventListener(PROTO_ORB_FAB_EVENT, alCambiar);
+            window.removeEventListener("storage", alSincronizar);
+        };
+    }, []);
+
+    const alternarOrbe = () => setOrbeActivada(fijarOrbeActivada(!orbeActivada));
 
     return (
         <div className="relative w-full h-full flex flex-col">
@@ -82,6 +105,29 @@ export function ContenidoHorizon({ ir, abrirEditor }: { ir: (href: string) => vo
                         <div className="text-left">
                             <span className="block text-lg font-light tracking-wider text-violet-100">Editor Universal</span>
                             <span className="text-xs text-violet-300/50 font-mono uppercase tracking-wider">Diseño · Código · IA · Biblioteca</span>
+                        </div>
+                    </Button>
+                </div>
+
+                {/* Orbe de la Protomolécula: activar / desactivar en vivo (petición de Alex 2026-10-20). */}
+                <div className="mb-6 flex-shrink-0 px-2">
+                    <Button
+                        className="w-full h-auto min-h-[44px] py-5 rounded-3xl flex items-center gap-4 bg-gradient-to-r from-cyan-600/20 via-teal-600/15 to-emerald-600/15 border border-cyan-500/30 hover:border-cyan-400/50 hover:from-cyan-600/30 hover:via-teal-600/25 hover:to-emerald-600/25 transition-all group shadow-lg cursor-pointer"
+                        onClick={alternarOrbe}
+                    >
+                        <div className={orbeActivada
+                            ? "p-3 rounded-full bg-cyan-500/20 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(34,211,238,0.3)]"
+                            : "p-3 rounded-full bg-black/30 opacity-50 group-hover:scale-110 transition-transform"}>
+                            <Orbit className={orbeActivada ? "w-7 h-7 text-cyan-200" : "w-7 h-7 text-cyan-200/60"} />
+                        </div>
+                        <div className="text-left flex-1 min-w-0">
+                            <span className="block text-lg font-light tracking-wider text-cyan-100">Orbe Protomolécula</span>
+                            <span className="text-xs text-cyan-300/50 font-mono uppercase tracking-wider">
+                                {orbeActivada ? "Activa · toca para apagarla" : "Apagada · toca para encenderla"}
+                            </span>
+                        </div>
+                        <div className="p-2 rounded-full bg-black/30 group-hover:bg-black/40 transition-colors">
+                            <Power className={orbeActivada ? "w-4 h-4 text-cyan-300" : "w-4 h-4 text-cyan-300/50"} />
                         </div>
                     </Button>
                 </div>
