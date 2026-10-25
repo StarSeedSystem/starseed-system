@@ -118,7 +118,8 @@
             "mattpocock/skills": "mattpocock/skills",
             "heygen-com/hyperframes": "heygen-com/hyperframes"
         },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
+        "catalogo": "src/ai/astraura/habilidades/ingenieria-a.ts",
+        "nota": "Las habilidades de ingeniería de Matt Pocock se parten en dos catálogos (ingenieria-a.ts e ingenieria-b.ts) desde la Ola 1018L; el vigía propone en la A, y lo que no quepa va a la B."
     }
   ]
 }
