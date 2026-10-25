@@ -118,7 +118,8 @@
             "mattpocock/skills": "mattpocock/skills",
             "heygen-com/hyperframes": "heygen-com/hyperframes"
         },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
+        "catalogo": "src/lib/library/packages.ts",
+        "nota": "La Biblioteca central es donde se proponen las versiones nuevas; las copias viven en vendor/habilidades/."
     }
   ]
 }
