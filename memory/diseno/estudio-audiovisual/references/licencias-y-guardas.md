@@ -19,6 +19,7 @@ sus términos.
 | Three.js, Anime.js, dotLottie | MIT | conservar avisos |
 | GSAP | licencia «no charge» con prohibición en herramientas sin código de animación | vale en vídeos propios renderizados; nunca en el editor visual del OS |
 | Remotion | código fuente disponible, licencia de empresa según tamaño | no se usa |
+| onetake (feitangyuan) | PolyForm Noncommercial 1.0.0; el uso comercial exige su licencia de pago | solo enlace: ni se instala ni se copia; su idea está reescrita en ritmo-y-continuidad.md; Alex puede probarla a mano solo con piezas no comerciales |
 | OmniVoice (voz local del OS) y MusicGen | modelos CC-BY-NC | solo uso personal, nunca en canales con fines comerciales |
 | Galerías de inspiración (Mobbin, Savee, Refero, 60fps, Deck.Gallery…) | prohíben scraping y entrenar IA | solo por su MCP o API oficial con la cuenta de la persona, o abriéndolas en su navegador; crear siempre una versión propia |
 
