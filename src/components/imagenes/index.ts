@@ -4,6 +4,8 @@
  * la tarjeta y las sugerencias desde el chat, la neurona, la Protomolécula y los bots.
  */
 export { default as SugerenciasInstalacion } from "./sugerencias-instalacion";
+export { default, type TarjetaImagenesProps } from "./tarjeta-imagenes";
+export { TarjetaImagenes } from "./tarjeta-imagenes";
 export type { HierroImg, Sugerencia } from "@/lib/imagenes/sugerencias";
 export type { PlanImagen, OpcionImagen, PeticionImagen, NeuronaImg } from "@/lib/imagenes/plan";
 export { planImagen, cabe } from "@/lib/imagenes/plan";

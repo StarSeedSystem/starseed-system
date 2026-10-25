@@ -73,6 +73,7 @@ import {
   type MediaGenResult,
 } from "@/ai/astraura/media/media-gen";
 import { saveResource } from "@/lib/library-store";
+import { TarjetaImagenes } from "@/components/imagenes";
 import { thisDeviceId } from "@/lib/neurons/neurons";
 
 // ── Constantes de la UI ───────────────────────────────────────────────────
@@ -522,6 +523,10 @@ export default function MediaGenPanel({ neuronId, configOnly = false, className 
               alt={prompt || "Imagen generada"}
               className="mt-3 max-h-[420px] w-full rounded-xl border border-white/10 object-contain"
             />
+          )}
+
+          {result?.galeria && (
+            <TarjetaImagenes galeria={result.galeria} titulo="Tus opciones de imagen" />
           )}
         </div>
       )}
