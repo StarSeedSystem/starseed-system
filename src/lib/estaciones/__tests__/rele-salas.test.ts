@@ -173,6 +173,10 @@ describe('crearSalas', () => {
     expect(salas.presencia(tema1)).toBe(1);
     salas.salir(c2);
     expect(salas.presencia(tema1)).toBe(0);
+    // Un cierre que llega dos veces (WebSocket) no desinfecta a otras conexiones de la sala.
+    salas.salir(c2);
+    expect(salas.presencia(tema1)).toBe(0);
+    expect(salas.temaDe(c2)).toBeUndefined();
   });
   it('debería aceptar temas con guiones y guiones bajos', () => {
     const salas = crearSalas();
