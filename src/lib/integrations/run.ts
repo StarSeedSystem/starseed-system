@@ -13,6 +13,17 @@
 
 import type { IntegrationConfig, IntegrationResult } from "./types";
 import { getIntegration, loadIntegrationConfig } from "./registry";
+// Lo pesado lo coloca la malla y las capas de conciencia, nunca la neurona por su
+// cuenta (architecture/repos-libreria-1020d.md §3): el «dónde» lo decide
+// `colocarServicio` y el puerto real lo da `SERVICIOS_INSTALADOS` (127.0.0.1 del A1,
+// bajo demanda: arriba al primer uso si cabe, abajo a los 15 min sin uso).
+import {
+  colocarServicio,
+  SERVICIOS_INSTALADOS,
+  type Contexto,
+  type ServicioId,
+} from "../recursos/servicios-pesados";
+import type { OfertaNeurona } from "../recursos/oferta";
 import {
   buscarNotas,
   crearNota,
@@ -49,6 +60,41 @@ import * as QM from "./clients/qm";
 import * as AgentHarness from "./clients/agentharness";
 // ── Bonsai (Adenda 174) ──
 import * as Bonsai from "./clients/bonsai";
+
+/** Conectores respaldados por un servicio pesado instalado en el A1. */
+const SERVICIO_PESADO_DEL_CONECTOR: Readonly<Record<string, ServicioId>> = {
+  "stirling-pdf": "stirling-pdf",
+  openhands: "openhands-agent-server",
+};
+
+export interface EndpointColocado {
+  /** URL traducible (`127.0.0.1:puerto` del A1) o `null` si el destino no se expresa como endpoint. */
+  endpoint: string | null;
+  destino: string;
+  motivo: string;
+}
+
+/**
+ * La colocación del servicio pesado decide el endpoint del conector: `aparato`
+ * (el túnel de la Mac lleva el mismo puerto) o la capa pública `oracle-a1`
+ * apuntan a `SERVICIOS_INSTALADOS`; cuenta, malla, web gratis o `ninguno` no se
+ * traducen a URL aquí y devuelven `null` para que el conector siga con su URL
+ */
+export function resolverEndpointServicio(conectorId: string, ofertas: OfertaNeurona[], contexto: Contexto): EndpointColocado {
+  const servicioId = SERVICIO_PESADO_DEL_CONECTOR[conectorId];
+  if (!servicioId) return { endpoint: null, destino: "conector-propio", motivo: `«${conectorId}» no lo respalda un servicio pesado del A1: sigue con su endpoint propio.` };
+  const colocacion = colocarServicio(servicioId, ofertas, contexto);
+  const local = (colocacion.donde.tipo === "aparato" || (colocacion.donde.tipo === "capa-publica" && colocacion.donde.id === "oracle-a1"));
+  const instalado = local ? SERVICIOS_INSTALADOS[servicioId] : undefined;
+  return {
+    endpoint: instalado ? `http://${instalado.host}:${instalado.puerto}` : null,
+    destino: colocacion.donde.tipo,
+    motivo: colocacion.motivo,
+  };
+}
+
+const SIN_OFERTAS: OfertaNeurona[] = [];
+const CONTEXTO_DEL_CONECTOR: Contexto = { cuentaId: "" };
 
 /** Comprueba que la integración pueda llamar (habilitada + endpoint). */
 function gate(cfg: IntegrationConfig, fallbackEndpoint?: string): { ok: true; cfg: IntegrationConfig } | { ok: false; error: string } {
@@ -90,7 +136,8 @@ export async function runIntegration(
     if (!desc) return { ok: false, error: `Integración desconocida: "${id}".` };
 
     const effective = cfg ?? loadIntegrationConfig(id);
-    const g = gate(effective, desc.defaultEndpoint);
+    const colocado = resolverEndpointServicio(id, SIN_OFERTAS, CONTEXTO_DEL_CONECTOR);
+    const g = gate(effective, colocado.endpoint ?? desc.defaultEndpoint);
     if (!g.ok) return g;
     const c = g.cfg;
     const a = actionId;
@@ -327,7 +374,12 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
     const effective = cfg ?? loadIntegrationConfig(id);
     // Para test no exigimos enabled=true (queremos poder probar antes de activar),
     // pero sí un endpoint.
-    const endpoint = (effective.endpoint && effective.endpoint.trim()) || desc.defaultEndpoint || "";
+    const colocado = resolverEndpointServicio(id, SIN_OFERTAS, CONTEXTO_DEL_CONECTOR);
+    const endpoint =
+      (effective.endpoint && effective.endpoint.trim()) ||
+      colocado.endpoint ||
+      desc.defaultEndpoint ||
+      "";
     if (!endpoint) return { ok: false, error: "no configurado" };
     const c: IntegrationConfig = { ...effective, endpoint };
 
