@@ -21,6 +21,24 @@ import {
 } from "@/components/creation/creation-config";
 import { BookOpen, Users2, Search, Check } from "lucide-react";
 
+// ── Patrón de accesibilidad de los selectores toggle ─────────────────────────
+
+/**
+ * Atributos aria de un botón que elige UNA opción dentro de un grupo
+ * (radiogroup): el lector de pantalla anuncia qué opción está marcada.
+ */
+export function atributosRadio(activo: boolean): { role: "radio"; "aria-checked": boolean } {
+    return { role: "radio", "aria-checked": activo };
+}
+
+/**
+ * Atributos aria de un botón que activa/desactiva UNA opción sin quitar las
+ * demás (chip de selección múltiple): el lector anuncia «pulsado» o «no pulsado».
+ */
+export function atributosChip(activo: boolean): { "aria-pressed": boolean } {
+    return { "aria-pressed": activo };
+}
+
 // ── Entidades propias (destino "propia") ─────────────────────────────────────
 
 export interface OwnEntityOption {
@@ -100,7 +118,11 @@ export function DestSelector({
 
     return (
         <div className={cn("space-y-3", className)}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div
+                role="radiogroup"
+                aria-label="Destino de la publicación"
+                className="grid grid-cols-2 sm:grid-cols-3 gap-2"
+            >
                 {visible.map((d) => {
                     const Icon = d.icon;
                     const active = value === d.id;
@@ -108,6 +130,7 @@ export function DestSelector({
                         <button
                             key={d.id}
                             type="button"
+                            {...atributosRadio(active)}
                             onClick={() => onChange(d.id)}
                             className={cn(
                                 "flex flex-col items-start gap-1.5 rounded-2xl border p-3 text-left transition-all duration-200 cursor-pointer",
@@ -137,7 +160,11 @@ export function DestSelector({
                             «Crear entidades».
                         </p>
                     ) : (
-                        <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                        <div
+                            role="radiogroup"
+                            aria-label="Páginas y grupos propios"
+                            className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto"
+                        >
                             {own.map((o) => {
                                 const active = ownValue?.entitySlug === o.entitySlug;
                                 const Icon = o.entityType === "group" ? Users2 : BookOpen;
@@ -145,6 +172,7 @@ export function DestSelector({
                                     <button
                                         key={`${o.entityType}-${o.entitySlug}`}
                                         type="button"
+                                        {...atributosRadio(active)}
                                         onClick={() => onOwnChange?.(active ? null : o)}
                                         className={cn(
                                             "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 cursor-pointer",
@@ -180,7 +208,11 @@ export function TipoSelector({ dest, value, onChange, className }: TipoSelectorP
     const tipos = TIPOS_POR_DEST[dest] ?? [];
     if (tipos.length === 0) return null;
     return (
-        <div className={cn("flex flex-wrap gap-1.5", className)}>
+        <div
+            role="radiogroup"
+            aria-label="Tipo de contenido"
+            className={cn("flex flex-wrap gap-1.5", className)}
+        >
             {tipos.map((t) => {
                 const Icon = t.icon;
                 const active = value === t.id;
@@ -189,6 +221,7 @@ export function TipoSelector({ dest, value, onChange, className }: TipoSelectorP
                         key={t.id}
                         type="button"
                         title={t.desc}
+                        {...atributosRadio(active)}
                         onClick={() => onChange(t.id)}
                         className={cn(
                             "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-150 cursor-pointer",
@@ -265,7 +298,7 @@ export function TagSelector({ dest, value, onChange, className }: TagSelectorPro
                 </p>
             )}
 
-            <div className="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto pr-0.5">
+            <div role="group" aria-label="Etiquetas del contenido" className="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto pr-0.5">
                 {visible.map((t) => {
                     const Icon = t.icon;
                     const active = selected.has(t.id);
@@ -274,8 +307,8 @@ export function TagSelector({ dest, value, onChange, className }: TagSelectorPro
                             key={t.id}
                             type="button"
                             title={t.desc}
+                            {...atributosChip(active)}
                             onClick={() => toggle(t.id)}
-                            aria-pressed={active}
                             className={cn(
                                 "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-150 cursor-pointer",
                                 active
