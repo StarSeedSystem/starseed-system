@@ -64,6 +64,14 @@ class ServicioAutodesarrollo(unittest.TestCase):
         self.assertEqual(p["WorkingDirectory"], RAIZ)
         self.assertEqual(p["EnvironmentVariables"]["STARSEED_ROOT"], RAIZ)
         self.assertEqual(p["StandardOutPath"], "/tmp/starseed-autodesarrollo.log")
+        self.assertEqual(p["StandardErrorPath"], "/tmp/starseed-autodesarrollo.log")  # un fallo del ciclo no se pierde
+
+    def test_python3_absoluto_y_ningun_shell_de_por_medio(self):
+        # Un shell en medio rompería el permiso de disco que launchd concede al padre (lanzador-tcc.py).
+        args = self.plist["ProgramArguments"]
+        self.assertTrue(os.path.isabs(args[0]) and args[0].endswith("python3"))
+        for a in args:
+            self.assertFalse(a.endswith(("bash", "zsh")), a)
 
     def test_lanzador_tcc_de_padre_y_rutas_absolutas(self):
         args = self.plist["ProgramArguments"]
