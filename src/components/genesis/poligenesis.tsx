@@ -23,6 +23,7 @@ import { PanelOperaciones } from "./panel-operaciones";
 import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
 
 const SUGERENCIAS = ["Actualiza la descripción para presentar mejor al grupo", "Cambia el color de acento a verde esmeralda", "Crea un agente público que dé la bienvenida a quien llega"];
 
@@ -35,6 +36,9 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
     const [aplicadas, setAplicadas] = useState<Set<string>>(new Set());
     const [aplicando, setAplicando] = useState<string | null>(null);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    // Acceso al panel ProtoGenesis de un encargo (PG1013I): en la entidad el ámbito es de grupo
+    // y manda su gobierno (el rol y el modo que este archivo ya conoce).
+    const [panel, setPanel] = useState<RegistroEncargo | null>(null);
     const puertos = useMemo(() => puertosDelOs(), []);
 
     useEffect(() => {
@@ -75,6 +79,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
 
     useEffect(() => {
         if (!entidad) return;
+        setPanel(null);
         setModo(null);
         void modoDe(entidad).then(setModo);
         void cargarPropuestas();
@@ -219,6 +224,9 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
             {encargos !== null && (
                 <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis para esta entidad">
                     <h2 className="text-base font-semibold">ProtoGenesis de esta entidad</h2>
+                    <p className="text-[11px] text-white/55">
+                        La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.
+                    </p>
                     {encargos.length === 0 ? (
                         <p className="text-[11px] text-white/60">
                             Aún no hay encargos para esta entidad.
@@ -228,7 +236,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     {encargos.map((registro) => {
                         const decision = decisionPara(registro);
                         return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
+                            <li key={registro.encargo.id} className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
                                 <div className="flex-1">
                                     <span className="block truncate">{registro.encargo.intencion}</span>
                                     {registro.plan ? (
@@ -247,11 +255,42 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                                 <span className="text-[10px] text-white/45">
                                     {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                 </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setPanel(registro)}
+                                    aria-label={`Abrir panel de ${ registro.encargo.intencion }`}
+                                    className="shrink-0 cursor-pointer rounded-lg border border-cyan-400/30 px-2 py-1 text-[10px] text-cyan-200 hover:bg-black/30"
+                                >
+                                    Abrir panel
+                                </button>
                             </li>
                         );
                     })}
                         </ul>
                     )}
+                    {panel && entidad ? (
+                        <div className="mt-2 space-y-2">
+                            <PanelProtoGenesis
+                                moleculaId={panel.encargo.moleculaId}
+                                ambito="grupo"
+                                rol={entidad.dueña ? "owner" : entidad.rol}
+                                democratico={modo?.democratico ?? false}
+                                esDueno={entidad.dueña}
+                                plan={panel.plan}
+                                estados={panel.estados}
+                                asignaciones={panel.asignaciones}
+                                autor={panel.encargo.autor}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setPanel(null)}
+                                aria-label="Cerrar panel"
+                                className="cursor-pointer rounded-lg border border-white/15 px-2 py-1 text-[10px] text-white/70 hover:bg-black/30"
+                            >
+                                Cerrar panel
+                            </button>
+                        </div>
+                    ) : null}
                 </section>
             )}
         </section>

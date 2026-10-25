@@ -17,6 +17,7 @@ import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
 
 const AMBITO: Ambito = { tipo: "persona" };
 
@@ -78,6 +79,10 @@ export function MiGenesis() {
         return { modo: d.modo, motivo: d.motivo, borrador: falta ? propuestaMetaGenesis(r.encargo, falta) : null };
     }, []);
 
+    // Acceso al panel ProtoGenesis de un encargo (PG1013I): en Mi Genesis el ámbito es el
+    // personal del encargo y quien manda siempre es el dueño (esDueno true).
+    const [panel, setPanel] = useState<RegistroEncargo | null>(null);
+
     return (
         <section className="space-y-4" data-testid="mi-genesis">
             <div className="flex items-start gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.05] p-3 text-xs text-white/70">
@@ -102,6 +107,9 @@ export function MiGenesis() {
             </section>
             <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
                 <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
+                <p className="text-[11px] text-white/55">
+                    La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.
+                </p>
                 {encargos === null ? (
                     <p className="text-[11px] text-white/50">Cargando encargos…</p>
                 ) : encargos.length === 0 ? (
@@ -113,7 +121,7 @@ export function MiGenesis() {
                     {encargos.map((registro) => {
                         const decision = decisionPara(registro);
                         return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
+                            <li key={registro.encargo.id} className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
                                 <div className="flex-1">
                                     <span className="block truncate">{registro.encargo.intencion}</span>
                                     {registro.plan ? (
@@ -132,11 +140,40 @@ export function MiGenesis() {
                                 <span className="text-[10px] text-white/45">
                                     {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                 </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setPanel(registro)}
+                                    aria-label={`Abrir panel de ${registro.encargo.intencion}`}
+                                    className="shrink-0 cursor-pointer rounded-lg border border-emerald-400/30 px-2 py-1 text-[10px] text-emerald-200 hover:bg-black/30"
+                                >
+                                    Abrir panel
+                                </button>
                             </li>
                         );
                     })}
                     </ul>
                 )}
+                {panel ? (
+                    <div className="mt-2 space-y-2">
+                        <PanelProtoGenesis
+                            moleculaId={panel.encargo.moleculaId}
+                            ambito={panel.encargo.ambito}
+                            esDueno={true}
+                            plan={panel.plan}
+                            estados={panel.estados}
+                            asignaciones={panel.asignaciones}
+                            autor={panel.encargo.autor}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setPanel(null)}
+                            aria-label="Cerrar panel"
+                            className="cursor-pointer rounded-lg border border-white/15 px-2 py-1 text-[10px] text-white/70 hover:bg-black/30"
+                        >
+                            Cerrar panel
+                        </button>
+                    </div>
+                ) : null}
             </section>
         </section>
     );
