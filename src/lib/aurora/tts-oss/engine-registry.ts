@@ -79,6 +79,15 @@ import { getOverrides as getNeuronPersonaOverrides } from "@/lib/astraura/neuron
 // (VZR1011B) Estado SÍNCRONO de Chatterbox (solo memoria de salud, sin red). El
 // cliente es ligero: lo pesado (Gradio) lo carga él con `import()` al hablar.
 import { estadoChatterbox, latenciaMedidaChatterbox } from "@/lib/aurora/tts-oss/chatterbox";
+// (VZR1011C) Regla de licencias NO COMERCIALES en la cadena: el registro jamás
+// ofrece F5-TTS/XTTS-v2/ChatTTS por su cuenta (no están ni en AUTO_ENDPOINT_ORDER
+// ni en el registro plegado), pero si un día un pin o una cadena guardada los
+// colara, esta guardia los aparta salvo licencia aceptada en la casilla.
+import {
+  depsDeNavegador,
+  licenciaAceptadaNoComercial,
+  sinNoComercialesNoAceptados,
+} from "@/lib/aurora/tts-oss/voces-no-comerciales";
 
 // ── Metadatos por motor ──────────────────────────────────────────────────────
 
@@ -886,6 +895,21 @@ export function buildVoiceChain(
     //    cargar el módulo de Kokoro: cero trabajo para quien no lo usa. Quien
     //    eligió Kokoro a propósito ya lo tiene en la cadena por el paso 2.
     if (chain.length) push("kokoro");
+
+    // (VZR1011C) GUARDIA DE LICENCIAS NO COMERCIALES: ChatTTS (solo ficha) y
+    // F5/XTTS sin su casilla aceptada NO quedan en ninguna cadena que salga de
+    // aquí. Ante cualquier fallo de esta guardia, la cadena queda intacta.
+    try {
+      const deps = depsDeNavegador();
+      if (deps) {
+        const aceptadas = (["f5-tts", "xtts-v2"] as const).filter((id) =>
+          licenciaAceptadaNoComercial(id, deps),
+        );
+        return sinNoComercialesNoAceptados(chain, aceptadas) as VoiceChainLink[];
+      }
+    } catch {
+      /* cadena intacta */
+    }
   } catch {
     // Ante cualquier problema, cadena vacía → el navegador habla igual.
     return [];
