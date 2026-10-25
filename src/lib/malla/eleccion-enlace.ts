@@ -19,6 +19,13 @@
  * trozos sale de `fragmentosPorMtu` del propio CAMR y el reparto es proporcional a la capacidad
  * MEDIDA de cada enlace; si un enlace no tiene medida, cuenta como la mediana de los medidos (o
  * todos iguales si no hay ninguna). Nada se inventa: sin medida no se finge velocidad.
+ *
+ * LOCALSEND (§2 de `architecture/repos-libreria-1020d.md`): su protocolo v2 (multidifusión y un
+ * HTTPS propio de cada aparato) solo existe en la app nativa y en los servidores —un navegador no
+ * lo habla—, solo dentro de la red local y solo para ARCHIVOS. Un enlace local con
+ * `protocolo: "localsend"` se descarta para mensajes y flujos, si no se declara el medio emisor
+ * (nada se supone) y, para datos privados, si el destino no es de la misma cuenta ni hay vínculo
+ * consentido. El motivo del descarte lo dice.
  */
 
 import { fragmentosPorMtu } from "@/ai/astraura/mesh/camr/planificador";
@@ -28,6 +35,12 @@ import type { Medio } from "./cristal/tipos";
 
 export type TipoEnlace = "local" | "cuenta" | "par" | "rele" | "lora";
 export type ClaseEnvio = "mensaje" | "archivo" | "flujo";
+
+/** Protocolo con el que habla el enlace. Ausente = «starseed», el de siempre. */
+export type ProtocoloEnlace = "starseed" | "localsend";
+
+/** Dónde corre el extremo que envía. LocalSend solo existe en la app nativa y los servidores. */
+export type MedioEmisor = "navegador" | "app-nativa" | "servidor";
 
 /** LoRa (Meshtastic) lleva ~230 B por paquete; dejamos margen para la cabecera del OS. */
 export const LORA_MAX_BYTES = 200;
@@ -72,6 +85,10 @@ export interface EnlaceDisponible {
   /** Tamaño máximo de un envío por este enlace (bytes). */
   maxBytes?: number;
   admite: Record<ClaseEnvio, boolean>;
+  /** Protocolo del enlace (ausente = StarSeed). LocalSend solo vale como enlace local de archivos. */
+  protocolo?: ProtocoloEnlace;
+  /** Vínculo aceptado con un gesto en persona (código/QR): consentimiento para ESE enlace. */
+  consentido?: boolean;
 }
 
 export interface EnlaceElegido {
@@ -152,6 +169,52 @@ function compararNumero(a: number | null | undefined, b: number | null | undefin
 }
 
 /**
+ * Por qué este enlace LocalSend no puede llevar el envío (null = sí puede). Puro.
+ * LocalSend v2 solo vale por un enlace local, solo para archivos, solo desde la app nativa o un
+ * servidor, y lo privado solo a la misma cuenta o por un vínculo consentido.
+ */
+export function motivoNoLocalSend(
+  e: EnlaceDisponible,
+  clase: ClaseEnvio,
+  opciones?: Pick<OpcionesEleccion, "clase" | "medioEmisor" | "miUid">,
+): string | null {
+  if (e.protocolo !== "localsend") return null;
+  if (e.tipo !== "local") return "LocalSend solo vale por un enlace local";
+  if (clase !== "archivo") {
+    return clase === "flujo"
+      ? "LocalSend no lleva audio ni vídeo: solo archivos"
+      : "LocalSend solo lleva archivos, no mensajes";
+  }
+  if (opciones?.medioEmisor !== "app-nativa" && opciones?.medioEmisor !== "servidor") {
+    return "LocalSend solo desde la app nativa o un servidor: un navegador no habla su protocolo";
+  }
+  const privado = opciones?.clase === "privado" || opciones?.clase === "interno";
+  if (privado) {
+    const mismaCuenta = !!opciones?.miUid && e.alcanza.uid === opciones.miUid;
+    if (!mismaCuenta && !e.consentido) {
+      return "lo privado por LocalSend solo va a aparatos de la misma cuenta o con vínculo consentido";
+    }
+  }
+  return null;
+}
+
+/** Frase corta y honesta del enlace LocalSend cuando sí vale. */
+export function motivoLocalSend(e: EnlaceDisponible): string {
+  return e.consentido
+    ? "LocalSend por la red local (vínculo consentido): solo archivos"
+    : "LocalSend por la red local (solo archivos; app nativa o servidor)";
+}
+
+export interface OpcionesEleccion {
+  clase?: "interno" | "privado" | "publico";
+  /** Dónde corre este extremo. Sin declararlo, LocalSend no se usa: no se supone. */
+  medioEmisor?: MedioEmisor;
+  /** Cuenta de este aparato, para reconocer «misma cuenta» en LocalSend. */
+  miUid?: string;
+  puntuar?: (e: EnlaceDisponible) => number;
+}
+
+/**
  * elegirEnlaces — candidatos ORDENADOS para un envío de `clase` y `bytes` a `destino`, con el
  * motivo de cada descarte (para decirlo en la interfaz). Pura y determinista.
  */
@@ -160,10 +223,7 @@ export function elegirEnlaces(
   destino: DestinoTransporte,
   clase: ClaseEnvio,
   bytes = 0,
-  opciones?: {
-    clase?: 'interno' | 'privado' | 'publico';
-    puntuar?: (e: EnlaceDisponible) => number;
-  }
+  opciones?: OpcionesEleccion
 ): Eleccion {
   const elegidos: EnlaceElegido[] = [];
   const descartados: Descartado[] = [];
@@ -205,6 +265,11 @@ export function elegirEnlaces(
       descartar("no está abierto ahora");
       continue;
     }
+    const noLocalSend = motivoNoLocalSend(e, clase, opciones);
+    if (noLocalSend) {
+      descartar(noLocalSend);
+      continue;
+    }
     if (!e.admite[clase]) {
       descartar(
         clase === "flujo"
@@ -223,7 +288,11 @@ export function elegirEnlaces(
       descartar(`el envío (${bytes} B) supera lo que lleva este enlace (${e.maxBytes} B)`);
       continue;
     }
-    elegidos.push({ enlace: e, rango: rangoEnlace(e), motivo: motivoRango(e) });
+    elegidos.push({
+      enlace: e,
+      rango: rangoEnlace(e),
+      motivo: e.protocolo === "localsend" ? motivoLocalSend(e) : motivoRango(e),
+    });
   }
    // Si se especificó una función de puntuar en opciones, usamos un comparador que
    // primero ordena por rango, luego por la puntuación dentro del mismo rango
