@@ -56,6 +56,102 @@ def leer_json(ruta, por_defecto):
         return por_defecto
 
 
+def resolver_marcas(texto):
+    """Une las dos partes de cada bloque de conflicto en una sola lista de líneas.
+
+    Pura: sin disco, sin red, sin reloj. Para cada conflicto (`<<<<<<<` …
+    `=======` … `>>>>>>>`) conserva TODAS las líneas de las dos partes, una sola
+    vez si están repetidas, y en orden de aparición (la parte de HEAD primero).
+    Borra solo las propias marcas, incluida la basura que quedan las fusiones
+    apiladas de los salvavidas (separadores o cierres duplicados y huérfanos).
+    Con conflictos anidados resuelve de adentro hacia afuera: cada pasada une
+    los bloques internos y limpia lo que queda suelto, y se repite hasta que no
+    queda ninguna marca.
+    """
+    actual = texto
+    for _ in range(50):
+        unido = _una_pasada(actual)
+        if unido == actual:
+            return actual
+        actual = unido
+    return actual
+
+
+def _pares(lineas):
+    """Empareja cada `<<<<<<<` con su `>>>>>>>` por pila (anidación incluida)."""
+    pares = [None] * len(lineas)
+    pila = []
+    for i, linea in enumerate(lineas):
+        if linea.startswith("<<<<<<<"):
+            pila.append(i)
+        elif linea.startswith(">>>>>>>") and pila:
+            pares[pila.pop()] = i
+    return pares
+
+
+def _una_pasada(texto):
+    """Une los bloques internos (los que no contienen otro `<<<<<<<`) y quita
+    las marcas sueltas: separadores sin bloque abierto y cierres sin pareja."""
+    lineas = texto.splitlines(True)
+    pares = _pares(lineas)
+    internos = {
+        inicio
+        for inicio, fin in enumerate(pares)
+        if fin is not None
+        and not any(
+            lineas[k].startswith("<<<<<<<") for k in range(inicio + 1, fin)
+        )
+    }
+    salida, pila = [], []
+    i = 0
+    while i < len(lineas):
+        linea = lineas[i]
+        if linea.startswith("<<<<<<<"):
+            pila.append(i)
+            if i in internos:
+                salida.extend(_union(lineas, i, pares[i]))
+                pila.pop()
+                i = pares[i] + 1
+                continue
+            salida.append(linea)
+        elif linea.startswith(">>>>>>>") and pila:
+            pila.pop()
+            salida.append(linea)
+        elif (linea.startswith("=======") or linea.startswith(">>>>>>>")) and not pila:
+            pass  # marca suelta: basura de fusiones viejas, se quita
+        else:
+            salida.append(linea)
+        i += 1
+    return "".join(salida)
+
+
+def _union(lineas, inicio, fin):
+    """Unión de las dos partes de un bloque (HEAD primero, sin repeticiones)."""
+    sep = next(
+        (k for k in range(inicio + 1, fin) if lineas[k].startswith("=======")),
+        fin,
+    )
+    unidas, vistas = [], set()
+    for lado in range(inicio + 1, sep):
+        unidas = _pasa(lineas[lado], vistas, unidas)
+    for lado in range(sep + 1, fin):
+        unidas = _pasa(lineas[lado], vistas, unidas)
+    return unidas
+
+
+def _pasa(linea, vistas, unidas):
+    if (
+        linea in vistas
+        or linea.startswith("<<<<<<<")
+        or linea.startswith("=======")
+        or linea.startswith(">>>>>>>")
+    ):
+        return unidas
+    vistas.add(linea)
+    unidas.append(linea)
+    return unidas
+
+
 def pedido_de(tareas):
     """El encargo de Alex viene copiado literal dentro del prompt de cada tarea.
 
@@ -155,12 +251,30 @@ def main():
         notas_humanas=[nota] if nota else (),
     )
 
+    # Antes de escribir: si hay marcas en la memoria existente, las resolvemos.
+    contenido_previo = ""
+    if os.path.exists(MEMORIA):
+        with open(MEMORIA, encoding="utf-8") as f:
+            contenido_previo = f.read()
+        contenido_previo = resolver_marcas(contenido_previo)
+
     os.makedirs(os.path.dirname(MEMORIA), exist_ok=True)
     nuevo = not os.path.exists(MEMORIA)
-    with open(MEMORIA, "a", encoding="utf-8") as f:
+    with open(MEMORIA, "w", encoding="utf-8") as f:
         if nuevo:
             f.write(CABECERA)
-        f.write("\n" + texto)
+            contenido_final = texto
+        else:
+            contenido_final = contenido_previo + ("\n" + texto if texto else "")
+        contenido_final = resolver_marcas(contenido_final)
+        f.write(contenido_final)
+
+    # Antes de commitear: nunca se commitea un archivo con marcas.
+    with open(MEMORIA, encoding="utf-8") as f:
+        contenido_commit = f.read()
+    contenido_commit = resolver_marcas(contenido_commit)
+    with open(MEMORIA, "w", encoding="utf-8") as f:
+        f.write(contenido_commit)
 
     commitear_memoria(nombre)
 
