@@ -62,7 +62,18 @@ import {
   type SyncDirection,
 } from "@/lib/brains/servers";
 import { listBackends, saveBackend, deleteBackend, type StorageBackend } from "@/lib/storage/backends";
-import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+import { listMemoryFiles, type MemoryFile } from "@/lib/cerebro/memory-files";
+import { readMirror } from "@/lib/brains/memory-offline";
+import {
+  construirManifiesto,
+  divergencias,
+  huellaContenido as huellaSha256,
+  proponerLimpieza,
+  resumenManifiesto,
+  type CopiaMemoria,
+  type DestinoMemoria,
+  type ManifiestoMemoria,
+} from "@/lib/storage/memoria-manifiesto";
 import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connect";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 // (Ola 374) Google Drive como medio de este cerebro: OAuth con custodia en
@@ -91,6 +102,7 @@ export default function MemorySourcesPanel({
   const [brain, setBrain] = useState<Brain | null>(null);
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState<{ files: number; memories: number }>({ files: 0, memories: 0 });
+  const [archivos, setArchivos] = useState<MemoryFile[]>([]);
   const [obsidian, setObsidian] = useState<StorageBackend[]>([]);
   const [linked, setLinked] = useState<LinkedServer[]>([]);
 
@@ -100,6 +112,7 @@ export default function MemorySourcesPanel({
       const b = brainId ? await getBrain(brainId) : null;
       setBrain(b);
       const files = await listMemoryFiles(brainId);
+      setArchivos(brainId ? files : []);
       let mem = 0;
       try {
         const sb = createClient();
@@ -142,6 +155,7 @@ export default function MemorySourcesPanel({
   return (
     <div className="space-y-4">
       <OsSourceCard files={counts.files} memories={counts.memories} loading={loading} />
+      <CopiasMemoriaCard brainId={brainId} archivos={archivos} />
       <GoogleDriveMemoryCard brainId={brainId} brainName={brainName} />
       <ObsidianCard brainId={brainId} obsidian={obsidian} onChanged={reload} />
       <ExternalServerCard brainId={brainId} linked={linked} onChanged={reload} />
@@ -192,6 +206,132 @@ function OsSourceCard({ files, memories, loading }: { files: number; memories: n
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{files} archivos .md</Badge>
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{memories} memorias</Badge>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Copias reales por contenido (INF1025H · memoria-manifiesto)         */
+/* ------------------------------------------------------------------ */
+
+const DESTINO_DE_FUENTE: Record<string, DestinoMemoria> = {
+  local: "local",
+  starseed: "starseed",
+  gdrive: "gdrive",
+  external: "externo",
+  casaos: "externo",
+  raven: "externo",
+  skales: "externo",
+  tencentdb: "externo",
+  mempalace: "externo",
+};
+
+function copiaDeContenido(
+  cerebroId: string,
+  memoriaId: string,
+  destino: DestinoMemoria,
+  contenido: string,
+  huella: string,
+  actualizadoMs: number | null,
+): CopiaMemoria {
+  const normalizado = (contenido ?? "").replace(/\r\n/g, "\n");
+  return {
+    cerebroId, memoriaId, destino, huella, actualizadoMs,
+    bytes: new TextEncoder().encode(normalizado).byteLength,
+  };
+}
+
+async function copiasDeMemorias(
+  cerebroId: string,
+  archivos: readonly MemoryFile[],
+): Promise<CopiaMemoria[]> {
+  const huellas = await Promise.all(archivos.map((f) => huellaSha256(f.content ?? "")));
+  const copias = new Map<string, CopiaMemoria>();
+  const agregar = (c: CopiaMemoria) => {
+    const k = `${c.memoriaId}\u0000${c.destino}\u0000${c.huella}`;
+    if (!copias.has(k)) copias.set(k, c);
+  };
+  archivos.forEach((f, i) => {
+    const ms = f.updated_at ? Date.parse(f.updated_at) : Number.NaN;
+    const actualizadoMs = Number.isNaN(ms) ? null : ms;
+    const destino = DESTINO_DE_FUENTE[f.source] ?? "externo";
+    agregar(copiaDeContenido(cerebroId, f.id, destino, f.content ?? "", huellas[i], actualizadoMs));
+    // La fila de brain_memory_files es la copia StarSeed; si la memoria declara
+    // otra fuente, esa fuente es una segunda copia de la misma huella.
+    if (destino !== "starseed") {
+      agregar(copiaDeContenido(cerebroId, f.id, "starseed", f.content ?? "", huellas[i], actualizadoMs));
+    }
+  });
+  // El espejo local (memory-offline) es otra copia real: puede estar más nueva
+  // que StarSeed o conservar una memoria que ya no está en la nube.
+  for (const m of readMirror(cerebroId)) {
+    const huella = await huellaSha256(m.content ?? "");
+    const ms = m.updated_at ? Date.parse(m.updated_at) : Number.NaN;
+    agregar(copiaDeContenido(cerebroId, m.id, "local", m.content ?? "", huella, Number.isNaN(ms) ? null : ms));
+  }
+  return [...copias.values()];
+}
+
+function CopiasMemoriaCard({ brainId, archivos }: { brainId: string; archivos: MemoryFile[] }) {
+  const [manifiesto, setManifiesto] = useState<ManifiestoMemoria>([]);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    let vivo = true;
+    setCargando(true);
+    void copiasDeMemorias(brainId, archivos)
+      .then((copias) => { if (vivo) setManifiesto(construirManifiesto(copias)); })
+      .catch(() => { if (vivo) setManifiesto([]); })
+      .finally(() => { if (vivo) setCargando(false); });
+    return () => { vivo = false; };
+  }, [brainId, archivos]);
+
+  const divergentes = useMemo(() => divergencias(manifiesto), [manifiesto]);
+  const propuestas = useMemo(() => proponerLimpieza(manifiesto), [manifiesto]);
+  const resumen = useMemo(() => resumenManifiesto(manifiesto), [manifiesto]);
+  const nombres = useMemo(() => new Map(archivos.map((f) => [f.id, f.name] as const)), [archivos]);
+
+  return (
+    <div className="rounded-xl border border-sky-500/25 bg-sky-950/10 p-4 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <ShieldCheck className="w-4 h-4 text-sky-300" />
+        <span className="text-sm font-semibold text-sky-50">Copias de la memoria</span>
+        {cargando && <Loader2 className="w-3.5 h-3.5 animate-spin text-white/40 ml-auto" />}
+      </div>
+      <p className="text-[11px] text-white/55">
+        {resumen}. Cada copia se reconoce por la huella SHA-256 de su contenido, no por la fecha.
+      </p>
+      {divergentes.length > 0 && (
+        <div className="rounded-lg border border-amber-500/25 bg-amber-950/10 p-2 space-y-1">
+          <p className="text-[11px] font-medium text-amber-200">Divergencias ({divergentes.length})</p>
+          <ul className="space-y-1">
+            {divergentes.map((d) => (
+              <li key={`${d.cerebroId}:${d.memoriaId}`} className="text-[11px] text-white/65">
+                <span className="text-white/85">{nombres.get(d.memoriaId) ?? d.memoriaId}</span>
+                {" · "}
+                {d.empate ? "empate: no se escribe nada" : `gana la más reciente (${d.masNueva?.slice(0, 8)}…)`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {propuestas.length > 0 ? (
+        <div className="rounded-lg border border-amber-500/25 bg-amber-950/10 p-2 space-y-1">
+          <p className="text-[11px] font-medium text-amber-200">
+            Propuestas de limpieza ({propuestas.length}) · requieren confirmación
+          </p>
+          <ul className="space-y-1">
+            {propuestas.map((p) => (
+              <li key={`${p.memoriaId}:${p.destino}:${p.huella}`} className="text-[11px] text-white/65">
+                <span className="text-white/85">{nombres.get(p.memoriaId) ?? p.memoriaId}</span>
+                {" · "}{p.destino} · {p.motivo}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="text-[11px] text-white/40">Sin propuestas de limpieza. Ningún borrado se propaga solo.</p>
+      )}
     </div>
   );
 }
