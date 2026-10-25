@@ -86,6 +86,7 @@ import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
 import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
 import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
+import { montarInterrupcionPorVoz } from "@/lib/aurora/interrumpir-por-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
 import { cronometroHabla, cronometroOido } from "@/lib/aurora/medidas-voz";
@@ -652,6 +653,9 @@ export function useAuroraEngine(): AuroraEngine {
   const [thinking, setThinking] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [interim, setInterim] = useState("");
+  // Última transcripción parcial en REF (la alimenta ambos caminos del STT):
+  // la lee el monitor de interrupción por voz para el veto con `esEcoPropio`.
+  const interimRef = useRef("");
   const [lastReply, setLastReply] = useState("");
   const [actionStatus, setActionStatus] = useState("");
   const [settings, setSettings] = useState<AuroraSettings>({ ...DEFAULT_SETTINGS });
@@ -1393,6 +1397,23 @@ export function useAuroraEngine(): AuroraEngine {
     finishTts();
   }, [finishTts]);
 
+  // ── Interrupción por voz (Ola 1015V) ───────────────────────────────────────
+  // Mientras suena la voz, el monitor abre el micro (con cancelación de eco y
+  // supresión de ruido) y vigila la energía: si la persona habla > 250 ms, se
+  // llama a `interrupt()` (barge-in) y ella calla al instante. Al callar ella,
+  // `speaking` cae y el efecto suelta el micro (el STT recupera su turno).
+  const interruptRef = useRef(interrupt);
+  useEffect(() => { interruptRef.current = interrupt; }, [interrupt]);
+  useEffect(() => {
+    if (!speaking) return;
+    const soltar = montarInterrupcionPorVoz({
+      interrumpir: () => interruptRef.current(),
+      textoAhora: () => interimRef.current || null,
+    });
+    return soltar;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speaking]);
+
   const toggleSpeech = useCallback(() => {
     // Si está hablando y no pausada → pausa; si está pausada → reanuda;
     // si no hay nada en curso → vuelve a leer la última respuesta.
@@ -2132,7 +2153,7 @@ export function useAuroraEngine(): AuroraEngine {
 
       // ── MODO ACTIVO (engaged): conversación normal ──
       touchEngagedRef.current(); // reinicia el temporizador de inactividad
-      if (interimText) setInterim(interimText);
+      if (interimText) { interimRef.current = interimText; setInterim(interimText); }
       if (finalText) {
         setInterim("");
         // ANTI-ECO TARDÍO (2026-09-27): la cola de su propia voz puede llegar
@@ -2251,7 +2272,7 @@ export function useAuroraEngine(): AuroraEngine {
       }
       // ACTIVO: conversación normal.
       touchEngagedRef.current();
-      if (interimText) setInterim(interimText);
+      if (interimText) { interimRef.current = interimText; setInterim(interimText); }
       if (finalText) {
         setInterim("");
         if (esEcoPropio(finalText, Date.now())) return; // ANTI-ECO TARDÍO
