@@ -1,12 +1,12 @@
 /**
- * Sueños profundos · lector y acciones de Genesis (2026-09-29 · SOLO servidor)
+ * Imaginación profunda · lector y acciones de Genesis (2026-09-29 · SOLO servidor)
  * ─────────────────────────────────────────────────────────────────────────────
  * Lee del disco de ESTA máquina (nada de Supabase: el panel no gasta cuota del bus):
  *   · starseed_memory_root/dream/profundo/<fecha>/plan.json            el plan
- *   · starseed_memory_root/dream/profundo/<fecha>/<área>--<lente>.json un informe por sueño
+ *   · starseed_memory_root/dream/profundo/<fecha>/<área>--<lente>.json un informe por área × lente
  *   · starseed_memory_root/dream/profundo/<fecha>/verificaciones.jsonl los veredictos de Claude
  *   · starseed_memory_root/dream/profundo/<fecha>/consolidado.json     el ranking del director
- *   · starseed_memory_root/olas/progreso.json y latidos-*.json         qué se está soñando ahora
+ *   · starseed_memory_root/olas/progreso.json y latidos-*.json         qué se está imaginando ahora
  * y lanza/consolida por la MISMA terminal que usan los supervisores Claude
  * (`python3 scripts/puente/suenos.py …`), para que no haya dos maneras de hacer lo mismo.
  *
@@ -56,7 +56,7 @@ function objeto(v: unknown): Record<string, unknown> {
     return typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 }
 
-/** Fechas de las sesiones de sueños, de la más antigua a la más nueva. */
+/** Fechas de las sesiones de imaginación, de la más antigua a la más nueva. */
 export async function leerSesiones(): Promise<string[]> {
     try {
         return (await readdir(rutas().profundo)).filter((n) => PATRON_SESION.test(n)).sort();
@@ -205,9 +205,9 @@ async function suenosPy(args: string[], timeoutMs: number): Promise<{ ok: boolea
 }
 
 /**
- * Lanza una sesión de sueños. Siempre `--directo`: aquí YA estamos en Genesis, así que
+ * Lanza una sesión de imaginación. Siempre `--directo`: aquí YA estamos en Genesis, así que
  * suenos.py no debe volver a pedírselo por HTTP; decide igual la regla de UN orquestador
- * (tanda viva que sabe soñar → se le añaden las tareas; una vieja → no se lanza otro).
+ * (tanda viva que sabe imaginar → se le añaden las tareas; una vieja → no se lanza otro).
  */
 export async function lanzarSuenos(p: PeticionLanzar): Promise<{ ok: boolean; datos: Record<string, unknown> }> {
     const args = ["lanzar", "--horas", String(p.horas), "--directo", "--por", "mando"];
