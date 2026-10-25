@@ -19,18 +19,20 @@ export type CapaVoz = {
   neurona?: "libre" | "restrictiva";
 };
 
-/**
- * Devuelve el motivo de exclusión para un motor dado.
- */
-export function motivo(r: MotoresResult, id: string): string | undefined {
-  const excluido = r.excluidos.find((e) => e.id === id);
-  return excluido ? excluido.motivo : undefined;
+/** Resultado de qué motores están permitidos y excluidos. */
+export interface MotoresResult {
+  permitidos: string[];
+  excluidos: { id: string; motivo: string }[];
 }
 
 /** Extrae solo los ids permitidos. */
-export function ids(r: MotoresResult): string[] {
-  return [...r.permitidos];
-}
+export const ids = (r: MotoresResult): string[] => [...r.permitidos];
+
+/** Devuelve el motivo de exclusión para un motor dado. */
+export const motivo = (r: MotoresResult, id: string): string | undefined => {
+  const excluido = r.excluidos.find((e) => e.id === id);
+  return excluido ? excluido.motivo : undefined;
+};
 
 /** Lista completa de motores del catálogo con sus clases de licencia. */
 const MOTORES_VOZ: readonly MotorVozCatalogo[] = [
@@ -248,34 +250,29 @@ const MOTORES_VOZ: readonly MotorVozCatalogo[] = [
     claseLicencia: "personal",
     notas: "Estudio de voz con múltiples motores. Requiere 8 GB RAM.",
   },
-};
+];
 
 /** Obtiene el valor normalizado de la capa comunidad desde cualquier key */
-function getComunidadCapa(capas: CapaVoz): "condicionada" | undefined {
+const getComunidadCapa = (capas: CapaVoz) => {
   if (capas.comunidad === "condicionada") return "condicionada";
   if (capas.grupo === "condicionada") return "condicionada";
   if (capas.publico === "condicionada") return "condicionada";
   return undefined;
-}
+};
 
 /** ¿Están cumplidas las condiciones comunidad:"condicionada" o persona:"personal"? */
-function condicionesCumplidas(capas: CapaVoz): boolean {
+const condicionesCumplidas = (capas: CapaVoz) => {
   if (capas.comunidad === "condicionada") return true;
   if (capas.grupo === "condicionada") return true;
   if (capas.publico === "condicionada") return true;
   if (capas.persona === "personal") return true;
   return false;
-}
+};
 
 /** ¿La capa de neurona "libre" está activa? */
-function neuronaLibreActiva(capas: CapaVoz): boolean {
+const neuronaLibreActiva = (capas: CapaVoz) => {
   return capas.neurona === "libre";
-}
-
-/** ¿La capa de neurona "restrictiva" está activa? */
-function neuronaRestrictivaActiva(capas: CapaVoz): boolean {
-  return capas.neurona === "restrictiva";
-}
+};
 
 /**
  * Determina si un motor está permitido para el contexto y capas dados.
@@ -287,7 +284,7 @@ function neuronaRestrictivaActiva(capas: CapaVoz): boolean {
  *   a menos que neurona:"libre" lo impida
  * - voicemorphic, indextts (otros personal-class): nunca permitidos
  */
-function estaPermitido(motorId: string, contexto: string, capas: CapaVoz): boolean {
+const estaPermitido = (motorId: string, contexto: string, capas: CapaVoz) => {
   // kokoro (libre): siempre permitido, bajo cualquier capa
   if (motorId === "kokoro") return true;
 
@@ -296,9 +293,9 @@ function estaPermitido(motorId: string, contexto: string, capas: CapaVoz): boole
   const personaPersonal = capas.persona === "personal";
   const esPersonalCtx = contexto === "personal";
 
-  // supertonic (condicionada): entra si comunidad:"condicionada" está cumplida por cualquier key
+  // supertonic (condicionada): entra si comunidad:"condicionada" está cumplida por alguna key
   if (motorId === "supertonic") {
-    // Si neurona libre está activa, excluye (el motivo dependerá del contexto)
+    // Si neurona libre está activa, excluye
     if (hayNeuronaLibre) return false;
     // Si comunidad:"condicionada" está cumplida por alguna key, entra
     if (comunidadCond) return true;
@@ -306,7 +303,11 @@ function estaPermitido(motorId: string, contexto: string, capas: CapaVoz): boole
   }
 
   // Personal motors: omnivoice, voicemorphic, indextts
-  if (motorId === "omnivoice" || motorId === "voicemorphic" || motorId === "indextts") {
+  if (
+    motorId === "omnivoice" ||
+    motorId === "voicemorphic" ||
+    motorId === "indextts"
+  ) {
     // En contexto personal
     if (esPersonalCtx) {
       // Con capa persona:"personal": omnivoice entra SIEMPRE que neurona no sea "libre"
@@ -325,22 +326,21 @@ function estaPermitido(motorId: string, contexto: string, capas: CapaVoz): boole
     }
 
     // Contexto no personal: los personal motors nunca entran
-    // Pero supertonic puede entrar si comunidad:"condicionada" está cumplida
     return false;
   }
 
   return false;
-}
+};
 
 /**
  * Resuelve qué motores están permitidos y cuáles están excluidos,
  * junto con el motivo de cada exclusión.
  */
-export function motoresPermitidos(
+export const motoresPermitidos = (
   motores: readonly MotorVozCatalogo[],
   contexto: string,
   capas: CapaVoz
-): MotoresResult {
+): MotoresResult => {
   const permitidos: string[] = [];
   const excluidos: { id: string; motivo: string }[] = [];
 
@@ -386,4 +386,4 @@ export function motoresPermitidos(
   }
 
   return { permitidos, excluidos };
-}
+};
