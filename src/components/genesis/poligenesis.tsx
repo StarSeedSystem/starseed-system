@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { CheckCircle2, ExternalLink, Landmark, Loader2, RefreshCw, Users2, Vote } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,12 @@ import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from 
 
 const SUGERENCIAS = ["Actualiza la descripción para presentar mejor al grupo", "Cambia el color de acento a verde esmeralda", "Crea un agente público que dé la bienvenida a quien llega"];
 
+// Panel ProtoGenesis (PG1013H): a demanda, como el resto de lo pesado.
+const PanelProtoGenesis = dynamic(
+    () => import("@/components/protogenesis/panel-protogenesis").then((m) => m.PanelProtoGenesis),
+    { ssr: false },
+);
+
 export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null }) {
     const [lista, setLista] = useState<EntidadGestionable[] | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -35,6 +42,8 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
     const [aplicadas, setAplicadas] = useState<Set<string>>(new Set());
     const [aplicando, setAplicando] = useState<string | null>(null);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    // Encargo cuyo panel ProtoGenesis está abierto (PG1013I).
+    const [panelEncargo, setPanelEncargo] = useState<string | null>(null);
     const puertos = useMemo(() => puertosDelOs(), []);
 
     useEffect(() => {
@@ -78,11 +87,12 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
         setModo(null);
         void modoDe(entidad).then(setModo);
         void cargarPropuestas();
-        // Load encargos for this entity
+        // Load encargos for this entity: las moléculas de la entidad son ámbito «grupo»
+        // y el encargo trae su entidadId (§3 del contrato).
         const almacen = almacenNavegador();
         if (almacen && entidad) {
-            const lista = cargarEncargos(almacen, entidad.id); // Pass the entity's id as moleculaId
-            setEncargos(lista);
+            const todos = cargarEncargos(almacen);
+            setEncargos(todos.filter((r) => r.encargo.ambito === "grupo" && r.encargo.entidadId === entidad.id));
         } else {
             setEncargos([]); // No access to storage or no entidad
         }
@@ -215,10 +225,13 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     </ul>
                 </section>
             ) : null}
-            {/* Nuevo section for ProtoGenesis encargos */}
+            {/* Sección ProtoGenesis de las moléculas de la entidad (PG1013I). */}
             {encargos !== null && (
                 <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis para esta entidad">
-                    <h2 className="text-base font-semibold">ProtoGenesis de esta entidad</h2>
+                    <h2 className="text-base font-semibold">ProtoGenesis de las moléculas de esta entidad</h2>
+                    <p className="text-[11px] text-white/60">
+                        La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.
+                    </p>
                     {encargos.length === 0 ? (
                         <p className="text-[11px] text-white/60">
                             Aún no hay encargos para esta entidad.
@@ -228,7 +241,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     {encargos.map((registro) => {
                         const decision = decisionPara(registro);
                         return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
+                            <li key={registro.encargo.id} className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
                                 <div className="flex-1">
                                     <span className="block truncate">{registro.encargo.intencion}</span>
                                     {registro.plan ? (
@@ -244,6 +257,14 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                                         </span>
                                     ) : null}
                                 </div>
+                                <button
+                                    type="button"
+                                    data-testid="abrir-protogenesis"
+                                    className="cursor-pointer rounded-lg border border-cyan-300/40 px-2 py-1 text-[10px] text-cyan-200 transition-colors duration-200 hover:bg-cyan-500/10"
+                                    onClick={() => setPanelEncargo(registro.encargo.id)}
+                                >
+                                    Abrir ProtoGenesis
+                                </button>
                                 <span className="text-[10px] text-white/45">
                                     {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                 </span>
@@ -252,6 +273,21 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     })}
                         </ul>
                     )}
+                    {panelEncargo && entidad && (() => {
+                        const abierto = encargos.find((r) => r.encargo.id === panelEncargo) ?? null;
+                        // La decisión hereda el gobierno del grupo: su rol y su modo (§3).
+                        return abierto ? (
+                            <div className="mt-2">
+                                <PanelProtoGenesis
+                                    moleculaId={abierto.encargo.moleculaId}
+                                    ambito={abierto.encargo.ambito}
+                                    rol={entidad.dueña ? "owner" : entidad.rol}
+                                    democratico={modo?.democratico ?? false}
+                                    esDueno={entidad.dueña}
+                                />
+                            </div>
+                        ) : null;
+                    })()}
                 </section>
             )}
         </section>

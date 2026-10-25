@@ -27,6 +27,12 @@ const SeccionBotsGenesis = dynamic(
     { ssr: false },
 );
 
+// Panel ProtoGenesis (PG1013H): a demanda, como el resto de lo pesado.
+const PanelProtoGenesis = dynamic(
+    () => import("@/components/protogenesis/panel-protogenesis").then((m) => m.PanelProtoGenesis),
+    { ssr: false },
+);
+
 const SUGERENCIAS = [
     "Pon Decisiones en mi dock",
     "Cambia mi biografía por: tejedora de comunidades",
@@ -56,6 +62,8 @@ export function MiGenesis() {
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    // Encargo cuyo panel ProtoGenesis está abierto (PG1013I).
+    const [panelEncargo, setPanelEncargo] = useState<string | null>(null);
 
     useEffect(() => {
         const almacen = almacenNavegador();
@@ -102,6 +110,9 @@ export function MiGenesis() {
             </section>
             <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
                 <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
+                <p className="text-[11px] text-white/60">
+                    La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.
+                </p>
                 {encargos === null ? (
                     <p className="text-[11px] text-white/50">Cargando encargos…</p>
                 ) : encargos.length === 0 ? (
@@ -113,7 +124,7 @@ export function MiGenesis() {
                     {encargos.map((registro) => {
                         const decision = decisionPara(registro);
                         return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
+                            <li key={registro.encargo.id} className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
                                 <div className="flex-1">
                                     <span className="block truncate">{registro.encargo.intencion}</span>
                                     {registro.plan ? (
@@ -129,6 +140,14 @@ export function MiGenesis() {
                                         </span>
                                     ) : null}
                                 </div>
+                                <button
+                                    type="button"
+                                    data-testid="abrir-protogenesis"
+                                    className="cursor-pointer rounded-lg border border-emerald-300/40 px-2 py-1 text-[10px] text-emerald-200 transition-colors duration-200 hover:bg-emerald-500/10"
+                                    onClick={() => setPanelEncargo(registro.encargo.id)}
+                                >
+                                    Abrir ProtoGenesis
+                                </button>
                                 <span className="text-[10px] text-white/45">
                                     {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                 </span>
@@ -137,6 +156,15 @@ export function MiGenesis() {
                     })}
                     </ul>
                 )}
+                {panelEncargo && (() => {
+                    const abierto = encargos?.find((r) => r.encargo.id === panelEncargo) ?? null;
+                    // Ámbito personal: la persona dueña acepta con dos toques (§2.7).
+                    return abierto ? (
+                        <div className="mt-2">
+                            <PanelProtoGenesis moleculaId={abierto.encargo.moleculaId} ambito={abierto.encargo.ambito} esDueno />
+                        </div>
+                    ) : null;
+                })()}
             </section>
         </section>
     );
