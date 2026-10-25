@@ -114,7 +114,7 @@ const rangoCapa = (capa: CapaVoz): number => {
 export function capaDeMotor(motor: string): CapaVoz {
   const id = (motor ?? "").trim().toLowerCase();
   if (id === "browser" || id === "navegador" || id === "sistema") return "sistema";
-  if (id === "kokoro" || id === "kitten" || id === "chatterbox") return "aparato";
+  if (id === "kokoro" || id === "kitten" || id === "chatterbox" || id === "supertonic") return "aparato";
   if (id === "voice158" || id === "vibevoice" || id === "voicebox") return "neurona-local";
   if (id === "openvoice2" || id === "omnivoice" || id === "voxcpm" || id === "bark" || id === "gpt-sovits") return "spaces";
   return "malla";
@@ -271,14 +271,14 @@ export function elegirMotorVoz(
  * que caben en el presupuesto (por capa y latencia medida), luego los que aún no
  * tienen medida (su sitio original) y al final los que se pasan de presupuesto.
  */
-export function ordenarCadenaPorLatencia(
-  cadena: readonly string[],
+export function ordenarCadenaPorLatencia<T extends string>(
+  cadena: readonly T[],
   medidas: Record<string, MedidaMotorVoz> | null | undefined,
   opciones: OpcionesVoz = {},
-): string[] {
+): T[] {
   const presupuesto = opciones.presupuestoMs ?? PRESUPUESTO_PRIMER_SONIDO_MS;
   if (opciones.modo === "lectura") return [...cadena];
-  const indiceEnCadena = (motor: string): number => cadena.indexOf(motor);
+  const indiceEnCadena = (motor: T): number => cadena.indexOf(motor);
   const candidatos = cadena.map((motor) => ({
     motor,
     capa: capaDeMotor(motor),
@@ -310,7 +310,7 @@ function simularTandas(
   let huecoMaximoMs = 0;
   const tandas: TandaVoz[] = [];
   for (let i = 0; i < trozos.length; i++) {
-    const duracionMs = estimarDuracionMs(trozos[i], null, caracteresPorSegundo);
+    const duracionMs = estimarDuracionMs(trozos[i], caracteresPorSegundo);
     const sintesisMs = i === 0
       ? primerSonidoMs
       : Math.max(1, Math.round(duracionMs * factorTiempoReal));

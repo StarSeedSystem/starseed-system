@@ -1384,6 +1384,11 @@ export function useAuroraEngine(): AuroraEngine {
       .then((m) => { m.abortarSintesisAnteriores(); m.pararLocal(); })
       .catch(() => { /* */ });
     vozRT().detener();
+    // La conversación en vivo registra el corte con SU reloj (≤ 100 ms) y deja
+    // el turno en «escuchando»; sin turno vivo no hay nada que registrar.
+    void import("@/lib/aurora/conversacion-vivo")
+      .then((m) => m.interrumpirConversacionViva())
+      .catch(() => { /* */ });
     pausedRef.current = false;
     pendienteTrasPausaRef.current = null;
     setSpeaking(false);
