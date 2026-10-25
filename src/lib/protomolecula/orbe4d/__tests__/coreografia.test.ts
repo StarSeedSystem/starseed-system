@@ -13,6 +13,7 @@ import {
   periodos,
   registroParaModo,
   registroPorRuta,
+  respiracionDelOrbe,
 } from "../coreografia";
 
 describe("coreografía de la orbe 4D", () => {
@@ -42,6 +43,13 @@ describe("coreografía de la orbe 4D", () => {
     expect(registroParaModo("creando", "genesis")).toBe("alquimia");
     expect(registroParaModo("hablando", "protomolecula")).toBe("astraura");
     expect(registroParaModo("hablando", "malla")).toBe("malla");
+  });
+
+  it("la respiración del orbe sale del registro de movimiento del OS", () => {
+    expect(respiracionDelOrbe("expresiva", "protomolecula")).toEqual({ escala: 1.03, periodoMs: 5400 });
+    expect(respiracionDelOrbe("sobria", "malla")).toEqual({ escala: 1.01, periodoMs: 3500 });
+    expect(respiracionDelOrbe("experimental", "trinity")).toEqual({ escala: 1.03, periodoMs: 4200 });
+    expect(respiracionDelOrbe("expresiva", "protomolecula", true)).toEqual({ escala: 1, periodoMs: 5400 });
   });
 
   it("la energía sube con la atención, la voz y el arrastre y tiene techo φ²", () => {

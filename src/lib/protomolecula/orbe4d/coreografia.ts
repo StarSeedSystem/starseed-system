@@ -13,6 +13,12 @@
  * Colores: SOLO los de la marca (`adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados.
  */
 import { PHI } from "./geometria";
+import {
+  aplicarMovimientoReducido,
+  movimientoDe,
+  type RegistroMovimiento,
+  type SeccionMovimiento,
+} from "@/lib/design/registros-movimiento";
 
 export type IdForma = "semilla" | "merkaba" | "jitterbug" | "teseracto" | "dodecaedro" | "matriz" | "icosaedro" | "modelo";
 export type Registro = "protomolecula" | "trinity" | "astraura" | "genesis" | "malla" | "audiomorphic" | "alquimia" | "exploracion";
@@ -123,6 +129,39 @@ export function registroParaModo(modo: Modo, base: Registro): Registro {
   if (modo === "creando") return "alquimia";
   if (modo === "hablando") return base === "trinity" || base === "protomolecula" ? "astraura" : base;
   return base;
+}
+
+/** El estilo elegido por la persona es el registro de movimiento del OS. */
+const REGISTRO_DE_ESTILO: Record<Estilo, RegistroMovimiento> = {
+  sobria: "sobrio",
+  expresiva: "expresivo",
+  experimental: "experimental",
+};
+
+/** El registro de la orbe se traduce a la sección de movimiento más cercana. */
+const SECCION_DE_REGISTRO: Record<Registro, SeccionMovimiento> = {
+  protomolecula: "protomolecula",
+  trinity: "trinity",
+  astraura: "astraura",
+  genesis: "genesis",
+  malla: "malla",
+  audiomorphic: "astraura",
+  alquimia: "genesis",
+  exploracion: "malla",
+};
+
+/**
+ * Respiración de la orbe con los tokens del OS: la escala y el periodo salen
+ * del registro × sección (`registros-movimiento.ts`), nunca de números sueltos.
+ * Con movimiento reducido la escala queda en 1 (el motor ya no entra en bucle).
+ */
+export function respiracionDelOrbe(
+  estilo: Estilo,
+  registro: Registro,
+  reducido = false,
+): { escala: number; periodoMs: number } {
+  const movimiento = movimientoDe(REGISTRO_DE_ESTILO[estilo], SECCION_DE_REGISTRO[registro]);
+  return (reducido ? aplicarMovimientoReducido(movimiento) : movimiento).respiracion;
 }
 
 /**
