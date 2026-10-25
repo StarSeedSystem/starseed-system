@@ -181,6 +181,39 @@ class Diseno(unittest.TestCase):
         self.assertFalse(C._es_interfaz(""))
 
 
+class InvestigadorDiseno(unittest.TestCase):
+    """(IMG1024D) El rol del agente de referencias de diseño: reglas de licencias, salida y herramientas."""
+
+    ARCHIVOS = {"scripts/puente/agente_referencias_diseno.py": "x", "scripts/puente/vigia_referencias.py": "x"}
+
+    def test_reglas_salida_y_herramientas_propias(self):
+        d = construir("investigador-diseno", archivos=self.ARCHIVOS)
+        t = d["texto"]
+        self.assertIn("El ADN de la identidad manda", t)
+        self.assertIn("Nunca copies obras protegidas", t)
+        self.assertIn("fuentes de pago", t)
+        self.assertIn("CANDIDATA al catálogo", t)
+        self.assertIn("## Salida esperada", t)
+        self.assertIn("referencias-diseno", t)
+        self.assertIn("agente_referencias_diseno.py plan --json", t)
+        self.assertIn("vigia_referencias.py", t)
+        self.assertIn("Jev es consejero", t)
+        self.assertEqual(d["secciones"][:3], ["reglas", "salida", "protocolo"])
+
+    def test_los_demas_roles_no_cambian(self):
+        for rol in ("escritor", "revisor", "analista", "supervisor", "subagente"):
+            t = construir(rol, archivos=self.ARCHIVOS)["texto"]
+            self.assertNotIn("Salida esperada", t, rol)
+            self.assertNotIn("Nunca copies obras protegidas", t, rol)
+            self.assertNotIn("agente_referencias_diseno.py", t, rol)
+
+    def test_compacto_cabe_en_el_encargo(self):
+        d = construir("investigador-diseno", max_chars=1800, excluir=("herramientas", "relevo", "area", "nube"))
+        self.assertLessEqual(d["caracteres"], 1800)
+        self.assertTrue(d["compacto"])
+        self.assertIn("El ADN de la identidad manda", d["texto"])
+
+
 class Deriva(unittest.TestCase):
     """Ninguna regla habla en nombre de un documento que ya no existe."""
 

@@ -10,7 +10,7 @@ texto antes de trabajar: las reglas permanentes que le tocan (con su fuente), c�
 con Jev, las herramientas que tiene con su orden exacta, su área (documentos, rutas y dónde
 vive el código) y por dónde va el relevo. Es compacto a propósito: el contexto es crédito.
 
-  python3 scripts/puente/contexto_agente.py --rol escritor|revisor|analista|supervisor|subagente
+  python3 scripts/puente/contexto_agente.py --rol escritor|revisor|analista|supervisor|subagente|investigador-diseno
                                             [--area mando] [--tarea "…"] [--max 6000]
                                             [--excluir relevo,herramientas] [--json]
 
@@ -29,8 +29,11 @@ RAIZ = os.path.dirname(os.path.dirname(DIRECTORIO))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
-ROLES = ("escritor", "revisor", "analista", "supervisor", "subagente")
+ROLES = ("escritor", "revisor", "analista", "supervisor", "subagente", "investigador-diseno")
 TODOS = ROLES
+#: (IMG1024D) El investigador de referencias de diseño de MetaGenesis (`agente_referencias_diseno.py`):
+#: lo carga el encargo libre de la flota y cualquier IDE o subagente que haga ese papel.
+INVESTIGADOR = ("investigador-diseno",)
 MAX_POR_DEFECTO = 6000
 #: Por debajo de este tope el contexto va COMPACTO: reglas sin su fuente y herramientas sin
 #: explicación (en el prompt de un escritor o de un analista cada carácter se paga).
@@ -100,6 +103,28 @@ REGLAS = [
      "Antes de lanzar una ola verifica que existen los binarios que usa (p. ej. `command -v opencode`); "
      "si una tarea falla 3 veces con el mismo error, paúsala y escala en el canal en vez de reintentar.",
      "memory/aprendizaje-olas.md · 2026-09-16 21:17"),
+    # (IMG1024D) Investigador de referencias de diseño: un profesional del diseño con licencias en regla.
+    ("adn-manda", INVESTIGADOR,
+     "El ADN de la identidad manda: una referencia inspira un patrón (estructura, ritmo, jerarquía, parámetros de "
+     "movimiento), nunca sustituye la paleta, el tipo ni las prohibiciones del ADN.",
+     "memory/diseno/adn/esquema.json"),
+    ("licencias-catalogo", INVESTIGADOR,
+     "Respeta la clase de uso y los canales de cada entrada del catálogo: solo-referencia se estudia y se rehace "
+     "propio, solo-enlace lo abre la persona; nada de scraping, descarga masiva ni lectura automática donde se "
+     "prohíbe; robots.txt y 10 s por dominio siempre.",
+     "architecture/referencias-inspiracion.md · §2"),
+    ("no-copiar", INVESTIGADOR,
+     "Nunca copies obras protegidas: las referencias se citan (título y enlace https) y se estudian; jamás se "
+     "reproducen textos, capturas, logos, marcas ni assets de terceros.",
+     "memory/diseno/estudio-audiovisual/references/licencias-y-guardas.md"),
+    ("sin-fuentes-pagas", INVESTIGADOR,
+     "Nada de fuentes de pago ni archivos de fuentes: solo familias libres (OFL) o servidas por su CSS oficial "
+     "(Fontshare con ITF FFL, nunca empaquetada).",
+     "memory/diseno/estudio-audiovisual/references/licencias-y-guardas.md"),
+    ("candidatas", INVESTIGADOR,
+     "Un sitio nuevo entra como CANDIDATA al catálogo (propuesta «investigacion» con términos y canales por "
+     "verificar), nunca directo; tú no editas el catálogo ni el código.",
+     "architecture/agente-referencias-diseno.md · §5"),
 ]
 
 # ─────────────────────────── reglas de diseño (solo interfaz) ───────────────────────────
@@ -155,9 +180,17 @@ HERRAMIENTAS = [
     ("gitnexus", ("escritor", "revisor", "analista", "subagente"),
      "gitnexus context <símbolo> · gitnexus impact <símbolo> · gitnexus query \"<concepto>\" · gitnexus detect-changes",
      "mapa del código antes que grep a ciegas (Mac, índice en .gitnexus/)", None),
-    ("fuentes", ("escritor", "analista", "supervisor", "subagente"),
+    ("fuentes", ("escritor", "analista", "supervisor", "subagente", "investigador-diseno"),
      "starseed-fuentes buscar <texto>",
      "catálogos de APIs, MCP y patrones antes de inventar uno (Mac)", None),
+    ("referencias-diseno", INVESTIGADOR,
+     "python3 scripts/puente/agente_referencias_diseno.py plan --json",
+     "mapa de proyectos de diseño y referencias elegidas por contexto (sin red ni Jev)",
+     "scripts/puente/agente_referencias_diseno.py"),
+    ("vigia-referencias", INVESTIGADOR,
+     "python3 scripts/puente/vigia_referencias.py",
+     "novedades por los canales permitidos del catálogo (RSS, sitemap, GitHub, npm, Fontshare)",
+     "scripts/puente/vigia_referencias.py"),
     ("decir", ("supervisor", "subagente"),
      "starseed-puente decir \"<texto>\" --de <tú> --tipo aviso|hecho|error",
      "el canal común de Genesis y de los IDE", "scripts/puente/puente.py"),
@@ -190,6 +223,19 @@ ORDEN = {
     "analista": ("reglas", "area", "protocolo", "herramientas"),
     "supervisor": ("reglas", "protocolo", "herramientas", "nube", "area", "relevo"),
     "subagente": ("reglas", "protocolo", "herramientas", "nube", "relevo", "area"),
+    "investigador-diseno": ("reglas", "salida", "protocolo", "herramientas", "area"),
+}
+
+#: Lo que cada rol debe devolver, cuando su salida tiene forma fija (solo los roles que la tienen).
+SALIDAS = {
+    "investigador-diseno": (
+        "## Salida esperada (formato libre, contrato §1)",
+        "JSON `{\"propuestas\": [...]}` con 0–5 propuestas: `tipo` diseno · contenido · investigacion, `titulo` "
+        "≤ 200, `cuerpo` Markdown LIBRE ≤ 8000 (qué, qué patrón de qué referencia, cómo encaja en el ADN, "
+        "variaciones y cómo se verifica), `referencias` [{titulo, url https}] ≤ 20, `archivos` del repo, "
+        "`utilidad` 0–1 e `importancia` baja · media · alta · crítica. Se guarda como fuente «agentes», agente "
+        "«referencias-diseno»: alta y crítica siempre esperan el visto bueno de Alex.",
+    ),
 }
 
 _SECRETOS = [
@@ -295,7 +341,19 @@ def seccion_protocolo(rol, compacto=False):
         lineas = ["## Cómo se decide (protocolo Jev)",
                   "Tus observaciones pasan por un triaje de Jev (¿accionable? p · valor) antes de la síntesis: "
                   "sé concreto y cita archivo:línea; lo genérico se cae. Jev es consejero: si calla, pasa todo."]
+    elif rol == "investigador-diseno":
+        # Al investigador también le llega hecho: el agente ya preguntó a Jev qué va hoy y qué se veta.
+        lineas = ["## Cómo se decide (protocolo Jev)",
+                  "El proyecto de hoy y las referencias ya pasaron por Jev (quien «agente-referencias-diseno»: "
+                  "elige con p ≥ 0,8 y veta lo poco relevante). Tu regla: ADN > relevancia para el contexto > "
+                  "novedad; si dudas entre dos ideas, propón las dos como variaciones. Jev es consejero: si calla, "
+                  "manda la regla."]
     return "\n".join(lineas)
+
+
+def seccion_salida(rol):
+    """Lo que el rol debe devolver (vacío si su salida no tiene forma fija)."""
+    return "\n".join(SALIDAS.get(rol) or ())
 
 
 def seccion_herramientas(rol, existe, compacto=False):
@@ -403,6 +461,7 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
         "area": lambda: seccion_area(area, areas, raices, existe),
         "relevo": lambda: seccion_relevo(leer(RELEVO)),
         "nube": lambda: seccion_nube(oracle),
+        "salida": lambda: seccion_salida(rol),
     }
     partes, puestas, recortadas = [cabecera], [], []
     usado = len(cabecera)
