@@ -12,6 +12,7 @@ import {
     leerVersion,
     validarPatronTag,
     compararVersiones,
+    esConsultable,
     consultarCodeberg,
     rutaTrasladoCodeberg,
     type EstadoActualizacion,
@@ -165,8 +166,14 @@ export async function GET(): Promise<Response> {
             }),
         );
         const datos: Respuesta = { generado: new Date(ahora).toISOString(), fuentes };
-        const completa = fuentes.every(
-            (fuente) => urlDeConsulta(fuente.upstream) === null || fuente.remota !== null,
+        // Consultables por el mismo orden que las entradas: un traslado a
+        // Codeberg cuenta aunque el upstream esté vacío; si su consulta falla,
+        // la respuesta se cachea poco y no 6 h («fallo» ≠ «nada que consultar»).
+        const consultables = entradas.map((entrada) =>
+            esConsultable(entrada.upstream, entrada.payload),
+        );
+        const completa = consultables.every(
+            (consultable, i) => !consultable || fuentes[i].remota !== null,
         );
         caché = { caduca: ahora + (completa ? MS_CACHÉ : MS_CACHÉ_FALLO), datos };
         return Response.json(datos, { headers: { "Cache-Control": "no-store" } });

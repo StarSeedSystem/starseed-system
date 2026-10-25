@@ -121,6 +121,19 @@ export function urlDeConsulta(upstream: string, payload?: PayloadActualizacion):
     return null;
 }
 
+/**
+ * ¿Hay que pedir algo a la red para saber la versión de este upstream?
+ * Un traslado a Codeberg cuenta aunque el upstream esté vacío: la consulta va
+ * a Codeberg, no al upstream viejo. La ruta de actualizaciones lo usa para
+ * no cachear 6 h un fallo de la consulta como si fuera «nada que consultar».
+ */
+export function esConsultable(upstream: string, payload?: PayloadActualizacion): boolean {
+    return (
+        rutaTrasladoCodeberg(payload?.trasladadoA) !== null ||
+        urlDeConsulta(upstream, payload) !== null
+    );
+}
+
 /* ───────────────────── Lectura de la respuesta ───────────────────── */
 
 function esCadena(v: unknown): v is string {

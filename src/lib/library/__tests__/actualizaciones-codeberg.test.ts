@@ -3,7 +3,7 @@
 // gallery-dl en Codeberg NO está verificada: se usa un repo de ejemplo.
 
 import { describe, it, expect } from "vitest";
-import { consultarCodeberg, leerVersion, leerVersionCodeberg, rutaTrasladoCodeberg, urlDeConsulta } from "../actualizaciones";
+import { consultarCodeberg, esConsultable, leerVersion, leerVersionCodeberg, rutaTrasladoCodeberg, urlDeConsulta } from "../actualizaciones";
 
 const TRASLADO = "codeberg:ejemplo/repo-de-ejemplo";
 const URL_RELEASES = "https://codeberg.org/api/v1/repos/ejemplo/repo-de-ejemplo/releases?limit=1";
@@ -76,6 +76,18 @@ describe("la mudanza la siguen las funciones puras", () => {
             version: "v1.28.0",
             fecha: "2026-10-20T10:00:00Z",
         });
+    });
+});
+
+describe("esConsultable", () => {
+    it("el traslado a Codeberg cuenta aunque el upstream esté vacío", () => {
+        expect(esConsultable("", { trasladadoA: TRASLADO })).toBe(true);
+    });
+
+    it("un upstream de GitHub sigue consultable, y una URL ajena o vacía no", () => {
+        expect(esConsultable("https://github.com/ejemplo/repo-de-ejemplo", {})).toBe(true);
+        expect(esConsultable("")).toBe(false);
+        expect(esConsultable("no-es-una-url-de-upstream")).toBe(false);
     });
 });
 
