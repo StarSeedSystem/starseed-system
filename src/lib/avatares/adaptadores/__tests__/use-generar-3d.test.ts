@@ -13,7 +13,7 @@ import { generar3d, prepararGeneracion, useGenerar3d, type Contexto3D, type Depe
 const MAC8: Hierro = { gpu: "apple", ramGB: 8, vramGB: null, blender: true, permiteEspacioHf: true, claveExterna: false };
 const NV16: Hierro = { gpu: "nvidia", ramGB: 64, vramGB: 16, blender: true, permiteEspacioHf: false, claveExterna: false };
 const nv: NeuronaTaller = { id: "nv1", cuenta: "alex", ofrecidaPor: [], hierro: NV16, carga: 0, viva: true };
-const ctx = (o: Partial<Contexto3D> = {}): Contexto3D => ({ destino: "avatar", hierro: MAC8, region: "US", comercial: false, cuenta: "alex", neuronas: [nv], ...o });
+const ctx = (o: Partial<Contexto3D> = {}): Contexto3D => ({ destino: "avatar", hierro: MAC8, region: "US", comercial: false, cuenta: "alex", neuronas: [nv], permiteEspacioHf: true, ...o });
 const img = () => new Blob([new Uint8Array(64)], { type: "image/png" });
 const MESHY: Procedencia = { herramienta: "meshy", licencia: "CC BY 4.0", uso: "atribucion", atribucion: "Modelo 3D generado con Meshy" };
 const ok = (procedencia: Procedencia[] = [MESHY], lods = [120_000, 60_000]): ResultadoTaller => ({ ok: true, glb: img(), lods, procedencia });
@@ -69,6 +69,11 @@ describe("prepararGeneracion", () => {
     expect(conSpace.plan.pasos.find((x) => x.etapa === "generar")?.motor?.remoto).toBe(true);
     expect(conSpace.motivo).toMatch(/^Esta neurona no puede generar en local.*saldría de este aparato\.$/);
     expect(prepararGeneracion(ctx({ destino: "bot", hierro: cpu }), deps()).via).toBe("ninguna");
+  });
+  it("sin permiso de la cuenta no ofrece el Space aunque exista el respaldo, y lo dice", () => {
+    const p = prepararGeneracion(ctx({ permiteEspacioHf: false }), deps({ espacio: async () => ok() }));
+    expect(p.via).toBe("ninguna");
+    expect(p.motivo).toMatch(/versiones públicas .* apagadas/i);
   });
 });
 

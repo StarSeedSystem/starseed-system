@@ -6,11 +6,13 @@
  * Basta de ilusiones: el taller local (servicios/taller-3d, AV1011F) aún no existe, así que por defecto no se
  * conecta; el Space va por POST /api/avatares/espacio-hf y la Biblioteca por la subida de archivos del OS.
  */
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { procedenciaDe } from "@/lib/avatares/adn/canalizacion";
 import { MOTORES_3D } from "@/lib/avatares/adn/motores";
 import type { Destino3D } from "@/lib/avatares/adn/optimizacion";
 import { hierroDeCapacidades } from "@/lib/avatares/adaptadores/reparto-taller";
+import { permiteFotoDePersonas, resolverPermisoEspaciosGuardado } from "@/lib/espacios/permiso-espacios";
+import { miAccesoMetaGenesis } from "@/lib/metagenesis/accesos";
 import { useGenerar3d, type Contexto3D, type Dependencias3D } from "@/lib/avatares/adaptadores/use-generar-3d";
 import { uploadFile } from "@/lib/files/os-files";
 import { saveResource, useSavedLibrary } from "@/lib/library-store";
@@ -52,16 +54,31 @@ export function Generar3D({ destino, contexto, dependencias, etiqueta = "Crear e
   const [img, setImg] = useState<{ blob: Blob; nombre: string } | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [permiso, setPermiso] = useState(false), [personas, setPersonas] = useState(false), [consiente, setConsiente] = useState(false);
+  const [permiteEspacios, setPermiteEspacios] = useState<boolean | null>(null);
   const imagenes = useSavedLibrary().items.filter((r) => r.kind === "image" && r.url);
+  // Permiso POR CUENTA de los Spaces: se lee del aparato y, solo la administración del OS,
+  // lo tiene encendido de origen (decisión de Alex del 2026-10-11). Sin él no se ofrece el Space.
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      let admin = false;
+      try { admin = (await miAccesoMetaGenesis())?.dueno === true; } catch { admin = false; }
+      if (vivo) setPermiteEspacios(resolverPermisoEspaciosGuardado(admin).permitido);
+    })();
+    return () => { vivo = false; };
+  }, []);
   const c = useMemo<Contexto3D>(() => ({
     destino, region: null, comercial: false, cuenta: null, neuronas: null,
     hierro: typeof navigator === "undefined" ? null : hierroDeCapacidades({ platform: navigator.platform, memoryGb: (navigator as Navigator & { deviceMemory?: number }).deviceMemory }),
     ...contexto,
-  }), [destino, contexto]);
+    // El permiso por cuenta SIEMPRE sale del aparato, nunca de quien monta el diálogo.
+    permiteEspacioHf: permiteEspacios === true,
+  }), [destino, contexto, permiteEspacios]);
   const deps = useMemo(() => dependencias ?? dependenciasDelOs(c.cuenta), [dependencias, c.cuenta]);
   const { preparado: p, estado, generar, reiniciar } = useGenerar3d(c, deps);
   const remota = p.via === "remota", ocupado = estado.fase === "generando";
-  const puede = !!img && p.via !== "ninguna" && !ocupado && (!remota || (permiso && (!personas || consiente)));
+  const consentimientoPersonas = permiteFotoDePersonas(permiteEspacios === true, !personas || consiente);
+  const puede = !!img && p.via !== "ninguna" && !ocupado && (!remota || (permiso && consentimientoPersonas));
   const deBiblioteca = async (url: string, nombre: string) => {
     setAviso(null);
     try { const r = await fetch(url); if (!r.ok) throw new Error(String(r.status)); setImg({ blob: await r.blob(), nombre }); }
