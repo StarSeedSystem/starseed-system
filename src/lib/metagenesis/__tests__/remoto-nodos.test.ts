@@ -237,5 +237,8 @@ describe("textoEstadoOrden", () => {
 
     it("estado desconocido se devuelve tal cual", () => {
         expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+        expect(textoEstadoOrden("desconocido")).toBe("desconocido");
+        expect(textoEstadoOrden("")).toBe("");
+        expect(textoEstadoOrden("otro estado")).toBe("otro estado");
     });
 });
