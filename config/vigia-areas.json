@@ -118,7 +118,8 @@
             "mattpocock/skills": "mattpocock/skills",
             "heygen-com/hyperframes": "heygen-com/hyperframes"
         },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
+        "catalogo": "src/ai/astraura/habilidades/ingenieria-a.ts",
+        "nota": "Habilidades de ingeniería de Matt Pocock, divididas en tres tamaños: la tarjeta en ingenieria-a.ts y el resumen/completo también en ingenieria-b.ts."
     }
   ]
 }
