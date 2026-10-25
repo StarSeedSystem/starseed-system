@@ -86,6 +86,10 @@ export interface ContextoDecision {
   ahoraH: number;
   /** Esta neurona es la elegida para «automática solo en esta neurona». */
   esNeuronaElegida: boolean;
+  /** La capa está marcada como «requiere aprobación» (entidad democrática o política del sistema). */
+  requiereAprobacion?: boolean;
+  /** Esa aprobación ya se dio (votación, rol de gestión o eldueño). */
+  aprobada?: boolean;
 }
 
 export type Decision = "aplicar" | "avisar" | "esperar";
@@ -97,6 +101,7 @@ function dentroDeVentana(h: number, v: VentanaHoraria): boolean {
 
 /** Qué hacer con una capa pendiente en ESTA neurona según su política. */
 export function decidirPolitica(p: PoliticaCapa, ctx: ContextoDecision): Decision {
+  if (ctx.requiereAprobacion && !ctx.aprobada) return "esperar"; // sin voto, nada se aplica
   switch (p.modo) {
     case "automatica-todas":
       return "aplicar";
