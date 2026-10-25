@@ -152,11 +152,18 @@ interfaz y apunta a `memory/diseno/`.
 | Mastra — https://github.com/mastra-ai/mastra | agentes y flujos en TS del lado del front |
 | LangGraph.js — https://github.com/langchain-ai/langgraphjs | grafos de agentes con estado |
 | OpenDesign — https://github.com/nexu-io/open-design (variante: https://github.com/manalkaff/opendesign) | espacio de diseño con agentes (piezas gráficas, carteles) |
-| taste-skill — https://github.com/Leonxlnx/taste-skill | criterio estético para agentes (ya en la Biblioteca como `iatool-taste-skill`) |
+| taste-skill — https://github.com/Leonxlnx/taste-skill | criterio de diseño para agentes: inventario de lo propio del sujeto, una dirección elegida a propósito y la lista de «tells» (ya en la Biblioteca como `iatool-taste-skill`, con la versión real y la skill completa en `vendor/habilidades/design-taste-frontend/` y `.agent/skills/`). El ADN manda sobre su estética de la casa |
+| frontend-slides — https://github.com/zarazhangrui/frontend-slides | presentaciones HTML de un solo archivo sobre un escenario 16:9 (`lib-frontend-slides`; skill en `.agent/skills/frontend-slides/`). Alimenta la exportación a HTML de la presentación en vivo |
+| awesome-design-md — https://github.com/VoltAgent/awesome-design-md | 84 análisis de sitios reales en formato DESIGN.md: se estudia el patrón, se descarta la identidad de la marca (`lib-awesome-design-md`; skill propia en `.agent/skills/awesome-design-md/`) |
+| onetake — https://github.com/feitangyuan/onetake | película de producto en una sola toma. PolyForm Noncommercial: solo enlace y método reescrito, nunca instalada para los agentes (`lib-onetake`) |
+| Docusaurus — https://github.com/facebook/docusaurus | sitios de documentación a partir de guías y educación; nada se despliega sin la palabra de Alex (`lib-docusaurus`) |
+| Refine — https://github.com/refinedev/refine | plantilla de paneles y CRUD para apps y widgets, con la telemetría apagada de serie (`lib-refine`) |
 | UI-TARS — https://github.com/bytedance/UI-TARS (escritorio: https://github.com/bytedance/UI-TARS-desktop) | agente que ve y usa la interfaz: verificación de §4 |
 
 Ninguno se instala en el repo sin una tarea propia. El director los propone en el brief y la
-Biblioteca los lista (`packages.ts`, sección «Herramientas de diseño»).
+Biblioteca los lista (`packages.ts`, sección «Herramientas de diseño»). Las cinco filas nuevas y la ampliación de taste-skill
+son de la Ola 1025R (2026-10-25): su contrato, sus riesgos y sus tareas están en el
+apartado «Diseño» de `architecture/repos-libreria-1025.md`.
 
 ## 8. Integración
 

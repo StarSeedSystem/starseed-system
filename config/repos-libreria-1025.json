@@ -1,0 +1,1699 @@
+{
+  "ola": "Ola 1025R · Librería · REP1025A: repos que Alex pidió el 2026-10-25 (agentes, capas, diseño, infra, investigación y cloudflare/computer)",
+  "fecha": "2026-10-25",
+  "principio": "Regla de Alex (2026-10-25): «absolutamente todas las repos y habilidades deben ser integradas en la librería preinstaladas y autoactualizadas». Mismo contrato que las tandas 1020 a 1020d: canal declarado, instalar SOLO registra la ficha, el enlace o el conector (cero descarga, cero ejecución, cero clave) y todo lo que ejecuta código o necesita servidor queda como activación manual explicada en `aviso`. A diferencia de las tandas anteriores, esta SÍ llega al catálogo de la Biblioteca (src/lib/library/repos-1025.ts), a la comprobación de versiones (/api/library/actualizaciones) y a la siembra (SEED_VERSION 17). Cada ficha lleva version_actual, fecha_version y estado comprobados el 2026-10-25. Las tres con `fusionar_en` actualizan una ficha vieja en lugar de crear otra; las cuatro con `id_en_catalogo` ya viven en el catálogo de la Protomolécula (proto-*) y no se duplican.",
+  "regla_capacidad": "Alex, 2026-10-20: lo que requiere más capacidad (RAM, tarjeta gráfica) lo autoadministran la malla local y las capas de conciencia de los servidores públicos (Oracle, Cloud Run y cualquier otro). Tracecat (16 GB) y los motores de Python viven en un servidor que quepa o no se activan; Agent Orchestrator, solo en la Mac; PowerInfer y LlamaFactory, en neuronas con la capacidad medida.",
+  "duplicadas": {
+    "crewAIInc/crewAI": "FUSIONADA con iatool-crewai (packages.ts): conserva su id y su texto del panel de respaldo, y gana versión 1.15.30, canal de versiones y upstream; no se crea lib-crewai en el catálogo. ya existía como iatool-crewai (enlace sin canal de versiones; patrón del panel de respaldo de la puerta 3 en scripts/puente/produccion_panel.py); aquí se añade la ficha con versión real y el encaje como motor invitado por AG-UI, sin sustituir el panel nativo",
+    "opencode (Kilo Code y oh-my-opencode-slim)": "no son duplicados de iatool-opencode: Kilo es una bifurcación y omo-slim un plugin de OpenCode; se registran aparte y la ficha de OpenCode no se toca",
+    "huggingface/transformers": "El OS ya usa transformers.js (huggingface/transformers.js, JavaScript, 4.3.1) desde CDN; es OTRO repo. La biblioteca de Python no estaba en la Biblioteca.",
+    "Leonxlnx/taste-skill": "FUSIONADA con iatool-taste-skill (packages.ts): conserva su id (una prueba exige un único iatool-taste-skill) y gana versión 2.1.5, canal de etiquetas y upstream; no se crea lib-taste-skill en el catálogo. ya existía como `iatool-taste-skill` (kind function, versión 1.0.0 sin seguimiento, capacidad `taste` con `aurora-taste`, y el test herramientas-diseno.test.ts exige un solo `iatool-taste-skill`); aquí se profundiza sin sustituir el id: la ficha lib-taste-skill pasa a ser la que lleva la versión real y el canal de etiquetas, y la capacidad `taste` gana tres tamaños y la skill completa en vendor. Si el integrador prefiere una sola ficha, que fusione ambas conservando el id `iatool-taste-skill`.",
+    "blender/blender": "Ya existe como «repo-blender» (kind project, version 5.2.3, GPL-3.0-or-later, canal tags con patrón ^v5\\.2\\.\\d+$) en src/lib/library/repos-os.ts (rama de la ola 1025B). NO crear otra ficha; la copia homogénea está en `ya_existentes`.",
+    "usestrix/strix": "Ya existe como «iatool-strix» (src/lib/library/packages.ts). Tracecat lo complementa (Strix encuentra, Tracecat orquesta la respuesta): sin cambios en su ficha.",
+    "storytold/figcraft, storytold/gridcraft, storytold/deckcraft, RareDevs/Rare": "Ya están en el catálogo de la Protomolécula (ids proto-figcraft, proto-gridcraft, proto-deckcraft, proto-rare, ola 1025C). Las fichas de aquí son para config/ y no deben duplicarse en packages.ts.",
+    "ItsssssJack/claude-video-2": "Ya constaba en config/referencias-inspiracion.json; aquí gana su ficha de paquete.",
+    "Panniantong/Agent-Reach": "FUSIONADA con iatool-agent-reach (src/lib/library/packages.ts): no se crea otra ficha. La vieja pasa a la versión 1.6.0 con canal de versiones real (upstream, etiquetas) y el aviso de instalación correcto; la ficha lib-agent-reach de este JSON conserva el detalle. ya existía como `iatool-agent-reach` (función de Aurora, sembrada por defecto en `defaults-seed.ts`), como `agent-reach` en `integration-catalog.ts` y en el registro de integraciones, con proxy `/api/agent-reach/[capability]`, cliente y herramientas de Aurora. Aquí se registra la ficha de la Librería con el canal de versiones real y se CORRIGE lo existente: el cliente llama a rutas que el proxy no tiene, el proxy ejecuta órdenes de la v1.5 que ya no existen en la v1.6 y el aviso de instalación manda a `pip install agent-reach` / `npx agent-reach`, y el propio proyecto advierte de que el paquete `agent-reach` de PyPI NO es este (ver contrato §3.1).",
+    "denoland/celld": "No es duplicada de cloudflare/computer, pero es su alternativa sin cuenta de pago: celld (ya en la Librería, config/repos-libreria-1020b.json) corre Workers y Durable Objects en máquinas propias y el repo de Cloudflare lleva un ejemplo (examples/celld, prototipo)."
+  },
+  "fusionadas": {
+    "lib-crewai": "iatool-crewai",
+    "lib-taste-skill": "iatool-taste-skill",
+    "lib-agent-reach": "iatool-agent-reach"
+  },
+  "ya_integradas": {
+    "lib-figcraft": "proto-figcraft",
+    "lib-gridcraft": "proto-gridcraft",
+    "lib-deckcraft": "proto-deckcraft",
+    "lib-rare": "proto-rare"
+  },
+  "excluidas": [],
+  "sugeridas": [
+    {
+      "repo": "crewAIInc/skills",
+      "licencia": "MIT",
+      "claude": "skill",
+      "motivo": "Paquete de 10 habilidades (getting-started, design-agent, design-task, ask-docs, check-crewai-api, build-flow, connect-tools-and-mcp, test-crewai-project, deploy-to-amp, call-deployed-crew) con SKILL.md y references/, y una carpeta `.claude-plugin`. Sirve a Claude Code y a los agentes locales que escriban equipos de CrewAI. No se copió a skills/ porque no es uno de los nueve repos pedidos y hay que leer cada archivo antes de distribuirlo (dos habilidades mencionan código: un BaseLLM de prueba y un cliente Python). Decisión de Alex: añadirlo como décima ficha (recomendado) y que el integrador lo audite."
+    },
+    {
+      "repo": "huggingface/peft",
+      "licencia": "Apache-2.0",
+      "claude": "no",
+      "motivo": "Vía real de fusión de adaptadores LoRA (add_weighted_adapter: linear, svd, ties, dare; exige el mismo modelo base). Propuesta del grupo capas; no se añade sin tu visto bueno."
+    },
+    {
+      "repo": "arcee-ai/mergekit",
+      "licencia": "LGPL-3.0",
+      "claude": "no",
+      "motivo": "Fusión de pesos entre modelos de la misma arquitectura. Solo como programa externo de línea de órdenes, nunca importado. Propuesta del grupo capas."
+    },
+    {
+      "repo": "cloudflare/sandbox-sdk",
+      "licencia": "por comprobar",
+      "claude": "no",
+      "motivo": "Hermano mayor de Cloudflare Computer (contenedores de Cloudflare para agentes, de pago por uso). No se investigó: solo se menciona."
+    },
+    {
+      "repo": "ossu/math",
+      "licencia": "por comprobar",
+      "claude": "no",
+      "motivo": "Hermana de OSSU. existe (HEAD comprobado con git ls-remote el 2026-10-25); licencia y estado sin comprobar. Alex pidió OSSU «para todo el sistema educativo»: computer-science solo cubre informática. Decisión suya si se añaden estas cuatro (misma cadena de importación que INF1025D-F)."
+    },
+    {
+      "repo": "ossu/data-science",
+      "licencia": "por comprobar",
+      "claude": "no",
+      "motivo": "Hermana de OSSU. existe; licencia y estado sin comprobar. Alex pidió OSSU «para todo el sistema educativo»: computer-science solo cubre informática. Decisión suya si se añaden estas cuatro (misma cadena de importación que INF1025D-F)."
+    },
+    {
+      "repo": "ossu/bioinformatics",
+      "licencia": "por comprobar",
+      "claude": "no",
+      "motivo": "Hermana de OSSU. existe; licencia y estado sin comprobar. Alex pidió OSSU «para todo el sistema educativo»: computer-science solo cubre informática. Decisión suya si se añaden estas cuatro (misma cadena de importación que INF1025D-F)."
+    },
+    {
+      "repo": "ossu/precollege-math",
+      "licencia": "por comprobar",
+      "claude": "no",
+      "motivo": "Hermana de OSSU. existe; licencia y estado sin comprobar. Alex pidió OSSU «para todo el sistema educativo»: computer-science solo cubre informática. Decisión suya si se añaden estas cuatro (misma cadena de importación que INF1025D-F)."
+    }
+  ],
+  "ya_existentes": [
+    {
+      "id": "repo-blender",
+      "repo": "blender/blender",
+      "nombre": "Blender",
+      "kind": "project",
+      "canal": "tags",
+      "patron_tag": "^v5\\.2\\.\\d+$",
+      "licencia": "GPL-3.0-or-later (programa aparte, no va dentro del OS; lo que creas con él es tuyo)",
+      "estado": "activo",
+      "version_actual": "5.2.3",
+      "fecha_version": null,
+      "area": [
+        "3d",
+        "protomolecula",
+        "astraura",
+        "estudio",
+        "render",
+        "glb"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "accion": "NO crear ficha nueva: ya existe en src/lib/library/repos-os.ts (comingSoon, corre_aqui false; llega con la ola 1025B, architecture/blender-3d.md). Esta copia solo sirve para que el integrador vea la ficha homogénea.",
+      "que_es": "Suite 3D libre de la Blender Foundation: modelado, materiales, animación y render (Workbench, Cycles, EEVEE) y exportación a GLB.",
+      "nota": "Es un MEDIO por neurona (Mac, escritorio), no una dependencia; un trabajo 3D es un dato con vocabulario cerrado.",
+      "aviso": "346 MB en la Mac (brew install --cask blender); en Linux ARM sin GPU, la distribución trae Blender 4.0 para lotes ligeros.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "recomendada",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "fuente": "src/lib/library/repos-os.ts (ficha repo-blender): Mac con Apple Silicon, macOS 13+; la fecha de la versión no consta en la ficha"
+      }
+    }
+  ],
+  "paquetes": [
+    {
+      "id": "lib-nanobot",
+      "repo": "HKUDS/nanobot",
+      "nombre": "nanobot",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "MIT",
+      "version_actual": "0.3.5",
+      "fecha_version": "2026-09-15",
+      "estado": "activo",
+      "actividad": "Rama principal con commits hasta el 2026-10-25; 4.511 commits, unas 48.000 estrellas; no archivado.",
+      "area": [
+        "agentes",
+        "genesis",
+        "poligenesis",
+        "astraura",
+        "mensajes",
+        "publicaciones"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "que_es": "Agente personal autoalojado en Python (3.11 o más) con interfaz web, terminal y canales de chat (Telegram, Discord, Slack, WeChat, Feishu, correo, Mattermost, Linear, Teams), herramientas, memoria a largo plazo («Dream»), servidores MCP, enrutado de modelos con respaldos, tareas programadas, delegación entre varios agentes y una API compatible con OpenAI (`/v1/chat/completions`).",
+      "nota": "Un MOTOR más para agentes de personas y de grupos que viven en canales externos con tareas programadas (lo que hoy hace Hermes con Telegram). Entra como bot invitado por la puerta «compatible con OpenAI» de Astraura: su API recibe UN solo mensaje de usuario por petición y guarda el historial el servidor, así que el adaptador enviará solo el último mensaje y un identificador de sesión estable. Los modelos, siempre por el enrutador del OS (gratis primero, Jev); nunca claves en el repo. Sin papel en el enjambre de MetaGenesis.",
+      "aviso": "Activación manual en un servidor (A1 o neurona con Python 3.11+), nunca en la Mac con el enjambre escribiendo. Sus herramientas de archivos, shell y web exigen un sandbox sin las carpetas del OS y con la red por lista. El instalador `curl | sh` no se usa (se instala con `uv tool install nanobot-ai` tras leerlo). Sin telemetría propia descrita (Langfuse es opcional y queda apagado). La interfaz web se protege con un token y no se expone fuera de localhost sin endurecerla.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "opcional",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "pyproject.toml de la v0.3.5: Python 3.11+ y 41 dependencias directas; arquitecturas esperadas por ser Python con ruedas estándar, sin comprobar en el A1; RAM por medir"
+      },
+      "grupo": "agentes",
+      "icono": "Bot",
+      "titulo": "agente personal en canales"
+    },
+    {
+      "id": "lib-agent-orchestrator",
+      "repo": "OrchestratorInc/agent-orchestrator",
+      "nombre": "Agent Orchestrator (Orchestrator.inc)",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "Apache-2.0",
+      "version_actual": "0.14.6",
+      "fecha_version": "2026-10-24",
+      "estado": "activo",
+      "actividad": "3.508 commits en la rama principal, unas 13.600 estrellas; versión estable publicada el 2026-10-24.",
+      "area": [
+        "agentes",
+        "metagenesis",
+        "enjambre",
+        "genesis"
+      ],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "si",
+      "que_es": "Espacio de trabajo de escritorio para planificar, ejecutar y supervisar equipos de agentes de código en un proyecto: un orquestador de proyecto reparte tareas a trabajadores (uno por tarea, con su rama, su worktree y su terminal o chat), un tablero derivado del estado de la sesión, la PR, el CI y la revisión («trabajando», «te necesita», «en revisión», «listo para integrar») y un navegador aislado por trabajador. Soporta más de 30 agentes (Claude Code, Codex, Cursor, Aider, Gemini CLI, OpenHands…).",
+      "nota": "Para Alex en la Mac, como tablero de sus PROPIAS sesiones de Claude Code y Codex fuera del enjambre. No sustituye a Genesis ni al enjambre de MetaGenesis, que ya reparten por medios con puertas (tsc, vitest, next build), gobernador de recursos y visto bueno humano. Se toma como referencia de interfaz: estados derivados, reasignar a mitad de sesión e integrar desde la pantalla de revisión (Genesis ya tiene la reasignación y «Tu visto bueno»).",
+      "aviso": "Aplicación de escritorio con demonio local (Electron): no cabe en la Mac de 8 GB con el enjambre escribiendo, y no hay compilación para Linux arm64 (el A1 no la ejecuta). Telemetría con PostHog (identificador de instalación, usuario de GitHub y, si se inicia sesión en AO Cloud, el correo): apagarla en Ajustes > General > Privacidad antes del primer uso; AO Cloud no se usa. Cada trabajador corre con acceso a tus repositorios; los perfiles de navegador con nombre comparten cookies.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "fuente": "README: instaladores DMG (Apple Silicon e Intel), EXE, y AppImage, DEB y RPM solo para Linux x64; sin arm64 en Linux; RAM del demonio y de Electron por medir"
+      },
+      "grupo": "agentes",
+      "icono": "LayoutDashboard",
+      "titulo": "tablero de agentes de código"
+    },
+    {
+      "id": "lib-crewai",
+      "repo": "crewAIInc/crewAI",
+      "nombre": "CrewAI",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "MIT",
+      "version_actual": "1.15.30",
+      "fecha_version": "2026-10-24",
+      "estado": "activo",
+      "actividad": "Versión publicada el 2026-10-24; unas 58.600 estrellas y 2.874 commits.",
+      "area": [
+        "agentes",
+        "astraura",
+        "genesis",
+        "poligenesis",
+        "protogenesis",
+        "protomolecula",
+        "publicaciones",
+        "apps"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "que_es": "Marco de Python (3.10 a 3.13) para equipos de agentes por roles («Crews», con proceso secuencial o jerárquico) y flujos con estado dirigidos por eventos («Flows»: @start, @listen, @router), con memoria, conocimiento, herramientas, MCP y A2A. Tiene una CLI (`crewai create|install|run`) y una integración con el protocolo AG-UI.",
+      "nota": "Motor de producciones de varios pasos con roles fijos y un enrutador: ProtoGenesis (director, agentes por átomo y verificador), publicaciones (investigar, redactar, revisar), creación de apps y widgets (el equipo entrega un UiSpec, que es un dato) y el panel de respaldo de la puerta 3 del director de producción, cuyo patrón ya está adoptado en `produccion_panel.py`. Entra como bot invitado por AG-UI (https público) o desde Python en el A1 o la nube. Los equipos se declaran como datos propios (tarea AGT1025D) para que cualquier motor los ejecute.",
+      "aviso": "Telemetría anónima ACTIVADA por defecto: se apaga con `OTEL_SDK_DISABLED=true` y no se usa nunca `share_crew=True` (envía objetivos, historias y resultados). Lo comercial (AMP, Control Plane) queda fuera. Por defecto usa OpenAI y Serper: se sustituyen por el enrutador del OS. Arrastra chromadb y OpenTelemetry (instalación pesada): solo en el A1 o la nube, no en la Mac de 8 GB.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "opcional",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "pyproject de crewai 1.15.30: Python >=3.10,<3.14 y 32 dependencias directas (incluye chromadb y OpenTelemetry); RAM por medir"
+      },
+      "grupo": "agentes",
+      "icono": "Users",
+      "titulo": "equipos de agentes por roles",
+      "fusionar_en": "iatool-crewai"
+    },
+    {
+      "id": "lib-koog",
+      "repo": "JetBrains/koog",
+      "nombre": "Koog (JetBrains)",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "Apache-2.0",
+      "version_actual": "1.3.0",
+      "fecha_version": "2026-09-23",
+      "estado": "activo",
+      "actividad": "Etiqueta 1.3.0 del 2026-09-23 (publicada en GitHub el día 24); rama develop con commits hasta el 2026-10-13; proyecto incubador de JetBrains.",
+      "area": [
+        "agentes",
+        "apps"
+      ],
+      "efecto": "CATALOGO",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "que_es": "Marco de JetBrains para agentes en Kotlin y Java (JVM, Android, iOS, JS y Wasm): DSL idiomático, flujos en grafo, herramientas MCP, soporte del Agent Client Protocol (ACP), persistencia de estado con reintentos, trazas OpenTelemetry (Langfuse, W&B Weave), historial comprimido, cambio de modelo con el mismo historial, RAG y memoria; integraciones con Spring Boot y Ktor.",
+      "nota": "Hoy el OS no tiene piezas en Kotlin ni en la JVM: no hay hueco para él. Queda como referencia y como motor de agentes de la futura app nativa Android o multiplataforma de StarSeed (agentes locales en el teléfono que hablan con la neurona por el mismo contrato de agente). Mientras no exista esa app: ficha y seguimiento de versiones, sin tareas de código.",
+      "aviso": "Solo ficha. Sin telemetría propia; los exportadores de trazas (Langfuse, Weave) envían datos a terceros y quedan apagados. Requiere JDK 17+ y Kotlin 2.3.10+. No se instala nada en el OS.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "README de la rama develop: JDK 17+, Kotlin 2.3.10+, destinos JVM, JS, WasmJS, iOS y Android; artefacto Maven ai.koog:koog-agents:1.3.0 (Maven Central)"
+      },
+      "grupo": "agentes",
+      "icono": "Box",
+      "titulo": "agentes en Kotlin"
+    },
+    {
+      "id": "lib-kilocode",
+      "repo": "Kilo-Org/kilocode",
+      "nombre": "Kilo Code",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "MIT",
+      "version_actual": "7.8.17",
+      "fecha_version": "2026-10-23",
+      "estado": "activo",
+      "actividad": "Más de 30.500 commits, unas 27.200 estrellas; versión del 2026-10-23 (también en npm como @kilocode/cli 7.8.17).",
+      "area": [
+        "agentes",
+        "metagenesis",
+        "genesis",
+        "poligenesis",
+        "astraura",
+        "enjambre"
+      ],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "que_es": "Agente de código abierto, bifurcación de OpenCode: CLI `kilo` (`kilo run`), extensión de VS Code y plugin de JetBrains; modos Código, Planificar, Preguntar, Depurar y Revisar, agentes a medida, mercado de MCP y más de 500 modelos. Ofrece además servicios en su nube (Kilo Gateway, Cloud Agent, revisiones de código, KiloClaw).",
+      "nota": "Para los agentes de código de MetaGenesis y las demás Genesis: es OpenCode con otra capa, así que como escritor del enjambre no aporta un motor distinto; sería un TERCER tipo de trabajador, compatible con la configuración de opencode, y solo entraría tras la prueba de edición real con contexto de tamaño real (regla §20). Para varios agentes a la vez el OS ya tiene el gobernador de recursos y las colas por medio. En Astraura solo cabe como programa dentro de la computadora aislada de un bot con el permiso de terminal; no como bot invitado.",
+      "aviso": "Trae un paquete de telemetría con PostHog (`packages/kilo-telemetry`) y servicios en la nube que piden cuenta de Kilo: no se usa ninguna cuenta ni el Gateway; los modelos van por nuestros proveedores y las claves con la sintaxis {env:…}. `--auto` desactiva todos los permisos: solo en un árbol de trabajo desechable. La documentación oficial de su telemetría no estaba accesible el 2026-10-25: antes de usarlo hay que localizar su interruptor en el código o bloquear su destino en la salida de red del sandbox.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "README: instalación por npm, pnpm, bun, Homebrew o binarios de GitHub para Windows, macOS y Linux; monorepo de Bun (bun 1.4.4); RAM por medir"
+      },
+      "grupo": "agentes",
+      "icono": "Terminal",
+      "titulo": "agente de código (bifurcación de OpenCode)"
+    },
+    {
+      "id": "lib-oh-my-opencode-slim",
+      "repo": "alvinunreal/oh-my-opencode-slim",
+      "nombre": "oh-my-opencode-slim",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "MIT",
+      "version_actual": "3.0.6",
+      "fecha_version": "2026-10-24",
+      "estado": "activo",
+      "actividad": "Versión del 2026-10-24 (también en npm); unas 9.500 estrellas; 3.014 commits.",
+      "area": [
+        "agentes",
+        "metagenesis",
+        "enjambre"
+      ],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "que_es": "Complemento (plugin) de OpenCode que añade una suite de agentes especializados (Orchestrator, Explorer, Oracle, Council, Librarian, Designer, Fixer y Observer opcional), subagentes en segundo plano, presets de modelos por rol, paneles de terminal (tmux, Zellij, kitty, WezTerm…), MCP integrados (context7 y gh_grep), búsqueda web con Exa y un mercado de agentes.",
+      "nota": "Evaluado para la configuración de opencode del enjambre de MetaGenesis: NO la mejora y sí la complica. El enjambre ya reparte modelos, proveedores y cupos por su cuenta y exige un solo escritor por árbol de trabajo; el plugin añade subagentes en paralelo que se saltan el gobernador de recursos, un Council que llama a varios modelos a la vez, MCP que gastan contexto en cada turno y fija @opencode-ai/plugin 1.18.32 (la documentación de la orquestación da opencode 1.2.15 para la Mac, por verificar con `opencode --version`; el A1 usa 1.18.33). Se toman ideas (presets por rol como datos, jurado de revisores para cambios de riesgo, subagentes que no preguntan al usuario), no el plugin. Una guardia (tarea AGT1025E) avisa si alguien lo añade al opencode.json del enjambre.",
+      "aviso": "No se instala en `~/.config/opencode/` del enjambre. Su instalador añade el plugin a `opencode.json`, crea su propia configuración y propone variables de entorno (`OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS`, `OPENCODE_ENABLE_EXA`); `bunx` o `npx …@latest` ejecutan código de terceros; context7, grep.app y Exa reciben las consultas. Su README invita a «pegar este enlace en cualquier agente para que lo instale»: ningún agente del OS lo sigue. La configuración de proyecto se hereda de carpetas superiores: solo en repositorios de confianza.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos"
+        ],
+        "fuente": "package.json v3.0.6: depende de @opencode-ai/plugin y @opencode-ai/sdk 1.18.32 exactos; se ejecuta con Bun o Node; no se instala en el enjambre"
+      },
+      "grupo": "agentes",
+      "icono": "Workflow",
+      "titulo": "plugin de OpenCode (solo ideas)"
+    },
+    {
+      "id": "lib-deepcode",
+      "repo": "HKUDS/DeepCode",
+      "nombre": "DeepCode",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "MIT",
+      "version_actual": "2.3.1",
+      "fecha_version": "2026-10-12",
+      "estado": "activo",
+      "actividad": "Versión del 2026-10-12 (PyPI deepcode-hku 2.3.1); unas 16.600 estrellas y 513 commits.",
+      "area": [
+        "agentes",
+        "astraura",
+        "protomolecula",
+        "publicaciones",
+        "apps",
+        "metagenesis"
+      ],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "que_es": "Agente de programación abierto del laboratorio de datos de la Universidad de Hong Kong (nació como Paper2Code): un servicio local único con terminal (TUI), escritorio, navegador y modos sin interfaz (`deepcode exec`, `deepcode loop`, automatizaciones programadas); cliente MCP (stdio, SSE y HTTP), Skills, subagentes (puede delegar en Codex o Claude Code instalados) y tres modos de permiso: Preguntar, Solo lectura y Acceso total.",
+      "nota": "El agente de código de las creaciones con programa: apps completas, backends y publicaciones con código, y los átomos de la Protomolécula que pidan código. Corre dentro de la computadora aislada de un bot de Astraura (A1 → neurona con Docker → GitHub Actions) o en un sandbox de Cloudroom, y su salida es siempre un CANDIDATO (carpeta o rama) que revisan las puertas y una persona: en el OS nada generado se ejecuta, la interfaz es un dato (UiSpec). Como escritor del enjambre solo entra tras la prueba §20; su modo `exec` encaja con tareas sin interfaz.",
+      "aviso": "Edita archivos y ejecuta órdenes: siempre en modo «Preguntar» (nunca «Acceso total», que quita el sandbox), en un proyecto marcado de confianza y en un entorno desechable. Su documento de privacidad y diagnósticos no se pudo leer en esta sesión: leerlo antes de la primera ejecución. Las claves van como variables de entorno, nunca en un chat. Instalación manual: `uv tool install --python 3.12 deepcode-hku`.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "opcional",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "README de la v2.2/2.3: Python 3.12+ con uv; Node 22+ solo para el escritorio; sandbox de plataforma, sin Docker obligatorio; RAM por medir"
+      },
+      "grupo": "agentes",
+      "icono": "BrainCircuit",
+      "titulo": "agente de programación"
+    },
+    {
+      "id": "lib-klavis",
+      "repo": "Klavis-AI/klavis",
+      "nombre": "Klavis (Strata y servidores MCP)",
+      "kind": "tool",
+      "canal": "commits",
+      "licencia": "Apache-2.0",
+      "version_actual": "commit 45c9f7d (Open Strata 1.0.2)",
+      "fecha_version": "2026-06-01",
+      "estado": "activo",
+      "actividad": "Último commit el 2026-06-01 (casi cinco meses); 1.328 commits; la última etiqueta (v1.0.1) es de 2025-06-20, por eso se sigue por commits; strata-mcp 1.0.2 en PyPI (2025-10-28).",
+      "area": [
+        "agentes",
+        "mcp",
+        "astraura",
+        "genesis",
+        "metagenesis",
+        "protomolecula",
+        "publicaciones",
+        "apps"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "mcp",
+      "que_es": "Plataforma de MCP con tres partes: Strata (un servidor MCP que enseña al modelo solo unas pocas herramientas y descubre el resto de forma progresiva: descubrir acciones, ver detalle, ejecutar, buscar documentación y gestionar fallos de autorización), más de 100 servidores MCP preparados con OAuth (imágenes Docker) y un servicio alojado de pago o con clave. Open Strata (`strata-mcp`, Apache-2.0, Python 3.10+) es la versión local.",
+      "nota": "El patrón del «MCP autoadaptable en cualquier medio de IA y creación»: el OS lo implementa como módulo propio (descubrimiento progresivo con BM25 y presupuesto de contexto según el medio: AGT1025B y C) para su servidor MCP de Genesis, el Taller y los modelos pequeños de las capas autoadaptables. Open Strata queda como agregador opcional autoalojado (A1 o Mac) para los MCP que ya usan opencode, Claude y Hermes. Los servidores con OAuth y la API alojada de Klavis no se usan sin la palabra de Alex.",
+      "aviso": "Instalar Strata es manual (`pipx install strata-mcp`) y ejecuta los MCP que se le añadan (órdenes `npx` o stdio de terceros): cada servidor se revisa antes. La API alojada y su OAuth entregan tokens de tus servicios (Gmail, Drive, Notion…) a un tercero. En el código de Open Strata no apareció telemetría (búsqueda de posthog, telemetry y sentry sin resultados), pero no se ejecutó.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "opcional",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "pyproject de open-strata (strata-mcp 1.0.2): Python >=3.10; los servidores MCP de Klavis se publican como imágenes Docker en ghcr.io (arquitecturas por comprobar); RAM por medir"
+      },
+      "grupo": "agentes",
+      "icono": "Network",
+      "titulo": "MCP de descubrimiento progresivo"
+    },
+    {
+      "id": "lib-awesome-llm",
+      "repo": "hannibal046/Awesome-LLM",
+      "nombre": "Awesome-LLM",
+      "kind": "link",
+      "canal": "commits",
+      "licencia": "CC0-1.0",
+      "version_actual": "commit 538eed0",
+      "fecha_version": "2025-07-31",
+      "estado": "activo",
+      "actividad": "Parado: sin commits desde el 2025-07-31 (casi quince meses); 544 commits, unas 27.500 estrellas; los artículos clave llegan hasta enero de 2025.",
+      "area": [
+        "agentes",
+        "catalogo",
+        "astraura",
+        "genesis"
+      ],
+      "efecto": "CATALOGO",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "que_es": "Lista curada de recursos sobre grandes modelos de lenguaje: artículos clave, clasificaciones, modelos abiertos, datos, evaluación, marcos de entrenamiento e inferencia, aplicaciones, tutoriales y libros. Licencia CC0.",
+      "nota": "Catálogo de consulta para que los agentes (Taller, Genesis, Astraura) encuentren marcos, modelos y lecturas, junto a los seis catálogos que ya indexa `starseed-fuentes` (awesome-llm-apps cubre mejor los agentes). No tiene sección propia de agentes: sus aplicaciones apuntan a dspy, LangChain y LlamaIndex. Solo ficha y seguimiento por commits.",
+      "aviso": "Es un listado: no ejecuta nada. Está parado desde julio de 2025; para novedades de agentes valen awesome-llm-apps, awesome-mcp-servers y la vigía de modelos del OS.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "Solo enlaces y Markdown (28 archivos en el repositorio): no se ejecuta ni se descarga nada"
+      },
+      "grupo": "agentes",
+      "icono": "BookOpen",
+      "titulo": "mapa de recursos de LLM"
+    },
+    {
+      "id": "lib-powerinfer",
+      "repo": "Tiiny-AI/PowerInfer",
+      "nombre": "PowerInfer · inferencia dispersa para equipos modestos",
+      "kind": "ai-source",
+      "canal": "commits",
+      "licencia": "MIT",
+      "version_actual": "sin versiones publicadas (sin tags ni releases) · HEAD 8bd56d6",
+      "fecha_version": "2026-05-11",
+      "estado": "activo",
+      "area": [
+        "astraura",
+        "capas-de-conciencia",
+        "genesis",
+        "metagenesis",
+        "poligenesis",
+        "cerebros",
+        "recursos-ia",
+        "servidores",
+        "neuronas",
+        "modelos-locales",
+        "malla"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "externalUrl": "https://github.com/Tiiny-AI/PowerInfer",
+      "que_es": "Motor de inferencia local derivado de llama.cpp que aprovecha que en un modelo disperso solo se activa una parte de las neuronas: las «calientes» van a la GPU y las «frías» a la CPU (v1, 2023-24), y, en su carpeta smallthinker/, un motor para modelos MoE que guarda en RAM solo los expertos usados y lee el resto del disco con una caché LRU. Trae núcleos NEON con dotprod (ARM) y AVX2/AVX-512 (x86), compilación para Android (Snapdragon 8 Elite), Raspberry Pi 5 y RK3588, y un servidor compatible con OpenAI (llama-server).",
+      "nota": "Alex pidió usarlo para que las capas de conciencia de Astraura corran modelos mayores en equipos con pocos recursos. Lo comprobado: solo acelera modelos entrenados para ser dispersos (ReLU/ReGLU/ReLU² en la v1; SmallThinker 4B-A0.6B y 21B-A3B, Apache-2.0, en inglés según su ficha). No acelera BitNet ni Ternary Bonsai (otros núcleos). En Mac (Metal) no tiene operadores dispersos. Entra como runtime «powerinfer» del catálogo de Recursos de IA (estado en-pruebas), como motor opcional del servidor propio de IA (puerto 8794 propuesto) y como candidato para el banco de capas; no se promueve sin ganar en español a Ternary Bonsai 2.",
+      "aviso": "Compilarlo es manual (CMake; SmallThinker pide clang-21 y mold, y el NDK de Android para móviles) y lo coloca la bolsa de recursos, nunca la Mac de 8 GB con el enjambre encendido ni el A1 sin liberar antes RAM (según el plan de oracle-nube.md le quedan ~1,4 GB libres y el modelo pequeño ocupa 2,3 GB). El modo de memoria limitada usa libaio/io_uring: solo Linux y Android. Los modelos dispersos publicados son en inglés: el español hay que medirlo antes de usarlos. El repo no publica versiones: la comprobación sigue el último commit y casi todo el código tiene más de un año.",
+      "requisitos": {
+        "ram_gb": 4,
+        "vram_gb": null,
+        "gpu": "no (SmallThinker); opcional NVIDIA/AMD solo en el motor v1",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux"
+        ],
+        "fuente": "README de smallthinker/ (tabla de velocidad del autor: Raspberry Pi 5, RK3588, i9-14900, Snapdragon 8 Elite), CMake del repo (Arch.cmake, libaz/aarch64/gemv.cpp con NEON+dotprod), tamaños y SHA de los GGUF leídos de la API de Hugging Face el 2026-10-25. Sin ejecutar el código: ARM del A1 y x86 AVX-512 del contenedor sin medir."
+      },
+      "grupo": "capas",
+      "icono": "Gauge",
+      "titulo": "inferencia dispersa"
+    },
+    {
+      "id": "lib-llamafactory",
+      "repo": "hiyouga/LlamaFactory",
+      "nombre": "LlamaFactory · afinado de modelos por ámbito",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "Apache-2.0",
+      "version_actual": "v0.9.5 (main avanza: 2026-10-21)",
+      "fecha_version": "2026-05-30",
+      "estado": "activo",
+      "area": [
+        "astraura",
+        "capas-de-conciencia",
+        "genesis",
+        "metagenesis",
+        "poligenesis",
+        "cerebros",
+        "recursos-ia",
+        "agentes",
+        "grupos",
+        "paginas",
+        "comunidades",
+        "aprendizaje",
+        "modelos-locales"
+      ],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "externalUrl": "https://github.com/hiyouga/LlamaFactory",
+      "que_es": "Entorno de afinado de más de 100 modelos de lenguaje y visión: preentrenamiento, SFT, modelos de recompensa, PPO, DPO, KTO, ORPO y SimPO; con LoRA, QLoRA, OFT, DoRA y afinado completo; por línea de órdenes (llamafactory-cli train, export, chat, api) o por la interfaz web LLaMA Board. Fusiona el adaptador en el modelo base al exportar.",
+      "nota": "Alex pidió usarlo para el autodesarrollo de las capas de conciencia colectiva: personalizar cada modelo privado o público de grupos y páginas. Encaja como la «fábrica» externa de adaptadores de modelos convencionales (Qwen, Gemma, MiniCPM…) sobre GPU gratuita, con la receta y el conjunto de datos generados por el OS como datos (YAML y JSON). La valoración de pulgar arriba o abajo de Astraura es justo el formato KTO. No registra BitNet, Bonsai ni Needle: para ellos siguen QVAC (LoRA sobre el GGUF ternario), onebitllms y `needle finetune`.",
+      "aviso": "Jamás se enciende su interfaz web en una máquina con datos: escucha en 0.0.0.0 por defecto, abre el navegador y fuerza trust_remote_code=True (ejecuta código del repositorio del modelo); los ejemplos oficiales también lo ponen en true. El servidor `llamafactory-cli api` escucha en 0.0.0.0:8000 sin clave si no hay API_KEY. Se usa solo la línea de órdenes, con trust_remote_code: false y report_to: none, en una GPU gratuita de Alex (Kaggle o Colab) y con el corpus ya filtrado. Fija transformers ≤ 5.8.0 (hoy 5.20.2), peft 0.18.x, trl ≤ 0.24 y Python ≥ 3.11: entorno propio. Lo privado nunca viaja a esa GPU.",
+      "requisitos": {
+        "ram_gb": 16,
+        "vram_gb": 6,
+        "gpu": "recomendada (CUDA; también ROCm, XPU y Ascend NPU)",
+        "docker": "opcional",
+        "arquitecturas": [
+          "amd64"
+        ],
+        "so": [
+          "linux",
+          "windows"
+        ],
+        "fuente": "Tabla «Hardware Requirement» del README (estimada por el autor): LoRA 16 bits ≈ 2×B GB (7B: 16 GB), QLoRA 4 bits ≈ B/2 GB (7B: 6 GB). El código detecta MPS (Apple) pero el README no lo anuncia y QLoRA depende de bitsandbytes: la Mac de 8 GB y el A1 no son medios de afinado. Sin ejecutar el código."
+      },
+      "grupo": "capas",
+      "icono": "FlaskConical",
+      "titulo": "afinado de modelos"
+    },
+    {
+      "id": "lib-transformers",
+      "repo": "huggingface/transformers",
+      "nombre": "Transformers · definición de modelos, cuantización y servidor",
+      "kind": "ai-source",
+      "canal": "releases",
+      "licencia": "Apache-2.0",
+      "version_actual": "v5.20.2",
+      "fecha_version": "2026-10-19",
+      "estado": "activo",
+      "area": [
+        "astraura",
+        "capas-de-conciencia",
+        "genesis",
+        "metagenesis",
+        "poligenesis",
+        "cerebros",
+        "recursos-ia",
+        "agentes",
+        "enjambre",
+        "servidores",
+        "neuronas",
+        "modelos-locales",
+        "fusion-de-modelos"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "externalUrl": "https://github.com/huggingface/transformers",
+      "que_es": "Biblioteca de Python (PyTorch ≥ 2.6) con la definición de los modelos del Hub de Hugging Face para texto, visión, audio, vídeo y multimodal; carga con device_map, tiene la tabla más completa de cuantización (bitsandbytes, torchao, GPTQModel, AWQ, HQQ, Metal para Apple Silicon, GGUF…) y trae `transformers serve`, un servidor compatible con OpenAI con lotes continuos y un punto /v1/systemone para decisiones tipadas (elegir, puntuar) sin generar texto.",
+      "nota": "No confundir con transformers.js (JavaScript), que ya está en el OS (4.3.1, WebGPU, desde CDN). Esta es la biblioteca de servidor: la usan por debajo LlamaFactory y PEFT. Alex la pidió para las autoadaptaciones y fusiones inteligentes. Hecho verificado: transformers no fusiona modelos; lo hacen PEFT (adaptadores ponderados TIES/DARE) y mergekit (LGPL-3.0, pesos completos de la misma arquitectura). El OS la integra como (1) motor «transformers» del servidor propio de IA, que además da decisiones tipadas locales y privadas (/v1/systemone), (2) planificador puro de fusiones por compatibilidad de arquitectura y (3) matriz de cuantización por tipo de procesador.",
+      "aviso": "Se instala siempre en un entorno aislado (uv o venv), nunca en el Python del sistema. `transformers serve` escucha por defecto en el puerto 8000, el mismo del backend de Astraura: siempre con --port. Los modelos con código remoto (trust_remote_code) ejecutan código del repositorio del modelo: prohibido sin revisar. Su servidor descarga de Hugging Face el modelo que se le pida si no está en la caché (etapa «download» de /load_model): se arranca con HF_HUB_OFFLINE=1 (recomendado, sin probar) y se pone detrás del servidor propio de IA, que solo reenvía modelos que el motor ya lista. La versión 5 eliminó TensorFlow y JAX y cambió tokenizadores y CLI; LlamaFactory 0.9.5 y su main aún piden transformers ≤ 5.8.0. PyTorch pesa gigas: en el A1 solo la variante de CPU y solo si sobra RAM.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "opcional",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "PyPI (5.20.2, 2026-10-19, Python ≥ 3.10, torch ≥ 2.6 como extra), docs del repo en el commit 50e35cc (tabla de cuantización, serve-cli/serving.md, quantization/bitnet.md). La RAM depende del modelo (≈ 2×B GB en bf16); sin ejecutar el código."
+      },
+      "grupo": "capas",
+      "icono": "Brain",
+      "titulo": "modelos del Hub en Python"
+    },
+    {
+      "id": "lib-billion-context",
+      "repo": "ranxianglei/billion-context",
+      "nombre": "billion-context · compresión de contexto para agentes largos",
+      "kind": "tool",
+      "canal": "tags",
+      "patron_tag": "^v0\\.1\\.\\d+$",
+      "licencia": "MIT + cláusula de atribución visible (LICENSE del repo)",
+      "version_actual": "v0.1.206",
+      "fecha_version": "2026-10-24",
+      "estado": "alfa",
+      "area": [
+        "astraura",
+        "capas-de-conciencia",
+        "genesis",
+        "metagenesis",
+        "poligenesis",
+        "cerebros",
+        "agentes",
+        "enjambre",
+        "contexto",
+        "memoria"
+      ],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "si",
+      "externalUrl": "https://github.com/ranxianglei/billion-context",
+      "que_es": "Proxy local y línea de órdenes (`bili`, Node ≥ 20) que se sitúa entre un agente de código y la API de su modelo (Anthropic u OpenAI) y comprime el historial en bloques resumidos por niveles: el propio modelo decide qué y cuándo comprimir con cuatro herramientas inyectadas (compress, decompress, search_context, acp_status), solo se comprime lo añadido desde la última vez y cada bloque se puede restaurar. Lleva plugins nativos para Claude Code, OpenCode, Codex, pi, Hermes y más.",
+      "nota": "Alex lo pidió para mejorar los contextos de todos los agentes de Astraura y de las capas de conciencia colectiva y personal. Lo comprobado: es para sesiones larguísimas de agentes de código con modelos grandes (ventanas de 200 K a 1 M), no para los modelos locales pequeños de Astraura (BitNet 2B tiene 4096 tokens y el servidor local 2048). Sus cifras de portada («5× menos tokens», «miles de millones de tokens») no son mediciones comparables: su propio estudio mide −31 % a −54 % de tokens facturados en un piloto con un modelo de 27 B, y los «billones» son tokens de entrada acumulados contando relecturas de caché. Su idea (pliegue por niveles, incremental y reversible, con búsqueda en lo plegado) sí es valiosa y se adapta como módulo propio y puro para el historial del 1.58 local; el paquete en sí queda como ficha y piloto A/B.",
+      "aviso": "Descifra el tráfico TLS hacia los hosts de modelos que se le listan (MITM con certificado propio) y ve prompts y claves en claro. Se actualiza solo y consulta un paquete de avisos que puede forzar la instalación de una versión concreta, incluso anterior: en cualquier uso real se apagan `autoUpdate` y `advisoryCheck` y se fija la versión. Escucha en 127.0.0.1; con --host 0.0.0.0 no tiene autenticación. Publica una versión casi a diario (6.012 versiones en npm desde el 2026-08-05): la comprobación de versión avisará siempre. La licencia exige mencionar el proyecto en una página visible del producto que lo incorpore. El núcleo declara ser reimplementación limpia de un plugin AGPL-3.0 (su PROVENANCE.md): por eso el OS adapta el concepto y no copia código. No se instala en las sesiones de Claude de Alex ni en el enjambre sin un A/B previo.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "opcional",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "package.json y LICENSE del repo (commit bd29924, 2026-10-25), npm (0.1.206, 2026-10-24, Node ≥ 20, dependencias zod y mysql2) y README. Sin medir: no se ejecutó el proxy."
+      },
+      "grupo": "capas",
+      "icono": "Layers",
+      "titulo": "contexto plegable para agentes"
+    },
+    {
+      "id": "lib-taste-skill",
+      "repo": "Leonxlnx/taste-skill",
+      "nombre": "Taste Skill (design-taste-frontend)",
+      "kind": "function",
+      "canal": "tags",
+      "patron_tag": "^v\\d+\\.\\d+\\.\\d+$",
+      "licencia": "MIT",
+      "area": [
+        "diseno",
+        "referencias",
+        "astraura",
+        "protomolecula",
+        "publicaciones",
+        "apps",
+        "widgets-libres",
+        "paginas",
+        "genesis",
+        "agentes",
+        "claude"
+      ],
+      "efecto": "FUNCIONAL",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "estado": "activo",
+      "version_actual": "2.1.5",
+      "fecha_version": "2026-10-25",
+      "que_es": "Skill de criterio para diseñar páginas y pantallas web que no parezcan hechas por una IA: inventario de lo propio del sujeto, argumento por sección, una dirección elegida a propósito, palabras primero, capturas reales a 1440/768/390 px y crítica con los tres peores fallos. Trae 11 guías (maquetación, tipografía, color, movimiento, imágenes, texto, pantallas de aplicación, escenas con scroll, «tells», crítica e investigación) y, en la versión completa, un inspector, un sorteador de direcciones y un buscador de imágenes de archivos abiertos.",
+      "nota": "Ya existía como `iatool-taste-skill` (enlace + capacidad `taste` de Astraura con la skill `aurora-taste`, versión 1.0.0 sin seguimiento). Aquí se profundiza: copia de las 11 guías en `vendor/habilidades/design-taste-frontend/` sin ejecutables, la capacidad `taste` en tres tamaños (tarjeta ≤ 60 palabras para Needle/BitNet, resumen ≤ 120 para Bonsai, completa para razón/profunda/nube), el método y los «tells» en el brief del director de diseño y una entrada en el catálogo de referencias. En el OS manda el ADN de StarSeed sobre la estética de la casa de la skill (sin vidrio, sin brillos, sin monoespaciada…): ver `STARSEED.md` de la skill. Se instala también para Claude (`skills/design-taste-frontend/`).",
+      "aviso": "La copia del OS son solo textos. Los scripts de la versión completa (draw, inspect, lint, assets, scenes) piden Node 22+ y un Chrome, abren Chrome por el puerto de depuración local con un perfil temporal, consultan sin clave Openverse, Wikimedia Commons, Art Institute of Chicago, Met Museum, NASA e Internet Archive, y guardan un historial en `~/.taste-skill/history.json`: activación manual en la Mac de Alex (`/plugin marketplace add Leonxlnx/taste-skill`), con `TASTE_SKILL_HISTORY` y `TASTE_SKILL_TMP` dentro de la carpeta de datos. Las páginas que genera para escenas con scroll cargan GSAP y Lenis por CDN: GSAP «no charge» nunca entra en el editor visual del OS. Sin telemetría ni claves.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "la copia del OS es texto (372 KB). Scripts opcionales: Node 22+ y Chrome, Edge o Chromium (README del repo)."
+      },
+      "grupo": "diseno",
+      "icono": "Sparkles",
+      "titulo": "criterio de diseño",
+      "fusionar_en": "iatool-taste-skill"
+    },
+    {
+      "id": "lib-frontend-slides",
+      "repo": "zarazhangrui/frontend-slides",
+      "nombre": "Frontend Slides",
+      "kind": "function",
+      "canal": "tags",
+      "patron_tag": "^v\\d+\\.\\d+\\.\\d+$",
+      "licencia": "MIT",
+      "area": [
+        "diseno",
+        "referencias",
+        "protomolecula",
+        "astraura",
+        "apps",
+        "publicaciones",
+        "paginas",
+        "educacion",
+        "documentos",
+        "genesis",
+        "claude"
+      ],
+      "efecto": "FUNCIONAL",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "estado": "activo",
+      "version_actual": "2.1.0",
+      "fecha_version": "2026-05-26",
+      "que_es": "Skill que crea presentaciones HTML de un solo archivo, sin dependencias y con animación, sobre un escenario fijo 16:9 de 1920×1080 escalado al visor. Descubre el estilo mostrando vistas previas en vez de preguntar con palabras; incluye 12 estilos, patrones de animación, una base CSS de escenario y un paquete de 34 plantillas (de beautiful-html-templates, MIT) con sus fichas de elección.",
+      "nota": "El OS ya tiene la presentación en vivo (`src/lib/vivo/presentacion.ts`: lienzo por diapositiva, 8 temas, 960×540) pero no exporta a HTML autónomo ni a PDF. Aporta: el método de vista previa, las reglas de escenario y de densidad, y el formato HTML de un archivo para el botón «Exportar» (tareas DSN1025D y DSN1025E, núcleo puro sin `node:*`). La capacidad `slides` de Astraura en tres tamaños sirve a Protomolécula, Astraura, diseño de apps y páginas de publicaciones. Las 34 plantillas se leen como composición y se traducen al registro del ADN (tabla en `STARSEED.md` de la skill). Se instala también para Claude (`skills/frontend-slides/`).",
+      "aviso": "La copia del OS son solo textos (2 MB) sin `scripts/`: `deploy.sh` publica en Vercel con la cuenta de quien lo ejecute (en StarSeed nunca sin la palabra de Alex), `export-pdf.sh` descarga Chromium (~150 MB) con Playwright y `extract-pptx.py` procesa un archivo del usuario; PPTX y PDF se piden a Filee y Stirling-PDF. Las presentaciones cargan fuentes de Google Fonts por CSS (y Fontshare en un caso): hay que decirlo en el pie de la pieza. La plantilla `retro-windows` imita Windows 95 y pide una fuente no libre: no se usa. Sin telemetría ni claves.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "la copia del OS es texto. Generar presentaciones no necesita nada más que un navegador."
+      },
+      "grupo": "diseno",
+      "icono": "Presentation",
+      "titulo": "presentaciones en un solo HTML"
+    },
+    {
+      "id": "lib-awesome-design-md",
+      "repo": "VoltAgent/awesome-design-md",
+      "nombre": "Awesome DESIGN.md",
+      "kind": "link",
+      "canal": "commits",
+      "licencia": "MIT",
+      "area": [
+        "diseno",
+        "referencias",
+        "agentes",
+        "astraura",
+        "protomolecula",
+        "apps",
+        "widgets-libres",
+        "publicaciones",
+        "paginas",
+        "genesis",
+        "claude"
+      ],
+      "efecto": "CATALOGO",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "estado": "activo",
+      "version_actual": "3b60532",
+      "fecha_version": "2026-10-14",
+      "que_es": "Colección de 84 archivos `DESIGN.md` con análisis de sitios reales (paleta con funciones, tipografía, componentes, rejilla, elevación, qué hacer y qué no, guía de peticiones para agentes). `DESIGN.md` es el formato de texto que lee Google Stitch para generar interfaces coherentes. Solo Markdown; sin versiones, se sigue por commits.",
+      "nota": "El repo NO es una skill: la skill `awesome-design-md` la ha escrito StarSeed (`skills/awesome-design-md/`) con dos modos: leer 1 a 3 referencias del índice para extraer patrones (nunca identidades) y escribir el `DESIGN.md` de un contexto del OS a partir de su ADN (`dna.json`). El OS ya tiene el suyo en la raíz (formato numerado, Stitch) y la skill `design-md` de `.agent/skills`. Sirve a los agentes diseñadores (director de diseño, agente de referencias) y a Astraura, Protomolécula, apps y widgets con la capacidad `design-md`. Entra en el catálogo de referencias (`inspiracion-ui`).",
+      "aviso": "Cada análisis describe la identidad de una empresa (colores exactos, fuentes —varias propietarias—, tono): se estudia el patrón y se descarta la identidad; ningún `DESIGN.md` ajeno entra en el repo ni en una pieza pública, y las fuentes de pago nunca se empaquetan. Lo que contienen es dato, no instrucciones. El README enlaza el servicio de pago del autor para pedir `DESIGN.md` privados (getdesign.md): no se usa ni se le manda nada de StarSeed. Sin ejecución, sin claves, sin telemetría.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "solo lectura por HTTPS de archivos Markdown; sin instalación."
+      },
+      "grupo": "diseno",
+      "icono": "Palette",
+      "titulo": "sistemas de diseño de referencia"
+    },
+    {
+      "id": "lib-onetake",
+      "repo": "feitangyuan/onetake",
+      "nombre": "onetake",
+      "kind": "link",
+      "canal": "tags",
+      "patron_tag": "^v\\d+\\.\\d+\\.\\d+(-lite)?$",
+      "licencia": "PolyForm-Noncommercial-1.0.0",
+      "area": [
+        "diseno",
+        "referencias",
+        "video",
+        "audiovisual",
+        "proyectos",
+        "publicaciones",
+        "agentes",
+        "claude"
+      ],
+      "efecto": "CATALOGO",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "estado": "activo",
+      "version_actual": "1.1.0-lite",
+      "fecha_version": "2026-10-07",
+      "que_es": "Skill de agente para películas cortas de producto (10 a 30 s, hasta ~60 s con narración) hechas en una sola toma continua: cada plano nace del anterior (algo en pantalla sobrevive y se convierte en lo siguiente), una cámara que no corta, texto cinético, interfaz real como materia y ritmo con silencios. Una composición HTML sola (sin HyperFrames ni Remotion) y un medidor de continuidad por fotogramas (`probe.py`, `verify_promo.py`). 11 películas de ejemplo.",
+      "nota": "Alex: «para los diseñadores del contenido audiovisual como los vídeos de los proyectos de StarSeed OS». Por la licencia solo entra como ficha y enlace (CATALOGO): NO se copia su skill a `skills/` ni se instala para los agentes. Su método (continuidad medida entre planos, la cámara que anticipa, descansos que hacen que el movimiento aterrice) se absorbe en documentación propia sobre el ritmo del estudio audiovisual (tarea DSN1025I), que usa `claude-video-studio` y `hyperframes`, ya instalados con licencias comerciales. Alex puede instalar la skill a mano solo para piezas no comerciales.",
+      "aviso": "Licencia PolyForm Noncommercial 1.0.0: uso no comercial gratis; el uso comercial exige «onetake Pro» (de pago, onetakemotion.com). La regla del estudio es «ante la duda, la pieza se trata como comercial» y la Protomolécula nunca integra licencias no comerciales: por eso es solo enlace. Sus scripts piden Python con Playwright (Chromium), numpy, scipy, Pillow, matplotlib, ffmpeg y Node, más faster-whisper y Kokoro para la narración: ejecutan código y renderizan en local; ninguno se lanza. Es un repo de un solo autor, con etiqueta `-lite` y la versión de pago aparte. Sin claves ni telemetría vistas.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "README: python3 con playwright (chromium), numpy, scipy, Pillow, matplotlib, ffmpeg y node; narración con faster-whisper y Kokoro TTS. Nada de esto se instala con la ficha."
+      },
+      "grupo": "diseno",
+      "icono": "Monitor",
+      "titulo": "película de una sola toma (solo enlace)"
+    },
+    {
+      "id": "lib-docusaurus",
+      "repo": "facebook/docusaurus",
+      "nombre": "Docusaurus",
+      "kind": "tool",
+      "canal": "tags",
+      "patron_tag": "^v3\\.\\d+\\.\\d+$",
+      "licencia": "MIT (código) · CC-BY-4.0 (documentación)",
+      "area": [
+        "documentacion",
+        "guias",
+        "educacion",
+        "publicaciones",
+        "paginas",
+        "biblioteca",
+        "proyectos",
+        "genesis",
+        "agentes"
+      ],
+      "efecto": "FUNCIONAL",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "estado": "activo",
+      "version_actual": "3.10.2",
+      "fecha_version": "2026-07-10",
+      "que_es": "Generador de sitios de documentación estáticos con React: documentos en Markdown, barras laterales, versiones, búsqueda, internacionalización, blog y páginas. Es de Meta (MIT). Línea estable 3.x (Node 20+); `main` es ya la 4.0 en desarrollo (Node 24.21+) sin versión publicada.",
+      "nota": "No lo ejecutamos dentro del OS. Aporta el FORMATO y la estructura: (1) exportar un grupo de documentos, una guía del OS o una sección de educación como carpeta `docs/` en Markdown con front matter y `_category_.json` (la barra lateral se autogenera con el `sidebars.js` que trae Docusaurus: no se exporta código), lista para copiar en un sitio creado con `npm create docusaurus` (DSN1025F); (2) importar una carpeta así a la Biblioteca o a los temas de guía de `guia-temas-sistema.ts` / `guia-temas-red.ts` (DSN1025G). Encaja con las guías de introducción, la documentación del OS, las páginas de publicaciones y la sección de educación (`src/lib/education/curriculum.ts`). Ver `contrato.md`.",
+      "aviso": "Construir el sitio es manual y de quien tenga Node: `docusaurus build` ejecuta código de Node y de React, y un `docusaurus.config.js`, un `sidebars.js` o un archivo `.mdx` son CÓDIGO. Por eso la exportación genera solo `.md` con front matter y `_category_.json` (escapando `{`, `}` y `<`, y pidiendo `markdown: {format: 'detect'}` en la configuración del sitio), y la importación rechaza `.mdx` y nunca lee ni ejecuta `sidebars.js` ni `docusaurus.config.*`. No envía telemetría, pero su CLI consulta el registro de npm para avisar de versiones nuevas (update-notifier, verificado en v3.10.2): se desactiva con `NO_UPDATE_NOTIFIER=1`; los complementos de terceros pueden tener la suya. Si algún día se despliega el sitio de documentación, solo con la palabra de Alex.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "package.json de v3.10.2: Node >= 20.0 (la rama main, 4.0 en desarrollo, pide Node >= 24.21). Exportar e importar Markdown en el OS no necesita Node."
+      },
+      "grupo": "diseno",
+      "icono": "BookOpen",
+      "titulo": "sitios de documentación"
+    },
+    {
+      "id": "lib-refine",
+      "repo": "refinedev/refine",
+      "nombre": "Refine",
+      "kind": "tool",
+      "canal": "tags",
+      "patron_tag": "^@refinedev/core@\\d+\\.\\d+\\.\\d+$",
+      "licencia": "MIT",
+      "area": [
+        "apps",
+        "widgets-libres",
+        "datos",
+        "proyectos",
+        "genesis",
+        "metagenesis",
+        "protomolecula",
+        "agentes"
+      ],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "estado": "activo",
+      "version_actual": "5.0.12",
+      "fecha_version": "2026-04-02",
+      "que_es": "Marco de React «sin cabeza» para aplicaciones con muchos datos (paneles de administración, CRUD, herramientas internas): ganchos para listas, formularios, tablas, autenticación, control de acceso, i18n y tiempo real, con proveedores de datos intercambiables (REST, GraphQL, Supabase…) y adaptadores de interfaz opcionales (Ant Design, Material UI, Mantine, Chakra). Monorepo de paquetes `@refinedev/*`; el núcleo está en 5.0.12 (npm), aunque `main` ya anuncia la 5.2.0 sin publicar.",
+      "nota": "Para el Estudio de Apps (`src/lib/appgen/appgen.ts`), Genesis y los widgets: una plantilla de proyecto «panel de datos» que el OS exporta como carpeta (archivos de texto) cuyo proveedor de datos habla con los contratos independientes de la fuente de `src/lib/widget-data/` (DSN1025H). Sirve para generar aplicaciones completas fuera del OS, no para pintar dentro del OS: dentro, los paneles son UiSpec (vocabulario cerrado).",
+      "aviso": "TELEMETRÍA ACTIVADA POR DEFECTO: al cargar una app de Refine envía una petición a telemetry.refine.dev con proveedores usados, versión, número de recursos, IP, nombre de host, navegador y sistema; la plantilla exportada pone `disableTelemetry: true` en la propiedad `options` del componente `<Refine>` y `REFINE_NO_TELEMETRY=true` en el entorno (la CLI manda aparte, a /cli, el comando, las versiones de Node y del sistema y los paquetes de Refine instalados). Su CLI (`@refinedev/cli`) y `create-refine-app` instalan paquetes y ejecutan código: manual, fuera del OS. Los adaptadores de interfaz de terceros añaden sus propias dependencias. El seguimiento por etiquetas de monorepo (`@refinedev/core@x.y.z`) puede ir a destiempo del repo: la fuente de verdad de la versión es npm.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "@refinedev/core 5.0.12: Node >= 20, React 18 o 19 (package.json de main). Exportar la plantilla desde el OS no necesita Node; construirla, sí."
+      },
+      "grupo": "diseno",
+      "icono": "LayoutDashboard",
+      "titulo": "paneles de datos en React"
+    },
+    {
+      "id": "lib-tracecat",
+      "repo": "TracecatHQ/tracecat",
+      "nombre": "Tracecat",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "AGPL-3.0 (salvo packages/tracecat-ee y el código que activa funciones EE, bajo licencia de pago)",
+      "estado": "activo",
+      "version_actual": "1.2.3",
+      "fecha_version": "2026-10-22",
+      "area": [
+        "seguridad",
+        "red",
+        "paginas",
+        "cuentas",
+        "grupos",
+        "genesis",
+        "metagenesis",
+        "poligenesis",
+        "agentes",
+        "enjambre",
+        "astraura"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "mcp",
+      "que_es": "Plataforma de automatización de seguridad (SOAR) para equipos y agentes de IA: gestión de casos, flujos deterministas sobre Temporal, tablas, agentes con habilidades y aprobaciones, más de 100 conectores y más de 50 servidores MCP alojados. Pila: FastAPI + PostgreSQL + Temporal + MinIO/S3 + Redis; API REST, receptor de webhooks (/api/webhooks) y servidor MCP propio. Se autoaloja con Docker Compose (16 contenedores), AWS Fargate o Kubernetes, también sin salida a internet.",
+      "nota": "No protege por sí sola: ORQUESTA la respuesta. El OS ya detecta (escáner de secretos y PII, límites de peticiones, anti-repetición del feed firmado, SSRF, informes CSP, invariantes del núcleo) y Strix audita (iatool-strix), pero no tenía dónde reunir, priorizar y resolver lo detectado. Entra como destino de eventos de seguridad ya saneados (webhook firmado) y como sitio de las aprobaciones humanas; Genesis enseña los casos. Ninguna respuesta automática castiga: justicia restaurativa (CLAUDE.md §6), así que lo que toque a otra persona se propone y lo decide un humano o un Círculo de Paz.",
+      "aviso": "Pide como mínimo 8 núcleos, 16 GB de RAM y 20 GB de SSD con Docker 26 o superior: no cabe en el A1 (12 GB y con el enjambre) ni en la Mac (8 GB). Se activa a mano en un servidor con esa capacidad —lo coloca la bolsa de recursos— o con Tracecat Cloud solo para eventos ya saneados. El sandbox nsjail exige privilegios elevados en el contenedor del ejecutor. AGPL-3.0: sin modificarlo no hay nada que publicar; el código EE (multiinquilino, RBAC fino, bandeja de aprobaciones) no se activa sin licencia. Su interfaz solo envía analítica (PostHog) si se le da NEXT_PUBLIC_POSTHOG_KEY: no dársela. URL de webhook, secreto de firma (TRACECAT__SIGNING_SECRET) y tokens, solo en variables de entorno.",
+      "requisitos": {
+        "ram_gb": 16,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "obligatorio (26.0.0+, 16 contenedores)",
+        "arquitecturas": [],
+        "so": [
+          "linux"
+        ],
+        "fuente": "docs/self-hosting/docker-compose.mdx (nivel «Small»: 8 núcleos, 16 GB, 20 GB SSD; «la memoria es el límite») y architecture.mdx (16 contenedores), leídos el 2026-10-25; las arquitecturas de sus imágenes no están verificadas",
+        "cpu_nucleos": 8,
+        "disco_gb": 20
+      },
+      "grupo": "infra",
+      "icono": "ShieldCheck",
+      "titulo": "respuesta a incidentes de seguridad"
+    },
+    {
+      "id": "lib-spacedrive",
+      "repo": "spacedriveapp/spacedrive",
+      "nombre": "Spacedrive",
+      "kind": "app",
+      "canal": "tags",
+      "patron_tag": "^v2\\.\\d+\\.\\d+(-(alpha|beta|rc)\\.\\d+)?$",
+      "licencia": "Apache-2.0 (las versiones anteriores al 2026-03-24 se publicaron bajo AGPL-3.0)",
+      "estado": "alfa",
+      "version_actual": "v2.0.0-alpha.3",
+      "fecha_version": "2026-04-16",
+      "ultimo_commit": "2026-10-13",
+      "hito": "Beta 2.0 prevista para el 2026-11-01 (README del repositorio); mientras tanto, versiones nocturnas (etiqueta «nightly») que siguen a main",
+      "area": [
+        "biblioteca",
+        "perfiles",
+        "grupos",
+        "paginas",
+        "comunidades",
+        "cerebros",
+        "memorias",
+        "archivos",
+        "genesis",
+        "poligenesis",
+        "malla",
+        "publicaciones",
+        "claude"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "mcp",
+      "que_es": "Infraestructura de datos personales de código abierto: un sistema de archivos virtual entre aparatos, discos, NAS, servidores y las nubes que elijas. Demonio en Rust (JSON-RPC por socket local o WebSocket; servidor HTTP /rpc con autenticación básica), CLI sd-cli, servidor MCP (sd mcp) y habilidad de agente, clientes de escritorio (Tauri), móvil y web. Cada «fuente» tiene un almacén portable en SQLite con índice de texto; identidad de contenido BLAKE3; sincronía entre pares por Iroh/QUIC cifrada; toda operación que cambia archivos se valida, se previsualiza, se ejecuta como trabajo duradero y deja un diario para deshacer. Sin telemetría ni cuenta alojada (README).",
+      "nota": "Estado real: hubo una reescritura completa (v2, alfa desde 2025-12-26) tras anunciar en las notas de la 0.4.3 (marzo de 2025) que el desarrollo quedaba en pausa por falta de fondos; hoy está ACTIVO (último commit 2026-10-13, builds nocturnas y Beta a la vista). Para StarSeed es la pieza de las Bibliotecas de perfiles, grupos y páginas y de los archivos de memorias y cerebros: como MEDIO opcional por neurona o servidor (indexa, deduplica por contenido, congela instantáneas, comparte con permisos visibles y revocables) y, sobre todo, como patrón que mejora la Biblioteca del OS: validar → previsualizar → ejecutar, aviso de «última copia» y deshacer por diario. La Entidad Única y las ACL por ítem del OS siguen mandando.",
+      "aviso": "Alfa: las nocturnas siguen main, no van firmadas y pueden cambiar los esquemas sin migraciones; la alfa.2 corrigió un recorrido de rutas (path traversal) en las transferencias P2P. Esperar a la Beta —que se compromete con el modelo de datos— antes de apuntarla a archivos de una persona, y siempre con copia. Los binarios nocturnos solo existen para macOS arm64 y Linux x86-64: el A1 (arm64) obliga a compilarlo (Rust). El servidor HTTP solo trae autenticación básica (SD_AUTH): únicamente por túnel o red privada, nunca expuesto a internet. Las fuentes de correo, Slack, GitHub u Obsidian archivan contenido de otras personas: apagadas por defecto y solo con la palabra de su dueño. El demonio indexa el disco de inicio y la carpeta personal por defecto: arrancarlo con --no-default-sources.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "opcional (imagen del servidor en apps/server)",
+        "arquitecturas": [
+          "amd64 (Linux)",
+          "arm64 (macOS)"
+        ],
+        "so": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "fuente": "README (instalar una nocturna): binarios sd y sd-daemon para macos-aarch64 y linux-x86_64; la alfa.2 añadió compilaciones de Windows y servidor; RAM sin medir; compilar desde fuente pide Rust 1.95+, Bun 1.3.4, Node 20 y FFmpeg de desarrollo"
+      },
+      "grupo": "infra",
+      "icono": "HardDrive",
+      "titulo": "archivos entre aparatos"
+    },
+    {
+      "id": "lib-ossu-cs",
+      "repo": "ossu/computer-science",
+      "nombre": "OSSU · Ciencias de la Computación",
+      "kind": "link",
+      "canal": "commits",
+      "ruta_commits": "README.md",
+      "licencia": "MIT (el texto del repositorio; los cursos enlazados conservan la suya)",
+      "estado": "activo",
+      "version_actual": "main@33d44a4 (última etiqueta v8.0.0, 2017-11-02; currículo en revisión para la v9)",
+      "fecha_version": "2026-07-13",
+      "area": [
+        "educacion",
+        "conocimiento",
+        "astraura",
+        "red",
+        "biblioteca",
+        "grupos",
+        "paginas",
+        "informatica",
+        "seguridad"
+      ],
+      "efecto": "FUNCIONAL",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "que_es": "Currículo abierto y gratuito de grado en Ciencias de la Computación para autodidactas: 63 cursos (Intro CS, Core CS, Advanced CS y Proyecto final) con duración, esfuerzo semanal y requisitos, elegidos de MIT, Harvard, Stanford, Princeton y otros según las guías CS2013 (ACM/IEEE). Es una LISTA con enlaces: no trae material de curso propio.",
+      "nota": "Entra como DATOS en la sección de Educación (/network/education): un itinerario de estudio (guía de tipo «itinerario» con una sección por bloque y un recurso por curso), nodos nuevos bajo «Tecnología › Programación» y vecinas en el árbol de categorías, y contexto para Astraura (su habilidad de estudio y la generación de guías). Se importa con un guion que lee el README (solo biblioteca estándar) y deja config/educacion-ossu.json; la Biblioteca avisa cuando main cambia y la actualización se genera como diferencias para revisar, nunca se aplica sola.",
+      "aviso": "Solo se importan nombres, enlaces, duraciones y requisitos; nunca el material de los cursos (MIT OpenCourseWare y la Open Learning Library suelen ser CC BY-NC-SA; Coursera y edX son plataformas con cuenta y, a veces, pago por notas o certificado). No ejecuta nada. La etiqueta v8.0.0 es de 2017: el canal correcto es el de commits sobre README.md. Cubre SOLO informática; matemáticas, ciencia de datos y bioinformática de OSSU viven en repos hermanos (ossu/math, ossu/data-science, ossu/bioinformatics y ossu/precollege-math existen; su licencia y estado no se han comprobado).",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "no ejecuta nada: son unas 63 filas de datos (28 KB en JSON)"
+      },
+      "grupo": "infra",
+      "icono": "BookOpen",
+      "titulo": "ruta de Ciencias de la Computación"
+    },
+    {
+      "id": "lib-coop-anything",
+      "repo": "cranebeaker/coop-anything",
+      "nombre": "Co-op Anything",
+      "kind": "tool",
+      "canal": "commits",
+      "licencia": "MIT",
+      "estado": "activo",
+      "version_actual": "main@5b86e5b (sin etiquetas ni releases)",
+      "fecha_version": "2026-10-22",
+      "area": [
+        "salas",
+        "tiempo-real",
+        "juegos",
+        "pruebas",
+        "protomolecula",
+        "servidores-compartidos",
+        "agentes",
+        "enjambre",
+        "claude"
+      ],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "que_es": "Manual (playbook) y paquete de habilidades para que un agente de código añada modo cooperativo a un juego de un solo jugador —revivir un mod abandonado o construirlo desde cero—, con un servidor MCP local de solo lectura, un directorio de más de 230 mods cooperativos y herramientas de prueba de sincronía (caja de caos UDP, grabadora de vuelo, fuzzer con semilla y oráculos de invariantes, propiedad de actores por épocas, bots). NO es un servidor, ni una plataforma de salas, ni un servicio de retransmisión.",
+      "nota": "No cubre lo que Alex describió (servidores en línea compartidos de cualquier entorno y app, transmisiones, estaciones y publicaciones de apps y juegos en tiempo real, privados o públicos): eso ya lo diseñan architecture/apps-en-la-malla.md y src/lib/salas, y ahí sigue el candidato real para apps Linux transmitidas (Selkies, MPL-2.0, en el A1). Lo aprovechable: (1) los métodos de prueba de sincronía, portados a TypeScript puro para las salas (fuzzer con semilla y oráculos sobre fusionarEstados; propiedad de elementos por épocas; sello de edición híbrido), (2) las habilidades coop-sync-testing y coop-qa copiadas en skills/ y (3) el directorio como catálogo de enlaces de «Juegos de PC» junto a Rare.",
+      "aviso": "Casi todo el repo es ingeniería inversa y modificación de juegos de terceros (Ghidra, Frida, ganchos de DLL, consolas, descompilaciones) y retransmisión por la app de ejemplo de Steamworks «Spacewar» (AppID 480), pensada para pruebas y no para distribuir: nada de eso se ejecuta ni se copia a StarSeed. Su MCP (Python 3.9+ y PyYAML) lee la carpeta de instalación de un juego y calcula la huella de su ejecutable: solo local y a petición de su dueño. Las habilidades de contribución abren pull requests con la cuenta de GitHub del dueño: no se incluyen.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "windows",
+          "linux",
+          "macos"
+        ],
+        "fuente": "README y playbook/mcp.md: Python 3.9+ y PyYAML para el MCP; las herramientas de C++ se construyen con Visual Studio 2022 en Windows; no se ejecutó nada en esta revisión"
+      },
+      "grupo": "infra",
+      "icono": "Gamepad2",
+      "titulo": "pruebas de sincronía en tiempo real"
+    },
+    {
+      "id": "lib-figcraft",
+      "repo": "storytold/figcraft",
+      "nombre": "FigCraft",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "MIT OR Apache-2.0 (el nombre y los logos de ArtCraft no son marca abierta)",
+      "estado": "alfa",
+      "version_actual": "v0.10.0",
+      "fecha_version": "2026-10-22",
+      "area": [
+        "protomolecula",
+        "lienzo-universal",
+        "apps",
+        "widgets",
+        "publicaciones",
+        "astraura",
+        "agentes",
+        "diseno"
+      ],
+      "efecto": "FUNCIONAL",
+      "preinstalar": "siempre",
+      "claude": "mcp",
+      "id_en_catalogo": "proto-figcraft",
+      "ya_integrada": "Ola 1025C · ART1025A (architecture/artcraft-y-rare.md): vive en el catálogo de la Protomolécula, que alimenta la Biblioteca con aPaqueteBiblioteca; esta ficha solo la hace visible en config/ y NO debe duplicarla en packages.ts",
+      "que_es": "Editor de diseño vectorial y de interfaces en Rust con versión web (WASM), CLI y servidor MCP por stdio; guarda .figcraft y exporta SVG, PNG, JPG, WebP y PDF.",
+      "nota": "Motor de diseño de los lienzos de interfaz, app y widget de la Protomolécula: lo que llega al OS pasa por UiSpec y los invariantes del núcleo, nunca como HTML. Web/WASM en iframe aislado; CLI y MCP solo detrás de la pasarela ArtCraft.",
+      "aviso": "Alfa. Compartir en vivo (collab.*) sube el documento sin cifrar de extremo a extremo a un servidor público: vetado. Los complementos WASM y el código generado son datos, nunca se ejecutan. Fijar por SHA256SUMS.txt.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "WebGPU o WebGL2 (versión web)",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "macos",
+          "linux",
+          "web"
+        ],
+        "fuente": "architecture/artcraft-y-rare.md §2.6: dmg universal de macOS, AppImage x86_64 y arm64, zip web de 9,33 MB; sin medir RAM"
+      },
+      "grupo": "infra",
+      "icono": "PenSquare",
+      "titulo": "diseño vectorial y de interfaces"
+    },
+    {
+      "id": "lib-gridcraft",
+      "repo": "storytold/gridcraft",
+      "nombre": "GridCraft",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "MIT OR Apache-2.0 (el nombre y los logos de ArtCraft no son marca abierta)",
+      "estado": "alfa",
+      "version_actual": "v0.11.1",
+      "fecha_version": "2026-10-22",
+      "area": [
+        "protomolecula",
+        "lienzo-universal",
+        "datos",
+        "publicaciones",
+        "astraura",
+        "agentes"
+      ],
+      "efecto": "FUNCIONAL",
+      "preinstalar": "siempre",
+      "claude": "mcp",
+      "id_en_catalogo": "proto-gridcraft",
+      "ya_integrada": "Ola 1025C · ART1025A (architecture/artcraft-y-rare.md): catálogo de la Protomolécula; no duplicar en packages.ts",
+      "que_es": "Hoja de cálculo en Rust con versión web (WASM), CLI y servidor MCP; lee y escribe XLSX, CSV y TSV, convierte y da formato.",
+      "nota": "Motor de datos y tablas de la Protomolécula. Se promete CSV/XLSX de datos, no fidelidad de Excel (su propia página de paridad dice «nunca comprobado en Excel sobre un corpus»).",
+      "aviso": "Alfa. Su MCP NO confina rutas de archivo: solo detrás de la pasarela ArtCraft, que exige el directorio de trabajo. Scripts y todo automate.* vetados (desactivados al abrir). Macros VBA de .xlsm: se conservan, no se ejecutan.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "WebGPU o WebGL2 (versión web)",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "macos",
+          "linux",
+          "web"
+        ],
+        "fuente": "architecture/artcraft-y-rare.md §2.6: dmg 24,5 MB, AppImage x86_64 y arm64, zip web 7,22 MB; sin medir RAM"
+      },
+      "grupo": "infra",
+      "icono": "Table",
+      "titulo": "hojas de cálculo"
+    },
+    {
+      "id": "lib-deckcraft",
+      "repo": "storytold/deckcraft",
+      "nombre": "DeckCraft",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "MIT OR Apache-2.0 (el nombre y los logos de ArtCraft no son marca abierta)",
+      "estado": "alfa",
+      "version_actual": "v0.10.0",
+      "fecha_version": "2026-10-22",
+      "area": [
+        "protomolecula",
+        "lienzo-universal",
+        "presentaciones",
+        "publicaciones",
+        "astraura",
+        "agentes"
+      ],
+      "efecto": "FUNCIONAL",
+      "preinstalar": "siempre",
+      "claude": "mcp",
+      "id_en_catalogo": "proto-deckcraft",
+      "ya_integrada": "Ola 1025C · ART1025A (architecture/artcraft-y-rare.md): catálogo de la Protomolécula; no duplicar en packages.ts",
+      "que_es": "Editor de presentaciones en Rust con versión web (WASM), CLI y servidor MCP; abre y guarda .pptx, .potx y .ppsx y exporta PDF, PNG, JPEG y GIF animado.",
+      "nota": "Motor de presentaciones de la Protomolécula y de las publicaciones (PDF, PNG y .pptx como derivados de la Entidad viva).",
+      "aviso": "Alfa («camino a beta»). Su PDF lleva cada diapositiva como imagen, no vectorial ni seleccionable. Su herramienta call_app queda vetada. Confina con --automation-read-root y --automation-write-root.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "WebGPU o WebGL2 (versión web)",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "macos",
+          "linux",
+          "web"
+        ],
+        "fuente": "architecture/artcraft-y-rare.md §2.6: dmg 83 MB, AppImage x86_64 y arm64, zip web 10,4 MB; sin medir RAM"
+      },
+      "grupo": "infra",
+      "icono": "Presentation",
+      "titulo": "presentaciones"
+    },
+    {
+      "id": "lib-rare",
+      "repo": "RareDevs/Rare",
+      "nombre": "Rare",
+      "kind": "app",
+      "canal": "tags",
+      "patron_tag": "^\\d+\\.\\d+\\.\\d+\\.\\d+$",
+      "licencia": "GPL-3.0-or-later (programa aparte: nunca enlazado ni dentro de un Worker)",
+      "estado": "activo",
+      "version_actual": "1.12.0.237",
+      "fecha_version": "2026-09-28",
+      "area": [
+        "juegos",
+        "neuronas",
+        "servidores",
+        "malla",
+        "apps"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "id_en_catalogo": "proto-rare",
+      "ya_integrada": "Ola 1025C · ART1025A (architecture/artcraft-y-rare.md): catálogo de la Protomolécula con estado «próximamente»; sus releases son todas preliminares, de ahí el canal de etiquetas con patrón",
+      "que_es": "Lanzador de juegos de Epic Games sobre Legendary, con interfaz Qt (PySide6), para Windows, Linux y macOS.",
+      "nota": "Ejecutar juegos en neuronas con pantalla, servidores propios o compartidos: ruta A (neurona propia, lo lanza una persona), B (servidor propio con ventana transmitida) y C (servidor compartido, una sesión aislada por persona; espera la palabra de Alex). El OS no incrusta Rare, no ejecuta legendary por un agente y no instala juegos.",
+      "aviso": "La sesión de Epic queda en JSON plano (user.json): cada persona usa la suya, fuera de carpetas sincronizadas, de la malla y de la memoria; el OS nunca la recibe. Descarga datos y un ejecutable «wrapper» sin comprobar su huella: bloquear o alojar con SHA fijado. El A1 (sin GPU) no sirve para juegos 3D.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "recomendada para juegos 3D",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "windows",
+          "linux",
+          "macos"
+        ],
+        "fuente": "architecture/artcraft-y-rare.md §2.5-2.6: dmg arm64 85,1 MB y x86_64 84,3 MB, AppImage 57 MB; en servidor pide pantalla (virtual) y Wine o Proton para juegos de Windows"
+      },
+      "grupo": "infra",
+      "icono": "Gamepad2",
+      "titulo": "lanzador de juegos de Epic"
+    },
+    {
+      "id": "lib-claude-video-2",
+      "repo": "ItsssssJack/claude-video-2",
+      "nombre": "Claude Video 2.0",
+      "kind": "tool",
+      "canal": "commits",
+      "licencia": "MIT",
+      "estado": "activo",
+      "version_actual": "main@18891e4 (sin etiquetas)",
+      "fecha_version": "2026-10-21",
+      "area": [
+        "identidad-audiovisual",
+        "estudio-audiovisual",
+        "movimiento",
+        "protomolecula",
+        "publicaciones",
+        "claude",
+        "agentes"
+      ],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "ya_integrada": "Registrada como referencia en config/referencias-inspiracion.json (id claude-video-2, verificada el 2026-10-24) e instalada como habilidad claude-video-studio (Mac, plugin starseed-estudio y .agent/skills del enjambre); esta ficha la hace visible como paquete de la Biblioteca",
+      "que_es": "Habilidad de agente para gráficos en movimiento de estudio hechos en código: galería de 21 estilos, cinco preguntas, ficha en números, 3 fotogramas puntuados antes de renderizar a MP4 con HyperFrames y GSAP, y comprobaciones de ritmo y de bucle; con el estilo de la casa «starseed-trinity» (intro de canal de 7 s).",
+      "nota": "Alimenta el Estudio audiovisual (architecture/identidad-audiovisual) y las intros de canal de las publicaciones.",
+      "aviso": "Renderiza con HyperFrames (Apache-2.0, npx hyperframes@0.8.181) y GSAP desde jsDelivr; solo fuentes libres por enlace. Los clips de Higgsfield gastan créditos de la cuenta y solo con un «sí» al guion gráfico y su coste.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "amd64",
+          "arm64"
+        ],
+        "so": [
+          "macos",
+          "linux"
+        ],
+        "fuente": "config/referencias-inspiracion.json: Node 22+ y ffmpeg"
+      },
+      "grupo": "infra",
+      "icono": "Wand2",
+      "titulo": "gráficos en movimiento para vídeo"
+    },
+    {
+      "id": "lib-inbox-zero",
+      "repo": "elie222/inbox-zero",
+      "nombre": "Inbox Zero",
+      "kind": "app",
+      "canal": "tags",
+      "patron_tag": "^v[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "licencia": "AGPL-3.0 con términos adicionales de Inbox Zero Inc. (sin monetizarlo; una organización de 5 o más usuarios de negocio necesita licencia de empresa)",
+      "version_actual": "v2.30.0",
+      "fecha_version": "2026-05-18",
+      "ultimo_commit": "2026-10-23",
+      "estado": "activo",
+      "area": [
+        "correos",
+        "mensajes",
+        "alcance",
+        "imaginacion",
+        "metagenesis",
+        "genesis",
+        "agentes",
+        "claude",
+        "investigacion",
+        "libreria"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "mcp",
+      "que_es": "Asistente de correo con IA y cliente de correo de código abierto para Gmail y Outlook: reglas en lenguaje natural, borradores en tu tono, «Reply Zero» (qué te falta responder y qué espera respuesta), bloqueo de correos fríos, baja y archivado masivos, analíticas, resúmenes antes de reuniones, archivado de adjuntos en Drive u OneDrive y chat desde Slack o Telegram. Next.js + Postgres + Redis, autoalojable con Docker (CLI `@inbox-zero/cli`) o Helm; servidor MCP (buscar, leer hilos, CREAR BORRADORES, reglas y estadísticas; sin herramienta de envío) y API pública con CLI para reglas y estadísticas. Acepta Ollama y cualquier proveedor compatible con OpenAI.",
+      "nota": "Es la referencia de los correos inteligentes de StarSeed OS y de los borradores del agente de alcance. Se usa de tres maneras, ninguna copia su código: (1) conector del usuario: quien lo autoaloje para su Gmail u Outlook lo enlaza en Biblioteca, y Claude o Cursor se conectan a su MCP para buscar, leer y dejar BORRADORES (nunca enviar); (2) patrones reescritos con código propio sobre el correo del OS: reglas en lenguaje natural guardadas como datos y seguimiento de respuestas «Reply Zero» para el alcance; (3) criterio de diseño: los mensajes del alcance tienen que sobrevivir a un «bloqueador de correos fríos» como el suyo (personales, con fuente, un solo ruego, sin seguimiento invisible). El correo propio de StarSeed (dirección pública con Cloudflare Email Routing, envío por Resend o Brevo) no es de Gmail ni de Outlook: Inbox Zero no lo sustituye.",
+      "aviso": "Licencia: AGPL-3.0 MÁS términos adicionales (LICENSE del repo): no se puede ofrecer como servicio de pago ni incluir en un producto vendido sin permiso escrito, y una organización con 5 o más personas que lo usen para negocio necesita licencia de empresa; quedan exentos el uso personal, educativo, de investigación y las organizaciones con menos de 5 usuarios de negocio. Por eso StarSeed OS NO lo empaqueta, NO lo aloja para otros y NO copia su código: solo ficha, enlace y conector hacia la instancia que cada persona autoaloje para sí. Pide OAuth propio de Google (alcance `gmail.modify`, restringido) o de Microsoft: las credenciales son de quien lo instala, en SUS variables de entorno, nunca en el OS ni en la memoria. Sus variables opcionales de PostHog, Tinybird, Sentry y Loops se dejan vacías. Una app de Google sin verificar y en modo de prueba hace caducar los permisos a los 7 días (política de Google, comprobar). Los archivos de habilidad que trae están en `skills/inbox-zero/` solo como lectura; no se incluyen en el OS hasta que Alex decida sobre la licencia.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "necesario (CLI con Compose) o Helm",
+        "arquitecturas": null,
+        "so": [
+          "linux",
+          "macos"
+        ],
+        "fuente": "README: Docker y Node.js v24+ (CLI), Postgres y Redis, OAuth propio de Google o Microsoft; no declara RAM ni arquitecturas; las versiones web llevan etiqueta vX.Y.Z (última v2.30.0) y la app de escritorio sus propias (desktop-v0.1.12, 2026-09-24)"
+      },
+      "grupo": "investigacion",
+      "icono": "MessagesSquare",
+      "titulo": "correo con reglas y borradores"
+    },
+    {
+      "id": "lib-scrapegraph-ai",
+      "repo": "ScrapeGraphAI/Scrapegraph-ai",
+      "nombre": "ScrapeGraphAI",
+      "kind": "tool",
+      "canal": "tags",
+      "patron_tag": "^v[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "licencia": "MIT",
+      "version_actual": "v2.3.1",
+      "fecha_version": "2026-10-06",
+      "ultimo_commit": "2026-10-06",
+      "estado": "activo",
+      "area": [
+        "investigacion",
+        "alcance",
+        "astraura",
+        "agentes",
+        "enjambre",
+        "biblioteca",
+        "publicaciones",
+        "protomolecula",
+        "paginas",
+        "grupos",
+        "internet",
+        "buscadores",
+        "sentidos",
+        "datos",
+        "libreria"
+      ],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "que_es": "Biblioteca de Python (LangChain) que extrae datos estructurados de sitios web y de documentos locales (HTML, XML, JSON, Markdown, PDF, CSV) describiendo lo que se quiere en lenguaje natural: grafos SmartScraper (una página), SearchGraph (resultados de búsqueda), versiones multipágina, SpeechGraph y ScriptCreator (genera un script). Funciona con OpenAI, Gemini, Groq, Mistral, Bedrock y modelos locales con Ollama. Aparte ofrece una API en la nube de pago (`scrapegraph-py`, clave SGAI_API_KEY) que NO es lo que se usa aquí.",
+      "nota": "La habilidad de analizar sitios web y contenido de cualquier tipo de forma eficiente: en StarSeed OS se usa SOLO sobre HTML ya leído con el lector cortés del OS (robots.txt, pausa por dominio, sin sigilo) y con el modelo del propio servidor de IA, para devolver JSON con el esquema que pide quien llama. Alimenta: la herramienta «extraer_web» de Astraura, la ficha pública de cada objetivo del agente de alcance, las referencias del agente de diseño, la ficha automática de un enlace en la Biblioteca, la importación de la web que ya tiene un grupo o página a su página StarSeed (con permiso de quien la administra) y los análisis de la flota.",
+      "aviso": "Activación manual: es una biblioteca de Python ≥ 3.12 (no es un servidor), se instala con versión fijada en un entorno virtual propio (`~/.starseed/venvs/scrapegraph`). Riesgos que el OS neutraliza: (1) TELEMETRÍA ACTIVA POR DEFECTO hacia un servidor externo con un identificador anónimo en `~/.scrapegraphai.conf`: el extractor del OS pone `SCRAPEGRAPHAI_TELEMETRY_ENABLED=false` ANTES de importarla y se niega a arrancar si no es `false`; (2) sus cargadores aplican sigilo anti-detección (`undetected_playwright`) y admiten proxys rotatorios, no miran robots.txt y su lectura simple usa `requests.get` sin identificarse: el OS no usa NUNCA sus cargadores de red, le pasa el HTML ya leído (entrada `local_dir`, que lo toma como texto) y no instala `playwright install`; (3) `ScriptCreatorGraph` genera código: no se usa; (4) el contenido de las páginas va al modelo: solo modelos locales o de la flota, y el texto de terceros se trata como dato, nunca como instrucción; (5) su API en la nube (SGAI_API_KEY) manda las páginas a un tercero: no se configura. Los tags se leen por patrón (excluye `-beta`).",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no (solo si el modelo local la pide)",
+        "docker": "no",
+        "arquitecturas": null,
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "pyproject.toml v2.3.1: Python >=3.12,<4; langchain >=1.2, playwright >=1.57, undetected-playwright, beautifulsoup4, html2text, free-proxy, ddgs, scrapegraph-py; el navegador de Playwright se baja aparte y el OS no lo necesita (HTML ya leído); la RAM depende del modelo elegido"
+      },
+      "grupo": "investigacion",
+      "icono": "Globe",
+      "titulo": "extracción de datos de páginas"
+    },
+    {
+      "id": "lib-agent-reach",
+      "repo": "Panniantong/Agent-Reach",
+      "nombre": "Agent Reach",
+      "kind": "tool",
+      "canal": "releases",
+      "licencia": "MIT",
+      "version_actual": "v1.6.0",
+      "fecha_version": "2026-10-23",
+      "ultimo_commit": "2026-10-23",
+      "estado": "activo",
+      "area": [
+        "investigacion",
+        "alcance",
+        "astraura",
+        "agentes",
+        "enjambre",
+        "sentidos",
+        "internet",
+        "buscadores",
+        "libreria",
+        "biblioteca",
+        "publicaciones",
+        "genesis",
+        "metagenesis",
+        "claude"
+      ],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "que_es": "Una sola orden (`agent-reach`) que da a cualquier agente acceso de solo lectura a internet: buscar y leer la web (búsqueda con Exa, lectura con Jina Reader), GitHub, YouTube (información, búsqueda, subtítulos, voz a texto con clave), V2EX y Bilibili por defecto; y, opcionales o experimentales, Reddit, X, LinkedIn, Facebook, Instagram, Xiaohongshu, Xueqiu, Boss y Xiaoyuzhou, que necesitan sesión y usan un navegador propio. Cada acción devuelve un único objeto JSON (`ok`, `items`, `error.code`, `error.hint`). Nunca publica, comenta ni escribe. Trae su propia habilidad (SKILL.md y referencias). Todo lo que instala vive en `~/.agent-reach/`.",
+      "nota": "YA ESTABA en el OS (ficha `iatool-agent-reach`, integración, proxy y herramientas de Aurora) pero con la v1.5 en la cabeza: se corrige y se sube a la v1.6 (contrato §3.1). Es la fuente de lectura del agente de alcance (web, GitHub, YouTube público) y de los análisis de la flota en la Mac y el A1, y la habilidad de Claude para investigar cuando su búsqueda no llega. Para el alcance solo se permiten sus canales sin sesión; los que piden login quedan desactivados.",
+      "aviso": "Activación manual (la ficha se registra sola). Instalar: `uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip` y `agent-reach setup`; ⚠ el paquete `agent-reach` de PyPI NO es este proyecto (lo avisa el propio README): jamás `pip install agent-reach` ni `npx agent-reach`, que es lo que hoy dicen el catálogo y el registro del OS. `setup` instala `uv` y las herramientas de cada canal por defecto y ENLAZA su habilidad en las carpetas de habilidades de las IA que encuentre (`~/.claude/skills`, `~/.hermes/skills`, `~/.cursor/skills`…): toca la configuración de Claude Code y de Hermes, hacer copia antes. La web envía la consulta a Exa y las direcciones a Jina Reader (terceros): solo direcciones públicas, nunca internas. Los canales con sesión usan un navegador propio (CloakBrowser, binario con licencia aparte, anti-detección) y copian la sesión del Chrome del usuario: PROHIBIDOS para los agentes de alcance y activables solo a mano por Alex con una cuenta secundaria. Comprueba actualizaciones contra la API de GitHub (`meta.update`).",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": null,
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "README e install.md v1.6.0: Python 3.10+, `uv` (se instala sin administrador) y Node para OpenCLI; canales por defecto sin cuenta; todo en ~/.agent-reach/"
+      },
+      "grupo": "investigacion",
+      "icono": "Radar",
+      "titulo": "sentidos web para agentes",
+      "fusionar_en": "iatool-agent-reach"
+    },
+    {
+      "id": "lib-openrefine",
+      "repo": "OpenRefine/OpenRefine",
+      "nombre": "OpenRefine",
+      "kind": "app",
+      "canal": "releases",
+      "licencia": "BSD-3-Clause",
+      "version_actual": "3.10.1",
+      "fecha_version": "2026-02-26",
+      "ultimo_commit": "2026-10-23",
+      "estado": "activo",
+      "area": [
+        "datos",
+        "investigacion",
+        "alcance",
+        "genesis",
+        "metagenesis",
+        "grupos",
+        "paginas",
+        "comunidades",
+        "biblioteca",
+        "libreria",
+        "protomolecula",
+        "apps",
+        "widgets",
+        "publicaciones",
+        "cerebros",
+        "servidores"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "que_es": "Herramienta de Java que se abre en el navegador, en tu propio equipo, para cargar datos (CSV, TSV, Excel, JSON, XML, hojas), entenderlos, limpiarlos (agrupar valores casi iguales, separar y unir columnas, transformar con expresiones GREL), reconciliarlos con bases públicas como Wikidata y exportarlos. Cada limpieza queda como una lista de operaciones en JSON que se puede aplicar a otros datos. Se maneja también por una interfaz de órdenes HTTP (`/command/core/...`) con CSRF.",
+      "nota": "Sin contexto de Alex: se integra donde hay datos sucios de verdad. (1) Listas de contactos del agente de alcance: nombres, enlaces y direcciones normalizados, duplicados fuera, reconciliación de personas y proyectos PÚBLICOS con Wikidata para fijar su identidad y su sitio oficial. (2) Datos de grupos y páginas: padrones y directorios de entidades, partidos, asambleas y comunidades que llegan en hojas desordenadas. (3) MetaGenesis: curación de catálogos (referencias, repos de la Librería), registros y medidas exportados. (4) Biblioteca y publicaciones: las recetas de limpieza son datos que se publican como entidad y hacen reproducible cualquier conjunto de datos. (5) Tabla y lienzo: paso previo de «limpiar con receta». La versión nativa de las operaciones simples vive en el OS (Python) para no depender de una JVM; OpenRefine queda para lo pesado e interactivo.",
+      "aviso": "Activación manual. Es una aplicación de Java con servidor propio SIN autenticación: se enlaza a 127.0.0.1 por defecto y NO se expone a internet ni a la red local sin pasarela con token (en el A1, solo por la malla o un túnel con clave). Memoria por defecto 1 GB (se sube con `-m`). Todas las órdenes POST piden token CSRF. Las recetas que acepta el OS son datos con lista blanca de operaciones y solo expresiones GREL: se rechazan Jython y Clojure (ejecutan código), `column-addition-by-fetching-urls` (hace peticiones) y las extensiones de terceros. La reconciliación manda el texto de las celdas al servicio elegido: solo datos públicos y servicios de una lista blanca; las listas privadas de contactos del usuario NUNCA salen. Los proyectos se guardan en la carpeta de trabajo de OpenRefine: borrar el proyecto tras exportar. El máster ya pide Java 21 o superior; la 3.10.1 corre en Java 11 a 21.",
+      "requisitos": {
+        "ram_gb": 2,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no oficial (no figura en README ni documentación)",
+        "arquitecturas": null,
+        "so": [
+          "linux",
+          "macos",
+          "windows"
+        ],
+        "fuente": "pom.xml de la etiqueta 3.10.1 (Java 11 a 21; el máster 21 a 26), script `refine` (memoria 1024M, puerto 3333, interfaz 127.0.0.1 por defecto) y documentación de instalación; 2 GB como punto de partida para listas de miles de filas"
+      },
+      "grupo": "investigacion",
+      "icono": "Table",
+      "titulo": "limpieza de datos"
+    },
+    {
+      "id": "lib-cloudflare-computer",
+      "repo": "cloudflare/computer",
+      "nombre": "Cloudflare Computer",
+      "kind": "tool",
+      "canal": "tags",
+      "patron_tag": "^@cloudflare/computer@\\d+\\.\\d+\\.\\d+$",
+      "licencia": "MIT",
+      "version_actual": "0.7.0",
+      "fecha_version": "2026-10-23",
+      "estado": "alfa",
+      "ultimo_commit": "2026-10-23",
+      "actividad": "main con commits hasta el 2026-10-23 (891 commits, 28 etiquetas); @cloudflare/computer 0.7.0 publicada en npm el 2026-10-23; anunciada el 2026-08-03 como «vista previa temprana».",
+      "area": [
+        "agentes",
+        "astraura",
+        "metagenesis",
+        "genesis",
+        "poligenesis",
+        "capas",
+        "servidores",
+        "enjambre",
+        "lienzo-universal"
+      ],
+      "efecto": "CONECTOR",
+      "preinstalar": "siempre",
+      "claude": "no",
+      "que_es": "Biblioteca de Cloudflare para dar a cada agente «su propio ordenador»: un sistema de archivos virtual con el estado en SQLite dentro de un Durable Object y una sola entrada de ejecución (`workspace.runtime.exec`) con tres backends: contenedor Linux (montaje FUSE y demonio `computerd`), shell aislado (just-bash en un Dynamic Worker) y JavaScript aislado (módulos ECMAScript en un Dynamic Worker). Trae herramientas de agente (leer, escribir, editar, listar, ejecutar), git, artefactos y un gancho de observabilidad.",
+      "nota": "Para los agentes del enjambre y los de Astraura de cualquier perfil y página: (1) un servidor más para agentes, en el borde, junto al A1, las neuronas, GitHub Actions y Cloudroom; solo como opción sugerida cuando el contexto lo soporte, nunca por defecto; (2) un patrón para las capas de conciencia: el estado del agente (memoria de trabajo, notas, resultados) como carpeta con diario de operaciones por ámbito, y el backend elegido por la forma del trabajo (aislado para archivos y datos, contenedor solo si hace falta Linux), más su ejemplo `rlm` (contexto largo leído por código y reducido con modelos acotados) que complementa el pliegue de historial de las capas pequeñas. Hoy entra como ficha, patrón y opción de contenedor; no se despliega nada sin la palabra de Alex.",
+      "aviso": "Activación manual con TU cuenta de Cloudflare (el OS no abre cuentas ni guarda claves de Cloudflare; el token de wrangler, solo en variables de entorno). Los Dynamic Workers (shell y JavaScript aislados) piden el plan Workers Paid (desde 5 USD al mes) y los contenedores también son de pago: choca con «gratis primero», así que no se enciende solo. El camino sin cuenta de pago a vigilar es denoland/celld (ya en la Librería), que corre Workers y Durable Objects en máquinas propias; el ejemplo `examples/celld` del propio repo es un prototipo. Experimental según su README: ContainerBackend, WorkerShellBackend, la sincronía y el demonio `computerd` (no aptos para producción); la carpeta `docs/` es prospectiva. Ejecuta código de agentes en la infraestructura de Cloudflare: nada privado de una persona sube sin su permiso y la salida de red de cada backend se fija en `none`. Arrastra terceros (just-bash de Vercel Labs, capnweb). No acepta PR no solicitadas.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "opcional",
+        "arquitecturas": [
+          "amd64"
+        ],
+        "so": [
+          "web"
+        ],
+        "fuente": "README y packages/computer/README.md (tabla de estado) del commit 2b23503; precio de Dynamic Workers según developers.cloudflare.com/dynamic-workers/pricing (plan Workers Paid); la imagen de computerd es solo linux-x64; no se ejecutó nada"
+      },
+      "grupo": "cloudflare",
+      "icono": "Container",
+      "titulo": "ordenador virtual para agentes"
+    }
+  ],
+  "licencias_verificadas": {
+    "agentes": "2026-10-25: LICENSE leído en el clon superficial de cada repo (nanobot MIT, Agent Orchestrator Apache-2.0, CrewAI MIT, Kilo Code MIT con aviso de OpenCode, oh-my-opencode-slim MIT, DeepCode MIT, Klavis Apache-2.0, Koog Apache-2.0 en LICENSE.txt, Awesome-LLM CC0 en LICENSE.md). Versiones y fechas contrastadas con PyPI (nanobot-ai 0.3.5, crewai 1.15.30, deepcode-hku 2.3.1, strata-mcp 1.0.2), npm (oh-my-opencode-slim 3.0.6, @kilocode/cli 7.8.17), Maven Central (ai.koog:koog-agents 1.3.0) y la página /releases/latest de cada repo; Klavis y Awesome-LLM por el último commit. La API de GitHub devolvió 403 en esta sesión.",
+    "capas": "2026-10-25 en los LICENSE y pyproject/package.json de cada repo (clon mínimo sin blobs) y en PyPI/npm: PowerInfer MIT (Georgi Gerganov y SJTU-IPADS; los pesos de SmallThinker, Apache-2.0); LlamaFactory Apache-2.0; transformers Apache-2.0; billion-context MIT con una cláusula adicional de atribución (npm declara solo MIT). La API de GitHub no estaba disponible: versiones por PyPI, npm, `git ls-remote` y las webs.",
+    "diseno": "2026-10-25 leyendo LICENSE y README en github.com y raw.githubusercontent.com: taste-skill (MIT, Leonxlnx 2026), frontend-slides (MIT, Zara Zhang 2025; plantillas de beautiful-html-templates, MIT según el propio repo), awesome-design-md (MIT), onetake (PolyForm Noncommercial 1.0.0, «Required Notice: Copyright (c) 2026 Patrick»), Docusaurus (MIT el código, CC-BY-4.0 la documentación) y Refine (MIT; confirmado también en npm). La API de GitHub no estuvo disponible; versiones comprobadas con `git ls-remote --tags`, el registro de npm y los package.json de cada versión.",
+    "infra": "2026-10-25: LICENSE y README leídos en clones superficiales sin blobs (git clone --depth 1 --filter=blob:none --sparse) de TracecatHQ/tracecat (AGPL-3.0 + EE), spacedriveapp/spacedrive (Apache-2.0), ossu/computer-science (MIT) y cranebeaker/coop-anything (MIT); versiones y fechas por git ls-remote y fecha de commit de cada etiqueta, porque la API de GitHub devolvió 403 y la lectura de la web llegó con copias viejas en caché (daba para Spacedrive FSL-1.1-ALv2 y la 0.4.3 como «Latest», y para Tracecat la 1.0.0-beta.51): manda lo leído en el repositorio. Fichas de FigCraft, GridCraft, DeckCraft y Rare según architecture/artcraft-y-rare.md; Blender según repos-os.ts; Claude Video 2.0 según config/referencias-inspiracion.json y la fecha de su último commit.",
+    "investigacion": "2026-10-25 leyendo el LICENSE de cada repo en un clon mínimo (sparse, sin ejecutar nada): Inbox Zero = AGPL-3.0 con «Additional Terms for Inbox Zero» (monetización comercial y uso empresarial de 5 o más usuarios; exentos personal, educativo, investigación y menos de 5 usuarios de negocio); ScrapeGraphAI = MIT (copyright 2024 Scrapgraph-ai team; su pyproject no declara campo license); Agent Reach = MIT (copyright 2025 Agent Eyes; el binario de CloakBrowser que usa tiene licencia aparte y no es MIT); OpenRefine = BSD de tres cláusulas (LICENSE.txt). Versiones por etiquetas de git (`git ls-remote`) y fechas por el commit de cada etiqueta; la API de GitHub no estaba disponible (403) y la página de lanzamientos de Inbox Zero solo lista su app de escritorio.",
+    "cloudflare": "2026-10-25: LICENSE leído en un clon mínimo (MIT, «Copyright (c) 2026 Cloudflare, Inc.»); README y tabla de estado leídos; versión 0.7.0 por la etiqueta @cloudflare/computer@0.7.0 (2026-10-23) y por npm (latest 0.7.0); anuncio del 2026-08-03 en blog.cloudflare.com y developers.cloudflare.com/changelog; precio de Dynamic Workers en developers.cloudflare.com/dynamic-workers/pricing (solo plan Workers Paid). Clon borrado; no se ejecutó nada."
+  }
+}

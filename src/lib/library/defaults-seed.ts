@@ -58,6 +58,7 @@ import {
   type LibraryPackage,
 } from "./packages";
 import { DOWNLOADABLE_SOURCES } from "@/ai/astraura/installed-models";
+import { IDS_SIEMBRA_1025 } from "./repos-1025";
 
 /** Marca de estado de la siembra (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEED_KEY = "starseed.library.seed.v1";
@@ -67,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 16;
+export const SEED_VERSION = 17;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -84,7 +85,7 @@ export const SEED_VERSION = 16;
  * apps/pages/boards con `route` (implican navegar), modelos WebGPU descargables,
  * fuentes con clave, y cualquier `comingSoon`.
  */
-export const RECOMMENDED_PACKAGE_IDS: string[] = [
+const RECOMMENDED_HASTA_16: string[] = [
   // ── Fuente de IA gratis SIN descarga ni clave: la red de seguridad para que
   //    TODO usuario tenga inteligencia desde el minuto uno (instant · sin clave).
   "ai-pollinations-text",
@@ -329,6 +330,18 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   "lib-trilium",
   "lib-politica-privacidad",
 ];
+
+/**
+ * (SEED_VERSION 17 · Ola 1025R) LA TANDA DEL 2026-10-25: «absolutamente todas las repos y habilidades deben ser
+ * integradas en la librería preinstaladas y autoactualizadas» (Alex). Los ids salen de
+ * `config/repos-libreria-1025.json` (módulo puro `repos-1025.ts`): las 26 fichas nuevas con
+ * `preinstalar: "siempre"` (8 agentes, 4 capas de conciencia, 5 diseño, 5 infraestructura, 3 investigación y
+ * `lib-cloudflare-computer`) más `iatool-crewai`, que ahora sigue su repo real. Las otras dos viejas fusionadas
+ * (Taste Skill, Agent-Reach) ya se sembraron en la versión 2. Instalar cada una SOLO registra su enlace: cero
+ * descarga, cero ejecución de código, cero ruta abierta y cero clave durante la siembra. Lo que ejecuta código,
+ * pide servidor o cuenta (Cloudflare de pago, GPU, Docker) queda como activación manual, con su aviso a la vista.
+ */
+export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025]));
 
 /**
  * Fuentes gratuitas del catálogo Astraura que garantizamos NO deshabilitadas.

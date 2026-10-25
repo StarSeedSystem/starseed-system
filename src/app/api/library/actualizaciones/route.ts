@@ -7,6 +7,7 @@ import path from "node:path";
 import { REPO_DECISIONES } from "@/lib/library/fuentes-decision";
 import { FICHAS_IA_LOCALES, fichasIaConUpstreamGitHub } from "@/lib/library/fuentes-ia-locales";
 import { FICHAS_REPOS_OS } from "@/lib/library/repos-os";
+import { FICHAS_REPOS_1025, FICHAS_VIEJAS_SEGUIMIENTO_1025 } from "@/lib/library/repos-1025";
 import {
     urlDeConsulta,
     leerVersion,
@@ -111,7 +112,13 @@ export async function GET(): Promise<Response> {
         const idsDecisiones = new Set(REPO_DECISIONES.packages.map((p) => p.id));
         const fichas = [
             ...REPO_DECISIONES.packages,
-            ...fichasIaConUpstreamGitHub([...FICHAS_IA_LOCALES, ...FICHAS_REPOS_OS]).filter((p) => !idsDecisiones.has(p.id)),
+            // Tanda 1025: las 26 nuevas y las 3 fichas viejas (iatool-*) que ahora siguen su repo real.
+            ...fichasIaConUpstreamGitHub([
+                ...FICHAS_IA_LOCALES,
+                ...FICHAS_REPOS_OS,
+                ...FICHAS_REPOS_1025,
+                ...FICHAS_VIEJAS_SEGUIMIENTO_1025,
+            ]).filter((p) => !idsDecisiones.has(p.id)),
         ];
         const entradas: EntradaFuente[] = fichas
             .map((paquete): EntradaFuente => ({

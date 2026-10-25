@@ -69,6 +69,9 @@ import { REPO_DECISIONES } from "./fuentes-decision";
 // para que /api/library/actualizaciones pueda comprobar su upstream.
 import { FICHAS_IA_LOCALES } from "./fuentes-ia-locales";
 import { FICHAS_REPOS_OS } from "./repos-os";
+// Tanda del 2026-10-25 (Ola 1025R): 26 fichas nuevas + seguimiento real de 3 fichas viejas (Taste Skill, Agent-Reach,
+// CrewAI). Módulo puro: la ruta de actualizaciones lo importa igual. Contrato: architecture/repos-libreria-1025.md.
+import { FICHAS_REPOS_1025, conSeguimiento1025 } from "./repos-1025";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -988,6 +991,8 @@ const LABS_PACKAGES: LibraryPackage[] = [
     ...FICHAS_IA_LOCALES,
     /* ── Repos que Alex trajo para el OS (Hono, React Native Zalo Kit) ── */
     ...FICHAS_REPOS_OS,
+    /* ── Tanda del 2026-10-25 (Ola 1025R): «todas las repos y habilidades, preinstaladas y autoactualizadas» ── */
+    ...FICHAS_REPOS_1025,
 ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */
@@ -2000,7 +2005,8 @@ export const STARSEED_IA_TOOLS_REPO: LibraryRepo = {
   id: "starseed-ia-tools",
   name: "Herramientas IA & Agentes",
   builtin: true,
-  packages: IA_TOOLS_PACKAGES,
+  // Taste Skill, Agent-Reach y CrewAI se repetían en la tanda 1025: no se duplican, reciben su versión real y su upstream.
+  packages: IA_TOOLS_PACKAGES.map(conSeguimiento1025),
 };
 
 /* ═══════════════════ REPO BUILTIN «starseed-agents» (P5) ═══════════════════ */
