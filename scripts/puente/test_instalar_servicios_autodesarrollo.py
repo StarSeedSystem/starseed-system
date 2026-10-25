@@ -64,6 +64,7 @@ class ServicioAutodesarrollo(unittest.TestCase):
         self.assertEqual(p["WorkingDirectory"], RAIZ)
         self.assertEqual(p["EnvironmentVariables"]["STARSEED_ROOT"], RAIZ)
         self.assertEqual(p["StandardOutPath"], "/tmp/starseed-autodesarrollo.log")
+        self.assertEqual(p["StandardErrorPath"], "/tmp/starseed-autodesarrollo.log")
 
     def test_lanzador_tcc_de_padre_y_rutas_absolutas(self):
         args = self.plist["ProgramArguments"]
