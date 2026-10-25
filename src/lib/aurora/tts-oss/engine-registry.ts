@@ -631,6 +631,63 @@ function availabilityOffline(
   }
 }
 
+// ── Jerarquía de ámbitos de la voz ───────────────────────────────────────────
+
+/**
+ * Ámbitos que pueden fijar un motor de VOZ, del más específico al más general.
+ * Es la MISMA jerarquía del sistema primario de Astraura
+ * (`architecture/astraura-158-sistema-primario.md` §3):
+ * agente › personalidad › cerebro › neurona › cuenta. `defecto` = nadie fijó nada.
+ */
+const ORDEN_AMBITOS_VOZ = [
+  "agente",
+  "personalidad",
+  "cerebro",
+  "neurona",
+  "cuenta",
+] as const;
+
+export type VoiceEngineLayerKey = (typeof ORDEN_AMBITOS_VOZ)[number];
+export type VoiceEngineScope = VoiceEngineLayerKey | "defecto";
+
+/** Capas de decisión de la voz. Cada una puede nombrar (o no) un motor. */
+export interface VoiceEngineLayers {
+  agente?: unknown;
+  personalidad?: unknown;
+  cerebro?: unknown;
+  neurona?: unknown;
+  cuenta?: unknown;
+}
+
+/**
+ * Resuelve el motor de voz por JERARQUÍA, sin tocar storage: devuelve el primer
+ * ámbito que nombre un motor VÁLIDO y su procedencia. Si ninguno lo hace,
+ * `{ motor: null, scope: "defecto" }`. Pura (entrada → salida) y testeable.
+ */
+export function resolverMotorPorJerarquia(layers: VoiceEngineLayers): {
+  motor: AuroraVoiceEngine | null;
+  scope: VoiceEngineScope;
+} {
+  for (const scope of ORDEN_AMBITOS_VOZ) {
+    const valor = layers[scope];
+    if (isVoiceEngineId(valor)) return { motor: valor, scope };
+  }
+  return { motor: null, scope: "defecto" };
+}
+
+/**
+ * ¿Un pin entra DELANTE de la cadena? Sí si un ámbito lo eligió EXPLÍCITAMENTE
+ * o si el usuario apagó el AUTO. El pin de DEFECTO (p. ej. openvoice2 de
+ * fábrica) NO adelanta a los motores que esta neurona sí configuró: esos los
+ * ordena el AUTO por realismo. Pura.
+ */
+export function pinDeVozVaPrimero(
+  scope: VoiceEngineScope,
+  auto: boolean | undefined,
+): boolean {
+  return scope !== "defecto" || auto === false;
+}
+
 // ── Pin de personalidad ──────────────────────────────────────────────────────
 
 /**
@@ -653,6 +710,11 @@ function availabilityOffline(
  * NUNCA lanza; ante cualquier problema devuelve null (la cadena sigue intacta).
  */
 let cachedPin: AuroraVoiceEngine | null = null;
+/**
+ * Ámbito que decidió `cachedPin`. `defecto` = relleno de fábrica (openvoice2),
+ * que NO debe adelantar a los motores configurados de esta neurona.
+ */
+let cachedPinScope: VoiceEngineScope = "defecto";
 /**
  * (Adenda 149) Id de la personalidad activa la última vez que se refrescó el pin.
  * Sólo la IDENTIDAD se cachea (resolverla exige el módulo pesado de
@@ -690,61 +752,60 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
     const profile = mod.getActivePersonality();
     const intel = profile?.intelligence;
     cachedPersonaId = profile?.id ?? null;
-    // 0) (Adenda 149) MOTOR FIJADO POR ESTA NEURONA para esta personalidad: va
-    //    PRIMERO (por delante incluso del pin de la personalidad, que viaja con
-    //    la cuenta) porque describe el hardware/preferencia de ESTE dispositivo.
-    //    Como todos los pines, NO es exclusivo: si ese motor no responde, la
-    //    cadena de `buildVoiceChain` sigue detrás.
+    // 0) (Adenda 149) MOTOR FIJADO POR ESTA NEURONA para esta personalidad:
+    //    describe el hardware/preferencia de ESTE dispositivo y es el ACTOR
+    //    concreto del turno, así que ocupa el ámbito más específico de la
+    //    jerarquía (`agente`) por delante del perfil, que viaja con la cuenta.
+    //    Como todos los pines, NO es exclusivo: si no responde, la cadena sigue.
     const nVoz = neuronPersonaVoice(cachedPersonaId);
     const nMotor = nVoz?.motor;
-    if (isVoiceEngineId(nMotor)) {
-      cachedPin = nMotor;
-      return cachedPin;
-    }
     // 1) Pin DURO de inteligencia (modo "fija" + motorVoz / porSentido.voz).
+    // 2) MOTOR PREFERIDO de la personalidad (Adenda 80): aplica en cualquier
+    //    modo de inteligencia y NUNCA es exclusivo.
+    let personaMotor: unknown;
     if (intel && intel.modo === "fija") {
       const direct = (intel as { motorVoz?: unknown }).motorVoz;
-      if (isVoiceEngineId(direct)) {
-        cachedPin = direct;
-        return cachedPin;
-      }
-      const bySense = intel.porSentido?.voz?.fuente;
-      if (isVoiceEngineId(bySense)) {
-        cachedPin = bySense;
-        return cachedPin;
+      if (isVoiceEngineId(direct)) personaMotor = direct;
+      else {
+        const bySense = intel.porSentido?.voz?.fuente;
+        if (isVoiceEngineId(bySense)) personaMotor = bySense;
       }
     }
-    // 2) MOTOR PREFERIDO de la personalidad (Adenda 80): el predeterminado
-    //    configurable. Aplica en cualquier modo de inteligencia y NUNCA es
-    //    exclusivo: va primero en la cadena y, si no responde, el resto sigue.
-    const preferred = (profile?.voiceStyle as { engine?: unknown } | undefined)?.engine;
-    if (isVoiceEngineId(preferred)) {
-      cachedPin = preferred;
+    if (!personaMotor) {
+      personaMotor = (profile?.voiceStyle as { engine?: unknown } | undefined)?.engine;
+    }
+    // JERARQUÍA ÚNICA: agente › personalidad › cerebro › neurona › cuenta.
+    const jerarquia = resolverMotorPorJerarquia({
+      agente: nMotor,
+      personalidad: personaMotor,
+    });
+    if (jerarquia.motor) {
+      cachedPin = jerarquia.motor;
+      cachedPinScope = jerarquia.scope;
       return cachedPin;
     }
-    // 3) PREDETERMINADO GLOBAL (Adendas 81/86/90): TODA personalidad sin motor
-    //    propio habla con OpenVoice/OmniVoice — salvo que ESTA NEURONA haya
-    //    elegido otra cosa en su ventana de voz:
-    //      · «motor local»          → el híbrido OmniVoice (daemon local) va
-    //        primero y OpenVoice queda de respaldo.
-    //      · «sistemas web rápidos» → un motor más veloz (y menos realista) va
-    //        primero EN VEZ de OpenVoice — sigue sin ser exclusivo: si no
-    //        responde, la cadena AUTO decide igual.
-    //      · (nube / sin elección)  → OpenVoice primero.
-    //    Configurable por personalidad en su editor; jamás exclusivo.
-    //    (Adenda 149) La VÍA puede fijarse POR PERSONALIDAD en esta neurona
-    //    (`voz.modo`): si existe, gana sobre la elección global del dispositivo;
-    //    si no (`undefined`), se lee la elección del dispositivo EXACTAMENTE
-    //    como antes — mismo comportamiento, cero regresión.
+    // 3) PREDETERMINADO (Adendas 81/86/90): sin motor elegido, ESTA NEURONA
+    //    puede preferir «motor local» (OmniVoice) o «sistemas web rápidos»; esas
+    //    SÍ son decisiones suyas (`neurona`). La nube sin elección queda en el
+    //    DEFECTO de fábrica (OpenVoice): AUTO podrá adelantar un motor mejor
+    //    configurado sin que este relleno lo tape (ver `buildVoiceChain`).
     const nModo = nVoz?.modo;
     if (nModo === "fastweb" || (!nModo && neuronPrefersFastWeb())) {
       cachedPin = FAST_WEB_VOICE_ENGINE;
+      cachedPinScope = "neurona";
       return cachedPin;
     }
-    cachedPin = nModo === "local" || (!nModo && neuronPrefersLocal()) ? "omnivoice" : "openvoice2";
+    if (nModo === "local" || (!nModo && neuronPrefersLocal())) {
+      cachedPin = "omnivoice";
+      cachedPinScope = "neurona";
+      return cachedPin;
+    }
+    cachedPin = "openvoice2";
+    cachedPinScope = "defecto";
     return cachedPin;
   } catch {
     cachedPin = null;
+    cachedPinScope = "defecto";
     cachedPersonaId = null;
     return null;
   }
@@ -761,8 +822,17 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
  */
 export function personalityVoiceEnginePin(): AuroraVoiceEngine | null {
   const motor = neuronPersonaVoice(cachedPersonaId)?.motor;
-  if (isVoiceEngineId(motor)) return motor;
+  if (isVoiceEngineId(motor)) {
+    // Un override en vivo es siempre una elección de esta neurona (A149).
+    cachedPinScope = "agente";
+    return motor;
+  }
   return cachedPin;
+}
+
+/** Ámbito que decidió el pin cacheado (`defecto` = relleno de fábrica). */
+export function voiceEnginePinScope(): VoiceEngineScope {
+  return cachedPinScope;
 }
 
 // ── LA CADENA (fusión de motores) ────────────────────────────────────────────
@@ -778,9 +848,15 @@ export type VoiceChainLink = NeuralVoiceEngine | "kokoro" | "kitten";
  * Ojo con el coste: aquí NO se toca la red. Un motor sin endpoint ni siquiera
  * entra en la cadena, así que quien no tiene servidores paga cero latencia.
  */
+export interface BuildVoiceChainOptions {
+  /** Ámbito del `pinOverride`, cuando el llamador lo conoce. */
+  pinScope?: VoiceEngineScope;
+}
+
 export function buildVoiceChain(
   cfg: AuroraVoiceConfig,
   pinOverride?: AuroraVoiceEngine | null,
+  opts?: BuildVoiceChainOptions,
 ): VoiceChainLink[] {
   const chain: VoiceChainLink[] = [];
   const push = (link: VoiceChainLink | null | undefined) => {
@@ -794,10 +870,25 @@ export function buildVoiceChain(
 
     // 1) PIN DE PERSONALIDAD (primero, pero NO exclusivo).
     const pin = pinOverride !== undefined ? pinOverride : personalityVoiceEnginePin();
+    // Procedencia del pin. Si el llamador pasa justo el pin cacheado (lo hace
+    // `speakWithConfiguredEngine` tras refrescarlo), vale el ámbito guardado;
+    // cualquier otro override es una elección explícita del llamador.
+    const pinScope: VoiceEngineScope =
+      opts?.pinScope ??
+      (pinOverride === undefined
+        ? cachedPinScope
+        : pinOverride !== null && pinOverride === cachedPin
+          ? cachedPinScope
+          : "personalidad");
     if (pin && pin !== "browser") {
       // Un pin a un motor sin endpoint sería una trampa: lo saltamos en silencio
       // (la personalidad pidió algo que hoy no existe → seguimos con lo mejor).
-      if (!isNeuralEngine(pin) || endpointEngineConfigured(pin, cfg)) {
+      // El DEFECTO de fábrica no adelanta a los motores configurados (AUTO los
+      // ordena por realismo); un pin explícito sí manda.
+      if (
+        pinDeVozVaPrimero(pinScope, cfg.auto) &&
+        (!isNeuralEngine(pin) || endpointEngineConfigured(pin, cfg))
+      ) {
         push(pin as VoiceChainLink);
       }
     }
@@ -895,21 +986,35 @@ export function buildVoiceChain(
 }
 
 /**
- * ¿Qué motor usaría Aurora AHORA MISMO? (el primer eslabón de la cadena, o el
- * navegador si no hay ninguno). Útil para pintar "Hablando con: VoxCPM" en la UI.
- * No toca la red. Nunca lanza.
+ * Primer motor de una cadena que puede hablar DE VERDAD ahora mismo. Kokoro
+ * solo cuenta si no habría que descargar el modelo por sorpresa; Kitten es un
+ * stub honesto. Sin ninguno → navegador (el suelo que nunca falla). Pura.
+ */
+export function motorActivoDeCadena(
+  chain: readonly VoiceChainLink[],
+  opts: { autoDownload?: boolean } = {},
+): AuroraVoiceEngine {
+  for (const link of chain) {
+    if (link === "kokoro" && !opts.autoDownload) continue;
+    if (link === "kitten") continue;
+    return link;
+  }
+  return "browser";
+}
+
+/**
+ * ¿Qué motor usaría Aurora AHORA MISMO? (el primer eslabón VIVO de la cadena,
+ * con la MISMA jerarquía que aplica `speakWithConfiguredEngine`: el pin
+ * explícito manda; el defecto de fábrica no tapa los motores configurados).
+ * Útil para pintar "Hablando con: VibeVoice" en la UI y para que el router
+ * decida si debe preparar el guion multi-locutor. No toca la red. Nunca lanza.
  */
 export function resolveActiveVoiceEngine(cfg?: AuroraVoiceConfig): AuroraVoiceEngine {
   try {
     const config = cfg ?? getVoiceConfig();
-    const chain = buildVoiceChain(config);
-    for (const link of chain) {
-      // Kokoro solo "cuenta" como activo si puede hablar sin descargar por sorpresa.
-      if (link === "kokoro" && !config.autoDownload) continue;
-      if (link === "kitten") continue; // stub
-      return link;
-    }
-    return "browser";
+    return motorActivoDeCadena(buildVoiceChain(config), {
+      autoDownload: config.autoDownload,
+    });
   } catch {
     return "browser";
   }

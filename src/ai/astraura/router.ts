@@ -1997,8 +1997,16 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
             // habla el `text` normal (voz única).
             let vibeVoiceScript: string | null | undefined;
             try {
-              const { resolveActiveVoiceEngine } = await import("@/lib/aurora/tts-oss/engine-registry");
-              if (resolveActiveVoiceEngine() === "vibevoice") vibeVoiceScript = enriched.dialogue;
+              const motorVoz = await import("@/lib/aurora/tts-oss/engine-registry");
+              // El pin se relee EN VIVO antes de resolver. Con el pin cacheado
+              // de un turno anterior, `resolveActiveVoiceEngine` devolvía el
+              // DEFECTO de la cuenta (openvoice2) aunque esta neurona/persona
+              // hubiera fijado VibeVoice, y el guion multi-locutor se perdía
+              // (VibeVoice acababa hablando todo como Speaker 0).
+              await motorVoz.refreshPersonalityVoicePin().catch(() => null);
+              if (motorVoz.resolveActiveVoiceEngine() === "vibevoice") {
+                vibeVoiceScript = enriched.dialogue;
+              }
             } catch { /* motor de voz no disponible en SSR/runtime → ignorar */ }
             return { ...res, text: enriched.text, route: rec, vibeVoiceScript: vibeVoiceScript ?? null };
           }
