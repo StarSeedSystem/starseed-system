@@ -79,6 +79,7 @@ import {
   runOnBrain,
   appShareRef,
 } from "@/lib/appgen/appgen";
+import { plantillaRefine } from "@/lib/appgen/plantilla-refine";
 
 import { createClient } from "@/utils/supabase/client";
 import { listBrains, type Brain, type BrainServer } from "@/lib/brains/brains";
@@ -605,6 +606,39 @@ export default function AiAppGenerator() {
     setSpec("");
     setPreviewKey((k) => k + 1);
   }, []);
+
+  // Plantilla «panel de datos» (Refine, telemetría apagada): proyecto vite + react
+  // listo para exportar y activar manualmente fuera del OS (ver «LEEME.md»).
+  const RECURSOS_PANEL: { nombre: string; campos: string[] }[] = [
+    { nombre: "clientes", campos: ["nombre", "email", "ciudad"] },
+    { nombre: "pedidos", campos: ["fecha", "total", "estado"] },
+  ];
+
+  const newPanelDatos = useCallback(async () => {
+    if (!(await confirm({
+      title: "Plantilla «panel de datos»",
+      description:
+        "Genera un proyecto Refine (vite + react, proveedor REST, telemetría apagada). " +
+        "Se reemplazarán los archivos actuales no guardados.",
+      destructive: true,
+    }))) return;
+    try {
+      const files = plantillaRefine({
+        nombre: app.name === "Nueva app" ? "Panel de datos" : app.name,
+        recursos: RECURSOS_PANEL,
+      });
+      setApp((prev) => ({ ...prev, files, name: "Panel de datos" }));
+      setActivePath("LEEME.md");
+      setSpec("");
+      setPreviewKey((k) => k + 1);
+      toast.success(
+        "Proyecto «panel de datos» generado ✦",
+        { description: "Activación manual fuera del OS: lee «LEEME.md» (no se ejecuta en la vista previa)." },
+      );
+    } catch (err) {
+      toast.error("No se pudo generar la plantilla", { description: (err as Error)?.message });
+    }
+  }, [app.name]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Render del árbol
