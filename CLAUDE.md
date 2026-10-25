@@ -409,8 +409,23 @@ los medios», el único botón general de los medidores Agentes, Tareas en curso
 llena la Mac hasta su tope, vuelve a medir los contenedores, reabre en la nube lo que solo agotó sus tres envíos con los proveedores
 saturados (`~/.starseed/nube-reaperturas.json`: una reapertura devuelve un envío, como mucho dos por
 tarea en dos días y nunca dejando a la Mac sin trabajo para su tope), lanza los jobs de GitHub
-Actions que caben —tope dinámico: trabajo, escritores vivos en la nube y techo de 6 (§20 de la
+Actions que caben —tope dinámico: trabajo, escritores vivos en la nube y techo de 14 (§20 de la
 orquestación)— y dice medio por medio qué sumó y por qué no más. La autocuración lo repite cada 30 min.
+**«Solo 8 agentes» y el botón no suma: la nube integraba y la Mac lo tomaba por «a medias»** (2026-10-25, CAP1025). Medido a las 12:10 (hora de la Mac) con 306 listas: de las 292 «agotadas» (tres envíos sin integrarse), **132
+eran trabajo que la nube YA había integrado** (sus artefactos dicen `commit`). `traer_nube.tid_de_asunto` solo
+reconocía la integración por el asunto «Ola N · …» o «<número> · …», y el orquestador lo escribe con el campo
+`ola` de la tarea: «1020U · …», «Rescate de las ramas de la nube · …», «MetaGenesis · …». Salían «otro», la
+rama era «trabajo a medias», nacía una sucesora que heredaba los envíos de su cadena y la Mac (2 agentes con la
+memoria en aviso) se ponía a rehacerlo: 279 integraciones vivas y 966 archivadas nunca llegaron a main. Ahora
+manda el cuerpo de la integración («Enjambre libre v2», `MARCA_INTEGRACION`) y `traer_nube.py rescatar` (en
+cada pasada, 4 como mucho, con las puertas de siempre) trae lo que una pasada antigua reparó así y cierra sus
+sucesoras. El tope de jobs medía las tareas NUEVAS contra TODOS los jobs vivos («1 a la vez» con 2 en marcha):
+ahora `tope_runs_nube(…, vivos=)`, y una pasada reabre lo que cabe en los jobs libres, no 6. Cloudroom repartía
+el ciclo entero y restaba las últimas 24 h («sin cupo hoy: ya van 47 (ritmo 3,4)» con 53 por usar): ahora lo
+que queda entre los días que faltan, hacia arriba, por día local y con `STARSEED_CLOUDROOM_TOPE_DIA` (6). El
+préstamo al A1 llevaba `--workers 2` y 4 tareas con el A1 en 3: ahora los que publica (`salud.a1.trabajadores`)
+y dos rondas. El botón dice en la cabecera qué frena a cada medio. Síntoma: `git log main..origin/nube/<run>`
+con «<ola> · ID:» y en `/tmp/starseed-traer-nube.log` «reparar … trabajo a medias que no pasó las puertas».
 **Ramas de la nube: nada se tira sin revisar** (2026-10-06, `memory/aprendizaje-ramas-nube.md`): en la misma pasada de
 30 min, `traer_nube.py` trae lo integrado, repara lo que quedó a medias y `revisar_ramas_nube.py` revisa lo que main ya
 superó —las pruebas que main no tiene pasan a una tarea de rescate (regla ≥ 3 casos; Jev solo veta perder, p ≥ 0,8)—,
