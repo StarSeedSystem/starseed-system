@@ -91,6 +91,40 @@ describe("vikunja · cliente puro", () => {
     expect(cuerpo.description).toContain("recursos");
   });
 
+  it("un 500 al buscar el proyecto da motivo y no intenta crearlo", async () => {
+    const { pedir, llamadas } = falso(500, {});
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toContain("falló");
+      expect(r.motivo).not.toContain(TOKEN);
+    }
+    expect(llamadas).toHaveLength(1);
+    expect(llamadas[0].method).toBe("GET");
+  });
+
+  it("un 409 al buscar el proyecto devuelve motivo y ningún proyecto", async () => {
+    const { pedir, llamadas } = falso(409, {});
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toContain("409");
+      expect(r.motivo).not.toContain(TOKEN);
+    }
+    expect(llamadas).toHaveLength(1);
+    expect(llamadas[0].method).toBe("GET");
+  });
+
+  it("un 409 al crear la tarea no devuelve tarea y explica el HTTP", async () => {
+    const d = { propuestaId: "p", titulo: "t", aprobadaEn: "2026-10-20" };
+    const r = await tareaDesdeDecision(BASE, TOKEN, "5", d, falso(409, {}).pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toContain("409");
+      expect(r.motivo).not.toContain(TOKEN);
+    }
+  });
+
   it("404 y 500 al crear tarea dan motivo legible", async () => {
     const d = { propuestaId: "p", titulo: "t", aprobadaEn: "2026-10-20" };
     const r404 = await tareaDesdeDecision(BASE, TOKEN, "5", d, falso(404, {}).pedir);
