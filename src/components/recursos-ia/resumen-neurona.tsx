@@ -2,24 +2,40 @@
 
 /**
  * ResumenRecursosNeurona — tarjeta compacta de «Recursos de IA» para el panel de cada neurona:
- * procesador principal, libre en disco, topología actual y el mejor modelo de texto y de voz
- * sugerido aquí. Enlaza al panel completo (`/agent?tab=recursos-ia`).
+ * procesador principal, libre en disco, topología actual, la oferta de esta neurona a la malla
+ * (`ofertaDesdeAsignaciones`) y el mejor modelo de texto y de voz sugerido aquí.
+ * Enlaza al panel completo (`/agent?tab=recursos-ia`).
  */
 
 import { useMemo, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Cpu, HardDrive, Layers, Loader2, MessageSquare, Network, Volume2 } from "lucide-react";
+import { ArrowRight, Cpu, HardDrive, Layers, Loader2, MessageSquare, Network, Share2, Volume2 } from "lucide-react";
 
 import { CARD, LABEL } from "@/components/astraura/s158/shared";
 import { cn } from "@/lib/utils";
 import { claveAlcance } from "@/lib/recursos-ia/asignaciones";
 import { catalogoRecursos } from "@/lib/recursos-ia/catalogo";
+import { ofertaDesdeAsignaciones, PUERTO_SERVIDOR_IA } from "@/lib/recursos-ia/oferta-desde-asignaciones";
 import { sugerirPlan, topologiaSugerida } from "@/lib/recursos-ia/sugerencias";
 import { NOMBRE_TOPOLOGIA, type Procesador, type Sugerencia } from "@/lib/recursos-ia/tipos";
 import { useRecursosIa } from "@/lib/recursos-ia/use-recursos-ia";
+import type { OfertaNeurona } from "@/lib/recursos/oferta";
 import { ALCANCE_PROPIO, BitsBadge, FOCO, Linea, NivelBadge, fmtGb, fmtLibre, seguro, useInventarioRecursos } from "./piezas";
 
 const PESO_TIPO: Record<Procesador["tipo"], number> = { gpu: 4, npu: 3, cpu: 2, webgpu: 1, servidor: 0 };
+
+/** La oferta de esta neurona en una línea: qué modelos sirve, su servidor propio y a quién presta. */
+function textoOferta(o: OfertaNeurona): string {
+    const modelos = o.apps.filter((a) => a.id !== "servidor-ia").length;
+    const partes = [modelos > 0 ? `sirve ${modelos} ${modelos === 1 ? "modelo" : "modelos"}` : "sin modelos servidos aún"];
+    if (o.apps.some((a) => a.id === "servidor-ia")) partes.push(`su servidor propio de IA escucha en el puerto ${PUERTO_SERVIDOR_IA}`);
+    const aQuien: string[] = [];
+    if (o.presta.cuenta) aQuien.push("a tu cuenta");
+    for (const g of o.presta.grupos) aQuien.push(`al grupo o comunidad ${g}`);
+    if (o.presta.publico) aQuien.push("a la malla pública (elegido a propósito)");
+    partes.push(aQuien.length ? `presta ${aQuien.join(", ")}` : "no presta a nadie");
+    return partes.join(" · ");
+}
 
 /** El procesador que más IA puede llevar en esta neurona. */
 export function procesadorPrincipal(ps: Procesador[]): Procesador | undefined {
@@ -54,6 +70,10 @@ export function ResumenRecursosNeurona() {
     const { inv, detectando } = useInventarioRecursos(estado.almacenesDeclarados);
     const catalogo = useMemo(() => seguro(() => catalogoRecursos(), []), []);
     const guardada = estado.topologias[claveAlcance(ALCANCE_PROPIO)];
+    const oferta = useMemo(
+        () => (inv ? seguro(() => ofertaDesdeAsignaciones(inv, estado), null) : null),
+        [inv, estado],
+    );
     const plan = useMemo(
         () =>
             inv
@@ -101,6 +121,15 @@ export function ResumenRecursosNeurona() {
                             </Linea>
                         ) : (
                             <span className="text-white/50">sin elegir</span>
+                        )}
+                    </Fila>
+                    <Fila icono={Share2} etiqueta="Ofrece a la malla">
+                        {oferta ? (
+                            <Linea titulo="Lo que esta neurona ofrece a las demás: los modelos que sirve, su servidor propio de IA y a quién presta.">
+                                <span data-testid="oferta-neurona">{textoOferta(oferta)}</span>
+                            </Linea>
+                        ) : (
+                            <span className="text-white/50">sin oferta todavía</span>
                         )}
                     </Fila>
                     <Fila icono={MessageSquare} etiqueta="Mejor modelo de texto">
