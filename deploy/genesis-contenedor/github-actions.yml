@@ -1,0 +1,128 @@
+# Genesis Contenedor · copia este archivo a `.github/workflows/genesis-contenedor.yml`
+# en TU repositorio y presta a un ámbito de Genesis estos runners gratuitos (motor
+# «nube-propia»): pide trabajo (RPC mando_motor_pendiente), corre la cola con el
+# orquestador del OS y devuelve el resultado (RPC mando_motor_reportar).
+name: Genesis Contenedor
+"on":
+  workflow_dispatch:
+  schedule:
+    - cron: "7 * * * *"  # un ciclo por hora; alinea la cadencia con los límites del plan (README)
+
+# Permisos mínimos: el resultado salta por RPC, nada se escribe aquí.
+permissions:
+  contents: read
+
+concurrency:
+  group: genesis-contenedor  # dos ejecuciones no se pisan
+  cancel-in-progress: false
+
+env:
+  STARSEED_MEDIO: genesis-contenedor
+  NEEDLE_TELEMETRY: "0"  # telemetría apagada
+  STARSEED_OS_REPO_URL: ${{ vars.STARSEED_OS_REPO_URL || 'https://github.com/StarSeedSystem/starseed-system.git' }}
+
+jobs:
+  conectar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      STARSEED_MOTOR_TOKEN: ${{ secrets.STARSEED_MOTOR_TOKEN }}
+      # El anon de la instancia de Genesis del ámbito (p. ej. la del OS público) es público.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'https://pqzdpmedcsgcedkvndzl.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Copia del OS y orquestador
+        timeout-minutes: 12
+        run: |
+          git clone --depth 1 "$STARSEED_OS_REPO_URL" "$RUNNER_TEMP/genesis-os"
+          cd "$RUNNER_TEMP/genesis-os"
+          npm ci --no-audit --no-fund --loglevel=error
+          npm install -g opencode-ai@1.18.33 --no-audit --no-fund --loglevel=error  # versión fija
+          git config user.email "genesis-contenedor@starseed.local"
+          git config user.name "Genesis Contenedor"
+
+      - name: Claves de los agentes (opcional)
+        # Variable STARSEED_CLAVES_AGENTE = NOMBRES de secretos, por coma. Solo llegan
+        # a ~/.starseed/env (chmod 600); en el registro sale el nombre, nunca el valor.
+        if: vars.STARSEED_CLAVES_AGENTE != ''
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, shlex
+          claves = json.loads(os.environ["SECRETS_JSON"])
+          pedidas = [n.strip() for n in os.environ["STARSEED_CLAVES_AGENTE"].split(",") if n.strip()]
+          faltan = [n for n in pedidas if not claves.get(n)]
+          if faltan: raise SystemExit("secretos sin definir: " + ", ".join(faltan))
+          ruta = pathlib.Path.home() / ".starseed" / "env"
+          ruta.parent.mkdir(parents=True, exist_ok=True)
+          ruta.write_text("\n".join(n + "=" + shlex.quote(claves[n]) for n in pedidas) + "\n", encoding="utf-8")
+          ruta.chmod(0o600)
+          print("claves presentes (solo nombres):", ", ".join(pedidas))
+          PY
+
+      - id: pedir
+        name: Pedir trabajo al ámbito (RPC mando_motor_pendiente)
+        timeout-minutes: 2
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          faltan = [n for n in ("STARSEED_MOTOR_TOKEN", "NEXT_PUBLIC_SUPABASE_URL",
+                                "NEXT_PUBLIC_SUPABASE_ANON_KEY") if not os.environ.get(n)]
+          if faltan: print("::error::faltan en el repo:", ", ".join(faltan)) and sys.exit(1)
+          sys.path.insert(0, os.path.join(os.environ["RUNNER_TEMP"], "genesis-os", "scripts", "enjambre"))
+          from motor_ambito import Conector
+          pendientes = [t for t in Conector.desde_entorno().recoger_tareas()
+                        if t.get("estado") == "pendiente" and t.get("tarea_id")]
+          tareas = [{"id": t["tarea_id"], "ola": t.get("ola") or "genesis-contenedor",
+                     "titulo": t.get("titulo") or t["tarea_id"], "archivos": t.get("archivos") or [],
+                     "depende": t.get("depende") or [], "prompt": t.get("prompt") or ""} for t in pendientes]
+          ruta = os.path.join(os.environ["RUNNER_TEMP"], "genesis", "cola.json")
+          os.makedirs(os.path.dirname(ruta), exist_ok=True)
+          json.dump({"ola": "genesis-contenedor", "tareas": tareas},
+                    open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+          print("tareas pendientes pedidas al ámbito:", len(tareas))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write("tareas=%d\n" % len(tareas))
+          PY
+
+      - name: Correr la cola con el orquestador del OS
+        if: steps.pedir.outputs.tareas != '0'
+        timeout-minutes: 55
+        run: |
+          export STARSEED_ROOT="$RUNNER_TEMP/genesis-os" STARSEED_WT="$RUNNER_TEMP/starseed-wt"
+          export STARSEED_ESPERA_APROBACION_S="600"  # sin humanos aquí: deja las ramas y acabe
+          mkdir -p "$STARSEED_WT"
+          set -a; . "$HOME/.starseed/env" 2>/dev/null || true; set +a
+          timeout -k 60 45m python3 -u "$STARSEED_ROOT/scripts/enjambre/starseed-enjambre.py" \
+            "$RUNNER_TEMP/genesis/cola.json" --workers 2 2>&1 | tee "$RUNNER_TEMP/genesis/log.txt"
+          test "${PIPESTATUS[0]}" = 0 || test "${PIPESTATUS[0]}" = 124 || { tail -25 "$RUNNER_TEMP/genesis/log.txt"; exit 1; }
+
+      - name: Devolver el resultado (RPC mando_motor_reportar)
+        if: always() && steps.pedir.outputs.tareas != '0'
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          sys.path.insert(0, os.path.join(os.environ["RUNNER_TEMP"], "genesis-os", "scripts", "enjambre"))
+          from motor_ambito import Conector
+          conector = Conector.desde_entorno()
+          try:
+              with open(os.path.join(os.environ["RUNNER_TEMP"], "genesis-os", "starseed_memory_root",
+                                     "olas", "progreso.json"), encoding="utf-8") as f:
+                  for tarea_id, dato in json.load(f).items():
+                      conector.anotar_progreso(tarea_id, str(dato.get("estado") or "desconocido"))
+          except (OSError, ValueError):
+              pass
+          conector.anotar_evento({"tipo": "fin",
+                                  "texto": "Genesis Contenedor cerró el ciclo y volvió el resultado"})
+          conector.anotar_latido({"estado": "vivo"})
+          conector.tal_vez_enviar()
+          print("resultado informado a Genesis")
+          PY
