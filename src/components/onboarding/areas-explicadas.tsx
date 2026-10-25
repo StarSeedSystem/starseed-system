@@ -18,6 +18,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TODOS_LOS_TEMAS } from "@/lib/onboarding/guia-temas-red";
+import type { TemaGuia } from "@/lib/onboarding/guia-temas-sistema";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,6 +43,41 @@ type ExplicacionArea = {
   empiezaPor: string;
 };
 
+// Rutas cuyos textos salen de la fuente única de la guía (`TODOS_LOS_TEMAS`).
+// Una misma ruta puede repetir tema: `/cerebros` y `/cerebro` comparten
+// «neuronas-cerebro», y `/library` usa «libreria-biblioteca».
+const TEMA_POR_RUTA: Record<string, string> = {
+  "/protomolecula": "protomolecula",
+  "/red-mesh": "malla",
+  "/network/politics": "pilar-politica",
+  "/network/education": "pilar-educacion",
+  "/network/culture": "pilar-cultura",
+  "/cerebros": "neuronas-cerebro",
+  "/cerebro": "neuronas-cerebro",
+  "/library": "libreria-biblioteca",
+  "/genesis": "genesis",
+};
+
+// Se alternan tres iconos para que los puntos respiren sin perder unidad.
+const ICONOS_PUNTO: LucideIcon[] = [Compass, Sparkles, ListChecks];
+
+function explicacionDelTema(tema: TemaGuia): ExplicacionArea {
+  return {
+    queEs: tema.cuerpo,
+    comoFunciona: tema.puntos.map((texto, i) => ({
+      icono: ICONOS_PUNTO[i % ICONOS_PUNTO.length],
+      texto,
+    })),
+    empiezaPor: tema.preguntaAurora,
+  };
+}
+
+const EXPLICACIONES_DEL_TEMA: Record<string, ExplicacionArea> = {};
+for (const [ruta, clave] of Object.entries(TEMA_POR_RUTA)) {
+  const tema = TODOS_LOS_TEMAS.find((t) => t.key === clave);
+  if (tema) EXPLICACIONES_DEL_TEMA[ruta] = explicacionDelTema(tema);
+}
+
 // Contenido real por ruta. Las claves coinciden con los `path` de AREAS.
 const EXPLICACIONES: Record<string, ExplicacionArea> = {
   "/agent": {
@@ -62,16 +99,6 @@ const EXPLICACIONES: Record<string, ExplicacionArea> = {
       { icono: Sparkles, texto: "Las memorias vinculadas a un cerebro alimentan sus respuestas y grafo." },
     ],
     empiezaPor: "Crea tu primer baúl y guarda en él tres notas de lo que más te importa ahora.",
-  },
-  "/cerebros": {
-    queEs:
-      "El grafo vivo de tu conocimiento. Cada cerebro conecta memorias, skills y fuentes en una red que Astraura usa para pensar contigo: ver cómo se relacionan tus ideas y activar lo relevante en cada momento.",
-    comoFunciona: [
-      { icono: Compass, texto: "Un cerebro enlaza memorias, habilidades y almacenamientos que tú eliges." },
-      { icono: Sparkles, texto: "El grafo se recalcula solo cuando añades o quitas piezas." },
-      { icono: ListChecks, texto: "Puedes tener varios cerebros (personal, trabajo, creatividad) con enrutado propio." },
-    ],
-    empiezaPor: "Abre tu cerebro principal y comprueba qué memorias ya tiene enlazadas.",
   },
   "/decisiones": {
     queEs:
@@ -133,16 +160,6 @@ const EXPLICACIONES: Record<string, ExplicacionArea> = {
     ],
     empiezaPor: "Comprueba que tienes al menos un método de recuperación verificado.",
   },
-  "/library": {
-    queEs:
-      "La biblioteca universal de la red: contenidos, apps instalables y recursos educativos, tuyos y compartidos. Todo es una entidad única que se referencia, nunca se duplica.",
-    comoFunciona: [
-      { icono: ListChecks, texto: "Instala apps y recursos con un clic; aparecen en tu dock y catálogo." },
-      { icono: Compass, texto: "Guarda libros, guías y piezas de cultura en tu colección personal." },
-      { icono: Sparkles, texto: "Las actualizaciones de una pieza se reflejan en todas sus referencias." },
-    ],
-    empiezaPor: "Explora la biblioteca e instala una app que te llame la atención.",
-  },
   "/hub": {
     queEs:
       "El punto de encuentro de las comunidades. Descubre y únete a sanghas y grupos, coordina eventos y conversa con las personas de la red alrededor de intereses comunes.",
@@ -183,21 +200,12 @@ const EXPLICACIONES: Record<string, ExplicacionArea> = {
     ],
     empiezaPor: "Crea un segundo escritorio y deja en él solo lo de un proyecto.",
   },
-  "/red-mesh": {
-    queEs:
-      "El mapa vivo de la malla de la red: nodos LoRa/Meshtastic, rutas y señal en 3D. Ves cómo respira la infraestructura física que sostiene la red sin servidores centrales.",
-    comoFunciona: [
-      { icono: Compass, texto: "El mapa 3D muestra nodos, enlaces y topología en tiempo real." },
-      { icono: ListChecks, texto: "Cada neurona puede actuar como nodo y federar su topología." },
-      { icono: Sparkles, texto: "Los mensajes de la malla viajan por radio, cifrados y con duty cycle cuidado." },
-    ],
-    empiezaPor: "Abre el mapa y localiza tu neurona entre los nodos activos.",
-  },
 };
 
 // Explicación genérica por si se añade un área sin texto propio todavía.
 function explicacionDe(area: AreaTip): ExplicacionArea {
   return (
+    EXPLICACIONES_DEL_TEMA[area.path] ??
     EXPLICACIONES[area.path] ?? {
       queEs: area.tip,
       comoFunciona: [
