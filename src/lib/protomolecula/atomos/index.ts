@@ -11,6 +11,7 @@
 import type { ComponentType } from "react";
 import type { DefinicionAtomo, VistaProps } from "../registro-atomos";
 import { obtenerAtomo, registrarAtomo } from "../registro-atomos";
+import { registrarConvertidoresBase } from "../convertidores-base";
 import { SINTETIZADOR } from "./sintetizador";
 import { DOBLAJE } from "./doblaje";
 import { TEXTURAS } from "./texturas-webgl";
@@ -23,6 +24,7 @@ export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURA
  * veces no duplica nada, y un átomo que otra sesión ya registró no se vuelve a registrar.
  */
 export function registrarAtomosPropios(): void {
+  registrarConvertidoresBase();
   for (const def of ATOMOS_PROPIOS) {
     if (obtenerAtomo(def.herramientaId)) continue;
     registrarAtomo(def);
