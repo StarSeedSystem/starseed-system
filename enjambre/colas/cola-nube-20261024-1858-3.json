@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "SGO1024D",
+   "ola": "1024S",
+   "capacidad": "alta",
+   "titulo": "Voz · resolveActiveVoiceEngine aplica la jerarquía (y VibeVoice recibe su guion multi-locutor)",
+   "archivos": [
+    "src/lib/aurora/voice-config.ts",
+    "src/ai/astraura/router.ts",
+    "src/lib/aurora/__tests__/motor-activo-jerarquia.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024B (2026-10-24): resolveActiveVoiceEngine no aplica la jerarquía agente › personalidad › cerebro › neurona › cuenta y casi siempre devuelve el pin por defecto openvoice2, por eso src/ai/astraura/router.ts (~1981) casi nunca prepara el guion multi-locutor de VibeVoice y VibeVoice habla todo como Speaker 0. Haz que resuelva con la misma jerarquía que la cadena de voz (busca con grep cómo la resuelve speakWithConfiguredEngine / la capa neurona×personalidad) y que el router prepare el guion cuando el motor resuelto sea vibevoice. Pruebas con configuraciones simuladas. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024E",
+   "ola": "1024S",
+   "titulo": "Chatterbox · servicio de launchd que arranca el servidor local (127.0.0.1:4505) solo si el paquete está",
+   "archivos": [
+    "scripts/puente/instalar-servicios.py",
+    "native/astraura-voice/chatterbox/com.starseed.chatterbox.plist",
+    "scripts/puente/test_instalar_servicio_chatterbox.py"
+   ],
+   "depende": [],
+   "prompt": "VOZ1024C (2026-10-24) dejó native/astraura-voice/chatterbox/servidor.py levantando su servidor HTTP en 127.0.0.1:4505 (ver su README). Falta arrancarlo en la Mac: añade el servicio com.starseed.chatterbox a scripts/puente/instalar-servicios.py con el MISMO patrón que los demás servicios de voz (lanzador-tcc.py como padre, ruta absoluta del intérprete, ProcessType Interactive, KeepAlive solo si el paquete chatterbox está instalado: si no, el servicio no se instala y lo dice). Nunca descarga pesos. Prueba sin launchctl (plist generado y decisión de instalar). Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "RLB1020R",
+   "ola": "1020U",
+   "titulo": "Imágenes y Protomolécula · URL canónica de ComfyUI y fichas de Stirling-PDF y LibreTranslate",
+   "archivos": [
+    "src/lib/imagenes/modelos.ts",
+    "src/lib/protomolecula/catalogo-herramientas.ts",
+    "src/lib/protomolecula/__tests__/catalogo-herramientas-1020d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). En `src/lib/imagenes/modelos.ts` la `fuente` del motor `comfyui` pasa a https://github.com/Comfy-Org/ComfyUI; en el catálogo de la Protomolécula la ficha de ComfyUI apunta a Comfy-Org/ComfyUI sin tocar su versión. Añade al catálogo, con el mismo formato que las demás fichas, Stirling-PDF (editar documentos PDF) y LibreTranslate (traducir textos y subtítulos), con su licencia y su aviso del JSON, como servicio que coloca la bolsa (no se promete que corra en el aparato). Pruebas: ninguna referencia a comfyanonymous/ComfyUI en esos dos archivos; las dos fichas nuevas existen con licencia. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).",
+   "dependencias_ya_en_main": [
+    "RLB1020N"
+   ]
+  },
+  {
+   "id": "TRD1020D",
+   "ola": "1020U",
+   "titulo": "Traducción · idioma de lectura y autotraducción por perfil, sincronizados con la cuenta",
+   "archivos": [
+    "src/lib/traduccion/preferencias.ts",
+    "src/lib/settings-sync.ts",
+    "src/lib/traduccion/__tests__/preferencias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Clave `starseed.traduccion.v1` (añádela a `SYNCED_KEYS` con su comentario, como las demás). Preferencias por perfil: `{idioma, entiende: string[], auto: {paginas, mensajes, publicaciones, agentes, astraura}: \"nunca\"|\"preguntar\"|\"siempre\"}`; por defecto el idioma lo da quien llama (p. ej. `navigator.language`) y todo en «preguntar». `leer`/`guardar` con try/catch, validación (lo inválido vuelve al valor por defecto) y `debeTraducir(perfil, contexto, idiomaDelTexto)` (no si el idioma del texto está en `entiende`). Pruebas, incluida la auditoría de claves sincronizadas existente en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "IMN1021K3",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en colas, director y entornos de Genesis",
+   "archivos": [
+    "src/lib/mando/colas.ts",
+    "src/lib/mando/director-datos.ts",
+    "src/lib/mando/entornos.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios: «Los sueños profundos corren en la Mac» → «La imaginación profunda corre en la Mac», «Sueño profundo» → «Imaginación profunda», «Dream diario 07:00» → «Imaginación diaria (07:00 o según su horario)». Nada de identificadores (`suenos.py`, `tipo: \"analisis\"`). Si una prueba comprobaba el texto viejo, cámbiala solo en eso (añade su archivo de prueba solo si hace falta y no pasa de 3 archivos en total). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  },
+  {
+   "id": "IMN1021K4",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar comentarios en ramificación, tipos y grafo",
+   "archivos": [
+    "src/lib/mando/ramificacion.ts",
+    "src/lib/mando/tipos.ts",
+    "src/lib/mando/grafo-disposicion.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Solo comentarios: «sueño(s) profundo(s)» → «imaginación profunda». Nada de código. tsc y las pruebas de estos módulos en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  }
+ ]
+}
