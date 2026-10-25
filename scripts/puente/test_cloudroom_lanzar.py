@@ -27,15 +27,44 @@ def fila(tarea, t, hilo=None, **extra):
 
 
 class Ritmo(unittest.TestCase):
-    def test_plan_gratis_sin_uso_da_tres_al_dia(self):
+    def test_plan_gratis_sin_uso_reparte_hacia_arriba(self):
+        # (CAP1025C) 100 en 30 días → 4 al día (3,3 hacia arriba); con 3 hilos a la vez, 3 ahora.
         r = C.ritmo([], AHORA)
-        self.assertEqual((r["hoy"], r["quedan"]), (3, 100))
+        self.assertEqual((r["hoy"], r["quedan"], r["por_dia"]), (3, 100, 4.0))
+        self.assertIn("caben 3 (quedan 100 para 30 día(s): 4 al día, tope 6)", r["motivo"])
 
-    def test_tres_hoy_cumplen_el_ritmo_del_dia(self):
-        reg = [fila(x, AHORA - 60, final="traida") for x in "ABC"]
-        r = C.ritmo(reg, AHORA)
-        self.assertEqual((r["hoy"], r["quedan"]), (0, 97))
-        self.assertIn("sin cupo hoy", r["motivo"])
+    def test_el_cupo_del_dia_se_cumple(self):
+        ahora = C.medianoche(AHORA) + 12 * 3600  # mediodía local: el «hoy» no depende de la zona horaria
+        reg = [fila(x, ahora - 60, final="traida") for x in "ABCD"]
+        r = C.ritmo(reg, ahora)
+        self.assertEqual((r["hoy"], r["quedan"]), (0, 96))
+        self.assertIn("sin cupo hoy: ya van 4 hoy (quedan 96 para 30 día(s): 4 al día, tope 6)", r["motivo"])
+        self.assertEqual(C.ritmo(reg[:3], ahora)["hoy"], 1)  # con 3 hoy aún cabe el cuarto
+
+    def test_una_rafaga_de_ayer_no_para_el_dia_de_hoy(self):
+        """(2026-10-25, medido a las 12:10) 47 hilos el 24-10 entre las 13 y las 19 h y 53 por usar: decía
+        «sin cupo hoy: ya van 47 (ritmo 3,4 al día)». Ahora: 53 en 29 días → 2 hoy, y los 53 dentro del ciclo."""
+        hoy0 = C.medianoche(AHORA)
+        ahora = hoy0 + 12 * 3600 + 600  # hoy a las 12:10
+        reg = [fila("B%d" % i, hoy0 - 11 * 3600 + i * 400, final="traida") for i in range(47)]  # ayer 13-19 h
+        r = C.ritmo(reg, ahora)
+        self.assertEqual((r["hoy"], r["quedan"], r["por_dia"]), (2, 53, 2.0))
+        self.assertIn("2 al día, tope 6", r["motivo"])
+        t, usados = ahora, 0
+        while t < reg[0]["t"] + 30 * DIA - 1800:  # pasadas de 30 min hasta que el primero sale del ciclo
+            for _ in range(C.ritmo(reg, t)["hoy"]):
+                reg.append(fila("N%d" % usados, t, final="traida"))
+                usados += 1
+            t += 1800
+        self.assertEqual(usados, 53)  # se usan todos…
+        self.assertTrue(all(len([x for x in reg if 0 <= u - x["t"] < 30 * DIA]) <= 100
+                            for u in [x["t"] for x in reg]))  # …y nunca más de 100 en 30 días
+
+    def test_tope_diario(self):
+        # Quedan 80 y el más viejo sale en 2 días: 40 al día → el tope, 6.
+        reg = [fila("V%d" % i, AHORA - 28 * DIA, final="traida") for i in range(20)]
+        r = C.ritmo(reg, AHORA, tope_dia=6, max_vivos=10)
+        self.assertEqual((r["hoy"], r["por_dia"]), (6, 6.0))
 
     def test_ciclo_agotado_dice_sin_cupo(self):
         r = C.ritmo([], AHORA, total=100, usados_cuenta=100)

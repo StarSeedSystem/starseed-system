@@ -11,8 +11,9 @@ las puertas del enjambre, y deja la tarea `reasignada · cloudroom (<harness>/<m
 traspaso). Los modelos (CRM1024J, `cloudroom_modelos`): solo los que la cuenta tiene EN LA NUBE
 (`cloud status --json`, nunca uno inventado), repartidos en rueda entre opencode/pi gratis, Codex
 (< 80 % de su cuota, la del enjambre) y Claude Code sonnet/haiku (semana < 30 %); si un spawn falla
-por el modelo, la tarea prueba el siguiente sin gastarse. Ritmo: lo que queda del ciclo de 30 días
-(100 hilos en el plan gratis) entre los días que faltan, con `MAX_VIVOS` hilos abiertos.
+por el modelo, la tarea prueba el siguiente sin gastarse. Ritmo (CAP1025C): lo que QUEDA del ciclo de 30 días
+(100 hilos en el plan gratis) entre los días que faltan, hacia arriba y con `TOPE_DIA`
+(`STARSEED_CLOUDROOM_TOPE_DIA`), un hilo cada 24 h ÷ ritmo y `MAX_VIVOS` hilos abiertos.
 `seguir` no se queda esperando (`thread list`, no `thread wait`): si el agente EMPUJÓ su rama
 `nube/cr-<fecha>/ola/<ID>`, la tarea vuelve a `pendiente` y se lanza `traer_nube`, que la trae con sus
 puertas (tsc, pruebas, revisión); si el hilo terminó sin rama, `environment diff-patch` se convierte
@@ -24,6 +25,7 @@ relanza. Decisiones PURAS probadas en `test_cloudroom_lanzar.py` (sin room-cli, 
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -121,31 +123,53 @@ def abiertos(registro):
     return [x for x in _filas(registro) if not x.get("final")]
 
 
-def ritmo(registro, ahora, total=100, usados_cuenta=0, max_vivos=MAX_VIVOS):
-    """PURA. {"hoy", "quedan", "motivo"}: cuántos hilos caben AHORA sin agotar el ciclo.
+#: (2026-10-25, CAP1025C) Tope de hilos de la nube por día (dos tandas de `MAX_VIVOS`), por si quedan muchos y
+#: pocos días: nunca más de esto aunque el reparto dé más.
+TOPE_DIA = int(os.environ.get("STARSEED_CLOUDROOM_TOPE_DIA") or 6)
+
+
+def medianoche(ahora):
+    """PURA salvo la zona horaria: el inicio del día local de `ahora` (el día del ritmo)."""
+    t = time.localtime(ahora)
+    return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1))
+
+
+def ritmo(registro, ahora, total=100, usados_cuenta=0, max_vivos=MAX_VIVOS, tope_dia=TOPE_DIA):
+    """PURA. {"hoy", "quedan", "motivo", "por_dia"}: cuántos hilos caben AHORA sin agotar el ciclo.
 
     Cada hilo cuenta 30 días (ventana móvil); lo usado es lo mayor entre el registro y lo que diga la
-    cuenta. Ritmo = lo que quedaba al empezar el día ÷ días hasta que el hilo más viejo salga del ciclo
-    (30 sin ninguno): 100/30 → 3 al día. Con menos de uno al día, uno cada 1/ritmo días."""
+    cuenta.
+
+    (2026-10-25, CAP1025C) El cupo de HOY (el día local) = lo que quedaba al empezar el día ÷ días hasta que
+    el hilo más viejo salga del ciclo (30 sin ninguno), hacia ARRIBA y con `tope_dia`, menos lo lanzado
+    hoy. Antes: hacia abajo y restando las últimas 24 h, y el motivo enseñaba el ritmo del ciclo entero:
+    con 47 hilos abiertos el 24-10 entre las 13 y las 19 h, el 25-10 a las 12:10 decía «sin cupo hoy: ya
+    van 47 (ritmo 3,4 al día)» con 53 por usar, y después daba 1 al día (1,8 hacia abajo). Ahora: 53 en 29
+    días → 2 al día desde hoy, y una ráfaga de ayer no deja parado el día de hoy. Con menos de uno al día,
+    uno cada 1/ritmo días desde el último."""
     ventana = sorted(_t(x) for x in _filas(registro) if ahora - _t(x) < CICLO_DIAS * DIA_S)
     usados = max(len(ventana), int(usados_cuenta or 0))
     quedan = max(0, int(total) - usados)
     if quedan <= 0:
-        return {"hoy": 0, "quedan": 0, "motivo": "sin cupo: %d de %d hilos de la nube usados en %d días"
-                % (usados, total, CICLO_DIAS)}
+        return {"hoy": 0, "quedan": 0, "por_dia": 0.0,
+                "motivo": "sin cupo: %d de %d hilos de la nube usados en %d días" % (usados, total, CICLO_DIAS)}
     vivos = len(abiertos(registro))
-    if vivos >= max_vivos:
-        return {"hoy": 0, "quedan": quedan, "motivo": "sin cupo ahora: %d hilos abiertos (tope %d)" % (vivos, max_vivos)}
-    hoy_ya = sum(1 for t in ventana if ahora - t < DIA_S)
+    hoy_ya = sum(1 for t in ventana if t >= medianoche(ahora))
     dias = max(1.0, (ventana[0] + CICLO_DIAS * DIA_S - ahora) / DIA_S) if ventana else float(CICLO_DIAS)
-    por_dia = (quedan + hoy_ya) / dias
+    crudo = (quedan + hoy_ya) / dias
+    por_dia = float(min(int(tope_dia), int(math.ceil(crudo)))) if crudo >= 1 else crudo
+    reparto = "quedan %d para %.0f día(s): %s, tope %d" % (
+        quedan, dias, ("%d al día" % por_dia) if por_dia >= 1 else ("1 cada %.0f días" % (1 / por_dia)), int(tope_dia))
+    if vivos >= max_vivos:
+        return {"hoy": 0, "quedan": quedan, "por_dia": por_dia,
+                "motivo": "sin cupo ahora: %d hilos abiertos (tope %d)" % (vivos, max_vivos)}
     if por_dia >= 1:
         hoy = int(por_dia) - hoy_ya
     else:
         hoy = 1 if not hoy_ya and (not ventana or ahora - ventana[-1] >= DIA_S / por_dia) else 0
     hoy = max(0, min(hoy, quedan, max_vivos - vivos))
-    motivo = ("caben %d" % hoy) if hoy else ("sin cupo hoy: ya van %d (ritmo %.1f al día)" % (hoy_ya, por_dia))
-    return {"hoy": hoy, "quedan": quedan, "motivo": motivo}
+    motivo = ("caben %d (%s)" % (hoy, reparto)) if hoy else ("sin cupo hoy: ya van %d hoy (%s)" % (hoy_ya, reparto))
+    return {"hoy": hoy, "quedan": quedan, "por_dia": por_dia, "motivo": motivo}
 
 
 def no_relanzar(registro, ahora):
