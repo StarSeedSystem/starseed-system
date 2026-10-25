@@ -35,7 +35,7 @@ export function TarjetaProtomolecula({ ir }: { ir: (href: string) => void }) {
         <VistaPreviaOrbe estilo={orbe.estilo} activa={orbe.activada} className="h-12 w-12 shrink-0 min-[400px]:h-16 min-[400px]:w-16" />
         <div className="min-w-0 flex-1">
           {/* <400 px: a 360 px «PROTOMOLÉCULA» no cabía y se partía a mitad de palabra. */}
-          <h3 id={idTitulo} className="font-headline text-[15px] font-semibold uppercase leading-tight tracking-wide text-emerald-50 min-[400px]:text-lg min-[400px]:tracking-widest">
+          <h3 id={idTitulo} className="font-headline text-[clamp(12px,3.9vw,15px)] font-semibold uppercase leading-tight tracking-wide text-emerald-50 [overflow-wrap:normal] min-[400px]:text-lg min-[400px]:tracking-widest">
             Protomolécula
           </h3>
           <p className="mt-0.5 text-xs leading-snug text-emerald-100/65">
@@ -52,7 +52,8 @@ export function TarjetaProtomolecula({ ir }: { ir: (href: string) => void }) {
             aria-label="Orbe de la Protomolécula"
             className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-white/20 focus-visible:ring-lime-300/70 focus-visible:ring-offset-black"
           />
-          <span aria-hidden="true" className={cn("text-[10px] font-medium uppercase tracking-wider", orbe.activada ? "text-lime-300" : "text-emerald-100/50")}>
+          {/* <400 px se oculta: el color del interruptor y la frase de debajo del título ya dicen el estado, y así cabe el título. */}
+          <span aria-hidden="true" className={cn("hidden text-[10px] font-medium uppercase tracking-wider min-[400px]:inline", orbe.activada ? "text-lime-300" : "text-emerald-100/50")}>
             {orbe.activada ? "Encendida" : "Apagada"}
           </span>
         </label>
