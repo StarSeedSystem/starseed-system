@@ -1,0 +1,77 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-24 20:28:21",
+  "desde": "2026-10-17 23:01:51",
+  "ultimo_429": "2026-10-18 00:20:58",
+  "sin_cupo_hasta": "2026-10-25 18:00:39",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-24 20:28:21",
+  "desde": "2026-10-17 23:01:56",
+  "ultimo_429": "2026-10-11 23:04:56",
+  "motivo": "pasarela: $ opencode run --model nvidia/nvidia/nemotron-3-super-120b-a12b · 2026-10-18 04:36:34 \u001b[0m \u001b[0m > build · nvidia/nemotron-3-super-120b-a12b ",
+  "sin_cupo_hasta": "2026-10-18 05:08:49"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-23 23:11:36",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-24 23:12:07",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-24 20:28:21",
+  "desde": "2026-10-22 04:59:02",
+  "ultimo_429": "2026-10-16 20:22:17",
+  "sin_cupo_hasta": "2026-10-25 18:00:39",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-24 20:28:22",
+  "desde": "2026-10-22 04:51:21",
+  "ultimo_429": "2026-10-24 20:25:17"
+ },
+ "ultimo_revisor_ok": "freellmapi/auto",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-24 20:28:21",
+  "desde": "2026-10-22 12:09:30",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "$ opencode run --model apinex/free/glm-5.3-flash · 2026-10-24 09:26:56 \u001b[0m \u001b[0m > build · free/glm-5.3-flash \u001b[0m→ \u001b[0mRead scripts/puente/",
+  "ultimo_429": "2026-10-10 13:27:48",
+  "sin_cupo_hasta": "2026-10-25 09:27:37"
+ },
+ "google": {
+  "estado": "vivo",
+  "motivo": "sonda del botón: cupo del día agotado (429)",
+  "sin_cupo_hasta": "2026-10-25 01:00:39"
+ },
+ "codex": {
+  "motivo": "el medidor de crédito lo ve con cupo (autocuración)"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-24 20:28:22",
+  "desde": "2026-10-07 15:26:19",
+  "motivo": "pasarela: $ opencode run --model freellmapi/auto · 2026-10-24 12:18:08 \u001b[0m \u001b[0m> build · auto [ ] Explorar la estructura del repositorio y leer archi",
+  "sin_cupo_hasta": "2026-10-24 12:37:14"
+ },
+ "explabs": {
+  "estado": "vivo",
+  "t": "2026-10-24 20:28:22",
+  "desde": "2026-10-24 19:42:51",
+  "sin_cupo_hasta": "2026-10-25 19:44:27",
+  "motivo": "http error 402: payment required"
+ }
+}
