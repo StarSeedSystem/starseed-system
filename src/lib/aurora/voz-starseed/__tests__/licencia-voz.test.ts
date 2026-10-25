@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { motorRecomendado } from "@/lib/aurora/catalogo-voces";
 import { motoresPermitidos, type MotorInfo } from "../licencia-voz";
 
 const MOTORES: MotorInfo[] = [
@@ -104,5 +105,25 @@ describe("motoresPermitidos", () => {
     expect(a).toEqual(b);
     const inversos = motoresPermitidos([...MOTORES].reverse(), "personal", capas);
     expect(ids(inversos)).toEqual(["kokoro", "supertonic", "omnivoice"]);
+  });
+});
+
+describe("motoresPermitidos aplicado en motorRecomendado", () => {
+  it("la capa neurona libre quita los pesos personales también en contexto personal", () => {
+    const motor = motorRecomendado("macos", 8, "personal", { neurona: "libre" });
+    expect(motor.claseLicencia).toBe("libre");
+    expect(motor.id).not.toBe("voicemorphic");
+  });
+
+  it("en lo personal, sin capas, sigue entrando la voz nativa", () => {
+    expect(motorRecomendado("macos", 8, "personal").id).toBe("voicemorphic");
+  });
+
+  it("en grupo, comunidad, público y comercial nunca recomienda clase personal", () => {
+    for (const contexto of ["grupo", "comunidad", "publico", "comercial"] as const) {
+      for (const plataforma of ["macos", "windows", "linux", "android", "ios", "web"] as const) {
+        expect(motorRecomendado(plataforma, 16, contexto).claseLicencia).not.toBe("personal");
+      }
+    }
   });
 });
