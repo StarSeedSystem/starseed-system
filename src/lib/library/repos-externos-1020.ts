@@ -1,87 +1,92 @@
-"use client";
+// Ola 1020 · Repo builtin «starseed-biblioteca-externa»: las 14 repos externas
+// del catálogo verificado config/repos-libreria-1020.json, mapeadas a
+// LibraryPackage. Módulo puro (sin node::*): el JSON se IMPORTA, no se lee de
+// disco, así que sirve igual en el navegador, en vitest y en next build.
+//
+// Honestidad radical: NINGUNA tiene aún efecto de instalación real
+// (comingSoon:true, botón deshabilitado). Con payload.externalUrl de GitHub,
+// available-updates.ts ya autobusca releases/tags — NO se duplica ese motor.
+// La zhaoxuya520/reverse-skill queda EXCLUIDA por seguridad (bloque «excluida»
+// del catálogo): nunca se mapea ni se menciona en el repo resultante.
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import repos1020 from "../../../config/repos-libreria-1020.json";
+import type { LibraryPackage, LibraryRepo, PackageKind } from "./packages";
 
-const REPO_ROOT = process.cwd();
-const CONFIG_1_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020.json");
-const CONFIG_2_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020b.json");
-
-const repos1 = JSON.parse(readFileSync(CONFIG_1_PATH, "utf-8"));
-const repos2 = JSON.parse(readFileSync(CONFIG_2_PATH, "utf-8"));
-
-const EXCLUIDA_1: string[] = [repos1.excluida?.repo ?? ""].filter((v): v is string => v !== "");
-const EXCLUIDAS_2: string[] = repos2.excluidas?.map((e: { repo: string }) => e.repo) ?? [];
-
-export const REPOS_EXCLUIDOS: string[] = [...EXCLUIDA_1, ...EXCLUIDAS_2];
-
-function mapaPatronTag(patron_tag: string): string {
-  return patron_tag ?? "";
-}
-
-export interface ReposExternosPaquete {
+/** Una entrada del catálogo config/repos-libreria-1020.json (no se cambia). */
+interface Entrada1020 {
   id: string;
   repo: string;
   nombre: string;
   kind: string;
   canal: string;
-  patronTag: string;
-  licencia: string;
+  licencia?: string;
   area: string[];
-  efecto: string;
-  preinstalar: string;
-  claude: string | boolean;
-  githubRepo: string;
-  externalUrl: string;
-  comingSoon?: boolean;
-  motivoComingSoon?: string;
+  que_es: string;
+  aviso?: string;
+  skillId?: string;
+  assets?: string[];
 }
 
-function transformaPaquete(p: typeof repos1.paquetes[0] | (typeof repos2.paquetes)[0]): ReposExternosPaquete {
-  const efecto = p.efecto ?? "";
-  const preinstalar = p.preinstalar ?? "";
-  const claude = p.claude ?? false;
-  const patronTag = mapaPatronTag(p.patron_tag);
+const ENTRADAS = repos1020.paquetes as Entrada1020[];
 
-  const githubRepo = p.repo ?? "";
-  const externalUrl = `https://github.com/${githubRepo}`;
+/** Icono lucide por kind (la UI lo resuelve por nombre). */
+const ICONO_POR_KIND: Record<string, string> = {
+  app: "AppWindow",
+  "ai-source": "BrainCircuit",
+  function: "Boxes",
+};
 
-  const esEfectoQueRequiereComingSoon =
-    efecto === "CONECTOR" || efecto === "HERRAMIENTA-AGENTE" || efecto === "CATALOGO";
+const KIND_VALIDO: Record<string, PackageKind> = {
+  app: "app",
+  "ai-source": "ai-source",
+  function: "function",
+};
 
-  let comingSoon = false;
-  let motivoComingSoon = "";
+function kindDe(entrada: Entrada1020): PackageKind {
+  return KIND_VALIDO[entrada.kind] ?? "app";
+}
 
-  if (esEfectoQueRequiereComingSoon) {
-    comingSoon = true;
-    motivoComingSoon = `efecto ${efecto}: instalación externa, sin ruta propia del OS`;
-  }
+/** Tags = áreas del OS + canal de actualización + «lic» si declara licencia. */
+function tagsDe(entrada: Entrada1020): string[] {
+  return [...entrada.area, entrada.canal, entrada.licencia ? "lic" : ""].filter(Boolean);
+}
 
+function descripcionDe(entrada: Entrada1020): string {
+  return entrada.que_es + (entrada.aviso ? " — " + entrada.aviso : "");
+}
+
+function payloadDe(entrada: Entrada1020): Record<string, unknown> {
   return {
-    id: p.id,
-    repo: p.repo,
-    nombre: p.nombre ?? p.id,
-    kind: p.kind ?? "app",
-    canal: p.canal ?? "releases",
-    patronTag,
-    licencia: p.licencia ?? "",
-    area: p.area ?? [],
-    efecto,
-    preinstalar,
-    claude,
-    githubRepo,
-    externalUrl,
-    comingSoon,
-    motivoComingSoon,
+    externalUrl: "https://github.com/" + entrada.repo,
+    githubRepo: entrada.repo,
+    canal: entrada.canal,
+    area: entrada.area,
+    licencia: entrada.licencia,
+    assets: entrada.assets ?? false,
+    ...(entrada.skillId ? { skillId: entrada.skillId } : {}),
   };
 }
 
-const paquetes1 = (repos1.paquetes ?? []).map(transformaPaquete);
-const paquetes2 = (repos2.paquetes ?? []).map(transformaPaquete);
+function paqueteDe(entrada: Entrada1020): LibraryPackage {
+  return {
+    id: entrada.id,
+    kind: kindDe(entrada),
+    name: entrada.nombre ?? entrada.id,
+    description: descripcionDe(entrada),
+    icon: ICONO_POR_KIND[entrada.kind] ?? "Globe",
+    tags: tagsDe(entrada),
+    version: "1.0.0",
+    author: entrada.repo.split("/")[0] ?? "StarSeed",
+    sourceRepoId: "starseed-biblioteca-externa",
+    free: true,
+    comingSoon: true,
+    payload: payloadDe(entrada),
+  };
+}
 
-const reposExcluidosSet = new Set(REPOS_EXCLUIDOS);
-
-export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
-  ...paquetes1.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-  ...paquetes2.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-];
+export const REPO_EXTERNOS_1020: LibraryRepo = {
+  id: "starseed-biblioteca-externa",
+  name: "Biblioteca externa",
+  builtin: true,
+  packages: ENTRADAS.map(paqueteDe),
+};
