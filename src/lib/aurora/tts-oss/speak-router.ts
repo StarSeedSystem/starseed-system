@@ -68,7 +68,13 @@ import {
   applyVoiceChainPriority,
 } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import { BrainApiManager } from "@/lib/aurora/tts-oss/brain-api-manager";
-import { cronometroHabla } from "@/lib/aurora/medidas-voz";
+import { cronometroHabla, leerMedidas } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+import {
+  ordenarCadenaPorLatencia,
+  resumirMedidas,
+  type ModoVoz,
+} from "@/lib/aurora/tts-oss/conversacion-fluida";
 import {
   getEngineSettings,
   getVoiceConfig,
@@ -111,6 +117,14 @@ export interface ConfiguredSpeakOptions {
    * en UNA sola síntesis. Si no aplica, se ignora.
    */
   multiSpeakerScript?: string;
+  /**
+   * (VZR1011D) Contexto del turno: `conversacion` (por defecto) elige el motor
+   * por la latencia MEDIDA en esta neurona con presupuesto de 0,8 s; `lectura`
+   * respeta la calidad y no reordena por latencia.
+   */
+  modoVoz?: ModoVoz;
+  /** Presupuesto hasta el primer sonido en conversación (por defecto 800 ms). */
+  presupuestoMs?: number;
 }
 
 // ── Auto-detección de idioma HABLADO (sin dependencias) ─────────────────────
@@ -579,6 +593,19 @@ export async function speakWithConfiguredEngine(
     // Preferencias de jerarquización (Adenda 94): el usuario reordena la cadena
     // de motores en la ventana de voz; aquí la respetamos antes de hablar.
     const orderedChain = applyVoiceChainPriority(chain);
+    // (VZR1011D) La latencia MEDIDA en ESTA neurona manda sobre la teórica: los
+    // motores que ya sonaron rápido aquí van delante; los que se pasan del
+    // presupuesto, al final (el turno nunca espera en silencio: sigue la cadena).
+    let cadenaViva = orderedChain;
+    try {
+      const medidasDeAqui = resumirMedidas(leerMedidas(neuronDeviceIdActual()));
+      cadenaViva = ordenarCadenaPorLatencia(orderedChain, medidasDeAqui, {
+        modo: opts.modoVoz ?? "conversacion",
+        presupuestoMs: opts.presupuestoMs,
+      });
+    } catch {
+      /* sin medidas: la cadena original sigue intacta */
+    }
     // ACTIVACIÓN AUTOMÁTICA POR SESIÓN (Adenda 94): si la cadena incluye el
     // motor web OpenVoice, descubre los Spaces HF Running UNA vez por sesión de
     // chat (al iniciar/actualizar la sesión de la neurona activa) para que
@@ -612,7 +639,7 @@ export async function speakWithConfiguredEngine(
     // `playSequentialViaMixer`), sin tocar la voz. El cambio de motor solo
     // ocurre cuando el actual FALLA de verdad, y nunca a mitad de locución ya
     // empezada (`allowFamilyFailover`).
-    for (const link of orderedChain) {
+    for (const link of cadenaViva) {
       // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
       const outcome = await Promise.resolve()
         .then(() => runLink(link, clean, cfg, wrappedOpts, detectedLang))
