@@ -57,6 +57,20 @@ describe('restanteParaOtrosMb', () => {
     expect(restanteParaOtrosMb(basePuerta)).toBe(600);
   });
 
+  it('devuelve directamente 20 % si al dueño no se le declara reserva', () => {
+    // tope 1000, usado 200, reserva sin declarar → 20 % implícito de 1000 = 200 → 600 MB
+    expect(
+      restanteParaOtrosMb({ ...basePuerta, reservaDuenoPct: undefined })
+    ).toBe(600);
+  });
+
+  it('respeta una reserva editable distinta de 20 %', () => {
+    // tope 1000, usado 0, reserva 40 % = 400 → 600 MB para otros
+    expect(
+      restanteParaOtrosMb({ ...basePuerta, usadoMesMb: 0, reservaDuenoPct: 40 })
+    ).toBe(600);
+  });
+
   it('devuelve 0 si el usado más la reserva supera el tope', () => {
     expect(
       restanteParaOtrosMb({
@@ -177,11 +191,21 @@ describe('puedeUsar', () => {
     ).toEqual({ ok: true, motivo: 'Permitido según configuración de compartir' });
   });
 
-    it('permite cuando es público y hay datos disponibles', () => {
+  it('permite cuando es público y hay datos disponibles', () => {
       expect(
         puedeUsar({ ...basePuerta, compartir: 'publico' as Compartir }, baseSolicitante)
       ).toEqual({ ok: true, motivo: 'Permitido según configuración de compartir' });
     });
+
+  it('deniega a los demás una puerta sin medida ni tope aunque compartir sea público', () => {
+    // Sin medida no hay restante calculable para otros (rescate RTTIP1013B)
+    expect(
+      puedeUsar(
+        { ...basePuerta, medida: false, topeMensualMb: undefined },
+        baseSolicitante
+      )
+    ).toEqual({ ok: false, motivo: 'Puerta no medida o sin tope definido' });
+  });
 
   it('deniega cuando es público pero no hay datos disponibles', () => {
     expect(
@@ -351,6 +375,26 @@ describe('elegirPuerta', () => {
     });
   });
 
+  it('cambia a la de menor coste cuando la actual cuesta mucho más que mejor × 1,2', () => {
+    // Rama de salida de la histéresis (rescate RTTIP1013B):
+    // p1: 0,9 + 0,65 = 1,55 × 2 (medida) = 3,1 · p2: 0,01 × 2 = 0,02 → 3,1 > 0,024.
+    const actualCara = { ...puertas[0], latenciaMs: 900 };
+    const otraBarata = { ...puertas[1], latenciaMs: 10, usadoMesMb: 0 };
+
+    const resultado = elegirPuerta({
+      clase: 'interno' as ClaseDato,
+      necesitaInternet: true,
+      puertas: [actualCara, otraBarata],
+      solicitante: baseSolicitante,
+      actual: 'p1',
+    });
+
+    expect(resultado).toEqual({
+      puerta: otraBarata,
+      motivo: 'Puerta de menor coste seleccionada',
+    });
+  });
+
   it('devuelve null cuando ninguna puerta está permitida', () => {
     const puertasNoPermitidas = [
       {
@@ -408,5 +452,49 @@ describe('puertaParaTesela', () => {
     expect(resultado.neurona).toBe('n1');
     expect(resultado.cuenta).toBe('c1');
     expect(resultado.tipo).toBe('movil-4g');
+  });
+
+  it('sin datos opcionales devuelve exactamente los campos de la interfaz (rescate RTTIP1013B)', () => {
+    // La interfaz de hoy exige NUEVE campos: los ocho que traía la rama más «compartir»,
+    // que entró a PuertaInternet por camino distinto en main.
+    const puerta: PuertaInternet = {
+      id: 'p1',
+      neurona: 'n1',
+      cuenta: 'c1',
+      tipo: 'cable',
+      bajadaKbps: 10000,
+      subidaKbps: 5000,
+      latenciaMs: 50,
+      medida: true,
+      compartir: 'publico',
+    };
+    expect(
+      Object.keys(puertaParaTesela(puerta)).sort()
+    ).toEqual(
+      ['bajadaKbps', 'compartir', 'cuenta', 'id', 'latenciaMs', 'medida', 'neurona', 'subidaKbps', 'tipo']
+    );
+  });
+
+  it('conserva los datos opcionales que sí pertenecen a la interfaz', () => {
+    const puerta: PuertaInternet = {
+      id: 'p1',
+      neurona: 'n1',
+      cuenta: 'c1',
+      tipo: 'movil-4g',
+      bajadaKbps: 10000,
+      subidaKbps: 5000,
+      latenciaMs: 50,
+      medida: true,
+      topeMensualMb: 1000,
+      usadoMesMb: 200,
+      reservaDuenoPct: 20,
+      compartir: 'publico',
+      grupos: ['grupo1'],
+    };
+    const resultado = puertaParaTesela(puerta);
+    expect(resultado.topeMensualMb).toBe(1000);
+    expect(resultado.usadoMesMb).toBe(200);
+    expect(resultado.reservaDuenoPct).toBe(20);
+    expect(resultado.grupos).toEqual(['grupo1']);
   });
 });
