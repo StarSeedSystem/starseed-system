@@ -143,11 +143,67 @@ describe("inventarioDesde · Mac de Alex con servidor local y SSD externo USB", 
         expect(esta.almacenes.find((a) => a.id === `navegador:${ID}`)?.tipo).toBe("navegador");
     });
 
+    it("la máquina manda en discos y NPU sin borrar WebGPU, el navegador ni las carpetas", () => {
+        const base = desdeNavegador();
+        const conCarpeta = {
+            ...base,
+            almacenes: [
+                ...base.almacenes,
+                {
+                    id: "carpeta:c1",
+                    tipo: "neurona-local" as const,
+                    etiqueta: "Carpeta «Modelos»",
+                    neuronaId: ID,
+                    via: "local" as const,
+                    persistente: true,
+                    privado: true,
+                    disponible: true,
+                    fuente: "declarado" as const,
+                },
+            ],
+        };
+        const out = inventarioDesde({ estaNeurona: conCarpeta, maquina: MAC_ALEX, ahora }).neuronas[0];
+        expect(out.almacenes.find((a) => a.id === `${ID}:interno`)).toMatchObject({
+            tipo: "neurona-local",
+            etiqueta: "Disco interno (Macintosh HD)",
+            totalGb: 228,
+            libreGb: 9.2,
+            tipoDisco: "nvme",
+            conexion: "interna",
+            fuente: "detectado",
+        });
+        expect(out.almacenes.find((a) => a.id === `${ID}:ext:SSD Externo`)).toMatchObject({ tipo: "disco-externo", lecturaMBs: 900, fuente: "detectado" });
+        expect(out.almacenes.find((a) => a.id === `navegador:${ID}`)?.tipo).toBe("navegador");
+        expect(out.almacenes.find((a) => a.id === "carpeta:c1")?.tipo).toBe("neurona-local");
+        expect(out.procesadores.find((p) => p.tipo === "npu")).toMatchObject({
+            id: `${ID}:npu`,
+            nombre: "Apple Neural Engine · 11 TOPS",
+            aceleradores: ["ane", "coreml"],
+            fuente: "detectado",
+        });
+        expect(out.procesadores.find((p) => p.tipo === "webgpu")).toBeDefined();
+    });
+
     it("avisos honestos: los de la máquina, y ninguno de «el navegador no ve los discos»", () => {
         expect(inv.avisos).toContain(MAC_ALEX.avisos[0]);
         expect(inv.avisos).not.toContain(AVISO_DISCOS);
         expect(inv.avisos).not.toContain(AVISO_RAM_NAVEGADOR);
     });
+    it("sin volúmenes ni NPU lo dice; lo detectado también con la máquina a medias; no muta las fuentes", () => {
+        const base = desdeNavegador();
+        const maquina = { ...MAC_ALEX, npu: undefined, volumenes: [] };
+        const inv = inventarioDesde({ estaNeurona: base, maquina, ahora });
+        expect(inv.avisos).toContain("El servidor local de esta neurona no pudo leer sus discos.");
+        expect(inv.neuronas[0].procesadores.find((p) => p.tipo === "npu")).toBeUndefined();
+        // La máquina manda en el hierro aunque venga a medias: CPU y GPU detectadas, WebGPU se queda.
+        expect(inv.neuronas[0].procesadores.find((p) => p.tipo === "cpu")?.fuente).toBe("detectado");
+        expect(inv.neuronas[0].procesadores.find((p) => p.tipo === "gpu")?.fuente).toBe("detectado");
+        expect(inv.neuronas[0].procesadores.find((p) => p.tipo === "webgpu")).toBeDefined();
+        // PURA: ni la neurona ni la máquina de entrada cambian.
+        expect(base.almacenes).toHaveLength(desdeNavegador().almacenes.length);
+        expect(maquina.volumenes).toEqual([]);
+    });
+
 });
 
 describe("inventarioDesde · sin servidor local", () => {
