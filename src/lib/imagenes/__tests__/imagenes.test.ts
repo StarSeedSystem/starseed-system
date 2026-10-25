@@ -178,6 +178,19 @@ describe("Z-Image-Turbo y el paquete personal", () => {
     expect(s.instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
     expect(s.desdeLaMalla.join(" ")).toMatch(/Qwen-Image 2.1-Turbo/);
   });
+  it("Z-Image-Turbo solo donde cabe: ni la Mac de 8 GB ni la A1 lo proponen", () => {
+    for (const h of [MAC8, A1]) {
+      expect(paqueteBase(h, { comercial: false }).instalar.some((x) => x.modelo.id === "z-image-turbo")).toBe(false);
+    }
+  });
+  it("A1 con modelos personales: Turbo GGUF Q4_K_M (4,2 GB) y el resto del paquete igual", () => {
+    const s = paqueteBase(A1, { comercial: false, permitirPersonal: true });
+    const turbo = s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
+    expect(turbo?.papel).toBe("calidad");
+    expect(turbo?.porQue).toMatch(/GGUF personal \(Q4_K_M 4,2 GB\):/);
+    expect(s.instalar.find((x) => x.papel === "rapido")?.modelo.id).toBe("flux1-schnell");
+    expect(s.instalar.find((x) => x.papel === "texto")?.modelo.id).toBe("sd35-medium");
+  });
 });
 
 describe("núcleo puro", () => {
