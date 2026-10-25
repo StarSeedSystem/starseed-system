@@ -182,6 +182,12 @@ const PanelProtomoleculaAutonomo = dynamic(
     () => import("@/components/protomolecula/panel-protomolecula").then((mod) => mod.PanelProtomoleculaAutonomo),
     { ssr: false, loading: dashboardWidgetLoading }
 );
+// Estudio de vídeo (Ola 1018H): ventana/widget `estudio-video` compartido por dashboard,
+// escritorio y pizarra. Perezoso como el resto de superficies 3D/servicios locales.
+const EstudioVideoVentanaWidget = dynamic(
+    () => import("@/components/video/estudio-video-ventana").then((mod) => mod.EstudioVideoVentana),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
 
 interface WidgetProps {
     widget: DashboardWidget;
@@ -280,6 +286,9 @@ function cuerpoClasico(
     weatherVariant: string | undefined,
     onUpdateSettings?: (patch: Record<string, any>) => void,
 ): React.ReactElement {
+    // Ola 1018H — «Estudio de vídeo» llega con el tipo libre `estudio-video` (escritorio y
+    // pizarra lo montan fuera de la unión WidgetType): se despacha antes del switch tipado.
+    if ((widget.widget_type as string) === "estudio-video") return <EstudioVideoVentanaWidget />;
     switch (widget.widget_type) {
         case 'EXPLORE_NETWORK':
             return <ExploreNetworkWidget />;
