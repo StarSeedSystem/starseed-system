@@ -58,15 +58,33 @@ const entregar = () => act(async () => { red.entregarTodo(); await Promise.resol
 const clic = (el: HTMLElement) => act(async () => { fireEvent.click(el); await Promise.resolve(); });
 const mesa = (c: Controlador) => c.getSnapshot().estado as EstadoMesa;
 
-function escapeRegExp(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function textoContienePalabra(texto: string | null, palabra: string): boolean {
     if (!texto || !palabra) return false;
-    const r = new RegExp("\\b" + escapeRegExp(palabra) + "\\b");
-    return r.test(texto);
+    return texto.includes(palabra);
 }
+
+describe("textoContienePalabra", () => {
+    test("verdadero cuando la palabra está dentro del texto", () => {
+        expect(textoContienePalabra("hola mundo", "mundo")).toBe(true);
+        expect(textoContienePalabra("hola mundo", "hol")).toBe(true);
+        expect(textoContienePalabra("hola mundo", "mundo ")).toBe(false);
+        expect(textoContienePalabra("hola mundo", " mundo")).toBe(true);
+    });
+
+    test("falso cuando la palabra no está dentro del texto", () => {
+        expect(textoContienePalabra("hola mundo", "adios")).toBe(false);
+        expect(textoContienePalabra("hola mundo", "")).toBe(false);
+        expect(textoContienePalabra("", "hola")).toBe(false);
+        expect(textoContienePalabra(null, "hola")).toBe(false);
+    });
+
+    test("detecta la palabra concatenada sin fronteras de palabra", () => {
+        expect(textoContienePalabra("abcBetovela def", "Betovela")).toBe(true);
+        expect(textoContienePalabra("abcBetovelad", "Betovela")).toBe(true);
+        expect(textoContienePalabra("Betovela", "Betovela")).toBe(true);
+        expect(textoContienePalabra("Betovel", "Betovela")).toBe(false);
+    });
+});
 
 async function elegirJuego(sala: Sala, juego: string) {
     await clic(sala.q.getByRole("radio", { name: new RegExp(juego) }));
