@@ -63,6 +63,10 @@ def leer_estado(raiz):
 class Cadenas_y_parseo(unittest.TestCase):
     def test_dominios_y_huellas(self):
         self.assertEqual(V.obtener_dominio("https://Api.Ejemplo.COM/x"), "api.ejemplo.com")
+        self.assertEqual(V.obtener_dominio("http://sub.dominio.org:8080/path"),
+                         "sub.dominio.org:8080")
+        self.assertEqual(V.obtener_dominio("https://usuario:pass@dominio.com"),
+                         "usuario:pass@dominio.com")
         self.assertEqual(V.obtener_dominio("ni-ideal"), "")
         self.assertEqual(len(V.huella_sha256(b"algo")), 64)
         self.assertNotEqual(V.huella_sha256(b"algo"), V.huella_sha256(b"algo2"))
@@ -258,6 +262,26 @@ class VigiaConRaizTemp(unittest.TestCase):
         self.assertNotIn("clase_uso", estado)
         self.assertNotIn("cuerpo_terminos", estado)
 
+    def test_terminos_sin_cambio_mes_despues_no_marca_a_revisar(self):
+        dorm = []
+        V.vigilar_referencias(self.raiz, self.red(), dorm.append,
+                              ahora=dt.datetime(2026, 10, 22, tzinfo=dt.timezone.utc))
+        salida = V.vigilar_referencias(
+            self.raiz, self.red(), dorm.append,
+            ahora=dt.datetime(2026, 12, 6, tzinfo=dt.timezone.utc))
+        estado = leer_estado(self.raiz)["fuente-prueba"]
+        self.assertFalse(estado.get("a_revisar", False))
+        self.assertFalse(any(n["tipo"] == "terminos" for n in salida))
+        self.assertTrue(estado["huella_terminos"])
+
+    def test_config_sin_entradas_no_falla_y_deja_estado_vacio(self):
+        raiz = hacer_raiz([])
+        self.addCleanup(lambda: __import__("shutil").rmtree(raiz, ignore_errors=True))
+        salida = V.vigilar_referencias(raiz, RedFalsa({}), lambda segundos: None,
+                                       ahora=dt.datetime(2026, 10, 22, tzinfo=dt.timezone.utc))
+        self.assertEqual(salida, [])
+        self.assertEqual(leer_estado(raiz), {})
+
     def test_pausas_y_robots_entre_las_peticiones_del_mismo_dominio(self):
         dorm = []
         red = self.red()
@@ -286,6 +310,26 @@ class VigiaConRaizTemp(unittest.TestCase):
                                            ahora=dt.datetime(2026, 10, 22, tzinfo=dt.timezone.utc))
             self.assertEqual(salida, [])
             self.assertEqual(leer_estado(raiz)["solo-prohibidos"]["ultima_revision"],
+                             "2026-10-22T00:00:00Z")
+        finally:
+            __import__("shutil").rmtree(raiz, ignore_errors=True)
+
+    def test_canales_de_tipo_desconocido_o_incompletos_se_saltan(self):
+        raiz = hacer_raiz([{
+            "id": "incompletos", "nombre": "Incompletos", "tema": "prueba",
+            "actualizacion": [
+                {"tipo": "tipo-desconocido", "ref": "https://x.com/raro"},
+                {"ref": "https://x.com/sin-tipo"},
+                {"tipo": "rss"},
+            ],
+        }])
+        try:
+            red = RedFalsa({})
+            salida = V.vigilar_referencias(raiz, red, lambda segundos: None,
+                                           ahora=dt.datetime(2026, 10, 22, tzinfo=dt.timezone.utc))
+            self.assertEqual(salida, [])
+            self.assertEqual(red.peticiones, [])
+            self.assertEqual(leer_estado(raiz)["incompletos"]["ultima_revision"],
                              "2026-10-22T00:00:00Z")
         finally:
             __import__("shutil").rmtree(raiz, ignore_errors=True)
