@@ -412,7 +412,9 @@ describe('elegirPuerta', () => {
         clase: 'interno' as ClaseDato,
         necesitaInternet: true,
         puertas: puertasNoPermitidas,
-        solicitante: baseSolicitante,
+        // No es el dueño: una puerta «nadie» no es en absoluto permitida para él.
+        // (El dueño sí conserva acceso a su propia puerta aunque sea «nadie».)
+        solicitante: { ...baseSolicitante, cuenta: 'c9' },
       })
     ).toEqual({
       puerta: null,

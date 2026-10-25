@@ -744,12 +744,23 @@ export function activeCapabilities(): SkillCapability[] {
   return SKILL_CAPABILITIES.filter((c) => set.has(c.id));
 }
 
+/** ¿La capacidad SOLO aporta planificación (routing {planning} sin otros sesgos)?
+ *  Esas sirven al escritor/código, no al chat base: entran solo cuando el chat
+ *  las elige por `only`. */
+function esSoloPlanificacion(c: SkillCapability): boolean {
+  const r = c.routing;
+  return !!r?.planning && !r.preferStrong && !r.web && !r.vision;
+}
+
 /** Bloque de system prompt que Aurora antepone al cerebro (o "" si no hay ninguna).
  *  Si `only` se pasa, restringe a esos ids (filtro por chat del menú unificado,
  *  Adenda 71-bis fix-20): el LLM solo recibe las habilidades elegidas para este
- *  chat, no todas las activas globalmente. */
+ *  chat, no todas las activas globalmente. Sin `only` (chat base) las de SOLO
+ *  planificación quedan fuera: dan guía de escritura/código, no de conversación. */
 export function skillsSystemPrompt(only?: string[]): string {
-  const act = activeCapabilities().filter((c) => !only || only.includes(c.id));
+  const act = activeCapabilities().filter((c) =>
+    only ? only.includes(c.id) : !esSoloPlanificacion(c),
+  );
   if (!act.length) return "";
   return (
     "Capacidades activas de Aurora (Biblioteca StarSeed):\n" +
