@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DATOS_SIN_SONDEO, entornoReal, sondearNavegador, type EntornoNavegador, type XRInyectable } from "../sondeo-navegador";
 import { evaluarCapacidades, refinarFunciones, planificarEntrada } from "@/lib/xr/capacidades";
 import { funcionesAPedir } from "../aplicar-perfil";
-import { obtenerAlmacenXR, soltarAlmacenXR, type OpcionesAlmacenXR } from "../almacen-xr";
+import { obtenerAlmacenXR, soltarAlmacenXR, type OpcionesAlmacenXR, opcionesDeFunciones } from "../almacen-xr";
 import type { CapacidadesXR } from "@/lib/xr/capacidades";
 import type { PerfilCalidad } from "@/lib/xr/calidad-perfiles";
 import { PERFILES } from "@/lib/xr/calidad-perfiles";
@@ -89,9 +89,9 @@ describe("iwer-entrada · rescate de pruebas de la rama nube", () => {
             capacidades,
             produccion: true,
         };
-        const almacen = await obtenerAlmacenXR(opciones);
-        const { opciones: opts } = await import("@react-three/xr").then(m => m.createXRStore(opcionesAlmacenXR(opciones).opciones));
+        const { opciones: opts } = opcionesDeFunciones(funcionesAPedir(capacidades, { habitacion: true }));
         expect(opts).toBeDefined();
+        expect(opts.bodyTracking).toBe(false);
         await soltarAlmacenXR();
     });
 
@@ -102,11 +102,9 @@ describe("iwer-entrada · rescate de pruebas de la rama nube", () => {
             produccion: false,
             busqueda: "?emulador=1",
         };
-        const primera = await obtenerAlmacenXR(opciones);
-        await soltarAlmacenXR();
-        const segunda = await obtenerAlmacenXR(opciones);
-        const state = segunda.getState();
-        expect(state.session).toBeDefined();
+        const { opciones: opts } = await import("../almacen-xr").then(m => m.opcionesAlmacenXR(opciones));
+        expect(opts.emulate).toEqual({ type: "metaQuest3", inject: true });
+        const almacen = await obtenerAlmacenXR(opciones);
         await soltarAlmacenXR();
     });
 
@@ -122,9 +120,3 @@ describe("iwer-entrada · rescate de pruebas de la rama nube", () => {
         });
     });
 });
-
-function opcionesAlmacenXR(o: OpcionesAlmacenXR) {
-    const { funcionesAPedir: fAP } = await import("../aplicar-perfil");
-    const { opciones: funciones } = require("../almacen-xr").opcionesDeFunciones(fAP(o.capacidades, { habitacion: o.habitacion }));
-    return { opciones: funciones };
-}
