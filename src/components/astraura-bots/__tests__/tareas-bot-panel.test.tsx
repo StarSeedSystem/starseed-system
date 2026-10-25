@@ -8,7 +8,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
 import { crearTarea, verificacionInicial, type Paso } from "@/lib/astraura-bots/tareas-bot";
 import type { Tarea } from "@/lib/astraura-bots/tipos";
-import { CLAVE_TAREAS, guardar, listar } from "../almacen-tareas";
+import { CLAVE_TAREAS, guardar, listar } from "@/lib/astraura-bots/adaptadores/almacen-tareas";
 import { TareasBotPanel } from "../tareas-bot-panel";
 
 const merge = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true, atomic: true }));

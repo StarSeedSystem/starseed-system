@@ -7,13 +7,14 @@
  * confirmación; el bot predeterminado no se borra, solo se pausa.
  */
 import { useEffect, useState } from "react";
-import { Copy, Eye, EyeOff, Pencil, Pause, Play, Plus, Trash2 } from "lucide-react";
+import { Copy, Eye, EyeOff, ListChecks, Pencil, Pause, Play, Plus, Trash2 } from "lucide-react";
 import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
 import { leerBots, guardarBots } from "@/lib/astraura-bots/adaptadores/almacen-bots";
 import type { Bot } from "@/lib/astraura-bots/tipos";
 import { NIVEL_POR_DEFECTO, type NivelBot } from "@/lib/astraura-bots/permisos";
 import { QuantumOrbAvatar } from "@/components/aurora/quantum-orb-avatar";
 import { EditorBot } from "./editor-bot";
+import { TareasBotPanel } from "./tareas-bot-panel";
 
 const CLAVE_NIVELES = "starseed.astraura.niveles-bots";
 const CLAVE_ABIERTOS = "starseed.astraura.orbes-abiertos";
@@ -57,6 +58,8 @@ export function PanelBots({ perfilId, cuentaId }: { perfilId: string; cuentaId: 
   const [abiertos, setAbiertos] = useState<Record<string, string>>(() => leerMapa(CLAVE_ABIERTOS));
   const [editando, setEditando] = useState<string | null>(null);
   const [borrando, setBorrando] = useState<Bot | null>(null);
+  const [tareasDe, setTareasDe] = useState<string | null>(null);
+  const botTareas = bots.find((b) => b.id === tareasDe);
 
   useEffect(() => { guardarBots(bots, Date.now()); }, [bots]);
   useEffect(() => { escribirMapa(CLAVE_NIVELES, niveles); }, [niveles]);
@@ -114,6 +117,8 @@ export function PanelBots({ perfilId, cuentaId }: { perfilId: string; cuentaId: 
               <button type="button" className={btnIcono} onClick={() => setEditando(b.id)} aria-label={`Editar ${b.nombre}`}>
                 <Pencil size={16} />
               </button>
+              <button type="button" className={btnIcono} onClick={() => setTareasDe((id) => (id === b.id ? null : b.id))}
+                aria-label={`Tareas de ${b.nombre}`}><ListChecks size={16} /></button>
               <button type="button" className={btnIcono} onClick={() => pausar(b.id)}
                 aria-label={b.activo ? `Pausar ${b.nombre}` : `Reanudar ${b.nombre}`}>
                 {b.activo ? <Pause size={16} /> : <Play size={16} />}
@@ -131,6 +136,9 @@ export function PanelBots({ perfilId, cuentaId }: { perfilId: string; cuentaId: 
           </li>
         ))}
       </ul>
+      {botTareas && <div className="rounded-lg border border-border p-4">
+        <TareasBotPanel bot={botTareas} personaId={cuentaId} nivel={niveles[botTareas.id] ?? NIVEL_POR_DEFECTO} verificadorBot={botTareas.id} />
+      </div>}
       {editando && (
         <div role="dialog" aria-label="Editor de bot" className="rounded-lg border border-border p-4">
           <EditorBot bot={bots.find((b) => b.id === editando)!} nivel={niveles[editando] ?? NIVEL_POR_DEFECTO}
