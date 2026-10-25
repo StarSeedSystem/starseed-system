@@ -21,6 +21,32 @@ export type OpenMode =
 
 export type AppCategory = "starseed" | "sistema" | "media" | "utilidad" | "creacion";
 
+/**
+ * Formas de abrir una app desde cualquier neurona de la malla
+ * (architecture/apps-en-la-malla.md §5). Sin campo declarado, la app solo
+ * puede abrirse en `local` (como hoy). El modo de cada app lo elige
+ * `comoAbrir` en src/lib/recursos/modos-app.ts y el menú «Abrir en…»
+ * deja elegir otro.
+ */
+export type ModoEjecucionApp =
+    | "local"     // módulos web y PWA del OS: corre en el navegador o la app
+    | "por-bandas" // apps WASM y web de la Biblioteca: es un volumen por bandas (§7) y solo se baja lo que se usa
+    | "montada"    // apps nativas que viven fuera del disco: el volumen se ve como un disco por la pasarela local (§7)
+    | "transmitida" // corre en otra neurona que la tiene; la ventana llega en vídeo WebRTC (§9)
+    | "ramificada"; // la interfaz va en local; el cálculo, en otras neuronas; los datos, en el volumen del contexto
+
+/** Lo que una app necesita en la neurona para abrirse. Todo número es medido; lo que no se mide, no se exige. */
+export interface RequisitosApp {
+    /** RAM libre pedida, en MB. */
+    ramMb?: number;
+    /** La app necesita GPU. */
+    gpu?: boolean;
+    /** Motores locales pedidos (imagen, voz, oído, palabra, transcodificar…). */
+    motores?: string[];
+    /** Volumen por bandas (§7) del que la app lee su contenido pesado. */
+    volumen?: string;
+}
+
 /** 'live' = destino real · 'native' = módulo nativo del OS · 'soon' = en construcción. */
 export type AppStatus = "live" | "native" | "soon";
 
@@ -53,6 +79,10 @@ export interface StarseedApp {
     status?: AppStatus;
     /** Marca apps con modo inmersivo (VR/AR — Fase 3). */
     vrCapable?: boolean;
+    /** Modos por los que puede abrirse en la malla (§5). Sin campo = ['local'], como hoy. */
+    ejecucion?: ModoEjecucionApp[];
+    /** Recursos que exige en la neurona. Sin campo no exige nada medido. */
+    requisitos?: RequisitosApp;
 }
 
 // ── Presets de personalización ───────────────────────────────────
