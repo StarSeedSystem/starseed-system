@@ -1,6 +1,6 @@
 {
   "esquema": 1,
-  "actualizado": "2026-10-23",
+  "actualizado": "2026-10-25",
   "descripcion": "Qué vigila el vigía de modelos de MetaGenesis, como dato (architecture/vigia-modelos.md §2): un especialista por área. Añadir un área = añadir una entrada en «areas». Lo carga y valida scripts/puente/vigia_areas.py (cargar_areas). «cuantizadores» de arriba es la lista de cuantizadores conocidos (cada área elige los suyos de ella; si no los da, hereda todos) y «licencias_conocidas» es la tabla común de clases de licencia (libre · personal · condicionada · desconocida, §3), porque Hugging Face marca muchas como «other»; un área puede añadir las suyas. «catalogo» es la ruta, relativa al repo, del archivo que el vigía propone actualizar: tiene que existir de verdad.",
   "cuantizadores": ["unsloth", "city96", "QuantStack", "bartowski", "lmstudio-community", "mlx-community", "onnx-community", "Comfy-Org"],
   "licencias_conocidas": {
@@ -113,12 +113,14 @@
         "pipeline_tags": [],
         "autores": [],
         "cuantizadores": [],
-        "repos_github": ["mattpocock/skills","heygen-com/hyperframes"],
+        "repos_github": ["mattpocock/skills","heygen-com/hyperframes","cathrynlavery/diagram-design"],
         "alias_github": {
             "mattpocock/skills": "mattpocock/skills",
-            "heygen-com/hyperframes": "heygen-com/hyperframes"
+            "heygen-com/hyperframes": "heygen-com/hyperframes",
+            "cathrynlavery/diagram-design": "cathrynlavery/diagram-design"
         },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
+        "catalogo": "src/lib/library/packages.ts",
+        "nota": "Cada skill vive copiada en vendor/habilidades/<carpeta> con su ORIGEN.md y convertida en src/ai/astraura/habilidades/ (ingenieria-a.ts, productividad.ts, diagramas.ts). Diagram Design: su manifiesto de plugin fuente «.claude-plugin/plugin.json» (campo version) es la señal de versión y la carpeta de destino de la copia es vendor/habilidades/diagram-design; renueva la copia entera al subir la versión (licencia MIT, ficha en la Biblioteca)."
     }
   ]
 }

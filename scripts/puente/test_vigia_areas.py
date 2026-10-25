@@ -10,9 +10,10 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vigia_areas as V
 
-AREAS_DEL_CONTRATO = ["imagen", "video", "3d", "voz", "oido", "palabra", "reflejo", "vision", "incrustaciones", "audio", "motores"]
+AREAS_DEL_CONTRATO = ["imagen", "video", "3d", "voz", "oido", "palabra", "reflejo", "vision", "incrustaciones", "audio", "motores", "habilidades"]
 MOTORES = {"ggml-org/llama.cpp", "leejet/stable-diffusion.cpp", "ggml-org/whisper.cpp", "Comfy-Org/ComfyUI",
            "fermionresearch/phonon", "microsoft/onnxruntime", "anomalyco/opencode"}
+HABILIDADES = {"mattpocock/skills", "heygen-com/hyperframes", "cathrynlavery/diagram-design"}
 BASE = {"cuantizadores": ["unsloth", "city96", "QuantStack"],
         "licencias_conocidas": {"apache-2.0": "libre", "qwen-research": "personal"},
         "areas": [{"id": "imagen", "nombre": "Imagen", "pipeline_tags": ["text-to-image"], "autores": ["Qwen"],
@@ -44,18 +45,33 @@ class AreasDelVigia(unittest.TestCase):
             self.assertTrue(os.path.isfile(os.path.join(V.RAIZ_REPO, a["catalogo"])), a["catalogo"])
             self.assertEqual(a["licencias_conocidas"]["qwen-research"], "personal")
             self.assertEqual(a["licencias_conocidas"]["apache-2.0"], "libre")
-            self.assertEqual(bool(a["repos_github"]), a["id"] == "motores")
-        motores = areas[-1]
+            con_repos = {"motores", "habilidades", "voz"}  # «voz» vigila repos propios de TTS
+        self.assertEqual(bool(a["repos_github"]), a["id"] in con_repos)
+        motores = next(a for a in areas if a["id"] == "motores")
         self.assertEqual(set(motores["repos_github"]), MOTORES)
         self.assertEqual(motores["alias_github"]["comfyanonymous/ComfyUI"], "Comfy-Org/ComfyUI")
         self.assertTrue({"Qwen", "Tongyi-MAI"} <= set(areas[0]["autores"]) and "text-to-image" in areas[0]["pipeline_tags"])
         self.assertTrue({"unsloth", "city96", "QuantStack"} <= set(areas[0]["cuantizadores"]))
 
     def test_resuelve_herencias(self):
-        imagen, motores = V.validar_areas(con(lambda d: d["areas"][0].pop("cuantizadores")))
+        resueltas = V.validar_areas(con(lambda d: d["areas"][0].pop("cuantizadores")))
+        imagen, motores = resueltas[0], resueltas[1]
         self.assertEqual(imagen["cuantizadores"], ["unsloth", "city96", "QuantStack"])  # hereda la lista común
         self.assertEqual((imagen["filtros"], imagen["repos_github"]), ({"etiquetas": []}, []))
         self.assertEqual(motores["licencias_conocidas"], BASE["licencias_conocidas"])
+
+    def test_skill_diagram_design_registrada(self):
+        habilidades = next(a for a in V.cargar_areas() if a["id"] == "habilidades")
+        self.assertEqual(set(habilidades["repos_github"]), HABILIDADES)
+        alias = habilidades["alias_github"]
+        self.assertEqual(alias.get("cathrynlavery/diagram-design"), "cathrynlavery/diagram-design")
+        self.assertTrue(os.path.isfile(os.path.join(V.RAIZ_REPO, "vendor/habilidades/diagram-design/ORIGEN.md")),
+                        "falta la copia de la carpeta de destino")
+        nota = habilidades["nota"]
+        self.assertIn(".claude-plugin/plugin.json", nota)  # señal de versión: el manifiesto del plugin fuente
+        self.assertIn("version", nota)  # …por su campo «version»
+        self.assertIn("vendor/habilidades/diagram-design", nota)  # carpeta destino de la copia renovable
+        self.assertEqual(habilidades["catalogo"], "src/lib/library/packages.ts")  # fichas de la Biblioteca
 
     def test_campo_obligatorio_que_falta(self):
         self.assertIn("área «motores»: falta el campo «catalogo»", errores(con(lambda d: d["areas"][1].pop("catalogo"))))
