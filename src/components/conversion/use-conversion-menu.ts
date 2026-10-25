@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { normalizeAttachments } from "@/lib/aurora/attachments";
 import { consultarDestinos, convertirBlob, convertirDesdeUrl, enlaceConversor, type Convertido } from "@/lib/conversion/cliente";
 import { destinosParaMenu, etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
 
@@ -38,6 +39,16 @@ export interface ArchivoConvertible {
     tipoMime?: string;
     /** Carpeta de la Biblioteca donde está (para guardar el resultado al lado). */
     carpetaId?: string | null;
+}
+
+/**
+ * El primer adjunto de un mensaje que se puede convertir (tiene URL real:
+ * subida, data URL o ruta de la Biblioteca). `null` si el mensaje no lleva
+ * ningún archivo convertible. Los adjuntos antiguos sin URL se ignoran.
+ */
+export function archivoDeAdjuntos(raw: unknown[] | null | undefined): ArchivoConvertible | null {
+    const a = normalizeAttachments(raw).find((x) => !!x.url);
+    return a?.url ? { nombre: a.name || "adjunto", url: a.url, tipoMime: a.mime } : null;
 }
 
 /** Nombre con extensión: el título si la trae; si no, la de la URL o la del tipo. */

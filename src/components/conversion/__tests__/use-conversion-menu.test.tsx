@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { _limpiarCacheConversion } from "@/lib/conversion/cliente";
-import { nombreConExtension, useConversionMenu } from "../use-conversion-menu";
+import { archivoDeAdjuntos, nombreConExtension, useConversionMenu } from "../use-conversion-menu";
 
 afterEach(() => {
     _limpiarCacheConversion();
@@ -36,6 +36,20 @@ describe("«Convertir a…» del clic derecho", () => {
     it("sin archivo convertible no hay submenú", () => {
         const { result } = renderHook(() => useConversionMenu(null, vi.fn()));
         expect(result.current).toBeUndefined();
+    });
+
+    it("en un mensaje elige el primer adjunto con URL real y salta los que no la tienen", () => {
+        expect(archivoDeAdjuntos(null)).toBeNull();
+        expect(archivoDeAdjuntos([])).toBeNull();
+        expect(archivoDeAdjuntos([{ kind: "file", name: "nota.txt" }, { name: "solo referencia", refId: "r1" }])).toBeNull();
+        expect(archivoDeAdjuntos([
+            { name: "solo referencia", refId: "r1" },
+            { name: "informe.PDF", mime: "application/pdf", dataUrl: "data:application/pdf;base64,AAA" },
+            { name: "foto.jpg", url: "https://x/f.jpg" },
+        ])).toEqual({ nombre: "informe.PDF", url: "data:application/pdf;base64,AAA", tipoMime: "application/pdf" });
+        expect(archivoDeAdjuntos([
+            { name: "escaneo", mime: "image/png", route: "/api/files/escaneo" },
+        ])).toEqual({ nombre: "escaneo", url: "/api/files/escaneo", tipoMime: "image/png" });
     });
 
     it("pone la extensión que falte (de la URL, del tipo o .md para notas)", () => {
