@@ -1,0 +1,57 @@
+{
+ "ola": "nube-20261025",
+ "tareas": [
+  {
+   "id": "DGM1018N",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · edición en grupo en tiempo real sobre la especificación",
+   "archivos": [
+    "src/lib/diagramas/sincronia-diagrama.ts",
+    "src/lib/diagramas/__tests__/sincronia-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elementosDeEspecificacion(espec, autor, t)` convierte cada nodo, arista y texto en `ElementoSala` (src/lib/salas/sincronia-sala.ts) y `especificacionDeEstado(estado)` lo recompone; usa `fusionarEstados`. Prueba: dos personas renombran nodos distintos a la vez y una borra una arista; las tres neuronas convergen. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DGM1018M"
+   ]
+  },
+  {
+   "id": "INV1025I",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "Correos inteligentes del OS: reglas en lenguaje natural como datos y seguimiento de respuestas",
+   "archivos": [
+    "src/lib/mail/reglas-correo.ts",
+    "src/lib/mail/seguimiento-respuestas.ts",
+    "src/lib/mail/__tests__/correos-inteligentes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Patrón de producto de Inbox Zero (AGPL con términos adicionales: NO se copia código ni textos; se reescribe desde cero lo que describe su README público) aplicado al correo interno del OS (`src/lib/mail/os-mail.ts`: un correo es un hilo de `os_dm_threads` con `meta.mail = true`, `meta.subject`, `meta.creatorId` y `meta.flags[uid]`). Crea dos módulos puros y su prueba.\n(1) `reglas-correo.ts`: una regla es un DATO `{id, texto, cuando:{de?, dominio?, asuntoContiene?, tieneAdjunto?, etiqueta?, antiguedadHorasMin?}, hacer:\"etiquetar\"|\"mover\"|\"destacar\"|\"esperar-respuesta\"|\"sugerir-borrador\", parametro?}`. `validarRegla(x)` rechaza cualquier acción fuera de la lista (jamás enviar, responder solo, borrar ni reenviar), campos extra y textos largos. `aplicarReglas(reglas, hilo)` devuelve las acciones propuestas, en orden y sin repetir. Pasar de lenguaje natural a regla lo hará Astraura en otra tarea: aquí solo se valida su salida.\n(2) `seguimiento-respuestas.ts` («Reply Zero» propio): `clasificarHilo(hilo, yo, ahora, cfg)` → `por-responder` (el último mensaje es de otro y pasaron más de N horas sin respuesta mía), `esperando` (el último es mío y pasaron más de D días; 14 por defecto para el alcance) o `resuelto`; `resumenSeguimiento(hilos)`. Reloj inyectado y tipos mínimos locales (`HiloLite`) para no importar `os-mail.ts` (cliente con Supabase).\n(3) `__tests__/correos-inteligentes.test.ts`. Sirven al alcance (respuestas a lo enviado desde la dirección pública) y a Mensajes. R2: ninguna regla ni función puede enviar nada.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA."
+  },
+  {
+   "id": "ART1025L",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Rare: «Juegos de PC», lanzamiento confirmado y guarda de credenciales de Epic",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/protomolecula/servicio-local.ts",
+    "src/lib/artcraft/juegos-pc.ts",
+    "src/lib/artcraft/__tests__/juegos-pc.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §5 completo (rutas A, B y C, y §5.3 credenciales de Epic). Rare es GPL-3.0-or-later: SOLO como programa aparte, nunca enlazado. Las credenciales de Epic son SIEMPRE de la persona y nunca van a un repositorio, memoria, sala, grupo ni registro.\n\n1) En `src/lib/protomolecula/servicio-local.ts` añade `rare: \"Rare\"` a `BINARIOS_PERMITIDOS` (una línea; el objeto sigue congelado) sin tocar nada más: `pedirLanzamiento(\"rare\", …)` ya pide siempre la confirmación de una persona y una IA nunca lo abre sola. Añade en sus pruebas existentes (`src/lib/protomolecula/__tests__/servicio-local.test.ts`) SOLO si hace falta para que sigan en verde.\n\n2) `src/lib/artcraft/juegos-pc.ts` (PURO) exporta: `CONDICIONES_EPIC_DECIDIDAS = false` (constante; hasta que Alex decida, la ruta C no se ofrece); `planificarJuegoPc(e: { neurona: { sistema: \"macos\" | \"linux\" | \"windows\" | \"otro\"; tienePantalla: boolean; binarioRare: boolean; gpu: boolean; memoriaMB: number }; servidores: { id: string; propio: boolean; compartido: boolean; gpu: boolean; wineOProton: boolean; transmision: \"selkies\" | \"sunshine\" | null; libreDiscoGB: number }[]; persona: { id: string; aceptaCondicionesEpic: boolean } })` → `{ ruta: \"neurona-propia\" | \"servidor-propio\" | \"servidor-compartido\" | \"ninguna\"; motivo: string; pasos: string[]; avisos: string[] }`. Ruta A si hay pantalla y Rare instalado; B si hay un servidor propio con GPU, Wine o Proton y transmisión; C solo si `CONDICIONES_EPIC_DECIDIDAS` y la persona acepta (una sesión por persona, cada una con SU cuenta); si no, `ninguna` con el motivo. Los `pasos` son frases cortas («abre Rare», «inicia sesión en Epic tú mismo»…) y los `avisos` incluyen que el A1 de Oracle (sin GPU) no sirve para 3D cuando el servidor tiene `gpu: false`. `rutaConfigEpic(datos: string, personaId: string): { ruta: string; modo: number }` → `<datos>/juegos/<persona>/legendary` con modo `0o700` (persona solo `^[a-z0-9-]{1,64}$`, si no lanza). `validarSinCredencialesEpic(texto: string): { ok: boolean; hallazgos: string[] }` detecta en un texto los campos típicos de la sesión de Legendary (`access_token`, `refresh_token`, `account_id`, `exchange_code` con valor de más de 8 caracteres) y los tokens con prefijo `eg1~`; los hallazgos NO repiten el valor. `esUrlPermitidaRare(url: string): boolean` devuelve `false` para `raredevs.github.io`, `protondb.com` y cualquier descarga remota de Rare (se bloquean hasta que haya SHA fijado) y `true` solo para `https://github.com/RareDevs/Rare/releases/…`.\n\nPruebas (≥ 14) en `juegos-pc.test.ts`: las tres rutas; C bloqueada con la constante en `false`; Mac sin pantalla; A1 sin GPU; `rutaConfigEpic` con persona inválida; credenciales detectadas SIN que la prueba contenga una clave real (monta las cadenas con `[\"eg1\", \"~abc…\"].join(\"\")`); URL bloqueadas.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`."
+  },
+  {
+   "id": "DAN1024I",
+   "ola": "Ola 1024D · Diseño animado en todo el OS (Claude Video 2.0 + ADN StarSeed)",
+   "titulo": "Marca · componente SVG del símbolo oficial con su siembra animada",
+   "area": "diseno",
+   "archivos": [
+    "src/lib/design/simbolo-geometria.ts",
+    "src/components/marca/simbolo-starseed.tsx",
+    "src/lib/design/__tests__/simbolo-geometria.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contexto: Alex pidió (2026-10-24) animaciones gráficas profesionales en todo StarSeed OS (widgets, orbe de Astraura, menús de la Trinity, botones, menús y pestañas), con personalización por cuenta, página y grupo, coherentes con los fundamentos del diseño StarSeed. Lee antes: `.agent/skills/claude-video-studio/STARSEED.md` (§6: los números de vídeo NO se copian a la interfaz: interfaz 140–350 ms con las curvas del ADN), `design-system/starseed-system/MASTER.md` (tokens y Trinity) y `src/lib/design/movimiento.ts` (la ÚNICA fuente de duraciones y curvas: no inventes otras). Reglas: módulos PUROS sin red, disco ni reloj; nada de `node:*` en cliente; respeta prefers-reduced-motion (estado final sin moverse); solo transform y opacity se animan; español con acentos en comentarios y textos; ≤ 3 archivos y ≤ 120 líneas nuevas por archivo; pruebas vitest reales para lo nuevo. Crea `simbolo-geometria.ts` (PURO) con la geometría oficial (referencia-2), en un lienzo de 400 × 400 con centro (200, 200) y r = 80: dos círculos de radio r con centros (200, 160) y (200, 240); la lente del ojo entre las esquinas (200 ± 69,28; 200); rombo de dos triángulos equiláteros con ápices (200, 80) y (200, 320) y base en la línea de las esquinas; 12 facetas con rayos desde cada ápice a 0°, ±13,86°, ±23,2° y ±30° (x de la base: 200 + {−69,28, −51,40, −29,60, 0, 29,60, 51,40, 69,28}); colores: arriba rojo #A52D2D/#CC3737, verde #38A52D/#51CC37 y azul #2C2CA8/#3636CC; abajo rojo, amarillo #C1BD3A/#E2D640 y azul (cara izquierda la oscura y derecha la clara); discos: arriba #CCCCCC izquierda / #EAEAEA derecha, abajo #000000 / #3A3A3A; ojo #DCDCDC con el blanco dentro del círculo de centro (200, 280,8) y radio 109,4; pupila #272525 de radio 40; brillo blanco de radio 10,5 en (213,5; 183,9). Exporta las rutas SVG y la lista de facetas. Crea `simbolo-starseed.tsx` (cliente, sin node:*) con props `tamano`, `siembra?: boolean` (punto → círculos → ojo → facetas en ~2400 ms con `movimiento.ts`; reducido = estado final) y `aria-label`. Pruebas: que el rombo es equilátero (altura = base·√3/2 ± 0,5), que hay 12 facetas con sus hex oficiales y que la lente cae en y = 200."
+  }
+ ]
+}
