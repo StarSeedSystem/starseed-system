@@ -98,4 +98,31 @@ describe("vikunja · cliente puro", () => {
     expect(!r404.ok && r404.motivo).toContain("404");
     expect(!r500.ok && r500.motivo).toContain("falló");
   });
+
+  it("un 409 al crear el proyecto no finge éxito y no reintenta", async () => {
+    const metodos: string[] = [];
+    const pedir: Pedir = async (_url, init) => {
+      metodos.push(init.method);
+      const status = init.method === "PUT" ? 409 : 200;
+      return { ok: status < 400, status, text: async () => "[]" };
+    };
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toContain("409");
+    expect("proyecto" in r).toBe(false);
+    expect(metodos.filter((m) => m === "PUT")).toHaveLength(1);
+  });
+
+  it("un 500 al buscar el proyecto corta sin crear nada", async () => {
+    const metodos: string[] = [];
+    const pedir: Pedir = async (_url, init) => {
+      metodos.push(init.method);
+      return { ok: false, status: 500, text: async () => "" };
+    };
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toContain("falló");
+    expect("proyecto" in r).toBe(false);
+    expect(metodos).toEqual(["GET"]);
+  });
 });
