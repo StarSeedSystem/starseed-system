@@ -33,6 +33,10 @@ describe("disponibilidad.ts", () => {
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
     });
+
+    it("decodificar de cadena vacía da un arreglo vacío", () => {
+      expect([...decodificar("")]).toEqual([]);
+    });
   });
 
   describe("mapa de bits", () => {
@@ -148,6 +152,22 @@ describe("disponibilidad.ts", () => {
       expect(quienTiene(reg, "t3", 0, AHORA + 16_000, 60_000).sort()).toEqual(["caduco", "fresco"]);
       // caducidad 0: nadie
       expect(quienTiene(reg, "t3", 0, AHORA, 0)).toEqual([]);
+    });
+
+    it("fusionar sin anuncios da un registro vacío", () => {
+      const reg = fusionar([]);
+      expect(reg.size).toBe(0);
+      expect(reg.get("cualquiera")).toBeUndefined();
+    });
+
+    it("fusiona un solo anuncio y sirve su pieza", () => {
+      const reg = fusionar([
+        { anuncio: anuncio("solo", "t5", 6, [2, 4], 500)[0], recibidoEn: AHORA - 1_000 },
+      ]);
+      expect(reg.size).toBe(1);
+      expect(quienTiene(reg, "t5", 2, AHORA)).toEqual(["solo"]);
+      expect(quienTiene(reg, "t5", 3, AHORA)).toEqual([]);
+      expect(quienTiene(reg, "t5", 4, AHORA)).toEqual(["solo"]);
     });
 
     it("une piezas de un mismo nodo y las más nuevas ganan en caducidad", () => {
