@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20261025",
+ "tareas": [
+  {
+   "id": "DAN1024I",
+   "ola": "Ola 1024D · Diseño animado en todo el OS (Claude Video 2.0 + ADN StarSeed)",
+   "titulo": "Marca · componente SVG del símbolo oficial con su siembra animada",
+   "area": "diseno",
+   "archivos": [
+    "src/lib/design/simbolo-geometria.ts",
+    "src/components/marca/simbolo-starseed.tsx",
+    "src/lib/design/__tests__/simbolo-geometria.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contexto: Alex pidió (2026-10-24) animaciones gráficas profesionales en todo StarSeed OS (widgets, orbe de Astraura, menús de la Trinity, botones, menús y pestañas), con personalización por cuenta, página y grupo, coherentes con los fundamentos del diseño StarSeed. Lee antes: `.agent/skills/claude-video-studio/STARSEED.md` (§6: los números de vídeo NO se copian a la interfaz: interfaz 140–350 ms con las curvas del ADN), `design-system/starseed-system/MASTER.md` (tokens y Trinity) y `src/lib/design/movimiento.ts` (la ÚNICA fuente de duraciones y curvas: no inventes otras). Reglas: módulos PUROS sin red, disco ni reloj; nada de `node:*` en cliente; respeta prefers-reduced-motion (estado final sin moverse); solo transform y opacity se animan; español con acentos en comentarios y textos; ≤ 3 archivos y ≤ 120 líneas nuevas por archivo; pruebas vitest reales para lo nuevo. Crea `simbolo-geometria.ts` (PURO) con la geometría oficial (referencia-2), en un lienzo de 400 × 400 con centro (200, 200) y r = 80: dos círculos de radio r con centros (200, 160) y (200, 240); la lente del ojo entre las esquinas (200 ± 69,28; 200); rombo de dos triángulos equiláteros con ápices (200, 80) y (200, 320) y base en la línea de las esquinas; 12 facetas con rayos desde cada ápice a 0°, ±13,86°, ±23,2° y ±30° (x de la base: 200 + {−69,28, −51,40, −29,60, 0, 29,60, 51,40, 69,28}); colores: arriba rojo #A52D2D/#CC3737, verde #38A52D/#51CC37 y azul #2C2CA8/#3636CC; abajo rojo, amarillo #C1BD3A/#E2D640 y azul (cara izquierda la oscura y derecha la clara); discos: arriba #CCCCCC izquierda / #EAEAEA derecha, abajo #000000 / #3A3A3A; ojo #DCDCDC con el blanco dentro del círculo de centro (200, 280,8) y radio 109,4; pupila #272525 de radio 40; brillo blanco de radio 10,5 en (213,5; 183,9). Exporta las rutas SVG y la lista de facetas. Crea `simbolo-starseed.tsx` (cliente, sin node:*) con props `tamano`, `siembra?: boolean` (punto → círculos → ojo → facetas en ~2400 ms con `movimiento.ts`; reducido = estado final) y `aria-label`. Pruebas: que el rombo es equilátero (altura = base·√3/2 ± 0,5), que hay 12 facetas con sus hex oficiales y que la lente cae en y = 200."
+  }
+ ]
+}
