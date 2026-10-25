@@ -40,7 +40,9 @@ import {
     type TipoObjeto,
     type Vec3,
 } from "./modelo";
-import { aplicarAmbiente, aplicarObjetos, diferenciaSobre, fusionarDocs, ganaObjeto, marcaMaxima, mismaVersion } from "./fusion";
+import { aplicarAmbiente, aplicarObjetos, aplicarPropiedades, diferenciaSobre, fusionarDocs, ganaObjeto, marcaMaxima, mismaVersion, mismasPropiedades } from "./fusion";
+import { aceptarEscritura, explicar, forzarTraspaso, puedeEscribir, reclamar, traspasar, type Propiedades } from "@/lib/salas/propiedad-sala";
+import type { Sala } from "@/lib/salas/sala";
 import {
     avataresDePresencia,
     colorDeClave,
@@ -164,6 +166,11 @@ export function autorDeClave(clave: string): string {
     return `d${(h >>> 0).toString(36)}${clave.length.toString(36)}`;
 }
 
+/** La persona detrás de una clave de presencia: el uid, o la base `inv-…` del invitado. */
+export function personaDeClave(clave: string): string {
+    return clave.split(":")[0] ?? "";
+}
+
 const ESTADO_CARGANDO: EstadoSesionEscena = {
     fase: "cargando",
     error: null,
@@ -277,7 +284,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
     // ── Guardado (solo escenas guardadas) ──
     const pendientes = () => {
         const d = diferenciaSobre(local, base);
-        return d.objetos.length > 0 || d.ambiente !== null;
+        return d.objetos.length > 0 || d.ambiente !== null || d.propiedades !== null;
     };
 
     const programarGuardado = (ms = ESPERA_GUARDADO_MS) => {
@@ -426,6 +433,73 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
         return false;
     };
 
+    // ── Propiedad de piezas por épocas (`@/lib/salas/propiedad-sala`) ──
+    // Un avatar, una ficha o un widget con estado propio tiene UN dueño y UNA época;
+    // lo que es «gana el último en escribir» no alcanza aquí.
+    /** La persona que soy aquí, tal y como la lleva la propiedad: uid, o el invitado estable. */
+    const quienDePropiedad = () => identidad.uid ?? personaDeClave(identidad.clave);
+
+    const conPropiedades = (doc: DocEscena, p: Propiedades): DocEscena => {
+        if (Object.keys(p).length === 0) {
+            if (!doc.propiedades) return doc;
+            const { propiedades: _p, ...resto } = doc;
+            void _p;
+            return resto;
+        }
+        return mismasPropiedades(doc.propiedades, p) ? doc : { ...doc, propiedades: p };
+    };
+
+    /** La sala mínima que esta sesión conoce de verdad: su id, su dueño y quién escribe aquí. */
+    const salaDePropiedad = (): Sala => ({
+        id: fuente.tipo === "espacio" ? fuente.id : fuente.sesionId,
+        tipo: "escena3d",
+        titulo: "",
+        visibilidad: "grupo",
+        transporte: persistente ? "servidor-publico" : "local",
+        miembros: (() => {
+            const m: Record<string, Sala["miembros"][string]> = {};
+            if (dueno) m[dueno] = "dueno";
+            if (identidad.uid && identidad.uid !== dueno && puedeEditar) m[identidad.uid] = "editor";
+            return m;
+        })(),
+        creadaEn: 0,
+    });
+
+    /**
+     * La puerta de la propiedad: escribir una pieza reclamada exige ser su dueño. El
+     * dueño de la escena guardada puede asignársela en el mismo paso (cesión forzada,
+     * con registro en el propio doc); el resto la pide y se le explica por qué no.
+     */
+    const puertaPropiedad = (id: string): boolean => {
+        const p = local.propiedades ?? {};
+        if (persistente && identidad.uid && dueno) {
+            // Sala guardada con cuenta: el rol ya lo comprobó `noEditable()`; falta la propiedad.
+            if (puedeEscribir(salaDePropiedad(), identidad.uid, p, id)) return true;
+        } else {
+            const decision = aceptarEscritura(p, id, quienDePropiedad(), p[id]?.epoca ?? 1);
+            if (decision.ok) return true;
+            if (decision.motivo === "sin-dueno") return true; // libre: la toma quien la escriba
+            if (decision.motivo === "epoca-vieja") {
+                fijar({ aviso: explicar("epoca-vieja") });
+                return false;
+            }
+        }
+        if (persistente && identidad.uid && identidad.uid === dueno) {
+            const r = forzarTraspaso(salaDePropiedad(), identidad.uid, p, id, identidad.uid);
+            if (r.ok) {
+                local = conPropiedades(local, r.propiedades);
+                return true;
+            }
+        }
+        fijar({ aviso: explicar("no-es-dueno") });
+        return false;
+    };
+
+    /** Tomar la pieza al escribir: lo que nadie reclamó queda del que la escribe. */
+    const tomarPieza = (id: string) => {
+        local = conPropiedades(local, reclamar(local.propiedades ?? {}, id, quienDePropiedad()));
+    };
+
     // ── Mensajes del canal ──
     const alMensaje = (evento: EventoEscena, payload: unknown) => {
         if (cerrada || !payload || typeof payload !== "object") return;
@@ -516,6 +590,23 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
         for (const k of Array.from(poses.keys())) if (!claves.has(k)) poses.delete(k);
         otros = lista.length;
         emisor.fijarOtros(otros);
+        // Una pieza reclamada por quien ya no está vuelve al dueño de la escena, si está
+        // dentro (cesión por épocas: sube la época, el registro de la cesión va en el doc).
+        if (local.propiedades && dueno) {
+            const presentes = new Set(lista.map((a) => a.uid ?? personaDeClave(a.clave)));
+            presentes.add(quienDePropiedad()); // la lista trae a los demás; yo también estoy
+            if (!presentes.has(dueno)) return;
+            let cambio = local.propiedades;
+            for (const [id, prop] of Object.entries(cambio)) {
+                if (prop.dueno === dueno || presentes.has(prop.dueno)) continue;
+                cambio = traspasar(cambio, id, prop.dueno, dueno);
+            }
+            if (cambio !== local.propiedades) {
+                local = conPropiedades(local, cambio);
+                recalcularVista();
+                if (persistente) programarGuardado();
+            }
+        }
     };
 
     const alFila = (f: FilaCambiada) => {
@@ -609,6 +700,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
             }
             const canon = sanearObjeto(nuevo);
             if (!canon) return null;
+            tomarPieza(canon.id);
             aplicarPropio([canon], null);
             return canon;
         },
@@ -616,6 +708,8 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
             if (noEditable()) return false;
             const actual = tienda.obtener().doc.objetos[id];
             if (!actual || actual.borrado) return false;
+            if (!puertaPropiedad(id)) return false;
+            tomarPieza(id);
             const canon = sanearObjeto({ ...actual, ...cambios, id, tipo: actual.tipo, actualizado: marcaNueva(), por: miPor, borrado: false });
             if (!canon) return false;
             aplicarPropio([canon], null);
@@ -625,6 +719,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
             if (noEditable()) return false;
             const actual = tienda.obtener().doc.objetos[id];
             if (!actual || actual.borrado) return false;
+            if (!puertaPropiedad(id)) return false;
             aplicarPropio([lapida(id, actual.tipo, marcaNueva(), miPor)], null);
             return true;
         },
@@ -647,6 +742,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
             });
             if (!copia) return null;
             if (contarVivos(local) >= LIMITE_OBJETOS) return null;
+            tomarPieza(copia.id);
             aplicarPropio([copia], null);
             return copia;
         },
@@ -697,7 +793,8 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
         async guardarCopia(titulo) {
             if (!deps.almacen.crearCopia) return { error: "No se puede guardar una copia desde aquí." };
             const vivos = aplicarObjetos(docVacio(), Object.values(local.objetos).filter((x) => !x.borrado)).doc;
-            return deps.almacen.crearCopia(titulo, aplicarAmbiente(vivos, local.ambiente));
+            const conAmbiente = aplicarAmbiente(vivos, local.ambiente);
+            return deps.almacen.crearCopia(titulo, aplicarPropiedades(conAmbiente, local.propiedades));
         },
         cerrar() {
             if (cerrada) return;

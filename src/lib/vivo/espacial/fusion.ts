@@ -20,6 +20,7 @@
 
 import type { AmbienteEscena, DocEscena, ObjetoEscena } from "./modelo";
 import { lapida } from "./modelo";
+import { fusionarPropiedades, type Propiedades } from "@/lib/salas/propiedad-sala";
 
 function comparar(a: string, b: string): number {
     return a < b ? -1 : a > b ? 1 : 0;
@@ -78,13 +79,45 @@ export function aplicarAmbiente(doc: DocEscena, entrante: AmbienteEscena): DocEs
     return { ...doc, ambiente: entrante };
 }
 
+/** ¿Son el mismo mapa de propiedades (mismo contenido, aunque las referencias difieran)? */
+export function mismasPropiedades(a: Propiedades | undefined, b: Propiedades | undefined): boolean {
+    if (a === b) return true;
+    const ka = Object.keys(a ?? {});
+    const kb = Object.keys(b ?? {});
+    if (ka.length !== kb.length) return false;
+    for (const k of ka) {
+        const x = (a ?? {})[k];
+        const y = (b ?? {})[k];
+        if (!y || x.dueno !== y.dueno || x.epoca !== y.epoca) return false;
+    }
+    return true;
+}
+
+/**
+ * Aplica las propiedades entrantes sobre el doc con la regla de la propiedad
+ * (`fusionarPropiedades`, determinista): gana la época mayor y, a igual época,
+ * el dueño menor alfabéticamente. Devuelve el MISMO `doc` si nada gana.
+ */
+export function aplicarPropiedades(doc: DocEscena, entrante: Propiedades | undefined): DocEscena {
+    if (!entrante || Object.keys(entrante).length === 0) return doc;
+    const { resultado } = fusionarPropiedades(doc.propiedades ?? {}, entrante);
+    if (Object.keys(resultado).length === 0) {
+        if (!doc.propiedades) return doc;
+        const { propiedades: _p, ...resto } = doc;
+        void _p;
+        return resto;
+    }
+    if (mismasPropiedades(doc.propiedades, resultado)) return doc;
+    return { ...doc, propiedades: resultado };
+}
+
 /**
  * Fusiona dos docs de la misma escena. Devuelve `a` tal cual si `b` no aporta nada nuevo
  * (estabilidad de referencias).
  */
 export function fusionarDocs(a: DocEscena, b: DocEscena): DocEscena {
     const conObjetos = aplicarObjetos(a, Object.values(b.objetos)).doc;
-    return aplicarAmbiente(conObjetos, b.ambiente);
+    return aplicarPropiedades(aplicarAmbiente(conObjetos, b.ambiente), b.propiedades);
 }
 
 /** Mayor marca vista en un doc (alimenta el reloj híbrido). */
@@ -96,16 +129,20 @@ export function marcaMaxima(doc: DocEscena): number {
 
 /**
  * Lo que `local` tiene y `base` no (o tiene más nuevo): los cambios propios pendientes de
- * guardar respecto al servidor.
+ * guardar respecto al servidor. Contará también los reclamos de propiedad distintos.
  */
-export function diferenciaSobre(local: DocEscena, base: DocEscena): { objetos: ObjetoEscena[]; ambiente: AmbienteEscena | null } {
+export function diferenciaSobre(
+    local: DocEscena,
+    base: DocEscena,
+): { objetos: ObjetoEscena[]; ambiente: AmbienteEscena | null; propiedades: Propiedades | null } {
     const objetos: ObjetoEscena[] = [];
     for (const o of Object.values(local.objetos)) {
         const b = base.objetos[o.id];
         if (!b || (!mismaVersion(o, b) && ganaObjeto(o, b))) objetos.push(o);
     }
     const ambiente = !mismoAmbiente(local.ambiente, base.ambiente) && ganaAmbiente(local.ambiente, base.ambiente) ? local.ambiente : null;
-    return { objetos, ambiente };
+    const propiedades = mismasPropiedades(local.propiedades, base.propiedades) ? null : local.propiedades ?? {};
+    return { objetos, ambiente, propiedades };
 }
 
 /**

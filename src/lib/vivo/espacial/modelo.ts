@@ -10,10 +10,14 @@
  * Cada objeto lleva su marca `actualizado` (ms, reloj híbrido: nunca retrocede respecto a lo ya
  * visto) y `por` (quién lo tocó, para el desempate determinista). El borrado es LÁPIDA
  * (`borrado: true`), nunca desaparición: si el objeto se esfumara del mapa, la siguiente fusión
- * con alguien que aún lo tuviera lo resucitaría. La fusión vive en `./fusion`.
+ * con alguien que aún lo tuviera lo resucitaría. La fusión vive en `./fusion`. Las piezas
+ * reclamadas de verdad llevan su propia propiedad por épocas (`propiedades`, el método de
+ * Co-op Anything para lo que NO se puede escribir a la vez por dos personas).
  *
  * Módulo PURO: sin red, sin DOM, sin reloj (el «ahora» siempre entra como argumento).
  */
+
+import type { Propiedad, Propiedades } from "@/lib/salas/propiedad-sala";
 
 export type Vec3 = [number, number, number];
 
@@ -90,6 +94,12 @@ export interface DocEscena {
     tipo: "escena3d";
     objetos: Record<string, ObjetoEscena>;
     ambiente: AmbienteEscena;
+    /**
+     * Propiedad de piezas por épocas (`@/lib/salas/propiedad-sala`): un avatar, una ficha
+     * o un widget con estado propio tiene UN dueño y UNA época; sólo el dueño escribe y
+     * cada cesión sube la época. Opcional: no está en el doc hasta que alguien reclama.
+     */
+    propiedades?: Propiedades;
 }
 
 /** Techo de objetos VIVOS: una escena no puede tumbar el móvil más modesto ni el canal. */
@@ -351,6 +361,23 @@ function esCielo(v: unknown): v is IdCielo {
     return typeof v === "string" && (CIELOS as readonly string[]).includes(v);
 }
 
+/** Propiedades de fuera → mapa válido, o null si no hay ninguna que valga. */
+export function sanearPropiedades(v: unknown): Propiedades | null {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+    const limpio: Propiedades = {};
+    for (const [id, cruda] of Object.entries(v as Record<string, unknown>).slice(0, LIMITE_OBJETOS)) {
+        if (!idValido(id)) continue;
+        const p = cruda && typeof cruda === "object" ? (cruda as Record<string, unknown>) : {};
+        const dueno = typeof p.dueno === "string" ? textoLimpio(p.dueno, 80) : "";
+        if (!dueno) continue;
+        const epoca = num(p.epoca, NaN, 0, Number.MAX_SAFE_INTEGER);
+        if (!Number.isFinite(epoca) || epoca < 1) continue;
+        const buena: Propiedad = { dueno, epoca: Math.floor(epoca) };
+        limpio[id] = buena;
+    }
+    return Object.keys(limpio).length > 0 ? limpio : null;
+}
+
 export function ambientePorDefecto(): AmbienteEscena {
     return { cielo: "nebulosa", suelo: true, actualizado: 0, por: "" };
 }
@@ -400,7 +427,11 @@ export function sanearDoc(v: unknown): { doc: DocEscena; descartados: number } {
         for (const s of sobran) delete objetos[s.id];
         descartados += sobran.length;
     }
-    return { doc: { version: 1, tipo: "escena3d", objetos, ambiente: sanearAmbiente(o.ambiente) }, descartados };
+    const propiedades = sanearPropiedades(o.propiedades);
+    return {
+        doc: { version: 1, tipo: "escena3d", objetos, ambiente: sanearAmbiente(o.ambiente), ...(propiedades ? { propiedades } : {}) },
+        descartados,
+    };
 }
 
 export function contarVivos(doc: DocEscena): number {
