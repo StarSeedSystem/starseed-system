@@ -129,3 +129,85 @@ IMN1021A (ajustes y horario), IMN1021B (utilidad, importancia y destino), IMN102
 IMN1021E (servicio launchd), IMN1021F (tipos TS y resumen), IMN1021G (servidor y ruta), IMN1021H (medidor),
 IMN1021I (ajustes en Genesis), IMN1021J (pastilla y acciones en el pulso), IMN1021K1–K4 (renombrar a Imaginación y
 guardia), IMN1021L (memoria con conflictos).
+
+## Ola 1024I · propuestas libres, reimaginar, automático y agente de referencias de diseño (2026-10-24)
+
+Petición de Alex: en el pulso, un medidor de lo que proponen los procesos imaginativos (formato libre de los agentes)
+con **Integrar**, **Reimaginar** (con cambios o referencias), **Rechazar** y un botón de **aprobación y reimaginación
+automática**; lo no aprobado, en una lista para decidir uno a uno o todo; y un agente de referencias de diseño
+conectado a MetaGenesis. Contrato común de la ola: campos y estados de abajo. **IMG1024B (el medidor «Imaginación» del
+pulso y sus botones) sustituye a IMN1021H/J**, que nunca se hicieron; los ajustes en Genesis de IMN1021I también los
+sustituye esta ola.
+
+| Tarea | Dónde | Qué deja |
+|---|---|---|
+| IMG1024A | `src/lib/mando/imaginacion-tipos.ts`, `imaginacion-servidor.ts`, `src/app/api/mando/imaginacion/route.ts` | datos, decisiones y API |
+| IMG1024B | el medidor del pulso | la lista y los botones (sustituye a IMN1021H/J) |
+| IMG1024C | `director_autodesarrollo.py`, `autodesarrollo_decidir.py`, `autodesarrollo_reimaginar.py`, `autodesarrollo_fuentes.py` | fuente «agentes», automático y reimaginación |
+| IMG1024D | `agente_referencias_diseno.py` (+ `architecture/agente-referencias-diseno.md`) | el agente de referencias de diseño |
+| IMG1024E | `scripts/enjambre/analista.py` (`_analisis_libre`), `instalar-servicios.py` | la flota ejecuta los encargos; el director corre solo |
+
+**Propuestas libres de los agentes (fuente «agentes»).** Cada `starseed_memory_root/imaginacion/agentes/*.json` es una
+lista de propuestas o `{agente?, propuestas: [...]}`; solo se exige el título. `autodesarrollo_fuentes.de_agentes` las
+normaliza (título ≤ 200, cuerpo Markdown libre ≤ 8000 sin forzar estructura, referencias solo `https://` y ≤ 20,
+archivos relativos al repo ≤ 20) y el director lee los 300 archivos más nuevos de ≤ 1 MB. Campos nuevos, todos
+opcionales al leer: `agente`, `tipo` (codigo · diseno · contenido · investigacion · otro; por defecto codigo),
+`ambito` (metagenesis · personal · grupo:<id> · pagina:<id>; por defecto metagenesis), `referencias`, `version` (1),
+`version_de` y `reimaginacion` {notas ≤ 2000, referencias, pedida, por alex · automatica}.
+
+**Decidir (API, solo local).** `GET /api/mando/imaginacion?ambito=` y `POST` con `integrar` (= `aprobar`: «aprobada» y
+el director la encola; si es de Astraura se aplica en su backend y, si falla, no cambia), `reimaginar` (notas o al
+menos una referencia https), `rechazar`, `posponer` (1–720 h), `ajustes` y **`lote`** (`ids` o `"pendientes"` = todas
+las decidibles del ámbito; una lectura, una escritura y un resultado por id). Decidibles: esperando-aprobacion,
+pregunta, pospuesta, nueva y descartada.
+
+**Reimaginar.** Pedirlo pasa la propuesta a «reimaginando»; el director la convierte en UNA tarea `tipo: "analisis"`,
+`modo: "reimaginar"` en `olas/cola-suenos-reimaginar-<fecha>.json` (el prefijo `cola-suenos-` aparta a los
+orquestadores de código), con la propuesta, las notas, las referencias y la salida
+`imaginacion/agentes/reimaginada-<id>-v<n>.json`; diseño, contenido e investigación piden `rol: "diseno"`,
+`capacidad: "alta"` y sus `lecturas`. Al recogerla, la nueva entra como v n+1 con `version_de`, hereda ámbito y tipo, y la
+vieja pasa a «reimaginada». Sin respuesta en 72 h vuelve a tu lista.
+
+**Aprobación y reimaginación automática** (`auto` en `~/.starseed/autodesarrollo.json`: `{aprobar, reimaginar, umbral
+0,75, max_reimaginaciones 2}`, apagado por defecto; `autodesarrollo_decidir.automatica`). Solo mira las fuentes
+diaria, profunda y agentes, y solo el ámbito metagenesis (lo de una persona, grupo o página lo decide su dueño). Con
+`automatico` (el interruptor de la Ola 1021I) o `auto.aprobar` encendidos, lo bajo/medio de código con utilidad ≥ umbral
+(0,6; con `aprobar`, el `umbral` del botón, nunca por debajo de 0,6) se integra solo (Jev solo puede vetarlo, con
+p ≥ 0,8); con `auto.reimaginar`, lo de código o diseño que no llega se reimagina solo con la crítica de por qué no llegó
+como notas, mientras queden reimaginaciones en la cadena; lo demás queda en la lista manual. **Alta y crítica nunca se integran solas** (regla fija de la Ola
+1021I: lo comprueban `destino` en Python y `vetoDecision` en el servidor). El tope corta solo la cadena automática: lo
+que pide Alex se hace siempre. Si cambian los ajustes, lo pendiente se vuelve a decidir (`firma`).
+
+**Agente de referencias de diseño (IMG1024D).** El director lo llama en cada ciclo que toca; él decide si le toca (cada
+20 h) y encarga a la flota 3 análisis por ciclo (nunca más de 6) `modo: "libre"`, `rol: "diseno"`, `capacidad: "alta"` en
+`olas/cola-suenos-referencias-diseno.json`, con salida `imaginacion/agentes/referencias-diseno-<fecha>-<n>.json`.
+Detalle completo en `architecture/agente-referencias-diseno.md`.
+
+**La rama libre del analista (IMG1024E).** `analista.ejecutar` manda toda tarea de análisis con `modo` «libre» o
+«reimaginar» a `_analisis_libre` (las áreas × lentes siguen igual): UNA síntesis con la flota gratuita; con `capacidad:
+"alta"` solo los modelos capaces (`_CAPAZ`), con relevo ante 429 como siempre. Con `rol: "diseno"` van primero los
+modelos que mejor puntúa el director de diseño (`~/.starseed/diseno/pesos-modelos.json`, notas 0–100 de las tareas de
+interfaz verificadas, el mismo modelo en cualquier proveedor): ≥ 75 delante, sin nota en su orden de siempre, < 75 al
+final; sin ninguna nota, el orden capaz de siempre (el código no sabe nada más de diseño ni de visión de cada modelo).
+Prompt = contexto común del rol (`investigador-diseno` para diseño, `analista` para lo demás; no se repite si el
+encargo ya lo trae) + `t["prompt"]` (al reimaginar sin prompt, uno con la propuesta, las notas y las referencias) +
+extractos de sus `lecturas` (≤ 3 × 1500 caracteres; nunca `.env`), saneado de claves. La salida se valida (cada
+propuesta con título; cuerpo libre ≤ 8000; referencias solo https; reimaginar = una lista con UNA, con `version_de` y
+`version` de la tarea; un análisis libre puede no proponer nada) y se escribe de forma atómica en `t["salida"]`, que
+tiene que ser un `.json` directo de `starseed_memory_root/imaginacion/agentes/` (si no, fallo sin llamar a nadie).
+Sin el JSON pedido, 3 intentos y fallo honesto. Estado final `informe`. Su marca, la función `_analisis_libre`, es lo
+que el agente de referencias busca en el `analista.py` instalado.
+
+**El servicio** `com.starseed.autodesarrollo` (`instalar-servicios.py`, `CADA`): `director_autodesarrollo.py ciclo`
+cada 15 min (`StartInterval` 900, sin KeepAlive), con `lanzador-tcc.py` de padre, python3 por ruta absoluta,
+`ProcessType` Standard (lo que lanza —la imaginación diaria, `suenos.py lanzar`, un orquestador— hereda el papel del
+servicio y en Background se ahogaría) y `AbandonProcessGroup`. Registro en `/tmp/starseed-autodesarrollo.log`.
+Instalarlo en la Mac (aquí no hay launchd):
+
+```bash
+cd ~/Documents/starseed-os-main && bash scripts/enjambre/instalar.sh && \
+  STARSEED_SOLO=autodesarrollo /opt/homebrew/bin/python3 scripts/puente/instalar-servicios.py ~/Documents/starseed-os-main /opt/homebrew/bin/python3
+```
+
+Un orquestador que ya corría sigue con el analista viejo hasta que acabe (el agente de referencias espera; nunca hay
+dos). Pruebas: `scripts/enjambre/test_analista_libre.py` y `scripts/puente/test_instalar_servicios_autodesarrollo.py`.

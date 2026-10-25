@@ -43,6 +43,14 @@ bloquea: si calla (sin motor, sin crédito), todo sigue como antes, y tras 3 sil
 aparta 10 min. La síntesis lleva además el CONTEXTO COMÚN del analista
 (`scripts/puente/contexto_agente.py --rol analista --area X`).
 
+Análisis libres y reimaginaciones (2026-10-24, Ola 1024I · IMG1024E): una tarea de análisis con
+`modo: "libre"` (encargo del agente de referencias de diseño) o `modo: "reimaginar"` (una propuesta
+de la imaginación con notas y referencias) no es área × lente: `_analisis_libre` hace UNA síntesis
+con la flota gratuita capaz (`capacidad: "alta"` = solo los capaces; `rol: "diseno"` = primero los
+que mejor puntúa el director de diseño), valida la salida (títulos, cuerpo libre ≤ 8000, referencias
+solo https; sin el JSON pedido, 3 intentos y fallo honesto) y la escribe de forma atómica en
+`t["salida"]`, que solo puede caer en `starseed_memory_root/imaginacion/agentes/`.
+
 Seguridad: nunca se manda a un modelo nada con pinta de secreto (`sanear`), ni archivos `.env`.
 La lente de seguridad es privada: su texto no va al bus ni a Telegram (solo recuentos).
 
@@ -890,6 +898,10 @@ class SinProveedor(RuntimeError):
     """Ningún proveedor gratuito respondió en todo el plazo de espera."""
 
 
+class SinFormato(RuntimeError):
+    """La flota respondió, pero ninguna respuesta traía el JSON pedido en los intentos acotados."""
+
+
 # ─────────────────────────────── salud de la flota (compartida por todos los sueños) ───────────────────────────────
 # (2026-09-29, primera sesión real: 4 informes en 151 min.) Cada sueño llevaba su propia
 # memoria de fallos, así que un id MUERTO (403 de Gemini 2.5, 404 de AIHubMix) se volvía a
@@ -1446,11 +1458,13 @@ class Llamador(object):
         return self._llamar(p, m, prompt, **kw)
 
     def llamar(self, fase, rol, prompt, validar, max_tokens=2500, timeout=180, excluir=(), inicio=0,
-               espera_max=None, json_mode=True):
-        """(dato_validado, "prov/modelo"). `rol` es «mapa», «sintesis» o «contraste» (o una
-        lista de pares). Rota hasta que un modelo devuelva algo que `validar(texto)` acepte.
-        Sin nadie sano, espera en tramos cortos releyendo la flota cada ~3 min; si ya no queda
-        nadie que pueda volver (todo muerto o sin clave), SinProveedor al momento."""
+               espera_max=None, json_mode=True, max_malas_formas=None):
+        """(dato_validado, "prov/modelo"). `rol` es «mapa», «sintesis» o «contraste», una lista
+        de pares o una función que la devuelve (se relee en cada vuelta: la flota viva). Rota
+        hasta que un modelo devuelva algo que `validar(texto)` acepte. Sin nadie sano, espera en
+        tramos cortos releyendo la flota cada ~3 min; si ya no queda nadie que pueda volver
+        (todo muerto o sin clave), SinProveedor al momento. Con `max_malas_formas`, tras ese
+        número de respuestas sin el JSON pedido, SinFormato: reintento acotado, fallo honesto."""
         tokens_prompt = estimar_tokens(prompt)
         plazo = self.espera_proveedor_s if espera_max is None else min(self.espera_proveedor_s, espera_max)
         excluir = set(excluir or ())
@@ -1458,10 +1472,19 @@ class Llamador(object):
         ultimo_refresco = self._reloj()
         refrescado_al_vacio = False
         consultado = False
+        malas_formas = 0
         apuesta = None             # (experiencia, par) de Jev, para cerrar el ciclo con lo que pase
         while True:
             ahora = self._reloj()
-            lista = list(rol) if isinstance(rol, (list, tuple)) else self._lista(rol)
+            if isinstance(rol, (list, tuple)):
+                lista = list(rol)
+            elif callable(rol):
+                try:
+                    lista = list(rol() or [])
+                except Exception:
+                    lista = []
+            else:
+                lista = self._lista(rol)
             cands = self._candidatos(lista, excluir, tokens_prompt, ahora)
             if not cands:
                 if not self._recuperables(lista, excluir, tokens_prompt, ahora):
@@ -1520,6 +1543,10 @@ class Llamador(object):
                     que = self.salud.forma(p, m, self._reloj())
                     self._log("%s/%s respondió sin el JSON pedido (%s) → %s" % (p, m, _corta(txt, 100), que))
                     apuesta = self._cerrar(apuesta, (p, m), False, "sin el JSON pedido")
+                    malas_formas += 1
+                    if max_malas_formas is not None and malas_formas >= max_malas_formas:
+                        raise SinFormato("%s: %d respuesta(s) sin el JSON pedido; la última de %s/%s"
+                                         % (fase, malas_formas, p, m))
                     continue
                 self.salud.exito(p, m)
                 apuesta = self._cerrar(apuesta, (p, m), True, "respondió")
@@ -1539,6 +1566,512 @@ class Llamador(object):
             self._log("flota releída (%s)" % motivo)
         except Exception:
             pass
+
+
+# ─────────────────────────────── análisis libres y reimaginaciones (Ola 1024I · IMG1024E) ───────────────────────────────
+# Las tareas `tipo: "analisis"` con `modo: "libre"` (el agente de referencias de diseño, IMG1024D) o
+# `modo: "reimaginar"` (el director de autodesarrollo, IMG1024C) no son área × lente: traen su propio
+# encargo. UNA llamada de síntesis con la flota GRATUITA capaz, salida validada (contrato §1 de la Ola
+# 1024I: títulos, cuerpo libre ≤ 8000, referencias solo https) y escrita de forma atómica en `t["salida"]`,
+# que tiene que caer en starseed_memory_root/imaginacion/agentes/ (si no, se rechaza sin llamar a nadie).
+# La fuente «agentes» del director la recoge en su próximo ciclo. Estado final: `informe`.
+MODOS_LIBRES = ("libre", "reimaginar")
+CARPETA_AGENTES = os.path.join("starseed_memory_root", "imaginacion", "agentes")
+_NOMBRE_SALIDA = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,159}\.json$")
+TIPOS_PROPUESTA = ("codigo", "diseno", "contenido", "investigacion", "otro")
+IMPORTANCIAS = {"baja": "baja", "low": "baja", "media": "media", "medium": "media", "normal": "media",
+                "alta": "alta", "high": "alta", "critica": "crítica", "crítica": "crítica", "critical": "crítica"}
+MAX_TITULO_PROPUESTA, MAX_CUERPO_PROPUESTA, MAX_REFERENCIAS_PROPUESTA, MAX_ARCHIVOS_PROPUESTA = 200, 8000, 20, 20
+MAX_PROPUESTAS_LIBRE = 5          # lo que piden el encargo y el rol investigador-diseno (0–5)
+MAX_MALAS_FORMAS = 3              # respuestas sin el JSON pedido antes del fallo honesto
+CONTEXTO_LIBRE_MAX = 1800
+MAX_LECTURAS, MAX_LECTURA_CARACTERES = 3, 1500
+MAX_PROMPT_LIBRE = TROZO_CARACTERES   # cabe en la pasarela más estrecha (Groq), como un trozo del mapa
+#: Lo que la casa sabe de cada modelo EN DISEÑO: las notas 0–100 que el director de diseño
+#: (scripts/puente/director-diseno.py, §5) deja al verificar cada tarea de interfaz por modelo escritor.
+RUTAS_NOTAS_DISENO = (os.path.join("~", ".starseed", "diseno", "pesos-modelos.json"),
+                      os.path.join("~", ".starseed", "diseno", "recomendacion-rotacion.json"))
+UMBRAL_NOTA_DISENO = 75           # = diseno_reglas.UMBRAL_DEFECTO: una pantalla «aprobada»
+
+
+def es_analisis_libre(t):
+    return es_analisis(t) and str(t.get("modo") or "").strip().lower() in MODOS_LIBRES
+
+
+def ruta_salida_segura(raiz, salida):
+    """(absoluta, relativa) de `salida` si es un `.json` DIRECTO de starseed_memory_root/imaginacion/agentes/
+    (sin subcarpetas, sin «..», sin rutas absolutas ni un enlace que lo saque de ahí); None si no."""
+    if not isinstance(salida, str) or not salida.strip() or "\x00" in salida:
+        return None
+    rel = salida.strip().replace("\\", "/")
+    if rel.startswith(("/", "~")) or re.match(r"^[A-Za-z]:", rel) or ".." in rel.split("/"):
+        return None
+    rel = os.path.normpath(rel).replace(os.sep, "/")
+    if os.path.dirname(rel) != CARPETA_AGENTES.replace(os.sep, "/") or not _NOMBRE_SALIDA.match(os.path.basename(rel)):
+        return None
+    carpeta = os.path.realpath(os.path.join(raiz, CARPETA_AGENTES))
+    if os.path.dirname(os.path.realpath(os.path.join(raiz, rel))) != carpeta:
+        return None
+    return os.path.join(raiz, rel), rel
+
+
+def _https(url):
+    return (isinstance(url, str) and url.lower().startswith("https://") and len(url) <= 2000
+            and not any(c.isspace() for c in url))
+
+
+def referencias_https(v, n=MAX_REFERENCIAS_PROPUESTA):
+    """[{titulo, url}] solo `https://`, sin repetir y ≤ n (http, javascript:, rutas… se descartan)."""
+    fuera, vistas = [], set()
+    for r in v if isinstance(v, list) else []:
+        if isinstance(r, str):
+            url, titulo = r.strip(), ""
+        elif isinstance(r, dict):
+            url = str(r.get("url") or "").strip()
+            titulo = r.get("titulo") or r.get("title") or r.get("nombre") or ""
+        else:
+            continue
+        if not _https(url) or url in vistas:
+            continue
+        vistas.add(url)
+        fuera.append({"titulo": _corta(sanear(str(titulo)), MAX_TITULO_PROPUESTA) or url[8:][:MAX_TITULO_PROPUESTA],
+                      "url": url})
+        if len(fuera) >= n:
+            break
+    return fuera
+
+
+def _ruta_repo(a):
+    a = a.strip().replace("\\", "/") if isinstance(a, str) else ""
+    if (not a or len(a) > 200 or a.startswith(("/", "~")) or re.match(r"^[a-zA-Z]:", a)
+            or ".." in a.split("/") or "://" in a or "\x00" in a):
+        return ""
+    return a[2:] if a.startswith("./") else a
+
+
+def _texto_libre(v):
+    """El cuerpo tal cual (Markdown libre); si el modelo lo estructuró, se aplana sin perder nada."""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, list) and all(isinstance(x, str) for x in v):
+        return "\n".join(v)
+    if v in (None, ""):
+        return ""
+    return json.dumps(v, ensure_ascii=False, indent=1)
+
+
+def _valores_raiz(texto):
+    """Los valores JSON de nivel superior ({…} o […]) que se dejan leer, en orden: sin bajar dentro de
+    uno ya leído (una lista de referencias DENTRO de una propuesta no es la lista de propuestas)."""
+    fuera, i, n = [], 0, len(texto)
+    while i < n and len(fuera) < 50:
+        if texto[i] in "{[":
+            j = _cierre(texto, i)
+            if j > i:
+                v = _cargar_json(texto[i:j + 1])
+                if isinstance(v, (dict, list)):
+                    fuera.append(v)
+                    i = j + 1
+                    continue
+        i += 1
+    return fuera
+
+
+def _con_titulo(x):
+    return isinstance(x, dict) and bool(str(x.get("titulo") or x.get("title") or "").strip())
+
+
+def _parece_propuesta(x):
+    """Con título y que no sea una referencia suelta ({titulo, url} sin cuerpo ni tipo)."""
+    return _con_titulo(x) and not ("url" in x and not any(k in x for k in ("cuerpo", "body", "contenido", "tipo")))
+
+
+_MARCA_PROPUESTAS = re.compile(r'"propuestas"\s*:\s*\[')
+
+
+def leer_propuestas(texto):
+    """La lista de propuestas de una respuesta, venga como venga: `{"propuestas": [...]}` (la forma del
+    encargo libre), una lista suelta `[...]` (la de reimaginar), una propuesta sola `{titulo…}` o envuelta
+    en otra clave, con prosa, vallas o razonamiento alrededor, o cortada por max_tokens (se rescatan las
+    completas; nunca la lista de referencias de una propuesta a medias). None si no hay nada con esa
+    forma; [] es una respuesta válida («nada que proponer»)."""
+    if not texto:
+        return None
+    t = _PENSAMIENTO.sub(" ", str(texto))[:_TOPE_TEXTO_JSON]
+    valores = _valores_raiz(t)
+    con = [(i, v) for i, v in enumerate(valores) if isinstance(v, dict) and isinstance(v.get("propuestas"), list)]
+    if con:
+        return max(con, key=lambda x: (len(x[1]["propuestas"]), x[0]))[1]["propuestas"]
+    if _MARCA_PROPUESTAS.search(t):
+        return rescatar_lista(t, "propuestas")  # la forma pedida, cortada: solo sus elementos completos
+    listas = [v for v in valores if isinstance(v, list) and v and all(isinstance(x, dict) for x in v)
+              and any(_parece_propuesta(x) for x in v)]
+    if listas:
+        return listas[-1]
+    solas = [v for v in valores if _parece_propuesta(v)]
+    if solas:
+        return solas
+    for v in reversed(valores):
+        if isinstance(v, dict):
+            for x in v.values():
+                if isinstance(x, list) and x and all(isinstance(y, dict) for y in x) and any(_parece_propuesta(y) for y in x):
+                    return x
+                if _parece_propuesta(x):
+                    return [x]
+    return None
+
+
+def _sufijo_salida(rel, agente):
+    """«referencias-diseno-2026-10-24-1.json» del agente «referencias-diseno» → «2026-10-24-1»: así el id
+    es el mismo que le pondría su agente al normalizar (agente_referencias_diseno.normalizar_salida)."""
+    stem = os.path.basename(rel)[:-5]
+    return stem[len(agente) + 1:] if agente and stem.startswith(agente + "-") and len(stem) > len(agente) + 1 else stem
+
+
+def normalizar_propuesta_libre(item, t, i, rel, ahora_iso):
+    """UNA propuesta de la flota en la forma del contrato §1, o None si no trae título. PURA."""
+    if not _con_titulo(item):
+        return None
+    modo = str(t.get("modo") or "").strip().lower()
+    original = t.get("propuesta") if isinstance(t.get("propuesta"), dict) else {}
+    titulo = _corta(sanear(str(item.get("titulo") or item.get("title"))), MAX_TITULO_PROPUESTA)
+    cuerpo = sanear(_texto_libre(item.get("cuerpo") or item.get("body") or item.get("contenido"))).strip()
+    tipo_defecto = (original.get("tipo") if modo == "reimaginar" else None) or (
+        "diseno" if str(t.get("rol") or "") == "diseno" else "codigo")
+    tipo = str(item.get("tipo") or "").strip().lower().replace("ñ", "n")
+    p = {"titulo": titulo, "cuerpo": cuerpo[:MAX_CUERPO_PROPUESTA] or titulo,
+         "tipo": tipo if tipo in TIPOS_PROPUESTA else (tipo_defecto if tipo_defecto in TIPOS_PROPUESTA else "codigo"),
+         "referencias": referencias_https(item.get("referencias")), "fuente": "agentes", "estado": "nueva", "t": ahora_iso}
+    archivos = item.get("archivos")
+    archivos = [archivos] if isinstance(archivos, str) else (archivos if isinstance(archivos, list) else [])
+    p["archivos"] = []
+    for a in map(_ruta_repo, archivos):
+        if a and a not in p["archivos"] and len(p["archivos"]) < MAX_ARCHIVOS_PROPUESTA:
+            p["archivos"].append(a)
+    imp = IMPORTANCIAS.get(str(item.get("importancia") or "").strip().lower())
+    if imp:
+        p["importancia"] = imp
+    u = item.get("utilidad")
+    if isinstance(u, (int, float)) and not isinstance(u, bool):
+        p["utilidad"] = round(max(0.0, min(1.0, float(u))), 3)
+    for k in ("impacto", "esfuerzo"):
+        v = item.get(k)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            p[k] = max(1, min(5, int(round(v))))
+    if isinstance(item.get("accion"), str) and item["accion"].strip():
+        p["accion"] = item["accion"].strip()[:40]
+    if modo == "reimaginar":
+        # La versión la fija quien la encargó, no el modelo (enlazar() la vuelve a comprobar al recogerla).
+        if t.get("version_de"):
+            p["version_de"] = str(t["version_de"])[:120]
+        if isinstance(t.get("version"), int) and t["version"] >= 1:
+            p["version"] = t["version"]
+    else:
+        agente = _nombre_seguro(t.get("agente") or "analista")
+        p.update(id="agentes:%s:%s-%d" % (agente, _sufijo_salida(rel, agente), i), version=1)
+        if t.get("agente"):
+            p["agente"] = agente
+        if t.get("ambito"):
+            p["ambito"] = str(t["ambito"])[:80]
+        p["origen"] = {k: v for k, v in (("tarea_analisis", t.get("id")), ("contexto", t.get("contexto"))) if v}
+    return p
+
+
+def validar_salida_libre(texto, t, rel, ahora_iso):
+    """Lista de propuestas normalizadas, o None si la respuesta no sirve (y se reintenta):
+    sin la forma pedida, propuestas sin título, o una reimaginación sin ninguna propuesta."""
+    crudas = leer_propuestas(texto)
+    if crudas is None or not isinstance(crudas, list):
+        return None
+    fuera = []
+    for item in crudas:
+        p = normalizar_propuesta_libre(item, t, len(fuera) + 1, rel, ahora_iso)
+        if p is not None:
+            fuera.append(p)
+    if crudas and not fuera:
+        return None
+    if str(t.get("modo") or "").strip().lower() == "reimaginar":
+        return fuera[:1] or None
+    return fuera[:MAX_PROPUESTAS_LIBRE]
+
+
+def _nucleo_modelo(clave):
+    """«nvidia/moonshotai/kimi-k3» y ("nim", "moonshotai/kimi-k3") → «kimi-k3»: el mismo modelo diseña
+    igual en cualquier proveedor."""
+    return str(clave or "").strip().lower().rsplit("/", 1)[-1].replace(":free", "")
+
+
+def notas_diseno_por_modelo(crudo):
+    """{núcleo del modelo: nota media 0–100} de `pesos-modelos.json` ({modelo: {suma, n}}) o de
+    `recomendacion-rotacion.json` ({medias: {modelo: media}}) del director de diseño. PURA."""
+    sumas = {}
+    if isinstance(crudo, dict) and isinstance(crudo.get("medias"), dict):
+        pares = [(k, v, 1) for k, v in crudo["medias"].items()]
+    elif isinstance(crudo, dict):
+        pares = [(k, (v.get("suma") or 0) / float(v["n"]), v["n"]) for k, v in crudo.items()
+                 if isinstance(v, dict) and isinstance(v.get("n"), (int, float)) and v["n"] > 0
+                 and isinstance(v.get("suma") or 0, (int, float))]
+    else:
+        pares = []
+    for k, media, n in pares:
+        nucleo = _nucleo_modelo(k)
+        if not nucleo or nucleo in ("?", "desconocido") or not isinstance(media, (int, float)) or isinstance(media, bool):
+            continue
+        s = sumas.setdefault(nucleo, [0.0, 0.0])
+        s[0] += float(media) * n
+        s[1] += n
+    return {k: round(s[0] / s[1], 1) for k, s in sumas.items() if s[1] > 0}
+
+
+def cargar_notas_diseno(rutas=RUTAS_NOTAS_DISENO):
+    """Las notas de diseño de esta máquina ({} si el director de diseño aún no verificó nada)."""
+    for ruta in rutas:
+        try:
+            with open(os.path.expanduser(ruta), encoding="utf-8") as f:
+                notas = notas_diseno_por_modelo(json.load(f))
+        except (OSError, ValueError):
+            continue
+        if notas:
+            return notas
+    return {}
+
+
+def orden_diseno(pares, notas, umbral=UMBRAL_NOTA_DISENO):
+    """(pares, motivo). Primero los modelos con nota de diseño ≥ umbral (la mejor delante), luego los que
+    aún no tienen nota en su orden de siempre y al final los que diseñaron por debajo del umbral. Sin
+    ninguna nota que case, el orden capaz de siempre. PURA."""
+    notas = notas or {}
+    con = [(par, notas.get(_nucleo_modelo(par[1]))) for par in pares]
+    buenos = sorted([x for x in con if x[1] is not None and x[1] >= umbral], key=lambda x: -x[1])
+    flojos = sorted([x for x in con if x[1] is not None and x[1] < umbral], key=lambda x: -x[1])
+    if not buenos and not flojos:
+        return list(pares), "sin notas de diseño de estos modelos: orden capaz de siempre"
+    orden = [x[0] for x in buenos] + [x[0] for x in con if x[1] is None] + [x[0] for x in flojos]
+    vistos = ", ".join("%s %g/100" % (_nucleo_modelo(p[1]), n) for p, n in (buenos + flojos)[:4])
+    return orden, "diseño: primero lo que mejor puntúa el director de diseño (%s)" % vistos
+
+
+def flota_libre(t, flota=None, notas=None):
+    """(pares, motivo, por_notas): la lista de síntesis de la flota viva (o la fija); con `capacidad:
+    "alta"`, SOLO los capaces; con `rol: "diseno"`, ordenados por lo que la casa sabe de cada modelo en
+    diseño (`por_notas` dice si alguna nota casó: entonces ese orden manda sobre el reparto por turnos). PURA."""
+    try:
+        d = flota() if callable(flota) else (flota or {})
+    except Exception:
+        d = {}
+    base = [tuple(x) for x in ((d.get("sintesis") if isinstance(d, dict) else None) or flota_fija()["sintesis"])]
+    motivo, por_notas = "síntesis de la flota", False
+    if str(t.get("capacidad") or "").strip().lower() == "alta":
+        capaces = [x for x in base if _CAPAZ.search(x[1])] or [x for x in flota_fija()["sintesis"] if _CAPAZ.search(x[1])]
+        base, motivo = capaces, "capacidad alta: solo los modelos capaces"
+    if str(t.get("rol") or "").strip().lower() == "diseno":
+        por_notas = any((notas or {}).get(_nucleo_modelo(par[1])) is not None for par in base)
+        base, m = orden_diseno(base, notas)
+        motivo += " · " + m
+    return base, motivo, por_notas
+
+
+def prompt_reimaginar(t):
+    """El encargo de reimaginar cuando la tarea no lo trae hecho: la propuesta, las notas y las referencias."""
+    p = t.get("propuesta") if isinstance(t.get("propuesta"), dict) else {}
+    refs = referencias_https(t.get("referencias")) or referencias_https(p.get("referencias"))
+    lineas = [
+        "IMAGINACIÓN · reimaginar, NO escritura: no edites archivos del repositorio ni hagas commits.", "",
+        "Reimagina esta propuesta con las notas y referencias de abajo y devuelve UNA versión nueva, mejor, "
+        "en formato libre (Markdown).", "",
+        "Propuesta v%s (tipo %s, ámbito %s): «%s»" % (p.get("version") or 1, p.get("tipo") or "codigo",
+                                                      p.get("ambito") or "metagenesis", _corta(p.get("titulo"), 200)),
+        str(p.get("cuerpo") or "")[:4000], "", "Notas para mejorarla:", str(t.get("notas") or "(sin notas)")[:2000]]
+    if refs:
+        lineas += ["", "Referencias:"] + ["- %s — %s" % (r["titulo"], r["url"]) for r in refs]
+    if p.get("archivos"):
+        lineas += ["", "Archivos citados: " + ", ".join(str(a) for a in p["archivos"][:20])]
+    return "\n".join(lineas)
+
+
+def _lecturas(t, leer):
+    """Extractos de `t["lecturas"]` (≤ 3 documentos del repo, ≤ 1500 caracteres cada uno, saneados): el
+    encargo pide leerlos y en una sola llamada el modelo no puede abrir nada."""
+    fuera = []
+    for ruta in (t.get("lecturas") or [])[:MAX_LECTURAS]:
+        r = _ruta_repo(ruta)
+        if not r or os.path.basename(r).startswith(".env"):
+            continue
+        try:
+            texto = leer(r)
+        except Exception:
+            texto = None
+        if texto:
+            fuera.append("### %s\n%s" % (r, sanear(texto)[:MAX_LECTURA_CARACTERES].rstrip()))
+    return fuera
+
+
+def prompt_libre(t, contexto_texto="", lecturas=()):
+    """El prompt de la síntesis: contexto común del rol + el encargo (+ extractos de sus lecturas) + cómo
+    devolverlo. Cabe en MAX_PROMPT_LIBRE: se recortan antes las lecturas que el encargo. PURA."""
+    reimaginar = str(t.get("modo") or "").strip().lower() == "reimaginar"
+    encargo = str(t.get("prompt") or "").strip() or (prompt_reimaginar(t) if reimaginar else "")
+    cierre = ("FORMATO DE LA RESPUESTA: SOLO JSON, sin texto alrededor. Si tu salida debe ser un objeto, envuelve "
+              'la lista así: {"propuestas": [ … ]}. Cada propuesta lleva al menos "titulo" (≤ 200) y "cuerpo" '
+              "(Markdown libre ≤ 8000); referencias solo https.")
+    if reimaginar:
+        cierre += " Reimaginar = UNA sola propuesta (la versión nueva de «%s»)." % (t.get("version_de") or "la propuesta")
+    partes = [contexto_texto.strip()] if contexto_texto and contexto_texto.strip() else []
+    partes.append(encargo)
+    bloque = ("## Lecturas (extractos de los documentos que pide el encargo)\n" + "\n\n".join(lecturas)) if lecturas else ""
+    texto = "\n\n".join(partes + ([bloque] if bloque else []) + [cierre])
+    if len(texto) > MAX_PROMPT_LIBRE and bloque:
+        sobra = len(texto) - MAX_PROMPT_LIBRE
+        bloque = bloque[:max(0, len(bloque) - sobra - 2)].rstrip()
+        texto = "\n\n".join(partes + ([bloque] if len(bloque) > 200 else []) + [cierre])
+    if len(texto) > MAX_PROMPT_LIBRE:
+        texto = "\n\n".join(partes)[:MAX_PROMPT_LIBRE - len(cierre) - 2] + "\n\n" + cierre
+    return sanear(texto)
+
+
+def _salida_previa(ruta, t):
+    """Lo que ya hay en la salida: ("nada", None) · ("propia", doc) si ya es el trabajo hecho de ESTA
+    tarea · ("ajena", None) si es de otra (no se pisa)."""
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            d = json.load(f)
+    except OSError:
+        return "nada", None
+    except ValueError:
+        return "nada", None  # a medio escribir o roto: se rehace
+    if str(t.get("modo") or "").strip().lower() == "reimaginar":
+        return ("propia", d) if isinstance(d, list) and any(_con_titulo(x) for x in d) else ("nada", None)
+    if not isinstance(d, dict) or not isinstance(d.get("propuestas"), list):
+        return "nada", None
+    return ("propia", d) if d.get("tarea") in (None, t.get("id")) else ("ajena", None)
+
+
+def _iso(reloj):
+    return time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(reloj()))
+
+
+def _leer_del_repo(raiz, ruta):
+    with open(os.path.join(raiz, ruta), encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+
+def _analisis_libre(t, llamar_llm, evento=None, set_estado=None, latir=None, disponible=None, raiz=".",
+                    dir_profundo=None, log=None, paso_local=None, dormir=time.sleep, reloj=time.time,
+                    es_aviso_de_cuota=None, marcar_sin_cupo=None, espera_429_s=ESPERA_429_S,
+                    espera_proveedor_s=ESPERA_PROVEEDOR_S, leer=None, rotar=True, flota=None, cupo_libre=None,
+                    refrescar=None, salud=None, contexto=None, notas_diseno=None, max_malas_formas=MAX_MALAS_FORMAS):
+    """UN análisis libre (`modo: "libre"`) o UNA reimaginación (`modo: "reimaginar"`). Devuelve lo escrito
+    en `t["salida"]` o None. Estados: en_curso → informe | fallo (nunca «hecho» sin salida)."""
+    evento = evento or (lambda *a, **k: None)
+    set_estado = set_estado or (lambda *a, **k: None)
+    log = log or (lambda s: None)
+    paso_local = paso_local or (lambda *a, **k: None)
+    tid, modo = t["id"], str(t.get("modo") or "").strip().lower()
+    privado = bool(t.get("privado"))
+    destino = ruta_salida_segura(raiz, t.get("salida"))
+    if destino is None:
+        nota = "ruta de salida no permitida: tiene que ser un .json de %s/ (sin subcarpetas)" % CARPETA_AGENTES.replace(os.sep, "/")
+        set_estado(tid, estado="fallo", nota=nota, tipo="analisis")
+        evento("fallo", tid, "análisis %s mal formado: %s" % (modo, nota))
+        return None
+    ruta, rel = destino
+    if not str(t.get("prompt") or "").strip() and not (modo == "reimaginar" and isinstance(t.get("propuesta"), dict)):
+        set_estado(tid, estado="fallo", nota="análisis %s sin encargo (falta «prompt»)" % modo, tipo="analisis")
+        evento("fallo", tid, "análisis %s mal formado: sin encargo" % modo)
+        return None
+    previa, doc = ("nada", None) if t.get("rehacer") else _salida_previa(ruta, t)
+    if previa == "propia":
+        n = len(doc if isinstance(doc, list) else doc.get("propuestas") or [])
+        set_estado(tid, estado="informe", nota="%d propuesta(s) · %s (ya estaba)" % (n, rel), tipo="analisis",
+                   propuestas=n, hallazgos=n, informe=rel)
+        log("la salida ya existía: %s" % rel)
+        return doc
+    if previa == "ajena":
+        set_estado(tid, estado="fallo", nota="la salida %s ya es de otra tarea: no la piso" % rel, tipo="analisis")
+        evento("fallo", tid, "análisis %s: la salida ya es de otra tarea" % modo)
+        return None
+    dir_profundo = dir_profundo or os.path.join(raiz, "starseed_memory_root", "dream", "profundo")
+    reclamo = os.path.join(rutas_informe(dir_profundo, t)[0], ".reclamos", _nombre_seguro(tid) + ".json")
+    if not _tomar(reclamo, reloj, RECLAMO_CADUCA_S):
+        log("otro orquestador está con %s ahora mismo: no lo repito" % tid)
+        return None
+    t0 = reloj()
+    leer = leer or (lambda r: _leer_del_repo(raiz, r))
+    diseno = str(t.get("rol") or "").strip().lower() == "diseno"
+    notas = (cargar_notas_diseno() if notas_diseno is None else notas_diseno) if diseno else {}
+    pares, motivo, por_notas = flota_libre(t, flota, notas)
+    # Con un orden de diseño sacado de las notas, se respeta (la salud sigue apartando lo caído o
+    # saturado y el cupo lleno va al final); sin él, el reparto por turnos de siempre.
+    llamador = Llamador(t, llamar_llm, disponible, latir, log, dormir, reloj, es_aviso_de_cuota,
+                        marcar_sin_cupo, espera_429_s, espera_proveedor_s, 0, rotar and not por_notas,
+                        flota=flota, cupo_libre=cupo_libre, refrescar=refrescar, salud=salud)
+    try:
+        set_estado(tid, estado="en_curso", modelo="", segundos=0, tipo="analisis",
+                   nota="análisis %s · %s" % (modo, _corta(t.get("titulo") or tid, 120)))
+        evento("inicio", tid, t.get("titulo") or tid, {"tipo": "analisis", "modo": modo, "agente": t.get("agente") or ""})
+        rol_ctx = "investigador-diseno" if diseno else "analista"
+        ctx = ""
+        if contexto is not None and ("Contexto común · rol %s" % rol_ctx) not in str(t.get("prompt") or ""):
+            pedir = dict(rol=rol_ctx, area=t.get("area") or None, tarea=t.get("titulo") or "",
+                         max_chars=CONTEXTO_LIBRE_MAX)
+            excl = ("herramientas", "salida") if modo == "reimaginar" else ("herramientas",)
+            try:
+                ctx = contexto(excluir=excl, **pedir) or ""
+            except TypeError:
+                try:
+                    ctx = contexto(**pedir) or ""
+                except Exception:
+                    ctx = ""
+            except Exception:
+                ctx = ""
+        prompt = prompt_libre(t, sanear(ctx)[:CONTEXTO_LIBRE_MAX], _lecturas(t, leer))
+        paso_local(tid, "encargo", modo=modo, caracteres=len(prompt), contexto=bool(ctx), modelos=len(pares))
+        log("análisis %s: %d caracteres de encargo · %s · %s" % (
+            modo, len(prompt), motivo, ", ".join("%s/%s" % par for par in pares[:4]) or "flota vacía"))
+        ahora_iso = _iso(reloj)
+        propuestas, modelo = llamador.llamar(
+            "síntesis libre", lambda: flota_libre(t, flota, notas)[0], prompt,  # se relee: la flota viva
+            lambda txt: validar_salida_libre(txt, t, rel, ahora_iso),
+            max_tokens=8000, timeout=300, max_malas_formas=max_malas_formas)
+        if modo == "reimaginar":
+            doc = propuestas[:1]
+        else:
+            nombre_fmt, _, ver = str(t.get("formato_salida") or "starseed-imaginacion-agentes/1").partition("/")
+            doc = {"formato": nombre_fmt or "starseed-imaginacion-agentes", "version": int(ver) if ver.isdigit() else 1,
+                   "fuente": "agentes", "agente": _nombre_seguro(t.get("agente") or "analista"), "tarea": tid,
+                   "contexto": t.get("contexto") or "", "modo": modo, "generado": ahora_iso, "modelo": modelo,
+                   "propuestas": propuestas}
+        _escribir_atomico(ruta, json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+        segundos, n = int(reloj() - t0), len(propuestas)
+        paso_local(tid, "salida", modelo=modelo, propuestas=n, salida=rel)
+        set_estado(tid, estado="informe", modelo=modelo, segundos=segundos, tipo="analisis", propuestas=n,
+                   hallazgos=n, informe=rel, nota="%d propuesta(s) · %s" % (n, rel))
+        texto = ("%d propuesta(s) · %s" % (n, t.get("agente") or modo)) + (
+            "" if privado or not n else " · 1.ª: " + _corta(propuestas[0]["titulo"], 90))
+        evento("informe", tid, texto, {"tipo": "analisis", "modo": modo, "propuestas": n, "modelo": modelo,
+                                        "tokens": llamador.tokens["entrada"] + llamador.tokens["salida"],
+                                        "privado": privado})
+        log("salida escrita: %s (%d propuesta(s), %s)" % (rel, n, modelo))
+        return doc
+    except SinFormato as e:
+        set_estado(tid, estado="fallo", nota=_corta("la flota no devolvió el JSON pedido: %s" % e, 200),
+                   tipo="analisis", segundos=int(reloj() - t0))
+        evento("fallo", tid, "análisis %s sin el JSON pedido tras %d intento(s)" % (modo, max_malas_formas))
+        log("fallo: %s" % e)
+        return None
+    except SinProveedor as e:
+        set_estado(tid, estado="fallo", nota=_corta(str(e), 200), tipo="analisis", segundos=int(reloj() - t0))
+        evento("fallo", tid, "análisis %s sin proveedores: %s" % (modo, _corta(str(e), 200)))
+        log("fallo: %s" % e)
+        return None
+    except Exception as e:  # noqa: BLE001 — se da por fallido, nunca por hecho
+        set_estado(tid, estado="fallo", nota=_corta("%s: %s" % (type(e).__name__, e), 200), tipo="analisis",
+                   segundos=int(reloj() - t0))
+        evento("fallo", tid, "análisis %s fallido: %s" % (modo, _corta(str(e), 200)))
+        log("fallo: %s: %s" % (type(e).__name__, e))
+        return None
+    finally:
+        _soltar(reclamo)
 
 
 # ─────────────────────────────── el sueño ───────────────────────────────
@@ -1618,7 +2151,8 @@ def ejecutar(t, llamar_llm, evento=None, set_estado=None, latir=None, disponible
              raiz=".", dir_profundo=None, log=None, paso_local=None, dormir=time.sleep,
              reloj=time.time, es_aviso_de_cuota=None, marcar_sin_cupo=None,
              espera_429_s=ESPERA_429_S, espera_proveedor_s=ESPERA_PROVEEDOR_S, leer=None, rotar=True,
-             flota=None, cupo_libre=None, refrescar=None, salud=None, consejo=None, contexto=None):
+             flota=None, cupo_libre=None, refrescar=None, salud=None, consejo=None, contexto=None,
+             notas_diseno=None):
     """Ejecuta UN sueño (tarea `tipo: "analisis"`). Devuelve el informe (dict) o None.
 
     Estados en progreso.json (vía `set_estado`): en_curso → informe | fallo. Eventos al bus
@@ -1627,7 +2161,17 @@ def ejecutar(t, llamar_llm, evento=None, set_estado=None, latir=None, disponible
 
     `consejo` (ConsejoJev) activa el triaje y la elección de modelo por Jev; `contexto(rol=,
     area=, tarea=, max_chars=)` devuelve el contexto común del analista para la síntesis. Los
-    dos son opcionales y nunca bloquean."""
+    dos son opcionales y nunca bloquean.
+
+    Con `modo: "libre"` o `modo: "reimaginar"` (Ola 1024I) no es área × lente: lo hace
+    `_analisis_libre` (una síntesis, salida en `t["salida"]`); `notas_diseno` solo cuenta ahí."""
+    if es_analisis_libre(t):
+        return _analisis_libre(
+            t, llamar_llm, evento=evento, set_estado=set_estado, latir=latir, disponible=disponible, raiz=raiz,
+            dir_profundo=dir_profundo, log=log, paso_local=paso_local, dormir=dormir, reloj=reloj,
+            es_aviso_de_cuota=es_aviso_de_cuota, marcar_sin_cupo=marcar_sin_cupo, espera_429_s=espera_429_s,
+            espera_proveedor_s=espera_proveedor_s, leer=leer, rotar=rotar, flota=flota, cupo_libre=cupo_libre,
+            refrescar=refrescar, salud=salud, contexto=contexto, notas_diseno=notas_diseno)
     evento = evento or (lambda *a, **k: None)
     set_estado = set_estado or (lambda *a, **k: None)
     log = log or (lambda s: None)

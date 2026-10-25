@@ -211,6 +211,21 @@ PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>
 esc = lambda t: t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _cargar(etiqueta, ruta):
+    """plutil + unload/load de un plist ya escrito, con su línea de estado."""
+    ok = subprocess.run(["plutil", "-lint", ruta], capture_output=True).returncode == 0
+    subprocess.run(["launchctl", "unload", ruta], capture_output=True)
+    r = subprocess.run(["launchctl", "load", ruta], capture_output=True, text=True)
+    print(
+        "  %-10s plist %s · %s"
+        % (
+            etiqueta.split(".")[-1],
+            "ok" if ok else "INVÁLIDO",
+            "cargado" if r.returncode == 0 else (r.stderr.strip()[:50] or "error"),
+        )
+    )
+
+
 def instalar(etiqueta, orden, log, siempre):
     ruta = os.path.join(AG, etiqueta + ".plist")
     with open(ruta, "w") as f:
@@ -227,17 +242,67 @@ def instalar(etiqueta, orden, log, siempre):
                 else "<key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>",
             }
         )
-    ok = subprocess.run(["plutil", "-lint", ruta], capture_output=True).returncode == 0
-    subprocess.run(["launchctl", "unload", ruta], capture_output=True)
-    r = subprocess.run(["launchctl", "load", ruta], capture_output=True, text=True)
-    print(
-        "  %-10s plist %s · %s"
-        % (
-            etiqueta.split(".")[-1],
-            "ok" if ok else "INVÁLIDO",
-            "cargado" if r.returncode == 0 else (r.stderr.strip()[:50] or "error"),
+    _cargar(etiqueta, ruta)
+
+
+# (2026-10-24, Ola 1024I · IMG1024E; era IMN1021Eb, que el enjambre nunca terminó) Servicios que corren
+# CADA N segundos (StartInterval, sin KeepAlive), escritos aquí mismo con las rutas de esta instalación.
+#   «autodesarrollo»: el director de autodesarrollo (`director_autodesarrollo.py ciclo`, contrato
+#   architecture/imaginacion-autodesarrollo.md §5 y Ola 1024I) cada 15 min: imagina cuando toca, recoge las
+#   propuestas libres de los agentes, aplica el automático (alta y crítica nunca solas) y encarga las
+#   reimaginaciones. Su propio cerrojo evita dos ciclos a la vez.
+#   · lanzador-tcc.py de padre y python3 por ruta absoluta (las dos reglas de la cabecera).
+#   · ProcessType «Standard» y no «Background»: lo que lanza (la imaginación diaria, `suenos.py lanzar` y el
+#     orquestador que este arranca) hereda el papel del servicio, y en Background macOS le ahoga CPU y disco
+#     (el oído pasó de 15 s a 186 s así). AbandonProcessGroup: al acabar cada ciclo, launchd no mata lo lanzado.
+# nombre -> (orden, log, cada_s, ProcessType)
+CADA = {
+    "autodesarrollo": (
+        LANZ + ["--", PY3, "-u", P("director_autodesarrollo.py"), "ciclo"],
+        "/tmp/starseed-autodesarrollo.log",
+        15 * 60,
+        "Standard",
+    ),
+}
+
+PLANTILLA_CADA = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>%(etiqueta)s</string>
+  <key>ProgramArguments</key><array>
+%(args)s
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>%(cada)d</integer>
+  <key>ProcessType</key><string>%(tipo)s</string>
+  <key>AbandonProcessGroup</key><true/>
+  <key>WorkingDirectory</key><string>%(raiz)s</string>
+  <key>StandardOutPath</key><string>%(log)s</string>
+  <key>StandardErrorPath</key><string>%(log)s</string>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>%(home)s/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>STARSEED_ROOT</key><string>%(raiz)s</string>
+  </dict>
+</dict></plist>
+"""
+
+
+def instalar_cada(etiqueta, orden, log, cada_s, tipo):
+    ruta = os.path.join(AG, etiqueta + ".plist")
+    with open(ruta, "w") as f:
+        f.write(
+            PLANTILLA_CADA
+            % {
+                "etiqueta": etiqueta,
+                "raiz": RAIZ,
+                "log": log,
+                "home": HOME,
+                "cada": int(cada_s),
+                "tipo": tipo,
+                "args": "\n".join("    <string>%s</string>" % esc(a) for a in orden),
+            }
         )
-    )
+    _cargar(etiqueta, ruta)
 
 
 # (2026-10-22) Servicios PERIÓDICOS (StartInterval, no KeepAlive): su plist vive en el repo con
@@ -263,11 +328,7 @@ def instalar_periodico(etiqueta, fuente):
     with open(ruta, "w", encoding="utf-8") as f:
         f.write(texto)
     os.makedirs(os.path.join(HOME, ".starseed"), exist_ok=True)
-    ok = subprocess.run(["plutil", "-lint", ruta], capture_output=True).returncode == 0
-    subprocess.run(["launchctl", "unload", ruta], capture_output=True)
-    r = subprocess.run(["launchctl", "load", ruta], capture_output=True, text=True)
-    print("  %-10s plist %s · %s" % (etiqueta.split(".")[-1], "ok" if ok else "INVÁLIDO",
-                                     "cargado" if r.returncode == 0 else (r.stderr.strip()[:50] or "error")))
+    _cargar(etiqueta, ruta)
 
 
 # Reinstalar TODOS reinicia Genesis y los directores; con STARSEED_SOLO se toca solo lo nombrado.
@@ -280,6 +341,10 @@ for nombre, fuente in PERIODICOS.items():
     if (SOLO and nombre not in SOLO) or not os.path.exists(fuente):
         continue
     instalar_periodico("com.starseed." + nombre, fuente)
+for nombre, (orden, log, cada_s, tipo) in CADA.items():
+    if SOLO and nombre not in SOLO:
+        continue
+    instalar_cada("com.starseed." + nombre, orden, log, cada_s, tipo)
 if SOLO:
     sys.exit(0)
 

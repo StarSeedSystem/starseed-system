@@ -7331,7 +7331,10 @@ def _ejecutar_analisis(t):
         cupo_libre=_cupo_libre,
         refrescar=_refrescar_flota,
         consejo=_consejo_jev_analisis(),
-        contexto=lambda **kw: _contexto_agente(excluir=("herramientas",), **kw),
+        # (IMG1024E) El analista puede pedir quitar más secciones (p. ej. «salida» al reimaginar).
+        contexto=lambda excluir=(), **kw: _contexto_agente(
+            excluir=("herramientas",) + tuple(excluir or ()), **kw
+        ),
     )
 
 

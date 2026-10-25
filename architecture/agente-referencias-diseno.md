@@ -141,12 +141,14 @@ identidad).
    espera. **Nunca un segundo orquestador** y nunca se lanza uno desde aquí: sin orquestador vivo, la cola queda lista
    y se dice (Genesis la lanza cuando toque).
 
-**Lo que falta en el enjambre (tarea siguiente, fuera de `scripts/puente/`):** en `scripts/enjambre/analista.py`, una
-función `_analisis_libre(t, …)` para `t["modo"] == "libre"`: una llamada de síntesis con los modelos capaces (con
-`capacidad: "alta"`, solo la lista capaz; relevo ante 429 como siempre), prompt = `t["prompt"]` + el contexto común de
-`rol="investigador-diseno"`, validación de que la respuesta es JSON con `propuestas`, escritura atómica en
-`t["salida"]` y estado `informe`. El orquestador ya la enruta (toda tarea `tipo: "analisis"` va al analista). Al
-instalarla (`bash scripts/enjambre/instalar.sh`), este agente lo detecta solo por la marca.
+**En el enjambre (hecho en IMG1024E):** `scripts/enjambre/analista.py` lleva `_analisis_libre(t, …)` para
+`modo` «libre» y «reimaginar»: una síntesis con los modelos capaces (con `capacidad: "alta"`, solo la lista capaz;
+relevo ante 429 como siempre; con `rol: "diseno"`, primero lo que mejor puntúa el director de diseño), prompt =
+contexto común de `investigador-diseno` (si el encargo no lo trae ya) + `t["prompt"]`, validación de la respuesta
+(propuestas con título, referencias solo https, 3 intentos sin el JSON pedido y fallo honesto), escritura atómica en
+`t["salida"]` (solo dentro de `imaginacion/agentes/`) y estado `informe`; los ids son los mismos que pone
+`normalizar_salida`. Al instalarla (`bash scripts/enjambre/instalar.sh`), este agente lo detecta solo por la marca.
+Detalle: `architecture/imaginacion-autodesarrollo.md`, «Ola 1024I».
 
 ## 8. Qué escribe y cómo entra en el medidor «Imaginación» de Genesis
 
