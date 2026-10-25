@@ -118,7 +118,8 @@
             "mattpocock/skills": "mattpocock/skills",
             "heygen-com/hyperframes": "heygen-com/hyperframes"
         },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
+        "catalogo": "src/ai/astraura/habilidades/ingenieria-a.ts",
+        "nota": "La conversión de las skills en capacidades vive en habilidades/ (ingenieria-a.ts con ingenieria-b.ts y productividad.ts); el vigía propone ahí."
     }
   ]
 }
