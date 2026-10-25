@@ -105,6 +105,18 @@ describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
     expect(plan).toEqual(["lib-vikunja"]);
   });
 
+  it("un id recomendado que ya no está en el catálogo no se siembra", () => {
+    const plan = selectSeedIds({
+      currentVersion: 0,
+      seedVersion: SEED_VERSION,
+      recommendedIds: ["lib-vikunja", "lib-retirado"],
+      catalog: catalogo(["lib-vikunja"]),
+      alreadyOffered: [],
+      installedIds: [],
+    });
+    expect(plan).toEqual(["lib-vikunja"]);
+  });
+
   it("una versión ya sembrada no hace nada", () => {
     const plan = selectSeedIds({
       currentVersion: SEED_VERSION,
