@@ -37,6 +37,7 @@ import {
 } from "@/lib/aurora/colchon-voz";
 import { pedirLimiteFondo } from "@/lib/perf/fondo-vivo";
 import { anotarMedida } from "@/lib/aurora/medidas-voz";
+import { identidadVoz, type CapaVoz } from "@/lib/aurora/identidad-voz";
 
 const BASE = "/api/voz-rt";
 /** (2026-09-24) Lo medido en este equipo: RTF del motor, ritmo del texto, duración típica. */
@@ -78,7 +79,13 @@ interface Pendiente {
     promesa: Promise<AudioBuffer | null>;
 }
 
-/** La voz elegida para una personalidad (preferencia guardada > mapa > F1). PURA salvo localStorage. */
+/** La voz elegida para una personalidad (identidad fundida > mapa > F1). PURA salvo localStorage.
+ * (Ola 1015V · tarea M) La voz ya NO sale de este mapa solo: `vozDePersona` pasa
+ * el mapa como capa «personalidad» al resolutor único de identidad de voz
+ * (`identidadVoz`, agente › personalidad › cerebro › neurona › cuenta), que
+ * funde también timbre, motor del registro, seed de OpenVoice2 y voz de xAI.
+ * Para la voz rápida el resultado es el mismo (defecto F1: la voz de Alex se
+ * conserva), pero ahora sale POR el resolutor único. */
 export function vozDePersona(personaId?: string): string {
     try {
         const elegida = typeof window !== "undefined" ? window.localStorage.getItem(CLAVE_VOZ) : null;
@@ -87,7 +94,8 @@ export function vozDePersona(personaId?: string): string {
         /* sin almacenamiento */
     }
     const id = (personaId || "").toLowerCase().replace(/\s+/g, "_");
-    return VOZ_POR_PERSONA[id] ?? "F1";
+    const capa: CapaVoz | null = id && id in VOZ_POR_PERSONA ? { vozRT: VOZ_POR_PERSONA[id] } : null;
+    return identidadVoz({ personalidad: capa }).vozRT;
 }
 
 class VozRT {
