@@ -9,6 +9,17 @@
 // ════════════════════════════════════════════════════════════════
 
 import type { LucideIcon } from "lucide-react";
+import type { ModoEjecucion, RequisitosApp } from "../../../lib/recursos/modos-app";
+
+/**
+ * Formas de ejecución de la app en la malla (architecture/apps-en-la-malla.md §5).
+ * Coexisten con OpenMode: OpenMode es cómo se muestra la app; ModoEjecucion es
+ * dónde y cómo corre su contenido (local, bandas, montada, transmitida, ramificada).
+ */
+export type { ModoEjecucion };
+
+/** Recursos que la app necesita; sin campo, corre en local (modos-app.ts). */
+export type { RequisitosApp };
 
 /** Modos de apertura de una app. La complejidad vive en el sistema (asimetría funcional). */
 export type OpenMode =
@@ -53,6 +64,14 @@ export interface StarseedApp {
     status?: AppStatus;
     /** Marca apps con modo inmersivo (VR/AR — Fase 3). */
     vrCapable?: boolean;
+    /**
+     * Formas de ejecución admitidas en la malla (apps-en-la-malla.md §5).
+     * Sin campo = ['local'] (corre en el navegador, como hoy): no cambia el
+     * catálogo ni las instancias existentes.
+     */
+    ejecucion?: ModoEjecucion[];
+    /** Recursos que pide a la red cuando corre; sin campo, nada en especial. */
+    requisitos?: RequisitosApp;
 }
 
 // ── Presets de personalización ───────────────────────────────────
