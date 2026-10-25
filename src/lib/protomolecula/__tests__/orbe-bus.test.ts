@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   TAMANO_ORBE,
+  DIANA_MINIMA,
+  factorTamanoOrbe,
+  medidasOrbe,
   PROTO_ORB_POS_KEY,
   PROTO_ORB_FAB_KEY,
   PROTO_ORB_FAB_EVENT,
@@ -40,6 +43,45 @@ describe("constantes del bus", () => {
   });
 });
 
+describe("tamaño de la orbe según el ancho de la pantalla (PRO1025M)", () => {
+  it("< 400 px → 0,7× · < 640 px → 0,8× · el resto 1×, con los bordes exactos", () => {
+    expect(factorTamanoOrbe(320)).toBe(0.7);
+    expect(factorTamanoOrbe(360)).toBe(0.7);
+    expect(factorTamanoOrbe(399)).toBe(0.7);
+    expect(factorTamanoOrbe(400)).toBe(0.8);
+    expect(factorTamanoOrbe(414)).toBe(0.8);
+    expect(factorTamanoOrbe(639)).toBe(0.8);
+    expect(factorTamanoOrbe(640)).toBe(1);
+    expect(factorTamanoOrbe(1280)).toBe(1);
+  });
+  it("un ancho que no es un número (SSR, medida rota) cuenta como pantalla ancha", () => {
+    expect(factorTamanoOrbe(Number.NaN)).toBe(1);
+    expect(factorTamanoOrbe(0)).toBe(1);
+    expect(factorTamanoOrbe(-5)).toBe(1);
+    expect(factorTamanoOrbe(Number.POSITIVE_INFINITY)).toBe(1);
+  });
+  it("medidas: el dibujo se encoge, la diana táctil NUNCA baja de 44 px y el lienzo es el doble del dibujo", () => {
+    expect(medidasOrbe(1280)).toEqual({ factor: 1, dibujo: 56, diana: 56, lienzo: 112 });
+    expect(medidasOrbe(500)).toEqual({ factor: 0.8, dibujo: 45, diana: 45, lienzo: 90 });
+    expect(medidasOrbe(360)).toEqual({ factor: 0.7, dibujo: 39, diana: 44, lienzo: 78 });
+    for (const ancho of [280, 320, 360, 390, 399, 400, 480, 639, 640, 768, 1024, 1920]) {
+      const m = medidasOrbe(ancho);
+      expect(m.diana).toBeGreaterThanOrEqual(DIANA_MINIMA);
+      expect(m.diana).toBeGreaterThanOrEqual(m.dibujo);
+      expect(m.lienzo).toBe(m.dibujo * 2);
+      expect(m.dibujo).toBeLessThanOrEqual(TAMANO_ORBE);
+    }
+  });
+  it("cada tramo es más grande que el anterior: crecer la pantalla nunca encoge la orbe", () => {
+    let previo = 0;
+    for (let ancho = 280; ancho <= 1400; ancho += 10) {
+      const { dibujo } = medidasOrbe(ancho);
+      expect(dibujo).toBeGreaterThanOrEqual(previo);
+      previo = dibujo;
+    }
+  });
+});
+
 describe("limitarPosicion", () => {
   it("recorta al borde inferior-derecho", () => {
     expect(limitarPosicion({ x: 5000, y: 4000 }, VIEW)).toEqual({ x: 1224, y: 744 });
@@ -49,6 +91,12 @@ describe("limitarPosicion", () => {
   });
   it("no explota con un viewport más pequeño que la orbe", () => {
     expect(limitarPosicion({ x: 10, y: 10 }, { ancho: 30, alto: 20 })).toEqual({ x: 0, y: 0 });
+  });
+  it("con la diana de un móvil (44 px) llega 12 px más lejos que con la de escritorio", () => {
+    const movil = { ancho: 360, alto: 740 };
+    const { diana } = medidasOrbe(movil.ancho);
+    expect(limitarPosicion({ x: 9999, y: 9999 }, movil, diana)).toEqual({ x: 360 - 44, y: 740 - 44 });
+    expect(limitarPosicion({ x: 9999, y: 9999 }, movil)).toEqual({ x: 360 - TAMANO_ORBE, y: 740 - TAMANO_ORBE });
   });
 });
 
@@ -61,6 +109,39 @@ describe("posicionPorDefecto", () => {
     const pos = posicionPorDefecto({ x: 0, y: 100 }, VIEW);
     expect(pos.x).toBeGreaterThanOrEqual(0);
     expect(pos.y).toBe(100);
+  });
+  it("con una diana más pequeña la separación con Aurora se conserva (el borde derecho queda a 64 px de su centro)", () => {
+    const pos = posicionPorDefecto({ x: 1200, y: 700 }, VIEW, 44);
+    expect(pos).toEqual({ x: 1200 - 44 - 64, y: 700 });
+    expect(pos.x + 44).toBe(1200 - 64);
+  });
+  it("si a su izquierda no cabe, se pone a su derecha en lugar de taparla", () => {
+    const pos = posicionPorDefecto({ x: 20, y: 300 }, VIEW, 56);
+    expect(pos).toEqual({ x: 20 + 64, y: 300 });
+  });
+  it("en pantallas < 640 px cuenta donde Aurora SE VE (pegada al borde más cercano), no lo guardado", () => {
+    const movil = { ancho: 390, alto: 844 };
+    const { diana } = medidasOrbe(movil.ancho);
+    // Guardada cerca del centro (0,3), Aurora se pinta pegada al borde IZQUIERDO: la Protomolécula va a su derecha.
+    const izq = posicionPorDefecto({ x: 0.3 * 390, y: 700 }, movil, diana);
+    expect(izq.x).toBeGreaterThanOrEqual(0.04 * 390 + 24 + 8);
+    // Guardada a la derecha (0,9), Aurora se pinta en el borde DERECHO: la Protomolécula queda a su izquierda.
+    const der = posicionPorDefecto({ x: 0.9 * 390, y: 700 }, movil, diana);
+    expect(der.x + diana).toBeLessThanOrEqual(0.96 * 390 - 24 - 8);
+  });
+  it("jamás se solapan en horizontal: ni en móvil estrecho, ni en móvil ancho, ni en escritorio", () => {
+    const aurora = (ancho: number) => (ancho < 640 ? 48 : 60);
+    for (const ancho of [320, 360, 390, 414, 500, 639, 640, 1024, 1920]) {
+      const v = { ancho, alto: 800 };
+      const { diana } = medidasOrbe(ancho);
+      for (const ratio of [0.04, 0.2, 0.45, 0.5, 0.7, 0.9, 0.96]) {
+        const pos = posicionPorDefecto({ x: ratio * ancho, y: 600 }, v, diana);
+        const centro = ancho < 640 ? (ratio < 0.5 ? 0.04 : 0.96) * ancho : Math.min(ratio * ancho, ancho - diana);
+        const cajaAurora = { desde: centro - aurora(ancho) / 2, hasta: centro + aurora(ancho) / 2 };
+        const sePisan = pos.x < cajaAurora.hasta && pos.x + diana > cajaAurora.desde;
+        expect(sePisan, `ancho ${ancho}, Aurora en ${ratio}`).toBe(false);
+      }
+    }
   });
   it("sin Aurora cae abajo a la derecha", () => {
     const pos = posicionPorDefecto(null, VIEW);

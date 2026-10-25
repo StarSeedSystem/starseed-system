@@ -19,12 +19,12 @@ import {
   PROTO_ORB_FAB_EVENT,
   PROTO_ORB_FAB_KEY,
   PROTO_ORB_POS_KEY,
-  TAMANO_ORBE,
   guardarActivada,
   guardarPosicion,
   leerActivada,
   leerPosicion,
   limitarPosicion,
+  medidasOrbe,
   type Punto,
 } from "@/lib/protomolecula/orbe-bus";
 import { registroPorRuta, type Estilo, type IdForma } from "@/lib/protomolecula/orbe4d/coreografia";
@@ -42,8 +42,8 @@ import {
 import type { MotorOrbe } from "@/lib/protomolecula/orbe4d/motor";
 import { PanelOrbe } from "./panel-orbe";
 
-/** El lienzo es el doble de la diana: el halo y la flor de la vida respiran fuera del círculo que se toca. */
-const LIENZO = TAMANO_ORBE * 2;
+// El tamaño no es fijo (PRO1025M): `medidasOrbe(ancho)` da el dibujo, la diana táctil (≥ 44 px, puede ser mayor
+// que el dibujo) y el lienzo, que es el doble del dibujo: el halo y la flor de la vida respiran fuera del círculo.
 const SLOP = 5;
 const SYNC_APPLY_EVENT = "starseed:sync:apply";
 const AURORA_SPEAK_EVENT = "aurora:speak";
@@ -76,6 +76,11 @@ export function OrbeProtomolecula() {
   const [sinWebGL, setSinWebGL] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [reducido, setReducido] = useState(false);
+  // Ancho de la pantalla: decide el tamaño de la orbe y se recalcula al rotar o redimensionar.
+  const [ancho, setAncho] = useState(1024);
+  const medidas = medidasOrbe(ancho);
+  const medidasRef = useRef(medidas);
+  medidasRef.current = medidas;
 
   const lienzo = useRef<HTMLCanvasElement>(null);
   const caja = useRef<HTMLDivElement>(null);
@@ -89,7 +94,8 @@ export function OrbeProtomolecula() {
   // ── arranque: preferencia, posición, estilo y movimiento reducido ─────────
   useEffect(() => {
     setActivada(leerActivada(window.localStorage));
-    setPos(leerPosicion(window.localStorage, viewport()));
+    setAncho(window.innerWidth);
+    setPos(leerPosicion(window.localStorage, viewport(), medidasOrbe(window.innerWidth).diana));
     setEstilo(leerEstilo(window.localStorage));
     const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     setReducido(Boolean(mq?.matches));
@@ -106,7 +112,7 @@ export function OrbeProtomolecula() {
     import("@/lib/protomolecula/orbe4d/motor")
       .then(({ crearMotor }) => {
         if (!vivo || !lienzo.current) return;
-        const m = crearMotor(lienzo.current, { estilo: leerEstilo(window.localStorage), registro: registroPorRuta(window.location.pathname), reducido, tamano: LIENZO });
+        const m = crearMotor(lienzo.current, { estilo: leerEstilo(window.localStorage), registro: registroPorRuta(window.location.pathname), reducido, tamano: medidasRef.current.lienzo });
         if (!m) { setSinWebGL(true); return; }
         motor.current = m;
         if (fijadaRef.current) m.fijarForma(fijadaRef.current);
@@ -120,6 +126,8 @@ export function OrbeProtomolecula() {
     // `reducido` cambia el bucle entero: se rehace el motor.
   }, [activada, montada, reducido]);
 
+  // Al cambiar el ancho (rotar, redimensionar) el lienzo se redibuja al tamaño nuevo sin rehacer el motor.
+  useEffect(() => { motor.current?.redimensionar(medidas.lienzo); }, [medidas.lienzo]);
   useEffect(() => { motor.current?.fijarRegistro(registroPorRuta(ruta)); }, [ruta]);
   useEffect(() => { motor.current?.fijarEstilo(estilo); }, [estilo]);
   useEffect(() => { motor.current?.fijarForma(fijada); }, [fijada]);
@@ -215,7 +223,7 @@ export function OrbeProtomolecula() {
     };
     const deAlmacen = (e: StorageEvent) => {
       if (e.key === PROTO_ORB_FAB_KEY) deFab(new CustomEvent("x", { detail: e.newValue !== "false" }));
-      if (e.key === PROTO_ORB_POS_KEY) setPos(leerPosicion(window.localStorage, viewport()));
+      if (e.key === PROTO_ORB_POS_KEY) setPos(leerPosicion(window.localStorage, viewport(), medidasRef.current.diana));
       if (e.key === PROTO_ORB_ESTILO_KEY) setEstilo(leerEstilo(window.localStorage));
     };
     const deSync = () => {
@@ -274,7 +282,7 @@ export function OrbeProtomolecula() {
         if (!r || gesto.current) return;
         const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
         const d = Math.hypot(e.clientX - cx, e.clientY - cy);
-        const cercania = Math.max(0, 1 - Math.max(0, d - TAMANO_ORBE / 2) / 180);
+        const cercania = Math.max(0, 1 - Math.max(0, d - medidasRef.current.diana / 2) / 180);
         motor.current?.fijarAtencion(cercania, (e.clientX - cx) / 180, (e.clientY - cy) / 180);
       });
     };
@@ -282,11 +290,16 @@ export function OrbeProtomolecula() {
     return () => { window.removeEventListener("pointermove", mover); if (pendiente) cancelAnimationFrame(pendiente); };
   }, [activada]);
 
-  // Mantener dentro de la pantalla al girar o redimensionar.
+  // Mantener dentro de la pantalla al girar o redimensionar, y con el tamaño que toca a ese ancho.
   useEffect(() => {
-    const ajustar = () => setPos((p) => limitarPosicion(p, viewport()));
+    const ajustar = () => {
+      const a = window.innerWidth;
+      setAncho(a);
+      setPos((p) => limitarPosicion(p, viewport(), medidasOrbe(a).diana));
+    };
     window.addEventListener("resize", ajustar);
-    return () => window.removeEventListener("resize", ajustar);
+    window.addEventListener("orientationchange", ajustar);
+    return () => { window.removeEventListener("resize", ajustar); window.removeEventListener("orientationchange", ajustar); };
   }, []);
 
   useEffect(() => {
@@ -322,7 +335,7 @@ export function OrbeProtomolecula() {
     const dt = Math.max(1, ahora - g.t) / 1000;
     motor.current?.fijarArrastre((e.clientX - g.px) / dt, (e.clientY - g.py) / dt);
     g.px = e.clientX; g.py = e.clientY; g.t = ahora;
-    setPos(limitarPosicion({ x: g.origen.x + dx, y: g.origen.y + dy }, viewport()));
+    setPos(limitarPosicion({ x: g.origen.x + dx, y: g.origen.y + dy }, viewport(), medidasRef.current.diana));
     setSobreZona(soltarApaga(g, e.clientX, e.clientY));
   };
   const alSoltar = (e: React.PointerEvent) => {
@@ -385,15 +398,19 @@ export function OrbeProtomolecula() {
       )}
 
       {activada && (
-        <div className="fixed z-[1000]" style={{ left: pos.x, top: pos.y, width: TAMANO_ORBE, height: TAMANO_ORBE }}>
+        <div data-testid="protomolecula-orbe" className="fixed z-[1000]" style={{ left: pos.x, top: pos.y, width: medidas.diana, height: medidas.diana }}>
           {sinWebGL ? (
-            <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-full bg-[conic-gradient(from_0deg,#10B981,#A855F7,#00F0FF,#D4AF37,#10B981)] opacity-80 [mask:radial-gradient(circle,transparent_38%,#000_40%)] motion-safe:animate-[spin_13s_linear_infinite]" />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute rounded-full bg-[conic-gradient(from_0deg,#10B981,#A855F7,#00F0FF,#D4AF37,#10B981)] opacity-80 [mask:radial-gradient(circle,transparent_38%,#000_40%)] motion-safe:animate-[spin_13s_linear_infinite]"
+              style={{ width: medidas.dibujo, height: medidas.dibujo, left: (medidas.diana - medidas.dibujo) / 2, top: (medidas.diana - medidas.dibujo) / 2 }}
+            />
           ) : (
             <canvas
               ref={lienzo}
               aria-hidden="true"
               className="pointer-events-none absolute"
-              style={{ width: LIENZO, height: LIENZO, left: (TAMANO_ORBE - LIENZO) / 2, top: (TAMANO_ORBE - LIENZO) / 2 }}
+              style={{ width: medidas.lienzo, height: medidas.lienzo, left: (medidas.diana - medidas.lienzo) / 2, top: (medidas.diana - medidas.lienzo) / 2 }}
             />
           )}
           <div

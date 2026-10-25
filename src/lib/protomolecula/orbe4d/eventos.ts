@@ -16,6 +16,7 @@
  * La zona de apagado es SUYA (no la de Astraura, que está arriba al centro): el borde izquierdo, el lado
  * de la creación en la Trinidad (Horizon), que es también donde se vuelve a encender.
  */
+import { medidasOrbe } from "../orbe-bus";
 import { ESTILOS_VALIDOS, estiloValido, type Estilo, type IdForma } from "./coreografia";
 
 export const PROTO_ORB_ESTADO_EVENT = "starseed:protomolecula-orbe-estado";
@@ -73,11 +74,16 @@ export function avisarOrbe(detalle: DetalleEstadoOrbe): boolean {
 
 export interface Rect { x: number; y: number; ancho: number; alto: number }
 
-/** Zona propia para soltar la orbe y apagarla: franja del borde izquierdo, centrada en vertical. */
+/**
+ * Zona propia para soltar la orbe y apagarla: franja del borde izquierdo, centrada en vertical. En pantallas
+ * chicas la orbe se dibuja más pequeña (`medidasOrbe`) y la franja guarda su proporción: ≈ 2,2 veces la diana
+ * (97 px con la de 44 px de un móvil estrecho, 99 px con la de 45), nunca menos que dos dianas.
+ */
 export function zonaApagado(ancho: number, alto: number): Rect {
   const movil = ancho < 640;
   const h = Math.min(alto - 32, movil ? 200 : 260);
-  return { x: 0, y: Math.round((alto - h) / 2), ancho: movil ? 96 : 120, alto: h };
+  const franja = movil ? Math.round(medidasOrbe(ancho).diana * 2.2) : 120;
+  return { x: 0, y: Math.round((alto - h) / 2), ancho: franja, alto: h };
 }
 
 export function dentroDeZona(x: number, y: number, z: Rect): boolean {

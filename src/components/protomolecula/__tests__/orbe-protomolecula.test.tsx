@@ -49,6 +49,45 @@ describe("Orbe 4D de la Protomolécula", () => {
     expect(crear.mock.calls[0][1]).toMatchObject({ registro: "trinity", estilo: "expresiva", tamano: 112 });
   });
 
+  it("en un móvil estrecho el dibujo se encoge (0,7×) pero la diana táctil sigue en 44 px y la orbe cabe en pantalla", async () => {
+    Object.defineProperty(window, "innerWidth", { value: 360, configurable: true, writable: true });
+    Object.defineProperty(window, "innerHeight", { value: 740, configurable: true, writable: true });
+    window.localStorage.setItem(PROTO_ORB_POS_KEY, JSON.stringify({ x: 5000, y: 5000 }));
+    const { container } = await montar();
+    expect(crear.mock.calls[0][1]).toMatchObject({ tamano: 78 });
+    const caja = screen.getByTestId("protomolecula-orbe");
+    expect(caja.style.width).toBe("44px");
+    expect(caja.style.height).toBe("44px");
+    // Con la diana de 44 px, la orbe llega hasta 360 − 44 y 740 − 44, no hasta 360 − 56.
+    expect(caja.style.left).toBe("316px");
+    expect(caja.style.top).toBe("696px");
+    const lienzo = container.querySelector("canvas") as HTMLCanvasElement;
+    expect(lienzo.style.width).toBe("78px");
+    expect(lienzo.style.height).toBe("78px");
+    // El lienzo va centrado en la diana: (44 − 78) / 2.
+    expect(lienzo.style.left).toBe("-17px");
+    expect(lienzo.style.top).toBe("-17px");
+    // La diana invisible (el botón) ocupa toda la caja de 44 px y es táctil: nunca más pequeña que eso.
+    expect(orbe().className).toContain("inset-0");
+  });
+
+  it("en un móvil ancho (< 640 px) se dibuja a 0,8× y a escritorio vuelve a 1×; al girar el lienzo se redimensiona", async () => {
+    Object.defineProperty(window, "innerWidth", { value: 500, configurable: true, writable: true });
+    await montar();
+    expect(crear.mock.calls[0][1]).toMatchObject({ tamano: 90 });
+    expect(screen.getByTestId("protomolecula-orbe").style.width).toBe("45px");
+    Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true, writable: true });
+    act(() => { window.dispatchEvent(new Event("resize")); });
+    await waitFor(() => expect(motor.redimensionar).toHaveBeenLastCalledWith(112));
+    expect(screen.getByTestId("protomolecula-orbe").style.width).toBe("56px");
+    Object.defineProperty(window, "innerWidth", { value: 360, configurable: true, writable: true });
+    act(() => { window.dispatchEvent(new Event("resize")); });
+    await waitFor(() => expect(motor.redimensionar).toHaveBeenLastCalledWith(78));
+    expect(screen.getByTestId("protomolecula-orbe").style.width).toBe("44px");
+    // Al girar, la orbe se mantiene dentro de la pantalla ya más estrecha.
+    expect(parseFloat(screen.getByTestId("protomolecula-orbe").style.left)).toBeLessThanOrEqual(360 - 44);
+  });
+
   it("un toque sin movimiento abre el panel; Escape lo cierra", async () => {
     await montar();
     fireEvent.pointerDown(orbe(), { pointerId: 1, button: 0, clientX: 420, clientY: 320 });

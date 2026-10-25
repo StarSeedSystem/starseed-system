@@ -11,7 +11,10 @@ export const PROTO_ORB_FAB_EVENT = "starseed:protomolecula-orb-fab";
 /** Lo emite la acción del agente (F0M) y lo escucha la orbe (F0L). */
 export const PROTO_ORB_ABRIR_EVENT = "starseed:protomolecula-abrir";
 
+/** Diámetro del dibujo de la orbe en pantallas anchas (≥ 640 px). En pantallas chicas se reduce: `medidasOrbe`. */
 export const TAMANO_ORBE = 56;
+/** Diana táctil mínima (objetivos táctiles ≥ 44 px de las reglas de diseño del proyecto). */
+export const DIANA_MINIMA = 44;
 /** Separación horizontal respecto a la orbe de Aurora. */
 const SEPARACION_AURORA = 64;
 /** La clave se replica como constante local (no se importa el módulo de Aurora). */
@@ -35,7 +38,37 @@ export interface AlmacenLocal {
 const esNumero = (n: unknown): n is number =>
   typeof n === "number" && Number.isFinite(n);
 
-/** Mantiene la orbe entera dentro del viewport. */
+/**
+ * Cuánto se reduce la orbe según el ancho de la pantalla (PRO1025M, petición de Alex 2026-10-25: «en pantallas
+ * chicas haz más chica la Protomolécula»): < 400 px → 0,7× · < 640 px → 0,8× · el resto 1×. Un ancho que no
+ * es un número (SSR, medida rota) cuenta como pantalla ancha.
+ */
+export function factorTamanoOrbe(ancho: number): number {
+  if (!esNumero(ancho) || ancho <= 0) return 1;
+  if (ancho < 400) return 0.7;
+  if (ancho < 640) return 0.8;
+  return 1;
+}
+
+export interface MedidasOrbe {
+  /** Factor aplicado al tamaño base. */
+  factor: number;
+  /** Diámetro del círculo que se VE. */
+  dibujo: number;
+  /** Lado de la caja que se toca y se arrastra: nunca baja de 44 px, así que puede ser mayor que el dibujo. */
+  diana: number;
+  /** Lado del lienzo three.js: el doble del dibujo (el halo y la flor de la vida respiran fuera del círculo). */
+  lienzo: number;
+}
+
+/** Todas las medidas de la orbe para un ancho de pantalla. Pura: se recalcula al rotar o cambiar de tamaño. */
+export function medidasOrbe(ancho: number): MedidasOrbe {
+  const factor = factorTamanoOrbe(ancho);
+  const dibujo = Math.round(TAMANO_ORBE * factor);
+  return { factor, dibujo, diana: Math.max(DIANA_MINIMA, dibujo), lienzo: dibujo * 2 };
+}
+
+/** Mantiene la orbe entera dentro del viewport; `tamano` es el lado de su diana (`medidasOrbe(ancho).diana`). */
 export function limitarPosicion(
   pos: Punto,
   viewport: Viewport,
@@ -49,23 +82,40 @@ export function limitarPosicion(
   };
 }
 
+/** Ancho bajo el cual Aurora pega su orbe al borde lateral más cercano (`snapXToNearestEdge`, aurora-orb-bus). */
+const ANCHO_MOVIL_AURORA = 640;
+
 /**
- * Posición por defecto: a la izquierda de la de Aurora (64 px de separación)
- * cuando se conoce; si no, abajo a la derecha. Siempre dentro del viewport.
+ * Dónde se VE la orbe de Aurora, no solo dónde quedó guardada: en pantallas < 640 px Aurora la pega al borde
+ * lateral más cercano (0,04 / 0,96 del ancho) aunque lo guardado diga otra cosa. La regla se copia aquí —como
+ * su clave de posición— para no acoplar este módulo puro al suyo; si la regla de Aurora cambiara, el único
+ * efecto es una separación algo distinta, nunca un fallo.
+ */
+function xVisibleDeAurora(x: number, viewport: Viewport): number {
+  if (viewport.ancho >= ANCHO_MOVIL_AURORA) return x;
+  return x / viewport.ancho < 0.5 ? viewport.ancho * 0.04 : viewport.ancho * 0.96;
+}
+
+/**
+ * Posición por defecto: a la izquierda de la de Aurora (64 px de separación entre su centro y el borde de la
+ * Protomolécula) cuando se conoce; si ahí no cabe (Aurora pegada al borde izquierdo, como la deja el móvil),
+ * a su derecha, para no taparla; si no se conoce, abajo a la derecha. Siempre dentro del viewport.
  */
 export function posicionPorDefecto(
   posAurora: Punto | null,
   viewport: Viewport,
+  tamano: number = TAMANO_ORBE,
 ): Punto {
   if (posAurora) {
-    return limitarPosicion(
-      { x: posAurora.x - TAMANO_ORBE - SEPARACION_AURORA, y: posAurora.y },
-      viewport,
-    );
+    const xAurora = xVisibleDeAurora(posAurora.x, viewport);
+    const izquierda = xAurora - tamano - SEPARACION_AURORA;
+    const x = izquierda >= 0 ? izquierda : xAurora + SEPARACION_AURORA;
+    return limitarPosicion({ x, y: posAurora.y }, viewport, tamano);
   }
   return limitarPosicion(
-    { x: viewport.ancho - TAMANO_ORBE - 16, y: viewport.alto - TAMANO_ORBE - 16 },
+    { x: viewport.ancho - tamano - 16, y: viewport.alto - tamano - 16 },
     viewport,
+    tamano,
   );
 }
 
@@ -73,15 +123,15 @@ export function posicionPorDefecto(
  * Lee la posición de Aurora sin acoplarse a su módulo: acepta ratios (0..1,
  * formato actual `xRatio`/`yRatio`) o píxeles. Formato irreconocible → null.
  */
-export function leerPosAurora(almacen: AlmacenLocal, viewport: Viewport): Punto | null {
+export function leerPosAurora(almacen: AlmacenLocal, viewport: Viewport, tamano: number = TAMANO_ORBE): Punto | null {
   try {
     const raw = almacen.getItem(CLAVE_POS_AURORA);
     if (!raw) return null;
     const p = JSON.parse(raw) as Record<string, unknown>;
     if (esNumero(p.xRatio) && esNumero(p.yRatio)) {
-      return limitarPosicion({ x: p.xRatio * viewport.ancho, y: p.yRatio * viewport.alto }, viewport);
+      return limitarPosicion({ x: p.xRatio * viewport.ancho, y: p.yRatio * viewport.alto }, viewport, tamano);
     }
-    if (esNumero(p.x) && esNumero(p.y)) return limitarPosicion({ x: p.x, y: p.y }, viewport);
+    if (esNumero(p.x) && esNumero(p.y)) return limitarPosicion({ x: p.x, y: p.y }, viewport, tamano);
   } catch {
     /* defensivo */
   }
@@ -89,17 +139,17 @@ export function leerPosAurora(almacen: AlmacenLocal, viewport: Viewport): Punto 
 }
 
 /** Lee la posición guardada; si falta o es inválida, calcula el default. */
-export function leerPosicion(almacen: AlmacenLocal, viewport: Viewport): Punto {
+export function leerPosicion(almacen: AlmacenLocal, viewport: Viewport, tamano: number = TAMANO_ORBE): Punto {
   try {
     const raw = almacen.getItem(PROTO_ORB_POS_KEY);
     if (raw) {
       const p = JSON.parse(raw) as Partial<Punto>;
-      if (esNumero(p.x) && esNumero(p.y)) return limitarPosicion({ x: p.x, y: p.y }, viewport);
+      if (esNumero(p.x) && esNumero(p.y)) return limitarPosicion({ x: p.x, y: p.y }, viewport, tamano);
     }
   } catch {
     /* defensivo */
   }
-  return posicionPorDefecto(leerPosAurora(almacen, viewport), viewport);
+  return posicionPorDefecto(leerPosAurora(almacen, viewport, tamano), viewport, tamano);
 }
 
 export function guardarPosicion(almacen: AlmacenLocal, pos: Punto): void {

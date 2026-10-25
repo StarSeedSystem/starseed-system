@@ -795,7 +795,8 @@ export function crearMotor(canvas: HTMLCanvasElement, op: OpcionesMotor): MotorO
       if (reducido) return Promise.resolve();
       return new Promise<void>((resolver) => { apagado = { t0: performance.now(), resolver }; modo = "apagando"; });
     },
-    redimensionar,
+    // `setSize` vacía el lienzo: con movimiento reducido (sin bucle) hay que repintar a mano.
+    redimensionar: (t) => { redimensionar(t); repintarSiReducido(); },
     formaActual: () => actual,
     destruir() {
       destruido = true;

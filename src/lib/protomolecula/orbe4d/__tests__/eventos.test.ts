@@ -21,7 +21,11 @@ describe("eventos de la orbe 4D", () => {
     expect(z.y + z.alto / 2).toBeCloseTo(450, 0);
     expect(dentroDeZona(30, 450, z)).toBe(true);
     expect(dentroDeZona(720, 20, z)).toBe(false); // arriba al centro es la de Astraura
-    expect(zonaApagado(390, 844).ancho).toBe(96);
+    // En pantallas chicas la franja guarda su proporción con la diana (44 px en un móvil estrecho, 45 px en uno ancho).
+    expect(zonaApagado(390, 844).ancho).toBe(97);
+    expect(zonaApagado(500, 844).ancho).toBe(99);
+    expect(zonaApagado(1440, 900).ancho).toBe(120);
+    for (const ancho of [320, 360, 390, 414, 500, 639]) expect(zonaApagado(ancho, 800).ancho).toBeGreaterThanOrEqual(2 * 44);
   });
 
   it("estilo por defecto y voz de Astraura", () => {
