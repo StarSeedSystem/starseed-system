@@ -73,7 +73,7 @@ export interface TareaOla {
     archivos?: string[];
     /** El encargo en una o dos frases: el primer párrafo útil del prompt. */
     descripcion?: string;
-    /** (2026-09-29) `analisis` = sueño profundo (lee y escribe un informe; no integra código). */
+    /** (2026-09-29) `analisis` = imaginación profunda (lee y escribe un informe; no integra código). */
     tipo?: "analisis";
 }
 

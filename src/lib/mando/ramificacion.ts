@@ -65,9 +65,9 @@ export interface RamaTarea {
     cola: string;
     titulo: string;
     dependencias: string[];
-    /** pendiente · en_curso · commit · sin_cambios · fallo · fallo_tsc · fallo_tests · conflicto · bloqueante · bloqueada · informe (sueño profundo) */
+    /** pendiente · en_curso · commit · sin_cambios · fallo · fallo_tsc · fallo_tests · conflicto · bloqueante · bloqueada · informe (imaginación profunda) */
     estado: string;
-    /** (2026-09-29) `analisis` si es un sueño profundo: lee y escribe un informe, no integra código. */
+    /** (2026-09-29) `analisis` si es una imaginación profunda: lee y escribe un informe, no integra código. */
     tipo?: "analisis";
     /** Profundidad por dependencias (0 = sin dependencias). */
     nivel: number;
@@ -178,7 +178,7 @@ const TIPOS_BUS = [
     "bloqueada", "informe",
 ];
 // `bloqueada` es terminal: la tarea se queda parada por una dependencia que no se integró.
-// `informe` (2026-09-29) cierra un sueño profundo: terminó bien sin código que integrar.
+// `informe` (2026-09-29) cierra una imaginación profunda: terminó bien sin código que integrar.
 const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "fallo", "conflicto", "reasignada", "rechazada", "pendiente_aprobacion", "bloqueada", "informe"]);
 const PREFIJO_PROVEEDOR: Record<string, string> = { nvidia: "nim" };
 

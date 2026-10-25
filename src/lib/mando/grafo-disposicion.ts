@@ -66,7 +66,7 @@ export function colorArista(tipo: AristaGrafo["tipo"]): string {
 /** Relleno del nodo tarea según su estado (commit verde · sin_cambios gris · fallo/conflicto rojo · en curso azul). */
 export function tonoNodoTarea(estado: string | undefined): string {
     if (estado === "commit") return "#34d399";
-    // (2026-09-29) Un sueño profundo con su informe: terminado, sin código que integrar.
+    // (2026-09-29) Una imaginación profunda con su informe: terminado, sin código que integrar.
     if (estado === "informe") return "#818cf8";
     if (estado === "sin_cambios" || estado === "sustituida") return "#a1a1aa";
     if (
