@@ -49,7 +49,7 @@ describe("apagados por defecto y honestos", () => {
     expect(motoresDisponibles({}).some((m) => m.id === "meshy" || m.id === "tripo")).toBe(false);
     expect(generarCon(ENCENDIDO)).toBe("meshy");
     expect(generarCon(SOLO_TRIPO)).toBe("tripo");
-    expect(procedenciaExterna("meshy")).toMatchObject({ uso: "atribucion", atribucion: "Modelo 3D generado con Meshy" });
+    expect(procedenciaExterna("meshy")).toMatchObject({ herramienta: "meshy", uso: "atribucion", atribucion: "Modelo 3D generado con Meshy" });
     expect(procedenciaExterna("meshy")?.licencia).toMatch(/CC BY 4\.0/);
     expect(procedenciaExterna("tripo")?.uso).toBe("condicionado");
   });
