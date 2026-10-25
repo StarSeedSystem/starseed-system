@@ -143,6 +143,29 @@ describe("inventarioDesde · Mac de Alex con servidor local y SSD externo USB", 
         expect(esta.almacenes.find((a) => a.id === `navegador:${ID}`)?.tipo).toBe("navegador");
     });
 
+    it("con servidor local se conservan las carpetas vinculadas y el navegador; el hierro queda detectado", () => {
+        const carpeta: MedioAlmacen = {
+            id: "carpeta:c1",
+            tipo: "neurona-local",
+            etiqueta: "Carpeta «Modelos»",
+            neuronaId: ID,
+            via: "local",
+            persistente: true,
+            privado: true,
+            disponible: true,
+            fuente: "declarado",
+        };
+        const conCarpeta = {
+            ...desdeNavegador(),
+            almacenes: [...desdeNavegador().almacenes, carpeta],
+        };
+        const out = inventarioDesde({ estaNeurona: conCarpeta, maquina: MAC_ALEX, ahora });
+        expect(out.neuronas[0].almacenes.find((a) => a.id === "carpeta:c1")).toMatchObject({ tipo: "neurona-local", disponible: true, fuente: "declarado" });
+        expect(out.neuronas[0].almacenes.find((a) => a.id === `navegador:${ID}`)?.tipo).toBe("navegador");
+        expect(out.neuronas[0].procesadores.find((p) => p.tipo === "webgpu")?.fuente).toBe("estimado");
+        expect(out.neuronas[0].procesadores.find((p) => p.tipo === "npu")?.fuente).toBe("detectado");
+    });
+
     it("avisos honestos: los de la máquina, y ninguno de «el navegador no ve los discos»", () => {
         expect(inv.avisos).toContain(MAC_ALEX.avisos[0]);
         expect(inv.avisos).not.toContain(AVISO_DISCOS);
