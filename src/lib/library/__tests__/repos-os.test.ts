@@ -25,7 +25,7 @@ describe("repos que Alex trajo para el OS", () => {
         expect(fichasIaConUpstreamGitHub(FICHAS_REPOS_OS).map((p) => p.id)).toEqual(FICHAS_REPOS_OS.map((p) => p.id));
         expect(FICHAS_REPOS_OS.map((p) => p.id)).toEqual(expect.arrayContaining([
             "repo-hono", "repo-filee", "repo-codegraph", "repo-manimgx", "repo-earshot",
-            "repo-agno", "repo-langgraph", "repo-pydantic-ai", "repo-openai-agents-python", "repo-react-native-zalo-kit",
+            "repo-agno", "repo-langgraph", "repo-pydantic-ai", "repo-openai-agents-python", "repo-react-native-zalo-kit", "repo-blender",
         ]));
     });
 });
@@ -76,6 +76,20 @@ describe("tanda del 2026-10-23 (3D, contexto, oído y motores de agentes)", () =
         expect(cg.comingSoon).toBeFalsy();
         expect(cg.payload.route).toBe("/metagenesis");
         expect(String(cg.payload.requisitos)).toMatch(/Telemetría apagada/);
+    });
+
+    it("Blender entra con su licencia GPL, su comprobación por etiquetas 5.2.x y el motivo a la vista", () => {
+        const bl = FICHAS_REPOS_OS.find((x) => x.id === "repo-blender")!;
+        expect(bl.kind).toBe("project");
+        expect(bl.comingSoon).toBe(true);
+        expect(bl.payload.upstream).toBe("https://github.com/blender/blender");
+        expect(bl.payload.canal).toBe("tags");
+        expect(String(bl.payload.licencia)).toMatch(/GPL-3\.0-or-later/);
+        expect(String(bl.payload.note)).toMatch(/ola 1025B/);
+        // El patrón de etiqueta casa con la serie 5.2 y no con otras ni con candidatas.
+        const re = new RegExp(String(bl.payload.patronTag));
+        expect(["v5.2.0", "v5.2.3", "v5.2.10"].every((t) => re.test(t))).toBe(true);
+        expect(["v5.1.0", "v6.0.0", "v5.2.3-rc1", "5.2.3"].some((t) => re.test(t))).toBe(false);
     });
 
     it("ids únicos en toda la Biblioteca", () => {

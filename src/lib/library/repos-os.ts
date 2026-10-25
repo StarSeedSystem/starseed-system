@@ -280,4 +280,36 @@ export const FICHAS_REPOS_OS: LibraryPackage[] = [
                 "se dice honesto cuando la neurona no tiene la app o la cuenta no tiene cupo.",
         },
     },
+    {
+        id: "repo-blender",
+        kind: "project",
+        name: "Blender · escenas 3D, render y GLB para todo el OS",
+        description:
+            "La suite 3D libre de la Blender Foundation (GPL-3.0-or-later): modelado, materiales, animación y render (Workbench, " +
+            "Cycles, EEVEE) y exportación a GLB para el navegador. En StarSeed OS es un MEDIO, no una dependencia: corre como programa " +
+            "aparte en las neuronas que lo tengan (tu Mac, tu escritorio), el OS mide qué puede hacer cada una (GPU, memoria, núcleos) y " +
+            "se adapta, y un trabajo 3D es un dato con vocabulario cerrado: una IA propone la escena, nunca código. Servirá a la " +
+            "Protomolécula (convertir a GLB), a Astraura (render por chat) y al Estudio audiovisual (intros 3D). Lo que creas es tuyo.",
+        icon: "Box",
+        tags: ["3d", "render", "glb", "blender", "protomolecula", "astraura", "estudio", "escritorio", "autoadaptable"],
+        version: "5.2.3",
+        author: "Blender Foundation",
+        sourceRepoId: "starseed-labs",
+        free: true,
+        comingSoon: true,
+        payload: {
+            upstream: "https://github.com/blender/blender",
+            canal: "tags",
+            patronTag: "^v5\\.2\\.\\d+$",
+            licencia: "GPL-3.0-or-later (programa aparte, no va dentro del OS; lo que creas con él es tuyo)",
+            requisitos:
+                "Mac con Apple Silicon (macOS 13+): brew install --cask blender (346 MB de descarga). Linux ARM sin GPU: la distro trae " +
+                "Blender 4.0 para lotes ligeros. Sin Blender el 3D del OS sigue funcionando en el navegador (three.js).",
+            note:
+                "Llega con la ola 1025B (architecture/blender-3d.md): detección por neurona, trabajo 3D como dato, cola de render " +
+                "local, conversor de la Protomolécula, acción de Astraura y plantilla del Estudio. Se activa cuando el render de " +
+                "punta a punta esté comprobado en la Mac.",
+            corre_aqui: false,
+        },
+    },
 ];
