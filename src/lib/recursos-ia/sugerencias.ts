@@ -5,6 +5,7 @@
  * el orden en que llegaron los datos ni por `localeCompare`, que depende del ICU del entorno).
  */
 import { bonoBits, duracionEs, espacioNecesarioGb, numeroEs, potenciaB, tamanoEs, verificar } from "./compatibilidad";
+import { cuantizacionesPara, dispositivoDeProcesador } from "./cuantizacion-hf";
 import type {
     Alcance,
     Alternativa,
@@ -352,6 +353,17 @@ function porQueDe(cap: Capacidad, o: Opcion, viables: Opcion[], preferir158: boo
     if (necesario === null) f.push("falta saber cuánto ocupa: te lo pregunto antes de descargar");
     else if (typeof a.libreGb === "number") f.push(`cabe con ${numeroEs(a.libreGb - necesario)} GB de holgura en «${a.etiqueta}»`);
     f.push(p.via === "local" ? "procesa en esta neurona: sin red de por medio" : `procesa en ${p.nombre} por ${VIA_REFERENCIA[p.via].nombre.toLowerCase()}`);
+    // La tabla de transformers por dispositivo (cuantizacion-hf.ts): qué método admite este
+    // procesador. Los avisos de BitNet van aparte y se respeta NOTA_BITNET: BitNet y Bonsai
+    // ternario ya vienen cuantizados de origen (QAT), no se cuantizan al cargar.
+    const dispositivo = dispositivoDeProcesador(p);
+    if (dispositivo && !/bitnet|bonsai/i.test(`${m.id} ${m.nombre} ${m.runtime}`)) {
+        const mejor = cuantizacionesPara(dispositivo)[0];
+        if (mejor) {
+            const parcial = mejor.soporte[dispositivo] === "parcial" ? " (soporte parcial)" : "";
+            f.push(`cuantización para ${dispositivo}: ${mejor.nombre} en ${mejor.bitsMin}–${mejor.bitsMax} bits${parcial}`);
+        }
+    }
     if (typeof compat.tokSEstimado === "number") f.push(`unos ${numeroEs(compat.tokSEstimado)} tok/s (estimado)`);
     if (typeof compat.cargaSegundos === "number" && compat.cargaSegundos >= 10) f.push(`carga en unos ${duracionEs(compat.cargaSegundos)}`);
     const herramientas = compat.motivos.filter((x) => x.clave === "herramientas");

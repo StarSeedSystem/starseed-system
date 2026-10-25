@@ -15,6 +15,7 @@ import { Hexagon, Orbit } from "lucide-react";
 
 import { Bar, LABEL, SUB } from "@/components/astraura/s158/shared";
 import { cn } from "@/lib/utils";
+import { cuantizacionesPara, dispositivoDeProcesador } from "@/lib/recursos-ia/cuantizacion-hf";
 import type { ConfigTopologia, InventarioRecursos, MedioAlmacen, NeuronaRecursos, PlanRecursos, Procesador, Via } from "@/lib/recursos-ia/tipos";
 import {
     FOCO,
@@ -617,6 +618,15 @@ function DetalleNodo({ inv, sel, alCerrar }: { inv: InventarioRecursos; sel: Non
     const proc = sel.tipo === "procesador" ? [...inv.neuronas.flatMap((n) => n.procesadores), ...inv.procesadoresSueltos].find((p) => p.id === sel.id) : undefined;
     const alm = sel.tipo === "almacen" ? [...inv.neuronas.flatMap((n) => n.almacenes), ...inv.almacenesSueltos].find((a) => a.id === sel.id) : undefined;
     const titulo = neurona?.nombre ?? proc?.nombre ?? alm?.etiqueta ?? "";
+    // Cuantización según el dispositivo (transformers docs @ 50e35cc): los métodos que admite este
+    // procesador, de mejor soporte a parcial. Sin dispositivo (navegador, NPU) no hay sugerencia.
+    const dispositivo = proc ? dispositivoDeProcesador(proc) : undefined;
+    const cuantiza = dispositivo
+        ? cuantizacionesPara(dispositivo)
+              .slice(0, 2)
+              .map((x) => `${x.nombre} en ${x.bitsMin}–${x.bitsMax} bits${x.soporte[dispositivo] === "parcial" ? " (parcial)" : ""}`)
+              .join(" · ") || undefined
+        : undefined;
     return (
         <section aria-live="polite" aria-label={`Detalle de ${titulo}`} className={cn(SUB, "hidden p-3 md:block")}>
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -652,6 +662,7 @@ function DetalleNodo({ inv, sel, alCerrar }: { inv: InventarioRecursos; sel: Non
                         <Dato k="Aceleradores" v={proc.aceleradores.map((a) => NOMBRE_ACELERADOR[a] ?? a).join(" · ") || "ninguno"} />
                         <Dato k="Runtimes" v={proc.runtimes.join(" · ") || "ninguno"} />
                         <Dato k="Herramientas" v={proc.herramientas?.join(" · ") || "ninguna"} />
+                        <Dato k="Cuantización sugerida" v={cuantiza} />
                         <Dato k="Vía" v={nombreVia(proc.via)} />
                         <Dato k="Prestable" v={proc.prestable ? "sí" : "no"} />
                     </>

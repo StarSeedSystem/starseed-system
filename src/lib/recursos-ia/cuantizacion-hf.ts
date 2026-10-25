@@ -3,8 +3,10 @@
  * «Recursos de IA»). Tabla parcial; faltan AQLM, AutoRound, compressed-tensors, EETQ, FP8,
  * HIGGS, VPTQ, SpQR y Quark: se añaden si hacen falta.
  *
- * Módulo PURO (lo importa el cliente): nada de `node:*`, sin red ni disco. Aún no se conecta
- * a nada. Los avisos de BitNet van aparte: los modelos BitNet no se cuantizan al vuelo en
+ * Módulo PURO (lo importa el cliente): nada de `node:*`, sin red ni disco. Se aplica en
+ * Recursos de IA: el plan sugiere un método por el dispositivo del procesador elegido
+ * (`sugerencias.ts`, vía `dispositivoDeProcesador`) y el detalle de la constelación lo enseña.
+ * Los avisos de BitNet van aparte: los modelos BitNet no se cuantizan al vuelo en
  * transformers (solo existen entrenados ya en ternario por QAT): esta tabla NO se aplica a
  * BitNet ni a Ternary Bonsai (ver `NOTA_BITNET`).
  */
@@ -59,6 +61,27 @@ export interface OpcionesCuantizacion {
     alaVuelta?: boolean;
     peft?: boolean;
     bitsMax?: number;
+}
+
+/** Lo mínimo que hay que saber de un Procesador del inventario para mapearlo a la tabla. */
+export interface ProcesadorSinopsis {
+    tipo: string;
+    aceleradores: readonly string[];
+}
+
+/**
+ * Procesador del inventario → dispositivo de la tabla: por sus aceleradores y, sin GPU, por el
+ * procesador `cpu` (la columna de la tabla). WebGPU del navegador y las NPU no salen en la
+ * documentación de transformers: ahí no hay método que sugerir. La columna «intel» (Intel XPU/IPEX)
+ * no se infiere: el inventario no distingue el vendedor de la CPU sin GPU.
+ */
+export function dispositivoDeProcesador(p: ProcesadorSinopsis): DispositivoHF | undefined {
+    const a = p.aceleradores;
+    if (a.includes("cuda")) return "cuda";
+    if (a.includes("rocm")) return "rocm";
+    if (a.includes("metal") || a.includes("metal4")) return "metal";
+    if (p.tipo === "webgpu" || p.tipo === "npu") return undefined;
+    return "cpu";
 }
 
 /** Orden interno del soporte: `ok` antes que `parcial`. */
