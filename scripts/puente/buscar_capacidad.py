@@ -109,7 +109,11 @@ def resultado_zen(entorno, salud, ahora_txt, auth=None):
 MINUTOS_JOB = 60
 #: Lo que se reabre en una pasada, cuánto espera una tarea entre reaperturas y cuántas
 #: lleva como mucho en la ventana de envíos (dos días).
-REABRIR_POR_PASADA = 6
+#: (2026-10-25, CAP1025B) Antes 6: una pasada reabría como mucho un job de trabajo y, con el tope medido
+#: sobre ESE trabajo, la nube salía «1 a la vez» con 2 jobs ya en marcha y 271 agotadas reabribles. Ahora
+#: lo que manda es el sitio libre (jobs libres × tareas por job); los frenos por tarea siguen
+#: (`REAPERTURAS_MAX` en dos días y `REABRIR_ESPERA_S` entre una y otra) y la Mac conserva su tope.
+REABRIR_POR_PASADA = MAX_RUNS_NUBE * TAREAS_POR_RUN
 REABRIR_ESPERA_S = 3 * 3600
 REAPERTURAS_MAX = 2
 #: Un lanzamiento tarda hasta un minuto en verse en GitHub: mientras, cuenta como run vivo
@@ -146,24 +150,34 @@ def puede_reabrir(marcas, ahora, espera_s=REABRIR_ESPERA_S, maximo=REAPERTURAS_M
 
 
 def tope_runs_nube(tareas, escritores, maximo=MAX_RUNS_NUBE, por_run=TAREAS_POR_RUN,
-                   por_escritor=RUNS_POR_ESCRITOR):
+                   por_escritor=RUNS_POR_ESCRITOR, vivos=0):
     """PURA. (tope, motivo): cuántos jobs de la nube a la vez TIENEN SENTIDO ahora.
 
     Tres límites y manda el más bajo, que es el que se dice: el trabajo (`tareas` que la nube
     puede coger, `por_run` por job), los modelos (`escritores` vivos con su clave en la nube,
     `por_escritor` jobs cada uno) y el techo del plan gratuito (`maximo`). Sin escritor no hay
-    job: un job sin modelo que escriba es un «cero commits» de 45 minutos."""
+    job: un job sin modelo que escriba es un «cero commits» de 45 minutos.
+
+    (2026-10-25, CAP1025B, medido a las 12:10) `tareas` son las NUEVAS: las de los `vivos` jobs en
+    marcha ya van dentro de ellos. Antes el límite del trabajo era solo ceil(nuevas / por_run) y se
+    comparaba con TODOS los jobs vivos: «6 tareas para la nube dan para 1 job de 6» con 2 jobs en
+    marcha → «1 a la vez» y ningún job nuevo, con 3 escritores vivos (sitio para 6)."""
     tareas = max(0, int(tareas or 0))
+    vivos = max(0, int(vivos or 0))
     escritores = sorted(set(escritores or ()))
     if not escritores:
         return 0, ("ningún escritor con cupo llega a la nube (freellmapi y Codex solo viven en la Mac; "
                    "Groq allí solo revisa)")
     if not tareas:
         return 0, "no hay tareas que la nube pueda coger"
-    por_trabajo = int(math.ceil(tareas / float(por_run)))
+    nuevos = int(math.ceil(tareas / float(por_run)))
+    por_trabajo = vivos + nuevos
     por_modelos = len(escritores) * int(por_escritor)
     tope = min(int(maximo), por_trabajo, por_modelos)
-    if tope == por_trabajo:
+    if tope == por_trabajo and vivos:
+        motivo = "%d job(s) en marcha y %d tarea(s) nuevas para la nube: dan para %d job(s) más de %d" % (
+            vivos, tareas, nuevos, por_run)
+    elif tope == por_trabajo:
         motivo = "%d tarea(s) para la nube dan para %d job(s) de %d" % (tareas, por_trabajo, por_run)
     elif tope == por_modelos:
         motivo = "%d escritor(es) vivo(s) en la nube (%s) × %d job(s) cada uno" % (
@@ -267,10 +281,14 @@ def texto_mac(estado, decision, hechas):
         tope if tope is not None else "su tope", " (gobernador: %s)" % motivo if motivo else "")
 
 
-def texto_nube(clases, plan, runs_vivos, lanzados=None, aplicado=True, mac=None, tope=None):
+def texto_nube(clases, plan, runs_vivos, lanzados=None, aplicado=True, mac=None, tope=None, por_traer=()):
     """PURA: la línea de la nube, con el porqué de lo que no coge. Sin `aplicado` (solo
     comprobar) dice lo que HARÍA, no lo que hizo. `mac`: {"tanda", "se_queda", "cedibles"} de
-    la tanda viva de la Mac; `tope`: (tope, motivo) de `tope_runs_nube`."""
+    la tanda viva de la Mac; `tope`: (tope, motivo) de `tope_runs_nube`.
+
+    `por_traer` (2026-10-25, CAP1025D): agotadas cuyo trabajo la nube YA integró y `traer_nube` trae a main
+    (CAP1025A). «Ya se mandaron 3 veces sin integrarse» era falso para ellas: no fallaron, se perdieron
+    al volver."""
     from repartir_nube import MOTIVOS_FUERA
 
     clases = clases or {}
@@ -293,8 +311,17 @@ def texto_nube(clases, plan, runs_vivos, lanzados=None, aplicado=True, mac=None,
         partes.append(lanzados)
     else:
         partes.append(plan.get("por_que") or "")
-    fuera = ["%d %s" % (len(clases[k]), frase) for k, frase in MOTIVOS_FUERA
-             if k not in ("estado", "en-main") and clases.get(k)]
+    agotadas = set(clases.get("agotada") or ())
+    ya_hechas = len(agotadas & set(por_traer or ()))
+    fuera = []
+    for k, frase in MOTIVOS_FUERA:
+        if k in ("estado", "en-main") or not clases.get(k):
+            continue
+        texto = "%d %s" % (len(clases[k]), frase)
+        if k == "agotada" and ya_hechas:
+            texto += (" (de ellas, %d son trabajo que la nube YA integró y que traer_nube trae a main: no se "
+                      "reabren)" % ya_hechas)
+        fuera.append(texto)
     linea = " · ".join(p for p in partes if p)
     return linea + (". Fuera de la nube: %s" % "; ".join(fuera) if fuera else "")
 
@@ -393,7 +420,9 @@ def texto_cloudroom(lanzado, seguido=None, aplicado=True):
         linea = "%s: lanzaría %d (%s)%s" % (NOMBRES["cloudroom"], len(ids), ", ".join(ids), del_ciclo)
     else:
         motivo = lanzado.get("motivo") or "nada que lanzar"
-        linea = "%s: %s%s" % (NOMBRES["cloudroom"], motivo, "" if motivo.startswith("sin cupo:") else del_ciclo)
+        # (CAP1025C) El motivo del ritmo ya dice «quedan N para D días»: no se repite «quedan N del ciclo».
+        linea = "%s: %s%s" % (NOMBRES["cloudroom"], motivo,
+                              "" if motivo.startswith("sin cupo:") or "quedan " in motivo else del_ciclo)
     errores = list(lanzado.get("errores") or [])
     if errores:
         linea += " · no se abrió: %s" % "; ".join(errores[:2])
@@ -453,7 +482,15 @@ def texto_modelos(salud, ahora_txt, esperando=0):
             sin_cupo.append("%s hasta las %s" % (nombre, hasta[11:16]))
         else:
             con_cupo.append(nombre)
-    partes = ["Modelos: %d proveedor(es) con cupo%s" % (len(con_cupo), " (%s)" % ", ".join(con_cupo) if con_cupo else "")]
+    # (2026-10-25, CAP1025D) «8 con cupo» se leía como «8 que escriben»: se separan los que solo revisan
+    # o están retirados (`NO_ESCRITORES`, `RETIRADOS`, `SOLO_REVISAN`).
+    escriben = [n for n in con_cupo if n not in NO_ESCRITORES and n not in RETIRADOS and n not in SOLO_REVISAN]
+    no_escriben = [n for n in con_cupo if n not in escriben]
+    detalle = ""
+    if con_cupo:
+        detalle = " (escriben: %s%s)" % (", ".join(escriben) or "ninguno",
+                                         ("; solo revisan o retirados: %s" % ", ".join(no_escriben)) if no_escriben else "")
+    partes = ["Modelos: %d proveedor(es) con cupo%s" % (len(con_cupo), detalle)]
     if sin_cupo:
         partes.append("%d sin cupo (%s)" % (len(sin_cupo), ", ".join(sin_cupo)))
     if caidos:
@@ -605,8 +642,41 @@ def texto_sin_trabajo(progreso):
     return "Sin trabajo listo: " + (" · ".join(partes) if partes else "las colas están vacías o esperan a otra tarea")
 
 
-def resumen(lineas, sumados, sin_escritores=False, sin_trabajo=False):
-    """PURA: el texto entero que enseña el medidor (una línea por medio)."""
+def causas_sin_suma(estado_mac, plan, linea_cloudroom=""):
+    """PURA (2026-10-25, CAP1025D): por qué no se sumó ningún agente, medio por medio y en pocas palabras, para
+    la cabecera. Antes decía «no cabe más ahora mismo» a secas, y lo que de verdad frenaba (la memoria de la
+    Mac, los escritores de la nube, el cupo de Cloudroom) quedaba enterrado en líneas de 400 caracteres."""
+    estado_mac = estado_mac or {}
+    causas = []
+    ocupados = len(estado_mac.get("ocupados") or [])
+    tope = estado_mac.get("tope")
+    listas = len(estado_mac.get("listas") or [])
+    if tope is not None and ocupados >= int(tope):
+        motivo = str(estado_mac.get("motivo_tope") or "")
+        por = " por memoria" if ("swap" in motivo or "RAM" in motivo or "memoria" in motivo) else ""
+        causas.append("la Mac está en su tope (%d de %d%s)" % (ocupados, int(tope), por))
+    elif not listas:
+        causas.append("la Mac no tiene tareas listas")
+    elif tope is not None:
+        causas.append("la Mac tiene %d hueco(s) y %d lista(s) y no las cogió (mira la línea de la Mac)"
+                      % (int(tope) - ocupados, listas))
+    por_que = str((plan or {}).get("por_que") or "").strip()
+    if por_que and not (plan or {}).get("lanzar"):
+        causas.append("nube: " + por_que)
+    cr = str(linea_cloudroom or "").split(":", 1)
+    if len(cr) == 2 and ("sin cupo" in cr[1] or "sin sesión" in cr[1] or "sin instalar" in cr[1]):
+        causas.append("Cloudroom: " + cr[1].strip().split(" · ")[0])
+    return causas
+
+
+def resumen(lineas, sumados, sin_escritores=False, sin_trabajo=False, causas=(), posibles=0):
+    """PURA: el texto entero que enseña el medidor (una línea por medio). `causas` (CAP1025D): lo que frenó
+    cada medio cuando no se sumó nada, en la cabecera. `posibles`: al solo comprobar (sin `--aplicar`), los
+    agentes que SÍ cabrían; antes decía «no cabe más» aunque el plan fuera lanzar 2 jobs."""
+    if posibles and not sumados:
+        cabeza = ("Comprobé todos los medios sin lanzar nada · cabrían %d agente(s) más%s" % (
+            posibles, (" · frena: " + " · ".join(causas)) if causas else ""))
+        return "\n".join([cabeza] + ["· " + l for l in lineas if l])
     if sin_trabajo and not sumados:
         cabeza = ("Busqué en todos los medios · no hay más trabajo listo para repartir "
                   "(mira la línea «Sin trabajo listo»)")
@@ -616,7 +686,8 @@ def resumen(lineas, sumados, sin_escritores=False, sin_trabajo=False):
                   "tiene cupo ahora mismo; los agentes esperan y retoman solos cuando vuelva alguno")
     else:
         cabeza = ("Busqué en todos los medios · %d agente(s) más en camino" % sumados if sumados
-                  else "Busqué en todos los medios · no cabe más ahora mismo")
+                  else "Busqué en todos los medios · no cabe más ahora mismo" + (
+                      ": " + " · ".join(causas) if causas else ""))
     return "\n".join([cabeza] + ["· " + l for l in lineas if l])
 
 
@@ -689,6 +760,7 @@ def reunir_nube(ahora, estado_mac=None, ceder=True):
                          "se_queda": max(0, len(listas_en_tanda) - len([t for t in cedibles if t in listas_en_tanda]))}
         colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
         salida["clases"] = RN.clasificar(colas, progreso, asuntos, ran.ola_actual(colas), envios, mismo_lote=lote)
+        salida["por_traer"] = por_traer_de_la_nube(asuntos)
     except (Exception, SystemExit) as e:  # SystemExit: el reparto aborta así si git falla
         salida["error"] = "%s: %s" % (type(e).__name__, e)
     try:
@@ -698,6 +770,19 @@ def reunir_nube(ahora, estado_mac=None, ceder=True):
     except Exception:
         pass
     return salida
+
+
+def por_traer_de_la_nube(asuntos):
+    """(2026-10-25, CAP1025D) Sucesoras abiertas cuyo trabajo la nube YA integró y `traer_nube` trae a main
+    (lo que su rescate cerraría). Solo lee (un `git log` y el progreso). Nunca lanza: si falla, ninguna."""
+    try:
+        import traer_nube as TN
+
+        estado = TN._leer_json(TN.ESTADO, {}) or {}
+        r = TN.rescatar(estado.get("ramas") or {}, list(asuntos or []), aplicar=False)
+        return sorted({k for p in r.get("plan") or [] if p.get("accion") == "traer" for k in p.get("cierra") or []})
+    except Exception:  # noqa: BLE001 — medir nunca tumba el botón
+        return []
 
 
 def _leer_latidos():
@@ -891,11 +976,15 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         # (2026-10-10, CAP1010) El tope crece con el trabajo y con los escritores vivos que
         # llegan a la nube; ya no es un 2 fijo.
         escritores_nube = escritores_en_la_nube(sondas, _leer_json(SALUD, {}), time.strftime("%Y-%m-%d %H:%M:%S"))
-        reabribles = [t for t in nube["clases"].get("agotada") or [] if puede_reabrir(reaperturas.get(t), ahora)]
+        # (CAP1025D) Lo que la nube ya integró no se reabre: se trae (`traer_nube`), no se vuelve a escribir.
+        por_traer = set(nube.get("por_traer") or ())
+        agotadas = [t for t in nube["clases"].get("agotada") or [] if t not in por_traer]
+        reabribles = [t for t in agotadas if puede_reabrir(reaperturas.get(t), ahora)]
+        # (CAP1025B) Las nuevas frente a lo que ya llevan los jobs vivos, no frente a todos ellos.
         tope = tope_runs_nube(len(nube["clases"].get("elegibles") or []) + min(REABRIR_POR_PASADA, len(reabribles)),
-                              escritores_nube)
+                              escritores_nube, vivos=vivos)
         plan = plan_nube(
-            nube["clases"].get("elegibles"), nube["clases"].get("agotada"), vivos, nube["pausa"],
+            nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
             reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
             tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1],
         )
@@ -915,7 +1004,7 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             lanzados = "lanzando %d job(s) de %d agente(s) en segundo plano" % (plan["lanzar"], plan["trabajadores"])
             hechas.append(lanzados)
         lineas.append(texto_nube(nube["clases"], plan, vivos, lanzados, aplicado=aplicar, mac=nube.get("mac"),
-                                 tope=tope))
+                                 tope=tope, por_traer=por_traer))
         lineas.append(linea_cr)
 
         # 2b · Sesiones de Claude Code en la nube (crédito propio, no el límite semanal).
@@ -939,7 +1028,10 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             lineas.insert(1, texto_sin_trabajo(_leer_json(os.path.join(LATIDOS, "progreso.json"), {})))
         except Exception:
             pass
-    texto = resumen(lineas, sumados, sin_escritores=sin_escritores, sin_trabajo=sin_trabajo)
+    posibles = 0 if aplicar else (int(plan.get("lanzar") or 0) * int(plan.get("trabajadores") or 0)
+                                  + int((decision or {}).get("huecos") or 0))
+    texto = resumen(lineas, sumados, sin_escritores=sin_escritores, sin_trabajo=sin_trabajo,
+                    causas=causas_sin_suma(estado_mac, plan, linea_cr) if not sumados else (), posibles=posibles)
     estado_prev.update(visto=time.strftime("%Y-%m-%d %H:%M:%S"), origen=origen, sumados=sumados,
                        hechas=hechas, resumen=texto)
     if aplicar:

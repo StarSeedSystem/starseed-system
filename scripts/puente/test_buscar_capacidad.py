@@ -46,12 +46,13 @@ class PlanNube(unittest.TestCase):
         self.assertEqual(p["trabajadores"], 3)
 
     def test_reabre_agotadas_cuando_no_hay_elegibles(self):
-        """El caso medido el 2026-10-05: 0 elegibles, 16 agotadas, la Mac 3/3 con 12 listas."""
+        """El caso medido el 2026-10-05: 0 elegibles, 16 agotadas, la Mac 3/3 con 12 listas.
+        (2026-10-25, CAP1025B) Llena el sitio libre (2 jobs × 6) sin dejar a la Mac por debajo de su tope:
+        12 listas − 3 = 9 reabiertas, no las 6 de un solo job de antes."""
         agotadas = ["T%d" % i for i in range(16)]
         p = B.plan_nube([], agotadas, 0, None, {}, AHORA, listas_mac=12, tope_mac=3)
-        self.assertEqual(len(p["reabrir"]), B.REABRIR_POR_PASADA)
-        self.assertEqual(p["reabrir"], agotadas[:B.REABRIR_POR_PASADA])
-        self.assertEqual(p["lanzar"], 1)
+        self.assertEqual(p["reabrir"], agotadas[:9])
+        self.assertEqual(p["lanzar"], 2)
         self.assertEqual(p["trabajadores"], 3)
 
     def test_nunca_deja_a_la_mac_sin_trabajo(self):
@@ -176,7 +177,8 @@ class Modelos(unittest.TestCase):
 
     def test_separa_con_cupo_sin_cupo_y_caidos(self):
         t = B.texto_modelos(self.SALUD, "2026-10-05 13:35:00")
-        self.assertIn("2 proveedor(es) con cupo (groq, xkiro)", t)
+        # (CAP1025D) Se separa quién escribe de quién solo revisa.
+        self.assertIn("2 proveedor(es) con cupo (escriben: xkiro; solo revisan o retirados: groq)", t)
         self.assertIn("1 sin cupo (nim hasta las 13:40)", t)
         self.assertIn("1 caído(s) (llm7)", t)
         self.assertNotIn("claves", t)
@@ -421,6 +423,55 @@ class TopeNubeDinamico(unittest.TestCase):
         self.assertEqual(p["por_que"], "no lanzo: ningún escritor con cupo")
         p = B.plan_nube(["A"], [], 3, None, {}, AHORA, tope_runs=3, motivo_tope="1 escritor")
         self.assertIn("(1 escritor)", p["por_que"])
+
+    def test_el_tope_cuenta_los_jobs_vivos_aparte_de_las_nuevas(self):
+        """(2026-10-25, CAP1025B, medido a las 12:10) 2 jobs en marcha, 0 elegibles, 271 agotadas reabribles,
+        3 escritores vivos y la Mac 0 de 2 con 306 listas: el botón decía «1 a la vez» y no lanzaba nada."""
+        esc = ["google", "nvidia", "opencode"]
+        self.assertEqual(B.tope_runs_nube(6, esc, vivos=2),
+                         (3, "2 job(s) en marcha y 6 tarea(s) nuevas para la nube: dan para 1 job(s) más de 6"))
+        agotadas = ["T%d" % i for i in range(271)]
+        tope, motivo = B.tope_runs_nube(min(B.REABRIR_POR_PASADA, len(agotadas)), esc, vivos=2)
+        self.assertEqual(tope, 6)
+        self.assertIn("3 escritor(es) vivo(s) en la nube (google, nvidia, opencode)", motivo)
+        p = B.plan_nube([], agotadas, 2, None, {}, AHORA, listas_mac=306, tope_mac=2, tope_runs=tope,
+                        motivo_tope=motivo)
+        self.assertEqual((p["lanzar"], p["trabajadores"], len(p["reabrir"])), (4, 3, 24))
+        # Sin vivos, como siempre.
+        self.assertEqual(B.tope_runs_nube(7, ["nvidia", "google"], vivos=0)[0], 2)
+        # Con los escritores llenos, ni uno más aunque sobre trabajo.
+        self.assertEqual(B.plan_nube([], agotadas, 6, None, {}, AHORA, listas_mac=306, tope_mac=2, tope_runs=6,
+                                     motivo_tope=motivo)["lanzar"], 0)
+
+    def test_la_cabecera_dice_que_frena_cada_medio(self):
+        """(2026-10-25, CAP1025D, medido a las 12:47) «no cabe más ahora mismo» a secas, con la Mac al tope
+        por memoria, la nube al tope de escritores y Cloudroom sin cupo hoy."""
+        mac = {"ocupados": ["A", "B"], "tope": 2, "listas": ["X"] * 308,
+               "motivo_tope": "el gobernador lo baja a 2: recursos al límite (swap llena (5542 de 6144 MB))"}
+        plan = {"lanzar": 0, "por_que": "ya hay 2 job(s) en marcha, el tope a la vez (1 escritor(es) vivo(s) en la "
+                                        "nube (nvidia) × 2 job(s) cada uno)"}
+        cr = "Cloudroom: sin cupo hoy: ya van 2 hoy (quedan 51 para 29 día(s): 2 al día, tope 6)"
+        causas = B.causas_sin_suma(mac, plan, cr)
+        self.assertEqual(causas, [
+            "la Mac está en su tope (2 de 2 por memoria)",
+            "nube: ya hay 2 job(s) en marcha, el tope a la vez (1 escritor(es) vivo(s) en la nube (nvidia) × 2 job(s) cada uno)",
+            "Cloudroom: sin cupo hoy: ya van 2 hoy (quedan 51 para 29 día(s): 2 al día, tope 6)"])
+        cabeza = B.resumen(["x"], 0, causas=causas).splitlines()[0]
+        self.assertTrue(cabeza.startswith("Busqué en todos los medios · no cabe más ahora mismo: la Mac está en su tope"))
+        self.assertEqual(B.causas_sin_suma({"ocupados": [], "tope": 2, "listas": []}, {"lanzar": 1}), [
+            "la Mac no tiene tareas listas"])
+        self.assertEqual(B.resumen(["x"], 0).splitlines()[0], "Busqué en todos los medios · no cabe más ahora mismo")
+        # Solo comprobando: lo que cabría, no «no cabe más».
+        self.assertEqual(B.resumen(["x"], 0, causas=causas[:1], posibles=6).splitlines()[0],
+                         "Comprobé todos los medios sin lanzar nada · cabrían 6 agente(s) más · frena: la Mac está "
+                         "en su tope (2 de 2 por memoria)")
+
+    def test_las_agotadas_que_la_nube_ya_integro_se_dicen_y_no_se_reabren(self):
+        clases = {"elegibles": [], "agotada": ["A", "B", "C"]}
+        t = B.texto_nube(clases, {"por_que": "x"}, 0, por_traer=["B", "C", "Z"])
+        self.assertIn("3 ya se mandaron 3 veces sin integrarse (de ellas, 2 son trabajo que la nube YA integró y "
+                      "que traer_nube trae a main: no se reabren)", t)
+        self.assertNotIn("de ellas", B.texto_nube(clases, {"por_que": "x"}, 0))
 
     def test_plan_con_tope_grande_lanza_mas_de_dos(self):
         p = B.plan_nube(["T%d" % i for i in range(24)], [], 0, None, {}, AHORA, tope_runs=4)
