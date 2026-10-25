@@ -6,7 +6,9 @@ Se comprueban dos clases de rutas, sin red:
   en cualquier parte del texto, contra la raíz del repo;
 - los nombres entre comillas invertidas que parecen archivos o carpetas (con extensión, en mayúsculas
   como `LICENSE`, o acabados en «/»), contra la carpeta de la habilidad (o la raíz si es una ruta del repo).
-  Una frase que acaba en « no.» enumera lo que NO se copia: esas carpetas no deben estar.
+  Una frase que acaba en « no.» o que dice «NO se copian» enumera lo que NO se copia: esas rutas no deben estar
+  (y si se citan otra vez en otra frase, siguen excluidas). Las variables de entorno y las rutas absolutas o del
+  repositorio de origen no se confunden con archivos locales.
 """
 import glob
 import os
@@ -19,23 +21,37 @@ ORIGENES = sorted(glob.glob(os.path.join(RAIZ, "vendor", "habilidades", "*", "OR
 _RUTA_REPO = re.compile(r"(?<![\w/.:-])((?:src|architecture|scripts|vendor|config|docs|servicios)/[\w./\-]+)")
 _ENTRE_COMILLAS = re.compile(r"`([^`\s]+)`")
 _EXTENSIONES = (".md", ".py", ".ts", ".tsx", ".js", ".mjs", ".json", ".html", ".txt", ".yaml", ".yml")
+_NO_SE_COPIA = re.compile(r"\bno\s+se\s+copian?\b|\sno\.\s*$", re.I)
+_ABSOLUTAS = ("/", "~", "\\")
 
 
 def _parece_ruta(nombre):
+    if "_" in nombre and re.fullmatch(r"[A-Z][A-Z0-9_]*", nombre):
+        return False  # variable de entorno, no archivo
     return (nombre.endswith("/") or nombre.lower().endswith(_EXTENSIONES)
             or re.fullmatch(r"[A-Z][A-Z_]+(?:\.[a-z]+)?", nombre) is not None)
 
 
+def _unidades(texto):
+    """Cada viñeta (con sus líneas de continuación) y cada frase dentro de ella, por separado."""
+    for bloque in re.split(r"\n(?=\s*[-*]\s)", texto):
+        yield from re.split(r"(?<=\.)\s+", bloque)
+
+
 def rutas_citadas(texto):
     """PURA. → (rutas del repo, nombres locales que deben estar, nombres locales que no deben estar)."""
-    del_repo = {m.rstrip(".") for m in _RUTA_REPO.findall(texto)}
-    locales, excluidos = set(), set()
-    for frase in re.split(r"(?<=\.)\s+|\n", texto):
-        destino = excluidos if re.search(r"\sno\.\s*$", frase) else locales
+    del_repo, locales, excluidos = set(), set(), set()
+    for frase in _unidades(texto):
+        excluir = _NO_SE_COPIA.search(frase) is not None
+        destino = excluidos if excluir else locales
         for nombre in _ENTRE_COMILLAS.findall(frase):
+            if nombre.startswith(_ABSOLUTAS) or "://" in nombre:
+                continue
             if _parece_ruta(nombre) and not _RUTA_REPO.fullmatch(nombre):
                 destino.add(nombre)
-    return del_repo, locales, excluidos
+        if not excluir:
+            del_repo |= {m.rstrip(".") for m in _RUTA_REPO.findall(frase)}
+    return del_repo, locales - excluidos, excluidos
 
 
 class RutasDeOrigen(unittest.TestCase):
