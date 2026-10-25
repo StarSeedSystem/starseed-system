@@ -38,6 +38,7 @@ function motoresPermitidos(
     persona?: "personal";
     comunidad?: "condicionada";
     neurona?: "libre";
+    grupo?: "condicionada";
   }
 ) {
   const permitidos: string[] = [];
