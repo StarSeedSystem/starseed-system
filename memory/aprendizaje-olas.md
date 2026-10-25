@@ -4621,3 +4621,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `FSH1018A` — otra cosa: ningún proveedor respondió (todos caídos)
 - `GCA1019H` — pruebas en rojo: vitest falla (rama conservada)
 - `RTRTCOL1012Bdsbbbbbbbbbbc` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-25 15:27 · mg-oracle-1025-0810
+
+**Lo que se pidió.** Claves en el DOM: Protomolécula y lienzo universal
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — pruebas en rojo (RTESP1011Bc, DSN1025B, COL1012H). Es 75 % de la ola.
+- freellmapi/auto no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTVPU1019X` — los tipos no compilan: 6 errores tsc (rama ola/RTVPU1019X conservada)
+- `RTESP1011Bc` — pruebas en rojo: vitest falla (rama conservada)
+- `DSN1025B` — pruebas en rojo: vitest falla (rama conservada)
+- `COL1012H` — pruebas en rojo: vitest falla (rama conservada)
