@@ -10,6 +10,13 @@ describe("TunelMetaGenesisEstado", () => {
 
   beforeEach(() => {
     llamadas.length = 0;
+    // La pestaña arranca visible: el caso de visibilidad oculta la deja en «hidden»
+    // (la propiedad configurable no se restaura sola) y sin este ajuste los casos
+    // siguientes no harían ningún fetch y se quedarían en «Cargando estado…».
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       llamadas.push({ url, init });
@@ -55,7 +62,7 @@ describe("TunelMetaGenesisEstado", () => {
     render(<TunelMetaGenesisEstado />);
     
     // Esperar a que aparezca el texto del estado activo
-    await await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
+    await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
     
     // Verificar que las URLs fueron tachadas en las líneas
     expect(await screen.findByText(/Línea 1 \[túnel\]/i)).toBeInTheDocument();
