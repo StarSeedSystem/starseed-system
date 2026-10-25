@@ -51,6 +51,8 @@ import limite_proveedor as _limite_proveedor
 
 # Mensajes de Alex a un agente en marcha (2026-09-20): ver mensajes_agente.py.
 import mensajes_agente as _mensajes
+# Tarjeta de la habilidad de Matt Pocock que encaja con cada tarea (Ola 1018L · L).
+import habilidades_enjambre as _habilidades_enjambre
 from clasificar_fallo_motor import clasificar
 from puerta_degenerados import archivos_degenerados
 from proveedor_anthropic import cabeceras_api as cabeceras_anthropic
@@ -5696,7 +5698,12 @@ def contexto_tarea(t, raiz=None):
         "y nunca rutas inventadas como `/workspace/...`: cualquier ruta fuera de la raiz se rechaza "
         "automaticamente y pierdes el intento.\n\n"
     ) % raiz
-    return (
+    # (Ola 1018L · L) La tarjeta de la habilidad de ingeniería que encaja va AL FINAL del
+    # prompt; si el servidor local de Laya responde en ≤ 3 s (STARSEED_LAYA_URL), su «choice»
+    # calibrado decide en vez de las palabras; sin servidor, la regla de palabras.
+    url_laya = os.environ.get("STARSEED_LAYA_URL")
+    respuesta_laya = _habilidades_enjambre.preguntar_a_laya(t, url=url_laya) if url_laya else None
+    texto = (
         regla_raiz
         + "Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
         "Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; "
@@ -5739,6 +5746,7 @@ def contexto_tarea(t, raiz=None):
         ", ".join(t.get("archivos", [])),
         t["prompt"],
     )
+    return _habilidades_enjambre.con_habilidad(texto, t, respuesta_laya=respuesta_laya)
 
 
 # ── latidos: qué está haciendo AHORA cada tarea ─────────────────────────────
