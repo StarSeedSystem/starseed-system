@@ -2212,6 +2212,20 @@ function BlockPreview({ block }: { block: CanvasBlock }) {
       ) : (
         <Empty label={`Indica el nombre del ${block.kind === "app" ? "app/programa" : "widget"}.`} />
       );
+    case "protomolecula":
+      return d.moleculaId ? (
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 text-white/85">
+            <Sparkles className="w-3.5 h-3.5 text-fuchsia-300" />
+            {d.moleculaId}
+          </div>
+          <div className="text-[10px] text-white/45 truncate">
+            Átomo para la Protomolécula: conversión y convergencia.
+          </div>
+        </div>
+      ) : (
+        <Empty label="Indica el id de la Protomolécula (referencia a la molécula)." />
+      );
     default:
       return <Empty label="Sin contenido." />;
   }
@@ -2339,6 +2353,21 @@ function BlockEditor({
             placeholder="Configuración (ruta, comando, params, JSON…)"
             className="bg-white/5 text-xs min-h-[60px] resize-none"
           />
+        </div>
+      );
+    case "protomolecula":
+      return (
+        <div className="space-y-1.5" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <Input
+            autoFocus
+            value={d.moleculaId ?? ""}
+            onChange={(e) => onData({ moleculaId: e.target.value })}
+            placeholder="ID de la Protomolécula (referencia a la molécula)"
+            className="bg-white/5 text-xs"
+          />
+          <p className="text-[10px] text-white/35">
+            El bloque cita una molécula desde el almacén; sin cambios al editar.
+          </p>
         </div>
       );
     default:
