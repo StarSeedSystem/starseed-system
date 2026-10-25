@@ -57,6 +57,8 @@ import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
 import { normalizeStarseedTerms } from "@/lib/aurora/term-normalizer";
 // Conocimiento del ecosistema (áreas, tríada, enlaces) para el prompt de Astraura.
 import { buildSystemKnowledge } from "@/lib/aurora/system-knowledge";
+// BOT1011S · Tono del bot en el chat (personalidad, agente, situación y preferencias).
+import { tonoDeChatAstraura } from "@/lib/astraura-bots/adaptadores/tono-chat";
 // Detección de la palabra "Aurora" para el modo pasivo (fondo silencioso).
 import { containsWake, stripWake } from "@/lib/aurora/wake-word";
 // ¿App instalada? Solo ahí mantenemos el micrófono abierto en 2º plano; en la
@@ -1691,9 +1693,14 @@ export function useAuroraEngine(): AuroraEngine {
       // Aurora entienda cada contexto/sección y responda/actúe interconectando.
       let knowledge = "";
       try { knowledge = buildSystemKnowledge(routeContext()); } catch { knowledge = ""; }
+      // BOT1011S · Tono del bot predeterminado (orbe de Astraura): personalidad
+      // + preferencias de la persona + situación sacada del texto del usuario.
+      let tonoSeccion = "";
+      try { tonoSeccion = tonoDeChatAstraura(text); } catch { tonoSeccion = ""; }
       const system =
         buildSystemPrompt(activeRef.current) + "\n\n" +
         actionsSystemPromptSection() +
+        (tonoSeccion ? "\n\n" + tonoSeccion : "") +
         (toolsSection ? "\n\n" + toolsSection : "") +
         (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
         contextNote;
