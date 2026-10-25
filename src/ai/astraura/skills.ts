@@ -24,6 +24,10 @@ import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
 import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
 } from "./habilidades/diagramas";
+import {
+  ATRIBUCION_DESIGN_MD, ATRIBUCION_SLIDES, ATRIBUCION_TASTE,
+  HABILIDADES_DISENO_WEB, comoCapacidadDiseno,
+} from "./habilidades/diseno-web";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -88,9 +92,12 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     id: "taste",
     label: "Taste · calidad de UI y estética",
     systemPrompt:
-      "Cuando generes interfaz, contenido visual o texto, aplica criterio de diseño de alto nivel (jerarquía clara, espacio en blanco, contraste, coherencia con el sistema Crystal Liquid Glass). Prefiere lo elegante, legible y sobrio a lo recargado.",
+      "Cuando generes interfaz, contenido visual o texto, aplica criterio de diseño de alto nivel (jerarquía clara, espacio en blanco, contraste, coherencia con el sistema Crystal Liquid Glass). Prefiere lo elegante, legible y sobrio a lo recargado. " +
+      `${HABILIDADES_DISENO_WEB.taste.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.taste.rutaCompleta}` +
+      " — con la tarjeta basta para Needle y BitNet. En el OS manda el ADN del contexto sobre la estética propia de la skill. " +
+      ATRIBUCION_TASTE,
     routing: { preferStrong: true },
-    skillIds: ["aurora-taste"],
+    skillIds: ["aurora-taste", "design-taste-frontend"],
     packageIds: ["iatool-taste-skill"],
   },
   {
@@ -667,6 +674,31 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: { preferStrong: true },
     defaultOn: true,
     skillIds: ["diagram-design"],
+  },
+  /* ═══ DISEÑO WEB · Frontend Slides y DESIGN.md por capas (Ola 1025R · DSN1025A) ═══
+   * La tarjeta (≤ 60 palabras) va a Needle y BitNet, el resumen (≤ 120) a Bonsai
+   * pequeño y la guía completa (rutaCompleta) a las capas Razón, Profunda y Nube.
+   * Contrato: architecture/repos-libreria-1025.md §5. El ADN del contexto manda
+   * sobre la estética propia de cada skill. Encendidas por defecto. */
+  {
+    ...comoCapacidadDiseno(HABILIDADES_DISENO_WEB.slides, "resumen"),
+    id: "slides",
+    systemPrompt:
+      `${HABILIDADES_DISENO_WEB.slides.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.slides.rutaCompleta} ` +
+      `— con la tarjeta basta para Needle y BitNet. ${ATRIBUCION_SLIDES}`,
+    routing: { preferStrong: true },
+    defaultOn: true,
+    skillIds: ["frontend-slides"],
+  },
+  {
+    ...comoCapacidadDiseno(HABILIDADES_DISENO_WEB.designmd, "resumen"),
+    id: "design-md",
+    systemPrompt:
+      `${HABILIDADES_DISENO_WEB.designmd.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.designmd.rutaCompleta} ` +
+      `— con la tarjeta basta para Needle y BitNet. ${ATRIBUCION_DESIGN_MD}`,
+    routing: { preferStrong: true },
+    defaultOn: true,
+    skillIds: ["awesome-design-md"],
   },
 ];
 
