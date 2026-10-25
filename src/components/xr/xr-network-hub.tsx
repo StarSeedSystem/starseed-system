@@ -64,6 +64,7 @@ import {
     Globe2,
 } from 'lucide-react';
 
+import { AvisoSesion } from '@/components/auth/aviso-sesion';
 import { createClient } from '@/utils/supabase/client';
 import { useRealtimeRows } from '@/lib/realtime/realtime';
 import { useAurora } from '@/components/aurora/aurora-provider';
@@ -1450,13 +1451,21 @@ export function XRNetworkHub({ ctx }: { ctx?: string | null }) {
                 </div>
             )}
 
-            {noData && (
+            {noData && uid && (
                 <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 px-6 text-center">
                     <p className="text-sm font-semibold text-white/70">
-                        {uid
-                            ? 'Aún no hay nodos en tu red. Crea cerebros, memorias o pizarras para verlos aquí en 3D.'
-                            : 'Inicia sesión para ver tu red real en 3D. Mientras tanto puedes explorar el espacio.'}
+                        Aún no hay nodos en tu red. Crea cerebros, memorias o pizarras para verlos aquí en 3D.
                     </p>
+                </div>
+            )}
+
+            {noData && !uid && (
+                <div className="absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 px-4 sm:px-6">
+                    <AvisoSesion
+                        className="mx-auto max-w-md"
+                        texto="Inicia sesión para ver tu red real en 3D"
+                        detalle="Mientras tanto puedes explorar el espacio."
+                    />
                 </div>
             )}
 

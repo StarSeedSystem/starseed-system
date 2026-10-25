@@ -35,6 +35,7 @@ import { Canvas2DEditor } from "./Canvas2DEditor";
 import { Material3DPanel } from "./Material3DPanel";
 import { AuroraDesignerPanel } from "./AuroraDesignerPanel";
 import { SaveSharePanel } from "./SaveSharePanel";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 // Mezclador de Diseños (theme-mixer.ts): fusión por slots — aditivo, entrada
 // nueva dentro del Estudio sin tocar el resto de sus herramientas.
 import { ThemeMixerPanel } from "@/components/design/theme-mixer-panel";
@@ -210,7 +211,7 @@ export function DesignStudio() {
                             </DropdownMenuItem>
                         ))}
                         {pageTargets.length === 0 && (
-                            <p className="px-2 py-1.5 text-[10px] text-white/40">Inicia sesión y administra páginas/grupos para aplicar ahí.</p>
+                            <AvisoSesion compacto texto="Inicia sesión y administra páginas/grupos para aplicar ahí" />
                         )}
                     </DropdownMenuContent>
                 </DropdownMenu>
