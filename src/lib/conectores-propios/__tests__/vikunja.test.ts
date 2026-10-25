@@ -66,6 +66,18 @@ describe("vikunja · cliente puro", () => {
     }
   });
 
+  it("409 en la creación del proyecto da {ok:false} sin proyecto", async () => {
+    const { pedir } = falso(409, (n: number) => (n === 1 ? [] : ""));
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r).toEqual({ ok: false, motivo: expect.stringContaining("409") });
+  });
+
+  it("500 del servidor al asegurar el proyecto da {ok:false} con «falló»", async () => {
+    const { pedir } = falso(500, "");
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r).toEqual({ ok: false, motivo: expect.stringContaining("falló") });
+  });
+
   it("un fallo de red no lanza", async () => {
     const pedir: Pedir = async () => {
       throw new Error("ECONNREFUSED");
@@ -89,6 +101,15 @@ describe("vikunja · cliente puro", () => {
     expect(cuerpo.title).toBe("Abrir huerto");
     expect(cuerpo.description).toContain("p-1");
     expect(cuerpo.description).toContain("recursos");
+  });
+
+  it("409 al crear la tarea da {ok:false} con motivo del contrato uniforme", async () => {
+    const r = await tareaDesdeDecision(BASE, TOKEN, "5", {
+      propuestaId: "p-2",
+      titulo: "Abrir Teatro",
+      aprobadaEn: "2026-10-20",
+    }, falso(409, "").pedir);
+    expect(r).toEqual({ ok: false, motivo: expect.stringContaining("409") });
   });
 
   it("404 y 500 al crear tarea dan motivo legible", async () => {
