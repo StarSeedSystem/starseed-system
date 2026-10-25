@@ -47,7 +47,7 @@ function motoresPermitidos(
   const esPersonal = contexto === "personal";
   const noPersonal = contexto !== "personal";
   const hasPersona = capas?.persona === "personal";
-  const hasComunidadCondicionada = capas?.comunidad === "condicionada";
+  const hasComunidadCondicionada = capas?.comunidad === "condicionada" || capas?.grupo === "condicionada";
   const hasNeuronaLibre = capas?.neurona === "libre";
 
   // Contadores para entender el estado de las capas
