@@ -8,7 +8,7 @@
  *
  * Aquí viven también las reglas del modo invitado (GUI1021I): si hay sesión, qué acciones del
  * paso se ofrecen, en qué capa se pinta la guía y cómo se une lo visto sin cuenta a la marca de
- * la cuenta. Aplicarlas es de la parte 2 de esta cadena: `aurora-guide.tsx` (acciones y capa),
+ * la cuenta. Quién las lleva a la interfaz: `aurora-guide.tsx` (acciones y capa, GUI1021J),
  * `guia-vista.ts` (une al entrar) y los botones de cada ventana de acceso (GUI1021K–O).
  *
  * Módulo PURO: sin React ni `node:*`; el destino del evento es inyectable para probarlo.
