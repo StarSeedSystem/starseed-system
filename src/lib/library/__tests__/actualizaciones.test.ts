@@ -9,6 +9,10 @@ import {
     MAX_LONGITUD_PATRON_TAG,
 } from "../actualizaciones";
 
+const GITHUB = "https://github.com/razorback16/openjev";
+const HF = "https://huggingface.co/AlexWortega/openjev";
+const HF_ENLACE = "https://huggingface.co/api/models/AlexWortega/openjev";
+
 describe("urlDeConsulta", () => {
     it("una URL de GitHub da la consulta de commits", () => {
         expect(urlDeConsulta("https://github.com/razorback16/openjev")).toBe(
@@ -150,5 +154,82 @@ describe("canal de releases", () => {
                 { canal: "releases" },
             ),
         ).toEqual({ version: "v0.24.6", fecha: "2026-10-01T10:00:00Z" });
+    });
+
+    it("un release sin published_at da fecha null y uno raro devuelve null", () => {
+        expect(
+            leerVersion(GITHUB, { tag_name: "v2.0.0" }, { canal: "releases" }),
+        ).toEqual({ version: "v2.0.0", fecha: null });
+        expect(leerVersion(GITHUB, {}, { canal: "releases" })).toBeNull();
+    });
+});
+
+describe("canal directo (RLB1020Bd)", () => {
+    it("urlDeConsulta acepta el canal como cadena: releases y tags", () => {
+        expect(urlDeConsulta(GITHUB, "releases")).toBe(
+            "https://api.github.com/repos/razorback16/openjev/releases/latest",
+        );
+        expect(urlDeConsulta(GITHUB, "tags")).toBe(
+            "https://api.github.com/repos/razorback16/openjev/tags?per_page=1",
+        );
+        expect(urlDeConsulta(GITHUB, "commits")).toBe(
+            "https://api.github.com/repos/razorback16/openjev/commits?per_page=1",
+        );
+    });
+
+    it("Hugging Face ignora el canal directo", () => {
+        expect(urlDeConsulta(HF, "releases")).toBe(HF_ENLACE);
+        expect(urlDeConsulta(HF, "tags")).toBe(HF_ENLACE);
+    });
+
+    it("leerVersion acepta el canal como cadena: releases", () => {
+        expect(
+            leerVersion(GITHUB, { tag_name: "v1.2.3", published_at: "2026-09-20T10:00:00Z" }, "releases"),
+        ).toEqual({ version: "v1.2.3", fecha: "2026-09-20T10:00:00Z" });
+        expect(leerVersion(GITHUB, [], "releases")).toBeNull();
+    });
+
+    it("leerVersion acepta el canal como cadena: tags", () => {
+        expect(leerVersion(GITHUB, [{ name: "v1.2.3" }], "tags")).toEqual({
+            version: "v1.2.3",
+            fecha: null,
+        });
+        expect(leerVersion(GITHUB, [{ name: "" }], "tags")).toBeNull();
+        expect(leerVersion(GITHUB, [], "tags")).toBeNull();
+    });
+
+    it("sin canal se sigue igual que hoy: commits por defecto", () => {
+        expect(urlDeConsulta(GITHUB)).toBe(
+            "https://api.github.com/repos/razorback16/openjev/commits?per_page=1",
+        );
+        expect(urlDeConsulta(GITHUB, undefined)).toBe(
+            "https://api.github.com/repos/razorback16/openjev/commits?per_page=1",
+        );
+    });
+});
+
+/* ─────────────────────── compararVersiones (RLB1020Bd) ─────────────────────── */
+
+describe("compararVersiones con etiquetas", () => {
+    it("tag contra el mismo tag (con o sin «v») → «igual»", () => {
+        expect(compararVersiones("v1.0.0", "v1.0.0")).toBe("igual");
+        expect(compararVersiones("v1.0.0", "1.0.0")).toBe("igual");
+        expect(compararVersiones("1.0.0", "v1.0.0")).toBe("igual");
+    });
+
+    it("tag distinto → «hay-actualizacion»", () => {
+        expect(compararVersiones("1.0.0", "1.0.1")).toBe("hay-actualizacion");
+        expect(compararVersiones("v1.0.0", "v1.0.1")).toBe("hay-actualizacion");
+        expect(compararVersiones("1.0.0", "v2.0.0")).toBe("hay-actualizacion");
+    });
+
+    it("mezcla de sha y tag → «desconocida», como siempre", () => {
+        expect(compararVersiones("a1b2c3d", "v1.0.0")).toBe("desconocida");
+        expect(compararVersiones("1.0.0", "a1b2c3d")).toBe("desconocida");
+    });
+
+    it("cadenas que no son ni shas ni tags → «desconocida»", () => {
+        expect(compararVersiones("no es un tag", "otra cosa")).toBe("desconocida");
+        expect(compararVersiones("v-owner/tag", "v1.0.0")).toBe("desconocida");
     });
 });
