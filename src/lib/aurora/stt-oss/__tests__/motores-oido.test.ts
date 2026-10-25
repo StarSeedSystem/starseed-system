@@ -19,16 +19,18 @@ describe("catálogo MOTORES_OIDO", () => {
     expect(m?.tipo).toBe('local');
   });
 
-  it("voicestudio tiene licencia AGPL-3.0-only, flujo y atribucion", () => {
+  it("voicestudio tiene licencia AGPL-3.0-only, tipo endpoint, flujo y atribucion", () => {
     const m = MOTORES_OIDO.find((x) => x.id === 'voicestudio');
     expect(m?.licencia).toBe('AGPL-3.0-only');
+    expect(m?.tipo).toBe('endpoint');
     expect(m?.flujo).toBe(true);
     expect(m?.atribucion).toBe(true);
   });
 
-  it("moonshine tiene licencia MIT, flujo true, idiomas ['en','es'] y tamanoMB 60", () => {
+  it("moonshine tiene licencia MIT, tipo local, flujo true, idiomas ['en','es'] y tamanoMB 60", () => {
     const m = MOTORES_OIDO.find((x) => x.id === 'moonshine');
     expect(m?.licencia).toBe('MIT');
+    expect(m?.tipo).toBe('local');
     expect(m?.flujo).toBe(true);
     expect(m?.idiomas).toEqual(['en','es']);
     expect(m?.tamanoMB).toBe(60);
@@ -137,5 +139,27 @@ describe("elegirOido", () => {
     });
     // moonshine debe ser elegido antes que whisper-web
     expect(r.motor).toBe('moonshine');
+  });
+
+  it("español en final: voicestudio se elige si parakeet-v3 no está disponible", () => {
+    // En la orden de 'es' voicestudio va justo detrás de parakeet-v3: si este no está, sale voicestudio.
+    const r = elegirOido({
+      idioma: 'es',
+      disponibles: ['voicestudio', 'whisper-web'],
+      fase: 'final',
+    });
+    expect(r.motor).toBe('voicestudio');
+    expect(r.motivo).toContain('fase final: mayor precisión para es');
+  });
+
+  it("inglés en final: voicestudio se elige si phonon-2 no está disponible", () => {
+    // En la orden de 'en' voicestudio va detrás de phonon-2: sin él, sale voicestudio antes que moonshine.
+    const r = elegirOido({
+      idioma: 'en',
+      disponibles: ['voicestudio', 'moonshine'],
+      fase: 'final',
+    });
+    expect(r.motor).toBe('voicestudio');
+    expect(r.motivo).toContain('inglés');
   });
 });

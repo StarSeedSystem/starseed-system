@@ -127,4 +127,23 @@ describe("Catálogo de voces", () => {
     expect(motorRecomendado("macos", 8, "personal").id).toBe("voicemorphic");
     expect(motorRecomendado("web", 4, "personal").id).toBe("kokoro");
   });
+
+  it("respetar ramMinGB: un motor que pide más GB de los disponibles no se recomienda", () => {
+    // Con 3,9 GB voicemorphic (4 GB) no cabe: debe devolverse otro que sí quepa.
+    const motor = motorRecomendado("macos", 3.9, "personal");
+    expect(motor.id).not.toBe("voicemorphic");
+    expect(motor.ramMinGB).toBeLessThanOrEqual(3.9);
+    expect(motor.plataformas).toContain("macos");
+    expect(motor.offline).toBe(true);
+  });
+
+  it("con muy poca RAM, contexto personal y no personal devuelven el mismo motor libre", () => {
+    // Con 0,4 GB solo cabe «sistema» (ramMinGB 0), que es libre: en ambos contextos
+    // no hay alternativa y debe salir el mismo motor.
+    const personal = motorRecomendado("macos", 0.4, "personal");
+    const grupo = motorRecomendado("macos", 0.4, "grupo");
+    expect(personal.id).toBe("sistema");
+    expect(grupo.id).toBe("sistema");
+    expect(grupo.claseLicencia).not.toBe("personal");
+  });
 });
