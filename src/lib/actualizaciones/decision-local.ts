@@ -14,7 +14,7 @@ import { idSistema, leerNeuronaElegida, leerPoliticaSistema } from "./almacen-po
 import type { CapaActualizacion } from "./manifiesto";
 import { medirMomento } from "./momento-navegador";
 import { puedeAplicarAhora } from "./momento";
-import { decidirPolitica, type Decision, type TipoEntidad } from "./politica";
+import { decidirPolitica, requiereAprobacionPrevia, type Decision, type TipoEntidad } from "./politica";
 
 async function idEstaNeurona(): Promise<string | null> {
   try {
@@ -33,16 +33,28 @@ export interface DecisionLocal {
 /** Qué hacer AHORA en este medio con una capa pendiente de un sistema. */
 export async function decidirCapaLocal(
   capa: CapaActualizacion,
-  opciones: { tipo?: TipoEntidad; id?: string | null; tamanoBytes?: number } = {},
+  opciones: { tipo?: TipoEntidad; id?: string | null; tamanoBytes?: number; aprobada?: boolean } = {},
 ): Promise<DecisionLocal> {
   try {
     const tipo = opciones.tipo ?? "os";
     const politica = leerPoliticaSistema(idSistema(tipo, opciones.id), tipo);
     const elegida = leerNeuronaElegida();
     const yo = elegida ? await idEstaNeurona() : null;
-    const d = decidirPolitica(politica[capa], { ahoraH: new Date().getHours(), esNeuronaElegida: !!elegida && elegida === yo });
+    const requiereAprobacion = requiereAprobacionPrevia(tipo);
+    const d = decidirPolitica(politica[capa], {
+      ahoraH: new Date().getHours(),
+      esNeuronaElegida: !!elegida && elegida === yo,
+      requiereAprobacion,
+      aprobada: opciones.aprobada,
+    });
     if (d === "avisar") return { decision: "avisar", texto: "Tu política para esta capa es avisar antes de aplicar." };
-    if (d === "esperar") return { decision: "esperar", texto: "Fuera de la ventana programada: se aplicará dentro de ella." };
+    if (d === "esperar")
+      return {
+        decision: "esperar",
+        texto: requiereAprobacion && opciones.aprobada !== true
+          ? "Este grupo decide por votación: no se aplica hasta que se apruebe."
+          : "Fuera de la ventana programada: se aplicará dentro de ella.",
+      };
     const m = await medirMomento();
     const r = puedeAplicarAhora(m, opciones.tamanoBytes ?? 0, capa);
     return r.ok ? { decision: "aplicar", texto: "Buen momento: se aplica." } : { decision: "esperar", texto: r.texto };
