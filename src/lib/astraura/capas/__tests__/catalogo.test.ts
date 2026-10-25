@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   leerCatalogo,
@@ -127,6 +129,45 @@ describe("usable", () => {
     expect(usable({ ...entradaBase, sha256: "corta" })).toBe(false);
     expect(usable({ ...entradaBase, sha256: "A".repeat(64) })).toBe(false);
     expect(usable({ ...entradaBase, sha256: "g".repeat(64) })).toBe(false);
+  });
+});
+
+describe("catálogo real · Ternary Bonsai 2 en el banco", () => {
+  const crudo = JSON.parse(
+    readFileSync(join(process.cwd(), "config/capas-astraura.json"), "utf8"),
+  ) as { esquema: number; capas: EntradaCapa[] };
+  const capas = crudo.capas;
+
+  it("da de alta 2B, 4B y 9B en estado en-banco, sin promover", () => {
+    for (const id of ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"]) {
+      const entrada = capas.find((e) => e.id === id);
+      expect(entrada, id).toBeDefined();
+      expect(entrada?.estado, id).toBe("en-banco");
+      expect(entrada?.familia, id).toBe("prism-ml/Ternary-Bonsai");
+      expect(entrada?.formato, id).toBe("gguf");
+      expect(entrada?.runtime, id).toBe("llama-cpp");
+      expect(entrada?.version, id).toBe("2 (2026-09-23)");
+      expect(entrada?.medios, id).toEqual(["nativo", "servidor"]);
+      expect(entrada?.espejos, id).toEqual([]);
+      expect(usable(entrada as EntradaCapa), id).toBe(false);
+    }
+  });
+
+  it("cada entrada nueva trae SHA hexadecimal de 64 y un tamaño positivo", () => {
+    for (const id of ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"]) {
+      const entrada = capas.find((e) => e.id === id) as EntradaCapa & { tamano_bytes?: number };
+      expect(entrada, id).toBeDefined();
+      expect(entrada.sha256, id).toMatch(/^[0-9a-f]{64}$/);
+      expect(typeof entrada.tamano_bytes, id).toBe("number");
+      expect(entrada.tamano_bytes as number, id).toBeGreaterThan(0);
+    }
+  });
+
+  it("el JSON sigue siendo válido y los ids siguen siendo únicos", () => {
+    expect(crudo.esquema).toBe(1);
+    expect(leerCatalogo(crudo).capas.length).toBeGreaterThan(0);
+    const ids = capas.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
