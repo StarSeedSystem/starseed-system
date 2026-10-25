@@ -159,10 +159,47 @@ def ram_total_mb() -> Optional[int]:
         pass
     if sys.platform == "darwin":
         # Ruta absoluta: launchd no lleva /usr/sbin en el PATH (mismo motivo que `ioreg` en huella_maquina).
-        rc, out = _sh(["/usr/sbin/sysctl", "-n", "hw.memsize"], tope=10)
+        rc, out = _sh(["/usr/sbin/sysctl", "-n", "hw.memsize"], tope=2)
         if rc == 0 and out.strip().isdigit():
             return int(out.strip()) // (1024 * 1024)
     return None
+
+
+def cpu_pct() -> Optional[float]:
+    """Linux: dos lecturas de /proc/stat separadas 0,3 s → % ocupado; macOS u otros: None (nunca inventado)."""
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        with open("/proc/stat") as f:
+            linea = f.readline()
+        if not linea.startswith("cpu "):
+            return None
+        tiempos1 = list(map(int, linea.split()[1:]))
+        idle1 = tiempos1[3]  # el cuarto valor es el tiempo idle
+        total1 = sum(tiempos1)
+        time.sleep(0.3)
+        with open("/proc/stat") as f:
+            linea = f.readline()
+        if not linea.startswith("cpu "):
+            return None
+        tiempos2 = list(map(int, linea.split()[1:]))
+        idle2 = tiempos2[3]
+        total2 = sum(tiempos2)
+    except (OSError, ValueError, IndexError):
+        return None
+    total_diff = total2 - total1
+    idle_diff = idle2 - idle1
+    if total_diff <= 0:
+        return None
+    return round((total_diff - idle_diff) * 100.0 / total_diff, 1)
+
+
+def disco_total_gb(ruta: str) -> Optional[float]:
+    """Disco TOTAL del aparato (no el libre): shutil.disk_usage. None si no se pudo medir."""
+    try:
+        return round(shutil.disk_usage(ruta).total / 1e9, 1)
+    except OSError:
+        return None
 
 
 def bateria_de(texto_pmset: str) -> Dict[str, Any]:
@@ -631,9 +668,12 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         "autoritativo": autoritativo,
         "orquestadores": orqs,
         "disco_gb": disco_libre_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
+        "disco_total_gb": disco_total_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
         "ram_libre_mb": ram_libre_mb(),
+        "ram_total_mb": ram_total_mb(),
         "nucleos": os.cpu_count(),
         "carga": round(os.getloadavg()[0], 2) if hasattr(os, "getloadavg") else None,
+        "cpu_pct": cpu_pct(),
         "servicios_caidos": [],
         "guardianes_caidos": [],
     }
@@ -679,12 +719,10 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
     except Exception:  # noqa: BLE001 — medir nunca tumba la vuelta
         en_curso = None
     try:
-        ram_mb = ram_total_mb()
-        contenedor = contenedor_de(salud["disco_gb"], ram_mb)
+        contenedor = contenedor_de(salud["disco_gb"], salud["ram_total_mb"])
     except Exception:  # noqa: BLE001
-        ram_mb, contenedor = None, None
+        contenedor = None
     salud["periodo_s"] = float(os.environ.get("STARSEED_NODO_LATIDO_S", L.LATIDO_S))
-    salud["ram_total_mb"] = ram_mb
     salud["en_curso"] = en_curso
     salud["contenedor"] = contenedor
     salud["desconectando"] = desconectando_ahora(ahora)

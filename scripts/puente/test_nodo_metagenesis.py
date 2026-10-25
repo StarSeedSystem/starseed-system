@@ -379,6 +379,21 @@ class TestFotoYTachado(unittest.TestCase):
         self.assertNotEqual(L.huella_foto(a), L.huella_foto(c))
         self.assertIn("líder mac-aaaaaa", L.texto_foto(a))
 
+    def test_vista_lleva_salud_del_nodo_y_respeta_none(self):
+        l = {"nodo": "a1-aaaaaa", "medio": "oracle-a1", "modo": "real", "ts": T0, "salud": {
+            "disco_gb": 9.5, "disco_total_gb": 48.2, "ram_libre_mb": 800, "ram_total_mb": 9830,
+            "cpu_pct": 12.5, "nucleos": 2, "carga": 0.4}}
+        v = L.resumen_nodo("a1-aaaaaa", l, None, T0 + 5)
+        self.assertEqual(v["cpu_pct"], 12.5)
+        self.assertEqual(v["ram_total_mb"], 9830)
+        self.assertEqual(v["disco_total_gb"], 48.2)
+        self.assertEqual(v["nucleos"], 2)
+        self.assertEqual(v["carga"], 0.4)
+        # «No lo sé» se publica como None, nunca como un número inventado.
+        vacia = L.resumen_nodo("a1-aaaaaa", {"salud": {}}, None, T0)
+        for campo in ("cpu_pct", "ram_total_mb", "disco_total_gb", "nucleos", "carga"):
+            self.assertIsNone(vacia[campo])
+
     def test_tachar(self):
         clave = "".join(["sk", "-", "abcdef1234567890XYZ"])
         t = L.tachar("clave %s túnel https://abc-def.trycloudflare.com/x ip 8.8.4.4 local 127.0.0.1" % clave)
