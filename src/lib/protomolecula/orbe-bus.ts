@@ -126,3 +126,65 @@ export function guardarActivada(almacen: AlmacenLocal, activada: boolean): void 
     /* defensivo */
   }
 }
+
+/**
+ * Puerta ÚNICA para activar/desactivar la orbe (botón del lienzo de Trinidad
+ * o Astraura desde cualquier medio): guarda la preferencia, emite el evento
+ * de refresco local y empuja a la cuenta para que llegue a las demás neuronas
+ * en tiempo real. Nunca lanza: el push va fire-and-forget.
+ */
+export function fijarOrbeActivada(
+  activada: boolean,
+  deps?: {
+    almacen?: AlmacenLocal;
+    emitir?: (e: Event) => boolean;
+    empujar?: () => void;
+  },
+): boolean {
+  const almacen: AlmacenLocal | undefined =
+    deps?.almacen ?? (typeof window !== "undefined" ? window.localStorage : undefined);
+  if (almacen) guardarActivada(almacen, activada);
+  if (deps?.emitir) {
+    try {
+      deps.emitir(
+        new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: { activada } }),
+      );
+    } catch {
+      /* defensivo */
+    }
+  } else if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: { activada } }));
+    } catch {
+      /* defensivo */
+    }
+  }
+  if (deps?.empujar) {
+    try {
+      deps.empujar();
+    } catch {
+      /* un fallo del push jamás rompe la activación local */
+    }
+  } else {
+    try {
+      void import("@/lib/settings-sync").then((m) => m.pushPreferences()).catch(() => undefined);
+    } catch {
+      /* defensivo */
+    }
+  }
+  return activada;
+}
+
+/** Invierte el estado guardado y lo fija por la puerta única. */
+export function alternarOrbe(
+  deps?: {
+    almacen?: AlmacenLocal;
+    emitir?: (e: Event) => boolean;
+    empujar?: () => void;
+  },
+): boolean {
+  const almacen: AlmacenLocal | undefined =
+    deps?.almacen ?? (typeof window !== "undefined" ? window.localStorage : undefined);
+  const nuevo = almacen ? !leerActivada(almacen) : !deps?.almacen;
+  return fijarOrbeActivada(nuevo, deps);
+}
