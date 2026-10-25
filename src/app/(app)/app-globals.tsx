@@ -31,6 +31,7 @@ import { AstrauraConfigDrawer } from "@/components/astraura/astraura-config-draw
 import { ModelDownloadNotifier } from "@/components/neurons/model-download-notifier";
 import { NeuronActivityLogger } from "@/components/neurons/neuron-activity-logger";
 import { useEffect } from "react";
+import dynamic from "next/dynamic";
 import { startAstraura158Feed } from "@/lib/astraura/astraura-158-feed";
 // Ventana universal Astraura 1.58 (Ola 5 · Adenda 157): se monta UNA sola vez
 // aquí (mismo patrón que el resto de globales de este archivo) para que
@@ -51,6 +52,10 @@ function Astraura158FeedMount() {
   useEffect(() => startAstraura158Feed(), []);
   return null;
 }
+
+const EntradaGlobalXR = dynamic(() => import("@/components/xr/shell/entrada-global"), {
+  ssr: false,
+});
 
 // AppGlobals es HERMANO de `{children}` (ver app/(app)/layout.tsx): NO envuelve a
 // los children (eso reintroduce el React #310 y rompe el prerender de not-found).
@@ -84,6 +89,7 @@ export default function AppGlobals() {
           discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
+      <EntradaGlobalXR />
     </SoloFueraDeConsola>
   );
 }
