@@ -4,6 +4,7 @@ import type { Candidato } from "../../protomolecula/planificador-computo";
 import type { LinkedServer } from "../../brains/servers";
 import {
   capacidadesNodoToOfertaNeurona,
+  capacidadDeServidor,
   linkedServerToOfertaNeurona,
   candidatoToOfertaNeurona,
    ofertaNeuronaToCandidato,
@@ -71,8 +72,10 @@ describe("adaptadores", () => {
       expect(oferta.nodoId).toBe("srv1");
       expect(oferta.cuentaId).toBe("user1");
       expect(oferta.medio).toBe("nube");
-      expect(oferta.computo.nucleos).toBe(1);
-      expect(oferta.computo.ramLibreMb).toBe(1024);
+      // Sin capacidad declarada no se inventa ninguna: el servidor queda no elegible.
+      expect(oferta.computo.nucleos).toBe(0);
+      expect(oferta.computo.ramLibreMb).toBe(0);
+      expect(oferta.computo.gpu).toBe(false);
       expect(oferta.almacen.prestaMb).toBe(0);
        expect(oferta.presta.cuenta).toBe(true);
        expect(oferta.presta.publico).toBe(true); // Porque el servidor tiene owner y está compartido
@@ -106,10 +109,108 @@ describe("adaptadores", () => {
       expect(oferta.medio).toBe("nube");
       expect(oferta.computo.nucleos).toBe(0);
       expect(oferta.computo.ramLibreMb).toBe(0);
-      expect(oferta.almacen.prestaMb).toBe(1024);
+      // Sin capacidad declarada tampoco se inventa el almacén.
+      expect(oferta.almacen.prestaMb).toBe(0);
       expect(oferta.presta.cuenta).toBe(true);
       expect(oferta.presta.publico).toBe(false); // Porque shared es false
       expect(oferta.t).toBeGreaterThan(0);
+    });
+
+    const servidorConCapacidad = (
+      role: "compute" | "storage",
+      capacidad: Record<string, unknown>
+    ): LinkedServer => ({
+      id: "srv-cap",
+      owner: "user1",
+      name: "Servidor con capacidad",
+      kind: "service",
+      endpoint: "http://example.com",
+      keyRef: "key1",
+      config: { port: 8080, capacidad },
+      status: "conectado",
+      shared: true,
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-02T00:00:00Z",
+      link: { role, priority: 1, sync: { direction: "both", auto: true } },
+    });
+
+    it("usa la capacidad declarada por su dueño", () => {
+      const oferta = linkedServerToOfertaNeurona(
+        servidorConCapacidad("compute", {
+          nucleos: 4,
+          ramLibreMb: 8192,
+          gpu: true,
+          vramMb: 6144,
+          arquitectura: "amd64",
+          fuente: "declarada",
+        })
+      );
+
+      expect(oferta.computo.nucleos).toBe(4);
+      expect(oferta.computo.ramLibreMb).toBe(8192);
+      expect(oferta.computo.gpu).toBe(true);
+      expect(oferta.computo.vramMb).toBe(6144);
+      expect(oferta.almacen.prestaMb).toBe(0);
+    });
+
+    it("usa la capacidad medida y su fecha", () => {
+      const servidor = servidorConCapacidad("storage", {
+        prestaMb: 51200,
+        arquitectura: "arm64",
+        fuente: "medida",
+        medidaEn: "2026-10-20T18:00:00Z",
+      });
+
+      const oferta = linkedServerToOfertaNeurona(servidor);
+
+      expect(oferta.almacen.prestaMb).toBe(51200);
+      expect(oferta.computo.nucleos).toBe(0);
+      expect(capacidadDeServidor(servidor.config)).toEqual({
+        prestaMb: 51200,
+        arquitectura: "arm64",
+        fuente: "medida",
+        medidaEn: "2026-10-20T18:00:00Z",
+      });
+    });
+
+    it("deja el servidor a cero cuando no hay capacidad", () => {
+      const oferta = linkedServerToOfertaNeurona(servidorConCapacidad("compute", {}));
+
+      expect(oferta.computo.nucleos).toBe(0);
+      expect(oferta.computo.ramLibreMb).toBe(0);
+      expect(oferta.computo.gpu).toBe(false);
+      expect(oferta.computo.vramMb).toBeUndefined();
+      expect(oferta.almacen.prestaMb).toBe(0);
+    });
+
+    it("ignora los datos inválidos en vez de inventarlos", () => {
+      const oferta = linkedServerToOfertaNeurona(
+        servidorConCapacidad("compute", {
+          nucleos: -2,
+          ramLibreMb: Number.NaN,
+          gpu: "sí",
+          vramMb: "4096",
+          prestaMb: Infinity,
+          arquitectura: "x86",
+          fuente: "estimada",
+          medidaEn: "   ",
+        })
+      );
+
+      expect(oferta.computo.nucleos).toBe(0);
+      expect(oferta.computo.ramLibreMb).toBe(0);
+      expect(oferta.computo.gpu).toBe(false);
+      expect(oferta.computo.vramMb).toBeUndefined();
+      expect(oferta.almacen.prestaMb).toBe(0);
+      expect(
+        capacidadDeServidor({
+          capacidad: {
+            ramLibreMb: 2048,
+            nucleos: "ocho",
+            arquitectura: "amd64",
+          },
+        })
+      ).toEqual({ ramLibreMb: 2048, arquitectura: "amd64" });
     });
   });
 

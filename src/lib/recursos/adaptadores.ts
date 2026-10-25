@@ -34,23 +34,72 @@ export function capacidadesNodoToOfertaNeurona(nodo: CapacidadesNodo): OfertaNeu
   };
 }
 
+export type ArquitecturaServidor = "amd64" | "arm64";
+export type FuenteCapacidad = "medida" | "declarada";
+
+/** Capacidad que un servidor del cerebro declara de sí mismo. Nada se rellena por defecto. */
+export interface CapacidadServidor {
+  nucleos?: number;
+  ramLibreMb?: number;
+  gpu?: boolean;
+  vramMb?: number;
+  prestaMb?: number;
+  arquitectura?: ArquitecturaServidor;
+  fuente?: FuenteCapacidad;
+  medidaEn?: string;
+}
+
+function numeroNoNegativo(valor: unknown): number | undefined {
+  return typeof valor === "number" && Number.isFinite(valor) && valor >= 0 ? valor : undefined;
+}
+
+/**
+ * Lee `config.capacidad` de un servidor y descarta cada dato inválido.
+ * Devuelve `null` si no hay capacidad utilizable: el servidor queda no elegible.
+ */
+export function capacidadDeServidor(config: Record<string, unknown>): CapacidadServidor | null {
+  const bruto = config?.capacidad;
+  if (!bruto || typeof bruto !== "object" || Array.isArray(bruto)) return null;
+  const datos = bruto as Record<string, unknown>;
+  const capacidad: CapacidadServidor = {};
+  const nucleos = numeroNoNegativo(datos.nucleos);
+  if (nucleos !== undefined) capacidad.nucleos = Math.floor(nucleos);
+  const ramLibreMb = numeroNoNegativo(datos.ramLibreMb);
+  if (ramLibreMb !== undefined) capacidad.ramLibreMb = ramLibreMb;
+  if (typeof datos.gpu === "boolean") capacidad.gpu = datos.gpu;
+  const vramMb = numeroNoNegativo(datos.vramMb);
+  if (vramMb !== undefined) capacidad.vramMb = vramMb;
+  const prestaMb = numeroNoNegativo(datos.prestaMb);
+  if (prestaMb !== undefined) capacidad.prestaMb = prestaMb;
+  if (datos.arquitectura === "amd64" || datos.arquitectura === "arm64") {
+    capacidad.arquitectura = datos.arquitectura;
+  }
+  if (datos.fuente === "medida" || datos.fuente === "declarada") capacidad.fuente = datos.fuente;
+  if (typeof datos.medidaEn === "string" && datos.medidaEn.trim() !== "") {
+    capacidad.medidaEn = datos.medidaEn;
+  }
+  return Object.keys(capacidad).length > 0 ? capacidad : null;
+}
+
 export function linkedServerToOfertaNeurona(servidor: LinkedServer): OfertaNeurona {
   const { role } = servidor.link;
   const isCompute = role === "compute";
   const isStorage = role === "storage";
+  const capacidad = capacidadDeServidor(servidor.config);
+  const gpu = isCompute && capacidad?.gpu === true;
   return {
     nodoId: servidor.id,
     cuentaId: servidor.owner ?? "",
     medio: "nube",
     computo: {
-      nucleos: isCompute ? 1 : 0,
-      ramLibreMb: isCompute ? 1024 : 0,
-      gpu: false,
-      vramMb: undefined,
+      nucleos: isCompute ? capacidad?.nucleos ?? 0 : 0,
+      ramLibreMb: isCompute ? capacidad?.ramLibreMb ?? 0 : 0,
+      gpu,
+      vramMb: gpu ? capacidad?.vramMb : undefined,
       motores: [],
     },
     almacen: {
-      prestaMb: isStorage ? 1024 : 0,
+      prestaMb: isStorage ? capacidad?.prestaMb ?? 0 : 0,
       volumenes: [],
     },
     apps: [],
