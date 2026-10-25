@@ -660,6 +660,20 @@ let cachedPin: AuroraVoiceEngine | null = null;
  * así un cambio en el panel se nota sin esperar al siguiente refresco.
  */
 let cachedPersonaId: string | null = null;
+/**
+ * (SGO1024D) La jerarquía del pin, separada por CAPA al estilo del sistema
+ * primario (precedencia agente › personalidad › cerebro › neurona › cuenta):
+ *   · `cachedPersonaPin` — el pin EXPLÍCITO de la personalidad (`motorVoz` /
+ *     `porSentido.voz` / voz preferida). El pino visible de la personalidad.
+ *   · `cachedDefaultPin` — el pin por DEFECTO del OS (OpenVoice/OmniVoice según
+ *     la vía de la neurona). NO es la elección de la personalidad: su sitio en
+ *     la jerarquía es el último tramo, por debajo de la cuenta explícita y de
+ *     AUTO (antes quedaba mezclado en `cachedPin` y pisaba ambas).
+ * Los pines de AGENTE y CEREBRO aún no existen (sin capa de voz propia): en la
+ * resolución quedan a null y la hereda la capa siguiente.
+ */
+let cachedPersonaPin: AuroraVoiceEngine | null = null;
+let cachedDefaultPin: AuroraVoiceEngine | null = null;
 
 /**
  * (Adenda 149) Override de VOZ que ESTA neurona fija para una personalidad
