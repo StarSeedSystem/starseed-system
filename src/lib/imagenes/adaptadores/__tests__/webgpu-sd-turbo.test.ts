@@ -9,6 +9,7 @@ import {
   TOKENIZER_CLIP_SD_TURBO, VERSION_ONNXRUNTIME_WEB, detectaSDTurbo, generaEnPestana, planPesos, textoBytes,
   type ImagenSDTurbo, type MotorSDTurbo, type SondasWebGPU,
 } from "../webgpu-sd-turbo";
+import { modeloPorId } from "../../modelos";
 
 const BUENAS: SondasWebGPU = { hayWebGPU: true, hayAdaptador: true, f16: true };
 const IMAGEN: ImagenSDTurbo = { ancho: 512, alto: 512, pixeles: new Uint8Array(4), motor: "sd-turbo" };
@@ -41,6 +42,19 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
     expect(CACHE_PESOS_SD_TURBO).toBe("starseed-sd-turbo");
     expect(VERSION_ONNXRUNTIME_WEB).toMatch(/^\d+\.\d+\.\d+$/);
     expect(TOKENIZER_CLIP_SD_TURBO).toBe("Xenova/clip-vit-base-patch16");
+  });
+
+  it("el catálogo lo describe con su licencia «sin comprobar del todo» y el motor onnx-web", () => {
+    const ficha = modeloPorId(MODELO_SD_TURBO);
+    expect(ficha).toBeDefined();
+    expect(ficha!.nota).toContain("sin comprobar del todo");
+    expect(ficha!.motores).toContain("onnx-web");
+    expect(ficha!.uso).toBe("condicionado");
+  });
+
+  it("el total de pesos cuadra con los 2,51 GB documentados y en claro son «2,3 GB»", () => {
+    expect(BYTES_PESOS_SD_TURBO).toBeGreaterThan(Math.round(2.5e9));
+    expect(textoBytes(BYTES_PESOS_SD_TURBO)).toBe("2,3 GB");
   });
 
   it("solo los TRES archivos necesarios: ni encoder del VAE ni scheduler", () => {
@@ -109,10 +123,14 @@ describe("generaEnPestana · flujo completo con el motor simulado", () => {
     expect(llamadas).toEqual([]);
   });
 
-  it("sin permiso o sin espacio para el triple: para en el plan y no toca el motor", async () => {
+  it("sin permiso, sin cuota medible o sin espacio para el triple: para en el plan y no toca el motor", async () => {
     const llamadas: string[] = [];
     expect(await generaEnPestana(motor({}, llamadas), { ...PETICION, permisoDescarga: false })).toMatchObject({ ok: false, accion: "pedir-permiso" });
     expect(await generaEnPestana(motor({ cuotaLibre: async () => BYTES_PESOS_SD_TURBO }, llamadas), PETICION)).toMatchObject({ ok: false, accion: "sin-espacio" });
+    const inmedible = await generaEnPestana(motor({ cuotaLibre: async () => null }, llamadas), PETICION);
+    expect(inmedible).toMatchObject({ ok: false, accion: "sin-espacio" });
+    expect(inmedible.imagen).toBeUndefined();
+    expect(inmedible.motivo).toContain("No se puede comprobar el espacio libre");
     expect(llamadas).toEqual([]);
   });
 
