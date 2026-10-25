@@ -47,8 +47,9 @@ describe('contenedoresPara', () => {
 
     // Extract the paid
     const paid = result.filter((c) => !c.aptoPrivado && c.requierePago);
-    // De pago, en su orden: google-cloud (pide facturación) y huggingface-spaces (Docker pide PRO)
-    expect(paid.map((c) => c.id)).toEqual(['google-cloud', 'huggingface-spaces']);
+    // De pago, en su orden: google-cloud (pide facturación), huggingface-spaces (Docker pide PRO)
+    // y cloudflare-computer (Dynamic Workers piden Workers Paid).
+    expect(paid.map((c) => c.id)).toEqual(['google-cloud', 'huggingface-spaces', 'cloudflare-computer']);
   });
 });
 
@@ -101,6 +102,18 @@ describe('CONTENEDORES_OPCIONES', () => {
     expect(gc?.requiereCuenta).toBe(true);
     expect(gc?.requierePago).toBe(true);
     expect(gc?.aptoPrivado).toBe(false);
+  });
+
+  it('Cloudflare Computer pide cuenta y pago, no es apto privado y avisa de que no hay cupo gratuito', () => {
+    const cf = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudflare-computer');
+    expect(cf).toBeDefined();
+    expect(cf?.requiereCuenta).toBe(true);
+    expect(cf?.requierePago).toBe(true);
+    expect(cf?.aptoPrivado).toBe(false);
+    const requisitos = cf?.requisitos?.join(' ') ?? '';
+    expect(requisitos).toContain('Workers Paid');
+    expect(requisitos).toContain('wrangler');
+    expect(cf?.cupo).toContain('Sin cupo gratuito');
   });
 
   it('should have correct values for Hugging Face Spaces', () => {
