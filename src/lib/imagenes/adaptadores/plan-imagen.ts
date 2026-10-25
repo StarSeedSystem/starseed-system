@@ -4,7 +4,8 @@
  * Este adaptador convierte la petición de imagen en un plan de múltiples opciones
  * a generar según el hierro y las capacidades disponibles.
  */
-import type { PeticionImagen, PlanImagen, NeuronaImg, ModeloImagen } from "@/lib/imagenes/plan";
+import type { PeticionImagen, PlanImagen, NeuronaImg } from "@/lib/imagenes/plan";
+import type { ModeloImagen } from "@/lib/imagenes/modelos";
 import { MODELOS_IMAGEN } from "@/lib/imagenes/modelos";
 
 /** Genera un plan de imágenes basado en una petición y las neuronas disponibles */

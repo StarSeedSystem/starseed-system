@@ -36,7 +36,7 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
     opciones: 3,
     prioridad: "calidad" as const,
     comercial: false,
-    necesita: ["texto-a-imagen"],
+    necesita: ["texto-a-imagen"] as const,
     conReferencia: false,
     permisoRemoto: true,
     permitirDePago: false,
@@ -65,7 +65,7 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
     const { result } = renderHook(() => useTarjetaImagenes());
     
     const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
-    planImagen.mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
+    (planImagen as any).mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
 
     await act(async () => {
       await result.current.generarOpciones(peticionMock);
@@ -80,7 +80,7 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
     const { result } = renderHook(() => useTarjetaImagenes());
     
     const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
-    planImagen.mockRejectedValueOnce(new Error("Error de prueba"));
+    (planImagen as any).mockRejectedValueOnce(new Error("Error de prueba"));
 
     await act(async () => {
       await result.current.generarOpciones(peticionMock);
@@ -101,9 +101,9 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
     const { generarImagen } = await import("@/lib/imagenes/adaptadores/generar-imagen");
     const { guardarEnBiblioteca } = await import("@/lib/imagenes/adaptadores/guardar-biblioteca");
     
-    planImagen.mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
-    generarImagen.mockResolvedValueOnce({ ok: true, url: "http://ejemplo.com/imagen.png" });
-    guardarEnBiblioteca.mockResolvedValueOnce({ id: 1, url: "http://ejemplo.com/imagen.png", timestamp: Date.now() });
+    (planImagen as any).mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
+    (generarImagen as any).mockResolvedValueOnce({ ok: true, url: "http://ejemplo.com/imagen.png" });
+    (guardarEnBiblioteca as any).mockResolvedValueOnce({ id: 1, url: "http://ejemplo.com/imagen.png", timestamp: Date.now() });
 
     await act(async () => {
       await result.current.generarOpciones(peticionMock);
@@ -128,8 +128,8 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
     const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
     const { usarComoReferencia3D } = await import("@/lib/imagenes/adaptadores/usar-como-referencia-3d");
     
-    planImagen.mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
-    usarComoReferencia3D.mockResolvedValueOnce(undefined);
+    (planImagen as any).mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
+    (usarComoReferencia3D as any).mockResolvedValueOnce(undefined);
 
     await act(async () => {
       await result.current.generarOpciones(peticionMock);
@@ -148,8 +148,8 @@ describe("adaptador de tarjeta de imágenes - hook", () => {
     const { planImagen } = await import("@/lib/imagenes/adaptadores/plan-imagen");
     const { abrirEnProtomoleculaEditor } = await import("@/lib/imagenes/adaptadores/abrir-protomolecula");
     
-    planImagen.mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
-    abrirEnProtomoleculaEditor.mockResolvedValueOnce(undefined);
+    (planImagen as any).mockResolvedValueOnce({ opciones: opcionesMock, descartes: [] });
+    (abrirEnProtomoleculaEditor as any).mockResolvedValueOnce(undefined);
     
     await act(async () => {
       await result.current.generarOpciones(peticionMock);
