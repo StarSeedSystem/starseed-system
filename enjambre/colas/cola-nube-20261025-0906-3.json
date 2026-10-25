@@ -1,0 +1,32 @@
+{
+ "ola": "nube-20261025",
+ "tareas": [
+  {
+   "id": "PES1020Bb",
+   "ola": "1020U",
+   "titulo": "Capacidad · un servidor del cerebro no inventa capacidad (medida o declarada, o «sin medir»)",
+   "archivos": [
+    "src/lib/recursos/adaptadores.ts",
+    "src/lib/recursos/__tests__/adaptadores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §3: `linkedServerToOfertaNeurona` pone 1 núcleo, 1024 MB y sin GPU a todo servidor de cómputo o almacenamiento, sin medir nada. Que lea `servidor.config.capacidad` (validada: `nucleos`, `ramLibreMb`, `gpu`, `vramMb`, `prestaMb`, `arquitectura` amd64|arm64, `fuente` medida|declarada, `medidaEn`) y, si no hay, deje cómputo y almacén a 0 (no elegible) en vez de inventar. Actualiza SOLO los casos de la prueba existente que esperaban 1024 y añade los nuevos: capacidad declarada, medida, ausente y con datos inválidos (se ignoran). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39992894849`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39992894849:refs/remotes/origin/nube/39992894849\"` y `git cherry-pick --no-commit 35e85a1ebc0d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/cerebros/__tests__/medios-efectivos.test.ts, src/lib/recursos/__tests__/adaptadores.test.ts, src/lib/recursos/adaptadores.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39992894849"
+  },
+  {
+   "id": "IMN1021Lb",
+   "ola": "1021I",
+   "titulo": "Memoria · quitar las marcas de conflicto de aprendizaje-olas.md y que no vuelvan",
+   "archivos": [
+    "memory/aprendizaje-olas.md",
+    "scripts/puente/director_aprendizaje.py",
+    "scripts/puente/test_director_aprendizaje.py"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §7. `memory/aprendizaje-olas.md` tiene 11 marcas de conflicto (`<<<<<<<`, `=======`, `>>>>>>>`) desde la línea ~4336, de fusiones de commits «chore(memoria): aprendizaje de la ola mg-oracle-…». Es un archivo de lecciones que solo se añaden: resuélvelo con la UNIÓN de ambas partes, sin duplicar líneas idénticas y conservando el orden; nada fuera de esa zona cambia. En `director_aprendizaje.py` añade `resolver_marcas(texto)` (pura: unión sin duplicados) y llámala antes de escribir y antes de commitear, de modo que nunca se commitee un archivo con marcas. Prueba nueva `test_director_aprendizaje.py` de `resolver_marcas` (marcas anidadas incluidas) y de que el archivo final no tiene marcas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-202315-IMN1021L`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-202315-IMN1021L:refs/remotes/origin/nube/a1-20261024-202315-IMN1021L\"` y `git cherry-pick --no-commit 63bbcd029457 2b1354166051 4178542479a4 4e4e295b5958 3ae8fd4b9a26`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, scripts/puente/director_aprendizaje.py, scripts/puente/resolver_marcas_test.py, scripts/puente/test_director_aprendizaje.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-202315-IMN1021L"
+  }
+ ]
+}
