@@ -5,15 +5,19 @@ importancia y destino; y el automático de la Ola 1024I (§3: integrar solo, rei
 solo o dejar en la lista manual). Sin red, sin disco y sin reloj: el mundo entra por
 `existe(ruta)` y Jev por `consejo(p)`; Jev solo veta o ajusta con p ≥ 0,8 y NUNCA
 convierte un «no» de la regla en un «sí». La cita que ya no está vale 0 («ya no aplica»).
-Alta y crítica jamás se integran solas: ningún ajuste ni consejo lo cambia."""
+Alta y crítica jamás se integran solas: ningún ajuste ni consejo lo cambia.
+Ola 1025S (IMG1025A): el automático decide también las creaciones de Astraura y lo que no es código
+(utilidad por sustancia, `utilidad_propuesta`), descarta duplicadas y reparte las reimaginaciones."""
 from __future__ import annotations
-import re, unicodedata
+import json, re, unicodedata
 from typing import Callable, Dict, Optional, Tuple
 Existe = Callable[[str], bool]; UMBRAL_UTIL = 0.6
 VERIFICACION = {"verificado": 1.0, "ajustado": 0.8, "sin verificar": 0.4, "sin dato": 0.6}
 VERBOS = ("anadir", "agregar", "crear", "implementar", "arreglar", "corregir", "migrar", "renombrar", "eliminar", "borrar", "quitar", "documentar", "actualizar", "cablear", "optimizar", "proteger", "validar", "sincronizar", "unificar", "ajustar", "mejorar", "integrar", "evitar", "exportar", "importar", "depurar", "medir", "cambiar", "aplicar", "normalizar", "programar", "revisar", "comprobar", "verificar", "probar")
 RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "comprar", "compra", "pagar", "pago", "suscripcion", "contrasena", "clave", "token", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
 CUENTAS = re.compile(r"\b(crear|borrar|eliminar|gestionar|cerrar|abrir|cambiar)\s+(la\s+|las\s+)?cuentas?\b|\bcuentas?\s+(de\s+alex|de\s+usuario|bancarias?|de\s+pago)\b")
+#: Credenciales escritas de cualquier forma (también dentro de un nombre de archivo: «r2_credentials.json»).
+SECRETOS = re.compile(r"credencial|credential|password|passwd|contrasena|api[_-]?key|private[_-]?key")
 CRITICAS = ("src/lib/nucleo", "identidad", "cuentas", "permisos", "sharing/access", "gobernanza", "voto", "claves", "seguridad", "supabase/migrations", ".github/", "scripts/puente/autopublicar.py", "scripts/puente/publicar.py", "scripts/puente/instalar-servicios.py")
 def _norm(v):
     t = unicodedata.normalize("NFKD", str(v or "").lower())
@@ -40,6 +44,7 @@ def es_de_alex(p: Dict) -> str:
     for tema in RESERVADOS:
         if re.search(rf"\b{tema}\b", texto): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
     if CUENTAS.search(texto): return "no accionable por el enjambre (cuentas): es de Alex → pregunta"
+    if SECRETOS.search(texto): return "no accionable por el enjambre (credenciales): es de Alex → pregunta"
     return ""
 def es_accionable(p: Dict, existe: Existe) -> Tuple[bool, str]:
     texto = _texto(p); de_alex = es_de_alex(p)
@@ -112,9 +117,21 @@ def nivel(v):
 def importancia_visible(imp):
     """Como se guarda en propuestas.json (contrato §1, la que lee Genesis): «crítica» con acento."""
     return "crítica" if nivel(imp) == "critica" else (nivel(imp) or "media")
+def nivel_astraura(v):
+    """El `importance_level` del backend 1.58 (low · medium · high · critical_security) → nuestro nivel."""
+    t = _norm(v).strip()
+    return "critica" if t.startswith(("critical", "critica")) else nivel(t)
+def importancia_declarada(p):
+    """La que declara quien propone: `importancia_declarada` y, en Astraura, su `origen.importance_level`
+    (Ola 1025S: una creación que Astraura marca «critical_security» no es «baja» por no citar archivos)."""
+    niveles = [nivel(p.get("importancia_declarada"))]
+    o = p.get("origen") if isinstance(p.get("origen"), dict) else {}
+    if p.get("fuente") == "astraura": niveles.append(nivel_astraura(o.get("importance_level")))
+    niveles = [n for n in niveles if n]
+    return max(niveles, key=NIVELES.index) if niveles else ""
 def importancia(p):
     """La de la regla o la que declare quien propone, la MAYOR: declarar «baja» no rebaja nada."""
-    regla, declarada = _importancia_regla(p), nivel(p.get("importancia_declarada"))
+    regla, declarada = _importancia_regla(p), importancia_declarada(p)
     return max(regla, declarada or "baja", key=NIVELES.index)
 def _importancia_regla(p):
     """Crítica (núcleo e intocable), alta (>3 archivos, borra, cuentas, router IA) o menor."""
@@ -141,14 +158,30 @@ def destino(p, automatico, existe=None):
     motivo = f"importancia {imp}: siempre con tu visto bueno" + (" y diff antes de integrar" if diff else "")
     return {"destino": "esperando-aprobacion", "aprobacion_diff": diff, "motivo": motivo}
 
-# ─────────────── el automático (Ola 1024I · IMG1024C, contrato §3) ───────────────
-#: Solo estas fuentes las decide el automático: las preguntas de los directores son decisiones de
-#: Alex por definición y las creaciones de Astraura se aplican en su backend con su visto bueno.
-FUENTES_AUTO = ("diaria", "profunda", "agentes")
-#: Lo que la automática puede reimaginar sola: un contenido o una investigación no se «arregla»
-#: citando archivos; eso lo reimagina Alex a mano si quiere.
-TIPOS_REIMAGINABLES = ("codigo", "diseno")
+# ─────────────── el automático (Ola 1024I · IMG1024C, contrato §3; Ola 1025S · IMG1025A) ───────────────
+#: Las fuentes que decide el automático. Desde la Ola 1025S también Astraura (sus creaciones y ramas se
+#: aplican en su backend 1.58); las preguntas de los directores siguen siendo decisiones de Alex.
+FUENTES_AUTO = ("diaria", "profunda", "agentes", "astraura")
+#: Lo que se puede reimaginar solo: desde la Ola 1025S, cualquier tipo (el analista reimagina en modo
+#: libre). Lo de Astraura no: vive en su backend y una versión de la flota no se puede aplicar allí.
+TIPOS_REIMAGINABLES = ("codigo", "diseno", "contenido", "investigacion", "otro")
+#: Lo que, si no es una tarea de código accionable, se integra como ENTREGABLE (el analista en modo libre).
+TIPOS_ENTREGABLE = ("diseno", "contenido", "investigacion", "otro")
+#: Por dónde se integra una propuesta aprobada: cola de código, backend de Astraura o entregable libre.
+VIAS = ("codigo", "astraura", "entregable")
+#: Lo que espera una decisión (para las duplicadas): nunca lo que ya decidió Alex ni lo que está en vuelo.
+PENDIENTES = ("nueva", "pregunta", "esperando-aprobacion", "autodesarrollo")
+#: Versión de las reglas: entra en la firma, así lo pendiente se vuelve a decidir cuando cambian.
+REGLAS = "1025S"
+#: Reimaginaciones nuevas del automático por ciclo (el director corre cada 15 min) y en vuelo a la vez:
+#: así 230 propuestas no salen de golpe hacia los modelos gratuitos. Lo de Alex no cuenta: se hace siempre.
+TOPE_POR_CICLO, MAX_EN_VUELO = 12, 24
 MAX_NOTAS = 2000
+#: Sustancia de lo que no es código: caracteres útiles, elementos de estructura y referencias https
+#: con los que la medida llega a 1 (pesos 0,5 · 0,25 · 0,25).
+LARGO_PLENO, ESTRUCTURA_PLENA, REFERENCIAS_PLENAS = 1500, 6, 3
+NOMBRES_JSON = ("agent", "agente", "name", "nombre", "title", "titulo")
+CAPACIDADES_JSON = ("capabilities", "capacidades", "skills", "habilidades", "tools", "herramientas", "functions", "funciones")
 def _auto(ajustes):
     a = (ajustes or {}).get("auto") if isinstance(ajustes, dict) else None
     return a if isinstance(a, dict) else {}
@@ -157,21 +190,160 @@ def umbral_efectivo(ajustes):
     a = _auto(ajustes)
     return max(UMBRAL_UTIL, _num(a.get("umbral")) or 0.0) if a.get("aprobar") else UMBRAL_UTIL
 def firma(ajustes):
-    """Huella de los ajustes que deciden el automático: si cambia, lo pendiente se vuelve a mirar."""
+    """Huella de los ajustes (y de la versión de las reglas) que deciden el automático: si cambia, lo
+    pendiente se vuelve a mirar."""
     a = _auto(ajustes)
-    return "%d|%d|%d|%s|%s" % (bool((ajustes or {}).get("automatico")), bool(a.get("aprobar")), bool(a.get("reimaginar")),
-                               _coma(umbral_efectivo(ajustes)), int(_num(a.get("max_reimaginaciones")) or 0))
+    return "%s|%d|%d|%d|%s|%s" % (REGLAS, bool((ajustes or {}).get("automatico")), bool(a.get("aprobar")), bool(a.get("reimaginar")),
+                                  _coma(umbral_efectivo(ajustes)), int(_num(a.get("max_reimaginaciones")) or 0))
 def version(p):
     v = p.get("version")
     return v if isinstance(v, int) and not isinstance(v, bool) and v >= 1 else 1
 def reimaginaciones_libres(p, maximo):
     """Las que le quedan a la cadena: la v1 es la original, cada versión nueva gasta una."""
     return max(0, int(_num(maximo) or 0) - (version(p) - 1))
+
+# ── por dónde se integra y cuánto vale lo que no es código (Ola 1025S) ──
+def via(p, existe=None):
+    """codigo (tarea accionable para el enjambre) · astraura (se aplica en su backend) · entregable (lo que no es
+    código: diseño, contenido, investigación u otro; lo produce el analista en modo libre). Un «codigo» que no
+    es accionable sigue siendo código: se reimagina para que lo sea, nunca se convierte en un ensayo."""
+    if p.get("fuente") == "astraura": return "astraura"
+    if _es_codigo(p, existe): return "codigo"
+    return "entregable" if (p.get("tipo") or "codigo") in TIPOS_ENTREGABLE else "codigo"
+_COMENTARIO = re.compile(r"/\*.*?\*/|<!--.*?-->|(?:^|(?<=\s))//[^\n]*", re.S | re.M)
+_URL_HTTPS = re.compile(r"https://[^\s)\]>\"'`]+")
+def _texto_util(cuerpo):
+    """El cuerpo sin comentarios de código ni cuerpos vacíos `{ }`: un esqueleto de función no es sustancia."""
+    t = _COMENTARIO.sub(" ", str(cuerpo or ""))
+    t = re.sub(r"\{\s*\}", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+def medir_sustancia(p):
+    """{caracteres, estructura, referencias}: caracteres útiles del cuerpo, elementos de estructura Markdown
+    (títulos, puntos de lista, filas de tabla y párrafos de ≥ 40 caracteres) y referencias https distintas
+    (las de `referencias` y las del texto). PURA."""
+    cuerpo = str(p.get("cuerpo") or "")
+    if cuerpo.strip() == str(p.get("titulo") or "").strip(): cuerpo = ""
+    lineas = cuerpo.splitlines()
+    titulos = sum(1 for x in lineas if re.match(r"^\s{0,3}#{1,6}\s+\S", x))
+    puntos = sum(1 for x in lineas if re.match(r"^\s*(?:[-*+]|\d+[.)])\s+\S", x))
+    tabla = sum(1 for x in lineas if re.match(r"^\s*\|.*\|\s*$", x) and not re.match(r"^\s*\|[\s:|-]+\|\s*$", x))
+    parrafos = sum(1 for b in re.split(r"\n\s*\n", _COMENTARIO.sub(" ", cuerpo)) if len(_texto_util(b)) >= 40)
+    refs = {str(r.get("url")) for r in (p.get("referencias") or []) if isinstance(r, dict) and str(r.get("url") or "").startswith("https://")}
+    refs |= {u.rstrip(".,;:") for u in _URL_HTTPS.findall(cuerpo)}
+    return {"caracteres": len(_texto_util(cuerpo)), "estructura": titulos + puntos + tabla + parrafos, "referencias": len(refs)}
+def _valor_sustancia(m):
+    return round(0.5 * min(1.0, m["caracteres"] / LARGO_PLENO) + 0.25 * min(1.0, m["estructura"] / ESTRUCTURA_PLENA)
+                 + 0.25 * min(1.0, m["referencias"] / REFERENCIAS_PLENAS), 4)
+def _frena(p, consejo, valor, motivo):
+    """Jev de consejero: solo FRENA (veta → 0, «bajar» → −0,1) y solo con p ≥ 0,8; nunca sube nada."""
+    if consejo is None: return valor, motivo
+    try: aviso = consejo(p)
+    except Exception: return valor, motivo
+    if not isinstance(aviso, dict): return valor, motivo
+    prob = _num(aviso.get("p", aviso.get("prob")))
+    if prob is None or prob < 0.8: return valor, motivo
+    nota = f"{motivo}; jev: p={prob:g}"
+    if aviso.get("veta") or aviso.get("veto") or aviso.get("accion") == "veta": return 0.0, f"{nota}; Jev veta"
+    if _norm(aviso.get("prioridad") or aviso.get("ajuste")) in ("bajar", "baja", "baja prioridad"):
+        return max(0.0, round(valor - 0.1, 4)), f"{nota}; Jev baja prioridad"
+    return valor, nota
+def utilidad_libre(p, consejo=None):
+    """Utilidad 0–1 de lo que no es código (contenido, diseño, investigación): sustancia = 0,5 × longitud útil
+    (1500 caracteres = 1) + 0,25 × estructura (6 elementos = 1) + 0,25 × referencias https (3 = 1). PURA y
+    determinista; Jev solo puede frenarla."""
+    m = medir_sustancia(p)
+    motivo = "sustancia: %d caracteres útiles, %d elemento(s) de estructura, %d referencia(s) https" % (m["caracteres"], m["estructura"], m["referencias"])
+    if not m["caracteres"]: return _frena(p, consejo, 0.0, "vacía: solo trae el título")
+    return _frena(p, consejo, _valor_sustancia(m), motivo)
+def _sustancial(v):
+    if isinstance(v, bool) or v is None: return False
+    if isinstance(v, (int, float)): return True
+    if isinstance(v, str): return len(v.strip()) >= 3 and _norm(v).strip() not in ("todo", "tbd", "n/a", "none", "null", "...")
+    if isinstance(v, (list, tuple)): return any(_sustancial(x) for x in v)
+    if isinstance(v, dict): return any(_sustancial(x) for x in v.values())
+    return False
+def utilidad_astraura(p, consejo=None):
+    """Utilidad 0–1 de una creación (o rama) de Astraura. JSON válido con nombre y capacidades → 0,9; con ≥ 3
+    campos sustanciales → 0,8; con 1–2 → 0,4; vacío → 0,05; roto → 0,1. En texto, la sustancia de
+    `utilidad_libre` (un esqueleto de código con la función vacía vale casi 0). PURA; Jev solo frena."""
+    cuerpo = str(p.get("cuerpo") or "").strip()
+    if not cuerpo or cuerpo == str(p.get("titulo") or "").strip():
+        return _frena(p, consejo, 0.05, "creación de Astraura vacía: solo trae el título")
+    if cuerpo[0] not in "{[":
+        valor, motivo = utilidad_libre(p)
+        return _frena(p, consejo, valor, "creación de Astraura en texto · " + motivo)
+    try: obj = json.loads(cuerpo)
+    except ValueError: return _frena(p, consejo, 0.1, "creación de Astraura con el JSON roto")
+    if isinstance(obj, dict):
+        campos = [k for k, v in obj.items() if _sustancial(v)]
+        nombre = any(isinstance(obj.get(k), str) and _sustancial(obj.get(k)) for k in NOMBRES_JSON)
+        capacidades = any(isinstance(obj.get(k), (list, dict)) and _sustancial(obj.get(k)) for k in CAPACIDADES_JSON)
+        if nombre and capacidades: valor, motivo = 0.9, "JSON válido con nombre y capacidades (%d campos sustanciales)" % len(campos)
+        elif len(campos) >= 3: valor, motivo = 0.8, "JSON válido con %d campos sustanciales" % len(campos)
+        elif campos: valor, motivo = 0.4, "JSON válido con solo %d campo(s) sustancial(es)" % len(campos)
+        else: valor, motivo = 0.05, "JSON vacío"
+    elif isinstance(obj, list):
+        n = sum(1 for x in obj if _sustancial(x))
+        valor, motivo = (0.6, "lista JSON de %d elementos" % n) if n >= 3 else ((0.3, "lista JSON de %d elemento(s)" % n) if n else (0.05, "lista JSON vacía"))
+    else: valor, motivo = 0.1, "JSON sin estructura"
+    return _frena(p, consejo, valor, "creación de Astraura: " + motivo)
+def utilidad_propuesta(p, existe, consejo=None):
+    """La utilidad que usa el director (Ola 1025S): la de código (`utilidad`) para lo que va a la cola de código;
+    la de Astraura o la de sustancia para lo demás. Lo de Alex vale 0, venga por donde venga."""
+    camino = via(p, existe)
+    if camino == "codigo": return utilidad(p, existe, consejo)
+    alex = es_de_alex(p)
+    if alex: return 0.0, alex
+    return utilidad_astraura(p, consejo) if camino == "astraura" else utilidad_libre(p, consejo)
+def ya_autorizada_por_astraura(p):
+    """Una rama que el orquestador de Astraura ya autorizó y ejecuta (`requires_user_approval: false` y estado
+    que no es «pending_approval»): Astraura no pide nada, así que no hay nada que decidir aquí."""
+    o = p.get("origen") if isinstance(p.get("origen"), dict) else {}
+    if p.get("fuente") != "astraura" or o.get("requires_user_approval") is not False: return False
+    estado = _norm(o.get("status")).strip()
+    return bool(estado) and estado not in ("pending_approval", "pending", "pendiente")
+
+# ── duplicadas y orden ──
+def titulo_normalizado(t):
+    """Sin acentos, emojis ni puntuación, en minúsculas y con un espacio entre palabras."""
+    return re.sub(r"[^a-z0-9]+", " ", _norm(t)).strip()
+def reciente(p):
+    """Clave «más reciente»: la fecha de su origen, los números de su id (las marcas de tiempo de Astraura,
+    la fecha de un agente) y su instante. Mayor = más reciente."""
+    o = p.get("origen") if isinstance(p.get("origen"), dict) else {}
+    return (str(o.get("fecha") or ""), tuple(int(x) for x in re.findall(r"\d+", str(p.get("id") or ""))[:8]),
+            str(p.get("t") or ""), str(p.get("id") or ""))
+def duplicadas(propuestas):
+    """[(duplicada, id de la que se queda)]. Entre las PENDIENTES de una misma fuente automática y ámbito con el
+    mismo título normalizado se queda la más reciente; las demás se descartan (y se pueden rescatar). PURA."""
+    grupos = {}
+    for p in propuestas:
+        if not isinstance(p, dict) or (p.get("estado") or "nueva") not in PENDIENTES or p.get("fuente") not in FUENTES_AUTO: continue
+        t = titulo_normalizado(p.get("titulo"))
+        if t: grupos.setdefault((p.get("fuente"), p.get("ambito") or "metagenesis", t), []).append(p)
+    fuera = []
+    for g in grupos.values():
+        if len(g) > 1:
+            g = sorted(g, key=reciente, reverse=True)
+            fuera += [(p, g[0].get("id")) for p in g[1:]]
+    return fuera
+def orden_reimaginar(propuestas):
+    """Primero la más importante y, dentro, la más reciente (el tope por ciclo corta por aquí). PURA."""
+    return sorted(propuestas, key=lambda p: (NIVELES.index(importancia(p)), reciente(p)), reverse=True)
+
 def critica(p, umbral, existe=None):
-    """Las notas de una reimaginación automática: por qué no llegó y qué la haría llegar (≤ 2000)."""
+    """Las notas de una reimaginación automática: por qué no llegó y qué la haría llegar (≤ 2000). Lo que no
+    es código se juzga por su sustancia; el código, por lo que lo hace accionable."""
     u = _num(p.get("utilidad")) or 0.0
     partes = [f"No llegó a integrarse sola: utilidad {_coma(round(u, 2))} < umbral {_coma(umbral)}."]
     if p.get("motivo"): partes.append(f"Motivo de la regla: {str(p['motivo'])[:400]}.")
+    if via(p, existe) == "entregable":
+        m = medir_sustancia(p)
+        if m["caracteres"] < LARGO_PLENO: partes.append(f"Desarróllala hasta un entregable completo (hoy {m['caracteres']} caracteres útiles; ≈ {LARGO_PLENO} o más, sin relleno).")
+        if m["estructura"] < ESTRUCTURA_PLENA: partes.append("Dale estructura: secciones con título, listas y párrafos claros.")
+        if m["referencias"] < REFERENCIAS_PLENAS: partes.append(f"Apóyala en referencias https verificables (hoy {m['referencias']}; al menos {REFERENCIAS_PLENAS}), nunca inventadas.")
+        partes.append(f"Conserva la intención, el tipo «{p.get('tipo') or 'otro'}» y las referencias útiles; no inventes datos ni citas.")
+        return " ".join(partes)[:MAX_NOTAS]
     archivos = _archivos(p)
     if existe is not None and archivos:
         faltan = [a for a in archivos if not _existe(existe, a)]
@@ -196,33 +368,54 @@ def veto_jev(p, consejo):
     if prob is None or prob < 0.8: return False, ""
     if aviso.get("veta") or aviso.get("veto") or aviso.get("accion") == "veta": return True, f"jev: p={prob:g}"
     return False, f"jev: p={prob:g}"
+def _origen_importancia(p):
+    o = p.get("origen") if isinstance(p.get("origen"), dict) else {}
+    return f" (Astraura la marca «{o['importance_level']}»)" if p.get("fuente") == "astraura" and o.get("importance_level") else ""
 def automatica(p, ajustes, existe=None, consejo=None):
-    """Destino de una propuesta con los ajustes completos (`validar_ajustes`). Devuelve {destino,
-    aprobacion_diff, motivo, notas}: autodesarrollo (se integra sola) · reimaginando (`notas` = la
-    crítica) · nueva / esperando-aprobacion / pregunta (lista manual). Con el automático entero apagado
-    es `destino(p, False)`; alta y crítica salen SIEMPRE de `destino`, que nunca las integra."""
+    """Destino de una propuesta con los ajustes completos (`validar_ajustes`). Devuelve {destino, aprobacion_diff,
+    motivo, notas}: autodesarrollo (código que se integra solo) · aprobada (lo que no es código y se integra solo:
+    en Astraura o como entregable) · reimaginando (`notas` = la crítica) · descartada (Astraura ya la autorizó) ·
+    nueva / esperando-aprobacion / pregunta (lista manual). Con el automático entero apagado es `destino(p, False)`;
+    alta y crítica NUNCA se integran ni se reimaginan solas, y lo de Alex nunca se toca solo."""
     a, aj = _auto(ajustes), ajustes if isinstance(ajustes, dict) else {}
     integra = bool(aj.get("automatico")) or bool(a.get("aprobar"))
-    reimagina = bool(a.get("reimaginar"))
+    reimagina, boton = bool(a.get("reimaginar")), bool(a.get("aprobar")) or bool(a.get("reimaginar"))
     imp = importancia(p); base = dict(destino(p, integra, existe), notas="")
-    if imp in ("alta", "critica") or p.get("fuente") not in FUENTES_AUTO or not (integra or reimagina) or es_de_alex(p):
+    camino = via(p, existe)
+    # Lo que no es código solo lo decide el botón de la Ola 1024I, nunca el «automático» viejo de la 1021I.
+    if p.get("fuente") not in FUENTES_AUTO or not (integra or reimagina) or (camino != "codigo" and not boton):
         return base
     def manual(d, motivo): return {"destino": d, "aprobacion_diff": False, "motivo": motivo, "notas": ""}
+    alex = es_de_alex(p)
+    if alex: return dict(base, motivo=alex.replace(" → pregunta", "") + ": la decides tú")
+    if camino == "astraura" and ya_autorizada_por_astraura(p):
+        return manual("descartada", "Astraura ya la autorizó y la ejecuta sola (no pide tu aprobación): no hay nada que decidir")
+    if imp in ("alta", "critica"):
+        if camino == "codigo": return base
+        return manual("esperando-aprobacion", f"importancia {importancia_visible(imp)}{_origen_importancia(p)}: siempre con tu visto bueno")
     amb = p.get("ambito") or "metagenesis"
     if amb != "metagenesis": return manual("nueva", f"ámbito {amb}: lo decide su dueño, no el automático de MetaGenesis")
     umbral, u = umbral_efectivo(aj), _num(p.get("utilidad")) or 0.0
-    codigo = _es_codigo(p, existe)
-    if integra and codigo and u >= umbral:
+    aprueba = integra if camino == "codigo" else bool(a.get("aprobar"))
+    if aprueba and u >= umbral:
         vetada, nota = veto_jev(p, consejo)
-        if not vetada:
-            return {"destino": "autodesarrollo", "aprobacion_diff": False, "notas": "",
-                    "motivo": f"utilidad {_coma(round(u, 2))} ≥ umbral {_coma(umbral)} e importancia {imp}: se integra sola" + (f" ({nota})" if nota else "")}
-        return manual("nueva", f"Jev veta la integración automática ({nota}): queda en tu lista")
+        if vetada: return manual("nueva", f"Jev veta la integración automática ({nota}): queda en tu lista")
+        cola = f"utilidad {_coma(round(u, 2))} ≥ umbral {_coma(umbral)} e importancia {imp}: se integra sola"
+        extra = f" ({nota})" if nota else ""
+        if camino == "codigo": return {"destino": "autodesarrollo", "aprobacion_diff": False, "notas": "", "motivo": cola + extra}
+        donde = "se aplica en Astraura" if camino == "astraura" else "la flota prepara el entregable"
+        return manual("aprobada", f"{cola} ({donde}){extra}")
     quedan = reimaginaciones_libres(p, a.get("max_reimaginaciones"))
-    if reimagina and u < umbral and quedan > 0 and (p.get("tipo") or "codigo") in TIPOS_REIMAGINABLES:
+    tipo = p.get("tipo") or "codigo"
+    if reimagina and u < umbral and quedan > 0 and camino != "astraura" and tipo in TIPOS_REIMAGINABLES:
         return {"destino": "reimaginando", "aprobacion_diff": False, "notas": critica(p, umbral, existe),
                 "motivo": f"no llega al umbral {_coma(umbral)}: se reimagina sola (le quedan {quedan})"}
-    if not integra: return base
-    if not codigo: return base
+    if camino == "codigo":
+        if not integra or not _es_codigo(p, existe): return base
+        sin = "; sin reimaginaciones libres" if reimagina and quedan <= 0 else ""
+        return manual("nueva", f"utilidad {_coma(round(u, 2))} < umbral {_coma(umbral)}{sin}: queda en tu lista")
+    if u >= umbral: return manual("esperando-aprobacion", f"utilidad {_coma(round(u, 2))} ≥ umbral pero la aprobación automática está apagada: espera tu visto bueno")
+    if camino == "astraura":
+        return manual("nueva", f"utilidad {_coma(round(u, 2))} < umbral {_coma(umbral)}: queda en tu lista (la rehace Astraura, no la flota)")
     sin = "; sin reimaginaciones libres" if reimagina and quedan <= 0 else ""
     return manual("nueva", f"utilidad {_coma(round(u, 2))} < umbral {_coma(umbral)}{sin}: queda en tu lista")

@@ -254,5 +254,185 @@ class Imaginacion1024Test(unittest.TestCase):
             decidir.consultar = previo
 
 
+class Ola1025STest(unittest.TestCase):
+    """Ola 1025S · IMG1025A: el automático decide todas las fuentes y tipos, con tope por ciclo y sin duplicadas."""
+    ESQUEMA = json.dumps({"agent": "Hephaestus-NEON", "capabilities": ["ARM64_Vectorization", "Self_Correction"],
+                          "allocated_cores": 3})
+    RICO = ("## Qué\nUna guía de tono para la comunidad.\n\n## Por qué\n" + "Textos claros que explican cada función sin jerga. " * 30
+            + "\n\n- claridad\n- cercanía\n- accesibilidad\n\nVer https://www.w3.org/WAI/ y https://material.io/x y https://a11y.org/\n")
+
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory(); self.home = os.path.join(self.t.name, "h"); self.raiz = os.path.join(self.t.name, "r")
+        self.mem = os.path.join(self.raiz, "starseed_memory_root"); os.makedirs(self.home); os.makedirs(self.raiz)
+        json.dump({"auto": {"aprobar": True, "reimaginar": True, "umbral": 0.75, "max_reimaginaciones": 2}},
+                  open(os.path.join(self.home, "autodesarrollo.json"), "w"))
+        self.aplicadas = []
+
+    def tearDown(self):
+        self.t.cleanup()
+
+    def aplicar(self, item):
+        self.aplicadas.append(item); return None
+
+    def correr(self, **kw):
+        args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: False,
+                    lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True, agente_referencias=lambda raiz, ahora: None,
+                    aplicar_astraura=self.aplicar, datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
+        args.update(kw); return D.ciclo(**args)
+
+    def sembrar(self, lista):
+        os.makedirs(os.path.join(self.mem, "imaginacion"), exist_ok=True)
+        json.dump({"propuestas": lista}, open(os.path.join(self.mem, "imaginacion", "propuestas.json"), "w", encoding="utf-8"), ensure_ascii=False)
+
+    def props(self):
+        return {p["id"]: p for p in json.load(open(os.path.join(self.mem, "imaginacion", "propuestas.json"), encoding="utf-8"))["propuestas"]}
+
+    def astraura(self, ident, nivel="medium", estado="pregunta", **extra):
+        p = {"id": "astraura:" + ident, "fuente": "astraura", "titulo": "Esquema de Agente Mutado: Hephaestus-NEON", "cuerpo": self.ESQUEMA,
+             "archivos": [], "cita": "astraura:creacion/" + ident, "estado": estado, "auto_firma": "1|1|1|0,75|2",
+             "origen": {"fecha": "2026-10-24", "tipo": "creacion", "id": ident, "importance_level": nivel,
+                        "requires_user_approval": True, "status": "pending_approval"}}
+        p.update(extra); return p
+
+    def libre(self, ident, cuerpo=None, **extra):
+        p = {"id": "agentes:a--" + ident, "fuente": "agentes", "agente": "a", "tipo": "contenido", "titulo": "Guía " + ident,
+             "cuerpo": self.RICO if cuerpo is None else cuerpo, "archivos": [], "referencias": [], "estado": "nueva", "version": 1,
+             "origen": {"fecha": "2026-10-24"}}
+        p.update(extra); return p
+
+    def test_la_firma_vieja_alcanza_a_astraura_y_la_aplica_en_su_backend(self):
+        self.sembrar([self.astraura("creation_1")])
+        r = self.correr()
+        p = self.props()["astraura:creation_1"]
+        self.assertEqual((p["estado"], p["auto_firma"], p["via"]), ("hecha", D.AD.firma(D.AL.validar_ajustes(
+            {"auto": {"aprobar": True, "reimaginar": True}})), "astraura"))
+        self.assertEqual(self.aplicadas, [{"item_id": "creation_1", "item_type": "creation"}])
+        self.assertEqual((r["aplicadas_astraura"], r["autodesarrolladas"]), (1, 0))  # nunca a la cola de código
+        self.assertFalse(os.path.isdir(os.path.join(self.mem, "olas")))
+
+    def test_astraura_dormida_espera_y_tres_rechazos_vuelven_a_tu_lista(self):
+        self.sembrar([self.astraura("creation_1"), self.astraura("creation_2", titulo="Otro esquema")])
+        llamadas = []
+        caida = lambda item: llamadas.append(item) or "el backend 1.58 no responde"
+        for minuto in (0, 15, 30):
+            self.correr(aplicar_astraura=caida, ahora=NOCHE.replace(minute=minuto))
+        self.assertEqual(len(llamadas), 3)  # una por ciclo: si no responde, la segunda espera su turno
+        props = self.props()
+        self.assertEqual({props[i]["estado"] for i in props}, {"aprobada"})  # un fallo del medio no cuenta
+        self.assertIn("no responde", props["astraura:creation_1"]["motivo_destino"])
+        rechaza = lambda item: llamadas.append(item) or "el backend 1.58 respondió HTTP 500"
+        for minuto in (45, 50, 55):
+            self.correr(aplicar_astraura=rechaza, ahora=NOCHE.replace(minute=minuto))
+        props = self.props()
+        self.assertEqual({props[i]["estado"] for i in props}, {"pregunta"})
+        self.assertIn("HTTP 500", props["astraura:creation_2"]["motivo_destino"])
+        self.assertNotIn("aprobada_por", props["astraura:creation_2"])
+
+    def test_lo_que_integro_alex_en_genesis_no_va_a_la_cola_de_codigo(self):
+        self.sembrar([self.astraura("creation_1", estado="aprobada", decidida="2026-10-23T10:00:00"),
+                      self.libre("x", estado="aprobada", auto_firma=None)])
+        r = self.correr()
+        props = self.props()
+        self.assertEqual((props["astraura:creation_1"]["estado"], self.aplicadas), ("hecha", []))  # el servidor ya la aplicó
+        self.assertEqual(r["autodesarrolladas"], 0)
+        ent = props["agentes:a--x"]
+        self.assertEqual((ent["estado"], r["entregables_encargados"]), ("encargada", 1))
+        cola = json.load(open(os.path.join(self.mem, "olas", r["cola_entregables"]), encoding="utf-8"))
+        self.assertTrue(r["cola_entregables"].startswith("cola-suenos-entregables-"))
+        self.assertEqual((cola[0]["tipo"], cola[0]["modo"], cola[0]["salida"]), ("analisis", "libre", ent["entregable"]["salida"]))
+        # llega el entregable: hecha, y la fuente «agentes» no lo convierte en otra propuesta
+        os.makedirs(os.path.join(self.mem, "imaginacion", "agentes"), exist_ok=True)
+        json.dump({"propuestas": [{"titulo": "Guía terminada", "cuerpo": "## Tono\nClaro."}]},
+                  open(os.path.join(self.raiz, ent["entregable"]["salida"]), "w", encoding="utf-8"))
+        r = self.correr(ahora=NOCHE.replace(minute=15), datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}})
+        props = self.props()  # (sin «agentes» en los datos: el director lee la carpeta de verdad)
+        self.assertEqual((props["agentes:a--x"]["estado"], len(props)), ("hecha", 2))
+        self.assertEqual(r["entregables"], {"recibido": 1})
+
+    def test_contenido_rico_se_integra_solo_como_entregable(self):
+        self.sembrar([self.libre("rica")])
+        r = self.correr()
+        p = self.props()["agentes:a--rica"]
+        self.assertEqual((p["estado"], p["aprobada_por"], r["entregables_encargados"]), ("encargada", "automatica", 1))
+        self.assertEqual(r["decisiones"].get("aprobada"), 1)
+
+    def test_tope_por_ciclo_y_en_vuelo_por_importancia_y_lo_mas_reciente(self):
+        flojas = [self.libre("f%02d" % i, cuerpo="Una idea suelta %d." % i, origen={"fecha": "2026-10-%02d" % (1 + i)}) for i in range(30)]
+        flojas[0]["importancia_declarada"] = "media"  # la más vieja, pero más importante: entra la primera
+        self.sembrar(flojas)
+        r = self.correr()
+        props = self.props()
+        reim = sorted(i for i, p in props.items() if p["estado"] == "reimaginando")
+        self.assertEqual((len(reim), r["decisiones"]["aplazadas"], r["reimaginaciones_encargadas"]), (12, 18, 12))
+        self.assertIn("agentes:a--f00", reim)
+        self.assertIn("agentes:a--f29", reim); self.assertNotIn("agentes:a--f01", reim)
+        aplazada = props["agentes:a--f01"]
+        self.assertEqual(aplazada["estado"], "nueva"); self.assertNotIn("auto_firma", aplazada); self.assertIn("espera turno", aplazada["motivo_destino"])
+        self.assertEqual(self.correr(ahora=NOCHE.replace(minute=15))["decisiones"].get("reimaginando"), 12)
+        tercero = self.correr(ahora=NOCHE.replace(minute=30))
+        self.assertEqual((tercero["decisiones"].get("reimaginando", 0), tercero["reimaginando"]), (0, 24))  # 24 en vuelo: no sale más
+
+    def test_duplicadas_se_descartan_y_se_queda_la_mas_reciente(self):
+        self.sembrar([self.astraura("creation_1792891927"), self.astraura("creation_1792892530"),
+                      self.astraura("creation_1792890000", estado="nueva")])
+        r = self.correr()
+        props = self.props()
+        self.assertEqual(r["decisiones"]["duplicadas"], 2)
+        for viejo in ("astraura:creation_1792891927", "astraura:creation_1792890000"):
+            self.assertEqual((props[viejo]["estado"], props[viejo]["motivo_destino"]), ("descartada", "duplicada de astraura:creation_1792892530"))
+        self.assertEqual(props["astraura:creation_1792892530"]["estado"], "hecha")
+        self.assertEqual(len(self.aplicadas), 1)
+
+    def test_lo_ya_autorizado_por_astraura_y_lo_importante(self):
+        viva = self.astraura("bgauth_1_athena", nivel="high", titulo="⚡ [AUTORIZADO] Permiso Concedido")
+        viva["origen"].update(tipo="rama", requires_user_approval=False, status="running")
+        self.sembrar([viva, self.astraura("creation_9", nivel="critical_security", titulo="Esquema crítico")])
+        self.correr()
+        props = self.props()
+        self.assertEqual(props["astraura:bgauth_1_athena"]["estado"], "descartada")
+        critica = props["astraura:creation_9"]
+        self.assertEqual((critica["estado"], critica["importancia"]), ("esperando-aprobacion", "crítica"))
+        self.assertEqual(self.aplicadas, [])
+
+    def test_sin_capacidad_decide_y_escribe_pero_no_lanza_nada(self):
+        viva = self.astraura("bgauth_1_athena", titulo="Autorizada")
+        viva["origen"].update(requires_user_approval=False, status="running")
+        self.sembrar([viva, self.astraura("creation_1"), self.libre("rica"), self.libre("floja", cuerpo="Idea suelta.")])
+        presion = dict(CAP, presion_mac=2)
+        r = self.correr(capacidad=presion)
+        self.assertFalse(r["toca_ejecutar"]); self.assertIn("presión", r["motivo_toca"])
+        props = self.props()  # se escribió aunque no tocara ejecutar
+        self.assertEqual(props["astraura:bgauth_1_athena"]["estado"], "descartada")
+        self.assertEqual((props["astraura:creation_1"]["estado"], props["agentes:a--rica"]["estado"]), ("aprobada", "aprobada"))
+        self.assertEqual(props["agentes:a--floja"]["estado"], "reimaginando")
+        self.assertNotIn("tarea", props["agentes:a--floja"]["reimaginacion"])
+        self.assertEqual((self.aplicadas, r["entregables_encargados"], r["reimaginaciones_encargadas"]), ([], 0, 0))
+        self.assertFalse(os.path.isdir(os.path.join(self.mem, "olas")))
+        r = self.correr(ahora=NOCHE.replace(minute=15))  # vuelve la capacidad: se lanza lo decidido
+        self.assertEqual((len(self.aplicadas), r["entregables_encargados"], r["reimaginaciones_encargadas"]), (1, 1, 1))
+
+    def test_seco_decide_en_memoria_y_no_escribe(self):
+        self.sembrar([self.astraura("creation_1"), self.astraura("creation_2")])
+        antes = open(os.path.join(self.mem, "imaginacion", "propuestas.json"), encoding="utf-8").read()
+        r = self.correr(seco=True)
+        self.assertEqual(r["decisiones"], {"duplicadas": 1, "aprobada": 1})
+        self.assertEqual(r["estados"], {"descartada": 1, "aprobada": 1})
+        self.assertEqual(open(os.path.join(self.mem, "imaginacion", "propuestas.json"), encoding="utf-8").read(), antes)
+        self.assertEqual(self.aplicadas, [])
+
+    def test_directores_sigue_siendo_manual(self):
+        self.sembrar([{"id": "directores:T1", "fuente": "directores", "titulo": "¿A qué nube?", "estado": "pregunta"},
+                      {"id": "directores:T2", "fuente": "directores", "titulo": "¿A qué nube?", "estado": "pregunta"}])
+        r = self.correr()
+        self.assertEqual({p["estado"] for p in self.props().values()}, {"pregunta"})
+        self.assertEqual(r["decisiones"], {})
+
+    def test_item_astraura(self):
+        self.assertEqual(D.item_astraura(self.astraura("c1")), {"item_id": "c1", "item_type": "creation"})
+        rama = self.astraura("b1"); rama["origen"]["tipo"] = "rama"
+        self.assertEqual(D.item_astraura(rama)["item_type"], "branch")
+        self.assertIsNone(D.item_astraura(self.libre("x")))
+
+
 if __name__ == "__main__":
     unittest.main()

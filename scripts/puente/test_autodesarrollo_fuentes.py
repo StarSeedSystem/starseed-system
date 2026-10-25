@@ -102,6 +102,18 @@ class Astraura(unittest.TestCase):
         self.assertEqual([x["id"] for x in F.de_astraura(ASTRAURA, ya_encargadas=["c1"])],
                          ["astraura:b1"])
 
+class AstrauraAutorizada(unittest.TestCase):
+    """Ola 1025S: lo que el orquestador de Astraura ya autorizó y ejecuta no es una propuesta para Alex."""
+    def test_solo_lo_que_pide_aprobacion(self):
+        status = {"branches": [
+            {"id": "bgauth_1_athena", "theme": "⚡ [AUTORIZADO] Permiso Concedido", "requires_user_approval": False, "status": "running"},
+            {"id": "b2", "theme": "Pendiente sin clave", "status": "running"},
+            {"id": "b3", "theme": "Pendiente explícita", "requires_user_approval": False, "status": "pending_approval"},
+        ]}
+        self.assertEqual([x["id"] for x in F.de_astraura(status)], ["astraura:b2", "astraura:b3"])
+        self.assertTrue(F.no_pide_aprobacion(status["branches"][0]))
+        self.assertFalse(F.no_pide_aprobacion(status["branches"][1]))
+
 class Directores(unittest.TestCase):
     def test_preguntas_a_alex(self):
         p = F.de_directores(REVISOR, "2026-10-21")
@@ -177,6 +189,11 @@ class Agentes(unittest.TestCase):
         sin_esperar = F.de_agentes(d)[0]
         self.assertEqual((sin_esperar["version_de"], sin_esperar["version"]), ("otra", 1))
         self.assertEqual(F.de_agentes(d, ya_encargadas=["reimaginada-diaria-x-v1"]), [])
+
+    def test_un_entregable_no_es_una_propuesta(self):
+        d = {"entregable-agentes-x-abc123-v1.json": {"propuestas": [{"titulo": "Guía terminada", "cuerpo": "…"}]},
+             "vigia.json": [{"titulo": "Añadir caché"}]}
+        self.assertEqual([x["id"] for x in F.de_agentes(d)], ["agentes:vigia--anadir-cache"])
 
     def test_id_seguro_sin_choques(self):
         largo = "diaria:" + "añadir tiempo límite " * 6

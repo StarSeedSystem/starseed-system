@@ -170,7 +170,7 @@ vieja pasa a «reimaginada». Sin respuesta en 72 h vuelve a tu lista.
 
 **Aprobación y reimaginación automática** (`auto` en `~/.starseed/autodesarrollo.json`: `{aprobar, reimaginar, umbral
 0,75, max_reimaginaciones 2}`, apagado por defecto; `autodesarrollo_decidir.automatica`). Solo mira las fuentes
-diaria, profunda y agentes, y solo el ámbito metagenesis (lo de una persona, grupo o página lo decide su dueño). Con
+diaria, profunda y agentes (desde la Ola 1025S, también Astraura: ver abajo), y solo el ámbito metagenesis (lo de una persona, grupo o página lo decide su dueño). Con
 `automatico` (el interruptor de la Ola 1021I) o `auto.aprobar` encendidos, lo bajo/medio de código con utilidad ≥ umbral
 (0,6; con `aprobar`, el `umbral` del botón, nunca por debajo de 0,6) se integra solo (Jev solo puede vetarlo, con
 p ≥ 0,8); con `auto.reimaginar`, lo de código o diseño que no llega se reimagina solo con la crítica de por qué no llegó
@@ -211,3 +211,91 @@ cd ~/Documents/starseed-os-main && bash scripts/enjambre/instalar.sh && \
 
 Un orquestador que ya corría sigue con el analista viejo hasta que acabe (el agente de referencias espera; nunca hay
 dos). Pruebas: `scripts/enjambre/test_analista_libre.py` y `scripts/puente/test_instalar_servicios_autodesarrollo.py`.
+
+## Ola 1025S · el automático decide todas las fuentes y tipos, con tope por ciclo y sin duplicadas (IMG1025A, 2026-10-25)
+
+Alex: «en Imaginación la Aprobación y reimaginación automática no funciona, aún se quedan en por decidir». Medido en la
+Mac con el botón encendido (`auto: {aprobar, reimaginar, umbral 0,75, max_reimaginaciones 2}`): 243 propuestas, 242 en
+«pregunta» o «reimaginando», ninguna integrada. Causas: `FUENTES_AUTO` dejaba fuera `astraura` (234 de las 243);
+`TIPOS_REIMAGINABLES` dejaba fuera contenido e investigación; `automatica()` devolvía «pregunta» para todo lo que no es
+código, con utilidad 0; la firma no cambiaba con las reglas (172 ya firmadas con `1|1|1|0,75|2` no se habrían vuelto a
+mirar), y una «aprobada» que no era código iba a la cola de CÓDIGO (también la de Astraura que Alex ya había aplicado
+en su backend desde Genesis).
+
+**Reglas (todas en `autodesarrollo_decidir.py`, puras):**
+
+1. **Fuentes.** `FUENTES_AUTO = diaria, profunda, agentes, astraura`. `directores` sigue manual (son decisiones de Alex).
+   Lo que no es código solo lo decide el botón de la Ola 1024I (`auto.aprobar`/`auto.reimaginar`), nunca el
+   «automático» viejo de la 1021I.
+2. **Vía** (`via`): `codigo` (tarea accionable: verbo y archivos que existen) · `astraura` (fuente Astraura: se aplica en
+   su backend) · `entregable` (diseño, contenido, investigación u otro sin tarea accionable). Un `codigo` no accionable
+   sigue siendo código: se reimagina para que lo sea, nunca se convierte en un ensayo. Se guarda en `p.via`.
+3. **Utilidad de lo que no es código** (`utilidad_propuesta`; la de código no cambia):
+   - *Creación de Astraura* (`utilidad_astraura`): JSON válido con nombre (`agent`, `name`, `nombre`, `title`…) y
+     capacidades (`capabilities`, `skills`, `tools`…) → 0,9; ≥ 3 campos sustanciales → 0,8; 1–2 → 0,4; vacío → 0,05;
+     roto → 0,1. En texto, la sustancia de abajo (un esqueleto de código con la función vacía vale ≈ 0,07).
+   - *Contenido, diseño o investigación* (`utilidad_libre`): 0,5 × caracteres útiles (sin comentarios ni `{ }`
+     vacíos; 1500 = 1) + 0,25 × estructura (títulos, puntos, filas de tabla y párrafos ≥ 40 caracteres; 6 = 1) +
+     0,25 × referencias https distintas (de `referencias` y del texto; 3 = 1). Solo el título → 0.
+   - Lo de Alex vale 0 venga por donde venga. Jev, consejero opcional: solo frena (veta → 0, «bajar» → −0,1) y solo
+     con p ≥ 0,8; el director le pregunta UNA vez, al ir a integrar (`veto_jev`), como en la Ola 1024I.
+4. **Importancia de Astraura.** Cuenta la que declara su backend (`origen.importance_level`, la MAYOR con la de la
+   regla): `critical_security`/`critical` → crítica, `high` → alta, `medium` → media, `low` → baja. Antes salían
+   «baja» por no citar archivos, y una creación «critical_security» con `requires_user_approval` se habría aplicado
+   sola. **Alta y crítica: nunca se integran ni se reimaginan solas** («esperando-aprobacion» con su motivo). Una
+   versión reimaginada hereda como piso la importancia de su cadena (`AR.enlazar`): reimaginar no «lava» una alta.
+5. **Lo «de Alex»** (`es_de_alex`): además de publicar, pagar, cuentas, claves y tokens, las **credenciales** escritas
+   de cualquier forma (`SECRETOS`: también dentro de un nombre de archivo, «r2_credentials.local.json»). Nunca solo:
+   «pregunta» con su motivo.
+6. **Astraura ya autorizada.** Una rama con `requires_user_approval: false` y estado distinto de «pending_approval» ya
+   la autorizó y la ejecuta su orquestador: no hay nada que decidir → «descartada» con ese motivo (si no es de Alex:
+   lo que toca credenciales o publicación se queda a la vista). `de_astraura` ya no las trae (como «pendiente» en la
+   propia Astraura, `permisos-tab · isPendingApproval`); sin la clave, se toma como siempre.
+7. **Integrar** (≥ umbral, baja o media, ámbito metagenesis, no de Alex, sin veto de Jev): código → «autodesarrollo»
+   (como siempre); lo demás → «aprobada» con `aprobada_por: "automatica"`.
+8. **Reimaginar** (por debajo del umbral, con reimaginaciones libres en la cadena): cualquier tipo
+   (`TIPOS_REIMAGINABLES` = todos); Astraura no (vive en su backend: una versión de la flota no se puede aplicar allí).
+   La crítica de lo que no es código habla de sustancia (largo, estructura, referencias), no de archivos.
+   **Tope:** como mucho `TOPE_POR_CICLO` = 12 reimaginaciones automáticas nuevas por ciclo y `MAX_EN_VUELO` = 24 a la
+   vez, primero la de más importancia y, dentro, la más reciente (`orden_reimaginar`); lo que no cabe queda «nueva»
+   SIN firma («espera turno») y se vuelve a mirar el ciclo siguiente. Al encolar, lo de la automática también ≤ 12 por
+   ciclo; lo que pide Alex se encarga siempre.
+9. **Duplicadas** (`duplicadas`): entre las pendientes (nueva, pregunta, esperando-aprobacion, autodesarrollo) de una
+   misma fuente automática y ámbito con el mismo título normalizado (sin acentos, emojis ni puntuación), se queda la
+   más reciente (fecha de origen, números del id —las marcas de tiempo de Astraura— e instante) y las demás pasan a
+   «descartada» con «duplicada de <id>» (y `duplicada_de`). Se pueden rescatar (§2).
+10. **Lo que queda**: sin reimaginaciones libres o de Alex, a la lista manual con su motivo, como hoy.
+11. **Revisión de lo pendiente.** La firma lleva la versión de las reglas (`REGLAS = "1025S"`): al cambiar las reglas o
+    los ajustes se vuelve a decidir todo lo que estaba en nueva, pregunta, esperando-aprobacion o autodesarrollo de las
+    fuentes automáticas (también las 234 de Astraura).
+
+**El director** (`director_autodesarrollo.py`): decide (`_decidir_lote`: nuevas → duplicadas → revisables → evaluar →
+tope) y **escribe `propuestas.json` siempre** que no sea seco, aunque `toca_ejecutar` sea falso por presión de memoria:
+decidir no cuesta memoria; lanzar trabajo, sí. Solo con `toca` se encola o se aplica. Cada «aprobada» sin tarea va por
+su vía:
+- **código** → la cola de código de siempre (`cola-imaginacion-<fecha>-<hora>.json`);
+- **Astraura** → si la integró Alex desde Genesis, el servidor ya la aplicó (`imaginacion-servidor.ts`): «hecha»; si la
+  integró la automática, `POST /api/imagination/action {item_id, item_type, action: "apply"}` al backend 1.58
+  (`ASTRAURA_158_URL`, 8 s; inyectable `aplicar_astraura`), ≤ 12 por ciclo → «hecha» con `aplicada`. Si no responde es
+  un fallo del medio: no cuenta y el resto espera; tres rechazos de verdad → «pregunta» con el motivo;
+- **entregable** → `autodesarrollo_entregables.py`: UNA tarea `tipo: "analisis"`, `modo: "libre"` (la rama
+  `_analisis_libre` del analista, la flota gratuita; diseño, contenido e investigación con `rol: "diseno"`, `capacidad:
+  "alta"` y sus lecturas) en `olas/cola-suenos-entregables-<fecha>.json`, con salida
+  `imaginacion/agentes/entregable-<id>-v<n>.json` (≤ 12 por ciclo y ≤ 24 en vuelo). La fuente «agentes» NO la recoge
+  como propuesta (sería un bucle); el director la marca «hecha» con `entregable {tarea, salida, cola, encolada,
+  recibido, titulo}`. Sin respuesta en 72 h, o vacía, se vuelve a encargar una vez (otra tarea y otra salida,
+  `-r1`, `rehacer`); a la segunda, «pregunta».
+
+`ciclo()` devuelve además `decisiones` (lo decidido en el ciclo por destino, con `duplicadas` y `aplazadas`),
+`estados`, `entregables`, `entregables_encargados`, `cola_entregables` y `aplicadas_astraura`.
+
+**Medido en seco sobre una copia de las 243 propuestas y los ajustes reales (2026-10-25, sin red ni Jev):** antes 234
+«pregunta» de Astraura, 5 de agentes, 3 de diaria y 1 «reimaginando». Después: 204 duplicadas descartadas, 14 ramas
+que Astraura ya autorizó y ejecuta descartadas, 0 integradas, 0 reimaginaciones nuevas y **24 para Alex** (de 242):
+9 «esperando-aprobacion» de Astraura por su importancia declarada (8 «high», 1 «critical_security»: el «Esquema de
+Agente Mutado», utilidad 0,9) y 15 «pregunta» por ser de Alex (5 de agentes y 5 de Astraura por pago/vercel, 2 de
+credenciales, 3 de diaria por token/publicar/publicación). Con presión de memoria, el mismo reparto y escrito.
+
+Pruebas: `test_autodesarrollo_decidir.py` (Ola1025STest), `test_autodesarrollo_fuentes.py`,
+`test_autodesarrollo_reimaginar.py`, `test_autodesarrollo_entregables.py`, `test_director_autodesarrollo.py`
+(Ola1025STest) y `scripts/enjambre/test_analista_libre.py` (el entregable de punta a punta con el analista).

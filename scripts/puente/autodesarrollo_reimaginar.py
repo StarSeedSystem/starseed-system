@@ -158,6 +158,11 @@ def enlazar(nueva, previas, ahora_iso):
     nueva["version"] = AD.version(vieja) + 1
     nueva["ambito"] = vieja.get("ambito") or "metagenesis"
     nueva["tipo"] = vieja.get("tipo") or nueva.get("tipo") or "codigo"
+    # Ola 1025S: una versión nueva nunca baja la importancia de la cadena (reimaginar no «lava» una alta o una
+    # crítica para que la automática la integre sola): la de la vieja entra como declarada si es mayor.
+    piso, declarada = AD.importancia(vieja), AD.nivel(nueva.get("importancia_declarada"))
+    if AD.NIVELES.index(piso) > AD.NIVELES.index(declarada or "baja"):
+        nueva["importancia_declarada"] = piso
     if vieja.get("verificacion"):
         nueva["verificacion"] = vieja["verificacion"]
     for k in ("impacto", "esfuerzo"):
@@ -187,12 +192,13 @@ def caducadas(propuestas, ahora, horas=CADUCA_H):
     return fuera
 
 
-def encolar(mem, tareas, ahora):
-    """E/S: añade `tareas` a `olas/cola-suenos-reimaginar-<fecha>.json` sin repetir ids (escritura
-    atómica). Devuelve el nombre de la cola (None si no hay tareas; si ya estaban todas, no reescribe)."""
+def encolar(mem, tareas, ahora, prefijo=PREFIJO_COLA):
+    """E/S: añade `tareas` a `olas/<prefijo><fecha>.json` (por defecto `cola-suenos-reimaginar-`) sin repetir
+    ids (escritura atómica). Devuelve el nombre de la cola (None si no hay tareas; si ya estaban todas, no
+    reescribe). Los entregables de la Ola 1025S usan la misma vía con `cola-suenos-entregables-`."""
     if not tareas:
         return None
-    nombre = PREFIJO_COLA + ahora.strftime("%Y-%m-%d") + ".json"
+    nombre = prefijo + ahora.strftime("%Y-%m-%d") + ".json"
     ruta = os.path.join(mem, "olas", nombre)
     try:
         with open(ruta, encoding="utf-8") as f:

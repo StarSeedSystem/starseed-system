@@ -5,17 +5,22 @@ architecture/imaginacion-autodesarrollo.md). Desde la Ola 1024I (IMG1024C) adem�
 propuestas libres de los agentes imaginativos (`imaginacion/agentes/*.json`), aplica el automático
 (§3: integra solo lo bajo/medio que llega al umbral, reimagina solo lo que no llega, lo demás a la
 lista manual; alta y crítica NUNCA solas), encarga las reimaginaciones al enjambre y llama al agente
-de referencias de diseño si existe. Reloj, disco, lanzadores, Jev y agentes por parámetro (las pruebas
-no lanzan nada real); escrituras atómicas (tmp + os.replace) y cerrojo propio."""
+de referencias de diseño si existe. Desde la Ola 1025S (IMG1025A) el automático decide también Astraura y lo
+que no es código, descarta duplicadas, reparte las reimaginaciones con tope por ciclo y manda cada aprobada por
+su vía: código → cola de código; Astraura → su backend 1.58; lo demás → entregable del analista en modo libre.
+Decidir se hace y se escribe siempre (no cuesta memoria); lanzar trabajo, solo cuando toca. Reloj, disco,
+lanzadores, Jev, Astraura y agentes por parámetro (las pruebas no lanzan nada real); escrituras atómicas
+(tmp + os.replace) y cerrojo propio."""
 from __future__ import annotations
-import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, urllib.request
+import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, urllib.error, urllib.request
+from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, AQUI)
 import autodesarrollo_logica as AL, autodesarrollo_decidir as AD, autodesarrollo_fuentes as AF
-import autodesarrollo_reimaginar as AR
+import autodesarrollo_reimaginar as AR, autodesarrollo_entregables as AE
 
 RAIZ = os.path.dirname(os.path.dirname(AQUI))
 ESTADOS_ALEX = ("aprobada", "rechazada", "pospuesta", "hecha", "descartada")
@@ -82,7 +87,7 @@ def _astraura():
 def leer_agentes(mem, tope=MAX_ARCHIVOS_AGENTES, max_bytes=MAX_BYTES_AGENTE):
     """{nombre: JSON} de `imaginacion/agentes/*.json` (los `tope` más nuevos; ilegibles o enormes, fuera)."""
     carpeta = os.path.join(mem, "imaginacion", "agentes")
-    try: nombres = [n for n in os.listdir(carpeta) if n.endswith(".json") and not n.startswith(".")]
+    try: nombres = [n for n in os.listdir(carpeta) if n.endswith(".json") and not n.startswith((".", AF.PREFIJO_ENTREGABLE))]
     except OSError: return {}
     def mtime(n):
         try: return os.path.getmtime(os.path.join(carpeta, n))
@@ -125,24 +130,139 @@ def _consejo_jev(p):
     return {"p": round(1 - float(d["p"]), 4), "veta": True} if d.get("respuesta") == "no" else {"p": float(d["p"])}
 
 
-def _decidir(p, aj, existe, consejo, ahora_iso, firma=None):
-    """Utilidad, importancia y destino con el automático; la reimaginación automática lleva la crítica."""
+TIPO_ASTRAURA = {"creacion": "creation", "rama": "branch", "creation": "creation", "branch": "branch"}  # director → backend 1.58
+
+
+def item_astraura(p):
+    """{item_id, item_type} del backend 1.58 (como `itemAstraura` en imaginacion-servidor.ts), o None."""
+    o = p.get("origen") if isinstance(p.get("origen"), dict) else {}
+    tipo = TIPO_ASTRAURA.get(str(o.get("tipo") or ""))
+    return {"item_id": o["id"], "item_type": tipo} if p.get("fuente") == "astraura" and isinstance(o.get("id"), str) and o["id"] and tipo else None
+
+
+def _aplicar_astraura_real(item):
+    """POST /api/imagination/action {…, action: apply} al backend 1.58 local: None si lo aplicó, o el error honesto."""
+    base = os.environ.get("ASTRAURA_158_URL", "http://127.0.0.1:8000").rstrip("/")
+    peticion = urllib.request.Request(base + "/api/imagination/action", data=json.dumps(dict(item, action="apply")).encode("utf-8"),
+                                      headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(peticion, timeout=8) as r:
+            try: j = json.load(r)
+            except ValueError: j = None
+    except urllib.error.HTTPError as e:
+        return "el backend 1.58 respondió HTTP %d" % e.code
+    except Exception:
+        return "el backend 1.58 no responde"
+    if isinstance(j, dict) and (j.get("success") is False or j.get("ok") is False):
+        return "el backend 1.58 no la aplicó (%s)" % (str(j.get("error") or "sin motivo")[:160])
+    return None
+
+
+def _evaluar(p, aj, existe, consejo):
+    """Utilidad (la de su vía), importancia y destino con el automático. No cambia el estado."""
+    p["utilidad"], p["motivo"] = AD.utilidad_propuesta(p, existe)
+    p["importancia"] = AD.importancia_visible(AD.importancia(p))
+    p["via"] = AD.via(p, existe)
+    return AD.automatica(p, aj, existe, consejo)
+
+
+def _aplicar(p, dest, ahora_iso, firma=None):
+    """Aplica un destino; la reimaginación automática lleva la crítica y lo aprobado solo, quién y cuándo."""
     antes = p.get("estado")
-    p["utilidad"], p["motivo"] = AD.utilidad(p, existe); p["importancia"] = AD.importancia_visible(AD.importancia(p))
-    dest = AD.automatica(p, aj, existe, consejo)
     p.update(aprobacion_diff=dest["aprobacion_diff"], motivo_destino=dest["motivo"])
     if dest["destino"] == "reimaginando": AR.pedir(p, dest["notas"], p.get("referencias") or [], "automatica", ahora_iso)
     else: p["estado"] = dest["destino"]
+    if dest["destino"] == "aprobada": p.update(aprobada_por="automatica", decidida=ahora_iso)
     if p["estado"] != antes or not p.get("t"): p["t"] = ahora_iso
     if firma: p["auto_firma"] = firma
     return p
 
 
+def _aplazar(p, motivo, ahora_iso):
+    """Le toca reimaginarse sola pero no tiene turno: «nueva» y SIN firma, así se vuelve a mirar el próximo ciclo."""
+    antes = p.get("estado")
+    p.update(estado="nueva", aprobacion_diff=False, motivo_destino=motivo)
+    if antes != "nueva" or not p.get("t"): p["t"] = ahora_iso
+    return p
+
+
+def _en_vuelo_automatico(propuestas):
+    return sum(1 for p in propuestas if p.get("estado") == "reimaginando"
+               and (p.get("reimaginacion") or {}).get("por") != "alex" and not (p.get("reimaginacion") or {}).get("recibida"))
+
+
+def _decidir_lote(previas, nuevas, aj, existe, consejo, iso, firma):
+    """Decide lo nuevo y, con el botón encendido, lo pendiente con otra firma; antes, las duplicadas. Las
+    reimaginaciones automáticas nuevas tienen tope por ciclo y en vuelo (las de más importancia y más
+    recientes primero); lo que no cabe se aplaza. Devuelve el reparto de lo decidido."""
+    reparto, candidatas = Counter(), []
+    for p in nuevas:
+        if p["id"] in previas: continue
+        AR.enlazar(p, previas, iso)  # una versión reimaginada: v n+1 y la vieja pasa a «reimaginada»
+        p.setdefault("estado", "nueva")
+        previas[p["id"]] = p; candidatas.append(p)
+    if firma:  # el botón encendido (o cambiado) también decide lo que ya esperaba en la lista
+        for p, queda in AD.duplicadas(list(previas.values())):
+            _aplicar(p, {"destino": "descartada", "aprobacion_diff": False, "notas": "", "motivo": "duplicada de %s" % queda}, iso, firma)
+            p["duplicada_de"] = queda; reparto["duplicadas"] += 1
+        ya = {id(p) for p in candidatas}
+        candidatas += [p for p in previas.values() if id(p) not in ya and p.get("estado") in REVISABLES
+                       and p.get("fuente") in AD.FUENTES_AUTO and p.get("auto_firma") != firma]
+    evaluadas = [(p, _evaluar(p, aj, existe, consejo)) for p in candidatas if p.get("estado") != "descartada"]
+    cupo = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - _en_vuelo_automatico(previas.values())))
+    turno = {id(p) for p in AD.orden_reimaginar([p for p, d in evaluadas if d["destino"] == "reimaginando"])[:cupo]}
+    for p, d in evaluadas:
+        if d["destino"] == "reimaginando" and id(p) not in turno:
+            _aplazar(p, "le toca reimaginarse sola; espera turno (como mucho %d nuevas por ciclo y %d en vuelo)"
+                     % (AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO), iso)
+            reparto["aplazadas"] += 1
+            continue
+        _aplicar(p, d, iso, firma); reparto[d["destino"]] += 1
+    return reparto
+
+
+def _revisar_entregables(propuestas, raiz, ahora, iso):
+    """Lo que el analista ya dejó para cada entregable encargado (o lo que caducó)."""
+    hechos = Counter()
+    for p in propuestas:
+        e = p.get("entregable") if isinstance(p.get("entregable"), dict) else {}
+        if p.get("estado") != "encargada" or not e.get("tarea") or e.get("recibido"): continue
+        salida = str(e.get("salida") or "")
+        segura = salida.startswith(AR.CARPETA_AGENTES.replace(os.sep, "/") + "/") and ".." not in salida.split("/")
+        doc = _json(os.path.join(raiz, salida), None) if segura else None
+        hechos[AE.revisar(p, doc, ahora, iso)] += 1
+    return hechos
+
+
+def _aplicar_en_astraura(lista, aplicar, iso):
+    """Aplica en el backend 1.58 lo que integró la automática (≤ tope por ciclo). Si no responde es un fallo del
+    medio: no cuenta contra la propuesta y el resto espera al próximo ciclo. Tres rechazos de verdad (o sin ítem
+    del backend) → vuelve a la lista de Alex. Devuelve cuántas se aplicaron."""
+    n = 0
+    for p in lista[:AD.TOPE_POR_CICLO]:
+        item = item_astraura(p)
+        fallo = (aplicar or _aplicar_astraura_real)(item) if item else "no trae su ítem del backend 1.58"
+        if fallo is None:
+            p.update(estado="hecha", aplicada=iso, t=iso, motivo_destino="aplicada en Astraura por la automática"); n += 1
+            continue
+        if "no responde" in fallo:
+            p["motivo_destino"] = "Astraura no responde: se aplica cuando vuelva"
+            break
+        p["intentos_aplicar"] = int(p.get("intentos_aplicar") or 0) + 1
+        if not item or p["intentos_aplicar"] >= 3:
+            p.pop("aprobada_por", None)
+            p.update(estado="pregunta", t=iso, motivo_destino="Astraura no la aplicó (%s): queda en tu lista" % fallo)
+        else:
+            p["motivo_destino"] = "Astraura no la aplicó todavía (%s): se reintenta en el próximo ciclo" % fallo
+    return n
+
+
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
-          existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None):
+          existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None):
     """Un ciclo (§5). `datos`: {diaria, profunda, astraura, directores, agentes} para no leer disco ni red.
     `consejo(p)`: Jev para el veto de lo que se integraría solo (None = solo la regla). `agente_referencias(raiz,
-    ahora)`: el agente de referencias de diseño (por defecto, el módulo si existe); devuelve None si no hay agente."""
+    ahora)`: el agente de referencias de diseño (por defecto, el módulo si existe); devuelve None si no hay agente.
+    `aplicar_astraura(item)`: aplica una creación en el backend 1.58 (None si lo hizo, o el error); por defecto, HTTP."""
     ahora, home, raiz = ahora or datetime.now(), home or os.path.expanduser("~/.starseed"), raiz or RAIZ
     mem, hoy = os.path.join(raiz, "starseed_memory_root"), (ahora or datetime.now()).strftime("%Y-%m-%d")
     with cerrojo(os.path.join(home, "cerrojos", "autodesarrollo.lock")) as libre:
@@ -190,24 +310,33 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         existe = existe_ruta or (lambda r: os.path.isfile(r if os.path.isabs(r) else os.path.join(raiz, r)))
         iso, au = ahora.isoformat(), aj["auto"]
         firma = AD.firma(aj) if au["aprobar"] or au["reimaginar"] else None
-        for p in nuevas:
-            if p["id"] in previas: continue
-            AR.enlazar(p, previas, iso)  # una versión reimaginada: v n+1 y la vieja pasa a «reimaginada»
-            previas[p["id"]] = _decidir(p, aj, existe, consejo, iso, firma)
-        if firma:  # el botón encendido (o cambiado) también decide lo que ya esperaba en la lista
-            for p in list(previas.values()):
-                if p.get("estado") in REVISABLES and p.get("fuente") in AD.FUENTES_AUTO and p.get("auto_firma") != firma:
-                    _decidir(p, aj, existe, consejo, iso, firma)
+        decisiones = _decidir_lote(previas, nuevas, aj, existe, consejo, iso, firma)
         for p in AR.caducadas(previas.values(), ahora):
             AR.devolver(p, f"la reimaginación no llegó en {AR.CADUCA_H} h: queda en tu lista", iso)
         propuestas = list(previas.values())
         reim, devueltas = AR.pendientes(propuestas, au["max_reimaginaciones"], ahora)
         for p in devueltas:
             AR.devolver(p, f"tope de {au['max_reimaginaciones']} reimaginación(es) por cadena: queda en tu lista", iso)
-        reim = reim if toca else []
+        # Lo que pidió Alex se encarga siempre; lo de la automática, como mucho el tope por ciclo.
+        por_tarea = {AR.id_tarea(p): p for p in propuestas if p.get("estado") == "reimaginando"}
+        auto_r = AD.orden_reimaginar([por_tarea[t["id"]] for t in reim if t.get("por") != "alex" and t["id"] in por_tarea])
+        elegidas_r = {AR.id_tarea(p) for p in auto_r[:AD.TOPE_POR_CICLO]}
+        reim = [t for t in reim if t.get("por") == "alex" or t["id"] in elegidas_r] if toca else []
+        entregables = _revisar_entregables(propuestas, raiz, ahora, iso)
         auto = AD.cuantas([p for p in propuestas if p.get("estado") == "autodesarrollo"], aj["rango"], AD.umbral_efectivo(aj))["elegidas"]
-        aprobadas = [p for p in propuestas if p.get("estado") == "aprobada" and not p.get("tarea")]
-        cola = (auto + aprobadas) if toca else []
+        aprobadas = {v: [] for v in AD.VIAS}
+        for p in propuestas:
+            if p.get("estado") == "aprobada" and not p.get("tarea"):
+                aprobadas[p.get("via") if p.get("via") in AD.VIAS else AD.via(p, existe)].append(p)
+        for p in aprobadas["astraura"]:  # integrada por Alex desde Genesis: el servidor ya la aplicó en su backend
+            if p.get("aprobada_por") != "automatica":
+                p.update(estado="hecha", aplicada=p.get("decidida") or iso, t=iso, motivo_destino="aplicada en Astraura al integrarla desde Genesis")
+        astraura = [p for p in aprobadas["astraura"] if p.get("estado") == "aprobada"]
+        aplicadas = _aplicar_en_astraura(astraura, aplicar_astraura, iso) if toca and not seco else 0
+        cupo_e = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - AE.en_vuelo(propuestas))) if toca else 0
+        ent = AD.orden_reimaginar(aprobadas["entregable"])[:cupo_e]
+        tareas_e = [AE.tarea(p, ahora) for p in ent]
+        cola = (auto + aprobadas["codigo"]) if toca else []
         fr = [x for x in aj["horario"]["franjas"] if x["desde"] > ahora.strftime("%H:%M")] if aj["horario"]["modo"] == "franjas" else []
         if cola and aj["horario"]["repartir"] and fr: cola = cola[:AL.lotes(len(cola), len(fr) + 1)[0]]
         nombre = f"cola-imaginacion-{ahora.strftime('%Y%m%d-%H%M')}"
@@ -215,8 +344,11 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                    "archivos": (p.get("archivos") or [])[:3], "depende": [], "prompt": PROMPT.format(t=p["titulo"], c=p.get("cuerpo", "")[:600]),
                    **({"aprobacion": True} if p.get("aprobacion_diff") else {})} for p in cola]
         esperan = [p for p in propuestas if p.get("estado") == "esperando-aprobacion"]
-        cola_r = None
+        cola_r = cola_e = None
         if not seco:
+            if tareas_e:
+                cola_e = AE.encolar(mem, tareas_e, ahora)
+                for p, t in zip(ent, tareas_e): AE.marcar_encargada(p, t, cola_e, iso)
             for p, t in zip(cola, tareas): p["estado"], p["tarea"] = "encargada", t["id"]
             if tareas:
                 _escribir(os.path.join(mem, "olas", nombre + ".json"), tareas)
@@ -226,13 +358,17 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 por_tarea = {AR.id_tarea(p): p for p in propuestas if p.get("estado") == "reimaginando"}
                 for t in reim: AR.marcar_encolada(por_tarea[t["id"]], t, cola_r, iso)
             _escribir(pr, propuestas if isinstance(crudo, list) else {**crudo, "actualizado": iso, "propuestas": propuestas})
-            if avisar and (tareas or esperan or reim):
+            if avisar and (tareas or esperan or reim or tareas_e or aplicadas):
                 avisar(f"Imaginación: {len(tareas)} tarea(s) encargada(s), {len(esperan)} esperando tu aprobación"
-                       + (f", {len(reim)} reimaginándose." if reim else "."), bool(esperan))
+                       + (f", {len(reim)} reimaginándose" if reim else "") + (f", {len(tareas_e)} entregable(s) encargado(s)" if tareas_e else "")
+                       + (f", {aplicadas} aplicada(s) en Astraura" if aplicadas else "") + ".", bool(esperan))
         return {"toca_ejecutar": toca, "motivo_toca": motivo, "lanzado": lanzo, "propuestas": len(propuestas), "autodesarrolladas": len(tareas),
                 "esperando_aprobacion": len(esperan), "cola": nombre + ".json" if tareas and not seco else None,
                 "reimaginando": sum(1 for p in propuestas if p.get("estado") == "reimaginando"),
-                "reimaginaciones_encargadas": len(reim) if not seco else 0, "cola_reimaginar": cola_r}
+                "reimaginaciones_encargadas": len(reim) if not seco else 0, "cola_reimaginar": cola_r,
+                "decisiones": dict(decisiones), "entregables": dict(entregables),
+                "entregables_encargados": len(tareas_e) if not seco else 0, "cola_entregables": cola_e,
+                "aplicadas_astraura": aplicadas, "estados": dict(Counter(p.get("estado") or "nueva" for p in propuestas))}
 
 
 def _avisar_real(texto, telegram):

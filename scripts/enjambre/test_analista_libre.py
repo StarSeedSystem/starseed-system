@@ -24,6 +24,7 @@ import analista as A  # noqa: E402
 import agente_referencias_diseno as R  # noqa: E402
 import autodesarrollo_fuentes as AF  # noqa: E402
 import autodesarrollo_reimaginar as AR  # noqa: E402
+import autodesarrollo_entregables as AE  # noqa: E402
 
 AHORA = datetime(2026, 10, 24, 8, 0, tzinfo=timezone.utc)
 SALIDA = "starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-10-24-1.json"
@@ -418,6 +419,26 @@ def test_una_propuesta_cortada_no_confunde_sus_referencias_con_la_lista():
 
 
 # ─────────────────────────────── lo de siempre no cambia ───────────────────────────────
+
+def test_entregable_de_una_aprobada_que_no_es_codigo(corrida):
+    """Ola 1025S: una propuesta aprobada que no es código la termina el analista en modo libre; el director
+    la da por hecha y la fuente «agentes» no la convierte en otra propuesta (sin bucle)."""
+    p = {"id": "agentes:a--guia", "fuente": "agentes", "tipo": "contenido", "titulo": "Guía de tono", "version": 1,
+         "cuerpo": "Una guía de tono para la comunidad.", "referencias": [{"titulo": "W3C", "url": "https://www.w3.org/WAI/"}],
+         "estado": "aprobada"}
+    t = AE.tarea(p, AHORA)
+    AE.marcar_encargada(p, t, "cola-suenos-entregables-2026-10-24.json", AHORA.isoformat())
+    hecho = {"propuestas": [{"titulo": "Guía de tono de StarSeed", "tipo": "contenido",
+                             "cuerpo": "## Principios\n- claridad\n- cercanía", "referencias": ["https://www.w3.org/WAI/"]}]}
+    llm, ctx = Llm(json.dumps(hecho)), Contexto()
+    doc = corrida(t, llm, contexto=ctx)
+    escrito = corrida.leer(t["salida"])
+    assert doc == escrito and escrito["propuestas"][0]["titulo"] == "Guía de tono de StarSeed"
+    assert ctx.pedidos[0]["rol"] == "investigador-diseno"
+    assert "ENTREGABLE terminado" in llm.llamadas[0]["prompt"]
+    assert AE.revisar(p, escrito, AHORA, AHORA.isoformat()) == "recibido" and p["estado"] == "hecha"
+    assert AF.de_agentes({os.path.basename(t["salida"]): escrito}, "2026-10-24") == []
+
 
 def test_area_por_lente_sigue_igual(corrida):
     llm = Llm()

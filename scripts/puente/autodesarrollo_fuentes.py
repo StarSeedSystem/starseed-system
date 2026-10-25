@@ -81,12 +81,19 @@ def de_profunda(consolidado, fecha, ya_encargadas=()):
                                 {"fecha": fecha, "clave": clave, "area": u.get("area"),
                                  "lente": u.get("lente"), "confianza": _num(u.get("confianza"))}))
     return fuera
+def no_pide_aprobacion(it):
+    """Como «pendiente» en la propia Astraura (permisos-tab · isPendingApproval): una creación o rama con
+    `requires_user_approval: false` explícito y un estado que no es «pending_approval» ya la autorizó su
+    orquestador y la ejecuta sola: no se le pide nada a Alex. Sin la clave, se toma como siempre."""
+    return it.get("requires_user_approval") is False and str(it.get("status") or "").strip().lower() != "pending_approval"
 def de_astraura(status, fecha="", ya_encargadas=()):
     status = status if isinstance(status, dict) else {}
     ya, vistas, fuera = {str(k) for k in (ya_encargadas or ()) if str(k)}, set(), []
     for tipo, items in (("creacion", status.get("creations")), ("rama", status.get("branches"))):
         for it in items if isinstance(items, list) else []:
             if not isinstance(it, dict) or _APLICADA.search(str(it.get("status") or "")) or it.get("applied_by"):
+                continue
+            if no_pide_aprobacion(it):  # Ola 1025S: lo que Astraura ya autorizó y ejecuta no es una propuesta
                 continue
             ident = str(it.get("id") or "")
             clave = ident or D.clave(it.get("title") or it.get("theme") or "")
@@ -131,6 +138,8 @@ TIPOS = ("codigo", "diseno", "contenido", "investigacion", "otro")
 MAX_TITULO, MAX_CUERPO, MAX_REFERENCIAS, MAX_ARCHIVOS, MAX_POR_ARCHIVO = 200, 8000, 20, 20, 100
 _ID_AMBITO = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 _REIMAGINADA = re.compile(r"^reimaginada-.+-v(\d+)\.json$")
+#: Ola 1025S: lo que produce el analista para una propuesta aprobada que no es código (autodesarrollo_entregables).
+PREFIJO_ENTREGABLE = "entregable-"
 _FECHA_FINAL = re.compile(r"[-_]\d{4}-?\d{2}-?\d{2}(?:[-_T]\d{2,6})?$")
 _URL = re.compile(r"https?://\S+")
 _VERIFICACIONES = ("verificado", "ajustado", "sin verificar")
@@ -227,6 +236,7 @@ def de_agentes(archivos, fecha="", ya_encargadas=(), esperadas=None):
     ya, vistas, fuera = {str(k) for k in (ya_encargadas or ()) if str(k)}, set(), []
     esperadas = esperadas if isinstance(esperadas, dict) else {}
     for nombre in sorted(archivos if isinstance(archivos, dict) else {}):
+        if nombre.startswith(PREFIJO_ENTREGABLE): continue  # Ola 1025S: un entregable es un resultado, no una propuesta
         items, agente = _items(archivos[nombre])
         reimaginada = bool(_REIMAGINADA.match(nombre))
         for item in items[:MAX_POR_ARCHIVO]:

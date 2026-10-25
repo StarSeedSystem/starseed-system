@@ -127,6 +127,24 @@ class Enlazar(unittest.TestCase):
         self.assertEqual((vieja["estado"], nueva["version"]), ("aprobada", 2))
 
 
+class PisoDeImportancia(unittest.TestCase):
+    """Ola 1025S: una versión reimaginada nunca baja la importancia de su cadena."""
+    def test_la_nueva_hereda_la_importancia_si_es_mayor(self):
+        vieja = prop(estado="reimaginando")  # 4 archivos → alta por la regla
+        nueva = {"id": "agentes:reimaginada-x-v1", "fuente": "agentes", "titulo": "Añadir caché v2", "archivos": ["src/lib/a.ts"],
+                 "version_de": vieja["id"], "importancia_declarada": "baja"}
+        R.enlazar(nueva, {vieja["id"]: vieja}, ISO)
+        self.assertEqual(nueva["importancia_declarada"], "alta")
+        self.assertEqual(R.AD.importancia(nueva), "alta")
+        critica = {"id": "agentes:y", "fuente": "agentes", "titulo": "y", "version_de": "astraura:c1", "importancia_declarada": "critica"}
+        astra = {"id": "astraura:c1", "fuente": "astraura", "titulo": "c", "origen": {"importance_level": "high"}, "estado": "reimaginando"}
+        R.enlazar(critica, {"astraura:c1": astra}, ISO)
+        self.assertEqual(critica["importancia_declarada"], "critica")  # la mayor se queda
+        baja = {"id": "agentes:z", "fuente": "agentes", "titulo": "z", "version_de": "diaria:b"}
+        R.enlazar(baja, {"diaria:b": {"id": "diaria:b", "fuente": "diaria", "titulo": "b", "archivos": ["docs/x.md"], "estado": "reimaginando"}}, ISO)
+        self.assertNotIn("importancia_declarada", baja)
+
+
 class Esperadas(unittest.TestCase):
     def test_nombre_de_salida_a_id_y_version(self):
         p = pedida(version=2)
@@ -159,6 +177,13 @@ class Encolar(unittest.TestCase):
             cola = json.load(open(os.path.join(mem, "olas", nombre), encoding="utf-8"))
             self.assertEqual([x["id"] for x in cola], [t["id"], R.id_tarea(pedida(id="otra"))])
             self.assertEqual([n for n in os.listdir(os.path.join(mem, "olas")) if n.startswith(".tmp_")], [])
+
+
+    def test_otro_prefijo_otra_cola(self):
+        with tempfile.TemporaryDirectory() as mem:
+            nombre = R.encolar(mem, [{"id": "ENT-x-v1"}], AHORA, prefijo="cola-suenos-entregables-")
+            self.assertEqual(nombre, "cola-suenos-entregables-2026-10-24.json")
+            self.assertTrue(os.path.isfile(os.path.join(mem, "olas", nombre)))
 
 
 if __name__ == "__main__":

@@ -212,14 +212,15 @@ class AutomaticaTest(unittest.TestCase):
             r = D.automatica(publicar, aj, existe)
             self.assertIn(r["destino"], ("pregunta", "esperando-aprobacion"))
             self.assertEqual(r["notas"], "")
-        for fuente in ("directores", "astraura"):
-            p = decidida(fuente=fuente, archivos=[])
-            self.assertEqual(D.automatica(p, ajustes(), existe), dict(D.destino(p, True, existe), notas=""))
+        # Ola 1025S: Astraura ya la decide el automático (Ola1025STest); los directores siguen siendo de Alex.
+        p = decidida(fuente="directores", archivos=[])
+        self.assertEqual(D.automatica(p, ajustes(), existe), dict(D.destino(p, True, existe), notas=""))
 
     def test_ambito_y_tipo(self):
         self.assertEqual(D.automatica(decidida(ambito="personal"), ajustes(), existe)["destino"], "nueva")
+        # Ola 1025S: cualquier tipo se reimagina solo (antes, un contenido quedaba en «pregunta»).
         contenido = decidida(tipo="contenido", archivos=["src/fantasma.ts"])
-        self.assertEqual(D.automatica(contenido, ajustes(), existe)["destino"], "pregunta")
+        self.assertEqual(D.automatica(contenido, ajustes(), existe)["destino"], "reimaginando")
         diseno = decidida(tipo="diseno", archivos=["src/fantasma.ts"])
         self.assertEqual(D.automatica(diseno, ajustes(), existe)["destino"], "reimaginando")
 
@@ -257,6 +258,166 @@ class AutomaticaTest(unittest.TestCase):
     def test_critica_acotada(self):
         p = decidida(cuerpo="x" * 5000, motivo="m" * 5000, archivos=["src/f%d.ts" % i for i in range(50)])
         self.assertLessEqual(len(D.critica(p, 0.75, existe)), D.MAX_NOTAS)
+
+# ─────────────── Ola 1025S · IMG1025A: todas las fuentes y tipos, sin duplicadas ───────────────
+import json as _json
+
+ESQUEMA = _json.dumps({"agent": "Hephaestus-NEON", "capabilities": ["ARM64_Vectorization", "BitNet_158b_Inference"],
+                       "allocated_cores": 3, "target_brain": "brain_hephaestus"}, indent=2)
+ESQUELETO = ("// Auto-generado por Proceso Onírico\n// Asignación de recursos M1: 40%\n"
+             "inline void compute_ternary_fast(const int8_t* w, const float* x, float* y) {\n    // acumulador\n}")
+RICO = ("## Qué propone\nUna guía de tono para las publicaciones de la comunidad, con ejemplos reales.\n\n"
+        "## Por qué\n" + "La comunidad pide textos claros y cercanos que expliquen cada función sin jerga técnica. " * 12 + "\n\n"
+        "- Principio uno: claridad antes que brillo.\n- Principio dos: cada texto dice qué, por qué y cómo.\n"
+        "- Principio tres: accesible para todas las personas.\n\n"
+        "Referencias: https://www.w3.org/WAI/standards-guidelines/ y https://material.io/design/communication/writing\n")
+
+
+def astraura(cuerpo=ESQUEMA, nivel="medium", **extra):
+    o = {"fecha": "2026-10-24", "tipo": "creacion", "id": "creation_1", "importance_level": nivel,
+         "requires_user_approval": True, "status": "pending_approval"}
+    o.update(extra.pop("origen", {}))
+    p = {"id": "astraura:" + o["id"], "fuente": "astraura", "titulo": "Esquema de Agente Mutado: Hephaestus-NEON",
+         "cuerpo": cuerpo, "archivos": [], "cita": "astraura:creacion/" + o["id"], "verificacion": "sin_verificar", "origen": o}
+    p.update(extra)
+    p["utilidad"], p["motivo"] = D.utilidad_propuesta(p, existe)
+    return p
+
+
+def libre(cuerpo=RICO, tipo="contenido", **extra):
+    p = {"id": "agentes:a--guia", "fuente": "agentes", "agente": "a", "tipo": tipo, "titulo": "Guía de tono de la comunidad",
+         "cuerpo": cuerpo, "archivos": [], "referencias": [], "verificacion": "sin dato", "version": 1,
+         "origen": {"fecha": "2026-10-24"}}
+    p.update(extra)
+    p["utilidad"], p["motivo"] = D.utilidad_propuesta(p, existe)
+    return p
+
+
+class Ola1025STest(unittest.TestCase):
+    def test_fuentes_astraura_si_directores_no(self):
+        self.assertIn("astraura", D.FUENTES_AUTO)
+        self.assertNotIn("directores", D.FUENTES_AUTO)
+
+    def test_utilidad_de_astraura_por_su_json(self):
+        self.assertEqual(D.utilidad_astraura(astraura())[0], 0.9)  # nombre y capacidades
+        campos = _json.dumps({"allocated_cores": 3, "target_brain": "brain_x", "modo": "vectorial"})
+        self.assertEqual(D.utilidad_astraura(astraura(campos))[0], 0.8)  # ≥ 3 campos sustanciales
+        self.assertEqual(D.utilidad_astraura(astraura(_json.dumps({"agent": "Hephaestus"})))[0], 0.4)
+        self.assertEqual(D.utilidad_astraura(astraura("{}"))[0], 0.05)
+        self.assertEqual(D.utilidad_astraura(astraura(_json.dumps({"agent": "", "x": None, "y": "..."})))[0], 0.05)
+        roto = D.utilidad_astraura(astraura('{"agent": "X", '))
+        self.assertEqual(roto[0], 0.1); self.assertIn("roto", roto[1])
+        vacia = D.utilidad_astraura(astraura("Esquema de Agente Mutado: Hephaestus-NEON"))  # cuerpo = título
+        self.assertEqual(vacia[0], 0.05)
+        self.assertLess(D.utilidad_astraura(astraura(ESQUELETO))[0], 0.2)  # función vacía: no es sustancia
+
+    def test_utilidad_libre_por_sustancia_pura_y_determinista(self):
+        rica = D.utilidad_libre(libre())
+        self.assertGreaterEqual(rica[0], 0.75); self.assertIn("2 referencia(s) https", rica[1])
+        self.assertEqual(rica, D.utilidad_libre(libre()))
+        delgada = D.utilidad_libre(libre("Una idea suelta sin desarrollar."))
+        self.assertLess(delgada[0], 0.2)
+        self.assertEqual(D.utilidad_libre(libre("Guía de tono de la comunidad"))[0], 0.0)  # solo el título
+        con_refs = libre("Texto corto con apoyo.", referencias=[{"titulo": "a", "url": "https://a.org"},
+                                                               {"titulo": "b", "url": "https://b.org"}, {"titulo": "c", "url": "https://c.org"}])
+        self.assertGreater(D.utilidad_libre(con_refs)[0], delgada[0])
+        m = D.medir_sustancia(libre("# Título\n\n- uno\n- dos\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nver http://inseguro.org"))
+        self.assertEqual((m["estructura"] >= 5, m["referencias"]), (True, 0))  # http no cuenta
+
+    def test_jev_solo_frena_lo_que_no_es_codigo(self):
+        p = libre()
+        base = D.utilidad_libre(p)[0]
+        self.assertEqual(D.utilidad_libre(p, lambda q: {"p": 0.9, "veta": True})[0], 0.0)
+        self.assertEqual(D.utilidad_libre(p, lambda q: {"p": 0.79, "veta": True})[0], base)
+        self.assertAlmostEqual(D.utilidad_libre(p, lambda q: {"p": 0.9, "prioridad": "bajar"})[0], round(base - 0.1, 4))
+        self.assertEqual(D.utilidad_libre(p, lambda q: {"p": 1.0, "prioridad": "subir"})[0], base)
+        self.assertEqual(D.utilidad_astraura(astraura(), lambda q: 1 / 0)[0], 0.9)  # Jev calla: manda la regla
+
+    def test_utilidad_propuesta_por_su_via(self):
+        self.assertEqual(D.via(propuesta(), existe), "codigo")
+        self.assertEqual(D.utilidad_propuesta(propuesta(), existe), D.utilidad(propuesta(), existe))
+        self.assertEqual(D.via(astraura(), existe), "astraura")
+        self.assertEqual(D.via(libre(), existe), "entregable")
+        self.assertEqual(D.via(libre(tipo="codigo"), existe), "codigo")  # código no accionable: se reimagina, no es un ensayo
+        clave = astraura(titulo="Optimización ARM NEON para r2_credentials.local.json")
+        self.assertEqual(clave["utilidad"], 0.0); self.assertIn("credenciales", clave["motivo"])
+        self.assertEqual(libre(cuerpo=RICO + "\nHay que pagar la suscripción.")["utilidad"], 0.0)
+
+    def test_importancia_que_declara_astraura(self):
+        self.assertEqual(D.importancia(astraura(nivel="critical_security")), "critica")
+        self.assertEqual(D.importancia(astraura(nivel="high")), "alta")
+        self.assertEqual(D.importancia(astraura(nivel="medium")), "media")
+        self.assertEqual(D.importancia(astraura(nivel="low")), "baja")
+        self.assertEqual(D.importancia(dict(libre(), origen={"importance_level": "critical"})), "baja")  # solo la de Astraura
+
+    def test_integra_lo_que_no_es_codigo_por_su_via(self):
+        r = D.automatica(astraura(), ajustes(), existe)
+        self.assertEqual(r["destino"], "aprobada"); self.assertIn("se aplica en Astraura", r["motivo"])
+        r = D.automatica(libre(), ajustes(), existe)
+        self.assertEqual(r["destino"], "aprobada"); self.assertIn("entregable", r["motivo"])
+        self.assertEqual(D.automatica(libre(), ajustes(), existe, lambda q: {"p": 0.9, "veta": True})["destino"], "nueva")
+        # sin «aprobar», lo que llega espera el visto bueno; el «automático» viejo no toca lo que no es código
+        self.assertEqual(D.automatica(libre(), ajustes(aprobar=False), existe)["destino"], "esperando-aprobacion")
+        viejo = ajustes(automatico=True, aprobar=False, reimaginar=False)
+        for p in (libre(), astraura()):
+            self.assertEqual(D.automatica(p, viejo, existe), dict(D.destino(p, True, existe), notas=""))
+
+    def test_lo_que_no_llega_se_reimagina_salvo_astraura(self):
+        r = D.automatica(libre("Una idea suelta."), ajustes(), existe)
+        self.assertEqual(r["destino"], "reimaginando"); self.assertIn("Desarróllala", r["notas"])
+        self.assertIn("referencias https", r["notas"]); self.assertNotIn("accionable por el enjambre", r["notas"])
+        self.assertEqual(D.automatica(libre("Una idea suelta.", version=3), ajustes(), existe)["destino"], "nueva")
+        floja = D.automatica(astraura(ESQUELETO), ajustes(), existe)
+        self.assertEqual(floja["destino"], "nueva"); self.assertIn("Astraura", floja["motivo"])
+
+    def test_alta_critica_y_lo_de_alex_nunca_solas(self):
+        importantes = [astraura(nivel="critical_security"), astraura(nivel="high"), libre(importancia_declarada="alta"),
+                       libre("Una idea suelta.", importancia_declarada="critica")]
+        jevs = [None, lambda p: {"p": 1.0, "prioridad": "subir"}, lambda p: 1 / 0]
+        for p in importantes:
+            for auto, apr, rei, umbral, maximo, jev in itertools.product((True, False), (True, False), (True, False),
+                                                                          (0.6, 0.75, 1.0), (0, 2, 10), jevs):
+                r = D.automatica(p, ajustes(auto, apr, rei, umbral, maximo), existe, jev)
+                self.assertNotIn(r["destino"], ("autodesarrollo", "aprobada", "reimaginando", "descartada"), p["id"])
+        r = D.automatica(astraura(nivel="critical_security"), ajustes(), existe)
+        self.assertEqual(r["destino"], "esperando-aprobacion"); self.assertIn("critical_security", r["motivo"])
+        alex = D.automatica(astraura(titulo="Optimización para vercel.backup.json"), ajustes(), existe)
+        self.assertEqual(alex["destino"], "pregunta"); self.assertIn("vercel", alex["motivo"])
+
+    def test_astraura_ya_autorizada_no_espera_nada(self):
+        viva = astraura(nivel="high", origen={"tipo": "rama", "id": "bgauth_1_athena", "requires_user_approval": False, "status": "running"},
+                        titulo="⚡ [AUTORIZADO] ✅ Permiso Concedido: Mutación Sináptica")
+        self.assertTrue(D.ya_autorizada_por_astraura(viva))
+        r = D.automatica(viva, ajustes(), existe)
+        self.assertEqual(r["destino"], "descartada"); self.assertIn("ya la autorizó", r["motivo"])
+        self.assertFalse(D.ya_autorizada_por_astraura(astraura()))  # pide aprobación
+        sin_clave = astraura(); sin_clave["origen"].pop("requires_user_approval")
+        self.assertFalse(D.ya_autorizada_por_astraura(sin_clave))
+        self.assertEqual(D.automatica(viva, ajustes(automatico=False, aprobar=False, reimaginar=False), existe)["destino"], "esperando-aprobacion")
+
+    def test_duplicadas_se_queda_la_mas_reciente(self):
+        a = astraura(origen={"id": "creation_1792891927"}, estado="pregunta")
+        b = astraura(origen={"id": "creation_1792892530"}, estado="pregunta", titulo="esquema de agente mutado — hephaestus neon!")
+        c = astraura(origen={"id": "creation_1792890000"}, estado="aprobada")  # decidida: no cuenta
+        otra_fuente = dict(libre(), titulo=a["titulo"], estado="nueva")
+        otro_ambito = dict(libre(), id="agentes:b", titulo=a["titulo"], estado="nueva", ambito="personal")
+        dir1 = {"id": "directores:T1", "fuente": "directores", "titulo": "X", "estado": "pregunta"}
+        dir2 = {"id": "directores:T2", "fuente": "directores", "titulo": "X", "estado": "pregunta"}
+        fuera = D.duplicadas([a, b, c, otra_fuente, otro_ambito, dir1, dir2])
+        self.assertEqual([(p["id"], queda) for p, queda in fuera], [(a["id"], b["id"])])
+        hoy = dict(libre(), id="agentes:z--1", estado="nueva", origen={"fecha": "2026-10-25"})
+        ayer = dict(libre(), id="agentes:z--9", estado="pregunta", origen={"fecha": "2026-10-24"})
+        self.assertEqual([(p["id"], q) for p, q in D.duplicadas([hoy, ayer])], [(ayer["id"], hoy["id"])])
+
+    def test_orden_por_importancia_y_luego_lo_mas_reciente(self):
+        vieja = dict(libre(), id="agentes:x--1", origen={"fecha": "2026-10-20"})
+        nueva = dict(libre(), id="agentes:x--2", origen={"fecha": "2026-10-25"})
+        media = dict(libre(), id="agentes:x--0", origen={"fecha": "2026-10-01"}, importancia_declarada="media")
+        self.assertEqual([p["id"] for p in D.orden_reimaginar([vieja, nueva, media])], ["agentes:x--0", "agentes:x--2", "agentes:x--1"])
+
+    def test_la_firma_lleva_la_version_de_las_reglas(self):
+        self.assertTrue(D.firma(ajustes()).startswith(D.REGLAS + "|"))
+        self.assertNotEqual(D.firma(ajustes()), "1|1|1|0,75|2")  # la de la Ola 1024I: lo firmado con ella se revisa
 
 if __name__ == "__main__":
     unittest.main()
