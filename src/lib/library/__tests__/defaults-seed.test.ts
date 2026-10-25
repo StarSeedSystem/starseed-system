@@ -5,6 +5,7 @@ import {
   selectSeedIds,
   type SeedCatalogEntry,
 } from "../defaults-seed";
+import { PAQUETES_EXTERNOS, REPOS_EXCLUIDOS } from "../repos-externos-1020";
 
 const SIEMPRE_2A = [
   "lib-vikunja",
@@ -31,6 +32,14 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
+  it("la lista sale del cargador y respeta las exclusiones", () => {
+    const siempre = PAQUETES_EXTERNOS
+      .filter((p) => p.preinstalar === "siempre" && !REPOS_EXCLUIDOS.includes(p.repo))
+      .map((p) => p.id);
+    expect(siempre.sort()).toEqual([...SIEMPRE_2A].sort());
+    expect(siempre.some((id) => REPOS_EXCLUIDOS.includes(id))).toBe(false);
+  });
+
   it("sube la versión y añade las siete «siempre»", () => {
     expect(SEED_VERSION).toBe(16);
     for (const id of SIEMPRE_2A) {

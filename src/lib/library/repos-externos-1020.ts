@@ -31,16 +31,19 @@ const ICONO_POR_KIND: Record<string, string> = {
   function: "Boxes",
 };
 
-const EXCLUIDOS = ["reverse-skill"];
-
-function excluida(e: EntradaCatalogo): boolean {
-  return EXCLUIDOS.some((x) => e.id.includes(x) || e.repo.includes(x));
-}
+const VETADOS = ["reverse-skill"];
 
 export const REPOS_EXCLUIDOS: string[] = [
   catalogo.excluida?.repo,
   ...(catalogoBtipado.excluidas ?? []).map((e) => e.repo),
 ].filter((v): v is string => Boolean(v));
+
+function excluida(e: EntradaCatalogo): boolean {
+  return (
+    REPOS_EXCLUIDOS.includes(e.repo) ||
+    VETADOS.some((x) => e.id.includes(x) || e.repo.includes(x))
+  );
+}
 
 function aPaquete(e: EntradaCatalogo): LibraryPackage {
   return {

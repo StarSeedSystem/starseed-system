@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PAQUETES_EXTERNOS, REPO_EXTERNOS_1020, REPOS_EXCLUIDOS } from "../repos-externos-1020";
-import { listRepos } from "../packages";
+import { listRepos, validateRepoShape } from "../packages";
 
 const pkgs = REPO_EXTERNOS_1020.packages;
 
@@ -57,5 +57,19 @@ describe("repos-externos-1020 · cargador de las dos tandas", () => {
 
   it("usa el Vikunja real y no el señuelo", () => {
     expect(PAQUETES_EXTERNOS.find((p) => p.githubRepo === "go-vikunja/vikunja")?.id).toBe("lib-vikunja");
+  });
+});
+
+describe("repos-externos-1020 · la exclusión se aplica al sanear repos externos", () => {
+  it("descarta un paquete cuyo githubRepo está vetado", () => {
+    const repo = validateRepoShape({
+      id: "repo-de-prueba",
+      name: "Repo de prueba",
+      packages: [
+        { id: "lib-bueno", name: "Bueno", kind: "app", payload: { githubRepo: "go-vikunja/vikunja" } },
+        { id: "lib-malo", name: "Malo", kind: "app", payload: { githubRepo: "zhaoxuya520/reverse-skill" } },
+      ],
+    });
+    expect(repo?.packages.map((p) => p.id)).toEqual(["lib-bueno"]);
   });
 });

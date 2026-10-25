@@ -57,6 +57,7 @@ import {
   LIBRARY_EVENT,
   type LibraryPackage,
 } from "./packages";
+import { PAQUETES_EXTERNOS, REPOS_EXCLUIDOS } from "./repos-externos-1020";
 import { DOWNLOADABLE_SOURCES } from "@/ai/astraura/installed-models";
 
 /** Marca de estado de la siembra (viaja con la cuenta vía SYNCED_KEYS). */
@@ -68,6 +69,11 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
 export const SEED_VERSION = 16;
+
+/** Las «siempre» de la 2.ª tanda, leídas del cargador (nunca de una copia a mano). */
+const SIEMPRE_EXTERNOS_1020: string[] = PAQUETES_EXTERNOS
+  .filter((p) => p.preinstalar === "siempre" && !REPOS_EXCLUIDOS.includes(p.repo))
+  .map((p) => p.id);
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -321,13 +327,9 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   //    · lib-metabase → conector de analítica sobre réplica de lectura.
   //    · lib-trilium  → conector de notas jerárquicas por ETAPI.
   //    · lib-politica-privacidad → enlace al generador de avisos de privacidad.
-  "lib-vikunja",
-  "lib-celld",
-  "lib-sentry",
-  "lib-windmill",
-  "lib-metabase",
-  "lib-trilium",
-  "lib-politica-privacidad",
+  //    Se derivan del cargador de las dos tandas (preinstalar === "siempre"),
+  //    que ya descarta los repos excluidos: no hay copia que pueda desviarse.
+  ...SIEMPRE_EXTERNOS_1020,
 ];
 
 /**

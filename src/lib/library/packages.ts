@@ -65,7 +65,7 @@ import { applyTheme as applyThemePack } from "@/lib/design/theme-engine";
 // para que aparezcan en la Biblioteca y el Mezclador los liste como fuentes.
 import { DESIGN_ELEMENTS, type DesignElementKind } from "@/lib/design/design-elements";
 import { REPO_DECISIONES } from "./fuentes-decision";
-import { REPO_EXTERNOS_1020 } from "./repos-externos-1020";
+import { REPO_EXTERNOS_1020, REPOS_EXCLUIDOS } from "./repos-externos-1020";
 // Fuentes de IA locales que se descargan (TurboFieldfare): viven en un módulo sin "use client"
 // para que /api/library/actualizaciones pueda comprobar su upstream.
 import { FICHAS_IA_LOCALES } from "./fuentes-ia-locales";
@@ -2139,6 +2139,11 @@ function asString(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
 }
 
+/** Repos vetados por seguridad: ni se publican ni se aceptan de un repo externo. */
+function repoBloqueado(repo: string): boolean {
+  return REPOS_EXCLUIDOS.includes(repo.trim());
+}
+
 /** Sanea un paquete crudo de un repo externo. Devuelve null si es inválido. */
 function sanitizePackage(raw: unknown, repoId: string): LibraryPackage | null {
   if (!raw || typeof raw !== "object") return null;
@@ -2147,6 +2152,11 @@ function sanitizePackage(raw: unknown, repoId: string): LibraryPackage | null {
   const name = asString(r.name).trim();
   const kind = asString(r.kind).trim() as PackageKind;
   if (!id || !name || !VALID_KINDS.includes(kind)) return null;
+  const payload = r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
+    ? (r.payload as Record<string, unknown>)
+    : {};
+  const githubRepo = asString(payload.githubRepo);
+  if (githubRepo && repoBloqueado(githubRepo)) return null;
   return {
     id,
     kind,
@@ -2158,9 +2168,7 @@ function sanitizePackage(raw: unknown, repoId: string): LibraryPackage | null {
     author: asString(r.author, "Desconocido"),
     sourceRepoId: repoId,
     free: r.free !== false, // gratis-primero por defecto
-    payload: r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
-      ? (r.payload as Record<string, unknown>)
-      : {},
+    payload,
     comingSoon: r.comingSoon === true,
   };
 }
@@ -2267,10 +2275,14 @@ export async function addRepoByUrl(url: string): Promise<InstallResult & { repo?
     repo.id === STARSEED_THEMES_REPO.id ||
     repo.id === STARSEED_DESIGN_ELEMENTS_REPO.id ||
     repo.id === MINE_REPO_ID ||
-    repo.id === FONDO_SHADER_REPO.id
+    repo.id === FONDO_SHADER_REPO.id ||
+    repo.id === REPO_EXTERNOS_1020.id
   ) {
     return { ok: false, message: `Ese id de repo está reservado (${repo.id}).` };
   }
+    if (repo.packages.some((p) => repoBloqueado(asString(p.payload.githubRepo)))) {
+      return { ok: false, message: "El repo contiene publicaciones bloqueadas por seguridad." };
+    }
     const others = readExternalRepos().filter((r) => r.id !== repo.id);
     writeJson(REPOS_KEY, [...others, repo]);
     emitLibraryEvent();
