@@ -1,0 +1,87 @@
+{
+ "ola": "nube-20261025",
+ "tareas": [
+  {
+   "ola": "1021G",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40102750699",
+   "id": "GUI1021Id-d1",
+   "titulo": "Guía sin cuenta · puerta común abrirGuia y reglas del modo invitado (puro) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/onboarding/guia-acceso.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Módulo puro: `EVENTO_ABRIR_GUIA = \"starseed:open-guide\"` (igual que `OPEN_GUIDE_EVENT` de aurora-guide; la prueba lo compara leyendo el texto del archivo, sin importarlo), `abrirGuia({desde, temaInicial?})` (despacha el evento con ese detalle; sin `window`, no hace nada), `modoGuia(haySesion)` → 'invitado' | 'cuenta', `accionesDelPaso(modo)` → en invitado sin «Ir» ni «Hazlo por mí» y con la etiqueta «Disponible al entrar», `zGuia(desde, haySesion)` → 240 si se abre desde una ventana de acceso o sin sesión, si no el valor de hoy, y `unirVistas(local, cuenta)` (lo visto como invitado se une a la marca de la cuenta sin perder nada). Pruebas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40102750699`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40102750699:refs/remotes/origin/nube/40102750699\"` y `git cherry-pick --no-commit 81d4c84af557 5629c4d4a03f`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/__tests__/guia-acceso-aplicado.test.tsx, src/components/onboarding/aurora-guide.tsx, src/components/settings/appearance/guide-button-toggle.tsx, src/lib/onboarding/__tests__/guia-acceso.test.ts, src/lib/onboarding/guia-acceso.ts, src/lib/onboarding/guia-vista.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió GUI1021Id: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/onboarding/guia-acceso.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021Id",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "ola": "1020U",
+   "id": "TRD1020A-d1",
+   "titulo": "Traducción · cliente puro de LibreTranslate (traducir por lotes, idiomas, detectar, salud) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/traduccion/libretranslate.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Cliente puro con `fetch` inyectado: `traducir({q: texto o lista, source: \"auto\" o código, target, format: \"text\"|\"html\"})` → `POST {base}/translate` en JSON (con `api_key` solo si quien llama la pasa; nunca se guarda) → `translatedText` (texto o lista) y `detectedLanguage` cuando el origen es auto; `idiomas()` → `GET {base}/languages`; `detectar(q)` → `POST {base}/detect`; `salud()` → `GET {base}/health`. Parte en lotes por un límite de caracteres configurable y respeta el orden. Errores 400/403/429/500 en español claro. Pruebas con fetch simulado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## PARTE 1 DE 2 (la dirección dividió TRD1020A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/traduccion/libretranslate.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "TRD1020A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  },
+  {
+   "id": "TRD1020C",
+   "ola": "1020U",
+   "titulo": "Traducción · toda la página: recoger los textos traducibles, aplicar, volver al original y seguir lo nuevo",
+   "archivos": [
+    "src/lib/traduccion/pagina.ts",
+    "src/lib/traduccion/__tests__/pagina.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Funciones sobre el DOM (pruebas en jsdom): `recogerTextos(raiz)` devuelve los nodos de texto visibles y no vacíos, nunca dentro de `script`, `style`, `noscript`, `code`, `pre`, `textarea`, `input`, `select`, `[contenteditable]`, `[translate=no]`, `[data-no-traducir]` ni `[hidden]`; también los atributos `title`, `alt`, `aria-label` y `placeholder`. `aplicar(nodos, traducciones, idioma)` guarda cada original (WeakMap) y marca el elemento padre con `lang` y `data-traducido`; `restaurar(raiz)` lo devuelve todo como estaba; `observar(raiz, alNuevo)` con MutationObserver devuelve una función para parar y no vuelve a traducir lo ya traducido. Pruebas de cada exclusión, ida y vuelta exacta y texto nuevo detectado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "MGB1021Bd",
+   "ola": "1021B",
+   "titulo": "Revisor de bloqueadas · cuando un rescate de pruebas sale NO APLICA, sus rescates hermanos del mismo origen se cierran igual",
+   "archivos": [
+    "scripts/puente/revisor_bloqueadas_logica.py",
+    "scripts/puente/test_revisor_bloqueadas_hermanas.py"
+   ],
+   "depende": [],
+   "prompt": "Caso real (2026-10-21): RTCOL1012Ae se cerró «NO APLICA: los 9 casos ya están en main» el 20-10, pero su hermana RTCOL1012Ad (mismo ORIGEN: la rama archivada `refs/archivo/nube/a1-20261012-114650` de COL1012A y el mismo archivo de prueba) se quedó un día en «te necesitan». En `revisor_bloqueadas_logica.py` añade una regla PURA: las tareas de rescate (prompt que empieza por «ORIGEN: revisión automática de las ramas de la nube») que comparten la misma rama archivada (la ref `refs/archivo/nube/…` citada en el prompt) y los mismos archivos que otra ya cerrada como NO APLICA o integrada heredan ese cierre (`sustituida` con la nota «NO APLICA por su hermana <id>: <motivo de la hermana>»), salvo que estén en curso. Encájala en la decisión que ya devuelve el revisor (mira cómo devuelve hoy sus cierres) y no cambies nada más. Pruebas: hermana cerrada → cierre heredado; distinta rama o distintos archivos → nada; una en curso → nada. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lógica PURA con el reloj y los datos por parámetro; pruebas unittest sin red ni procesos; textos en español con acentos; nunca se borra nada de progreso.json: se cierra con estado `sustituida` y una nota que dice por qué.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40200602409`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40200602409:refs/remotes/origin/nube/40200602409\"` y `git cherry-pick --no-commit 33d9064afd30 7192ee7bf327`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: config/vigia-areas.json, scripts/puente/revisor_bloqueadas_logica.py, scripts/puente/test_origen_habilidades.py, scripts/puente/test_revisor_bloqueadas_hermanas.py, scripts/puente/test_vigia_areas.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40200602409"
+  },
+  {
+   "id": "PES1020Ac",
+   "ola": "1020U",
+   "titulo": "Capacidad · servicios pesados: sus requisitos y dónde los coloca la malla y las capas de conciencia",
+   "archivos": [
+    "src/lib/recursos/servicios-pesados.ts",
+    "src/lib/recursos/__tests__/servicios-pesados.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §3, regla de Alex: lo que pide RAM o GPU lo colocan la malla local y las capas de conciencia, nunca la neurona por su cuenta. Escribe un módulo puro con `REQUISITOS_SERVICIO` (comfyui, libretranslate, stirling-pdf, archivebox, openhands-agent-server, coolify; mismos datos que el catálogo JSON, `null` = sin medir; medido en el A1 el 2026-10-20: LibreTranslate 711 MiB, Stirling-PDF 1,4 GiB, ComfyUI con SD 1.5 4,1 GB y más de 10 min por imagen en CPU; arm64 comprobado para LibreTranslate, Stirling-PDF, ArchiveBox, ComfyUI y OpenHands) y `SERVICIOS_INSTALADOS` del A1 (cada uno en 127.0.0.1 bajo demanda: LibreTranslate 5000, Stirling-PDF 8180, ArchiveBox 8001, ComfyUI 8188, OpenHands 8010; se encienden al primer uso si caben y se apagan a los 15 min sin uso), `CAPAS_PUBLICAS_CONOCIDAS` (oracle-a1: 2 OCPU, 12288 MB, arm64, sin GPU, activa; cloud-run: inactiva con el motivo «facturación de Google desactivada desde el 2026-09-25»; espacios-hf: solo con permiso) y `colocarServicio(servicio, ofertas, contexto)` que usa `planificar` de `src/lib/recursos/oferta.ts` y devuelve `{donde: {tipo: \"aparato\"|\"cuenta\"|\"cerebro\"|\"malla\"|\"capa-publica\"|\"web-gratis\"|\"ninguno\", id?}, motivo, respaldo?, falta: string[]}` en el orden de §3. Reglas: privado solo aparato, cuenta o cerebro; una arquitectura no verificada para el servicio no se coloca en esa capa (va a `falta`: «medir arm64 en el A1»); RAM sin medir exige una oferta con medida y se anota «a medir»; GPU necesaria sin oferta con GPU → web gratis si no es privado, si no `ninguno` con lo que falta; una capa inactiva nunca se elige y su motivo aparece. Pruebas de cada regla. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-054348`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-054348:refs/remotes/origin/nube/a1-20261024-054348\"` y `git cherry-pick --no-commit 00c02155d7eb`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/recursos/__tests__/servicios-pesados.test.ts, src/lib/recursos/servicios-pesados.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-054348"
+  },
+  {
+   "id": "CLF1020Ab",
+   "ola": "1020U",
+   "titulo": "Coolify · cliente puro en solo lectura (equipo y servidores) para las capas de conciencia",
+   "archivos": [
+    "src/lib/servidores/coolify.ts",
+    "src/lib/servidores/__tests__/coolify.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2: rutas verificadas el 2026-10-20: `GET {url}/api/v1/teams/current` (sonda: de qué equipo es el token) y `GET {url}/api/v1/servers`; cabecera `Authorization: Bearer <token>` con el valor entero tal cual (id|secreto). Cliente puro con `fetch` inyectado, `redirect: \"manual\"` y tope de tiempo: `sondear()` y `listarServidores()` (mapea solo los campos que vengan, lo que falte es «sin dato»). Errores honestos: 401 token inválido; 403 «sin permiso o tu IP no está en la lista permitida»; 404 «un administrador debe encender la API de Coolify». El token nunca aparece en un error ni en un registro. NADA de desplegar, arrancar ni parar: esas rutas no están verificadas. Pruebas con fetch simulado de cada caso. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40024764789`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40024764789:refs/remotes/origin/nube/40024764789\"` y `git cherry-pick --no-commit 334df0f08028`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/servidores/__tests__/coolify.test.ts, src/lib/servidores/coolify.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40024764789"
+  }
+ ]
+}
