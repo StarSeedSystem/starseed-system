@@ -6,11 +6,38 @@ import { Volume2 } from "lucide-react";
 import { FRAME_ALLOW, FRAME_SANDBOX } from "@/components/browser/web-frame";
 import { conParent, detectarFormato } from "@/lib/estaciones/formato";
 import type { Estacion } from "@/lib/estaciones/tipos";
+import { getSharedMesh } from "@/lib/network/lan-sync";
+import {
+    anunciarSegmentoPropio,
+    contextoPermiteMalla,
+    crearCargadorHlsMalla,
+    registroSesionMalla,
+    type DepsSegmentoMalla,
+} from "@/lib/recursos/hls-malla-loader";
 
 interface Props {
-    estacion: Pick<Estacion, "enlace" | "tipo" | "titulo">;
+    estacion: Pick<Estacion, "enlace" | "tipo" | "titulo"> &
+        Partial<Pick<Estacion, "en_malla" | "visibilidad">>;
     className?: string;
     compacto?: boolean;
+}
+
+/** Dependencias reales del cargador: disponibilidad local, origen por fetch y anuncio propio. */
+function depsHlsMalla(): DepsSegmentoMalla {
+    return {
+        yo: "yo",
+        ahora: () => Date.now(),
+        esperar: (ms) => new Promise((listo) => setTimeout(listo, ms)),
+        registro: registroSesionMalla,
+        pedirAPar: async () => null, // el relé de segmentos por la malla llega en su propia tarea
+        bajarDelOrigen: async (segmento) => {
+            const respuesta = await fetch(segmento.url);
+            if (!respuesta.ok) throw new Error(`El origen respondió ${respuesta.status}`);
+            return respuesta.arrayBuffer();
+        },
+        anunciar: (segmento) => anunciarSegmentoPropio("yo", segmento, Date.now()),
+        puedeAnunciar: () => true, // el tope de subida lo aplica quien presta (bolsa de recursos)
+    };
 }
 
 /** Barras del ecualizador de la barra de audio; quietas con prefers-reduced-motion. */
@@ -43,14 +70,16 @@ export function ReproductorEstacion({ estacion, className, compacto }: Props) {
             if (!vivo) { return; }
             const Hls = m.default;
             if (Hls.isSupported()) {
-                const instancia = new Hls();
+                // Solo con malla viva y contexto público o de la cuenta; lo privado nunca sale.
+                const porMalla = estacion.en_malla === true && contextoPermiteMalla(estacion.visibilidad) && !!getSharedMesh();
+                const instancia = porMalla ? new Hls({ fLoader: crearCargadorHlsMalla(depsHlsMalla()) }) : new Hls();
                 instancia.loadSource(enlace);
                 instancia.attachMedia(v);
                 hls = instancia;
             } else { setForzarPestana(true); }
         }).catch(() => { if (vivo) setForzarPestana(true); });
         return () => { vivo = false; hls?.destroy(); };
-    }, [f.reproductor, enlace]);
+    }, [f.reproductor, enlace, estacion.en_malla, estacion.visibilidad]);
 
     const activarSonido = () => {
         setSilencio(false);
