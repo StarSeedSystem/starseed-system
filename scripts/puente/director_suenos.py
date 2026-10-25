@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""director_suenos · funde los informes de una sesión de sueños profundos en recomendaciones.
+"""director_suenos · funde los informes de una sesión de imaginación profunda en recomendaciones.
 
     (se usa desde `python3 scripts/puente/suenos.py consolidar [--fecha …] [--tope 15] [--seco]`)
 
-POR QUÉ EXISTE (2026-09-29). Una sesión de sueños deja hasta 84 informes (14 áreas × 6
+POR QUÉ EXISTE (2026-09-29). Una sesión de imaginación deja hasta 84 informes (14 áreas × 6
 lentes), cada uno con ≤ 10 hallazgos. Nadie lee 800 hallazgos. Este director hace lo que
 haría un jefe de redacción:
 
@@ -427,7 +427,7 @@ def estado_para_jev(u):
     """Lo que Jev ve de un hallazgo: sin rutas absolutas ni nada que no esté ya en el informe."""
     prop = u.get("propuesta") or {}
     return {
-        "que": "hallazgo de un sueño profundo (análisis de código) de StarSeed OS",
+        "que": "hallazgo de una sesión de imaginación profunda (análisis de código) de StarSeed OS",
         "reglas": "una tarea del enjambre toca como mucho 3 archivos y 120 líneas por archivo, pasa tsc y "
         "vitest, y no se encarga lo que ya está hecho ni lo que no se puede comprobar",
         "hallazgo": {
@@ -592,7 +592,7 @@ def render_informe(c, sesion, planificadas=None, cola_nombre=None, n_cola=0, top
     total = planificadas if planificadas is not None else k["informes"]
     verificados = k["verificados"] + k["ajustados"] + k["rechazados_informe"]
     lin = [
-        "# 🌌 Sueños profundos — INFORME (%s)" % sesion,
+        "# 🌌 Imaginación profunda — INFORME (%s)" % sesion,
         "",
         "> %d informes de %d planificados · %d revisados por un supervisor Claude (%d verificados, %d ajustados, "
         "%d rechazados) · %d hallazgos únicos (%d duplicados fundidos, %d rechazados) · generado %s"
@@ -615,7 +615,7 @@ def render_informe(c, sesion, planificadas=None, cola_nombre=None, n_cola=0, top
     areas = sorted(c["por_area"])
     lentes = sorted({l for u in rk for l in u["lentes"]})
     lin.append(
-        "- **Áreas soñadas:** %s. **Lentes:** %s."
+        "- **Áreas de la sesión:** %s. **Lentes:** %s."
         % (", ".join(areas) or "—", ", ".join(lentes) or "—")
     )
     if rk:
@@ -739,7 +739,7 @@ def render_informe(c, sesion, planificadas=None, cola_nombre=None, n_cola=0, top
         "",
         "- Estado y verificación: `python3 scripts/puente/suenos.py estado` · `python3 scripts/puente/suenos.py por-verificar`.",
         '- Veredicto de un informe: `python3 scripts/puente/suenos.py veredicto <tarea> --estado verificado|ajustado|rechazado --nota "…" --por claude-<modelo>`.',
-        "- La cola propuesta se abre en Genesis (Procesos → Sueños profundos → «Abrir en Diseñador»); se lanza a mano y cada tarea espera tu visto bueno antes de integrarse.",
+        "- La cola propuesta se abre en Genesis (Procesos → Imaginación profunda → «Abrir en Diseñador»); se lanza a mano y cada tarea espera tu visto bueno antes de integrarse.",
         "",
     ]
     return "\n".join(lin)
@@ -782,7 +782,7 @@ def cola_propuesta(c, sesion, tope=TOPE_PROPUESTA, ocupados=()):
                 if u["privado"]
                 else ""
             )
-            + "ORIGEN: sueño profundo %s (%s × %s) del %s, %s. Informe: "
+            + "ORIGEN: imaginación profunda %s (%s × %s) del %s, %s. Informe: "
             "`starseed_memory_root/dream/profundo/%s/%s--%s.md`.\n\n"
             "HALLAZGO: %s — %s\nCITA: %s:%s · impacto %s · esfuerzo %s · confianza %.2f\n"
             "PROPUESTA: %s\n"
@@ -814,7 +814,7 @@ def cola_propuesta(c, sesion, tope=TOPE_PROPUESTA, ocupados=()):
         )
         t = {
             "id": nuevo_id(),
-            "ola": "Sueños profundos %s · propuesta" % sesion,
+            "ola": "Imaginación profunda %s · propuesta" % sesion,
             "titulo": _celda(prop.get("titulo") or u["titulo"], 200),
             "archivos": archivos,
             "depende": [],
@@ -841,7 +841,7 @@ def resumen_corto(c, sesion, n_cola=0):
     publicos = [u for u in c["ranking"] if not u["privado"]][:3]
     top = "; ".join("%s (%s)" % (_celda(u["titulo"], 60), u["area"]) for u in publicos)
     return (
-        "Sueños profundos %s: %d informes, %d hallazgos únicos (%d verificados/ajustados por Claude), "
+        "Imaginación profunda %s: %d informes, %d hallazgos únicos (%d verificados/ajustados por Claude), "
         "%d riesgos, %d propuestas en cola (sin lanzar).%s"
         % (
             sesion,
@@ -966,7 +966,7 @@ def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
                         "-t",
                         DESTINO_TELEGRAM,
                         "-s",
-                        "Sueños profundos · StarSeed OS",
+                        "Imaginación profunda · StarSeed OS",
                         texto[:1200],
                     ],
                     timeout=40,
@@ -1082,7 +1082,7 @@ def ejecutar(
         fuera["seco"] = True
         return fuera
     _escribir(os.path.join(dir_sesion, "INFORME.md"), texto)
-    # Lo que lee el panel de Genesis (Procesos → Sueños profundos): el ranking ya hecho.
+    # Lo que lee el panel de Genesis (Procesos → Imaginación profunda): el ranking ya hecho.
     _escribir(
         os.path.join(dir_sesion, "consolidado.json"),
         json.dumps(fuera, ensure_ascii=False, indent=1),
