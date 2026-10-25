@@ -24,6 +24,8 @@ import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
 import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
 } from "./habilidades/diagramas";
+import { ATRIBUCION_INGENIERIA } from "./habilidades/ingenieria-a";
+import { HABILIDADES_INGENIERIA } from "./habilidades/elegir-habilidad";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -667,6 +669,28 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: { preferStrong: true },
     defaultOn: true,
     skillIds: ["diagram-design"],
+  },
+  /* ═══ HABILIDADES · Ingeniería por capas con Laya (Ola 1018L · LYS1018K) ═══
+   * Las habilidades de Matt Pocock como UNA sola capacidad encendida por
+   * defecto (desactivable en Ajustes, mismo mecanismo que las demás `defaultOn`).
+   * Laya elige cuál aplica con `preguntaHabilidad`
+   * (src/ai/astraura/habilidades/elegir-habilidad.ts) y el TAMAÑO del texto sale
+   * de la capa que responde con `bloqueHabilidad`: la tarjeta (≤ 60 palabras)
+   * para reflejo y palabra pequeña (Needle y BitNet), el resumen (≤ 120
+   * palabras) para palabra y razón (Bonsai) y la referencia al texto completo
+   * para profunda y nube; bajo el umbral o con «ninguna», no se inyecta nada.
+   * Contrato: architecture/laya-y-habilidades.md §5. */
+  {
+    id: "habilidades-ingenieria",
+    label: "Habilidades de ingeniería por capas (Matt Pocock)",
+    defaultOn: true,
+    systemPrompt:
+      `Conozco y aplico habilidades de ingeniería cuando la petición casa con alguna ` +
+      `(${HABILIDADES_INGENIERIA.map((h) => h.nombre).join(" · ")}). ` +
+      "Laya elige cuál aplica y el tamaño del texto lo decide la capa que responde: la tarjeta (≤ 60 palabras) para reflejo y palabra pequeña (Needle y BitNet), el resumen (≤ 120 palabras) para palabra y razón (Bonsai), y el texto completo —por su ruta en el repositorio— para profunda y nube; " +
+      "si la confianza calibrada de Laya cae bajo el umbral o elige «ninguna», no se inyecta nada y sigo sin la habilidad. " +
+      ATRIBUCION_INGENIERIA,
+    routing: { preferStrong: true },
   },
 ];
 
