@@ -131,3 +131,64 @@ describe("crearSelectorPonderado — intercalado y con saltos", () => {
     expect(s.siguiente(new Set(["a", "b"]))).toBeNull();
   });
 });
+
+describe("LocalSend — solo archivos por la red local desde la app nativa o un servidor", () => {
+  const localSend = enlace({
+    id: "local:ls",
+    tipo: "local",
+    protocolo: "localsend",
+    consentido: true,
+    sinInternet: true,
+    admite: { mensaje: true, archivo: true, flujo: false },
+  });
+
+  it("vale para archivos desde la app nativa y desde un servidor, y su motivo lo dice", () => {
+    const app = elegirEnlaces([localSend], { syncDeviceId: "B" }, "archivo", 1200, { medioEmisor: "app-nativa" });
+    expect(app.elegidos.map((e) => e.enlace.id)).toEqual(["local:ls"]);
+    expect(app.elegidos[0].motivo).toMatch(/LocalSend/);
+    const servidor = elegirEnlaces([localSend], { syncDeviceId: "B" }, "archivo", 1200, { medioEmisor: "servidor" });
+    expect(servidor.elegidos).toHaveLength(1);
+  });
+
+  it("no vale para mensajes ni para flujos, y dice por qué", () => {
+    const mensaje = elegirEnlaces([localSend], { syncDeviceId: "B" }, "mensaje", 10, { medioEmisor: "app-nativa" });
+    expect(mensaje.elegidos).toHaveLength(0);
+    expect(mensaje.descartados[0].motivo).toMatch(/solo lleva archivos, no mensajes/);
+    const flujo = elegirEnlaces([localSend], { syncDeviceId: "B" }, "flujo", 0, { medioEmisor: "app-nativa" });
+    expect(flujo.elegidos).toHaveLength(0);
+    expect(flujo.descartados[0].motivo).toMatch(/audio ni vídeo/);
+  });
+
+  it("no vale desde el navegador ni sin declarar el medio emisor", () => {
+    const navegador = elegirEnlaces([localSend], { syncDeviceId: "B" }, "archivo", 10, { medioEmisor: "navegador" });
+    expect(navegador.elegidos).toHaveLength(0);
+    expect(navegador.descartados[0].motivo).toMatch(/app nativa o un servidor/);
+    const sinDeclarar = elegirEnlaces([localSend], { syncDeviceId: "B" }, "archivo", 10);
+    expect(sinDeclarar.elegidos).toHaveLength(0);
+    expect(sinDeclarar.descartados[0].motivo).toMatch(/app nativa o un servidor/);
+  });
+
+  it("lo privado solo va a la misma cuenta o por vínculo consentido", () => {
+    const sinVinculo = { ...localSend, consentido: false };
+    const ajeno = elegirEnlaces([sinVinculo], { syncDeviceId: "B" }, "archivo", 10, { medioEmisor: "app-nativa", clase: "privado", miUid: "yo" });
+    expect(ajeno.elegidos).toHaveLength(0);
+    expect(ajeno.descartados[0].motivo).toMatch(/misma cuenta o con vínculo consentido/);
+    const propia = elegirEnlaces(
+      [{ ...sinVinculo, alcanza: { uid: "yo" } }],
+      { uid: "yo" },
+      "archivo",
+      10,
+      { medioEmisor: "app-nativa", clase: "privado", miUid: "yo" },
+    );
+    expect(propia.elegidos).toHaveLength(1);
+    const consentido = elegirEnlaces([localSend], { syncDeviceId: "B" }, "archivo", 10, { medioEmisor: "app-nativa", clase: "privado" });
+    expect(consentido.elegidos).toHaveLength(1);
+  });
+
+  it("un LocalSend que no es local se descarta; el enlace StarSeed de siempre no cambia", () => {
+    const porCuenta = enlace({ id: "cuenta:ls", tipo: "cuenta", protocolo: "localsend" });
+    const r = elegirEnlaces([porCuenta, local], { syncDeviceId: "B" }, "archivo", 10, { medioEmisor: "app-nativa" });
+    expect(r.elegidos.map((e) => e.enlace.id)).toEqual(["local:1"]);
+    expect(r.descartados[0].motivo).toMatch(/solo vale por un enlace local/);
+  });
+});
