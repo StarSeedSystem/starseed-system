@@ -45,6 +45,7 @@ import {
   Link2,
   BrainCircuit,
   Server,
+  Database,
 } from "lucide-react";
 import { toast } from "sonner";
 
