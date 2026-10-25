@@ -90,7 +90,10 @@ export function voiceChoiceFromPersonality(profile: PersonalityVoiceShape | null
   if (intel?.modo === "fija") {
     const directo = motorDe(intel.motorVoz);
     if (directo) return directo;
-    return motorDe(intel.porSentido?.voz?.fuente);
+    // (SGO1024D-d1) Con el pin duro vacío, el MOTOR PREFERIDO sigue contando:
+    // `refreshPersonalityVoicePin` lee `voiceStyle.engine` en CUALQUIER modo
+    // (Adenda 80), así que «fija» sin motorVoz/porSentido no se queda muda.
+    return motorDe(intel.porSentido?.voz?.fuente) ?? motorDe(profile?.voiceStyle?.engine);
   }
   return motorDe(profile?.voiceStyle?.engine);
 }

@@ -89,6 +89,12 @@ describe("voiceChoiceFromPersonality · misma regla que refreshPersonalityVoiceP
     ).toBe("bark");
   });
 
+  it("modo fija sin pin duro: el MOTOR PREFERIDO sigue contando (Adenda 80, cualquier modo)", () => {
+    expect(
+      voiceChoiceFromPersonality({ intelligence: { modo: "fija" }, voiceStyle: { engine: "voice158" } }),
+    ).toBe("voice158");
+  });
+
   it("modo no fija: solo vale voiceStyle.engine (motorVoz se ignora)", () => {
     expect(voiceChoiceFromPersonality({ intelligence: { modo: "auto", motorVoz: "bark" } })).toBeNull();
     expect(voiceChoiceFromPersonality({ voiceStyle: { engine: "omnivoice" } })).toBe("omnivoice");

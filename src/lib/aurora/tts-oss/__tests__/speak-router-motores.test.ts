@@ -67,7 +67,7 @@ vi.mock("@/lib/aurora/tts-oss/omnivoice-web-router", async (importOriginal) => {
 });
 
 import { motorQueSono, speakWithConfiguredEngine } from "@/lib/aurora/tts-oss/speak-router";
-import { AUTO_ENDPOINT_ORDER, buildVoiceChain, listVoiceEngines } from "@/lib/aurora/tts-oss/engine-registry";
+import { AUTO_ENDPOINT_ORDER, buildVoiceChain, listVoiceEngines, resolveActiveVoiceEngine } from "@/lib/aurora/tts-oss/engine-registry";
 import {
   applyVoiceChainPriority,
   completarPrioridad,
@@ -268,5 +268,31 @@ describe("voz 1.58-bit: habla con el servidor cuya salud se comprobó", () => {
     await vi.advanceTimersByTimeAsync(ENGINE_TIMEOUT_MS.voice158);
     expect(await p).toBeNull();
     expect(onError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveActiveVoiceEngine · la jerarquía pura está aplicada (SGO1024D-d1 · VOZ1024B)", () => {
+  // (VOZ1024B) Antes el pin por defecto (openvoice2) se colaba como pin de
+  // personalidad y se saltaba el orden AUTO: el router «casi nunca» veía
+  // VibeVoice y VibeVoice hablaba todo como Speaker 0.
+  it("con VibeVoice y su endpoint, el AUTO gana al pin por defecto fabricado", () => {
+    window.localStorage.clear();
+    conServidor("vibevoice", "http://gpu.local:7860");
+    setVoiceConfig({ engine: "browser" as const, auto: true });
+    expect(resolveActiveVoiceEngine()).toBe("vibevoice");
+  });
+
+  it("la elección explícita de la cuenta manda sobre el pin por defecto", () => {
+    window.localStorage.clear();
+    conServidor("voice158", "http://127.0.0.1:8000");
+    setVoiceConfig({ engine: "voice158" as const });
+    expect(resolveActiveVoiceEngine()).toBe("voice158");
+  });
+
+  it("sin endpoints de AUTO y sin ningún ámbito fijando motor, sigue el predeterminado real", () => {
+    window.localStorage.clear();
+    setVoiceConfig({ engine: "browser" as const, auto: true });
+    const motor = resolveActiveVoiceEngine();
+    expect(["omnivoice", "openvoice2", "browser"]).toContain(motor);
   });
 });

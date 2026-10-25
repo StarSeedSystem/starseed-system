@@ -79,6 +79,18 @@ import { getOverrides as getNeuronPersonaOverrides } from "@/lib/astraura/neuron
 // (VZR1011B) Estado SÍNCRONO de Chatterbox (solo memoria de salud, sin red). El
 // cliente es ligero: lo pesado (Gradio) lo carga él con `import()` al hablar.
 import { estadoChatterbox, latenciaMedidaChatterbox } from "@/lib/aurora/tts-oss/chatterbox";
+// (SGO1024D-d1 · VOZ1024B) La JERARQUÍA PURA de decisión del motor (agente ›
+// personalidad › cerebro › neurona › cuenta). Módulo puro, sin red ni disco:
+// importarlo aquí es gratis y UNIFICAR en él la resolución. Solo `type` el
+// enlace con `VoiceChainLink`, así que no hay ciclo de importación en runtime.
+import {
+  activeEngineFromChain,
+  resolveVoiceChoiceFrom,
+  voiceChoiceFromConfig,
+  voiceChoiceFromOverride,
+  voiceChoiceFromPersonality,
+  type PersonalityVoiceShape,
+} from "@/lib/aurora/voice-config";
 
 // ── Metadatos por motor ──────────────────────────────────────────────────────
 
@@ -654,6 +666,15 @@ function availabilityOffline(
  */
 let cachedPin: AuroraVoiceEngine | null = null;
 /**
+ * (SGO1024D-d1 · VOZ1024B) Último pin que salió de una elección de VERDAD de un
+ * ámbito (override de la neurona o pin de la personalidad). El pin por defecto
+ * (Adendas 81/86/90, paso 3) NUNCA llega aquí: en la jerarquía no es una
+ * elección, así que no puede saltarse por delante de la cuenta ni del AUTO —
+ * que era justo por lo que `resolveActiveVoiceEngine` casi siempre devolvía
+ * `openvoice2` y VibeVoice no recibía su guion multi-locutor.
+ */
+let cachedPinReal: AuroraVoiceEngine | null = null;
+/**
  * (Adenda 149) Id de la personalidad activa la última vez que se refrescó el pin.
  * Sólo la IDENTIDAD se cachea (resolverla exige el módulo pesado de
  * personalidades); el override de la neurona se relee FRESCO en cada consulta,
@@ -688,40 +709,36 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
   try {
     const mod = await import("@/lib/aurora/personalities");
     const profile = mod.getActivePersonality();
-    const intel = profile?.intelligence;
     cachedPersonaId = profile?.id ?? null;
     // 0) (Adenda 149) MOTOR FIJADO POR ESTA NEURONA para esta personalidad: va
     //    PRIMERO (por delante incluso del pin de la personalidad, que viaja con
     //    la cuenta) porque describe el hardware/preferencia de ESTE dispositivo.
     //    Como todos los pines, NO es exclusivo: si ese motor no responde, la
     //    cadena de `buildVoiceChain` sigue detrás.
+    //    (SGO1024D-d1) La lectura es ahora la PURE de la jerarquía: mismo filtro
+    //    `voz.motor` que ayer (`voiceChoiceFromOverride`).
     const nVoz = neuronPersonaVoice(cachedPersonaId);
-    const nMotor = nVoz?.motor;
-    if (isVoiceEngineId(nMotor)) {
+    const nMotor = voiceChoiceFromOverride(nVoz ? { voz: nVoz } : null);
+    if (nMotor) {
       cachedPin = nMotor;
+      cachedPinReal = null; // decisión de la NEURONA: el ámbito personalidad queda vacío
       return cachedPin;
     }
-    // 1) Pin DURO de inteligencia (modo "fija" + motorVoz / porSentido.voz).
-    if (intel && intel.modo === "fija") {
-      const direct = (intel as { motorVoz?: unknown }).motorVoz;
-      if (isVoiceEngineId(direct)) {
-        cachedPin = direct;
-        return cachedPin;
-      }
-      const bySense = intel.porSentido?.voz?.fuente;
-      if (isVoiceEngineId(bySense)) {
-        cachedPin = bySense;
-        return cachedPin;
-      }
-    }
-    // 2) MOTOR PREFERIDO de la personalidad (Adenda 80): el predeterminado
-    //    configurable. Aplica en cualquier modo de inteligencia y NUNCA es
-    //    exclusivo: va primero en la cadena y, si no responde, el resto sigue.
-    const preferred = (profile?.voiceStyle as { engine?: unknown } | undefined)?.engine;
-    if (isVoiceEngineId(preferred)) {
-      cachedPin = preferred;
+    // 1) + 2) PERSONALIDAD (pura, SGO1024D-d1 — `voiceChoiceFromPersonality`):
+    //    pin DURO de inteligencia (modo "fija": motorVoz / porSentido.voz) y
+    //    MOTOR PREFERIDO `voiceStyle.engine` en cualquier modo (Adenda 80) —
+    //    exactamente los mismos dos pasos de antes, unificados en la capa pura.
+    const pinPersona = voiceChoiceFromPersonality(profile as PersonalityVoiceShape | null);
+    if (pinPersona) {
+      cachedPin = pinPersona;
+      cachedPinReal = pinPersona; // elección de VERDAD de un ámbito: manda en la jerarquía
       return cachedPin;
     }
+    // 2.5) (SGO1024D-d1) Ni la neurona ni la personalidad fijaron motor: el pin
+    //     _cacheado es el PREDETERMINADO (paso 3) y, como tal, NO es una
+    //      elección de la jerarquía — `resolveActiveVoiceEngine` no lo tratará
+    //      como tal y dejará decidir a el AUTO o a la cuenta.
+    cachedPinReal = null;
     // 3) PREDETERMINADO GLOBAL (Adendas 81/86/90): TODA personalidad sin motor
     //    propio habla con OpenVoice/OmniVoice — salvo que ESTA NEURONA haya
     //    elegido otra cosa en su ventana de voz:
@@ -745,6 +762,7 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
     return cachedPin;
   } catch {
     cachedPin = null;
+    cachedPinReal = null;
     cachedPersonaId = null;
     return null;
   }
@@ -895,21 +913,58 @@ export function buildVoiceChain(
 }
 
 /**
+ * (SGO1024D-d1 · VOZ1024B) El motor fijado por la JERARQUÍA REAL de este turno:
+ * agente › personalidad › cerebro › neurona › cuenta (precedencia de la cadena
+ * de voz, resuelta por la capa pura `src/lib/aurora/voice-config.ts`). Solo
+ * cuentan las elecciones de VERDAD: el pin de la personalidad que la guardó
+ * (`cachedPinReal`), el override fresco de esta neurona (Adenda 149) y la
+ * elección explícita de la cuenta (Ajustes → Voz; el navegador no fija nada).
+ * Si NINGÚN ámbito decide, devuelve null → manda la cadena AUTO, y no el pin
+ * por defecto fabricado (`openvoice2`), que antes se saltaba el orden de
+ * el AUTO y hacía que VibeVoice casi nunca hablara el guion multi-locutor.
+ * Hoy no hay tienda de voz por agente ni por cerebro: se quedan fuera hasta que
+ * existan (la capa pura ya los soporta). Nunca lanza.
+ */
+function eleccionJerarquia(cfg: AuroraVoiceConfig): AuroraVoiceEngine | null {
+  try {
+    let dispositivo: string | null = null;
+    try { dispositivo = thisDeviceId() || null; } catch { dispositivo = null; }
+    const nVoz = neuronPersonaVoice(cachedPersonaId);
+    const override = voiceChoiceFromOverride(nVoz ? { voz: nVoz } : null);
+    const eleccion = resolveVoiceChoiceFrom(
+      {
+        ...(cachedPersonaId
+          ? { personalidad: { [cachedPersonaId]: { motor: cachedPinReal } } }
+          : {}),
+        ...(dispositivo ? { neurona: { [dispositivo]: { motor: override } } } : {}),
+        cuenta: { motor: voiceChoiceFromConfig(cfg) },
+      },
+      { personaId: cachedPersonaId, deviceId: dispositivo },
+    );
+    return eleccion?.motor ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * ¿Qué motor usaría Aurora AHORA MISMO? (el primer eslabón de la cadena, o el
  * navegador si no hay ninguno). Útil para pintar "Hablando con: VoxCPM" en la UI.
  * No toca la red. Nunca lanza.
+ *
+ * (SGO1024D-d1 · VOZ1024B) Resuelve con la JERARQUÍA (agente › personalidad ›
+ * cerebro › neurona › cuenta) en vez de arrastrar el pin por defecto: una
+ * elección de verdad va primero de la cadena (con el mismo filtro de
+ * endpoint/Kokoro que antes, vía `buildVoiceChain`), y si ningún ámbito decidió
+ * el orden AUTO arriba (p. ej. tu servidor VibeVoice) — que es lo que el router
+ * de Astraura mira para preparar el guion multi-locutor. El filtro del primer
+ * eslabón reales ahora la capa pura: `activeEngineFromChain`.
  */
 export function resolveActiveVoiceEngine(cfg?: AuroraVoiceConfig): AuroraVoiceEngine {
   try {
     const config = cfg ?? getVoiceConfig();
-    const chain = buildVoiceChain(config);
-    for (const link of chain) {
-      // Kokoro solo "cuenta" como activo si puede hablar sin descargar por sorpresa.
-      if (link === "kokoro" && !config.autoDownload) continue;
-      if (link === "kitten") continue; // stub
-      return link;
-    }
-    return "browser";
+    const chain = buildVoiceChain(config, eleccionJerarquia(config));
+    return activeEngineFromChain(chain, config);
   } catch {
     return "browser";
   }
