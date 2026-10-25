@@ -87,6 +87,31 @@ describe("prepararDiagrama", () => {
     expect(sinAnimacion.sandbox).not.toContain("allow-same-origin");
   });
 
+  it("rescata 39711481854 · un HTML con script queda inerte sin animación y activo con ella", () => {
+    // El contrato de main no arranca la etiqueta <script>: la vuelve inerte con
+    // sandbox opaco ("") y sin script-src en la CSP (default-src 'none' también
+    // la bloquea). Se comprueba eso, no la ausencia de la etiqueta.
+    const animado =
+      '<!DOCTYPE html><html><head></head><body>' +
+      '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="5" cy="5" r="4" /></svg>' +
+      '<script>document.body.querySelectorAll("circle").forEach(() => {});</script>' +
+      "</body></html>";
+
+    const con = prepararDiagrama(animado, { permitirAnimacion: true });
+    expect(con.ok).toBe(true);
+    expect(con.sandbox).toBe("allow-scripts");
+    expect(con.srcdoc).toContain("script-src 'unsafe-inline'");
+    // El script de animación llega intacto (no hay recursos remotos que quitar).
+    expect(con.srcdoc).toContain("querySelector");
+
+    const sin = prepararDiagrama(animado, { permitirAnimacion: false });
+    expect(sin.ok).toBe(true);
+    expect(sin.sandbox).toBe("");
+    expect(sin.srcdoc).not.toContain("script-src");
+    // Nunca se concede el origen mismo del documento, con o sin animación.
+    expect(sin.srcdoc).not.toContain("allow-same-origin");
+  });
+
   it("rechaza HTML mayor de 2 MB", () => {
     const grande = "<!DOCTYPE html><html><body><svg></svg>" + "x".repeat(3 * 1024 * 1024) + "</body></html>";
     const r = prepararDiagrama(grande);
