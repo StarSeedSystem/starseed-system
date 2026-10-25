@@ -26,7 +26,7 @@ export {
     type OpcionesNivelVoz,
 } from "./supertonic";
 
-export type NivelVoz = "estudio" | "alta" | "nube" | "ligera" | "minima";
+export type NivelVoz = "estudio" | "estudio-estudio" | "alta" | "nube" | "ligera" | "minima";
 
 export interface InfoNivel {
     /** Nombre legible para la interfaz. */
@@ -51,6 +51,14 @@ export const NIVELES: Record<NivelVoz, InfoNivel> = {
         ramMB: 1000,
         latencia: "Baja (local)",
         calidad: "Máxima, grado de estudio",
+    },
+    "estudio-estudio": {
+        etiqueta: "Estudio (estudio)",
+        motorInterno: "OmniVoice GGUF Q8_0 (VoiceStudio, demonio local)",
+        requisitos: "VoiceStudio vivo (≥ 8 GB libres o servido por otra neurona)",
+        ramMB: 1000,
+        latencia: "Baja (local)",
+        calidad: "Máxima, grado de estudio con VoiceStudio",
     },
     alta: {
         etiqueta: "Alta",
@@ -87,7 +95,7 @@ export const NIVELES: Record<NivelVoz, InfoNivel> = {
 };
 
 /** Cadena de descenso: cada nivel puede pasar al siguiente. */
-const ORDEN: NivelVoz[] = ["estudio", "alta", "nube", "ligera", "minima"];
+const ORDEN: NivelVoz[] = ["estudio", "estudio-estudio", "alta", "nube", "ligera", "minima"]; // estudio-estudio está por encima de estudio
 
 /**
  * Nivel por defecto (decisión automática). A los cuatro niveles por hardware

@@ -46,6 +46,8 @@ export {
     type NivelVozSuptonica,
     type OpcionesNivelVoz,
 };
+
+import { descubrir, type DescubrimientoResult } from "./voicestudio";
 import { perfilNeuronal } from "@/lib/voces/perfil-neuronal";
 // (2026-09-06, Ola 264 · G2) Emoción e intensidad: etiquetas `[emocion]` del
 // texto, capa `aplicarEmocion` sobre el perfil neuronal y catálogo `EmocionVoz`.
@@ -79,7 +81,7 @@ export type ContextoVoz = "rito" | "conversacion" | "aviso" | "lectura" | "imagi
 const CLAVE_NIVEL = "starseed.voz.nivel";
 export type PreferenciaNivel = NivelVoz | "auto";
 
-const NIVELES_VALIDOS: PreferenciaNivel[] = ["auto", "estudio", "alta", "nube", "ligera", "minima"];
+const NIVELES_VALIDOS: PreferenciaNivel[] = ["auto", "estudio", "estudio-estudio", "alta", "nube", "ligera", "minima"];
 
 /** Nivel que pidió el usuario, o "auto" si no ha elegido (valor por defecto). */
 export function nivelPreferido(): PreferenciaNivel {
@@ -226,15 +228,43 @@ export function nivelActual(): NivelVoz | null {
 }
 
 /**
+ * Verifica si VoiceStudio está disponible en esta neurona y si hay suficiente memoria.
+ * VoiceStudio está vivo cuando el daemon responde en 127.0.0.1:3900.
+ * Se requiere ≥ 8 GB libres o que otra neurona del servicio pueda servirlo.
+ */
+async function voiceStudioDisponible(): Promise<boolean> {
+    try {
+        const resultado: DescubrimientoResult = await descubrir();
+        if (!resultado.vivo) return false;
+        
+        const caps: Capacidades = await detectarCapacidades();
+        if ((caps.memoriaGB ?? 0) >= 8) return true;
+        
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Resuelve el nivel concreto a usar: el que pidió el usuario si es válido para
  * este equipo; si no, el mejor que el hardware pueda sostener en este momento.
+ * Si VoiceStudio está disponible (≥ 8 GB libres), se usa el nivel estudio-estudio.
  */
 async function resolverNivel(explicito?: NivelVoz): Promise<NivelVoz> {
     const caps: Capacidades = await detectarCapacidades();
     const auto = nivelPara(caps);
+    
     if (explicito) return explicito;
     const preferencia = nivelPreferido();
-    return preferencia === "auto" ? auto : preferencia;
+    
+    if (preferencia === "auto") {
+        if (auto === "estudio" && await voiceStudioDisponible()) {
+            return "estudio-estudio";
+        }
+        return auto;
+    }
+    return preferencia;
 }
 
 /**
