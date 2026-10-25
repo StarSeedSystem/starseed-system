@@ -118,7 +118,8 @@
             "mattpocock/skills": "mattpocock/skills",
             "heygen-com/hyperframes": "heygen-com/hyperframes"
         },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
+        "catalogo": "src/lib/library/packages.ts",
+        "nota": "Repos de habilidades (las mismas fichas de la librería que «voz» y «motores»). El detalle por skill vive con ellas."
     }
   ]
 }
