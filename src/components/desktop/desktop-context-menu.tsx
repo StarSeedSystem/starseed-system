@@ -35,6 +35,8 @@ import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./deskto
 import { canEditIcon } from "./desktop-open";
 import { hasRichThumb } from "./desktop-thumbs";
 import type { QuickLookTab } from "./desktop-quick-look";
+// Variaciones públicas (Ola 1019V · §3 del contrato): entrada común del clic derecho.
+import { accionVariaciones } from "@/components/variaciones/accion-variaciones";
 
 const MENU_W = 210;
 
@@ -127,6 +129,9 @@ function MenuShell({
     return (
         <div
             role="menu"
+            // Menú propio con «Variaciones públicas» (Ola 1019V · §3): el anfitrion
+            // global del clic derecho no monta el suyo encima.
+            data-ss-menu-propio
             style={{ left, top, width: MENU_W, maxHeight: maxH - top - 10 }}
             className="absolute z-[62] overflow-y-auto rounded-2xl border border-white/12 bg-card/95 p-1.5 shadow-2xl backdrop-blur-2xl"
         >
@@ -170,6 +175,8 @@ export function CanvasContextMenu({
     const speak = aurora?.speak;
 
     const pages = desktopPageCount(desktop);
+    // Variaciones públicas del lienzo (Ola 1019V · §2): la clave nombra el tipo.
+    const variacionesLienzo = accionVariaciones("escritorio:lienzo");
     const run = (fn: () => void) => { fn(); onClose(); };
     const askAurora = () => {
         try {
@@ -249,6 +256,11 @@ export function CanvasContextMenu({
 
             <MenuDivider />
             <MenuItem icon={ImageIcon} label="Cambiar fondo…" onClick={() => run(onChangeBackground)} />
+            <MenuItem
+                icon={variacionesLienzo.icon}
+                label={variacionesLienzo.label}
+                onClick={() => run(variacionesLienzo.onClick)}
+            />
             <MenuItem icon={Settings2} label="Ajustes del escritorio…" onClick={() => run(onOpenSettings)} />
         </MenuShell>
     );
@@ -288,6 +300,8 @@ export function IconContextMenu({
     const pages = desktopPageCount(desktop);
     const myPage = iconPage(icon);
     const editable = canEditIcon(icon);
+    // Variaciones públicas del icono (Ola 1019V · §2): tipo compartido, sin instancia.
+    const variacionesIcono = accionVariaciones("escritorio:icono");
     // Pegar DENTRO de este folder (destino natural del portapapeles).
     const canPasteHere = Boolean(clip) && icon.kind === "folder";
 
@@ -340,6 +354,14 @@ export function IconContextMenu({
                     onClick={() => run(() => updateIcon(desktop.id, icon.id, { viewMode: icon.viewMode === "preview" ? "icon" : "preview" }))}
                 />
             )}
+
+            {/* Variaciones públicas (Ola 1019V · §3): la misma entrada del resto del OS. */}
+            <MenuDivider />
+            <MenuItem
+                icon={variacionesIcono.icon}
+                label={variacionesIcono.label}
+                onClick={() => run(variacionesIcono.onClick)}
+            />
 
             <MenuDivider />
             <MenuLabel>Tamaño</MenuLabel>
