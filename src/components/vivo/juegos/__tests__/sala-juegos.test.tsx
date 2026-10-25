@@ -17,6 +17,7 @@ vi.mock("@/lib/vivo/juegos/transporte-supabase", () => ({
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 import { INSTANTANEA_VACIA } from "@/lib/vivo/juegos/controlador";
+import { contieneFuga } from "@/lib/vivo/juegos/fuga-palabra";
 import { AlmacenFalso, RedFalsa, crearCliente, docInicial } from "@/lib/vivo/__pruebas__/juego-red-falsa";
 import { SalaJuegos } from "../sala-juegos";
 
@@ -57,16 +58,6 @@ async function abrir(uid: string, extra: Parameters<typeof crearCliente>[3] = {}
 const entregar = () => act(async () => { red.entregarTodo(); await Promise.resolve(); });
 const clic = (el: HTMLElement) => act(async () => { fireEvent.click(el); await Promise.resolve(); });
 const mesa = (c: Controlador) => c.getSnapshot().estado as EstadoMesa;
-
-function escapeRegExp(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function textoContienePalabra(texto: string | null, palabra: string): boolean {
-    if (!texto || !palabra) return false;
-    const r = new RegExp("\\b" + escapeRegExp(palabra) + "\\b");
-    return r.test(texto);
-}
 
 async function elegirJuego(sala: Sala, juego: string) {
     await clic(sala.q.getByRole("radio", { name: new RegExp(juego) }));
@@ -219,7 +210,7 @@ describe("Dibujo-adivina", () => {
         // la palabra elegida no debe aparecer en los mensajes visibles para quienes adivinan
         // (no en todo el componente, que incluye textos fijos como «La mesa»)
         const mensajesBeto = beto.q.getByRole("list", { name: "Intentos" })?.textContent ?? "";
-        expect(textoContienePalabra(mensajesBeto, palabra)).toBe(false);
+        expect(contieneFuga(mensajesBeto, palabra)).toBe(false);
 
         const escribir = async (s: Sala, texto: string) => {
             const entrada = s.q.getByLabelText("Escribe tu intento");
@@ -236,9 +227,12 @@ describe("Dibujo-adivina", () => {
         await escribir(beto, palabra);
         await entregar();
         await waitFor(() => expect(carla.q.getByText(/Beto ha acertado/)).toBeInTheDocument());
-        // la palabra acertada NUNCA se enseña en los mensajes visibles de las demás personas
+        // la palabra acertada NUNCA se enseña en los mensajes visibles de las demás personas:
+        // ni suelta, ni pegada a otras palabras (textContent une el autor y el intento sin
+        // separador, «Beto» + «vela» → «Betovela», donde un límite de palabra `\b` no tiene
+        // sentido); `contieneFuga` compara en normalizado y pilla también la concatenada.
         const mensajesCarla = carla.q.getByRole("list", { name: "Intentos" })?.textContent ?? "";
-        expect(textoContienePalabra(mensajesCarla, `Beto${palabra}`)).toBe(false);
+        expect(contieneFuga(mensajesCarla, palabra)).toBe(false);
         expect(mesa(ana.c).tablero).toMatchObject({ aciertos: [expect.objectContaining({ seat: 1 })] });
         expect(beto.q.getByLabelText("Escribe tu intento")).toBeDisabled(); // ya acertó
 
