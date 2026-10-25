@@ -73,6 +73,32 @@ describe("compararVersiones", () => {
     });
 });
 
+describe("validarPatronTag", () => {
+    it("un patrón válido devuelve la regex lista y sin error", () => {
+        const validado = validarPatronTag("^ruview-harness-");
+        expect(validado.error).toBeNull();
+        expect(validado.patron).toBeInstanceOf(RegExp);
+        expect(validarPatronTag("v\\d+").error).toBeNull();
+        expect(validarPatronTag("a").patron).toBeInstanceOf(RegExp);
+    });
+
+    it("un patrón con regex inválida se rechaza con el motivo", () => {
+        for (const malo of ["[invalid", "(?"]) {
+            const validado = validarPatronTag(malo);
+            expect(validado.patron).toBeNull();
+            expect(validado.error).toContain("expresión regular válida");
+        }
+    });
+
+    it("un patrón demasiado largo se rechaza y el motivo cita el límite", () => {
+        const largo = "a".repeat(MAX_LONGITUD_PATRON_TAG + 1);
+        const validado = validarPatronTag(largo);
+        expect(validado.patron).toBeNull();
+        expect(validado.error).toContain("supera los");
+        expect(validado.error).toContain(String(MAX_LONGITUD_PATRON_TAG));
+    });
+});
+
 describe("canal de etiquetas con patrón", () => {
     const URL_RUVIEW = "https://github.com/ruvnet/RuView";
 
