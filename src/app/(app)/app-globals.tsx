@@ -44,6 +44,11 @@ import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
+// Clic derecho global «Variaciones públicas» y su ventana (Ola 1019V · contrato:
+// architecture/variaciones-publicas.md §3–§7): el anfitrión del menú y el anfitrión
+// de las ventanas, montados UNA sola vez aquí mismo (patrón del resto de globales).
+import { ClicDerechoGlobal } from "@/components/variaciones/clic-derecho-global";
+import { VariacionesHost } from "@/components/variaciones/variaciones-host";
 
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
@@ -84,6 +89,11 @@ export default function AppGlobals() {
           discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
+      {/* Menú contextual global con «Variaciones públicas» en todo el OS (respetando
+          data-ss-menu-propio y el menú del navegador en campos de texto/MAYÚSCULAS). */}
+      <ClicDerechoGlobal />
+      {/* Ventanas globales del catálogo de variaciones públicas (pila, bus `starseed:variaciones-abrir`). */}
+      <VariacionesHost />
     </SoloFueraDeConsola>
   );
 }
