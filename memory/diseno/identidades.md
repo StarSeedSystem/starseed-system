@@ -151,10 +151,15 @@ Es **la** introducción de todo StarSeed (canales, redes, presentaciones, confer
 vídeo que abra o cierre con la marca parte de ella; no se rehace por libre. Idea original: el doc de Alex «Identidad En
 Movimiento» (Drive `1W8WFAbG31emQQPu0-QqnzJ6WoOBaEr4afwhT79O8VFE`), escena 1.
 
-- **Archivos** (no versionados; viajan con el espejo de Drive): `starseed_memory_root/identidad/intro/escena1-v3.mp4`
-  (27,6 s, 1920×1080, 30 fps, H.264, sin audio), su hoja de contactos, `NOTAS-v3.md` (línea de tiempo al fotograma) y
-  `fuentes-intro-v3.tgz` (composición HyperFrames con un solo canvas WebGL2; `build_v3.py` genera `index.html` y las
-  partes a renderizar).
+- **Archivos** (no versionados; viajan con el espejo de Drive), en `starseed_memory_root/identidad/intro/`:
+  - **`escena1-v4.mp4`, la versión con sonido**: 29,6 s (27,6 de imagen y 2 s de negro para que las colas caigan
+    solas), 1920×1080, 30 fps, H.264 y AAC 320k a 48 kHz, −14 LUFS y pico −1 dBTP;
+  - `intro-v4-banda.wav` (banda sola, 24 bits), `capas-intro-v4-a/b.tgz` (las 9 capas para montaje: cama, corazón,
+    luz, líquido, órbita, taijitu, logo, cierre, apagado y sala) y `fuentes-banda-intro-v4.tgz` (los guiones y los
+    uniformes leídos de la animación);
+  - `verificacion-sincronia-v4.png` (espectrograma con cada evento visual y su fotograma);
+  - `escena1-v3.mp4` (la imagen aprobada, sin audio), `NOTAS-v3.md` (línea de tiempo al fotograma) y
+    `fuentes-intro-v3.tgz` (composición HyperFrames con un solo canvas WebGL2; `build_v3.py` genera `index.html`).
 - **Recorrido:** punto de luz → inversión → mitosis y dos esferas que orbitan y se funden líquidas → yin-yang → ojo →
   **taijitu áureo** (12,3–16,1 s: el yin-yang de espirales de Alex, con crecimiento φ por cuarto de vuelta, brotes con
   retraso 1/φ; cromo, nácar, laca y acero) → vesica → ignición del ojo, volumen 3D y prismas → la luz del ojo **descubre
@@ -168,7 +173,50 @@ Movimiento» (Drive `1W8WFAbG31emQQPu0-QqnzJ6WoOBaEr4afwhT79O8VFE`), escena 1.
 - **Reglas que se heredan:** el centro es sagrado (composición centrada y centro óptico vertical); la luz principal llega
   de arriba a la derecha; el material del símbolo es cristal y metal pulido sobre materia orgánica; el movimiento nace del
   centro y vuelve a él; los empalmes se hacen por corte invisible (diferencia media < 0,04/255), no por fundidos.
-- **Pendiente:** el logo sonoro. Seis opciones en `starseed_memory_root/identidad/logo-sonoro/logo-sonoro-opciones.tgz`
-  (Siembra, Vesica, Ojo de cristal, Trinidad, Pulso, Semilla estelar; 48 kHz, −14 LUFS, pico real ≤ −1 dBTP). Cuando Alex
-  elija, se compone la banda sonora por capas (latido, mitosis, fusiones, formación del yin-yang, ignición del ojo y
-  apagado) y se monta en la intro. Los vídeos de presentación con animaciones gráficas se hacen después, en otro chat.
+- **Banda sonora (v4, 2026-10-25)**, conducida por la propia animación: los uniformes de la composición se leen a
+  240 Hz con `window.__frame(t)` y mueven paneo, profundidad (la cámara mira a −z), velocidad y golpes. Armonía de toda
+  la pieza: **Mi lidio en entonación justa**, la del sonido oficial. El motivo se anuncia por partes:
+  - la estrella (E5) en el punto de luz, con el latido en 0,32 y 0,64 s;
+  - el disparo de la neurona en 1,05 s, con luz que inunda;
+  - la **quinta** E4–B4 cuando la mitosis separa los dos puntos (2,62 s);
+  - la órbita: cada esfera tiene voz (la blanca brillante, la negra oscura), con paneo, Doppler, cercanía y un latido
+    en cada cruce;
+  - las **tres fusiones** suenan a la tríada E–G♯–B (6,28 · 7,02 · 7,73 s);
+  - el yin-yang que nace (10,0 s), y la **♯4 lidia** cuando se forma el ojo;
+  - los brotes áureos con retraso 1/φ (12,65 · 12,98 · 13,24 s), con remolino y metales;
+  - el **sonido oficial completo** (ver abajo), con sus 12 estrellas sobre los 12 prismas;
+  - la luz que descubre la madera y recorre el símbolo;
+  - el nombre: **«Star» (B4, 20,78 s) · «Seed» (E4, 21,30 s)**, quinta que resuelve en casa;
+  - el destello, las 13 constelaciones y la flor de la vida que canta al trazarse;
+  - el ojo que queda encendido (E5) y el apagado de tele: sube una quinta, zumbido de la línea, caída al punto y
+    E6 que rima con la primera estrella;
+  - un último latido en el negro (bucle).
+  - Medido: golpes a −2…+5 ms de su fotograma; arco de sonoridad con la cima en la tierra (−8 LUFS momentáneos).
+- Los vídeos de presentación con animaciones gráficas se hacen después, en otro chat.
+
+## Sonido oficial del símbolo StarSeed · «Semilla estelar» (aprobado por Alex el 2026-10-25)
+
+Es **el** sonido que acompaña al símbolo en cualquier pieza audiovisual donde aparezca (intros, cierres, cortinillas,
+anuncios, presentaciones, la app). No se compone otro: se usa este, entero o en su versión corta.
+
+- **Motivo:** Mi lidio en entonación justa, **E4 → B4 → A♯4 → F♯4** (sube una quinta: los dos círculos; cae por la
+  cuarta aumentada lidia hasta la novena: la semilla que baja del cosmos y se planta). Pulso **a = 0,55 s**, con
+  eventos áureos 0 · a · aφ² · 2aφ² = **0 · 0,55 · 1,44 · 2,88 s**.
+- **Lo que pasa:** debajo nacen 12 parciales en tiempos áureos (las 12 facetas). En la tierra estalla un **Mi
+  maj9♯11** con trueno grave, un cielo de **12 estrellas** que frenan y una octava que florece después del golpe.
+- **Timbres:** campana estelar (FM suave con parciales de vidrio 2,76 · 5,40 y un gemelo que respira), drone aditivo,
+  pad lidio, sub con caída de tono, cristales que titilan, sala estelar de 4,2 s y ecos ping-pong áureos
+  (0,382 / 0,618 s).
+- **Versiones** (en `starseed_memory_root/identidad/logo-sonoro/oficial/`):
+  - **completa**: 10,3 s, la cola cae sola y el último segundo queda a −32 dB del pico;
+  - **corta**: 4,7 s, a = 0,16 s;
+  - las dos a −14 LUFS y pico −1,4 dBTP, sin clics, en WAV 48 kHz/24 bits y MP3 320k;
+  - las capas para montaje (`capas-semilla-estelar.tgz`: motivo, armonía, trueno, estrellas y sala);
+  - las fuentes (`semilla_oficial.py`).
+- **Cómo se encaja en una pieza:** `semilla_oficial.render(tiempos=[…4 instantes…], estrellas=[…12…])` acepta otros
+  instantes, para que los tonos caigan sobre los movimientos del símbolo. Las proporciones no se tocan: el pulso
+  sigue en 0,55 s si la animación lo permite. En la intro: estrella 14,40 (disco áureo en reposo) · quinta 14,95
+  (empieza el drenaje) · lidio 15,84 (termina de desenrollarse) · **tierra 17,28 (la luz nace en el ojo)**, y las 12
+  estrellas sobre los 12 prismas (17,49–18,09). Antes de la tierra crece de −3 a 0 dB, para que el golpe sea la cima.
+- **No hacer:** recortarlo antes de que caiga su cola; cambiar sus notas, su afinación o el orden de sus
+  eventos; ponerle un fundido corto.
