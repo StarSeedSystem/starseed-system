@@ -7,8 +7,9 @@ import { describe, expect, it } from "vitest";
 import {
   BYTES_PESOS_SD_TURBO, CACHE_PESOS_SD_TURBO, MODELO_SD_TURBO, PESOS_SD_TURBO, REPO_ONNX_SD_TURBO,
   TOKENIZER_CLIP_SD_TURBO, VERSION_ONNXRUNTIME_WEB, detectaSDTurbo, generaEnPestana, planPesos, textoBytes,
-  type ImagenSDTurbo, type MotorSDTurbo, type SondasWebGPU,
+  type ImagenSDTurbo, type MotorSDTurbo, type PeticionSDTurbo, type SondasWebGPU,
 } from "../webgpu-sd-turbo";
+import { modeloPorId } from "../../modelos";
 
 const BUENAS: SondasWebGPU = { hayWebGPU: true, hayAdaptador: true, f16: true };
 const IMAGEN: ImagenSDTurbo = { ancho: 512, alto: 512, pixeles: new Uint8Array(4), motor: "sd-turbo" };
@@ -46,6 +47,15 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
   it("solo los TRES archivos necesarios: ni encoder del VAE ni scheduler", () => {
     expect(PESOS_SD_TURBO.map((p) => p.ruta)).toEqual(["unet/model.onnx", "text_encoder/model.onnx", "vae_decoder/model.onnx"]);
     for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
+  });
+
+  it("los bytes son los MEDIDOS en Hugging Face (2026-10-22), ni un byte inventado", () => {
+    expect(Object.fromEntries(PESOS_SD_TURBO.map((p) => [p.ruta, p.bytes]))).toEqual({
+      "unet/model.onnx": 1733430199,
+      "text_encoder/model.onnx": 681393168,
+      "vae_decoder/model.onnx": 99094314,
+    });
+    expect(BYTES_PESOS_SD_TURBO).toBe(2513917681);
   });
 
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
@@ -95,6 +105,10 @@ describe("planPesos · reglas de la descarga (contrato §8)", () => {
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: BYTES_PESOS_SD_TURBO * 3 - 1 }).motivo).toContain(textoBytes(BYTES_PESOS_SD_TURBO * 3));
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: BYTES_PESOS_SD_TURBO * 4 }).motivo).toContain("caché del navegador");
   });
+
+  it("el motivo del permiso dice el TAMAÑO de los pesos, no un «algo»", () => {
+    expect(planPesos({ enCache: false, permiso: false, cuotaLibreBytes: 1e12 }).motivo).toContain(textoBytes(BYTES_PESOS_SD_TURBO));
+  });
 });
 
 describe("generaEnPestana · flujo completo con el motor simulado", () => {
@@ -143,6 +157,24 @@ describe("generaEnPestana · flujo completo con el motor simulado", () => {
     expect(falloGenera.motivo).toContain("sin memoria en la GPU");
     expect(falloGenera.imagen).toBeUndefined();
     expect(llamadas).toEqual([]);
+  });
+
+  it("el prompt y la semilla llegan TAL CUAL al generar del motor", async () => {
+    let recibida: PeticionSDTurbo | undefined;
+    const r = await generaEnPestana(motor({ generar: async (p) => { recibida = p; return IMAGEN; } }), { prompt: "un faro en la niebla", semilla: 7, permisoDescarga: true });
+    expect(r.ok).toBe(true);
+    expect(recibida).toEqual({ prompt: "un faro en la niebla", semilla: 7, permisoDescarga: true });
+  });
+});
+
+describe("la ficha del catálogo y la licencia del adaptador dicen lo mismo", () => {
+  it(`MODELO_SD_TURBO apunta a la ficha del catálogo, honesta: «condicionado» y «sin comprobar del todo»`, () => {
+    const ficha = modeloPorId(MODELO_SD_TURBO);
+    expect(ficha).toBeDefined();
+    expect(ficha!.licencia).toContain("Stability");
+    expect(ficha!.uso).toBe("condicionado");
+    expect(ficha!.nota).toContain("sin comprobar del todo");
+    expect(ficha!.motores).toContain("onnx-web");
   });
 });
 
