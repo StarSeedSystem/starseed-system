@@ -2,8 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   MOTORES_AGENTES,
   elegirMotor,
+  getBuiltinAgents,
+  type MotorAgentes,
   type NecesidadesAgentes,
-} from "../tipos";
+} from "@/lib/agents";
+import { MOTORES_AGENTES as FICHAS_DIRECTO } from "@/lib/agents/motores/tipos";
 
 /** Agente mínimo: la elección de motor es pura, no lee el resto de la ficha. */
 const agente = { id: "ag-prueba" } as Parameters<typeof elegirMotor>[0];
@@ -86,5 +89,27 @@ describe("elegirMotor · regla primero, un motor por agente", () => {
 
   it("sin necesidades el agente queda nativo (gratis primero, sin dependencias)", () => {
     expect(elegirMotor(agente, { correrEnNeuronaNode: false })).toBe("nativo");
+  });
+});
+
+describe("conexión · el contrato vive en el subsistema de Agentes (barrel)", () => {
+  it("el barrel de Agentes expone EXACTAMENTE el módulo del contrato (mismo binding)", () => {
+    expect(MOTORES_AGENTES).toBe(FICHAS_DIRECTO);
+  });
+
+  it("APLICADO: los agentes que existen hoy resuelvan un motor válido, con su ficha", () => {
+    const builtins = getBuiltinAgents();
+    expect(builtins.length).toBeGreaterThan(0);
+    for (const a of builtins) {
+      const motor: MotorAgentes = elegirMotor(a, {});
+      expect(MOTORES_AGENTES[motor]).toBeDefined();
+    }
+  });
+
+  it("APLICADO: hoy los agentes corren NATIVO (sin adaptadores de terceros montados aún)", () => {
+    for (const a of getBuiltinAgents()) {
+      expect(elegirMotor(a, {})).toBe("nativo");
+      expect(MOTORES_AGENTES.nativo.lenguaje).toBe("ts");
+    }
   });
 });
