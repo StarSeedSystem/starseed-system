@@ -48,6 +48,7 @@ import {
   Cloud,
   FolderOpen,
   Unplug,
+  Copy,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { getBrain, saveBrain, type Brain, type BrainPermission } from "@/lib/brains/brains";
@@ -62,7 +63,19 @@ import {
   type SyncDirection,
 } from "@/lib/brains/servers";
 import { listBackends, saveBackend, deleteBackend, type StorageBackend } from "@/lib/storage/backends";
-import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+import { listMemoryFiles, type MemoryFile } from "@/lib/cerebro/memory-files";
+import { readMirror } from "@/lib/brains/memory-offline";
+import { getMemoryDestinations } from "@/lib/brains/memory-destinations";
+import {
+  construirManifiesto,
+  divergencias,
+  huellaContenido as huellaSha256,
+  proponerLimpieza,
+  resumenManifiesto,
+  type CopiaMemoria,
+  type DestinoMemoria,
+  type ManifiestoMemoria,
+} from "@/lib/storage/memoria-manifiesto";
 import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connect";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 // (Ola 374) Google Drive como medio de este cerebro: OAuth con custodia en
@@ -91,7 +104,9 @@ export default function MemorySourcesPanel({
   const [brain, setBrain] = useState<Brain | null>(null);
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState<{ files: number; memories: number }>({ files: 0, memories: 0 });
+  const [files, setFiles] = useState<MemoryFile[]>([]);
   const [obsidian, setObsidian] = useState<StorageBackend[]>([]);
+  const [gdrive, setGdrive] = useState<StorageBackend | null>(null);
   const [linked, setLinked] = useState<LinkedServer[]>([]);
 
   const reload = useCallback(async () => {
@@ -116,12 +131,16 @@ export default function MemorySourcesPanel({
         }
       } catch { /* opcional */ }
       setCounts({ files: files.length, memories: mem });
+      setFiles(files);
       if (brainId) {
         const backs = await listBackends("brain", brainId);
         setObsidian(backs.filter((x) => x.kind === "obsidian"));
+        setGdrive(backs.find((x) => x.kind === "gdrive") ?? null);
         setLinked(await serversForBrain(brainId));
       } else {
         setObsidian([]);
+        setGdrive(null);
+        setFiles([]);
         setLinked([]);
       }
     } finally {
@@ -142,6 +161,7 @@ export default function MemorySourcesPanel({
   return (
     <div className="space-y-4">
       <OsSourceCard files={counts.files} memories={counts.memories} loading={loading} />
+      <CopiasCard brainId={brainId} brain={brain} files={files} gdrive={gdrive} />
       <GoogleDriveMemoryCard brainId={brainId} brainName={brainName} />
       <ObsidianCard brainId={brainId} obsidian={obsidian} onChanged={reload} />
       <ExternalServerCard brainId={brainId} linked={linked} onChanged={reload} />
@@ -192,6 +212,150 @@ function OsSourceCard({ files, memories, loading }: { files: number; memories: n
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{files} archivos .md</Badge>
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{memories} memorias</Badge>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Copias reales por contenido (manifiesto SHA-256)                    */
+/* ------------------------------------------------------------------ */
+
+function destinoDeFuente(source: string): DestinoMemoria | null {
+  if (source === "starseed") return "starseed";
+  if (source === "gdrive") return "gdrive";
+  if (source === "local") return "local";
+  if (source === "external" || source === "casaos" || source === "raven" ||
+    source === "skales" || source === "tencentdb" || source === "mempalace") return "externo";
+  return null;
+}
+
+function msDeFecha(valor?: string): number | null {
+  if (!valor) return null;
+  const ms = Date.parse(valor);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+function bytesDe(texto: string): number {
+  try {
+    return new TextEncoder().encode(texto).length;
+  } catch {
+    return texto.length;
+  }
+}
+
+function CopiasCard({
+  brainId,
+  brain,
+  files,
+  gdrive,
+}: {
+  brainId: string;
+  brain: Brain | null;
+  files: MemoryFile[];
+  gdrive: StorageBackend | null;
+}) {
+  const [manifiesto, setManifiesto] = useState<ManifiestoMemoria | null>(null);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      setCargando(true);
+      try {
+        const destinos = getMemoryDestinations(brain);
+        const espejo = new Map(readMirror(brainId).map((m) => [m.id, m] as const));
+        const copias: CopiaMemoria[] = [];
+        for (const archivo of files) {
+          const ms = msDeFecha(archivo.updated_at);
+          const huellas = new Map<string, string>();
+          const huella = async (contenido: string) => {
+            const guardada = huellas.get(contenido);
+            if (guardada) return guardada;
+            const h = await huellaSha256(contenido);
+            huellas.set(contenido, h);
+            return h;
+          };
+          const agregar = async (destino: DestinoMemoria, contenido: string, actualizadoMs: number | null) => {
+            copias.push({
+              cerebroId: brainId,
+              memoriaId: archivo.id,
+              destino,
+              huella: await huella(contenido),
+              bytes: bytesDe(contenido),
+              actualizadoMs,
+            });
+          };
+          if (destinos.starseed.enabled) await agregar("starseed", archivo.content, ms);
+          if (destinos.local.enabled) {
+            const local = espejo.get(archivo.id);
+            await agregar("local", local?.content ?? archivo.content, msDeFecha(local?.updated_at) ?? ms);
+          }
+          if (gdrive || archivo.source === "gdrive") await agregar("gdrive", archivo.content, ms);
+          if (destinos.p2p.enabled) await agregar("p2p", archivo.content, ms);
+          if (destinos.external.length > 0 || destinoDeFuente(String(archivo.source || "")) === "externo") {
+            await agregar("externo", archivo.content, ms);
+          }
+        }
+        if (vivo) setManifiesto(construirManifiesto(copias));
+      } catch {
+        if (vivo) setManifiesto(construirManifiesto([]));
+      } finally {
+        if (vivo) setCargando(false);
+      }
+    })();
+    return () => { vivo = false; };
+  }, [brainId, brain, files, gdrive]);
+
+  const divs = manifiesto ? divergencias(manifiesto) : [];
+  const propuestas = manifiesto ? proponerLimpieza(manifiesto) : [];
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Copy className="w-4 h-4 text-cyan-300" />
+        <span className="text-sm font-semibold text-cyan-50">Copias de memoria</span>
+        <Badge variant="outline" className="border-white/15 text-white/50 text-[10px]">huella SHA-256</Badge>
+        {cargando && <Loader2 className="w-3.5 h-3.5 animate-spin text-white/40 ml-auto" />}
+      </div>
+      <p className="text-[11px] text-white/50">
+        Cuántas copias reales hay de cada memoria y en qué destinos. Nada se borra solo: toda limpieza es una propuesta que pide confirmación.
+      </p>
+      {manifiesto && (
+        <>
+          <p className="text-xs text-white/80">{resumenManifiesto(manifiesto)}</p>
+          {divs.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-amber-200">Divergencias</p>
+              <ul className="space-y-1">
+                {divs.slice(0, 5).map((d) => (
+                  <li key={`${d.cerebroId}:${d.memoriaId}`} className="text-[11px] text-white/60">
+                    <span className="font-mono text-white/75">{d.memoriaId}</span>{" · "}
+                    {d.empate ? "empate: no se escribe nada" : `gana ${d.masNueva?.destino ?? "la más nueva"}`}
+                  </li>
+                ))}
+              </ul>
+              {divs.length > 5 && <p className="text-[10px] text-white/40">y {divs.length - 5} más…</p>}
+            </div>
+          )}
+          {propuestas.length > 0 ? (
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-fuchsia-200">Propuestas de limpieza</p>
+              <ul className="space-y-1">
+                {propuestas.slice(0, 5).map((p) => (
+                  <li key={`${p.memoriaId}:${p.destino}:${p.huella}`} className="text-[11px] text-white/60">
+                    <span className="font-mono text-white/75">{p.memoriaId}</span>{" · "}{p.motivo}{" "}
+                    <Badge variant="outline" className="border-amber-500/40 text-amber-200 text-[9px]">requiere confirmación</Badge>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-[11px] text-white/40">
+              Sin propuestas de limpieza: no se quita nada por faltar en otro destino.
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }
