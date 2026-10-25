@@ -17,6 +17,7 @@ import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
 
 const AMBITO: Ambito = { tipo: "persona" };
 
@@ -56,6 +57,8 @@ export function MiGenesis() {
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    // Encargo cuyo PanelProtoGenesis está abierto (solo uno a la vez, para no llenar la página).
+    const [abierto, setAbierto] = useState<string | null>(null);
 
     useEffect(() => {
         const almacen = almacenNavegador();
@@ -102,6 +105,9 @@ export function MiGenesis() {
             </section>
             <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
                 <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
+                <p className="text-[11px] text-white/55">
+                    La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.
+                </p>
                 {encargos === null ? (
                     <p className="text-[11px] text-white/50">Cargando encargos…</p>
                 ) : encargos.length === 0 ? (
@@ -132,11 +138,37 @@ export function MiGenesis() {
                                 <span className="text-[10px] text-white/45">
                                     {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                 </span>
+                                <button
+                                    type="button"
+                                    aria-label={`Abrir ProtoGenesis de ${registro.encargo.intencion}`}
+                                    onClick={() => setAbierto(abierto === registro.encargo.id ? null : registro.encargo.id)}
+                                    className="cursor-pointer rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/80 hover:bg-black/30"
+                                >
+                                    {abierto === registro.encargo.id ? "Cerrar panel" : "Abrir ProtoGenesis"}
+                                </button>
                             </li>
                         );
                     })}
                     </ul>
                 )}
+                {encargos?.some((r) => r.encargo.id === abierto) ? (
+                    <div className="mt-3">
+                        {encargos
+                            .filter((r) => r.encargo.id === abierto)
+                            .map((r) => (
+                                // En mi ámbito manda la persona dueña (§2.7): esDueno siempre verdadero aquí.
+                                <PanelProtoGenesis
+                                    key={r.encargo.id}
+                                    moleculaId={r.encargo.moleculaId}
+                                    ambito={r.encargo.ambito}
+                                    esDueno
+                                    plan={r.plan}
+                                    estados={r.estados}
+                                    asignaciones={r.asignaciones}
+                                />
+                            ))}
+                    </div>
+                ) : null}
             </section>
         </section>
     );
