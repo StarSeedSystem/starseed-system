@@ -602,6 +602,64 @@ def tarea_de_reparacion(pub: Dict[str, Any], archivos: Sequence[str], ahora: flo
     }
 
 
+# (MGB1021B) Caso real del 2026-10-21: la puerta volvió a verde en cuanto otra tarea arregló la
+# causa (MGP1015-B2E850), pero la cadena MGP1014-C715AA-d1…d3 siguió reintentándose una semana
+# hasta quedar «sin salida»: nadie cerró la reparación que ya no hacía falta.
+_RE_SHA_ROJO = re.compile(r"frenada en ([0-9a-fA-F]{7,40})")
+
+
+def _sha_rojo_de(t: Dict[str, Any]) -> str:
+    """PURA. El sha ROJO que una tarea de reparación guardó en su prompt («… frenada en <sha> por …»).
+    La salida de la puerta no cuenta: sus trazas traen shas ajenos a la causa."""
+    p = str(t.get("prompt") or "")
+    m = _RE_SHA_ROJO.search(p)
+    return (m.group(1) if m else "").lower()
+
+
+def reparaciones_superadas(tareas: Iterable[Dict[str, Any]], progreso: Dict[str, Any],
+                           publicacion: Optional[Dict[str, Any]]) -> List[Tuple[str, str]]:
+    """PURA. [(id, nota)] de las reparaciones de la puerta de publicación que YA NO APLICAN porque la
+    publicación está hoy en verde: los cierra `nodo_metagenesis` con estado `sustituida`.
+
+    Verde en este orden: `fase` publicada/ok, o un sha publicado distinto del sha rojo que la tarea
+    guardó en su prompt. Entran las tareas con `origen: metagenesis` cuyo título empieza por «Puerta
+    de publicación en rojo» y sus sucesoras con sufijo en la MISMA cadena (-dN, -b, -c…). Las que ya
+    están cerradas (CERRADAS en progreso) no salen: no se toca lo decidido."""
+    pub = publicacion or {}
+    fase = str(pub.get("fase") or "")
+    publicado = str(pub.get("sha") or "").lower()
+    por_base: Dict[str, set] = {}
+    for t in tareas or ():
+        if isinstance(t, dict) and t.get("origen") == "metagenesis" \
+                and str(t.get("titulo") or "").startswith("Puerta de publicación en rojo"):
+            por_base.setdefault(base_de_tarea(t.get("id")), set()).add(str(t.get("id")))
+    salida: List[Tuple[str, str]] = []
+    for t in tareas or ():
+        if not isinstance(t, dict) or not t.get("id"):
+            continue
+        tid = str(t["id"])
+        e = (progreso or {}).get(tid)
+        if isinstance(e, dict) and e.get("estado") in CERRADAS:
+            continue
+        if t.get("origen") != "metagenesis":
+            continue
+        if not (str(t.get("titulo") or "").startswith("Puerta de publicación en rojo")
+                or base_de_tarea(tid) in por_base):
+            continue
+        rojo = _sha_rojo_de(t)
+        if fase in ("publicada", "ok"):
+            verde = True
+        elif not rojo or not publicado:
+            continue
+        else:
+            verde = publicado[:len(rojo)] != rojo  # un sha más largo lleva el prefijo del iterado
+        if not verde:
+            continue
+        nota = "NO APLICA: la puerta de publicación volvió a verde (publicado %s)" % (publicado or "sin sha")
+        salida.append((tid, tachar(nota)))
+    return salida
+
+
 def prestable(t: Any) -> bool:
     """PURA. ¿Puede trabajarse esta tarea en otro medio? (≤ 3 archivos, con prompt, sin visto bueno
     humano y sin nada que solo tenga la Mac)."""

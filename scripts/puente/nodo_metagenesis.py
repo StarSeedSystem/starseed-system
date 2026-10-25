@@ -470,6 +470,10 @@ class Nodo:
             sin_aut = not any((l.get("salud") or {}).get("autoritativo") for l in vivos.values())
             if sin_aut and enlace is not None and t - float(self.mem.get("ultimo_autoritativo_ts") or t) >= L.RELEVO_MEDIO_S:
                 mundo["colas_portables"] = enlace.ultimas_colas()
+            # (MGB1021B) En la MISMA pasada en que puede crear reparaciones de la puerta, cierra las
+            # que ya no aplican (solo el medio con el progreso en su disco, que es quien manda allí).
+            if salud.get("autoritativo"):
+                self._cerrar_reparaciones_superadas(salud, medida["raiz"], informe, t)
             for a in L.planificar(mundo, self.mem, t):
                 if a["accion"] == "avisar":
                     self._avisar(a, informe, t)
@@ -920,6 +924,8 @@ class Nodo:
         """Una puerta de publicación en rojo → tarea de reparación con su salida exacta: al medio ocioso
         si lo hay, si no delante en la tanda de la Mac. Sin archivos que nombrar → aviso."""
         self.mem.setdefault("hecho", {})[a["clave"]] = t
+        # (MGB1021B) Antes de crear la reparación (o avisar), cierra las que ya no aplican.
+        self._cerrar_reparaciones_superadas(salud, raiz, informe, t)
         pub = (salud.get("resultados") or {}).get("publicacion") or {}
         rutas = L.rutas_de_evidencia((pub.get("evidencia") or {}).get("texto"), tope=6)
         archivos = self._existentes(raiz, rutas)[:3]
@@ -947,6 +953,50 @@ class Nodo:
         self._registrar({"ts": t, "accion": "reparar_publicacion", "nodo": a["nodo"],
                          "motivo": L.tachar(a["motivo"])[:200], "resultado": L.tachar(resultado)[:200],
                          "seco": self.modo == "seco", "termino": self.mem.get("termino")}, informe)
+
+    def _cerrar_reparaciones_superadas(self, salud: Dict[str, Any], raiz: str, informe: Dict[str, Any],
+                                       t: float) -> None:
+        """(MGB1021B) Si la puerta de publicación volvió a verde, las reparaciones vigentes (y sus
+        sucesoras -dN/-b/-c) ya no aplican: se cierran en progreso.json como `sustituida` con la nota
+        que lo dice, con el MISMO mecanismo con cerrojo con el que traer_nube escribe progreso (nada
+        se borra). Idempotente por sí mismo: lo que queda `sustituida` ya no sale otra vez."""
+        pub = (salud.get("resultados") or {}).get("publicacion") or {}
+        try:
+            progreso = M.leer_json(os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json"), {})
+            progreso = progreso if isinstance(progreso, dict) else {}
+            tareas = [x for _, lista in M.colas_de_codigo_vivas(raiz) for x in lista]
+        except Exception as e:  # noqa: BLE001
+            informe["avisos"].append("cierre de reparaciones: %s" % type(e).__name__)
+            return
+        superadas = L.reparaciones_superadas(tareas, progreso, pub)
+        if not superadas:
+            return
+        ids = ", ".join(tid for tid, _ in superadas)
+        if self.modo == "seco":
+            self._registrar({"ts": t, "accion": "cerrar_reparaciones", "nodo": self.yo,
+                             "motivo": "la puerta de publicación volvió a verde",
+                             "resultado": "seca: sustituiría %s" % ids, "seco": True,
+                             "termino": self.mem.get("termino")}, informe)
+            return
+        cambios = {tid: {"estado": "sustituida", "nota": nota,
+                         "t": time.strftime("%Y-%m-%d %H:%M:%S"), "cerrada_por": "nodo-metagenesis"}
+                   for tid, nota in superadas}
+        try:
+            T._actualizar_progreso(cambios)
+        except Exception as e:  # noqa: BLE001
+            informe["avisos"].append("cierre de reparaciones: %s" % type(e).__name__)
+            return
+        self._registrar({"ts": t, "accion": "cerrar_reparaciones", "nodo": self.yo,
+                         "motivo": "la puerta de publicación volvió a verde",
+                         "resultado": "sustituidas: %s" % ids, "seco": False,
+                         "termino": self.mem.get("termino")}, informe)
+        # El canal una sola vez: en la siguiente pasada ya no salen (quedan sustituidas).
+        huella = hashlib.sha256(("%s|%s" % (pub.get("sha") or "", ids)).encode()).hexdigest()[:12]
+        if self.mem.get("cierre_reparaciones") != huella:
+            self.mem["cierre_reparaciones"] = huella
+            self._decir("MetaGenesis · la puerta de publicación volvió a verde (publicado %s): no hacen "
+                        "falta %s; quedan sustituidas en el progreso con su motivo." % (
+                            pub.get("sha") or "sin sha", ids))
 
     def _publicar_foto(self, vivos: Dict[str, Dict[str, Any]], termino: int, salud: Dict[str, Any], t: float,
                        informe: Dict[str, Any]) -> None:
