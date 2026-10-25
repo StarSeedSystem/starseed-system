@@ -21,6 +21,23 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type * as THREE from 'three';
+import { type FuncionXR } from '@/lib/xr/tipos';
+import { type CapacidadesXR } from '@/lib/xr/capacidades';
+import { funcionesAPedir } from '@/components/xr/shell/aplicar-perfil';
+import { mensajeErrorXR } from '@/components/vivo/espacial/use-sesion-xr';
+
+/** Capacidades XR por defecto para el espacio inmersivo (el botón universal). */
+const CAPACIDADES_POR_DEFECTO: CapacidadesXR = {
+  plataforma: 'desconocida',
+  visor: false,
+  modos: ['2d'],
+  recomendado: '2d',
+  entradas: ['voz'],
+  funciones: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers', 'hit-test'] as FuncionXR[],
+  ofrecerSesion: false,
+  motivos: [],
+  avisos: [],
+};
 
 /** Modo de sesión inmersiva soportado por el OS. */
 export type XRMode = 'immersive-vr' | 'immersive-ar';
@@ -40,6 +57,8 @@ export interface WebXRState {
     /** Termina la sesión activa. */
     exit: () => Promise<void>;
 }
+
+export type FuncionesXR = FuncionXR;
 
 /** Acceso seguro al sistema XR del navegador (undefined en SSR o sin soporte). */
 function getXR(): XRSystem | undefined {
@@ -103,7 +122,7 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
             setError(null);
             const xr = getXR();
             if (!xr || !gl) {
-                setError('WebXR no disponible en este dispositivo.');
+                setError(mensajeErrorXR(new Error('WebXR no disponible en este dispositivo.')));
                 return;
             }
             // Si ya hay sesión, primero la cerramos limpiamente.
@@ -111,16 +130,18 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
                 await exit();
             }
 
-            // Características opcionales: el navegador concede las que pueda.
-            // 'hit-test' es útil en AR; 'hand-tracking' / suelos en VR.
+            // Características opcionales: obtenidas del sistema XR1010D.
+            const capacidades = CAPACIDADES_POR_DEFECTO;
+            const { opcionales, requeridas } = funcionesAPedir(capacidades, {
+                habitacion: target === 'immersive-ar',
+            });
+            // §2.2 (XR1010AR): nunca `camera-access`; `offerSession` no se usa
+            // desde este hook (lo gestiona el almacén de XR1010D en `/xr/os`).
+            const sinCamera = (f: string): boolean => f !== 'camera-access';
+            const opcionalesFiltrados = opcionales.filter((f) => sinCamera(f));
+            const requeridasFiltradas = requeridas.filter((f) => sinCamera(f));
             const sessionInit: XRSessionInit = {
-                optionalFeatures: [
-                    'local-floor',
-                    'bounded-floor',
-                    'hand-tracking',
-                    'layers',
-                    ...(target === 'immersive-ar' ? (['hit-test'] as string[]) : []),
-                ],
+                optionalFeatures: [...requeridasFiltradas, ...opcionalesFiltrados],
             };
 
             try {
@@ -154,9 +175,7 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
                 } catch {
                     /* noop */
                 }
-                const msg =
-                    e instanceof Error ? e.message : 'No se pudo iniciar la sesión XR.';
-                setError(msg);
+                setError(mensajeErrorXR(e));
                 setInSession(false);
                 setMode(null);
             }
