@@ -117,6 +117,10 @@ describe("estructura del catálogo", () => {
     expect(texto).not.toMatch(/\/Users\/|\/home\/|C:\\\\Users/);
   });
 
+  it("zhaoxuya520/reverse-skill no está en ninguna ficha (excluida por seguridad)", () => {
+    expect(JSON.stringify(todas)).not.toContain("reverse-skill");
+  });
+
   it("las nuevas herramientas de HyperFrames están presentes y tienen propiedades básicas", () => {
     expect(ids).toContain("hyperframes");
     expect(ids).toContain("hyperframes-studio");
