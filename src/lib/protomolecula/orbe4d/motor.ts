@@ -61,6 +61,13 @@ export interface OpcionesMotor {
   tamano: number;
   /** `false` fija la calidad completa (vistas de presentación, XR): no baja aunque los cuadros vayan lentos. */
   adaptarCalidad?: boolean;
+  /**
+   * `carga`: acabado de la pantalla de carga («Abriendo StarSeed…», CAR1025A), que lleva el símbolo oficial en el
+   * centro. El motor dibuja solo lo que es 3D —la esfera de puntos y el cubo de Metatrón, este a media intensidad
+   * para que no tape el símbolo—; la flor de la vida y el halo los pone la página en SVG, que gira por CSS sin
+   * costar nada y se queda aunque la calidad baje. Con `orbe` (por defecto) todo queda como siempre.
+   */
+  acabado?: "orbe" | "carga";
 }
 
 export interface MotorOrbe {
@@ -623,7 +630,7 @@ export function crearMotor(canvas: HTMLCanvasElement, op: OpcionesMotor): MotorO
     // Flor de la vida (siembra al encender) y Metatrón (con la carga).
     pintarPlano(semillaEscala);
     haloMat.uniforms.uColor.value.setRGB(...hexARgb(paleta.halo));
-    haloMat.uniforms.uOpacidad.value = calidad.halo ? params.opacidadHalo * (0.7 + 0.5 * atencion) * semillaEscala : 0;
+    haloMat.uniforms.uOpacidad.value = calidad.halo && op.acabado !== "carga" ? params.opacidadHalo * (0.7 + 0.5 * atencion) * semillaEscala : 0;
     haloMat.uniforms.uEnergia.value = e;
     renderer.render(escena, camara);
   }
@@ -643,10 +650,12 @@ export function crearMotor(canvas: HTMLCanvasElement, op: OpcionesMotor): MotorO
     const arr = pos.array as Float32Array, carr = col.array as Float32Array;
     const encendidos = modo === "encendiendo" ? Math.max(1, Math.floor(semillaEscala * centros.length)) : centros.length;
     const c = hexARgb(paleta.halo);
-    const intensidad = (calidad.halo ? 0.16 + params.opacidadHalo * 0.6 : 0) * (0.7 + 0.5 * atencion) * semillaEscala;
+    const carga = op.acabado === "carga";
+    const intensidad = carga ? 0 : (calidad.halo ? 0.16 + params.opacidadHalo * 0.6 : 0) * (0.7 + 0.5 * atencion) * semillaEscala;
     let n = 0;
-    const circulos: [number, number, number][] = centros.slice(0, encendidos).map(([x, y]) => [x * r, y * r, r]);
-    circulos.push([0, 0, 3 * r], [0, 0, 3 * r * 1.04]);
+    // En la carga la flor la pone la página (SVG): aquí no se escribe ni un segmento.
+    const circulos: [number, number, number][] = carga ? [] : centros.slice(0, encendidos).map(([x, y]) => [x * r, y * r, r]);
+    if (!carga) circulos.push([0, 0, 3 * r], [0, 0, 3 * r * 1.04]);
     for (const [cx, cy, rr] of circulos) {
       for (let s = 0; s < CIRCULO_SEGMENTOS; s++) {
         const a0 = (s / CIRCULO_SEGMENTOS) * Math.PI * 2, a1 = ((s + 1) / CIRCULO_SEGMENTOS) * Math.PI * 2;
@@ -677,7 +686,7 @@ export function crearMotor(canvas: HTMLCanvasElement, op: OpcionesMotor): MotorO
       ma[o] = pa[0] * escala; ma[o + 1] = pa[1] * escala; ma[o + 2] = 0;
       ma[o + 3] = pb[0] * escala; ma[o + 4] = pb[1] * escala; ma[o + 5] = 0;
       const lc = colorEnPaleta(paleta, i / total);
-      const alfa = Math.min(1, visibles - i) * 0.9;
+      const alfa = Math.min(1, visibles - i) * 0.9 * (carga ? 0.5 : 1);
       mc[o] = lc[0] * alfa; mc[o + 1] = lc[1] * alfa; mc[o + 2] = lc[2] * alfa;
       mc[o + 3] = lc[0] * alfa; mc[o + 4] = lc[1] * alfa; mc[o + 5] = lc[2] * alfa;
       m++;

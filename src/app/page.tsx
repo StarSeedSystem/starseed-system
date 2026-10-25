@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { CargaStarSeed } from "@/components/carga/carga-starseed";
 import { APP_CATALOG } from "@/components/dashboard/apps/app-catalog";
 import { leerPreferencias, resolverPantallaInicial } from "@/lib/inicio/pantalla-inicial";
 import { activeProfileId } from "@/lib/profiles/profiles";
@@ -28,13 +29,12 @@ export default function Home() {
     }));
   }, [router]);
 
-  // (Ola 381 · INI4) Mientras se decide la pantalla inicial: un orbe tenue, nunca una página en blanco.
+  // (Ola 381 · INI4) Mientras se decide la pantalla inicial, nunca una página en blanco. (CAR1025A) Ya no es una
+  // bola con degradado: es la animación de carga 3D de la Protomolécula con el símbolo de StarSeed dentro de su
+  // esfera. Pinta al instante (respaldo en SVG) y el 3D entra a demanda; la redirección de arriba no la espera.
   return (
-    <div className="grid min-h-dvh place-items-center" role="status" aria-label="Abriendo StarSeed">
-      <div className="flex flex-col items-center gap-4">
-        <span aria-hidden className="ss-respirar block size-20 rounded-full" style={{ background: "radial-gradient(circle at 35% 30%, #ffffffaa, #7c5cff66 40%, #23d5ab22 70%, transparent)" }} />
-        <span className="text-xs tracking-[0.3em] text-white/60 uppercase">Abriendo StarSeed…</span>
-      </div>
+    <div className="grid min-h-dvh place-items-center">
+      <CargaStarSeed />
     </div>
   );
 }
