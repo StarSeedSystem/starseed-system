@@ -24,6 +24,7 @@ import {
     Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { accionVariaciones } from "@/components/variaciones/accion-variaciones";
 import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize, TileMode } from "./desktop-store";
 import {
     addIcon, createNoteIcon, sortIcons, autoArrangeIcons, setSnap, updateIcon,
@@ -127,6 +128,7 @@ function MenuShell({
     return (
         <div
             role="menu"
+            data-ss-menu-propio
             style={{ left, top, width: MENU_W, maxHeight: maxH - top - 10 }}
             className="absolute z-[62] overflow-y-auto rounded-2xl border border-white/12 bg-card/95 p-1.5 shadow-2xl backdrop-blur-2xl"
         >
@@ -171,6 +173,8 @@ export function CanvasContextMenu({
 
     const pages = desktopPageCount(desktop);
     const run = (fn: () => void) => { fn(); onClose(); };
+    // Ola 1019V · «Variaciones públicas» del lienzo del escritorio.
+    const variacionesLienzo = accionVariaciones("escritorio:lienzo");
     const askAurora = () => {
         try {
             window.dispatchEvent(new CustomEvent("starseed:open-aurora-exocortex"));
@@ -250,6 +254,9 @@ export function CanvasContextMenu({
             <MenuDivider />
             <MenuItem icon={ImageIcon} label="Cambiar fondo…" onClick={() => run(onChangeBackground)} />
             <MenuItem icon={Settings2} label="Ajustes del escritorio…" onClick={() => run(onOpenSettings)} />
+            {/* Ola 1019V: la ventana con lo que todas las personas publicaron para el lienzo. */}
+            <MenuDivider />
+            <MenuItem icon={variacionesLienzo.icon} label={variacionesLienzo.label} onClick={() => run(variacionesLienzo.onClick)} />
         </MenuShell>
     );
 }
@@ -290,6 +297,8 @@ export function IconContextMenu({
     const editable = canEditIcon(icon);
     // Pegar DENTRO de este folder (destino natural del portapapeles).
     const canPasteHere = Boolean(clip) && icon.kind === "folder";
+    // Ola 1019V · «Variaciones públicas» del tipo de icono (la clave nombra el TIPO, nunca la instancia).
+    const variacionesIcono = accionVariaciones("escritorio:icono");
 
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
@@ -390,6 +399,8 @@ export function IconContextMenu({
             )}
 
             <MenuDivider />
+            {/* Ola 1019V: la ventana con lo que todas las personas publicaron para este tipo de icono. */}
+            <MenuItem icon={variacionesIcono.icon} label={variacionesIcono.label} onClick={() => run(variacionesIcono.onClick)} />
             <MenuItem icon={Trash2} label="Eliminar" danger onClick={() => run(() => removeIcon(desktop.id, icon.id))} />
         </MenuShell>
     );

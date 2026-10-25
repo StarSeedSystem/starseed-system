@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { OPCIONES_SILENCIO } from "@/lib/mensajeria/ajustes";
+import { accionVariaciones } from "@/components/variaciones/accion-variaciones";
 import { describirSilencio } from "./formato-tiempo";
 
 export interface AccionExtraMenu {
@@ -78,6 +79,9 @@ export function MenuHilo({
     const [verSilencio, setVerSilencio] = useState(false);
     const silencio = describirSilencio(silencioHasta, formato24h);
     const Icono = orientacion === "vertical" ? MoreVertical : MoreHorizontal;
+    // Ola 1019V · «Variaciones públicas» del hilo de mensajes (la clave nombra el TIPO, nunca la instancia).
+    const variaciones = accionVariaciones("mensaje:hilo");
+    const IconoVariaciones = variaciones.icon;
 
     const extra = (a: AccionExtraMenu) => {
         const I = a.icono;
@@ -115,6 +119,7 @@ export function MenuHilo({
                 align="end"
                 sideOffset={6}
                 collisionPadding={12}
+                data-ss-menu-propio=""
                 className="z-[130] w-[min(88vw,260px)] rounded-2xl border-white/10 bg-[rgba(12,14,34,0.94)] p-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)] backdrop-blur-xl"
             >
                 {extrasAntes.map(extra)}
@@ -167,6 +172,11 @@ export function MenuHilo({
                     <span className="flex-1">{archivado ? "Desarchivar" : "Archivar"}</span>
                 </DropdownMenuItem>
                 {extrasDespues.map(extra)}
+                {/* Ola 1019V: la ventana con lo que todas las personas publicaron para los hilos. */}
+                <DropdownMenuItem className={CLASE_ITEM} onSelect={() => variaciones.onClick()}>
+                    <IconoVariaciones className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">{variaciones.label}</span>
+                </DropdownMenuItem>
 
                 <DropdownMenuSeparator className="my-1 bg-white/10" />
                 <DropdownMenuItem className={CLASE_ITEM} onSelect={() => onAjustes()}>
