@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { MODELOS_IMAGEN, memoriaNecesaria, modeloPorId } from "../modelos";
 import { cabe, planImagen, type NeuronaImg, type PeticionImagen } from "../plan";
-import { motoresPosibles, paqueteBase, type HierroImg } from "../sugerencias";
+import { motoresPosibles, paqueteBase, type HierroImg, type PaqueteBase } from "../sugerencias";
 
 const n = (o: Partial<NeuronaImg>): NeuronaImg => ({
   id: "mac", capa: "dispositivo", gpu: "apple", vramGB: null, ramLibreGB: 6, motores: ["sdcpp"], instalados: [], ocupada: false, ...o,
@@ -155,6 +155,16 @@ describe("Z-Image-Turbo y el paquete personal", () => {
     const s = paqueteBase(A1, { comercial: false, permitirPersonal: true });
     const turbo = s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
     expect(turbo?.porQue).toMatch(/GGUF personal \(Q4_K_M 4,2 GB\):/);
+  });
+  it("A1 con permiso personal: solo cambia el papel de calidad, el resto del paquete se queda igual", () => {
+    const base = paqueteBase(A1, { comercial: false });
+    const s = paqueteBase(A1, { comercial: false, permitirPersonal: true });
+    expect(s.instalar.map((x) => x.modelo.id))
+      .toEqual(["flux1-schnell", "qwen-image-2.1-turbo", "sd35-medium"]);
+    // Los papeles que el Turbo personal no tocan se conservan idénticos a los sin permiso.
+    const sinYConCalidad = (p: PaqueteBase) =>
+      p.instalar.filter((x) => x.papel !== "calidad").map((x) => [x.papel, x.modelo.id]);
+    expect(sinYConCalidad(s)).toEqual(sinYConCalidad(base));
   });
   it("el permiso personal no salta la regla: nada no comercial en uso comercial", () => {
     const s = paqueteBase(MAC8, { comercial: true, permitirPersonal: true });
