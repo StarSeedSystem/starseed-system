@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TODOS_LOS_TEMAS } from "@/lib/onboarding/guia-temas-red";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -62,16 +63,6 @@ const EXPLICACIONES: Record<string, ExplicacionArea> = {
       { icono: Sparkles, texto: "Las memorias vinculadas a un cerebro alimentan sus respuestas y grafo." },
     ],
     empiezaPor: "Crea tu primer baúl y guarda en él tres notas de lo que más te importa ahora.",
-  },
-  "/cerebros": {
-    queEs:
-      "El grafo vivo de tu conocimiento. Cada cerebro conecta memorias, skills y fuentes en una red que Astraura usa para pensar contigo: ver cómo se relacionan tus ideas y activar lo relevante en cada momento.",
-    comoFunciona: [
-      { icono: Compass, texto: "Un cerebro enlaza memorias, habilidades y almacenamientos que tú eliges." },
-      { icono: Sparkles, texto: "El grafo se recalcula solo cuando añades o quitas piezas." },
-      { icono: ListChecks, texto: "Puedes tener varios cerebros (personal, trabajo, creatividad) con enrutado propio." },
-    ],
-    empiezaPor: "Abre tu cerebro principal y comprueba qué memorias ya tiene enlazadas.",
   },
   "/decisiones": {
     queEs:
@@ -133,16 +124,6 @@ const EXPLICACIONES: Record<string, ExplicacionArea> = {
     ],
     empiezaPor: "Comprueba que tienes al menos un método de recuperación verificado.",
   },
-  "/library": {
-    queEs:
-      "La biblioteca universal de la red: contenidos, apps instalables y recursos educativos, tuyos y compartidos. Todo es una entidad única que se referencia, nunca se duplica.",
-    comoFunciona: [
-      { icono: ListChecks, texto: "Instala apps y recursos con un clic; aparecen en tu dock y catálogo." },
-      { icono: Compass, texto: "Guarda libros, guías y piezas de cultura en tu colección personal." },
-      { icono: Sparkles, texto: "Las actualizaciones de una pieza se reflejan en todas sus referencias." },
-    ],
-    empiezaPor: "Explora la biblioteca e instala una app que te llame la atención.",
-  },
   "/hub": {
     queEs:
       "El punto de encuentro de las comunidades. Descubre y únete a sanghas y grupos, coordina eventos y conversa con las personas de la red alrededor de intereses comunes.",
@@ -183,22 +164,33 @@ const EXPLICACIONES: Record<string, ExplicacionArea> = {
     ],
     empiezaPor: "Crea un segundo escritorio y deja en él solo lo de un proyecto.",
   },
-  "/red-mesh": {
-    queEs:
-      "El mapa vivo de la malla de la red: nodos LoRa/Meshtastic, rutas y señal en 3D. Ves cómo respira la infraestructura física que sostiene la red sin servidores centrales.",
-    comoFunciona: [
-      { icono: Compass, texto: "El mapa 3D muestra nodos, enlaces y topología en tiempo real." },
-      { icono: ListChecks, texto: "Cada neurona puede actuar como nodo y federar su topología." },
-      { icono: Sparkles, texto: "Los mensajes de la malla viajan por radio, cifrados y con duty cycle cuidado." },
-    ],
-    empiezaPor: "Abre el mapa y localiza tu neurona entre los nodos activos.",
-  },
 };
 
 // Explicación genérica por si se añade un área sin texto propio todavía.
+// (Ola 1021G) Las rutas que tienen tema en la guía (Protomolécula, los tres
+// pilares de la red, Genesis, el cerebro, la Librería y Biblioteca y la malla)
+// toman su texto de TODOS_LOS_TEMAS (`architecture/guias-introduccion.md` §2):
+// qué es = cuerpo, cómo funciona = los puntos del tema y «empieza por» es la
+// pregunta a Aurora. Una sola fuente de textos para el tour y las tarjetas.
+const ICONOS_TEMA: LucideIcon[] = [Compass, ListChecks, Sparkles];
+
+export function explicacionDeTema(ruta: string): ExplicacionArea | null {
+  const tema = TODOS_LOS_TEMAS.find((t) => t.ruta === ruta);
+  if (!tema) return null;
+  return {
+    queEs: tema.cuerpo,
+    comoFunciona: tema.puntos.map((texto, i) => ({
+      icono: ICONOS_TEMA[i % ICONOS_TEMA.length],
+      texto,
+    })),
+    empiezaPor: tema.preguntaAurora,
+  };
+}
+
 function explicacionDe(area: AreaTip): ExplicacionArea {
   return (
-    EXPLICACIONES[area.path] ?? {
+    EXPLICACIONES[area.path] ??
+    explicacionDeTema(area.path) ?? {
       queEs: area.tip,
       comoFunciona: [
         { icono: Compass, texto: "Entra y explora: la zona se explica sola con sus propias vistas." },
