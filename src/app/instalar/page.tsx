@@ -11,6 +11,7 @@ import { createClient } from "@/utils/supabase/client";
 import { detectar, recomendar, MODELOS, CONCIENCIAS, type HW } from "@/lib/onboarding/neuron-recommend";
 import { BotonInstalarOS, OtrosSistemasOS } from "@/components/install/instalar-os";
 import { OS_RELEASES_ULTIMA_URL } from "@/lib/install/instalar-os-logica";
+import { SimboloStarSeed } from "@/components/marca/simbolo-starseed";
 
 // (2026-09-25) La descarga la hace el ÚNICO botón del OS (BotonInstalarOS): detecta el
 // sistema, lee la ÚLTIMA versión publicada en GitHub y descarga el archivo que toca. Los

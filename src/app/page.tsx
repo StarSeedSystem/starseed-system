@@ -6,6 +6,7 @@ import { APP_CATALOG } from "@/components/dashboard/apps/app-catalog";
 import { leerPreferencias, resolverPantallaInicial } from "@/lib/inicio/pantalla-inicial";
 import { activeProfileId } from "@/lib/profiles/profiles";
 import { deviceId } from "@/lib/sync/entity-state";
+import { SimboloStarSeed } from "@/components/marca/simbolo-starseed";
 
 const RUTAS_INICIO = ["/dashboard", "/escritorios"];
 
@@ -28,11 +29,11 @@ export default function Home() {
     }));
   }, [router]);
 
-  // (Ola 381 · INI4) Mientras se decide la pantalla inicial: un orbe tenue, nunca una página en blanco.
+  // (Ola 381 · INI4) Mientras se decide la pantalla inicial: el símbolo oficial, nunca una página en blanco.
   return (
-    <div className="grid min-h-dvh place-items-center" role="status" aria-label="Abriendo StarSeed">
+    <div className="grid min-h-dvh place-items-center text-white" role="status" aria-label="Abriendo StarSeed">
       <div className="flex flex-col items-center gap-4">
-        <span aria-hidden className="ss-respirar block size-20 rounded-full" style={{ background: "radial-gradient(circle at 35% 30%, #ffffffaa, #7c5cff66 40%, #23d5ab22 70%, transparent)" }} />
+        <SimboloStarSeed tamano={96} aria-label="Símbolo StarSeed" />
         <span className="text-xs tracking-[0.3em] text-white/60 uppercase">Abriendo StarSeed…</span>
       </div>
     </div>
