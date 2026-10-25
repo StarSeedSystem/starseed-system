@@ -4621,3 +4621,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `FSH1018A` — otra cosa: ningún proveedor respondió (todos caídos)
 - `GCA1019H` — pruebas en rojo: vitest falla (rama conservada)
 - `RTRTCOL1012Bdsbbbbbbbbbbc` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-25 05:18 · mg-oracle-1024-2019
+
+**Lo que se pidió.** pruebas del puente en rojo
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (MGP1024-0D7DB1, RTPM1010F0Gd). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (RTRTRTRTCOL1012Bdsbbbbbbbbbb-d1, RTRTRC1013Cd-d1). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1024-0D7DB1` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-25 04:05:16 [0m > build · auto [0m [0m→ [0mRead scripts/puente/test_oracle_n
+- `RTRTRTRTCOL1012Bdsbbbbbbbbbb-d1` — no escribió nada
+- `RTRTRC1013Cd-d1` — no escribió nada
+- `RTPM1010F0Gd` — otra cosa: ningún proveedor respondió (does not exist)
