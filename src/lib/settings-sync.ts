@@ -199,6 +199,7 @@ export const SYNCED_KEYS = [
     "starseed.voz.timbre.v1",             // timbre elegido (id) — timbres.ts
     "starseed.voz.timbres-propios.v1",    // timbres propios (≤ 6, solo parámetros): viajan CON el timbre que los referencia
     "starseed.inicio.pantalla.v1",        // pantalla al abrir StarSeed, por perfil y por neurona (pantalla-inicial.ts)
+    "starseed.traduccion.v1",             // (Ola 1020U · TRD1020D) idioma de lectura, idiomas que entiende y autotraducción por contexto, por perfil (lib/traduccion/preferencias.ts)
     "starseed.theme.favorites.v1",        // temas favoritos (ids) — theme-catalog-gallery.tsx
     "starseed.privacy.telemetry",         // telemetría opt-in («1» = permitida): lo que se apaga en un medio no debe seguir encendido en otro
     "starseed.privacy.ghost",             // modo fantasma («1» = activo): idem, por privacidad
