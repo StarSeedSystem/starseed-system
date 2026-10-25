@@ -1,0 +1,112 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "GUI1021M2",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión del hub XR, la red y el estudio de diseño",
+   "archivos": [
+    "src/components/xr/xr-network-hub.tsx",
+    "src/components/mesh/network-feed.tsx",
+    "src/components/estudio/DesignStudio.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  },
+  {
+   "id": "GUI1021M4",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión de grupos, miembros y voto",
+   "archivos": [
+    "src/components/social/toolkits/shared/index.tsx",
+    "src/components/social/MemberAvatars.tsx",
+    "src/components/social/group-roster.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  },
+  {
+   "id": "SGO1024C",
+   "ola": "1024S",
+   "titulo": "Voz · xai en la prioridad de la cadena y VibeVoice respeta la ruta explícita de su endpoint",
+   "archivos": [
+    "src/lib/aurora/tts-oss/omnivoice-web-router.ts",
+    "src/lib/aurora/tts-oss/neural-tts.ts",
+    "src/lib/aurora/tts-oss/__tests__/speak-router-motores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024B (2026-10-24): (1) xai no está en DEFAULT_CHAIN_PRIORITY y, aunque una personalidad lo fije, acaba detrás de Kokoro: ponlo en el sitio que le da el registro de motores (engine-registry, AUTO_ENDPOINT_ORDER). (2) neuralSpeakVibeVoice siempre añade /api/vibevoice/synthesize aunque el endpoint configurado ya traiga una ruta explícita: respétala. Pruebas con motores simulados, sin red. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024D",
+   "ola": "1024S",
+   "capacidad": "alta",
+   "titulo": "Voz · resolveActiveVoiceEngine aplica la jerarquía (y VibeVoice recibe su guion multi-locutor)",
+   "archivos": [
+    "src/lib/aurora/voice-config.ts",
+    "src/ai/astraura/router.ts",
+    "src/lib/aurora/__tests__/motor-activo-jerarquia.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024B (2026-10-24): resolveActiveVoiceEngine no aplica la jerarquía agente › personalidad › cerebro › neurona › cuenta y casi siempre devuelve el pin por defecto openvoice2, por eso src/ai/astraura/router.ts (~1981) casi nunca prepara el guion multi-locutor de VibeVoice y VibeVoice habla todo como Speaker 0. Haz que resuelva con la misma jerarquía que la cadena de voz (busca con grep cómo la resuelve speakWithConfiguredEngine / la capa neurona×personalidad) y que el router prepare el guion cuando el motor resuelto sea vibevoice. Pruebas con configuraciones simuladas. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "SGO1024E",
+   "ola": "1024S",
+   "titulo": "Chatterbox · servicio de launchd que arranca el servidor local (127.0.0.1:4505) solo si el paquete está",
+   "archivos": [
+    "scripts/puente/instalar-servicios.py",
+    "native/astraura-voice/chatterbox/com.starseed.chatterbox.plist",
+    "scripts/puente/test_instalar_servicio_chatterbox.py"
+   ],
+   "depende": [],
+   "prompt": "VOZ1024C (2026-10-24) dejó native/astraura-voice/chatterbox/servidor.py levantando su servidor HTTP en 127.0.0.1:4505 (ver su README). Falta arrancarlo en la Mac: añade el servicio com.starseed.chatterbox a scripts/puente/instalar-servicios.py con el MISMO patrón que los demás servicios de voz (lanzador-tcc.py como padre, ruta absoluta del intérprete, ProcessType Interactive, KeepAlive solo si el paquete chatterbox está instalado: si no, el servicio no se instala y lo dice). Nunca descarga pesos. Prueba sin launchctl (plist generado y decisión de instalar). Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "TRD1020D",
+   "ola": "1020U",
+   "titulo": "Traducción · idioma de lectura y autotraducción por perfil, sincronizados con la cuenta",
+   "archivos": [
+    "src/lib/traduccion/preferencias.ts",
+    "src/lib/settings-sync.ts",
+    "src/lib/traduccion/__tests__/preferencias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Clave `starseed.traduccion.v1` (añádela a `SYNCED_KEYS` con su comentario, como las demás). Preferencias por perfil: `{idioma, entiende: string[], auto: {paginas, mensajes, publicaciones, agentes, astraura}: \"nunca\"|\"preguntar\"|\"siempre\"}`; por defecto el idioma lo da quien llama (p. ej. `navigator.language`) y todo en «preguntar». `leer`/`guardar` con try/catch, validación (lo inválido vuelve al valor por defecto) y `debeTraducir(perfil, contexto, idiomaDelTexto)` (no si el idioma del texto está en `entiende`). Pruebas, incluida la auditoría de claves sincronizadas existente en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "CNV1023D",
+   "ola": "1023C",
+   "titulo": "Conversor por la malla · servicio Hono en la neurona que tiene Filee",
+   "archivos": [
+    "servicios/conversor/src/app.mjs",
+    "servicios/conversor/bin/conversor.mjs",
+    "servicios/conversor/test/app.test.mjs"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nComo `servicios/servidor-ia` (mismo patrón: `crearApp`, bearerAuth con `STARSEED_CONVERSOR_TOKEN`, sin token solo 127.0.0.1, CORS solo para orígenes permitidos) crea un servicio en el puerto 4481 con `GET /salud`, `GET /formatos?de=` y `POST /convertir` (multipart archivo + a + calidad) que llama a `filee` con execFile y lista de argumentos en una carpeta temporal que borra siempre (topes: 500 MB, 15 min, 2 a la vez). Puedes importar la lógica pura de `src/lib/conversion/formatos.ts` copiándola si no se puede importar TS desde .mjs. Pruebas con node --test y un ejecutor falso."
+  },
+  {
+   "id": "IMN1021H",
+   "ola": "1021I",
+   "titulo": "Genesis · medidor «Imaginación» en el pulso (detalle con las propuestas)",
+   "archivos": [
+    "src/lib/mando/medidores.ts",
+    "src/app/api/mando/medidores/route.ts",
+    "src/lib/mando/__tests__/medidores-imaginacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §6. Añade la clave de medidor `imaginacion` a `ClaveMedidor` y a `ORDEN_POR_DEFECTO` (después de 'fallidas' si está, si no después de 'en-cadena'), y su detalle con `filasMedidor` de `imaginacion-tipos.ts` (medidores.ts va al cliente: nada de `node:*`; los datos los reúne la ruta del servidor con `imaginacion-servidor.ts`, igual que hace con las demás). Toma como patrón cómo se añadió 'en-cadena'. Pruebas del detalle con datos de ejemplo y de que ningún medidor anterior se pierde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).",
+   "revisor_quitadas": [
+    "IMN1021F",
+    "IMN1021G"
+   ]
+  }
+ ]
+}
