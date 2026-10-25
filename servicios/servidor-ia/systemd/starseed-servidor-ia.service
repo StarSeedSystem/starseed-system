@@ -1,0 +1,12 @@
+[Unit]
+Description=StarSeed AI Server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/env node %h/starseed-system/servicios/servidor-ia/bin/servidor-ia.mjs
+Restart=on-failure
+RestartSec=30
+EnvironmentFile=-%h/.starseed/servidor-ia.env
+
+[Install]
+WantedBy=default.target
