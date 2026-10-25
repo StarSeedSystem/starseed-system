@@ -49,6 +49,7 @@ function estado(extra: Partial<EstadoSesionEscena> = {}): EstadoSesionEscena {
         guardado: "guardado",
         aviso: null,
         sinConfirmar: 0,
+        propiedades: {},
         ...extra,
     };
 }

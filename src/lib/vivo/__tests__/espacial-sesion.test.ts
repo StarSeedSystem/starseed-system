@@ -3,6 +3,7 @@ import { abrirSesionEscena, autorDeClave, type AlmacenEscena, type SesionEscena 
 import type { ConexionEscena, EventoEscena, FilaCambiada } from "@/lib/vivo/espacial/canal";
 import { crearObjeto, docVacio, sanearDoc, sanearObjeto, type DocEscena, type ObjetoEscena } from "@/lib/vivo/espacial/modelo";
 import { aplicarObjetos } from "@/lib/vivo/espacial/fusion";
+import type { Propiedades } from "@/lib/salas/propiedad-sala";
 import type { FilaEscena } from "@/lib/vivo/espacial/persistencia";
 
 // ───────────────────────── Dobles de prueba ─────────────────────────
@@ -336,5 +337,39 @@ describe("autor", () => {
         const uid = "8f14e45f-ceea-467a-9575-6d2ab1c0e8a1";
         expect(autorDeClave(`${uid}:abc`)).not.toContain(uid);
         expect(autorDeClave("a:1")).toBe(autorDeClave("a:1"));
+    });
+});
+
+describe("propiedad por épocas (propiedad-sala aplicada a la escena)", () => {
+    it("quien añade reclama, la escritura ajena se rechaza con su motivo, y ceder sube la época", async () => {
+        const r = reloj();
+        const c = canalFalso();
+        const a = almacenFalso();
+        const s = abrir(a.almacen, c, r);
+        await vaciar();
+        const o = s.anadir("caja")!;
+        expect(s.tienda.obtener().propiedades[o.id]).toEqual({ dueno: "yo:1", epoca: 1 });
+
+        // Ana reclama el objeto de mi lado (llega por el mapa del mensaje): se fusionan.
+        c.mensaje("cambios", { de: "ana:9", objetos: [ajeno(o.id, 9_000_000)] });
+        c.mensaje("cambios", { de: "ana:9", objetos: [], prop: { [o.id]: { dueno: "ana:9", epoca: 1 } } });
+        expect(s.tienda.obtener().propiedades[o.id]).toEqual({ dueno: "ana:9", epoca: 1 });
+
+        // Ya no es mío: mi escritura se rechaza y lo dice en claro, sin tecnicismos.
+        expect(s.actualizar(o.id, { pos: [1, 1, 1] })).toBe(false);
+        expect(s.tienda.obtener().aviso).toContain("ana:9");
+        expect(s.tienda.obtener().aviso).toContain("pídesela");
+
+        // No soy el dueño de la sala: el traspaso forzado no sale ((null uid)).
+        expect(s.traspasar(o.id, "leo:3")).toBe(false);
+
+        // Lo mío sí lo cedo: la época sube y, con gente dentro, sale por el mensaje de estado.
+        const o2 = s.anadir("cono")!;
+        c.presencia({ "yo:1": [{ nombre: "Yo" }], "ana:9": [{ nombre: "Ana", desde: 1 }] });
+        expect(s.traspasar(o2.id, "ana:9")).toBe(true);
+        expect(s.tienda.obtener().propiedades[o2.id]).toEqual({ dueno: "ana:9", epoca: 2 });
+        const salida = c.de("cambios").map((x) => x.payload.prop).filter(Boolean) as Propiedades[];
+        expect(salida.at(-1)?.[o2.id]).toEqual({ dueno: "ana:9", epoca: 2 });
+        s.cerrar();
     });
 });

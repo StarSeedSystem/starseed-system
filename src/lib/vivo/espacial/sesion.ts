@@ -56,6 +56,17 @@ import {
 import { crearTienda, igualSuperficial, type Tienda } from "./tienda";
 import type { ConexionEscena, EventoEscena, FilaCambiada } from "./canal";
 import { MENSAJES_ERROR, type ErrorEscena, type FilaEscena, type ResultadoGuardado } from "./persistencia";
+import {
+    aceptarEscritura,
+    explicar,
+    forzarTraspaso,
+    fusionarPropiedades,
+    puedeEscribir,
+    reclamar,
+    traspasar,
+    type Propiedades,
+} from "../../salas/propiedad-sala";
+import type { Sala } from "../../salas/sala";
 
 export type FuenteEscena = { tipo: "espacio"; id: string } | { tipo: "llamada"; sesionId: string };
 
@@ -74,6 +85,8 @@ export interface EstadoSesionEscena {
     aviso: string | null;
     /** Cambios de otras personas que se ven pero la base aún no confirmó. */
     sinConfirmar: number;
+    /** Quién lleva cada objeto y con qué época (`salas/propiedad-sala`): clave = id del objeto. */
+    propiedades: Propiedades;
 }
 
 export interface EstadoAvatares {
@@ -132,6 +145,8 @@ export interface SesionEscena {
     anadir(tipo: TipoObjeto, opciones?: OpcionesNuevoObjeto): ObjetoEscena | null;
     actualizar(id: string, cambios: Partial<Omit<ObjetoEscena, "id" | "tipo" | "actualizado" | "por" | "borrado">>): boolean;
     borrar(id: string): boolean;
+    /** Cede un objeto propio a otra persona (o el dueño de la escena lo fuerza). */
+    traspasar(id: string, a: string): boolean;
     duplicar(id: string): ObjetoEscena | null;
     cambiarAmbiente(cambios: Partial<Pick<AmbienteEscena, "cielo" | "suelo">>): boolean;
     /** Vista previa en vivo mientras arrastro (≤ 10 Hz, solo si hay alguien más). */
@@ -175,6 +190,7 @@ const ESTADO_CARGANDO: EstadoSesionEscena = {
     guardado: "lectura",
     aviso: null,
     sinConfirmar: 0,
+    propiedades: {},
 };
 
 /** Estado estable para antes de abrir ninguna sesión (misma referencia siempre). */
@@ -211,6 +227,66 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
     let modo: ModoAvatar = o.modo ?? "3d";
     let otros = 0;
     const respuestasPendientes = new Map<string, unknown>();
+
+    // ── Propiedad por épocas (`salas/propiedad-sala`) ──
+    // Los objetos de la escena (avatar de una ficha, mueble, widget) tienen DUEÑO: solo él
+    // escribe en lo suyo; cederlo sube la época; lo que nadie reclamó lo toma quien quiera.
+    // La propiedad es de la sesión EN VIVO (no viaja en la fila de la base: ahí la verdad
+    // sigue siendo el permiso de almacen). El mapa sale con cada "cambios" y se FUSIONA
+    // con `fusionarPropiedades` (determinista y conmutativa) en quien lo recibe.
+    // La persona es la cuenta cuando hay sesión, o la clave de la pestaña si es invitado.
+    const miPersona = identidad.uid ?? identidad.clave;
+    let propiedades: Propiedades = {};
+
+    /** Sala de la escena para la puerta de propiedad: rol según el amacen y la fila conocida. */
+    const salaEscena = (): Sala => {
+        const miembros: Sala["miembros"] = puedeEditar
+            ? { [miPersona]: identidad.uid === dueno ? "dueno" : "editor" }
+            : { [miPersona]: "comentarista" };
+        if (dueno) miembros[dueno] = "dueno";
+        return {
+            id: filaId ?? tema,
+            tipo: "escena3d",
+            titulo: tienda.obtener().titulo,
+            visibilidad: "grupo",
+            transporte: "malla-p2p",
+            creadaEn: 0,
+            miembros,
+        };
+    };
+
+    const fijarPropiedades = () => fijar({ propiedades });
+
+    /** Puerta de propiedad para una tanda de id que YO voy a escribir: o todo pasa, o nada. */
+    const asegurarPropia = (ids: string[]): boolean => {
+        const sala = salaEscena();
+        for (const id of ids) {
+            const propiedad = propiedades[id];
+            if (propiedad && propiedad.dueno !== miPersona) {
+                const veredicto = aceptarEscritura(propiedades, id, miPersona, propiedad.epoca);
+                fijar({ aviso: veredicto.ok ? null : explicar(veredicto.motivo, propiedad.dueno) });
+                return false;
+            }
+            if (!puedeEscribir(sala, miPersona, propiedades, id)) {
+                fijar({ aviso: MENSAJES_ERROR["sin-permiso"] });
+                return false;
+            }
+        }
+        for (const id of ids) {
+            if (!propiedades[id]) propiedades = reclamar(propiedades, id, miPersona);
+        }
+        fijarPropiedades();
+        return true;
+    };
+
+    /** Fusión del mapa que llega con cada mensaje (ids que la otra persona sí lleva). */
+    const fusionarPropiedadesEntrantes = (prop: unknown): void => {
+        if (!prop || typeof prop !== "object") return;
+        const siguiente = fusionarPropiedades(propiedades, prop as Propiedades).propiedades;
+        if (siguiente === propiedades) return;
+        propiedades = siguiente;
+        fijarPropiedades();
+    };
 
     const tienda = crearTienda<EstadoSesionEscena>(
         { ...ESTADO_CARGANDO, persistente, guardado: persistente ? "lectura" : "efimera", puedeEditar },
@@ -413,7 +489,14 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
         }
         recalcularVista();
         // A solas no se emite nada: quien entre lo leerá de la base (o lo pedirá, en una llamada).
-        if (otros > 0) enviar("cambios", { objetos: objs, ...(amb ? { ambiente: amb } : {}) });
+        const propDelta: Propiedades = {};
+        for (const x of objs) if (propiedades[x.id]) propDelta[x.id] = propiedades[x.id];
+        if (otros > 0)
+            enviar("cambios", {
+                objetos: objs,
+                ...(amb ? { ambiente: amb } : {}),
+                ...(Object.keys(propDelta).length > 0 ? { prop: propDelta } : {}),
+            });
         if (persistente) programarGuardado();
     };
 
@@ -452,6 +535,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
                     .map(sanearObjeto)
                     .filter((x): x is ObjetoEscena => x !== null);
                 const amb = p.ambiente ? sanearAmbiente(p.ambiente) : null;
+                fusionarPropiedadesEntrantes(p.prop);
                 for (const x of entrantes) {
                     verObjeto(x);
                     arrastres.delete(x.id);
@@ -485,7 +569,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
                 if (contarVivos(local) === 0 && local.ambiente.actualizado === 0) return;
                 const id = programar(() => {
                     respuestasPendientes.delete(rid);
-                    enviar("estado", { rid, doc: local });
+                    enviar("estado", { rid, doc: local, prop: propiedades });
                 }, 150 + Math.floor(aleatorio() * 550));
                 respuestasPendientes.set(rid, id);
                 return;
@@ -499,6 +583,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
                 }
                 if (persistente) return;
                 const { doc } = sanearDoc(p.doc);
+                fusionarPropiedadesEntrantes(p.prop);
                 relojMax = Math.max(relojMax, marcaMaxima(doc));
                 local = fusionarDocs(local, doc);
                 recalcularVista();
@@ -609,6 +694,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
             }
             const canon = sanearObjeto(nuevo);
             if (!canon) return null;
+            if (!asegurarPropia([canon.id])) return null;
             aplicarPropio([canon], null);
             return canon;
         },
@@ -618,6 +704,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
             if (!actual || actual.borrado) return false;
             const canon = sanearObjeto({ ...actual, ...cambios, id, tipo: actual.tipo, actualizado: marcaNueva(), por: miPor, borrado: false });
             if (!canon) return false;
+            if (!asegurarPropia([id])) return false;
             aplicarPropio([canon], null);
             return true;
         },
@@ -625,7 +712,24 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
             if (noEditable()) return false;
             const actual = tienda.obtener().doc.objetos[id];
             if (!actual || actual.borrado) return false;
+            if (!asegurarPropia([id])) return false;
             aplicarPropio([lapida(id, actual.tipo, marcaNueva(), miPor)], null);
+            return true;
+        },
+        traspasar(id, a) {
+            if (noEditable() || id === a) return false;
+            const propiedad = propiedades[id];
+            if (!propiedad) return false;
+            if (propiedad.dueno === miPersona) {
+                propiedades = traspasar(propiedades, id, miPersona, a);
+            } else {
+                const forzado = forzarTraspaso(salaEscena(), miPersona, propiedades, id, a);
+                if (!forzado.ok) return false;
+                propiedades = forzado.propiedades;
+            }
+            fijarPropiedades();
+            recalcularVista();
+            if (otros > 0) enviar("cambios", { objetos: [], prop: { [id]: propiedades[id] } });
             return true;
         },
         duplicar(id) {
@@ -647,6 +751,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
             });
             if (!copia) return null;
             if (contarVivos(local) >= LIMITE_OBJETOS) return null;
+            if (!asegurarPropia([copia.id])) return null;
             aplicarPropio([copia], null);
             return copia;
         },
