@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { Capacidades } from "../aurora/voz-starseed/capacidades";
-import { nivelPara, nivelesDisponibles, siguienteNivel } from "../aurora/voz-starseed/niveles";
+import { nivelPara, nivelesDisponibles, siguienteNivel, type PuertaEstudio } from "../aurora/voz-starseed/niveles";
+
+// (Ola 1018V, contrato `architecture/voz-voicestudio.md` §4) El nivel «estudio»
+// pasa por su PUERTA: VoiceStudio vivo (medido con `descubrir()`) y memoria —
+// o el nivel servido por otra neurona de la malla. Sin puerta medida, el techo es «alta».
+const puertaVS: PuertaEstudio = { voicestudioVivo: true };
 
 /** Capacidades base (las más pobres): cada prueba solo toca lo que le importa. */
 const base: Capacidades = {
@@ -14,12 +19,16 @@ const base: Capacidades = {
 };
 
 describe("nivelPara", () => {
-    it("demonio local + 8 GB de RAM → estudio", () => {
-        expect(nivelPara({ ...base, daemonLocal: true, memoriaGB: 8 })).toBe("estudio");
+    it("demonio local + 8 GB de RAM + VoiceStudio vivo → estudio", () => {
+        expect(nivelPara({ ...base, daemonLocal: true, memoriaGB: 8 }, puertaVS)).toBe("estudio");
     });
 
-    it("demonio local + 16 GB de RAM → estudio", () => {
-        expect(nivelPara({ ...base, daemonLocal: true, memoriaGB: 16 })).toBe("estudio");
+    it("demonio local + 16 GB de RAM + VoiceStudio vivo → estudio", () => {
+        expect(nivelPara({ ...base, daemonLocal: true, memoriaGB: 16 }, puertaVS)).toBe("estudio");
+    });
+
+    it("demonio local + 16 GB, pero la puerta SIN medir → alta (estudio se demuestra)", () => {
+        expect(nivelPara({ ...base, daemonLocal: true, memoriaGB: 16 })).toBe("alta");
     });
 
     it("demonio local con menos de 8 GB de RAM → alta", () => {
@@ -63,7 +72,9 @@ describe("nivelesDisponibles", () => {
     });
 
     it("con estudio disponible ofrece los cinco niveles", () => {
-        expect(nivelesDisponibles({ ...base, daemonLocal: true, memoriaGB: 8 })).toEqual([
+        expect(
+            nivelesDisponibles({ ...base, daemonLocal: true, memoriaGB: 8 }, puertaVS),
+        ).toEqual([
             "estudio",
             "alta",
             "nube",

@@ -5,7 +5,8 @@
  * cambiar la identidad de la voz: el timbre es el mismo, lo que varía es la
  * precisión del motor que lo sintetiza.
  *
- *  · estudio — OmniVoice GGUF Q8_0 por el demonio local (~1000 MB)
+ *  · estudio — VoiceStudio vivo en la neurona, servido por el demonio local
+ *    (OmniVoice GGUF Q8_0, ~1000 MB); solo tras su puerta (`PuertaEstudio`)
  *  · alta    — OmniVoice GGUF Q4_K_M por el demonio local (~600 MB)
  *  · nube    — Gemini TTS o Pollinations por el servidor del OS (0 MB, red)
  *  · ligera  — Kokoro ONNX/WASM en el navegador (~120 MB)
@@ -27,6 +28,30 @@ export {
 } from "./supertonic";
 
 export type NivelVoz = "estudio" | "alta" | "nube" | "ligera" | "minima";
+
+/**
+ * PUERTA DEL NIVEL «ESTUDIO» (Ola 1018V · contrato `architecture/voz-voicestudio.md` §3-4).
+ * VoiceStudio es el nivel de más calidad, con clonación, diseño y voz en flujo; por eso
+ * solo se promete cuando está vivo en la neurona (o lo sirve otra de la malla) y hay
+ * memoria para el modelo (~1 GB): la Mac de 8 GB va al límite con VoiceStudio entero.
+ */
+export interface PuertaEstudio {
+    /** `descubrir()` de `voicestudio.ts` dijo «vivo» en ESTA neurona (127.0.0.1:3900). */
+    voicestudioVivo?: boolean;
+    /** Otra neurona de la cuenta sirve este nivel por la malla (relé `capacidad.*`). */
+    servidaPorMalla?: boolean;
+}
+
+/**
+ * PuertaStudioApta — ¿puede este equipo sostener el nivel «estudio» AHORA?
+ *  · El nivel servido por OTRA neurona no carga nada aquí: entra solo.
+ *  · En local hace falta: VoiceStudio vivo (medido, no suposido) + demonio local + ≥ 8 GB.
+ * Pura: las medidas ya las trajeron quien sondea (`descubrir()` y `capacidades.ts`).
+ */
+export function puertaEstudioApta(c: Capacidades, p: PuertaEstudio = {}): boolean {
+    if (p.servidaPorMalla) return true;
+    return p.voicestudioVivo === true && c.daemonLocal && (c.memoriaGB ?? 0) >= 8;
+}
 
 export interface InfoNivel {
     /** Nombre legible para la interfaz. */
@@ -95,9 +120,13 @@ const ORDEN: NivelVoz[] = ["estudio", "alta", "nube", "ligera", "minima"];
  * conexión, la síntesis por el servidor del OS suena bien sin descargar nada,
  * y queda ANTES que «ligera»/«mínima». Es el nivel que Alex pidió para que la
  * voz «funcione y suene bien» aunque el demonio esté apagado.
+ *
+ * (Ola 1018V) El nivel «estudio» pasa por su puerta (`PuertaEstudio`): solo si
+ * `descubrir()` de VoiceStudio dijo vivo y hay ≥ 8 GB — o el nivel llega servido
+ * por otra neurona de la malla. Sin puerta medida, el techo es «alta».
  */
-export function nivelPorDefecto(c: Capacidades): NivelVoz {
-    if (c.daemonLocal && (c.memoriaGB ?? 0) >= 8) return "estudio";
+export function nivelPorDefecto(c: Capacidades, p: PuertaEstudio = {}): NivelVoz {
+    if (puertaEstudioApta(c, p)) return "estudio";
     if (c.daemonLocal) return "alta";
     // `navigator.onLine` solo existe en el navegador; el servidor cae a ligera/mínima.
     if (typeof navigator !== "undefined" && navigator.onLine) return "nube";
@@ -107,22 +136,22 @@ export function nivelPorDefecto(c: Capacidades): NivelVoz {
 
 /**
  * Elige el nivel más alto que el equipo puede sostener:
- *  · demonio local + 8 GB de RAM o más        → estudio
+ *  · VoiceStudio vivo (o servido por otra neurona) + demonio + 8 GB → estudio
  *  · demonio local                             → alta
  *  · en línea y sin demonio                    → nube (Gemini/Pollinations)
  *  · escritorio con WebGPU o WASM SIMD         → ligera
  *  · cualquier otro caso                       → minima
  */
-export function nivelPara(c: Capacidades): NivelVoz {
-    return nivelPorDefecto(c);
+export function nivelPara(c: Capacidades, p: PuertaEstudio = {}): NivelVoz {
+    return nivelPorDefecto(c, p);
 }
 
 /**
  * Niveles que puede ofrecer este equipo, del mejor al peor.
  * Siempre incluye «minima», la red de seguridad que nunca falla.
  */
-export function nivelesDisponibles(c: Capacidades): NivelVoz[] {
-    const mejor = nivelPara(c);
+export function nivelesDisponibles(c: Capacidades, p: PuertaEstudio = {}): NivelVoz[] {
+    const mejor = nivelPara(c, p);
     return ORDEN.slice(ORDEN.indexOf(mejor));
 }
 

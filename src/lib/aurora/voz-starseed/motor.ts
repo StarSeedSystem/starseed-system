@@ -24,7 +24,8 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import { nivelPara, siguienteNivel, NIVELES, type NivelVoz, type PuertaEstudio } from "./niveles";
+import { descubrir } from "./voicestudio";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -229,9 +230,112 @@ export function nivelActual(): NivelVoz | null {
  * Resuelve el nivel concreto a usar: el que pidió el usuario si es válido para
  * este equipo; si no, el mejor que el hardware pueda sostener en este momento.
  */
+/**
+ * Contexto de licencia de la voz (contrato `architecture/voz-voicestudio.md` §4). Los pesos
+ * no libres no pueden sonar fuera de lo personal: un motor de clase «personal» (OmniVoice/
+ * VoiceMorphic) solo habla en contexto personal; en grupo, comunidad, publicado o comercio
+ * solo entran motores «libre», o «condicionada» si su condición se cumple. La clase vive ya
+ * en `catalogo-voces.ts` (`MOTORES_VOZ.claseLicencia`); el elector completo llega con la
+ * integración de licencia-voz y aquí la decisión es la MISMA regla.
+ */
+export type ContextoLicenciaVoz = "personal" | "grupo" | "comunidad" | "publico" | "comercial";
+
+/**
+ * «ESTUDIO» SOLO PARA LECTURA LARGA, DOBLAJE Y AUDIOLIBROS (Ola 1018V). En conversación,
+ * avisos y rito el motor de calidad es demasiado: esas frases salen por «alta» o por el
+ * motor instantáneo (`elegirPrimeraFrase`). Doblaje y audiolibros llaman al motor único
+ * con `nivel: "estudio"` explícito desde su propio átomo, así que no necesitan contexto.
+ * Pura.
+ */
+export function estudioAdmiteContexto(contexto: ContextoVoz): boolean {
+    return CONTEXTO_ESTUDIO.has(contexto);
+}
+
+/** Contextos donde el nivel «estudio» cabe: lectura larga y las ventanas de Imaginación. */
+const CONTEXTO_ESTUDIO: ReadonlySet<ContextoVoz> = new Set<ContextoVoz>(["lectura", "imaginacion"]);
+
+/** Un motor candidato a los primeros sonidos de la conversación. */
+export interface CandidatoPrimeraFrase {
+    /** Id tal como se anota en las medidas («primer-sonido»). */
+    motor: string;
+    /** Nivel del motor único por el que suena este motor. */
+    nivel: NivelVoz;
+    /** Clase de licencia de sus pesos (catálogo: libre · condicionada · personal). */
+    clase: "libre" | "condicionada" | "personal";
+    /** true solo si este motor SABE sonar con la voz de esa persona. */
+    tieneVoz?: boolean;
+}
+
+/** Una medida del almacén `medidas-voz.ts`; solo lo que decide la elección. */
+export interface MedidaPrimeraFrase {
+    motor: string;
+    tipo: string;
+    valor: number;
+}
+
+/**
+ * ELEGIR MOTOR DE LA PRIMERA FRASE (Ola 1018V, regla instantánea). Entre los motores
+ * PERMITIDOS en este contexto que pueden sonar la voz de ESA persona, gana el de MENOR
+ * LATENCIA MEDIDA (media de «primer-sonido» en esta neurona, `medidas-voz.ts`). Un motor
+ * sin medidas no compite: gana el primero del orden que llega (la preferencia declarada).
+ * El mensaje NUNCA se parte entre dos motores: se elige UN motor para toda la frase.
+ * Pura — las medidas llegan falsas en las pruebas, nunca se mide aquí dentro.
+ */
+export function elegirPrimeraFrase(
+    candidatos: readonly CandidatoPrimeraFrase[],
+    contexto: ContextoLicenciaVoz,
+    medidas: readonly MedidaPrimeraFrase[] = [],
+): NivelVoz | null {
+    const permitidos = candidatos.filter(
+        (c) => c.tieneVoz !== false && (c.clase !== "personal" || contexto === "personal"),
+    );
+    let elegido: CandidatoPrimeraFrase | null = permitidos[0] ?? null;
+    let mejorMedida = Number.POSITIVE_INFINITY;
+    for (const c of permitidos) {
+        const valores = medidas
+            .filter((m) => m.motor === c.motor && m.tipo === "primer-sonido" && Number.isFinite(m.valor))
+            .map((m) => m.valor);
+        if (!valores.length) continue; // sin medida no se promete rapidez: queda al final
+        const media = valores.reduce((a, b) => a + b, 0) / valores.length;
+        if (media < mejorMedida) { mejorMedida = media; elegido = c; }
+    }
+    return elegido ? elegido.nivel : null;
+}
+
+/** Caché de la puerta de VoiceStudio: «sí» dura 5 min, «no» solo 15 s —misma idea que
+ * `capacidades.ts`, donde un «no» merece repetirse pronto y un «sí» puede durar. */
+let puertaVS: { vivo: boolean; en: number } | null = null;
+
+/** Sondea el descubrimiento de VoiceStudio en su puerta local. Nunca lanza. */
+async function descubrirVoicestudio(): Promise<boolean> {
+    try {
+        return (await descubrir()).vivo === true;
+    } catch {
+        return false;
+    }
+}
+
+/** Puerta del nivel «estudio» en ESTA neurona (Ola 1018V). Solo sondea VoiceStudio si el
+ * hardware ya llegaría a estudio; abajo de eso un «no» no cambia nada. Que OTRA neurona
+ * lo sirva por la malla llega con el relé `capacidad.*` (tarea K) y abre la puerta igual. */
+async function puertaDeEstudio(caps: Capacidades): Promise<PuertaEstudio> {
+    if (!caps.daemonLocal || (caps.memoriaGB ?? 0) < 8) {
+        return { voicestudioVivo: false, servidaPorMalla: false };
+    }
+    const ahora = Date.now();
+    if (puertaVS && ahora - puertaVS.en < (puertaVS.vivo ? 5 * 60_000 : 15_000)) {
+        return { voicestudioVivo: puertaVS.vivo, servidaPorMalla: false };
+    }
+    const vivo = await descubrirVoicestudio();
+    puertaVS = { vivo, en: ahora };
+    return { voicestudioVivo: vivo, servidaPorMalla: false };
+}
+
+/** Resuelve el nivel concreto a usar: el que pidió el usuario si es válido para
+ * este equipo; si no, el mejor que el hardware pueda sostener en este momento. */
 async function resolverNivel(explicito?: NivelVoz): Promise<NivelVoz> {
     const caps: Capacidades = await detectarCapacidades();
-    const auto = nivelPara(caps);
+    const auto = nivelPara(caps, await puertaDeEstudio(caps));
     if (explicito) return explicito;
     const preferencia = nivelPreferido();
     return preferencia === "auto" ? auto : preferencia;
@@ -284,6 +388,12 @@ export interface OpcionesHablar {
     timbre: Timbre;
     /** Dónde suena (rito, conversación…). Documental: no cambia el timbre. */
     contexto: ContextoVoz;
+    /**
+     * (Ola 1018V · 3/2) Contexto de licencia del turno: en grupo, comunidad,
+     * publicación o comercio los pesos «personal» quedan fuera (regla de
+     * Alex: nada no comercial como opción por defecto). Falta = "personal".
+     */
+    contextoLicencia?: ContextoLicenciaVoz;
     /** Fuerza un nivel concreto; si falta, se resuelve solo. */
     nivel?: NivelVoz;
     /** Aviso cuando se ha tenido que bajar de nivel (con el mismo timbre). */
@@ -422,6 +532,37 @@ async function sintetizar(nivel: NivelVoz, texto: string, timbre: Timbre, opcion
     return hablarPorSistema(texto, timbre, opciones.alEmpezar);
 }
 
+/** Candidatos a la primera frase de la conversación (Ola 1018V). Son las vías del motor
+ * único que SABEN sonar la voz de esa persona (el timbre viaja como receta, con las voces
+ * compartidas `ef_dora · em_alex · em_santa` de demonio y navegador). El «estudio» NO se
+ * pone: para conversación el techo es el instantáneo (lectura, doblaje y audiolibros lo
+ * usan aparte). Delante el preferido declarado; detrás, lo ya medido manda. */
+function candidatosConversacion(caps: Capacidades): CandidatoPrimeraFrase[] {
+    const lista: CandidatoPrimeraFrase[] = [
+        { motor: "omnivoice", nivel: "alta", clase: "personal" },
+        { motor: "kokoro", nivel: "ligera", clase: "libre" },
+    ];
+    if (caps.supertonic) lista.push({ motor: "supertonic", nivel: "ligera", clase: "condicionada" });
+    lista.push({ motor: "sistema", nivel: "minima", clase: "libre" });
+    return lista;
+}
+
+/** Nivel instantáneo de conversación: las medidas de ESTA neurona (`medidas-voz.ts`)
+ * entran a la regla pura y elige el motor PERMITIDO de menor latencia con la voz de
+ * esa persona. Sin medidas o sin almacenamiento, la cadena de niveles queda igual. */
+async function nivelInstantaneoConversacion(
+    caps: Capacidades,
+    fallback: NivelVoz,
+    contexto: ContextoLicenciaVoz,
+): Promise<NivelVoz> {
+    try {
+        const mv = await import("@/lib/aurora/medidas-voz");
+        return elegirPrimeraFrase(candidatosConversacion(caps), contexto, mv.leerMedidas()) ?? fallback;
+    } catch {
+        return fallback;
+    }
+}
+
 /**
  * HABLA — entrada única del OS.
  *
@@ -448,7 +589,8 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const timbre = timbreConEmocion(opciones.timbre, resuelta.emocion, resuelta.intensidad);
 
     const plataforma = detectarPlataforma();
-    const { memoriaGB } = await detectarCapacidades();
+    const caps = await detectarCapacidades();
+    const { memoriaGB } = caps;
     const ramGB = memoriaGB ?? 8;
     const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
     let nivel: NivelVoz;
@@ -469,6 +611,17 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
             // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
             nivel = "nube";
             break;
+    }
+    // (Ola 1018V · 1/2) «Estudio» SOLO para lectura larga, doblaje y audiolibros: en
+    // conversación, avisos y rito el techo de estos motores es «alta» — el `motorCat`
+    // ya no puede meter al estudio donde no cabe.
+    if (nivel === "estudio" && !estudioAdmiteContexto(opciones.contexto)) nivel = "alta";
+    // (Ola 1018V · 2/2) Regla instantánea: en conversación, la primera frase (y las
+    // siguientes del mismo turno) sale del motor PERMITIDO con MENOR latencia medida
+    // en esta neurona que tenga la voz de esa persona. El mensaje NUNCA se parte
+    // entre dos motores: la elección es única y toda la frase suena ahí.
+    if (opciones.contexto === "conversacion") {
+        nivel = await nivelInstantaneoConversacion(caps, nivel, opciones.contextoLicencia ?? "personal");
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
