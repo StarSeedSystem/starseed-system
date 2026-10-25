@@ -219,5 +219,65 @@ class TestBriefRise(unittest.TestCase):
         self.assertNotIn("RISE", texto)
 
 
+class TestBriefHerramientas(unittest.TestCase):
+    """§7: líneas de la Librería para presentaciones, DESIGN.md, documentación y paneles."""
+
+    def test_presentacion_trae_frontend_slides(self):
+        tarea = {"titulo": "Presentación de la conferencia", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("frontend-slides — https://github.com/zarazhangrui/frontend-slides", texto)
+
+    def test_diapositivas_traen_frontend_slides(self):
+        tarea = {"titulo": "Serie de diapositivas", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("frontend-slides", texto)
+
+    def test_design_md_trae_awesome_design_md(self):
+        tarea = {"titulo": "Escribir el design.md del contexto", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("awesome-design-md — https://github.com/VoltAgent/awesome-design-md", texto)
+
+    def test_documentacion_trae_docusaurus(self):
+        tarea = {"titulo": "Documentación del grupo", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus — https://github.com/facebook/docusaurus", texto)
+
+    def test_educacion_trae_docusaurus(self):
+        tarea = {"titulo": "Curso de educación", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus", texto)
+
+    def test_panel_de_datos_trae_refine(self):
+        tarea = {"titulo": "Panel de datos del grupo", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Refine — https://github.com/refinedev/refine", texto)
+
+    def test_taste_skill_sigue_en_toda_tarea(self):
+        for tarea in (
+            {"titulo": "Presentación del Café", "archivos": ["src/app/cafe/page.tsx"]},
+            {"titulo": "Script", "archivos": ["scripts/puente/foo.py"]},
+        ):
+            texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+            self.assertIn("taste-skill — https://github.com/Leonxlnx/taste-skill (método:", texto)
+
+    def test_ninguna_linea_repetida_con_dos_claves(self):
+        tarea = {"titulo": "Presentación y conferencia con diapositivas",
+                 "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertEqual(texto.count("frontend-slides — https://github.com/zarazhangrui/frontend-slides"), 1)
+        tarea = {"titulo": "Panel de datos y panel de administración",
+                 "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertEqual(texto.count("Refine — https://github.com/refinedev/refine"), 1)
+
+    def test_apartados_6_y_7_con_varias_claves(self):
+        tarea = {"titulo": "Presentación, documentación y panel de datos",
+                 "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA)
+        self.assertLessEqual(len(texto), 2500)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+
+
 if __name__ == "__main__":
     unittest.main()
