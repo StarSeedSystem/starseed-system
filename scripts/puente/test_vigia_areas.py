@@ -10,7 +10,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vigia_areas as V
 
-AREAS_DEL_CONTRATO = ["imagen", "video", "3d", "voz", "oido", "palabra", "reflejo", "vision", "incrustaciones", "audio", "motores"]
+AREAS_DEL_CONTRATO = ["imagen", "video", "3d", "voz", "oido", "palabra", "reflejo", "vision", "incrustaciones", "audio", "motores", "habilidades"]
 MOTORES = {"ggml-org/llama.cpp", "leejet/stable-diffusion.cpp", "ggml-org/whisper.cpp", "Comfy-Org/ComfyUI",
            "fermionresearch/phonon", "microsoft/onnxruntime", "anomalyco/opencode"}
 BASE = {"cuantizadores": ["unsloth", "city96", "QuantStack"],
