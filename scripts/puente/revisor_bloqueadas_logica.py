@@ -294,6 +294,71 @@ def _deps(t: Optional[Dict[str, Any]]) -> List[str]:
     return [str(x) for x in d if str(x).strip()]
 
 
+# ── hermanas de rescate ────────────────────────────────────────────────────────────────────
+#: Prefijo del prompt con el que `revisar_ramas_nube.py` crea las tareas de rescate de pruebas.
+_PREFIJO_RESCATE = "ORIGEN: revisión automática de las ramas de la nube"
+#: La rama archivada que citan esas tareas: `refs/archivo/nube/<rama>`.
+_REF_ARCHIVADA = re.compile(r"refs/archivo/(nube/[^\s`'\"\),;]+)")
+#: La respuesta con la que una hermana dice que no había nada que rescatar.
+_NO_APLICA = re.compile(r"NO\s+APLICA\s*:?\s*(.*)", re.I | re.S)
+
+
+def rescate_de(tarea: Optional[Dict[str, Any]]) -> Optional[Tuple[str, List[str]]]:
+    """(rama archivada, archivos) si la tarea es un rescate de pruebas de una rama de la nube."""
+    prompt = str((tarea or {}).get("prompt") or "").strip()
+    if not prompt.startswith(_PREFIJO_RESCATE):
+        return None
+    m = _REF_ARCHIVADA.search(prompt)
+    rama = m.group(1) if m else ""
+    archivos = sorted(_archivos(tarea))
+    if not rama or not archivos:
+        return None
+    return rama, archivos
+
+
+def _motivo_de_cierre(entrada: Dict[str, Any]) -> str:
+    """El motivo que dejó la hermana, sin el prefijo «NO APLICA» (o «integrada en main»)."""
+    nota = str(entrada.get("nota") or entrada.get("motivo") or "").strip()
+    m = _NO_APLICA.search(nota)
+    if m:
+        motivo = m.group(1).strip(" .:;-")
+        return (motivo or "no aplicaba")[:300]
+    return (nota or "integrada en main")[:300]
+
+
+def hermana_cerrada(tid: str, tareas: Dict[str, Any], progreso: Dict[str, Any]
+                    ) -> Optional[Tuple[str, str]]:
+    """(hermana, motivo) si otra tarea de rescate de la MISMA rama archivada y los MISMOS archivos
+    ya se cerró como NO APLICA o integrada. PURA: no toca disco, red ni reloj.
+
+    (2026-10-21, medido) RTCOL1012Ae se cerró «NO APLICA: los 9 casos ya están en main» el 20-10;
+    su hermana RTCOL1012Ad —misma rama `refs/archivo/nube/a1-20261012-114650` y mismo archivo de
+    prueba— siguió un día en «te necesitan», pidiendo a Alex lo que su hermana ya había respondido.
+    Una tarea en curso nunca se cierra por esta vía."""
+    tareas = tareas or {}
+    progreso = progreso or {}
+    propia = rescate_de(tareas.get(tid))
+    if not propia or _estado(progreso, tid) in TRABAJANDO:
+        return None
+    rama, archivos = propia
+    for k in sorted(tareas):
+        if k == tid:
+            continue
+        otra = rescate_de(tareas.get(k))
+        if not otra or otra != (rama, archivos):
+            continue
+        entrada = progreso.get(k) if isinstance(progreso.get(k), dict) else {}
+        estado = str(entrada.get("estado") or "")
+        if estado in TRABAJANDO:
+            continue
+        nota = str(entrada.get("nota") or entrada.get("motivo") or "")
+        if estado in CUMPLIDOS:
+            return k, _motivo_de_cierre(entrada) if nota.strip() else "integrada en main"
+        if estado in CERRADOS and _NO_APLICA.search(nota):
+            return k, _motivo_de_cierre(entrada)
+    return None
+
+
 def sucesora(tid: str, progreso: Dict[str, Any], tareas: Dict[str, Any]) -> Tuple[Optional[str], str]:
     """(id, 'integrada'|'viva'|None) de la última sucesora de la cadena de `tid` (Xb, Xc, X-d1…).
 
@@ -606,6 +671,20 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
             continue
         est_disco = _estado(progreso_disco, tid) or est
 
+        # 0-hermana) (2026-10-21) Un rescate de pruebas cuya HERMANA (misma rama archivada y mismos
+        #     archivos) ya se cerró como NO APLICA o integrada hereda ese cierre: no se le vuelve a
+        #     pedir a Alex lo que su hermana ya respondió (RTCOL1012Ad esperó un día tras cerrarse
+        #     RTCOL1012Ae «NO APLICA: los 9 casos ya están en main»).
+        vista = {**definiciones, **tareas}
+        vista.setdefault(tid, t)
+        hermana = hermana_cerrada(tid, vista, progreso)
+        if hermana:
+            h, motivo_h = hermana
+            acciones.append(_accion(tid, "ya_hecha", "NO APLICA por su hermana %s: %s" % (h, motivo_h),
+                                "hermana", estado="sustituida", por=h))
+            tocadas.add(tid)
+            continue
+
         # 0a) (2026-10-10) Quieta en disco y su cadena YA sigue por una sucesora viva (PM1010F0B y
         #     PM1010F0Bb con PM1010F0Bc en marcha): se cede a la sucesora. Si no, la escalera o este
         #     revisor la rehacían en paralelo a su sucesora, y su corrección vieja la resucitaba
@@ -614,8 +693,8 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
             suc, como = sucesora(tid, progreso, tareas)
             if como == "viva":
                 acciones.append(_accion(tid, "ceder", "la cadena ya sigue por su sucesora %s (%s): esta copia "
-                                        "se cierra con su rama guardada" % (suc, _estado(progreso, suc) or "en cola"),
-                                        "sucesora", estado="sustituida", por=suc))
+                                    "se cierra con su rama guardada" % (suc, _estado(progreso, suc) or "en cola"),
+                                    "sucesora", estado="sustituida", por=suc))
                 tocadas.add(tid)
                 continue
 
