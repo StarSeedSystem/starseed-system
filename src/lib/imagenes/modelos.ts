@@ -28,7 +28,7 @@ export const MOTORES: Record<MotorImg, InfoMotorImg> = {
   },
   comfyui: {
     nombre: "ComfyUI", licencia: "GPL-3.0", corre: "NVIDIA, AMD, Intel, Apple Silicon; desde 4 GB de VRAM + 8 GB de RAM con streaming de pesos",
-    fuente: "https://github.com/comfyanonymous/ComfyUI", nota: "API local para flujos; el más completo para NVIDIA.",
+    fuente: "https://github.com/Comfy-Org/ComfyUI", nota: "API local para flujos; el más completo para NVIDIA. URL canónica (Comfy-Org).",
   },
   diffusers: { nombre: "Diffusers (Hugging Face)", licencia: "Apache-2.0", corre: "PyTorch: NVIDIA, Apple (MPS) y CPU", fuente: "https://github.com/huggingface/diffusers" },
   "onnx-web": {

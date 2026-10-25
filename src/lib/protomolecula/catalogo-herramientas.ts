@@ -721,6 +721,27 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     estado: "integrable", motivo: "Se importa como librería JavaScript dentro del paquete de la Biblioteca, detrás de los parámetros del átomo.",
     verificado: "2026-10-10",
   },
+  {
+    id: "stirling-pdf", nombre: "Stirling-PDF", categoria: "documentos-pdf", tipo: "app", origen: "github",
+    descripcion: "Plataforma de edición de PDF de núcleo abierto con más de 50 herramientas: editar, unir, dividir, firmar, tachar, convertir, OCR y comprimir; servidor propio con API REST para casi todas.",
+    licencia: "MIT", codigo: "https://github.com/Stirling-Tools/Stirling-PDF", web: "https://stirlingpdf.com",
+    medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "servicio-local",
+    formatos: { entrada: ["pdf"], salida: ["pdf", "texto", "html"] },
+    control: { via: ["http"], notas: "El OS lee la descripción de API de la instancia y ofrece solo las operaciones que tiene de verdad; guarda el resultado como versión nueva, nunca encima del original." },
+    actualizacion: { fuente: "github-releases", ref: "Stirling-Tools/Stirling-PDF", ultimaVersion: "3.2.0", fechaVersion: null },
+    ia: [],
+    estado: "integrable", motivo: "Servicio que coloca la bolsa de recursos (malla local y capas de conciencia; medido en el A1, 127.0.0.1:8180): nunca se promete en el propio aparato. El OS lo llama por HTTP y le pasa solo parámetros.",
+    verificado: "2026-10-20",
+    sinComprobar: [
+      "La última versión de upstream (canal de releases de GitHub) no se contrastó en esta verificación; la registrada es la medida en el A1 (3.2.0).",
+      "Requisitos de RAM y arquitecturas más allá de la medida del A1: sin comprobar.",
+    ],
+    avisos: [
+      "Open-core con partes NO MIT (app/proprietary, app/saas, engine y las carpetas proprietary, desktop, saas, cloud, portal y portal-saas del editor): solo la parte MIT; nada de las funciones de empresa.",
+      "Un PDF privado solo va a una instancia del aparato, de la cuenta o del cerebro, nunca a un servicio ajeno.",
+    ],
+  },
 
   // ── pizarras-diagramas ──────────────────────────────────────────
   {
@@ -2778,18 +2799,40 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
   {
     id: "comfyui", nombre: "ComfyUI", categoria: "ia-generativa", tipo: "app", origen: "github",
     descripcion: "Motor y editor por nodos de IA generativa local (imagen, vídeo, audio, 3D) con API HTTP y WebSocket: un flujo guardado en JSON se ejecuta desde fuera con parámetros.",
-    licencia: "GPL-3.0", codigo: "https://github.com/comfyanonymous/ComfyUI", web: "https://www.comfy.org",
+    licencia: "GPL-3.0", codigo: "https://github.com/Comfy-Org/ComfyUI", web: "https://www.comfy.org",
     medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
     integracion: "servicio-local",
     formatos: { entrada: ["json-flujo", "png", "jpeg", "webp", "mp4", "wav"], salida: ["png", "webp", "mp4", "gif", "wav", "glb"] },
     control: { via: ["http", "websocket", "python"], notas: "`POST /prompt` con el flujo en JSON y `ws://…/ws` para el progreso; cada nodo tiene parámetros direccionables. El OS guarda solo el nombre de la variable del token." },
-    actualizacion: { fuente: "github-releases", ref: "comfyanonymous/ComfyUI", ultimaVersion: "v0.39.2", fechaVersion: "2026-10-07" },
+    actualizacion: { fuente: "github-releases", ref: "Comfy-Org/ComfyUI", ultimaVersion: "v0.39.2", fechaVersion: "2026-10-07" },
     ia: ["genera-imagen", "genera-video", "genera-audio", "genera-3d"],
     estado: "integrable", motivo: "Servicio local en una neurona con recursos; el OS lo llama por HTTP o línea de órdenes y le pasa solo parámetros.",
-    verificado: "2026-10-10",
+    verificado: "2026-10-20",
     avisos: [
       "GPL: solo como programa aparte, no enlazado en el paquete del OS.",
       "Necesita GPU potente (en general NVIDIA con 12–24 GB): encaja en una neurona con GPU o un servidor con GPU, no en la A1 de Oracle ni en un móvil.",
+      "Repositorio canónico: Comfy-Org/ComfyUI (la URL histórica redirige allí).",
+    ],
+  },
+  {
+    id: "libretranslate", nombre: "LibreTranslate", categoria: "ia-generativa", tipo: "app", origen: "github",
+    descripcion: "API de traducción automática autoalojada sin conexión, con modelos de Argos Translate: /translate, /detect, /languages, /translate_file y /health; traduce textos y subtítulos.",
+    licencia: "AGPL-3.0", codigo: "https://github.com/LibreTranslate/LibreTranslate", web: "https://libretranslate.com",
+    medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "servicio-local",
+    formatos: { entrada: ["texto", "srt", "vtt"], salida: ["texto", "srt", "vtt"] },
+    control: { via: ["http"], notas: "REST con clave opcional; /translate_file devuelve el archivo traducido. Cada idioma es un modelo que descargar (--load-only)." },
+    actualizacion: { fuente: "github-tags", ref: "LibreTranslate/LibreTranslate", ultimaVersion: "1.9.6", fechaVersion: null },
+    ia: ["traduce-texto", "traduce-subtitulos"],
+    estado: "integrable", motivo: "Servicio que coloca la bolsa de recursos (malla local y capas de conciencia; medido en el A1, 127.0.0.1:5000): nunca se promete en el propio aparato. El OS lo llama por HTTP y le pasa solo parámetros.",
+    verificado: "2026-10-20",
+    sinComprobar: [
+      "La última versión de upstream (canal de etiquetas de GitHub) no se contrastó en esta verificación; la registrada es la medida en el A1 (1.9.6).",
+    ],
+    avisos: [
+      "AGPL-3.0: se usa tal cual; si se modifica y se ofrece por red, su código modificado se publica.",
+      "La instancia pública libretranslate.com es de pago con clave: no se usa por defecto.",
+      "Lo privado (mensajes, documentos personales) solo se traduce en el aparato, en neuronas de la misma cuenta o en servidores del cerebro, nunca en un servidor ajeno.",
     ],
   },
   {
