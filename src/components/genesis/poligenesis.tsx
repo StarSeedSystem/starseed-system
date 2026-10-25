@@ -19,7 +19,9 @@ import { anotar, leerHistorial } from "@/lib/genesis/historial";
 import { puertosDelOs } from "@/lib/genesis/puertos-os";
 import { misEntidades, modoDe, proponer, propuestaAprobada, propuestasDe, type EntidadGestionable, type PropuestaGenesis } from "@/lib/genesis/entidades";
 import { decidirAplicacion, type Ambito } from "@/lib/genesis/operaciones";
+import { createProposal } from "@/lib/governance/engine";
 import { PanelOperaciones } from "./panel-operaciones";
+import { SeccionAsignacionesGenesis, guardarAsignaciones, type FilaAsignacion } from "./conectores/seccion-asignaciones";
 import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
@@ -94,6 +96,40 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
         const descripcion = l.ok && typeof l.valores.description === "string" ? l.valores.description : undefined;
         return { contexto: { entidad: { nombre: entidad.nombre, tipo: entidad.tipo, descripcion } } };
     }, [entidad, puertos]);
+
+    // Guardar asignaciones: jerárquico aplica (persistencia local del ámbito); democrático crea propuesta.
+    const guardarAsignacionesEntidad = useCallback(
+        async (filas: FilaAsignacion[]) => {
+            if (!entidad || !ambito) return;
+            const modoAplicar = decidirAplicacion(ambito, entidad.rango, modo?.democratico ?? false).modo;
+            if (modoAplicar === "proponer") {
+                const r = await createProposal({
+                    scope: entidad.tipo === "grupo" ? "group" : "page",
+                    scopeRef: entidad.slug,
+                    title: `PoliGenesis · Asignaciones por papel y director de ${entidad.nombre}`.slice(0, 160),
+                    description: [
+                        "Motivo: la entidad decide en democracia quién sirve a cada papel y director.",
+                        "La cadena propuesta por cada rol se guarda dentro del comando; si se aprueba, quien gestiona la aplica.",
+                    ].join("\n"),
+                    kind: "decision",
+                    command: {
+                        type: "custom",
+                        payload: { label: "Asignaciones por papel y director", spec: JSON.stringify(filas), origen: "genesis-asignaciones", entidad_id: entidad.id },
+                    },
+                });
+                if (r.ok && r.id) {
+                    toast.success("Propuesta de asignaciones creada: la entidad la vota en Decisiones.");
+                    void cargarPropuestas();
+                } else {
+                    toast.error(r.error ?? "No se pudo crear la propuesta.");
+                }
+                return;
+            }
+            guardarAsignaciones(entidad.id, filas);
+            toast.success("Asignaciones del ámbito guardadas.");
+        },
+        [entidad, ambito, modo, cargarPropuestas],
+    );
 
     const aplicarAprobada = async (p: PropuestaGenesis) => {
         if (!p.op || !ambito) return;
@@ -177,6 +213,16 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Comprobando tu rol y el modo de gobierno…
                 </p>
             )}
+
+            {ambito && decision && decision.modo !== "sin-permiso" ? (
+                <SeccionAsignacionesGenesis
+                    key={ambito.entidad.id}
+                    ambito={ambito.entidad.id}
+                    titulo="Conectar · asignaciones del ámbito"
+                    democrata={decision.modo === "proponer"}
+                    onGuardar={(filas) => void guardarAsignacionesEntidad(filas)}
+                />
+            ) : null}
 
             {ambito?.tipo === "entidad" && entidad ? (
                 <BotsEntidad key={ambito.entidad.id} entidad={ambito.entidad} rol={entidad.dueña ? "dueno" : entidad.rango >= 3 ? "admin" : entidad.rango >= 2 ? "miembro" : "observador"} />
