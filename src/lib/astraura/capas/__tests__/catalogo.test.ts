@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   leerCatalogo,
@@ -142,5 +144,37 @@ describe("profundidadNeedle", () => {
   it("sin presupuesto suficiente no hay reflejo local", () => {
     expect(profundidadNeedle(0)).toBe(0);
     expect(profundidadNeedle(7)).toBe(0);
+  });
+});
+
+interface EntradaCrudaCatalogo extends EntradaCapa {
+  archivo: string;
+  tamano_bytes: number;
+}
+
+describe("catálogo real de config/capas-astraura.json", () => {
+  const json: unknown = JSON.parse(
+    readFileSync(join(process.cwd(), "config/capas-astraura.json"), "utf8"),
+  );
+  const raiz = json as { capas: EntradaCrudaCatalogo[] };
+  const catalogo = leerCatalogo(json);
+  const nuevos = ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"];
+
+  it("da de alta Ternary Bonsai 2 de 2B, 4B y 9B en el banco", () => {
+    for (const id of nuevos) {
+      const entrada = raiz.capas.find((c) => c.id === id);
+      expect(entrada, id).toBeDefined();
+      expect(entrada?.estado, id).toBe("en-banco");
+      expect(entrada?.sha256, id).toMatch(/^[0-9a-f]{64}$/);
+      expect(entrada?.tamano_bytes, id).toBeGreaterThan(0);
+      expect(entrada !== undefined && usable(entrada), id).toBe(false);
+    }
+  });
+
+  it("el JSON sigue siendo válido y no repite ids", () => {
+    expect(catalogo.esquema).toBe(1);
+    expect(catalogo.capas.map((c) => c.id)).toEqual(expect.arrayContaining(nuevos));
+    const ids = raiz.capas.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
