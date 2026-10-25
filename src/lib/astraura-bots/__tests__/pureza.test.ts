@@ -26,6 +26,13 @@ describe("núcleo puro de los bots de Astraura", () => {
     const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
     for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
   });
+  it.each(NUCLEO)("%s.ts: sin Supabase ni require (MGP1014): el plomo de disco, red y localStorage vive en adaptadores/", (n) => {
+    const src = leer(n).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    // Regresión del 2026-10-15: sincronia-bots.ts del núcleo llegó a importar
+    // `@/utils/supabase/client`; que quede explícito e innegable en la puerta.
+    expect(src).not.toMatch(/@\/utils\/supabase|["']@supabase\//);
+    expect(src).not.toMatch(/\brequire\s*\(/);
+  });
 });
 
 describe("tipos", () => {
