@@ -7,10 +7,11 @@
  * Todas las áreas ABREN de verdad su destino (Adenda 63).
  */
 
-import React from "react";
-import { ArrowLeft, BookOpen, Copy, Layout, Library, Maximize2, Palette, Pencil, Plus, Send, Sparkles, Trash2, Users } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { ArrowLeft, Atom, BookOpen, Copy, Layout, Library, Maximize2, Palette, Pencil, Plus, Send, Sparkles, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { fijarOrbeActivada, leerActivada, PROTO_ORB_FAB_EVENT } from "@/lib/protomolecula/orbe-bus";
 import { useBoardSystem } from "@/context/board-context";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
 import { usePanelCortina } from "./panel-cortina";
@@ -27,6 +28,21 @@ export function ContenidoHorizon({ ir, abrirEditor }: { ir: (href: string) => vo
         : "o desliza el panel hacia la izquierda";
 
     const crearPizarra = () => createBoard(`Nueva Pizarra ${boards.length + 1}`);
+
+    // Estado de la orbe de la Protomolécula, por la puerta única que comparten
+    // este botón y Astraura (fijarOrbeActivada): guarda en la cuenta la
+    // preferencia, avisa a la orbe con su evento y empuja a las demás neuronas.
+    const [orbeActivada, setOrbeActivada] = useState(true);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        setOrbeActivada(leerActivada(window.localStorage));
+        const refrescar = (e: Event) => {
+            const activada = (e as CustomEvent<{ activada?: boolean }>).detail?.activada;
+            setOrbeActivada(typeof activada === "boolean" ? activada : leerActivada(window.localStorage));
+        };
+        window.addEventListener(PROTO_ORB_FAB_EVENT, refrescar);
+        return () => window.removeEventListener(PROTO_ORB_FAB_EVENT, refrescar);
+    }, []);
 
     return (
         <div className="relative w-full h-full flex flex-col">
@@ -84,6 +100,30 @@ export function ContenidoHorizon({ ir, abrirEditor }: { ir: (href: string) => vo
                             <span className="text-xs text-violet-300/50 font-mono uppercase tracking-wider">Diseño · Código · IA · Biblioteca</span>
                         </div>
                     </Button>
+                </div>
+
+                {/* Botón de encender/apagar la orbe de la Protomolécula (petición de Alex del 2026-10-20). */}
+                <div className="mb-6 flex-shrink-0 px-2">
+                    <div className="w-full h-auto min-h-[44px] py-4 px-4 rounded-2xl flex items-center gap-4 border border-emerald-500/25 bg-emerald-950/20">
+                        <div className="p-2.5 rounded-full bg-emerald-500/10">
+                            <Atom className="w-6 h-6 text-emerald-300" />
+                        </div>
+                        <div className="text-left flex-1 min-w-0">
+                            <span className="block text-sm font-medium text-emerald-100">Orbe Protomolécula</span>
+                            <span className="text-[11px] text-emerald-300/50 font-mono uppercase tracking-wider">
+                                {orbeActivada ? "Enjambre de diseño 4D en pantalla" : "Flotante oculta en esta red"}
+                            </span>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant={orbeActivada ? "outline" : "default"}
+                            aria-pressed={orbeActivada}
+                            className="h-11 px-5 rounded-full gap-2 text-xs shrink-0 cursor-pointer"
+                            onClick={() => setOrbeActivada(fijarOrbeActivada(!orbeActivada))}
+                        >
+                            {orbeActivada ? "Desactivar" : "Activar"}
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="flex-1 space-y-10">
