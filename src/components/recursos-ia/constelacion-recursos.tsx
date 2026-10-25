@@ -15,6 +15,13 @@ import { Hexagon, Orbit } from "lucide-react";
 
 import { Bar, LABEL, SUB } from "@/components/astraura/s158/shared";
 import { cn } from "@/lib/utils";
+import {
+    FUENTE_METODOS_HF,
+    NOTA_BITNET,
+    cuantizacionesPara,
+    dispositivoDe,
+    type MetodoCuantizacion,
+} from "@/lib/recursos-ia/cuantizacion-hf";
 import type { ConfigTopologia, InventarioRecursos, MedioAlmacen, NeuronaRecursos, PlanRecursos, Procesador, Via } from "@/lib/recursos-ia/tipos";
 import {
     FOCO,
@@ -600,15 +607,28 @@ function Leyenda({ hayFlujos }: { hayFlujos: boolean }) {
     );
 }
 
-function Dato({ k, v }: { k: string; v?: string | number | null }) {
+function Dato({ k, v, titulo }: { k: string; v?: string | number | null; titulo?: string }) {
     if (v === undefined || v === null || v === "") return null;
     return (
         <div className="min-w-0">
             <dt className={LABEL}>{k}</dt>
-            <dd className="truncate text-[11px] text-white/85" title={String(v)}>
+            <dd className="truncate text-[11px] text-white/85" title={titulo ?? String(v)}>
                 {v}
             </dd>
         </div>
+    );
+}
+
+/** Los tres mejores métodos para cuantizar al vuelo en este procesador según la tabla de transformers. */
+function sugerenciaCuantizacion(p: Procesador): string | undefined {
+    const disp = dispositivoDe(p);
+    if (!disp) return undefined;
+    const rangoBits = (m: MetodoCuantizacion) => (m.bitsMin === m.bitsMax ? `${m.bitsMin} bits` : `${m.bitsMin}-${m.bitsMax} bits`);
+    return (
+        cuantizacionesPara(disp)
+            .slice(0, 3)
+            .map((m) => `${m.nombre} (${rangoBits(m)})`)
+            .join(" · ") || undefined
     );
 }
 
@@ -650,6 +670,11 @@ function DetalleNodo({ inv, sel, alCerrar }: { inv: InventarioRecursos; sel: Non
                         <Dato k="VRAM" v={typeof proc.vramGb === "number" ? fmtGb(proc.vramGb) : undefined} />
                         <Dato k="Núcleos" v={proc.nucleos} />
                         <Dato k="Aceleradores" v={proc.aceleradores.map((a) => NOMBRE_ACELERADOR[a] ?? a).join(" · ") || "ninguno"} />
+                        <Dato
+                            k="Cuantización"
+                            v={sugerenciaCuantizacion(proc)}
+                            titulo={`Fuente: ${FUENTE_METODOS_HF}. ${NOTA_BITNET}`}
+                        />
                         <Dato k="Runtimes" v={proc.runtimes.join(" · ") || "ninguno"} />
                         <Dato k="Herramientas" v={proc.herramientas?.join(" · ") || "ninguna"} />
                         <Dato k="Vía" v={nombreVia(proc.via)} />

@@ -2,12 +2,15 @@
  * Matriz de cuantización de transformers por tipo de procesador (Ola 1025R, tarea CPZ1025G).
  *
  * Datos de la tabla de la documentación de transformers para que Recursos de IA sugiera un
- * método de cuantización según el dispositivo. Módulo PURO: solo tipos, constantes y una
- * función de filtrado; nada de `node:*`, nada de red ni disco.
+ * método de cuantización según el dispositivo. Módulo PURO: tipos, constantes, una función de
+ * filtrado y el puente del procesador del inventario a su dispositivo; nada de `node:*`,
+ * nada de red ni disco.
  *
  * Tabla parcial; faltan AQLM, AutoRound, compressed-tensors, EETQ, FP8, HIGGS, VPTQ, SpQR
  * y Quark: se añaden si hacen falta.
  */
+
+import type { Procesador } from "./tipos";
 
 /** Grado de soporte de un método en un procesador. */
 export type Soporte = "ok" | "parcial" | "no";
@@ -89,3 +92,20 @@ export function cuantizacionesPara(
 }
 
 const RANGO_SOPORTE: Record<Soporte, number> = { ok: 0, parcial: 1, no: 2 };
+
+/* ───────────────────────────── puente con el inventario ───────────────────────────── */
+
+/**
+ * El dispositivo de la tabla que corresponde a un procesador del inventario: CUDA o ROCm según
+ * el acelerador de su GPU, Metal en los Apple Silicon (kernels de Metal) y CPU en lo demás.
+ * Para «intel» no hay pistas (el inventario no distingue vendedor) y webgpu/npu/antena no
+ * cuadran con ninguna columna: en esos casos no se sugiere método (de ahí el `null`).
+ */
+export function dispositivoDe(p: Procesador): DispositivoHF | null {
+    if (p.via === "antena" || p.tipo === "webgpu" || p.tipo === "npu") return null;
+    if (p.aceleradores.includes("cuda")) return "cuda";
+    if (p.aceleradores.includes("rocm")) return "rocm";
+    if (p.aceleradores.includes("metal") || p.aceleradores.includes("metal4")) return "metal";
+    if (p.tipo === "cpu" || p.tipo === "servidor") return "cpu";
+    return null;
+}

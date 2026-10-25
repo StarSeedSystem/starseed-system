@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { Procesador } from "../tipos";
 import {
     METODOS_HF,
     NOTA_BITNET,
     cuantizacionesPara,
+    dispositivoDe,
 } from "../cuantizacion-hf";
 
 describe("matriz de cuantización de transformers", () => {
@@ -55,5 +57,45 @@ describe("matriz de cuantización de transformers", () => {
 
     it("la nota de BitNet lo menciona", () => {
         expect(NOTA_BITNET).toContain("BitNet");
+    });
+});
+
+describe("dispositivoDe: del procesador del inventario a la tabla", () => {
+    const procesador = (p: Partial<Procesador>): Procesador => ({
+        id: "n:cpu",
+        neuronaId: "n",
+        tipo: "cpu",
+        nombre: "CPU",
+        aceleradores: [],
+        runtimes: [],
+        via: "local",
+        disponible: true,
+        fuente: "detectado",
+        ...p,
+    });
+
+    it("la GPU de Apple Silicon con Metal cae en «metal»", () => {
+        expect(dispositivoDe(procesador({ tipo: "gpu", nombre: "Apple M1 GPU", aceleradores: ["metal", "metal4"] }))).toBe("metal");
+    });
+
+    it("CUDA y ROCm salen de los aceleradores de la GPU", () => {
+        expect(dispositivoDe(procesador({ tipo: "gpu", nombre: "RTX 3060", aceleradores: ["cuda", "vulkan"] }))).toBe("cuda");
+        expect(dispositivoDe(procesador({ tipo: "gpu", nombre: "Radeon", aceleradores: ["rocm"] }))).toBe("rocm");
+    });
+
+    it("una CPU de Linux y un servidor declarado quedan en «cpu»", () => {
+        expect(dispositivoDe(procesador({ so: "Linux", arquitectura: "x86_64", aceleradores: ["avx2"] }))).toBe("cpu");
+        expect(dispositivoDe(procesador({ tipo: "servidor", via: "internet" }))).toBe("cpu");
+    });
+
+    it("webgpu, npu y antena no cuadran con ninguna columna", () => {
+        expect(dispositivoDe(procesador({ tipo: "webgpu", aceleradores: ["webgpu", "wasm-simd"] }))).toBeNull();
+        expect(dispositivoDe(procesador({ tipo: "npu", aceleradores: ["ane", "coreml"] }))).toBeNull();
+        expect(dispositivoDe(procesador({ via: "antena" }))).toBeNull();
+    });
+
+    it("la sugerencia para el dispositivo nunca trae métodos con soporte «no»", () => {
+        const metal = dispositivoDe(procesador({ tipo: "gpu", aceleradores: ["metal4"] }));
+        expect(metal && cuantizacionesPara(metal).every((m) => m.soporte[metal] !== "no")).toBe(true);
     });
 });
