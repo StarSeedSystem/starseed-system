@@ -721,6 +721,25 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     estado: "integrable", motivo: "Se importa como librería JavaScript dentro del paquete de la Biblioteca, detrás de los parámetros del átomo.",
     verificado: "2026-10-10",
   },
+  {
+    id: "stirling-pdf", nombre: "Stirling-PDF", categoria: "documentos-pdf", tipo: "app", origen: "github",
+    descripcion: "Plataforma de edición de PDF de núcleo abierto (open-core) con más de 50 herramientas: editar, unir, dividir, firmar, tachar datos, convertir, OCR y comprimir. Escritorio, navegador o servidor propio con API REST para casi todas las herramientas; procesa sin servicios externos.",
+    licencia: "MIT", codigo: "https://github.com/Stirling-Tools/Stirling-PDF", web: null,
+    medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "servicio-local",
+    formatos: { entrada: ["pdf"], salida: ["pdf"] },
+    control: { via: ["http"], notas: "API REST: el OS lee la descripción de la instancia y ofrece solo las operaciones que tenga de verdad (rotar, dividir, reordenar, comprimir, OCR, marca de agua…)." },
+    actualizacion: { fuente: "github-releases", ref: "Stirling-Tools/Stirling-PDF", ultimaVersion: "3.2.0", fechaVersion: "2026-10-20" },
+    ia: ["edita-pdf", "ocr"],
+    estado: "integrable", motivo: "Servicio que coloca la bolsa de recursos (architecture/repos-libreria-1020d.md §3), no el aparato que lo pide: el OS lo llama por HTTP y guarda el resultado como versión nueva, nunca encima del original. No se promete que corra en el propio aparato.",
+    verificado: "2026-10-20",
+    sinComprobar: ["la última versión publicada en GitHub releases (la 3.2.0 es la medida en el A1)", "el sitio web oficial del proyecto"],
+    avisos: [
+      "Solo la parte MIT: nada de las carpetas con licencia propia (app/proprietary, app/saas, engine, proprietary, desktop, saas, cloud, portal y portal-saas del editor) ni de las funciones de empresa.",
+      "Un PDF privado solo va a una instancia del aparato, de la cuenta o del cerebro.",
+      "Medido en el A1 (bajo demanda): la 3.2.0 ocupa 1,4 GiB y su arranque en frío tarda 109 s.",
+    ],
+  },
 
   // ── pizarras-diagramas ──────────────────────────────────────────
   {
@@ -2778,18 +2797,20 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
   {
     id: "comfyui", nombre: "ComfyUI", categoria: "ia-generativa", tipo: "app", origen: "github",
     descripcion: "Motor y editor por nodos de IA generativa local (imagen, vídeo, audio, 3D) con API HTTP y WebSocket: un flujo guardado en JSON se ejecuta desde fuera con parámetros.",
-    licencia: "GPL-3.0", codigo: "https://github.com/comfyanonymous/ComfyUI", web: "https://www.comfy.org",
+    licencia: "GPL-3.0", codigo: "https://github.com/Comfy-Org/ComfyUI", web: "https://www.comfy.org",
     medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
     integracion: "servicio-local",
     formatos: { entrada: ["json-flujo", "png", "jpeg", "webp", "mp4", "wav"], salida: ["png", "webp", "mp4", "gif", "wav", "glb"] },
     control: { via: ["http", "websocket", "python"], notas: "`POST /prompt` con el flujo en JSON y `ws://…/ws` para el progreso; cada nodo tiene parámetros direccionables. El OS guarda solo el nombre de la variable del token." },
-    actualizacion: { fuente: "github-releases", ref: "comfyanonymous/ComfyUI", ultimaVersion: "v0.39.2", fechaVersion: "2026-10-07" },
+    actualizacion: { fuente: "github-releases", ref: "Comfy-Org/ComfyUI", ultimaVersion: "v0.39.2", fechaVersion: "2026-10-07" },
     ia: ["genera-imagen", "genera-video", "genera-audio", "genera-3d"],
-    estado: "integrable", motivo: "Servicio local en una neurona con recursos; el OS lo llama por HTTP o línea de órdenes y le pasa solo parámetros.",
-    verificado: "2026-10-10",
+    estado: "integrable", motivo: "Servicio local en una neurona con recursos; el OS lo llama por HTTP o línea de órdenes y le pasa solo parámetros. Su URL canónica es Comfy-Org/ComfyUI.",
+    verificado: "2026-10-20",
+    sinComprobar: ["la versión v0.39.2 se verificó contra el repositorio viejo (el personal de su autor); el canal de versiones pasa a leer la canónica"],
     avisos: [
       "GPL: solo como programa aparte, no enlazado en el paquete del OS.",
       "Necesita GPU potente (en general NVIDIA con 12–24 GB): encaja en una neurona con GPU o un servidor con GPU, no en la A1 de Oracle ni en un móvil.",
+      "URL canónica desde el 2026-10-20; GitHub sigue redirigiendo la URL vieja, la del repositorio personal de su autor.",
     ],
   },
   {
@@ -2840,6 +2861,27 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     verificado: "2026-10-11",
     avisos: [
       "Su modo RPC (repartir el cálculo entre máquinas) es experimental y NO tiene autenticación: solo dentro de la malla privada y apagado por defecto; nunca expuesto a internet.",
+    ],
+  },
+  {
+    id: "libretranslate", nombre: "LibreTranslate", categoria: "ia-generativa", tipo: "app", origen: "github",
+    descripcion: "API de traducción automática autoalojada y sin conexión, con modelos de Argos Translate (sin Google ni Azure): /translate, /detect, /languages, /translate_file y /health. Se instala con pip (Python ≥ 3.8) o Docker; GPU opcional (CUDA 12.4.1).",
+    licencia: "AGPL-3.0", codigo: "https://github.com/LibreTranslate/LibreTranslate", web: "https://libretranslate.com",
+    medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "servicio-local",
+    formatos: { entrada: ["texto", "html", "srt", "vtt"], salida: ["texto", "html", "srt", "vtt"] },
+    control: { via: ["http"], notas: "Traducción de textos y subtítulos (srt/vtt). Sin clave en la instancia propia; cada traducción dice qué motor la hizo." },
+    actualizacion: { fuente: "github-tags", ref: "LibreTranslate/LibreTranslate", ultimaVersion: "1.9.6", fechaVersion: "2026-10-20" },
+    ia: ["traduce-textos", "traduce-subtitulos"],
+    estado: "integrable", motivo: "Servicio que coloca la bolsa de recursos (architecture/repos-libreria-1020d.md §3), no el aparato que lo pide: es el motor de la capa de traducción del OS (clic derecho, página entera e idioma por perfil). No se promete que corra en el propio aparato.",
+    verificado: "2026-10-20",
+    sinComprobar: ["la última etiqueta publicada en GitHub (la 1.9.6 es la medida en el A1)"],
+    avisos: [
+      "AGPL: solo como servidor aparte.",
+      "La instancia pública libretranslate.com es de pago con clave: no se usa por defecto.",
+      "Lo privado (mensajes, documentos personales) solo se traduce en el aparato, en neuronas de la misma cuenta o en servidores del cerebro, nunca en un servidor ajeno.",
+      "Cada idioma es un modelo que descargar: --load-only con los idiomas que se usen.",
+      "Medido en el A1 (bajo demanda): la 1.9.6 ocupa 711 MiB con es, en, pt, fr, de e it.",
     ],
   },
   {
