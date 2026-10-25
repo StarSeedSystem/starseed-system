@@ -33,6 +33,11 @@ describe("disponibilidad.ts", () => {
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
     });
+
+    it("decodificar de una cadena vacía da un arreglo de bytes vacío", () => {
+      expect(decodificar("").length).toBe(0);
+      expect(decodificar("====").length).toBe(0); // solo relleno
+    });
   });
 
   describe("mapa de bits", () => {
@@ -98,6 +103,10 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+
+    it("sin índices que anunciar no emite ninguna pieza", () => {
+      expect(anuncio("nodo-callado", "e-silencio", 10, [], 0)).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
@@ -160,6 +169,10 @@ describe("disponibilidad.ts", () => {
       expect(almacenado?.recibidoEn).toBe(AHORA - 10_000);
       expect(almacenado?.t).toBe(200);
       expect([...reg.get("t4")!.orden.get("solo")!.bits.slice(0, 2)]).toEqual([3, 3]);
+    });
+
+    it("una lista de recibidos vacía da un registro vacío", () => {
+      expect(fusionar([]).size).toBe(0);
     });
   });
 });
