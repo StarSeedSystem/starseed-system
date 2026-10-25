@@ -91,6 +91,28 @@ describe("vikunja · cliente puro", () => {
     expect(cuerpo.description).toContain("recursos");
   });
 
+  it("409 al crear el proyecto devuelve ok:false sin proyecto", async () => {
+    const pedir: Pedir = async (_url, init) => {
+      if (init.method === "PUT") {
+        return { ok: false, status: 409, text: async () => "" };
+      }
+      return { ok: true, status: 200, text: async () => "[]" };
+    };
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toContain("HTTP 409");
+      expect(r.motivo).not.toContain(TOKEN);
+    }
+  });
+
+  it("500 al buscar el proyecto devuelve el motivo de fallo del servidor", async () => {
+    const { pedir } = falso(500, []);
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toContain("falló");
+  });
+
   it("404 y 500 al crear tarea dan motivo legible", async () => {
     const d = { propuestaId: "p", titulo: "t", aprobadaEn: "2026-10-20" };
     const r404 = await tareaDesdeDecision(BASE, TOKEN, "5", d, falso(404, {}).pedir);
