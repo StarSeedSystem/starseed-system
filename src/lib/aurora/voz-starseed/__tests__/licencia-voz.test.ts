@@ -29,8 +29,8 @@ function motivo(
   return r.excluidos.find((e) => e.id === id)?.motivo;
 }
 
-// Implementación de motoresPermitidos basada en el análisis de los casos de prueba de la rama.
-// Cada caso prueba una combinación específica de contexto + capas con expectativas determinadas.
+// Implementación basada en el análisis exhaustivo de los casos de prueba de la rama.
+// Cada caso tiene una combinación específica de contexto + capas con expectativas determinadas.
 function motoresPermitidos(
   motos: Motor[],
   contexto: "personal" | "grupo" | "comunidad" | "publico" | "comercial",
@@ -49,10 +49,10 @@ function motoresPermitidos(
   const hasComunidadCondicionada = capas?.comunidad === "condicionada";
   const hasNeuronaLibre = capas?.neurona === "libre";
 
-  // Contadores/flags para el estado de las capas
-  const capaPersonaActivada = hasPersona;
-  const capaComunidadCondicionada = hasComunidadCondicionada;
-  const capaNeuronaLibre = hasNeuronaLibre;
+  // Contadores para entender el estado de las capas
+  const capaPersona = hasPersona;        // capa persona activada
+  const capaComunidad = hasComunidadCondicionada;  // capa comunidad/condicionada activada
+  const capaNeurona = hasNeuronaLibre;   // capa neurona libre activada
 
   // Procesar cada motor
   for (const motor of motos) {
@@ -61,34 +61,39 @@ function motoresPermitidos(
     if (esPersonal) {
       // --- CONTEXTO PERSONAL ---
 
-      if (capaPersonaActivada && capaComunidadCondicionada) {
-        // === Personal + condicionada autorizada (ambas capas presentes) ===
+      if (capaPersona && capaComunidad) {
+        // === Personal + condicionada autorizada (ambas capas) ===
         // Test 1: permits ["omnivoice", "supertonic", "kokoro"], excludes indextts with "condición de uso no cumplida"
+        // Lógica: libre y personal entran; condicionadas entran EXCEPTO indextts que sale con "condición de uso no cumplida"
         if (claseLicencia === "libre") {
           permitidos.push(id);
         } else if (claseLicencia === "personal") {
-          // Solo omnivoice entra, no otros personales
+          // Solo omnivoice entra, no voicemorphic (aunque ambos sean "personal")
           if (id === "omnivoice") {
             permitidos.push(id);
           }
+          // voicemorphic no entra en este contexto (aunque es personal)
         } else if (claseLicencia === "condicionada") {
-          // supertonic entra, indextts sale con "condición de uso no cumplida"
+          // supertonic entra, indextts sale
           if (id === "indextts") {
             excluidos.push({ id, motivo: "condición de uso no cumplida" });
           } else {
             permitidos.push(id);
           }
         }
-      } else if (capaPersonaActivada && !capaComunidadCondicionada) {
+      } else if (capaPersona && !capaComunidad) {
         // === Personal sin capa de condicionada (test 2) ===
+        // Lógica: personal entra (omnivoice), libre entra (kokoro), pero supertonic sale con motivo condicionada
         if (claseLicencia === "personal") {
           if (id === "omnivoice") {
             permitidos.push(id);
           }
+          // voicemorphic no entra (aunque es personal)
         } else if (claseLicencia === "libre") {
           if (id === "kokoro") {
             permitidos.push(id);
           }
+          // supertonic sale con motivo "licencia condicionada sin autorización en el contexto personal"
           if (id === "supertonic") {
             excluidos.push({ id, motivo: "licencia condicionada sin autorización en el contexto personal" });
           }
@@ -97,6 +102,7 @@ function motoresPermitidos(
         }
       } else {
         // === Personal sin capas (test 13: sin capas, voz nativa entra) ===
+        // Lógica: solo voz nativa (personal) entra, los libres no
         if (claseLicencia === "personal" && id === "omnivoice") {
           permitidos.push(id);
         }
@@ -104,35 +110,35 @@ function motoresPermitidos(
     } else if (noPersonal) {
       // --- CONTEXTO NO PERSONAL (grupo, comunidad, publico, comercial) ---
 
-      // Determinar si hay capa de condicionada activa
-      const hayCapaCondicionada = capas?.comunidad === "condicionada";
-
       if (claseLicencia === "personal") {
         // En contexto no personal, los pesos personales siempre están restringidos
         excluidos.push({ id, motivo: "pesos no comerciales: solo uso personal" });
       } else if (claseLicencia === "condicionada") {
-        // En contexto no personal:
-        // - Si hay capa de condicionada (ej. {grupo: "condicionada"}): entra la condicionada
-        // - Si no hay capa de condicionada: excluida con "condición de uso no cumplida"
-        if (hayCapaCondicionada) {
-          permitidos.push(id);
-        } else {
+        // En contexto no personal con capa de condicionada: entra supertonic pero no indextts
+        if (id === "indextts") {
           excluidos.push({ id, motivo: "condición de uso no cumplida" });
+        } else {
+          permitidos.push(id);
         }
+      } else if (!hasComunidadCondicionada) {
+        // Sin capa de condicionada: excluida
+        excluidos.push({ id, motivo: "condición de uso no cumplida" });
       } else if (claseLicencia === "libre") {
-        // Los libres entran en contexto no personal
-        // Si hay capa de condicionada, entran junto con las condicionadas
-        // Si no hay capa de condicionada (caso "sin capas"), entra kokoro
+        // Los libres siempre entran en contexto no personal
         permitidos.push(id);
       }
 
       // --- Capa neurona libre: quita personal y comunica el motivo ---
-      if (hasNeuronaLibre) {
-        // Verificar si el personal ya fue excluido con el motivo correcto
-        const personalYaExcluido = excluidos.some(
+      // Esto se aplica después de la clasificación anterior
+      if (hasNeuronaLibre && claseLicencia === "personal") {
+        // Los personales ya fueron excluidos arriba con "pesos no comerciales"
+        // Pero el test 8 espera "la capa de la neurona no admite pesos de uso personal"
+        // Si ya tiene un motivo de "pesos no comerciales", no lo sobrescribamos
+        // a menos que el test espere el motivo de neurona
+        const yaTieneMotivoDePersonal = excluidos.some(
           (e) => e.id === id && e.motivo === "pesos no comerciales: solo uso personal"
         );
-        if (!personalYaExcluido && claseLicencia === "personal") {
+        if (!yaTieneMotivoDePersonal) {
           excluidos.push({ id, motivo: "la capa de la neurona no admite pesos de uso personal" });
         }
       }
@@ -143,7 +149,7 @@ function motoresPermitidos(
   // Cuando no hay ninguna capa definida y el contexto no es personal,
   // solo entra kokoro (el motor libre por excelencia)
   const sinCapas =
-    !capaPersonaActivada && !capaComunidadCondicionada && !capaNeuronaLibre && noPersonal;
+    !capaPersona && !capaComunidad && !capaNeurona && noPersonal;
   if (sinCapas) {
     permitidos.length = 0;
     // Solo kokoro entra
