@@ -4429,3 +4429,28 @@ build compilada en la nube e instalada en Genesis; verificado en localhost:9002.
 ### Notas / aprendizajes
 - La primera build de la nube salió sin `.env.production.local` (Supabase de relleno, navegador sin sesión): copiarlo SIEMPRE al worktree antes de `next build` y buscar el proyecto real en `.next/static/chunks`.
 - Fuera de esta tarea: `brain_memory_files` 30 GET + 30 PATCH/30 min desde una pestaña abierta (memoria de Astraura tras `starseed:sync:apply`).
+
+## 2026-10-25 — Ola 1025T · acceso único, puerta con vista previa, carga 3D y la orbe en el Centro de Creación
+**Sesión por:** Claude (carril Opus; tres agentes Sonnet escribieron, Claude integró y verificó en localhost:9002)
+**Resumen ejecutivo:** lo que pidió Alex con cinco capturas: una sola ventana de entrar o crear cuenta (la guiada),
+la bienvenida en el centro sobre la vista previa difuminada del perfil, «Abriendo StarSeed…» con la carga 3D y el
+símbolo dentro de la esfera, la orbe más chica en pantallas chicas, el interruptor y los ajustes de la orbe en la
+cortina Horizon rediseñada y sin el aviso «Este aparato no tiene VR ni AR» en la esquina.
+
+### Hecho
+- ACC1025A/B: `PaginaAcceso` (`auth/ventana-acceso.tsx`) es la única ventana para /login, /bienvenida y el primer
+  arranque; `PuertaSesion` + `VistaPreviaSesion` en /profile, /profile/me, /cuenta (/settings redirige ahí), el
+  panel de identidad de Ajustes, /library y /correos. SOP: `architecture/acceso-unico.md`.
+- XR1025A, PRO1025M (0,7× bajo 400 px, 0,8× bajo 640 px, diana ≥ 44 px), CAR1025A (`carga/carga-starseed.tsx`).
+- CRE1025A: Centro de Creación con la tarjeta de la Protomolécula (interruptor, estilo, forma, devolverla a su
+  sitio, abrirla), crear, pizarras activas y publicación.
+- PRO1025N (tras verlo a 360 px): panel de la orbe en hoja inferior, la tarjeta sin palabras partidas y la orbe
+  detrás de las cortinas abiertas (`usePerimeterOpcional`).
+
+### Decisiones tomadas
+- «Explorar sin cuenta» ya no abre una sesión anónima: marca la intro como vista y lleva a /escritorios, como la
+  ventana guiada que Alex eligió conservar. WelcomeGate/WelcomeWindow quedan sin montar.
+- Ajustes sigue usable sin sesión (sus ajustes viven en el aparato); la puerta se pone donde hace falta la cuenta.
+
+### Notas / aprendizajes
+- El tsc completo con `.next/types` de una build recién hecha pide más de 4096 MB: con 5120 pasa.
