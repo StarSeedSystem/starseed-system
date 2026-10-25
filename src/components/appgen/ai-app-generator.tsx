@@ -45,6 +45,7 @@ import {
   Link2,
   BrainCircuit,
   Server,
+  Database,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -79,6 +80,8 @@ import {
   runOnBrain,
   appShareRef,
 } from "@/lib/appgen/appgen";
+
+import { plantillaRefine, type RecursoPanel } from "@/lib/appgen/plantilla-refine";
 
 import { createClient } from "@/utils/supabase/client";
 import { listBrains, type Brain, type BrainServer } from "@/lib/brains/brains";
@@ -120,6 +123,42 @@ function buildTree(files: AppFile[]): TreeNode {
   };
   sort(root);
   return root;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Plantilla «panel de datos» (Refine): texto del usuario → recursos
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Parsea una línea como «clientes: nombre, email; pedidos: fecha, total» en la
+ * lista de recursos de `plantillaRefine`. Los datos nunca entran crudos en el
+ * código generado: la plantilla valida y lanza en español si algo no casa.
+ */
+function parsearRecursos(texto: string): RecursoPanel[] {
+  const bloques = texto
+    .split(";")
+    .map((b) => b.trim())
+    .filter(Boolean);
+  if (bloques.length === 0) {
+    throw new Error(
+      "Escribe al menos un recurso con sus campos, p. ej. «clientes: nombre, email».",
+    );
+  }
+  return bloques.map((bloque, i) => {
+    const dosPuntos = bloque.indexOf(":");
+    if (dosPuntos === -1) {
+      throw new Error(
+        `Falta «:» en el recurso n.º ${i + 1}. Formato: nombre: campo, campo.`,
+      );
+    }
+    const nombre = bloque.slice(0, dosPuntos).trim().toLowerCase();
+    const campos = bloque
+      .slice(dosPuntos + 1)
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    return { nombre, campos };
+  });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -606,6 +645,43 @@ export default function AiAppGenerator() {
     setPreviewKey((k) => k + 1);
   }, []);
 
+  // Plantilla fija «panel de datos» (Refine con telemetría apagada): reemplaza
+  // los archivos del proyecto por los que genera `plantillaRefine` (pura y
+  // determinista). Activación manual fuera del OS: nada se ejecuta aquí.
+  const onPanelDatos = useCallback(async () => {
+    const texto = await prompt({
+      title: "Plantilla · panel de datos (Refine)",
+      description:
+        "Genera un proyecto vite + react con @refinedev/core y proveedor REST: un listado por recurso, telemetría apagada de serie y activación MANUAL (npm install && npm run dev; Node 20+). Nada se ejecuta desde el OS.",
+      label: "Recursos con sus campos (recursos separados por «;»):",
+      defaultValue: "clientes: nombre, email",
+    });
+    if (!texto || !texto.trim()) return;
+    try {
+      const recursos = parsearRecursos(texto);
+      const files = plantillaRefine({ nombre: app.name || "Panel de datos", recursos });
+      setApp((prev) => ({
+        ...prev,
+        files,
+        meta: {
+          ...prev.meta,
+          notes:
+            "Plantilla «panel de datos» con Refine (telemetría apagada): descárgala con Exportar y actívala manualmente (ver LEEME.md).",
+        },
+      }));
+      setActivePath("LEEME.md");
+      setPreviewKey((k) => k + 1);
+      toast.success("Panel de datos creado ✦", {
+        description:
+          `${files.length} archivos. Exporta el proyecto y actívalo con npm install && npm run dev (LEEME.md).`,
+      });
+    } catch (err) {
+      toast.error("La plantilla no aceptó esos datos", {
+        description: (err as Error)?.message,
+      });
+    }
+  }, [app.name, prompt]);
+
   // ──────────────────────────────────────────────────────────────────────────
   // Render del árbol
   // ──────────────────────────────────────────────────────────────────────────
@@ -694,6 +770,15 @@ export default function AiAppGenerator() {
             />
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={newProject}>
               <Plus className="h-3.5 w-3.5" /> Nuevo
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1 text-xs"
+              onClick={onPanelDatos}
+              title="Plantilla «panel de datos»: @refinedev/core con telemetría apagada y activación manual"
+            >
+              <Database className="h-3.5 w-3.5" /> Panel de datos
             </Button>
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={openList}>
               <FolderTree className="h-3.5 w-3.5" /> Mis apps
