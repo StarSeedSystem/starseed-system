@@ -7,7 +7,7 @@
  * `/xr`): la sesión se conecta al renderer de R3F y R3F pasa solo a `setAnimationLoop`. Cambia en
  * dos cosas que la sala compartida necesita:
  *   · en AR pide `dom-overlay` con la capa de interfaz, para que en el móvil sigan a mano
- *     «Salir», «Añadir» y la lista de personas encima de la cámara;
+ *     "Salir", "Añadir" y la lista de personas encima de la cámara;
  *   · en AR limpia en transparente (la escena se ve sobre tu habitación) y lo restaura al salir.
  *
  * `entrar` debe llamarse desde un clic: el navegador solo abre XR con un gesto de la persona.
@@ -15,6 +15,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as THREE from "three";
+import { funcionesAPedir } from "@/components/xr/shell/aplicar-perfil";
+import { refinarFunciones, type CapacidadesXR } from "@/lib/xr/capacidades";
+import type { FuncionXR } from "@/lib/xr/tipos";
 
 export type ModoSesionXR = "immersive-vr" | "immersive-ar";
 
@@ -26,7 +29,21 @@ export interface EstadoXR {
     error: string | null;
     entrar: (modo: ModoSesionXR) => Promise<void>;
     salir: () => Promise<void>;
+    funcionesConcedidas?: string[];
 }
+
+/** Base para pasar solo las funciones de esta sesión por el núcleo puro (`funcionesAPedir`). */
+const CAPACIDADES_SESION: CapacidadesXR = {
+    plataforma: "desconocida",
+    visor: false,
+    modos: [],
+    recomendado: "3d-pantalla",
+    entradas: [],
+    funciones: [],
+    ofrecerSesion: false,
+    motivos: [],
+    avisos: [],
+};
 
 function xrDelNavegador(): XRSystem | undefined {
     if (typeof navigator === "undefined") return undefined;
@@ -51,6 +68,7 @@ export function useSesionXR(
     const [activa, setActiva] = useState(false);
     const [modo, setModo] = useState<ModoSesionXR | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [funcionesConcedidas, setFuncionesConcedidas] = useState<string[] | undefined>(undefined);
     const sesionRef = useRef<XRSession | null>(null);
 
     useEffect(() => {
@@ -80,6 +98,7 @@ export function useSesionXR(
         } catch {
             /* ya había terminado */
         }
+        setFuncionesConcedidas(undefined);
     }, []);
 
     const entrar = useCallback(
@@ -91,10 +110,19 @@ export function useSesionXR(
                 return;
             }
             if (sesionRef.current) await salir();
-            const init: XRSessionInit & { domOverlay?: { root: Element } } =
+
+            // La lista sale del núcleo puro: lista blanca (nunca `camera-access`), sin repetidos y
+            // con `local-floor` como requerida. En AR se conserva `dom-overlay` para la interfaz.
+            const funcionesBase: FuncionXR[] =
                 m === "immersive-ar"
-                    ? { optionalFeatures: ["local-floor", "hit-test", ...(raizOverlay ? ["dom-overlay"] : [])] }
-                    : { optionalFeatures: ["local-floor", "bounded-floor", "hand-tracking"] };
+                    ? ["local-floor", "hit-test", ...(raizOverlay ? (["dom-overlay"] as const) : [])]
+                    : ["local-floor", "bounded-floor", "hand-tracking"];
+            const capacidades: CapacidadesXR = { ...CAPACIDADES_SESION, funciones: funcionesBase };
+            const funcionesPedidas = funcionesAPedir(capacidades);
+            const init: XRSessionInit & { domOverlay?: { root: Element } } = {
+                optionalFeatures: funcionesPedidas.opcionales,
+                requiredFeatures: funcionesPedidas.requeridas,
+            };
             if (m === "immersive-ar" && raizOverlay) init.domOverlay = { root: raizOverlay };
             try {
                 const sesion = await xr.requestSession(m, init);
@@ -120,10 +148,15 @@ export function useSesionXR(
                     }
                     setActiva(false);
                     setModo(null);
+                    setFuncionesConcedidas(undefined);
                 };
                 sesion.addEventListener("end", alTerminar);
                 setActiva(true);
                 setModo(m);
+                // Lo concedido lo dice el navegador, no la marca del aparato: se filtra por la lista
+                // blanca del núcleo (`refinarFunciones`) antes de guardarlo.
+                const concedidas = sesion.enabledFeatures ? Array.from(sesion.enabledFeatures) : [];
+                setFuncionesConcedidas(refinarFunciones(capacidades, concedidas).funciones);
             } catch (e) {
                 sesionRef.current = null;
                 try {
@@ -149,5 +182,5 @@ export function useSesionXR(
     );
 
     // Referencia estable mientras nada cambie: quien lo recibe en un efecto no entra en bucle.
-    return useMemo(() => ({ vr, ar, activa, modo, error, entrar, salir }), [vr, ar, activa, modo, error, entrar, salir]);
+    return useMemo(() => ({ vr, ar, activa, modo, error, entrar, salir, funcionesConcedidas }), [vr, ar, activa, modo, error, entrar, salir, funcionesConcedidas]);
 }
