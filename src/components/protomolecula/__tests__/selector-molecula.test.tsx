@@ -8,8 +8,6 @@ import { SelectorMolecula, TEXTO_CONFIRMACION, prepararMolecula } from "../selec
 
 afterEach(() => { cleanup(); reiniciarSesiones(); });
 
-
-
 /** Almacén en memoria: sin disco ni navegador. */
 function almacenMemoria(): AlmacenLocal {
   const datos = new Map<string, string>();
