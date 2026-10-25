@@ -1,0 +1,101 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "ola": "1024S",
+   "capacidad": "alta",
+   "id": "SGO1024D-d1",
+   "titulo": "Voz · resolveActiveVoiceEngine aplica la jerarquía (y VibeVoice recibe su guion multi-locutor) (parte 1 de 3)",
+   "archivos": [
+    "src/lib/aurora/voice-config.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024B (2026-10-24): resolveActiveVoiceEngine no aplica la jerarquía agente › personalidad › cerebro › neurona › cuenta y casi siempre devuelve el pin por defecto openvoice2, por eso src/ai/astraura/router.ts (~1981) casi nunca prepara el guion multi-locutor de VibeVoice y VibeVoice habla todo como Speaker 0. Haz que resuelva con la misma jerarquía que la cadena de voz (busca con grep cómo la resuelve speakWithConfiguredEngine / la capa neurona×personalidad) y que el router prepare el guion cuando el motor resuelto sea vibevoice. Pruebas con configuraciones simuladas. Máximo 3 archivos y 120 líneas nuevas por archivo.\n\n## PARTE 1 DE 3 (la dirección dividió SGO1024D: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/aurora/voice-config.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SGO1024D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "id": "CB1013N",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: panel del pilar",
+   "archivos": [
+    "src/components/cerebro/procesos-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Sustituye el componente de partida manteniendo `ProcesosPanelProps { brainId; brainName? }` y el default. Lee con `leerProcesos()` al montarse y luego cada `intervaloSeg` de las preferencias (`usarPreferenciasProcesos()` de CB1013P) SOLO con la pestaña visible (`document.visibilityState`). Arriba, cuentas reales por tipo (`ETIQUETA_TIPO`) como filtros pulsables (respetando los tipos visibles de las preferencias); debajo, la lista de procesos agrupada por tipo: nombre, estado en palabras, dónde corre, desde cuándo (relativo) y barra de progreso SOLO si `progreso` no es null; acciones existentes únicamente (abrir Genesis `/genesis` para agentes; restaurar una ventana en segundo plano si desktop-store lo permite). Luego `<ProcesosHardware />` (CB1013O) con el hardware y los avisos, y `<ProcesosAjustes />` (CB1013P) plegable. Al pie, las fuentes consultadas con ✓/✗ y su motivo («no disponible aquí» en un aparato que no es la Mac). Hora de la última lectura y botón «Actualizar».",
+   "revisor_quitadas": [
+    "CB1013P"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013L",
+    "CB1013O"
+   ]
+  },
+  {
+   "id": "FSH1018L",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Diseño · tres propuestas de rediseño adaptadas al fondo (tokens de tema), con Astraura",
+   "archivos": [
+    "src/lib/design/rediseno-desde-fondo.ts",
+    "src/lib/design/__tests__/rediseno-desde-fondo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `propuestasDesdeFondo({ paleta, temaActual: ThemeTokens, modo: \"claro\"|\"oscuro\", adn })` → 3 propuestas (sobria, armónica, atrevida) de ThemeTokens (theme-engine.ts) con superficies translúcidas que dejan ver el fondo, acentos de la paleta y la escala φ de armonia.ts, cada una con su motivo y con contraste AA verificado (texto/superficie ≥ 4,5; las que no pasan se ajustan o se descartan). `pedidoParaIA(...)` arma el pedido al Director de diseño (memoria de gustos: lo privado solo si corre en una neurona de la persona). Pruebas. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018M"
+   ]
+  },
+  {
+   "id": "IMN1021K3",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en colas, director y entornos de Genesis",
+   "archivos": [
+    "src/lib/mando/colas.ts",
+    "src/lib/mando/director-datos.ts",
+    "src/lib/mando/entornos.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios: «Los sueños profundos corren en la Mac» → «La imaginación profunda corre en la Mac», «Sueño profundo» → «Imaginación profunda», «Dream diario 07:00» → «Imaginación diaria (07:00 o según su horario)». Nada de identificadores (`suenos.py`, `tipo: \"analisis\"`). Si una prueba comprobaba el texto viejo, cámbiala solo en eso (añade su archivo de prueba solo si hace falta y no pasa de 3 archivos en total). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  },
+  {
+   "id": "IMN1021K4",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar comentarios en ramificación, tipos y grafo",
+   "archivos": [
+    "src/lib/mando/ramificacion.ts",
+    "src/lib/mando/tipos.ts",
+    "src/lib/mando/grafo-disposicion.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Solo comentarios: «sueño(s) profundo(s)» → «imaginación profunda». Nada de código. tsc y las pruebas de estos módulos en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  },
+  {
+   "id": "IMN1021K5",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en el lector de la imaginación y en los medidores",
+   "archivos": [
+    "src/lib/mando/suenos.ts",
+    "src/lib/mando/suenos-tipos.ts",
+    "src/lib/mando/medidores.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios: «Sueños profundos» → «Imaginación profunda», «sueño profundo: leyendo y analizando (no escribe código)» → «imaginación profunda: leyendo y analizando (no escribe código)», etc. «Ola Dream …» es el NOMBRE histórico de olas viejas (dato): se queda. Nada de identificadores. Si una prueba comprobaba el texto viejo, ajústala solo en eso. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).",
+   "revisor_quitadas": [
+    "IMN1021H"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-24.json": [
+   "SGO1024D-d1",
+   "FSH1018L",
+   "IMN1021K3",
+   "IMN1021K4",
+   "IMN1021K5",
+   "CB1013N"
+  ]
+ }
+}
