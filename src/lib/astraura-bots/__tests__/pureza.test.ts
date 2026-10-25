@@ -1,15 +1,16 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { EMOCIONES, RASGOS, SENTIDOS, SENTIDOS_INTIMOS, acotar, esBotDeEntidad, esInvitado, esRol, esSentido } from "../tipos";
+import { EMOCIONES, RASGOS, SENTIDOS, SENTIDOS_INTIMOS, acortar, esBotDeEntidad, esInvitado, esRol, esSentido } from "../tipos";
 
 /** Guardia del núcleo de bots: puro (sin React, red, DOM, reloj ni node:*), ≤ 200 líneas, sin ejecutar código. */
 const DIR = path.join(__dirname, "..");
 const NUCLEO = readdirSync(DIR).filter((f) => f.endsWith(".ts")).map((f) => f.replace(/\.ts$/, ""));
 const leer = (n: string) => readFileSync(path.join(DIR, `${n}.ts`), "utf8");
+const CONECTORES = NUCLEO;
 
 describe("núcleo puro de los bots de Astraura", () => {
-  it("están los seis módulos del contrato (los que se añadan arriba también han de ser puros)", () => {
+  it("están los seis módulos del contrato (los que se añaden arriba también han de ser puros)", () => {
     expect(NUCLEO).toEqual(expect.arrayContaining(["acciones", "bucle", "permisos", "personalidad-adaptable", "reparto-de-modelo", "tipos"]));
   });
   it.each(NUCLEO)("%s.ts: ≤ 200 líneas", (n) => {
@@ -25,6 +26,11 @@ describe("núcleo puro de los bots de Astraura", () => {
   it.each(NUCLEO)("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
     const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
     for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
+  });
+  it("los conectores existen y no están vacíos", () => {
+    for (const c of CONECTORES) {
+      if (NUCLEO.includes(c)) expect(leer(c).split("\n").length).toBeGreaterThan(0);
+    }
   });
 });
 
