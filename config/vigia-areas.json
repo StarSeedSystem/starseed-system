@@ -118,7 +118,8 @@
             "mattpocock/skills": "mattpocock/skills",
             "heygen-com/hyperframes": "heygen-com/hyperframes"
         },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
+        "catalogo": "src/ai/astraura/habilidades/ingenieria-a.ts",
+        "nota": "Catálogo de habilidades de ingeniería (Matt Pocock): la entrada es ingenieria-a.ts y los datos siguen en ingenieria-b.ts; HyperFrames (heygen-com/hyperframes) ya está en src/lib/library/packages.ts."
     }
   ]
 }
