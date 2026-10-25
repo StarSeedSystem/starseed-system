@@ -1,0 +1,17 @@
+cargo:rerun-if-changed=src/android_parche.rs
+cargo:rerun-if-changed=android
+cargo:rerun-if-env-changed=STARSEED_SIN_SERVICIO_ANDROID
+cargo:rerun-if-env-changed=TAURI_ANDROID_PROJECT_PATH
+cargo:rerun-if-env-changed=TAURI_CONFIG
+cargo:rustc-check-cfg=cfg(desktop)
+cargo:rustc-cfg=desktop
+cargo:rustc-check-cfg=cfg(mobile)
+cargo:rerun-if-changed=/home/runner/work/_temp/starseed-wt/APR1019A/native/src-tauri/tauri.conf.json
+cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_APP_NAME=os
+cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_PREFIX=app_starseed
+cargo:rustc-check-cfg=cfg(dev)
+cargo:rustc-cfg=dev
+cargo:PERMISSION_FILES_PATH=/home/runner/work/_temp/starseed-wt/APR1019A/native/src-tauri/target/debug/build/starseed-native-b0883f5823650985/out/app-manifest/__app__-permission-files
+cargo:rerun-if-changed=/home/runner/work/_temp/starseed-wt/APR1019A/native/src-tauri/capabilities
+cargo:rerun-if-env-changed=REMOVE_UNUSED_COMMANDS
+cargo:rustc-env=TAURI_ENV_TARGET_TRIPLE=x86_64-unknown-linux-gnu

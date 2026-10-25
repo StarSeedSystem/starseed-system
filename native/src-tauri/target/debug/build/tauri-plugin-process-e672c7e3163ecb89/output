@@ -1,0 +1,7 @@
+cargo:rerun-if-changed=permissions
+cargo:PERMISSION_FILES_PATH=/home/runner/work/_temp/starseed-wt/APR1019A/native/src-tauri/target/debug/build/tauri-plugin-process-e672c7e3163ecb89/out/tauri-plugin-process-permission-files
+cargo:rerun-if-env-changed=REMOVE_UNUSED_COMMANDS
+cargo:GLOBAL_API_SCRIPT_PATH=/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-process-2.4.0/api-iife.js
+cargo:rustc-check-cfg=cfg(mobile)
+cargo:rustc-check-cfg=cfg(desktop)
+cargo:rustc-cfg=desktop

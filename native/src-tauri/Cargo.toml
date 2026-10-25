@@ -78,9 +78,14 @@ thiserror = "2"
 tauri-plugin-updater = "2"
 # Arranque automático con el sistema (el compañero se levanta solo).
 tauri-plugin-autostart = "2"
-# (2026-10-19) Las dependencias de `ventana_remota` (APM1017P: xcap, enigo, image, base64) vuelven
-# cuando el enjambre lo rehaga (cola APR1019). Pedían features que no existen («rt» en xcap 0.9;
-# «keyboard» y «mouse» en enigo 0.6) y el CI no resolvía ninguna dependencia.
+# (2026-10-25, APR1019A) Ventana transmitida con las API REALES, comprobadas:
+# xcap 0.9 (Window::all/app_name/capture_image; features image y wgc), image 0.25
+# (resize y PNG) y base64 0.22 (engine general_purpose::STANDARD). La entrada de
+# teclado/ratón por la ventana (enigo 0.6, sin features keyboard/mouse) entra en
+# la tarea APR1019B, junto con entrada_ventana.
+xcap = { version = "0.9", features = ["image", "wgc"] }
+image = "0.25"
+base64 = "0.22"
 
 # (2026-10-19) tauri-plugin-deep-link 2.6.2 construye `ini::ParseOption` con 2 campos y rust-ini
 # 0.21.3 añadió dos más: en Linux (el CI) no compila. Se fija 0.21.1 hasta que deep-link lo arregle.

@@ -1,0 +1,6 @@
+/home/runner/work/_temp/starseed-wt/APR1019A/native/src-tauri/target/debug/deps/rustls_native_certs-060dbc00e0d787c9.d: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-native-certs-0.8.5/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-native-certs-0.8.5/src/unix.rs
+
+/home/runner/work/_temp/starseed-wt/APR1019A/native/src-tauri/target/debug/deps/librustls_native_certs-060dbc00e0d787c9.rmeta: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-native-certs-0.8.5/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-native-certs-0.8.5/src/unix.rs
+
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-native-certs-0.8.5/src/lib.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-native-certs-0.8.5/src/unix.rs:
