@@ -135,7 +135,7 @@ describe("vikunja · cliente puro", () => {
     const tokenLimpio = "vikunja-token-seguro";
     const tokenOculto = "«oculto»";
     const { pedir } = falso(401, `Token inválido: ${tokenLimpio}`);
-    const r = await asegurarProyecto(BASE, TOKEN, tokenLimpio, pedir);
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.motivo).toContain("rechazó");
