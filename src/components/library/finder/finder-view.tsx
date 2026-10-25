@@ -33,11 +33,19 @@ import {
     applyItemSnapshot,
     applyFolderSnapshot,
     type EntityRef,
+    type EntityLibraryDoc,
     type SavedItem,
     type SavedItemType,
     type LibraryFolder,
     type VersionablePatch,
 } from "@/lib/library/entity-library";
+import {
+    planificar,
+    resumenPlan,
+    type PermisosBiblioteca,
+    type PlanBiblioteca,
+} from "@/lib/library/biblioteca-plan";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { createClient } from "@/utils/supabase/client";
 // Subida universal de archivos (Adenda 64 §9): botón "Subir archivos…" de la
 // toolbar — sube al storage real y crea ítems type:'file' en el folder activo.
@@ -130,6 +138,51 @@ function writeLocalPref(key: string, value: string): void {
     }
 }
 
+/** Clave de instantánea del plan: `${kind}:${id}` (coincide con `biblioteca-plan`). */
+function claveDeBiblioteca(ref: EntityRef): string {
+    return `${ref.kind}:${ref.id}`;
+}
+
+/**
+ * Permisos para el plan a partir de las instantáneas que se le entregan.
+ * `ctx.isOwner` solo vale para la biblioteca que se está mirando: las demás se
+ * evalúan con su propia ACL (nunca se hereda el bypass de dueño de otra).
+ */
+function permisosDeInstantaneas(
+    instantaneas: Record<string, EntityLibraryDoc>,
+    actual: EntityRef,
+    ctx: AclViewerContext,
+): PermisosBiblioteca {
+    const esActual = (ref: EntityRef) => ref.kind === actual.kind && ref.id === actual.id;
+    const contextoDe = (ref: EntityRef): AclViewerContext => (esActual(ref) ? ctx : { ...ctx, isOwner: false });
+    return {
+        puedeVer(ref, itemId) {
+            const doc = instantaneas[claveDeBiblioteca(ref)];
+            const item = doc?.items.find((it) => it.id === itemId);
+            return !!doc && !!item && canReadItem(doc, item, contextoDe(ref));
+        },
+        puedeEditar(ref, itemId) {
+            const doc = instantaneas[claveDeBiblioteca(ref)];
+            if (!doc) return false;
+            if (itemId) {
+                const item = doc.items.find((it) => it.id === itemId);
+                return !!item && canWriteItem(doc, item, contextoDe(ref));
+            }
+            return aclCanWrite(doc.acl, contextoDe(ref));
+        },
+    };
+}
+
+/** Resumen del plan + avisos + motivos de omisión, en una sola frase para el diálogo. */
+function describirPlan(plan: PlanBiblioteca): string {
+    const partes = [resumenPlan(plan), ...plan.validacion.avisos];
+    if (plan.vistaPrevia.omite.length > 0) {
+        const motivos = plan.vistaPrevia.omite.map((o) => `${o.id}: ${o.motivo}`).join("; ");
+        partes.push(`Se omitiría${plan.vistaPrevia.omite.length === 1 ? "" : "n"} ${motivos}.`);
+    }
+    return partes.filter(Boolean).join(" ");
+}
+
 type ContextPayload =
     | { kind: "item"; id: string }
     | { kind: "folder"; id: string };
@@ -148,6 +201,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         moveFolder, setItemTags, createAlias, replicateItem, duplicateItem,
         updateItemContent, restoreItemVersion, mergeBranch,
     } = useEntityLibrary(entityRef);
+    const confirm = useConfirm();
 
     const ctx: AclViewerContext = aclContext ?? { isOwner: true, userId: null, groupSlugs: [] };
 
@@ -312,6 +366,28 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
 
     const handleRemove = useCallback(
         async (id: string) => {
+            const instantaneas = { [claveDeBiblioteca(entityRef)]: doc };
+            const plan = planificar(
+                { tipo: "quitar", origen: entityRef, itemIds: [id] },
+                instantaneas,
+                permisosDeInstantaneas(instantaneas, entityRef, ctx),
+            );
+            if (!plan.validacion.ok) {
+                toast.error("No se puede quitar", { description: describirPlan(plan) });
+                return;
+            }
+            if (plan.vistaPrevia.quitaReversible.length === 0) {
+                toast.message("Nada que quitar", { description: describirPlan(plan) });
+                return;
+            }
+            const confirmado = await confirm({
+                title: "Quitar de la biblioteca",
+                description: describirPlan(plan),
+                confirmText: "Quitar",
+                cancelText: "Cancelar",
+                destructive: true,
+            });
+            if (!confirmado) return;
             await removeItem(id);
             setSelectedIds((prev) => {
                 const next = new Set(prev);
@@ -321,7 +397,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             if (previewId === id) setPreviewId(null);
             toast.success("Quitado de la biblioteca");
         },
-        [removeItem, previewId],
+        [confirm, ctx, doc, entityRef, removeItem, previewId],
     );
 
     const handleMoveItems = useCallback(
@@ -370,10 +446,50 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             }
             const sourceItemsById = new Map(sourceDoc.items.map((it) => [it.id, it] as const));
 
+            // Validar → vista previa → ejecutar: el plan decide qué se copia y qué
+            // se omite (misma referencia ya presente, sin permiso, última copia…).
+            const instantaneas = {
+                [claveDeBiblioteca(entry.ref)]: sourceDoc,
+                [claveDeBiblioteca(entityRef)]: doc,
+            };
+            const plan = planificar(
+                {
+                    tipo: entry.mode === "cortar" ? "mover" : "copiar",
+                    origen: entry.ref,
+                    destino: entityRef,
+                    itemIds: entry.itemIds,
+                },
+                instantaneas,
+                permisosDeInstantaneas(instantaneas, entityRef, ctx),
+            );
+            if (!plan.validacion.ok) {
+                toast.error(entry.mode === "cortar" ? "No se puede mover" : "No se puede copiar", {
+                    description: describirPlan(plan),
+                });
+                return;
+            }
+            const permitidos = new Set(
+                entry.mode === "cortar" ? plan.vistaPrevia.quitaReversible : plan.vistaPrevia.crea,
+            );
+            if (permitidos.size === 0) {
+                toast.message("Nada que pegar", { description: describirPlan(plan) });
+                return;
+            }
+            const confirmado = await confirm({
+                title: entry.mode === "cortar" ? "Mover entre bibliotecas" : "Copiar entre bibliotecas",
+                description: describirPlan(plan),
+                confirmText: entry.mode === "cortar" ? "Mover" : "Copiar",
+                cancelText: "Cancelar",
+                destructive: entry.mode === "cortar",
+            });
+            if (!confirmado) return;
+            const omitidos = plan.vistaPrevia.omite.length;
+
             let copied = 0;
             let missing = 0;
             const copiedSourceIds: string[] = [];
             for (const id of entry.itemIds) {
+                if (!permitidos.has(id)) continue;
                 const source = sourceItemsById.get(id);
                 if (!source) {
                     missing++;
@@ -426,7 +542,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                 }
             }
 
-            if (entry.mode === "cortar" && removedFromSource === copiedSourceIds.length && !removalDenied) {
+            if (entry.mode === "cortar" && removedFromSource === copiedSourceIds.length && !removalDenied && omitidos === 0) {
                 clearClipboard();
             }
             setClipboardHasContent(!!readClipboard());
@@ -434,37 +550,36 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             // ── Toast honesto según lo que realmente ocurrió ──────────────────
             if (copied === 0) {
                 toast.message("No se pudo pegar", {
-                    description: "No se encontró ninguno de los ítems en la biblioteca de origen.",
+                    description: omitidos > 0 ? describirPlan(plan) : "No se encontró ninguno de los ítems en la biblioteca de origen.",
                 });
                 return;
             }
+            const colaOmitidos = omitidos > 0 ? ` ${omitidos} ${omitidos === 1 ? "omitido" : "omitidos"} por el plan.` : "";
             if (entry.mode === "copiar") {
-                if (missing === 0) {
+                if (missing === 0 && omitidos === 0) {
                     toast.success(`Pegado (${copied} ítem${copied > 1 ? "s" : ""} copiados de otra biblioteca)`);
                 } else {
-                    toast.success("Pegado parcialmente", {
-                        description: `${copied} copiados, ${missing} no encontrados en el origen.`,
-                    });
+                    const faltan = missing > 0 ? `, ${missing} no encontrados en el origen` : "";
+                    toast.success("Pegado parcialmente", { description: `${copied} copiados${faltan}.${colaOmitidos}` });
                 }
                 return;
             }
             // mode === "cortar"
-            if (missing === 0 && !removalDenied) {
+            if (missing === 0 && !removalDenied && omitidos === 0) {
                 toast.success(`Movido (${copied} ítem${copied > 1 ? "s" : ""} desde otra biblioteca)`);
             } else if (removalDenied) {
                 toast.message("Copiado, pero no movido del todo", {
                     description:
                         missing === 0
-                            ? `${copied} copiados; el original no se pudo quitar de la biblioteca de origen (sin permiso de escritura ahí).`
-                            : `${copied} copiados, ${missing} no encontrados en el origen; el resto no se pudo quitar de la biblioteca de origen (sin permiso de escritura ahí).`,
+                            ? `${copied} copiados; el original no se pudo quitar de la biblioteca de origen (sin permiso de escritura ahí).${colaOmitidos}`
+                            : `${copied} copiados, ${missing} no encontrados en el origen; el resto no se pudo quitar de la biblioteca de origen (sin permiso de escritura ahí).${colaOmitidos}`,
                 });
             } else {
-                toast.success("Pegado parcialmente", {
-                    description: `${copied} copiados, ${missing} no encontrados en el origen.`,
-                });
+                const faltan = missing > 0 ? `, ${missing} no encontrados en el origen` : "";
+                toast.success("Pegado parcialmente", { description: `${copied} copiados${faltan}.${colaOmitidos}` });
             }
         },
-        [entityRef, moveItem, duplicateItem, saveItem],
+        [confirm, ctx, doc, duplicateItem, entityRef, moveItem, saveItem],
     );
 
     // "Compartir" abre el diálogo universal (ámbito + roles + enlace profundo).
