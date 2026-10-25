@@ -18,8 +18,11 @@ import {
 } from "../catalogo-herramientas";
 import type { HerramientaProto } from "../catalogo-herramientas";
 
-/** Las siete apps que enseña getartcraft.com/apps (verificado 2026-10-10). Si la web añade una, esta lista y el catálogo cambian juntos. */
-const ARCRAFT_ESPERADAS = ["photocraft", "vectorcraft", "filmcraft", "lightcraft", "pdfcraft", "effectcraft", "designcraft"];
+/** Las diez apps de ArtCraft (siete verificadas en getartcraft.com/apps el 2026-10-10; FigCraft, GridCraft y DeckCraft el 2026-10-25). Si la web añade una, esta lista y el catálogo cambian juntos. */
+const ARCRAFT_ESPERADAS = [
+  "photocraft", "vectorcraft", "filmcraft", "lightcraft", "pdfcraft", "effectcraft", "designcraft",
+  "figcraft", "gridcraft", "deckcraft",
+];
 
 /** Herramientas que el encargo nombra expresamente: tienen que estar. */
 const NOMBRADAS = [
@@ -210,16 +213,41 @@ describe("las apps de ArtCraft (getartcraft.com)", () => {
     expect((h.avisos ?? []).join(" ")).toMatch(/marca/i);
   });
 
+  it("FigCraft, GridCraft y DeckCraft: pasarela obligatoria y lo que no confinan queda dicho", () => {
+    for (const id of ["figcraft", "gridcraft", "deckcraft"]) {
+      const h = herramientaPorId(id) as HerramientaProto;
+      expect(h.motivo, id).toContain("pasarela");
+      expect(h.motivo, id).toContain("artcraft-y-rare.md");
+    }
+    expect(herramientaPorId("gridcraft")?.control.notas).toContain("NO tiene `--automation-read-root`");
+    expect(herramientaPorId("figcraft")?.control.notas).toContain("collab.share");
+    expect(herramientaPorId("deckcraft")?.control.notas).toContain("--automation-write-root");
+  });
+
+  it("Rare: GPL, solo como programa aparte, sin servidor aún y con las credenciales de Epic del usuario", () => {
+    const r = herramientaPorId("rare") as HerramientaProto;
+    expect(r.categoria).toBe("motores-juego");
+    expect(r.licencia).toBe("GPL-3.0-or-later");
+    expect(usoLicencia(r)).toBe("programa-aparte");
+    expect(respetaReglaDeLicencia(r)).toBe(true);
+    expect(["libreria-js", "wasm-en-worker"]).not.toContain(r.integracion);
+    expect(r.estado).toBe("proximamente");
+    expect(r.medios.servidor).toBe(false);
+    expect(r.actualizacion).toMatchObject({ fuente: "github-tags", ref: "RareDevs/Rare" });
+    expect(new RegExp(r.actualizacion.filtro as string).test(r.actualizacion.ultimaVersion as string)).toBe(true);
+    expect((r.avisos ?? []).join(" ")).toMatch(/credenciales de Epic/i);
+  });
+
   it("lo que ArtCraft ofrece sin licencia abierta o sin control queda marcado", () => {
     expect(herramientaPorId("artcraft-services")).toMatchObject({ estado: "solo-enlace", origen: "arcraft" });
     expect(herramientaPorId("artcraft-x")).toMatchObject({ estado: "solo-enlace", licencia: "NOASSERTION" });
     expect(herramientaPorId("artcraft-estudio")).toMatchObject({ estado: "proximamente", origen: "arcraft" });
   });
 
-  it("el resumen cuenta siete apps, todas de código abierto", () => {
+  it("el resumen cuenta diez apps, todas de código abierto", () => {
     const r = resumenCatalogo();
-    expect(r.appsArcraft).toBe(7);
-    expect(r.appsArcraftCodigoAbierto).toBe(7);
+    expect(r.appsArcraft).toBe(10);
+    expect(r.appsArcraftCodigoAbierto).toBe(10);
     expect(r.herramientasFuera).toBe(todas.filter((h) => h.origen !== "arcraft").length);
     expect(r.herramientasFuera).toBeGreaterThan(150);
     expect(Object.values(r.porEstado).reduce((a, b) => a + b, 0)).toBe(r.total);

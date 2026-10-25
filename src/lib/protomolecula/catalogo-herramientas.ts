@@ -390,6 +390,25 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     ],
   },
   {
+    id: "figcraft", nombre: "FigCraft", categoria: "vector-diseno", tipo: "app", origen: "arcraft",
+    descripcion: "Diseño de interfaces en Rust: auto layout, componentes con variantes, estilos y variables, redes vectoriales, prototipos y modo desarrollo con código (CSS, HTML, React, SwiftUI, Compose). Abre y guarda SVG, PNG, JPG, WebP y PDF; abre .fig con el mejor esfuerzo.",
+    licencia: "MIT OR Apache-2.0", codigo: "https://github.com/storytold/figcraft", web: "https://getartcraft.com/apps/figcraft",
+    medios: { web: "wasm", android: true, ios: true, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "iframe-aislado",
+    formatos: { entrada: ["figcraft", "fig", "svg", "pdf", "png", "jpeg", "webp"], salida: ["figcraft", "svg", "pdf", "png", "jpeg", "webp", "fig"] },
+    control: { via: ["cli", "mcp", "json-lineas"], notas: "Binario nativo: CLI sin pantalla (`figcraft-cli`: info, export, render, run, commands, mcp), servidor MCP por stdio (`figcraft-cli mcp`, sin pantalla, o `--attach <puerto>` a una app abierta) y canal de control JSON-lineas por TCP en 127.0.0.1 (`--control <puerto>`, sin autenticación), todos sobre un mismo registro de comandos. Confinar siempre con `--automation-read-root` y `--automation-write-root`. Desde `run_command` se alcanzan también `collab.share`/`collab.publish`/`collab.host` (salida a red) y los complementos WASM: el OS los veta con una lista permitida. El build web (zip estático WebAssembly) NO trae canal de control: en iframe el control es «solo ventana» + archivos." },
+    actualizacion: { fuente: "github-releases", ref: "storytold/figcraft", ultimaVersion: "v0.10.0", fechaVersion: "2026-10-22" },
+    ia: ["mcp", "cli-agentes", "dictado-parametros"],
+    estado: "integrable", motivo: "Se aloja el figcraft-web-<versión>.zip de cada release como origen aparte en un iframe con sandbox; el control por parámetros exige el binario nativo (CLI/MCP) en una neurona de escritorio o servidor, detrás de la pasarela de StarSeed (architecture/artcraft-y-rare.md).",
+    verificado: "2026-10-25",
+    avisos: [
+      "Alfa declarada («~49 % del camino» según su README): abre .fig solo con el mejor esfuerzo y su multijugador es una primera vista previa. Fija la versión por SHA256SUMS antes de alojar el zip web.",
+      "El nombre y los logos de ArtCraft son marcas NO abiertas: solo pueden usarse sin modificar y como parte de la app (docs/brand/LICENSE-brand.txt). Al alojar su build no cambies ni reutilices la marca.",
+      "Compartir en vivo (`collab.*`) puede salir a un servidor público de terceros: se veta por defecto; si hace falta, solo con figcraft-server autoalojado.",
+      "En móvil solo corre por el navegador (WebAssembly con WebGPU o WebGL2); no verificado en Android ni iOS.",
+    ],
+  },
+  {
     id: "inkscape", nombre: "Inkscape", categoria: "vector-diseno", tipo: "app", origen: "github",
     descripcion: "Editor de gráficos vectoriales libre con SVG como formato nativo: nodos, booleanos, trazado de mapa de bits, filtros SVG y extensiones en Python.",
     licencia: "GPL-2.0-or-later", codigo: "https://gitlab.com/inkscape/inkscape", web: "https://inkscape.org",
@@ -587,6 +606,44 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
       "El nombre y los logos de ArtCraft son marcas NO abiertas: solo pueden usarse sin modificar y como parte de la app (docs/brand/LICENSE-brand.txt). Al alojar su build no cambies ni reutilices la marca.",
       "En móvil solo corre por el navegador (WebAssembly con WebGPU o WebGL2); no verificado en Android ni iOS.",
       "Es la única de las siete que ofrece control por canal JSON, MCP y CLI documentados; su build web «no tiene canal de control» (lo dice su README).",
+    ],
+  },
+  {
+    id: "gridcraft", nombre: "GridCraft", categoria: "documentos-pdf", tipo: "app", origen: "arcraft",
+    descripcion: "Hoja de cálculo en Rust con XLSX como formato nativo: más de 500 funciones (LET, LAMBDA, matrices dinámicas), tablas, gráficos, formato condicional, validación y tablas dinámicas. Importa .xls, .xlsb y .ods; guarda CSV, TSV y PDF.",
+    licencia: "MIT OR Apache-2.0", codigo: "https://github.com/storytold/gridcraft", web: "https://getartcraft.com/apps/gridcraft",
+    medios: { web: "wasm", android: true, ios: true, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "iframe-aislado",
+    formatos: { entrada: ["xlsx", "xlsm", "xls", "xlsb", "ods", "csv", "tsv", "txt"], salida: ["xlsx", "xlsm", "csv", "tsv", "txt", "pdf", "html"] },
+    control: { via: ["cli", "mcp", "json-lineas"], notas: "Binario nativo: CLI sin pantalla (`gridcraft-cli`: eval, cat, run, convert, commands, mcp), servidor MCP por stdio (`gridcraft-cli mcp`, o `--connect <puerto>` a una ventana abierta) y canal de control JSON-lineas por TCP en 127.0.0.1 (`--control <puerto>`, sin autenticación), todos sobre un mismo registro de comandos. A diferencia de FigCraft y DeckCraft NO tiene `--automation-read-root`/`--automation-write-root`: sus herramientas de abrir y guardar aceptan cualquier ruta, así que el OS lo confina con su pasarela y un directorio de trabajo por neurona. El build web (zip estático WebAssembly) NO trae canal de control: en iframe el control es «solo ventana» + archivos." },
+    actualizacion: { fuente: "github-releases", ref: "storytold/gridcraft", ultimaVersion: "v0.11.1", fechaVersion: "2026-10-22" },
+    ia: ["mcp", "cli-agentes", "dictado-parametros"],
+    estado: "integrable", motivo: "Se aloja el gridcraft-web-<versión>.zip de cada release como origen aparte en un iframe con sandbox; el control por parámetros exige el binario nativo (CLI/MCP) en una neurona de escritorio o servidor, detrás de la pasarela de StarSeed (architecture/artcraft-y-rare.md).",
+    verificado: "2026-10-25",
+    avisos: [
+      "Alfa declarada: nunca se ha comprobado en Excel sobre un corpus real («repair prompts unknown» en su paridad de formatos); XLSB y ODS se importan solo con valores y los archivos de 100 MB fallan. Fija la versión por SHA256SUMS.",
+      "El nombre y los logos de ArtCraft son marcas NO abiertas: solo pueden usarse sin modificar y como parte de la app (docs/brand/LICENSE-brand.txt). Al alojar su build no cambies ni reutilices la marca.",
+      "Sin confinamiento de rutas propio: nunca se registra su MCP en un agente sin la pasarela de StarSeed; las macros de .xlsm se conservan pero no se ejecutan.",
+      "En móvil solo corre por el navegador (WebAssembly con WebGPU o WebGL2); no verificado en Android ni iOS.",
+    ],
+  },
+  {
+    id: "deckcraft", nombre: "DeckCraft", categoria: "documentos-pdf", tipo: "app", origen: "arcraft",
+    descripcion: "Presentaciones en Rust: patrones y diseños con marcadores, ocho temas originales, más de 150 formas, tablas, gráficos, transiciones (incluida Morph), animaciones, vista de presentador y 200+ comandos. Abre y guarda .pptx; exporta PDF, PNG, JPEG y GIF animado.",
+    licencia: "MIT OR Apache-2.0", codigo: "https://github.com/storytold/deckcraft", web: "https://getartcraft.com/apps/deckcraft",
+    medios: { web: "wasm", android: true, ios: true, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "iframe-aislado",
+    formatos: { entrada: ["deckcraft", "pptx", "potx", "ppsx", "thmx", "png", "jpeg", "gif", "webp"], salida: ["deckcraft", "pptx", "pdf", "png", "jpeg", "gif"] },
+    control: { via: ["cli", "mcp", "json-lineas"], notas: "Binario nativo: CLI sin pantalla (`deckcraft-cli`: render, run, commands, mcp), servidor MCP por stdio (`deckcraft-cli mcp`, o `--connect <puerto>` a una ventana abierta) y canal de control JSON-lineas por TCP en 127.0.0.1 (`--control <puerto>`, sin autenticación), todos sobre un mismo registro de comandos. Confinar siempre con `--automation-read-root` y `--automation-write-root` (solo rige la sesión sin pantalla; una app abierta se confina con las banderas con que arrancó). El build web (zip estático WebAssembly) NO trae canal de control: en iframe el control es «solo ventana» + archivos." },
+    actualizacion: { fuente: "github-releases", ref: "storytold/deckcraft", ultimaVersion: "v0.10.0", fechaVersion: "2026-10-22" },
+    ia: ["mcp", "cli-agentes", "dictado-parametros"],
+    estado: "integrable", motivo: "Se aloja el deckcraft-web-<versión>.zip de cada release como origen aparte en un iframe con sandbox; el control por parámetros exige el binario nativo (CLI/MCP) en una neurona de escritorio o servidor, detrás de la pasarela de StarSeed (architecture/artcraft-y-rare.md).",
+    verificado: "2026-10-25",
+    avisos: [
+      "Alfa declarada, camino a beta: el PDF lleva el diseño de cada diapositiva como imagen a resolución de impresión (no vectorial) y los .pptx de fuera no se han medido contra PowerPoint. Fija la versión por SHA256SUMS.",
+      "El nombre y los logos de ArtCraft son marcas NO abiertas: solo pueden usarse sin modificar y como parte de la app (docs/brand/LICENSE-brand.txt). Al alojar su build no cambies ni reutilices la marca.",
+      "Los .pptx son datos de terceros: se abren con la pasarela y un directorio de trabajo, nunca desde rutas libres del disco.",
+      "En móvil solo corre por el navegador (WebAssembly con WebGPU o WebGL2); no verificado en Android ni iOS.",
     ],
   },
   {
@@ -2283,6 +2340,25 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
   },
 
   // ── motores-juego ───────────────────────────────────────────────
+  {
+    id: "rare", nombre: "Rare", categoria: "motores-juego", tipo: "app", origen: "github",
+    descripcion: "Lanzador de escritorio (PySide6) para Legendary, la alternativa libre al lanzador de Epic Games: biblioteca, instalación, actualizaciones, partidas en la nube, ajustes por juego y ejecución con Wine o Proton en Linux y macOS.",
+    licencia: "GPL-3.0-or-later", codigo: "https://github.com/RareDevs/Rare", web: null,
+    medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: false },
+    integracion: "app-nativa-puente",
+    formatos: { entrada: [], salida: [] },
+    control: { via: ["cli"], notas: "Solo `rare launch <app> [--dry-run] [--offline]`, `rare login` y `--offline`; no tiene servidor MCP ni canal de control y su interfaz Qt no tiene modo sin pantalla. La cuenta de Epic la guarda Legendary en JSON plano bajo `LEGENDARY_CONFIG_PATH` (o `XDG_CONFIG_HOME`): el OS fija esa variable a una carpeta 0700 por persona y nunca la lleva a un repositorio, una memoria ni una sala." },
+    actualizacion: { fuente: "github-tags", ref: "RareDevs/Rare", ultimaVersion: "1.12.0.237", fechaVersion: "2026-09-28", filtro: "^\\d+\\.\\d+\\.\\d+\\.\\d+$" },
+    ia: [],
+    estado: "proximamente", motivo: "Se usa SOLO como programa aparte (GPL-3.0-or-later: nunca enlazado ni en un Worker) en una neurona con pantalla. La ruta de servidores propios o compartidos (transmitir la ventana con Selkies o Sunshine/Moonlight desde una neurona con GPU, o el modo `transmitida` de apps-en-la-malla) está diseñada en architecture/artcraft-y-rare.md y sin cablear.",
+    verificado: "2026-10-25",
+    avisos: [
+      "Las credenciales de Epic son SIEMPRE de la persona que las usa y nunca del repositorio; Legendary las guarda en claro (user.json), así que la carpeta de configuración va con permisos 0700 y cifrada o fuera de cualquier sincronización.",
+      "Descarga datos remotos sin comprobar su huella: workarounds.json y steam_appids de raredevs.github.io/wring, el ejecutable «wrapper» y la API de ProtonDB. En el OS se bloquea o se aloja con SHA fijado.",
+      "Las condiciones de Epic (una cuenta por persona; compartir una sesión o una cuenta en un servidor compartido) las decide Alex antes de abrir juegos en servidores compartidos.",
+      "Todas sus versiones figuran como preliminares en GitHub; el binario del Mac arm64 pesa ~85 MB. Legendary va fijado a un commit de la bifurcación RareDevs.",
+    ],
+  },
   {
     id: "godot", nombre: "Godot Engine", categoria: "motores-juego", tipo: "app", origen: "github",
     descripcion: "Motor de juegos 2D y 3D libre, ligero y completo, con editor propio, GDScript y exportación a web (WebAssembly), Android, iOS y escritorio.",
@@ -4067,7 +4143,7 @@ export interface ResumenCatalogo {
   herramientasFuera: number;
 }
 
-/** Ids de las siete Craft Apps de getartcraft.com/apps (verificado 2026-10-10). */
+/** Ids de las diez Craft Apps de getartcraft.com/apps (siete verificadas 2026-10-10; FigCraft, GridCraft y DeckCraft el 2026-10-25). */
 export const IDS_APPS_ARCRAFT = [
   "photocraft",
   "vectorcraft",
@@ -4076,6 +4152,9 @@ export const IDS_APPS_ARCRAFT = [
   "pdfcraft",
   "effectcraft",
   "designcraft",
+  "figcraft",
+  "gridcraft",
+  "deckcraft",
 ] as const;
 
 export function resumenCatalogo(catalogo: readonly HerramientaProto[] = CATALOGO_PROTOMOLECULA): ResumenCatalogo {
