@@ -65,6 +65,14 @@ class ServicioAutodesarrollo(unittest.TestCase):
         self.assertEqual(p["EnvironmentVariables"]["STARSEED_ROOT"], RAIZ)
         self.assertEqual(p["StandardOutPath"], "/tmp/starseed-autodesarrollo.log")
 
+    def test_los_errores_van_al_mismo_log(self):
+        """Lo que la rama nube/39935411845 miraba y las demás pruebas no cubren: el stderr del
+        servicio cae en el MISMO log de la plantilla (allí se ven las averías de arranque que
+        un plist bien formado guarda en silencio). Si la plantilla pierde el
+        `StandardErrorPath`, quedaría un servicio mudo: esta prueba lo nota.
+        """
+        self.assertEqual(self.plist["StandardErrorPath"], "/tmp/starseed-autodesarrollo.log")
+
     def test_lanzador_tcc_de_padre_y_rutas_absolutas(self):
         args = self.plist["ProgramArguments"]
         self.assertEqual(args[0], PY3)                        # launchd no usa el PATH
