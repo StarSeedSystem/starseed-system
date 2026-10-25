@@ -23,6 +23,11 @@ import "@/lib/design/theme-catalog";
 import { appliedTheme, applyTheme as applyThemePack, applyThemeTokens } from "@/lib/design/theme-engine";
 import { curatedPresets } from "@/lib/themes/curated-presets";
 import { registrarAdaptadoresApariencia } from "@/lib/variaciones/adaptadores/apariencia";
+// Fuentes de la marca por papel: el proveedor es el sitio GLOBAL donde se
+// aplica la tipografía, así que aquí se piden las hojas que hagan falta
+// (Satoshi si la fuente activa lo es; Quicksand si el tema es Natural) y se
+// publican las variables de papel para todo el árbol.
+import { FuentesMarca, type PapelMarca } from "@/components/theme/fuentes-marca";
 
 export interface CustomFont {
     name: string;
