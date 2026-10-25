@@ -56,6 +56,83 @@ def leer_json(ruta, por_defecto):
         return por_defecto
 
 
+MARCAS_APARTE = ("<<<<<<<", "=======", ">>>>>>>")
+
+
+def _unir(partes):
+    """Une las partes de un bloque: HEAD primero, la otra después; sin marcar.
+
+    Colapsa los duplicados CONTIGUOS: el solape que git deja pegado entre ambas
+    partes (y los saltos repetidos) desaparece, pero dos líneas iguales separadas
+    por contenido distinto son lecciones o grupos de puntos distintos (p. ej. la
+    etiqueta «Lo que quedó fuera» que agrupa dos tandas de puntos) y se conservan.
+    """
+    limpias = []
+    anterior = None
+    for parte in partes:
+        for linea in parte:
+            clave = linea.rstrip("\r\n")
+            if clave == anterior:
+                continue
+            limpias.append(linea)
+            anterior = clave
+    return limpias
+
+
+def _consumir_conflicto(lineas, i):
+    """Recorre desde i hasta el cierre del conflicto; devuelve (partes, índice_fin).
+
+    Los bloques anidados se resuelven en el sitio (recursión) y su unión se añade
+    a la parte que estaba abierta. Los separadores sobrantes (un segundo
+    `=======` en el mismo bloque) se descartan en vez de dejarse como texto.
+    """
+    partes = [[]]
+    n = len(lineas)
+    while i < n:
+        linea = lineas[i]
+        if linea.startswith(MARCAS_APARTE[0]):
+            dentro, i = _consumir_conflicto(lineas, i + 1)
+            partes[-1].extend(_unir(dentro))
+        elif linea.startswith(MARCAS_APARTE[1]) and len(partes) == 1:
+            partes.append([])
+            i += 1
+        elif linea.startswith(MARCAS_APARTE[1]):
+            i += 1  # separador sobrante: fuera
+        elif linea.startswith(MARCAS_APARTE[2]):
+            return partes, i + 1
+        else:
+            partes[-1].append(linea)
+            i += 1
+    return partes, n
+
+
+def resolver_marcas(texto):
+    """Une todos los bloques de conflicto (`<<<<<<<` / `=======` / `>>>>>>>`).
+
+    Pura: sin disco, sin red y sin reloj. Toma la UNIÓN de ambas partes (HEAD
+    primero, después la otra rama) conservando el orden y sin dejar ni una marca,
+    incluso con bloques anidados o mal cerrados. Idempotente: sobre un texto
+    limpio devuelve lo mismo de entrada.
+    """
+    if not texto or MARCAS_APARTE[0] not in texto:
+        return texto
+    lineas = texto.splitlines(keepends=True)
+    salida = []
+    i = 0
+    n = len(lineas)
+    while i < n:
+        linea = lineas[i]
+        if linea.startswith(MARCAS_APARTE[0]):
+            partes, i = _consumir_conflicto(lineas, i + 1)
+            salida.extend(_unir(partes))
+        elif linea.startswith(MARCAS_APARTE[1]) or linea.startswith(MARCAS_APARTE[2]):
+            i += 1  # marca suelta fuera de todo bloque: fuera
+        else:
+            salida.append(linea)
+            i += 1
+    return "".join(salida)
+
+
 def pedido_de(tareas):
     """El encargo de Alex viene copiado literal dentro del prompt de cada tarea.
 
@@ -155,12 +232,28 @@ def main():
         notas_humanas=[nota] if nota else (),
     )
 
+    # Antes de escribir: si hay marcas en la memoria existente, las resolvemos.
+    contenido_previo = ""
+    if os.path.exists(MEMORIA):
+        with open(MEMORIA, encoding="utf-8") as f:
+            contenido_previo = f.read()
+        contenido_previo = resolver_marcas(contenido_previo)
+
     os.makedirs(os.path.dirname(MEMORIA), exist_ok=True)
     nuevo = not os.path.exists(MEMORIA)
-    with open(MEMORIA, "a", encoding="utf-8") as f:
-        if nuevo:
-            f.write(CABECERA)
-        f.write("\n" + texto)
+    contenido_final = resolver_marcas(
+        (CABECERA + texto if nuevo else contenido_previo + ("\n" + texto if texto else ""))
+    )
+    with open(MEMORIA, "w", encoding="utf-8") as f:
+        f.write(contenido_final)
+
+    # Antes de commitear: nunca se commitea un archivo con marcas. resolver_marcas
+    # es idempotente, así que esta segunda pasada solo actúa si algo la necesita.
+    with open(MEMORIA, encoding="utf-8") as f:
+        limpio_antes_del_commit = resolver_marcas(f.read())
+    if limpio_antes_del_commit != contenido_final:
+        with open(MEMORIA, "w", encoding="utf-8") as f:
+            f.write(limpio_antes_del_commit)
 
     commitear_memoria(nombre)
 
