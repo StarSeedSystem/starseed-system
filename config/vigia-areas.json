@@ -44,7 +44,6 @@
       "pipeline_tags": ["text-to-speech"],
       "autores": ["ResembleAI", "myshell-ai", "SWivid", "coqui", "2Noise", "hexgrad", "FermionResearch", "microsoft"],
       "cuantizadores": ["unsloth", "mlx-community", "onnx-community"],
-      "repos_github": ["debpalash/VoiceStudio","k2-fsa/OmniVoice","FunAudioLLM/CosyVoice","QwenLM/Qwen3-TTS","KittenML/KittenTTS"],
       "catalogo": "src/lib/library/packages.ts"
     },
     {
@@ -106,19 +105,6 @@
       },
       "catalogo": "src/lib/library/packages.ts",
       "nota": "Releases de GitHub con los nombres actuales; los antiguos de «alias_github» redirigen y aún aparecen en algunos catálogos (duplicados)."
-    },
-    {
-        "id": "habilidades",
-        "nombre": "Habilidades",
-        "pipeline_tags": [],
-        "autores": [],
-        "cuantizadores": [],
-        "repos_github": ["mattpocock/skills","heygen-com/hyperframes"],
-        "alias_github": {
-            "mattpocock/skills": "mattpocock/skills",
-            "heygen-com/hyperframes": "heygen-com/hyperframes"
-        },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
     }
   ]
 }
