@@ -155,6 +155,24 @@ describe("canal P2P de la escena", () => {
         expect(b.modo()).toBe("p2p");
     });
 
+    it("cada oyente da su desuscripción: tras ella deja de avisar", async () => {
+        const r = respaldoFalso();
+        const { abrir } = centro();
+        const [a, b] = await abrir(["a", "b"], { respaldo: () => r.c });
+        const llega = vi.fn(), presencia = vi.fn(), fila = vi.fn(), cambiado = vi.fn();
+        b.onMensaje(llega)();
+        b.onPresencia(presencia)();
+        b.onFila(fila)();
+        b.onSuscrito(cambiado)();
+        a.enviar("pose", { cabeza: [1] });
+        a.publicarPresencia({ nombre: "Ana" });
+        r.emitirFila(5);
+        expect(llega).not.toHaveBeenCalled();
+        expect(presencia).not.toHaveBeenCalled();
+        expect(fila).not.toHaveBeenCalled();
+        expect(cambiado).not.toHaveBeenCalled();
+    });
+
     it("el noveno par activa el respaldo para toda la sala y lo dice", async () => {
         const r = respaldoFalso();
         const { abrir } = centro();
@@ -255,5 +273,20 @@ describe("canal P2P de la escena", () => {
         expect(abrirCanalEscenaP2P("escena3d-test", { miId: "a", señal: LA_SEÑAL, crearMalla: () => null })).toBeNull();
         expect(abrirCanalEscenaP2P("", { miId: "a", señal: LA_SEÑAL })).toBeNull();
         expect(abrirCanalEscenaP2P("t", { miId: "", señal: LA_SEÑAL })).toBeNull();
+    });
+
+    it("el canal válido expone el tema firmado", () => {
+        const { crearMalla } = centro();
+        const c = abrirCanalEscenaP2P("escena-otro-tema", { miId: "a", señal: LA_SEÑAL, crearMalla })!;
+        expect(c.tema).toBe("escena-otro-tema");
+        c.cerrar();
+    });
+
+    it("cerrar() dos veces seguidas no explota", async () => {
+        const { abrir } = centro();
+        const [a] = await abrir(["a"]);
+        a.cerrar();
+        expect(() => a.cerrar()).not.toThrow();
+        expect(a.suscrito()).toBe(false);
     });
 });
