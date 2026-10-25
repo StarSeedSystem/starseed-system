@@ -1997,8 +1997,16 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
             // habla el `text` normal (voz única).
             let vibeVoiceScript: string | null | undefined;
             try {
-              const { resolveActiveVoiceEngine } = await import("@/lib/aurora/tts-oss/engine-registry");
-              if (resolveActiveVoiceEngine() === "vibevoice") vibeVoiceScript = enriched.dialogue;
+              const { refreshPersonalityVoicePin, resolveActiveVoiceEngine } = await import(
+                "@/lib/aurora/tts-oss/engine-registry"
+              );
+              // La jerarquía (agente › personalidad › cerebro › neurona › cuenta)
+              // se relee con la personalidad/neurona VIGENTES: antes el pin por
+              // defecto «openvoice2» tapaba VibeVoice y el guion no se preparaba.
+              await refreshPersonalityVoicePin().catch(() => null);
+              if (resolveActiveVoiceEngine() === "vibevoice") {
+                vibeVoiceScript = enriched.dialogue ?? null;
+              }
             } catch { /* motor de voz no disponible en SSR/runtime → ignorar */ }
             return { ...res, text: enriched.text, route: rec, vibeVoiceScript: vibeVoiceScript ?? null };
           }

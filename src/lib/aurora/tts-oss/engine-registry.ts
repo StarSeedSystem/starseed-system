@@ -660,6 +660,13 @@ let cachedPin: AuroraVoiceEngine | null = null;
  * así un cambio en el panel se nota sin esperar al siguiente refresco.
  */
 let cachedPersonaId: string | null = null;
+/**
+ * (SGO1024D) De dónde salió el pin cacheado. La jerarquía de voz es
+ * agente › personalidad › cerebro › neurona › cuenta: un pin IMPLÍCITO
+ * (el «openvoice2» de fábrica) no puede tapar una elección más concreta ni el
+ * orden AUTO, que ya trae los motores configurados en su sitio.
+ */
+let cachedPinAmbito: AmbitoMotorVoz = "defecto";
 
 /**
  * (Adenda 149) Override de VOZ que ESTA neurona fija para una personalidad
@@ -699,6 +706,7 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
     const nMotor = nVoz?.motor;
     if (isVoiceEngineId(nMotor)) {
       cachedPin = nMotor;
+      cachedPinAmbito = "neurona";
       return cachedPin;
     }
     // 1) Pin DURO de inteligencia (modo "fija" + motorVoz / porSentido.voz).
@@ -706,11 +714,13 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
       const direct = (intel as { motorVoz?: unknown }).motorVoz;
       if (isVoiceEngineId(direct)) {
         cachedPin = direct;
+        cachedPinAmbito = "personalidad";
         return cachedPin;
       }
       const bySense = intel.porSentido?.voz?.fuente;
       if (isVoiceEngineId(bySense)) {
         cachedPin = bySense;
+        cachedPinAmbito = "personalidad";
         return cachedPin;
       }
     }
@@ -720,6 +730,7 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
     const preferred = (profile?.voiceStyle as { engine?: unknown } | undefined)?.engine;
     if (isVoiceEngineId(preferred)) {
       cachedPin = preferred;
+      cachedPinAmbito = "personalidad";
       return cachedPin;
     }
     // 3) PREDETERMINADO GLOBAL (Adendas 81/86/90): TODA personalidad sin motor
@@ -730,7 +741,8 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
     //      · «sistemas web rápidos» → un motor más veloz (y menos realista) va
     //        primero EN VEZ de OpenVoice — sigue sin ser exclusivo: si no
     //        responde, la cadena AUTO decide igual.
-    //      · (nube / sin elección)  → OpenVoice primero.
+    //      · (nube / sin elección)  → sin pin: manda el orden AUTO, que ya
+    //        coloca los motores configurados por realismo.
     //    Configurable por personalidad en su editor; jamás exclusivo.
     //    (Adenda 149) La VÍA puede fijarse POR PERSONALIDAD en esta neurona
     //    (`voz.modo`): si existe, gana sobre la elección global del dispositivo;
@@ -739,12 +751,30 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
     const nModo = nVoz?.modo;
     if (nModo === "fastweb" || (!nModo && neuronPrefersFastWeb())) {
       cachedPin = FAST_WEB_VOICE_ENGINE;
+      cachedPinAmbito = "neurona";
       return cachedPin;
     }
-    cachedPin = nModo === "local" || (!nModo && neuronPrefersLocal()) ? "omnivoice" : "openvoice2";
-    return cachedPin;
+    if (nModo === "local" || (!nModo && neuronPrefersLocal())) {
+      cachedPin = "omnivoice";
+      cachedPinAmbito = "neurona";
+      return cachedPin;
+    }
+    if (nModo === "cloud") {
+      cachedPin = "openvoice2";
+      cachedPinAmbito = "neurona";
+      return cachedPin;
+    }
+    // 3) SIN ELECCIÓN EXPLÍCITA: no se inventa un pin. El orden AUTO decide con
+    //    los motores configurados (voice158/VibeVoice primero) y, si no hay
+    //    ninguno, el híbrido OmniVoice/OpenVoice de cero config. Antes se
+    //    devolvía «openvoice2» como si fuera un pin: tapaba VibeVoice y el
+    //    guion multi-locutor nunca se preparaba.
+    cachedPin = null;
+    cachedPinAmbito = "defecto";
+    return null;
   } catch {
     cachedPin = null;
+    cachedPinAmbito = "defecto";
     cachedPersonaId = null;
     return null;
   }
@@ -760,9 +790,26 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
  * siempre — la cadena queda idéntica.
  */
 export function personalityVoiceEnginePin(): AuroraVoiceEngine | null {
+  const pin = personalityVoiceEnginePinDetallado();
+  // Un pin IMPLÍCITO (el «openvoice2» de fábrica) no es una decisión: se
+  // devuelve null para que la cadena AUTO elija con sus motores configurados.
+  return pin.ambito === "defecto" ? null : pin.motor;
+}
+
+/**
+ * (SGO1024D) Pin de voz con su PROCEDENCIA dentro de la jerarquía
+ * agente › personalidad › cerebro › neurona › cuenta. El override
+ * neurona×personalidad se relee FRESCO (localStorage); el resto es el pin
+ * cacheado por `refreshPersonalityVoicePin`. Nunca lanza.
+ */
+export function personalityVoiceEnginePinDetallado(): {
+  motor: AuroraVoiceEngine | null;
+  ambito: AmbitoMotorVoz;
+} {
   const motor = neuronPersonaVoice(cachedPersonaId)?.motor;
-  if (isVoiceEngineId(motor)) return motor;
-  return cachedPin;
+  if (isVoiceEngineId(motor)) return { motor, ambito: "neurona" };
+  if (!cachedPin) return { motor: null, ambito: "defecto" };
+  return { motor: cachedPin, ambito: cachedPinAmbito };
 }
 
 // ── LA CADENA (fusión de motores) ────────────────────────────────────────────
@@ -894,17 +941,80 @@ export function buildVoiceChain(
   return chain;
 }
 
+/** Ámbito que decide el motor de voz, de más específico a más general. */
+export type AmbitoMotorVoz = "agente" | "personalidad" | "cerebro" | "neurona" | "cuenta" | "defecto";
+
+/** Motor fijado en cada capa de la jerarquía (id de `AuroraVoiceEngine`). */
+export interface CapasMotorVoz {
+  agente?: string | null;
+  personalidad?: string | null;
+  cerebro?: string | null;
+  neurona?: string | null;
+  cuenta?: string | null;
+}
+
+export interface MotorVozPorJerarquia {
+  motor: AuroraVoiceEngine;
+  ambito: AmbitoMotorVoz;
+}
+
 /**
- * ¿Qué motor usaría Aurora AHORA MISMO? (el primer eslabón de la cadena, o el
- * navegador si no hay ninguno). Útil para pintar "Hablando con: VoxCPM" en la UI.
+ * (SGO1024D) Jerarquía pura de voz: agente › personalidad › cerebro › neurona ›
+ * cuenta. Devuelve la primera capa con un motor VÁLIDO y DISPONIBLE; si ninguna
+ * lo está, el navegador (suelo que nunca falla). `disponible` permite descartar
+ * un pin a un servidor sin endpoint sin salirse de esta función pura.
+ */
+export function resolverMotorVozPorJerarquia(
+  capas: CapasMotorVoz,
+  disponible: (motor: AuroraVoiceEngine) => boolean = () => true,
+): MotorVozPorJerarquia {
+  const orden: ReadonlyArray<readonly [AmbitoMotorVoz, string | null | undefined]> = [
+    ["agente", capas.agente],
+    ["personalidad", capas.personalidad],
+    ["cerebro", capas.cerebro],
+    ["neurona", capas.neurona],
+    ["cuenta", capas.cuenta],
+  ];
+  for (const [ambito, valor] of orden) {
+    if (!isVoiceEngineId(valor) || valor === "browser") continue;
+    if (disponible(valor)) return { motor: valor, ambito };
+  }
+  return { motor: "browser", ambito: "defecto" };
+}
+
+/**
+ * ¿Qué motor usaría Aurora AHORA MISMO? Aplica la MISMA jerarquía que la cadena
+ * de voz (agente › personalidad › cerebro › neurona › cuenta) y, si ninguna capa
+ * fija un motor disponible, deja decidir al orden AUTO (voice158/VibeVoice
+ * primero). Así un pin implícito de fábrica ya no tapa una elección concreta.
  * No toca la red. Nunca lanza.
  */
-export function resolveActiveVoiceEngine(cfg?: AuroraVoiceConfig): AuroraVoiceEngine {
+export function resolveActiveVoiceEngine(
+  cfg?: AuroraVoiceConfig,
+  contexto?: CapasMotorVoz,
+): AuroraVoiceEngine {
   try {
     const config = cfg ?? getVoiceConfig();
-    const chain = buildVoiceChain(config);
-    for (const link of chain) {
-      // Kokoro solo "cuenta" como activo si puede hablar sin descargar por sorpresa.
+    const pin = personalityVoiceEnginePinDetallado();
+    const capas: CapasMotorVoz = {
+      agente: contexto?.agente,
+      personalidad: contexto?.personalidad ?? (pin.ambito === "personalidad" ? pin.motor : null),
+      cerebro: contexto?.cerebro,
+      neurona: contexto?.neurona ?? (pin.ambito === "neurona" ? pin.motor : null),
+      cuenta: contexto?.cuenta ?? (config.engine === "browser" ? null : config.engine),
+    };
+    const disponible = (motor: AuroraVoiceEngine): boolean => {
+      if (motor === "browser") return true;
+      if (motor === "kitten") return false; // stub
+      // Kokoro solo "cuenta" si puede hablar sin descargar por sorpresa.
+      if (motor === "kokoro") return config.autoDownload === true;
+      return isNeuralEngine(motor) ? endpointEngineConfigured(motor, config) : true;
+    };
+    const porJerarquia = resolverMotorVozPorJerarquia(capas, disponible);
+    if (porJerarquia.motor !== "browser") return porJerarquia.motor;
+    // Sin pin explícito: el orden AUTO decide (NO se reconstruye con el pin
+    // implícito, que es justo lo que devolvía «openvoice2» casi siempre).
+    for (const link of buildVoiceChain(config, null)) {
       if (link === "kokoro" && !config.autoDownload) continue;
       if (link === "kitten") continue; // stub
       return link;
