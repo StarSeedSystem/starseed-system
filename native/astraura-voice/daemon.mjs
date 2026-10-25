@@ -71,6 +71,9 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { spawn, spawnSync, execFile } from "node:child_process";
+// Ola 1018V (VST1018Gc): puerta local hacia VoiceStudio (127.0.0.1:3900).
+// Detecta, reenvía y se aparta si no está — ver voicestudio-proxy.mjs.
+import { reenviar, estado, detectar } from "./voicestudio-proxy.mjs";
 import {
   PATHS,
   BIN,
@@ -2914,9 +2917,12 @@ async function reconocerConServidorOido(req, res, cors, baseUrl, audioBuf, mimeH
 
 // ── /status ──────────────────────────────────────────────────────────────────
 
-function handleStatus(res, cors) {
+async function handleStatus(res, cors) {
   const state = readiness();
   const cfg = state.cfg || {};
+  // (Ola 1018V, VST1018Gc) Línea de salud de VoiceStudio: detección con caché
+  // de 60 s (voicestudio-proxy), así que esto casi nunca sale a la red.
+  const voicestudioVivo = await detectar().catch(() => false);
   // 2026-09-06 (Ola 255): residente = proceso vivo y listo; cargandoDesdeMs =
   // ms desde que empezó a cargar si aún no está listo (null en otro caso).
   const asrResidente = !!oidoProc && oidoListo;
@@ -2954,6 +2960,9 @@ function handleStatus(res, cors) {
     inFlight,
     queueDepth,
     cloudFallback: cfg?.capabilities?.cloudFallback || "k2-fsa/OmniVoice",
+    // (Ola 1018V) VoiceStudio en esta neurona: "vivo" | "ausente". La voz
+    // «estudio» sólo existe si está; el demonio local se aparta si no.
+    voicestudio: voicestudioVivo ? "vivo" : "ausente",
     // OÍDO (Adenda 249): estado del ASR ternario VibeASR.cpp.
     asr: {
       instalado: vibeasrStatus().instalado,
@@ -3069,11 +3078,47 @@ const server = http.createServer(async (req, res) => {
      if (req.method === "POST" && url === "/oido/phonon") {
        return await proxyASR(req, res, cors, ASTRAURA_OIDO_PHONON_URL);
      }
-     if (req.method === "POST" && url === "/oido/parakeet") {
-       return await proxyASR(req, res, cors, ASTRAURA_OIDO_PARAKEET_URL);
-     }
+      if (req.method === "POST" && url === "/oido/parakeet") {
+        return await proxyASR(req, res, cors, ASTRAURA_OIDO_PARAKEET_URL);
+      }
 
-     return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity", "POST /warm", "POST /asr", "POST /clonar", "GET /clones", "DELETE /clonar", "POST /ceder", "GET /oido/estado", "POST /oido/phonon", "POST /oido/parakeet"] });
+      // ── Ola 1018V: puerta local hacia VoiceStudio (/voicestudio/*) ──────────
+      // Reenvía a VoiceStudio (127.0.0.1:3900) SOLO las rutas de voz con
+      // contrato; `/salud` da la línea «voicestudio: vivo | ausente». Si el
+      // estudio no está, el proxy responde 502/404 y el demonio se aparta sin
+      // tocar su pool de OmniVoice (regla del área: nada no comercial como
+      // motor obligatorio; el estudio es opcional y sólo Local 127.*).
+      if (url === "/voicestudio/salud" && req.method === "GET") {
+        res.writeHead(200, { ...(cors || {}), "Content-Type": "text/plain; charset=utf-8" });
+        return res.end(await estado());
+      }
+      if (url.startsWith("/voicestudio/")) {
+        const rutaVo = url.slice("/voicestudio".length) || "/";
+        const esPostVoz = req.method === "POST" && rutaVo !== "/v1/audio/voices";
+        const crudo = esPostVoz ? await readRawBody(req, ASR_MAX_BODY_BYTES) : null;
+        if (esPostVoz && crudo === null) {
+          return sendJson(res, 413, cors, { ok: false, error: "cuerpo demasiado grande (máx. 25 MB)" });
+        }
+        let cuerpo;
+        if (esPostVoz) {
+          try {
+            cuerpo = JSON.parse(crudo.toString("utf8") || "{}");
+          } catch {
+            return sendJson(res, 400, cors, { ok: false, error: "cuerpo no es JSON válido" });
+          }
+        }
+        const resultado = await reenviar(rutaVo, cuerpo);
+        if (resultado.audio) {
+          res.writeHead(resultado.status, {
+            ...(cors || {}),
+            "Content-Type": resultado.mime || "application/octet-stream",
+          });
+          return res.end(Buffer.from(resultado.audio));
+        }
+        return sendJson(res, resultado.status, cors, { ok: false, error: resultado.error || "reenvío sin cuerpo" });
+      }
+
+      return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity", "POST /warm", "POST /asr", "POST /clonar", "GET /clones", "DELETE /clonar", "POST /ceder", "GET /oido/estado", "POST /oido/phonon", "POST /oido/parakeet", "GET /voicestudio/salud", "/voicestudio/v1/audio/*"] });
   } catch (e) {
     // Blindaje total: ninguna petición mala tumba el daemon.
     try {
