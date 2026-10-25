@@ -19,12 +19,19 @@
  *   · Si un nivel falla, se baja al siguiente CON EL MISMO TIMBRE y se avisa
  *     por `alDegradar`. Nunca se lanza una excepción a la interfaz.
  *
+ *   · (Ola 1018V, contrato `architecture/voz-voicestudio.md` §4) La PRIMERA
+ *     frase sale del motor PERMITIDO con MENOR latencia media medida que tenga
+ *     la voz de esa persona (`elegirMotorInstantaneo`); «estudio» solo para
+ *     lectura larga, doblaje y audiolibros; NUNCA se parte un mensaje entre
+ *     dos motores (`sinDegradar`).
+ *
  * Este módulo no sintetiza nada: delega en las vías que el OS ya tiene.
  */
 
 import type { Timbre } from "@/lib/aurora/timbres";
+import type { MedidaVoz } from "@/lib/aurora/medidas-voz";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import { nivelPara, siguienteNivel, NIVELES, type NivelVoz, type OpcionesEstudio } from "./niveles";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -227,14 +234,113 @@ export function nivelActual(): NivelVoz | null {
 
 /**
  * Resuelve el nivel concreto a usar: el que pidió el usuario si es válido para
- * este equipo; si no, el mejor que el hardware pueda sostener en este momento.
+ * este equipo; si no, el mejor que el hardware pueda sostener. `estudio`
+ * (Ola 1018V): la medición de VoiceStudio ya hecha por el llamador, sin
+ * sondear aquí de nuevo.
  */
-async function resolverNivel(explicito?: NivelVoz): Promise<NivelVoz> {
+async function resolverNivel(explicito?: NivelVoz, estudio?: OpcionesEstudio): Promise<NivelVoz> {
     const caps: Capacidades = await detectarCapacidades();
-    const auto = nivelPara(caps);
+    const auto = nivelPara(caps, estudio);
     if (explicito) return explicito;
     const preferencia = nivelPreferido();
     return preferencia === "auto" ? auto : preferencia;
+}
+
+// ── (Ola 1018V) LA PRIMERA FRASE: INSTANTÁNEA, PERMITIDA Y MEDIDA ───────────
+// Contrato §4. Pureza: candidatos, medidas y contexto entran por argumentos.
+
+/** Contexto de licencia (contrato §4), heredado de `preferencias-capas.ts`. */
+export type ContextoLicencia = "personal" | "grupo" | "comunidad" | "publico" | "comercial";
+
+/** Usos que reservan «estudio»: lectura larga, doblaje, audiolibros (y lo largo). */
+export type UsoLargoVoz = ContextoVoz | "doblaje" | "audiolibro";
+
+/** ¿El uso MERECE el motor de estudio? (contrato §4). Pura. */
+export function usoLargoVoz(uso: UsoLargoVoz): boolean {
+    return uso === "lectura" || uso === "doblaje" || uso === "audiolibro" || uso === "imaginacion";
+}
+
+/** Un candidato a sonar la primera frase; lo rellena quien escruta la neurona. */
+export interface CandidatoNivel {
+    /** Id del NIVEL del motor único (lo suena `sintetizar` de este módulo). */
+    id: NivelVoz;
+    /** Id con el que ese motor anota su latencia en `medidas-voz.ts`. */
+    motorMedida: string;
+    /** Responde en este instante en esta neurona, o la malla lo sirve. */
+    vivo: boolean;
+    /** Clase de licencia de los PESOS del motor detrás (`catalogo-voces.ts`). */
+    claseLicencia: "libre" | "condicionada" | "personal";
+    /** Condiciones de una licencia «condicionada» ya comprobadas por quien llama. */
+    condicionesCumplidas?: string[];
+    /** Sabe sacar la voz de ESA persona (propia o clonada con permiso). */
+    tieneLaVoz: boolean;
+}
+
+/** Lo elegido, para anotarlo en el mensaje y que las medidas sigan aprendiendo. */
+export interface EleccionInstantanea {
+    id: NivelVoz;
+    motorMedida: string;
+    /** Latencia media medida (ms); `null` si ese motor aún no tiene medidas. */
+    latenciaMs: number | null;
+}
+
+/** Latencia media «primer-sonido» de un motor, en sus medidas. Pura. */
+export function mediaPrimerSonido(medidas: readonly MedidaVoz[], motorMedida: string): number | null {
+    let suma = 0;
+    let n = 0;
+    for (const m of medidas) {
+        if (m.tipo === "primer-sonido" && m.motor === motorMedida && Number.isFinite(m.valor) && m.valor >= 0) {
+            suma += m.valor;
+            n += 1;
+        }
+    }
+    return n > 0 ? suma / n : null;
+}
+
+/**
+ * ¿Motor PERMITIDO en ese contexto? En lo personal vale todo; fuera, solo los
+ * «libre» y las «condicionada» ya comprobadas: nada de clase «personal» fuera
+ * de lo personal (OmniVoice, VoiceMorphic, VoiceStudio). Pura.
+ */
+export function motorPermitido(
+    c: Pick<CandidatoNivel, "vivo" | "claseLicencia" | "condicionesCumplidas">,
+    contexto: ContextoLicencia,
+): boolean {
+    if (!c.vivo) return false;
+    if (contexto === "personal") return true;
+    if (c.claseLicencia === "libre") return true;
+    return c.claseLicencia === "condicionada" && (c.condicionesCumplidas ?? []).length > 0;
+}
+
+/**
+ * ELIGE la primera frase (contrato §4): entre los PERMITIDOS con la voz de
+ * esa persona gana la MENOR latencia media medida (sin medidas: al final);
+ * «estudio» solo en lectura larga, doblaje y audiolibros. Sin candidato,
+ * `null` y quien llama sigue su cadena con la misma identidad. Pura.
+ */
+export function elegirMotorInstantaneo(op: {
+    candidatos: readonly CandidatoNivel[];
+    medidas: readonly MedidaVoz[];
+    contexto: ContextoLicencia;
+    uso: UsoLargoVoz;
+}): EleccionInstantanea | null {
+    const largo = usoLargoVoz(op.uso);
+    const tabla = op.candidatos
+        .filter((c) => motorPermitido(c, op.contexto) && c.tieneLaVoz && (largo || c.id !== "estudio"))
+        .map((c) => ({ c, lat: mediaPrimerSonido(op.medidas, c.motorMedida) }))
+        .sort((a, b) => (a.lat ?? Infinity) - (b.lat ?? Infinity));
+    // En lectura larga el estudio manda si está disponible: es su uso natural.
+    const elegido = largo ? tabla.find((x) => x.c.id === "estudio") ?? tabla[0] : tabla[0];
+    return elegido ? { id: elegido.c.id, motorMedida: elegido.c.motorMedida, latenciaMs: elegido.lat } : null;
+}
+
+/**
+ * Nivel con el que suena TODO el mensaje según su uso: el «estudio» pasa a
+ * «alta» en conversación, rito y avisos. Pura.
+ */
+export function nivelParaUso(uso: UsoLargoVoz, nivel: NivelVoz): NivelVoz {
+    if (nivel !== "estudio") return nivel;
+    return usoLargoVoz(uso) ? nivel : "alta";
 }
 
 /**
@@ -312,6 +418,14 @@ export interface OpcionesHablar {
      * esta opción solo es para vías que ya entregan el texto normalizado.
      */
     sinNormalizar?: boolean;
+    /** (Ola 1018V) Medición de VoiceStudio ya hecha por el llamador (más abajo). */
+    estudio?: OpcionesEstudio;
+    /**
+     * (Ola 1018V) «Nunca se parte un mensaje entre dos motores»: si true, esta
+     * llamada NO degrada — devuelve `false` si su nivel falla, para que la
+     * degradación se decida UNA vez para el mensaje entero, no frase a frase.
+     */
+    sinDegradar?: boolean;
 }
 
 /**
@@ -470,6 +584,9 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
             nivel = "nube";
             break;
     }
+    // (Ola 1018V) «estudio» solo para lectura larga, doblaje y audiolibros:
+    // en conversación, rito y avisos el nivel se baja a «alta» ANTES de sonar.
+    nivel = nivelParaUso(opciones.contexto, nivel);
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
     // Al empezar a hablar se deriva el gesto del texto y se emite `starseed:gesto`
@@ -491,7 +608,9 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
         });
     } catch { /* sin gesto la voz no se detiene */ }
 
-    // Cadena de degradación: mismo timbre, niveles cada vez más ligeros.
+    // Cadena de degradación: mismo timbre, niveles cada vez más ligeros. Con
+    // `sinDegradar` (Ola 1018V) quien agrupa el mensaje la decide UNA vez: aquí
+    // se prueba un nivel y ya (el mensaje no se parte entre dos motores).
     let actual: NivelVoz | null = nivel;
     while (actual) {
         try {
@@ -500,6 +619,7 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
                 return true;
             }
         } catch { /* esta vía falló: se baja de nivel */ }
+        if (opciones.sinDegradar) break;
         const siguiente: NivelVoz | null = siguienteNivel(actual);
         if (!siguiente) break;
         try { opciones.alDegradar?.(actual, siguiente); } catch { /* el aviso no puede romper */ }
