@@ -34,6 +34,7 @@ import {
   type TelecomAntenna,
   type TelecomAntennaKind,
 } from "@/lib/network/neuron-network";
+import { RoutersMallaPanel } from "@/components/network/routers-malla-panel";
 
 const ROLES: { id: NeuronNetworkRole; label: string; hint: string }[] = [
   { id: "none", label: "Sin rol de red", hint: "La neurona no participa en la configuración de red." },
@@ -317,6 +318,9 @@ export function RouterCenter({ neuronId }: { neuronId?: string }) {
 
       {/* Compatibilidad con OpenWrt (instalar firmware libre) */}
       <CompatibilidadOpenwrt />
+
+      {/* Panel de la malla de routers (Ola 1012Q · §8): adoptar routers ya flasheados como nodos */}
+      <RoutersMallaPanel tabla={TABLA_HARDWARE} />
 
       {/* Controlador OpenWISP */}
       <div className="rounded-xl border border-white/10 bg-white/5 p-3">
