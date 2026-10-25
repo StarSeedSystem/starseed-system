@@ -36,7 +36,7 @@ const AMBAR = "#f59e0b";
 export function SideCurtains() {
     const { activeEdge, setActiveEdge } = usePerimeter();
     const router = useRouter();
-    const { boards, activeBoardId } = useBoardSystem();
+    const { boards, activeBoardId, setActiveBoard } = useBoardSystem();
     // (Ola 228 · R1F) Mientras haya un rito en primer plano, ninguna cortina sale.
     const rito = useRitoActivo();
 
@@ -50,6 +50,17 @@ export function SideCurtains() {
         setActiveEdge(null);
         window.dispatchEvent(new CustomEvent("starseed:open-editor"));
     }, [setActiveEdge]);
+
+    // La Fragua de Widgets la atiende `GlobalForgeHost` (layout raíz): la cortina se cierra y se abre.
+    const abrirFragua = useCallback(() => {
+        setActiveEdge(null);
+        window.dispatchEvent(new CustomEvent("starseed:open-forge"));
+    }, [setActiveEdge]);
+    // Una pizarra se trabaja en el visor de Logic: sin id, la que acaba de crear `createBoard` (queda activa).
+    const abrirPizarra = useCallback((id?: string) => {
+        if (id) setActiveBoard(id);
+        setActiveEdge("logic");
+    }, [setActiveBoard, setActiveEdge]);
 
     const pizarra = activeBoardId ? boards.find((b) => b.id === activeBoardId) : undefined;
 
@@ -80,7 +91,7 @@ export function SideCurtains() {
                         "md:left-[max(1rem,env(safe-area-inset-left))] md:w-[clamp(22rem,42vw,32rem)] md:max-w-[calc(100vw-2rem)]",
                     )}
                 >
-                    <ContenidoHorizon ir={ir} abrirEditor={abrirEditor} />
+                    <ContenidoHorizon ir={ir} abrirEditor={abrirEditor} abrirFragua={abrirFragua} abrirPizarra={abrirPizarra} />
                 </PanelCortina>
             )}
 
