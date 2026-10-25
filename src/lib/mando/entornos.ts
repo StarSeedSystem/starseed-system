@@ -101,7 +101,7 @@ const ENTORNOS_PLANTILLA: Omit<Entorno, "estado" | "latenciaMs">[] = [
         url: "http://127.0.0.1:4444",
         variables: [],
         nota:
-            "Sesiones en ~/.hermes/state.db; Dream diario 07:00; Telegram hermes-telegram.",
+            "Sesiones en ~/.hermes/state.db; Imaginación diaria (07:00 o según su horario); Telegram hermes-telegram.",
     },
     {
         id: "agente-voz",

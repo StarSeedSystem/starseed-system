@@ -341,7 +341,7 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
  */
 export function motivoNoNube(tareas: TareaCola[]): string | null {
     if (tareas.some((t) => t.privado)) return "La cola lleva tareas privadas (lente de seguridad): solo pueden correr en esta Mac.";
-    if (tareas.some((t) => t.tipo === "analisis")) return "Los sueños profundos corren en la Mac (python3 scripts/puente/suenos.py lanzar), no en la nube.";
+    if (tareas.some((t) => t.tipo === "analisis")) return "La imaginación profunda corre en la Mac (python3 scripts/puente/suenos.py lanzar), no en la nube.";
     return null;
 }
 
