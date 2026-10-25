@@ -147,6 +147,56 @@ class TestAnalizaAprobacionCLI(unittest.TestCase):
     @patch("analiza_aprobacion.output_json")
     @patch("analiza_aprobacion.elegir_modelo_gratis")
     @patch("analiza_aprobacion.leer_tarea")
+    def test_un_informe_suelto_del_agente_va_a_starseed_memory_root_informes(
+        self, mock_tarea, mock_modelo, mock_out, mock_subproc
+    ):
+        """(2026-10-25, ENJ1025A) El agente corre con cwd=RAIZ y herramientas de escritura. Si deja
+        `informe_analisis.md` en la raíz, ensucia `main` y el orquestador se planta (~29 h).
+        Lo nuevo se MUEVE (no se borra) a `starseed_memory_root/informes/`; lo que ya estaba, no."""
+        import shutil
+        import tempfile
+
+        raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, raiz, ignore_errors=True)
+        with open(os.path.join(raiz, "informe_previo.md"), "w", encoding="utf-8") as f:
+            f.write("de antes de la corrida")
+        mock_tarea.return_value = ({"id": "t1", "sha": "abc1234", "rama": "ola/t1"}, "p")
+        mock_modelo.return_value = "xkiro/qwen3.7-plus:free"
+        mock_out.side_effect = SystemExit(0)
+        res_git = MagicMock(returncode=0, stdout="diff content")
+        res_opencode = MagicMock(
+            returncode=0,
+            stdout='{"veredicto": "dudoso", "confianza": "baja", "razones": [], "riesgos": [], "que_revisar": []}',
+            stderr="",
+        )
+
+        def side_effect(cmd, **kwargs):
+            if cmd[0] == "git":
+                return res_git
+            with open(os.path.join(kwargs["cwd"], "informe_analisis.md"), "w", encoding="utf-8") as f:
+                f.write("hallazgos del agente")
+            return res_opencode
+
+        mock_subproc.side_effect = side_effect
+        with patch.object(analiza_aprobacion, "RAIZ", raiz):
+            with patch.object(sys, "argv", ["analiza-aprobacion.py", "t1"]):
+                with self.assertRaises(SystemExit):
+                    analiza_aprobacion.main()
+
+        self.assertFalse(os.path.exists(os.path.join(raiz, "informe_analisis.md")))
+        carpeta = os.path.join(raiz, "starseed_memory_root", "informes")
+        movidos = os.listdir(carpeta)
+        self.assertEqual(len(movidos), 1)
+        self.assertTrue(movidos[0].endswith("-informe_analisis.md"))
+        with open(os.path.join(carpeta, movidos[0]), encoding="utf-8") as f:
+            self.assertEqual(f.read(), "hallazgos del agente")
+        self.assertTrue(os.path.exists(os.path.join(raiz, "informe_previo.md")))  # no se toca
+        self.assertEqual(mock_out.call_args[0][0]["veredicto"], "dudoso")  # el veredicto sale igual
+
+    @patch("subprocess.run")
+    @patch("analiza_aprobacion.output_json")
+    @patch("analiza_aprobacion.elegir_modelo_gratis")
+    @patch("analiza_aprobacion.leer_tarea")
     def test_modelo_devuelve_basura(
         self, mock_tarea, mock_modelo, mock_out, mock_subproc
     ):

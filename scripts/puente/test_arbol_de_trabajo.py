@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from arbol_de_trabajo import PROPIAS, repartir, ruta_de, solo_es_nuestro
+from arbol_de_trabajo import PROPIAS, clasificar, repartir, ruta_de, solo_es_nuestro
 
 
 class TestRutaDe(unittest.TestCase):
@@ -58,6 +58,37 @@ class TestRepartir(unittest.TestCase):
         # Prefijo del nombre propio: es ajena, y por tanto para el arranque.
         _, ajenas = repartir("?? memory/aprendizaje-olas.md.bak")
         self.assertEqual(ajenas, ["memory/aprendizaje-olas.md.bak"])
+
+
+class TestClasificar(unittest.TestCase):
+    """(2026-10-25, ENJ1025A) El guardia del orquestador separa además el ESTORBO: un
+    `informe_analisis.md` suelto en la raíz paró el enjambre ~29 h por contarse como «ajeno»."""
+
+    def test_el_informe_suelto_no_es_ajeno(self):
+        mias, estorbo, ajenas = clasificar("?? informe_analisis.md")
+        self.assertEqual((mias, estorbo, ajenas), ([], ["informe_analisis.md"], []))
+
+    def test_reparte_en_tres_y_conserva_el_orden(self):
+        mias, estorbo, ajenas = clasificar(
+            " M src/b.ts\nM  memory/aprendizaje-olas.md\n?? informe_dream.md\n?? x.new\n M src/a.ts"
+        )
+        self.assertEqual(mias, ["memory/aprendizaje-olas.md"])
+        self.assertEqual(estorbo, ["informe_dream.md", "x.new"])
+        self.assertEqual(ajenas, ["src/b.ts", "src/a.ts"])
+
+    def test_el_trabajo_ajeno_sigue_siendo_ajeno(self):
+        _m, estorbo, ajenas = clasificar("?? borrador.txt\n?? docs/informe.md\n M informe_analisis.md")
+        self.assertEqual(estorbo, [])
+        self.assertEqual(ajenas, ["borrador.txt", "docs/informe.md", "informe_analisis.md"])
+
+    def test_repartir_se_queda_como_estaba(self):
+        # `repartir` no sabe de estorbo (lo usan quienes solo quieren separar lo propio).
+        self.assertEqual(repartir("?? informe_analisis.md"), ([], ["informe_analisis.md"]))
+
+    def test_arbol_limpio_y_lista_propia(self):
+        self.assertEqual(clasificar(""), ([], [], []))
+        self.assertEqual(clasificar("\n  \n"), ([], [], []))
+        self.assertEqual(clasificar("?? notas/x.md", propias=("notas/x.md",)), (["notas/x.md"], [], []))
 
 
 class TestSoloEsNuestro(unittest.TestCase):

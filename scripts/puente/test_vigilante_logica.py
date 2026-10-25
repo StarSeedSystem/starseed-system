@@ -11,7 +11,13 @@ DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
-from vigilante_logica import id_en_asuntos, seleccionar_pendientes, ultima_salida  # noqa: E402
+from vigilante_logica import (  # noqa: E402
+    es_motivo_de_arbol_sucio,
+    id_en_asuntos,
+    motivo_de_salida,
+    seleccionar_pendientes,
+    ultima_salida,
+)
 
 
 class UltimaSalidaTest(unittest.TestCase):
@@ -35,6 +41,69 @@ class UltimaSalidaTest(unittest.TestCase):
         codigo, motivo = ultima_salida(lineas)
         self.assertEqual(codigo, 0)
         self.assertEqual(motivo, "x" * 200)
+
+
+class MotivoDeSalidaTest(unittest.TestCase):
+    """(2026-10-25, ENJ1025A) El orquestador cierra su negativa con líneas «  ajeno: ruta». El
+    motivo era solo la última («ajeno: informe_analisis.md»): sin «cambios sin commit» el vigilante
+    no llamaba a su cura y el enjambre estuvo ~29 h parado por un informe suelto."""
+
+    REGISTRO = [
+        "arrancando orquestador con 3 tareas",
+        "working tree de main con cambios sin commit: 1 archivos — no arranco",
+        "  ajeno: informe_analisis.md",
+        "",
+        "__EXIT__=2",
+        "",
+    ]
+
+    def test_el_caso_real_pierde_la_frase_con_ultima_salida(self):
+        codigo, motivo = ultima_salida(self.REGISTRO)
+        self.assertEqual(codigo, 2)
+        self.assertNotIn("cambios sin commit", motivo)
+
+    def test_motivo_completo_une_titular_y_detalle(self):
+        self.assertEqual(
+            motivo_de_salida(self.REGISTRO),
+            "working tree de main con cambios sin commit: 1 archivos — no arranco"
+            " · ajeno: informe_analisis.md",
+        )
+        self.assertTrue(es_motivo_de_arbol_sucio(motivo_de_salida(self.REGISTRO)))
+
+    def test_varios_ajenos_en_orden(self):
+        reg = ["working tree de main con cambios sin commit: 2 archivos — no arranco",
+               "  ajeno: a.ts", "  ajeno: b.ts", "__EXIT__=2"]
+        self.assertEqual(
+            motivo_de_salida(reg),
+            "working tree de main con cambios sin commit: 2 archivos — no arranco"
+            " · ajeno: a.ts · ajeno: b.ts",
+        )
+
+    def test_sin_detalle_es_como_ultima_salida(self):
+        reg = ["arrancando", "ninguna pasarela escribe ahora mismo — no arranco.", "", "__EXIT__=3"]
+        self.assertEqual(motivo_de_salida(reg), ultima_salida(reg)[1])
+
+    def test_sin_marca_exit_no_hay_motivo(self):
+        self.assertEqual(motivo_de_salida(["todo bien", ""]), "")
+        self.assertEqual(motivo_de_salida([]), "")
+
+    def test_gana_la_ultima_marca(self):
+        reg = ["causa vieja", "  detalle viejo", "__EXIT__=1", "otra causa", "__EXIT__=2"]
+        self.assertEqual(motivo_de_salida(reg), "otra causa")
+
+    def test_el_titular_sobrevive_al_recorte(self):
+        reg = ["working tree de main con cambios sin commit: 9 archivos — no arranco"] + \
+              ["  ajeno: " + "x" * 80 for _ in range(10)] + ["__EXIT__=2"]
+        motivo = motivo_de_salida(reg, tope=300)
+        self.assertEqual(len(motivo), 300)
+        self.assertTrue(es_motivo_de_arbol_sucio(motivo))
+
+    def test_es_motivo_de_arbol_sucio(self):
+        self.assertTrue(es_motivo_de_arbol_sucio("working tree de main con cambios sin commit: 1"))
+        self.assertTrue(es_motivo_de_arbol_sucio("  ajeno: x.md"))
+        self.assertFalse(es_motivo_de_arbol_sucio("ninguna pasarela escribe ahora mismo"))
+        self.assertFalse(es_motivo_de_arbol_sucio(None))
+        self.assertFalse(es_motivo_de_arbol_sucio(""))
 
 
 class VigilanteLogicaTest(unittest.TestCase):

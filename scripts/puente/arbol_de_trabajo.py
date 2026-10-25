@@ -69,6 +69,25 @@ def repartir(porcelain, propias=PROPIAS):
     return mias, ajenas
 
 
+def clasificar(porcelain, propias=PROPIAS):
+    """Reparte las líneas sucias en (propias, estorbo, ajenas), en el orden que llegaron.
+
+    (2026-10-25, ENJ1025A) Como `repartir`, pero separa además el ESTORBO: un residuo sin
+    seguimiento que no es trabajo de nadie (un `informe_analisis.md` suelto en la raíz, una
+    copia `.new`, una cola `.no-lanzada`). Un `informe_analisis.md` paró el enjambre de la Mac
+    unas 29 horas porque el guardia lo contaba como «ajeno». La regla de qué es estorbo vive en
+    UN solo sitio, `curacion_logica`, y la comparten desatascar, el vigilante y este guardia.
+
+    `ajenas` es solo el trabajo de verdad: lo único que justifica «no arranco». Quien llama
+    aparta el estorbo con `curacion_logica.apartar_estorbo` (a `olas/_apartado/AAAAMMDD/`, nunca
+    se borra) y sigue. `repartir` se queda como estaba."""
+    import curacion_logica  # aquí y no arriba: curacion_logica importa `ruta_de` de este módulo
+
+    lineas = [l for l in (porcelain or "").splitlines() if l.strip()]
+    estorbo, mias, ajenas = curacion_logica.clasificar_lineas(lineas, propias)
+    return mias, estorbo, ajenas
+
+
 def solo_es_nuestro(porcelain, propias=PROPIAS):
     """¿El árbol está sucio ÚNICAMENTE por archivos del enjambre?
 

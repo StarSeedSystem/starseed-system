@@ -52,6 +52,10 @@ def construir_prompt(ficha: Dict, diff: str, contexto: str) -> str:
     3. Proporciona razones para tu veredicto.
     4. Identifica posibles riesgos.
     5. Indica qué aspectos deben revisarse.
+    6. NO crees, edites ni borres archivos: tu respuesta es SOLO el JSON por la salida
+       estándar. Si de verdad necesitas dejar un informe escrito, va en
+       `starseed_memory_root/informes/` (carpeta fuera de git), NUNCA en la raíz del
+       repositorio (un informe suelto en la raíz paró el enjambre).
     
     Responde SOLO en formato JSON con la siguiente estructura:
     {{

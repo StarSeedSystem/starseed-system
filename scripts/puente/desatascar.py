@@ -33,20 +33,22 @@ tocó ninguno de sus archivos, se sigue rechazando.
 import json
 import os
 import re
-import shutil
 import subprocess
 import time
 
 from arbol_de_trabajo import PROPIAS
 
+import curacion_logica
 import director_chat
 
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser(
     "~/Documents/starseed-os-main"
 )
 
-SUFIJOS_ESTORBO = (".log", ".new", ".tmp", ".orig", ".rej", ".bak", "~")
-NOMBRES_ESTORBO = {".DS_Store"}
+# (2026-10-25, ENJ1025A) Qué es «estorbo» se decide en UN solo sitio, `curacion_logica`; estos
+# nombres se quedan por compatibilidad.
+SUFIJOS_ESTORBO = curacion_logica.SUFIJOS_ESTORBO
+NOMBRES_ESTORBO = set(curacion_logica.NOMBRES_ESTORBO)
 ESTADOS_CERRADOS = {"commit", "hecho"}
 
 
@@ -56,31 +58,19 @@ ESTADOS_CERRADOS = {"commit", "hecho"}
 def clasificar_sucio(lineas):
     """Separa el árbol sucio en («estorbo», «propias», «trabajo»).
 
-    Estorbo = sin seguimiento (`??`) Y con pinta de residuo. Propias = rutas
-    que el propio enjambre regenera (PROPIAS de arbol_de_trabajo): no son
-    trabajo de nadie y no se nombran como tal. Todo lo demás es trabajo de
-    alguien. Ante la duda, trabajo: apartar lo de otro es peor que no arrancar.
+    Estorbo = sin seguimiento (`??`) Y con pinta de residuo: copias y temporales, `.DS_Store`,
+    informes sueltos de la raíz (`informe_analisis.md`), colas `.no-lanzada`. Propias = rutas
+    que el propio enjambre regenera (PROPIAS de arbol_de_trabajo): no son trabajo de nadie y no
+    se nombran como tal. Todo lo demás es trabajo de alguien. Ante la duda, trabajo: apartar lo
+    de otro es peor que no arrancar.
+
+    (2026-10-25, ENJ1025A) La regla de «estorbo» es la de `curacion_logica.es_estorbo`, la misma
+    del vigilante y del guardia del orquestador. Antes esta función tenía la suya y un
+    `informe_analisis.md` suelto paró el enjambre ~29 h porque aquí contaba como trabajo.
 
     Devuelve (estorbo, propias, trabajo).
     """
-    conocidas = set(PROPIAS)
-    estorbo, propias, trabajo = [], [], []
-    for linea in lineas:
-        if not linea or len(linea) < 4:
-            continue
-        marca, ruta = linea[:2], linea[3:].strip().strip('"')
-        if not ruta:
-            continue
-        base = os.path.basename(ruta)
-        if ruta in conocidas:
-            propias.append(ruta)
-        elif marca == "??" and (
-            ruta.endswith(SUFIJOS_ESTORBO) or base in NOMBRES_ESTORBO
-        ):
-            estorbo.append(ruta)
-        else:
-            trabajo.append(ruta)
-    return estorbo, propias, trabajo
+    return curacion_logica.clasificar_lineas(lineas, PROPIAS)
 
 
 def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
@@ -693,23 +683,10 @@ def limpiar_arbol(raiz, ahora=None):
     estorbo, _propias, trabajo = clasificar_sucio(salida)
     frases = []
     if estorbo:
-        destino = os.path.join(
-            raiz,
-            "starseed_memory_root",
-            "olas",
-            "_apartado",
-            time.strftime("%Y%m%d", time.localtime(ahora or time.time())),
-        )
-        os.makedirs(destino, exist_ok=True)
-        movidos = []
-        for ruta in estorbo:
-            try:
-                origen = os.path.join(raiz, ruta)
-                if os.path.exists(origen):
-                    shutil.move(origen, os.path.join(destino, os.path.basename(ruta)))
-                    movidos.append(ruta)
-            except Exception:
-                pass
+        movidos = [
+            ruta
+            for ruta, _destino in curacion_logica.apartar_estorbo(raiz, estorbo, ahora=ahora)
+        ]
         if movidos:
             frases.append(
                 "aparto %d estorbo(s) que impedían arrancar: %s (en olas/_apartado/)"

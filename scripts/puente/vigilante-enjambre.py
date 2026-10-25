@@ -32,11 +32,14 @@ from curacion_logica import (
     clasificar_arbol_sucio,
     debe_reintentar_ya,
 )
+import curacion_logica
 from vigilante_logica import (
     decidir_relanzamiento,
     aplicar_correcciones,
+    es_motivo_de_arbol_sucio,
     ids_colisionados,
     es_cola_de_codigo,
+    motivo_de_salida,
     reaperturas_de_la_tanda,
     seleccionar_pendientes,
     ultima_salida,
@@ -454,7 +457,9 @@ def comprobar_arranque():
         return None
     codigo, motivo = ultima_salida(lineas)
     if codigo or orquestador_vivo():
-        return motivo or "salió con código %s sin dejar motivo" % codigo
+        # (2026-10-25) El motivo lleva el detalle («· ajeno: ruta»): con solo la última línea el
+        # vigilante no reconocía el árbol sucio y no llamaba a su cura (~29 h parado).
+        return motivo_de_salida(lineas) or motivo or "salió con código %s sin dejar motivo" % codigo
     return None
 
 
@@ -679,19 +684,16 @@ def curar_arbol_sucio(decir=None):
     avisar = decir or _p.decir
     grupos = clasificar_arbol_sucio(_porcelain_lineas())
     if grupos["estorbo"]:
-        destino = os.path.join(APARTADO, time.strftime("%Y-%m-%d"))
-        os.makedirs(destino, exist_ok=True)
-        movidos = []
-        for ruta in grupos["estorbo"]:
-            origen = os.path.join(RAIZ, ruta)
-            if not os.path.exists(origen):
-                continue
-            shutil.move(origen, os.path.join(destino, os.path.basename(ruta)))
-            movidos.append(ruta)
+        movidos = [
+            ruta
+            for ruta, _destino in curacion_logica.apartar_estorbo(
+                RAIZ, grupos["estorbo"], destino_base=APARTADO
+            )
+        ]
         if movidos:
             avisar(
                 "estorbo sin seguimiento apartado en _apartado/%s (NO borrado): %s"
-                % (os.path.basename(destino), ", ".join(movidos)),
+                % (time.strftime("%Y%m%d"), ", ".join(movidos)),
                 "vigilante",
                 "aviso",
             )
@@ -719,7 +721,7 @@ def esperar_reintento(motivo):
     while time.time() - inicio < PAUSA_TRAS_FALLO_S:
         causa_sigue = (
             bool(_porcelain_lineas())
-            if "cambios sin commit" in (motivo or "")
+            if es_motivo_de_arbol_sucio(motivo)
             else True
         )
         if debe_reintentar_ya(
@@ -816,12 +818,12 @@ def main():
                         "error: %s — NO lo reintento en 90s; espero %d min"
                         % (motivo, PAUSA_TRAS_FALLO_S // 60)
                     )
-                    if "cambios sin commit" in motivo:
+                    if es_motivo_de_arbol_sucio(motivo):
                         detalle = detalle_cambios_sin_commit()
                         if detalle:
                             aviso += "\nworking tree:\n" + detalle
                     _p.decir(aviso, "vigilante", "fallo")
-                    if "cambios sin commit" in motivo:
+                    if es_motivo_de_arbol_sucio(motivo):
                         # Si era SOLO estorbo, el árbol queda limpio ya mismo y el
                         # arranque se reintenta en la próxima pasada, no en 10 min.
                         if curar_arbol_sucio():

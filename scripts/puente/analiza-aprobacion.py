@@ -26,6 +26,7 @@ SALUD_PROVEEDORES = os.path.expanduser("~/.starseed/salud-proveedores.json")
 if AQUI not in sys.path:
     sys.path.insert(0, AQUI)
 
+import curacion_logica  # noqa: E402
 from analisis_aprobacion import construir_prompt, leer_veredicto  # noqa: E402
 
 
@@ -313,6 +314,10 @@ def main():
     prompt_analista = construir_prompt(ficha, diff, contexto)
 
     opencode_bin = shutil.which("opencode") or "opencode"
+    # (2026-10-25, ENJ1025A) Este agente corre con `cwd=RAIZ` y herramientas de escritura: si
+    # deja un informe suelto en la raíz (`informe_analisis.md`), ensucia `main` y el guardia del
+    # orquestador se planta. Lo que aparezca de nuevo se mueve a `starseed_memory_root/informes/`.
+    informes_previos = curacion_logica.informes_en_la_raiz(RAIZ)
     try:
         with tempfile.TemporaryDirectory(prefix=".analista-", dir=RAIZ) as solo_lectura:
             os.chmod(solo_lectura, 0o555)
@@ -335,6 +340,12 @@ def main():
                 )
             finally:
                 os.chmod(solo_lectura, 0o700)
+                try:
+                    curacion_logica.mover_informes(
+                        RAIZ, curacion_logica.informes_en_la_raiz(RAIZ) - informes_previos
+                    )
+                except Exception:
+                    pass
         if r_open.returncode != 0:
             output_json(
                 {

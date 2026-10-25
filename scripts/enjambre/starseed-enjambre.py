@@ -8894,11 +8894,14 @@ def _hay_con_quien_escribir():
 
 
 def _reparto_del_arbol(sucio):
-    """(propias, ajenas) del `git status --porcelain` que acabo de leer.
+    """(propias, estorbo, ajenas) del `git status --porcelain` que acabo de leer.
 
-    La decisión vive en `scripts/puente/arbol_de_trabajo.py` (puro y con
-    pruebas). Si no puedo importarlo, todo cuenta como ajeno: el guardia vuelve
-    a ser el de antes, que es el lado seguro del error.
+    La decisión vive en `scripts/puente/arbol_de_trabajo.py` (puro y con pruebas) y la regla de
+    qué es ESTORBO en `scripts/puente/curacion_logica.py`, la misma que usan el vigilante y el
+    director de desatasco. (2026-10-25, ENJ1025A) Un `informe_analisis.md` suelto en la raíz
+    contó como «ajeno» y paró el enjambre ~29 h: ahora es estorbo y se aparta.
+    Si no puedo importarlo, todo cuenta como ajeno: el guardia vuelve a ser el de antes, que es
+    el lado seguro del error.
     """
     try:
         ruta_puente = os.path.join(ROOT, "scripts", "puente")
@@ -8906,9 +8909,28 @@ def _reparto_del_arbol(sucio):
             sys.path.insert(0, ruta_puente)
         import arbol_de_trabajo
 
-        return arbol_de_trabajo.repartir(sucio)
+        return arbol_de_trabajo.clasificar(sucio)
     except Exception:
-        return [], [l[3:].strip() for l in sucio.splitlines() if l.strip()]
+        return [], [], [l[3:].strip() for l in sucio.splitlines() if l.strip()]
+
+
+def _apartar_estorbo_del_arbol(estorbo):
+    """Aparta (NUNCA borra) el estorbo de `main` a `olas/_apartado/AAAAMMDD/`. Devuelve las rutas
+    que movió; vacío si no pudo (entonces el guardia se planta como antes)."""
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import curacion_logica
+
+        return [
+            ruta
+            for ruta, _destino in curacion_logica.apartar_estorbo(
+                ROOT, estorbo, destino_base=os.path.join(OLAS, "_apartado")
+            )
+        ]
+    except Exception:
+        return []
 
 
 def _recoger_lo_nuestro(rutas):
@@ -8949,6 +8971,60 @@ def _recoger_lo_nuestro(rutas):
         if intento == 0:
             time.sleep(3)
     return False
+
+
+def _guardia_del_arbol(sucio):
+    """El guardia de `main`: None si se puede arrancar, 2 si NO (y dice por qué en la salida).
+
+    · Trabajo AJENO sin commit → no arranco (nadie quiere agentes escribiendo encima).
+    · Solo ESTORBO (un informe suelto, una copia `.new`, una cola `.no-lanzada`) → se aparta a
+      `olas/_apartado/AAAAMMDD/` y se arranca. (2026-10-25, ENJ1025A) Un `informe_analisis.md`
+      paró el enjambre de la Mac ~29 h.
+    · Solo la contabilidad del PROPIO enjambre → la commitea y sigue.
+    """
+    mias, estorbo, ajenas = _reparto_del_arbol(sucio)
+    if ajenas:
+        print(
+            "working tree de main con cambios sin commit: %d archivos — no arranco"
+            % len(ajenas)
+        )
+        for ruta in ajenas[:10]:
+            print("  ajeno: %s" % ruta)
+        return 2
+    # (2026-10-25, ENJ1025A) Si TODO lo ajeno es estorbo (un informe suelto en la raíz, una
+    # copia `.new`, una cola `.no-lanzada`), se aparta a `olas/_apartado/AAAAMMDD/` (nunca se
+    # borra) y se arranca. Un `informe_analisis.md` paró el enjambre de la Mac ~29 h.
+    hubo_estorbo = bool(estorbo)
+    if estorbo:
+        movidos = _apartar_estorbo_del_arbol(estorbo)
+        print(
+            "aparto %d estorbo(s) sin seguimiento a olas/_apartado/ (NO se borran): %s"
+            % (len(movidos), ", ".join(movidos[:10]))
+        )
+        _, sucio = sh(["git", "status", "--porcelain"], cwd=ROOT, timeout=30)
+        mias, estorbo, ajenas = _reparto_del_arbol(sucio)
+        if estorbo or ajenas:
+            print(
+                "working tree de main con cambios sin commit: %d archivos — no arranco"
+                % len(estorbo + ajenas)
+            )
+            for ruta in (ajenas + estorbo)[:10]:
+                print("  ajeno: %s" % ruta)
+            return 2
+    # Solo está sucio por lo que escribe el propio enjambre (la memoria de
+    # aprendizaje que deja el director al cerrar la ola). El 16/09 eso paró
+    # el enjambre diez horas. Lo recojo y sigo: el guardia protege el trabajo
+    # ajeno, no la contabilidad propia.
+    if mias or not hubo_estorbo:
+        if _recoger_lo_nuestro(mias):
+            print("recogí mi propia contabilidad y sigo: %s" % ", ".join(mias))
+        else:
+            print(
+                "no pude commitear mi propia contabilidad (%s) — no arranco"
+                % ", ".join(mias)
+            )
+            return 2
+    return None
 
 
 # Estados con los que una tarea ya no vuelve a la tanda. `informe` (2026-09-29) es el cierre
@@ -9029,27 +9105,9 @@ def main():
             "árbol de main con cambios, pero la cola es solo de análisis: sigo sin tocarlo"
         )
     elif sucio.strip():
-        mias, ajenas = _reparto_del_arbol(sucio)
-        if ajenas:
-            print(
-                "working tree de main con cambios sin commit: %d archivos — no arranco"
-                % len(ajenas)
-            )
-            for ruta in ajenas[:10]:
-                print("  ajeno: %s" % ruta)
-            sys.exit(2)
-        # Solo está sucio por lo que escribe el propio enjambre (la memoria de
-        # aprendizaje que deja el director al cerrar la ola). El 16/09 eso paró
-        # el enjambre diez horas. Lo recojo y sigo: el guardia protege el trabajo
-        # ajeno, no la contabilidad propia.
-        if _recoger_lo_nuestro(mias):
-            print("recogí mi propia contabilidad y sigo: %s" % ", ".join(mias))
-        else:
-            print(
-                "no pude commitear mi propia contabilidad (%s) — no arranco"
-                % ", ".join(mias)
-            )
-            sys.exit(2)
+        codigo_guardia = _guardia_del_arbol(sucio)
+        if codigo_guardia:
+            sys.exit(codigo_guardia)
     # (2026-09-16) PUERTA DE PASARELAS. El 16/09 el enjambre arrancó y estuvo un día
     # «trabajando» sin escribir una línea: las claves no se cargaban y las pasarelas
     # devolvían silencio, que se parece a un agente pensando. Arrancar sin una sola

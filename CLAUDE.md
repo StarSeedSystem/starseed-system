@@ -1336,3 +1336,34 @@ Medido a las 12:30 (hora de la Mac), con 123 tareas listas:
    del medio devuelve el envío (`repartir_nube.envio_a_devolver`, dos por cadena en dos días).
 Síntomas: `/tmp/enjambre.log` con «no arranco · ajeno:»; el registro del nodo con «Nodos vivos:» de un solo
 nodo en la Mac y otro distinto en el A1; `repartir-a-nube.py --simular` con 0 y decenas de «agotada».
+
+### 22. Un informe suelto en la raíz paró el enjambre ~29 h: tres clasificadores de «estorbo» que no coincidían (2026-10-25 · ENJ1025A)
+
+El orquestador de la Mac decía «working tree de main con cambios sin commit: 1 archivos — no arranco» y, debajo,
+`ajeno: informe_analisis.md`. Nadie lo apartó en unas 29 horas. Tres causas encadenadas:
+1. **`desatascar.clasificar_sucio`** (lo usa `limpiar_arbol`) tenía su propia lista de residuos y no conocía los
+   informes sueltos de la raíz ni las colas `.no-lanzada`: el archivo contaba como trabajo.
+2. **El vigilante sí sabía apartarlo** (`curar_arbol_sucio`) **pero no lo llamaba**: `comprobar_arranque` devolvía la
+   última línea no vacía antes de `__EXIT__`, que es el detalle `  ajeno: …`, sin la frase «cambios sin commit».
+   Ahora `vigilante_logica.motivo_de_salida` une el titular con el detalle y `es_motivo_de_arbol_sucio` reconoce
+   cualquiera de las dos huellas.
+3. **El guardia del orquestador** solo conocía `PROPIAS` (lo que escribe el enjambre): todo lo demás era «ajeno».
+
+Arreglo: **UNA fuente de verdad para «estorbo», `curacion_logica`** (`es_estorbo`, `clasificar_lineas`,
+`apartar_estorbo`); la usan desatascar, el vigilante y el guardia (`arbol_de_trabajo.clasificar`,
+`starseed-enjambre.py::_guardia_del_arbol`). Si TODO lo ajeno es estorbo, se aparta a
+`starseed_memory_root/olas/_apartado/AAAAMMDD/` (NUNCA se borra; si el nombre ya está, `.1`, `.2`…) y el orquestador
+arranca. Con trabajo de verdad al lado no se mueve nada. **Regla: una clase nueva de residuo se añade en
+`curacion_logica.py` y en ningún otro sitio.**
+
+Quién escribía `informe_analisis.md`: ningún script lo nombra (ni en el repo ni en su historial); lo deja un agente
+con herramientas de escritura. El único camino que analiza con `cwd` en `main` es `analiza-aprobacion.py`
+(`opencode run`, `cwd=RAIZ`): su prompt ahora prohíbe escribir archivos y manda cualquier informe a
+`starseed_memory_root/informes/` (carpeta que git ignora), y tras la corrida lo que aparezca de nuevo en la raíz se
+mueve allí (`curacion_logica.mover_informes`). Los sueños (`tipo: analisis`) solo hablan por HTTP y escriben en
+`dream/profundo/`.
+
+**Para que surta efecto en la Mac**: `bash scripts/enjambre/instalar.sh` (el guardia vive en el orquestador instalado
+en `~/.local/bin`) y reiniciar el vigilante (`com.starseed.vigilante`).
+Síntomas: `/tmp/enjambre.log` con «no arranco» + «ajeno:»; el Chat Director con «el orquestador se negó a arrancar y
+salió con error» cada 10 min y ninguna línea de «estorbo sin seguimiento apartado».

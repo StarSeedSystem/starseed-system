@@ -56,6 +56,14 @@ class TestConstruirPrompt(unittest.TestCase):
         for valor in ("aprobar", "rechazar", "dudoso", "alta", "media", "baja"):
             self.assertIn(valor, prompt)
 
+    def test_prohibe_escribir_archivos_y_manda_los_informes_a_su_carpeta(self):
+        # (2026-10-25, ENJ1025A) Un agente con herramientas de escritura y cwd=RAIZ dejó un informe
+        # suelto en la raíz y el orquestador se negó a arrancar ~29 h.
+        prompt = construir_prompt(FICHA, "diff", "contexto")
+        self.assertIn("NO crees, edites ni borres archivos", prompt)
+        self.assertIn("starseed_memory_root/informes/", prompt)
+        self.assertIn("NUNCA en la raíz del", prompt)
+
     def test_avisar_cuando_recorta_el_diff(self):
         # Un diff de 24000+ caracteres se recorta y el aviso debe verse en el
         # prompt: el analista decide sin saber que falta texto si no se lo dice.

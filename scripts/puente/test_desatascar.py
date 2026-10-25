@@ -55,6 +55,88 @@ class TestArbolSucio(unittest.TestCase):
         self.assertEqual((p, t), ([], []))
 
 
+class TestArbolSucioUnificado(unittest.TestCase):
+    """(2026-10-25, ENJ1025A) `informe_analisis.md` suelto en la raíz paró el enjambre ~29 h:
+    aquí contaba como trabajo y nadie lo apartaba. Ahora la regla es la de `curacion_logica`."""
+
+    def test_informe_suelto_de_la_raiz_es_estorbo(self):
+        e, p, t = d.clasificar_sucio(["?? informe_analisis.md", "?? sugerencias-2026-10-25.md",
+                                      "?? informe_dream.md"])
+        self.assertEqual(e, ["informe_analisis.md", "sugerencias-2026-10-25.md", "informe_dream.md"])
+        self.assertEqual((p, t), ([], []))
+
+    def test_cola_no_lanzada_es_estorbo(self):
+        e, _p, t = d.clasificar_sucio(["?? enjambre/colas/cola-nube-1.json.no-lanzada"])
+        self.assertEqual(e, ["enjambre/colas/cola-nube-1.json.no-lanzada"])
+        self.assertEqual(t, [])
+
+    def test_lo_que_no_es_residuo_sigue_siendo_trabajo(self):
+        e, _p, t = d.clasificar_sucio(["?? docs/informe.md", "?? notas.md", " M informe_analisis.md"])
+        self.assertEqual(e, [])
+        self.assertEqual(t, ["docs/informe.md", "notas.md", "informe_analisis.md"])
+
+    def test_misma_regla_que_el_vigilante(self):
+        from curacion_logica import clasificar_arbol_sucio
+        lineas = ["?? informe_analisis.md", "?? error.log", "?? x.new", "?? .DS_Store",
+                  "?? src/lib/nuevo.ts", " M src/x.ts", "?? enjambre/colas/c.json.no-lanzada"]
+        self.assertEqual(d.clasificar_sucio(lineas)[0], clasificar_arbol_sucio(lineas)["estorbo"])
+        self.assertEqual(d.clasificar_sucio(lineas)[2], clasificar_arbol_sucio(lineas)["trabajo"])
+
+
+class TestLimpiarArbolDeVerdad(unittest.TestCase):
+    """`limpiar_arbol` sobre un repositorio git real y temporal: el estorbo se APARTA (nunca se
+    borra) y el trabajo no se toca."""
+
+    def setUp(self):
+        import shutil
+        import subprocess
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, ignore_errors=True)
+
+        def git(*a):
+            subprocess.run(["git", *a], cwd=self.raiz, check=True, capture_output=True)
+
+        git("init", "-q", "-b", "main")
+        git("config", "user.email", "prueba@example.invalid")
+        git("config", "user.name", "Prueba")
+        with open(os.path.join(self.raiz, "app.ts"), "w", encoding="utf-8") as f:
+            f.write("const a = 1\n")
+        with open(os.path.join(self.raiz, ".gitignore"), "w", encoding="utf-8") as f:
+            f.write("starseed_memory_root/\n")  # como el repo real
+        git("add", "app.ts", ".gitignore")
+        git("commit", "-q", "-m", "inicio")
+        self.ahora = time.mktime((2026, 10, 25, 9, 30, 0, 0, 0, -1))
+
+    def _escribe(self, ruta, texto):
+        with open(os.path.join(self.raiz, ruta), "w", encoding="utf-8") as f:
+            f.write(texto)
+
+    def test_el_informe_suelto_se_aparta_y_el_arbol_queda_limpio(self):
+        import subprocess
+        self._escribe("informe_analisis.md", "hallazgos")
+        frases = d.limpiar_arbol(self.raiz, self.ahora)
+        self.assertTrue(any(f.startswith("aparto 1 estorbo") for f in frases), frases)
+        self.assertTrue(any("informe_analisis.md" in f for f in frases))
+        destino = os.path.join(self.raiz, "starseed_memory_root", "olas", "_apartado", "20261025",
+                               "informe_analisis.md")
+        with open(destino, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "hallazgos")  # NO se borró
+        porcelain = subprocess.run(["git", "status", "--porcelain"], cwd=self.raiz,
+                                   capture_output=True, text=True).stdout
+        self.assertEqual(porcelain.strip(), "")  # starseed_memory_root/ lo ignora git
+
+    def test_con_trabajo_real_no_se_mueve_nada(self):
+        self._escribe("app.ts", "const a = 2\n")          # modificado, con seguimiento
+        self._escribe("src_nuevo.ts", "export {}\n")        # sin seguimiento, trabajo de alguien
+        self._escribe("informe_analisis.md", "hallazgos")   # estorbo
+        frases = d.limpiar_arbol(self.raiz, self.ahora)
+        self.assertTrue(any("aparto 1 estorbo" in f for f in frases), frases)
+        self.assertTrue(any("NO lo toco" in f and "app.ts" in f for f in frases), frases)
+        self.assertTrue(os.path.exists(os.path.join(self.raiz, "app.ts")))
+        self.assertTrue(os.path.exists(os.path.join(self.raiz, "src_nuevo.ts")))
+        self.assertFalse(os.path.exists(os.path.join(self.raiz, "informe_analisis.md")))
+
+
 class TestPuertas(unittest.TestCase):
     def setUp(self):
         self.ahora = time.time()

@@ -164,7 +164,7 @@ class CurarArbolSucioTest(unittest.TestCase):
         self.assertEqual(len(pisos), 1)
         self.assertTrue(
             pisos[0].endswith(
-                os.path.join("_apartado", time.strftime("%Y-%m-%d"), "nota.new")
+                os.path.join("_apartado", time.strftime("%Y%m%d"), "nota.new")
             )
         )
         with open(pisos[0], encoding="utf-8") as f:
@@ -185,6 +185,76 @@ class CurarArbolSucioTest(unittest.TestCase):
         self.assertTrue(os.path.exists(escrito))  # intacto, donde estaba
         self.assertFalse(os.path.exists(os.path.join(self.tmp, "_apartado")))
         self.assertTrue(any("src/app.ts" in a for a in avisos))
+
+
+class InformeSueltoNoParaElEnjambreTest(unittest.TestCase):
+    """(2026-10-25, ENJ1025A) `informe_analisis.md` suelto en la raíz: el orquestador decía
+    «working tree de main con cambios sin commit: 1 archivos — no arranco» + «ajeno: …» y el
+    vigilante no lo apartaba (~29 h). El registro REAL de esa negativa, de punta a punta."""
+
+    REGISTRO = (
+        "arrancando orquestador con 20 tareas\n"
+        "working tree de main con cambios sin commit: 1 archivos — no arranco\n"
+        "  ajeno: informe_analisis.md\n"
+        "\n__EXIT__=2\n"
+    )
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.registro = os.path.join(self.tmp, "enjambre.log")
+        with open(self.registro, "w", encoding="utf-8") as f:
+            f.write(self.REGISTRO)
+        self.informe = os.path.join(self.tmp, "informe_analisis.md")
+        with open(self.informe, "w", encoding="utf-8") as f:
+            f.write("hallazgos")
+        for parche in (
+            mock.patch.object(vig, "RAIZ", self.tmp),
+            mock.patch.object(vig, "APARTADO", os.path.join(self.tmp, "olas", "_apartado")),
+            mock.patch.object(vig, "REGISTRO", self.registro),
+            mock.patch.object(vig, "ESPERA_ARRANQUE_S", 0),
+            mock.patch.object(vig, "orquestador_vivo", return_value=False),
+        ):
+            parche.start()
+            self.addCleanup(parche.stop)
+
+    def test_el_motivo_de_arranque_reconoce_el_arbol_sucio(self):
+        motivo = vig.comprobar_arranque()
+        self.assertIn("cambios sin commit", motivo)
+        self.assertIn("ajeno: informe_analisis.md", motivo)
+        self.assertTrue(vig.es_motivo_de_arbol_sucio(motivo))
+
+    def test_la_cura_aparta_el_informe_y_el_arranque_se_reintenta(self):
+        self.assertTrue(vig.es_motivo_de_arbol_sucio(vig.comprobar_arranque()))
+        avisos = []
+        llamadas = [["?? informe_analisis.md"], []]  # sucio primero, limpio después
+        with mock.patch.object(vig, "_porcelain_lineas", side_effect=llamadas):
+            limpio = vig.curar_arbol_sucio(decir=lambda m, *a: avisos.append(m))
+        self.assertTrue(limpio)
+        self.assertFalse(os.path.exists(self.informe))
+        apartado = os.path.join(self.tmp, "olas", "_apartado", time.strftime("%Y%m%d"),
+                                "informe_analisis.md")
+        with open(apartado, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "hallazgos")  # apartado, NO borrado
+        self.assertTrue(any("informe_analisis.md" in a and "NO borrado" in a for a in avisos))
+
+    def test_con_trabajo_ajeno_al_lado_se_aparta_el_estorbo_y_se_avisa_del_trabajo(self):
+        avisos = []
+        lineas = ["?? informe_analisis.md", " M src/x.ts"]
+        with mock.patch.object(vig, "_porcelain_lineas", return_value=lineas):
+            limpio = vig.curar_arbol_sucio(decir=lambda m, *a: avisos.append(m))
+        self.assertFalse(limpio)
+        self.assertFalse(os.path.exists(self.informe))
+        self.assertTrue(any("src/x.ts" in a for a in avisos))
+
+    def test_esperar_reintento_sigue_la_causa_con_el_motivo_nuevo(self):
+        motivo = vig.comprobar_arranque()
+        miradas = [["?? informe_analisis.md"], []]  # al segundo despertar el árbol está limpio
+        with (
+            mock.patch.object(vig, "_porcelain_lineas", side_effect=miradas),
+            mock.patch.object(vig.time, "sleep"),
+        ):
+            vig.esperar_reintento(motivo)  # no espera los 10 min: la causa desapareció
 
 
 class EsperarReintentoTest(unittest.TestCase):

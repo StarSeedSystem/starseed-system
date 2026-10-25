@@ -103,6 +103,52 @@ def ultima_salida(lineas, tope=200):
     return codigo, motivo
 
 
+def motivo_de_salida(lineas, tope=300):
+    """El motivo COMPLETO de la última salida con `__EXIT__`: la línea que explica, seguida de su detalle.
+
+    `ultima_salida` devuelve solo la última línea no vacía, y el orquestador cierra su negativa con
+    líneas de detalle sangradas:
+
+        working tree de main con cambios sin commit: 1 archivos — no arranco
+          ajeno: informe_analisis.md
+        __EXIT__=2
+
+    El motivo era «ajeno: informe_analisis.md»: sin la frase «cambios sin commit», el vigilante no
+    reconocía el árbol sucio, no llamaba a su cura y el enjambre estuvo ~29 h parado (2026-10-25,
+    ENJ1025A). Aquí se une la línea sin sangría con el detalle: «working tree de main con cambios
+    sin commit: 1 archivos — no arranco · ajeno: informe_analisis.md». Sin detalle sangrado,
+    es igual que `ultima_salida`. Sin marca `__EXIT__`, "". El titular va primero, así el
+    recorte a `tope` nunca se lo lleva."""
+    ultima = None
+    for i, linea in enumerate(lineas):
+        if linea.rstrip().startswith("__EXIT__="):
+            ultima = i
+    if ultima is None:
+        return ""
+    detalle = []
+    titular = ""
+    for linea in reversed(lineas[:ultima]):
+        if not linea.strip():
+            if detalle or titular:
+                break
+            continue
+        if linea[:1] in (" ", "\t"):
+            detalle.append(linea.strip())
+            continue
+        titular = linea.rstrip()
+        break
+    if not titular:
+        return " · ".join(reversed(detalle))[:tope]
+    return " · ".join([titular] + list(reversed(detalle)))[:tope]
+
+
+def es_motivo_de_arbol_sucio(motivo):
+    """¿Se negó a arrancar por el árbol de `main`? El orquestador lo dice con «cambios sin commit» y
+    nombra cada archivo en una línea «ajeno: …»: cualquiera de las dos huellas basta."""
+    m = str(motivo or "")
+    return "cambios sin commit" in m or "ajeno:" in m
+
+
 def _ids_de_asunto(asunto):
     """Los textos que `(?:^|·\\s*)<id>\\s*:` reconocería en un asunto: lo que va del principio,
     o de cada «·» (saltando espacios), hasta los primeros dos puntos, sin espacios al final."""
