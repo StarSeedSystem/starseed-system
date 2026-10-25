@@ -219,5 +219,71 @@ class TestBriefRise(unittest.TestCase):
         self.assertNotIn("RISE", texto)
 
 
+class TestBriefHerramientas1025(unittest.TestCase):
+    """§7: la tanda 1025 añade slides, DESIGN.md, documentación y paneles."""
+
+    def _seccion_herramientas(self, tarea):
+        texto = brief(tarea, MEMORIA_PRUEBA)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        return texto.split("## 6. Herramientas y skills", 1)[1].split("\n## ", 1)[0]
+
+    def test_presentacion_trae_frontend_slides(self):
+        tarea = {"titulo": "Presentación de resultados", "archivos": ["src/app/x/page.tsx"]}
+        bloque = self._seccion_herramientas(tarea)
+        self.assertIn("frontend-slides", bloque)
+        self.assertIn("escenario 16:9 fijo", bloque)
+
+    def test_design_md_trae_awesome_design_md(self):
+        tarea = {"titulo": "Leer design.md del contexto", "archivos": ["src/app/x/page.tsx"]}
+        bloque = self._seccion_herramientas(tarea)
+        self.assertIn("awesome-design-md", bloque)
+        self.assertIn("nunca la identidad de una marca", bloque)
+
+    def test_documentacion_y_educacion_traen_docusaurus(self):
+        for titulo in ("Documentación del grupo", "Guía de educación"):
+            tarea = {"titulo": titulo, "archivos": ["src/app/x/page.tsx"]}
+            bloque = self._seccion_herramientas(tarea)
+            self.assertIn("Docusaurus", bloque)
+            self.assertIn("solo exporta e importa texto", bloque)
+
+    def test_panel_de_datos_trae_refine(self):
+        tarea = {"titulo": "Panel de datos del curso", "archivos": ["src/app/x/page.tsx"]}
+        bloque = self._seccion_herramientas(tarea)
+        self.assertIn("Refine", bloque)
+        self.assertIn("telemetría apagada", bloque)
+
+    def test_taste_skill_sigue_en_toda_tarea(self):
+        for titulo in ("Botón", "Documentación del grupo", "Panel de administración"):
+            tarea = {"titulo": titulo, "archivos": ["src/app/x/page.tsx"]}
+            texto = brief(tarea, MEMORIA_PRUEBA)
+            self.assertIn("taste-skill", texto)
+            self.assertIn("el ADN manda", texto)
+            self.assertIn("UI-TARS", texto)
+
+    def test_ninguna_linea_se_repite(self):
+        tarea = {
+            "titulo": "Diapositivas de la presentación de la conferencia",
+            "prompt": "Documentación y educación del panel de datos.",
+            "archivos": ["src/app/x/page.tsx"],
+        }
+        bloque = self._seccion_herramientas(tarea)
+        lineas = [l for l in bloque.splitlines() if l.strip()]
+        self.assertEqual(len(lineas), len(set(lineas)))
+        self.assertEqual(bloque.count("presentaciones HTML de un archivo"), 1)
+        self.assertEqual(bloque.count("documentación en Markdown"), 1)
+
+    def test_apartados_6_y_7_caben_con_varias_claves(self):
+        tarea = {
+            "titulo": "Presentación y documentación del panel de datos",
+            "prompt": "Conferencia, educación y design.md del sistema de diseño.",
+            "archivos": ["src/app/x/page.tsx"],
+        }
+        texto = brief(tarea, MEMORIA_PRUEBA)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+        self.assertIn("Errores de consola", texto)
+        self.assertLessEqual(len(texto), 2500)
+
+
 if __name__ == "__main__":
     unittest.main()
