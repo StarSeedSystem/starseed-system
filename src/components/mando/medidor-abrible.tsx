@@ -25,8 +25,10 @@ import { ChevronDown, Loader2 } from "lucide-react";
 import { BloqueadasPanel, itemDesdeFilaMedidor } from "@/components/mando/bloqueadas-panel";
 import { BloqueadasGrupos, CadenasBloqueadas } from "@/components/mando/bloqueadas-grupos";
 import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
+import { PanelImaginacion } from "@/components/mando/panel-imaginacion";
 import { BotonReparar, ResultadoReparacion, useReparacion } from "@/components/mando/reparar-medidor";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
+import type { AmbitoPropuesta } from "@/lib/mando/imaginacion-tipos";
 
 export type TonoMedidor = "normal" | "aviso" | "peligro" | "ok";
 
@@ -417,11 +419,17 @@ export function PanelMedidor({
     alAccionar,
     alIrA,
     alCerrar,
+    ambito,
+    alCambiar,
 }: {
     clave: ClaveMedidor;
     alAccionar?: (clave: ClaveMedidor, a: AccionMedidor, f: FilaMedidor | undefined, texto: string) => Promise<string>;
     alIrA?: (destino: string) => void;
     alCerrar: () => void;
+    /** (IMG1024B) El ámbito del pulso (`?ambito=`): hoy solo lo usa «Imaginación». */
+    ambito?: AmbitoPropuesta;
+    /** (IMG1024B) Algo cambió dentro del panel propio de un medidor: relee la pastilla. */
+    alCambiar?: () => void;
 }) {
     const [datos, setDatos] = useState<DetalleMedidor | null>(null);
     const [cargando, setCargando] = useState(false);
@@ -490,7 +498,8 @@ export function PanelMedidor({
     const cargar = useCallback(async (primera = false) => {
         if (primera) setCargando(true);
         try {
-            const r = await fetch(`/api/mando/medidores?clave=${encodeURIComponent(clave)}`, { cache: "no-store" });
+            const deAmbito = ambito ? `&ambito=${encodeURIComponent(ambito)}` : "";
+            const r = await fetch(`/api/mando/medidores?clave=${encodeURIComponent(clave)}${deAmbito}`, { cache: "no-store" });
             const d = (await r.json()) as { detalle?: DetalleMedidor };
             setDatos(d.detalle ?? null);
             setErrorLectura(null);
@@ -499,7 +508,7 @@ export function PanelMedidor({
         } finally {
             if (primera) setCargando(false);
         }
-    }, [clave]);
+    }, [clave, ambito]);
 
     /** POST /api/mando/comprobar y luego recarga panel y fecha de comprobación. */
     const comprobarAhora = useCallback(async () => {
@@ -746,14 +755,26 @@ export function PanelMedidor({
                 </div>
             ) : null}
 
-            {cargando && !datos ? (
+            {cargando && !datos && clave !== "imaginacion" ? (
                 <p className="mt-2 flex items-center justify-center gap-2 text-[11px] text-white/50">
                     <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                     Leyendo…
                 </p>
             ) : null}
 
-            {datos && clave === "en-cadena" ? (
+            {clave === "imaginacion" ? (
+                // (IMG1024B) «Imaginación» tiene su panel propio: propuestas libres, integrar, reimaginar,
+                // lote y el automático, contra `/api/mando/imaginacion`. Lee sus datos por su cuenta (si el
+                // medidor no contesta, el panel sigue funcionando) y, tras cada decisión, relee la cabecera.
+                <PanelImaginacion
+                    ambito={ambito ?? "metagenesis"}
+                    otrosAmbitos={datos?.imaginacion?.otrosAmbitos}
+                    alCambio={() => {
+                        void cargar();
+                        alCambiar?.();
+                    }}
+                />
+            ) : datos && clave === "en-cadena" ? (
                 // (2026-10-20) Las esperas normales de una cadena, en su propio medidor y agrupadas
                 // por la tarea a la que esperan: no son un problema, se desbloquean solas.
                 <CadenasBloqueadas detalle={datos} />

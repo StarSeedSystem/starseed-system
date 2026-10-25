@@ -28,6 +28,19 @@ import {
     type ResumenBloqueadas,
 } from "./bloqueadas";
 import { CONTENEDORES_OPCIONES } from "@/lib/genesis/conectores/contenedores";
+import {
+    NOMBRE_ESTADO,
+    NOMBRE_FUENTE,
+    NOMBRE_TIPO,
+    decidibles,
+    filasMedidor,
+    filtrarPorAmbito,
+    resumenPastilla,
+    type AjustesAuto,
+    type AjustesAutodesarrollo,
+    type AmbitoPropuesta,
+    type PropuestaImaginacion,
+} from "./imaginacion-tipos";
 
 export type ClaveMedidor =
     | "en-curso"
@@ -56,7 +69,11 @@ export type ClaveMedidor =
     // (2026-10-20) Alex: «es diferente la info de Bloqueadas y rechazadas en Ramificación que el
     // medidor del pulso» y «las en cadena deben ir en su propio medidor». Las esperas normales de
     // una cadena salen de «Bloqueadas» y van aquí: se desbloquean solas.
-    | "en-cadena";
+    | "en-cadena"
+    // (2026-10-24, Ola 1024I · IMG1024B) Alex: «en el pulso de MetaGenesis y de los demás Genesis
+    // añade un medidor de lo que sale de los procesos imaginativos… con botones para integrar o
+    // reimaginar». Sustituye a IMN1021H/J (architecture/imaginacion-autodesarrollo.md §6).
+    | "imaginacion";
 
 export type ClaseAccion =
     | "descartar"
@@ -171,6 +188,28 @@ export interface DetalleMedidor {
     aviso?: string;
     /** (2026-10-10, OPB1011) Solo en «Bloqueadas»: cadenas, transformadas hoy y decisiones de Alex. */
     bloqueadas?: ResumenBloqueadas;
+    /** (IMG1024B) Solo en «Imaginación»: la pastilla, el ámbito, el automático y lo que espera en otros ámbitos. */
+    imaginacion?: ResumenImaginacionMedidor;
+}
+
+/** La pastilla «Imaginación» y lo que necesita su panel, calculado en un solo sitio (puro). */
+export interface ResumenImaginacionMedidor {
+    ambito: AmbitoPropuesta | "todos";
+    /** Lo grande de la pastilla: «N por decidir», «sin propuestas» o «sin datos». */
+    valor: string;
+    /** Lo pequeño: «R reimaginando · I integradas hoy» (o por qué no hay cifra). */
+    detalle: string;
+    tono: "normal" | "aviso" | "ok";
+    /** false = no se pudieron leer las propuestas: la pastilla dice «sin datos», nunca inventa. */
+    hayDatos: boolean;
+    total: number;
+    porDecidir: number;
+    decidibles: number;
+    reimaginando: number;
+    integradasHoy: number;
+    auto?: AjustesAuto;
+    /** Lo decidible que espera en OTROS ámbitos (solo para enlazarlo; nunca se suma aquí). */
+    otrosAmbitos: { ambito: AmbitoPropuesta; decidibles: number }[];
 }
 
 /** Estados que ya terminaron: nada de lo que hay aquí se descarta ni se reintenta. */
@@ -1463,6 +1502,13 @@ export interface DatosMedidores {
     fila?: FilaContable[];
     /** (2026-10-06) Medidores de crédito por terminal, MC1007F. */
     creditosPago?: DocCreditos | null;
+    /** (IMG1024B) Propuestas de la imaginación (todas) y sus ajustes, con el ámbito pedido en `?ambito=`.
+     *  `null` = no se pudieron leer: la pastilla dice «sin datos». Lo lee la ruta con `leerPropuestas`. */
+    imaginacion?: {
+        propuestas: PropuestaImaginacion[];
+        ajustes: AjustesAutodesarrollo;
+        ambito: AmbitoPropuesta | "todos";
+    } | null;
 }
 
 const FASE_VERIFICANDO: Record<string, string> = {
@@ -2008,6 +2054,88 @@ function repartoDeBloqueadas(d: DatosMedidores, ahora?: number) {
     return { repartidas, totalOperativas, totalHistoricas, listas, sinSalida };
 }
 
+const utilidadLegible = (u: number) => u.toFixed(2).replace(".", ",");
+
+/** «personal» → «Mi Genesis», «grupo:x» → «grupo x»: el ámbito como lo lee una persona. */
+export function nombreDeAmbito(a: AmbitoPropuesta | "todos"): string {
+    if (a === "todos") return "todos los ámbitos";
+    if (a === "metagenesis") return "MetaGenesis";
+    if (a === "personal") return "Mi Genesis";
+    const [tipo, id] = a.split(":");
+    return `${tipo === "grupo" ? "grupo" : "página"} ${id}`;
+}
+
+/**
+ * (IMG1024B) La pastilla «Imaginación» del pulso: «N por decidir» arriba y «R reimaginando · I
+ * integradas hoy» debajo (`resumenPastilla`, la misma regla que la ruta). Tono aviso si espera algo
+ * alto o crítico. Sin datos (no se pudo leer) → «sin datos»; un ámbito sin nada → «sin propuestas».
+ */
+export function pastillaImaginacion(
+    datos: DatosMedidores["imaginacion"],
+    ahora: number = Date.now(),
+): ResumenImaginacionMedidor {
+    if (!datos) {
+        return {
+            ambito: "metagenesis", valor: "sin datos", detalle: "no se pudieron leer las propuestas",
+            tono: "normal", hayDatos: false, total: 0, porDecidir: 0, decidibles: 0, reimaginando: 0,
+            integradasHoy: 0, otrosAmbitos: [],
+        };
+    }
+    const propias = filtrarPorAmbito(datos.propuestas, datos.ambito);
+    const otros = new Map<AmbitoPropuesta, number>();
+    if (datos.ambito !== "todos") {
+        for (const p of decidibles(datos.propuestas)) {
+            const a = p.ambito ?? "metagenesis";
+            if (a !== datos.ambito) otros.set(a, (otros.get(a) ?? 0) + 1);
+        }
+    }
+    const r = resumenPastilla(propias, new Date(ahora));
+    const base = {
+        ambito: datos.ambito, hayDatos: true, total: propias.length, porDecidir: r.porDecidir,
+        decidibles: decidibles(propias).length, reimaginando: r.reimaginando, integradasHoy: r.integradasHoy,
+        auto: datos.ajustes.auto,
+        otrosAmbitos: [...otros.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([ambito, n]) => ({ ambito, decidibles: n })),
+    };
+    if (!propias.length) {
+        return { ...base, valor: "sin propuestas", detalle: `nada de la imaginación en ${nombreDeAmbito(datos.ambito)}`, tono: "normal" };
+    }
+    return {
+        ...base,
+        valor: `${r.porDecidir} por decidir`,
+        detalle: `${r.reimaginando} reimaginando · ${r.integradasHoy} integradas hoy`,
+        tono: r.tono === "aviso" ? "aviso" : r.tono === "ok" ? "ok" : "normal",
+    };
+}
+
+/** Las filas genéricas del medidor (para quien lee el detalle sin el panel: vigías, comprobaciones). */
+function filasDeImaginacion(propuestas: PropuestaImaginacion[]): FilaMedidor[] {
+    const porId = new Map(propuestas.map((p) => [p.id, p]));
+    return filasMedidor(propuestas).map((f) => {
+        const p = porId.get(f.id) as PropuestaImaginacion;
+        const ficha: DatoDeFicha[] = [
+            { etiqueta: "Tipo", valor: NOMBRE_TIPO[f.tipo] },
+            { etiqueta: "Ámbito", valor: nombreDeAmbito(f.ambito) },
+            { etiqueta: "Utilidad", valor: utilidadLegible(f.utilidad) },
+            { etiqueta: "Importancia", valor: f.importancia, aviso: f.importancia === "alta" || f.importancia === "crítica" },
+            { etiqueta: "Versión", valor: p.version_de ? `${f.version} (de ${p.version_de})` : String(f.version) },
+            ...(f.tarea ? [{ etiqueta: "Tarea", valor: f.tarea }] : []),
+            ...f.referencias.map((r) => ({ etiqueta: "Referencia", valor: r.titulo, enlace: r.url })),
+        ];
+        return {
+            id: f.id,
+            titulo: f.titulo || f.id,
+            estado: NOMBRE_ESTADO[f.estado],
+            porque: p.motivo || `importancia ${f.importancia} · utilidad ${utilidadLegible(f.utilidad)}`,
+            quien: f.agente ? `${NOMBRE_FUENTE[p.fuente]} · ${f.agente}` : NOMBRE_FUENTE[p.fuente],
+            desde: p.t || undefined,
+            ficha,
+            // Las decisiones (integrar, reimaginar, rechazar, posponer) viven en el panel propio
+            // (`panel-imaginacion.tsx`) contra `/api/mando/imaginacion`, no en la ruta de medidores.
+            acciones: [],
+        };
+    });
+}
+
 /** El detalle completo de un medidor: filas, porqués y acciones. */
 export function detalleDeMedidor(
     clave: ClaveMedidor,
@@ -2302,6 +2430,32 @@ export function detalleDeMedidor(
                 vacio: fantasmas.length
                     ? `Ningún agente trabajando. ${fantasmas.length} latido(s) decían lo contrario sin ningún proceso detrás: descartados.`
                     : "Ningún agente trabajando ahora mismo.",
+            };
+        }
+
+        case "imaginacion": {
+            const im = pastillaImaginacion(d.imaginacion, ahora ?? Date.now());
+            if (!d.imaginacion) {
+                return {
+                    clave,
+                    titulo: "Imaginación",
+                    resumen: "sin datos",
+                    filas: [],
+                    acciones: [],
+                    aviso: "No se pudieron leer las propuestas de la imaginación: no se enseña ninguna cifra inventada.",
+                    vacio: "Sin datos de la imaginación ahora mismo.",
+                    imaginacion: im,
+                };
+            }
+            const propias = filtrarPorAmbito(d.imaginacion.propuestas, d.imaginacion.ambito);
+            return {
+                clave,
+                titulo: "Imaginación",
+                resumen: propias.length ? `${im.valor} · ${im.detalle}` : "sin propuestas",
+                filas: filasDeImaginacion(propias),
+                acciones: [],
+                vacio: `Ninguna propuesta de la imaginación en ${nombreDeAmbito(d.imaginacion.ambito)}.`,
+                imaginacion: im,
             };
         }
 

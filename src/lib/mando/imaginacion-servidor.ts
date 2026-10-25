@@ -12,10 +12,10 @@ import path from "node:path";
 
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import {
-    ESTADOS_PROPUESTA, IMPORTANCIAS_PROPUESTA, NOMBRE_FUENTE, TIPOS_PROPUESTA, esDecidible, leerAmbito,
-    normalizarAmbito, normalizarReferencias, normalizarReimaginacion, validarAjustes, vetoDecision, vetoReimaginar,
+    ESTADOS_PROPUESTA, NOMBRE_FUENTE, TIPOS_PROPUESTA, esDecidible, leerAmbito, normalizarAmbito, normalizarImportancia,
+    normalizarReferencias, normalizarReimaginacion, validarAjustes, vetoDecision, vetoReimaginar,
     type AjustesAutodesarrollo, type EstadoPropuesta, type FuentePropuesta, type HacerDecision, type HacerLote,
-    type ImportanciaPropuesta, type PropuestaNormalizada, type QuienDecide, type TipoPropuesta,
+    type PropuestaNormalizada, type QuienDecide, type TipoPropuesta,
 } from "@/lib/mando/imaginacion-tipos";
 
 export type PropuestaVisible = PropuestaNormalizada;
@@ -44,7 +44,7 @@ export function normalizarPropuesta(d: unknown): PropuestaVisible | null {
     const version = typeof d.version === "number" && Number.isInteger(d.version) && d.version >= 1 ? Math.min(d.version, 999) : 1;
     const p: PropuestaVisible = {
         id: d.id.trim().slice(0, 120), fuente: d.fuente as FuentePropuesta, titulo: texto(d.titulo, 200), cuerpo: texto(d.cuerpo, 8000), archivos, utilidad,
-        importancia: IMPORTANCIAS_PROPUESTA.includes(d.importancia as ImportanciaPropuesta) ? (d.importancia as ImportanciaPropuesta) : "media",
+        importancia: normalizarImportancia(d.importancia), // «critica» sin acento = «crítica» (IMG1024C)
         estado: ESTADOS_PROPUESTA.includes(d.estado as EstadoPropuesta) ? (d.estado as EstadoPropuesta) : "nueva", motivo: texto(d.motivo, 300), t: texto(d.t, 40),
         tipo: TIPOS_PROPUESTA.includes(d.tipo as TipoPropuesta) ? (d.tipo as TipoPropuesta) : "codigo",
         ambito: normalizarAmbito(d.ambito), referencias: normalizarReferencias(d.referencias), version,

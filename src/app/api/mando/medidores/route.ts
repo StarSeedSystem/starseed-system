@@ -63,6 +63,8 @@ import { discoParaMedidor, medirMemoriaMedidor } from "@/lib/mando/memoria-medid
 import { leerPendientes } from "@/lib/mando/publicaciones";
 import { crearReunionCompartida } from "@/lib/mando/reunion-compartida";
 import { esOpcionAlex, idDeTareaValido, type EstadoRevisorBloqueadas } from "@/lib/mando/bloqueadas";
+import { leerAjustes, leerPropuestas } from "@/lib/mando/imaginacion-servidor";
+import { leerAmbito, type AmbitoPropuesta } from "@/lib/mando/imaginacion-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -116,6 +118,21 @@ async function leerRevisorBloqueadas(): Promise<EstadoRevisorBloqueadas | null> 
             cuentas: crudo.cuentas,
             resumen: crudo.resumen,
         };
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * (IMG1024B) Lo que necesita el medidor «Imaginación»: TODAS las propuestas (para contar lo que espera
+ * en otros ámbitos) y los ajustes, con el ámbito pedido. Protegido: si algo falla, `null` y la pastilla
+ * dice «sin datos»; nunca una cifra inventada. Las propuestas y ajustes salen de los mismos lectores que
+ * `/api/mando/imaginacion`, así que la pastilla y el panel no pueden discrepar.
+ */
+async function leerImaginacion(ambito: AmbitoPropuesta | "todos"): Promise<DatosMedidores["imaginacion"]> {
+    try {
+        const [propuestas, ajustes] = await Promise.all([leerPropuestas(), leerAjustes()]);
+        return { propuestas, ajustes, ambito };
     } catch {
         return null;
     }
@@ -872,7 +889,26 @@ const reunion = crearReunionCompartida(reunir, { esperaMs: 1_500, obsoletoTrasMs
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
-    const clave = (new URL(peticion.url).searchParams.get("clave") ?? "ola-activa") as ClaveMedidor;
+    const url = new URL(peticion.url);
+    const clave = (url.searchParams.get("clave") ?? "ola-activa") as ClaveMedidor;
+    // (IMG1024B) «Imaginación» reúne solo sus dos archivos (propuestas y ajustes), como los créditos:
+    // no espera a la reunión compartida (15 s de caché), así la pastilla se pone al día en cuanto
+    // integras o reimaginas. `?ambito=` como en /api/mando/imaginacion; sin él, MetaGenesis.
+    if (clave === "imaginacion") {
+        const crudo = url.searchParams.get("ambito");
+        const ambito = crudo ? leerAmbito(crudo) : "metagenesis";
+        if (ambito === null) {
+            return Response.json(
+                { error: "Ámbito desconocido: usa metagenesis, personal, grupo:<id> o pagina:<id>." },
+                { status: 400, headers: { "Cache-Control": "no-store" } },
+            );
+        }
+        const imaginacion = await leerImaginacion(ambito);
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, { imaginacion }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
     // (2026-10-04) Los límites del plan de Claude solo necesitan su propio archivo: no se reúne todo.
     if (clave === "credito-claude") {
         const limitesClaude = await leerLimitesClaude().catch(() => null);

@@ -28,8 +28,9 @@ import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/ma
 import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
 import { MedidorConsumo } from "@/components/mando/medidor-consumo";
-import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
-import { ESPERA_A_OTRA, cargaDePublicacion, falloDePublicacion } from "@/lib/mando/medidores";
+import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor, ResumenImaginacionMedidor } from "@/lib/mando/medidores";
+import { ESPERA_A_OTRA, cargaDePublicacion, falloDePublicacion, nombreDeAmbito } from "@/lib/mando/medidores";
+import { ambitoDeLaUrl, type AmbitoPropuesta } from "@/lib/mando/imaginacion-tipos";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
 import { PanelSuenos } from "@/components/mando/panel-suenos";
 import { PanelGrafo } from "@/components/mando/panel-grafo";
@@ -268,6 +269,8 @@ const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
     // (2026-10-20) Las esperas de una cadena, al lado de «Bloqueadas» y en su propio medidor.
     "en-cadena": ["trabajo", 5],
     fallidas: ["trabajo", 6],
+    // (2026-10-24, IMG1024B) Lo que sale de los procesos imaginativos, después de «Fallidas».
+    imaginacion: ["trabajo", 7],
     integradas: ["entrega", 0],
     "sin-publicar": ["entrega", 1],
     "Tu visto bueno": ["entrega", 2],
@@ -897,6 +900,17 @@ export function CentroMando() {
 
     // Un solo medidor abierto a la vez: el panel es uno y vive debajo de la rejilla.
     const [medidorAbierto, setMedidorAbierto] = useState<ClaveMedidor | null>(null);
+    /**
+     * (2026-10-24, IMG1024B) El ámbito del pulso, de `?ambito=` (contrato de la Ola 1024I). Esta consola
+     * es la de MetaGenesis: sin ámbito (o con uno que no es del contrato) el medidor «Imaginación» es el
+     * de MetaGenesis y sale siempre, aunque diga «sin propuestas». Con `?ambito=personal`, `grupo:<id>`
+     * o `pagina:<id>` la vista es la de ese Genesis y la pastilla se filtra por él. Mi Genesis y
+     * PoliGenesis no tienen pulso ni llegan a `/api/mando/*` (solo local): por eso su ámbito «existe en
+     * la vista» cuando la URL lo trae, y entonces se muestra aquí. Se lee tras montar (no en el render)
+     * para que el HTML del servidor y el primer pintado coincidan.
+     */
+    const [ambitoPulso, setAmbitoPulso] = useState<AmbitoPropuesta>("metagenesis");
+    const ambitoPulsoRef = useRef<AmbitoPropuesta>("metagenesis");
     const [idesAbierto, setIdesAbierto] = useState(false);
     const [jevAbierto, setJevAbierto] = useState(false);
     const [actualizandoCreditos, setActualizandoCreditos] = useState(false);
@@ -949,6 +963,8 @@ export function CentroMando() {
         /** (2026-10-09) Fallidas sin resolver de los últimos 3 días (medidor «fallidas»). */
         fallidas: number | null;
         fallidasResumen: string | null;
+        /** (2026-10-24, IMG1024B) La pastilla «Imaginación» del ámbito del pulso; null = sin datos. */
+        imaginacion?: ResumenImaginacionMedidor | null;
         /** (2026-09-27) Crédito de Claude en la nube: «$250 de $250 · vence en…». */
         credito: string | null;
         creditoResumen: string | null;
@@ -960,7 +976,7 @@ export function CentroMando() {
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         try {
-            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas, resIntegradas, resCredito, resCreditos, resFallidas] =
+            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas, resIntegradas, resCredito, resCreditos, resFallidas, resImaginacion] =
                 await Promise.allSettled([
                     fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
@@ -974,6 +990,9 @@ export function CentroMando() {
                     fetch("/api/mando/medidores?clave=credito-claude", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=creditos", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=fallidas", { cache: "no-store" }),
+                    fetch(`/api/mando/medidores?clave=imaginacion&ambito=${encodeURIComponent(ambitoPulsoRef.current)}`, {
+                        cache: "no-store",
+                    }),
                 ]);
 
             let listas: number | null = null;
@@ -1000,6 +1019,7 @@ export function CentroMando() {
             let proveedoresResumen: string | null = null;
             let fallidas: number | null = null;
             let fallidasResumen: string | null = null;
+            let imaginacion: ResumenImaginacionMedidor | null = null;
             let credito: string | null = null;
             let creditoResumen: string | null = null;
             let creditoTono: TonoMedidor = "normal";
@@ -1143,6 +1163,13 @@ export function CentroMando() {
                 }
             }
 
+            // (IMG1024B) Si el medidor no contesta, `imaginacion` se queda en null y la pastilla dice
+            // «sin datos»: nunca una cifra de otra fuente.
+            if (resImaginacion.status === "fulfilled" && resImaginacion.value.ok) {
+                const dataImaginacion = (await resImaginacion.value.json()) as { detalle?: DetalleMedidor };
+                imaginacion = dataImaginacion.detalle?.imaginacion ?? null;
+            }
+
             if (resCreditos.status === "fulfilled" && resCreditos.value.ok) {
                 const dataCreditos = (await resCreditos.value.json()) as { detalle?: DetalleMedidor };
                 creditos = dataCreditos.detalle?.filas ?? [];
@@ -1173,6 +1200,7 @@ export function CentroMando() {
                 proveedoresResumen,
                 fallidas,
                 fallidasResumen,
+                imaginacion,
                 credito,
                 creditoResumen,
                 creditoTono,
@@ -1201,6 +1229,7 @@ export function CentroMando() {
                 proveedoresResumen: null,
                 fallidas: null,
                 fallidasResumen: null,
+                imaginacion: null,
                 credito: null,
                 creditoResumen: null,
                 creditoTono: "normal",
@@ -1220,6 +1249,10 @@ export function CentroMando() {
     }, [cargarMedidoresResumen]);
 
     useEffect(() => {
+        // (IMG1024B) El ámbito se fija antes de la primera lectura del pulso.
+        const a = ambitoDeLaUrl(window.location.search);
+        ambitoPulsoRef.current = a;
+        setAmbitoPulso(a);
         let vivo = true;
         const cargar = async (forzar = false) => {
             if (!vivo) return;
@@ -2219,6 +2252,30 @@ export function CentroMando() {
                                       },
                                   ]
                                 : []),
+                            {
+                                // (2026-10-24, Ola 1024I · IMG1024B) Alex: «en el pulso de MetaGenesis y de los
+                                // demás Genesis añade un medidor de lo que sale de los procesos imaginativos».
+                                // La cifra y el tono salen del MISMO medidor que se abre (`pastillaImaginacion`):
+                                // «N por decidir» y, debajo, reimaginando e integradas hoy. Sin datos lo dice.
+                                clave: "imaginacion" as const,
+                                titulo: "Imaginación",
+                                valor:
+                                    medidoresResumen === null ? "—" : (medidoresResumen.imaginacion?.valor ?? "sin datos"),
+                                tono: (medidoresResumen?.imaginacion?.tono ?? "normal") as TonoMedidor,
+                                detalle: (() => {
+                                    const im = medidoresResumen?.imaginacion;
+                                    if (!medidoresResumen) return "lo que proponen los procesos imaginativos";
+                                    if (!im) return "no se pudieron leer las propuestas";
+                                    const fuera = im.otrosAmbitos.reduce((n, o) => n + o.decidibles, 0);
+                                    return [
+                                        ambitoPulso !== "metagenesis" ? nombreDeAmbito(ambitoPulso) : null,
+                                        im.detalle,
+                                        fuera ? `${fuera} más en otros ámbitos` : null,
+                                    ]
+                                        .filter(Boolean)
+                                        .join(" · ");
+                                })(),
+                            },
                             ...((estado?.cuentas?.ultimas.esperandoAprobacion ?? 0) > 0
                                 ? [
                                       {
@@ -2261,6 +2318,8 @@ export function CentroMando() {
                             alAccionar={accionarMedidor}
                             alIrA={alIrADesdeMedidor}
                             alCerrar={() => setMedidorAbierto(null)}
+                            ambito={medidorAbierto === "imaginacion" ? ambitoPulso : undefined}
+                            alCambiar={() => void cargarMedidoresResumen(true)}
                         />
                     ) : accionesAlexAbierto ? (
                         <PanelAccionesAlex
@@ -2308,7 +2367,11 @@ export function CentroMando() {
                                             </div>
                                             <ul
                                                 className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${
-                                                    deEste.length === 7 ? "lg:grid-cols-7" : "lg:grid-cols-6"
+                                                    deEste.length === 7
+                                                        ? "lg:grid-cols-7"
+                                                        : deEste.length === 8
+                                                          ? "lg:grid-cols-4 xl:grid-cols-8"
+                                                          : "lg:grid-cols-6"
                                                 }`}
                                             >
                                                 {deEste.map((m) => (

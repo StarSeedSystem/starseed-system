@@ -7,14 +7,25 @@ export type ImportanciaPropuesta = "baja" | "media" | "alta" | "crítica";
 export type EstadoPropuesta =
   | "nueva" | "autodesarrollo" | "esperando-aprobacion" | "pregunta"
   | "descartada" | "aprobada" | "rechazada" | "pospuesta" | "hecha"
-  | "reimaginando" | "reimaginada";
+  | "reimaginando" | "reimaginada"
+  // IMG1024C: el director la convirtió en tarea de la flota (cola de imaginación). Conocida, NO decidible.
+  | "encargada";
 export type TipoPropuesta = "codigo" | "diseno" | "contenido" | "investigacion" | "otro";
 export type AmbitoPropuesta = "metagenesis" | "personal" | `grupo:${string}` | `pagina:${string}`;
 /** Quién decide: Alex con sus botones o la aprobación y reimaginación automática (§3). */
 export type QuienDecide = "alex" | "automatica";
 export interface ReferenciaPropuesta { titulo: string; url: string }
-/** Lo que se pidió al reimaginar: notas (≤ 2000), referencias https, cuándo y quién. */
-export interface Reimaginacion { notas: string; referencias: ReferenciaPropuesta[]; pedida: string; por: QuienDecide }
+/**
+ * Lo que se pidió al reimaginar: notas (≤ 2000), referencias https, cuándo y quién. El director
+ * (IMG1024C, `autodesarrollo_reimaginar.py`) añade su rastro, todo opcional: el estado de `antes`,
+ * la `tarea` de la flota con su `salida` (relativa al repo) y su `cola`, cuándo se `encolada`, cuándo
+ * se `recibida` la `version_nueva` y cuándo se `devuelta` a la lista manual (tope de la automática).
+ */
+export interface Reimaginacion {
+  notas: string; referencias: ReferenciaPropuesta[]; pedida: string; por: QuienDecide;
+  antes?: EstadoPropuesta; tarea?: string; salida?: string; cola?: string;
+  encolada?: string; recibida?: string; version_nueva?: string; devuelta?: string;
+}
 
 export interface PropuestaImaginacion {
   id: string; fuente: FuentePropuesta; titulo: string; cuerpo: string; archivos: string[];
@@ -47,7 +58,7 @@ export const NOMBRE_TIPO: Record<TipoPropuesta, string> = {
 export const NOMBRE_ESTADO: Record<EstadoPropuesta, string> = {
   nueva: "Nueva", autodesarrollo: "Autodesarrollo", "esperando-aprobacion": "Esperando tu aprobación", pregunta: "Pregunta",
   descartada: "Descartada", aprobada: "Integrada", rechazada: "Rechazada", pospuesta: "Pospuesta", hecha: "Hecha",
-  reimaginando: "Reimaginando", reimaginada: "Reimaginada",
+  reimaginando: "Reimaginando", reimaginada: "Reimaginada", encargada: "Encargada a la flota",
 };
 export const ESTADOS_PROPUESTA = Object.keys(NOMBRE_ESTADO) as EstadoPropuesta[];
 export const TIPOS_PROPUESTA = Object.keys(NOMBRE_TIPO) as TipoPropuesta[];
@@ -56,6 +67,15 @@ export const IMPORTANCIAS_PROPUESTA: ImportanciaPropuesta[] = ["baja", "media", 
 export const ESTADOS_DECIDIBLES: readonly EstadoPropuesta[] = ["esperando-aprobacion", "pregunta", "pospuesta", "nueva", "descartada"];
 export const MAX_REFERENCIAS = 20;
 export const MAX_LOTE = 500;
+/** Como en Python (`autodesarrollo_logica.UMBRAL_MINIMO`): el umbral del automático nunca baja del suelo de §5.4. */
+export const UMBRAL_MINIMO = 0.6;
+export const MAX_REIMAGINACIONES = 10;
+/** «crítica» se escribe con acento; «critica» sin él (o en mayúsculas) es la misma, nunca «media». */
+export function normalizarImportancia(x: unknown): ImportanciaPropuesta {
+  const t = typeof x === "string" ? x.trim().toLowerCase().normalize("NFC") : "";
+  if (t === "critica" || t === "crítica") return "crítica";
+  return (IMPORTANCIAS_PROPUESTA as string[]).includes(t) ? (t as ImportanciaPropuesta) : "media";
+}
 
 export const AJUSTES_POR_DEFECTO: AjustesAutodesarrollo = {
   automatico: true, rango: { min: 0, max: 10 },
@@ -102,8 +122,9 @@ export function validarAjustes(d: unknown): AjustesAutodesarrollo {
   const a = esObj(d.auto) ? d.auto : {};
   if (typeof a.aprobar === "boolean") r.auto.aprobar = a.aprobar;
   if (typeof a.reimaginar === "boolean") r.auto.reimaginar = a.reimaginar;
-  if (typeof a.umbral === "number" && Number.isFinite(a.umbral)) r.auto.umbral = Math.min(1, Math.max(0, a.umbral));
-  r.auto.max_reimaginaciones = entero(a.max_reimaginaciones, r.auto.max_reimaginaciones, 0, 10);
+  // Igual que Python: [0,6; 1] redondeado a dos decimales; el tope, entero de 0 a 10.
+  if (typeof a.umbral === "number" && Number.isFinite(a.umbral)) r.auto.umbral = Math.round(Math.min(1, Math.max(UMBRAL_MINIMO, a.umbral)) * 100) / 100;
+  r.auto.max_reimaginaciones = entero(a.max_reimaginaciones, r.auto.max_reimaginaciones, 0, MAX_REIMAGINACIONES);
   return r;
 }
 
@@ -131,10 +152,20 @@ export function normalizarReferencias(x: unknown): ReferenciaPropuesta[] {
   }
   return r;
 }
-/** La reimaginación pedida, acotada; undefined si no es un objeto. */
+/** Ruta relativa al repo y sin escapes (ni absoluta, ni `..`, ni `~`, ni unidad): si no, se descarta. */
+const rutaRelativa = (v: unknown): string => {
+  const s = cadena(v, 200);
+  return s && !/^([a-z]:|[\\/~])|(^|[\\/])\.\.([\\/]|$)/i.test(s) ? s : "";
+};
+/** La reimaginación pedida, acotada (con el rastro opcional del director); undefined si no es un objeto. */
 export function normalizarReimaginacion(x: unknown): Reimaginacion | undefined {
   if (!esObj(x)) return undefined;
-  return { notas: cadena(x.notas, 2000), referencias: normalizarReferencias(x.referencias), pedida: cadena(x.pedida, 40), por: x.por === "automatica" ? "automatica" : "alex" };
+  const r: Reimaginacion = { notas: cadena(x.notas, 2000), referencias: normalizarReferencias(x.referencias), pedida: cadena(x.pedida, 40), por: x.por === "automatica" ? "automatica" : "alex" };
+  if (typeof x.antes === "string" && (ESTADOS_PROPUESTA as string[]).includes(x.antes)) r.antes = x.antes as EstadoPropuesta;
+  const extra: [keyof Reimaginacion, string][] = [["tarea", cadena(x.tarea, 80)], ["salida", rutaRelativa(x.salida)], ["cola", rutaRelativa(x.cola)],
+    ["encolada", cadena(x.encolada, 40)], ["recibida", cadena(x.recibida, 40)], ["version_nueva", cadena(x.version_nueva, 120)], ["devuelta", cadena(x.devuelta, 40)]];
+  for (const [k, v] of extra) if (v) (r as unknown as Record<string, string>)[k] = v;
+  return r;
 }
 
 export const esAmbito = (x: unknown): x is AmbitoPropuesta => typeof x === "string" && AMBITO.test(x);
@@ -143,6 +174,14 @@ export const normalizarAmbito = (x: unknown): AmbitoPropuesta => (esAmbito(x) ? 
 export function leerAmbito(x: unknown): AmbitoPropuesta | "todos" | null {
   if (x === undefined || x === null || x === "" || x === "todos") return "todos";
   return esAmbito(x) ? x : null;
+}
+/**
+ * El ámbito del pulso según la URL de la vista (`?ambito=`), IMG1024B: sin él, con «todos» o con uno
+ * que no es de este contrato (p. ej. un id viejo de `mando_ambitos`), el pulso es el de MetaGenesis.
+ */
+export function ambitoDeLaUrl(busqueda: string): AmbitoPropuesta {
+  const a = leerAmbito(new URLSearchParams(busqueda).get("ambito"));
+  return a === null || a === "todos" ? "metagenesis" : a;
 }
 /** Las propuestas de un ámbito (sin ámbito guardado = «metagenesis»); «todos» o nada → todas. */
 export function filtrarPorAmbito<T extends PropuestaImaginacion>(propuestas: T[], ambito?: AmbitoPropuesta | "todos"): T[] {
@@ -183,7 +222,7 @@ export function vetoDecision(p: PropuestaImaginacion, hacer: HacerDecision, por:
 }
 
 const ESPERAN: EstadoPropuesta[] = ["esperando-aprobacion", "pregunta"];
-const INTEGRADAS: EstadoPropuesta[] = ["aprobada", "autodesarrollo", "hecha"];
+const INTEGRADAS: EstadoPropuesta[] = ["aprobada", "autodesarrollo", "encargada", "hecha"];
 const PESO_IMPORTANCIA: Record<ImportanciaPropuesta, number> = { crítica: 3, alta: 2, media: 1, baja: 0 };
 const mismoDia = (iso: string, hoy: Date) => {
   const f = new Date(iso);
@@ -193,7 +232,7 @@ const mismoDia = (iso: string, hoy: Date) => {
 export interface ResumenPastilla { texto: string; tono: "ok" | "atencion" | "aviso"; porDecidir: number; reimaginando: number; integradasHoy: number }
 /**
  * «N por decidir · R reimaginando · I integradas hoy». Por decidir: lo que espera a Alex (esperando aprobación o
- * pregunta); integradas hoy: aprobadas, autodesarrolladas o hechas con la decisión (o la fecha) de hoy.
+ * pregunta); integradas hoy: aprobadas, autodesarrolladas, encargadas o hechas con la decisión (o la fecha) de hoy.
  * Tono: aviso si espera algo alto o crítico; atención si espera algo; ok si nada.
  */
 export function resumenPastilla(propuestas: PropuestaImaginacion[], hoy: Date): ResumenPastilla {

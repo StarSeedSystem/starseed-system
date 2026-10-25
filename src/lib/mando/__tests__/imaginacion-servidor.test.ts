@@ -48,6 +48,12 @@ describe("lo puro", () => {
         expect(p).toMatchObject({ utilidad: 1, estado: "nueva", archivos: ["src/ok.ts"] });
         expect(JSON.stringify(p)).not.toContain("/Users");
     });
+    it("normalizarPropuesta lee «critica» sin acento como «crítica» y «encargada» como estado conocido (IMG1024C)", () => {
+        expect(normalizarPropuesta(base({ importancia: "critica" }))?.importancia).toBe("crítica");
+        expect(normalizarPropuesta(base({ estado: "encargada", tarea: "IMG-T1" }))).toMatchObject({ estado: "encargada", tarea: "IMG-T1" });
+        expect(normalizarPropuesta(base({ reimaginacion: { notas: "x", por: "automatica", encolada: "2026-10-24T10:00:00", salida: "/abs/x.json" } }))?.reimaginacion)
+            .toEqual({ notas: "x", referencias: [], pedida: "", por: "automatica", encolada: "2026-10-24T10:00:00" });
+    });
     it("itemAstraura traduce el tipo del director al del backend; posponerHasta acota a 1–720 h", () => {
         expect(itemAstraura(astraura)).toEqual({ item_id: "c-1", item_type: "creation" });
         expect(itemAstraura(base({ fuente: "astraura" }))).toBeNull();

@@ -96,6 +96,23 @@ aplica en su backend (`POST /api/imagination/action`, `apply`); aprobar lo demá
 1.58 duerme, su fuente dice «dormida» y no se inventa nada. Las rutas `/api/mando/imaginacion` y
 `/api/mando/autodesarrollo` son solo locales, como todo `/api/mando/*`.
 
+**Hecho en la Ola 1024I · IMG1024B (sustituye a IMN1021H e IMN1021J).** Clave `imaginacion` en
+`src/lib/mando/medidores.ts`, en «El trabajo ahora» después de «Fallidas». La pastilla
+(`pastillaImaginacion`, la regla de `resumenPastilla`): «N por decidir» y debajo «R reimaginando · I
+integradas hoy»; tono aviso si espera algo alto o crítico; «sin datos» si no se pudieron leer las propuestas
+(nunca una cifra inventada) y «sin propuestas» si el ámbito está vacío. `/api/mando/medidores?clave=imaginacion
+&ambito=` la calcula con `leerPropuestas`/`leerAjustes` sin esperar la reunión compartida. El detalle es
+`src/components/mando/panel-imaginacion.tsx`: arriba el automático (aprobar · reimaginar, umbral 0,6–1 y tope
+0–10) y la regla fija «lo de importancia alta o crítica siempre espera tu visto bueno»; pestañas Por decidir ·
+Reimaginando · Integradas · Rechazadas y pospuestas · Todas; filtros por tipo y fuente; cada propuesta con su
+cuerpo libre en Markdown sin HTML crudo (solo enlaces https, en pestaña nueva), referencias, archivos y los
+botones Integrar · Reimaginar (notas + una URL https por línea) · Rechazar · Posponer · Ver origen; y el lote
+(seleccionadas o todas, con confirmación) que dice cuál falló y por qué y deja seleccionado lo fallido.
+**Ámbitos:** la consola con pulso es la de MetaGenesis; sin `?ambito=` la pastilla es la de MetaGenesis y sale
+siempre. Mi Genesis y PoliGenesis no tienen pulso ni llegan a `/api/mando/*`, así que su ámbito existe en la
+vista cuando la URL lo trae (`?ambito=personal|grupo:<id>|pagina:<id>`): entonces la pastilla y el panel se
+filtran por él. Lo que espera en otros ámbitos se enlaza desde el panel, nunca se suma a la cifra.
+
 ## 7. Arreglos aprobados que van ya
 
 - Las 15 recomendaciones siguientes de la imaginación profunda del 2026-09-29 (SP092928–SP092942): lanzadas el

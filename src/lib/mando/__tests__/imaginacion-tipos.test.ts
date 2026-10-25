@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  AJUSTES_POR_DEFECTO, ESTADOS_DECIDIBLES, NOMBRE_FUENTE, decidibles, esAmbito, filasMedidor, filtrarPorAmbito,
-  interpretarPeticion, leerAmbito, normalizarAmbito, normalizarReferencias, normalizarReimaginacion, reimaginacionesLibres,
-  resumenPastilla, validarAjustes, vetoDecision,
+  AJUSTES_POR_DEFECTO, ESTADOS_DECIDIBLES, NOMBRE_ESTADO, NOMBRE_FUENTE, ambitoDeLaUrl, decidibles, esAmbito, esDecidible,
+  filasMedidor, filtrarPorAmbito, interpretarPeticion, leerAmbito, normalizarAmbito, normalizarImportancia, normalizarReferencias,
+  normalizarReimaginacion, reimaginacionesLibres, resumenPastilla, validarAjustes, vetoDecision,
   type PropuestaImaginacion,
 } from "../imaginacion-tipos";
 
@@ -35,12 +35,15 @@ describe("validarAjustes", () => {
     expect(a).toMatchObject({ automatico: false, fuentes: { astraura: false, diaria: true, agentes: true }, horario: { modo: "franjas", repartir: false }, profunda: { cada_dias: 365 } });
     expect(validarAjustes({ horario: { modo: "otro" } }).horario.modo).toBe("inteligente");
   });
-  it("auto: apagado por defecto, umbral 0–1 y máximo de reimaginaciones 0–10", () => {
+  // IMG1024B: el umbral se acota como en Python (autodesarrollo_logica.UMBRAL_MINIMO): [0,6; 1] y con dos decimales.
+  it("auto: apagado por defecto, umbral 0,6–1 (como Python) y máximo de reimaginaciones 0–10", () => {
     expect(AJUSTES_POR_DEFECTO.auto).toEqual({ aprobar: false, reimaginar: false, umbral: 0.75, max_reimaginaciones: 2 });
     expect(validarAjustes({ auto: { aprobar: true, reimaginar: "sí", umbral: 1.7, max_reimaginaciones: 40 } }).auto)
       .toEqual({ aprobar: true, reimaginar: false, umbral: 1, max_reimaginaciones: 10 });
     expect(validarAjustes({ auto: { umbral: Number.NaN, max_reimaginaciones: 1.5 } }).auto).toEqual(AJUSTES_POR_DEFECTO.auto);
-    expect(validarAjustes({ auto: { umbral: -2, max_reimaginaciones: 0 } }).auto).toMatchObject({ umbral: 0, max_reimaginaciones: 0 });
+    expect(validarAjustes({ auto: { umbral: -2, max_reimaginaciones: 0 } }).auto).toMatchObject({ umbral: 0.6, max_reimaginaciones: 0 });
+    expect(validarAjustes({ auto: { umbral: 0.5 } }).auto.umbral).toBe(0.6);
+    expect(validarAjustes({ auto: { umbral: 0.8349 } }).auto.umbral).toBe(0.83);
   });
 });
 
@@ -188,5 +191,43 @@ describe("interpretarPeticion", () => {
     expect(interpretarPeticion({ accion: "lote", ids: "pendientes", hacer: "rechazar", ambito: "raro" })).toHaveProperty("error");
     expect(interpretarPeticion({ accion: "lote", ids: "pendientes", hacer: "reimaginar" })).toHaveProperty("error");
     expect(interpretarPeticion({ accion: "lote", ids: Array.from({ length: 501 }, (_, i) => `p${i}`), hacer: "rechazar" })).toHaveProperty("error");
+  });
+});
+
+describe("lo que escribe el director (IMG1024C) leído en TS", () => {
+  it("«encargada» es un estado conocido, no decidible, y cuenta como integrada hoy", () => {
+    expect(NOMBRE_ESTADO.encargada).toBe("Encargada a la flota");
+    expect(esDecidible("encargada")).toBe(false);
+    expect(resumenPastilla([prop({ estado: "encargada", tarea: "IMG-1" })], HOY).integradasHoy).toBe(1);
+    expect(filasMedidor([prop({ estado: "encargada" })])[0]).toMatchObject({ decidible: false, acciones: ["ver-origen"] });
+  });
+  it("«critica» sin acento (o en mayúsculas) es «crítica»; lo desconocido, «media»", () => {
+    expect(normalizarImportancia("critica")).toBe("crítica");
+    expect(normalizarImportancia(" Crítica ")).toBe("crítica");
+    expect(normalizarImportancia("CRITICA")).toBe("crítica");
+    expect(normalizarImportancia("alta")).toBe("alta");
+    expect(normalizarImportancia("urgente")).toBe("media");
+    expect(normalizarImportancia(undefined)).toBe("media");
+  });
+  it("normalizarReimaginacion conserva el rastro del director, acotado y sin rutas absolutas", () => {
+    const r = normalizarReimaginacion({
+      notas: "n", referencias: [], pedida: "2026-10-24T20:00:00", por: "automatica", antes: "pregunta",
+      tarea: "RIM-x-v2", salida: "starseed_memory_root/imaginacion/agentes/reimaginada-x-v1.json", cola: "cola-suenos-reimaginar-2026-10-24.json",
+      encolada: "2026-10-24T20:05:00", recibida: "2026-10-24T21:00:00", version_nueva: "agentes:x-v2", devuelta: "2026-10-24T22:00:00",
+    });
+    expect(r).toEqual({
+      notas: "n", referencias: [], pedida: "2026-10-24T20:00:00", por: "automatica", antes: "pregunta",
+      tarea: "RIM-x-v2", salida: "starseed_memory_root/imaginacion/agentes/reimaginada-x-v1.json", cola: "cola-suenos-reimaginar-2026-10-24.json",
+      encolada: "2026-10-24T20:05:00", recibida: "2026-10-24T21:00:00", version_nueva: "agentes:x-v2", devuelta: "2026-10-24T22:00:00",
+    });
+    const malo = normalizarReimaginacion({ antes: "inventado", salida: "/Users/alex/x.json", cola: "../fuera.json", tarea: 3 });
+    expect(malo).toEqual({ notas: "", referencias: [], pedida: "", por: "alex" });
+  });
+  it("ambitoDeLaUrl: sin ámbito, «todos» o uno ajeno al contrato → MetaGenesis", () => {
+    expect(ambitoDeLaUrl("")).toBe("metagenesis");
+    expect(ambitoDeLaUrl("?ambito=todos")).toBe("metagenesis");
+    expect(ambitoDeLaUrl("?ambito=local")).toBe("metagenesis");
+    expect(ambitoDeLaUrl("?nivel=meta&ambito=grupo%3Ag1")).toBe("grupo:g1");
+    expect(ambitoDeLaUrl("?ambito=personal")).toBe("personal");
   });
 });
