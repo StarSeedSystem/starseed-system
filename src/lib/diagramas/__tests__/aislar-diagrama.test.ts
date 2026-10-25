@@ -147,4 +147,24 @@ body { background: url(https://ejemplo.com/fondo.png); }
     expect(salida).not.toContain("<link");
     expect(salida).toContain("<script");
   });
+
+  it("la plantilla animada sin animación queda con sandbox vacío y sin script-src", () => {
+    // Caso rescatado de la rama nube/39711481854 (contrato «el script inline
+    // solo sobrevive con animación»). Hoy main conserva el texto del <script>
+    // en el srcdoc, pero la CSP (sin script-src, con default-src 'none') y la
+    // sandbox vacía le quitan toda ejecución; lo que la rama exigía —no ver
+    // «<script» en el srcdoc— queda anotado en el informe como divergencia.
+    const r = prepararDiagrama(plantillaDeVendor("template-motion.html"), {
+      permitirAnimacion: false,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.sandbox).toBe("");
+    expect(r.sandbox).not.toContain("allow-same-origin");
+    const salida = r.srcdoc || "";
+    expect(salida).toContain("Content-Security-Policy");
+    expect(salida).not.toContain("script-src");
+    expect(salida).not.toContain("<link");
+    expect(salida).toContain("<svg");
+    expect(salida).toContain("<script"); // bloqueado por la CSP, no por retirada
+  });
 });
