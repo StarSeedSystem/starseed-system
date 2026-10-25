@@ -450,7 +450,9 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const plataforma = detectarPlataforma();
     const { memoriaGB } = await detectarCapacidades();
     const ramGB = memoriaGB ?? 8;
-    const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
+    // La voz de uso general nunca cae a un motor «personal» por defecto: el
+    // elector de licencia (catalogo-voces → licencia-voz) filtra por contexto.
+    const motorCat = motorRecomendado(plataforma, ramGB, "grupo");
     let nivel: NivelVoz;
     switch (motorCat.id) {
         case "voicemorphic":

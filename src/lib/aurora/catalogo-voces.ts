@@ -1,5 +1,8 @@
 "use client";
 
+import { motoresPermitidos } from "@/lib/aurora/voz-starseed/licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
+
 /**
  * CATÁLOGO DE VOCES DE STARSEED (Adenda 218 · 2026-09-02)
  * ─────────────────────────────────────────────────────────────────────────────
@@ -268,35 +271,70 @@ export const MOTORES_VOZ: MotorVozCatalogo[] = [
         },
 ];
 
-/** Motor por defecto para una plataforma y su RAM. Honesto con el hardware. */
-export function motorRecomendado(plataforma: Plataforma, ramGB: number, contexto: "personal" | "grupo" | "comunidad" | "publico" | "comercial" = "personal"): MotorVozCatalogo {
+type ContextoLicenciaVoz = "personal" | "grupo" | "comunidad" | "publico" | "comercial";
+
+/**
+ * Deja solo los motores que el elector de licencia permite en este contexto con
+ * las capas dadas. En «personal» la capa persona es el opt-in explícito a los
+ * pesos personales; fuera de lo personal, ningún motor «personal» entra jamás.
+ */
+function soloPermitidos(
+    motores: MotorVozCatalogo[],
+    contexto: ContextoLicenciaVoz,
+    capas: CapasPrefs,
+): MotorVozCatalogo[] {
+    const capasEfectivas: CapasPrefs = contexto === "personal" ? { persona: "personal", ...capas } : capas;
+    const { permitidos } = motoresPermitidos(
+        motores.map((m) => ({ id: m.id, claseLicencia: m.claseLicencia })),
+        contexto,
+        capasEfectivas,
+    );
+    const ids = new Set(permitidos.map((m) => m.id));
+    return motores.filter((m) => ids.has(m.id));
+}
+
+/**
+ * Motor por defecto para una plataforma y su RAM. Honesto con el hardware y con
+ * la licencia: el defecto es «grupo» (nunca un motor «personal»); quien quiera
+ * lo personal lo pide con contexto «personal».
+ */
+export function motorRecomendado(
+    plataforma: Plataforma,
+    ramGB: number,
+    contexto: ContextoLicenciaVoz = "grupo",
+    capas: CapasPrefs = {},
+): MotorVozCatalogo {
     if (!Number.isFinite(ramGB) || ramGB < 0) {
         // RAM desconocida (NaN, no finita o negativa): lo prudente es el motor ligero por defecto del
         // catálogo. Sin esto ningún `ramMinGB <= ram` se cumplía y caía al último (el pesado, 8 GB).
-        const ligero = MOTORES_VOZ.filter((m) => m.offline && m.porDefectoEn.length > 0 && m.plataformas.includes(plataforma)
-            && (contexto === "personal" || m.claseLicencia !== "personal"))
-            .sort((a, b) => a.ramMinGB - b.ramMinGB)[0];
+        const ligero = soloPermitidos(
+            MOTORES_VOZ.filter((m) => m.offline && m.porDefectoEn.length > 0 && m.plataformas.includes(plataforma)),
+            contexto,
+            capas,
+        ).sort((a, b) => a.ramMinGB - b.ramMinGB)[0];
         if (ligero) return ligero;
         ramGB = 0;
     }
-    const candidatos = MOTORES_VOZ.filter((m) => m.plataformas.includes(plataforma) && m.offline && m.ramMinGB <= ramGB);
+    const candidatos = soloPermitidos(
+        MOTORES_VOZ.filter((m) => m.plataformas.includes(plataforma) && m.offline && m.ramMinGB <= ramGB),
+        contexto,
+        capas,
+    );
+    const porDefecto = candidatos.find((m) => m.porDefectoEn.includes(plataforma));
+    if (porDefecto) return porDefecto;
     if (contexto !== "personal") {
-        // Fuera de contexto personal, excluimos los motores de clase personal
-        const candidatosFiltrados = candidatos.filter((m) => m.claseLicencia !== "personal");
-        const porDefecto = candidatosFiltrados.find((m) => m.porDefectoEn.includes(plataforma));
-        if (porDefecto) return porDefecto;
         // Ordenamos por calidad (alta > media > basica) y luego por ramMinGB ascendente
         const calidadOrder = { alta: 3, media: 2, basica: 1 };
-        const ordenados = candidatosFiltrados.sort((a, b) => {
+        const ordenados = [...candidatos].sort((a, b) => {
             const diffCalidad = calidadOrder[b.calidad] - calidadOrder[a.calidad];
             if (diffCalidad !== 0) return diffCalidad;
             return a.ramMinGB - b.ramMinGB;
         });
-        return ordenados[0] ?? candidatosFiltrados[candidatosFiltrados.length - 1] ?? MOTORES_VOZ[MOTORES_VOZ.length - 1];
+        return ordenados[0] ?? soloPermitidos(MOTORES_VOZ, contexto, capas)[0]
+            ?? MOTORES_VOZ.find((m) => m.claseLicencia === "libre") ?? MOTORES_VOZ[MOTORES_VOZ.length - 1];
     }
-    // Para contexto personal, mantenemos la lógica original
-    const porDefecto = candidatos.find((m) => m.porDefectoEn.includes(plataforma));
-    return porDefecto ?? candidatos.sort((a, b) => a.ramMinGB - b.ramMinGB)[0] ?? MOTORES_VOZ[MOTORES_VOZ.length - 1];
+    return [...candidatos].sort((a, b) => a.ramMinGB - b.ramMinGB)[0]
+        ?? soloPermitidos(MOTORES_VOZ, contexto, capas)[0] ?? MOTORES_VOZ[MOTORES_VOZ.length - 1];
 }
 
 /* ── B · Referencias de voz humana ─────────────────────────────────────────── */

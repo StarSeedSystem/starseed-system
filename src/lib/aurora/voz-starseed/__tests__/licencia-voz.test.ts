@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { motorRecomendado } from "@/lib/aurora/catalogo-voces";
 import {
   motoresPermitidos,
   type ContextoLicenciaVoz,
@@ -86,5 +87,29 @@ describe("motoresPermitidos · motivos legibles y determinismo", () => {
       motoresPermitidos(MOTORES, "personal", capas),
     );
     expect(MOTORES).toEqual(copia);
+  });
+});
+
+describe("motoresPermitidos aplicado en motorRecomendado", () => {
+  it("el defecto general no es un motor personal", () => {
+    expect(motorRecomendado("macos", 8).claseLicencia).not.toBe("personal");
+  });
+
+  it("la capa neurona libre quita los pesos personales también en contexto personal", () => {
+    const motor = motorRecomendado("macos", 8, "personal", { neurona: "libre" });
+    expect(motor.claseLicencia).toBe("libre");
+    expect(motor.id).not.toBe("voicemorphic");
+  });
+
+  it("en lo personal, pedido a mano, sigue entrando la voz nativa", () => {
+    expect(motorRecomendado("macos", 8, "personal").id).toBe("voicemorphic");
+  });
+
+  it("en grupo, comunidad, público y comercial nunca recomienda clase personal", () => {
+    for (const contexto of ["grupo", "comunidad", "publico", "comercial"] as const) {
+      for (const plataforma of ["macos", "windows", "linux", "android", "ios", "web"] as const) {
+        expect(motorRecomendado(plataforma, 16, contexto).claseLicencia).not.toBe("personal");
+      }
+    }
   });
 });
