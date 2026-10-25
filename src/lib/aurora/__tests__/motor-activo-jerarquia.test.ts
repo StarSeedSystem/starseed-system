@@ -91,6 +91,13 @@ describe("resolveActiveVoiceEngine con configuraciones simuladas", () => {
   });
 
   it("sin ningún motor configurado cae a OmniVoice antes que al navegador", () => {
+    // OpenVoice aún "sin historial" se promociona la primera vez (ascenso
+    // dinámico de la cadena AUTO): aquí lo damos por apartado para comprobar
+    // el orden clásico de cero configuración (OmniVoice híbrido).
+    window.localStorage.setItem(
+      "starseed.aurora.openvoice.health.v1",
+      JSON.stringify({ openvoice2: { badUntil: Date.now() + 60_000 } }),
+    );
     expect(resolveActiveVoiceEngine(config())).toBe("omnivoice");
   });
 });
