@@ -2,13 +2,14 @@
 
 - Repositorio: https://github.com/zarazhangrui/frontend-slides
 - Licencia: MIT, Copyright (c) 2025 Zara Zhang (texto completo en `LICENSE`). Las plantillas de `bold-template-pack/`
-  vienen de «beautiful-html-templates», también MIT según el propio repo; solo se copian sus fichas `design.md` y
-  `preview.md`, nunca el `template.html` de la fuente.
+  vienen de «beautiful-html-templates», también MIT según el propio repo. De esa fuente solo se copian sus fichas
+  `bold-template-pack/templates/*/design.md` y `bold-template-pack/templates/*/preview.md`. Ni el `template.html` original.
 - Versión copiada: etiqueta v2.1.0 (2026-05-26); último commit `9906a34` del 2026-06-23 (solo documentación). Copiada el
   2026-10-25.
 - Se copian: `SKILL.md`, `STYLE_PRESETS.md` (12 estilos), `animation-patterns.md`, `html-template.md`,
-  `viewport-base.css` y `bold-template-pack/` (`README.md`, `selection-index.json` y, de las 34 plantillas, su
-  `design.md` y su `preview.md`). Unos 2,0 MB.
+  `viewport-base.css` y `bold-template-pack/` (su `bold-template-pack/README.md`, su `bold-template-pack/selection-index.json`
+  y, de las 34 plantillas, sus fichas `bold-template-pack/templates/*/design.md` y `bold-template-pack/templates/*/preview.md`).
+  Unos 2,0 MB.
 - NO se copian (regla de la casa: sin ejecutables): `scripts/extract-pptx.py` (lee un PPTX con python-pptx),
   `scripts/export-pdf.sh` (Playwright + Chromium), `scripts/deploy.sh` (publica en Vercel con `npx vercel`),
   `plugins/` (manifiestos para otros agentes) y los vídeos o imágenes del README.
