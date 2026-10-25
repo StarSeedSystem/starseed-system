@@ -4603,6 +4603,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-10-24 01:41 · mg-oracle-1023-1814
 
 **Lo que se pidió.** reasignada
+## 2026-10-23 05:00 · mg-oracle-1022-2210
+
+**Lo que se pidió.** Pestañas del hub: los cerebros compartidos contigo, en solo lectura
 
 **Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
 
@@ -4621,3 +4624,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `FSH1018A` — otra cosa: ningún proveedor respondió (todos caídos)
 - `GCA1019H` — pruebas en rojo: vitest falla (rama conservada)
 - `RTRTCOL1012Bdsbbbbbbbbbbc` — otra cosa: ningún proveedor respondió (todos caídos)
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (RTCB1013Xb, RTRTRTRTCOL1012Bdsbbbbbc-d2d). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RTCB1013Xb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/RTCB1013Xb conservada)
+- `RTTIP1013Cc` — no escribió nada
+- `RTRTRTRTCOL1012Bdsbbbbbc-d2d` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTRTRTRTCOL1012Bdsbbbbbc-d2d conservada)
