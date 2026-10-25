@@ -219,5 +219,60 @@ class TestBriefRise(unittest.TestCase):
         self.assertNotIn("RISE", texto)
 
 
+class TestHerramientasBrief(unittest.TestCase):
+    """§7: las herramientas del grupo diseño entran al brief y sin repetirse."""
+
+    SLIDES = "frontend-slides — https://github.com/zarazhangrui/frontend-slides"
+    DESIGN_MD = "awesome-design-md — https://github.com/VoltAgent/awesome-design-md"
+    DOCUSAURUS = "Docusaurus — https://github.com/facebook/docusaurus"
+    REFINE = "Refine — https://github.com/refinedev/refine"
+    TASTE = "taste-skill — https://github.com/Leonxlnx/taste-skill"
+
+    def test_presentacion_trae_frontend_slides(self):
+        texto = brief({"titulo": "Presentación de resultados del grupo"}, MEMORIA_PRUEBA)
+        self.assertIn(self.SLIDES, texto)
+
+    def test_design_md_trae_awesome_design_md(self):
+        texto = brief({"titulo": "Escribe el design.md del contexto"}, MEMORIA_PRUEBA)
+        self.assertIn(self.DESIGN_MD, texto)
+
+    def test_documentacion_trae_docusaurus(self):
+        texto = brief({"titulo": "Documentación de la guía de inicio"}, MEMORIA_PRUEBA)
+        self.assertIn(self.DOCUSAURUS, texto)
+
+    def test_educacion_trae_docusaurus(self):
+        texto = brief({"titulo": "Sección de educación de la red"}, MEMORIA_PRUEBA)
+        self.assertIn(self.DOCUSAURUS, texto)
+
+    def test_panel_de_datos_trae_refine(self):
+        texto = brief({"titulo": "Plantilla de panel de datos para el grupo"}, MEMORIA_PRUEBA)
+        self.assertIn(self.REFINE, texto)
+
+    def test_taste_skill_sigue_en_toda_tarea(self):
+        for titulo in ("Botón de ajustes", "Presentación del grupo", "Panel de datos"):
+            texto = brief({"titulo": titulo}, MEMORIA_PRUEBA)
+            self.assertIn(self.TASTE, texto)
+
+    def test_ninguna_linea_sale_dos_veces(self):
+        texto = brief(
+            {"titulo": "Presentación con conferencia y diapositivas del curso"},
+            MEMORIA_PRUEBA,
+        )
+        self.assertEqual(texto.count(self.SLIDES), 1)
+
+    def test_apartados_6_y_7_con_varias_claves(self):
+        tarea = {
+            "titulo": "Presentación de documentación con design.md y panel de datos",
+            "archivos": ["src/app/page.tsx"],
+        }
+        texto = brief(tarea, MEMORIA_PRUEBA)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+        self.assertIn(self.SLIDES, texto)
+        self.assertIn(self.DESIGN_MD, texto)
+        self.assertIn(self.DOCUSAURUS, texto)
+        self.assertIn(self.REFINE, texto)
+
+
 if __name__ == "__main__":
     unittest.main()
