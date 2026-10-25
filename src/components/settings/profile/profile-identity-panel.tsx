@@ -21,6 +21,7 @@ import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import { useAccount, isProfileComplete } from "@/context/account-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PuertaSesion } from "@/components/auth/puerta-sesion";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -311,27 +312,9 @@ export function ProfileIdentityPanel() {
     const badges = readBadges(profileRow);
     const verified = Boolean(profileRow?.verified ?? (profileRow?.stats as Row)?.verified);
 
-    // ── Sin sesión: invitación honesta (sin datos falsos) ──
+    // ── Sin sesión: la puerta (Ola 1025T · ACC1025B) — el perfil vacío difuminado con la bienvenida delante ──
     if (!accountLoading && !uid) {
-        return (
-            <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <User className="w-5 h-5 text-primary" /> Identidad soberana
-                    </CardTitle>
-                    <CardDescription>
-                        Inicia sesión con tu cuenta StarSeed para editar tu perfil: nombre, @, avatar y bio.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Link href="/login">
-                        <Button className="gap-2 cursor-pointer">
-                            <User className="w-4 h-4" /> Entrar / Crear cuenta
-                        </Button>
-                    </Link>
-                </CardContent>
-            </Card>
-        );
+        return <PuertaSesion vista="perfil" nombrePagina="Identidad soberana" className="min-h-[28rem]" />;
     }
 
     const isLoading = loading || accountLoading;

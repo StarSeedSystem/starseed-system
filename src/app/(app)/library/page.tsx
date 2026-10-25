@@ -40,6 +40,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
+import { PuertaSesion } from "@/components/auth/puerta-sesion";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -1405,22 +1406,9 @@ function EntityLibraryArea() {
     [destinations, selectedKey],
   );
 
+  // (Ola 1025T · ACC1025B) Sin sesión: la puerta, con una vista neutra de la Biblioteca difuminada detrás.
   if (authChecked && !hasSession) {
-    return (
-      <GlassCard className="flex flex-col items-center justify-center gap-3 p-12 text-center">
-        <BookMarked className="h-10 w-10 text-muted-foreground opacity-30" />
-        <h2 className="text-lg font-bold">Tu Biblioteca te espera</h2>
-        <p className="max-w-md text-sm text-muted-foreground">
-          Inicia sesión para ver y organizar lo que has guardado — personal o de tus
-          comunidades, grupos y páginas.
-        </p>
-        <Button asChild className="mt-2 gap-2 cursor-pointer">
-          <Link href="/login">
-            <Lock className="h-4 w-4" /> Iniciar sesión
-          </Link>
-        </Button>
-      </GlassCard>
-    );
+    return <PuertaSesion vista="biblioteca" nombrePagina="Tu Biblioteca" />;
   }
 
   return (

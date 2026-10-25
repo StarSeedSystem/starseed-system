@@ -24,6 +24,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { useAccount } from "@/context/account-context";
 import { AccountProfilesSwitcher } from "@/components/profiles/account-profiles-switcher";
+import { PuertaSesion } from "@/components/auth/puerta-sesion";
 import { ProfileIdentityPanel } from "@/components/settings/profile/profile-identity-panel";
 // Adenda 66 §4: elegir QUÉ bibliotecas/folders/archivos se muestran en el perfil público.
 import { ProfileLibraryShowcasePanel } from "@/components/settings/profile/profile-library-showcase-panel";
@@ -623,12 +624,11 @@ function CuentaContent() {
 
   if (loading) return <div style={{ padding: 28, opacity: .7 }}>Cargando tu cuenta…</div>;
 
+  // (Ola 1025T · ACC1025B) Sin sesión: la puerta (el perfil vacío difuminado, con la bienvenida delante).
   if (!uid) {
     return (
-      <div style={{ padding: 28, maxWidth: 520 }}>
-        <h1 style={{ fontSize: 22, marginBottom: 8 }}>Tu cuenta StarSeed</h1>
-        <p style={{ opacity: .7, marginBottom: 16 }}>Inicia sesión o crea tu cuenta para gestionar tu perfil, tu dirección <b>@star.seed</b> y tus correos adjuntos.</p>
-        <a href="/bienvenida" style={{ ...btn, textDecoration: "none", display: "inline-block" }}>Entrar / Crear cuenta</a>
+      <div className="mx-auto w-full max-w-5xl px-[clamp(0.75rem,3vw,3rem)] py-[clamp(0.75rem,2vw,2rem)]">
+        <PuertaSesion vista="perfil" nombrePagina="Tu cuenta" />
       </div>
     );
   }

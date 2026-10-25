@@ -20,7 +20,9 @@
  *     real de la guía) → crear cuenta / entrar. Esa ventana es LA ventana de acceso única
  *     (`auth/ventana-acceso.tsx`, la misma que pintan /login y /bienvenida). «Explorar sin
  *     cuenta» la salta y ya no vuelve sola en este dispositivo.
- *   · Sin sesión, en una web normal → un aviso discreto que abre esa misma ventana.
+ *   · Sin sesión, en una web normal → un aviso discreto que abre esa misma ventana. Si la página
+ *     pinta la PUERTA de sesión (`auth/puerta-sesion.tsx`: la misma tarjeta, en el centro, sobre
+ *     una vista previa difuminada), el aviso de abajo no sale: la tarjeta ya está a la vista.
  *   · Con cuenta y neurona nueva → los ajustes de la nueva neurona (NeuronSetup).
  *
  * Persistencia entre medios (2026-09-29): con cuenta, NO decide «neurona nueva» hasta que la
@@ -35,10 +37,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 
-import { Button } from "@/components/ui/button";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { VentanaAcceso } from "@/components/auth/ventana-acceso";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
@@ -50,6 +51,8 @@ import { etapaActual, suscribirRito } from "@/lib/onboarding/director-rito";
 import { primerPlanoOcupado } from "@/lib/ui/fullscreen-modal";
 import { cuandoCuentaFiable, esperarPullInicial } from "@/lib/sync/realtime-sync";
 import { ritoActivo } from "@/lib/ui/rito-activo";
+import { explorarSinCuenta } from "@/lib/onboarding/explorar-sin-cuenta";
+import { hayPuertaVisible, usePuertaVisible } from "@/lib/onboarding/puerta-visible";
 import {
     CLAVE_AVISO_WEB,
     CLAVE_INTRO_SALTADA,
@@ -70,8 +73,8 @@ import {
     type PestanaInicial,
 } from "@/lib/onboarding/primer-arranque";
 
-import { IconoStarSeed } from "./icono-starseed";
 import { NeuronSetup } from "./neuron-setup";
+import { TarjetaBienvenida } from "./tarjeta-bienvenida";
 
 /* ─────────────────────────────── Datos del arranque ─────────────────────────────── */
 
@@ -134,6 +137,9 @@ export interface PrimerArranqueProps {
 
 export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
     const ruta = usePathname();
+    const router = useRouter();
+    /** Una página está pintando la puerta de sesión: su tarjeta ya está a la vista, el aviso de abajo sobra. */
+    const puertaVisible = usePuertaVisible();
     const arranqueRef = useRef(0);
     const [sesion, setSesion] = useState<EstadoSesion>("comprobando");
     const [tienePerfil, setTienePerfil] = useState<boolean | null>(null);
@@ -240,6 +246,13 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
         };
     }, [evaluar]);
 
+    // (Ola 1025T) Las marcas se releen al cambiar de ruta: «Explorar sin cuenta» de la puerta de sesión
+    // las pone y navega; sin esto este componente (montado en el layout raíz) seguiría con la lectura
+    // vieja y la bienvenida volvería a salir en la página siguiente.
+    useEffect(() => {
+        leerMarcas();
+    }, [ruta, leerMarcas]);
+
     const decision = useMemo(
         () =>
             decidirPrimerArranque({
@@ -260,6 +273,8 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
     // Apertura automática: una sola vez por visita y esperando a que el primer plano esté libre.
     useEffect(() => {
         if (decision.tipo === "nada" || decision.tipo === "esperar") return;
+        // Con la puerta de sesión a la vista no se abre nada solo: la puerta ofrece las mismas tres acciones.
+        if (puertaVisible && decision.tipo === "acceso") return;
         const clave = decision.tipo === "acceso" ? `acceso-${decision.forma}` : decision.tipo;
         if (atendidaRef.current.has(clave) || abierta) return;
         const abrir = () => {
@@ -269,7 +284,7 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
             else setAbierta({ tipo: "aviso" });
         };
         return esperarPrimerPlano(abrir, esperaMs);
-    }, [decision, abierta, esperaMs]);
+    }, [decision, abierta, esperaMs, puertaVisible]);
 
     // Al entrar (o entrar como invitado) la bienvenida y el aviso sobran.
     useEffect(() => {
@@ -294,10 +309,13 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
     }, [sesion]);
 
     const saltar = useCallback(() => {
-        ponerMarca(CLAVE_INTRO_SALTADA);
+        // Con la puerta de sesión a la vista, «Explorar sin cuenta» además lleva a los escritorios (la
+        // página que pidió la sesión sigue sin poder enseñarse); lo demás es lo de siempre.
+        if (hayPuertaVisible()) explorarSinCuenta(router);
+        else ponerMarca(CLAVE_INTRO_SALTADA);
         setMarcas((m) => ({ ...m, introSaltada: true }));
         setAbierta(null);
-    }, []);
+    }, [router]);
 
     const cerrarAviso = useCallback(() => {
         ponerMarca(CLAVE_AVISO_WEB, "sesion");
@@ -326,6 +344,8 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
         );
     }
     if (abierta.tipo === "aviso") {
+        // Con la puerta a la vista el aviso de abajo NO aparece (la misma tarjeta ya está en el centro).
+        if (puertaVisible) return null;
         return (
             <AvisoBienvenidaWeb
                 onAbrir={(paso) => setAbierta({ tipo: "acceso", paso })}
@@ -346,6 +366,10 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
 
 /* ───────────────────────── Aviso discreto (web sin sesión) ───────────────────────── */
 
+/**
+ * El aviso de abajo: la tarjeta de bienvenida (`TarjetaBienvenida`, la misma que pinta la puerta de sesión
+ * en el centro) posada al pie de la pantalla.
+ */
 export function AvisoBienvenidaWeb({
     onAbrir,
     onCerrar,
@@ -363,36 +387,17 @@ export function AvisoBienvenidaWeb({
             initial={reducir ? { opacity: 0 } : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: reducir ? 0.15 : 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-x-0 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5.5rem)] z-[72] mx-auto w-[min(92vw,26rem)] rounded-2xl border border-white/12 bg-[#0c0e18]/90 p-4 shadow-2xl shadow-black/50 backdrop-blur-xl"
+            className="fixed inset-x-0 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5.5rem)] z-[72] mx-auto w-[min(92vw,26rem)]"
             data-testid="aviso-bienvenida-web"
         >
-            <BotonCerrar etiqueta="Cerrar el aviso" tamano="sm" posicion="interior" variante="sutil" onClick={onCerrar} />
-            <div className="flex items-start gap-3 pr-8">
-                <IconoStarSeed size={36} className="shrink-0" />
-                <div className="min-w-0">
-                    <h2 id="aviso-bienvenida-titulo" className="text-sm font-semibold text-white">
-                        Te damos la bienvenida a StarSeed OS
-                    </h2>
-                    <p className="mt-0.5 text-xs leading-snug text-white/65">
-                        Crea tu cuenta o entra para tener tus escritorios, tu biblioteca y a Aurora en todos tus dispositivos.
-                    </p>
-                </div>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Button size="sm" className="h-9 cursor-pointer" onClick={() => onAbrir("acceso")}>
-                    Entrar o crear cuenta
-                </Button>
-                <Button size="sm" variant="outline" className="h-9 cursor-pointer border-white/15" onClick={() => onAbrir("intro")}>
-                    Ver la introducción
-                </Button>
-                <button
-                    type="button"
-                    onClick={onSaltar}
-                    className="ml-auto cursor-pointer rounded-md px-1 text-xs text-white/55 underline-offset-2 hover:text-white/85 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
-                >
-                    Explorar sin cuenta
-                </button>
-            </div>
+            <TarjetaBienvenida
+                variante="aviso"
+                idTitulo="aviso-bienvenida-titulo"
+                onEntrar={() => onAbrir("acceso")}
+                onIntroduccion={() => onAbrir("intro")}
+                onExplorar={onSaltar}
+                esquina={<BotonCerrar etiqueta="Cerrar el aviso" tamano="sm" posicion="interior" variante="sutil" onClick={onCerrar} />}
+            />
         </motion.section>
     );
 }

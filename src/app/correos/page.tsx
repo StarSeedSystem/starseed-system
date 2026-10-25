@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { PuertaSesion } from "@/components/auth/puerta-sesion";
 import {
   type AccountEmail,
   type MailConfig,
@@ -242,16 +243,11 @@ export default function CorreosPage() {
 
   if (loading) return <div style={{ padding: 28, opacity: 0.7 }}>Cargando tus Correos StarSeed…</div>;
 
+  // (Ola 1025T · ACC1025B) Sin sesión: la puerta, con una vista neutra de la bandeja difuminada detrás.
   if (!uid) {
     return (
-      <div style={{ padding: 28, maxWidth: 520 }}>
-        <h1 style={{ fontSize: 22, marginBottom: 8 }}>Correos StarSeed</h1>
-        <p style={{ opacity: 0.7, marginBottom: 16 }}>
-          Inicia sesión para configurar tu dirección <b>@star.seed</b>, vincular correos externos y usar tu bandeja interna.
-        </p>
-        <a href="/bienvenida" style={{ ...btn, textDecoration: "none", display: "inline-block" }}>
-          Entrar / Crear cuenta
-        </a>
+      <div style={{ padding: 28, maxWidth: 820, margin: "0 auto" }}>
+        <PuertaSesion vista="correos" nombrePagina="Correos StarSeed" />
       </div>
     );
   }

@@ -20,6 +20,8 @@ const est = vi.hoisted(() => ({
     esperasCuenta: [] as Array<() => void>,
     /** Neuronas de la cuenta que devuelve `listNeurons` (la de este dispositivo incluida). */
     neuronas: [] as Array<Record<string, unknown>>,
+    /** `navegarSuave` del director del rito (lo que hace «Explorar sin cuenta» con la puerta a la vista). */
+    navegar: vi.fn(),
 }));
 
 // El motor de sync real no corre aquí: el test decide si la cuenta ya está bajada.
@@ -63,6 +65,12 @@ vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
+// El director del rito es el real, salvo la navegación (no hay dónde navegar en jsdom).
+vi.mock("@/lib/onboarding/director-rito", async (original) => ({
+    ...(await original<typeof import("@/lib/onboarding/director-rito")>()),
+    navegarSuave: (...args: unknown[]) => est.navegar(...args),
+}));
+
 vi.mock("@/lib/apps-oficiales/dispositivo-actual", () => ({ esAppNativa: () => est.nativa }));
 
 // Piezas pesadas que ya tienen sus propias pruebas.
@@ -95,6 +103,7 @@ vi.mock("@/lib/perf/fondo-vivo", () => ({ guardarPreferenciaFondo: vi.fn() }));
 
 import { PrimerArranque } from "../primer-arranque";
 import { AVISO_NEURONA_CONFIGURADA, AVISO_NEURONA_NUEVA_LUEGO } from "@/lib/onboarding/primer-arranque";
+import { _reiniciarPuertasParaPruebas, registrarPuerta } from "@/lib/onboarding/puerta-visible";
 import { AVISOS_KEY, _reiniciarCacheAvisosParaPruebas, estadoAviso } from "@/lib/sync/avisos-cuenta";
 
 const CUENTA: Usuario = { id: "u-1", email: "ana@star.seed" };
@@ -124,7 +133,9 @@ beforeEach(() => {
     est.cuentaFiable = true;
     est.esperasCuenta = [];
     est.neuronas = [];
+    est.navegar = vi.fn();
     neuronas.nombres = [];
+    _reiniciarPuertasParaPruebas();
     window.localStorage.clear();
     window.sessionStorage.clear();
     window.localStorage.setItem("starseed.neuron.device-id", "dispositivo-1");
@@ -233,6 +244,64 @@ describe("PrimerArranque · sin sesión", () => {
         fireEvent.click(screen.getByRole("button", { name: "Ver la introducción" }));
         await screen.findByRole("heading", { name: "Te damos la bienvenida a StarSeed OS" });
         expect(screen.queryByTestId("aviso-bienvenida-web")).toBeNull();
+    });
+
+    it("con la puerta de sesión a la vista el aviso de abajo NO aparece; al retirarse, vuelve", async () => {
+        est.nativa = false;
+        let soltar = () => undefined as void;
+        act(() => {
+            soltar = registrarPuerta();
+        });
+        montar();
+        await pausa(150);
+        expect(screen.queryByTestId("aviso-bienvenida-web")).toBeNull();
+        act(() => soltar());
+        await screen.findByTestId("aviso-bienvenida-web");
+    });
+
+    it("con la puerta a la vista tampoco se abre sola la ventana completa de la app nativa", async () => {
+        est.nativa = true;
+        act(() => {
+            registrarPuerta();
+        });
+        montar();
+        await pausa(150);
+        expect(screen.queryByTestId("ventana-bienvenida")).toBeNull();
+        // Pero a mano (los botones de la puerta) sí se abre.
+        act(() => {
+            window.dispatchEvent(new CustomEvent("starseed:abrir-primer-arranque", { detail: { paso: "intro" } }));
+        });
+        await screen.findByTestId("ventana-bienvenida");
+    });
+
+    it("«Explorar sin cuenta» con la puerta a la vista además lleva a los escritorios", async () => {
+        est.nativa = false;
+        act(() => {
+            registrarPuerta();
+        });
+        montar();
+        act(() => {
+            window.dispatchEvent(new CustomEvent("starseed:abrir-primer-arranque", { detail: { paso: "acceso" } }));
+        });
+        fireEvent.click(await screen.findByRole("button", { name: "Explorar sin cuenta" }));
+        await waitFor(() => expect(screen.queryByTestId("ventana-bienvenida")).toBeNull());
+        expect(est.navegar).toHaveBeenCalledWith(expect.anything(), "/escritorios");
+        expect(window.localStorage.getItem("starseed.primer-arranque.saltado.v1")).toBe("1");
+    });
+
+    it("al cambiar de ruta relee las marcas: lo saltado en la puerta no vuelve en la página siguiente", async () => {
+        est.nativa = false;
+        est.ruta = "/login"; // ruta con su propio acceso: no abre nada
+        const { rerender } = montar();
+        await pausa(100);
+        expect(screen.queryByTestId("aviso-bienvenida-web")).toBeNull();
+        // La puerta (otro componente) marca «saltada» y navega.
+        window.localStorage.setItem("starseed.primer-arranque.saltado.v1", "1");
+        est.ruta = "/escritorios";
+        rerender(arranque());
+        await pausa(150);
+        expect(screen.queryByTestId("aviso-bienvenida-web")).toBeNull();
+        expect(screen.queryByTestId("ventana-bienvenida")).toBeNull();
     });
 
     it("en la consola de Genesis no abre nada", async () => {

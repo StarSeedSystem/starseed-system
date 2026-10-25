@@ -5,7 +5,9 @@
 // ----------------------------------------------------------------------------
 // Antes redirigía siempre a /profile/starseeduser (un handle de EJEMPLO). Ahora
 // resuelve la identidad real de la sesión:
-//   • Sin sesión → invita a entrar / crear cuenta.
+//   • Sin sesión → la PUERTA de sesión (Ola 1025T · ACC1025B): el perfil por defecto vacío, difuminado,
+//     con «Te damos la bienvenida a StarSeed OS» delante (entrar o crear cuenta, ver la introducción,
+//     explorar sin cuenta). Ya no hay tarjeta suelta «Tu perfil · Inicia sesión…».
 //   • Con sesión y perfil COMPLETO (handle real) → redirige a /profile/<handle>.
 //   • Con sesión pero perfil INCOMPLETO → NO inventa identidad: pide primero
 //     completar el perfil real (nombre + @ único) enlazando a Ajustes → Perfil.
@@ -16,12 +18,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, Suspense } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAccount } from "@/context/account-context";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { User, Loader2, LogIn } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { PuertaSesion } from "@/components/auth/puerta-sesion";
 import { AccountProfilesSwitcher } from "@/components/profiles/account-profiles-switcher";
 import { useActiveProfile } from "@/lib/profiles/profiles";
 
@@ -56,27 +56,11 @@ export default function ProfileIndexPage() {
     );
   }
 
-  // ── Sin sesión: invitación honesta (sin identidad falsa) ──
+  // ── Sin sesión: la puerta (la vista previa del perfil vacío y la bienvenida), sin identidad falsa ──
   if (!user) {
     return (
-      <div className="flex flex-1 items-center justify-center py-12">
-        <Card className="max-w-md w-full bg-background/40 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="w-5 h-5 text-primary" /> Tu perfil
-            </CardTitle>
-            <CardDescription>
-              Inicia sesión con tu cuenta StarSeed para ver y editar tu identidad soberana.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/login">
-              <Button className="gap-2 cursor-pointer">
-                <LogIn className="w-4 h-4" /> Entrar / Crear cuenta
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div className="flex flex-1 items-center justify-center px-3 py-4 sm:px-6">
+        <PuertaSesion vista="perfil" nombrePagina="Tu perfil" />
       </div>
     );
   }

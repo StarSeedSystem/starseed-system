@@ -31,6 +31,9 @@ import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { StoriesStrip } from "@/components/stories/stories-strip";
 import { useMemo, useState, useEffect } from "react";
 import { useAccount } from "@/context/account-context";
+// (Ola 1025T · ACC1025B) /profile/me es «mi perfil»: sin sesión no hay perfil propio que enseñar, así
+// que pinta la puerta de sesión (vista previa difuminada + bienvenida) en vez de un perfil vacío.
+import { PuertaSesion } from "@/components/auth/puerta-sesion";
 import { resolveProfileData, type ResolvedProfileData } from "@/lib/social/profile-resolver";
 import { ProfileModeBar } from "@/components/profile/profile-mode-bar";
 import { ProfileQuickActions } from "@/components/profile/profile-quick-actions";
@@ -284,7 +287,7 @@ export default function ProfilePage() {
     const username = Array.isArray(usernameParam) ? usernameParam[0] : (usernameParam || 'me');
 
     // ── Identidad real: ¿este perfil pertenece a la sesión actual? ──
-    const { user, profile: accountProfile } = useAccount();
+    const { user, profile: accountProfile, loading: accountLoading } = useAccount();
     const pageHandle = normalizeHandleKey(username) || 'me';
 
     const [resolvedData, setResolvedData] = useState<ResolvedProfileData | null>(null);
@@ -538,6 +541,16 @@ export default function ProfilePage() {
         profileLayout.gallery.length, profileLayout.sections.length,
         visitedOwnerUid,
     ]);
+
+    // El alias «me» sin sesión: la puerta. Los perfiles de OTRAS personas (/profile/<usuario>) son
+    // públicos y se ven sin cuenta, como siempre.
+    if (pageHandle === 'me' && !accountLoading && !user) {
+        return (
+            <div className="flex flex-1 items-center justify-center px-3 py-4 sm:px-6">
+                <PuertaSesion vista="perfil" nombrePagina="Tu perfil" />
+            </div>
+        );
+    }
 
     if (loadingProfile) {
         return (
