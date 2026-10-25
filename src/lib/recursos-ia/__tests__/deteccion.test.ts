@@ -18,8 +18,8 @@ import {
     nombreGpuNavegador,
     recursosDeServidoresCerebro,
 } from "../deteccion";
-import type { DeteccionMaquina } from "../deteccion-tipos";
-import type { MedioAlmacen } from "../tipos";
+import { esDeteccionMaquina, type DeteccionMaquina } from "../deteccion-tipos";
+import type { MedioAlmacen, NeuronaRecursos } from "../tipos";
 
 const ID = "n-mac";
 
@@ -303,6 +303,65 @@ describe("detectarInventario fuera del navegador", () => {
         expect(inv.neuronas).toHaveLength(1);
         expect(inv.neuronas[0].esEsta).toBe(true);
         expect(inv.avisos).toContain(AVISO_DISCOS);
+    });
+});
+
+describe("esDeteccionMaquina · lo que contesta el servidor local no se cuela", () => {
+    it("una forma rota no pasa por detección: null, basura o faltan las listas", () => {
+        expect(esDeteccionMaquina(null)).toBe(false);
+        expect(esDeteccionMaquina("detección")).toBe(false);
+        expect(esDeteccionMaquina({ ...MAC_ALEX, volumenes: "Macintosh HD" })).toBe(false);
+        expect(esDeteccionMaquina({ ...MAC_ALEX, gpus: undefined })).toBe(false);
+        expect(esDeteccionMaquina({ ...MAC_ALEX, servidoresIA: undefined })).toBe(false);
+        expect(esDeteccionMaquina({ so: "macOS 26.3.1" })).toBe(false);
+    });
+
+    it("un esqueleto mínimo honesto sí es una detección de máquina", () => {
+        expect(
+            esDeteccionMaquina({
+                t: "",
+                host: "mac",
+                so: "macOS 26.3.1",
+                arquitectura: "arm64",
+                nucleos: 8,
+                ramGb: 8,
+                gpus: [],
+                volumenes: [],
+                herramientas: [],
+                runtimes: [],
+                servidoresIA: [],
+                avisos: [],
+            }),
+        ).toBe(true);
+    });
+});
+
+describe("inventarioDesde · servidor local sin discos legibles", () => {
+    it("el chip manda aunque los volúmenes no se leyeron; aviso honesto y sin NPU inventada", () => {
+        const inv = inventarioDesde({ estaNeurona: desdeNavegador(), maquina: { ...MAC_ALEX, npu: undefined, volumenes: [] }, ahora });
+        const esta = inv.neuronas[0];
+        expect(esta.procesadores.find((p) => p.tipo === "cpu")).toMatchObject({ nombre: "Apple M1 · CPU", fuente: "detectado" });
+        expect(esta.procesadores.find((p) => p.tipo === "npu")).toBeUndefined();
+        expect(esta.procesadores.find((p) => p.tipo === "webgpu")).toBeDefined();
+        expect(esta.almacenes.find((a) => a.id === `navegador:${ID}`)).toBeDefined();
+        expect(esta.almacenes.find((a) => a.id === `${ID}:interno`)).toBeUndefined();
+        expect(inv.avisos).toContain("El servidor local de esta neurona no pudo leer sus discos.");
+    });
+
+    it("las carpetas declaradas de esta neurona no se borran al superponer los discos medidos", () => {
+        const base = desdeNavegador();
+        const conCarpeta: NeuronaRecursos = {
+            ...base,
+            almacenes: [
+                ...base.almacenes,
+                { id: "carpeta:c1", tipo: "neurona-local", etiqueta: "Carpeta «Modelos»", neuronaId: ID, via: "local", persistente: true, privado: true, disponible: true, fuente: "declarado" },
+            ],
+        };
+        const inv = inventarioDesde({ estaNeurona: conCarpeta, maquina: MAC_ALEX, ahora });
+        const esta = inv.neuronas[0];
+        expect(esta.almacenes.find((a) => a.id === "carpeta:c1")).toMatchObject({ tipo: "neurona-local", fuente: "declarado" });
+        expect(esta.almacenes.find((a) => a.id === `${ID}:interno`)).toMatchObject({ fuente: "detectado" });
+        expect(esta.almacenes.find((a) => a.id === `navegador:${ID}`)).toBeDefined();
     });
 });
 
