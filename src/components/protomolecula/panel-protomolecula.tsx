@@ -8,21 +8,27 @@
  * dashboard: sin título, dictado ni historial, pero con «Añadir herramienta», parámetros y pendientes
  * (un widget vacío sin forma de llenarlo sería un callejón sin salida).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { registrarAtomosPropios } from "@/lib/protomolecula/atomos";
 import type { Controlador } from "@/lib/protomolecula/controlador";
 import { AVISO_SALUD } from "@/lib/protomolecula/permisos";
-import { candidatosDe } from "@/lib/protomolecula/registro-atomos";
+import { candidatosDe, obtenerAtomo } from "@/lib/protomolecula/registro-atomos";
 import type { EstadoGuardado } from "@/lib/protomolecula/sesion-molecula";
-import type { Ambito, Autor } from "@/lib/protomolecula/tipos";
+import type { Ambito, Autor, ValorParametro } from "@/lib/protomolecula/tipos";
 
 import { BarraDictado } from "./barra-dictado";
+import { MarcoAislado } from "./marco-aislado";
 import { PanelActividad, hayLecturaSalud } from "./panel-actividad";
 import { AnadirHerramienta, ListaPendientes } from "./panel-estructura";
 import { PanelParametros } from "./panel-parametros";
 import { useEstadoControl, useMolecula } from "./use-molecula";
 
 const AUTOR_PANEL: Autor = { tipo: "persona", id: "panel" };
+// El panel es la puerta de entrada de todas las superficies: registra los átomos propios una vez por carga.
+registrarAtomosPropios();
+const nuevoIdOperacion = () => (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `op-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+const TIPO_DESCARGA: Record<string, string> = { wav: "audio/wav", mp3: "audio/mpeg", glb: "model/gltf-binary", png: "image/png", jpg: "image/jpeg", svg: "image/svg+xml", json: "application/json", csv: "text/csv" };
 
 const ETIQUETA_AMBITO: Record<Ambito, string> = { personal: "personal", perfil: "perfil", grupo: "grupo", publica: "pública" };
 const TEXTO_GUARDADO = { "sin-cambios": "Sin cambios que guardar", guardando: "Guardando…", guardado: "Guardado en este aparato" } as const;
@@ -39,6 +45,15 @@ export interface PanelProtomoleculaProps {
 export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, compacto = false, guardado }: PanelProtomoleculaProps) {
   const estado = useEstadoControl(ctl);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [descarga, setDescarga] = useState<{ url: string; nombre: string } | null>(null);
+  useEffect(() => () => { if (descarga) URL.revokeObjectURL(descarga.url); }, [descarga]);
+  const moverDesdeMarco = (atomoId: string, parametroId: string, valor: ValorParametro) =>
+    ctl.mover({ id: nuevoIdOperacion(), objetivo: { atomoId, parametroId }, accion: { tipo: "exacta", valor }, autor, origen: "mano", t: Date.now() });
+  const exportarDesdeMarco = (formato: string, datos: unknown) => {
+    const cuerpo = typeof datos === "string" ? datos : JSON.stringify(datos);
+    const tipo = TIPO_DESCARGA[formato.toLowerCase()] ?? "application/octet-stream";
+    setDescarga({ url: URL.createObjectURL(new Blob([cuerpo], { type: tipo })), nombre: `protomolecula.${formato.replace(/[^\w.-]/g, "") || "datos"}` });
+  };
   if (!estado) return null;
 
   return (
@@ -54,6 +69,11 @@ export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, comp
       <AnadirHerramienta controlador={ctl} estado={estado} />
       <ListaPendientes controlador={ctl} estado={estado} />
       {!compacto && <BarraDictado alDictar={(frase) => ctl.dictar(frase, autor).resultados} />}
+      {estado.molecula.atomos.map((a) => {
+        const def = a.estado === "activo" ? obtenerAtomo(a.herramientaId) : undefined;
+        return def?.vista ? <MarcoAislado key={a.id} definicion={def} atomoId={a.id} valores={estado.molecula.valores} alCambio={(p, v) => moverDesdeMarco(a.id, p, v)} alExportar={exportarDesdeMarco} /> : null;
+      })}
+      {descarga && <a href={descarga.url} download={descarga.nombre} className="cursor-pointer text-sm underline">Descargar</a>}
       <PanelParametros
         candidatos={candidatosDe(estado.molecula)}
         valores={estado.molecula.valores}
