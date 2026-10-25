@@ -115,7 +115,7 @@ def main(argv=None):
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     olas = args.olas or OLAS
-    progreso = args.progreso or os.path.join(olas, "progreso.json")
+    progreso = args.progreso or PROGRESO
     if args.limites:
         limites_claude.ARCHIVO = os.path.expanduser(args.limites)
     asignar_huecos.OLAS = olas

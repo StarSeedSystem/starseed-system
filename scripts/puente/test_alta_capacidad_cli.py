@@ -144,7 +144,7 @@ class AltaCapacidadCLI(unittest.TestCase):
         r = self._correr(
             "--json",
             env_extra=[
-                ("STARSEED_ROOT", os.path.dirname(os.path.dirname(cola))),
+                ("STARSEED_ROOT", os.path.dirname(os.path.dirname(os.path.dirname(cola)))),
                 ("STARSEED_PROGRESO", progreso),
                 ("STARSEED_LIMITES_CLAUDE", limites),
             ],
