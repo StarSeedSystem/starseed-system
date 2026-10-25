@@ -33,6 +33,15 @@ describe("catálogo MOTORES_OIDO", () => {
     expect(m?.idiomas).toEqual(['en','es']);
     expect(m?.tamanoMB).toBe(60);
   });
+
+  it("voicestudio es de tipo endpoint y moonshine de tipo local", () => {
+    // Rescate de la rama nube: la licencia, el flujo y el tamaño ya se cubren arriba;
+    // el `tipo` de ambos no se afirmaba en main.
+    const voicestudio = MOTORES_OIDO.find((x) => x.id === 'voicestudio');
+    expect(voicestudio?.tipo).toBe('endpoint');
+    const moonshine = MOTORES_OIDO.find((x) => x.id === 'moonshine');
+    expect(moonshine?.tipo).toBe('local');
+  });
 });
 
 describe("elegirOido", () => {
@@ -137,5 +146,26 @@ describe("elegirOido", () => {
     });
     // moonshine debe ser elegido antes que whisper-web
     expect(r.motor).toBe('moonshine');
+  });
+
+  it("en español final, voicestudio se elige cuando parakeet-v3 no está disponible", () => {
+    // Rescate de la rama nube: disponible ['voicestudio','whisper-web'] en es/final.
+    const r = elegirOido({
+      idioma: 'es',
+      disponibles: ['voicestudio', 'whisper-web'],
+      fase: 'final',
+    });
+    expect(r.motor).toBe('voicestudio');
+    expect(r.motivo).toContain('fase final: mayor precisión para es');
+  });
+
+  it("en inglés final, voicestudio se elige cuando phonon-2 y parakeet-v3 no están disponibles", () => {
+    // Rescate de la rama nube: en el orden de en, voicestudio va antes de moonshine.
+    const r = elegirOido({
+      idioma: 'en',
+      disponibles: ['voicestudio', 'moonshine'],
+      fase: 'final',
+    });
+    expect(r.motor).toBe('voicestudio');
   });
 });

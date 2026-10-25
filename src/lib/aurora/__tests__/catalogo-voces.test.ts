@@ -127,4 +127,30 @@ describe("Catálogo de voces", () => {
     expect(motorRecomendado("macos", 8, "personal").id).toBe("voicemorphic");
     expect(motorRecomendado("web", 4, "personal").id).toBe("kokoro");
   });
+
+  it("licenciaPesos definidas también para sistema y voicestudio", () => {
+    // Rescate de la rama nube: el caso genérico ya está cubierto arriba, pero los
+    // valores de estos dos motores no se afirmaban en main. Hoy son "VARIES" y
+    // "Múltiple (según motor)" (contrato actualizado por main).
+    const sistema = MOTORES_VOZ.find((m) => m.id === "sistema");
+    expect(sistema?.licenciaPesos).toBe("VARIES");
+    const voicestudio = MOTORES_VOZ.find((m) => m.id === "voicestudio");
+    expect(voicestudio?.licenciaPesos).toBe("Múltiple (según motor)");
+  });
+
+  it("motorRecomendado con RAM muy baja devuelve el motor del sistema en todo contexto", () => {
+    // Rescate de la rama nube: con 0,4 GB solo cabe "sistema" (ramMinGB=0),
+    // y es libre, así que personal y grupo coinciden.
+    const motorPersonal = motorRecomendado("macos", 0.4, "personal");
+    const motorGrupo = motorRecomendado("macos", 0.4, "grupo");
+    expect(motorPersonal.id).toBe("sistema");
+    expect(motorGrupo.id).toBe("sistema");
+  });
+
+  it("motorRecomendado respeta la RAM mínima: no devuelve motor que pida más", () => {
+    // Rescate de la rama nube: justo por debajo de los 4 GB de voicemorphic.
+    const motor = motorRecomendado("macos", 3.9, "personal");
+    expect(motor.id).not.toBe("voicemorphic");
+    expect(motor.ramMinGB).toBeLessThanOrEqual(3.9);
+  });
 });
