@@ -118,7 +118,7 @@ export function planFusion(e: {
           firstOrigenIndex = i;
           const origenContent = quitarFrontmatter(origenFile.content);
           finalContent = origenContent;
-          addedBytes = Buffer.byteLength(finalContent, 'utf8');
+          addedBytes = utf8ByteLength(finalContent);
           contribuidores.push(origen.id);
           break;
         }
