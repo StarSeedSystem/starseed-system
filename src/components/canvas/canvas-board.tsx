@@ -43,6 +43,7 @@ import XRView from "@/components/canvas/xr-view";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { claveDeHerramienta, claveDeMolecula, atributosClave } from "@/lib/variaciones/claves-protomolecula";
 import { usePrompt } from "@/components/ui/confirm-dialog";
 import {
   Plus,
@@ -2031,9 +2032,19 @@ function BlockCard({
 }) {
   const def = blockKindDef(block.kind);
   const locked = !!block.locked;
+  // Clave «Variaciones públicas» del bloque en el lienzo universal: los bloques de
+  // widget/app la toman de las herramientas de la Protomolécula y los de Protomolécula,
+  // de su molécula. Sin coincidencia validada no hay clave (nada se pone sin validar).
+  const claveBloque =
+    (block.kind === "widget" || block.kind === "app") && typeof block.data.name === "string"
+      ? claveDeHerramienta(block.data.name)
+      : block.kind === "protomolecula" && typeof block.data.code === "string"
+        ? claveDeMolecula(block.data.code)
+        : null;
   return (
     <div
       data-block={block.id}
+      {...(atributosClave(claveBloque) ?? {})}
       onClick={connectMode ? onConnectClick : onSelect}
       className={cn(
         "absolute rounded-xl border bg-zinc-900/80 backdrop-blur shadow-lg flex flex-col overflow-hidden",
