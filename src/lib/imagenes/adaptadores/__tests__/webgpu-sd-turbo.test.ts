@@ -9,6 +9,7 @@ import {
   TOKENIZER_CLIP_SD_TURBO, VERSION_ONNXRUNTIME_WEB, detectaSDTurbo, generaEnPestana, planPesos, textoBytes,
   type ImagenSDTurbo, type MotorSDTurbo, type SondasWebGPU,
 } from "../webgpu-sd-turbo";
+import { modeloPorId } from "../../modelos";
 
 const BUENAS: SondasWebGPU = { hayWebGPU: true, hayAdaptador: true, f16: true };
 const IMAGEN: ImagenSDTurbo = { ancho: 512, alto: 512, pixeles: new Uint8Array(4), motor: "sd-turbo" };
@@ -46,6 +47,18 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
   it("solo los TRES archivos necesarios: ni encoder del VAE ni scheduler", () => {
     expect(PESOS_SD_TURBO.map((p) => p.ruta)).toEqual(["unet/model.onnx", "text_encoder/model.onnx", "vae_decoder/model.onnx"]);
     for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
+  });
+
+  it("cada peso trae su tamaño MEDIDO en el repo del ejemplo oficial, sin estimaciones", () => {
+    expect(PESOS_SD_TURBO.map((p) => p.bytes)).toEqual([1733430199, 681393168, 99094314]);
+  });
+
+  it("la ficha del catálogo es la única fuente de licencia y el adaptador no la promete mejor", () => {
+    const ficha = modeloPorId(MODELO_SD_TURBO);
+    expect(ficha).toBeDefined();
+    expect(ficha!.uso).toBe("condicionado");
+    expect(ficha!.licencia).toContain("Stability");
+    expect(ficha!.nota).toContain("Licencia sin comprobar del todo");
   });
 
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
