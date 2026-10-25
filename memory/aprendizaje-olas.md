@@ -4621,3 +4621,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `FSH1018A` — otra cosa: ningún proveedor respondió (todos caídos)
 - `GCA1019H` — pruebas en rojo: vitest falla (rama conservada)
 - `RTRTCOL1012Bdsbbbbbbbbbbc` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-24 20:23 · mg-oracle-1024-1257
+
+**Lo que se pidió.** Puerta de publicación en rojo: CI en rojo · objeción del revisor
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (RTMGP1011-1ECCC4dobjb, RTCOL1012Ld-d2, IMN1021L). Es 75 % de la ola.
+- openrouter/thinkingmachines/inkling:free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTMGP1011-1ECCC4dobjb` — otra cosa: sin decisión en 0 h; rama ola/RTMGP1011-1ECCC4dobjb conservada
+- `RTCOL1012Ld-d2` — otra cosa: sin decisión en 0 h; rama ola/RTCOL1012Ld-d2 conservada
+- `IMN1021L` — otra cosa: sin decisión en 0 h; rama ola/IMN1021L conservada

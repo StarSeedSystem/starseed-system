@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Pruebas de director_dream.py: el que convierte el Dream en encargos."""
+"""Pruebas de director_dream.py: el que convierte la imaginación diaria en encargos."""
 
 import os
 import sys
@@ -8,6 +8,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import director_dream as DD
+import dream_a_cola as D
 
 #: La forma real de una propuesta, tal como la devuelve `dream_a_cola.puntos`.
 P = {"titulo": "Algo que hacer", "seccion": "top 3 accionables", "cuerpo": "detalle"}
@@ -54,7 +55,7 @@ class TestFormaDelEncargo(unittest.TestCase):
         self.assertIn(P["seccion"], prompt)
 
     def test_deja_salida_si_ya_no_aplica(self):
-        # El Dream lo escriben modelos gratuitos leyendo registros: a veces
+        # La imaginación diaria la escriben modelos gratuitos leyendo registros: a veces
         # proponen algo ya hecho. El encargo tiene que permitir decirlo.
         self.assertIn("NO APLICA", DD.tarea_de(P, "2026-09-17", 0)["prompt"])
 
@@ -62,6 +63,22 @@ class TestFormaDelEncargo(unittest.TestCase):
         t = DD.tarea_de(P, "2026-09-17", 0)
         self.assertEqual(t["depende"], [])
         self.assertEqual(t["archivos"], [])
+
+
+class TestNombreVisible(unittest.TestCase):
+    """§2: lo que lee una persona dice «Imaginación», no «Dream»."""
+
+    def test_el_titulo_de_la_ola_dice_imaginacion(self):
+        self.assertEqual(
+            DD.tarea_de(P, "2026-09-17", 0)["ola"],
+            "Ola Imaginación 2026-09-17 · lo que el análisis nocturno encontró",
+        )
+
+    def test_el_resumen_dice_imaginacion_diaria(self):
+        self.assertTrue(D.resumen([{"titulo": "Algo"}]).startswith(
+            "Imaginación diaria leída: encargo 1"))
+        self.assertTrue(D.resumen([]).startswith(
+            "Imaginación diaria leída: nada accionable"))
 
 
 if __name__ == "__main__":
