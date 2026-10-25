@@ -37,6 +37,7 @@ import {
 } from "@/lib/aurora/colchon-voz";
 import { pedirLimiteFondo } from "@/lib/perf/fondo-vivo";
 import { anotarMedida } from "@/lib/aurora/medidas-voz";
+import { identidadVoz } from "@/lib/aurora/identidad-voz";
 
 const BASE = "/api/voz-rt";
 /** (2026-09-24) Lo medido en este equipo: RTF del motor, ritmo del texto, duración típica. */
@@ -47,8 +48,10 @@ const LATIDO_MS = 20_000;
 /** Sin ningún turno durante este tiempo, la conversación se da por acabada sola. */
 const CONVERSACION_INACTIVA_MS = 180_000;
 
-/** Voz por personalidad: fija, para que cada una suene siempre igual. */
-const VOZ_POR_PERSONA: Record<string, string> = {
+/** Voz por personalidad: fija, para que cada una suene siempre igual.
+ *  (Ola 1015V) Uno de los seis mapas que resuelve IDENTIDAD-VOZ: se exporta para
+ *  que el resolutor lo lea sin cortar el ciclo de importación con este módulo. */
+export const VOZ_POR_PERSONA: Record<string, string> = {
     aurora: "F1",
     astraura: "F1",
     astraura_prime: "F1",
@@ -78,7 +81,7 @@ interface Pendiente {
     promesa: Promise<AudioBuffer | null>;
 }
 
-/** La voz elegida para una personalidad (preferencia guardada > mapa > F1). PURA salvo localStorage. */
+/** La voz elegida para una personalidad (preferencia guardada > resolutor > F1). PURA salvo localStorage. */
 export function vozDePersona(personaId?: string): string {
     try {
         const elegida = typeof window !== "undefined" ? window.localStorage.getItem(CLAVE_VOZ) : null;
@@ -86,8 +89,9 @@ export function vozDePersona(personaId?: string): string {
     } catch {
         /* sin almacenamiento */
     }
-    const id = (personaId || "").toLowerCase().replace(/\s+/g, "_");
-    return VOZ_POR_PERSONA[id] ?? "F1";
+    // (Ola 1015V) Resolutor ÚNICO de identidad de voz: aquí la capa «persona» es
+    // VOZ_POR_PERSONA y el defecto sigue siendo la voz F1 de Alex.
+    return identidadVoz({ personaId }, { vozRT: VOZ_POR_PERSONA }).vozRT;
 }
 
 class VozRT {
