@@ -30,4 +30,8 @@ describe("licencia de los motores recomendados", () => {
       }
     }
   });
+
+  it("en lo personal, sin capas, sigue entrando la voz nativa", () => {
+    expect(motorRecomendado("macos", 8, "personal").id).toBe("voicemorphic");
+  });
 });

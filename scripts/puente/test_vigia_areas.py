@@ -44,12 +44,26 @@ class AreasDelVigia(unittest.TestCase):
             self.assertTrue(os.path.isfile(os.path.join(V.RAIZ_REPO, a["catalogo"])), a["catalogo"])
             self.assertEqual(a["licencias_conocidas"]["qwen-research"], "personal")
             self.assertEqual(a["licencias_conocidas"]["apache-2.0"], "libre")
-            self.assertEqual(bool(a["repos_github"]), a["id"] == "motores")
-        motores = areas[-1]
+            self.assertEqual(bool(a["repos_github"]), a["id"] in ("voz", "motores", "habilidades"))
+        motores = next(a for a in areas if a["id"] == "motores")
         self.assertEqual(set(motores["repos_github"]), MOTORES)
         self.assertEqual(motores["alias_github"]["comfyanonymous/ComfyUI"], "Comfy-Org/ComfyUI")
         self.assertTrue({"Qwen", "Tongyi-MAI"} <= set(areas[0]["autores"]) and "text-to-image" in areas[0]["pipeline_tags"])
         self.assertTrue({"unsloth", "city96", "QuantStack"} <= set(areas[0]["cuantizadores"]))
+
+    def test_competencias_registradas_y_sus_copias_vendidas(self):
+        areas = V.cargar_areas(V.RUTA_AREAS, None)
+        habilidades = next(a for a in areas if a["id"] == "habilidades")
+        repos = set(habilidades["repos_github"])
+        self.assertTrue("cathrynlavery/diagram-design" in repos)
+        self.assertTrue({"mattpocock/skills", "heygen-com/hyperframes"} <= repos)
+        for repo in habilidades["alias_github"]:
+            self.assertEqual(habilidades["alias_github"][repo], repo, repo)
+        self.assertTrue(
+            os.path.isfile(os.path.join(V.RAIZ_REPO, "vendor/habilidades/diagram-design/ORIGEN.md")),
+            "falta la copia vendida del skill diagram-design en el repo",
+        )
+        self.assertEqual(habilidades["catalogo"], "src/lib/library/packages.ts")
 
     def test_resuelve_herencias(self):
         imagen, motores = V.validar_areas(con(lambda d: d["areas"][0].pop("cuantizadores")))
