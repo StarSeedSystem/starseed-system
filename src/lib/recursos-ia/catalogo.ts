@@ -4,7 +4,8 @@
  *
  * Tres fuentes, en este orden de precedencia (si un id se repite, gana la primera):
  *   1. Capas de Astraura (`config/capas-astraura.json`): las únicas con SHA y tamaño medido.
- *   2. `MODELOS_EXTRA`: lo que entra por la Biblioteca y no es una capa (TurboFieldfare).
+ *   2. `MODELOS_EXTRA` + `MODELOS_POWERINFER`: lo que entra por la Biblioteca y no es una capa
+ *      (TurboFieldfare, SmallThinker/PowerInfer).
  *   3. Especificaciones locales de `src/ai/astraura/model-requirements.ts` (+ Supertonic 3).
  *
  * CONVENCIÓN `ramMinGb` (todo el catálogo): RAM TOTAL mínima del equipo que procesa, no la que
@@ -18,6 +19,7 @@
 import capasJson from "../../../config/capas-astraura.json";
 import { LOCAL_LLM_SPECS, LOCAL_VOICE_SPECS, type ModelSpec } from "@/ai/astraura/model-requirements";
 import { MODELOS_IMAGEN, type ModeloImagen } from "@/lib/imagenes/modelos";
+import { MODELOS_POWERINFER } from "./extras-powerinfer";
 import type { Acelerador, Arquitectura, Bits, Capacidad, MedioApp, RequisitosModelo } from "./tipos";
 
 /* ───────────────────────────── Bits ───────────────────────────── */
@@ -526,6 +528,7 @@ export function catalogoRecursos(): RequisitosModelo[] {
         const todos = [
             ...modelosDeCapas(capasJson),
             ...MODELOS_EXTRA,
+            ...MODELOS_POWERINFER,
             ...modelosLocales([...LOCAL_LLM_SPECS, ...LOCAL_VOICE_SPECS]),
             SUPERTONIC_3,
             ...modelosDeImagen(MODELOS_IMAGEN),
