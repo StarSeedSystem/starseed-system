@@ -197,6 +197,7 @@ PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>
   </array>
   <key>RunAtLoad</key><true/>
   %(vivo)s
+  %(proceso)s
   <key>ThrottleInterval</key><integer>30</integer>
   <key>WorkingDirectory</key><string>%(raiz)s</string>
   <key>StandardOutPath</key><string>%(log)s</string>
@@ -211,7 +212,9 @@ PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>
 esc = lambda t: t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def instalar(etiqueta, orden, log, siempre):
+def instalar(etiqueta, orden, log, siempre, proceso=None):
+    """Escribe el plist y lo carga. `proceso` (p. ej. "Interactive") es opcional: el resto
+    de servicios no lo lleva y así sus plists no cambian."""
     ruta = os.path.join(AG, etiqueta + ".plist")
     with open(ruta, "w") as f:
         f.write(
@@ -225,6 +228,9 @@ def instalar(etiqueta, orden, log, siempre):
                 "vivo": "<key>KeepAlive</key><true/>"
                 if siempre
                 else "<key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>",
+                "proceso": ("<key>ProcessType</key><string>%s</string>" % esc(proceso))
+                if proceso
+                else "",
             }
         )
     ok = subprocess.run(["plutil", "-lint", ruta], capture_output=True).returncode == 0
@@ -280,6 +286,47 @@ for nombre, fuente in PERIODICOS.items():
     if (SOLO and nombre not in SOLO) or not os.path.exists(fuente):
         continue
     instalar_periodico("com.starseed." + nombre, fuente)
+
+# (2026-10-25, SGO1024E) Chatterbox TTS (VOZ1024C) en 127.0.0.1:4505. El MISMO patrón que
+# los demás servicios de voz: lanzador-tcc.py como padre, ruta absoluta del intérprete y
+# ProcessType Interactive. SOLO se instala si el paquete «chatterbox-tts» está en ese
+# intérprete (la comprobación usa find_spec: no importar chatterbox, que cargaría torch);
+# si no, no se crea el servicio y lo dice. Nunca descarga pesos: servidor.py fuerza
+# HF_HUB_OFFLINE=1 (ver native/astraura-voice/chatterbox/README.md).
+CHATTERBOX = os.path.join(RAIZ, "native", "astraura-voice", "chatterbox", "servidor.py")
+
+
+def chatterbox_instalado(interprete):
+    """¿Está el paquete chatterbox en ese intérprete? Sin importarlo (torch pesa GBs)."""
+    try:
+        r = subprocess.run(
+            [
+                interprete,
+                "-c",
+                "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('chatterbox') else 1)",
+            ],
+            capture_output=True,
+        )
+    except OSError:
+        return False
+    return r.returncode == 0
+
+
+if os.path.exists(CHATTERBOX) and (not SOLO or "chatterbox" in SOLO):
+    if chatterbox_instalado(PY3):
+        instalar(
+            "com.starseed.chatterbox",
+            LANZ + ["--", PY3, "-u", CHATTERBOX],
+            "/tmp/starseed-chatterbox.log",
+            True,
+            "Interactive",
+        )
+    else:
+        print(
+            "  chatterbox  NO instalado: falta el paquete «chatterbox-tts» en %s"
+            % PY3
+        )
+
 if SOLO:
     sys.exit(0)
 
