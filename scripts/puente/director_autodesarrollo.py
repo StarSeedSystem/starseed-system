@@ -247,7 +247,7 @@ def _avisar_real(texto, telegram):
 def main(argv=None):
     ap = argparse.ArgumentParser(); ap.add_argument("orden", choices=["ciclo"]); ap.add_argument("--seco", action="store_true"); ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv); r = ciclo(seco=a.seco, avisar=_avisar_real, consejo=_consejo_jev)
-    print(json.dumps(r, ensure_ascii=False, indent=1) if a.json else f"{r['motivo_toca']} · {r['autodesarrolladas']} tarea(s) · {r['esperando_aprobacion']} esperando")
+    print(json.dumps(r, ensure_ascii=False, indent=1) if a.json else f"{r['motivo_toca']} · {r.get('autodesarrolladas', 0)} tarea(s) · {r.get('esperando_aprobacion', 0)} esperando")
 
 
 if __name__ == "__main__":
