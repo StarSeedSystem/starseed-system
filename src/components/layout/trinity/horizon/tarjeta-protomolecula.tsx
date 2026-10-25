@@ -31,10 +31,11 @@ export function TarjetaProtomolecula({ ir }: { ir: (href: string) => void }) {
       data-testid="tarjeta-protomolecula"
       className="relative overflow-hidden rounded-3xl border border-emerald-400/30 bg-gradient-to-br from-emerald-500/[0.14] via-black/30 to-teal-900/25 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_30px_-12px_rgba(16,185,129,0.35)]"
     >
-      <div className="flex items-center gap-3">
-        <VistaPreviaOrbe estilo={orbe.estilo} activa={orbe.activada} className="h-16 w-16" />
+      <div className="flex items-center gap-2 min-[400px]:gap-3">
+        <VistaPreviaOrbe estilo={orbe.estilo} activa={orbe.activada} className="h-12 w-12 shrink-0 min-[400px]:h-16 min-[400px]:w-16" />
         <div className="min-w-0 flex-1">
-          <h3 id={idTitulo} className="font-headline text-lg font-semibold uppercase leading-tight tracking-widest text-emerald-50">
+          {/* <400 px: a 360 px «PROTOMOLÉCULA» no cabía y se partía a mitad de palabra. */}
+          <h3 id={idTitulo} className="font-headline text-[15px] font-semibold uppercase leading-tight tracking-wide text-emerald-50 min-[400px]:text-lg min-[400px]:tracking-widest">
             Protomolécula
           </h3>
           <p className="mt-0.5 text-xs leading-snug text-emerald-100/65">
@@ -76,7 +77,7 @@ export function TarjetaProtomolecula({ ir }: { ir: (href: string) => void }) {
 
           <fieldset className="min-w-0">
             <legend className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-emerald-100/55">Estilo</legend>
-            <div role="radiogroup" aria-label="Estilo de la orbe" className="grid grid-cols-3 gap-2">
+            <div role="radiogroup" aria-label="Estilo de la orbe" className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-3">
               {ESTILOS_VALIDOS.map((e) => {
                 const p = ESTILOS[e];
                 const elegido = orbe.estilo === e;
@@ -89,15 +90,18 @@ export function TarjetaProtomolecula({ ir }: { ir: (href: string) => void }) {
                     onClick={() => orbe.elegirEstilo(e)}
                     title={`${p.secuencia.length} formas · ${p.particulas} puntos · cambia de forma cada ${p.permanenciaS} s`}
                     className={cn(
-                      "flex min-h-[92px] min-w-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border px-1 py-2 text-center outline-none transition-[background-color,border-color,transform] duration-200 focus-visible:ring-2 focus-visible:ring-lime-300/70 motion-safe:active:scale-[0.97]",
+                      // <400 px: filas (icono · nombre · ritmo); en tres columnas «Experimental» se partía.
+                      "flex min-h-[56px] min-w-0 cursor-pointer flex-row items-center justify-start gap-3 rounded-2xl border px-3 py-2 text-left outline-none",
+                      "min-[400px]:min-h-[92px] min-[400px]:flex-col min-[400px]:justify-center min-[400px]:gap-1 min-[400px]:px-1 min-[400px]:text-center",
+                      "transition-[background-color,border-color,transform] duration-200 focus-visible:ring-2 focus-visible:ring-lime-300/70 motion-safe:active:scale-[0.97]",
                       elegido
                         ? "border-lime-300/70 bg-emerald-400/20 shadow-[0_0_18px_-4px_rgba(57,255,20,0.45)]"
                         : "border-white/10 bg-white/[0.03] hover:border-emerald-300/40 hover:bg-emerald-400/10",
                     )}
                   >
-                    <VistaPreviaOrbe estilo={e} activa animada={false} className="h-10 w-10" />
-                    <span className={cn("text-xs font-medium", elegido ? "text-white" : "text-emerald-50/85")}>{NOMBRE_ESTILO[e]}</span>
-                    <span className="text-[10px] leading-tight text-emerald-100/55">
+                    <VistaPreviaOrbe estilo={e} activa animada={false} className="h-9 w-9 shrink-0 min-[400px]:h-10 min-[400px]:w-10" />
+                    <span className={cn("text-sm font-medium min-[400px]:text-xs", elegido ? "text-white" : "text-emerald-50/85")}>{NOMBRE_ESTILO[e]}</span>
+                    <span className="ml-auto text-[11px] leading-tight text-emerald-100/55 min-[400px]:ml-0 min-[400px]:text-[10px]">
                       {p.secuencia.length} formas · {p.permanenciaS} s
                     </span>
                   </button>

@@ -17,6 +17,14 @@ const empujar = vi.fn();
 vi.mock("next/navigation", () => ({ usePathname: () => "/escritorios", useRouter: () => ({ push: empujar }) }));
 
 import { OrbeProtomolecula } from "../orbe-protomolecula";
+import { PerimeterProvider, usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
+import { useEffect } from "react";
+
+function ConCortina({ borde }: { borde: PerimeterEdge }) {
+  const { setActiveEdge } = usePerimeter();
+  useEffect(() => { setActiveEdge(borde); }, [borde, setActiveEdge]);
+  return null;
+}
 
 const orbe = () => screen.getByRole("button", { name: /Protomolécula: orbe de creación/ });
 
@@ -35,6 +43,16 @@ describe("Orbe 4D de la Protomolécula", () => {
     window.localStorage.setItem(PROTO_ORB_POS_KEY, JSON.stringify({ x: 400, y: 300 }));
   });
   afterEach(() => { cleanup(); window.localStorage.clear(); });
+
+  it("con una cortina Trinity abierta pasa detrás de ella (z 80) y vuelve delante al cerrarla", async () => {
+    const { rerender } = render(<PerimeterProvider><ConCortina borde="horizon" /><OrbeProtomolecula /></PerimeterProvider>);
+    await waitFor(() => expect(crear).toHaveBeenCalled());
+    const caja = screen.getByTestId("protomolecula-orbe");
+    expect(caja.className).toContain("z-[80]");
+    expect(caja.dataset.tapada).toBe("si");
+    rerender(<PerimeterProvider><ConCortina borde={null} /><OrbeProtomolecula /></PerimeterProvider>);
+    await waitFor(() => expect(screen.getByTestId("protomolecula-orbe").className).toContain("z-[1000]"));
+  });
 
   it("apagada no pinta nada", () => {
     window.localStorage.setItem(PROTO_ORB_FAB_KEY, "false");

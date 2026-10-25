@@ -50,6 +50,10 @@ export function PanelOrbe(p: PanelOrbeProps) {
         "animate-in fade-in-0 zoom-in-95 duration-200",
         p.lado.horizontal === "izquierda" ? "right-full mr-3" : "left-full ml-3",
         p.lado.vertical === "arriba" ? "bottom-0" : "top-0",
+        // <640 px: junto a la orbe no cabe (a 360 px se salía 61 px por la derecha). Hoja inferior fija,
+        // dentro de la pantalla, con su propio desplazamiento.
+        "max-sm:fixed max-sm:inset-x-3 max-sm:top-auto max-sm:bottom-[max(0.75rem,env(safe-area-inset-bottom))]",
+        "max-sm:m-0 max-sm:w-auto max-sm:max-h-[72dvh] max-sm:overflow-y-auto",
       )}
       onPointerDown={(e) => e.stopPropagation()}
     >

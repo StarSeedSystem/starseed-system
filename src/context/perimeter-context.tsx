@@ -29,3 +29,9 @@ export const usePerimeter = () => {
     }
     return context;
 };
+
+/**
+ * Lo mismo que `usePerimeter`, pero sin lanzar fuera del proveedor: para piezas flotantes (la orbe de la
+ * Protomolécula) que también se montan sueltas en pruebas o en páginas sin Trinity.
+ */
+export const usePerimeterOpcional = (): PerimeterContextType | null => useContext(PerimeterContext) ?? null;

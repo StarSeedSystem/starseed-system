@@ -41,6 +41,7 @@ import {
 } from "@/lib/protomolecula/orbe4d/eventos";
 import type { MotorOrbe } from "@/lib/protomolecula/orbe4d/motor";
 import { PanelOrbe } from "./panel-orbe";
+import { usePerimeterOpcional } from "@/context/perimeter-context";
 
 // El tamaño no es fijo (PRO1025M): `medidasOrbe(ancho)` da el dibujo, la diana táctil (≥ 44 px, puede ser mayor
 // que el dibujo) y el lienzo, que es el doble del dibujo: el halo y la flor de la vida respiran fuera del círculo.
@@ -68,6 +69,8 @@ export function OrbeProtomolecula() {
   const [activada, setActivada] = useState(false);
   const [pos, setPos] = useState<Punto>({ x: 0, y: 0 });
   const [panel, setPanel] = useState<{ abierto: boolean; molecula?: string; completo?: boolean }>({ abierto: false });
+  const perimetro = usePerimeterOpcional();
+  const tapada = Boolean(perimetro?.activeEdge);
   const [arrastrando, setArrastrando] = useState(false);
   const [sobreZona, setSobreZona] = useState(false);
   const [estilo, setEstilo] = useState<Estilo>("expresiva");
@@ -398,7 +401,13 @@ export function OrbeProtomolecula() {
       )}
 
       {activada && (
-        <div data-testid="protomolecula-orbe" className="fixed z-[1000]" style={{ left: pos.x, top: pos.y, width: medidas.diana, height: medidas.diana }}>
+        <div
+          data-testid="protomolecula-orbe"
+          data-tapada={tapada ? "si" : undefined}
+          // Con una cortina Trinity abierta, la orbe pasa detrás de ella y de su velo (z 89–90): antes quedaba
+          // encima del título del Centro de Creación. La cortina Horizon la enseña en su propia tarjeta.
+          className={cn("fixed", tapada ? "z-[80]" : "z-[1000]")}
+          style={{ left: pos.x, top: pos.y, width: medidas.diana, height: medidas.diana }}>
           {sinWebGL ? (
             <div
               aria-hidden="true"
