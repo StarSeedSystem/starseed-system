@@ -40,6 +40,7 @@ import {
 } from "../apps/launcher-types";
 import { resolveApps, APP_CATALOG, APP_COLLECTIONS } from "../apps/app-catalog";
 import { useAppLauncher } from "../apps/app-launch";
+import { decidirApertura, ETIQUETA_MODO, ofertaDeCapacidades, type FuenteApertura } from "../apps/apertura";
 import { useLienzoE, px, type LienzoE } from "./paquete-e/lienzo";
 import { BotonE, MenuE, PestanasE, RaizE, VacioE, tintaE, type OpcionMenuE } from "./paquete-e/piezas";
 import { buscarApps, moverEnRejilla, nombreCategoria, ordenarParaLanzador, rejillaPara, useLanzadorLocal } from "./paquete-e/lanzador";
@@ -473,6 +474,20 @@ export function AppLauncherWidget({ widget }: { widget: DashboardWidget }) {
     const coleccion = useMemo(() => resolveApps(ajustes.appIds, ajustes.collection), [ajustes.appIds, ajustes.collection]);
     const { launch, windowEl } = useAppLauncher();
     const local = useLanzadorLocal();
+    // Oferta de ESTA neurona (§3, apps-en-la-malla.md): solo lo que el navegador mide
+    // (cota de deviceMemory, WebGPU, núcleos). Sin medida no se juzga: se abre como hoy.
+    const fuentes = useMemo<FuenteApertura>(() => ({
+        ofertaLocal: () => {
+            if (typeof navigator === "undefined") return undefined;
+            const nav = navigator as Navigator & { deviceMemory?: number };
+            const memoryGb = typeof nav.deviceMemory === "number" && nav.deviceMemory > 0 ? nav.deviceMemory : undefined;
+            return ofertaDeCapacidades({
+                memoryGb,
+                nucleos: typeof nav.hardwareConcurrency === "number" ? nav.hardwareConcurrency : undefined,
+                webgpu: "gpu" in nav,
+            });
+        },
+    }), []);
     const [q, setQ] = useState("");
     const [vista, setVista] = useState<Vista>("inicio");
     const [cajon, setCajon] = useState(false);
@@ -509,6 +524,9 @@ export function AppLauncherWidget({ widget }: { widget: DashboardWidget }) {
 
     const opcionesMenu = (app: StarseedApp): OpcionMenuE[] => {
         const fijada = local.fijadas.includes(app.id);
+        // Decisión del §5 (modos-app.ts): si la app declara modos de malla y la oferta de esta
+        // neurona no le llega en local, «Abrir en…» lleva el destino y el motivo de la decisión.
+        const decision = decidirApertura(app, fuentes);
         const modos = app.open.allowed.map<OpcionMenuE>((m) => ({
             id: `modo-${m}`,
             etiqueta: `Abrir: ${OPEN_MODE_LABEL[m]}`,
@@ -519,6 +537,9 @@ export function AppLauncherWidget({ widget }: { widget: DashboardWidget }) {
             { id: "abrir", etiqueta: "Abrir", icono: AppWindow, alElegir: () => abrir(app) },
             { id: "fijar", etiqueta: fijada ? "Quitar de fijadas" : "Fijar arriba", icono: fijada ? PinOff : Pin, alElegir: () => local.fijar(app.id) },
             ...modos.filter((o) => o.id !== `modo-${app.open.primary}` || app.open.allowed.length > 1),
+            ...(decision && decision.modo !== "local"
+                ? [{ id: "en-la-malla", etiqueta: `Abrir en… ${ETIQUETA_MODO[decision.modo]} · ${decision.destino}`, icono: Route, alElegir: () => abrir(app) }]
+                : []),
             ...(local.recientes.some((r) => r.id === app.id) ? [{ id: "olvidar", etiqueta: "Quitar de recientes", icono: History, alElegir: () => local.olvidarReciente(app.id) }] : []),
         ];
     };

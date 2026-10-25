@@ -11,19 +11,20 @@
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
 // ════════════════════════════════════════════════════════════════
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Loader2, Hammer } from "lucide-react";
 import { OSWindow } from "./os-window";
 import type { OpenMode, StarseedApp } from "./launcher-types";
+import { avisoDeApertura, decidirApertura, type FuenteApertura } from "./apertura";
 
 const EMBED_TIMEOUT_MS = 6000;
 
-type ActiveWindow = { app: StarseedApp; soon: boolean };
+type ActiveWindow = { app: StarseedApp; soon: boolean; motivo?: string };
 
 // ── AppWindow ────────────────────────────────────────────────────
-function AppWindow({ app, soon, onClose }: { app: StarseedApp; soon: boolean; onClose: () => void }) {
+function AppWindow({ app, soon, motivo, onClose }: { app: StarseedApp; soon: boolean; motivo?: string; onClose: () => void }) {
     const [loaded, setLoaded] = useState(false);
     const [stuck, setStuck] = useState(false);
     const href = app.open.href;
@@ -41,7 +42,7 @@ function AppWindow({ app, soon, onClose }: { app: StarseedApp; soon: boolean; on
     return (
         <OSWindow
             title={app.name}
-            subtitle={soon ? "Módulo nativo · próximamente" : "Ventana StarSeed"}
+            subtitle={soon ? "Módulo nativo · próximamente" : motivo ?? "Ventana StarSeed"}
             icon={app.icon}
             accent={app.accent}
             onClose={onClose}
@@ -126,8 +127,10 @@ export interface UseAppLauncher {
     windowEl: React.ReactNode;
 }
 
-export function useAppLauncher(): UseAppLauncher {
+export function useAppLauncher(fuentes?: FuenteApertura): UseAppLauncher {
     const router = useRouter();
+    const fuentesRef = useRef(fuentes);
+    fuentesRef.current = fuentes;
     const [mounted, setMounted] = useState(false);
     const [active, setActive] = useState<ActiveWindow | null>(null);
 
@@ -137,6 +140,9 @@ export function useAppLauncher(): UseAppLauncher {
         const { open, status } = app;
         if (status === "soon") { setActive({ app, soon: true }); return; }
 
+        // Aplicación del §5 (apps-en-la-malla.md): la regla pura de modos-app.ts elige el modo
+        // y su motivo; el suelo nunca cierra la app, se abre como se pueda y el aviso se ve.
+        const motivo = avisoDeApertura(decidirApertura(app, fuentesRef.current));
         const mode: OpenMode = modeOverride ?? open.primary;
 
         switch (mode) {
@@ -159,7 +165,7 @@ export function useAppLauncher(): UseAppLauncher {
             case "embed":
             case "window":
             default:
-                if (open.href) setActive({ app, soon: false });
+                if (open.href) setActive({ app, soon: false, motivo });
                 else if (open.route) router.push(open.route);
                 break;
         }
@@ -167,7 +173,7 @@ export function useAppLauncher(): UseAppLauncher {
 
     const windowEl = mounted && active
         ? createPortal(
-            <AppWindow app={active.app} soon={active.soon} onClose={() => setActive(null)} />,
+            <AppWindow app={active.app} soon={active.soon} motivo={active.motivo} onClose={() => setActive(null)} />,
             document.body
         )
         : null;
