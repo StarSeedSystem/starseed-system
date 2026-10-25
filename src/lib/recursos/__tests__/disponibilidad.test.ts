@@ -102,6 +102,10 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+
+    it("anuncia el no tener nada: cero piezas", () => {
+      expect(anuncio("nodo", "e", 6, [], 0)).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
