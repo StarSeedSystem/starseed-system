@@ -4208,6 +4208,14 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
+    # (2026-10-21, TSC1021A) El diff decide si tsc puede cambiar algo: VAR1021A pasó 49 min
+    # en «tsc» haciendo cola con un diff que solo tocaba .py de scripts/puente/, y ese tsc no
+    # podía dar rojo — cada worktree se pone al día con main y main está en verde.
+    if os.path.exists(os.path.join(cwd, "tsconfig.json")):
+        archivos = archivos_cambiados_tsc(cwd)
+        if archivos is not None and not diff_necesita_tsc(archivos):
+            nota_tsc_log(log, "tsc no hace falta: el diff no toca TypeScript")
+            return 0, []
     # TRA1012Bc-d1: en la Mac el tsc completo pesa ~3,5 GB; si el A1 responde, la puerta se hace allí.
     remoto = tsc_en_a1(cwd, log)
     if remoto is not None:
@@ -4255,6 +4263,73 @@ def tsc_sin_terminar(rc, salida, errores):
     if "Abort trap" in s or "Killed" in s:
         return "abortado"
     return "salió con rc=%s sin listar errores" % rc
+
+
+#: (2026-10-21, TSC1021A) Lo que tsc puede mirar: extensiones compilables, las configs de
+#: compilación y todo el árbol bajo src/ y types/.
+EXT_TSC = {".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"}
+NOMBRES_TSC = {"package.json", "package-lock.json", "next-env.d.ts"}
+
+
+def diff_necesita_tsc(archivos):
+    """PURA · (2026-10-21, TSC1021A): True si el diff toca algo que tsc puede compilar, o con duda.
+
+    Caso medido (Mac de 8 GB, swap al 94 %, presión 2): tres tareas esperaban 5, 30 y 49 min el
+    turno de un tsc completo y en 3 h no se integró nada; una (VAR1021A) solo tocaba .py de
+    scripts/puente/, y ese tsc no podía dar rojo — cada worktree se pone al día con main y main
+    está en verde. Ante la menor duda (git falló, lista vacía) devuelve True: se prefiere un
+    tsc de más a integrar algo sin compilar."""
+    lista = [("" if a is None else str(a)).strip().replace("\\", "/") for a in (archivos or [])]
+    lista = [a for a in lista if a]
+    if not lista:
+        return True
+    for ruta in lista:
+        b = ruta.rsplit("/", 1)[-1].lower()
+        partes = ruta.rstrip("/").lower().split("/")
+        if "src" in partes or "types" in partes:
+            return True
+        if b in NOMBRES_TSC or (b.startswith("tsconfig") and b.endswith(".json")):
+            return True
+        if os.path.splitext(b)[1] in EXT_TSC:
+            return True
+    return False
+
+
+def archivos_cambiados_tsc(cwd):
+    """El diff de la tarea (commits sobre main + árbol de trabajo + sin seguimiento), o None
+    ante la menor duda (git falla, lista vacía): con duda se corre tsc como hoy (TSC1021A).
+
+    Se miran también los archivos sin seguimiento porque la puerta tsc va ANTES del commit:
+    un .ts nuevo que el agente acaba de escribir no sale en `git diff` y, si el diff trae
+    además un .py, el salto se lo comería sin compilar (ver `_tocados_por_la_tarea`)."""
+    vistos = []
+    for orden in (
+        "git diff --name-only main...HEAD",
+        "git diff --name-only main",
+        "git ls-files --others --exclude-standard",
+    ):
+        try:
+            rc, salida = sh(orden, cwd=cwd, timeout=60)
+        except Exception:  # noqa: BLE001 — sin diff claro, tsc como hoy
+            return None
+        if rc != 0:
+            return None
+        vistos += [l.strip() for l in str(salida or "").splitlines() if l.strip()]
+    nombres = [n for n in vistos if n]
+    if not nombres:
+        return None
+    return nombres
+
+
+def nota_tsc_log(log, texto):
+    """Anota la decisión de la puerta en el log de la tarea (aquí `log` es la ruta del archivo)."""
+    if not log:
+        return
+    try:
+        with open(log, "a", encoding="utf-8") as f:
+            f.write("\n$ %s\n" % texto)
+    except OSError:
+        pass
 
 
 def _colas_vivas_para_cableado():
