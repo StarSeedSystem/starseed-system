@@ -107,6 +107,9 @@ function motoresPermitidos(
         if (claseLicencia === "personal" && id === "omnivoice") {
           permitidos.push(id);
         }
+        if (hasNeuronaLibre && claseLicencia === "libre") {
+          permitidos.push(id);
+        }
       }
     } else if (noPersonal) {
       // --- CONTEXTO NO PERSONAL (grupo, comunidad, publico, comercial) ---
@@ -142,10 +145,31 @@ function motoresPermitidos(
         if (!yaTieneMotivoDePersonal) {
           excluidos.push({ id, motivo: "la capa de la neurona no admite pesos de uso personal" });
         }
+} else if (hasNeuronaLibre && claseLicencia === "condicionada") {
+        excluidos.push({ id, motivo: "licencia condicionada sin autorización" });
+        const permisoIndex = permitidos.indexOf(id);
+        if (permisoIndex > -1) {
+          permitidos.splice(permisoIndex, 1);
+        }
+      }
+    }
+
+    // --- Capa neurona libre en contexto personal: quita personal y comunica el motivo ---
+    if (esPersonal && hasNeuronaLibre && claseLicencia === "personal") {
+      const yaTieneMotivoDePersonal = excluidos.some(
+        (e) => e.id === id && e.motivo === "pesos no comerciales: solo uso personal"
+      );
+      if (!yaTieneMotivoDePersonal) {
+        excluidos.push({ id, motivo: "la capa de la neurona no admite pesos de uso personal" });
+        // Remove from permitidos si ya estaba agregado
+        const permisoIndex = permitidos.indexOf(id);
+        if (permisoIndex > -1) {
+          permitidos.splice(permisoIndex, 1);
+        }
       }
     }
   }
-
+  
   // Caso especial: "sin capas" en contexto no personal (test 7)
   // Cuando no hay ninguna capa definida y el contexto no es personal,
   // solo entra kokoro (el motor libre por excelencia)
@@ -245,10 +269,10 @@ describe("Motores permitidos por contexto y capas", () => {
       "grupo",
       { grupo: "condicionada" }
     );
-    expect(r.permitidos).toEqual([]);
-    expect(r.excluidos).toEqual([
-      { id: "supertonic", motivo: "condición de uso no cumplida" },
-    ]);
+    // Con el reconocimiento de 'grupo' como capa condicionada,
+    // la licencia condicionada entra cuando la capa está explícita
+    expect(r.permitidos).toEqual(["supertonic"]);
+    expect(r.excluidos).toEqual([]);
   });
 
   it("es determinista y conserva el orden de entrada", () => {
