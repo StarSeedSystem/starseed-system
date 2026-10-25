@@ -69,6 +69,9 @@ import { REPO_DECISIONES } from "./fuentes-decision";
 // para que /api/library/actualizaciones pueda comprobar su upstream.
 import { FICHAS_IA_LOCALES } from "./fuentes-ia-locales";
 import { FICHAS_REPOS_OS } from "./repos-os";
+// Ola 1020 (1.ª tanda): las 14 repos externas como publicaciones
+// autoactualizables (fichas comingSoon con externalUrl de GitHub).
+import { REPO_EXTERNOS_1020 } from "./repos-externos-1020";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -2226,7 +2229,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO, REPO_EXTERNOS_1020];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
