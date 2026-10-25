@@ -270,6 +270,43 @@ def instalar_periodico(etiqueta, fuente):
                                      "cargado" if r.returncode == 0 else (r.stderr.strip()[:50] or "error")))
 
 
+# ── Chatterbox (2026-10-25 · SGO1024E) ──────────────────────────────────────
+# Voz de estudio local (127.0.0.1:4505): el servidor ya vive en
+# native/astraura-voice/chatterbox/servidor.py (VOZ1024C); esto lo arranca en la Mac.
+# Mismo patrón que los demás servicios de voz: lanzador-tcc.py como padre (TCC de
+# ~/Documents), ruta absoluta del intérprete (launchd NO usa el PATH) y ProcessType
+# Interactive (Ola 255: Background estrangulaba la inferencia). Dos reglas propias:
+#   · SOLO si el paquete chatterbox-tts está en el intérprete del servicio: si no,
+#     no se instala y lo dice — un servicio sin motor sería un 503 eterno que launchd
+#     reviviría sin fin.
+#   · Nunca descarga pesos: servidor.py fuerza HF_HUB_OFFLINE=1.
+CHATTERBOX_SERVIDOR = os.path.join(RAIZ, "native", "astraura-voice", "chatterbox", "servidor.py")
+CHATTERBOX_PLANTILLA = os.path.join(
+    RAIZ, "native", "astraura-voice", "chatterbox", "com.starseed.chatterbox.plist")
+
+# Se corre CON EL INTÉRPRETE del servicio (el paquete va en ese python, no en el python
+# que lanza este guion) y es la MISMA decisión que hace servidor.py en vivo: sin importar
+# torch (find_spec es instantáneo) y descartando el falso paquete de espacio de nombres
+# de esta misma carpeta. No importa servidor.py arranca nada: tiene guardia de main.
+CHATTERBOX_COMPROBACION = """import importlib.util as u, sys
+espec = u.spec_from_file_location("servidor_chatterbox", sys.argv[1])
+modulo = u.module_from_spec(espec)
+espec.loader.exec_module(modulo)
+print(modulo.MotorChatterbox().instalado()[0])
+"""
+
+
+def chatterbox_esta(interprete):
+    """¿Está el paquete chatterbox-tts en el intérprete que correrá el servicio?"""
+    try:
+        r = subprocess.run(
+            [interprete, "-c", CHATTERBOX_COMPROBACION, CHATTERBOX_SERVIDOR],
+            cwd=RAIZ, capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return r.returncode == 0 and r.stdout.strip() == "True"
+
+
 # Reinstalar TODOS reinicia Genesis y los directores; con STARSEED_SOLO se toca solo lo nombrado.
 SOLO = {n.strip() for n in os.environ.get("STARSEED_SOLO", "").split(",") if n.strip()}
 for nombre, (orden, log, siempre) in SERVICIOS.items():
@@ -280,6 +317,42 @@ for nombre, fuente in PERIODICOS.items():
     if (SOLO and nombre not in SOLO) or not os.path.exists(fuente):
         continue
     instalar_periodico("com.starseed." + nombre, fuente)
+
+
+def plist_chatterbox(interprete):
+    """Texto del plist de com.starseed.chatterbox adaptado a esta instalación."""
+    with open(CHATTERBOX_PLANTILLA, encoding="utf-8") as f:
+        return adaptar_plist(f.read()).replace("__INTERPRETE__", interprete)
+
+
+def instalar_chatterbox(disponible=None):
+    """Instala el servicio de launchd de Chatterbox SOLO si el paquete está.
+
+    Devuelve "" si lo instaló (y lo carga con launchctl) o el motivo por el que no.
+    `disponible` se inyecta en las pruebas: ni paquete real ni launchctl hacen falta.
+    """
+    if not (os.path.exists(CHATTERBOX_SERVIDOR) and os.path.exists(CHATTERBOX_PLANTILLA)):
+        return "falta el servidor de chatterbox en native/astraura-voice/chatterbox"
+    if disponible is None:
+        disponible = chatterbox_esta(PY3)
+    if not disponible:
+        return ("el paquete chatterbox-tts no está instalado en %s "
+                "(pip install chatterbox-tts: el servicio nunca descarga pesos)" % PY3)
+    ruta = os.path.join(AG, "com.starseed.chatterbox.plist")
+    with open(ruta, "w", encoding="utf-8") as f:
+        f.write(plist_chatterbox(PY3))
+    ok = subprocess.run(["plutil", "-lint", ruta], capture_output=True).returncode == 0
+    subprocess.run(["launchctl", "unload", ruta], capture_output=True)
+    r = subprocess.run(["launchctl", "load", ruta], capture_output=True, text=True)
+    print("  %-10s plist %s · %s" % ("chatterbox", "ok" if ok else "INVÁLIDO",
+                                     "cargado" if r.returncode == 0 else (r.stderr.strip()[:50] or "error")))
+    return ""
+
+
+if not SOLO or "chatterbox" in SOLO:
+    motivo = instalar_chatterbox()
+    if motivo:
+        print("  %-10s NO instalado · %s" % ("chatterbox", motivo))
 if SOLO:
     sys.exit(0)
 

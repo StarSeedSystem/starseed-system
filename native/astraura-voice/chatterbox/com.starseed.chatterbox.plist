@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  StarSeed OS — Servicio de launchd de Chatterbox TTS · plantilla (macOS)
+
+  Agente de usuario (LaunchAgent) que arranca native/astraura-voice/chatterbox/servidor.py
+  (127.0.0.1:4505) al iniciar sesión y lo mantiene vivo. Lo instala
+  scripts/puente/instalar-servicios.py (función instalar_chatterbox), que sustituye
+  __INTERPRETE__ por la ruta absoluta real del intérprete y las rutas de la Mac de Alex por
+  las de la instalación, y copia el resultado a ~/Library/LaunchAgents/com.starseed.chatterbox.plist.
+
+  DOS REGLAS PROPIAS (2026-10-25, SGO1024E):
+  · Sólo se instala si el paquete chatterbox-tts está en el intérprete del servicio:
+    el propio servidor.py lo comprueba sin importar torch. Si no está, no hay plist
+    (un servicio sin motor sería un 503 eterno que launchd reviviría sin fin).
+  · El servicio nunca descarga pesos: servidor.py fuerza HF_HUB_OFFLINE=1; los pesos
+    (≈3 GB) se traen a mano, con permiso y tras comprobar el espacio (ver README.md).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.starseed.chatterbox</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- lanzador-tcc.py como PADRE: el «Acceso total al disco» se concede por binario y
+             lo tiene /opt/homebrew/bin/python3, no un intérprete suelto. El servicio hereda
+             leyendo el repo desde un hijo de python3 (ver cabecera de lanzador-tcc.py). -->
+        <string>/Users/alex/Documents/starseed-os-main/scripts/puente/lanzador-tcc.py</string>
+        <string>--</string>
+        <string>__INTERPRETE__</string>
+        <!-- -u: sin él Python bufferea stdout y el log queda en 0 bytes aparentando colgado. -->
+        <string>-u</string>
+        <string>/Users/alex/Documents/starseed-os-main/native/astraura-voice/chatterbox/servidor.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/alex/Documents/starseed-os-main</string>
+
+    <!-- Arranca al cargar (login) y se re-lanza si muere. El plist sólo existe cuando el
+         paquete chatterbox-tts está instalado, así que KeepAlive no revive un 503 eterno. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Reinicio no demasiado agresivo si entra en bucle de fallo. -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/alex/.starseed/chatterbox.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/alex/.starseed/chatterbox.log</string>
+
+    <!-- PATH para el agente y sus hijos: launchd NO hereda el PATH del usuario (Ola 263).
+         Sin él el servicio no encontraría herramientas de Homebrew. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>STARSEED_ROOT</key>
+        <string>/Users/alex/Documents/starseed-os-main</string>
+    </dict>
+
+    <!-- Prioridad del proceso (Ola 255): ProcessType "Background" estrangula CPU y E/S de
+         fondo y la inferencia se arrastra (una transcripción de 3 s tardaba 120 s).
+         "Interactive" restaura CPU e I/O normales, igual que los demás servicios de voz. -->
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>LowPriorityIO</key>
+    <false/>
+    <key>Nice</key>
+    <integer>0</integer>
+</dict>
+</plist>
