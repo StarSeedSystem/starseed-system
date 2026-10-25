@@ -143,6 +143,27 @@ describe("inventarioDesde · Mac de Alex con servidor local y SSD externo USB", 
         expect(esta.almacenes.find((a) => a.id === `navegador:${ID}`)?.tipo).toBe("navegador");
     });
 
+    it("con la máquina detectada, las carpetas declaradas y el navegador siguen ahí", () => {
+        const carpeta: MedioAlmacen = {
+            id: "carpeta:c1",
+            tipo: "neurona-local",
+            etiqueta: "Carpeta «Modelos»",
+            neuronaId: ID,
+            via: "local",
+            persistente: true,
+            privado: true,
+            disponible: true,
+            fuente: "declarado",
+        };
+        const base = desdeNavegador();
+        const out = inventarioDesde({ estaNeurona: { ...base, almacenes: [...base.almacenes, carpeta] }, maquina: MAC_ALEX, ahora });
+        const almacenes = out.neuronas[0].almacenes;
+        expect(almacenes.find((a) => a.id === "carpeta:c1")).toMatchObject({ tipo: "neurona-local", fuente: "declarado", disponible: true });
+        expect(almacenes.find((a) => a.id === `navegador:${ID}`)?.tipo).toBe("navegador");
+        expect(almacenes.find((a) => a.id === `${ID}:interno`)).toMatchObject({ tipo: "neurona-local", fuente: "detectado" });
+        expect(almacenes.find((a) => a.id === `${ID}:ext:SSD Externo`)).toMatchObject({ tipo: "disco-externo", fuente: "detectado" });
+    });
+
     it("avisos honestos: los de la máquina, y ninguno de «el navegador no ve los discos»", () => {
         expect(inv.avisos).toContain(MAC_ALEX.avisos[0]);
         expect(inv.avisos).not.toContain(AVISO_DISCOS);
@@ -160,6 +181,20 @@ describe("inventarioDesde · sin servidor local", () => {
         expect(esta.almacenes.map((a) => a.tipo)).toEqual(["navegador"]);
         expect(esta.almacenes[0]).toMatchObject({ fuente: "estimado", totalGb: 9.3, libreGb: 8.4 });
         expect(inv.avisos).toEqual(expect.arrayContaining([AVISO_DISCOS, AVISO_RAM_NAVEGADOR]));
+    });
+});
+
+describe("inventarioDesde · servidor local sin volúmenes ni NPU", () => {
+    it("no inventa discos ni NPU, conserva el navegador y lo avisa", () => {
+        const inv = inventarioDesde({
+            estaNeurona: desdeNavegador(),
+            maquina: { ...MAC_ALEX, volumenes: [], npu: undefined, avisos: ["sin nada"] },
+            ahora,
+        });
+        const esta = inv.neuronas[0];
+        expect(esta.procesadores.map((p) => p.tipo).sort()).toEqual(["cpu", "gpu", "webgpu"]);
+        expect(esta.almacenes.map((a) => a.tipo)).toEqual(["navegador"]);
+        expect(inv.avisos).toEqual(expect.arrayContaining(["sin nada", "El servidor local de esta neurona no pudo leer sus discos."]));
     });
 });
 
