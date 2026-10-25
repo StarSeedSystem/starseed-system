@@ -878,12 +878,15 @@ class Nodo:
         return marcados
 
     def _prestar(self, tareas: List[Dict[str, Any]], destino: str, motivo: str, informe: Dict[str, Any],
-                 t: float) -> None:
-        """Manda `tareas` a `destino` como cola firmada (el mismo camino que el relevo de medio) y lo apunta."""
+                 t: float, trabajadores: int = 2) -> None:
+        """Manda `tareas` a `destino` como cola firmada (el mismo camino que el relevo de medio) y lo apunta.
+        `trabajadores` (CAP1025E): los que el medio dice que lleva; 2 si no lo dice."""
         cola = "cola-mg-%s-%s" % (destino.split("-")[0], time.strftime("%m%d-%H%M", time.localtime(t)))
         limpias = [L.tarea_limpia(x) for x in tareas]
+        trabajadores = trabajadores if isinstance(trabajadores, int) and 1 <= trabajadores <= 4 else 2
         self._repartir(L.accion("prestar:%s" % destino, "lanzar_cola", destino, motivo,
-                                args={"cola": cola, "trabajadores": 2, "_tareas": limpias}, espera_s=0), informe, t)
+                                args={"cola": cola, "trabajadores": trabajadores, "_tareas": limpias}, espera_s=0),
+                       informe, t)
         if self.modo == "real":
             self.mem.setdefault("prestamos", []).append(
                 {"ids": [x["id"] for x in limpias], "destino": destino, "cola": cola, "ts": t})
@@ -912,7 +915,8 @@ class Nodo:
             self._registrar(d, informe)
             return d
         ids = [str(x["id"]) for x in elegidas]
-        self._prestar(elegidas, destino, "le presto %s · %s" % (", ".join(ids), a["motivo"]), informe, t)
+        self._prestar(elegidas, destino, "le presto %s · %s" % (", ".join(ids), a["motivo"]), informe, t,
+                      trabajadores=int(args.get("trabajadores") or 2))
         return {"resultado": "prestadas a %s: %s" % (destino, ", ".join(ids)), "ids": ids}
 
     def _reparar_publicacion(self, a: Dict[str, Any], salud: Dict[str, Any], raiz: str, informe: Dict[str, Any],

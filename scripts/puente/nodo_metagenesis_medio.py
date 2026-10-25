@@ -610,8 +610,11 @@ def estado_a1() -> Dict[str, Any]:
         return {}
     orq = d.get("orquestador") or {}
     carga = d.get("carga") or {}
+    trab = orq.get("trabajadores")
     return {"fase": str(d.get("fase") or "")[:40], "cola": str(orq.get("cola") or "")[:80],
             "orquestador_vivo": bool(orq.get("vivo")), "cpu_p95_7d": carga.get("cpu_p95_7d"),
+            # (CAP1025E) Con cuántos trabaja su enjambre: el préstamo de la Mac llega con ese número.
+            "trabajadores": trab if isinstance(trab, int) and not isinstance(trab, bool) and 1 <= trab <= 4 else None,
             "guardian": L.tachar(json.dumps(d.get("guardian"), ensure_ascii=False))[:160] if d.get("guardian") else ""}
 
 

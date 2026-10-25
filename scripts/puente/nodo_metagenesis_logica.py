@@ -72,7 +72,7 @@ ACCIONES_ORDEN: Dict[str, Dict[str, Any]] = {
     "ceder": {"texto": "El líder cede el mando al siguiente", "args": ()},
     # (OPA1011b) Interna: el líder se la pide al medio con las colas en su disco cuando no es él
     # (la web no la manda; por eso no está en el CHECK de la tabla ni en los botones).
-    "repartir": {"texto": "Prestar tareas listas a un medio ocioso", "args": ("destino", "tope", "modo")},
+    "repartir": {"texto": "Prestar tareas listas a un medio ocioso", "args": ("destino", "tope", "modo", "trabajadores")},
     "desconectar": {"texto": "Guardar el trabajo a medias de este aparato y pasarlo a otro contenedor", "args": ()},
     "contenedor": {"texto": "Usar o dejar de usar este aparato como contenedor de agentes", "args": ("activo", "trabajadores")},
 }
@@ -399,6 +399,23 @@ VENTANA_FALLIDAS_S = 72 * 3600
 #: Préstamo de trabajo a un medio ocioso: con cuántas listas, cuántas, cada cuánto.
 REPARTO_MIN_LISTAS = 6
 REPARTO_TOPE = 4
+
+
+def trabajadores_prestamo(latido: Dict[str, Any]) -> Optional[int]:
+    """PURA (2026-10-25, CAP1025E). Los trabajadores con los que corre su enjambre el medio al que se presta,
+    si él lo publica (el A1: `salud.a1.trabajadores`, de su `STARSEED_A1_TRABAJADORES`); None si no lo dice.
+
+    Medido el 25-10: el A1 está configurado con 3 trabajadores, pero cada préstamo le llegaba con
+    `--workers 2` y 4 tareas (67 min por cola, el último agente solo y huecos entre colas): un agente
+    menos del que tiene. Con su número, el préstamo lleva dos rondas de ellos (`tope_prestamo`)."""
+    a1 = ((latido or {}).get("salud") or {}).get("a1")
+    n = a1.get("trabajadores") if isinstance(a1, dict) else None
+    return n if isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= 4 else None
+
+
+def tope_prestamo(trabajadores: Optional[int]) -> int:
+    """PURA (CAP1025E): tareas por préstamo: dos rondas de los trabajadores del medio, entre 4 y 8."""
+    return REPARTO_TOPE if not trabajadores else max(REPARTO_TOPE, min(8, 2 * int(trabajadores)))
 REPARTO_ESPERA_S = 30 * 60
 #: Lo que lleva quieto este tiempo se escala (aviso o reparación) y no se repite antes de AVISO_ESPERA_S.
 FALLIDA_AVISO_S = 2 * 3600
@@ -887,10 +904,14 @@ def planificar_resultados(n: str, s: Dict[str, Any], nodos: Dict[str, Dict[str, 
     destino = mejor_medio_ocioso(nodos, excepto=n)
     # 6.
     if not pausado and not s.get("nube_pausada") and destino and listas >= REPARTO_MIN_LISTAS:
+        trab = trabajadores_prestamo(nodos.get(destino) or {})
+        args_rep = {"destino": destino, "tope": tope_prestamo(trab)}
+        if trab:
+            args_rep["trabajadores"] = trab
         plan.append(accion("repartir:%s" % destino, "repartir", n,
                            "%d listas en %s y %s libre: las del final del orden, que la Mac tardaría horas en "
                            "coger" % (listas, n, destino),
-                           args={"destino": destino, "tope": REPARTO_TOPE}, espera_s=REPARTO_ESPERA_S))
+                           args=args_rep, espera_s=REPARTO_ESPERA_S))
     elif not pausado and not s.get("nube_pausada") and not destino and listas >= REPARTO_MIN_LISTAS:
         # 6b. Nadie ocioso, pero un medio con trabajadores libres: se alimenta SU cola viva.
         alim = mejor_medio_alimentable(nodos, excepto=n)
