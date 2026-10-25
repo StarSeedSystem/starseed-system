@@ -119,4 +119,45 @@ describe("vikunja · cliente puro", () => {
     expect(!r404.ok && r404.motivo).toContain("404");
     expect(!r500.ok && r500.motivo).toContain("falló");
   });
+
+  it("devuelve {ok:false, motivo} cuando falla la conexión", async () => {
+    const pedir: Pedir = async () => {
+      throw new Error("ECONNREFUSED");
+    };
+    const r = await asegurarProyecto(BASE, TOKEN, grupo, pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toContain("No se pudo hablar");
+    }
+  });
+
+  it("maneja token inválido sin filtrarlo", async () => {
+    const tokenLimpio = "vikunja-token-seguro";
+    const tokenOculto = "«oculto»";
+    const { pedir } = falso(401, `Token inválido: ${tokenLimpio}`);
+    const r = await asegurarProyecto(BASE, TOKEN, tokenLimpio, pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toContain("rechazó");
+      expect(r.motivo).not.toContain(tokenLimpio);
+    }
+  });
+
+  it("devuelve {ok:false, motivo} cuando no puede crear tarea", async () => {
+    const d = { propuestaId: "p-9", titulo: "Sin permisos", aprobadaEn: "2026-10-20" };
+    const r = await tareaDesdeDecision(BASE, TOKEN, "5", d, falso(409, "").pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toContain("409");
+    }
+  });
+
+  it("maneja error 404 al crear tarea", async () => {
+    const d = { propuestaId: "p-404", titulo: "Falta proyecto", aprobadaEn: "2026-10-20" };
+    const r = await tareaDesdeDecision(BASE, TOKEN, "5", d, falso(404, {}).pedir);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toContain("404");
+    }
+  });
 });
