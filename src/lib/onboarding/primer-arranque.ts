@@ -162,10 +162,12 @@ export const CLAVE_AVISO_WEB = "starseed.primer-arranque.aviso-web.v1";
 export const CLAVE_NEURONA_POSPUESTA = "starseed.primer-arranque.neurona-pospuesta.v1";
 /** Marca de «esta neurona ya se configuró aquí» (la misma que usaba el alta corta). */
 export const CLAVE_NEURONA_CONFIGURADA = "starseed.neuron.setup.v1";
-/** Abre la ventana a mano desde cualquier parte: detail { paso?: "intro" | "acceso" | "neurona" }. */
+/** Abre la ventana a mano desde cualquier parte: detail { paso?: "intro" | "acceso" | "neurona", pestana?: "signin" | "signup" }. */
 export const EVENTO_ABRIR_PRIMER_ARRANQUE = "starseed:abrir-primer-arranque";
 
 export type PasoInicial = "intro" | "acceso" | "neurona";
+/** Pestaña del formulario de acceso con la que abre la ventana: «Entrar» o «Crear cuenta». */
+export type PestanaInicial = "signin" | "signup";
 
 function almacen(tipo: "local" | "sesion"): Storage | null {
     try {
@@ -192,11 +194,14 @@ export function ponerMarca(clave: string, tipo: "local" | "sesion" = "local"): v
     }
 }
 
-/** Abre la bienvenida (sin sesión) o los ajustes de la neurona (con sesión) desde un botón. */
-export function abrirPrimerArranque(paso?: PasoInicial): void {
+/**
+ * Abre la bienvenida (sin sesión) o los ajustes de la neurona (con sesión) desde un botón.
+ * (Ola 1025T) `pestana` elige la pestaña del formulario cuando se abre en la cuenta.
+ */
+export function abrirPrimerArranque(paso?: PasoInicial, pestana?: PestanaInicial): void {
     try {
         if (typeof window === "undefined") return;
-        window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_PRIMER_ARRANQUE, { detail: { paso } }));
+        window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_PRIMER_ARRANQUE, { detail: { paso, pestana } }));
     } catch {
         /* sin window: nada que abrir */
     }

@@ -11,8 +11,10 @@
  *
  * Ahora la página decide:
  *   · Sin sesión, o con sesión ANÓNIMA (invitado) → se muestra el acceso
- *     (<AuthGate>): entrar o crear cuenta. Nada de guía todavía.
- *   · Con cuenta REAL (tiene correo) → arranca la guía con Astraura.
+ *     (<PaginaAcceso>: LA ventana de acceso única, la misma de /login y del primer arranque,
+ *     Ola 1025T · ACC1025A): entrar o crear cuenta. Nada de guía todavía.
+ *   · Con cuenta REAL (tiene correo) y el rito pendiente → arranca la guía con Astraura.
+ *   · Con cuenta REAL y nada pendiente (entró una cuenta ya configurada) → a los escritorios.
  *
  * En cuanto el registro termina, `onAuthStateChange` reevalúa y la guía aparece
  * sola: no hay que recargar ni volver a navegar.
@@ -22,10 +24,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
-import AuthGate from "@/components/auth/auth-gate";
+import { PaginaAcceso } from "@/components/auth/ventana-acceso";
 import { etapaActual, iniciarRito, navegarSuave } from "@/lib/onboarding/director-rito";
 
-type Estado = "comprobando" | "sin-cuenta" | "con-cuenta";
+type Estado = "comprobando" | "sin-cuenta" | "con-cuenta" | "lista";
 
 /** Esperas (ms) entre reintentos de `getUser` cuando la red va lenta o caída. */
 const ESPERAS_REINTENTO = [500, 1000, 2000] as const;
@@ -120,6 +122,12 @@ export default function BienvenidaPage() {
           setEstado("con-cuenta");
           return;
         }
+        // Cuenta real, perfil hecho y rito terminado: no hay nada que enseñar aquí. Antes caía a
+        // «sin-cuenta» y <AuthGate> (que no pinta con sesión) dejaba la página en blanco.
+        // «con-cuenta» no se quita: si la guía ya está a la vista, una relectura (renovar el token, un fallo
+        // de red) no la saca de debajo de quien la está usando.
+        setEstado((previo) => (previo === "con-cuenta" ? previo : "lista"));
+        return;
       }
 
       setEstado("sin-cuenta");
@@ -159,12 +167,19 @@ export default function BienvenidaPage() {
     return () => detener?.();
   }, []);
 
-  // Mientras se comprueba no se enseña nada: ni guía ni acceso parpadeando.
-  if (estado === "comprobando") return null;
+  // Cuenta ya configurada: a los escritorios (navegación suave del rito).
+  useEffect(() => {
+    if (estado === "lista") navegarSuave(router, "/escritorios");
+  }, [estado, router]);
 
-  // Sin registro: el acceso ocupa la pantalla. AuthGate se desmonta solo
-  // cuando la sesión pasa a estar activa.
-  if (estado === "sin-cuenta") return <AuthGate />;
+  // Mientras se comprueba no se enseña nada: ni guía ni acceso parpadeando.
+  if (estado === "comprobando" || estado === "lista") return null;
+
+  // Sin registro: la ventana de acceso única ocupa la pantalla. Al entrar la página se queda
+  // (`destinoAlEntrar={null}`): `onAuthStateChange` reevalúa y decide el rito o los escritorios.
+  if (estado === "sin-cuenta") {
+    return <PaginaAcceso desde="bienvenida" pasoInicial="acceso" pestanaInicial="signin" destinoAlEntrar={null} />;
+  }
 
   return (
     <main className="min-h-screen px-4 py-8 md:px-8">

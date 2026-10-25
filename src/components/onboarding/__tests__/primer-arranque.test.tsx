@@ -99,12 +99,15 @@ import { AVISOS_KEY, _reiniciarCacheAvisosParaPruebas, estadoAviso } from "@/lib
 
 const CUENTA: Usuario = { id: "u-1", email: "ana@star.seed" };
 
+/** Un elemento NUEVO cada vez: con el mismo objeto React no volvería a pintar y la ruta simulada no se releería. */
+const arranque = () => (
+    <AppearanceProvider>
+        <PrimerArranque esperaMs={5} />
+    </AppearanceProvider>
+);
+
 function montar() {
-    return render(
-        <AppearanceProvider>
-            <PrimerArranque esperaMs={5} />
-        </AppearanceProvider>,
-    );
+    return render(arranque());
 }
 
 /** Deja correr los temporizadores de cortesía y las promesas simuladas. */
@@ -198,6 +201,38 @@ describe("PrimerArranque · sin sesión", () => {
         fireEvent.click(screen.getByRole("button", { name: "Entrar o crear cuenta" }));
         await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
         expect(aviso.isConnected).toBe(false);
+    });
+
+    it("es la ventana de acceso única: puntos de paso para recorrer la guía y el formulario unificado dentro", async () => {
+        montar();
+        const ventana = await screen.findByTestId("ventana-bienvenida");
+        const puntos = Array.from(ventana.querySelectorAll("button[aria-label^='Ir al paso']"));
+        expect(puntos).toHaveLength(4);
+        expect(document.querySelectorAll("[data-tarjeta-acceso]")).toHaveLength(1);
+        // Se salta a la cuenta con el último punto.
+        fireEvent.click(puntos[3] as HTMLElement);
+        await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
+        expect((await screen.findByTestId("auth-form")).getAttribute("data-pestana")).toBe("signup");
+    });
+
+    it("el evento de abrir a mano puede pedir la pestaña «Entrar»", async () => {
+        window.localStorage.setItem("starseed.primer-arranque.saltado.v1", "1");
+        montar();
+        await pausa();
+        act(() => {
+            window.dispatchEvent(new CustomEvent("starseed:abrir-primer-arranque", { detail: { paso: "acceso", pestana: "signin" } }));
+        });
+        await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
+        expect((await screen.findByTestId("auth-form")).getAttribute("data-pestana")).toBe("signin");
+    });
+
+    it("«Ver la introducción» del aviso abre la ventana desde el principio y retira el aviso", async () => {
+        est.nativa = false;
+        montar();
+        await screen.findByTestId("aviso-bienvenida-web");
+        fireEvent.click(screen.getByRole("button", { name: "Ver la introducción" }));
+        await screen.findByRole("heading", { name: "Te damos la bienvenida a StarSeed OS" });
+        expect(screen.queryByTestId("aviso-bienvenida-web")).toBeNull();
     });
 
     it("en la consola de Genesis no abre nada", async () => {

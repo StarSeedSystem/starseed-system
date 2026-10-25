@@ -17,7 +17,8 @@
  *
  *   · Sin sesión, en la app nativa o la web instalada → «Te damos la bienvenida» a
  *     pantalla completa en el móvil: bienvenida → qué es StarSeed OS → gestos (la práctica
- *     real de la guía) → crear cuenta / entrar (el formulario de /login). «Explorar sin
+ *     real de la guía) → crear cuenta / entrar. Esa ventana es LA ventana de acceso única
+ *     (`auth/ventana-acceso.tsx`, la misma que pintan /login y /bienvenida). «Explorar sin
  *     cuenta» la salta y ya no vuelve sola en este dispositivo.
  *   · Sin sesión, en una web normal → un aviso discreto que abre esa misma ventana.
  *   · Con cuenta y neurona nueva → los ajustes de la nueva neurona (NeuronSetup).
@@ -36,14 +37,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { BookOpen, ChevronLeft, ChevronRight, LayoutGrid, Sparkles, Users } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PasoAnimado, useDireccionPaso } from "@/components/movimiento/paso-animado";
-import { AuthForm } from "@/components/auth/auth-form";
+import { VentanaAcceso } from "@/components/auth/ventana-acceso";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 import { createClient } from "@/utils/supabase/client";
 import { NEURON_PREFS_KEY, thisDeviceId } from "@/lib/neurons/neurons";
@@ -53,7 +50,6 @@ import { etapaActual, suscribirRito } from "@/lib/onboarding/director-rito";
 import { primerPlanoOcupado } from "@/lib/ui/fullscreen-modal";
 import { cuandoCuentaFiable, esperarPullInicial } from "@/lib/sync/realtime-sync";
 import { ritoActivo } from "@/lib/ui/rito-activo";
-import { useDeslizarPasos } from "@/hooks/use-deslizar-pasos";
 import {
     CLAVE_AVISO_WEB,
     CLAVE_INTRO_SALTADA,
@@ -71,12 +67,11 @@ import {
     type EstadoSesion,
     type ModoApp,
     type PasoInicial,
+    type PestanaInicial,
 } from "@/lib/onboarding/primer-arranque";
 
-import { DemoGestosHibridos } from "./demo-gestos-hibridos";
-import { StepDemo } from "./aurora-guide-demos";
 import { IconoStarSeed } from "./icono-starseed";
-import { CLASES_VENTANA_ARRANQUE, NeuronSetup } from "./neuron-setup";
+import { NeuronSetup } from "./neuron-setup";
 
 /* ─────────────────────────────── Datos del arranque ─────────────────────────────── */
 
@@ -130,7 +125,7 @@ function esperarPrimerPlano(cb: () => void, cadaMs: number): () => void {
     return () => window.clearInterval(id);
 }
 
-type Abierta = null | { tipo: "acceso"; paso: "intro" | "acceso" } | { tipo: "aviso" } | { tipo: "neurona" };
+type Abierta = null | { tipo: "acceso"; paso: "intro" | "acceso"; pestana?: PestanaInicial } | { tipo: "aviso" } | { tipo: "neurona" };
 
 export interface PrimerArranqueProps {
     /** Intervalo de la espera de cortesía (ms). Solo las pruebas lo acortan. */
@@ -285,11 +280,13 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
     // Apertura a mano desde cualquier botón del OS.
     useEffect(() => {
         const alAbrir = (e: Event) => {
-            const paso = (e as CustomEvent<{ paso?: PasoInicial }>).detail?.paso;
+            const detalle = (e as CustomEvent<{ paso?: PasoInicial; pestana?: PestanaInicial }>).detail;
+            const paso = detalle?.paso;
             if (paso === "neurona" || (sesion === "cuenta" && paso !== "intro" && paso !== "acceso")) {
                 setAbierta({ tipo: "neurona" });
             } else {
-                setAbierta({ tipo: "acceso", paso: paso === "acceso" ? "acceso" : "intro" });
+                const pestana = detalle?.pestana === "signin" || detalle?.pestana === "signup" ? detalle.pestana : undefined;
+                setAbierta({ tipo: "acceso", paso: paso === "acceso" ? "acceso" : "intro", pestana });
             }
         };
         window.addEventListener(EVENTO_ABRIR_PRIMER_ARRANQUE, alAbrir);
@@ -337,7 +334,14 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
             />
         );
     }
-    return <VentanaBienvenida pasoInicial={abierta.paso} onSaltar={saltar} onCerrar={() => setAbierta(null)} />;
+    return (
+        <VentanaAcceso
+            pasoInicial={abierta.paso}
+            pestanaInicial={abierta.pestana}
+            onSaltar={saltar}
+            onCerrar={() => setAbierta(null)}
+        />
+    );
 }
 
 /* ───────────────────────── Aviso discreto (web sin sesión) ───────────────────────── */
@@ -390,150 +394,6 @@ export function AvisoBienvenidaWeb({
                 </button>
             </div>
         </motion.section>
-    );
-}
-
-/* ──────────────────── Ventana «bienvenida → qué es → gestos → acceso» ──────────────────── */
-
-const PASOS = ["bienvenida", "que-es", "gestos", "acceso"] as const;
-type PasoVentana = (typeof PASOS)[number];
-
-const TEXTOS: Record<PasoVentana, { titulo: string; texto: string }> = {
-    bienvenida: {
-        titulo: "Te damos la bienvenida a StarSeed OS",
-        texto: "Tu sistema operativo social: escritorios, biblioteca, apps y Aurora, tu inteligencia personal, en todos tus dispositivos con una sola cuenta.",
-    },
-    "que-es": {
-        titulo: "Qué es StarSeed OS",
-        texto: "Un sistema abierto que es tuyo: tus datos, tu IA y tu voz en la comunidad.",
-    },
-    gestos: {
-        titulo: "Gestos naturales en cualquier pantalla",
-        texto: "Los menús se abren desde los bordes y se cierran devolviéndolos, tocando fuera, con la X o con Escape. Pruébalo aquí.",
-    },
-    acceso: {
-        titulo: "Crea tu cuenta o entra",
-        texto: "Con tu cuenta, lo que hagas aquí aparece también en tus otros dispositivos.",
-    },
-};
-
-const QUE_ES = [
-    { icono: LayoutGrid, titulo: "Tus escritorios", texto: "Ventanas, widgets y apps que se sincronizan en todos tus dispositivos." },
-    { icono: Sparkles, titulo: "Aurora, tu inteligencia", texto: "Una IA que es tuya: te guía, crea contigo y también funciona en tu propio equipo." },
-    { icono: BookOpen, titulo: "Biblioteca y apps", texto: "Lo que guardas e instalas te sigue a cualquier dispositivo." },
-    { icono: Users, titulo: "Comunidad y gobernanza", texto: "Decide con otras personas sin intermediarios: una persona, una voz." },
-];
-
-export function VentanaBienvenida({
-    pasoInicial,
-    onSaltar,
-    onCerrar,
-}: {
-    pasoInicial: "intro" | "acceso";
-    onSaltar: () => void;
-    onCerrar: () => void;
-}) {
-    const reducir = useReducedMotion() ?? false;
-    const [indice, setIndice] = useState(pasoInicial === "acceso" ? PASOS.length - 1 : 0);
-    const [pestana, setPestana] = useState<"signin" | "signup">("signup");
-    const direccion = useDireccionPaso(indice);
-    const paso = PASOS[indice];
-    const ultimo = indice === PASOS.length - 1;
-
-    const siguiente = useCallback(() => setIndice((i) => Math.min(PASOS.length - 1, i + 1)), []);
-    const anterior = useCallback(() => setIndice((i) => Math.max(0, i - 1)), []);
-    const irAlAcceso = useCallback((p: "signin" | "signup") => {
-        setPestana(p);
-        setIndice(PASOS.length - 1);
-    }, []);
-    // Pasar de página deslizando solo en los pasos de lectura (la práctica de gestos y el
-    // formulario usan el dedo para otra cosa).
-    const deslizar = useDeslizarPasos({ alSiguiente: siguiente, alAnterior: anterior, habilitado: paso === "bienvenida" || paso === "que-es" });
-
-    return (
-        <Dialog open onOpenChange={(o) => { if (!o) onCerrar(); }}>
-            <DialogContent className={cn(CLASES_VENTANA_ARRANQUE, "sm:max-w-2xl")} aria-describedby="bienvenida-desc" data-testid="ventana-bienvenida">
-                <DialogHeader className="items-center text-center">
-                    <IconoStarSeed className="mx-auto" size={48} />
-                    <DialogTitle>{TEXTOS[paso].titulo}</DialogTitle>
-                    <DialogDescription id="bienvenida-desc">{TEXTOS[paso].texto}</DialogDescription>
-                    <div className="flex items-center justify-center gap-1.5 pt-1" aria-hidden>
-                        {PASOS.map((p, i) => (
-                            <span
-                                key={p}
-                                className={cn(
-                                    "h-1.5 rounded-full transition-all duration-200 motion-reduce:transition-none",
-                                    i === indice ? "w-6 bg-cyan-300" : "w-1.5 bg-white/25",
-                                )}
-                            />
-                        ))}
-                    </div>
-                    <p className="sr-only" aria-live="polite">Paso {indice + 1} de {PASOS.length}</p>
-                </DialogHeader>
-
-                <div {...deslizar}>
-                    <PasoAnimado clave={paso} direccion={direccion} className="min-h-[14rem]">
-                        {paso === "bienvenida" && (
-                            <div className="flex flex-col items-center gap-3 text-center">
-                                <StepDemo stepKey="orbe" accent="#C9A8FF" reduce={reducir} />
-                                <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
-                                    <Button className="cursor-pointer" onClick={siguiente}>
-                                        Empezar la introducción
-                                    </Button>
-                                    <Button variant="outline" className="cursor-pointer border-white/15" onClick={() => irAlAcceso("signin")}>
-                                        Ya tengo cuenta
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-                        {paso === "que-es" && (
-                            <div className="space-y-3">
-                                <StepDemo stepKey="escritorio" accent="#39FF14" reduce={reducir} />
-                                <ul className="grid gap-2 sm:grid-cols-2">
-                                    {QUE_ES.map(({ icono: Icono, titulo, texto }) => (
-                                        <li key={titulo} className="flex items-start gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                                            <Icono className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" aria-hidden />
-                                            <span className="min-w-0">
-                                                <span className="block text-sm font-semibold text-white">{titulo}</span>
-                                                <span className="block text-xs leading-snug text-muted-foreground">{texto}</span>
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                        {paso === "gestos" && <DemoGestosHibridos accent="#6FE6D6" reduce={reducir} />}
-                        {paso === "acceso" && (
-                            <div className="flex justify-center">
-                                <AuthForm key={pestana} pestanaInicial={pestana} />
-                            </div>
-                        )}
-                    </PasoAnimado>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <button
-                        type="button"
-                        onClick={onSaltar}
-                        className="cursor-pointer rounded-md px-1 text-xs text-white/60 underline-offset-2 hover:text-white/90 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
-                    >
-                        Explorar sin cuenta
-                    </button>
-                    <div className="flex gap-2">
-                        {indice > 0 && (
-                            <Button variant="outline" size="sm" onClick={anterior} className="gap-1 cursor-pointer border-white/15">
-                                <ChevronLeft className="h-3.5 w-3.5" aria-hidden /> Atrás
-                            </Button>
-                        )}
-                        {!ultimo && (
-                            <Button size="sm" onClick={siguiente} className="gap-1 cursor-pointer">
-                                {indice === PASOS.length - 2 ? "Crear cuenta o entrar" : "Siguiente"} <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                            </Button>
-                        )}
-                    </div>
-                </div>
-            </DialogContent>
-        </Dialog>
     );
 }
 

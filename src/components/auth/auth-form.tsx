@@ -1,71 +1,111 @@
 'use client'
 
+/**
+ * AuthForm — el formulario de acceso de StarSeed OS (entrar / crear cuenta / código por correo).
+ * ═══════════════════════════════════════════════════════════════════════════
+ * (Ola 1025T · ACC1025A) Es el ÚNICO formulario de acceso. Antes había tres ventanas distintas
+ * (`/login` con «Identidad Digital», `/bienvenida` con «StarSeed OS · Inicia sesión…» y la ventana
+ * guiada del primer arranque); ahora las tres pintan `ventana-acceso.tsx`, que monta este formulario
+ * SIN tarjeta propia (la tarjeta es la ventana: nada de tarjeta dentro de tarjeta).
+ *
+ * Reúne lo que tenía cada una:
+ *   · pestañas «Entrar» / «Crear cuenta» con correo y contraseña (+ «Mostrar», y confirmación al crear);
+ *   · la sugerencia de dirección @star.seed y la vinculación opcional de un correo externo (Adenda 188/189);
+ *   · «Entrar con código por correo (sin contraseña)» — la misma lógica y las mismas rutas
+ *     (`/api/auth/otp/request` y `/api/auth/otp/verify`) que tenía `AuthGate`, ahora en `codigo-correo.ts`;
+ *   · el `?next=` seguro, `emailSugerido()` («Continuar como…») y el rito de bienvenida tras crear la cuenta.
+ *
+ * El texto de los errores va en español (`traducirErrorAuth`) y SIEMPRE se ve en línea (Adenda 184: el
+ * sistema de avisos no renderizaba): un `<p role="alert">` en el propio formulario, además del aviso.
+ */
+
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
+import { Loader2, Mail, Sparkles } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
-import { Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 import { iniciarRito, navegarSuave } from '@/lib/onboarding/director-rito'
 import { emailSugerido, olvidarEmailSugerido } from '@/lib/entorno/deteccion-entorno'
 import { haySiguiente, siguienteDeBusqueda } from '@/lib/auth/siguiente-seguro'
-
-/**
- * (2026-09-28) `?next=` de la URL actual, validado (solo rutas internas; ver
- * `@/lib/auth/siguiente-seguro`). Se lee de `location` al enviar —no con useSearchParams— para
- * no exigir un <Suspense> a cada página que monta este formulario.
- */
-function siguienteDeLaUrl(porDefecto: string): string {
-    if (typeof window === 'undefined') return porDefecto
-    return siguienteDeBusqueda(window.location.search, porDefecto)
-}
+import { destinoTrasEntrar, type DestinoAlEntrar } from '@/lib/auth/destino-al-entrar'
+import { traducirErrorAuth } from '@/lib/auth/traducir-error'
+import { pedirCodigoCorreo, soloDigitosCodigo, verificarCodigoCorreo } from '@/lib/auth/codigo-correo'
 
 /** Destino del enlace de confirmación por correo, conservando un `?next=` válido. */
 function redireccionCorreo(): string {
     const base = `${location.origin}/auth/callback`
     if (!haySiguiente(location.search)) return base
-    return `${base}?next=${encodeURIComponent(siguienteDeLaUrl('/escritorios'))}`
+    return `${base}?next=${encodeURIComponent(siguienteDeBusqueda(location.search, '/escritorios'))}`
 }
+
+export type PestanaAcceso = 'signin' | 'signup'
+export type OrigenEntrada = 'password' | 'registro' | 'codigo'
 
 export interface AuthFormProps {
-    /** Pestaña con la que abre: «Entrar» (por defecto) o «Registrarse». */
-    pestanaInicial?: 'signin' | 'signup'
+    /** Pestaña con la que abre: «Entrar» (por defecto) o «Crear cuenta». */
+    pestanaInicial?: PestanaAcceso
+    /**
+     * A dónde va tras entrar. `undefined` → la página principal; una ruta → esa; `null` → se queda donde
+     * está. Un `?next=` válido en la URL manda siempre.
+     */
+    destinoAlEntrar?: DestinoAlEntrar
+    /** Se llama justo al abrirse la sesión (por contraseña, por código o al crear la cuenta). */
+    onEntrado?: (origen: OrigenEntrada) => void
+    className?: string
 }
 
-export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
+const CAMPO =
+    'h-11 w-full rounded-xl border border-white/15 bg-white/[0.05] px-3.5 text-base text-white placeholder:text-white/40 outline-none focus:border-violet-300/70 focus:ring-2 focus:ring-[#7c5cff]/30'
+const ETIQUETA = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.06em] text-white/60'
+const BOTON_PRIMARIO =
+    'inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#7c5cff] to-[#23d5ab] text-[15px] font-bold text-white shadow-[0_10px_28px_rgba(124,92,255,0.35)] outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-violet-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0c16] disabled:cursor-default disabled:opacity-70 motion-safe:transition-transform motion-safe:duration-200 motion-safe:active:scale-[0.99]'
+const BOTON_SUAVE =
+    'inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/[0.04] px-3 text-sm font-semibold text-white/90 outline-none hover:bg-white/[0.09] focus-visible:ring-2 focus-visible:ring-violet-200 disabled:cursor-default disabled:opacity-60'
+
+const PESTANAS: { valor: PestanaAcceso; etiqueta: string }[] = [
+    { valor: 'signin', etiqueta: 'Entrar' },
+    { valor: 'signup', etiqueta: 'Crear cuenta' },
+]
+
+export function AuthForm({ pestanaInicial = 'signin', destinoAlEntrar, onEntrado, className }: AuthFormProps = {}) {
     const router = useRouter()
     const { toast } = useToast()
     const supabase = createClient()
+    const idBase = React.useId()
+    const [pestana, setPestana] = React.useState<PestanaAcceso>(pestanaInicial)
     const [isLoading, setIsLoading] = React.useState(false)
     // (Adenda 184) Mensaje INLINE a prueba de fallos: el sistema de toast de esta
     // app no renderizaba el aviso (login «no hacía nada, sin mensaje»). Este <p>
     // en el propio formulario SIEMPRE se ve, pase lo que pase con los toasts.
     const [authMsg, setAuthMsg] = React.useState<{ tipo: 'error' | 'ok'; txt: string } | null>(null)
-    // Adenda 188/189: registro con identidad — sugerencia @star.seed en vivo,
-    // confirmación de contraseña y vinculación opcional de correo externo.
-    const [signupEmail, setSignupEmail] = React.useState('')
-    const [signupPass, setSignupPass] = React.useState('')
-    const [signupPass2, setSignupPass2] = React.useState('')
-    const [signupExterno, setSignupExterno] = React.useState('')
-    // (2026-09-27) «Continuar como …» del aviso «Cuenta detectada en este
-    // dispositivo» deja el correo sugerido; antes nadie lo leía y el login salía
-    // vacío. Se rellena aquí y el foco pasa a la contraseña, para que el gestor
-    // de contraseñas del navegador complete la guardada de esa cuenta.
-    const [signinEmail, setSigninEmail] = React.useState('')
-    const passwordSigninRef = React.useRef<HTMLInputElement>(null)
+    // El correo y la contraseña se conservan al cambiar de pestaña (quien teclea su correo y
+    // descubre que quería «Crear cuenta» no lo escribe dos veces).
+    // (2026-09-27) «Continuar como …» del aviso «Cuenta detectada en este dispositivo» deja el correo
+    // sugerido; se rellena aquí y el foco pasa a la contraseña, para que el gestor de contraseñas del
+    // navegador complete la guardada de esa cuenta.
+    const [email, setEmail] = React.useState('')
+    const [pass, setPass] = React.useState('')
+    const [pass2, setPass2] = React.useState('')
+    const [verPass, setVerPass] = React.useState(false)
+    const [externo, setExterno] = React.useState('')
+    const passSigninRef = React.useRef<HTMLInputElement>(null)
+    const emailRef = React.useRef<HTMLInputElement>(null)
+    // Entrar con código por correo: false = botón; true = campo del código.
+    const [pideCodigo, setPideCodigo] = React.useState(false)
+    const [codigo, setCodigo] = React.useState('')
+    const [ocupadoCodigo, setOcupadoCodigo] = React.useState(false)
+
     React.useEffect(() => {
         const sugerido = emailSugerido()
         if (!sugerido) return
-        setSigninEmail(sugerido)
-        const t = setTimeout(() => passwordSigninRef.current?.focus(), 60)
+        setEmail(sugerido)
+        const t = setTimeout(() => passSigninRef.current?.focus(), 60)
         return () => clearTimeout(t)
     }, [])
-    const passNoCoincide = signupPass2.length > 0 && signupPass !== signupPass2
-    const esStarSeed = signupEmail.trim().toLowerCase().endsWith('@star.seed')
+    const passNoCoincide = pass2.length > 0 && pass !== pass2
+    const esStarSeed = email.trim().toLowerCase().endsWith('@star.seed')
+    const esSignup = pestana === 'signup'
 
     // (Ola 247 · 2026-09-05) La voz lista desde la primera ventana. El demonio
     // neuronal (127.0.0.1:4444) duerme tras 10 min y tarda ~13-22 s en despertar;
@@ -86,8 +126,8 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
     // (Adenda 182b) supabase-js REINTENTA en silencio ~10s los fallos de red
     // (nuestro caso real: el 402 de cuota llega sin CORS → parece red caída).
     // Sin este corte, el usuario pulsa y «no pasa nada» durante 10s. 8s y se dice.
-    function conTimeout<T>(p: Promise<T>, ms: number): Promise<T | "timeout"> {
-        return Promise.race([p, new Promise<"timeout">((res) => setTimeout(() => res("timeout"), ms))])
+    function conTimeout<T>(p: Promise<T>, ms: number): Promise<T | 'timeout'> {
+        return Promise.race([p, new Promise<'timeout'>((res) => setTimeout(() => res('timeout'), ms))])
     }
 
     function authFalloDuro(e: unknown, titulo: string) {
@@ -98,19 +138,39 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
         setIsLoading(false)
     }
 
+    function cambiarPestana(p: PestanaAcceso) {
+        setPestana(p)
+        setAuthMsg(null)
+        setPideCodigo(false)
+        setCodigo('')
+    }
+
+    /** Sesión abierta con contraseña o con código: se sigue a donde iba la persona (o se queda). */
+    function terminarEntrada(origen: OrigenEntrada) {
+        olvidarEmailSugerido()
+        onEntrado?.(origen)
+        // Página principal del OS: el último perfil activo se restaura solo
+        // (starseed.profile.active.v1 permanece salvo cierre de sesión manual).
+        // (2026-09-28) Si se llegó con `?next=` (p. ej. un enlace de llamada o de una app en vivo),
+        // se vuelve allí; solo rutas internas seguras.
+        const destino = destinoTrasEntrar(window.location.search, destinoAlEntrar)
+        if (destino) router.push(destino)
+        router.refresh()
+    }
+
     async function handleSignUp(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
         setIsLoading(true)
         setAuthMsg(null)
 
-        const email = signupEmail.trim()
-        const password = signupPass
-        if (!email || !password) {
+        const correo = email.trim()
+        const password = pass
+        if (!correo || !password) {
             setAuthMsg({ tipo: 'error', txt: 'Escribe tu correo y una contraseña.' })
             setIsLoading(false)
             return
         }
-        if (password !== signupPass2) {
+        if (password !== pass2) {
             setAuthMsg({ tipo: 'error', txt: 'Las contraseñas no coinciden: revísalas.' })
             setIsLoading(false)
             return
@@ -120,7 +180,7 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
         let sesionYa = false
         try {
             const res = await conTimeout(supabase.auth.signUp({
-                email,
+                email: correo,
                 password,
                 options: {
                     emailRedirectTo: redireccionCorreo(),
@@ -140,10 +200,11 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
         }
 
         if (error) {
-            setAuthMsg({ tipo: 'error', txt: `Error de registro: ${error.message}` })
+            const txt = traducirErrorAuth(error.message)
+            setAuthMsg({ tipo: 'error', txt })
             toast({
                 title: 'Error de registro',
-                description: error.message,
+                description: txt,
                 variant: 'destructive',
             })
         } else if (sesionYa) {
@@ -154,13 +215,14 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
             })
             // (Adenda 189) Vinculación opcional del correo externo indicada al
             // registrarse con @star.seed — best-effort, nunca bloquea el alta.
-            const externo = signupExterno.trim().toLowerCase()
-            if (externo.includes('@')) {
+            const ext = externo.trim().toLowerCase()
+            if (ext.includes('@')) {
                 try {
                     const { addExternalEmail } = await import('@/lib/mail/starseed-mail')
-                    void addExternalEmail(externo)
+                    void addExternalEmail(ext)
                 } catch { /* se puede vincular después en Correos */ }
             }
+            onEntrado?.('registro')
             // ── (Ola 247 · 2026-09-05) EL CAMINO DEL REGISTRO LO MANDA EL DIRECTOR ──
             // Antes: marca suelta de sessionStorage + evento + recarga DURA
             // (`location.assign`). La recarga recreaba todos los porteros y la
@@ -193,13 +255,9 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
         setIsLoading(true)
         setAuthMsg(null)
 
-        const formData = new FormData(event.currentTarget)
-        const email = formData.get('email') as string
-        const password = formData.get('password') as string
-
         let error: { message: string } | null = null
         try {
-            const res = await conTimeout(supabase.auth.signInWithPassword({ email, password }), 8000)
+            const res = await conTimeout(supabase.auth.signInWithPassword({ email: email.trim(), password: pass }), 8000)
             if (res === 'timeout') {
                 authFalloDuro(new Error('sin respuesta en 8s (reintentos silenciosos)'), 'Inicio de sesión sin respuesta')
                 return
@@ -211,118 +269,253 @@ export function AuthForm({ pestanaInicial = 'signin' }: AuthFormProps = {}) {
         }
 
         if (error) {
-            setAuthMsg({ tipo: 'error', txt: `Error de inicio de sesión: ${error.message}` })
+            const txt = traducirErrorAuth(error.message)
+            setAuthMsg({ tipo: 'error', txt })
             toast({
                 title: 'Error de inicio de sesión',
-                description: error.message,
+                description: txt,
                 variant: 'destructive',
             })
             setIsLoading(false)
         } else {
-            // Página principal del OS: el último perfil activo se restaura solo
-            // (starseed.profile.active.v1 permanece salvo cierre de sesión manual).
-            // (2026-09-28) Si se llegó con `?next=` (p. ej. un enlace de llamada o de una app
-            // en vivo), se vuelve allí; solo rutas internas seguras.
-            olvidarEmailSugerido()
-            router.push(siguienteDeLaUrl('/'))
-            router.refresh()
+            terminarEntrada('password')
         }
     }
 
+    // ── Entrar con código por correo (sin contraseña) — OTP del OS ──────────────────────────────
+    // La lógica y las rutas son las de siempre (Adenda 71-bis); viven en `codigo-correo.ts`.
+    async function pedirCodigo() {
+        if (!email.trim()) {
+            setAuthMsg({ tipo: 'error', txt: 'Escribe tu correo para enviarte el código.' })
+            emailRef.current?.focus()
+            return
+        }
+        setOcupadoCodigo(true)
+        setAuthMsg(null)
+        setCodigo('')
+        const r = await pedirCodigoCorreo(email)
+        setOcupadoCodigo(false)
+        if (r.ok) {
+            setPideCodigo(true)
+            setAuthMsg({ tipo: 'ok', txt: r.aviso })
+        } else {
+            setAuthMsg({ tipo: 'error', txt: r.error })
+        }
+    }
+
+    async function verificarCodigo() {
+        setOcupadoCodigo(true)
+        setAuthMsg(null)
+        const r = await verificarCodigoCorreo(email, codigo, supabase)
+        if (!r.ok) {
+            setAuthMsg({ tipo: 'error', txt: r.error })
+            setOcupadoCodigo(false)
+            return
+        }
+        setOcupadoCodigo(false)
+        terminarEntrada('codigo')
+    }
+
+    function alTeclearPestana(e: React.KeyboardEvent<HTMLButtonElement>) {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+        e.preventDefault()
+        const otra: PestanaAcceso = pestana === 'signin' ? 'signup' : 'signin'
+        cambiarPestana(otra)
+        // El foco acompaña a la pestaña activa (patrón de pestañas de WAI-ARIA).
+        requestAnimationFrame(() => document.getElementById(`${idBase}-tab-${otra}`)?.focus())
+    }
+
+    const idPanel = `${idBase}-panel`
+    const ocupado = isLoading || ocupadoCodigo
+
     return (
-        <Card className="w-full max-w-[380px] mx-auto border-border/50 bg-background/50 backdrop-blur-xl">
-            <CardHeader>
-                <CardTitle>Identidad Digital</CardTitle>
-                <CardDescription>Accede al StarSeed Network</CardDescription>
-            </CardHeader>
-            <CardContent>
+        <div className={cn('w-full', className)} data-testid="auth-form-acceso">
+            <div role="tablist" aria-label="Entrar o crear cuenta" className="grid grid-cols-2 gap-1 rounded-2xl bg-white/[0.05] p-1">
+                {PESTANAS.map(({ valor, etiqueta }) => {
+                    const activa = pestana === valor
+                    return (
+                        <button
+                            key={valor}
+                            id={`${idBase}-tab-${valor}`}
+                            type="button"
+                            role="tab"
+                            aria-selected={activa}
+                            aria-controls={idPanel}
+                            tabIndex={activa ? 0 : -1}
+                            onClick={() => cambiarPestana(valor)}
+                            onKeyDown={alTeclearPestana}
+                            className={cn(
+                                'min-h-[44px] cursor-pointer rounded-xl text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-violet-200',
+                                activa
+                                    ? 'bg-gradient-to-br from-[#7c5cff] to-[#23d5ab] text-white shadow-[0_6px_18px_rgba(124,92,255,0.35)]'
+                                    : 'text-white/65 hover:bg-white/[0.06] hover:text-white',
+                            )}
+                        >
+                            {etiqueta}
+                        </button>
+                    )
+                })}
+            </div>
+
+            <div role="tabpanel" id={idPanel} aria-labelledby={`${idBase}-tab-${pestana}`} className="pt-4">
                 {authMsg && (
-                    <p role="alert" style={{ fontSize: 12.5, lineHeight: 1.5, borderRadius: 10, padding: '9px 11px', marginBottom: 12,
-                        color: authMsg.tipo === 'error' ? '#fca5a5' : '#6ee7b7',
-                        background: authMsg.tipo === 'error' ? 'rgba(244,63,94,.08)' : 'rgba(16,185,129,.08)',
-                        border: `1px solid ${authMsg.tipo === 'error' ? 'rgba(244,63,94,.28)' : 'rgba(16,185,129,.28)'}` }}>
+                    <p
+                        role={authMsg.tipo === 'error' ? 'alert' : 'status'}
+                        className={cn(
+                            'mb-3 rounded-xl border px-3 py-2 text-[12.5px] leading-snug',
+                            authMsg.tipo === 'error'
+                                ? 'border-rose-400/30 bg-rose-500/10 text-rose-200'
+                                : 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200',
+                        )}
+                    >
                         {authMsg.txt}
                     </p>
                 )}
-                <Tabs defaultValue={pestanaInicial} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 gap-1">
-                        <TabsTrigger value="signin">Entrar</TabsTrigger>
-                        <TabsTrigger value="signup">Registrarse</TabsTrigger>
-                    </TabsList>
 
-                    <TabsContent value="signin">
-                        <form onSubmit={handleSignIn} className="space-y-4 pt-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="email-signin">Email</Label>
-                                <Input id="email-signin" name="email" type="email" placeholder="nombre@starseed.net" required
-                                    autoComplete="username" value={signinEmail} onChange={(e) => setSigninEmail(e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="password-signin">Contraseña</Label>
-                                <Input id="password-signin" name="password" type="password" required
-                                    autoComplete="current-password" ref={passwordSigninRef} />
-                            </div>
-                            <Button type="submit" className="w-full" disabled={isLoading}>
-                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Iniciar Sesión
-                            </Button>
-                        </form>
-                    </TabsContent>
+                <form onSubmit={esSignup ? handleSignUp : handleSignIn} className="space-y-3.5">
+                    <div>
+                        <label htmlFor={`${idBase}-email`} className={ETIQUETA}>Correo</label>
+                        <input
+                            id={`${idBase}-email`}
+                            ref={emailRef}
+                            name="email"
+                            type="email"
+                            required
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder={esSignup ? 'tu-nombre@star.seed' : 'nombre@starseed.net'}
+                            autoComplete={esSignup ? 'email' : 'username'}
+                            className={CAMPO}
+                        />
+                        {esSignup && email.length > 1 && !email.includes('@') && (
+                            <button
+                                type="button"
+                                onClick={() => setEmail(`${email.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '')}@star.seed`)}
+                                className="mt-2 inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 text-xs text-cyan-200 hover:bg-cyan-400/20 focus-visible:ring-2 focus-visible:ring-cyan-200"
+                            >
+                                <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                                Usar {email.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '')}@star.seed
+                            </button>
+                        )}
+                        {esSignup && (
+                            <p className="mt-1.5 text-[11px] leading-snug text-white/55">
+                                Tu dirección <span className="text-cyan-300">@star.seed</span> es tu identidad en la red, o usa
+                                cualquier correo externo. Después puedes vincular varios en Ajustes → Correos.
+                            </p>
+                        )}
+                    </div>
 
-                    <TabsContent value="signup">
-                        <form onSubmit={handleSignUp} className="space-y-4 pt-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="email-signup">Email</Label>
-                                <Input id="email-signup" name="email" type="email" placeholder="tu-nombre@star.seed"
-                                    value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} required />
-                                {signupEmail.length > 1 && !signupEmail.includes('@') && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setSignupEmail(`${signupEmail.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '')}@star.seed`)}
-                                        className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-1 text-xs text-cyan-200 transition-colors hover:bg-cyan-400/20"
-                                    >
-                                        ✦ Usar {signupEmail.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '')}@star.seed
-                                    </button>
-                                )}
-                                <p className="text-[11px] leading-snug text-muted-foreground">
-                                    Tu dirección <span className="text-cyan-300">@star.seed</span> es tu identidad en la red —
-                                    o usa cualquier correo externo (Gmail, Outlook…). Después puedes vincular varios
-                                    correos a tu misma cuenta en Ajustes → Correos.
-                                </p>
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="password-signup">Contraseña</Label>
-                                <Input id="password-signup" name="password" type="password" required
-                                    value={signupPass} onChange={(e) => setSignupPass(e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="password-signup-2">Confirmar contraseña</Label>
-                                <Input id="password-signup-2" type="password" required
-                                    value={signupPass2} onChange={(e) => setSignupPass2(e.target.value)} />
-                                {passNoCoincide && (
-                                    <p className="text-[11px] text-red-300" role="alert">Las contraseñas no coinciden.</p>
-                                )}
-                            </div>
-                            {esStarSeed && (
-                                <div className="space-y-2">
-                                    <Label htmlFor="email-externo">Correo externo a vincular (opcional)</Label>
-                                    <Input id="email-externo" type="email" placeholder="tu-correo@gmail.com"
-                                        value={signupExterno} onChange={(e) => setSignupExterno(e.target.value)} />
-                                    <p className="text-[11px] leading-snug text-muted-foreground">
-                                        Como tu dirección @star.seed es nueva, puedes enlazar un correo externo a tu
-                                        cuenta desde el inicio (recuperación y avisos). Podrás vincular más en
-                                        Ajustes → Correos.
-                                    </p>
-                                </div>
+                    <div>
+                        <label htmlFor={`${idBase}-pass`} className={ETIQUETA}>Contraseña</label>
+                        <div className="relative">
+                            <input
+                                id={`${idBase}-pass`}
+                                ref={passSigninRef}
+                                name="password"
+                                type={verPass ? 'text' : 'password'}
+                                required
+                                minLength={esSignup ? 6 : undefined}
+                                value={pass}
+                                onChange={(e) => setPass(e.target.value)}
+                                placeholder="Tu contraseña"
+                                autoComplete={esSignup ? 'new-password' : 'current-password'}
+                                className={cn(CAMPO, 'pr-[4.5rem]')}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setVerPass((v) => !v)}
+                                aria-pressed={verPass}
+                                aria-label={verPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                className="absolute right-1 top-1/2 inline-flex h-11 min-w-[56px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg px-2 text-[11px] font-semibold text-white/65 hover:text-white focus-visible:ring-2 focus-visible:ring-violet-200"
+                            >
+                                {verPass ? 'Ocultar' : 'Mostrar'}
+                            </button>
+                        </div>
+                        {esSignup && <p className="mt-1.5 text-[11px] text-white/45">Mínimo 6 caracteres.</p>}
+                    </div>
+
+                    {esSignup && (
+                        <div>
+                            <label htmlFor={`${idBase}-pass2`} className={ETIQUETA}>Confirmar contraseña</label>
+                            <input
+                                id={`${idBase}-pass2`}
+                                type={verPass ? 'text' : 'password'}
+                                required
+                                value={pass2}
+                                onChange={(e) => setPass2(e.target.value)}
+                                placeholder="Repite tu contraseña"
+                                autoComplete="new-password"
+                                aria-invalid={passNoCoincide || undefined}
+                                className={CAMPO}
+                            />
+                            {passNoCoincide && (
+                                <p className="mt-1.5 text-[11px] text-rose-300" role="alert">Las contraseñas no coinciden.</p>
                             )}
-                            <Button type="submit" className="w-full" disabled={isLoading || passNoCoincide}>
-                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Crear Cuenta
-                            </Button>
-                        </form>
-                    </TabsContent>
-                </Tabs>
-            </CardContent>
-        </Card>
+                        </div>
+                    )}
+
+                    {esSignup && esStarSeed && (
+                        <div>
+                            <label htmlFor={`${idBase}-externo`} className={ETIQUETA}>Correo externo a vincular (opcional)</label>
+                            <input
+                                id={`${idBase}-externo`}
+                                type="email"
+                                value={externo}
+                                onChange={(e) => setExterno(e.target.value)}
+                                placeholder="tu-correo@gmail.com"
+                                className={CAMPO}
+                            />
+                            <p className="mt-1.5 text-[11px] leading-snug text-white/55">
+                                Como tu dirección @star.seed es nueva, puedes enlazar un correo externo desde el inicio
+                                (recuperación y avisos). Podrás vincular más en Ajustes → Correos.
+                            </p>
+                        </div>
+                    )}
+
+                    <button type="submit" className={BOTON_PRIMARIO} disabled={ocupado || (esSignup && passNoCoincide)} aria-busy={isLoading}>
+                        {isLoading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                        {isLoading ? 'Un momento…' : esSignup ? 'Crear mi cuenta' : 'Entrar a StarSeed OS'}
+                    </button>
+                </form>
+
+                {/* Entrar con código por correo (sin contraseña) — OTP del OS. Solo al entrar. */}
+                {!esSignup && (
+                    <div className="mt-2.5">
+                        {!pideCodigo ? (
+                            <button type="button" className={BOTON_SUAVE} onClick={pedirCodigo} disabled={ocupado} aria-busy={ocupadoCodigo}>
+                                {ocupadoCodigo ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Mail className="h-4 w-4" aria-hidden />}
+                                Entrar con código por correo (sin contraseña)
+                            </button>
+                        ) : (
+                            <div className="space-y-2">
+                                <label htmlFor={`${idBase}-codigo`} className="sr-only">Código de 6 dígitos</label>
+                                <input
+                                    id={`${idBase}-codigo`}
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="one-time-code"
+                                    maxLength={6}
+                                    value={codigo}
+                                    onChange={(e) => setCodigo(soloDigitosCodigo(e.target.value))}
+                                    placeholder="Código de 6 dígitos (de tu bandeja del OS)"
+                                    className={cn(CAMPO, 'text-center text-lg tracking-[0.3em] placeholder:text-sm placeholder:tracking-normal')}
+                                />
+                                <button type="button" className={BOTON_PRIMARIO} onClick={verificarCodigo} disabled={ocupado} aria-busy={ocupadoCodigo}>
+                                    {ocupadoCodigo && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                                    {ocupadoCodigo ? 'Verificando…' : 'Verificar código y entrar'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setPideCodigo(false); setCodigo(''); setAuthMsg(null) }}
+                                    className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-xl text-xs text-white/60 hover:text-white focus-visible:ring-2 focus-visible:ring-violet-200"
+                                >
+                                    Volver
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
     )
 }

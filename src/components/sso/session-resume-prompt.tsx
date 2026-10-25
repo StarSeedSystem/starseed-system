@@ -38,6 +38,11 @@ export interface SessionResumePromptProps {
     autoRedirect?: boolean;
     /** Clase extra para el contenedor exterior. */
     className?: string;
+    /**
+     * (Ola 1025T) Dentro de la ventana de acceso única: sin tarjeta propia (ni sombra, ni desenfoque,
+     * ni ancho máximo), solo una franja tintada. La ventana ya es la tarjeta: nada de tarjeta dentro de tarjeta.
+     */
+    incrustada?: boolean;
 }
 
 // De-mock: handles demo históricos que NO deben mostrarse como identidad real.
@@ -63,6 +68,7 @@ export function SessionResumePrompt({
     onResume,
     autoRedirect = true,
     className,
+    incrustada = false,
 }: SessionResumePromptProps) {
     const router = useRouter();
     const [ready, setReady] = useState(false);
@@ -175,7 +181,7 @@ export function SessionResumePrompt({
             className={className}
             role="region"
             aria-label="Sesión StarSeed detectada"
-            style={{ width: "100%", maxWidth: 350, margin: "0 auto" }}
+            style={incrustada ? { width: "100%" } : { width: "100%", maxWidth: 350, margin: "0 auto" }}
         >
             <style>{`
                 @keyframes ssSsoIn { from { opacity: 0; transform: translateY(10px) scale(.99); } to { opacity: 1; transform: none; } }
@@ -189,15 +195,25 @@ export function SessionResumePrompt({
 
             <div
                 className="ss-sso-card"
-                style={{
-                    position: "relative",
-                    background: "rgba(12,14,24,.82)",
-                    border: "1px solid rgba(167,139,250,.28)",
-                    borderRadius: 18,
-                    padding: 18,
-                    boxShadow: "0 18px 50px rgba(0,0,0,.45)",
-                    backdropFilter: "blur(14px)",
-                }}
+                style={
+                    incrustada
+                        ? {
+                              position: "relative",
+                              background: "rgba(124,92,255,.08)",
+                              border: "1px solid rgba(167,139,250,.22)",
+                              borderRadius: 16,
+                              padding: 14,
+                          }
+                        : {
+                              position: "relative",
+                              background: "rgba(12,14,24,.82)",
+                              border: "1px solid rgba(167,139,250,.28)",
+                              borderRadius: 18,
+                              padding: 18,
+                              boxShadow: "0 18px 50px rgba(0,0,0,.45)",
+                              backdropFilter: "blur(14px)",
+                          }
+                }
             >
                 <div
                     style={{

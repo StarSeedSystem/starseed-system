@@ -1,27 +1,21 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════════════════
-// LoginExperience — experiencia de acceso compacta (tipo Café), anti-overflow
+// LoginExperience — la ruta /login, ahora con LA ventana de acceso única
 // ----------------------------------------------------------------------------
-// Rediseño del /login para que NO se salga por arriba ni por abajo en pantallas
-// chicas: contenedor a 100dvh, centrado, con SCROLL INTERNO si el contenido no
-// cabe. Mantiene intactos el formulario existente (<AuthForm>) y el prompt de
-// sesión (<SessionResumePrompt>), sólo mejora el marco (compacto, glass, es-ES).
-//
-// Flujo (solo si NO hay sesión): primero aparece la ventana de bienvenida /
-// especificaciones (<WelcomeGate>), con los sentidos de Aurora, el flujo de
-// permisos y el botón de instalar; al pulsar "Continuar" se revela el acceso.
-//
-// Aditivo y defensivo: si el usuario ya tiene sesión, <WelcomeGate> no se
-// muestra y el prompt de reanudar/formulario se comportan igual que antes.
+// (Ola 1025T · ACC1025A) Antes pintaba su propio diseño («Identidad Digital»: logo + tarjeta con
+// <AuthForm>, más la bienvenida previa <WelcomeGate>). Ya no pinta nada propio: delega en
+// <PaginaAcceso> (`ventana-acceso.tsx`), la misma ventana que /bienvenida y el primer arranque.
+// La ruta sigue existiendo —hay enlaces guardados—, abre en la cuenta (Entrar) y conserva:
+//   · el `?next=` seguro (lo resuelve <AuthForm> al entrar);
+//   · el «Continuar como…» (SSO #93) cuando ya hay una sesión StarSeed en el dispositivo, dentro de
+//     la propia tarjeta y respetando ese `?next=`.
 // ════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
-import { AuthForm } from "@/components/auth/auth-form";
 import { siguienteDeBusqueda } from "@/lib/auth/siguiente-seguro";
-import { Logo } from "@/components/logo";
 import { SessionResumePrompt } from "@/components/sso/session-resume-prompt";
-import { WelcomeGate } from "@/components/welcome/welcome-gate";
+import { PaginaAcceso } from "@/components/auth/ventana-acceso";
 
 export function LoginExperience() {
   // (2026-09-28) «Continuar como…» también respeta un `?next=` seguro (p. ej. volver a
@@ -32,56 +26,12 @@ export function LoginExperience() {
     setSiguiente(s || null);
   }, []);
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        height: "100dvh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        // Scroll interno del envoltorio si el contenido supera la altura visible,
-        // en lugar de desbordar el layout (nunca se corta por arriba/abajo).
-        overflowY: "auto",
-        WebkitOverflowScrolling: "touch",
-        padding: "clamp(0.75rem, 3vw, 1.5rem)",
-      }}
-    >
-      {/* Bienvenida/especificaciones ANTES del acceso (solo sin sesión). */}
-      <WelcomeGate />
-
-      {/* Columna compacta y centrada (máx. ~380px, estilo Café). En pantallas
-          cortas hace SCROLL INTERNO (max-height ligada a 100dvh) para no cortar
-          el logo/formulario por arriba ni por abajo. */}
-      <div
-        className="ss-login-col"
-        style={{
-          width: "100%",
-          maxWidth: 380,
-          maxHeight: "100dvh",
-          overflowY: "auto",
-          WebkitOverflowScrolling: "touch",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 16,
-          // Padding vertical mínimo para respirar sin empujar fuera de pantalla.
-          paddingTop: "clamp(0.5rem, 2vh, 1.25rem)",
-          paddingBottom: "clamp(0.5rem, 2vh, 1.25rem)",
-        }}
-      >
-        {/* Logo un poco más contenido que antes (evita desbordes en móvil). */}
-        <div style={{ transform: "scale(1.2)", transformOrigin: "center", marginBottom: 4 }}>
-          <Logo />
-        </div>
-
-        {/* SSO (#93): "Continuar como…" si ya hay sesión en el dispositivo. */}
-        <div style={{ width: "100%" }}>
-          <SessionResumePrompt {...(siguiente ? { redirectTo: siguiente } : {})} />
-        </div>
-
-        <AuthForm />
-      </div>
-    </div>
+    <PaginaAcceso
+      desde="login"
+      pasoInicial="acceso"
+      pestanaInicial="signin"
+      avisoReanudar={<SessionResumePrompt incrustada {...(siguiente ? { redirectTo: siguiente } : {})} />}
+    />
   );
 }
 
