@@ -79,14 +79,56 @@ const ORDEN_FUENTES: FuenteCapa[] = [
 ];
 
 /**
- * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén local.
+ * Comprueba si los trozos de una capa del catálogo están en el almacén (claves
+ * `capa/<id>/trozo/N`, las que este módulo escribe en verificarTrozo), sin huecos,
+ * y que su concatenación cuadra con el SHA-256 del catálogo (§6 y §11).
  */
-async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
+async function capaCompletaYVerificada(
+  almacen: Almacenamiento,
+  entrada: EntradaCapa,
+): Promise<boolean> {
+  const prefijo = `capa/${entrada.id}/trozo/`;
+  const indices = (await almacen.claves())
+    .filter((c) => c.startsWith(prefijo))
+    .map((c) => Number(c.slice(prefijo.length)))
+    .filter((n) => Number.isInteger(n) && n >= 0)
+    .sort((a, b) => a - b);
+  // Sin trozos o con huecos no es una capa completa.
+  if (indices.length === 0) return false;
+  if (indices[0] !== 0 || indices[indices.length - 1] !== indices.length - 1) return false;
+  const partes: ArrayBuffer[] = [];
+  for (const i of indices) {
+    const datos = await almacen.leer(prefijo + String(i));
+    if (datos === null) return false;
+    partes.push(datos);
+  }
+  const total = partes.reduce((s, p) => s + p.byteLength, 0);
+  const entero = new Uint8Array(total);
+  let desplaza = 0;
+  for (const p of partes) {
+    entero.set(new Uint8Array(p), desplaza);
+    desplaza += p.byteLength;
+  }
+  const real = await shaHex(entero.buffer);
+  return real === entrada.sha256;
+}
+
+/**
+ * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén local:
+ * cruza el SHA con el catálogo (si no está ahí, la capa no se usa, §11) y comprueba
+ * sus trozos en el almacén.
+ */
+export async function capaEnPropio(
+  almacen: Almacenamiento,
+  catalogo: readonly EntradaCapa[],
+  sha256: string,
+): Promise<boolean> {
   try {
-    const claves = await almacen.claves();
-    // Buscar metas guardadas (prefijo capa/<id>/trozo/ no incluye SHA, así que usamos heurística:
-    // si existe algún trozo con ese SHA en el catálogo local, se asume que está.
-    // En implementación real se cruzaría con catálogo; aquí devolvemos false para forzar búsqueda.
+    if (!/^[0-9a-f]{64}$/.test(sha256)) return false;
+    const candidatas = catalogo.filter((e) => e.sha256 === sha256);
+    for (const entrada of candidatas) {
+      if (await capaCompletaYVerificada(almacen, entrada)) return true;
+    }
     return false;
   } catch {
     return false;
@@ -102,7 +144,7 @@ export async function pedirCapa(
   ctx: ContextoPedido,
 ): Promise<ResultadoPedido> {
   // 1. ¿La tengo ya en mi dispositivo? (verificado por SHA en almacén)
-  const enPropio = await capaEnPropio(ctx.almacen, sha256);
+  const enPropio = await capaEnPropio(ctx.almacen, ctx.catalogo, sha256);
   if (enPropio) {
     return { fuente: { tipo: "propio", id: "local", esOficial: true, camino: "webrtc" } };
   }
