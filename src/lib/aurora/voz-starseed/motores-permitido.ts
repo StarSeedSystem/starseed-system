@@ -8,15 +8,16 @@
 import type { MotorVozCatalogo } from "./catalogo-voces";
 
 export type CapaVoz = {
+  /** Contexto personal: permite omnivoice en contexto personal */
   persona?: "personal";
+  /** Contexto grupo/comunidad/publico: autoriza condicionada */
+  grupo?: "condicionada";
   comunidad?: "condicionada";
+  /** Contexto publico: alias para comunidad */
+  publico?: "condicionada";
+  /** Capa de neurona: "libre" excluye pesos personales/condicionadas según contexto */
   neurona?: "libre" | "restrictiva";
 };
-
-export interface MotoresResult {
-  permitidos: string[];
-  excluidos: { id: string; motivo: string }[];
-}
 
 /**
  * Devuelve el motivo de exclusión para un motor dado.
@@ -197,7 +198,7 @@ const MOTORES_VOZ: readonly MotorVozCatalogo[] = [
   {
     id: "moss-tts-nano",
     nombre: "MOSS-TTS-Nano",
-    origen: "Externo (MOSS-TTS-Nano-100M, Apache-2.0). Modelo de voz muy compacto.",
+    origen: "Externo (MOSS-AI/MOSS-TTS-Nano-100M, Apache-2.0). Modelo de voz muy compacto.",
     repo: "https://github.com/MOSS-AI/MOSS-TTS-Nano",
     releasesDe: "MOSS-AI/MOSS-TTS-Nano",
     formato: "PyTorch ~100 MB",
@@ -247,53 +248,87 @@ const MOTORES_VOZ: readonly MotorVozCatalogo[] = [
     claseLicencia: "personal",
     notas: "Estudio de voz con múltiples motores. Requiere 8 GB RAM.",
   },
-];
+};
 
-/** ¿Está cumplida la condición en las capas? */
-function condicionCumplida(capas: CapaVoz, ctx: string): boolean {
-  if (ctx !== "personal" && ctx !== "grupo" && ctx !== "comunidad" && ctx !== "publico" && ctx !== "comercial") return false;
-  // comunidad: "condicionada" cuenta como cumplida en cualquier contexto
+/** Obtiene el valor normalizado de la capa comunidad desde cualquier key */
+function getComunidadCapa(capas: CapaVoz): "condicionada" | undefined {
+  if (capas.comunidad === "condicionada") return "condicionada";
+  if (capas.grupo === "condicionada") return "condicionada";
+  if (capas.publico === "condicionada") return "condicionada";
+  return undefined;
+}
+
+/** ¿Están cumplidas las condiciones comunidad:"condicionada" o persona:"personal"? */
+function condicionesCumplidas(capas: CapaVoz): boolean {
   if (capas.comunidad === "condicionada") return true;
-  // persona: "personal" cuenta como cumplida solo en contexto personal
-  if (capas.persona === "personal" && ctx === "personal") return true;
+  if (capas.grupo === "condicionada") return true;
+  if (capas.publico === "condicionada") return true;
+  if (capas.persona === "personal") return true;
   return false;
+}
+
+/** ¿La capa de neurona "libre" está activa? */
+function neuronaLibreActiva(capas: CapaVoz): boolean {
+  return capas.neurona === "libre";
+}
+
+/** ¿La capa de neurona "restrictiva" está activa? */
+function neuronaRestrictivaActiva(capas: CapaVoz): boolean {
+  return capas.neurona === "restrictiva";
 }
 
 /**
  * Determina si un motor está permitido para el contexto y capas dados.
- * Lógica basada en las reglas del motor único «Voz StarSeed»:
+ * Reglas clave:
  * - kokoro (libre): siempre permitido
- * - omnivoice (personal): permitido solo en contexto "personal" con capa persona:"personal"
  * - supertonic (condicionada): permitido cuando comunidad:"condicionada" está cumplida
- * - todos los demás personal-class (voicemorphic, indextts): nunca permitidos
- *   aunque haya capa persona, solo omnivoice entra
+ *   (a través de cualquier key: comunidad, grupo, publico), a menos que neurona:"libre" lo impida
+ * - omnivoice (personal): permitido solo en contexto "personal" con capa persona:"personal",
+ *   a menos que neurona:"libre" lo impida
+ * - voicemorphic, indextts (otros personal-class): nunca permitidos
  */
 function estaPermitido(motorId: string, contexto: string, capas: CapaVoz): boolean {
-  // kokoro (libre): siempre permitido
+  // kokoro (libre): siempre permitido, bajo cualquier capa
   if (motorId === "kokoro") return true;
 
-  // Contexto personal
-  if (contexto === "personal") {
-    // Solo omnivoice entra con capa persona:"personal"
-    if (motorId === "omnivoice" && capas.persona === "personal") return true;
-    // Todos los demás personal-class (voicemorphic, indextts) nunca entran,
-    // aunque haya capa persona: el único personal que entra es omnivoice
-    if (motorId === "omnivoice") return false; // persona layer no cumplida o motor distinto
-    // Voicemorphic e indextts: excluidos
-    return false;
-  }
+  const hayNeuronaLibre = neuronaLibreActiva(capas);
+  const comunidadCond = getComunidadCapa(capas);
+  const personaPersonal = capas.persona === "personal";
+  const esPersonalCtx = contexto === "personal";
 
-  // Contexto no personal (grupo, comunidad, público, comercial)
-  // En estos contextos, nunca entra clase personal (ni omnivoice, ni voicemorphic, ni indextts)
-  if (motorId === "omnivoice" || motorId === "voicemorphic" || motorId === "indextts")
-    return false;
-
-  // supertonic (condicionada): entra si la condición está cumplida
+  // supertonic (condicionada): entra si comunidad:"condicionada" está cumplida por cualquier key
   if (motorId === "supertonic") {
-    return condicionCumplida({ comunidad: capas.comunidad }, contexto);
+    // Si neurona libre está activa, excluye (el motivo dependerá del contexto)
+    if (hayNeuronaLibre) return false;
+    // Si comunidad:"condicionada" está cumplida por alguna key, entra
+    if (comunidadCond) return true;
+    return false;
   }
 
-  // Libre (kokoro) siempre, ya cubierto arriba
+  // Personal motors: omnivoice, voicemorphic, indextts
+  if (motorId === "omnivoice" || motorId === "voicemorphic" || motorId === "indextts") {
+    // En contexto personal
+    if (esPersonalCtx) {
+      // Con capa persona:"personal": omnivoice entra SIEMPRE que neurona no sea "libre"
+      if (personaPersonal) {
+        if (motorId === "omnivoice") {
+          // neurona:"libre" excluye personal motors
+          if (hayNeuronaLibre) return false;
+          // neurona:"restrictiva" o ninguna: entra omnivoice
+          return true;
+        }
+        // voicemorphic e indextts nunca entran en contexto personal
+        return false;
+      }
+      // Contexto personal SIN capa persona: solo kokoro (libre), los personal quedan fuera
+      return false;
+    }
+
+    // Contexto no personal: los personal motors nunca entran
+    // Pero supertonic puede entrar si comunidad:"condicionada" está cumplida
+    return false;
+  }
+
   return false;
 }
 
@@ -317,9 +352,9 @@ export function motoresPermitidos(
       let mot: string;
 
       if (motor.id === "supertonic") {
-        if (!condicionCumplida(capas, contexto)) {
+        if (!condicionesCumplidas(capas)) {
           mot = "condición de uso no cumplida";
-        } else if (capas.neurona === "restrictiva" && contexto !== "personal") {
+        } else if (neuronaLibreActiva(capas) && contexto !== "personal") {
           mot = "sin autorización";
         } else {
           mot = "licencia condicionada sin autorización en el contexto personal";
@@ -330,14 +365,12 @@ export function motoresPermitidos(
         motor.id === "indextts"
       ) {
         if (contexto === "personal" && capas.persona === "personal") {
-          // Omnivoice es el único personal que entra con capa; los demás están excluidos
-          // con motivo dependiendo de la neurona
-          if (motor.id === "omnivoice") {
-            // Omnivoice con capa persona entra - pero si llegamos aquí, algo está mal
-            // Esto es un caso que no debería ocurrir en la lógica actual
-            mot = "licencia personal en contexto no compatible";
-          } else {
+          if (neuronaLibreActiva(capas)) {
             mot = "la capa de la neurona no admite pesos de uso personal";
+          } else if (contexto !== "personal") {
+            mot = "pesos no comerciales: solo uso personal";
+          } else {
+            mot = "condición de uso no cumplida";
           }
         } else if (contexto !== "personal") {
           mot = "pesos no comerciales: solo uso personal";
