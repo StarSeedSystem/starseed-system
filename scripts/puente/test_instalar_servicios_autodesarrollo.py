@@ -2,6 +2,11 @@
 # -*- coding: utf-8 -*-
 """Pruebas del servicio «autodesarrollo» de instalar-servicios.py (Ola 1024I · IMG1024E; era IMN1021Eb).
 
+Resolución del salvavidas de nube 64d1cc8e6 (IMN1021E, 2026-10-23): su entrada «autodesarrollo» en
+SERVICIOS duplicaba la que main ya integró en CADA (Ola 1024I, con lanzador-tcc.py, ProcessType y
+AbandonProcessGroup); se mantuvo la de main y de su prueba se heredaron las comprobaciones que faltaban
+(StandardErrorPath y «nunca un shell» en ProgramArguments).
+
 El módulo instala al importarse, así que se carga con HOME en una carpeta temporal y `subprocess.run`
 simulado: ni launchctl ni plutil de verdad (aquí no hay launchd). Vigila lo que costó caro en los demás
 servicios: python3 por ruta absoluta, lanzador-tcc.py de padre, cada 15 min sin KeepAlive y un ProcessType
@@ -64,6 +69,7 @@ class ServicioAutodesarrollo(unittest.TestCase):
         self.assertEqual(p["WorkingDirectory"], RAIZ)
         self.assertEqual(p["EnvironmentVariables"]["STARSEED_ROOT"], RAIZ)
         self.assertEqual(p["StandardOutPath"], "/tmp/starseed-autodesarrollo.log")
+        self.assertEqual(p["StandardErrorPath"], "/tmp/starseed-autodesarrollo.log")
 
     def test_lanzador_tcc_de_padre_y_rutas_absolutas(self):
         args = self.plist["ProgramArguments"]
@@ -74,6 +80,8 @@ class ServicioAutodesarrollo(unittest.TestCase):
         self.assertEqual(resto[1], "-u")
         self.assertTrue(resto[2].endswith("scripts/puente/director_autodesarrollo.py") and os.path.isfile(resto[2]))
         self.assertEqual(resto[3:], ["ciclo"])
+        # python3 con permiso de disco como primera vida; jamás un shell (muere sin TCC)
+        self.assertTrue(all(not a.endswith(("zsh", "bash")) for a in args))
         self.assertTrue(all(os.path.isabs(a) for a in (args[0], args[1], resto[0], resto[2])))
 
     def test_carga_por_launchctl_simulado_y_solo_ese(self):
