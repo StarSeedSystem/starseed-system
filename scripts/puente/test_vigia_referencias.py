@@ -67,6 +67,19 @@ class Cadenas_y_parseo(unittest.TestCase):
         self.assertEqual(len(V.huella_sha256(b"algo")), 64)
         self.assertNotEqual(V.huella_sha256(b"algo"), V.huella_sha256(b"algo2"))
 
+    def test_cargar_json_devuelve_el_valor_por_defecto_si_falta(self):
+        self.assertEqual(
+            V.cargar_json("/ruta/que/no/existe.json", {"por defecto": "valor"}),
+            {"por defecto": "valor"})
+
+    def test_obtener_dominio_conserva_el_puerto(self):
+        self.assertEqual(V.obtener_dominio("http://sub.dominio.org:8080/path"),
+                         "sub.dominio.org:8080")
+
+    def test_huella_sha256_es_estable(self):
+        self.assertEqual(V.huella_sha256(b"Hola mundo"), V.huella_sha256(b"Hola mundo"))
+        self.assertNotEqual(V.huella_sha256(b"Hola mundo"), V.huella_sha256(b"Hola mund!"))
+
     def test_fecha_a_iso(self):
         self.assertEqual(V.fecha_a_iso("Tue, 20 Oct 2026 12:00:00 GMT"),
                          "2026-10-20T12:00:00Z")
@@ -86,6 +99,9 @@ class Cadenas_y_parseo(unittest.TestCase):
         self.assertFalse(V.canal_permitido({"tipo": "blog", "url": "https://x/blog/"}))
         self.assertFalse(V.canal_permitido({"tipo": "youtube-canal", "ref": "@alguien"}))
         self.assertFalse(V.canal_permitido({"tipo": "api", "url": "https://api.ajena.com/v2"}))
+        # Un canal sin tipo tampoco se rastrea:
+        self.assertFalse(V.canal_permitido({}))
+        self.assertFalse(V.canal_permitido({"ref": "https://x/feed"}))
 
     def test_parsear_rss(self):
         items = V.parsear_rss(_RSS_V1)
@@ -99,6 +115,19 @@ class Cadenas_y_parseo(unittest.TestCase):
         self.assertEqual(V.parsear_rss(atom), [{"titulo": "Uno", "url": "https://atom.ejemplo.com/1",
                                                 "fecha": "2026-10-21T08:00:00Z"}])
         self.assertEqual(V.parsear_rss(b"no es xml"), [])
+
+    def test_parsear_rss_prefiere_pubdate(self):
+        feed = b"""<rss><channel>
+            <item><title>Con dos fechas</title>
+              <link>https://blog.ejemplo.com/c</link>
+              <pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate>
+              <date>2024-01-03</date></item>
+            <item><title>Sin fecha</title>
+              <link>https://blog.ejemplo.com/d</link></item>
+        </channel></rss>"""
+        items = V.parsear_rss(feed)
+        self.assertEqual(items[0]["fecha"], "2024-01-01T12:00:00Z")
+        self.assertIsNone(items[1]["fecha"])
 
     def test_parsear_sitemap(self):
         self.assertEqual(V.parsear_sitemap(_SITEMAP),
@@ -265,6 +294,22 @@ class VigiaConRaizTemp(unittest.TestCase):
                                            ahora=dt.datetime(2026, 10, 22, tzinfo=dt.timezone.utc))
             self.assertEqual(salida, [])
             self.assertEqual(leer_estado(raiz)["solo-prohibidos"]["ultima_revision"],
+                             "2026-10-22T00:00:00Z")
+        finally:
+            __import__("shutil").rmtree(raiz, ignore_errors=True)
+
+    def test_canal_sin_referencia_no_hace_peticiones(self):
+        raiz = hacer_raiz([{
+            "id": "sin-ref", "nombre": "Sin referencia", "tema": "prueba",
+            "actualizacion": [{"tipo": "rss"}],
+        }])
+        try:
+            red = RedFalsa({})
+            salida = V.vigilar_referencias(raiz, red, lambda segundos: None,
+                                           ahora=dt.datetime(2026, 10, 22, tzinfo=dt.timezone.utc))
+            self.assertEqual(salida, [])
+            self.assertEqual(red.peticiones, [])
+            self.assertEqual(leer_estado(raiz)["sin-ref"]["ultima_revision"],
                              "2026-10-22T00:00:00Z")
         finally:
             __import__("shutil").rmtree(raiz, ignore_errors=True)
