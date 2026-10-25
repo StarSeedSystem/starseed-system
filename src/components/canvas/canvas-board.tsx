@@ -91,6 +91,7 @@ import {
   Check,
   Mail,
   PenTool,
+  Atom,
 } from "lucide-react";
 import {
   BLOCK_KINDS,
@@ -137,6 +138,7 @@ import { BoardShareDialog, BoardShareTrigger } from "@/components/canvas/board-s
 import { useMySpaces, useMyInvites, acceptInvite, declineInvite, createSpace } from "@/lib/spaces/spaces";
 import { useSharedBoardSpace } from "@/lib/sync/shared-board-space";
 import { getBoardEngine, setBoardEngine, type BoardEngine } from "@/lib/canvas/board-engine";
+import { BloquePizarraProtomolecula, ladosArista } from "@/components/protomolecula/bloque-pizarra";
 
 // Motor "tldraw (profesional)" (Adenda tldraw): dynamic ssr:false porque el
 // SDK toca `window`/canvas al importarse — ver tldraw-board.tsx. El motor
@@ -161,6 +163,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutGrid,
   Globe,
   Image: ImageIcon,
+  Atom,
 };
 
 function KindIcon({ kind, className }: { kind: BlockKind; className?: string }) {
@@ -1785,7 +1788,9 @@ export default function CanvasBoard({
             })}
           </svg>
 
-          {visibleBlocks.map((b) => (
+          {visibleBlocks.map((b) => {
+            const lados = b.kind === "protomolecula" ? ladosArista(edges, canvas.blocks, b.id) : null;
+            return (
             <BlockCard
               key={b.id}
               block={b}
@@ -1796,6 +1801,7 @@ export default function CanvasBoard({
               connectMode={connectMode}
               connectActive={connectFrom === b.id}
               memoryView={isMemoryView}
+              aristas={lados ?? undefined}
               onSelect={() => selectBlock(b.id)}
               onConnectClick={() => onBlockConnectClick(b.id)}
               onEditToggle={() => {
@@ -1812,7 +1818,8 @@ export default function CanvasBoard({
               onTitle={(t) => updateBlock(b.id, { title: t })}
               onPickFile={(e) => onPickFile(b.id, e)}
             />
-          ))}
+            );
+          })}
         </div>
         </div>
 
@@ -1999,6 +2006,7 @@ function BlockCard({
   connectMode,
   connectActive,
   memoryView,
+  aristas,
   onSelect,
   onConnectClick,
   onEditToggle,
@@ -2018,6 +2026,7 @@ function BlockCard({
   connectMode: boolean;
   connectActive: boolean;
   memoryView: boolean;
+  aristas?: ReturnType<typeof ladosArista>;
   onSelect: () => void;
   onConnectClick: () => void;
   onEditToggle: () => void;
@@ -2031,6 +2040,7 @@ function BlockCard({
 }) {
   const def = blockKindDef(block.kind);
   const locked = !!block.locked;
+  const d = (block.data || {}) as Record<string, unknown>;
   return (
     <div
       data-block={block.id}
