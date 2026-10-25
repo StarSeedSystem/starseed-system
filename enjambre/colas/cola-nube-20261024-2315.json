@@ -1,0 +1,106 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "VZF1015G",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Aurora escucha por el elector: tramos con detector de voz hacia el mejor motor (el navegador queda de suelo)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/escucha-fusionada.ts",
+    "src/lib/aurora/stt-oss/__tests__/escucha-fusionada.test.ts",
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea `escucharFusionado({ obtenerAudio, elegir, transcribir, alParcial, alFinal, idiomaPista, hotwords })`: corta el audio del micrófono en tramos con el detector de energía de `oss-stt.ts` (silencio 800 ms, tramo ≤ 30 s), pide a `elegirOido` el motor de la fase «final» por tramo y transcribe con `transcribirOpenAI` o el demonio; el parcial lo sigue dando el navegador si está (regla 1 del §3). En `engine.ts` (alrededor de `buildRecognition`, l. ~1925) usa este camino cuando el navegador no tiene reconocimiento o la neurona tiene un motor local medido mejor, SIN tocar el cerrojo de dueño único (`claimStt/releaseStt`) ni `esEcoPropio`. Pruebas con audio y motores falsos. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015A",
+    "VZF1015B"
+   ]
+  },
+  {
+   "id": "VZF1015M",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Un solo resolutor de identidad de voz por persona (agente › personalidad › cerebro › neurona › cuenta)",
+   "archivos": [
+    "src/lib/aurora/identidad-voz.ts",
+    "src/lib/aurora/__tests__/identidad-voz.test.ts",
+    "src/lib/aurora/voz-rt.ts"
+   ],
+   "depende": [],
+   "prompt": "Hay seis mapas de «qué voz tiene esta persona» sin coordinar (VOZ_POR_PERSONA de voz-rt, pines del registro, timbres/voz-inicial/voz-rito, INSTRUCT del demonio, seedKindFor de openvoice2, xai-persona-voices). Crea `identidadVoz({ agente?, personalidad, cerebro?, neurona?, cuenta? })` → `{ timbre, motor, vozRT, origen }` con esa precedencia, leyendo los mapas existentes (no los borres) y que `vozDePersona` de `voz-rt.ts` la use. Pruebas de la precedencia y de que la voz F1 de Alex se conserva por defecto. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015N",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Plática · interrupción por voz: si la persona habla > 250 ms, Astraura calla al momento",
+   "archivos": [
+    "src/lib/aurora/interrumpir-por-voz.ts",
+    "src/lib/aurora/__tests__/interrumpir-por-voz.test.ts",
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Hoy solo se interrumpe tocando la orbe. Crea un detector PURO por energía con histéresis (`decidirInterrupcion(muestras, estado, { umbralDb, minimoMs: 250 })`) y un montaje que lee el micrófono con `echoCancellation: true` y `noiseSuppression: true` mientras Astraura habla y llama a `interrupt()` del motor. No puede cortarse con su propio eco: respeta `esEcoPropio`/`ventanaEcoMs` de `anti-bucle-voz.ts`. En `engine.ts` solo el enganche (activar al hablar, soltar al callar). Pruebas del detector con muestras sintéticas. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015I"
+   ]
+  },
+  {
+   "id": "MR1012E",
+   "titulo": "Routers a nodos: panel en la configuración de neuronas y cerebros",
+   "archivos": [
+    "src/components/network/routers-malla-panel.tsx",
+    "src/components/network/router-center.tsx",
+    "src/components/network/__tests__/routers-malla-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Panel 'use client' «Routers de la malla»: añadir router (fabricante, modelo, versión, ¿es del operador?); muestra `compatibilidad` (con la tabla que se pase por prop; si no hay, estado 'desconocido' y el enlace a https://openwrt.org/toh/start para buscarlo), el aviso y los pasos; tras marcar «ya tiene OpenWrt»: región, troncales entre routers (elegir pares), `planRadios` en una tabla por enlace (banda, canal, ancho, potencia) editable dentro de lo legal, y por router los botones «Copiar guion» (guionAplicar) y «Descargar configuración» (Blob .txt). La clave de la malla se genera en el navegador (crypto.getRandomValues, 24 bytes en base64url) y solo se muestra al copiar. Guarda la lista de routers (sin claves) en localStorage con try/catch. Móntalo en router-center.tsx (cambio mínimo). Diseño del OS, legible en móvil. Prueba jsdom: añadir un router de operador muestra 'bloqueado-operador'.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MR1012A",
+    "MR1012B",
+    "MR1012C",
+    "MR1012D"
+   ]
+  },
+  {
+   "id": "VZR1011C",
+   "ola": "Ola 1011I · Voces locales fluidas (Chatterbox, OpenVoice V2; F5/XTTS opcionales personales) y el pato Open Duck Mini como cuerpo de bots y agentes",
+   "titulo": "Licencias de voz: F5-TTS y XTTS-v2 como opcionales de uso personal; ChatTTS solo ficha",
+   "archivos": [
+    "src/lib/aurora/tts-oss/voces-no-comerciales.ts",
+    "src/lib/aurora/tts-oss/__tests__/voces-no-comerciales.test.ts",
+    "src/lib/library/packages.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-voces-y-robots.md` (léelo ENTERO; el §1 tiene licencias y datos VERIFICADOS el 2026-10-11 — no inventes otros). Reutiliza lo que YA existe y no lo dupliques: `architecture/aurora-voz-motores.md` + `src/lib/aurora/tts-oss/engine-registry.ts` (cadena `buildVoiceChain`, `AUTO_ENDPOINT_ORDER`, OpenVoice V2 ya es el motor principal), `architecture/forja-voz-158.md` §4 (en producto solo MIT/Apache), `src/lib/aurora/voz-starseed/` (motor único por niveles, Supertonic: la voz F1 de Astraura que le gusta a Alex se mantiene), `src/lib/voces/` (clonación con consentimiento obligatorio, trocear, perfil neuronal), `src/lib/astraura/needle3-client.ts` y `decision-hibrida.ts` (capa Needle), `architecture/astraura-bots.md` y `src/lib/astraura-bots/` (cuerpos, acciones con META y riesgo). Reglas: «basta de ilusiones»; nunca descargas automáticas de pesos (solo con permiso y tras comprobar ≥ 3 veces el espacio); en la Mac de Alex (8 GB) los motores pesados ceden ante el enjambre (`scripts/puente/guardia-memoria.py`); clonar una voz exige consentimiento explícito de su dueño y jamás se imita a una persona real sin él; nada no comercial en uso comercial; nada de claves en código; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Toda repo o modelo que entre lleva su ficha en la Biblioteca (`src/lib/library/packages.ts`, `kind: \"ai-source\"` o `\"repo\"`) con comprobación de versión (regla de CLAUDE.md). Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto.\n\nTAREA: F5-TTS (pesos CC-BY-NC) y XTTS-v2 (Coqui Public Model License) entran como motores OPCIONALES de uso personal no comercial: apagados por defecto, solo si la persona los instala y acepta su licencia en una casilla que la explica, nunca en contextos comerciales (páginas o grupos con fines comerciales) ni en la cadena AUTO por defecto; respetan la regla de la forja §4 para el producto. ChatTTS (modelo CC BY-NC 4.0 «solo académico», sin español) NO se integra: solo su ficha. Fichas en la Biblioteca para Chatterbox, OpenVoice V2, F5-TTS, XTTS-v2 y ChatTTS con licencia exacta del contrato y comprobación de versión. Pruebas del filtro comercial.",
+   "dependencias_ya_en_main": [
+    "VZR1011B"
+   ]
+  },
+  {
+   "id": "VZR1011D",
+   "ola": "Ola 1011I · Voces locales fluidas (Chatterbox, OpenVoice V2; F5/XTTS opcionales personales) y el pato Open Duck Mini como cuerpo de bots y agentes",
+   "titulo": "Plática fluida: latencia medida, voz por trozos, interrumpir y voces de la malla",
+   "archivos": [
+    "src/lib/aurora/tts-oss/conversacion-fluida.ts",
+    "src/lib/aurora/tts-oss/__tests__/conversacion-fluida.test.ts",
+    "src/lib/aurora/tts-oss/speak-router.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-voces-y-robots.md` (léelo ENTERO; el §1 tiene licencias y datos VERIFICADOS el 2026-10-11 — no inventes otros). Reutiliza lo que YA existe y no lo dupliques: `architecture/aurora-voz-motores.md` + `src/lib/aurora/tts-oss/engine-registry.ts` (cadena `buildVoiceChain`, `AUTO_ENDPOINT_ORDER`, OpenVoice V2 ya es el motor principal), `architecture/forja-voz-158.md` §4 (en producto solo MIT/Apache), `src/lib/aurora/voz-starseed/` (motor único por niveles, Supertonic: la voz F1 de Astraura que le gusta a Alex se mantiene), `src/lib/voces/` (clonación con consentimiento obligatorio, trocear, perfil neuronal), `src/lib/astraura/needle3-client.ts` y `decision-hibrida.ts` (capa Needle), `architecture/astraura-bots.md` y `src/lib/astraura-bots/` (cuerpos, acciones con META y riesgo). Reglas: «basta de ilusiones»; nunca descargas automáticas de pesos (solo con permiso y tras comprobar ≥ 3 veces el espacio); en la Mac de Alex (8 GB) los motores pesados ceden ante el enjambre (`scripts/puente/guardia-memoria.py`); clonar una voz exige consentimiento explícito de su dueño y jamás se imita a una persona real sin él; nada no comercial en uso comercial; nada de claves en código; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Toda repo o modelo que entre lleva su ficha en la Biblioteca (`src/lib/library/packages.ts`, `kind: \"ai-source\"` o `\"repo\"`) con comprobación de versión (regla de CLAUDE.md). Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto.\n\nTAREA: Para el contexto de conversación: elige el motor por la latencia MEDIDA en esta neurona (primer audio y factor de tiempo real guardados por motor; presupuesto ≤ 0,8 s hasta el primer sonido) y no por la teórica; empieza a hablar con la primera frase mientras el modelo de lenguaje sigue escribiendo (`src/lib/voces/trocear.ts`) y sintetiza la siguiente mientras suena la anterior; si la persona empieza a hablar, corta al instante (interrumpir) y escucha. Capas: aparato › otra neurona de la cuenta en la red local (sus servicios de voz publicados en el registro de neuronas que ya existe) › malla del grupo › Spaces › voz del sistema; lo que no llega al presupuesto pasa al siguiente sin silencios. En lectura o narración manda la calidad. Pruebas con relojes y motores simulados (ningún silencio > presupuesto, interrupción < 100 ms).",
+   "dependencias_ya_en_main": [
+    "VZR1011B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-24.json": [
+   "MR1012E",
+   "VZR1011C",
+   "VZR1011D",
+   "VZF1015G",
+   "VZF1015M",
+   "VZF1015N"
+  ]
+ }
+}
