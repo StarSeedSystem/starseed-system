@@ -61,7 +61,12 @@ if [[ $SO == linux || $SO == wsl2 ]] && ! systemctl --user show-environment >/de
   echo "systemd --user no responde: no puedo dejar el nodo en marcha en este aparato." >&2
   [ "$SO" = wsl2 ] && echo "En WSL2: pon «[boot]» y «systemd=true» en /etc/wsl.conf, ejecuta «wsl --shutdown» en Windows y vuelve a abrirlo." >&2; exit 1; fi
 # Un aparato que ya es nodo (la Mac, el A1) se suma con «Usar como contenedor»: aquí se movería su servicio a otra copia.
+<<<<<<< HEAD
 for u in "$HOME/Library/LaunchAgents/com.starseed.nodo-metagenesis.plist" "$HOME/.config/systemd/user/starseed-nodo-metagenesis.service" "${STARSEED_UNIDAD_SISTEMA:-/etc/systemd/system/starseed-metagenesis.service}"; do
+=======
+SYSTEMD_SYSTEM="${STARSEED_SYSTEMD_SYSTEM_PATH:-/etc/systemd/system/starseed-metagenesis.service}"
+for u in "$HOME/Library/LaunchAgents/com.starseed.nodo-metagenesis.plist" "$HOME/.config/systemd/user/starseed-nodo-metagenesis.service" "$SYSTEMD_SYSTEM"; do
+>>>>>>> 2c8d60f1f (salvavidas · GCA1019O: trabajo del agente antes de las puertas (tsc / vitest))
   [ -f "$u" ] && [[ $(< "$u") != *"$DESTINO/"* ]] && { echo "Este aparato ya es un nodo de MetaGenesis ($u) con otra copia del repo: no lo toco. Usa el botón «Usar como contenedor»." >&2; exit 1; }; done
 if [ ! -e "$DESTINO" ]; then hacer "git clone $REPO $DESTINO" git clone "$REPO" "$DESTINO" || { echo "No pude clonar el repositorio." >&2; exit 1; }
 elif [ "$SECO" = 1 ]; then echo "Ya hay una copia en $DESTINO: preguntaría si usarla y ponerla al día (git pull --ff-only)."
