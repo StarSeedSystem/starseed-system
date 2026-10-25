@@ -20,12 +20,17 @@ class DirectorTest(unittest.TestCase):
     def tearDown(self):
         self.t.cleanup()
 
+    def _flota(self, raiz, tareas):
+        self.__dict__.setdefault("entregadas", []).append([t["id"] for t in tareas])
+        return {"accion": "probada", "tareas": len(tareas)}
+
     def correr(self, **kw):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: True,
                     lanzador_diario=lambda: self.llamadas.append("diaria") or True,
                     lanzador_profundo=lambda *a: self.llamadas.append(a) or True,
                     agente_referencias=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}})
+        args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
 
     def leer(self, *ruta):
@@ -94,6 +99,10 @@ class Imaginacion1024Test(unittest.TestCase):
     def tearDown(self):
         self.t.cleanup()
 
+    def _flota(self, raiz, tareas):
+        self.__dict__.setdefault("entregadas", []).append([t["id"] for t in tareas])
+        return {"accion": "probada", "tareas": len(tareas)}
+
     def ajustes(self, **auto):
         d = {"aprobar": True, "reimaginar": True, "umbral": 0.75, "max_reimaginaciones": 1}; d.update(auto)
         json.dump({"auto": d}, open(os.path.join(self.home, "autodesarrollo.json"), "w"))
@@ -107,6 +116,7 @@ class Imaginacion1024Test(unittest.TestCase):
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True,
                     agente_referencias=lambda raiz, ahora: self.referencias.append((raiz, ahora)) or {"ok": True},
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}})
+        args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
 
     def props(self):
@@ -271,6 +281,10 @@ class Ola1025STest(unittest.TestCase):
     def tearDown(self):
         self.t.cleanup()
 
+    def _flota(self, raiz, tareas):
+        self.__dict__.setdefault("entregadas", []).append([t["id"] for t in tareas])
+        return {"accion": "probada", "tareas": len(tareas)}
+
     def aplicar(self, item):
         self.aplicadas.append(item); return None
 
@@ -278,6 +292,7 @@ class Ola1025STest(unittest.TestCase):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: False,
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True, agente_referencias=lambda raiz, ahora: None,
                     aplicar_astraura=self.aplicar, datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
+        args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
 
     def sembrar(self, lista):
@@ -394,7 +409,10 @@ class Ola1025STest(unittest.TestCase):
         self.assertEqual((critica["estado"], critica["importancia"]), ("esperando-aprobacion", "crítica"))
         self.assertEqual(self.aplicadas, [])
 
-    def test_sin_capacidad_decide_y_escribe_pero_no_lanza_nada(self):
+    def test_con_presion_de_memoria_encarga_el_analisis_pero_no_lo_pesado(self):
+        """Ola 1025S: la Mac casi siempre está en presión 2. Reimaginar y preparar entregables son análisis por
+        HTTP en el orquestador vivo (con su propio tope): se encargan igual. Lo pesado (código, aplicar en
+        Astraura) espera a que toque ejecutar."""
         viva = self.astraura("bgauth_1_athena", titulo="Autorizada")
         viva["origen"].update(requires_user_approval=False, status="running")
         self.sembrar([viva, self.astraura("creation_1"), self.libre("rica"), self.libre("floja", cuerpo="Idea suelta.")])
@@ -403,13 +421,24 @@ class Ola1025STest(unittest.TestCase):
         self.assertFalse(r["toca_ejecutar"]); self.assertIn("presión", r["motivo_toca"])
         props = self.props()  # se escribió aunque no tocara ejecutar
         self.assertEqual(props["astraura:bgauth_1_athena"]["estado"], "descartada")
-        self.assertEqual((props["astraura:creation_1"]["estado"], props["agentes:a--rica"]["estado"]), ("aprobada", "aprobada"))
+        self.assertEqual((props["astraura:creation_1"]["estado"], props["agentes:a--rica"]["estado"]), ("aprobada", "encargada"))
         self.assertEqual(props["agentes:a--floja"]["estado"], "reimaginando")
-        self.assertNotIn("tarea", props["agentes:a--floja"]["reimaginacion"])
-        self.assertEqual((self.aplicadas, r["entregables_encargados"], r["reimaginaciones_encargadas"]), ([], 0, 0))
-        self.assertFalse(os.path.isdir(os.path.join(self.mem, "olas")))
-        r = self.correr(ahora=NOCHE.replace(minute=15))  # vuelve la capacidad: se lanza lo decidido
-        self.assertEqual((len(self.aplicadas), r["entregables_encargados"], r["reimaginaciones_encargadas"]), (1, 1, 1))
+        self.assertIn("tarea", props["agentes:a--floja"]["reimaginacion"])
+        self.assertTrue(r["toca_analizar"])
+        self.assertEqual((self.aplicadas, r["entregables_encargados"], r["reimaginaciones_encargadas"]), ([], 1, 1))
+        self.assertEqual(sorted(self.entregadas[-1]), sorted([props["agentes:a--floja"]["reimaginacion"]["tarea"],
+                                                              props["agentes:a--rica"]["entregable"]["tarea"]]))
+        r = self.correr(ahora=NOCHE.replace(minute=15))  # vuelve la capacidad: se aplica lo de Astraura
+        self.assertEqual((len(self.aplicadas), r["entregables_encargados"], r["reimaginaciones_encargadas"]), (1, 0, 0))
+        self.assertEqual(len(self.entregadas[-1]), 2)  # lo que sigue esperando se vuelve a ofrecer (sin repetir)
+
+    def test_sin_proveedores_ni_dato_no_encarga_analisis(self):
+        self.sembrar([self.libre("floja", cuerpo="Idea suelta.")])
+        r = self.correr(capacidad=dict(CAP, presion_mac=2, proveedores_con_cupo=0))
+        self.assertFalse(r["toca_analizar"]); self.assertIn("cupo", r["motivo_analisis"])
+        self.assertEqual(r["reimaginaciones_encargadas"], 0)
+        r = self.correr(capacidad=None, ahora=NOCHE.replace(minute=15))
+        self.assertFalse(r["toca_analizar"]); self.assertIsNone(r["flota"])
 
     def test_seco_decide_en_memoria_y_no_escribe(self):
         self.sembrar([self.astraura("creation_1"), self.astraura("creation_2")])

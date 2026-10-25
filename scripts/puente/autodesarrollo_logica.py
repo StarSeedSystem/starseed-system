@@ -129,6 +129,24 @@ def toca_ejecutar(ahora: datetime, horario, capacidad):
     return True, f"hay capacidad libre ({huecos} huecos)"
 
 
+def toca_analizar(ahora: datetime, horario, capacidad):
+    """(bool, motivo) para ENCARGAR ANÁLISIS (reimaginar, preparar un entregable). Ola 1025S.
+
+    No es trabajo de código: lo hace el orquestador que ya está vivo, por HTTP, con su propio tope
+    (`tope_de_analisis`: no ocupa huecos de código ni del gobernador y se recorta solo si la RAM baja de
+    400 MB). Por eso NO espera a la memoria ni a los huecos —con la Mac casi siempre en presión 2, esperar
+    era no reimaginar nunca—, pero sí respeta las franjas que Alex eligió y necesita que algún proveedor
+    tenga cupo (sin cupo, la tarea caducaría en la cola sin que nadie la hiciera)."""
+    h = validar_ajustes({"horario": horario})["horario"]
+    if h["modo"] == "franjas" and not en_franja(ahora, h["franjas"]):
+        return False, "fuera de las franjas elegidas"
+    if not isinstance(capacidad, dict):
+        return False, "sin dato de capacidad: no se encarga análisis a ciegas"
+    if (capacidad.get("proveedores_con_cupo") or 0) <= 0:
+        return False, "ningún proveedor tiene cupo"
+    return True, "análisis por HTTP en el orquestador vivo, con su propio tope"
+
+
 def lotes(n, franjas_restantes, repartir=True):
     """Reparte `n` entre las franjas que quedan hoy; el sobrante, a las primeras."""
     n, k = max(0, int(n or 0)), max(0, int(franjas_restantes or 0))

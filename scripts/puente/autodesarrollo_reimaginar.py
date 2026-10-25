@@ -192,6 +192,84 @@ def caducadas(propuestas, ahora, horas=CADUCA_H):
     return fuera
 
 
+#: Las colas de análisis de la Imaginación que la flota recoge (reimaginar y entregables, Ola 1025S).
+PREFIJOS_FLOTA = (PREFIJO_COLA, "cola-suenos-entregables-")
+#: Marca de que el analista instalado junto al orquestador sabe hacer análisis libres (IMG1024D).
+MARCA_ANALISIS_LIBRE = "_analisis_libre"
+DIAS_FLOTA = 3
+
+
+def tareas_esperadas(mem, ids, ahora, dias=DIAS_FLOTA, listar=os.listdir):
+    """Las tareas de las colas de análisis de los últimos `dias` cuyo id sigue esperado (`ids`). Una cola de
+    hace tres días cuya propuesta ya volvió (o caducó) no se ofrece: su id ya no está en `ids`."""
+    carpeta = os.path.join(mem, "olas")
+    try:
+        nombres = sorted(listar(carpeta))
+    except OSError:
+        return []
+    limite = (ahora - timedelta(days=dias)).strftime("%Y-%m-%d")
+    fuera, vistos = [], set()
+    for n in nombres:
+        pref = next((p for p in PREFIJOS_FLOTA if n.startswith(p) and n.endswith(".json")), None)
+        if not pref or n[len(pref):-5] < limite:
+            continue
+        try:
+            with open(os.path.join(carpeta, n), encoding="utf-8") as f:
+                lista = json.load(f)
+        except (OSError, ValueError):
+            continue
+        for t in lista if isinstance(lista, list) else []:
+            if isinstance(t, dict) and t.get("id") in ids and t["id"] not in vistos:
+                vistos.add(t["id"]); fuera.append(t)
+    return fuera
+
+
+def a_la_flota(raiz, tareas, vivos=None, apto=None, libre=None):
+    """Ola 1025S: entrega las tareas de análisis de la Imaginación al orquestador VIVO (la «tanda viva» de
+    `suenos.py lanzar` y del agente de referencias de diseño). Antes nadie lanzaba las colas
+    `cola-suenos-reimaginar-*`/`-entregables-*` (el prefijo aparta a los orquestadores de código, a
+    propósito): la reimaginación esperaba hasta caducar.
+    · Nunca arranca un orquestador (la regla es UNO) ni sustituye una tarea que ya está en su cola.
+    · Solo si el instalado sabe analizar y hacer análisis libres, y el vivo arrancó DESPUÉS de instalar el analista.
+    `vivos`, `apto` (bool, mtime) y `libre` (bool, mtime) son inyectables (pruebas)."""
+    if not tareas:
+        return {"accion": "nada", "tareas": 0}
+    import suenos as S  # noqa: WPS433  (vía común de los sueños; import perezoso: pesa)
+    vivos = S.orquestadores_vivos() if vivos is None else vivos
+    apto_orq, mtime_orq = S.orquestador_instalado_apto() if apto is None else apto
+    if libre is None:
+        ruta = os.path.join(os.path.dirname(S.ruta_orquestador()), "analista.py")
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                libre = (MARCA_ANALISIS_LIBRE in f.read(), os.path.getmtime(ruta))
+        except OSError:
+            libre = (False, 0.0)
+    sabe_libre, mtime_libre = libre
+    n = len(tareas)
+    if not apto_orq or not sabe_libre:
+        return {"accion": "cola_lista", "tareas": n, "motivo": "el orquestador instalado no sabe hacer análisis libres "
+                "(bash scripts/enjambre/instalar.sh): las tareas esperan en su cola"}
+    # Cuenta la instalación del ANALISTA, no la del orquestador: el orquestador solo pasa la tarea de análisis
+    # a `analista.py` (que cargó al arrancar). Reinstalar el orquestador por otro arreglo no debe dejar la
+    # reimaginación esperando a que el vivo termine su tanda.
+    capaces = [o for o in vivos if S.puede_sonar(o, float(mtime_libre or 0))]
+    if not capaces:
+        return {"accion": "esperar" if vivos else "cola_lista", "tareas": n, "motivo": (
+            "el orquestador vivo arrancó antes de instalar el analista o va en tanda manual: espera a que termine"
+            if vivos else "no hay orquestador vivo: el vigilante lo arranca y el próximo ciclo se las da")}
+    o = capaces[0]
+    viva = os.path.join(S.rutas(raiz)["olas"], o["cola"])
+    prev = S._leer_json(viva, [])
+    lista = prev if isinstance(prev, list) else (prev.get("tareas") or [] if isinstance(prev, dict) else [])
+    ya = {t.get("id") for t in lista if isinstance(t, dict)}
+    nuevas = [t for t in tareas if t.get("id") not in ya]
+    if nuevas:
+        S._escribir_json(viva, S.fundir_tareas(lista, nuevas) if isinstance(prev, list)
+                         else dict(prev, tareas=S.fundir_tareas(lista, nuevas)))
+    return {"accion": "tanda_viva", "tareas": len(nuevas), "ya_estaban": n - len(nuevas), "pid": o.get("pid"),
+            "cola_viva": o["cola"], "motivo": "añadidas a la cola viva (%s), con el tope de análisis propio" % o["cola"]}
+
+
 def encolar(mem, tareas, ahora, prefijo=PREFIJO_COLA):
     """E/S: añade `tareas` a `olas/<prefijo><fecha>.json` (por defecto `cola-suenos-reimaginar-`) sin repetir
     ids (escritura atómica). Devuelve el nombre de la cola (None si no hay tareas; si ya estaban todas, no

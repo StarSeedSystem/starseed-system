@@ -299,3 +299,28 @@ credenciales, 3 de diaria por token/publicar/publicación). Con presión de memo
 Pruebas: `test_autodesarrollo_decidir.py` (Ola1025STest), `test_autodesarrollo_fuentes.py`,
 `test_autodesarrollo_reimaginar.py`, `test_autodesarrollo_entregables.py`, `test_director_autodesarrollo.py`
 (Ola1025STest) y `scripts/enjambre/test_analista_libre.py` (el entregable de punta a punta con el analista).
+
+### IMG1025B · el análisis llega a la flota aunque la Mac tenga presión de memoria (2026-10-25)
+
+Con IMG1025A el automático ya decidía, pero **ninguna reimaginación llegaba a hacerse**, por dos motivos:
+
+1. **Esperaba a `toca_ejecutar`**, que es falso con la presión de memoria en 2 o sin huecos, y la Mac de 8 GB pasa
+   casi todo el día en presión 2. Reimaginar y preparar un entregable son **análisis por HTTP** dentro del
+   orquestador ya vivo, con su propio tope (`tope_de_analisis`: no ocupa huecos de código ni del gobernador y se
+   recorta solo si la RAM baja de 400 MB). Ahora se encargan con `autodesarrollo_logica.toca_analizar`: respeta
+   las franjas que Alex elija y pide un proveedor con cupo, pero no espera a la memoria ni a los huecos. Lo
+   pesado (la cola de código, aplicar en Astraura) sigue esperando a `toca_ejecutar`.
+2. **Nadie lanzaba sus colas.** `cola-suenos-reimaginar-*` y `cola-suenos-entregables-*` empiezan por
+   `cola-suenos-` a propósito, para que ningún orquestador de código las tome como demanda, y así se quedaban.
+   Ahora, en cada ciclo, `autodesarrollo_reimaginar.a_la_flota` entrega al orquestador vivo (la «tanda viva»,
+   la misma vía de `suenos.py lanzar` y del agente de referencias de diseño) las tareas de esas colas de los
+   últimos 3 días cuya propuesta sigue esperando. Nunca arranca un orquestador ni sustituye lo que ya está en
+   su cola. Si el instalado no sabe hacer análisis libres, o el vivo arrancó antes de instalarse, espera y lo
+   dice (`flota` en la salida del ciclo).
+
+Y «token» a secas ya no hace «de Alex» una propuesta: solo cuenta como credencial con su contexto (token de
+acceso o de API, `*_TOKEN`, bearer). «Quitar ese token» del sandbox de un iframe es una tarea de seguridad.
+
+Pruebas: `test_autodesarrollo_flota.py`, `test_director_autodesarrollo.py`
+(`test_con_presion_de_memoria_encarga_el_analisis_pero_no_lo_pesado`, `test_sin_proveedores_ni_dato_no_encarga_analisis`)
+y `test_autodesarrollo_decidir.py` (`TokenSoloComoCredencial`).

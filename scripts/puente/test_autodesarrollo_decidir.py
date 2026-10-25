@@ -419,5 +419,20 @@ class Ola1025STest(unittest.TestCase):
         self.assertTrue(D.firma(ajustes()).startswith(D.REGLAS + "|"))
         self.assertNotEqual(D.firma(ajustes()), "1|1|1|0,75|2")  # la de la Ola 1024I: lo firmado con ella se revisa
 
+
+class TokenSoloComoCredencial(unittest.TestCase):
+    """Ola 1025S: «token» a secas marcaba «de Alex» una tarea de seguridad del sueño diario («quitar ese
+    token» del sandbox del iframe). Solo cuenta como credencial con su contexto."""
+
+    def test_token_que_no_es_credencial(self):
+        for t in ("Endurecer el sandbox: quitar ese token allow-popups", "Reducir los tokens del modelo por turno"):
+            self.assertEqual(D.es_de_alex({"titulo": t, "cuerpo": ""}), "", t)
+
+    def test_token_que_si_es_credencial(self):
+        for t in ("Rotar el token de acceso de GitHub", "Mover GITHUB_TOKEN al servidor", "Usar un API token nuevo",
+                  "Cabecera Bearer en la sonda", "Guardar la clave en el entorno", "r2_credentials.local.json"):
+            self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
+
+
 if __name__ == "__main__":
     unittest.main()

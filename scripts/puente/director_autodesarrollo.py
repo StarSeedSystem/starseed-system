@@ -258,11 +258,15 @@ def _aplicar_en_astraura(lista, aplicar, iso):
 
 
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
-          existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None):
+          existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None,
+          a_la_flota=None):
     """Un ciclo (§5). `datos`: {diaria, profunda, astraura, directores, agentes} para no leer disco ni red.
     `consejo(p)`: Jev para el veto de lo que se integraría solo (None = solo la regla). `agente_referencias(raiz,
     ahora)`: el agente de referencias de diseño (por defecto, el módulo si existe); devuelve None si no hay agente.
-    `aplicar_astraura(item)`: aplica una creación en el backend 1.58 (None si lo hizo, o el error); por defecto, HTTP."""
+    `aplicar_astraura(item)`: aplica una creación en el backend 1.58 (None si lo hizo, o el error); por defecto, HTTP.
+    `a_la_flota(raiz, tareas)`: entrega el análisis encolado al orquestador vivo (por defecto `AR.a_la_flota`).
+    Ola 1025S: reimaginar y preparar entregables se encargan con `AL.toca_analizar` (análisis por HTTP con su
+    propio tope), no con `toca_ejecutar`: la presión de memoria de la Mac frenaba toda reimaginación."""
     ahora, home, raiz = ahora or datetime.now(), home or os.path.expanduser("~/.starseed"), raiz or RAIZ
     mem, hoy = os.path.join(raiz, "starseed_memory_root"), (ahora or datetime.now()).strftime("%Y-%m-%d")
     with cerrojo(os.path.join(home, "cerrojos", "autodesarrollo.lock")) as libre:
@@ -272,6 +276,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         if cap is None and aj["horario"]["modo"] == "inteligente":
             toca, motivo = False, "sin dato de capacidad: en modo inteligente no se ejecuta"
         else: toca, motivo = AL.toca_ejecutar(ahora, aj["horario"], cap or {})
+        toca_an, motivo_an = (True, motivo) if toca else AL.toca_analizar(ahora, aj["horario"], cap)
         est_ruta = os.path.join(home, "autodesarrollo-estado.json"); est = _json(est_ruta, {})
         lanzo = []
         if toca and not seco:
@@ -321,7 +326,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         por_tarea = {AR.id_tarea(p): p for p in propuestas if p.get("estado") == "reimaginando"}
         auto_r = AD.orden_reimaginar([por_tarea[t["id"]] for t in reim if t.get("por") != "alex" and t["id"] in por_tarea])
         elegidas_r = {AR.id_tarea(p) for p in auto_r[:AD.TOPE_POR_CICLO]}
-        reim = [t for t in reim if t.get("por") == "alex" or t["id"] in elegidas_r] if toca else []
+        reim = [t for t in reim if t.get("por") == "alex" or t["id"] in elegidas_r] if toca_an else []
         entregables = _revisar_entregables(propuestas, raiz, ahora, iso)
         auto = AD.cuantas([p for p in propuestas if p.get("estado") == "autodesarrollo"], aj["rango"], AD.umbral_efectivo(aj))["elegidas"]
         aprobadas = {v: [] for v in AD.VIAS}
@@ -333,7 +338,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 p.update(estado="hecha", aplicada=p.get("decidida") or iso, t=iso, motivo_destino="aplicada en Astraura al integrarla desde Genesis")
         astraura = [p for p in aprobadas["astraura"] if p.get("estado") == "aprobada"]
         aplicadas = _aplicar_en_astraura(astraura, aplicar_astraura, iso) if toca and not seco else 0
-        cupo_e = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - AE.en_vuelo(propuestas))) if toca else 0
+        cupo_e = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - AE.en_vuelo(propuestas))) if toca_an else 0
         ent = AD.orden_reimaginar(aprobadas["entregable"])[:cupo_e]
         tareas_e = [AE.tarea(p, ahora) for p in ent]
         cola = (auto + aprobadas["codigo"]) if toca else []
@@ -344,7 +349,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                    "archivos": (p.get("archivos") or [])[:3], "depende": [], "prompt": PROMPT.format(t=p["titulo"], c=p.get("cuerpo", "")[:600]),
                    **({"aprobacion": True} if p.get("aprobacion_diff") else {})} for p in cola]
         esperan = [p for p in propuestas if p.get("estado") == "esperando-aprobacion"]
-        cola_r = cola_e = None
+        cola_r = cola_e = flota = None
         if not seco:
             if tareas_e:
                 cola_e = AE.encolar(mem, tareas_e, ahora)
@@ -358,6 +363,13 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 por_tarea = {AR.id_tarea(p): p for p in propuestas if p.get("estado") == "reimaginando"}
                 for t in reim: AR.marcar_encolada(por_tarea[t["id"]], t, cola_r, iso)
             _escribir(pr, propuestas if isinstance(crudo, list) else {**crudo, "actualizado": iso, "propuestas": propuestas})
+            # Ola 1025S: lo encolado (de este ciclo y de los anteriores que siguen esperando) va al orquestador vivo.
+            ids_f = {(p.get("reimaginacion") or {}).get("tarea") for p in propuestas if p.get("estado") == "reimaginando"}
+            ids_f |= {(p.get("entregable") or {}).get("tarea") for p in propuestas if p.get("estado") == "encargada"}
+            ids_f.discard(None)
+            if toca_an and ids_f:
+                try: flota = (a_la_flota or AR.a_la_flota)(raiz, AR.tareas_esperadas(mem, ids_f, ahora))
+                except Exception as e: flota = {"accion": "error", "motivo": type(e).__name__}
             if avisar and (tareas or esperan or reim or tareas_e or aplicadas):
                 avisar(f"Imaginación: {len(tareas)} tarea(s) encargada(s), {len(esperan)} esperando tu aprobación"
                        + (f", {len(reim)} reimaginándose" if reim else "") + (f", {len(tareas_e)} entregable(s) encargado(s)" if tareas_e else "")
@@ -368,7 +380,8 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 "reimaginaciones_encargadas": len(reim) if not seco else 0, "cola_reimaginar": cola_r,
                 "decisiones": dict(decisiones), "entregables": dict(entregables),
                 "entregables_encargados": len(tareas_e) if not seco else 0, "cola_entregables": cola_e,
-                "aplicadas_astraura": aplicadas, "estados": dict(Counter(p.get("estado") or "nueva" for p in propuestas))}
+                "aplicadas_astraura": aplicadas, "toca_analizar": toca_an, "motivo_analisis": motivo_an,
+                "flota": flota, "estados": dict(Counter(p.get("estado") or "nueva" for p in propuestas))}
 
 
 def _avisar_real(texto, telegram):
