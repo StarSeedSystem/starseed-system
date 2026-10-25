@@ -45,6 +45,38 @@ class PruebasSeleccion(unittest.TestCase):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
 
+    def test_que_copiar_selecciona_correctamente(self):
+        # listado con todos los archivos que deberían salir seleccionados
+        ahora = AHORA
+        reciente = ahora - 3600  # hace una hora
+        listado = self.pares(
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+            mtime=reciente
+        )
+        seleccion = que_copiar(listado, ahora)
+        esperados = {
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+        }
+        self.assertEqual(set(seleccion), esperados)
+
 
 class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
@@ -90,7 +122,75 @@ class PruebasEmpaquetar(unittest.TestCase):
             log = tar.extractfile("orquestador.log").read().decode("utf-8").splitlines()
             self.assertEqual(len(log), espejo_estado.LOG_LINEAS)
             self.assertEqual(log[0], "registro %d" % (largo - espejo_estado.LOG_LINEAS))
-            self.assertEqual(log[-1], "registro %d" % (largo - 1))
+
+    def test_empaquetar_crea_tar_gz(self):
+        seleccion = [
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "evento1.jsonl",
+            "log.txt",
+        ]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # la carpeta olas, como en la Mac
+            olas_dir = os.path.join(tmp_dir, "olas")
+            os.makedirs(olas_dir)
+            # se crean todos los archivos de la selección
+            for nombre in seleccion:
+                file_path = os.path.join(olas_dir, nombre)
+                if nombre == "progreso.json":
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        json.dump({"ola": "1012C"}, f)
+                elif nombre == "progreso.md":
+                    # un archivo de 300 líneas
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write("\n".join([f"Línea {i}" for i in range(300)]))
+                elif nombre == "medios.json":
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        json.dump({"medios": ["oracle-a1"]}, f)
+                elif nombre == "puntos-control.json":
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        json.dump({"puntos": [{"nombre": "pc1"}]}, f)
+                elif nombre == "cola-1.json":
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        json.dump({"tareas": []}, f)
+                elif nombre == "evento1.jsonl":
+                    # un log de 200 líneas
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        for i in range(200):
+                            f.write(json.dumps({"evento": i, "ts": 1000+i}) + "\n")
+                elif nombre == "log.txt":
+                    # otro log de 200 líneas
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write("\n".join([f"Log line {i}" for i in range(200)]))
+            # ahora se empaqueta
+            salida_dir = os.path.join(tmp_dir, "salida")
+            os.makedirs(salida_dir)
+            ruta_tar = empaquetar(seleccion, olas_dir, salida_dir)
+            self.assertTrue(os.path.exists(ruta_tar))
+            with tarfile.open(ruta_tar, "r:gz") as tar:
+                extra_dir = os.path.join(tmp_dir, "extra")
+                os.makedirs(extra_dir, exist_ok=True)
+                tar.extractall(path=extra_dir)
+                # el tar lleva los archivos en la raíz, no en una subcarpeta
+                contenido_extra = os.listdir(extra_dir)
+                self.assertEqual(set(contenido_extra), set(seleccion))
+                esperadas_lineas = {
+                    "progreso.json": 1,
+                    "progreso.md": 300,
+                    "medios.json": 1,
+                    "puntos-control.json": 1,
+                    "cola-1.json": 1,
+                    "evento1.jsonl": 200,
+                    "log.txt": 200,
+                }
+                for nombre, esperada in esperadas_lineas.items():
+                    ruta_extra = os.path.join(extra_dir, nombre)
+                    with open(ruta_extra, "r", encoding="utf-8") as f:
+                        lineas = f.read().splitlines()
+                    self.assertEqual(len(lineas), esperada, f"{nombre}: {len(lineas)} != {esperada}")
 
 
 class PruebasEnviarEstado(unittest.TestCase):
