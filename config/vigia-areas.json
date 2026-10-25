@@ -113,12 +113,9 @@
         "pipeline_tags": [],
         "autores": [],
         "cuantizadores": [],
-        "repos_github": ["mattpocock/skills","heygen-com/hyperframes"],
-        "alias_github": {
-            "mattpocock/skills": "mattpocock/skills",
-            "heygen-com/hyperframes": "heygen-com/hyperframes"
-        },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
+        "repos_github": ["mattpocock/skills", "heygen-com/hyperframes"],
+        "catalogo": "src/ai/astraura/habilidades/ingenieria-a.ts",
+        "nota": "Las skills de vendan en vendor/habilidades/; el vigía avisa de commits nuevos y la copia se renueva entera. El catálogo es por dónde salen las conversiones a capacidades (ingenieria-a.ts y hermanas de src/ai/astraura/habilidades/)."
     }
   ]
 }

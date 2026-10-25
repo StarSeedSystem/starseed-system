@@ -57,6 +57,7 @@ en `config/vigia-areas.json` (añadir un área = añadir una entrada):
 | incrustaciones | sentence-similarity, feature-extraction | conocimiento propio |
 | audio y música | text-to-audio | estudio de voces |
 | motores | releases de GitHub: llama.cpp, stable-diffusion.cpp, whisper.cpp, ComfyUI, fermionresearch/phonon, onnxruntime, opencode | `packages.ts` + instaladores |
+| habilidades | releases y commits de GitHub de skills (mattpocock/skills, heygen-com/hyperframes) | `src/ai/astraura/habilidades/` (conversiones a capacidades) y la copia de `vendor/habilidades/` |
 
 Fuentes por área, todas con la API pública (sin clave; `HF_TOKEN` si existe sube el límite):
 - **Tendencia**: `models?pipeline_tag=<tag>&sort=trendingScore&limit=30` (NUNCA solo `sort=likes`).
