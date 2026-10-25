@@ -15,6 +15,7 @@ import { puertosDelOs, contextoDeMiCuenta } from "@/lib/genesis/puertos-os";
 import type { Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
+import { AsistenteConectores } from "./conectores/asistente-conectores";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
 
@@ -96,6 +97,12 @@ export function MiGenesis() {
                 sugerencias={SUGERENCIAS}
                 atajos={(anadir, ctx) => <AtajosGenesis anadir={anadir} ctx={ctx} />}
             />
+            <section id="conectar" aria-label="Conectar este contexto">
+                <h2 className="text-base font-semibold">Conectar</h2>
+                {/* Asistente «Conectar Genesis» (contrato genesis-conectores-abiertos.md §3–6):
+                    local del contexto con interruptores, lo gratis por vincular y la cadena por papel. */}
+                <AsistenteConectores papeles={["escritor", "revisor", "director", "chat"]} />
+            </section>
             <section id="bots" aria-label="Mis bots">
                 <h2 className="text-base font-semibold">Mis bots</h2>
                 <SeccionBotsGenesis />
