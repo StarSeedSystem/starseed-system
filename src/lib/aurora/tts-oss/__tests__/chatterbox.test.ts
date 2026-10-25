@@ -394,7 +394,9 @@ describe("registro y cadena de voz", () => {
     const viejo = ["kokoro", "openvoice2", "omnivoice", "voicebox", "voxcpm", "bark", "gpt-sovits", "kitten", "browser"];
     const nuevo = completarPrioridad(viejo);
     // (VOZ1024B) La voz 1.58-bit y VibeVoice entran delante, su sitio en el registro.
-    expect(nuevo).toEqual(["voice158", "vibevoice", "kokoro", "openvoice2", "chatterbox", "omnivoice", "voicebox", "voxcpm", "bark", "gpt-sovits", "kitten", "browser"]);
+    // (SGO1024C) xai entra justo detrás de su predecesor en el recomendado
+    // (chatterbox) y delante de Kokoro, acabando con su lugar final de siempre.
+    expect(nuevo).toEqual(["voice158", "vibevoice", "kokoro", "openvoice2", "chatterbox", "xai", "omnivoice", "voicebox", "voxcpm", "bark", "gpt-sovits", "kitten", "browser"]);
     expect(completarPrioridad("roto")).toEqual([]);
     expect(completarPrioridad(["inventado"])).toEqual([]);
   });

@@ -161,7 +161,46 @@ describe("su sitio en la cadena respeta el registro", () => {
     const viejo = ["omnivoice", "openvoice2", "chatterbox", "kokoro", "voicebox", "voxcpm", "bark", "gpt-sovits", "kitten", "browser"];
     const nuevo = completarPrioridad(viejo);
     expect(nuevo.slice(0, 2)).toEqual(["voice158", "vibevoice"]);
-    expect(nuevo.slice(2)).toEqual(viejo);
+    // xai (SGO1024C) entra justo detrás de su predecesor en el recomendado
+    // (chatterbox), no al final: así una personalidad que lo fije ya no cae
+    // DETRÁS de Kokoro.
+    expect(nuevo.slice(2)).toEqual(["omnivoice", "openvoice2", "chatterbox", "xai", ...viejo.slice(3)]);
+  });
+
+  it("xai (SGO1024C) ya no acaba detrás de Kokoro: tras los gratis por endpoint y delante de Kokoro", () => {
+    const pri = getVoiceChainPriority();
+    const i = (m: string) => pri.indexOf(m);
+    expect(i("xai")).toBeGreaterThanOrEqual(0);
+    expect(i("xai")).toBeGreaterThan(i("chatterbox"));
+    expect(i("xai")).toBeLessThan(i("kokoro"));
+    for (const gratis of ["voice158", "vibevoice", "voicebox", "omnivoice", "openvoice2"]) {
+      expect(i("xai"), `xai tras ${gratis}`).toBeGreaterThan(i(gratis));
+    }
+    expect(completarPrioridad(["browser"])).toContain("xai");
+  });
+});
+
+describe("VibeVoice (SGO1024C): la ruta explícita del endpoint manda", () => {
+  type Real = typeof import("@/lib/aurora/tts-oss/neural-tts");
+  const real = () => vi.importActual<Real>("@/lib/aurora/tts-oss/neural-tts");
+  const urlDe = async (endpoint: string) => (await real()).vibevoiceSynthesizeUrl(endpoint);
+
+  it("endpoint solo origen → añade la ruta estándar /api/vibevoice/synthesize", async () => {
+    expect(await urlDe("http://gpu.local:7860")).toBe("http://gpu.local:7860/api/vibevoice/synthesize");
+    expect(await urlDe("gpu.local:7860")).toBe("http://gpu.local:7860/api/vibevoice/synthesize");
+    expect(await urlDe("http://gpu.local:7860/")).toBe("http://gpu.local:7860/api/vibevoice/synthesize");
+  });
+
+  it("endpoint con ruta explícita → se usa TAL CUAL, sin duplicar la ruta", async () => {
+    expect(await urlDe("https://tunel.example/api/vibevoice/synthesize")).toBe("https://tunel.example/api/vibevoice/synthesize");
+    expect(await urlDe("http://gpu.local:7860/mi-ruta/de-voz")).toBe("http://gpu.local:7860/mi-ruta/de-voz");
+    expect(await urlDe("http://gpu.local:7860/mi-ruta/de-voz/")).toBe("http://gpu.local:7860/mi-ruta/de-voz");
+  });
+
+  it("sin endpoint útil → cadena vacía (el llamador declina)", async () => {
+    expect(await urlDe("")).toBe("");
+    expect(await urlDe("no es una url")).toBe("");
+    expect(await urlDe("http://")).toBe("");
   });
 });
 

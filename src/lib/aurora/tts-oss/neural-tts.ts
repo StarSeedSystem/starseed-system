@@ -347,6 +347,19 @@ function candidateUrls(engine: NeuralVoiceEngine, endpoint: string): string[] {
   return ENGINE_PATHS[engine].map((p) => (p === "/" ? `${base}/` : `${base}${p}`));
 }
 
+/**
+ * (SGO1024C) URL de síntesis de VibeVoice: si el endpoint configurado ya trae
+ * una RUTA EXPLÍCITA (p. ej. un túnel `https://x.example/api/vibevoice/synthesize`
+ * o una ruta propia), se usa TAL CUAL; si es solo origen, se añade la ruta estándar
+ * `/api/vibevoice/synthesize`. Antes se añadía SIEMPRE, duplicando la ruta cuando
+ * el endpoint ya la traía (404 servido). Función PURA, para pruebas sin red.
+ */
+export function vibevoiceSynthesizeUrl(endpointRaw: string | undefined | null): string {
+  const endpoint = normalizeEndpoint(endpointRaw);
+  if (!endpoint) return "";
+  return candidateUrls("vibevoice", endpoint)[0] ?? `${endpoint}/api/vibevoice/synthesize`;
+}
+
 /** base64 (o data-URL) → Blob de audio. null si no parsea. Nunca lanza. */
 function base64ToBlob(b64: string): Blob | null {
   try {
@@ -664,7 +677,9 @@ async function neuralSpeakVibeVoice(
 
   let blob: Blob | null = null;
   try {
-    const url = endpoint.replace(/\/$/, "") + "/api/vibevoice/synthesize";
+    // (SGO1024C) La ruta del endpoint manda: si trae una explícita va TAL CUAL.
+    const url = vibevoiceSynthesizeUrl(endpoint);
+    if (!url) return null;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
