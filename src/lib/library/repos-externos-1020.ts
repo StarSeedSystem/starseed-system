@@ -1,87 +1,88 @@
-"use client";
+// ════════════════════════════════════════════════════════════════════════════
+// StarSeed OS — Biblioteca · tanda del 2026-10-20 (14 repos builtin externos)
+// ------------------------------------------------------------------------------
+// Convierte `config/repos-libreria-1020.json` en fichas LibraryPackage del repo
+// builtin «starseed-biblioteca-externa». NINGUNA tiene efecto de instalación
+// real todavía: todas van con `comingSoon: true` (botón deshabilitado) para que
+// la honestidad radical no traicione lo que muestran. Otra tanda ya activa la
+// comprobación de releases vía `available-updates.ts` con `payload.externalUrl`;
+// aquí NO se duplica ese motor.
+//
+// Módulo PURO y sin "use client": el JSON entra por importación estática
+// (resolveJsonModule), NADA de `node:fs`. La entrada excluida por seguridad
+// (zhaoxuya520/reverse-skill, ingeniería inversa) ni siquiera se mapea: el
+// contrato §4 la saca del JSON mapeado y el test lo comprueba.
+// ════════════════════════════════════════════════════════════════════════════
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import type { LibraryPackage, LibraryRepo, PackageKind } from "./packages";
+import datos from "../../../config/repos-libreria-1020.json";
 
-const REPO_ROOT = process.cwd();
-const CONFIG_1_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020.json");
-const CONFIG_2_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020b.json");
-
-const repos1 = JSON.parse(readFileSync(CONFIG_1_PATH, "utf-8"));
-const repos2 = JSON.parse(readFileSync(CONFIG_2_PATH, "utf-8"));
-
-const EXCLUIDA_1: string[] = [repos1.excluida?.repo ?? ""].filter((v): v is string => v !== "");
-const EXCLUIDAS_2: string[] = repos2.excluidas?.map((e: { repo: string }) => e.repo) ?? [];
-
-export const REPOS_EXCLUIDOS: string[] = [...EXCLUIDA_1, ...EXCLUIDAS_2];
-
-function mapaPatronTag(patron_tag: string): string {
-  return patron_tag ?? "";
-}
-
-export interface ReposExternosPaquete {
+/** Entrada del catálogo verificado (config/repos-libreria-1020.json). */
+interface Entrada1020 {
   id: string;
   repo: string;
   nombre: string;
-  kind: string;
+  kind: PackageKind;
   canal: string;
-  patronTag: string;
   licencia: string;
   area: string[];
-  efecto: string;
-  preinstalar: string;
-  claude: string | boolean;
-  githubRepo: string;
-  externalUrl: string;
-  comingSoon?: boolean;
-  motivoComingSoon?: string;
+  que_es: string;
+  aviso?: string;
+  skillId?: string;
+  assets?: string[];
 }
 
-function transformaPaquete(p: typeof repos1.paquetes[0] | (typeof repos2.paquetes)[0]): ReposExternosPaquete {
-  const efecto = p.efecto ?? "";
-  const preinstalar = p.preinstalar ?? "";
-  const claude = p.claude ?? false;
-  const patronTag = mapaPatronTag(p.patron_tag);
+interface Catalogo1020 {
+  paquetes: Entrada1020[];
+}
 
-  const githubRepo = p.repo ?? "";
-  const externalUrl = `https://github.com/${githubRepo}`;
+const CATALOGO = datos as unknown as Catalogo1020;
 
-  const esEfectoQueRequiereComingSoon =
-    efecto === "CONECTOR" || efecto === "HERRAMIENTA-AGENTE" || efecto === "CATALOGO";
+/** Icono lucide por kind (según el contrato §5). */
+function iconoPorKind(kind: PackageKind): string {
+  if (kind === "ai-source") return "BrainCircuit";
+  if (kind === "function") return "Boxes";
+  return "AppWindow";
+}
 
-  let comingSoon = false;
-  let motivoComingSoon = "";
-
-  if (esEfectoQueRequiereComingSoon) {
-    comingSoon = true;
-    motivoComingSoon = `efecto ${efecto}: instalación externa, sin ruta propia del OS`;
-  }
-
+/** Mapea una entrada del JSON a una ficha honesta de la Biblioteca. */
+function mapearFicha(entrada: Entrada1020): LibraryPackage {
+  const externalUrl = `https://github.com/${entrada.repo}`;
   return {
-    id: p.id,
-    repo: p.repo,
-    nombre: p.nombre ?? p.id,
-    kind: p.kind ?? "app",
-    canal: p.canal ?? "releases",
-    patronTag,
-    licencia: p.licencia ?? "",
-    area: p.area ?? [],
-    efecto,
-    preinstalar,
-    claude,
-    githubRepo,
-    externalUrl,
-    comingSoon,
-    motivoComingSoon,
+    id: entrada.id,
+    kind: entrada.kind,
+    name: entrada.nombre,
+    description: entrada.aviso
+      ? `${entrada.que_es} — ${entrada.aviso}`
+      : entrada.que_es,
+    icon: iconoPorKind(entrada.kind),
+    tags: [...entrada.area, entrada.canal, entrada.licencia ? "lic" : ""].filter(Boolean),
+    version: "1.0.0",
+    author: entrada.repo.split("/")[0],
+    sourceRepoId: "starseed-biblioteca-externa",
+    free: true,
+    comingSoon: true,
+    payload: {
+      externalUrl,
+      githubRepo: entrada.repo,
+      canal: entrada.canal,
+      area: entrada.area,
+      licencia: entrada.licencia,
+      assets: entrada.assets ?? false,
+      ...(entrada.skillId ? { skillId: entrada.skillId } : {}),
+    },
   };
 }
 
-const paquetes1 = (repos1.paquetes ?? []).map(transformaPaquete);
-const paquetes2 = (repos2.paquetes ?? []).map(transformaPaquete);
+/** Las fichas de la tanda 1020 (sin la excluida zhaoxuya520/reverse-skill). */
+export const FICHAS_EXTERNAS_1020: LibraryPackage[] = CATALOGO.paquetes
+  .filter((e) => !e.repo.includes("reverse-skill"))
+  .map(mapearFicha);
 
-const reposExcluidosSet = new Set(REPOS_EXCLUIDOS);
-
-export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
-  ...paquetes1.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-  ...paquetes2.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-];
+/** El repo builtin externo completo, listo para listRepos(). */
+export const REPO_EXTERNOS_1020: LibraryRepo = {
+  id: "starseed-biblioteca-externa",
+  name: "Biblioteca externa",
+  builtin: true,
+  packages: FICHAS_EXTERNAS_1020,
+};
