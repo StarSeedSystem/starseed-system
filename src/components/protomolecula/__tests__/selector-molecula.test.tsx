@@ -5,6 +5,7 @@ import { CLAVE_INDICE, PREFIJO_MOLECULA, type AlmacenLocal } from "@/lib/protomo
 import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
 import { abrirSesion, cerrarSesion, reiniciarSesiones } from "@/lib/protomolecula/sesion-molecula";
 import { SelectorMolecula, TEXTO_CONFIRMACION, prepararMolecula } from "../selector-molecula";
+import { renderToString } from "react-dom/server";
 
 afterEach(() => { cleanup(); reiniciarSesiones(); });
 
@@ -33,6 +34,10 @@ function molecula(id: string, titulo: string, ambito: string, referencia: { tipo
 const sinReservas = () => "publica" as const;
 
 describe("SelectorMolecula", () => {
+  it("el primer render, antes de leer el almacén, muestra el estado de carga", () => {
+    const html = renderToString(<SelectorMolecula ambitoPost="personal" alElegir={() => {}} almacen={null} />);
+    expect(html).toContain("Cargando tus moléculas");
+  });
   it("una molécula guardada por la sesión de la Protomolécula (forma del núcleo) se lista y llega al lienzo", () => {
     const a = almacenMemoria();
     const nueva = abrirSesion(undefined, { almacen: a, ahora: () => 5, nuevoId: () => "m-sesion" });
