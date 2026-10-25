@@ -851,6 +851,15 @@ en la Mac y aprobó**. Fuente de verdad: `docs/adendas/adenda-228-mando-ampliado
   commit nuevo) y se dice en el Chat Director con el enlace y el motivo. Estado en
   `~/.starseed/produccion/autopublicar-estado.json`. Apagada, nada se publica solo. Rutas `/api/mando/*` son SOLO locales (404 en producción)
   y jamás devuelven claves ni rutas del disco.
+- **El escáner de secretos no frena los textos de ayuda** (2026-10-25, PRO1025A): 77 commits llevaban desde el
+  24-10 sin salir por cinco líneas de ayuda de `.agent/skills/claude-video-studio/` («posible secreto
+  (variable-entorno)»). `produccion_puertas._no_es_secreto` libra, **en cualquier archivo** y sin mayúsculas,
+  (a) un valor que empieza por `your_`, `tu_`, `my_`, `mi_`, `insert_`, `paste_`, `pega_` o `pon_` con un resto
+  legible, y (b) uno formado SOLO por palabras de marcador (key, id, secret, token, clave, here, aqui, xxx…) unidas
+  por `_ : - .`. Un valor aleatorio sigue frenando aunque vaya en un `.md`, y `sk-`, `ghp_`, `eyJ…`, `AKIA`, PEM
+  no se libran nunca. **Un valor de verdad tras un nombre `…_KEY`, `…_TOKEN`, `…_SECRET` o `…_PASSWORD` frena tu propio
+  commit, también el de esta nota**: los ejemplos de ayuda llevan un marcador y las pruebas montan los valores
+  aleatorios en tiempo de ejecución. Pasa siempre el escáner por tu propio diff antes de dar algo por hecho.
 - **Claves por medio (P9)**: capa `CLAVES_POR_PROVEEDOR` con `claves_de`, `clave_activa`, `agotar_clave`,
   `estado_claves`, sufijos `_2…_9` y **huellas sha256** (solo huellas, nunca valores). 429 → 1 h,
   402/cuota → 24 h, aviso único.

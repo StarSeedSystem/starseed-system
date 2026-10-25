@@ -70,6 +70,84 @@ def test_escanear_no_confunde_marcadores_de_documentacion_con_claves():
     assert [h["tipo"] for h in pp.escanear_secretos(real)] == ["variable-entorno"]
 
 
+def test_escanear_no_frena_marcadores_de_documentacion_en_cualquier_archivo():
+    # (2026-10-25, PRO1025A) Las cinco líneas EXACTAS de `.agent/skills/claude-video-studio/` que
+    # frenaron la autopublicación de 77 commits desde el 24-10: textos de ayuda, no claves. Ni
+    # son archivos de prueba ni plantillas: la regla vale en cualquier archivo.
+    base = ".agent/skills/claude-video-studio/"
+    reales = {
+        base + "README.md": [
+            "   in your project folder: `HIGGSFIELD_API_KEY=your_key_id:your_key_secret`. "
+            "Never paste a key into the chat."],
+        base + "questions.md": [
+            '  HIGGSFIELD_API_KEY=your_key_id:your_key_secret (from https://console.higgsfield.ai). '
+            'Never paste it here. Tell me when it is done."'],
+        base + "references/media.md": [
+            "- The person sets `HIGGSFIELD_API_KEY=key_id:key_secret` in their shell, or in a `.env` file"],
+        base + "scripts/doctor.sh": [
+            '    say higgsfield "no key. Make a file called .env in this folder with one line: '
+            'HIGGSFIELD_API_KEY=your_key_id:your_key_secret (from https://console.higgsfield.ai). '
+            'Never paste it into chat."'],
+        base + "scripts/higgsfield.py": [
+            "called .env in your project folder:  HIGGSFIELD_API_KEY=your_key_id:your_key_secret"],
+    }
+    for ruta, lineas in reales.items():
+        assert pp.escanear_secretos(_diff(ruta, lineas)) == [], ruta
+    # Las dos formas, sin distinguir mayúsculas y con puntuación de prosa detrás.
+    marcadores = [
+        "OPENAI_API_KEY=your_openai_key", "OPENAI_API_KEY=YOUR_API_KEY_HERE",
+        "TELEGRAM_BOT_TOKEN=mi_token_de_telegram", "BREVO_API_KEY=tu_clave_de_brevo",
+        "X_API_KEY=my_api_key_here.", "STRIPE_SECRET_KEY=insert_key_here",
+        "SMTP_PASSWORD=paste_password_here", "GROQ_API_KEY=pega_tu_clave_aqui",
+        "GROQ_API_KEY=pon_la_clave_aqui,", "GEMINI_API_KEY=Your_Key_Here",
+        "AUTH_TOKEN=token_here", "AUTH_TOKEN=TOKEN-HERE", "CLIENT_SECRET=client_id:client_secret",
+        "HF_API_KEY=api_key:api_secret", "STARSEED_SERVER_TOKEN=xxxxxxxxxxxx",
+        "OPENAI_API_KEY=xxx-xxx-xxx", "API_KEY='key.id.value'", 'AUTH_TOKEN="aquí_token"',
+    ]
+    for ruta in ("README.md", "docs/guia.md", "scripts/ayuda.sh", "src/lib/x.ts"):
+        for linea in marcadores:
+            assert pp.escanear_secretos(_diff(ruta, [linea])) == [], (ruta, linea)
+    # También en la variante `NEXT_PUBLIC_…`.
+    assert pp.escanear_secretos(_diff("README.md", ["NEXT_PUBLIC_API_KEY=your_public_key"])) == []
+
+
+def test_escanear_sigue_frenando_valores_aleatorios_aunque_vayan_en_documentacion():
+    # El valor se monta en tiempo de ejecución: este archivo también lo escanea la autopublicación.
+    aleatorio = "".join(["Zq8v", "R2mL", "9pXw", "K3dT"])
+    hex_largo = "".join(["3f9a", "2c1e", "7b4d", "4e8a", "9c2f", "1a2b"])
+    contraejemplos = [
+        "HIGGSFIELD_API_KEY=" + aleatorio,
+        "HIGGSFIELD_API_KEY=" + aleatorio + ":" + aleatorio[::-1],
+        "HIGGSFIELD_API_KEY=" + hex_largo,
+        "HIGGSFIELD_API_KEY=key_id:" + aleatorio,  # una palabra de marcador y un trozo real
+        "HIGGSFIELD_API_KEY=" + aleatorio + "_secret",
+        "HIGGSFIELD_API_KEY=secret_" + aleatorio,
+        # Un prefijo de marcador no libra un resto aleatorio (ni en mayúsculas).
+        "HIGGSFIELD_API_KEY=your_" + aleatorio,
+        "HIGGSFIELD_API_KEY=my_" + hex_largo,
+        "HIGGSFIELD_API_KEY=" + "PON_" + aleatorio.upper(),
+        "HIGGSFIELD_API_KEY=pega_" + aleatorio + "_aqui",
+        # El prefijo es con guion bajo: «mi-clave-secreta» es una contraseña de palabras.
+        "HIGGSFIELD_API_KEY=" + "-".join(["mi", "clave", "secreta"]),
+        # Palabras corrientes que no son de marcador: bajo `_TOKEN` siguen siendo una contraseña.
+        "HIGGSFIELD_API_TOKEN=" + "-".join(["caballo", "correcto", "pila"]),
+        "HIGGSFIELD_API_KEY=" + "yourkey" + aleatorio,  # `your` sin guion bajo
+    ]
+    for ruta in ("README.md", "docs/guia.md", "scripts/ayuda.sh", "src/lib/x.ts"):
+        for linea in contraejemplos:
+            tipos = [h["tipo"] for h in pp.escanear_secretos(_diff(ruta, [linea]))]
+            assert tipos == ["variable-entorno"], (ruta, linea[:24], tipos)
+    # Un marcador legible no tapa un secreto que venga detrás en la misma línea.
+    mixta = "`A_API_KEY=your_key_id:your_key_secret` y B_API_KEY=" + aleatorio
+    assert [h["tipo"] for h in pp.escanear_secretos(_diff("README.md", [mixta]))] == ["variable-entorno"]
+    # Los patrones con forma de clave nunca se libran por parecer documentación.
+    assert [h["tipo"] for h in pp.escanear_secretos(
+        _diff("README.md", ["tu_clave: sk-" + aleatorio]))] == ["sk"]
+    # Y el hallazgo sigue sin llevar el valor.
+    h = pp.escanear_secretos(_diff("README.md", ["HIGGSFIELD_API_KEY=" + aleatorio]))
+    assert all(aleatorio not in json.dumps(x) for x in h)
+
+
 def test_escanear_no_frena_claves_falsas_de_pruebas_ni_plantillas():
     # (2026-10-08) `test_destilacion_corpus.py` lleva claves falsas para comprobar que se tachan
     # y frenó 43 commits. Los valores se montan aquí en tiempo de ejecución por la misma razón.
@@ -133,7 +211,8 @@ def test_escanear_sigue_frenando_secretos_con_nombre_de_clave():
         "contrasena-de-palabras": "DB_PASSWORD=" + "-".join(["caballo", "correcto", "pila"]),
         "token-de-palabras": 'API_TOKEN="' + "-".join(["hola", "que", "tal"]) + '"',
         "token-starseed-con-ano": "MOTOR_TOKEN=" + "starseed-" + "2024",
-        "secreto-en-mayusculas": 'X_SECRET = "' + "_".join(["MI", "CLAVE", "SECRETA"]) + '"',
+        # («MI_CLAVE_SECRETA» ya no cuenta: es un marcador «mi…» de documentación, PRO1025A.)
+        "secreto-en-mayusculas": 'X_SECRET = "' + "_".join(["CABALLO", "CORRECTO", "PILA"]) + '"',
         "mayusculas-sin-vocales": 'X_KEY = "' + "_".join(["QZXW", "PLMK", "RTVB"]) + '"',
         # Un UUID o un hexadecimal largo con guiones sigue siendo una credencial.
         "uuid": 'SERVICE_KEY = "' + "-".join(["3f9a2c1e", "7b4d", "4e8a", "9c2f", "1a2b3c4d5e6f"]) + '"',

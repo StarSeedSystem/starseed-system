@@ -121,6 +121,56 @@ def _nombre_de_variable(valor: str, nombre: str) -> bool:
     return True
 
 
+# (2026-10-25, PRO1025A) Los textos de ayuda de una habilidad (`HIGGSFIELD_API_KEY=your_key_id:
+# your_key_secret`, `…=key_id:key_secret`) frenaron la autopublicación de 77 commits desde el 24-10:
+# cinco archivos de `.agent/skills/claude-video-studio/` (README, questions, media.md, doctor.sh,
+# higgsfield.py). `_es_marcador` solo se libraba en archivos de prueba; la documentación vive en
+# cualquier archivo. Dos formas de MARCADOR EVIDENTE, que un secreto real no tiene, se libran en
+# todos los archivos y sin distinguir mayúsculas:
+#   a) el valor EMPIEZA por un prefijo de «pon aquí lo tuyo» (`your_`, `tu_`, `my_`, `mi_`,
+#      `insert_`, `paste_`, `pega_`, `pon_`) y lo que sigue es legible (palabras, no una tira
+#      aleatoria: `my_Zq8vR2mL9pXw` sigue frenando);
+#   b) el valor está formado SOLO por palabras de marcador (`key_id:key_secret`, `TOKEN-HERE`).
+# Una contraseña de palabras con guiones («mi», «clave», «secreta» unidas por `-`) sigue
+# frenando: `mi-` no es un prefijo con guion bajo y «mi» no es una palabra de marcador.
+_PREFIJO_DE_MARCADOR = re.compile(r"^(?:your|tu|my|mi|insert|paste|pega|pon)_", re.I)
+_SEPARADORES_DE_MARCADOR = re.compile(r"[_:\-.]+")
+_PALABRAS_DE_MARCADOR = frozenset((
+    "key", "keys", "id", "ids", "secret", "secrets", "secreto", "secreta", "token", "tokens",
+    "value", "values", "valor", "clave", "claves", "api", "apikey", "here", "aqui", "aquí",
+    "placeholder", "example", "ejemplo", "client", "access"))
+_PUNTUACION_FINAL = "`.,;:)]}>*!?"
+
+
+def _chunk_de_marcador(trozo: str) -> bool:
+    """Una palabra de marcador, una racha de `x`/`X`, o un trozo legible (palabra, MAYÚSCULAS,
+    Capitalizada o camelCase con hasta 3 dígitos). Un trozo aleatorio no encaja."""
+    bajo = trozo.lower()
+    if bajo in _PALABRAS_DE_MARCADOR or re.fullmatch(r"x{3,}", bajo):
+        return True
+    if trozo.isupper() or (trozo[:1].isupper() and trozo[1:].islower()):
+        trozo = bajo
+    return _trozo_legible(trozo)
+
+
+def _marcador_de_documentacion(valor: str) -> bool:
+    """True si el VALOR es, a todas luces, un texto de ayuda («your_key_id:your_key_secret»)."""
+    valor = valor.strip().rstrip(_PUNTUACION_FINAL)
+    if not valor:
+        return False
+    trozos = [t for t in _SEPARADORES_DE_MARCADOR.split(valor) if t]
+    if not trozos:
+        return False
+    # b) solo palabras de marcador.
+    if all(t.lower() in _PALABRAS_DE_MARCADOR or re.fullmatch(r"[xX]{3,}", t) for t in trozos):
+        return True
+    # a) prefijo de «pon aquí» y el resto legible.
+    if _PREFIJO_DE_MARCADOR.match(valor):
+        resto = [t for t in _SEPARADORES_DE_MARCADOR.split(_PREFIJO_DE_MARCADOR.sub("", valor)) if t]
+        return all(_chunk_de_marcador(t) for t in resto)
+    return False
+
+
 def _no_es_secreto(tipo: str, coincidencia: str) -> bool:
     """True si el VALOR de `NOMBRE_KEY = valor` es, sin duda, otra cosa que un secreto.
     Nunca se aplica a los patrones con forma de clave (sk-, ghp_, eyJ…, AKIA, PEM)."""
@@ -133,6 +183,9 @@ def _no_es_secreto(tipo: str, coincidencia: str) -> bool:
     # 0) Referencia o marcador (`=$VAR`, `=<token>`, `={{ secrets.X }}`): la misma regla que ya
     #    tenía «variable-entorno» en su patrón, ahora también para `NEXT_PUBLIC_…`.
     if valor[:1] in ("$", "<", "{", "%", "["):
+        return True
+    # 0b) Marcador evidente de documentación, en cualquier archivo (PRO1025A).
+    if _marcador_de_documentacion(valor):
         return True
     de_almacenamiento = nombre.endswith("_KEY") and not _NOMBRE_DE_CREDENCIAL.search(nombre)
     # 1) Clave de almacenamiento del OS bajo un nombre `…_KEY`: «starseed.<palabras>.v1»,
