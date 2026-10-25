@@ -25,6 +25,9 @@ import { validarContraInvariantes, type Violacion } from "@/lib/nucleo/invariant
 import { pareceCodigo } from "@/lib/nucleo/ui-spec";
 import { validarAccionUi, type TipoAccionUi } from "@/lib/astraura/ui-acciones";
 import { type CambioBot } from "@/lib/astraura-bots/permisos";
+import { esRefInterna } from "@/lib/avatares/adn/adn";
+import { claveCambio, sanearCambio, type CambioAvatar } from "@/lib/avatares/adn/cambios";
+import { describirCambioAvatar } from "@/lib/avatares/adn/descripcion-cambios";
 
 /* ── Vocabulario ─────────────────────────────────────────────────────────── */
 
@@ -39,7 +42,8 @@ export type TipoOperacion =
     | "dashboard.widget.quitar"
     | "agente.crear"
     | "bot.crear"
-    | "bot.configurar";
+    | "bot.configurar"
+    | "avatar.cambiar";
 
 export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "perfil.editar",
@@ -53,13 +57,14 @@ export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "agente.crear",
     "bot.crear",
     "bot.configurar",
+    "avatar.cambiar",
 ];
 
 /** Lo que cada nivel puede tocar. PoliGenesis: solo lo de la entidad. */
 export const OPERACIONES_POR_AMBITO: Record<"persona" | "entidad", readonly TipoOperacion[]> = {
     // Crear un bot común es de la entidad; configurar el tuyo también es personal.
     persona: TIPOS_OPERACION.filter((t) => t !== "bot.crear"),
-    entidad: ["pagina.editar", "agente.crear", "bot.crear", "bot.configurar"],
+    entidad: ["pagina.editar", "agente.crear", "bot.crear", "bot.configurar", "avatar.cambiar"],
 };
 
 export type TipoEntidad = "pagina" | "grupo";
@@ -133,6 +138,15 @@ export interface CambiosBot {
     valor: unknown;
 }
 
+/** Propuesta de avatar: el diff (`diffAdn`) sobre una revisión concreta, para votarlo (AV1011J, contrato §7). */
+export interface AvatarCambioDatos {
+    /** Id del ADN del avatar (también se acepta su referencia `biblioteca:<id>`). */
+    ref: string;
+    /** Revisión sobre la que se calculó el diff. */
+    revBase: number;
+    cambios: CambioAvatar[];
+}
+
 interface Base {
     /** Por qué, en una frase (se enseña en la vista previa). */
     motivo: string;
@@ -149,7 +163,8 @@ export type Operacion =
     | (Base & { tipo: "dashboard.widget.quitar"; tablero?: string; widget: string })
     | (Base & { tipo: "agente.crear"; agente: DatosAgente })
     | (Base & { tipo: "bot.crear"; datos: DatosBotNuevo })
-    | (Base & { tipo: "bot.configurar"; cambios: CambiosBot });
+    | (Base & { tipo: "bot.configurar"; cambios: CambiosBot })
+    | (Base & { tipo: "avatar.cambiar"; datos: AvatarCambioDatos });
 
 /** Lo que la validación sabe del entorno (lo pasa quien llama; todo opcional). */
 export interface ContextoValidacion {
@@ -176,6 +191,7 @@ export const LIMITES = {
     etiqueta: 32,
     etiquetas: 12,
     loteMaximo: 8,
+    cambiosAvatar: 80,
 } as const;
 
 const PATRON_ID = /^[a-z0-9][a-z0-9._:-]{0,79}$/i;
@@ -554,6 +570,34 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
                 if (problemas.length) return fallo();
                 return { ok: true, avisos, op: { tipo: "bot.configurar", motivo, cambios: { botId, cambio: cambio as CambioBot, valor: b.valor } } };
             }
+
+            case "avatar.cambiar": {
+                const d = esObjeto(bruto.datos) ? bruto.datos : {};
+                const ref = typeof d.ref === "string" ? d.ref.trim() : "";
+                if (!PATRON_ID.test(ref) && !esRefInterna(ref)) {
+                    problemas.push("Falta el avatar a cambiar (su referencia).");
+                }
+                const revBase = typeof d.revBase === "number" && Number.isFinite(d.revBase) ? Math.floor(d.revBase) : -1;
+                if (revBase < 0) problemas.push("«revBase» debe ser la revisión del avatar sobre la que se propuso (0 o más).");
+                const lista = Array.isArray(d.cambios) ? d.cambios : null;
+                if (!lista) problemas.push("La propuesta de avatar necesita su lista de cambios.");
+                if (lista && lista.length > LIMITES.cambiosAvatar) {
+                    problemas.push(`Una propuesta de avatar admite como mucho ${LIMITES.cambiosAvatar} cambios.`);
+                }
+                const porClave = new Map<string, CambioAvatar>();
+                for (const brutoCambio of (lista ?? []).slice(0, LIMITES.cambiosAvatar)) {
+                    const cambio = sanearCambio(brutoCambio);
+                    if (!cambio) {
+                        problemas.push("Hay un cambio de avatar que no es válido.");
+                        continue;
+                    }
+                    porClave.set(claveCambio(cambio), cambio);
+                }
+                const cambios = [...porClave.values()];
+                if (lista && !cambios.length && !problemas.length) problemas.push("No hay ningún cambio de avatar que proponer.");
+                if (problemas.length) return fallo();
+                return { ok: true, avisos, op: { tipo: "avatar.cambiar", motivo, datos: { ref, revBase, cambios } } };
+            }
         }
         problemas.push("Operación no reconocida.");
         return fallo();
@@ -695,6 +739,15 @@ export function describirOperacion(op: Operacion, ambito: Ambito): VistaPrevia {
                 titulo: `Configurar el bot «${op.cambios.botId}»`,
                 detalles: [`cambio: ${op.cambios.cambio}`, `valor: ${valorCorto(op.cambios.valor)}`],
                 deshacer: "Deshacer repone el valor anterior del bot.",
+            };
+        case "avatar.cambiar":
+            return {
+                titulo: `Cambiar el avatar «${op.datos.ref}»${de}`,
+                detalles: [
+                    `revisión base: ${op.datos.revBase}`,
+                    ...op.datos.cambios.map((cambio) => describirCambioAvatar(cambio)),
+                ],
+                deshacer: "Deshacer repone el avatar anterior si nadie lo ha cambiado después.",
             };
     }
 }
