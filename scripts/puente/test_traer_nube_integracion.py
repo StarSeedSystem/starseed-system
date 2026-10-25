@@ -102,6 +102,17 @@ class DecidirRescate(unittest.TestCase):
         self.assertEqual(T.decidir_rescate("X1", reparada("X1b"), [c("ola")], False, prog,
                                             en_main_de=lambda k: k == "X1b")[0], "nunca")
 
+    def test_si_la_sucesora_tambien_la_integro_la_nube_se_trae_esa(self):
+        """2026-10-25: rescatar MGB1021Bc cerraba MGB1021Bd, integrada también en la nube y con más trabajo (el
+        catálogo que pone main en verde). Ahora la antecesora no se trae ni la cierra: se trae la sucesora."""
+        prog = {"MGB1021Bc": sustituida("MGB1021Bd", "nube/1"), "MGB1021Bd": {"estado": "pendiente"}}
+        accion, motivo, cierra = T.decidir_rescate("MGB1021Bc", reparada("MGB1021Bd"), [c("ola")], False, prog,
+                                                   integrada_en_nube=lambda k: k == "MGB1021Bd")
+        self.assertEqual((accion, cierra), ("nunca", []))
+        self.assertIn("MGB1021Bd", motivo)
+        # sin integración de la sucesora, como siempre: se trae y la cierra
+        self.assertEqual(T.decidir_rescate("MGB1021Bc", reparada("MGB1021Bd"), [c("ola")], False, prog)[0], "traer")
+
     def test_lo_que_decidio_otro_camino_no_se_toca(self):
         for e in ({"estado": "descartada"}, {"estado": "sustituida", "nota": "revisor: fusionada con X2"},
                   {"estado": "commit"}):

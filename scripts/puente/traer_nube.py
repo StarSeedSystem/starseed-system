@@ -264,13 +264,17 @@ def posteriores_en_cadena(tid, progreso, nuevo=None):
     return sorted(salida)
 
 
-def decidir_rescate(tid, previa, commits, en_main, progreso, en_main_de=lambda _k: False):
+def decidir_rescate(tid, previa, commits, en_main, progreso, en_main_de=lambda _k: False,
+                    integrada_en_nube=lambda _k: False):
     """PURA (CAP1025A). Una entrada que una pasada antigua dio por «reparada»: ¿era una integración de la
     nube que hay que traer ahora? → (accion, motivo, a_cerrar).
 
     accion: «traer» (se intenta con las puertas de siempre), «nunca» (no hay nada que rescatar: no se
     vuelve a mirar) o «luego» (alguien la está haciendo: se mira en otra pasada). `a_cerrar`: las
-    sucesoras abiertas que la reparación creó y que, si la integración entra, ya no hacen falta."""
+    sucesoras abiertas que la reparación creó y que, si la integración entra, ya no hacen falta.
+    `integrada_en_nube(k)`: ¿la nube integró también la sucesora `k`? Entonces se trae ESA (continúa desde esta
+    rama: lleva el trabajo de las dos) y esta no se trae ni la cierra. Medido el 2026-10-25: rescatar MGB1021Bc
+    cerraba MGB1021Bd, cuya integración traía el catálogo que pone main en verde."""
     previa = previa or {}
     progreso = progreso or {}
     if previa.get("accion") != "reparada":
@@ -287,6 +291,8 @@ def decidir_rescate(tid, previa, commits, en_main, progreso, en_main_de=lambda _
         est = (progreso.get(k) or {}).get("estado") if isinstance(progreso.get(k), dict) else None
         if est in ("commit", "hecho", "integrada") or en_main_de(k):
             return "nunca", "su sucesora %s ya llegó a main" % k, []
+        if integrada_en_nube(k):
+            return "nunca", "su sucesora %s también la integró la nube: se trae esa, que lleva más" % k, []
         if est in _OCUPADAS_RESCATE:
             return "luego", "su sucesora %s está «%s» ahora mismo" % (k, est), []
     a_cerrar = [k for k in posteriores
@@ -853,7 +859,8 @@ def rescatar(hechas_antes, asuntos, aplicar=False, maximo=RESCATES_POR_PASADA, e
         if ref not in ("refs/remotes/origin/" + rama, "refs/archivo/" + rama):
             rama = ref[len("refs/remotes/origin/"):] if ref.startswith("refs/remotes/origin/") else ref[len("refs/archivo/"):]
         accion, motivo, a_cerrar = decidir_rescate(tid, previa, [{"tipo": "ola"}], id_en_asuntos(tid, asuntos),
-                                                   progreso, lambda k: id_en_asuntos(k, asuntos))
+                                                   progreso, lambda k: id_en_asuntos(k, asuntos),
+                                                   lambda k: bool(con_integracion.get(k)))
         salida["plan"].append({"rama": rama, "tid": tid, "accion": accion, "motivo": motivo, "cierra": a_cerrar,
                                "ref": ref})
         if accion == "nunca":
