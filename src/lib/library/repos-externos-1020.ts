@@ -1,87 +1,76 @@
-"use client";
+import repos1020 from "../../../config/repos-libreria-1020.json";
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+const kindMap: Record<string, string> = {
+  app: "AppWindow",
+  "ai-source": "BrainCircuit",
+  function: "Boxes",
+};
 
-const REPO_ROOT = process.cwd();
-const CONFIG_1_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020.json");
-const CONFIG_2_PATH = resolve(REPO_ROOT, "config", "repos-libreria-1020b.json");
-
-const repos1 = JSON.parse(readFileSync(CONFIG_1_PATH, "utf-8"));
-const repos2 = JSON.parse(readFileSync(CONFIG_2_PATH, "utf-8"));
-
-const EXCLUIDA_1: string[] = [repos1.excluida?.repo ?? ""].filter((v): v is string => v !== "");
-const EXCLUIDAS_2: string[] = repos2.excluidas?.map((e: { repo: string }) => e.repo) ?? [];
-
-export const REPOS_EXCLUIDOS: string[] = [...EXCLUIDA_1, ...EXCLUIDAS_2];
-
-function mapaPatronTag(patron_tag: string): string {
-  return patron_tag ?? "";
-}
-
-export interface ReposExternosPaquete {
+export interface RepoExternos1020Package {
   id: string;
-  repo: string;
-  nombre: string;
   kind: string;
-  canal: string;
-  patronTag: string;
-  licencia: string;
-  area: string[];
-  efecto: string;
-  preinstalar: string;
-  claude: string | boolean;
-  githubRepo: string;
-  externalUrl: string;
-  comingSoon?: boolean;
-  motivoComingSoon?: string;
+  name: string;
+  description: string;
+  icon: string;
+  tags: string[];
+  version: string;
+  author: string;
+  sourceRepoId: string;
+  free: boolean;
+  comingSoon: boolean;
+  payload: Record<string, unknown>;
 }
 
-function transformaPaquete(p: typeof repos1.paquetes[0] | (typeof repos2.paquetes)[0]): ReposExternosPaquete {
-  const efecto = p.efecto ?? "";
-  const preinstalar = p.preinstalar ?? "";
-  const claude = p.claude ?? false;
-  const patronTag = mapaPatronTag(p.patron_tag);
+function mapaIcono(kind: string): string {
+  return kindMap[kind] ?? "Globe";
+}
 
-  const githubRepo = p.repo ?? "";
-  const externalUrl = `https://github.com/${githubRepo}`;
+function construirTags(entrada: any): string[] {
+  return [
+    ...(entrada.area ?? []),
+    entrada.canal ?? "",
+    entrada.licencia ? "lic" : "",
+  ].filter(Boolean);
+}
 
-  const esEfectoQueRequiereComingSoon =
-    efecto === "CONECTOR" || efecto === "HERRAMIENTA-AGENTE" || efecto === "CATALOGO";
+function construirAutor(repo: string): string {
+  return repo ? repo.split("/")[0] : "unknown";
+}
 
-  let comingSoon = false;
-  let motivoComingSoon = "";
-
-  if (esEfectoQueRequiereComingSoon) {
-    comingSoon = true;
-    motivoComingSoon = `efecto ${efecto}: instalación externa, sin ruta propia del OS`;
-  }
-
+function construirPayload(entrada: any): Record<string, unknown> {
   return {
-    id: p.id,
-    repo: p.repo,
-    nombre: p.nombre ?? p.id,
-    kind: p.kind ?? "app",
-    canal: p.canal ?? "releases",
-    patronTag,
-    licencia: p.licencia ?? "",
-    area: p.area ?? [],
-    efecto,
-    preinstalar,
-    claude,
-    githubRepo,
-    externalUrl,
-    comingSoon,
-    motivoComingSoon,
+    externalUrl: `https://github.com/${entrada.repo}`,
+    githubRepo: entrada.repo,
+    canal: entrada.canal,
+    area: entrada.area,
+    licencia: entrada.licencia,
+    assets: entrada.assets ?? false,
+    ...(entrada.skillId ? { skillId: entrada.skillId } : {}),
   };
 }
 
-const paquetes1 = (repos1.paquetes ?? []).map(transformaPaquete);
-const paquetes2 = (repos2.paquetes ?? []).map(transformaPaquete);
+function construirDescripcion(entrada: any): string {
+  return entrada.que_es + (entrada.aviso ? " — " + entrada.aviso : "");
+}
 
-const reposExcluidosSet = new Set(REPOS_EXCLUIDOS);
+const paquetes = (repos1020.paquetes ?? []).map((entrada: any): RepoExternos1020Package => ({
+  id: entrada.id,
+  kind: entrada.kind,
+  name: entrada.nombre,
+  description: construirDescripcion(entrada),
+  icon: mapaIcono(entrada.kind),
+  tags: construirTags(entrada),
+  version: "1.0.0",
+  author: construirAutor(entrada.repo),
+  sourceRepoId: "starseed-biblioteca-externa",
+  free: true,
+  comingSoon: true,
+  payload: construirPayload(entrada),
+}) as RepoExternos1020Package);
 
-export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
-  ...paquetes1.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-  ...paquetes2.filter((p: ReposExternosPaquete) => !reposExcluidosSet.has(p.repo)),
-];
+export const REPO_EXTERNOS_1020 = {
+  id: "starseed-biblioteca-externa",
+  name: "Biblioteca externa",
+  builtin: true,
+  packages: paquetes,
+};
