@@ -24,7 +24,15 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz, type PuertaEstudio } from "./niveles";
+import {
+    nivelPara,
+    nivelesDisponibles,
+    puertaEstudioApta,
+    siguienteNivel,
+    NIVELES,
+    type NivelVoz,
+    type PuertaEstudio,
+} from "./niveles";
 import { descubrir } from "./voicestudio";
 import {
     soporteSupertonic,
@@ -227,10 +235,6 @@ export function nivelActual(): NivelVoz | null {
 }
 
 /**
- * Resuelve el nivel concreto a usar: el que pidió el usuario si es válido para
- * este equipo; si no, el mejor que el hardware pueda sostener en este momento.
- */
-/**
  * Contexto de licencia de la voz (contrato `architecture/voz-voicestudio.md` §4). Los pesos
  * no libres no pueden sonar fuera de lo personal: un motor de clase «personal» (OmniVoice/
  * VoiceMorphic) solo habla en contexto personal; en grupo, comunidad, publicado o comercio
@@ -331,14 +335,23 @@ async function puertaDeEstudio(caps: Capacidades): Promise<PuertaEstudio> {
     return { voicestudioVivo: vivo, servidaPorMalla: false };
 }
 
-/** Resuelve el nivel concreto a usar: el que pidió el usuario si es válido para
- * este equipo; si no, el mejor que el hardware pueda sostener en este momento. */
+/** Resuelve el nivel concreto a usar: el que pidió el usuario SOLO si este equipo
+ * lo puede sostener (`nivelesDisponibles`, que ya aplica la puerta de estudio); si
+ * no, el mejor que el hardware pueda sostener en este momento. */
 async function resolverNivel(explicito?: NivelVoz): Promise<NivelVoz> {
     const caps: Capacidades = await detectarCapacidades();
-    const auto = nivelPara(caps, await puertaDeEstudio(caps));
+    const puerta = await puertaDeEstudio(caps);
+    const auto = nivelPara(caps, puerta);
     if (explicito) return explicito;
     const preferencia = nivelPreferido();
-    return preferencia === "auto" ? auto : preferencia;
+    if (preferencia !== "auto") {
+        // (Ola 1018V) La preferencia guardada no vale por sí sola: si no está entre los
+        // niveles que esta neurona SOSTIENE AHORA (p. ej. «estudio» con la puerta cerrada,
+        // o «alta» sin demonio), se vuelve a la decisión automática en vez de prometer
+        // un nivel que no hay.
+        return nivelesDisponibles(caps, puerta).includes(preferencia) ? preferencia : auto;
+    }
+    return auto;
 }
 
 /**
@@ -616,6 +629,14 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     // conversación, avisos y rito el techo de estos motores es «alta» — el `motorCat`
     // ya no puede meter al estudio donde no cabe.
     if (nivel === "estudio" && !estudioAdmiteContexto(opciones.contexto)) nivel = "alta";
+    // (Ola 1018V · 3/3) La puerta del «estudio» SE MIDE en la vía que habla: también el
+    // nivel que llega del catálogo pasa por `puertaEstudioApta` — VoiceStudio vivo (medido
+    // por `descubrir()`, o servido por otra neurona) + demonio local + ≥ 8 GB. Sin puerta
+    // abierta, el techo de esta neurona es «alta»; es la misma regla que `nivelPorDefecto`,
+    // aplicada a cada habla, no solo al precalentado.
+    if (nivel === "estudio" && !puertaEstudioApta(caps, await puertaDeEstudio(caps))) {
+        nivel = "alta";
+    }
     // (Ola 1018V · 2/2) Regla instantánea: en conversación, la primera frase (y las
     // siguientes del mismo turno) sale del motor PERMITIDO con MENOR latencia medida
     // en esta neurona que tenga la voz de esa persona. El mensaje NUNCA se parte

@@ -126,7 +126,8 @@ function precisionParaFranja(franja: Franja, medioPesado: boolean): Precision {
 
 /**
  * Reparte precisión y nivel para los diez medios según el equipo:
- *  · potente — ternaria local en texto y voz (estudio), el resto también alto.
+ *  · potente — ternaria local en texto y voz, el resto también alto. La voz usa la
+ *    puerta de estudio de `niveles.ts`: sin puerta medida, el techo es «alta».
  *  · modesta — q4 en todo y niveles ligeros.
  *  · móvil   — mínimo en local; texto y voz se derivan a la nube.
  */
@@ -161,7 +162,7 @@ export function planPorHardware(c: Capacidades): Record<Medio, PlanMedio> {
                 plan[m] = {
                     precision: "ternaria-158",
                     nivel: nivelVoz,
-                    motivo: `Equipo potente: voz de estudio local (${NIVELES[nivelVoz as NivelVoz].etiqueta})`,
+                    motivo: `Equipo potente: voz local en el nivel que sostiene el equipo (${NIVELES[nivelVoz as NivelVoz].etiqueta})`,
                 };
             } else {
                 plan[m] = {

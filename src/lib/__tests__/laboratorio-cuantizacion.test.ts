@@ -54,7 +54,10 @@ describe("planPorHardware", () => {
         const plan = planPorHardware(potente);
         expect(plan.texto.precision).toBe("ternaria-158");
         expect(plan.voz.precision).toBe("ternaria-158");
-        expect(plan.voz.nivel).toBe("estudio");
+        // (Ola 1018V) El nivel «estudio» pasa por su puerta, medida en cada habla: sin
+        // `PuertaEstudio` (VoiceStudio vivo o servido por la malla) el techo es «alta»,
+        // y el laboratorio no mide esa puerta — no la supone.
+        expect(plan.voz.nivel).toBe("alta");
     });
 
     it("un móvil deriva a la nube todo lo que no es imprescindible", () => {
