@@ -113,6 +113,12 @@ export const BUILTIN_NODES: EduNode[] = [
     n("top-programacion", "topic", "Programación", "cat-tecnologia"),
     n("sub-estructuras-datos", "subtopic", "Estructuras de Datos", "top-programacion"),
     n("sub-desarrollo-web", "subtopic", "Desarrollo Web", "top-programacion"),
+    // Temas de informática del currículo OSSU (ola 1025R, src/lib/education/ossu.ts).
+    n("top-sistemas-computacion", "topic", "Sistemas de Computación", "cat-tecnologia", "Del hardware al software de sistema: arquitectura, compiladores, sistemas operativos y redes."),
+    n("top-algoritmos", "topic", "Algoritmos y Teoría de la Computación", "cat-tecnologia", "Diseño y análisis de algoritmos eficientes y sus límites de lo computable."),
+    n("top-seguridad-informatica", "topic", "Seguridad Informática", "cat-tecnologia", "Confidencialidad, integridad y disponibilidad: programar, defender y auditar."),
+    n("top-bases-datos", "topic", "Bases de Datos", "cat-tecnologia", "Modelar, consultar y administrar los datos de un sistema, del relacional al semiestructurado."),
+    n("top-ingenieria-software", "topic", "Ingeniería de Software", "cat-tecnologia", "Construir y mantener software grande: especificación, diseño, pruebas y trabajo en equipo."),
     n("top-redes-descentralizadas", "topic", "Redes Descentralizadas", "cat-tecnologia"),
     n("sub-blockchain", "subtopic", "Blockchain", "top-redes-descentralizadas"),
     n("sub-fediverso", "subtopic", "Fediverso y Protocolos Abiertos", "top-redes-descentralizadas"),
