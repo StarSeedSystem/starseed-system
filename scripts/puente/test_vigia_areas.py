@@ -10,9 +10,11 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vigia_areas as V
 
-AREAS_DEL_CONTRATO = ["imagen", "video", "3d", "voz", "oido", "palabra", "reflejo", "vision", "incrustaciones", "audio", "motores"]
+AREAS_DEL_CONTRATO = ["imagen", "video", "3d", "voz", "oido", "palabra", "reflejo", "vision", "incrustaciones", "audio", "motores", "habilidades"]
 MOTORES = {"ggml-org/llama.cpp", "leejet/stable-diffusion.cpp", "ggml-org/whisper.cpp", "Comfy-Org/ComfyUI",
            "fermionresearch/phonon", "microsoft/onnxruntime", "anomalyco/opencode"}
+VOZ = {"debpalash/VoiceStudio", "k2-fsa/OmniVoice", "FunAudioLLM/CosyVoice", "QwenLM/Qwen3-TTS", "KittenML/KittenTTS"}
+HABILIDADES = {"mattpocock/skills", "heygen-com/hyperframes"}
 BASE = {"cuantizadores": ["unsloth", "city96", "QuantStack"],
         "licencias_conocidas": {"apache-2.0": "libre", "qwen-research": "personal"},
         "areas": [{"id": "imagen", "nombre": "Imagen", "pipeline_tags": ["text-to-image"], "autores": ["Qwen"],
@@ -40,14 +42,19 @@ class AreasDelVigia(unittest.TestCase):
     def test_el_dato_real_es_valido_y_sus_catalogos_existen(self):
         areas = V.cargar_areas()  # valida también que cada `catalogo` existe en el repo
         self.assertEqual([a["id"] for a in areas], AREAS_DEL_CONTRATO)
+        por_id = {a["id"]: a for a in areas}
+        self.assertEqual(set(por_id["voz"]["repos_github"]), VOZ)
+        self.assertEqual(set(por_id["habilidades"]["repos_github"]), HABILIDADES)
         for a in areas:
             self.assertTrue(os.path.isfile(os.path.join(V.RAIZ_REPO, a["catalogo"])), a["catalogo"])
             self.assertEqual(a["licencias_conocidas"]["qwen-research"], "personal")
             self.assertEqual(a["licencias_conocidas"]["apache-2.0"], "libre")
-            self.assertEqual(bool(a["repos_github"]), a["id"] == "motores")
-        motores = areas[-1]
+            self.assertEqual(bool(a["repos_github"]), a["id"] in ("motores", "voz", "habilidades"))
+        motores = por_id["motores"]
         self.assertEqual(set(motores["repos_github"]), MOTORES)
         self.assertEqual(motores["alias_github"]["comfyanonymous/ComfyUI"], "Comfy-Org/ComfyUI")
+        self.assertEqual(por_id["habilidades"]["alias_github"]["mattpocock/skills"], "mattpocock/skills")
+        self.assertEqual(por_id["habilidades"]["alias_github"]["heygen-com/hyperframes"], "heygen-com/hyperframes")
         self.assertTrue({"Qwen", "Tongyi-MAI"} <= set(areas[0]["autores"]) and "text-to-image" in areas[0]["pipeline_tags"])
         self.assertTrue({"unsloth", "city96", "QuantStack"} <= set(areas[0]["cuantizadores"]))
 

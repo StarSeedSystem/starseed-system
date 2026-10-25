@@ -6,7 +6,8 @@ Se comprueban dos clases de rutas, sin red:
   en cualquier parte del texto, contra la raíz del repo;
 - los nombres entre comillas invertidas que parecen archivos o carpetas (con extensión, en mayúsculas
   como `LICENSE`, o acabados en «/»), contra la carpeta de la habilidad (o la raíz si es una ruta del repo).
-  Una frase que acaba en « no.» enumera lo que NO se copia: esas carpetas no deben estar.
+  Una frase que acaba en « no.» enumera lo que NO se copia, y lo mismo una viñeta que
+  empieza por «NO se copia...» (con sus líneas de continución): esos nombres no deben estar.
 """
 import glob
 import os
@@ -28,13 +29,19 @@ def _parece_ruta(nombre):
 
 def rutas_citadas(texto):
     """PURA. → (rutas del repo, nombres locales que deben estar, nombres locales que no deben estar)."""
-    del_repo = {m.rstrip(".") for m in _RUTA_REPO.findall(texto)}
-    locales, excluidos = set(), set()
-    for frase in re.split(r"(?<=\.)\s+|\n", texto):
-        destino = excluidos if re.search(r"\sno\.\s*$", frase) else locales
-        for nombre in _ENTRE_COMILLAS.findall(frase):
-            if _parece_ruta(nombre) and not _RUTA_REPO.fullmatch(nombre):
-                destino.add(nombre)
+    del_repo, locales, excluidos = set(), set(), set()
+    for bloque in re.split(r"\n(?=- )", texto):
+        excluye = bool(re.match(r"-\s*NO se copi", bloque))
+        for frase in re.split(r"(?<=\.)\s+|\n", bloque):
+            fuera = excluye or bool(re.search(r"\sno\.\s*$", frase))
+            destino = excluidos if fuera else locales
+            for nombre in _ENTRE_COMILLAS.findall(frase):
+                if _RUTA_REPO.fullmatch(nombre):
+                    (excluidos if fuera else del_repo).add(nombre)
+                elif _parece_ruta(nombre):
+                    destino.add(nombre)
+            for ruta in _RUTA_REPO.findall(frase):
+                (excluidos if fuera else del_repo).add(ruta.rstrip("."))
     return del_repo, locales, excluidos
 
 
@@ -50,6 +57,16 @@ class RutasDeOrigen(unittest.TestCase):
         self.assertEqual(repo, {"src/a/b.ts", "architecture/x.md"})
         self.assertEqual(locales, {"engineering/", "LICENSE"})
         self.assertEqual(fuera, {"misc/", "deprecated/"})
+
+    def test_bloque_que_empieza_por_no_se_copia(self):
+        repo, locales, fuera = rutas_citadas(
+            "- Se copian: `SKILL.md`, `README.md` y `references/`.\n"
+            "- NO se copian (sin ejecutables): `scripts/extract.py`, `scripts/build.sh` (Playwright),\n"
+            "  `evals/` ni los vídeos del README.\n"
+            "- Revisión: sin telemetría.")
+        self.assertEqual(repo, set())
+        self.assertEqual(locales, {"SKILL.md", "README.md", "references/"})
+        self.assertEqual(fuera, {"scripts/extract.py", "scripts/build.sh", "evals/"})
 
     def test_rutas_citadas_existen(self):
         faltan = []
