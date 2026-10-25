@@ -1,0 +1,124 @@
+{
+ "ola": "nube-20261024",
+ "tareas": [
+  {
+   "id": "IMN1021K7",
+   "ola": "1021I",
+   "titulo": "Imaginación · los mensajes de la imaginación profunda dicen «Imaginación»",
+   "archivos": [
+    "scripts/puente/director_suenos.py",
+    "scripts/puente/test_director_suenos.py",
+    "scripts/puente/suenos.py"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO los textos que leen personas (resumen, informe, canal, Telegram, ayuda): «Sueños profundos» → «Imaginación profunda», «sueño» → «sesión de imaginación». Los nombres de archivos, comandos, carpetas (`dream/profundo`) y el prefijo `cola-suenos-` NO cambian. Ajusta las pruebas solo en esos textos. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  },
+  {
+   "id": "APM1017N",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Lanzador · modos de cada app y `comoAbrir` (local, por bandas, montada, transmitida, ramificada)",
+   "archivos": [
+    "src/components/dashboard/apps/launcher-types.ts",
+    "src/lib/recursos/modos-app.ts",
+    "src/lib/recursos/__tests__/modos-app.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En `StarseedApp` añade opcionales `ejecucion?: ('local'|'por-bandas'|'montada'|'transmitida'|'ramificada')[]` (sin campo = ['local'], como hoy) y `requisitos?: { ramMb?, gpu?, motores?: string[], volumen?: string }`. En modos-app.ts, PURO: `comoAbrir(app, neurona: OfertaNeurona, plan)` → { modo, destino, motivo } con la regla del §5 (local si cabe; por-bandas si es web/WASM con volumen; transmitida si otra neurona la tiene prestada y la latencia sirve; ramificada si solo falta cálculo; suelo: local con aviso de lo que falta). No cambies el catálogo. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "APM1017B"
+   ]
+  },
+  {
+   "id": "DGM1018L",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · 3D y XR: de la estructura del SVG a una escena que se gira y se recorre",
+   "archivos": [
+    "src/lib/diagramas/diagrama-3d.ts",
+    "src/components/vivo/espacial/diagrama-3d.tsx",
+    "src/lib/diagramas/__tests__/diagrama-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "diagrama-3d.ts PURO: `estructuraDeSvg(svg)` saca nodos (rect, círculo, texto agrupados), aristas (path/line con marcador) y capas (grupos `g` con id o clase de capa) y `escena3d(estructura, tipo)` coloca: tipos de capas, despiece y planta axonométrica apilados en Z con separación proporcional; tipos de grafo repartidos en 3D sin solaparse; textos siempre de cara a la cámara. El componente lo pinta con @react-three/fiber (ya en el OS) dentro de `escena-compartida` (solo el componente). Pruebas con example-layers.html y example-architecture.html de la skill. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DGM1018I"
+   ]
+  },
+  {
+   "id": "GUI1021G",
+   "ola": "1021G",
+   "titulo": "Guías · tarjetas de la Guía de la red con los temas nuevos y los textos corregidos",
+   "archivos": [
+    "src/components/onboarding/areas-explicadas.tsx",
+    "src/components/onboarding/onboarding-wizard.tsx",
+    "src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §1 y §3. En `areas-explicadas.tsx`, las explicaciones de `/protomolecula`, `/network/politics`, `/network/education`, `/network/culture`, `/genesis` y `/cerebro` salen de `TODOS_LOS_TEMAS` (queEs = cuerpo, comoFunciona = puntos, empiezaPor = la pregunta a Aurora), y `/cerebros`, `/library` y `/red-mesh` pasan a usar los temas `neuronas-cerebro`, `libreria-biblioteca` y `malla`. En `onboarding-wizard.tsx` añade a `AREAS` las tarjetas que falten de esas rutas (con icono y tip corto) y cambia la de Cerebros a `/cerebro`. Pruebas: cada ruta nueva abre su explicación y ninguna tarjeta habla de «varios cerebros». Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho).",
+   "dependencias_ya_en_main": [
+    "GUI1021B"
+   ]
+  },
+  {
+   "id": "VST1018F",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Voz · nivel «estudio» y regla instantánea en el motor único",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/niveles.ts",
+    "src/lib/aurora/voz-starseed/motor.ts",
+    "src/lib/aurora/voz-starseed/__tests__/nivel-estudio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En niveles.ts añade el nivel \"estudio\" por encima de \"alta\" (solo si `descubrir()` de voicestudio.ts dijo vivo y la neurona tiene ≥ 8 GB libres o lo sirve otra neurona). En motor.ts añade como mucho 120 líneas: la primera frase de una conversación sale del motor PERMITIDO (licencia-voz.ts) con menor latencia medida (medidas-voz.ts) que tenga la voz de esa persona; «estudio» solo para lectura larga, doblaje y audiolibros; nunca se parte un mensaje entre dos motores. Prueba pura de la elección con medidas falsas. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "VST1018C",
+    "VST1018D"
+   ]
+  },
+  {
+   "id": "PMO1020A",
+   "ola": "Ola 1020P · Orbe de la Protomolécula: activar y desactivar desde el lienzo de creación (Trinidad izquierda) y por Astraura desde cualquier medio, en tiempo real",
+   "titulo": "Orbe de la Protomolécula · una sola puerta para activarla o desactivarla, sincronizada entre neuronas al instante",
+   "archivos": [
+    "src/lib/protomolecula/orbe-bus.ts",
+    "src/lib/sync/realtime-sync.ts",
+    "src/lib/protomolecula/__tests__/orbe-activar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Petición de Alex (2026-10-20): «el botón de la Protomolécula de su orbe debe poder ser ejecutable desde el lienzo de creación del menú de Trinidad izquierdo con un botón de activar o desactivar la orbe Protomolécula, o pidiéndoselo a Astraura desde cualquier medio, con control total en tiempo real». Esta tarea es la PUERTA común que usarán el botón y Astraura. En `src/lib/protomolecula/orbe-bus.ts` (módulo puro: sin \"use client\", sin React y sin `node:*`): 1) exporta `PROTO_ORB_CERRAR_EVENT = \"starseed:protomolecula-cerrar\"`; 2) exporta `fijarOrbeActivada(activada: boolean, deps?: { almacen?: AlmacenLocal; emitir?: (e: Event) => boolean; empujar?: () => void }): boolean` que guarda con `guardarActivada`, emite `PROTO_ORB_FAB_EVENT` como `CustomEvent` con `detail: { activada }` y llama a `empujar` para que las demás neuronas lo reciban (por defecto: `import(\"@/lib/settings-sync\").then((m) => m.pushPreferences())` sin esperar y sin lanzar jamás); por defecto usa `window.localStorage` y `window.dispatchEvent` si existe `window`; devuelve el valor guardado; 3) exporta `alternarOrbe(deps?)` que invierte `leerActivada` y llama a `fijarOrbeActivada`. En `src/lib/sync/realtime-sync.ts`, en `EVENT_BY_KEY`, añade SOLO la línea `\"starseed.protomolecula.orbe.enabled.v1\": [\"starseed:protomolecula-orb-fab\"],` junto a la de `starseed.aurora.fab.enabled.v1`, para que un cambio llegado de otra neurona actualice la pestaña abierta sin recargar (la clave ya está en `settings-sync.ts`). Pruebas (vitest, sin red, con almacén y emisor falsos): guarda \"true\"/\"false\", emite el evento con `detail.activada`, `alternarOrbe` invierte, `empujar` se llama una vez y si lanza no rompe nada. Como mucho 120 líneas nuevas por archivo; nada de `any`; textos en español con acentos."
+  },
+  {
+   "id": "BOT1011H2",
+   "ola": "Ola 1011B · Bots/dots de Astraura: la orbe es el bot (varios bots sincronizados, sentidos con consentimiento e indicador, acciones tipadas, gobierno democrático, computadora por bot, invitados AG-UI y Grok)",
+   "titulo": "Tarjeta de propuesta y registro con deshacer sobre la orbe",
+   "archivos": [
+    "src/components/astraura-bots/tarjeta-propuesta.tsx",
+    "src/components/astraura-bots/registro-bot.tsx",
+    "src/components/astraura-bots/__tests__/tarjeta-propuesta.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-bots.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §0 son las reglas del área y §15 da los nombres reales del núcleo. El núcleo puro YA está escrito y probado (91 pruebas) y NO se modifica: `src/lib/astraura-bots/{tipos,permisos,personalidad-adaptable,acciones,reparto-de-modelo,bucle}.ts` (ábrelos y usa sus nombres reales). Petición de Alex (2026-10-11): la ORBE flotante de Astraura es el BOT; observa y reacciona a la pantalla, el código, los archivos del cerebro y la red, y crea y modifica en tiempo real con acciones tipadas; cada persona tiene varios bots abiertos y sincronizados (el de su perfil y los de sus grupos/páginas), cada uno con su personalidad, sentidos, permisos y memoria; los bots de grupo se gobiernan democráticamente desde PoliGenesis; Astraura local (Needle 3, Bonsai, BitNet, Jev, Laya) es el predeterminado y las APIs o bots externos (Grok, AG-UI) son invitados; cada bot tiene su computadora aislada en la nube.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/astraura-bots.md` y los seis módulos de `src/lib/astraura-bots/`. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos núcleos) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo de bots en main» para que el director la reencole cuando llegue.\nReglas de la casa (CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea de qué tarea queda pendiente). Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; el código que sintetiza un bot es un CANDIDATO que nunca se ejecuta en el OS (solo se previsualiza en el iframe sandbox sin allow-same-origin de `src/lib/aurora/code-runtime.ts`), y nada apunta al núcleo intocable (`NUCLEO_INTOCABLE` de `acciones.ts`). Toda acción de un bot pasa por `validarAccion` + `decidirAccion` y por el bucle (`avanzar` de `bucle.ts`): jamás se llama a un ejecutor saltándose eso. Todo sentido pasa por `decidirSentido` y su indicador queda visible mientras esté activo. Los bots invitados y los de grupo NUNCA leen memoria personal (`puedeLeerMemoria`). Nada de `node:*` en código que llegue al navegador (un módulo de servidor lleva sus tipos en un archivo aparte que el cliente importa). Claves solo por NOMBRE de variable y en el servidor; en pruebas, cualquier cadena con forma de clave se monta en tiempo de ejecución (`[\"s\",\"k-\"].join(\"\")…`). Pruebas sin red y sin hardware: lo del navegador y Supabase se inyecta o se simula con `vi.mock`; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom. Español claro en toda cadena visible; iconos Lucide, nunca emojis; cursor pointer en lo clicable; transiciones de 150–300 ms; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». NO instales paquetes. El layout raíz no carga nada pesado de forma estática (`next/dynamic` sin SSR o `import()` dentro de un efecto). Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Si cambias un valor persistido o un valor por defecto, migra lo guardado (las cuentas existentes también deben verlo). Un módulo PURO nuevo en la raíz de `src/lib/astraura-bots/` cumple la guardia `__tests__/pureza.test.ts` (sin React, red, DOM, reloj ni `node:*`; ≤ 200 líneas; solo importa del propio núcleo o de `@/lib/nucleo/{alcance-memoria,ui-spec,paquete-sistema}`); lo que use React, Supabase o red va en `src/lib/astraura-bots/adaptadores/` o en `src/components/astraura-bots/`. Honestidad: di que pasan tsc y vitest; no digas que «se ve bien» ni que «funciona»: eso se verifica en Genesis en localhost. Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (BOT1011H2): `tarjeta-propuesta.tsx`: aparece junto a la orbe del bot cuando su bucle está en `esperando`: qué quiere hacer (en palabras: «Abrir Biblioteca», «Mover el widget Clima»), por qué (`decision.motivo`), riesgo (pastilla), y según `requiere`: «Confirmar» / «Rechazar»; `votacion` → «Llevar a votación» (llama a `proponer` de `src/lib/genesis/entidades.ts` con la operación que dé BOT1011J1; hasta entonces «próximamente: votación de bots»); `consentimiento`/`expreso` → abre el diálogo de BOT1011E2. Monta también aquí el `IndicadorSentidos` de BOT1011E2. `registro-bot.tsx`: lista de las últimas entradas (hora, quién, qué, motivo) con «Deshacer» en la última aplicada si su `deshacer` lo permite; lo irreversible lo dice. Prueba jsdom (≥ 6): la tarjeta solo con propuesta pendiente; confirmar y rechazar llaman a sus funciones; votación muestra su botón; el registro pinta entradas; deshacer solo en la última aplicada reversible. Integración: monta la tarjeta en `orbes-bots.tsx` (≤ 10 líneas) SOLO si te cabe en tus 3 archivos; si no, di «PENDIENTE: montar TarjetaPropuesta en orbes-bots.tsx».",
+   "revisor_quitadas": [
+    "BOT1011E2"
+   ],
+   "dependencias_ya_en_main": [
+    "BOT1011H1"
+   ]
+  },
+  {
+   "id": "BOT1011S",
+   "ola": "Ola 1011B · Bots/dots de Astraura: la orbe es el bot (varios bots sincronizados, sentidos con consentimiento e indicador, acciones tipadas, gobierno democrático, computadora por bot, invitados AG-UI y Grok)",
+   "titulo": "Personalidad por agente, preferencias de la persona y tono en el prompt del chat",
+   "archivos": [
+    "src/lib/astraura-bots/adaptadores/tono-chat.ts",
+    "src/lib/aurora/engine.ts",
+    "src/lib/astraura-bots/__tests__/tono-chat.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-bots.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §0 son las reglas del área y §15 da los nombres reales del núcleo. El núcleo puro YA está escrito y probado (91 pruebas) y NO se modifica: `src/lib/astraura-bots/{tipos,permisos,personalidad-adaptable,acciones,reparto-de-modelo,bucle}.ts` (ábrelos y usa sus nombres reales). Petición de Alex (2026-10-11): la ORBE flotante de Astraura es el BOT; observa y reacciona a la pantalla, el código, los archivos del cerebro y la red, y crea y modifica en tiempo real con acciones tipadas; cada persona tiene varios bots abiertos y sincronizados (el de su perfil y los de sus grupos/páginas), cada uno con su personalidad, sentidos, permisos y memoria; los bots de grupo se gobiernan democráticamente desde PoliGenesis; Astraura local (Needle 3, Bonsai, BitNet, Jev, Laya) es el predeterminado y las APIs o bots externos (Grok, AG-UI) son invitados; cada bot tiene su computadora aislada en la nube.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/astraura-bots.md` y los seis módulos de `src/lib/astraura-bots/`. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos núcleos) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo de bots en main» para que el director la reencole cuando llegue.\nReglas de la casa (CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea de qué tarea queda pendiente). Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; el código que sintetiza un bot es un CANDIDATO que nunca se ejecuta en el OS (solo se previsualiza en el iframe sandbox sin allow-same-origin de `src/lib/aurora/code-runtime.ts`), y nada apunta al núcleo intocable (`NUCLEO_INTOCABLE` de `acciones.ts`). Toda acción de un bot pasa por `validarAccion` + `decidirAccion` y por el bucle (`avanzar` de `bucle.ts`): jamás se llama a un ejecutor saltándose eso. Todo sentido pasa por `decidirSentido` y su indicador queda visible mientras esté activo. Los bots invitados y los de grupo NUNCA leen memoria personal (`puedeLeerMemoria`). Nada de `node:*` en código que llegue al navegador (un módulo de servidor lleva sus tipos en un archivo aparte que el cliente importa). Claves solo por NOMBRE de variable y en el servidor; en pruebas, cualquier cadena con forma de clave se monta en tiempo de ejecución (`[\"s\",\"k-\"].join(\"\")…`). Pruebas sin red y sin hardware: lo del navegador y Supabase se inyecta o se simula con `vi.mock`; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom. Español claro en toda cadena visible; iconos Lucide, nunca emojis; cursor pointer en lo clicable; transiciones de 150–300 ms; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». NO instales paquetes. El layout raíz no carga nada pesado de forma estática (`next/dynamic` sin SSR o `import()` dentro de un efecto). Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Si cambias un valor persistido o un valor por defecto, migra lo guardado (las cuentas existentes también deben verlo). Un módulo PURO nuevo en la raíz de `src/lib/astraura-bots/` cumple la guardia `__tests__/pureza.test.ts` (sin React, red, DOM, reloj ni `node:*`; ≤ 200 líneas; solo importa del propio núcleo o de `@/lib/nucleo/{alcance-memoria,ui-spec,paquete-sistema}`); lo que use React, Supabase o red va en `src/lib/astraura-bots/adaptadores/` o en `src/components/astraura-bots/`. Honestidad: di que pasan tsc y vitest; no digas que «se ve bien» ni que «funciona»: eso se verifica en Genesis en localhost. Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (BOT1011S): `tono-chat.ts`: `preferenciasPersona()` lee `starseed.astraura.bots.preferencias.v1` (rasgos fijados, sinHumor, brevedad; try/catch); `bloqueTono(bot, agente?, senales)`: `mezclarPersonalidad` (con la personalidad del agente si se encarna uno: usa `rasgosDesdePersonalidad` de BOT1011D1 sobre la personalidad del agente) → `instruccionesDeTono` → texto «TONO DEL BOT:» de ≤ 6 líneas. En `src/lib/aurora/engine.ts` (≤ 12 líneas, sin reescribir): donde se arma el mensaje de sistema, añade ese bloque para el bot predeterminado si hay uno y la situación detectada por palabras clave simples (trabajo, aprendizaje, juego, duelo/crisis → `SITUACIONES`). Los límites honestos SIEMPRE van (son la última línea de `instruccionesDeTono`). Pruebas (≥ 6, node): bloque con y sin agente; preferencias aplicadas; límites presentes; situación crisis baja el humor; basura en preferencias no lanza.",
+   "dependencias_ya_en_main": [
+    "BOT1011D1",
+    "BOT1011P"
+   ]
+  }
+ ]
+}
