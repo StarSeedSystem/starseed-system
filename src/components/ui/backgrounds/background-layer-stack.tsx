@@ -41,6 +41,7 @@ import {
     type BackgroundLayer,
 } from "@/lib/appearance/background-layers";
 import type { VisualizerParams } from "@/lib/audiomorphic/types";
+import { CapaDifusion } from "@/components/backgrounds/capa-difusion";
 
 // El motor nativo se carga en diferido: una capa apagada no cuesta NADA.
 const AudiomorphicCanvas = dynamic(
@@ -79,6 +80,8 @@ function LayerBody({ layer }: { layer: BackgroundLayer }) {
                     playsInline
                 />
             ) : null;
+        case "difusion":
+            return <CapaDifusion capa={layer} />;
         default:
             return null;
     }
