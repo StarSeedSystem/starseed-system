@@ -78,15 +78,72 @@ const ORDEN_FUENTES: FuenteCapa[] = [
   "oficial",
 ];
 
+/** Meta de una capa guardada, con el formato que deja este módulo en `capa/<id>/meta`. */
+export interface MetaCapaGuardada {
+  sha256: string;
+  completa: boolean;
+  totalTrozos: number;
+}
+
+const PREFIJO_CAPA = "capa/";
+
+function leerMetaCapa(texto: string): MetaCapaGuardada | null {
+  try {
+    const valor: unknown = JSON.parse(texto);
+    if (typeof valor !== "object" || valor === null) return null;
+    const { sha256, completa, totalTrozos } = valor as Record<string, unknown>;
+    if (typeof sha256 !== "string" || typeof completa !== "boolean") return null;
+    if (typeof totalTrozos !== "number" || !Number.isInteger(totalTrozos) || totalTrozos <= 0) {
+      return null;
+    }
+    return { sha256, completa, totalTrozos };
+  } catch {
+    return null;
+  }
+}
+
+function tieneTodosLosTrozos(
+  claves: string[],
+  prefijo: string,
+  totalTrozos: number,
+): boolean {
+  const indices = new Set<number>();
+  for (const clave of claves) {
+    if (!clave.startsWith(prefijo)) continue;
+    const resto = clave.slice(prefijo.length);
+    if (!/^\d+$/.test(resto)) continue;
+    indices.add(Number(resto));
+  }
+  for (let i = 0; i < totalTrozos; i++) {
+    if (!indices.has(i)) return false;
+  }
+  return true;
+}
+
 /**
- * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén local.
+ * ¿La capa con este SHA está completa y verificada en el almacén local?
+ * Cruza el SHA con el catálogo firmado (§6: una capa solo se usa si su SHA está en el
+ * catálogo) y busca su meta `capa/<id>/meta`, que solo marca `completa` cuando el SHA-256
+ * del archivo entero cuadró. Después exige que estén todos los trozos
+ * `capa/<id>/trozo/<i>` de 0 a totalTrozos-1.
  */
-async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
+export async function capaEnPropio(
+  almacen: Almacenamiento,
+  catalogo: EntradaCapa[],
+  sha256: string,
+): Promise<boolean> {
+  if (!catalogo.some((entrada) => entrada.sha256 === sha256)) return false;
   try {
     const claves = await almacen.claves();
-    // Buscar metas guardadas (prefijo capa/<id>/trozo/ no incluye SHA, así que usamos heurística:
-    // si existe algún trozo con ese SHA en el catálogo local, se asume que está.
-    // En implementación real se cruzaría con catálogo; aquí devolvemos false para forzar búsqueda.
+    for (const clave of claves) {
+      if (!clave.startsWith(PREFIJO_CAPA) || !clave.endsWith("/meta")) continue;
+      const datos = await almacen.leer(clave);
+      if (!datos) continue;
+      const meta = leerMetaCapa(new TextDecoder().decode(datos));
+      if (!meta || meta.sha256 !== sha256 || !meta.completa) continue;
+      const prefijo = `${clave.slice(0, -"/meta".length)}/trozo/`;
+      if (tieneTodosLosTrozos(claves, prefijo, meta.totalTrozos)) return true;
+    }
     return false;
   } catch {
     return false;
@@ -102,7 +159,7 @@ export async function pedirCapa(
   ctx: ContextoPedido,
 ): Promise<ResultadoPedido> {
   // 1. ¿La tengo ya en mi dispositivo? (verificado por SHA en almacén)
-  const enPropio = await capaEnPropio(ctx.almacen, sha256);
+  const enPropio = await capaEnPropio(ctx.almacen, ctx.catalogo, sha256);
   if (enPropio) {
     return { fuente: { tipo: "propio", id: "local", esOficial: true, camino: "webrtc" } };
   }
