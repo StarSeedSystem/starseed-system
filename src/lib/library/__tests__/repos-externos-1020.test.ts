@@ -1,50 +1,61 @@
 import { describe, it, expect } from "vitest";
-import { PAQUETES_EXTERNOS, REPOS_EXCLUIDOS } from "../repos-externos-1020";
+import { PAQUETES_EXTERNOS, REPO_EXTERNOS_1020, REPOS_EXCLUIDOS } from "../repos-externos-1020";
+import { listRepos } from "../packages";
 
-const ids = PAQUETES_EXTERNOS.map((p) => p.id);
-const githubRepos = PAQUETES_EXTERNOS.map((p) => p.githubRepo);
-const externalUrls = PAQUETES_EXTERNOS.map((p) => p.externalUrl);
+const pkgs = REPO_EXTERNOS_1020.packages;
 
-describe("repos-externos-1020 · 2.ª tanda merged con 1.ª", () => {
-  it("tienen 28 ids únicos", () => {
-    expect(new Set(ids).size).toBe(28);
-    expect(ids.length).toBe(28);
+describe("repos-externos-1020 · repo builtin de 14 publicaciones", () => {
+  it("14 ids únicas", () => {
+    expect(pkgs).toHaveLength(14);
+    expect(new Set(pkgs.map((p) => p.id)).size).toBe(14);
   });
 
-  it("cada paquete tiene payload.githubRepo de GitHub", () => {
-    for (const repo of githubRepos) {
-      expect(repo).toMatch(/^[\w.-]+\/[\w.-]+$/);
+  it("externalUrl y githubRepo bien formados, todo comingSoon", () => {
+    for (const p of pkgs) {
+      expect(String(p.payload.externalUrl)).toMatch(/^https:\/\/github\.com\//);
+      expect(String(p.payload.githubRepo)).toMatch(/^[\w.-]+\/[\w.-]+$/);
+      expect(p.comingSoon).toBe(true);
     }
   });
 
-  it("cada paquete tiene payload.externalUrl de GitHub", () => {
-    for (const url of externalUrls) {
-      expect(url).toMatch(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/);
+  it("excluye reverse-skill", () => {
+    expect(JSON.stringify(pkgs)).not.toContain("reverse-skill");
+    for (const p of pkgs) {
+      expect(p.id).not.toContain("reverse-skill");
+      expect(String(p.payload.githubRepo)).not.toContain("reverse-skill");
     }
   });
 
-  it("no aparece zhaoxuya520/reverse-skill (excluida 1.ª tanda)", () => {
-    const idsProhibidos = ["zhaoxuya520/reverse-skill"];
-    for (const id of idsProhibidos) {
-      expect(ids).not.toContain(id);
+  it("anatomy lleva skillId y gods-eye está en mapas", () => {
+    expect(pkgs.find((p) => p.id === "lib-anatomy")?.payload.skillId).toBe("anatomy");
+    expect(pkgs.find((p) => p.id === "lib-gods-eye")?.payload.area).toContain("mapas");
+  });
+
+  it("está en listRepos()", () => {
+    expect(listRepos().some((r) => r.id === "starseed-biblioteca-externa")).toBe(true);
+  });
+});
+
+describe("repos-externos-1020 · cargador de las dos tandas", () => {
+  it("28 ids únicos entre 1020 y 1020b", () => {
+    expect(PAQUETES_EXTERNOS).toHaveLength(28);
+    expect(new Set(PAQUETES_EXTERNOS.map((p) => p.id)).size).toBe(28);
+  });
+
+  it("cada paquete tiene externalUrl y githubRepo de GitHub", () => {
+    for (const p of PAQUETES_EXTERNOS) {
+      expect(p.externalUrl).toMatch(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/);
+      expect(p.githubRepo).toMatch(/^[\w.-]+\/[\w.-]+$/);
     }
   });
 
-  it("no aparece Vikunja-Self-Hosted/Vikunja-Task-Management (excluida 2.ª tanda)", () => {
-    const idsProhibidos = ["Vikunja-Self-Hosted/Vikunja-Task-Management"];
-    for (const id of idsProhibidos) {
-      expect(ids).not.toContain(id);
-    }
-  });
-
-  it("go-vikunja/vikunja aparece en githubRepo", () => {
-    const entry = PAQUETES_EXTERNOS.find((p) => p.githubRepo === "go-vikunja/vikunja");
-    expect(entry).toBeDefined();
-    expect(entry?.id).toBe("lib-vikunja");
-  });
-
-  it("REPOS_EXCLUIDOS incluye las dos exclusiones", () => {
+  it("respeta las exclusiones de las dos tandas", () => {
     expect(REPOS_EXCLUIDOS).toContain("zhaoxuya520/reverse-skill");
     expect(REPOS_EXCLUIDOS).toContain("Vikunja-Self-Hosted/Vikunja-Task-Management");
+    expect(PAQUETES_EXTERNOS.some((p) => p.repo === "zhaoxuya520/reverse-skill")).toBe(false);
+  });
+
+  it("usa el Vikunja real y no el señuelo", () => {
+    expect(PAQUETES_EXTERNOS.find((p) => p.githubRepo === "go-vikunja/vikunja")?.id).toBe("lib-vikunja");
   });
 });
