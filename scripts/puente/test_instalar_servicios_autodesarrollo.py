@@ -64,6 +64,7 @@ class ServicioAutodesarrollo(unittest.TestCase):
         self.assertEqual(p["WorkingDirectory"], RAIZ)
         self.assertEqual(p["EnvironmentVariables"]["STARSEED_ROOT"], RAIZ)
         self.assertEqual(p["StandardOutPath"], "/tmp/starseed-autodesarrollo.log")
+        self.assertEqual(p["StandardErrorPath"], "/tmp/starseed-autodesarrollo.log")
 
     def test_lanzador_tcc_de_padre_y_rutas_absolutas(self):
         args = self.plist["ProgramArguments"]
@@ -75,6 +76,8 @@ class ServicioAutodesarrollo(unittest.TestCase):
         self.assertTrue(resto[2].endswith("scripts/puente/director_autodesarrollo.py") and os.path.isfile(resto[2]))
         self.assertEqual(resto[3:], ["ciclo"])
         self.assertTrue(all(os.path.isabs(a) for a in (args[0], args[1], resto[0], resto[2])))
+        # launchd no ejecuta un shell: ni zsh ni bash en ningún puesto de la cadena.
+        self.assertFalse({os.path.basename(a) for a in args} & {"zsh", "bash", "sh"})
 
     def test_carga_por_launchctl_simulado_y_solo_ese(self):
         ag = os.path.join(self.tmp.name, "Library", "LaunchAgents")
