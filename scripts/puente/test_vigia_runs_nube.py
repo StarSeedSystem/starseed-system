@@ -88,6 +88,20 @@ class Diagnosticar(unittest.TestCase):
             self.assertFalse(VR.es_preparacion(p), p)
 
 
+class SegundosDesde(unittest.TestCase):
+    """OPS1024Eb (de la rama, adaptado): la edad que mide `diagnosticar`, o None si el dato no
+    se entiende. Hoy es `_segundos_desde` con hora ISO («Z» de UTC incluida)."""
+
+    def test_de_un_iso_de_github(self):
+        self.assertEqual(VR._segundos_desde("2026-10-13T21:40:09Z", AHORA), 1791.0)
+        self.assertEqual(VR._segundos_desde("2026-10-13T22:10:00Z", AHORA), 0.0)
+
+    def test_un_dato_que_no_se_entiende_da_none(self):
+        self.assertIsNone(VR._segundos_desde(None, AHORA))
+        self.assertIsNone(VR._segundos_desde("no-es-una-hora", AHORA))
+        self.assertIsNone(VR._segundos_desde(1791929400.0, AHORA))
+
+
 class Devolver(unittest.TestCase):
     def test_solo_las_que_siguen_en_la_nube(self):
         prog = {"A": {"estado": "reasignada", "medio": "nube"}, "B": {"estado": "commit"},
@@ -290,6 +304,20 @@ class DevolverVaradas(unittest.TestCase):
         self.assertIsNone(VR.devolver_varadas({"runs": []}, self.dir, ahora=HOY, estado_run=lambda r: None))
         self.assertEqual(self._leer(), self.prog)
         self.assertEqual(self.avisos, [])
+
+    def test_progreso_plano_y_no_repite_aviso(self):
+        """OPS1024Eb (de la rama, adaptado): el progreso también se lee PLANO (sin la envoltura
+        «tareas», la forma con que la rama lo escribía) y una segunda pasada no vuelve a avisar."""
+        plano = {"VZF1015Q": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 39588171249}}
+        import json
+
+        with open(self.ruta, "w", encoding="utf-8") as f:
+            json.dump(plano, f)
+        texto = VR.devolver_varadas({"runs": []}, self.dir, ahora=HOY, estado_run=self._api)
+        self.assertIn("devolví 1 tarea(s)", texto)
+        with open(self.ruta, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["VZF1015Q"]["estado"], "pendiente")
+        self.assertIsNone(VR.devolver_varadas({"runs": []}, self.dir, ahora=HOY, estado_run=self._api))
 
     def test_actuar_las_devuelve_en_cada_pasada(self):
         from unittest import mock
