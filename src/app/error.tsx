@@ -13,6 +13,7 @@
 
 import { useEffect } from "react";
 import { esErrorDeVersionNueva, recargarPorVersionNueva } from "@/lib/pwa/recarga-por-version";
+import { limpiarDatosPersonales, normalizarError } from "@/lib/mando/errores-neurona";
 
 export default function AppError({
   error,
@@ -23,8 +24,13 @@ export default function AppError({
 }) {
   useEffect(() => {
     try {
-      // eslint-disable-next-line no-console
+      //eslint-disable-next-line no-console
       console.error("[app/error]", error?.message, error?.digest);
+      // Autocuración (Ola 1020S · RLB1020J): se registra el error con el FORMATO del
+      // SDK de Sentry, limpio de datos personales y solo en local (sin red ni terceros).
+      const evento = limpiarDatosPersonales(normalizarError(error, { ambito: "pagina" }));
+      //eslint-disable-next-line no-console
+      console.error("[app/error][evento]", evento);
     } catch {
       /* */
     }
