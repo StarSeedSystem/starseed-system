@@ -64,6 +64,16 @@ describe("lector-volumen", () => {
     expect(rapida.llamadas).toEqual([0]);
     expect(lenta.llamadas).toEqual([]);
   });
+  it("elige la fuente más rápida para cada banda del rango", async () => {
+    const bandas = [bytesDe(7, 1), bytesDe(8, 2), bytesDe(9, 3)];
+    const lenta = fuente("lenta", bandas, { velocidad: 1 });
+    const rapida = fuente("rapida", bandas, { velocidad: 99 });
+    const { lector } = await montar(bandas, [lenta, rapida]);
+    const r = await lector.leer(0, 2);
+    expect([...r.bytes]).toEqual([...bandas[0], ...bandas[1], ...bandas[2]]);
+    expect([...lenta.llamadas].sort()).toEqual([]);
+    expect([...rapida.llamadas].sort()).toEqual([0, 1, 2]);
+  });
   it("reintenta si una fuente falla y la anota", async () => {
     const bandas = [bytesDe(7, 4)];
     const rota = fuente("rota", bandas, { velocidad: 9, falla: true });
@@ -109,6 +119,14 @@ describe("lector-volumen", () => {
     expect(await lector.prebuscar({ desde: 1, hasta: 2 })).toBe(2);
     await lector.leer(1, 2);
     expect([...f.llamadas].sort()).toEqual([1, 2]);
+  });
+  it("prebuscar no lanza si la fuente falla y deja la banda fuera de la caché", async () => {
+    const bandas = [bytesDe(4)];
+    const rota = fuente("rota", bandas, { falla: true });
+    const { cache, lector } = await montar(bandas, [rota]);
+    await expect(lector.prebuscar({ desde: 0, hasta: 0 })).resolves.toBe(0);
+    expect(cache.mapa.size).toBe(0);
+    expect(lector.fuentesMalas()).toEqual([{ fuente: "rota", banda: 0, motivo: "fallo" }]);
   });
   it("devuelve un rango vacío sin tocar las fuentes", async () => {
     const bandas = [bytesDe(4)];
