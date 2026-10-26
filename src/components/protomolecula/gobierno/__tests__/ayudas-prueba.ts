@@ -1,5 +1,4 @@
 /** Servicios y entornos de mentira para probar la interfaz del gobierno de la Protomolécula (Ola 1026P · P2). */
-import { vi } from "vitest";
 import type { EntornoCargado, ResultadoGuardado, ServiciosGobierno } from "@/lib/protomolecula/gobierno/entorno";
 import type { ReglasProtomolecula } from "@/lib/protomolecula/gobierno/reglas";
 
@@ -23,12 +22,17 @@ export function cargado(rol: Rol, modo: "democratic" | "hierarchical" = "democra
 }
 
 export function servicios(carga: EntornoCargado, guardado: ResultadoGuardado = { ok: true, donde: "cuenta" }, personas: { id: string; nombre: string }[] = []) {
+  /** Las llamadas que la interfaz hace a `guardar`, para espiarlas sin `vi` (la guardia lo prohíbe fuera de pruebas). */
+  const guardarLlamadas: { entidad: Parameters<ServiciosGobierno["guardar"]>[0]; reglas: Parameters<ServiciosGobierno["guardar"]>[1]; quien: Parameters<ServiciosGobierno["guardar"]>[2] }[] = [];
   const s = {
-    cargar: vi.fn(async () => carga),
-    guardar: vi.fn(async () => guardado),
-    personas: vi.fn(async () => personas),
+    cargar: async () => carga,
+    guardar: async (entidad, reglas, quien) => {
+      guardarLlamadas.push({ entidad, reglas, quien });
+      return guardado;
+    },
+    personas: async () => personas,
   } satisfies ServiciosGobierno;
-  return s;
+  return { ...s, guardarLlamadas };
 }
 
 /** Los nombres que ya no se escriben en ningún texto visible; armado en tiempo de ejecución para no incumplir la guardia de nombres. */
