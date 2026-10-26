@@ -36,10 +36,17 @@ describe("motivoLicencia (pura)", () => {
     });
 
     it("una condicionada suena solo si su condición consta cumplida", () => {
-        for (const c of ["personal", "grupo", "comunidad"] as ContextoVoz[]) {
-            expect(motivoLicencia("condicionada", c, false)).toMatch(/condiciones/);
+        for (const c of ["personal", "grupo", "comunidad", "publico", "comercial"] as ContextoVoz[]) {
+            expect(motivoLicencia("condicionada", c, false)).toBe("condición de uso no cumplida");
             expect(motivoLicencia("condicionada", c, true)).toBeNull();
         }
+    });
+
+    it("el panel usa los motivos del elector puro de licencia", () => {
+        expect(motivoLicencia("personal", "comercial", false)).toBe("pesos no comerciales: solo uso personal");
+        expect(motivoLicencia("personal", "publico", false)).toBe("pesos no comerciales: solo uso personal");
+        expect(motivoLicencia("personal", "personal", false)).toBeNull();
+        expect(motivoLicencia("libre", "comercial", false)).toBeNull();
     });
 });
 
@@ -54,10 +61,25 @@ describe("fichaLicencia (pura)", () => {
     it("regla dura: ningún motor personal suena fuera del contexto personal", () => {
         for (const c of ["grupo", "comunidad", "publico", "comercial"] as ContextoVoz[]) {
             for (const m of MOTORES_VOZ.filter((x) => x.claseLicencia === "personal")) {
-                expect(fichaLicencia(m, c).suena).toBe(false);
+                const fila = fichaLicencia(m, c);
+                expect(fila.suena).toBe(false);
+                expect(fila.motivo).toBe("pesos no comerciales: solo uso personal");
             }
         }
         expect(fichaLicencia(landing!, "personal").suena).toBe(true);
+    });
+
+    it("una condicionada cumplida suena en los cinco contextos y sin cumplir no", () => {
+        const supertonic = MOTORES_VOZ.find((m) => m.id === "supertonic");
+        const condicionada = supertonic ?? {
+            ...MOTORES_VOZ[0],
+            id: "condicionada-prueba",
+            claseLicencia: "condicionada" as const,
+        };
+        for (const c of ["personal", "grupo", "comunidad", "publico", "comercial"] as ContextoVoz[]) {
+            expect(fichaLicencia(condicionada, c, true).suena).toBe(true);
+            expect(fichaLicencia(condicionada, c, false).motivo).toBe("condición de uso no cumplida");
+        }
     });
 
     it("VoiceStudio que no responde en la neurona no suena, con su motivo", () => {
@@ -81,7 +103,7 @@ describe("VozLicencias (render)", () => {
     it("en contexto comercial muestra VoiceMorphic como Solo personal con motivo", () => {
         render(<VozLicencias contexto="comercial" estadoVoicestudio="no-detectado" />);
         expect(screen.getByText(/VoiceMorphic/)).toBeTruthy();
-        const motivos = screen.getAllByText(/Licencia no comercial/);
+        const motivos = screen.getAllByText(/pesos no comerciales: solo uso personal/);
         expect(motivos.length).toBeGreaterThanOrEqual(2);
         expect(screen.getByText(/Licencia de los motores/)).toBeTruthy();
     });

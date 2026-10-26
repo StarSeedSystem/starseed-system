@@ -7,11 +7,14 @@
  * Contrato `architecture/voz-voicestudio.md` §4: un motor «personal» (no
  * comercial) solo suena en lo personal; en grupo, comunidad, público o
  * comercio solo entran los libres y las condicionadas ya cumplidas.
- * Lógica pura, probada sin red, disco ni procesos.
+ * El veredicto lo da el elector puro `motoresPermitidos` (`licencia-voz.ts`); aquí solo se pinta.
+ * Probado sin red, disco ni procesos.
  */
 
 import { cn } from "@/lib/utils";
 import { MOTORES_VOZ, type MotorVozCatalogo } from "@/lib/aurora/catalogo-voces";
+import { motoresPermitidos } from "@/lib/aurora/voz-starseed/licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
 
 export type ContextoVoz = "personal" | "grupo" | "comunidad" | "publico" | "comercial";
 
@@ -36,6 +39,37 @@ export interface FichaMotorLicencia {
 }
 
 /**
+ * Capas con las que el panel consulta el elector: las condicionadas se juzgan
+ * por su condición y los pesos personales solo se abren en lo personal. Así lo
+ * personal nunca es la opción por defecto en grupo, comunidad, público ni
+ * comercio.
+ */
+function capasDelPanel(contexto: ContextoVoz): CapasPrefs {
+    return {
+        comunidad: "condicionada",
+        grupo: "condicionada",
+        ...(contexto === "personal" ? { persona: "personal" as const } : {}),
+    };
+}
+
+/** Aplica `motoresPermitidos` a un motor y devuelve si suena y por qué no. */
+function evaluarMotor(
+    motor: { id: string; claseLicencia: ClaseLicencia },
+    contexto: ContextoVoz,
+    condicionCumplida: boolean,
+): { suena: boolean; motivo: string | null } {
+    const resultado = motoresPermitidos(
+        [{ id: motor.id, claseLicencia: motor.claseLicencia, condicionCumplida }],
+        contexto,
+        capasDelPanel(contexto),
+    );
+    return {
+        suena: resultado.permitidos.length === 1,
+        motivo: resultado.excluidos[0]?.motivo ?? null,
+    };
+}
+
+/**
  * Por qué un motor de esta clase no suena en el contexto dado
  * (`null` si suena sin problema). Pura: nada de red, disco ni reloj.
  */
@@ -44,13 +78,7 @@ export function motivoLicencia(
     contexto: ContextoVoz,
     condicionCumplida: boolean,
 ): string | null {
-    if (clase === "libre") return null;
-    if (clase === "condicionada") {
-        if (condicionCumplida) return null;
-        return "Su licencia pide condiciones que no constan cumplidas en este contexto: no suena hasta confirmarlas.";
-    }
-    if (contexto === "personal") return null;
-    return "Licencia no comercial (solo personal): en este contexto suena un motor libre o condicionada cumplida.";
+    return evaluarMotor({ id: "motor", claseLicencia: clase }, contexto, condicionCumplida).motivo;
 }
 
 /** Ficha lista para la interfaz (pura). */
@@ -60,8 +88,8 @@ export function fichaLicencia(
     condicionCumplida = false,
     estadoStudio: EstadoVoicestudioNeurona = "sin-comprobar",
 ): FichaMotorLicencia {
-    const motivoBase = motivoLicencia(motor.claseLicencia, contexto, condicionCumplida);
-    let suena = motivoBase === null;
+    const { suena: suenaPorLicencia, motivo: motivoBase } = evaluarMotor(motor, contexto, condicionCumplida);
+    let suena = suenaPorLicencia;
     let motivo = motivoBase;
     if (motor.id === "voicestudio" && estadoStudio === "no-detectado" && suena) {
         suena = false;
