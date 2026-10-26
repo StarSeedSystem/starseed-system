@@ -88,6 +88,18 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
     for (const mal of [{ tiempoMs: -1 }, { tiempoMs: Number.NaN }, { maxBytes: 0 }, { tiempoMs: 3e9 }]) expect(validarDefinicion({ ...DEF, ...mal })).toMatch(/límites/);
     for (const d of SERVICIOS_CONOCIDOS) expect(validarDefinicion(d)).toBeNull();
   });
+  it("hyperframes: definición válida en la lista y salud solo en 127.0.0.1:4490", async () => {
+    const hf = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes");
+    expect(hf).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
+    expect(validarDefinicion(hf as DefinicionServicio)).toBeNull();
+    expect(SERVICIOS_CONOCIDOS.filter((d) => d.id === "hyperframes")).toHaveLength(1);
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"vivo":true}'));
+    expect((await sondearServicio(hf as DefinicionServicio, f, {})).vivo).toBe(true);
+    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];
+    expect(url).toBe("http://127.0.0.1:4490/salud"); // nunca fuera de la neurona
+    expect(init).toMatchObject({ method: "GET", redirect: "manual", headers: { accept: "application/json" } });
+    expect((await sondearServicio(hf as DefinicionServicio, async () => { throw new Error("ECONNREFUSED"); }, {})).vivo).toBe(false);
+  });
   it("sondear: GET a la ruta de salud, sin exigir token; caído = no vivo; el fetch real encaja con FetchLocal", async () => {
     const compat: FetchLocal = globalThis.fetch; expect(typeof compat).toBe("function");
     const f = vi.fn<FetchLocal>(async () => resp(200, '{"system":{}}'));
