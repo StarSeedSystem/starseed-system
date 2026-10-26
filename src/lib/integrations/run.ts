@@ -231,6 +231,13 @@ export async function runIntegration(
         if (a === "merge") return await Stirling.merge(c, input);
         if (a === "to-image") return await Stirling.toImage(c, input);
         if (a === "extract-text") return await Stirling.extractText(c, input);
+        // PDF1020A · 1020d: operaciones según la instancia (lee /v1/api-docs).
+        if (a === "operaciones") return await Stirling.operacionesDisponibles(c);
+        if (a === "operar") {
+          const archivo = (Array.isArray(input?.files) && input.files.length ? input.files : input?.file) ?? input?.url ?? input;
+          const idOperacion = String(input?.operacion ?? input?.id ?? "");
+          return await Stirling.ejecutarOperacion(c, idOperacion, archivo, input?.parametros ?? {});
+        }
         break;
       case "open-webui":
       case "ollama":
