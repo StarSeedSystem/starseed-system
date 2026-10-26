@@ -6,6 +6,7 @@ import {
   type SeedCatalogEntry,
 } from "../defaults-seed";
 import { FICHAS_REPOS_1025, IDS_SIEMBRA_1025, TANDA_1025_FICHAS } from "../repos-1025";
+import { FICHAS_REPOS_1026, IDS_SIEMBRA_1026, TANDA_1026_FICHAS } from "../repos-1026";
 
 const SIEMPRE_2A = [
   "lib-vikunja",
@@ -32,14 +33,14 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
-  it("sube la versión (17) y mantiene las siete «siempre» de la 2.ª tanda", () => {
-    expect(SEED_VERSION).toBe(17);
+  it("sube la versión (18) y mantiene las siete «siempre» de la 2.ª tanda", () => {
+    expect(SEED_VERSION).toBe(18);
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
     }
-    // Los `lib-` sembrados son los de la 2.ª tanda más los de la tanda 1025 (que llegan de su JSON).
+    // Los `lib-` sembrados son los de la 2.ª tanda más los de las tandas 1025 y 1026 (que llegan de su JSON).
     const deLasTandas = RECOMMENDED_PACKAGE_IDS.filter((id) => id.startsWith("lib-"));
-    const esperados = [...SIEMPRE_2A, ...IDS_SIEMBRA_1025.filter((id) => id.startsWith("lib-"))];
+    const esperados = [...SIEMPRE_2A, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026].filter((id) => id.startsWith("lib-"));
     expect(deLasTandas.sort()).toEqual(Array.from(new Set(esperados)).sort());
   });
 
@@ -168,6 +169,48 @@ describe("defaults-seed · tanda 1025 («todas las repos, preinstaladas y autoac
       installedIds: [],
     });
     expect(plan).not.toContain("lib-nanobot");
+    expect(plan).toHaveLength(nuevas.length - 1);
+  });
+});
+
+describe("defaults-seed · tanda 1026 (Open-Higgsfield-AI, WeKnora, OpenProject y Cap)", () => {
+  const nuevas = FICHAS_REPOS_1026.map((f) => f.id);
+
+  it("siembra las 4 fichas nuevas y la ficha vieja de Open Generative AI, que ahora sigue su repo", () => {
+    expect(nuevas).toHaveLength(4);
+    for (const id of nuevas) expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
+    expect(RECOMMENDED_PACKAGE_IDS).toContain("iatool-open-generative-ai");
+  });
+
+  it("toda ficha «siempre» del JSON acaba sembrada (con su id o el de la ficha que la absorbe)", () => {
+    for (const f of TANDA_1026_FICHAS) {
+      if (f.preinstalar !== "siempre") continue;
+      expect(RECOMMENDED_PACKAGE_IDS).toContain(f.fusionar_en ?? f.id);
+    }
+  });
+
+  it("quien ya tenía la 17 recibe solo el delta de la 18: lo que ya se le ofreció no vuelve", () => {
+    const plan = selectSeedIds({
+      currentVersion: 17,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: [...FICHAS_REPOS_1025, ...FICHAS_REPOS_1026].map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: RECOMMENDED_PACKAGE_IDS.filter((id) => !nuevas.includes(id)),
+      installedIds: [],
+    });
+    expect(plan.sort()).toEqual([...nuevas].sort());
+  });
+
+  it("una cuenta que desinstaló una de las nuevas no la recupera sola", () => {
+    const plan = selectSeedIds({
+      currentVersion: 17,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: FICHAS_REPOS_1026.map((f) => ({ id: f.id })),
+      alreadyOffered: [...RECOMMENDED_PACKAGE_IDS.filter((id) => !nuevas.includes(id)), "lib-cap"],
+      installedIds: [],
+    });
+    expect(plan).not.toContain("lib-cap");
     expect(plan).toHaveLength(nuevas.length - 1);
   });
 });

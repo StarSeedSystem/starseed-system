@@ -24,6 +24,7 @@ import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
 import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
 } from "./habilidades/diagramas";
+import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -668,6 +669,11 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     defaultOn: true,
     skillIds: ["diagram-design"],
   },
+  /* ═══ REPOS 1026 · Grabar la pantalla (Cap) · conocimiento (WeKnora) · proyectos (OpenProject) ═══
+   * Las tres se activan solas al instalar su ficha de la Biblioteca (la siembra las instala) y sus textos dicen
+   * lo que NO hacen hoy: sin instancia ni herramienta de Aurora que las consulte. Contrato:
+   * architecture/repos-libreria-1026.md; datos en src/ai/astraura/habilidades/repos-1026.ts. */
+  ...CAPACIDADES_REPOS_1026,
 ];
 
 function isClient(): boolean {

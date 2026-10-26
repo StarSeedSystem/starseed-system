@@ -167,6 +167,8 @@ export const CAPACIDADES_CONOCIDAS: readonly CapabilityId[] = [
   "smart-file-organize", "security-audit", "offline-maps", "aurora-council",
   "agent-delegation", "design-penpot", "video-editing", "advanced-search",
   "agent-memory-layered", "data-backup", "social-publish",
+  // Ola 1025U · REP1026: grabar la pantalla (Cap), conocimiento (WeKnora) y proyectos (OpenProject).
+  "grabar-pantalla", "conocimiento-weknora", "proyectos-openproject",
 ];
 
 /**

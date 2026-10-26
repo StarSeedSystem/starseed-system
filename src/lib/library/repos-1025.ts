@@ -96,7 +96,8 @@ export function versionCorta(canal: string, texto: string): string {
     return limpio.split(/\s+/)[0] ?? limpio;
 }
 
-function resumenRequisitos(r: FichaTanda1025["requisitos"]): string {
+/** Una línea con los requisitos de una ficha (RAM, VRAM, GPU, Docker, arquitecturas, sistemas, fuente). */
+export function resumenRequisitos(r: FichaTanda1025["requisitos"]): string {
     if (!r) return "";
     const partes: string[] = [];
     if (typeof r.ram_gb === "number") partes.push(`RAM ${r.ram_gb} GB`);
@@ -109,7 +110,8 @@ function resumenRequisitos(r: FichaTanda1025["requisitos"]): string {
     return partes.join(" · ");
 }
 
-function autorDe(repo: string): string {
+/** El autor de una ficha es el dueño del repo de GitHub. */
+export function autorDe(repo: string): string {
     return repo.split("/")[0] ?? repo;
 }
 

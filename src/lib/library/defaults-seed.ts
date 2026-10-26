@@ -59,6 +59,7 @@ import {
 } from "./packages";
 import { DOWNLOADABLE_SOURCES } from "@/ai/astraura/installed-models";
 import { IDS_SIEMBRA_1025 } from "./repos-1025";
+import { IDS_SIEMBRA_1026 } from "./repos-1026";
 
 /** Marca de estado de la siembra (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEED_KEY = "starseed.library.seed.v1";
@@ -68,7 +69,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 17;
+export const SEED_VERSION = 18;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -340,8 +341,15 @@ const RECOMMENDED_HASTA_16: string[] = [
  * (Taste Skill, Agent-Reach) ya se sembraron en la versión 2. Instalar cada una SOLO registra su enlace: cero
  * descarga, cero ejecución de código, cero ruta abierta y cero clave durante la siembra. Lo que ejecuta código,
  * pide servidor o cuenta (Cloudflare de pago, GPU, Docker) queda como activación manual, con su aviso a la vista.
+ *
+ * (SEED_VERSION 18 · Ola 1025U · REP1026) LOS CUATRO REPOS DEL 2026-10-26: Open-Higgsfield-AI (copia de Autom8AI),
+ * WeKnora, OpenProject y Cap, más `iatool-open-generative-ai`, que ahora sigue su repo real. Ids de
+ * `config/repos-libreria-1026.json` (módulo puro `repos-1026.ts`). Mismo contrato: instalar SOLO registra el enlace,
+ * y que ninguno corra hoy en estas máquinas se dice en la ficha (`corre_aqui: false`), no se esconde.
  */
-export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025]));
+export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026]),
+);
 
 /**
  * Fuentes gratuitas del catálogo Astraura que garantizamos NO deshabilitadas.

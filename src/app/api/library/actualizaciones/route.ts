@@ -8,6 +8,7 @@ import { REPO_DECISIONES } from "@/lib/library/fuentes-decision";
 import { FICHAS_IA_LOCALES, fichasIaConUpstreamGitHub } from "@/lib/library/fuentes-ia-locales";
 import { FICHAS_REPOS_OS } from "@/lib/library/repos-os";
 import { FICHAS_REPOS_1025, FICHAS_VIEJAS_SEGUIMIENTO_1025 } from "@/lib/library/repos-1025";
+import { FICHAS_REPOS_1026, FICHAS_VIEJAS_SEGUIMIENTO_1026 } from "@/lib/library/repos-1026";
 import {
     urlDeConsulta,
     leerVersion,
@@ -123,11 +124,14 @@ export async function GET(): Promise<Response> {
         const fichas = [
             ...REPO_DECISIONES.packages,
             // Tanda 1025: las 26 nuevas y las 3 fichas viejas (iatool-*) que ahora siguen su repo real.
+            // Tanda 1026: las 4 nuevas y Open Generative AI (iatool-*), que sigue el suyo.
             ...fichasIaConUpstreamGitHub([
                 ...FICHAS_IA_LOCALES,
                 ...FICHAS_REPOS_OS,
                 ...FICHAS_REPOS_1025,
                 ...FICHAS_VIEJAS_SEGUIMIENTO_1025,
+                ...FICHAS_REPOS_1026,
+                ...FICHAS_VIEJAS_SEGUIMIENTO_1026,
             ]).filter((p) => !idsDecisiones.has(p.id)),
         ];
         const entradas: EntradaFuente[] = fichas
