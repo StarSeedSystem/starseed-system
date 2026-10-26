@@ -54,6 +54,10 @@ describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
     }
   });
 
+  it("cada id recomendado aparece una sola vez (sin duplicados)", () => {
+    expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
+  });
+
   it("con la versión nueva siembra las siete una sola vez", () => {
     const primera = selectSeedIds({
       currentVersion: SEED_VERSION - 1,
@@ -89,11 +93,11 @@ describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
     expect(plan).toEqual([...SIEMPRE_2A].filter((id) => id !== "lib-vikunja"));
   });
 
-  it("respeta lo instalado, los descargables y los comingSoon", () => {
+  it("respeta lo instalado, los descargables, los comingSoon y los ausentes", () => {
     const plan = selectSeedIds({
       currentVersion: 0,
       seedVersion: SEED_VERSION,
-      recommendedIds: ["lib-vikunja", "lib-celld", "lib-sentry", "lib-windmill"],
+      recommendedIds: ["lib-vikunja", "lib-celld", "lib-sentry", "lib-windmill", "iatool-inexistente"],
       catalog: [
         { id: "lib-vikunja" },
         { id: "lib-celld", downloadable: true },
