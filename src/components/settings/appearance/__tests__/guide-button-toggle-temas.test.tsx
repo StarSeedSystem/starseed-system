@@ -1,14 +1,28 @@
 // GUI1021G · Ajustes → «Ver la guía de introducción» con sus diez temas.
 // Lo puro: el mapa de temas a icono. Lo visible: cada uno abre la guía en su tema.
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { HelpCircle } from "lucide-react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { AppearanceProvider } from "@/context/appearance-context";
 import { EVENTO_ABRIR_GUIA, type PeticionGuia } from "@/lib/onboarding/guia-acceso";
 import { TODOS_LOS_TEMAS } from "@/lib/onboarding/guia-temas-red";
-import { ListaTemasGuia, iconoDeTema, temasConIcono } from "../guide-button-toggle";
+import {
+  GuideButtonToggle,
+  ListaTemasGuia,
+  iconoDeTema,
+  temasConIcono,
+} from "../guide-button-toggle";
 
 afterEach(() => cleanup());
+
+function montarAjustes() {
+  return render(
+    <AppearanceProvider>
+      <GuideButtonToggle />
+    </AppearanceProvider>,
+  );
+}
 
 describe("temas con icono (GUI1021G)", () => {
   it("conserva los diez temas en el orden del tour y da un icono distinto a cada uno", () => {
@@ -68,6 +82,40 @@ describe("lista de temas (GUI1021G)", () => {
       expect(peticiones).toEqual(
         TODOS_LOS_TEMAS.map((tema) => ({ desde: "ajustes", temaInicial: tema.key })),
       );
+    } finally {
+      window.removeEventListener(EVENTO_ABRIR_GUIA, escuchar);
+    }
+  });
+});
+
+describe("lista conectada al botón de guía (GUI1021Ob)", () => {
+  it("Ajustes muestra la lista junto a «Reproducir guía del sistema»", () => {
+    montarAjustes();
+
+    expect(screen.getByRole("button", { name: /Reproducir guía del sistema/ })).toBeTruthy();
+    const lista = screen.getByRole("list", { name: "Temas de la guía de introducción" });
+    const botones = within(lista).getAllByRole("button");
+
+    expect(botones).toHaveLength(TODOS_LOS_TEMAS.length);
+    botones.forEach((boton, i) => {
+      expect(boton.textContent).toContain(TODOS_LOS_TEMAS[i].titulo);
+      expect(boton.querySelector("svg")).not.toBeNull();
+    });
+  });
+
+  it("al pulsar un tema desde Ajustes abre la guía en ese tema", () => {
+    const peticiones: PeticionGuia[] = [];
+    const escuchar = (evento: Event) => {
+      peticiones.push((evento as CustomEvent<PeticionGuia>).detail);
+    };
+    window.addEventListener(EVENTO_ABRIR_GUIA, escuchar);
+    try {
+      montarAjustes();
+      const lista = screen.getByRole("list", { name: "Temas de la guía de introducción" });
+      const malla = within(lista).getByRole("button", { name: /Redes mesh/ });
+      fireEvent.click(malla);
+
+      expect(peticiones).toEqual([{ desde: "ajustes", temaInicial: "malla" }]);
     } finally {
       window.removeEventListener(EVENTO_ABRIR_GUIA, escuchar);
     }
