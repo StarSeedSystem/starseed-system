@@ -22,8 +22,15 @@ import {
   ordenarSpacesChatterbox,
   semillaEstable,
   sintetizarChatterbox,
+  turnoSinPrimerSonido,
   type ChatterboxDeps,
 } from "@/lib/aurora/tts-oss/chatterbox";
+import {
+  clearVoiceIdentity,
+  markVoiceIdentitySpoke,
+  setVoiceIdentity,
+  type FrozenVoiceIdentity,
+} from "@/lib/aurora/tts-oss/voice-identity";
 import {
   AUTO_ENDPOINT_ORDER,
   VOICE_ENGINE_REGISTRY,
@@ -118,7 +125,7 @@ function montar(esc: Escenario = {}) {
   const almacen = new Map<string, string>();
   let reloj = 1_000_000;
   const llamadasGradio: { base: string; fn: string; data: unknown[] }[] = [];
-  const medidas: { tipo: string; valor: number }[] = [];
+  const medidas: { tipo: string; valor: number; idioma?: string }[] = [];
   const pedidas: string[] = [];
   const fetchFalso = vi.fn(async (url: string, init?: RequestInit): Promise<Response> => {
     pedidas.push(url);
@@ -152,8 +159,8 @@ function montar(esc: Escenario = {}) {
       return (esc.spacesQueHablan ?? []).includes(base) ? [{ url: `${base}/gradio_api/file=out.wav` }] : null;
     },
     audioDeSalida: async (out) => (out ? new Blob([new Uint8Array([0x52, 0x49, 0x46, 0x46])], { type: "audio/wav" }) : null),
-    anotar: (tipo, valor) => {
-      medidas.push({ tipo, valor });
+    anotar: (tipo, valor, idioma) => {
+      medidas.push({ tipo, valor, idioma: idioma || undefined });
     },
   };
   return {
@@ -171,7 +178,29 @@ function montar(esc: Escenario = {}) {
 const MTL = CHATTERBOX_SPACES_INTEGRADOS[0];
 const ING = CHATTERBOX_SPACES_INTEGRADOS[1];
 
+// ── Identidad del mensaje (turno) para la medida por turno (SGO1024B) ────────
+
+/** Token fijo del mensaje de prueba (el que `neuralSpeak` congela por turno). */
+const TOKEN_MENSAJE = 7;
+
+/** Identidad congelada mínima, como la produce `beginMessageVoiceIdentity`. */
+function identidadMensaje(
+  spoke: boolean,
+  engine: "chatterbox" | "openvoice2" = "chatterbox",
+): FrozenVoiceIdentity {
+  return {
+    token: TOKEN_MENSAJE,
+    engine,
+    settings: { lang: "es" },
+    params: { rate: 1, pitch: 1, volume: 0.8, energy: 50 },
+    playbackMod: null,
+    fingerprint: "prueba",
+    spoke,
+  };
+}
+
 beforeEach(() => _reiniciarChatterboxParaPruebas());
+afterEach(() => setVoiceIdentity(null)); // el turno no se cuela en la prueba siguiente
 
 // ── Contrato y piezas puras ──────────────────────────────────────────────────
 
@@ -237,6 +266,33 @@ describe("cliente Chatterbox", () => {
     expect(m.llamadasGradio).toHaveLength(0);
     expect(m.medidas.map((x) => x.tipo)).toEqual(["primer-sonido", "tiempo-real-voz"]);
     expect(estadoChatterbox(m.deps)).toBe("listo");
+  });
+
+  it("(SGO1024B) el «primer-sonido» es UNA medida por turno y con idioma, no una por trozo", async () => {
+    setVoiceIdentity(identidadMensaje(false)); // trozo 0 del mensaje: mide
+    const m = montar({ local: "vivo" });
+    const r0 = await sintetizarChatterbox("Hola, soy Astraura.", { idioma: "es-ES" }, m.deps);
+    expect(r0.via).toBe("local");
+    const primeras = m.medidas.filter((x) => x.tipo === "primer-sonido");
+    expect(primeras).toHaveLength(1);
+    expect(primeras[0].idioma).toBe("es"); // «es-ES» → el idioma base que viaja al motor
+    expect(m.medidas.find((x) => x.tipo === "tiempo-real-voz")?.idioma).toBe("es");
+    // El trozo 0 ganó: `neuralSpeakChunked` marca el mensaje como hablado y los
+    // trozos 2..N ya no falsean la mediana con medidas de más.
+    markVoiceIdentitySpoke(TOKEN_MENSAJE);
+    expect(turnoSinPrimerSonido()).toBe(false);
+    await sintetizarChatterbox("Mi segundo trozo del mismo mensaje.", { idioma: "es-ES" }, m.deps);
+    expect(m.medidas.filter((x) => x.tipo === "primer-sonido")).toHaveLength(1);
+  });
+
+  it("(SGO1024B) una identidad congelada de OTRO motor no apaga la medida del turno propio", async () => {
+    const m = montar({ local: "vivo" });
+    setVoiceIdentity(identidadMensaje(true, "openvoice2"));
+    expect(turnoSinPrimerSonido()).toBe(true);
+    const r = await sintetizarChatterbox("Hola de nuevo.", { idioma: "es" }, m.deps);
+    expect(r.via).toBe("local");
+    expect(m.medidas.filter((x) => x.tipo === "primer-sonido")).toHaveLength(1);
+    expect(m.medidas.find((x) => x.tipo === "primer-sonido")?.idioma).toBe("es");
   });
 
   it("si el local está en modo simulado (sin audio) pasa al Space multilingüe para español", async () => {
