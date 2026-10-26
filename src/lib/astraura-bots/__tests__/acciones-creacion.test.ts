@@ -91,6 +91,17 @@ describe("xr.intencion", () => {
     ejecutarIntencionXR(voz("zzz qqq"), ctxVoz, { onStatus });
     expect(onStatus).toHaveBeenCalledTimes(1);
   });
+  it("una frase que no se entiende devuelve su pregunta y ninguna tarjeta", () => {
+    const r = ejecutarIntencionXR(voz("zzz qqq"), ctxVoz);
+    expect(r).toMatchObject({ ok: false, previo: {}, tarjeta: null });
+    if (r.voz.ok) throw new Error("la frase no debía entenderse");
+    expect(r.motivo).toBe(r.voz.pregunta);
+    expect(r.motivo).toContain("No he entendido");
+  });
+  it("una frase vacía que llega directa a la intención se rechaza con «No te he oído»", () => {
+    const r = ejecutarIntencionXR({ tipo: "xr.intencion", args: { frase: "" } } as unknown as AccionBot, ctxVoz);
+    expect(r).toMatchObject({ ok: false, previo: {}, tarjeta: null, motivo: "No te he oído. Dime qué quieres hacer." });
+  });
 });
 describe("anclaDeBot", () => {
   const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
