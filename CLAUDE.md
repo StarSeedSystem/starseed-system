@@ -1426,6 +1426,18 @@ Medido a las 09:00 UTC (Genesis enseñaba 5 agentes con 307 listas) y otra vez a
 - **I** · con el enlace de MetaGenesis en «tablas» la orden `lanzar_cola` no sale («va por la bitácora»), pero el
   préstamo se apuntaba igual y reservaba sus tareas 6 h para un A1 que nunca las recibió. Ahora `_prestar` solo
   apunta lo que salió («pedido a …»), como el relevo.
+- **J** · el A1 se repara solo (`a1_autocuracion.py`, paso 10 de la autocuración, sonda cada 5 min): servicios del
+  nodo caídos → `systemctl restart`; SSH sin respuesta POR LA MÁQUINA (timeout, banner, refused; un «Permission
+  denied» nunca reinicia) → Oracle: STOPPED → START, RUNNING colgado 3 sondas y 10 min → SOFTRESET, 15 min más →
+  RESET, como mucho 4 en 24 h; al volver, se le manda trabajo sin la espera de 20 min. Alex: «es obvio que si te
+  pido que se repare automáticamente también considere eso y más».
+- **K** · un cuelgue de modelos EN LA MAC (swap llena) apartaba a OpenCode Zen 6 h «para todas las olas», y esa salud
+  viajaba a la nube: `nube-gh.salud_para_la_nube` no manda las marcas de cuelgue (los 429 sí) y
+  `escritores_en_la_nube` no las cuenta.
+- **L** · la nube solo tenía cinco escritores sueltos; FreeLLMAPI (8 plataformas, 88 modelos en la Mac: Mistral,
+  Groq, HuggingFace…) solo vivía en la Mac y el A1. Ahora cada job arranca el suyo (paso «FreeLLMAPI en el runner»,
+  versión 47c3a45, solo 127.0.0.1, clave unificada nueva por job) y el orquestador lo usa como escritor; Alex eligió
+  subir `MISTRAL_API_KEY` (y Cerebras/Cohere si existen) a los secretos del repo.
 
 **Regla:** más agentes que escritores con cupo no es capacidad: son 429, proveedores apartados 6 h y envíos gastados.
 El número lo dan los escritores vivos; los jobs a la vez salen de ahí y los dos directores leen el mismo.
