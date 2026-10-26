@@ -15,6 +15,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import { useSyncExternalStore, useEffect } from "react";
+import { geometriaVentana } from "@/lib/design/composicion";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 
@@ -1120,6 +1121,56 @@ export function createNoteIcon(desktopId: string, name = "Nota", text = "", fold
 }
 
 // ── Acciones: ventanas ───────────────────────────────────────────
+/**
+ * Geometría CENTRADA al abrir una ventana sin posición guardada (DSN1019C ·
+ * «ventanas del Escritorio: abrir centradas»). Reusa la composición centrada
+ * por aparato de `src/lib/design/composicion.ts` (ancho máximo 1186 px, margen
+ * de 16 px en teléfono) y respeta la banda de la barra superior (B-1).
+ * Función PURA: sin ventana, sin disco, sin red.
+ */
+export function posicionCentradaVentana(
+    vw: number,
+    vh: number,
+    w: number,
+    h: number,
+): { x: number; y: number; w: number; h: number } {
+    const geo = geometriaVentana(
+        { ancho: vw, alto: vh },
+        { tipo: "ventana", ancho: w, alto: h },
+    );
+    const maxY = Math.max(DESKTOP_TOP_INSET, vh - geo.alto - 120);
+    return {
+        x: Math.max(8, Math.min(geo.x, Math.max(8, vw - geo.ancho - 16))),
+        y: Math.min(maxY, clampWindowY(geo.y)),
+        w: geo.ancho,
+        h: geo.alto,
+    };
+}
+
+/**
+ * Recoloca una ventana CON posición guardada dentro del viewport ACTUAL
+ * (cambió el aparato, giró, se plegó…). La posición se respeta SIEMPRE que la
+ * ventana siga al menos parcialmente visible; si quedó FUERA de la pantalla
+ * (desaparecera al usuario), se centra de nuevo. Función PURA.
+ */
+export function recolocarVentanaEnPantalla(
+    rect: { x: number; y: number; w: number; h: number },
+    vw: number,
+    vh: number,
+): { x: number; y: number; w: number; h: number } {
+    const fueraDePantalla =
+        rect.x >= vw || rect.x + rect.w <= 0 ||
+        rect.y >= vh || rect.y + rect.h <= DESKTOP_TOP_INSET;
+    if (fueraDePantalla) return posicionCentradaVentana(vw, vh, rect.w, rect.h);
+    // Parcialmente visible: se respeta, solo se asegura que el borde
+    // izquierdo/superior siga dentro (nunca una ventana inabarcable).
+    return {
+        ...rect,
+        x: Math.max(8, Math.min(rect.x, Math.max(8, vw - 80))),
+        y: Math.max(DESKTOP_TOP_INSET, Math.min(rect.y, Math.max(DESKTOP_TOP_INSET, vh - 120))),
+    };
+}
+
 function nextZ(d: Desktop): number {
     return d.windows.reduce((m, w) => Math.max(m, w.z), 0) + 1;
 }
@@ -1145,6 +1196,8 @@ export function openWindow(
 ): string {
     let resultId = newId("win");
     mutateDesktop(desktopId, (d) => {
+        const vw = isClient() ? window.innerWidth : 1280;
+        const vh = isClient() ? window.innerHeight : 800;
         const dedupe = !opts?.allowDuplicate && contentRef.type !== "browser";
         const existing = dedupe
             ? d.windows.find((w) => w.contentRef.type === contentRef.type && w.contentRef.ref === contentRef.ref)
@@ -1152,25 +1205,27 @@ export function openWindow(
         if (existing) {
             resultId = existing.id;
             const z = nextZ(d);
+            // Posición guardada: se respeta. Solo si quedó FUERA del viewport
+            // actual se recoloca dentro (nunca bucles ni saltos innecesarios).
+            const reubicada = recolocarVentanaEnPantalla(existing, vw, vh);
             return {
                 ...d,
                 windows: d.windows.map((w) =>
-                    w.id === existing.id ? { ...w, minimized: false, z } : w,
+                    w.id === existing.id
+                        ? { ...w, minimized: false, z, x: reubicada.x, y: reubicada.y }
+                        : w,
                 ),
             };
         }
-        const vw = isClient() ? window.innerWidth : 1280;
-        const vh = isClient() ? window.innerHeight : 800;
         const w = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
         const h = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
-        const idx = d.windows.length;
-        // Cascada que NUNCA invade la banda de la barra superior (B-1).
-        const maxY = Math.max(DESKTOP_TOP_INSET, vh - h - 120);
+        // Sin posición guardada: composición CENTRADA por aparato (DSN1019C).
+        const centrada = posicionCentradaVentana(vw, vh, w, h);
         const win: DesktopWindow = {
             id: resultId,
             contentRef,
-            x: Math.max(8, Math.min(48 + (idx % 6) * 36, vw - w - 16)),
-            y: Math.min(clampWindowY(DESKTOP_TOP_INSET + 6 + (idx % 6) * 30), maxY),
+            x: centrada.x,
+            y: centrada.y,
             w,
             h,
             z: nextZ(d),
