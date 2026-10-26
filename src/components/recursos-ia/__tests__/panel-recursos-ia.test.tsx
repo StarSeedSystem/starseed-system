@@ -98,6 +98,15 @@ describe("PanelRecursosIa", () => {
         expect(within(screen.getByTestId("fila-capacidad-video")).getByText(/Ningún modelo de vídeo/)).toBeInTheDocument();
     });
 
+    it("la fila de capacidad usa destinoDeIA para decir a qué servidor va", async () => {
+        montar(<PanelRecursosIa />);
+        const fila = await screen.findByTestId("fila-capacidad-texto");
+        const destino = within(fila).getByTestId("destino-texto");
+        expect(destino).toHaveTextContent("Red de StarSeed OS");
+        expect(destino).toHaveTextContent("Oracle A1");
+        expect(destino).toHaveTextContent("4480");
+    });
+
     it("«Fijar» guarda la elección en porCapacidad", async () => {
         montar(<PanelRecursosIa />);
         const fila = await screen.findByTestId("fila-capacidad-texto");
