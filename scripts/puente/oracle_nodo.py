@@ -476,6 +476,7 @@ def _avisar(texto):
 #: (OPS1024E, 2026-10-24) `vigia_runs_nube.py`: `traer_nube` lo importa al arrancar para leer
 #: la reasignación igual que el vigía; sin él, reinstalar el nodo moriría en el primer import.
 MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py", "traer_nube.py", "vigia_runs_nube.py")
+# Confirmado (OPS1024E): vigia_runs_nube debe viajar con el nodo porque traer_nube lo importa.
 
 
 def _paquete(destino):
