@@ -196,6 +196,22 @@ class MainVivoDeLaMac(unittest.TestCase):
 
 
 
+class UnGitLentoNoTumbaElMedio(unittest.TestCase):
+    """(2026-10-26, CAP1026H) El texto de un TimeoutExpired también lleva «|»: no es un sha ni una fecha."""
+
+    def test_salida_normal(self):
+        self.assertEqual(A.sha_y_fecha(0, "0123456789abcdef0123456789abcdef01234567|1793030000\n"),
+                         ("0123456789abcdef0123456789abcdef01234567", 1793030000.0))
+
+    def test_git_que_no_termina(self):
+        texto = ("TimeoutExpired: Command '['git', 'log', '-1', '--format=%H|%ct', 'refs/mac/main']' "
+                 "timed out after 300 seconds")
+        self.assertEqual(A.sha_y_fecha(1, texto), ("", None))
+        self.assertEqual(A.sha_y_fecha(0, texto), ("", None))
+        self.assertEqual(A.sha_y_fecha(0, ""), ("", None))
+        self.assertEqual(A.sha_y_fecha(0, "abcdef1|nofecha"), ("abcdef1", None))
+
+
 class OrquestadorDeLaCola(unittest.TestCase):
     """(2026-10-14) El A1 corría un orquestador de cuatro días antes que el main de la cola."""
 

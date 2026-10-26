@@ -317,6 +317,27 @@ def _git(args, timeout=300, cwd=None):
         return 1, "%s: %s" % (type(e).__name__, e)
 
 
+def sha_y_fecha(rc, salida):
+    """PURA (2026-10-26, CAP1026H): (sha, fecha) de `git log -1 --format=%H|%ct`; ("", None) si git falló.
+
+    MEDIDO el 26-10 a las 18:33 (hora del A1): con la máquina sin aire, el `git log` pasó de 300 s y `_git`
+    devolvió el texto del TimeoutExpired, que también lleva «|» («…'--format=%H|%ct', 'refs/mac/main']' timed
+    out…»): `float()` reventaba y `starseed-medio` (el medio del enjambre y el guardián de main) salía con
+    error. Un git lento es un dato que falta, no una caída del servicio."""
+    if rc != 0:
+        return "", None
+    texto = (salida or "").strip()
+    linea = texto.splitlines()[0] if texto else ""
+    sha, _, t = linea.partition("|")
+    sha = sha.strip()
+    if len(sha) < 7 or any(c not in "0123456789abcdef" for c in sha):
+        return "", None
+    try:
+        return sha, float(t.strip())
+    except ValueError:
+        return sha, None
+
+
 def _leer(ruta, defecto):
     try:
         with open(ruta, encoding="utf-8") as f:
@@ -541,9 +562,8 @@ class Nodo:
 
     def _resumen_main_mac(self):
         """Lo que la neurona necesita para no reenviar el mismo paquete (sin rutas ni claves)."""
-        _, linea = _git(["log", "-1", "--format=%H|%ct", REF_MAIN_MAC])
-        sha, t = (linea.strip().split("|", 1) + [""])[:2] if "|" in linea else ("", "")
-        return {"sha": sha, "fecha": float(t or 0) if t else None,
+        sha, fecha = sha_y_fecha(*_git(["log", "-1", "--format=%H|%ct", REF_MAIN_MAC]))
+        return {"sha": sha, "fecha": fecha,
                 "importado": self._main_mac.get("mtime") or None, "error": self._main_mac.get("error") or ""}
 
     # ── correr un proceso largo latiendo ──
