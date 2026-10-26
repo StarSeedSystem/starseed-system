@@ -342,7 +342,7 @@ function decorar(paso: PasoGuia): GuideStep {
 }
 
 /** Los pasos del recorrido: los del catálogo único, en su orden. */
-const STEPS: GuideStep[] = PASOS_GUIA.map(decorar);
+export const STEPS: GuideStep[] = PASOS_GUIA.map(decorar);
 
 // Frase de bienvenida que Aurora narra al empezar en modo voz.
 const INTRO_SAY =
