@@ -22,6 +22,16 @@ class Elegir(unittest.TestCase):
         self.assertIsNone(M.elegir_modelo([], "texto"))
         self.assertIsNone(M.elegir_modelo(["", None, 3], "texto"))
 
+    def test_alias_de_capacidad(self):
+        casos = (
+            ("chat", ["ollama/llama", "ollama/qwen-coder"], "ollama/llama"),
+            ("reasoning", ["bitnet/x", "deepseek-r1"], "deepseek-r1"),
+            ("code", ["ollama/llama", "qwen2.5-coder"], "qwen2.5-coder"),
+        )
+        for capacidad, modelos, esperado in casos:
+            with self.subTest(capacidad=capacidad):
+                self.assertEqual(M.elegir_modelo(modelos, capacidad), esperado)
+
 
 class Env(unittest.TestCase):
     def test_parsea_export_comillas_y_comentarios(self):
@@ -98,6 +108,63 @@ class Cliente(unittest.TestCase):
         texto = 'export STARSEED_PASARELA_EXPLABS_KEY="clave"\nSTARSEED_PASARELA_EXPLABS_MODELOS=clef-flash\n'
         c = M.cliente_openai_compatible("texto", leer_env=lambda: texto, sonda=self.sonda)
         self.assertEqual(c.origen, "experiential")
+
+    def test_local_primero_y_bitnet(self):
+        self.mundos[M.SERVIDOR_IA] = ["ollama/llama", "bitnet/bonsai"]
+        c = M.cliente_openai_compatible("texto", entorno={}, sonda=self.sonda)
+        self.assertEqual(c.origen, "servidor-propio")
+        self.assertEqual(c.base_url, M.SERVIDOR_IA)
+        self.assertEqual(c.modelo, "bitnet/bonsai")
+
+    def test_modelo_local_forzado_y_url_propia(self):
+        entorno = {
+            "STARSEED_SERVIDOR_IA_URL": "http://127.0.0.1:9999/v1/",
+            "STARSEED_SERVIDOR_IA_MODELO": "ollama/elegido",
+            "STARSEED_SERVIDOR_IA_TOKEN": "clave-falsa",
+        }
+        c = M.cliente_openai_compatible("texto", entorno=entorno, sonda=lambda *_a: [])
+        self.assertEqual(c.base_url, "http://127.0.0.1:9999/v1")
+        self.assertEqual(c.modelo, "ollama/elegido")
+        self.assertNotIn("clave-falsa", repr(c))
+
+    def test_pasarela_elige_por_capacidad(self):
+        entorno = {
+            "STARSEED_PASARELA_EXPLABS_KEY": "clave-falsa",
+            "STARSEED_PASARELA_EXPLABS_MODELOS": "clef-flash, gpt-6-luna-decisions",
+        }
+        c = M.cliente_openai_compatible("decision", entorno=entorno, sonda=lambda *_a: None)
+        self.assertEqual(c.origen, "experiential")
+        self.assertEqual(c.base_url, M.EXPLABS)
+        self.assertEqual(c.modelo, "gpt-6-luna-decisions")
+        self.assertNotIn("clave-falsa", repr(c))
+
+    def test_pasarela_sin_modelos_no_se_inventa(self):
+        entorno = {
+            "STARSEED_PASARELA_EXPLABS_KEY": "clave-falsa",
+            "OPENROUTER_API_KEY": "clave-openrouter",
+        }
+        self.mundos[M.OPENROUTER] = ["meta/llama:free"]
+        c = M.cliente_openai_compatible("texto", entorno=entorno, sonda=self.sonda)
+        self.assertEqual(c.origen, "openrouter:free")
+        self.assertEqual(c.modelo, "meta/llama:free")
+
+    def test_reserva_gratuita(self):
+        entorno = {"OPENROUTER_API_KEY": "clave-openrouter"}
+        self.mundos[M.OPENROUTER] = ["meta/llama:free", "deepseek/deepseek-coder:free"]
+        c = M.cliente_openai_compatible("codigo", entorno=entorno, sonda=self.sonda)
+        self.assertEqual(c.origen, "openrouter:free")
+        self.assertEqual(c.base_url, M.OPENROUTER)
+        self.assertTrue(c.modelo.endswith(":free"))
+        self.assertIn("coder", c.modelo)
+
+    def test_modelo_forzado(self):
+        entorno = {
+            "OPENROUTER_API_KEY": "clave-openrouter",
+            "STARSEED_OPENROUTER_MODELO": "meta/llama:free",
+        }
+        c = M.cliente_openai_compatible("texto", entorno=entorno, sonda=lambda *_a: None)
+        self.assertEqual(c.base_url, M.OPENROUTER)
+        self.assertEqual(c.modelo, "meta/llama:free")
 
     def test_la_clave_nunca_sale_en_el_repr(self):
         c = M.ClienteOpenAI("http://x/v1", "m", "clave-secreta")
