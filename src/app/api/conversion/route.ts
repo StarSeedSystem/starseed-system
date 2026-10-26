@@ -14,7 +14,9 @@ import { convertirConFilee, destinosFilee, estadoFilee, MAX_BYTES_CONVERSION } f
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 900;
+// Vercel Hobby admite 1–300 s: con 900 cada despliegue de producción fallaba en «Deploying outputs»
+// (invalid_max_duration, desde el 2026-10-25). En la neurona (`next start`) este valor no limita nada.
+export const maxDuration = 300;
 
 const SIN_CACHE = { "Cache-Control": "no-store" };
 
