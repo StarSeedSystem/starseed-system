@@ -4,7 +4,7 @@
  * IMAGINACIÓN INTUITIVA (ALWAYS-ON) — visor raíz.
  * ----------------------------------------------------------------------------
  * Reconstrucción con paridad funcional de `IntuitiveImaginationView.jsx`
- * (spec técnica en `/tmp/imagination-spec.md`, 2870 líneas del original).
+ * (spec técnica versionada en `architecture/imaginacion-spec.md`).
  * Monta: cabecera con controles maestros, Gobernador de Recursos, barra de
  * 5 sub-pestañas y sus contenidos, y los modales que cuelgan de esta vista
  * (Director, Informe de Síntesis, Aplicación Sincronizada, Ramas & Logs por
