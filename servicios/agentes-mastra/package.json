@@ -1,0 +1,22 @@
+{
+  "name": "starseed-agentes-mastra",
+  "version": "0.1.0",
+  "description": "Agente mínimo de la neurona con Mastra (@mastra/core, Apache-2.0) sobre el servidor propio de IA compatible con OpenAI en 127.0.0.1:4480. Un contrato de agente, varios motores (architecture/repos-3d-oido-agentes-1023.md §3).",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "servir": "node src/agente.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.78",
+    "@hono/node-server": "1.19.11",
+    "@mastra/core": "1.79.0",
+    "hono": "4.12.6",
+    "zod": "3.25.76"
+  }
+}
