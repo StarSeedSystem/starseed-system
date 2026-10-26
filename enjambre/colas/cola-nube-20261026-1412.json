@@ -1,0 +1,104 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "XR1010AJ",
+   "ola": "Ola 1010X · StarSeed XR: el OS en visores de AR/VR (entrada automática, Trinity espacial, menús 3D, voz de Astraura, mundos, P2P, calidad automática)",
+   "titulo": "Pruebas con IWER: entrada a VR/AR emulada sin visor, y script de humo con navegador real",
+   "archivos": [
+    "src/components/xr/shell/__tests__/iwer-entrada.test.ts",
+    "scripts/xr/humo-iwer.mjs"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/starseed-xr.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §3 (a)–(o) son las reglas del área y §1 la investigación fechada (qué existe y qué NO en cada visor). El núcleo puro YA está escrito y probado (214 pruebas) y NO se modifica: `src/lib/xr/{tipos,capacidades,calidad,calidad-perfiles,espacio-trinity,tokens-3d,transiciones,mundo-tipos,mundo-reglas,mundo-saneo,mundo-spec,intenciones-tipos,intenciones-ref,intenciones-destinos,intenciones-clausulas,intenciones-voz,confort,privacidad,vinculos-xr}.ts` (ábrelos y usa sus nombres reales; la tabla del inicio de §3 dice qué da cada uno). Petición de Alex (2026-10-10): StarSeed OS instalable y usable en gafas de AR/VR de todo tipo (Meta Quest, SteamVR, Android XR, Vision Pro, Pico…) o en cualquier navegador con WebXR; se abre solo en su formato (VR o AR); todo el sistema en 3D con el mismo diseño, funciones y estilo; menús 3D completos con animaciones y transiciones autoadaptables; calidad fijada sola por aparato; Astraura y la Protomolécula incluidas, con voz («crea un mundo virtual… e invita a este grupo de amigos», «súbelo a la Biblioteca / a una estación / a una publicación / a un mensaje»); servidores y estaciones públicos o privados como destinos; herramientas configurables para construir entornos, también en pizarras y llamadas.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/starseed-xr.md` y los módulos de `src/lib/xr/` de arriba. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo XR en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Pruebas sin red, sin hardware y sin WebGL: lo del navegador se inyecta; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom; el lienzo 3D (three/R3F/uikit) se simula con `vi.mock` como hace `src/components/vivo/espacial/__tests__/escena-compartida.test.tsx`; los componentes de R3F son cascarones finos y su LÓGICA vive en funciones puras que sí se prueban. Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Dependencias: NO ejecutes `npm install` salvo que tu tarea sea XR1010A; las 7 dependencias XR (§3 n) las añade esa tarea con el visto bueno de Alex; si tu tarea las necesita y `node_modules` no las trae, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: XR1010A (dependencias XR)». El layout raíz no carga motores pesados: three/uikit/rapier/vrm/spark solo dentro de `src/components/xr/shell/**` y de la ruta `/xr/os` (carga perezosa con `next/dynamic` sin SSR o `import()` dentro de una función). Privacidad (§3 k): nunca pidas la función `camera-access`; la cámara del passthrough y el mapa de la habitación no salen del aparato. Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Migra lo persistido si cambias un valor por defecto. Honestidad: no digas que algo «se ve bien» o «funciona en el visor»: di que pasan tsc y vitest; solo Alex lo comprueba con un visor, en `/xr/diagnostico` (tarea XR1010AI). Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (XR1010AJ): Contrato §3 (l). IWER (`iwer` 2.5.0, MIT, de Meta) emula la API WebXR. Su README remite a la documentación (https://meta-quest.github.io/immersive-web-emulation-runtime): léela; exporta `XRDevice`, `metaQuest2`, `metaQuest3`, `metaQuestPro`, `metaVRGlasses`, `oculusQuest1`. `iwer-entrada.test.ts` (vitest, entorno jsdom: ponle `// @vitest-environment jsdom` si es `.ts`): instala un `XRDevice(metaQuest3)` con su runtime en `window` y comprueba, SIN WebGL: (1) `sondearNavegador` (XR1010B) ve `navigator.xr`, `vr: true` y `ar: true`; (2) `evaluarCapacidades` da plataforma `desconocida`/`escritorio` por el UA de jsdom y, con el UA de Quest inyectado, `quest` y modo recomendado `vr-inmersivo`; (3) `navigator.xr.requestSession('immersive-vr', {optionalFeatures: ['local-floor','hand-tracking']})` devuelve una sesión con `enabledFeatures` que incluye `local-floor`; (4) `funcionesAPedir` (XR1010D) no contiene `camera-access` y la sesión concedida no la tiene; (5) un `requestSession` sin gesto en el mundo real fallaría, pero IWER lo permite: déjalo anotado como límite de la emulación; (6) `refinarFunciones` sustituye lo esperado por lo concedido. Si IWER exige una API que jsdom no tiene, simula esa pieza mínima en el propio test, no en el código de producción. `scripts/xr/humo-iwer.mjs` (Node ESM, ≤ 120 líneas): con `playwright` (ya está en devDependencies) abre `http://localhost:9002/xr/os?modo=vr` (o `STARSEED_XR_URL`), inyecta IWER ANTES de la página (`addInitScript` con el bundle de `iwer`, leído de `node_modules/iwer`), usa el Chrome ya instalado de la Mac (`channel: 'chrome'`; no descarga otro navegador: el disco manda), comprueba que la página pinta el botón «Entrar en VR», lo pulsa y que `navigator.xr` recibió `requestSession`; imprime un informe de una línea por comprobación y sale con código 1 si algo falla; si no hay Chrome, sale con código 0 y el mensaje «sin navegador: omitido». NO se ejecuta en `vitest`. Honestidad: IWER no sustituye al visor real (los gestos, el rendimiento y lo que se ve solo se comprueban con él, en `/xr/diagnostico`). Integración: di en tu última línea cómo se corre cada uno.",
+   "dependencias_ya_en_main": [
+    "XR1010A",
+    "XR1010D",
+    "XR1010E"
+   ]
+  },
+  {
+   "id": "DSN1019B",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Las ventanas del OS abren centradas y como hoja en teléfono",
+   "archivos": [
+    "src/components/dashboard/apps/os-window.tsx",
+    "src/components/dashboard/apps/__tests__/os-window-centrada.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Usa `geometriaVentana` para la posición inicial de `OSWindow` (centrada en la pantalla; en teléfono, hoja centrada que sube desde abajo con entrada cardinal) sin cambiar su API ni el arrastre. Solo añadir. Prueba con viewport de teléfono y de escritorio. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DSN1019A"
+   ]
+  },
+  {
+   "id": "DSN1019C",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Ventanas del Escritorio: abrir centradas",
+   "archivos": [
+    "src/components/desktop/desktop-store.ts",
+    "src/components/desktop/__tests__/ventana-centrada.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En `openWindow` usa la geometría centrada de `composicion.ts` cuando la ventana no tiene posición guardada; si la tiene, la respeta (y la recoloca dentro de la pantalla si quedó fuera). Solo añadir. Prueba. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DSN1019A"
+   ]
+  },
+  {
+   "id": "VPU1019D",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de widgets y Dashboard",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/widgets.ts",
+    "src/lib/variaciones/adaptadores/__tests__/widgets.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familia widget: clave `widget:<WidgetType>` (de `src/components/dashboard/dashboard-types.ts`); capturar toma la configuración visual y de opciones del widget (no sus datos personales), aplicar la fusiona con la instancia elegida y devuelve deshacer; respeta `getSizeConstraints` de `src/components/dashboard/widget-manifest.ts`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019H",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de publicaciones y mensajes (estilos del editor)",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/publicaciones.ts",
+    "src/lib/variaciones/adaptadores/__tests__/publicaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familias post y mensaje con parte `#estilo`, `#plantilla` o `#decoracion`: captura estilos y plantillas del editor rico (`src/components/messages/rico/`) y del compositor de publicaciones, nunca el texto ni los destinatarios; aplicar sobre el borrador actual con deshacer. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019P",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Tarjeta de variación: vista previa, probar, aplicar y deshacer",
+   "archivos": [
+    "src/components/variaciones/tarjeta-variacion.tsx",
+    "src/components/variaciones/__tests__/tarjeta-variacion.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Vista previa del adaptador, «Probar» (aplica y deshace al cerrar o al pulsar de nuevo), «Aplicar» con deshacer visible, «Guardar en la Biblioteca» (`SaveToLibrary`), «Compartir» (`ShareToDialog`), «Ver origen», valoración y licencia; las de código piden confirmación y se abren aisladas. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019O"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "DSN1019B",
+   "DSN1019C",
+   "VPU1019D",
+   "VPU1019H",
+   "VPU1019P",
+   "XR1010AJ"
+  ]
+ }
+}
