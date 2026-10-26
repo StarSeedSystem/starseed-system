@@ -207,6 +207,13 @@ function MessagesContent() {
         setAjustesAbiertos(true);
     }, [searchParams]);
 
+    // Deep-link ?nuevo=1 → abre «Nuevo chat». Lo usan las acciones rápidas del dock
+    // (mantener presionado «Mensajes» o «Contactos»; src/lib/dock/acciones-rapidas.ts).
+    useEffect(() => {
+        if (!authReady || searchParams?.get("nuevo") !== "1") return;
+        setNewChatOpen(true);
+    }, [authReady, searchParams]);
+
     // ── Deep-link ?to=<handle> (Adenda 63 · P-4) ────────────────────────────
     // Resuelve el @ en el directorio (os_profiles), abre el DM existente con esa
     // persona o crea uno nuevo (createDm ya reutiliza el hilo 1:1 si existe) y

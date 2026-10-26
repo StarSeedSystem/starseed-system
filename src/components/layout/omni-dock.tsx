@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePerimeter } from "@/context/perimeter-context";
 import { useRouter, usePathname } from "next/navigation";
@@ -25,6 +25,12 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { TrinityFab } from "./trinity-fab";
 import { DockDeslizable } from "./dock-deslizable";
 import { EtiquetaDeslizante } from "./etiqueta-deslizante";
+// Mantener presionado / arrastrar los iconos (Ola 1025U · V1a). El gesto y el orden son
+// ligeros y entran con el dock; el MENÚ de opciones (con el catálogo de apps) se carga a demanda.
+import { useGestoDock, CARRIL_RAIZ } from "./dock/use-gesto-dock";
+import { AvisoDeshacer } from "./dock/aviso-deshacer";
+import { construirEntradas, carpetaDe, devolverAlDock, meterEnCarpeta, quitarDelDock, sacarDeCarpeta } from "@/lib/dock/orden-dock";
+const MenuDockItem = lazy(() => import("./dock/menu-dock-item"));
 import {
     loadDockConfig,
     saveDockConfig,
@@ -299,59 +305,67 @@ export function OmniDock() {
         );
     };
 
-    // Items habilitados, indexados por id (para resolver el contenido de folders).
-    const itemById = useMemo(() => {
-        const map = new Map<string, DockItemConfig>();
-        items.forEach((it) => map.set(it.id, it));
-        return map;
-    }, [items]);
+    // Estructura de render del strip: cada entrada es un item suelto o un folder (regla
+    // pura y probada en `@/lib/dock/orden-dock`: los sueltos mantienen el orden de `items`;
+    // un folder se coloca donde está su primer item y los apagados no se pintan).
+    const dockEntries = useMemo(() => construirEntradas(items, folders), [items, folders]);
+    const carpetasActivas = useMemo(() => folders.filter((f) => f.enabled), [folders]);
 
-    // Folders activos y los ids de item que "consumen" (sacándolos del strip raíz).
-    const activeFolders = useMemo(() => folders.filter((f) => f.enabled), [folders]);
-    const foldedItemIds = useMemo(() => {
-        const s = new Set<string>();
-        activeFolders.forEach((f) => f.itemIds.forEach((id) => s.add(id)));
-        return s;
-    }, [activeFolders]);
+    // ── Mantener presionado: menú de opciones · arrastrar para reordenar (Ola 1025U · V1a) ──
+    const gesto = useGestoDock({
+        stripRef,
+        items,
+        folders,
+        guardarItems: persist,
+        guardarCarpetas: persistFolders,
+        habilitado: isVisible,
+        alDesplazarCarril: updateShadows,
+    });
+    // Quitar del dock con deshacer: el icono solo se apaga (no se borra) y vuelve a su sitio.
+    const [quitado, setQuitado] = useState<{ id: string; label: string; n: number } | null>(null);
+    const quitarDeDock = useCallback((id: string) => {
+        const it = items.find((x) => x.id === id);
+        if (!it) return;
+        persist(quitarDelDock(items, id));
+        setQuitado({ id, label: it.label, n: Date.now() });
+    }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
+    const deshacerQuitar = useCallback(() => {
+        if (!quitado) return;
+        persist(devolverAlDock(items, quitado.id));
+        setQuitado(null);
+    }, [items, quitado]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Estructura de render del strip: cada entrada es un item suelto o un folder.
-    // Mantiene el orden de `items` para los sueltos; los folders se intercalan en
-    // la posición de su PRIMER item, de modo que el orden general se respeta.
-    type DockEntry =
-        | { kind: 'item'; item: DockItemConfig }
-        | { kind: 'folder'; folder: DockFolderConfig; children: DockItemConfig[] };
-
-    const dockEntries = useMemo<DockEntry[]>(() => {
-        const entries: DockEntry[] = [];
-        const placedFolders = new Set<string>();
-        for (const it of items) {
-            if (!it.enabled) continue;
-            // ¿Pertenece a un folder activo? → coloca el folder en la posición
-            // de su primer item presente y no añadas el item suelto.
-            if (foldedItemIds.has(it.id)) {
-                const owner = activeFolders.find((f) => f.itemIds.includes(it.id));
-                if (owner && !placedFolders.has(owner.id)) {
-                    placedFolders.add(owner.id);
-                    const children = owner.itemIds
-                        .map((id) => itemById.get(id))
-                        .filter((x): x is DockItemConfig => !!x && x.enabled);
-                    entries.push({ kind: 'folder', folder: owner, children });
-                }
-                continue;
-            }
-            entries.push({ kind: 'item', item: it });
+    // El carril: el gesto de cada icono convive con el desplazamiento con ratón y con bajar el dock.
+    const manejadoresCarril = gesto.manejadoresCarril;
+    const onPointerDownCarril = (e: React.PointerEvent<HTMLDivElement>) => {
+        manejadoresCarril.onPointerDown(e);
+        onPointerDown(e);
+    };
+    const onPointerMoveCarril = (e: React.PointerEvent<HTMLDivElement>) => {
+        const f = manejadoresCarril.onPointerMove(e);
+        if (f === "activa" || f === "arrastrando") {
+            drag.current.active = false; // con el icono levantado, el carril no se desplaza
+            return;
         }
-        // Folders activos cuyos items no están presentes igualmente se muestran
-        // (vacías o con hijos deshabilitados) al final, para poder gestionarlas.
-        for (const f of activeFolders) {
-            if (placedFolders.has(f.id)) continue;
-            const children = f.itemIds
-                .map((id) => itemById.get(id))
-                .filter((x): x is DockItemConfig => !!x && x.enabled);
-            entries.push({ kind: 'folder', folder: f, children });
-        }
-        return entries;
-    }, [items, activeFolders, foldedItemIds, itemById]);
+        onPointerMove(e);
+        if (drag.current.moved) gesto.cancelarPulsacion(); // el ratón ya está desplazando el carril
+    };
+    const onPointerUpCarril = (e: React.PointerEvent<HTMLDivElement>) => {
+        manejadoresCarril.onPointerUp(e);
+        endDrag(e);
+    };
+    const onPointerCancelCarril = (e: React.PointerEvent<HTMLDivElement>) => {
+        manejadoresCarril.onPointerCancel(e);
+        endDrag(e);
+    };
+    const onClickCaptureCarril = (e: React.MouseEvent<HTMLDivElement>) => {
+        manejadoresCarril.onClickCapture(e);
+        if (e.isPropagationStopped()) return;
+        onClickCapture(e);
+    };
+    const menuItem = gesto.menu ? items.find((x) => x.id === gesto.menu!.itemId) : undefined;
+    // El aviso de deshacer vive con el dock abierto: al cerrarlo ya no hay desde dónde pulsarlo.
+    useEffect(() => { if (!isVisible) setQuitado(null); }, [isVisible]);
 
     // (Ola 227) Rito de verdad en primer plano: el dock NO puede salir
     // (ni siquiera el FAB Trinity; él también se auto-oculta por su cuenta).
@@ -415,6 +429,14 @@ export function OmniDock() {
                             <span className="block h-[5px] w-12 rounded-full bg-gradient-to-r from-rose-500/70 via-red-400/90 to-rose-500/70 opacity-60 shadow-[0_0_10px_rgba(220,20,60,0.55)] transition-opacity duration-200 hover:opacity-100" />
                         </button>
                     )}
+                    {quitado && (
+                        <AvisoDeshacer
+                            clave={`${quitado.id}:${quitado.n}`}
+                            texto={`«${quitado.label}» ya no está en tu dock`}
+                            alDeshacer={deshacerQuitar}
+                            alCerrar={() => setQuitado(null)}
+                        />
+                    )}
                     <div data-agarre-panel="" data-ss-coreo="dock" className={cn(
                         "omni-dock-pill glass-depth glass-edge glass-sheen-slow pointer-events-auto",
                         "bg-card/40 dark:bg-black/40 backdrop-blur-3xl border border-foreground/10",
@@ -474,11 +496,14 @@ export function OmniDock() {
                         <div
                             ref={stripRef}
                             onScroll={updateShadows}
-                            onPointerDown={onPointerDown}
-                            onPointerMove={onPointerMove}
-                            onPointerUp={endDrag}
-                            onPointerCancel={endDrag}
-                            onClickCapture={onClickCapture}
+                            onPointerDown={onPointerDownCarril}
+                            onPointerMove={onPointerMoveCarril}
+                            onPointerUp={onPointerUpCarril}
+                            onPointerCancel={onPointerCancelCarril}
+                            onClickCapture={onClickCaptureCarril}
+                            onKeyDown={manejadoresCarril.onKeyDown}
+                            onContextMenu={manejadoresCarril.onContextMenu}
+                            onBlur={manejadoresCarril.onBlur}
                             role="group"
                             aria-label="Accesos del dock (desliza para ver más)"
                             // Carril deslizable en TODOS los anchos (móvil, tablet y
@@ -501,7 +526,17 @@ export function OmniDock() {
                         >
                             {dockEntries.map((entry) => {
                                 const iconSizeCls = compact ? "w-4 h-4 lg:w-5 lg:h-5" : "w-5 h-5 lg:w-7 lg:h-7";
-                                if (entry.kind === 'item') {
+                                // Props de cada celda para el gesto de mantener/arrastrar (data-dock-* + estado visual).
+                                const celdaProps = (clave: string, carril: string, extra?: { carpeta?: string }) => ({
+                                    celda: clave,
+                                    carril,
+                                    carpetaId: extra?.carpeta,
+                                    pulsable: !extra?.carpeta,
+                                    levantado: gesto.levantado === clave,
+                                    arrastrando: gesto.arrastre?.id === clave && gesto.arrastre.carril === carril,
+                                    desplazamiento: gesto.desplazamientoDe(clave, carril),
+                                });
+                                if (entry.tipo === 'item') {
                                     const item = entry.item;
                                     const Icon = ICON_MAP[item.iconKey] ?? FALLBACK_ICON;
                                     return (
@@ -514,15 +549,16 @@ export function OmniDock() {
                                             active={isActivePath(item.path)}
                                             compact={compact}
                                             onClick={() => router.push(item.path)}
+                                            {...celdaProps(item.id, CARRIL_RAIZ)}
                                         />
                                     );
                                 }
                                 // Folder expandible: el tile lo abre/cierra; al estar
                                 // abierta, sus hijos aparecen en línea a continuación.
-                                const f = entry.folder;
+                                const f = entry.carpeta;
                                 const isOpen = !!folderOpen[f.id];
                                 const FolderIcon = isOpen ? FolderOpen : (ICON_MAP[f.iconKey] ?? Folder);
-                                const anyChildActive = entry.children.some((c) => isActivePath(c.path));
+                                const anyChildActive = entry.hijos.some((c) => isActivePath(c.path));
                                 return (
                                     <React.Fragment key={f.id}>
                                         <DockItem
@@ -531,7 +567,7 @@ export function OmniDock() {
                                             color={f.color}
                                             active={anyChildActive}
                                             compact={compact}
-                                            badge={isOpen ? undefined : entry.children.length || undefined}
+                                            badge={isOpen ? undefined : entry.hijos.length || undefined}
                                             indicator={
                                                 <ChevronDown
                                                     className={cn(
@@ -541,9 +577,11 @@ export function OmniDock() {
                                                 />
                                             }
                                             onClick={() => toggleFolderOpen(f.id)}
+                                            objetivoCarpeta={gesto.arrastre?.carpeta === f.id}
+                                            {...celdaProps(`carpeta:${f.id}`, CARRIL_RAIZ, { carpeta: f.id })}
                                         />
                                         <AnimatePresence initial={false}>
-                                            {isOpen && entry.children.length > 0 && (
+                                            {isOpen && entry.hijos.length > 0 && (
                                                 <motion.div
                                                     key={`${f.id}-children`}
                                                     initial={{ opacity: 0, width: 0 }}
@@ -555,7 +593,7 @@ export function OmniDock() {
                                                         compact ? "gap-1 lg:gap-2 px-1 lg:px-1.5" : "gap-1.5 lg:gap-4 px-1.5 lg:px-2",
                                                     )}
                                                 >
-                                                    {entry.children.map((child) => {
+                                                    {entry.hijos.map((child) => {
                                                         const CIcon = ICON_MAP[child.iconKey] ?? FALLBACK_ICON;
                                                         return (
                                                             <DockItem
@@ -566,6 +604,7 @@ export function OmniDock() {
                                                                 active={isActivePath(child.path)}
                                                                 compact={compact}
                                                                 onClick={() => router.push(child.path)}
+                                                                {...celdaProps(child.id, f.id)}
                                                             />
                                                         );
                                                     })}
@@ -593,6 +632,27 @@ export function OmniDock() {
                 </DockDeslizable>
             )}
         </AnimatePresence>
+        {isVisible && (
+            // Anuncios del gesto para lectores de pantalla («levantado», «posición 3 de 20»…).
+            <div className="sr-only" role="status" aria-live="polite" data-dock-anuncio="">{gesto.anuncio}</div>
+        )}
+        {isVisible && gesto.menu && menuItem && (
+            <Suspense fallback={null}>
+                <MenuDockItem
+                    item={menuItem}
+                    ancla={gesto.menu.ancla}
+                    carpeta={carpetaDe(folders, menuItem.id)}
+                    carpetas={carpetasActivas}
+                    pathname={pathname ?? "/"}
+                    navegar={(ruta) => router.push(ruta)}
+                    alCerrar={gesto.cerrarMenu}
+                    alQuitar={() => quitarDeDock(menuItem.id)}
+                    alMover={() => gesto.iniciarMovimientoTeclado(menuItem.id)}
+                    alMeterEnCarpeta={(carpetaId) => persistFolders(meterEnCarpeta(folders, carpetaId, menuItem.id))}
+                    alSacarDeCarpeta={() => persistFolders(sacarDeCarpeta(folders, menuItem.id))}
+                />
+            </Suspense>
+        )}
         </>
     );
 }
@@ -608,7 +668,10 @@ const DOCK_PALETTE: Record<DockColor, { text: string; ring: string; glow: string
     purple: { text: "text-purple-300", ring: "ring-purple-400/70", glow: "shadow-[0_0_18px_rgba(168,85,247,0.45)]", bg: "from-purple-500/15 to-purple-500/0", activeBg: "from-purple-500/30 to-purple-500/5" },
 };
 
-function DockItem({ icon, label, onClick, color = "neutral", active = false, badge, indicator, compact = false, guia }: {
+function DockItem({
+    icon, label, onClick, color = "neutral", active = false, badge, indicator, compact = false, guia,
+    celda, carril, carpetaId, pulsable = true, levantado = false, arrastrando = false, desplazamiento, objetivoCarpeta = false,
+}: {
     icon: React.ReactNode;
     label: string;
     /** Ancla para la guía de StarSeed (`[data-guide="dock-<id>"]`): el foco del recorrido ilumina este icono. */
@@ -622,6 +685,22 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
     indicator?: React.ReactNode;
     /** Densidad compacta (Ajustes → Trinity → Tamaño del dock). */
     compact?: boolean;
+    /** Clave de la celda para el gesto de mantener/arrastrar (`data-dock-celda`). Sin ella, el botón no participa. */
+    celda?: string;
+    /** Carril al que pertenece: `raiz` o el id de la carpeta que lo contiene (`data-dock-carril`). */
+    carril?: string;
+    /** Si la celda es el tile de una carpeta: su id (`data-dock-carpeta`). */
+    carpetaId?: string;
+    /** false = se puede soltar encima (carpeta) pero no se levanta ni abre menú propio. */
+    pulsable?: boolean;
+    /** Mantenido el tiempo suficiente: «levantado», a la espera de soltar (menú) o arrastrar. */
+    levantado?: boolean;
+    /** Es el icono que se está arrastrando (su `transform` lo mueve el gesto, no React). */
+    arrastrando?: boolean;
+    /** Si otro icono se arrastra: cuánto se aparta esta celda para dejar el hueco (px). */
+    desplazamiento?: number;
+    /** Hay un icono encima de esta carpeta: soltar lo mete dentro. */
+    objetivoCarpeta?: boolean;
 }) {
     const p = DOCK_PALETTE[color];
     // (Adenda 190) Forma de los iconos: REDONDOS por defecto (el diseño
@@ -630,13 +709,25 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
     const redondo = ((cfgForma?.trinity as { dockIconShape?: string } | undefined)?.dockIconShape ?? "round") !== "square";
 
     return (
-        <div className={cn(
-            "group relative flex shrink-0 snap-center flex-col items-center gap-1",
-            // <640px: celda algo más ancha en las DOS densidades para que la
-            // etiqueta de una línea respire sin solaparse con el vecino; en
-            // ≥640px no cambia nada (tablet/escritorio, ancho de siempre).
-            compact ? "w-[46px] lg:w-[60px] max-sm:w-16" : "w-[58px] lg:w-[78px] max-sm:w-16",
-        )}>
+        <div
+            data-dock-celda={celda}
+            data-dock-carril={celda ? (carril ?? "raiz") : undefined}
+            data-dock-carpeta={carpetaId}
+            data-dock-pulsable={celda ? (pulsable ? "1" : "0") : undefined}
+            // Hueco que se abre para el icono arrastrado: SOLO transform (la animación la pone la clase).
+            style={desplazamiento !== undefined ? { transform: `translate3d(${desplazamiento}px,0,0)` } : undefined}
+            className={cn(
+                "group relative flex shrink-0 snap-center flex-col items-center gap-1",
+                // <640px: celda algo más ancha en las DOS densidades para que la
+                // etiqueta de una línea respire sin solaparse con el vecino; en
+                // ≥640px no cambia nada (tablet/escritorio, ancho de siempre).
+                compact ? "w-[46px] lg:w-[60px] max-sm:w-16" : "w-[58px] lg:w-[78px] max-sm:w-16",
+                // Con el gesto de mantener/arrastrar: sin selección de texto ni el menú del sistema al mantener.
+                celda && "select-none [-webkit-touch-callout:none]",
+                desplazamiento !== undefined && "transition-transform duration-200 ease-out motion-reduce:transition-none",
+                arrastrando && "relative z-30 drop-shadow-[0_10px_18px_rgba(0,0,0,0.45)]",
+            )}
+        >
             <button
                 onClick={onClick}
                 aria-current={active ? "page" : undefined}
@@ -664,6 +755,8 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                     "outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-white/60",
                     "bg-gradient-to-br ring-1 ring-inset",
                     p.text,
+                    // Mantenido (a la espera de soltar o arrastrar) o carpeta que va a recibir un icono.
+                    (levantado || objetivoCarpeta) && cn("ring-2 scale-110", p.ring, p.glow),
                     active
                         ? cn(p.activeBg, "ring-2", p.ring, p.glow, "scale-105")
                         // Hover más claro: sube el brillo del acento y el anillo.
