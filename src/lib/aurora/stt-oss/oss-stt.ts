@@ -46,6 +46,8 @@ import {
   type OssSttModelId,
 } from "@/lib/aurora/stt-oss/opt-in";
 import { cronometroOido } from "@/lib/aurora/medidas-voz";
+import { decidirEnvioOido } from "../sentidos/oido-ambiental";
+import { getSensesConfig } from "../setup-config";
 
 // ── CDN + configuración de bajo nivel ────────────────────────────────────────
 
@@ -568,7 +570,6 @@ export async function startOssStt(opts: StartOssSttOptions): Promise<OssSttSessi
       offset += c.length;
     }
     resetSegment();
-    // (VOZ1024A) Whisper en el navegador, por tramos: la última voz se oyó hace esto.
     const oido = cronometroOido({ motor: "whisper-web", idioma: effectiveLang || undefined, flujo: false });
     oido.oyendo(Math.max(0, performance.now() - lastVoiceAt));
     // Transcribe sin bloquear el hilo de audio (fire-and-forget defensivo).
