@@ -82,9 +82,10 @@ describe("crearTarea con fetch simulado", () => {
     expect(cabecera(llamadas[0], "Content-Type")).toBeUndefined();
     expect(JSON.parse(String(llamadas[1].init?.body))).toEqual({ input: "file_abc123", model: MODELO.tripo });
   });
-  it("apagado no toca la red; errores honestos y sin la clave: 401, 402, código de Tripo y sin red", async () => {
+  it("apagado no toca la red (los dos proveedores); errores honestos y sin la clave: 401, 402, código de Tripo y sin red", async () => {
     const apagado = simulado([]);
     expect((await crearTarea("meshy", PNG, {}, apagado.buscar)).ok).toBe(false);
+    expect((await crearTarea("tripo", PNG, {}, apagado.buscar)).ok).toBe(false);
     expect(apagado.llamadas).toHaveLength(0);
     const motivos = (await Promise.all([
       crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 401, cuerpo: { message: "Missing or invalid API key" } }]).buscar),
