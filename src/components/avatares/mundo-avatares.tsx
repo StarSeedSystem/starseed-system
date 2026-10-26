@@ -1,811 +1,270 @@
 "use client";
 
 /**
- * MUNDOAVATARES — ESCENA 3D DEL MUNDO DE LOS AVATARES (Ola 234 · Escena 3D)
+ * MUNDO DE LOS AVATARES (Ola 234; rehecho en la Ola 1025U · U1 con la idea de la oficina de Hermes3D)
  * -----------------------------------------------------------------------------
- * Vista tridimensional del mundo simulado: un suelo, los avatares representados
- * por su identidad visual (procedural cuando no hay GLB propio), líneas suaves
- * entre quienes tienen vínculo fuerte y controles de cámara y simulación.
+ * Los agentes de la cuenta —personalidades, bots de los grupos y páginas que gestiona la persona y agentes de
+ * grupo— viven en escenarios (tantos como se quiera, privados, de un grupo o públicos), se conocen y se cruzan.
+ * La escena 3D vive en `mundo/escena-mundo.tsx`; aquí está el armazón: escenarios, habitantes reales,
+ * simulación guardada, controles, ficha de quien se elija y, si el aparato tiene visor, la entrada VR/AR.
  *
- * REGLAS DURAS (imponen la spec):
- *  · Componente "use client" — R3F/Three NO se pueden ejecutar en servidor.
- *    El consumidor debe cargarlo con `next/dynamic({ ssr: false })`.
- *  · Con `prefers-reduced-motion` o sin WebGL real, NUNCA pantalla en blanco:
- *    se renderiza `<CronicaMundo>` a pantalla completa.
- *  · El estado se obtiene avanzando la simulación en un `setInterval` que se
- *    limpia al desmontar; si la pestaña está oculta, no se anima.
- *  · El panel lateral es `<CronicaMundo>` y no repite su contenido: aquí solo
- *    añadimos los controles 3D (pausar, acelerar, centrar en un habitante).
- *  · TypeScript estricto: nada de `any`; los refs al OrbitControls se tipan
- *    vía la firma de drei; los gestos se derivan de la ocupación con la misma
- *    forma `Gesto` que el motor único de movimiento.
+ * REGLAS DURAS:
+ *  · "use client": R3F/Three no corren en servidor. El consumidor lo carga con `next/dynamic({ ssr: false })`.
+ *  · Todos los hooks van ANTES de cualquier ramificación de render. Antes había un `return` temprano por la
+ *    degradación y tres hooks después de él: al detectarse el WebGL, React fallaba con «Rendered more hooks».
+ *  · Sin WebGL o con `prefers-reduced-motion`: la crónica de texto a pantalla completa, nunca un lienzo en blanco.
+ *  · Con la pestaña oculta no hay temporizador ni fotogramas; con la pausa, tampoco temporizador.
+ *  · Honestidad: lo que ves es una simulación de juego con agentes reales (todos «Bot de IA»); sin agentes
+ *    reales el mundo lo dice y no inventa actividad.
  */
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Canvas } from "@react-three/fiber";
+import type * as THREE from "three";
+import { Compass, Loader2 } from "lucide-react";
 
-import {
-    Suspense,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react";
-import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
-import {
-    Billboard,
-    Float,
-    Html,
-    Line,
-    OrbitControls,
-    Sparkles,
-    Stars,
-} from "@react-three/drei";
-import * as THREE from "three";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import {
-    Pause,
-    Play,
-    Gauge,
-    Crosshair,
-    Compass,
-    Loader2,
-} from "lucide-react";
-
-import { AvatarVivo, type FuenteAvatar } from "./avatar-vivo";
 import { CronicaMundo } from "./cronica-mundo";
-import {
-    mundoInicial,
-    avanzar,
-    pasosParaTick,
-    type EstadoMundo,
-    type HabitanteMundo,
-} from "@/lib/avatares/mundo/simulacion";
-import { listPersonalityProfiles, type PersonalityProfile } from "@/lib/aurora/personalities";
-import { proceduralAvatarDataUrl } from "@/lib/aurora/persona-avatar";
-import type { Gesto } from "@/lib/avatares/movimiento/motor";
-import { registrarFallo } from "@/lib/avatares/movimiento/daemon";
-
-/* ──────────────────────────────────────────────────────────────────────────
- *  Detección de entorno (WebGL real + prefers-reduced-motion)
- * ────────────────────────────────────────────────────────────────────────── */
-
-interface Capacidades3D {
-    webgl: boolean;
-    reducido: boolean;
-}
-
-function detectarCapacidades3D(): Capacidades3D {
-    const reduced =
-        typeof window !== "undefined" &&
-        typeof window.matchMedia === "function" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (typeof window === "undefined") return { webgl: false, reducido: true };
-
-    let webgl = false;
-    try {
-        const canvas = document.createElement("canvas");
-        const gl =
-            canvas.getContext("webgl2") ||
-            canvas.getContext("webgl") ||
-            canvas.getContext("experimental-webgl");
-        webgl = !!gl;
-    } catch {
-        webgl = false;
-    }
-    return { webgl, reducido: reduced };
-}
-
-/** Convierte un `PersonalityProfile` en el objeto `FuenteAvatar` procedural. */
-function fuenteProcedural(p: PersonalityProfile): FuenteAvatar {
-    return {
-        tipo: "procedural",
-        svg: proceduralAvatarDataUrl(p, 192),
-    };
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
- *  Mapeo ocupación → gesto
- *  Misma forma `Gesto` que el motor único, para que el clip generado respire
- *  con la MISMA identidad que en perfil, chat o biblioteca.
- * ────────────────────────────────────────────────────────────────────────── */
-
-function gestoParaOcupacion(h: HabitanteMundo): Gesto {
-    const energia = Math.max(0.25, Math.min(0.95, h.energia));
-    const baseBucle = true;
-    switch (h.ocupacion) {
-        case "conversar":
-            return {
-                prompt: "saludar con calidez y asentir levemente",
-                emocion: h.humor === "feliz" ? "alegria" : "amabilidad",
-                energia,
-                duracionMs: 2200,
-                bucle: baseBucle,
-            };
-        case "crear":
-            return {
-                prompt: "concentrarse, inclinar la cabeza y respirar profundo",
-                emocion: h.humor === "curioso" ? "foco" : "serenidad",
-                energia,
-                duracionMs: 3200,
-                bucle: baseBucle,
-            };
-        case "descansar":
-            return {
-                prompt: "respirar lentamente con los ojos cerrados",
-                emocion: "calma",
-                energia: 0.2,
-                duracionMs: 4000,
-                bucle: baseBucle,
-            };
-        case "explorar":
-        default:
-            return {
-                prompt: "mirar alrededor con curiosidad",
-                emocion: h.humor === "feliz" ? "curiosidad" : "atencion",
-                energia,
-                duracionMs: 2600,
-                bucle: baseBucle,
-            };
-    }
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
- *  Avatar en billboard (siempre mira a la cámara, ahorra 30 huesos por 1)
- *  Usa `AvatarVivo` procedural: la vida (rotación 2,5D del clip) es la misma
- *  que en cualquier otro lugar del OS.
- * ────────────────────────────────────────────────────────────────────────── */
-
-function HabitanteBillboard({
-    fuente,
-    gesto,
-    nombre,
-    onClick,
-    resaltado,
-    opacidad,
-}: {
-    fuente: FuenteAvatar;
-    gesto: Gesto;
-    nombre: string;
-    onClick: (id: string) => void;
-    resaltado: boolean;
-    opacidad: number;
-}) {
-    const ref = useRef<THREE.Group>(null);
-    useFrame((_, dt) => {
-        if (!ref.current) return;
-        ref.current.rotation.y += dt * 0.08;
-    });
-    return (
-        <Billboard follow lockX={false} lockY={false} lockZ={false}>
-            <group
-                ref={ref}
-                onClick={(e: ThreeEvent<MouseEvent>) => {
-                    e.stopPropagation();
-                    onClick(nombre);
-                }}
-                onPointerOver={(e: ThreeEvent<PointerEvent>) => {
-                    e.stopPropagation();
-                    if (typeof document !== "undefined") {
-                        document.body.style.cursor = "pointer";
-                    }
-                }}
-                onPointerOut={() => {
-                    if (typeof document !== "undefined") {
-                        document.body.style.cursor = "auto";
-                    }
-                }}
-            >
-                <AvatarVivo
-                    fuente={fuente}
-                    gesto={gesto}
-                    tamano={resaltado ? 116 : 96}
-                    className="drop-shadow-[0_4px_18px_rgba(0,0,0,0.45)]"
-                    /* @ts-expect-error AvatarVivo reenvía style al wrapper DOM del visor. */
-                    style={{ opacity: opacidad }}
-                />
-            </group>
-        </Billboard>
-    );
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
- *  Línea de vínculo fuerte (umbral 0.6)
- * ────────────────────────────────────────────────────────────────────────── */
-
-interface VinculoFuerte {
-    a: [number, number, number];
-    b: [number, number, number];
-    intensidad: number;
-    nombreA: string;
-    nombreB: string;
-}
-
-function LineaVinculo({ v }: { v: VinculoFuerte }) {
-    const color = v.intensidad > 0.85 ? "#fbbf24" : "#22d3ee";
-    return (
-        <Line
-            points={[v.a, v.b]}
-            color={color}
-            lineWidth={1.2 + v.intensidad * 1.6}
-            transparent
-            opacity={0.35 + v.intensidad * 0.45}
-        />
-    );
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
- *  Cámara que vuela suave hacia el habitante enfocado
- * ────────────────────────────────────────────────────────────────────────── */
-
-interface CameraRigProps {
-    objetivo: [number, number, number] | null;
-    controlsRef: React.MutableRefObject<{
-        target: THREE.Vector3;
-        update?: () => void;
-    } | null>;
-}
-
-function CameraRig({ objetivo, controlsRef }: CameraRigProps) {
-    const dirTmp = useRef(new THREE.Vector3());
-    const destinoTmp = useRef(new THREE.Vector3());
-    useFrame((state, dt) => {
-        if (!objetivo) return;
-        destinoTmp.current.set(objetivo[0], objetivo[1] + 0.6, objetivo[2]);
-        const cam = state.camera;
-        dirTmp.current.subVectors(cam.position, destinoTmp.current).normalize();
-        const deseado = destinoTmp.current
-            .clone()
-            .add(dirTmp.current.multiplyScalar(3.4));
-        cam.position.lerp(deseado, 1 - Math.pow(0.001, dt));
-        const ctr = controlsRef.current;
-        if (ctr) {
-            ctr.target.lerp(destinoTmp.current, 1 - Math.pow(0.001, dt));
-            ctr.update?.();
-        }
-    });
-    return null;
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
- *  Suelo del mundo
- * ────────────────────────────────────────────────────────────────────────── */
-
-function Suelo() {
-    return (
-        <group>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.05, 0]} receiveShadow>
-                <circleGeometry args={[26, 64]} />
-                <meshStandardMaterial
-                    color="#0b1020"
-                    emissive="#0a1430"
-                    emissiveIntensity={0.35}
-                    roughness={0.85}
-                    metalness={0.1}
-                />
-            </mesh>
-            {/* Anillos concéntricos suaves: "el mundo respira". */}
-            {[6, 11, 16, 21].map((r, i) => (
-                <mesh
-                    key={r}
-                    rotation={[-Math.PI / 2, 0, 0]}
-                    position={[0, -1.04 + i * 0.001, 0]}
-                >
-                    <ringGeometry args={[r - 0.02, r, 96]} />
-                    <meshBasicMaterial
-                        color="#22d3ee"
-                        transparent
-                        opacity={0.08 - i * 0.012}
-                        side={THREE.DoubleSide}
-                    />
-                </mesh>
-            ))}
-        </group>
-    );
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
- *  Escena principal
- * ────────────────────────────────────────────────────────────────────────── */
-
-interface EscenaProps {
-    estado: EstadoMundo;
-    personalidades: PersonalityProfile[];
-    reducido: boolean;
-    habitanteCentradoId: string | null;
-    onCentrar: (id: string) => void;
-    controlsRef: React.MutableRefObject<{
-        target: THREE.Vector3;
-        update?: () => void;
-    } | null>;
-}
-
-function Escena({
-    estado,
-    personalidades,
-    reducido,
-    habitanteCentradoId,
-    onCentrar,
-    controlsRef,
-}: EscenaProps) {
-    const fuentePorPersonalidad = useMemo(() => {
-        const m = new Map<string, FuenteAvatar>();
-        for (const p of personalidades) m.set(p.id, fuenteProcedural(p));
-        return m;
-    }, [personalidades]);
-
-    const vinculosFuertes = useMemo<VinculoFuerte[]>(() => {
-        const posPorId = new Map<string, [number, number, number]>();
-        const nombrePorId = new Map<string, string>();
-        for (const h of estado.habitantes) {
-            posPorId.set(h.id, h.posicion);
-            nombrePorId.set(h.id, h.nombre);
-        }
-        const out: VinculoFuerte[] = [];
-        const vistos = new Set<string>();
-        for (const h of estado.habitantes) {
-            for (const [otroId, fuerza] of Object.entries(h.vinculos)) {
-                if (fuerza < 0.6) continue;
-                const clave = [h.id, otroId].sort().join("::");
-                if (vistos.has(clave)) continue;
-                vistos.add(clave);
-                const pa = posPorId.get(h.id);
-                const pb = posPorId.get(otroId);
-                if (!pa || !pb) continue;
-                out.push({
-                    a: pa,
-                    b: pb,
-                    intensidad: fuerza,
-                    nombreA: nombrePorId.get(h.id) ?? "alguien",
-                    nombreB: nombrePorId.get(otroId) ?? "alguien",
-                });
-            }
-        }
-        return out;
-    }, [estado.habitantes]);
-
-    const posicionCentrado = useMemo<[number, number, number] | null>(() => {
-        if (!habitanteCentradoId) return null;
-        const h = estado.habitantes.find((x) => x.id === habitanteCentradoId);
-        return h ? h.posicion : null;
-    }, [habitanteCentradoId, estado.habitantes]);
-
-    const handleClickHabitante = useCallback(
-        (id: string) => {
-            onCentrar(id);
-        },
-        [onCentrar],
-    );
-
-    return (
-        <>
-            <fog attach="fog" args={["#05060f", 18, 60]} />
-            <color attach="background" args={["#05060f"]} />
-
-            <ambientLight intensity={0.55} color="#9db8ff" />
-            <hemisphereLight intensity={0.5} color="#bff5d8" groundColor="#0a0d1a" />
-            <directionalLight position={[8, 12, 6]} intensity={0.9} color="#ffe9b0" />
-            <pointLight position={[0, 6, 0]} intensity={0.6} color="#a855f7" distance={40} />
-
-            <Stars
-                radius={140}
-                depth={60}
-                count={3500}
-                factor={4}
-                saturation={0}
-                fade
-                speed={reducido ? 0 : 0.4}
-            />
-            <Sparkles
-                count={80}
-                scale={[28, 14, 28]}
-                size={2.4}
-                speed={reducido ? 0 : 0.22}
-                color="#7CF6C8"
-                opacity={0.45}
-            />
-
-            <Float
-                speed={reducido ? 0 : 0.8}
-                floatIntensity={reducido ? 0 : 0.35}
-                rotationIntensity={reducido ? 0 : 0.12}
-            >
-                <mesh position={[0, 2.6, 0]}>
-                    <icosahedronGeometry args={[0.32, 1]} />
-                    <meshStandardMaterial
-                        color="#a855f7"
-                        emissive="#a855f7"
-                        emissiveIntensity={1.1}
-                        roughness={0.3}
-                        metalness={0.4}
-                    />
-                </mesh>
-            </Float>
-
-            <Suelo />
-
-            {vinculosFuertes.map((v, i) => (
-                <LineaVinculo key={`${v.nombreA}-${v.nombreB}-${i}`} v={v} />
-            ))}
-
-            {estado.habitantes.map((h) => {
-                const fuente = fuentePorPersonalidad.get(h.personalidadId);
-                if (!fuente) return null;
-                const esCentrado = habitanteCentradoId === h.id;
-                const opacidad = habitanteCentradoId
-                    ? esCentrado
-                        ? 1
-                        : 0.45
-                    : 1;
-                return (
-                    <group key={h.id} position={h.posicion}>
-                        <HabitanteBillboard
-                            fuente={fuente}
-                            gesto={gestoParaOcupacion(h)}
-                            nombre={h.id}
-                            onClick={handleClickHabitante}
-                            resaltado={esCentrado}
-                            opacidad={opacidad}
-                        />
-                        <Html
-                            center
-                            distanceFactor={9}
-                            position={[0, -0.85, 0]}
-                            style={{ pointerEvents: "none" }}
-                        >
-                            <span
-                                className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-white/85"
-                                style={{
-                                    background: "rgba(8,12,20,0.55)",
-                                    border: "1px solid rgba(255,255,255,0.12)",
-                                    backdropFilter: "blur(6px)",
-                                    whiteSpace: "nowrap",
-                                }}
-                            >
-                                {h.nombre}
-                            </span>
-                        </Html>
-                    </group>
-                );
-            })}
-
-            <OrbitControls
-                ref={controlsRef as unknown as React.Ref<OrbitControlsImpl>}
-                makeDefault
-                enablePan
-                minDistance={3}
-                maxDistance={42}
-                autoRotate={!reducido && !habitanteCentradoId}
-                autoRotateSpeed={0.18}
-                target={[0, 0.3, 0]}
-            />
-
-            <CameraRig objetivo={posicionCentrado} controlsRef={controlsRef} />
-        </>
-    );
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
- *  Controles flotantes: pausa, velocidad, centrar
- * ────────────────────────────────────────────────────────────────────────── */
-
-interface ControlesProps {
-    pausado: boolean;
-    onPausar: () => void;
-    onReanudar: () => void;
-    velocidad: number;
-    onVelocidad: (v: number) => void;
-    habitantes: { id: string; nombre: string }[];
-    centradoId: string | null;
-    onCentrar: (id: string | null) => void;
-    tick: number;
-}
-
-function ControlesMundo(props: ControlesProps) {
-    const [abierto, setAbierto] = useState(false);
-    return (
-        <div className="pointer-events-auto absolute left-1/2 top-4 z-20 flex -translate-x-1/2 flex-col items-center gap-2">
-            <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/12 bg-black/55 px-3 py-2 backdrop-blur-md">
-                {props.pausado ? (
-                    <button
-                        type="button"
-                        onClick={props.onReanudar}
-                        title="Reanudar simulación"
-                        className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-600 px-3 py-1.5 text-xs font-bold text-white shadow transition hover:-translate-y-px"
-                    >
-                        <Play className="size-4" /> Reanudar
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        onClick={props.onPausar}
-                        title="Pausar simulación"
-                        className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-xs font-bold text-white/85 transition hover:bg-white/15"
-                    >
-                        <Pause className="size-4" /> Pausar
-                    </button>
-                )}
-
-                <div className="mx-1 h-5 w-px bg-white/15" />
-
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-white/55">
-                    <Gauge className="size-3.5" /> Velocidad
-                </span>
-                {[1, 2, 4].map((v) => (
-                    <button
-                        key={v}
-                        type="button"
-                        onClick={() => props.onVelocidad(v)}
-                        title={`A ${v}x tick/s`}
-                        className={
-                            "cursor-pointer rounded-full px-2.5 py-1 text-[11px] font-bold transition " +
-                            (props.velocidad === v
-                                ? "border border-cyan-300/60 bg-cyan-400/20 text-cyan-50"
-                                : "border border-white/10 text-white/65 hover:bg-white/10")
-                        }
-                    >
-                        {v}×
-                    </button>
-                ))}
-
-                <div className="mx-1 h-5 w-px bg-white/15" />
-
-                <button
-                    type="button"
-                    onClick={() => setAbierto((v) => !v)}
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-xs font-bold text-white/85 transition hover:bg-white/15"
-                    title="Centrar la cámara en un habitante"
-                >
-                    <Crosshair className="size-4 text-violet-300" /> Centrar
-                </button>
-                <button
-                    type="button"
-                    onClick={() => props.onCentrar(null)}
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-xs font-bold text-white/85 transition hover:bg-white/15"
-                    title="Volver a la vista general"
-                >
-                    <Compass className="size-4 text-amber-300" /> Vista general
-                </button>
-
-                <span className="ml-1 hidden text-[10px] font-semibold text-white/40 sm:inline">
-                    tick {props.tick}
-                </span>
-            </div>
-
-            {abierto && (
-                <div className="max-h-56 w-64 overflow-y-auto rounded-2xl border border-white/12 bg-black/65 p-2 backdrop-blur-md">
-                    {props.habitantes.length === 0 ? (
-                        <p className="px-2 py-3 text-center text-[11px] text-white/55">
-                            Aún no hay habitantes.
-                        </p>
-                    ) : (
-                        <ul className="flex flex-col gap-1">
-                            {props.habitantes.map((h) => (
-                                <li key={h.id}>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            props.onCentrar(h.id);
-                                            setAbierto(false);
-                                        }}
-                                        className={
-                                            "flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[11px] font-semibold transition " +
-                                            (props.centradoId === h.id
-                                                ? "bg-violet-500/25 text-white"
-                                                : "text-white/80 hover:bg-white/10")
-                                        }
-                                    >
-                                        <span className="truncate">{h.nombre}</span>
-                                        <span className="ml-2 text-[10px] text-white/45">
-                                            centrar
-                                        </span>
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
- *  Componente público
- * ────────────────────────────────────────────────────────────────────────── */
-
-const INTERVALO_BASE_MS = 1100;
-const MAX_HABITANTES = 24;
+import { FichaAgente } from "./ficha/ficha-agente";
+import { EscenaMundo } from "./mundo/escena-mundo";
+import { AvisosMundo } from "./mundo/avisos-mundo";
+import { ControlesMundo } from "./mundo/controles-mundo";
+import { BotonesEntradaXR, EntornoXR, useEntradaXRMundo } from "./mundo/entrada-xr-mundo";
+import { fuenteDeAgente } from "./mundo/fuente-avatar";
+import { PanelCristal } from "./mundo/panel-cristal";
+import { SelectorEscenario } from "./mundo/selector-escenario";
+import { useEntornoMundo } from "./mundo/use-entorno-mundo";
+import { useEscenarios } from "./mundo/use-escenarios";
+import { useHabitantesMundo } from "./mundo/use-habitantes-mundo";
+import { useSimulacionMundo } from "./mundo/use-simulacion-mundo";
+import { ETIQUETA_BOT_IA, habitantesVisibles, limitarHabitantes } from "@/lib/avatares/mundo/habitantes";
+import type { AgenteMundoRef } from "@/lib/avatares/mundo/agente-mundo";
+import { RADIO_MUNDO, type EstadoMundo, type ZonaSim } from "@/lib/avatares/mundo/simulacion";
+import { disponerZonas, ocupantesPorZona, radioDelSuelo, zonasParaSimulacion } from "@/lib/avatares/mundo/zonas";
+import { listPersonalityProfiles } from "@/lib/aurora/personalities";
+import type { Alcanzabilidad } from "@/lib/salas/sala";
 
 export interface MundoAvataresProps {
-    /** Personalidades a poblar el mundo (si se omite, se leen de la librería). */
-    personalidades?: PersonalityProfile[];
-    /** Estado inicial opcional (reanudar una simulación guardada). */
-    estadoInicial?: EstadoMundo;
-    /** Si el mundo arranca en pausa (por defecto, corriendo). */
-    pausadoInicial?: boolean;
+  /** Personalidades con las que poblar el mundo (camino histórico; sin esto se leen las de la cuenta). */
+  personalidades?: ReadonlyArray<{ id: string; name: string }>;
+  /** Habitantes ya resueltos (salta la lectura de la cuenta). */
+  habitantes?: readonly AgenteMundoRef[];
+  /** Mundo con el que arrancar la primera vez (tiene prioridad sobre el guardado). */
+  estadoInicial?: EstadoMundo;
+  /** Si el mundo arranca en pausa (por defecto, corriendo). */
+  pausadoInicial?: boolean;
 }
 
-/** Velocidad (1x, 2x, 4x) y motivos por tick, derivado del tiempo base. */
-function msPorTick(v: number): number {
-    return Math.max(120, Math.floor(INTERVALO_BASE_MS / v));
+const SIN_ZONAS: readonly ZonaSim[] = [];
+
+/** Rasgos de las personalidades de este aparato, para teñir el avatar procedural de quien no trae el suyo. */
+function rasgosPorPersonalidad(): Map<string, Record<string, number>> {
+  const m = new Map<string, Record<string, number>>();
+  try {
+    for (const p of listPersonalityProfiles()) m.set(p.id, p.traits ?? {});
+  } catch {
+    /* sin perfiles legibles, el avatar sale del nombre */
+  }
+  return m;
 }
 
-export function MundoAvatares({
-    personalidades: personalidadesProp,
+function alcanceActual(): Alcanzabilidad {
+  // Hoy solo se sabe si hay internet; servidor privado y malla no están cableados a este mundo, y no se fingen.
+  const internet = typeof navigator === "undefined" ? false : navigator.onLine !== false;
+  return { internet, servidorPrivado: false, malla: false };
+}
+
+export function MundoAvatares({ personalidades, habitantes: habitantesProp, estadoInicial, pausadoInicial = false }: MundoAvataresProps) {
+  /* ── Todos los hooks, siempre, en este orden ── */
+  const entorno = useEntornoMundo();
+  const escenarios = useEscenarios();
+  const { activo } = escenarios;
+  const cuenta = useHabitantesMundo({ habitantes: habitantesProp, personalidades, estadoInicial });
+  const modo3D = entorno.listo && entorno.webgl && !entorno.reducido;
+  const xr = useEntradaXRMundo(modo3D);
+
+  const [pausado, setPausado] = useState(pausadoInicial);
+  const [velocidad, setVelocidad] = useState(1);
+  const [centradoId, setCentradoId] = useState<string | null>(null);
+  const [elegidoId, setElegidoId] = useState<string | null>(null);
+  const controlsRef = useRef<{ target: THREE.Vector3; update?: () => void } | null>(null);
+
+  // Quién vive en este escenario: lo que su visibilidad permite, recortado al tope visible.
+  const elegibles = useMemo(
+    () => (cuenta.agentes === null ? null : habitantesVisibles(cuenta.agentes, activo)),
+    [cuenta.agentes, activo],
+  );
+  const { visibles, ocultos } = useMemo(
+    () => (elegibles === null ? { visibles: [] as AgenteMundoRef[], ocultos: 0 } : limitarHabitantes(elegibles)),
+    [elegibles],
+  );
+  const entradas = useMemo(
+    () => (elegibles === null ? null : visibles.map((r) => ({ id: r.idOrigen, nombre: r.nombre, agenteId: r.id }))),
+    [elegibles, visibles],
+  );
+
+  // Las zonas y el radio que la simulación lee en cada tick sin reiniciar su temporizador.
+  const zonasRef = useRef<readonly ZonaSim[]>(SIN_ZONAS);
+  const radioRef = useRef<number>(RADIO_MUNDO);
+  const disposicionInicial = useMemo(() => disponerZonas(activo.zonas, new Map()), [activo.zonas]);
+  zonasRef.current = zonasParaSimulacion(disposicionInicial);
+  radioRef.current = radioDelSuelo(disposicionInicial);
+
+  const { estado, guardado } = useSimulacionMundo({
+    escenarioId: activo.id,
+    entradas,
     estadoInicial,
-    pausadoInicial = false,
-}: MundoAvataresProps) {
-    const [caps, setCaps] = useState<Capacidades3D>({
-        webgl: false,
-        reducido: true,
-    });
+    pausado,
+    oculta: entorno.oculta,
+    velocidad,
+    zonas: zonasRef,
+    radio: radioRef,
+    puedeGuardar: cuenta.completa,
+  });
 
-    /* Capacidades del cliente (WebGL + reduced-motion): se decide en el
-     * primer render del lado del cliente y se mantiene; un cambio de pestaña
-     * del sistema operativo no nos obliga a tirar la escena. */
-    useEffect(() => {
-        setCaps(detectarCapacidades3D());
-    }, []);
+  const disposicion = useMemo(
+    () => disponerZonas(activo.zonas, ocupantesPorZona(estado?.habitantes ?? [])),
+    [activo.zonas, estado?.habitantes],
+  );
+  zonasRef.current = zonasParaSimulacion(disposicion);
+  radioRef.current = radioDelSuelo(disposicion);
 
-    const personalidades = useMemo<PersonalityProfile[]>(() => {
-        if (personalidadesProp && personalidadesProp.length > 0) {
-            return personalidadesProp.slice(0, MAX_HABITANTES);
-        }
-        try {
-            const lista = listPersonalityProfiles();
-            return lista.slice(0, MAX_HABITANTES);
-        } catch (error) {
-            registrarFallo("mundo-avatares.listPersonalityProfiles", error);
-            return [];
-        }
-    }, [personalidadesProp]);
+  const refsPorId = useMemo(() => new Map(visibles.map((r) => [r.id, r] as const)), [visibles]);
+  const fuentes = useMemo(() => {
+    const rasgos = rasgosPorPersonalidad();
+    return new Map(visibles.map((r) => [r.id, fuenteDeAgente(r, r.origen === "personalidad" ? rasgos.get(r.idOrigen) : undefined)] as const));
+  }, [visibles]);
+  const fuenteSinAvatar = useMemo(() => fuenteDeAgente({ id: "sin-avatar", nombre: "Agente", avatarRef: undefined }), []);
 
-    const [estado, setEstado] = useState<EstadoMundo>(() => {
-        if (estadoInicial) return estadoInicial;
-        const inicial = personalidades.map((p) => ({ id: p.id, nombre: p.name }));
-        return mundoInicial(inicial);
-    });
+  const alcance = useMemo(alcanceActual, []);
+  const listaHabitantes = useMemo(
+    () => (estado?.habitantes ?? []).map((h) => ({ id: h.id, nombre: h.nombre })),
+    [estado?.habitantes],
+  );
 
-    const [pausado, setPausado] = useState(pausadoInicial);
-    const [velocidad, setVelocidad] = useState(1);
-    const [centradoId, setCentradoId] = useState<string | null>(null);
-    const controlsRef = useRef<{
-        target: THREE.Vector3;
-        update?: () => void;
-    } | null>(null);
+  // Cambiar de escenario suelta lo elegido: la ficha y la cámara eran de otro mundo.
+  useEffect(() => {
+    setElegidoId(null);
+    setCentradoId(null);
+  }, [activo.id]);
 
-    /* Avance de la simulación: setInterval que se limpia al desmontar y se
-     * pausa cuando la pestaña está oculta (regla del área). */
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        /* Pausa real: sin intervalo no hay tick; `avanzar` no se llama. */
-        if (pausado) return;
-        let vivo = true;
-        let temporizador: ReturnType<typeof setInterval> | null = null;
-        let pasosPendientes = 0;
+  const elegir = useCallback((id: string) => {
+    setElegidoId(id);
+    setCentradoId(id);
+  }, []);
+  const cerrarFicha = useCallback(() => setElegidoId(null), []);
+  const pausar = useCallback(() => setPausado(true), []);
+  const reanudar = useCallback(() => setPausado(false), []);
 
-        const programar = () => {
-            if (temporizador !== null) clearInterval(temporizador);
-            temporizador = setInterval(() => {
-                if (!vivo) return;
-                /* La decisión de avance (pausa, pestaña oculta y tope de
-                 * acumulación) vive en `pasosParaTick`, pura y probada. La
-                 * pausa ni siquiera llega aquí: sin intervalo no hay tick. */
-                const r = pasosParaTick({
-                    pausado,
-                    pestañaOculta: typeof document !== "undefined" && document.hidden,
-                    pasosPendientes,
-                });
-                pasosPendientes = r.pasosPendientes;
-                if (r.pasos > 0) {
-                    setEstado((prev) => avanzar(prev, r.pasos));
-                }
-            }, msPorTick(velocidad));
-        };
+  /* ── Render (sin hooks de aquí en adelante) ── */
+  const agenteElegido = elegidoId ? refsPorId.get(elegidoId) : undefined;
+  const total = elegibles?.length ?? 0;
 
-        programar();
+  const avisos = (
+    <AvisosMundo
+      total={total}
+      visibles={visibles.length}
+      ocultos={ocultos}
+      cargando={cuenta.cargando}
+      avisosFuentes={cuenta.avisos}
+      guardado={guardado && escenarios.guardado}
+      sinSesion={cuenta.sinSesion}
+    />
+  );
 
-        const onVisibilidad = () => {
-            if (typeof document === "undefined") return;
-            if (document.hidden) return; // el setInterval ya se encarga
-            // Al volver, reset del intervalo para que no se dispare en rafaga.
-            programar();
-        };
-        document.addEventListener?.("visibilitychange", onVisibilidad);
+  return (
+    <div className="relative flex h-full min-h-[60vh] w-full flex-col overflow-hidden bg-[#05060f] font-body" data-testid="mundo-avatares">
+      <header className="relative z-30 flex flex-wrap items-center gap-2 border-b border-white/10 bg-[rgba(8,12,24,0.6)] p-2 backdrop-blur-xl sm:p-3">
+        <SelectorEscenario uso={escenarios} entidades={cuenta.entidades} alcance={alcance} />
+        <ControlesMundo
+          pausado={pausado}
+          onPausar={pausar}
+          onReanudar={reanudar}
+          velocidad={velocidad}
+          onVelocidad={setVelocidad}
+          conCamara={modo3D}
+          habitantes={listaHabitantes}
+          centradoId={centradoId}
+          onCentrar={(id) => setCentradoId(id)}
+        />
+        {modo3D && <BotonesEntradaXR xr={xr} />}
+      </header>
 
-        return () => {
-            vivo = false;
-            if (temporizador !== null) clearInterval(temporizador);
-            if (typeof document !== "undefined") {
-                document.removeEventListener?.("visibilitychange", onVisibilidad);
-            }
-        };
-    }, [velocidad, pausado]);
-
-    const onCentrarPanel = useCallback((id: string) => {
-        setCentradoId(id);
-    }, []);
-
-    /* ── Degradación elegante: sin WebGL o con prefers-reduced-motion ── */
-    if (!caps.webgl || caps.reducido) {
-        return (
-            <div className="relative h-full w-full">
-                <div className="absolute inset-0 overflow-y-auto bg-gradient-to-b from-[#05060f] to-[#0a0d1a] p-4 sm:p-6">
-                    <CronicaMundo estado={estado} onCentrar={onCentrarPanel} />
-                </div>
-            </div>
-        );
-    }
-
-    const handlePausar = useCallback(() => setPausado(true), []);
-    const handleReanudar = useCallback(() => setPausado(false), []);
-
-    const listaHabitantes = useMemo(
-        () => estado.habitantes.map((h) => ({ id: h.id, nombre: h.nombre })),
-        [estado.habitantes],
-    );
-
-    return (
-        <div className="relative h-full w-full overflow-hidden bg-[#05060f]">
+      <div className="relative min-h-0 flex-1">
+        {!entorno.listo ? (
+          <div className="flex h-full w-full items-center justify-center text-white/60" role="status">
+            <Loader2 className="mr-2 size-5 animate-spin" aria-hidden="true" /> Poblando el mundo…
+          </div>
+        ) : modo3D ? (
+          <>
             <Canvas
-                shadows
-                dpr={[1, 2]}
-                camera={{ position: [0, 5, 16], fov: 55 }}
-                gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
+              dpr={[1, 1.5]}
+              camera={{ position: [0, 5, 16], fov: 55 }}
+              gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
+              frameloop={entorno.oculta && !xr.enXR ? "never" : "always"}
             >
-                <Suspense fallback={null}>
-                    <Escena
-                        estado={estado}
-                        personalidades={personalidades}
-                        reducido={false}
-                        habitanteCentradoId={centradoId}
-                        onCentrar={(id: string) => setCentradoId(id)}
-                        controlsRef={controlsRef}
+              <Suspense fallback={null}>
+                {xr.decidido && estado && (
+                  <EntornoXR xr={xr}>
+                    <EscenaMundo
+                      estado={estado}
+                      disposicion={disposicion}
+                      radioSuelo={radioDelSuelo(disposicion)}
+                      refs={refsPorId}
+                      fuentes={fuentes}
+                      fuenteSinAvatar={fuenteSinAvatar}
+                      reducido={false}
+                      enXR={xr.enXR}
+                      centradoId={centradoId}
+                      onElegir={elegir}
+                      controlsRef={controlsRef}
                     />
-                </Suspense>
+                  </EntornoXR>
+                )}
+              </Suspense>
             </Canvas>
 
-            <ControlesMundo
-                pausado={pausado}
-                onPausar={handlePausar}
-                onReanudar={handleReanudar}
-                velocidad={velocidad}
-                onVelocidad={setVelocidad}
-                habitantes={listaHabitantes}
-                centradoId={centradoId}
-                onCentrar={setCentradoId}
-                tick={estado.tick}
-            />
+            <div className="pointer-events-none absolute bottom-2 left-2 z-10 w-[min(26rem,calc(100%-1rem))]">{avisos}</div>
 
-            {/* Panel lateral: la crónica. No repite su contenido: aquí SOLO
-                añadimos los controles 3D. El usuario pidió "panel lateral". */}
-            <aside
-                className="pointer-events-auto absolute right-3 top-3 z-20 hidden h-[calc(100%-1.5rem)] w-[22rem] max-w-[40vw] flex-col gap-2 overflow-hidden rounded-2xl border border-white/12 bg-black/60 p-3 backdrop-blur-md lg:flex"
+            {/* Crónica lateral: solo en pantallas anchas y mientras no hay una ficha abierta. */}
+            {estado && !agenteElegido && (
+              <aside
+                className="pointer-events-auto absolute right-3 top-3 z-20 hidden max-h-[calc(100%-1.5rem)] w-[22rem] max-w-[40vw] flex-col gap-2 overflow-hidden rounded-2xl border border-white/15 bg-[rgba(8,12,24,0.66)] p-3 backdrop-blur-xl lg:flex"
                 aria-label="Crónica del mundo"
-            >
+              >
                 <header className="flex items-center justify-between px-1">
-                    <h2 className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/75">
-                        <Compass className="size-3.5 text-cyan-300" /> Crónica del mundo
-                    </h2>
-                    <span className="text-[10px] font-semibold text-white/45">
-                        tick {estado.tick}
-                    </span>
+                  <h2 className="inline-flex items-center gap-2 font-headline text-xs font-bold uppercase tracking-[0.16em] text-white/75">
+                    <Compass className="size-3.5 text-cyan-300" aria-hidden="true" /> Crónica del mundo
+                  </h2>
+                  <span className="text-[10px] font-semibold text-white/45">tick {estado.tick}</span>
                 </header>
-                <div className="flex-1 overflow-y-auto pr-1">
-                    <CronicaMundo estado={estado} onCentrar={onCentrarPanel} />
+                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                  <CronicaMundo estado={estado} onCentrar={elegir} />
                 </div>
-            </aside>
-
-            {pausado && (
-                <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/15 bg-black/55 px-3 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur">
-                    <Loader2 className="-mt-0.5 mr-1 inline size-3.5 animate-spin" /> Simulación en pausa
-                </div>
+              </aside>
             )}
 
-            <p className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 text-center text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
-                arrastra para orbitar · rueda para zoom · toca un avatar para centrarlo
+            <p className="pointer-events-none absolute bottom-2 right-3 z-10 hidden text-right text-[10px] font-bold uppercase tracking-[0.16em] text-white/35 md:block">
+              arrastra para orbitar · rueda para zoom · toca un agente para ver su ficha
             </p>
-        </div>
-    );
+          </>
+        ) : (
+          <div className="absolute inset-0 overflow-y-auto bg-gradient-to-b from-[#05060f] to-[#0a0d1a] p-3 sm:p-6">
+            <div className="mb-3 max-w-2xl">{avisos}</div>
+            {estado ? (
+              <CronicaMundo estado={estado} onCentrar={elegir} />
+            ) : (
+              <p className="text-sm text-white/60" role="status">Poblando el mundo…</p>
+            )}
+          </div>
+        )}
+
+        {agenteElegido && (
+          <PanelCristal titulo={agenteElegido.nombre} subtitulo={ETIQUETA_BOT_IA} alCerrar={cerrarFicha}>
+            <FichaAgente agente={agenteElegido} alCerrar={cerrarFicha} />
+          </PanelCristal>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default MundoAvatares;

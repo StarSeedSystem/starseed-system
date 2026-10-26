@@ -1,11 +1,13 @@
 "use client";
 
 /**
- * /mundo-avatares — MUNDO DE LOS AVATARES (Ola 234).
+ * /mundo-avatares — MUNDO DE LOS AVATARES (Ola 234; Ola 1025U · U1 con la idea de la oficina de Hermes3D).
  * ============================================================================
- * La escena 3D viva de la red: cada avatar se representa por su identidad
- * visual (procedural si no hay GLB propio) y se mueve con el MISMO motor de
- * gesto que en perfil, chat o biblioteca. Toca un habitante para centrarlo.
+ * Los agentes de tu cuenta, de tus grupos y de tus páginas viven aquí, se
+ * conocen y se cruzan en escenarios (tantos como quieras, privados, de un grupo
+ * o públicos). Cada agente se mueve con el MISMO motor de gesto que en perfil,
+ * chat o biblioteca y lleva la chapa «Bot de IA». Toca uno para abrir su ficha.
+ * Si tu aparato tiene visor, puedes entrar en VR o AR.
  *
  * El componente vive en `components/avatares/mundo-avatares.tsx` y es "use
  * client" + R3F, por lo que aquí se carga con `ssr:false` (de lo contrario el
@@ -34,10 +36,11 @@ export default function MundoAvataresPage() {
     // altura disponible para que la escena 3D respire.
     <section className="flex min-h-[78vh] flex-1 flex-col">
       <header className="mb-3 shrink-0">
-        <h1 className="text-2xl font-semibold">Mundo de los avatares</h1>
+        <h1 className="font-headline text-2xl font-semibold">Mundo de los avatares</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          La escena viva de la red: cada avatar con su propio gesto, moviéndose
-          en libertad según su personalidad. Toca un habitante para centrarlo.
+          Los agentes de tu cuenta, tus grupos y tus páginas viven aquí, se
+          conocen y se cruzan. Toca uno para abrir su ficha. Es una simulación
+          de juego con agentes reales: sus paseos no son actividad real.
         </p>
       </header>
       <div className="min-h-[60vh] flex-1 overflow-hidden rounded-2xl border border-white/10">
