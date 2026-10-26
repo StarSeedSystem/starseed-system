@@ -25,6 +25,9 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { getEventExtras, type EventExtras } from "@/data/sample-governance";
+// Clave de lista por contenido (SP092937b): dos ponentes pueden llamarse igual;
+// la key nunca debe ser el nombre a secas ni el índice.
+import { clavesDeLista } from "@/lib/social/claves-lista";
 import {
   CalendarClock,
   Users,
@@ -72,6 +75,10 @@ export function EventoToolkit({
     data.rsvp.capacity > 0
       ? Math.round((data.rsvp.going / data.rsvp.capacity) * 100)
       : 0;
+
+  // Claves estables de la lista de ponentes (nombre + rol): resiste
+  // reordenaciones y ponentes homónimos en roles distintos.
+  const clavesPonentes = clavesDeLista(data.speakers, (s) => [s.name, s.role]);
 
   const hasResources = data.resources.length > 0;
   const hasOrganizer = !!data.organizerSlug;
@@ -136,9 +143,9 @@ export function EventoToolkit({
               <EmptyHint>Los ponentes se anunciarán próximamente.</EmptyHint>
             ) : (
               <div className="space-y-2">
-                {data.speakers.map((s) => (
+                {data.speakers.map((s, i) => (
                   <PersonRow
-                    key={s.name}
+                    key={clavesPonentes[i]}
                     name={s.name}
                     role={s.role}
                     accent={ac}

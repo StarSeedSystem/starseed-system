@@ -30,6 +30,9 @@ import { MediationSection } from "@/components/governance/mediation-section";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
 import { libraryRef } from "@/lib/library/entity-library";
 import { getFederativeEntity, type EFData } from "@/data/sample-governance";
+// Clave de lista por contenido (SP092937b): nombres de delegadas pueden
+// repetirse; la key nunca debe ser el nombre a secas ni el índice.
+import { clavesDeLista } from "@/lib/social/claves-lista";
 import {
   Landmark,
   Scale,
@@ -113,6 +116,10 @@ export function EntidadFederativaToolkit({
     );
   }
 
+
+  // Claves estables de la lista de delegadas (nombre + dominio): resiste
+  // reordenaciones y delegadas homónimas en ámbitos distintos.
+  const clavesDelegados = clavesDeLista(data.delegates, (d) => [d.name, d.domain]);
 
   return (
     <div className="space-y-2">
@@ -457,7 +464,7 @@ export function EntidadFederativaToolkit({
             <div className="space-y-2">
               {data.delegates.map((d, i) => (
                 <PersonRow
-                  key={d.name}
+                  key={clavesDelegados[i]}
                   name={d.name}
                   role={d.domain}
                   badge={`${d.delegatedVotes.toLocaleString("es-ES")} votos`}

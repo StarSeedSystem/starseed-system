@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+// Claves de lista estables (SP092937b): derivadas del contenido, no del índice.
+import { clavesDeLista, slugDeClave } from "@/lib/social/claves-lista";
 import {
     ArrowUpRight,
     Check,
@@ -173,17 +175,6 @@ export function VoteBar({
     );
 }
 
-// Slug estable para derivar una papeleta de la pregunta cuando no se pasa ballotKey.
-function mvSlug(s: string): string {
-    return s
-        .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 64);
-}
-
 // ── MiniVote: votación INTERACTIVA con persistencia REAL (Supabase os_gov_votes) ──
 // Si se pasa `ballotKey`, el voto se guarda y se agregan los recuentos reales de
 // toda la red; sin sesión, el voto es optimista local + invitación a iniciar sesión.
@@ -204,7 +195,7 @@ export function MiniVote({
     ballotKey?: string;
     ballotType?: string;
 }) {
-    const key = ballotKey ?? `mv:${mvSlug(question)}`;
+    const key = ballotKey ?? `mv:${slugDeClave(question)}`;
     const { tally, myChoice, total, needsAuth, vote } = useGovVote(key, { ballotType, options, baseCounts });
     const choice = myChoice;
     const denom = total || 1;
@@ -296,6 +287,9 @@ export function RosterStrip({
             <div className="flex -space-x-2.5">
                 {Array.from({ length: shown }).map((_, i) => (
                     <span
+                        // Avatares decorativos generados por recuento: son
+                        // posicionales por naturaleza, no entidades (la lista
+                        // nunca se reordena).
                         key={i}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-[10px] font-semibold"
                         style={{
@@ -431,13 +425,16 @@ export interface TimelineEntry {
     status?: "done" | "active" | "upcoming";
 }
 export function Timeline({ entries, accent }: { entries: TimelineEntry[]; accent?: string }) {
+    // Clave por contenido (tiempo + título), estable al reordenar la agenda:
+    // el índice desincronizaría el estado de las filas al mover entradas.
+    const claves = clavesDeLista(entries, (e) => [e.time, e.title]);
     return (
         <ol className="relative space-y-4 border-l border-white/10 pl-5">
             {entries.map((e, i) => {
                 const color =
                     e.status === "done" ? "#34d399" : e.status === "active" ? accent || GOLD : "#64748b";
                 return (
-                    <li key={i} className="relative">
+                    <li key={claves[i]} className="relative">
                         <span
                             className="absolute -left-[26px] top-1 h-3 w-3 rounded-full border-2 border-background"
                             style={{ background: color }}
