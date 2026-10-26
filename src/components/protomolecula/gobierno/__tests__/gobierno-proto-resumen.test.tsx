@@ -6,7 +6,7 @@ import { GobiernoProtoResumen } from "../gobierno-proto-resumen";
 import { olvidarTodo } from "@/lib/protomolecula/gobierno/almacen";
 import { conPermiso, crearPermiso, reglasPorDefecto, type PermisoDirecto } from "@/lib/protomolecula/gobierno/reglas";
 import type { ContextoProto } from "@/lib/protomolecula/peticion/contrato";
-import { NOMBRES_PROHIBIDOS, cargado, servicios } from "../ayudas-prueba";
+import { NOMBRES_PROHIBIDOS, cargado, servicios } from "./ayudas-prueba.test-helpers";
 
 beforeEach(() => {
   olvidarTodo();
