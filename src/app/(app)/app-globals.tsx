@@ -44,6 +44,9 @@ import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
+// Ola 1020U · TRD1020E: menú global del clic derecho sobre texto (Traducir,
+// Variaciones públicas… comparten el mismo menú y el mismo registro de entradas).
+import { MenuTextoGlobal } from "@/components/traduccion/menu-texto";
 
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
@@ -84,6 +87,10 @@ export default function AppGlobals() {
           discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
+      {/* Menú del clic derecho sobre texto (Ola 1020U · TRD1020E): una sola capa de menú
+          para Traducir, Variaciones públicas y lo que se registre después. Sin entradas
+          visibles no se abre, así que no tumba el menú del navegador. */}
+      <MenuTextoGlobal />
     </SoloFueraDeConsola>
   );
 }
