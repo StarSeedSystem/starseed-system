@@ -60,15 +60,24 @@ export const reescribirConEnrutador: Reescribir = async (original, cambio) => {
 
 /* ────────────── Quién pide ────────────── */
 
-/** El actor de la petición: su cuenta y su rol REAL en el grupo, si lo hay. Sin sesión, no es dueño de nada. */
+/** Lo que tiene gobierno propio en el OS: grupos, comunidades y páginas (los eventos se anuncian como página). */
+const GOBERNANTES = new Set(["grupo", "comunidad", "pagina"]);
+
+/**
+ * El actor de la petición: su cuenta y su rol REAL en la entidad que gobierna la pantalla (grupo, comunidad o página),
+ * leído del mismo censo que usa la gobernanza (`os_memberships` por slug, sin las solicitudes pendientes: quien solo
+ * pidió entrar no decide). Sin sesión, no es dueño de nada.
+ */
 export async function actorPorDefecto(contexto: ContextoProto, origen: ActorProto["origen"]): Promise<ActorProto> {
   try {
-    const { getCurrentUserId, getMyMembershipRole } = await import("@/lib/os-social");
+    const { getCurrentUserId } = await import("@/lib/os-social");
     const usuarioId = await getCurrentUserId();
     if (!usuarioId) return { usuarioId: null, origen };
-    const grupo = contexto.gobernadaPor?.tipo === "grupo" ? contexto.gobernadaPor : contexto.entidad?.tipo === "grupo" ? contexto.entidad : null;
-    if (grupo) {
-      const rol = await getMyMembershipRole(grupo.id);
+    const gobierna = contexto.gobernadaPor && GOBERNANTES.has(contexto.gobernadaPor.tipo) ? contexto.gobernadaPor
+      : contexto.entidad && GOBERNANTES.has(contexto.entidad.tipo) ? contexto.entidad : null;
+    if (gobierna) {
+      const { roleFromMemberships } = await import("@/lib/governance/membership");
+      const rol = await roleFromMemberships(gobierna.id, usuarioId);
       return { usuarioId, rol, esDueno: rol === "owner", origen };
     }
     // Lo personal (`/profile`, mis archivos, mis pizarras…) es de quien lo abre; el perfil o lo público de otra gente, no.

@@ -60,9 +60,11 @@ molécula, rediseñar. Molécula: dar una orden. Perfil: rediseñar. Lo seleccio
   mientras llega (o si no carga) se ve `ResumenGobiernoLocal`, la tabla «tipo de cambio × cómo se decide».
 - **Quién decide (actor real):** `usePeticion` lee al montar, y cada vez que cambia lo que gobierna la pantalla, el actor
   de la sesión con `actorDeLaSesion(contexto, "humano")` (= `peticion/dependencias.ts#actorPorDefecto`: cuenta y rol REAL
-  en el grupo con `getMyMembershipRole`). El veredicto previo usa ese actor —el mismo que usará la ejecución— y, mientras
-  se lee o si no hay sesión, la deducción local `actorDeLaVentana`. **Pendiente honesto:** comunidades y páginas aún no
-  tienen lectura de rol (solo grupos); ahí el actor es «miembro sin rol» hasta que exista.
+  en el grupo, la comunidad o la página que gobierna la pantalla, con `governance/membership.ts#roleFromMemberships`, el
+  mismo censo de la gobernanza: `os_memberships` por slug y SIN las solicitudes pendientes). El veredicto previo usa ese
+  actor —el mismo que usará la ejecución— y, mientras se lee o si no hay sesión, la deducción local `actorDeLaVentana`.
+  Una comunidad que no esté en `os_memberships` (partidos y entidades federativas con censo propio) da rol `null`:
+  «miembro sin rol», nunca un permiso inventado.
 - **Planes que pide un agente:** `[[ACCION: protomolecula {"accion":"pedir"}]]` (`peticion/pedir.ts`) deja un
   `PlanPendiente` en la cola y emite `EVENTO_PLAN_PENDIENTE` (definido en `peticion/contrato.ts` para que el orbe lo
   escuche sin cargar el planificador). El orbe abre la ventana; `usePeticion` lo enseña como plan («Lo propone <agente>

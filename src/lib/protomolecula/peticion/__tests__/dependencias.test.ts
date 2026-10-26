@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   astrauraChat: vi.fn(),
   getCurrentUserId: vi.fn(),
   getMyMembershipRole: vi.fn(),
+  roleFromMemberships: vi.fn(),
   currentUserRef: vi.fn(),
   resolveProvider: vi.fn(),
   generateImage: vi.fn(),
@@ -25,6 +26,7 @@ const m = vi.hoisted(() => ({
 
 vi.mock("@/ai/astraura/router", () => ({ astrauraChat: m.astrauraChat }));
 vi.mock("@/lib/os-social", () => ({ getCurrentUserId: m.getCurrentUserId, getMyMembershipRole: m.getMyMembershipRole }));
+vi.mock("@/lib/governance/membership", () => ({ roleFromMemberships: m.roleFromMemberships }));
 vi.mock("@/lib/sync/entity-state", () => ({ currentUserRef: m.currentUserRef }));
 vi.mock("@/ai/astraura/media/media-gen", () => ({ resolveProvider: m.resolveProvider, generateImage: m.generateImage, findMediaProvider: m.findMediaProvider }));
 vi.mock("@/lib/library/media-library", () => ({ saveMediaToLibrary: m.saveMediaToLibrary }));
@@ -60,6 +62,7 @@ beforeEach(() => {
   try { window.localStorage.clear(); } catch { /* sin almacenamiento */ }
   m.getCurrentUserId.mockResolvedValue("u1");
   m.getMyMembershipRole.mockResolvedValue("member");
+  m.roleFromMemberships.mockResolvedValue("member");
   m.currentUserRef.mockResolvedValue({ kind: "user", id: "u1" });
   m.resolveProvider.mockReturnValue("pollinations");
   m.findMediaProvider.mockReturnValue({ label: "Pollinations" });
@@ -131,9 +134,23 @@ describe("actorPorDefecto · quién pide, con su rol REAL", () => {
 
   it("en un grupo: su rol de membresía; solo «owner» es dueño", async () => {
     expect(await actorPorDefecto(GRUPO, "ia")).toEqual({ usuarioId: "u1", rol: "member", esDueno: false, origen: "ia" });
-    m.getMyMembershipRole.mockResolvedValue("owner");
+    m.roleFromMemberships.mockResolvedValue("owner");
     expect(await actorPorDefecto(GRUPO, "humano")).toMatchObject({ rol: "owner", esDueno: true });
-    expect(m.getMyMembershipRole).toHaveBeenCalledWith("semilla");
+    expect(m.roleFromMemberships).toHaveBeenCalledWith("semilla", "u1");
+  });
+
+  it("en una página o una comunidad (o lo que cuelga de ellas): también su rol real", async () => {
+    m.roleFromMemberships.mockResolvedValue("admin");
+    const pagina: ContextoProto = { ruta: "/pagina/raiz", entidad: { tipo: "pagina", id: "raiz" }, gobernadaPor: { tipo: "pagina", id: "raiz" }, ambito: "publica" };
+    expect(await actorPorDefecto(pagina, "humano")).toEqual({ usuarioId: "u1", rol: "admin", esDueno: false, origen: "humano" });
+    const enComunidad: ContextoProto = { ruta: "/post/p1", entidad: { tipo: "publicacion", id: "p1" }, gobernadaPor: { tipo: "comunidad", id: "partido-luz" }, ambito: "grupo" };
+    expect(await actorPorDefecto(enComunidad, "ia")).toMatchObject({ rol: "admin" });
+    expect(m.roleFromMemberships).toHaveBeenLastCalledWith("partido-luz", "u1");
+  });
+
+  it("quien solo pidió entrar (sin rol en el censo) no es dueño ni tiene rol", async () => {
+    m.roleFromMemberships.mockResolvedValue(null);
+    expect(await actorPorDefecto(GRUPO, "humano")).toEqual({ usuarioId: "u1", rol: null, esDueno: false, origen: "humano" });
   });
 
   it("lo personal es de quien lo abre; lo público o de otra gente, no", async () => {

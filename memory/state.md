@@ -4493,5 +4493,8 @@ SOP: `architecture/protomolecula-ventana.md`, `architecture/protomolecula-gobier
 - Las tareas de MetaGenesis que la ola toca (PM1010F1E, F2I, F7A, F7B, PG1013I) llevan ahora una NOTA con lo que ya
   existe, para que el enjambre las amplíe en vez de duplicarlas (copia previa en `starseed_memory_root/colas-fuente/bak-1026p/`).
 
+- El rol del actor sale del censo de la gobernanza (`roleFromMemberships`) en grupos, comunidades y páginas: una
+  solicitud pendiente no decide (antes se leía con `getMyMembershipRole`, que sí devuelve «pending», y solo en grupos).
+
 ### Pendiente
-- Rol real en comunidades y páginas (hoy solo grupos tienen lectura de rol).
+- Partidos y entidades federativas con censo propio (fuera de `os_memberships`): su rol en la ventana es `null`.
