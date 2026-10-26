@@ -4509,6 +4509,8 @@ Genesis pasó de 5 agentes a 31 (28 en GitHub, 3 en la Mac); el límite real es 
 - `ca2658b88` CAP1026 A/B/C · `b085be717` CAP1026D · `d5c3c89fc` CAP1026E/F (235 pruebas del puente en verde).
 - Reinicio suave del A1 colgado (con la palabra de Alex); vuelve con sus servicios.
 - Reaperturas para los envíos duplicados de 10 tareas.
+- `bf883d348` CAP1026G · `247cda995` CAP1026H · `a8587c3a1` CAP1026I; quitado de la memoria de MetaGenesis el
+  préstamo de las 12:35 que nunca salió (copia en `memoria.json.antes-cap1026i`).
 
 ### Pendiente / Próximos pasos
 - Medidor «Agentes» de Genesis (`src/lib/mando/medidores.ts`): contar el A1 desde oracle.json y revisar los

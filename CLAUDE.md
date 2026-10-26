@@ -1418,6 +1418,14 @@ Medido a las 09:00 UTC (Genesis enseñaba 5 agentes con 307 listas) y otra vez a
   nvidia sola para los 28. Ahora los jobs de `nube-gh` salen de los escritores vivos de la salud compartida
   (`contenedores_nube.capacidad_gh`: 6 agentes por escritor, techo 14 jobs) y en `escritores_en_la_nube` una marca
   vigente pesa más que la sonda.
+- **G** · el préstamo al A1 (MetaGenesis y `oracle_nodo`) cogía también lo que viajaba a la nube (RTCRM1024D a las
+  12:36, en dos jobs de GitHub desde las 12:07): `candidatos_reparto` y `oracle_nodo` apartan `en_vuelo`.
+- **H** · en el A1, un `git log` de más de 300 s devolvía el texto del TimeoutExpired (que también lleva «|») y
+  `float()` tumbaba `starseed-medio`: `oracle_a1.sha_y_fecha` mira el código de salida (llega al A1 con la próxima
+  `oracle_nodo.py instalar`).
+- **I** · con el enlace de MetaGenesis en «tablas» la orden `lanzar_cola` no sale («va por la bitácora»), pero el
+  préstamo se apuntaba igual y reservaba sus tareas 6 h para un A1 que nunca las recibió. Ahora `_prestar` solo
+  apunta lo que salió («pedido a …»), como el relevo.
 
 **Regla:** más agentes que escritores con cupo no es capacidad: son 429, proveedores apartados 6 h y envíos gastados.
 El número lo dan los escritores vivos; los jobs a la vez salen de ahí y los dos directores leen el mismo.
