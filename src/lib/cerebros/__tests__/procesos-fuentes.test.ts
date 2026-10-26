@@ -69,6 +69,15 @@ describe("componerProcesos", () => {
             presencia: { medios: [{}] },
         })).toEqual([]);
     });
+
+    it("no mezcla procesos en marcha con los que esperan", () => {
+        const r = componerProcesos({
+            poligenesis: { propuestas: [{ id: "p1", titulo: "Votación", estado: "open" }] },
+            medidores: { latidos: [{ tarea: "CB1", fase: "escribiendo", modelo: "m", minutos: 1, donde: "mac" }] },
+        });
+        expect(r[0].estado).toBe("en-marcha");
+        expect(r[r.length - 1].estado).toBe("esperando");
+    });
 });
 
 describe("leerProcesos - firmas y comportamiento básico", () => {
