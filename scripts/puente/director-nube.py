@@ -46,7 +46,12 @@ RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-mai
 INTERVALO_S = int(os.environ.get("STARSEED_NUBE_S", "240"))
 #: Backstop, no política: con repo público los minutos de Actions son gratis, así que el
 #: tope del día solo existe para no ensuciar el historial si algo se vuelve loco.
+#: (2026-10-26, CAP1026D) 30 es el SUELO, no el tope: el tope del día sale de la capacidad medida
+#: (`tope_dia_por_capacidad`). Con 30 fijos se alcanzaba TODOS los días desde el 14-10 (ese día a
+#: las 12:00) y la nube se quedaba parada el resto del día con 300 tareas listas. Si se fija
+#: STARSEED_NUBE_TOPE_DIA a mano, manda ese número.
 TOPE_DIA = int(os.environ.get("STARSEED_NUBE_TOPE_DIA", "30"))
+TOPE_DIA_FIJO = bool(os.environ.get("STARSEED_NUBE_TOPE_DIA"))
 #: 4 y no 3: el runner es de 4 vCPU / 16 GB. El 3 de la Mac es su límite de RAM (8 GB),
 #: no una propiedad del enjambre; en la nube no hay gobernador que recorte, así que
 #: `--workers 4` es un trabajador por vCPU.
@@ -60,6 +65,44 @@ MINUTOS = os.environ.get("STARSEED_NUBE_MINUTOS", "45")
 CUENTA = os.path.expanduser("~/.starseed/nube-lanzamientos.json")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+
+#: (2026-10-26, CAP1026A) Lo que ESTE director sabe lanzar: GitHub Actions, con `nube-gh.py lanzar`.
+#: Cloudroom (`cloudroom_lanzar.py`) y las sesiones de Claude en la nube (`alta-capacidad-nube.py`, en
+#: pausa por decisión de Alex) tienen su propio lanzador y su propio director. MEDIDO a las 09:00 UTC:
+#: con GitHub «lleno» (4 jobs = 2 escritores vivos × 2), el inventario daba como primer desplegable
+#: «Sesiones de Claude Code en la nube» (4 libres, 1 agente por job) y este director lanzaba igualmente
+#: un job de GitHub con `--trabajadores 1`: seis jobs de UN agente (más allá del tope de jobs) en vez
+#: de cuatro de cuatro.
+LANZABLES = frozenset({"nube-gh"})
+
+
+def tope_dia_por_capacidad(jobs_simultaneos, minutos=None, suelo=None, fijo=None):
+    """PURA (CAP1026D): cuántos lanzamientos al día puede llegar a usar el medio que se lanza.
+
+    Jobs que el medio admite a la vez (nube-gh: 3 de 4 agentes, del catálogo de contenedores) por
+    los relevos que caben en 24 h con jobs de `minutos`: 3 × ⌈1440/45⌉ = 3 × 32 = 96. Sigue siendo
+    un backstop (un bucle que lanzara cada 240 s se para a las ~6 h), pero ya no deja la nube
+    parada a mediodía. Nunca baja del suelo (TOPE_DIA) y un tope fijado a mano (`fijo`) manda.
+    """
+    suelo = TOPE_DIA if suelo is None else int(suelo)
+    fijo = TOPE_DIA_FIJO if fijo is None else fijo
+    if fijo:
+        return suelo
+    try:
+        jobs = max(1, int(jobs_simultaneos or 0))
+        m = max(1, int(minutos or MINUTOS))
+    except (TypeError, ValueError):
+        return suelo
+    return max(suelo, jobs * -(-24 * 60 // m))
+
+
+def _jobs_del_lanzable(contenedores, lanzables=LANZABLES):
+    """Jobs a la vez del medio que el director sabe lanzar (aunque ahora esté lleno)."""
+    for c in contenedores or []:
+        if isinstance(c, dict) and str(c.get("id") or "") in lanzables and int(c.get("jobs_simultaneos") or 0) > 0:
+            return int(c["jobs_simultaneos"])
+    return max(1, TOPE_AGENTES // max(1, int(TRABAJADORES)))
 
 
 def decidir_lanzamiento(atraso, runs_en_marcha, lanzados_hoy, tope_dia=TOPE_DIA,
@@ -179,16 +222,6 @@ def vigilar_runs():
     except Exception as e:
         print("director-nube: el vigía de runs falló: %s: %s" % (type(e).__name__, e), flush=True)
         return []
-
-
-#: (2026-10-26, CAP1026A) Lo que ESTE director sabe lanzar: GitHub Actions, con `nube-gh.py lanzar`.
-#: Cloudroom (`cloudroom_lanzar.py`) y las sesiones de Claude en la nube (`alta-capacidad-nube.py`, en
-#: pausa por decisión de Alex) tienen su propio lanzador y su propio director. MEDIDO a las 09:00 UTC:
-#: con GitHub «lleno» (4 jobs = 2 escritores vivos × 2), el inventario daba como primer desplegable
-#: «Sesiones de Claude Code en la nube» (4 libres, 1 agente por job) y este director lanzaba igualmente
-#: un job de GitHub con `--trabajadores 1`: seis jobs de UN agente (más allá del tope de jobs) en vez
-#: de cuatro de cuatro.
-LANZABLES = frozenset({"nube-gh"})
 
 
 def elegir_contenedor(contenedores, lanzables=LANZABLES):
@@ -489,8 +522,9 @@ def _anotar():
 
 
 def main():
-    print("Director de la nube · cada %d s · %s agentes por job · tope %d agentes / %d lanzamientos al día"
-          % (INTERVALO_S, TRABAJADORES, TOPE_AGENTES, TOPE_DIA), flush=True)
+    print("Director de la nube · cada %d s · %s agentes por job · tope %d agentes / %d lanzamientos al día%s"
+          % (INTERVALO_S, TRABAJADORES, TOPE_AGENTES, tope_dia_por_capacidad(_jobs_del_lanzable(None)),
+             " (fijado a mano)" if TOPE_DIA_FIJO else " (según capacidad; suelo %d)" % TOPE_DIA), flush=True)
     while True:
         try:
             _, hoy_n, _ = _cuenta_hoy()
@@ -510,11 +544,13 @@ def main():
             destino = elegir_contenedor(inv.get("contenedores"))
             res = inv.get("resumen") or {}
             trabajadores = str(destino["agentes_por_job"]) if destino else TRABAJADORES
+            tope_agentes = int(res.get("agentes_tope") or TOPE_AGENTES)
             lanzar, motivo = decidir_lanzamiento(
                 atraso(), runs_vivos, hoy_n, hay_claves=hay_claves(),
+                tope_dia=tope_dia_por_capacidad(_jobs_del_lanzable(inv.get("contenedores"))),
                 agentes_en_marcha=int(res.get("agentes_ahora") or agentes_vivos),
                 trabajadores=trabajadores,
-                tope_agentes=int(res.get("agentes_tope") or TOPE_AGENTES))
+                tope_agentes=tope_agentes)
             if lanzar and not destino:
                 lanzar, motivo = False, "ningún contenedor con sitio libre (%d usable(s) de %d)" % (
                     res.get("usables", 0), res.get("contenedores", 0))

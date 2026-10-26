@@ -6,6 +6,8 @@ A · el director de la nube elegía «Sesiones de Claude Code en la nube» (1 ag
 B · lo que la nube integró en su rama volvía a «pendiente» y a la nube (solo se miraba el último run):
     AGF1023E, dos commits en dos runs y ninguno en main, porque `traer_nube` espera a una «reasignada».
 C · los agentes del A1 (3 trabajadores) no contaban en ningún total: el catálogo decía 1 y nadie los medía.
+D · el «backstop» de 30 lanzamientos al día se alcanzaba TODOS los días desde el 14-10 (el 26, a las 12:00):
+    la nube se quedaba parada medio día con 300 tareas listas. El tope del día sale ahora de la capacidad.
 """
 import importlib.util
 import os
@@ -110,6 +112,36 @@ class C_LosAgentesDelA1Cuentan(unittest.TestCase):
         c = CN.contenedor({"id": "oracle", "estado": "listo"}, CN.CATALOGO["oracle"], {"oracle": {"agentes": 3, "runs": 1}})
         self.assertEqual((c["agentes_ahora"], c["agentes_libres"], c["agentes_por_job"]), (3, 0, 3))
         self.assertFalse(c["desplegable"])  # el A1 lo alimenta su propio ciclo (oracle_nodo), no el director
+
+
+class D_ElTopeDelDiaSaleDeLaCapacidad(unittest.TestCase):
+    def test_tres_jobs_de_45_min_dan_96_lanzamientos(self):
+        self.assertEqual(D.tope_dia_por_capacidad(3, minutos=45, suelo=30, fijo=False), 96)
+
+    def test_nunca_baja_del_suelo(self):
+        self.assertEqual(D.tope_dia_por_capacidad(1, minutos=300, suelo=30, fijo=False), 30)
+
+    def test_un_tope_fijado_a_mano_manda(self):
+        self.assertEqual(D.tope_dia_por_capacidad(3, minutos=45, suelo=30, fijo=True), 30)
+
+    def test_entradas_raras_vuelven_al_suelo(self):
+        self.assertEqual(D.tope_dia_por_capacidad("x", minutos=45, suelo=30, fijo=False), 30)
+        self.assertEqual(D.tope_dia_por_capacidad(0, minutos=45, suelo=30, fijo=False), 32)
+
+    def test_los_jobs_salen_del_medio_lanzable_aunque_este_lleno(self):
+        conts = [{"id": "cloudroom", "jobs_simultaneos": 30}, {"id": "nube-gh", "jobs_simultaneos": 3, "agentes_libres": 0}]
+        self.assertEqual(D._jobs_del_lanzable(conts), 3)
+        self.assertEqual(D._jobs_del_lanzable(None), max(1, D.TOPE_AGENTES // int(D.TRABAJADORES)))
+
+    def test_con_30_lanzados_y_capacidad_ya_no_espera_al_dia_siguiente(self):
+        tope = D.tope_dia_por_capacidad(3, minutos=45, suelo=30, fijo=False)
+        lanzar, motivo = D.decidir_lanzamiento(300, 1, 30, tope_dia=tope, agentes_en_marcha=4,
+                                               trabajadores="4", tope_agentes=12)
+        self.assertTrue(lanzar, motivo)
+        lanzar, motivo = D.decidir_lanzamiento(300, 1, 96, tope_dia=tope, agentes_en_marcha=4,
+                                               trabajadores="4", tope_agentes=12)
+        self.assertFalse(lanzar)
+        self.assertIn("tope del día", motivo)
 
 
 if __name__ == "__main__":
