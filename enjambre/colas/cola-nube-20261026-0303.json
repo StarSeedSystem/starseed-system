@@ -1,0 +1,35 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "MGX1023Ab",
+   "ola": "1023X",
+   "titulo": "ManimGX · contrato de escena y validación pura (antes de ejecutar nada)",
+   "archivos": [
+    "src/lib/protomolecula/manimgx/escena.ts",
+    "src/lib/protomolecula/manimgx/__tests__/escena.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «manimgx para todo el desarrollo de modelos 3D con Astraura y la Protomolécula en cualquier medio y publicación o archivo» y «earshot para los sentidos de cada agente de Astraura y de la orbe flotante si tiene su ajuste de sentidos encendidos siempre escuchando». Contrato: `architecture/repos-3d-oido-agentes-1023.md` (§3 son reglas duras: el código que escribe un agente nunca corre en el proceso del OS; el oído solo con sentidos encendidos, solo fragmentos sin voz, nada sale de las neuronas; nada de subir audio a Gemini).\n\nMódulo puro: tipo `EscenaManim` {codigo, clase, calidad: 480p|720p|1080p, fps, duracionMax} y `validarEscena(codigo)` que rechaza lo que no es una escena de Manim (imports fuera de `manimgx`/`manim`/`math`/`numpy`, `open(`, `exec`, `eval`, `__import__`, `subprocess`, `os.`, `sys.`, red) con motivos legibles. No ejecuta nada. Pruebas con escenas buenas (Scene, ThreeDScene con cubo y rotación de cámara) y malas.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40079721868`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40079721868:refs/remotes/origin/nube/40079721868\"` y `git cherry-pick --no-commit a13c0689cbb7`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/protomolecula/manimgx/__tests__/escena.test.ts, src/lib/protomolecula/manimgx/escena.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40079721868"
+  },
+  {
+   "id": "CNV1023C",
+   "ola": "1023C",
+   "titulo": "Escritorio · «Convertir a…» en el clic derecho de los iconos de archivo",
+   "archivos": [
+    "src/components/desktop/desktop-icon-menu.tsx",
+    "src/components/desktop/desktop-store.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nBusca el menú contextual de los iconos del escritorio (si el archivo tiene otro nombre, usa el que exista y dilo). Para iconos que apuntan a un archivo con URL, añade `SubmenuConvertir` (`useConversionMenu`); el resultado se descarga. Si no hay menú contextual de iconos, responde NO APLICA."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "MGX1023Ab",
+   "CNV1023C"
+  ]
+ }
+}
