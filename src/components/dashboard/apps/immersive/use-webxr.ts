@@ -21,6 +21,23 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type * as THREE from 'three';
+import { type FuncionXR } from '@/lib/xr/tipos';
+import { type CapacidadesXR } from '@/lib/xr/capacidades';
+import { funcionesAPedir } from '@/components/xr/shell/aplicar-perfil';
+import { mensajeErrorXR } from '@/components/vivo/espacial/use-sesion-xr';
+
+/** Capacidades XR por defecto para el espacio inmersivo (el botón universal). */
+const CAPACIDADES_POR_DEFECTO: CapacidadesXR = {
+  plataforma: 'desconocida',
+  visor: false,
+  modos: ['2d'],
+  recomendado: '2d',
+  entradas: ['voz'],
+  funciones: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers', 'hit-test'] as FuncionXR[],
+  ofrecerSesion: false,
+  motivos: [],
+  avisos: [],
+};
 
 /** Modo de sesión inmersiva soportado por el OS. */
 export type XRMode = 'immersive-vr' | 'immersive-ar';
@@ -111,16 +128,15 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
                 await exit();
             }
 
-            // Características opcionales: el navegador concede las que pueda.
-            // 'hit-test' es útil en AR; 'hand-tracking' / suelos en VR.
+            // §2.2 (XR1010AR): las funciones salen de `funcionesAPedir` (XR1010D), que por lista blanca
+            // (`esFuncionXR`) NUNCA deja pasar `camera-access` (§3 k); `offerSession` no se toca aquí —
+            // lo gestiona el almacén de XR1010D en `/xr/os`; este hook sigue siendo el del hub `/xr`.
+            // Todo va en `optionalFeatures` como antes: degradación elegante, lo que conceda el navegador.
+            const pedidas = funcionesAPedir(CAPACIDADES_POR_DEFECTO, {
+                habitacion: target === 'immersive-ar',
+            });
             const sessionInit: XRSessionInit = {
-                optionalFeatures: [
-                    'local-floor',
-                    'bounded-floor',
-                    'hand-tracking',
-                    'layers',
-                    ...(target === 'immersive-ar' ? (['hit-test'] as string[]) : []),
-                ],
+                optionalFeatures: [...pedidas.requeridas, ...pedidas.opcionales],
             };
 
             try {
@@ -154,9 +170,7 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
                 } catch {
                     /* noop */
                 }
-                const msg =
-                    e instanceof Error ? e.message : 'No se pudo iniciar la sesión XR.';
-                setError(msg);
+                setError(mensajeErrorXR(e));
                 setInSession(false);
                 setMode(null);
             }
