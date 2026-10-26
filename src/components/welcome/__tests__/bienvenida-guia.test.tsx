@@ -68,12 +68,15 @@ describe("WelcomeWindow (GUI1021K2)", () => {
 
     const guia = escucharGuia();
     fireEvent.click(boton);
+    expect(guia.recibidos).toEqual([{ desde: "bienvenida" }]);
 
+    // Enter sobre un botón nativo lo activa UNA vez (no se suma al clic anterior).
+    guia.recibidos.length = 0;
     const teclado = userEvent.setup();
     boton.focus();
     await teclado.keyboard("{Enter}");
     guia.parar();
-    expect(guia.recibidos).toEqual([{ desde: "bienvenida" }, { desde: "bienvenida" }]);
+    expect(guia.recibidos).toEqual([{ desde: "bienvenida" }]);
   });
 });
 
@@ -86,12 +89,15 @@ describe("SessionResumePrompt (GUI1021K2)", () => {
     expect(guia.recibidos).toEqual([]); // aún nada sin gesto
 
     fireEvent.click(boton);
+    expect(guia.recibidos).toEqual([{ desde: "login" }]);
 
+    // Enter sobre un botón nativo lo activa UNA vez (no se suma al clic anterior).
+    guia.recibidos.length = 0;
     const teclado = userEvent.setup();
     boton.focus();
     await teclado.keyboard("{Enter}");
     guia.parar();
-    expect(guia.recibidos).toEqual([{ desde: "login" }, { desde: "login" }]);
+    expect(guia.recibidos).toEqual([{ desde: "login" }]);
   });
 });
 
