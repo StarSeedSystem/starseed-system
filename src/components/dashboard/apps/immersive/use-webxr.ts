@@ -21,6 +21,22 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type * as THREE from 'three';
+import { type CapacidadesXR } from '@/lib/xr/capacidades';
+import { funcionesAPedir } from '@/components/xr/shell/aplicar-perfil';
+import { mensajeErrorXR } from '@/components/vivo/espacial/use-sesion-xr';
+
+/** Capacidades XR que el hub /xr da por supuestas: las mismas que pedía a mano antes. */
+const CAPACIDADES_HUB: CapacidadesXR = {
+  plataforma: 'desconocida',
+  visor: false,
+  modos: ['2d'],
+  recomendado: '2d',
+  entradas: ['voz'],
+  funciones: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers', 'hit-test'],
+  ofrecerSesion: false,
+  motivos: [],
+  avisos: [],
+};
 
 /** Modo de sesión inmersiva soportado por el OS. */
 export type XRMode = 'immersive-vr' | 'immersive-ar';
@@ -39,6 +55,20 @@ export interface WebXRState {
     enter: (mode: XRMode) => Promise<void>;
     /** Termina la sesión activa. */
     exit: () => Promise<void>;
+}
+
+/**
+ * §2.2 (XR1010AR): las funciones que pide salen de `funcionesAPedir` (XR1010D). `local-floor`
+ * va requerida — es la referencia de la Trinity (§3 d) — y el resto opcional. `camera-access`
+ * JAMÁS pasa: no está en la lista blanca de `esFuncionXR`. Aquí tampoco se llama a
+ * `navigator.xr.offerSession` (aunque el navegador la ofrezca): esa oferta la lleva el almacén
+ * de XR1010D en `/xr/os`; este hook sigue siendo el del hub antiguo.
+ */
+export function inicioDeSesion(modo: XRMode): XRSessionInit {
+    const { opcionales, requeridas } = funcionesAPedir(CAPACIDADES_HUB, {
+        habitacion: modo === 'immersive-ar',
+    });
+    return { requiredFeatures: requeridas, optionalFeatures: opcionales };
 }
 
 /** Acceso seguro al sistema XR del navegador (undefined en SSR o sin soporte). */
@@ -111,17 +141,7 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
                 await exit();
             }
 
-            // Características opcionales: el navegador concede las que pueda.
-            // 'hit-test' es útil en AR; 'hand-tracking' / suelos en VR.
-            const sessionInit: XRSessionInit = {
-                optionalFeatures: [
-                    'local-floor',
-                    'bounded-floor',
-                    'hand-tracking',
-                    'layers',
-                    ...(target === 'immersive-ar' ? (['hit-test'] as string[]) : []),
-                ],
-            };
+            const sessionInit = inicioDeSesion(target);
 
             try {
                 const session = await xr.requestSession(target, sessionInit);
@@ -154,9 +174,7 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
                 } catch {
                     /* noop */
                 }
-                const msg =
-                    e instanceof Error ? e.message : 'No se pudo iniciar la sesión XR.';
-                setError(msg);
+                setError(mensajeErrorXR(e));
                 setInSession(false);
                 setMode(null);
             }
