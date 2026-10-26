@@ -62,19 +62,19 @@ const ICONO_POR_TEMA: Readonly<Record<string, LucideIcon>> = {
 };
 
 /** Icono del tema, con `HelpCircle` de reserva para una clave que aún no tenga uno. */
-export function iconoDeTema(tema: Pick<TemaGuia, "key">): LucideIcon {
+function iconoDeTema(tema: Pick<TemaGuia, "key">): LucideIcon {
   return ICONO_POR_TEMA[tema.key] ?? HelpCircle;
 }
 
 /** Los temas con su icono, en el mismo orden que el tour. */
-export function temasConIcono(
+function temasConIcono(
   temas: readonly TemaGuia[] = TODOS_LOS_TEMAS,
 ): { tema: TemaGuia; Icono: LucideIcon }[] {
   return temas.map((tema) => ({ tema, Icono: iconoDeTema(tema) }));
 }
 
-/** La lista de los diez temas: cada uno abre la guía directamente en él. */
-export function ListaTemasGuia() {
+/** La lista de los diez temas: cada uno abre la guía directamente en él. La monta `GuideButtonToggle`. */
+function ListaTemasGuia() {
   return (
     <ul
       className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2"
@@ -96,6 +96,10 @@ export function ListaTemasGuia() {
     </ul>
   );
 }
+
+// Se exportan con nombre para las pruebas del panel; la aplicación es `GuideButtonToggle`,
+// que monta la lista junto al botón de abrir la guía.
+export { ListaTemasGuia, iconoDeTema, temasConIcono };
 
 export function GuideButtonToggle() {
   const [visible, setVisible] = useState(true);

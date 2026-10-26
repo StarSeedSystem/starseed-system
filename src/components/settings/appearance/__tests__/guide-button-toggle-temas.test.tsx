@@ -1,10 +1,11 @@
 // GUI1021Ob · Ajustes → la guía de introducción con sus diez temas.
 // Lo puro: el mapa de temas a icono y que cada tema sea un paso real de la guía.
 // Lo visible: cada botón abre la guía en su tema con `desde: "ajustes"`.
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { HelpCircle } from "lucide-react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  GuideButtonToggle,
   ListaTemasGuia,
   iconoDeTema,
   temasConIcono,
@@ -12,6 +13,7 @@ import {
 import { TODOS_LOS_TEMAS } from "@/lib/onboarding/guia-temas-red";
 import { EVENTO_ABRIR_GUIA, type PeticionGuia } from "@/lib/onboarding/guia-acceso";
 import { indiceDePaso } from "@/lib/onboarding/guia-completa";
+import { AppearanceProvider } from "@/context/appearance-context";
 
 afterEach(() => cleanup());
 
@@ -69,6 +71,35 @@ describe("lista de temas (GUI1021Ob)", () => {
       expect(peticiones).toEqual(
         TODOS_LOS_TEMAS.map((tema) => ({ desde: "ajustes", temaInicial: tema.key })),
       );
+    } finally {
+      window.removeEventListener(EVENTO_ABRIR_GUIA, escuchar);
+    }
+  });
+});
+
+describe("aplicado en Ajustes (GUI1021Ob)", () => {
+  it("el panel monta la lista junto al botón de abrir la guía", () => {
+    render(<AppearanceProvider><GuideButtonToggle /></AppearanceProvider>);
+    const lista = screen.getByRole("list", { name: "Temas de la guía de introducción" });
+    expect(within(lista).getAllByRole("button")).toHaveLength(TODOS_LOS_TEMAS.length);
+    expect(screen.getByRole("button", { name: /Reproducir guía del sistema/ })).toBeTruthy();
+  });
+
+  it("un tema de la lista del panel abre la guía en ese tema con desde ajustes", () => {
+    const peticiones: PeticionGuia[] = [];
+    const escuchar = (evento: Event) => {
+      peticiones.push((evento as CustomEvent<PeticionGuia>).detail);
+    };
+    window.addEventListener(EVENTO_ABRIR_GUIA, escuchar);
+    try {
+      render(<AppearanceProvider><GuideButtonToggle /></AppearanceProvider>);
+      const lista = screen.getByRole("list", { name: "Temas de la guía de introducción" });
+      fireEvent.click(
+        within(lista).getByRole("button", { name: `Abrir la guía en «${TODOS_LOS_TEMAS[0].titulo}»` }),
+      );
+      expect(peticiones).toEqual([
+        { desde: "ajustes", temaInicial: TODOS_LOS_TEMAS[0].key },
+      ]);
     } finally {
       window.removeEventListener(EVENTO_ABRIR_GUIA, escuchar);
     }
