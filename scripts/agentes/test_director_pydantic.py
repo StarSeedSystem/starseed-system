@@ -59,6 +59,15 @@ class Indicacion(unittest.TestCase):
         texto = D.construir_indicacion({"titulo": "x" * 2000})
         self.assertLessEqual(len(texto.split("Título: ", 1)[1]), D.MAX_TEXTO)
 
+    def test_los_campos_vacios_no_aparecen(self):
+        texto = D.construir_indicacion({"id": "T1", "titulo": "Contrato",
+                                        "area": "   ", "motivo": ""})
+        self.assertIn("Id: T1", texto)
+        self.assertIn("Título: Contrato", texto)
+        self.assertNotIn("Área", texto)
+        self.assertNotIn("Motivo", texto)
+        self.assertNotIn(":  ", texto)
+
 class Conversion(unittest.TestCase):
     def test_desde_dict_modelo_y_objeto(self):
         plano = {"prioridad": 0.25, "motivo": "reduce el alcance", "accion": "transformar"}
@@ -110,6 +119,37 @@ class ConPydanticAI(unittest.TestCase):
         decision = D.decidir_tarea({"id": "AGF2", "titulo": "Revisión"}, agente=agente)
         self.assertEqual(decision.como_dict()["accion"], "pedir-a-alex")
         self.assertEqual(decision.prioridad, 0.3)
+
+@unittest.skipUnless(HAY_PYDANTIC_AI, SIN_DEPENDENCIA)
+class ModeloDelCliente(unittest.TestCase):
+    @staticmethod
+    def _base_url(modelo):
+        proveedor = getattr(modelo, "provider", None) or getattr(modelo, "client", None)
+        base = getattr(proveedor, "base_url", None)
+        if base is None:
+            base = getattr(getattr(proveedor, "client", None), "base_url", None)
+        return str(base).rstrip("/")
+
+    def test_usa_la_base_y_el_modelo_del_enrutador_sin_mostrar_la_clave(self):
+        import modelos_propios as mp
+        cliente = mp.ClienteOpenAI(base_url="http://127.0.0.1:4480/v1", modelo="qwen-coder",
+                                   clave="clave-falsa", origen="servidor-propio")
+        modelo = D.modelo_desde_cliente(cliente)
+        self.assertIn(type(modelo).__name__, ("OpenAIChatModel", "OpenAIModel"))
+        self.assertEqual(modelo.model_name, "qwen-coder")
+        self.assertEqual(self._base_url(modelo), "http://127.0.0.1:4480/v1")
+        self.assertNotIn("clave-falsa", repr(cliente))
+
+class SinFuente(unittest.TestCase):
+    def test_decidir_tarea_sin_ninguna_fuente_avisa(self):
+        import modelos_propios as mp
+        original = mp.cliente_openai_compatible
+        mp.cliente_openai_compatible = lambda *a, **k: None
+        try:
+            with self.assertRaises(RuntimeError):
+                D.decidir_tarea({"id": "AGF1", "motivo": "429"})
+        finally:
+            mp.cliente_openai_compatible = original
 
 if __name__ == "__main__":
     unittest.main()
