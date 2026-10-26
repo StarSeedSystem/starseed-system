@@ -1,0 +1,37 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "MOV1026A",
+   "ola": "Verificación 1026",
+   "titulo": "Motor de movimiento: el cuerpo que se manda a /api/movimiento/generar cumple su contrato",
+   "archivos": [
+    "src/lib/avatares/movimiento/motor.ts",
+    "src/lib/avatares/movimiento/__tests__/contrato-generar.test.ts"
+   ],
+   "depende": [],
+   "importancia": "normal",
+   "prompt": "Verificado por Claude en localhost:9002 el 2026-10-26: TODAS las peticiones del motor de movimiento a POST /api/movimiento/generar responden 400, así que los niveles «vivo» y «fluido» (Kimodo) nunca funcionan y el avatar siempre cae al clip procedural. Causa: `pedirAKimodo` en src/lib/avatares/movimiento/motor.ts manda {prompt, emocion, energia, duracionMs, bucle, nivel}, y la ruta src/app/api/movimiento/generar/route.ts exige {prompt (texto no vacío, ≤ 300), esqueleto ('smplx22' | 'soma30' | 'g1-34'), segundos (número entre 0,5 y 10), semilla (entero, opcional)}.\n\nHaz SOLO esto en motor.ts: el cuerpo pasa a ser {prompt: g.prompt.trim().slice(0, 300), esqueleto: 'smplx22', segundos: el de g.duracionMs/1000 (2,4 si no viene) acotado a [0,5, 10] y redondeado a 2 decimales, semilla: el mismo hash del prompt que usa generarClipProcedural (sácalo a una función pura y úsala en los dos sitios)}. NO toques el freno de la vía (caché por gesto, peticiones compartidas, máximo 2 en vuelo, pausa con Retry-After: kimodoEnPausaHasta / reiniciarFrenoKimodo) ni la ruta.\n\nPrueba nueva src/lib/avatares/movimiento/__tests__/contrato-generar.test.ts (// @vitest-environment jsdom; mockea '@/lib/aurora/voz-starseed/capacidades' con detectarCapacidades: async () => ({}) y capacidadesEnCache: () => null, como en __tests__/freno-kimodo.test.ts; vi.stubGlobal('fetch', …); reiniciarFrenoKimodo() en beforeEach): con moverAvatar(g, {nivel:'vivo'}) el cuerpo enviado tiene exactamente esas cuatro claves; duracionMs 200 → segundos 0.5; 60000 → 10; sin duración → 2.4; un prompt de 400 caracteres llega con 300; la semilla es un entero estable para el mismo prompt. Las pruebas de freno-kimodo.test.ts deben seguir en verde. Como mucho 120 líneas nuevas por archivo; comentarios en español; nada de any."
+  },
+  {
+   "id": "AGF1023C",
+   "ola": "1023A",
+   "titulo": "Pydantic AI · director tipado de ejemplo (decisión con esquema) sobre el puente",
+   "archivos": [
+    "scripts/agentes/director_pydantic.py",
+    "scripts/agentes/test_director_pydantic.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): agno, mastra, langgraph, pydantic-ai y openai-agents-python «para los desarrollos de agentes de Astraura, Genesis, PoliGenesis y MetaGenesis en todos sus contextos y medios». Contrato: `architecture/repos-3d-oido-agentes-1023.md` §3 (un contrato de agente, varios motores; modelos siempre por el enrutador propio —gratis primero, Jev, Experiential, servidor propio de IA—; trazas de terceros apagadas; nada de LangSmith ni nubes de los autores). Agentes de hoy: `src/lib/agents/model.ts` (tipo `Agent`) y `src/lib/agents/store.ts`.\n\nCon `pydantic-ai-slim[openai]` y el puente de AGF1023B, un director mínimo que devuelve una `DecisionTarea` validada (prioridad 0–1, motivo ≤ 200 caracteres, acción ∈ {reintentar, transformar, pedir-a-alex}) para una tarea bloqueada. Si la dependencia no está instalada, la prueba se salta con motivo (no instales en las pruebas). Pruebas con `TestModel`/`FunctionModel` de Pydantic AI, sin red.",
+   "dependencias_ya_en_main": [
+    "AGF1023B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "MOV1026A",
+   "AGF1023C"
+  ]
+ }
+}
