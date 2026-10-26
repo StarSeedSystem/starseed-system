@@ -6,9 +6,14 @@ import { Volume2 } from "lucide-react";
 import { FRAME_ALLOW, FRAME_SANDBOX } from "@/components/browser/web-frame";
 import { conParent, detectarFormato } from "@/lib/estaciones/formato";
 import type { Estacion } from "@/lib/estaciones/tipos";
+import { anuncio as anuncioMalla, codificar, decodificar, fusionar, type AnuncioDisponibilidad, type AnuncioRecibido, type RegistroDisponibilidad } from "@/lib/recursos/disponibilidad";
+import { contextoMalla, crearCargadorMalla, puedeSubirPrestado, type ConexiónCargadorMalla } from "@/lib/recursos/hls-malla-loader";
+import type { FragmentLoaderConstructor } from "hls.js";
 
 interface Props {
-    estacion: Pick<Estacion, "enlace" | "tipo" | "titulo">;
+    estacion: Pick<Estacion, "enlace" | "tipo" | "titulo"> &
+        Partial<Pick<Estacion, "en_malla" | "visibilidad" | "owner_id">>;
+    cuentaId?: string | null;
     className?: string;
     compacto?: boolean;
 }
@@ -25,8 +30,92 @@ function BarrasAudio() {
     );
 }
 
+// ─── Malla (§10): pedir y repartir segmentos por la red; el origen queda de respaldo ───
+const CANAL_DISPONIBILIDAD = "hls.disponibilidad", CANAL_PEDIDO = "hls.pedido", CANAL_TROZO = "hls.trozo";
+const TOTAL_MALLA = 10_000, SEGMENTOS_EN_CACHE = 64, TOPE_SUBIDA_KBPS = 64, VENTANA_SUBIDA_MS = 60_000;
+const servidos = new Map<string, Map<number, Uint8Array>>(); let subidaBytes = 0, subidaDesde = 0;
+/** Id del elemento: un rastro del enlace; la URL nunca sale por la malla. */
+function idElemento(enlace: string): string {
+    let h = 5381; for (let i = 0; i < enlace.length; i++) h = ((h << 5) + h + enlace.charCodeAt(i)) | 0;
+    return `h-${(h >>> 0).toString(36)}`;
+}
+function cabeEnElTope(bytes: number): boolean {
+    const t = Date.now();
+    if (t - subidaDesde >= VENTANA_SUBIDA_MS) { subidaDesde = t; subidaBytes = 0; }
+    return puedeSubirPrestado(TOPE_SUBIDA_KBPS, subidaBytes, VENTANA_SUBIDA_MS, bytes);
+}
+function esAnuncio(x: unknown, propio: string, elemento: string): x is AnuncioDisponibilidad {
+    const a = x as Partial<AnuncioDisponibilidad> | null;
+    return !!a && typeof a.nodo === "string" && a.nodo !== propio && a.elemento === elemento &&
+        typeof a.total === "number" && a.total >= 1 && a.total <= 1_000_000 && typeof a.desde === "number" &&
+        a.desde >= 0 && typeof a.hasta === "number" && a.hasta >= a.desde && typeof a.bits === "string" && typeof a.t === "number";
+}
+type ConexiónMalla = { con: ConexiónCargadorMalla; cerrar: () => void };
+/** Conexión real para el cargador puro: anuncios y trozos por los enlaces vivos. */
+async function conectarMalla(enlace: string, contexto: "publico" | "cuenta"): Promise<ConexiónMalla | null> {
+    const [tu, reg, id, meshMod] = await Promise.all([
+        import("@/lib/malla/transporte-universal"), import("@/lib/malla/registro-enlaces-locales"),
+        import("@/lib/network/identidad-dispositivo"), import("@/lib/network/lan-sync"),
+    ]);
+    const mesh = meshMod.getSharedMesh(), vecinos = reg.enlacesLocalesVivos().length > 0 || (mesh?.getPeers().some((p) => p.state === "connected" && p.channelOpen) ?? false);
+    if (!vecinos) return null;
+    const propio = id.identidadDispositivo().syncDeviceId || mesh?.myDeviceId; if (!propio) return null;
+    const elemento = idElemento(enlace), soloCuenta = contexto === "cuenta", ahora = () => Date.now();
+    const esperados = new Map<string, (b: Uint8Array | null) => void>(); let recibidos: AnuncioRecibido[] = [];
+    const bajas: (() => void)[] = [];
+    const con: ConexiónCargadorMalla = {
+        elemento, registro: new Map() as RegistroDisponibilidad,
+        verificar: (bytes) => bytes.byteLength > 0,
+        anunciar: (indice, bytes) => {
+            const trozos = servidos.get(elemento) ?? new Map<number, Uint8Array>();
+            if (trozos.has(indice)) return;
+            trozos.set(indice, bytes);
+            if (trozos.size > SEGMENTOS_EN_CACHE) trozos.delete(trozos.keys().next().value ?? 0);
+            servidos.set(elemento, trozos);
+            const piezas = anuncioMalla(propio, elemento, TOTAL_MALLA, [...trozos.keys()].sort((a, b) => a - b), ahora());
+            for (const pieza of piezas) {
+                for (const e of reg.enlacesLocalesVivos()) if (!soloCuenta) void tu.enviarMensaje({ enlaceId: e.id }, CANAL_DISPONIBILIDAD, pieza);
+                for (const p of mesh?.getPeers() ?? []) if (p.channelOpen) void tu.enviarMensaje({ syncDeviceId: p.deviceId }, CANAL_DISPONIBILIDAD, pieza);
+            }
+        },
+        pedir: (nodo, indice) => new Promise((resolver) => {
+            const pid = `${indice}-${Math.random().toString(36).slice(2)}`;
+            esperados.set(pid, resolver);
+            setTimeout(() => { if (esperados.delete(pid)) resolver(null); }, 5_000);
+            void tu.enviarMensaje({ syncDeviceId: nodo }, CANAL_PEDIDO, { elemento, indice, pid, responde: propio });
+        }),
+        ahora,
+        esperar: (ms) => new Promise((r) => { setTimeout(r, ms); }),
+    };
+    bajas.push(tu.alRecibirMensaje(CANAL_DISPONIBILIDAD, (m) => {
+        if (soloCuenta && m.origen.tipo !== "cuenta") return;
+        if (!esAnuncio(m.cuerpo, propio, elemento)) return;
+        recibidos.push({ anuncio: m.cuerpo, recibidoEn: ahora() });
+        if (recibidos.length > 256) recibidos = recibidos.slice(-256);
+        try { con.registro = fusionar(recibidos); } catch { recibidos.pop(); }
+    }));
+    bajas.push(tu.alRecibirMensaje(CANAL_PEDIDO, (m) => {
+        if (soloCuenta && m.origen.tipo !== "cuenta") return;
+        const p = m.cuerpo as { elemento?: string; indice?: number; pid?: string; responde?: string } | null;
+        if (!p || p.elemento !== elemento || typeof p.indice !== "number" || p.indice < 0 ||
+            typeof p.pid !== "string" || !p.pid || typeof p.responde !== "string") return;
+        const bytes = servidos.get(elemento)?.get(p.indice);
+        if (!bytes || !cabeEnElTope(bytes.byteLength)) return;
+        subidaBytes += bytes.byteLength;
+        void tu.enviarMensaje({ syncDeviceId: p.responde }, CANAL_TROZO, { pid: p.pid, q: codificar(bytes) });
+    }));
+    bajas.push(tu.alRecibirMensaje(CANAL_TROZO, (m) => {
+        const t = m.cuerpo as { pid?: string; q?: string } | null;
+        if (!t || typeof t.pid !== "string" || typeof t.q !== "string" || t.q.length > 12_000_000) return;
+        const resolver = esperados.get(t.pid);
+        if (!resolver) return;
+        esperados.delete(t.pid);
+        try { resolver(decodificar(t.q)); } catch { resolver(null); }
+    }));
+    return { con, cerrar: () => { for (const b of bajas) b(); esperados.clear(); servidos.delete(elemento); } };
+}
 /** Reproductor autoadaptable de una estación: nativo, HLS, marco aislado, interno o pestaña. */
-export function ReproductorEstacion({ estacion, className, compacto }: Props) {
+export function ReproductorEstacion({ estacion, className, compacto, cuentaId }: Props) {
     const { enlace, tipo, titulo } = estacion;
     const f = useMemo(() => detectarFormato(enlace, tipo), [enlace, tipo]);
     const medio = useRef<HTMLMediaElement | null>(null);
@@ -37,20 +126,39 @@ export function ReproductorEstacion({ estacion, className, compacto }: Props) {
         if (f.reproductor !== "hls" || !medio.current) return;
         const v = medio.current as HTMLVideoElement;
         if (v.canPlayType("application/vnd.apple.mpegurl")) { v.src = enlace; return; }
-        let hls: { destroy(): void } | null = null;
+        let hls: { destroy(): void } | null = null, malla: ConexiónMalla | null = null;
         let vivo = true;
-        import("hls.js").then((m) => {
+        import("hls.js").then(async (m) => {
             if (!vivo) { return; }
             const Hls = m.default;
-            if (Hls.isSupported()) {
-                const instancia = new Hls();
-                instancia.loadSource(enlace);
-                instancia.attachMedia(v);
-                hls = instancia;
-            } else { setForzarPestana(true); }
+            if (!Hls.isSupported()) { setForzarPestana(true); return; }
+            const est = { enMalla: estacion.en_malla, visibilidad: estacion.visibilidad, ownerId: estacion.owner_id };
+            let porMalla = contextoMalla(est, cuentaId);
+            if (!porMalla && est.enMalla && est.visibilidad !== "publica") {
+                const uid = await import("@/lib/consumo/usuario").then((u) => u.uidActual()).catch(() => null);
+                porMalla = contextoMalla(est, uid);
+            }
+            let con: ConexiónMalla | null = null;
+            if (porMalla) {
+                try { con = await conectarMalla(enlace, porMalla); } catch { con = null; }
+                if (!vivo) { con?.cerrar(); return; }
+            }
+            const instancia = con
+                ? new Hls({ fLoader: crearCargadorMalla(con.con, Hls.DefaultConfig.loader as unknown as FragmentLoaderConstructor) })
+                : new Hls();
+            if (con) {
+                instancia.on(Hls.Events.FRAG_LOADED, (_e, d) => {
+                    const sn = d.frag?.sn;
+                    if (typeof sn === "number" && sn >= 0) con.con.anunciar(sn, new Uint8Array(d.payload));
+                });
+                malla = con;
+            }
+            instancia.loadSource(enlace);
+            instancia.attachMedia(v);
+            hls = instancia;
         }).catch(() => { if (vivo) setForzarPestana(true); });
-        return () => { vivo = false; hls?.destroy(); };
-    }, [f.reproductor, enlace]);
+        return () => { vivo = false; hls?.destroy(); malla?.cerrar(); };
+    }, [f.reproductor, enlace, estacion.en_malla, estacion.visibilidad, estacion.owner_id, cuentaId]);
 
     const activarSonido = () => {
         setSilencio(false);
