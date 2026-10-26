@@ -1,0 +1,43 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "ola": "1021G",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39969425261",
+   "id": "GUI1021Ib-d1",
+   "titulo": "Guía sin cuenta · puerta común abrirGuia y reglas del modo invitado (puro) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/onboarding/guia-acceso.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Módulo puro: `EVENTO_ABRIR_GUIA = \"starseed:open-guide\"` (igual que `OPEN_GUIDE_EVENT` de aurora-guide; la prueba lo compara leyendo el texto del archivo, sin importarlo), `abrirGuia({desde, temaInicial?})` (despacha el evento con ese detalle; sin `window`, no hace nada), `modoGuia(haySesion)` → 'invitado' | 'cuenta', `accionesDelPaso(modo)` → en invitado sin «Ir» ni «Hazlo por mí» y con la etiqueta «Disponible al entrar», `zGuia(desde, haySesion)` → 240 si se abre desde una ventana de acceso o sin sesión, si no el valor de hoy, y `unirVistas(local, cuenta)` (lo visto como invitado se une a la marca de la cuenta sin perder nada). Pruebas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39969425261`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39969425261:refs/remotes/origin/nube/39969425261\"` y `git cherry-pick --no-commit 29760830cf80`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/onboarding/__tests__/guia-acceso.test.ts, src/lib/onboarding/guia-acceso.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió GUI1021Ib: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/onboarding/guia-acceso.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021Ib",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "id": "RTRIA1023F",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Recursos de IA · publicar la oferta de la neurona (OfertaNeurona) desde sus asignaciones",
+   "archivos": [
+    "src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RIA1023Fb («Recursos de IA · publicar la oferta de la neurona (OfertaNeurona) desde sus asignaciones») se hizo en main por otro camino; su rama nube/a1-20261026-002110-RIA1023Fb queda archivada en `refs/archivo/nube/a1-20261026-002110-RIA1023Fb` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTRIA1023F · solo estos archivos: src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts\n  it(\"neurona sin servidor propio\", () => {\n    const e: EstadoRecursosIa = estadoVacio();\n    e.asignaciones = {\n      modelo: crearAsignacion(crearModelo(\"mod1\", 5), \"storage1\"),\n    };\n    const oferta = ofertaDesdeAsignaciones(e);\n    expect(oferta.presta.cuenta).toBe(false);\n    expect(oferta.almacen.prestaMb).toBe(5);\n  });\n\n# src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts\n  it(\"neurona con servidor propio privado\", () => {\n    const e: EstadoRecursosIa = estadoVacio();\n    e.topologias = {\n      p1: {\n        topologia: \"servidor-propio\",\n        alcance: { tipo: \"perfil\", id: \"p1\", visibilidad: \"privada\" },\n        vias: [\"local\"],\n      },\n    };\n    const oferta = ofertaDesdeAsignaciones(e);\n    expect(oferta.presta.cuenta).toBe(true);\n  });\n\n# src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts\n  it(\"neurona con alcance de grupo\", () => {\n    const e: EstadoRecursosIa = estadoVacio();\n    e.topologias = {\n      p1: {\n        topologia: \"almacen-externo\",\n        alcance: { tipo: \"grupo\", id: \"g1\", visibilidad: \"publica\" },\n        vias: [\"local\"],\n      },\n    };\n    const oferta = ofertaDesdeAsignaciones(e);\n    expect(oferta.presta.grupos).toContain(\"g1\");\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "RIA1023Fb",
+    "rama": "nube/a1-20261026-002110-RIA1023Fb"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "RTRIA1023F",
+   "GUI1021Ib-d1"
+  ]
+ }
+}
