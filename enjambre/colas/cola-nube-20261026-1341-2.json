@@ -1,0 +1,42 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "MC1012I",
+   "titulo": "Malla cristalina: las mejores rutas sobre los puentes",
+   "archivos": [
+    "src/lib/malla/cristal/rutas.ts",
+    "src/lib/malla/cristal/__tests__/rutas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Exporta `interface Ruta {saltos: string[]; medios: Medio[]; coste: number; motivo: string}` y `mejoresRutas(cristal: Cristal, r: Reticula, dato: Dato, ctx, k = 3): Ruta[]` (ctx igual que en viabilidad): grafo = puentes del cristal; coste de un salto = 1 − viabilidad(dato, señal del puente) y se excluyen los no aptos; Dijkstra y Yen para k rutas sin bucles; orden por coste y desempate por saltos. Si destino es null (difusión), devuelve el árbol de caminos mínimos a todas como rutas de un salto cada una desde el origen hacia sus vecinos directos. Pruebas: ruta directa si existe; rodeo cuando el directo está vetado por privacidad; k rutas distintas; sin ruta → [].",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "revisor_quitadas": [
+    "MC1012H"
+   ],
+   "dependencias_ya_en_main": [
+    "MC1012F"
+   ]
+  },
+  {
+   "id": "MC1012W",
+   "titulo": "Panel «Retícula» en Señales: estado vítreo, temperatura, puentes y misma huella en todas",
+   "archivos": [
+    "src/components/malla/panel-reticula.tsx",
+    "src/components/malla/__tests__/panel-reticula.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Componente 'use client' `PanelReticula({estado})` (recibe el `estado()` del motor de MC1012Q; sin efectos propios): cabecera «Sólido amorfo en tiempo real» con el estado en palabras (fundido: las señales cambian y la red se recoloca / subenfriado / vítreo: estable y congelada), la temperatura media en una barra y una línea de qué significa; «Misma retícula en N de M neuronas» con la huella corta; lista de puentes (neurona ↔ neurona, medio, calidad en %, coste) ordenada por coste; coordinación de cada neurona frente a su máximo; estado vacío honesto si no hay teselas («aún no llegó ninguna señal de otra neurona»). Diseño del OS (Tailwind, Lucide, tarjetas translúcidas), legible en móvil. Pruebas jsdom con un estado fabricado.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012Q"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "MC1012W",
+   "MC1012I"
+  ]
+ }
+}
