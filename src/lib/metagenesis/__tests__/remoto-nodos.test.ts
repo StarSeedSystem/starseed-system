@@ -217,10 +217,6 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
     });
 });
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 37585fb03 (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
 describe("textoEstadoOrden", () => {
     it("cada estado mapea al texto correcto", () => {
         const estados = {
