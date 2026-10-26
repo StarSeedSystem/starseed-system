@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "AGF1023E",
+   "ola": "1023A",
+   "titulo": "LangGraph · flujo con reanudación para una tarea larga de MetaGenesis",
+   "archivos": [
+    "scripts/agentes/flujo_langgraph.py",
+    "scripts/agentes/test_flujo_langgraph.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): agno, mastra, langgraph, pydantic-ai y openai-agents-python «para los desarrollos de agentes de Astraura, Genesis, PoliGenesis y MetaGenesis en todos sus contextos y medios». Contrato: `architecture/repos-3d-oido-agentes-1023.md` §3 (un contrato de agente, varios motores; modelos siempre por el enrutador propio —gratis primero, Jev, Experiential, servidor propio de IA—; trazas de terceros apagadas; nada de LangSmith ni nubes de los autores). Agentes de hoy: `src/lib/agents/model.ts` (tipo `Agent`) y `src/lib/agents/store.ts`.\n\nCon `langgraph` (sin LangChain ni LangSmith) y un checkpointer SQLite local, un grafo planificar → escribir → verificar → (persona en el bucle si falla dos veces) que se puede cortar y retomar desde el último punto. Nodos con funciones inyectadas (sin modelos reales en las pruebas). Si falta la dependencia, la prueba se salta con motivo.",
+   "dependencias_ya_en_main": [
+    "AGF1023B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "AGF1023E"
+  ]
+ }
+}
