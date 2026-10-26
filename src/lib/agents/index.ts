@@ -9,3 +9,4 @@ export * from "./model";
 export * from "./builtins";
 export * from "./store";
 export * from "./sync";
+export * from "./motores/tipos";

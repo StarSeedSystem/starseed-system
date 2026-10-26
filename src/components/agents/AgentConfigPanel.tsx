@@ -32,6 +32,7 @@ import {
   Lock,
   Sparkles,
   Check,
+  Cpu,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
