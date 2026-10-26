@@ -1,0 +1,15 @@
+{
+  "name": "starseed-conversor",
+  "version": "1.0.0",
+  "description": "Conversor de archivos de una neurona (Hono): expone Filee por la malla para que cualquier neurona sin Filee pida la conversión con token, sin que nada salga de las neuronas de la persona (architecture/conversion-archivos.md §6)",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "engines": { "node": ">=22" },
+  "bin": { "conversor": "bin/conversor.mjs" },
+  "dependencies": { "hono": "^4.12.6", "@hono/node-server": "^1.19.11" },
+  "scripts": {
+    "servir": "node bin/conversor.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}
