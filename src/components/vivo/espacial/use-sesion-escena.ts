@@ -24,6 +24,23 @@ import { ejecutarGuardia } from "@/components/xr/shell/guardia-privacidad";
 import { abrirCanalEscenaElegido, type ConexionEscena } from "@/lib/vivo/espacial/canal";
 import type { Alcanzabilidad, Sala } from "@/lib/salas/sala";
 
+/** Anuncia el ADN que YO lujo (el más reciente de mi cuenta en la Biblioteca local) y lo reanuncia si cambia. */
+async function anunciarAdnPropio(sesion: SesionEscena, uid: string | null, avisar: (dejar: (() => void) | null) => void): Promise<void> {
+    if (!uid) return; // sin cuenta no hay ADN propio: la presencia queda sin él
+    try {
+        const { adnActualDeDueno, parseAdnEntry, suscribirCambiosAdn } = await import("@/lib/avatares/adaptadores/almacen-adn");
+        const cargar = async () => {
+            const entrada = adnActualDeDueno({ tipo: "perfil", id: uid });
+            const adn = entrada ? await parseAdnEntry(entrada) : null;
+            if (adn) sesion.fijarAdnPropio(adn);
+        };
+        void cargar();
+        avisar(suscribirCambiosAdn(() => void cargar()));
+    } catch {
+        /* sin almacén disponible: el avatar entra sin ADN, como siempre */
+    }
+}
+
 async function resolverIdentidad(): Promise<IdentidadEscena> {
     try {
         const { miIdentidad, clavePestana, leerInvitado } = await import("@/lib/llamadas/identidad");
@@ -70,6 +87,7 @@ export function useSesionEscena(
         if (!fuente) return;
         let viva = true;
         let abierta: SesionEscena | null = null;
+        let dejoMiAdn: (() => void) | null = null;
         void resolverIdentidad().then((identidad) => {
             if (!viva) return;
             const depsBase = dependenciasReales();
@@ -101,9 +119,14 @@ export function useSesionEscena(
             };
             abierta = abrirSesionEscena({ fuente, identidad, modo: modoInicial, deps: depsConGuardia });
             setSesion(abierta);
+            // AV1011E: mi ADN viaja en la presencia por su ref y revisión; los presentes lo leen una vez.
+            void anunciarAdnPropio(abierta, identidad.uid, (dejar) => {
+                dejoMiAdn = dejar;
+            });
         });
         return () => {
             viva = false;
+            dejoMiAdn?.();
             abierta?.cerrar();
             setSesion(null);
         };

@@ -28,8 +28,10 @@ import { createClient } from "@/utils/supabase/client";
 import { elegirTransporte, type Alcanzabilidad, type Sala } from "@/lib/salas/sala";
 import { abrirCanalEscenaP2P, type OpcionesCanalP2P } from "./canal-p2p";
 
-export type EventoEscena = "pose" | "cambios" | "arrastre" | "pedir-estado" | "estado";
-export const EVENTOS_ESCENA: readonly EventoEscena[] = ["pose", "cambios", "arrastre", "pedir-estado", "estado"];
+// El evento `adn` lleva los lotes del ADN del avatar (AV1011E): el mismo canal de las poses,
+// nunca otro (ver `src/lib/avatares/adaptadores/sincronia-adn.ts`).
+export type EventoEscena = "pose" | "cambios" | "arrastre" | "pedir-estado" | "estado" | "adn";
+export const EVENTOS_ESCENA: readonly EventoEscena[] = ["pose", "cambios", "arrastre", "pedir-estado", "estado", "adn"];
 
 export interface FilaCambiada {
     rev: number;
@@ -182,8 +184,8 @@ export function abrirCanalEscena(tema: string, clave: string, filaId: string | n
         enviar(evento, payload) {
             if (cerrado) return;
             if (enviarAhora(evento, payload)) return;
-            // Solo se encolan los mensajes que importan (cambios y estado); una pose vieja no sirve.
-            if (evento === "cambios" || evento === "estado" || evento === "pedir-estado") {
+            // Solo se encolan los mensajes que importan (cambios, estado y el ADN en vivo); una pose vieja no sirve.
+            if (evento === "cambios" || evento === "estado" || evento === "pedir-estado" || evento === "adn") {
                 cola.push({ evento, payload });
                 if (cola.length > 50) cola.shift();
             }

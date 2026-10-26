@@ -5,12 +5,19 @@
  * dónde mira), cuerpo-cápsula que gira con ella y su nombre encima. Se mueve interpolando hacia
  * la última pose recibida (leída del mapa de la sesión en cada fotograma, fuera de React).
  * No aparece hasta tener una pose: nunca se pinta a nadie en un sitio inventado.
+ *
+ * ADN del avatar (AV1011E): si la sesión ya leyó el que anuncia en la presencia, se ve su
+ * identidad (color de piel/ropa y halo del aura). En XR el nivel lo recorta `avatarXrPara`
+ * con la calidad actual (`src/lib/xr/`): en el nivel más bajoeres su orbe con su aura.
  */
 
 import { memo, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { MetaAvatar, Pose } from "@/lib/vivo/espacial/avatares";
+import type { AdnAvatar } from "@/lib/avatares/adn/adn";
+import { avatarXrPara } from "@/lib/avatares/adaptadores/sincronia-adn";
+import type { NivelCalidad } from "@/lib/xr/tipos";
 import { crearTexturaTexto } from "./texturas";
 
 const _p = new THREE.Vector3();
@@ -24,16 +31,30 @@ function AvatarRemotoBase({
     poses,
     reducido,
     eco,
+    adn,
+    nivel,
 }: {
     meta: MetaAvatar;
     poses: Map<string, { pose: Pose; recibida: number }>;
     reducido: boolean;
     eco: boolean;
+    /** El ADN anclado (leído UNA vez por la sesión) para esta ref, si ya llegó. */
+    adn?: AdnAvatar | null;
+    /** Nivel de calidad XR de la escena; fuera de XR no hay recorte. */
+    nivel?: NivelCalidad | null;
 }) {
     const raiz = useRef<THREE.Group>(null);
     const cabeza = useRef<THREE.Group>(null);
     const cuerpo = useRef<THREE.Group>(null);
     const primera = useRef(true);
+    // En XR, el nivel de avatar sale de la calidad actual (§6): se dibuja el ADN recortado.
+    const adnVivo = useMemo(() => (adn && nivel ? avatarXrPara(adn, nivel).adn : adn ?? null), [adn, nivel]);
+    const piel = adnVivo?.materiales.piel?.color ?? null;
+    const ropa = adnVivo?.materiales["ropa-1"]?.color ?? null;
+    const aura = adnVivo?.aura ?? null;
+    const colorAura = useMemo(() => new THREE.Color().setHSL(((aura?.tono ?? 260) % 360) / 360, 0.8, 0.6), [aura?.tono]);
+    const colorCabeza = piel ?? meta.color;
+    const colorCuerpo = ropa ?? colorCabeza;
     const etiqueta = useMemo(
         () => crearTexturaTexto(meta.nombre, { color: "#ffffff", fondo: "rgba(12,14,34,0.72)", etiqueta: ETIQUETA_MODO[meta.modo], anchoMax: 600 }),
         [meta.nombre, meta.modo],
@@ -70,10 +91,16 @@ function AvatarRemotoBase({
     const seg = eco ? 12 : 24;
     return (
         <group ref={raiz} visible={false} name={`avatar:${meta.clave}`}>
+            {aura && aura.intensidad > 0 && (
+                <mesh position={[0, 0.05, 0]} name="adn-aura">
+                    <sphereGeometry args={[0.52, seg, seg / 2]} />
+                    <meshBasicMaterial color={colorAura} transparent opacity={aura.intensidad * 0.35} side={THREE.BackSide} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+                </mesh>
+            )}
             <group ref={cabeza}>
                 <mesh>
                     <sphereGeometry args={[0.17, seg, Math.round(seg / 2)]} />
-                    <meshStandardMaterial color={meta.color} emissive={meta.color} emissiveIntensity={0.35} roughness={0.35} metalness={0.2} />
+                    <meshStandardMaterial color={colorCabeza} emissive={colorCabeza} emissiveIntensity={0.35} roughness={0.35} metalness={0.2} />
                 </mesh>
                 {/* Visor: indica hacia dónde mira (la cámara mira hacia -Z). */}
                 <mesh position={[0, 0.01, -0.13]}>
@@ -84,7 +111,7 @@ function AvatarRemotoBase({
             <group ref={cuerpo}>
                 <mesh position={[0, -0.62, 0]}>
                     <capsuleGeometry args={[0.16, 0.5, 4, seg]} />
-                    <meshStandardMaterial color={meta.color} emissive={meta.color} emissiveIntensity={0.25} transparent opacity={0.72} roughness={0.5} />
+                    <meshStandardMaterial color={colorCuerpo} emissive={colorCuerpo} emissiveIntensity={0.25} transparent opacity={0.72} roughness={0.5} />
                 </mesh>
             </group>
             {etiqueta && (

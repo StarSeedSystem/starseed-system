@@ -6,6 +6,7 @@
  */
 
 import { acceptSpaceInvite } from "@/lib/spaces/spaces";
+import { loadAdnEntry, parseAdnEntry } from "@/lib/avatares/adaptadores/almacen-adn";
 import { abrirCanalEscena } from "./canal";
 import {
     crearFilaEscena,
@@ -29,5 +30,12 @@ export function dependenciasReales(): DependenciasSesion {
             },
         },
         abrirCanal: abrirCanalEscena,
+        // AV1011E: el ADN de un presente se lee UNA vez por revisión de la Biblioteca de ESTE
+        // aparato. Si no está aquí (la Biblioteca compartida y la sincronía entre aparatos aún
+        // no existen), devuelve null y el avatar queda como estaba: nunca una ilusión.
+        leerAdn: async (ref, rev) => {
+            const entrada = await loadAdnEntry(ref, rev);
+            return entrada ? parseAdnEntry(entrada) : null;
+        },
     };
 }

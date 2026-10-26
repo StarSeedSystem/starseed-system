@@ -53,6 +53,16 @@ import {
     type ModoAvatar,
     type Pose,
 } from "./avatares";
+import { sanearAdn, type AdnAvatar } from "@/lib/avatares/adn/adn";
+import { crearColaEnvio, encolar, lote, type CambioAvatar } from "@/lib/avatares/adn/cambios";
+import {
+    EVENTO_ADN,
+    adnPorPedir,
+    crearCacheAdn,
+    envolverEventoAdn,
+    refDeId,
+    type EventoAdn,
+} from "@/lib/avatares/adaptadores/sincronia-adn";
 import { crearTienda, igualSuperficial, type Tienda } from "./tienda";
 import type { ConexionEscena, EventoEscena, FilaCambiada } from "./canal";
 import { MENSAJES_ERROR, type ErrorEscena, type FilaEscena, type ResultadoGuardado } from "./persistencia";
@@ -79,6 +89,8 @@ export interface EstadoSesionEscena {
 export interface EstadoAvatares {
     yo: MetaAvatar | null;
     otros: MetaAvatar[];
+    /** ADN ya leído por ref (caché del AV1011E: los presentes se leen UNA vez por revisión). */
+    adnes: Record<string, AdnAvatar>;
 }
 
 export interface AlmacenEscena {
@@ -99,6 +111,8 @@ export interface DependenciasSesion extends Partial<Temporizadores> {
     almacen: AlmacenEscena;
     abrirCanal: (tema: string, clave: string, filaId: string | null) => ConexionEscena | null;
     aleatorio?: () => number;
+    /** Lee el ADN de una ref de la Biblioteca EN este aparato (una petición por ref+revisión). Sin ella, nadie lee ADN. */
+    leerAdn?: (ref: string, rev: number) => Promise<AdnAvatar | null>;
 }
 
 export interface IdentidadEscena {
@@ -145,6 +159,14 @@ export interface SesionEscena {
     guardarYa(): Promise<void>;
     /** Sala de llamada → escena propia guardada. Devuelve el id nuevo. */
     guardarCopia(titulo: string): Promise<{ id: string } | { error: string }>;
+    /** El ADN que YO lujo (el elegido con el selector): se anuncia en la presencia con su ref y revisión. */
+    fijarAdnPropio(adn: AdnAvatar): boolean;
+    /** Redactado en vivo (AV1011E §3): encola los cambios (con la revisión nueva de mi pantalla) y emite el lote por el canal a ≤ 10 Hz. */
+    encolarCambiosAdn(cambios: readonly CambioAvatar[], revNueva: number): boolean;
+    /** Mueve el lote pendiente del ADN (se llama en cada fotograma, junto con la pose). */
+    fluirAdn(): void;
+    /** El ADN en caché de una ref (`biblioteca:…`), o null si aún no llega. */
+    adnDe(ref: string): AdnAvatar | null;
     cerrar(): void;
 }
 
@@ -179,7 +201,7 @@ const ESTADO_CARGANDO: EstadoSesionEscena = {
 
 /** Estado estable para antes de abrir ninguna sesión (misma referencia siempre). */
 export const ESTADO_SESION_INICIAL: EstadoSesionEscena = ESTADO_CARGANDO;
-export const AVATARES_INICIAL: EstadoAvatares = { yo: null, otros: [] };
+export const AVATARES_INICIAL: EstadoAvatares = { yo: null, otros: [], adnes: {} };
 
 export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
     const { fuente, identidad, deps } = o;
@@ -211,6 +233,12 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
     let modo: ModoAvatar = o.modo ?? "3d";
     let otros = 0;
     const respuestasPendientes = new Map<string, unknown>();
+    // ADN del avatar (AV1011E): caché para leer CADA presente una vez por revisión, y la mía anunciada.
+    const cacheAdn = crearCacheAdn();
+    const colaEnvio = crearColaEnvio(); // la de `cambios.ts`: los lotes surten a ≤ 10 Hz
+    let miAdn: AdnAvatar | null = null; // lo que YO lujo (ref = su id)
+    let revAdnPendiente: number | null = null;
+    let adnes: Record<string, AdnAvatar> = {};
 
     const tienda = crearTienda<EstadoSesionEscena>(
         { ...ESTADO_CARGANDO, persistente, guardado: persistente ? "lectura" : "efimera", puedeEditar },
@@ -225,11 +253,52 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
         editor: puedeEditar,
         desde: ahora(),
     };
-    const avatares = crearTienda<EstadoAvatares>({ yo, otros: [] });
+    const avatares = crearTienda<EstadoAvatares>({ yo, otros: [], adnes: {} });
     const poses = new Map<string, { pose: Pose; recibida: number }>();
     const arrastres = new Map<string, VistaPreviaArrastre>();
 
     const fijar = (patch: Partial<EstadoSesionEscena>) => tienda.fijar({ ...tienda.obtener(), ...patch });
+
+    // ── ADN en la escena (AV1011E) ──
+    const anotarAdn = (ref: string, adn: AdnAvatar | null) => {
+        const previo = adnes[ref];
+        if (adn ? previo && previo.rev >= adn.rev : !previo) return;
+        const siguiente = { ...adnes };
+        if (adn) siguiente[ref] = adn;
+        else delete siguiente[ref];
+        adnes = siguiente;
+        avatares.fijar({ ...avatares.obtener(), adnes: siguiente });
+    };
+    /** Una lectura del ADN de un presente y se queda (falla: soltable y reintentable al anunciarse otra revisión). */
+    const leerAdnDe = async (ref: string, rev: number) => {
+        if (!deps.leerAdn || cerrada) return;
+        try {
+            const adn = await deps.leerAdn(ref, rev);
+            if (cerrada) return;
+            if (adn) {
+                cacheAdn.guardar(adn);
+                anotarAdn(ref, adn);
+            } else {
+                cacheAdn.olvidar(ref);
+            }
+        } catch {
+            if (!cerrada) cacheAdn.olvidar(ref);
+        }
+    };
+    /** El lote pendiente de mis cambios de ADN sale por el MISMO canal de las poses (≤ 10 Hz, solo con alguien mirando). */
+    const fluirAdn = () => {
+        if (cerrada || !miAdn || revAdnPendiente === null) return;
+        const cambios = lote(colaEnvio, ahora(), otros);
+        if (!cambios) return;
+        const rev = revAdnPendiente;
+        revAdnPendiente = null;
+        const evento = envolverEventoAdn(refDeId(miAdn.id), rev, cambios);
+        if (evento) enviar(EVENTO_ADN, evento as unknown as Record<string, unknown>);
+        if (rev !== miAdn.rev) {
+            miAdn = { ...miAdn, rev };
+            publicarYo();
+        }
+    };
 
     // ── Vista = local + ajenos (misma referencia si no hay ajenos) ──
     const recalcularVista = () => {
@@ -269,9 +338,21 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
 
     const publicarYo = () => {
         const actual = avatares.obtener();
-        const nuevoYo: MetaAvatar = { ...yo, modo, editor: puedeEditar };
-        if (!actual.yo || actual.yo.modo !== modo || actual.yo.editor !== puedeEditar) avatares.fijar({ ...actual, yo: nuevoYo });
-        canal?.publicarPresencia({ uid: yo.uid, nombre: yo.nombre, color: yo.color, modo, editor: puedeEditar, desde: yo.desde });
+        const nuevoYo: MetaAvatar = {
+            ...yo,
+            modo,
+            editor: puedeEditar,
+            ...(miAdn ? { adnRef: refDeId(miAdn.id), adnRev: miAdn.rev } : {}),
+        };
+        if (!actual.yo || actual.yo.modo !== modo || actual.yo.editor !== puedeEditar || actual.yo.adnRef !== nuevoYo.adnRef || actual.yo.adnRev !== nuevoYo.adnRev) {
+            avatares.fijar({ ...actual, yo: nuevoYo });
+        }
+        const meta: Record<string, unknown> = { uid: yo.uid, nombre: yo.nombre, color: yo.color, modo, editor: puedeEditar, desde: yo.desde };
+        if (miAdn) {
+            meta.adnRef = refDeId(miAdn.id);
+            meta.adnRev = miAdn.rev;
+        }
+        canal?.publicarPresencia(meta);
     };
 
     // ── Guardado (solo escenas guardadas) ──
@@ -478,6 +559,13 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
                 programarCaducidad();
                 return;
             }
+            case "adn": {
+                // AV1011E: lote del ADN de otra persona. Lo corrupto no entra nunca (`sanearEventoAdn`,
+                // lo primero que hace la caché) y solo se aplica si su revisión es más nueva.
+                const n = cacheAdn.recibir(p as unknown as EventoAdn);
+                if (n) anotarAdn(refDeId(n.id), n);
+                return;
+            }
             case "pedir-estado": {
                 if (persistente) return; // la escena guardada se lee de la base
                 const rid = typeof p.rid === "string" ? p.rid.slice(0, 40) : "";
@@ -516,6 +604,8 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
         for (const k of Array.from(poses.keys())) if (!claves.has(k)) poses.delete(k);
         otros = lista.length;
         emisor.fijarOtros(otros);
+        // AV1011E: los presentes anuncian su ADN (ref + revisión); cada uno se lee UNA vez por revisión.
+        if (deps.leerAdn) for (const pedido of adnPorPedir(cacheAdn, lista)) void leerAdnDe(pedido.ref, pedido.rev);
     };
 
     const alFila = (f: FilaCambiada) => {
@@ -664,6 +754,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
         emitirPose(pose) {
             if (!visible) return;
             emisor.actualizar(pose);
+            fluirAdn(); // el lote del ADN aprovecha el mismo pulso de fotograma (≤ 10 Hz)
         },
         cambiarModo(m) {
             if (m === modo) return;
@@ -698,6 +789,29 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
             if (!deps.almacen.crearCopia) return { error: "No se puede guardar una copia desde aquí." };
             const vivos = aplicarObjetos(docVacio(), Object.values(local.objetos).filter((x) => !x.borrado)).doc;
             return deps.almacen.crearCopia(titulo, aplicarAmbiente(vivos, local.ambiente));
+        },
+        fijarAdnPropio(adn) {
+            if (cerrada) return false;
+            const limpio = sanearAdn(adn);
+            if (!limpio) return false;
+            miAdn = limpio;
+            revAdnPendiente = null;
+            cacheAdn.guardar(limpio);
+            anotarAdn(refDeId(limpio.id), limpio);
+            publicarYo();
+            return true;
+        },
+        encolarCambiosAdn(cambios, revNueva) {
+            if (cerrada || !miAdn || !Number.isInteger(revNueva) || revNueva <= miAdn.rev) return false;
+            revAdnPendiente = revNueva;
+            for (const c of cambios) encolar(colaEnvio, c); // el filtro exacto lo hace `envolverEventoAdn` al salir
+            return true;
+        },
+        fluirAdn() {
+            fluirAdn();
+        },
+        adnDe(ref) {
+            return cacheAdn.obtener(ref);
         },
         cerrar() {
             if (cerrada) return;

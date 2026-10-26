@@ -12,7 +12,7 @@ import { aplicarObjetos } from "@/lib/vivo/espacial/fusion";
 
 const h = vi.hoisted(() => ({
     estado: null as unknown as EstadoSesionEscena,
-    avatares: { yo: null, otros: [] } as EstadoAvatares,
+    avatares: { yo: null, otros: [], adnes: {} } as EstadoAvatares,
     sesion: null as unknown as SesionEscena,
     lienzoProps: null as Record<string, unknown> | null,
 }));
@@ -78,6 +78,7 @@ beforeEach(() => {
     h.avatares = {
         yo: { clave: "yo:1", uid: null, nombre: "Alex", color: "#7C5CFF", modo: "3d", editor: true, desde: 1 },
         otros: [{ clave: "ana:2", uid: null, nombre: "Ana", color: "#10B981", modo: "vr", editor: true, desde: 2 }],
+        adnes: {},
     };
     h.lienzoProps = null;
 });

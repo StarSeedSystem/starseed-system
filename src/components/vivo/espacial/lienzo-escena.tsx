@@ -209,7 +209,17 @@ function Contenido(p: PropsLienzoEscena & { xrModo: "immersive-vr" | "immersive-
                     />
                 ))}
                 {otros.map((a) => (
-                    <AvatarRemoto key={a.clave} meta={a} poses={sesion.poses} reducido={reducido} eco={eco} />
+                    <AvatarRemoto
+                        key={a.clave}
+                        meta={a}
+                        poses={sesion.poses}
+                        reducido={reducido}
+                        eco={eco}
+                        adn={a.adnRef ? sesion.adnDe(a.adnRef) : null}
+                        // En XR el nivel de avatar sale de la calidad actual de la escena (`src/lib/xr/`);
+                        // en pantalla normal el ADN se ve completo.
+                        nivel={enXR ? (eco ? "minima" : "media") : null}
+                    />
                 ))}
 </group>
             <PantallaVideoHTML ancho={1920} alto={1080} distanciaM={2} calidadXR={"media" as NivelCalidad} />
