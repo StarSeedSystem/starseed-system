@@ -6,12 +6,18 @@ import { useMemo, useState } from "react";
 import { ExternalLink, Search, Star } from "lucide-react";
 import { PESTANAS_VARIACIONES, type PestanaVariaciones } from "./variaciones-bus";
 import { ordenarVariaciones, type SortMode, type Variacion } from "@/lib/variaciones/orden";
+import {
+  CANTIDAD_SUGERENCIAS, ESCALERA_LOCAL_PRIMERO, evaluarPruebaAdn, sugerirVariaciones,
+  type ContextoVariacion, type DepsSugerirAstraura, type ResultadoSugerencias,
+} from "@/lib/variaciones/sugerir-astraura";
 export interface VariacionVentana extends Variacion { tema?: string; enlaceExterno?: string }
 export interface DatosVentanaVariaciones { disponible: boolean; error?: string; listas: Partial<Record<PestanaVariaciones, VariacionVentana[]>> }
 export interface FiltrosVentana { buscar?: string; licencia?: string; tema?: string; etiqueta?: string }
+/** Enrutador, ADN y reloj inyectados para las «Sugerencias de Astraura» del contrato §4. */
+export interface SugerenciasVentana { contexto: ContextoVariacion; deps: DepsSugerirAstraura }
 export interface VentanaVariacionesProps {
   clave: string; datos: DatosVentanaVariaciones; nombre?: string;
-  pestanaInicial?: PestanaVariaciones; busquedaInicial?: string;
+  pestanaInicial?: PestanaVariaciones; busquedaInicial?: string; sugerencias?: SugerenciasVentana;
 }
 const NOMBRES: Record<PestanaVariaciones, string> = { variaciones: "Variaciones", notas: "Notas", repos: "Repos externos", fuentes: "Fuentes y versiones" };
 const VACIOS: Record<PestanaVariaciones, string> = {
@@ -28,14 +34,27 @@ export function filtrarVariaciones(lista: readonly VariacionVentana[], f: Filtro
 }
 const enlaceSeguro = (url?: string): string | null => (url && /^https:\/\/\S+$/.test(url) ? url : null);
 const familiaDe = (clave: string): string => clave.split(":")[0] ?? "";
-export function VentanaVariaciones({ clave, datos, nombre, pestanaInicial = "variaciones", busquedaInicial = "" }: VentanaVariacionesProps) {
+export function VentanaVariaciones({ clave, datos, nombre, pestanaInicial = "variaciones", busquedaInicial = "", sugerencias }: VentanaVariacionesProps) {
   const [pestana, setPestana] = useState<PestanaVariaciones>(pestanaInicial);
   const [buscar, setBuscar] = useState(busquedaInicial);
   const [orden, setOrden] = useState<SortMode>("aurora");
   const [licencia, setLicencia] = useState("");
   const [tema, setTema] = useState("");
   const [etiqueta, setEtiqueta] = useState("");
+  const [resultado, setResultado] = useState<ResultadoSugerencias | null>(null);
+  const [sugiriendo, setSugiriendo] = useState(false);
   const lista = datos.listas[pestana] ?? [];
+
+  // Contrato §4: se piden a Astraura solo cuando la persona lo pide y la escalera local va primero.
+  const pedirSugerencias = async () => {
+    if (!sugerencias || sugiriendo) return;
+    setSugiriendo(true);
+    try {
+      setResultado(await sugerirVariaciones(clave, sugerencias.contexto, sugerencias.deps));
+    } finally {
+      setSugiriendo(false);
+    }
+  };
   const opciones = useMemo(() => ({
     licencias: [...new Set(lista.map((v) => v.licencia).filter(Boolean))].sort(),
     temas: [...new Set(lista.map((v) => v.tema).filter((t): t is string => !!t))].sort(),
@@ -82,6 +101,56 @@ export function VentanaVariaciones({ clave, datos, nombre, pestanaInicial = "var
         {opciones.temas.length > 0 && selector("Filtrar por tema", tema, setTema, opciones.temas, "Todo tema")}
         {opciones.etiquetas.length > 0 && selector("Filtrar por etiqueta", etiqueta, setEtiqueta, opciones.etiquetas, "Toda etiqueta")}
       </div>
+      {sugerencias && pestana === "variaciones" && (
+        <section aria-label="Sugerencias de Astraura" className="mx-4 mb-3 rounded-2xl border border-border/50 bg-card/60 p-3 backdrop-blur-xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold">Sugerencias de Astraura</h3>
+            <span className="rounded-full border border-border/50 bg-background/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+              Local primero · {ESCALERA_LOCAL_PRIMERO[0]}
+            </span>
+            <button type="button" onClick={() => void pedirSugerencias()} disabled={sugiriendo}
+              className="ml-auto cursor-pointer rounded-full border border-primary/50 bg-primary/15 px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-60">
+              {sugiriendo ? "Pidiendo a Astraura…" : `Sugerir ${CANTIDAD_SUGERENCIAS} variaciones`}
+            </button>
+          </div>
+          {resultado && !resultado.ok && (
+            <p role="alert" className="mt-2 text-xs text-muted-foreground">{resultado.motivo ?? "Astraura no devolvió propuestas válidas."}</p>
+          )}
+          {resultado && resultado.variaciones.length > 0 && (
+            <ul className="mt-2 space-y-2">
+              {resultado.variaciones.map((v, i) => {
+                const medidas = (sugerencias.contexto.adn?.pruebas ?? [])
+                  .filter((p) => p.auto === true)
+                  .map((p) => ({ p, r: evaluarPruebaAdn(p, v.payload) }))
+                  .filter((e) => e.r.aplica);
+                return (
+                  <li key={`${v.clave}-${v.titulo}-${i}`} className="rounded-xl border border-border/50 bg-background/30 p-2">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <h4 className="text-xs font-semibold">{v.titulo}</h4>
+                      <span className="rounded-full border border-border/50 px-2 py-0.5 text-[10px] text-muted-foreground">{v.licencia}</span>
+                      {v.requiereAislamiento && <span className="rounded-full border border-destructive/50 px-2 py-0.5 text-[10px] text-muted-foreground">Código aislado</span>}
+                      {v.via && <span className="ml-auto font-mono text-[10px] text-muted-foreground">{v.via}</span>}
+                    </div>
+                    {v.descripcion && <p className="mt-1 text-[11px] text-muted-foreground">{v.descripcion}</p>}
+                    <p className="mt-1 text-[11px] text-muted-foreground">{v.motivo}</p>
+                    {medidas.length > 0 && <p className="mt-1 font-mono text-[10px] text-muted-foreground">ADN · {medidas.map((e) => `${e.p.id}: ${e.r.motivo}`).join(" · ")}</p>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {resultado && resultado.descartadas.length > 0 && (
+            <details className="mt-2 text-xs text-muted-foreground">
+              <summary className="cursor-pointer">{resultado.descartadas.length} descartada(s) por el validador o el ADN</summary>
+              <ul className="mt-1 space-y-1">
+                {resultado.descartadas.map((d, i) => (
+                  <li key={`${d.titulo}-${i}`}><span className="font-medium text-foreground">{d.titulo}</span>: {d.motivos.join(" · ")}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </section>
+      )}
       <div role="tabpanel" aria-label={NOMBRES[pestana]} className="min-h-0 flex-1 overflow-auto px-4 pb-4">
         {!datos.disponible ? (
           <div role="alert" className="rounded-2xl border border-border/50 bg-card/60 p-4 text-sm text-muted-foreground backdrop-blur-xl">

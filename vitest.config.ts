@@ -38,7 +38,10 @@ export default defineConfig({
     environment: "node",
     environmentMatchGlobs: [["**/*.test.tsx", "jsdom"]],
     include: ["src/**/*.{test,spec}.ts", "src/**/__tests__/**/*.ts", "src/**/*.{test,spec}.tsx", "src/**/__tests__/**/*.tsx"],
-    exclude: ["node_modules", ".next", "dist"],
+    // Los ayudantes de prueba (`ayudas-*.ts`) viven junto a sus pruebas pero no son
+    // suites: sin esto vitest los recoge como archivo de test y muere con «No test
+    // suite found». Se excluyen por nombre, no por carpeta, para no perder pruebas.
+    exclude: ["node_modules", ".next", "dist", "src/**/__tests__/**/ayudas-*.ts"],
     globals: false,
     // (2026-10-05) Margen para una máquina cargada: ver el porqué en `vitest.setup-dom.ts`.
     // `testTimeout` sube de 5 s a 20 s para que un `findBy*` de 5 s quepa dentro de su prueba.
