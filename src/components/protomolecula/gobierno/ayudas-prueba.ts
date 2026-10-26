@@ -1,5 +1,4 @@
 /** Servicios y entornos de mentira para probar la interfaz del gobierno de la Protomolécula (Ola 1026P · P2). */
-import { vi } from "vitest";
 import type { EntornoCargado, ResultadoGuardado, ServiciosGobierno } from "@/lib/protomolecula/gobierno/entorno";
 import type { ReglasProtomolecula } from "@/lib/protomolecula/gobierno/reglas";
 
@@ -23,12 +22,17 @@ export function cargado(rol: Rol, modo: "democratic" | "hierarchical" = "democra
 }
 
 export function servicios(carga: EntornoCargado, guardado: ResultadoGuardado = { ok: true, donde: "cuenta" }, personas: { id: string; nombre: string }[] = []) {
-  const s = {
-    cargar: vi.fn(async () => carga),
-    guardar: vi.fn(async () => guardado),
-    personas: vi.fn(async () => personas),
+  /** Espía mínimo sin depender de `vi` (guardia: vitest solo en pruebas). */
+  const espia = <Args extends unknown[], R>(impl: (...a: Args) => Promise<R>) => {
+    const llamadas: Args[] = [];
+    const f = Object.assign((...a: Args) => { llamadas.push(a); return impl(...a); }, { mock: { calls: llamadas }, _isMockFunction: true }) as ((...a: Args) => Promise<R>) & { mock: { calls: Args[] } };
+    return f;
+  };
+  return {
+    cargar: espia(async () => carga),
+    guardar: espia(async () => guardado),
+    personas: espia(async () => personas),
   } satisfies ServiciosGobierno;
-  return s;
 }
 
 /** Los nombres que ya no se escriben en ningún texto visible; armado en tiempo de ejecución para no incumplir la guardia de nombres. */
