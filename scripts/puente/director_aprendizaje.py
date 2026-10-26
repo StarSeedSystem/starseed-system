@@ -16,11 +16,13 @@ Qué escribe y qué NO:
     «glm es malo para interfaces» es una opinión sacada de dos casos, y una
     memoria llena de opiniones falsas es peor que una memoria vacía.
 
-Nunca reescribe: AÑADE al final. La historia de las olas anteriores no se toca.
+Añade al final. La única zona que reescribe es la que trae marcas de conflicto,
+que resuelve por unión para que la historia de las dos ramas no se pierda.
 """
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -46,6 +48,104 @@ CABECERA = """# Aprendizaje de las olas
 > en varias olas, deja de dárselas.
 
 """
+
+
+_INICIO = re.compile(r"^<{7}(?:\s|$)")
+_SEPARADOR = re.compile(r"^={7}\s*$")
+_FIN = re.compile(r"^>{7}(?:\s|$)")
+_MARCA_RESIDUAL = re.compile(r"^(?:<{7}|={7}|>{7})(?:\s|$)", re.MULTILINE)
+
+
+def _unir_lineas(nuestras, suyas):
+    """Unión de líneas: conserva las nuestras y añade las suyas no repetidas."""
+    vistas = {l.rstrip("\r\n") for l in nuestras if l.strip()}
+    unidas = list(nuestras)
+    for l in suyas:
+        clave = l.rstrip("\r\n")
+        if not clave.strip() or clave not in vistas:
+            unidas.append(l)
+        vistas.add(clave)
+    return unidas
+
+
+def _unir(nuestras, suyas):
+    """Une sin repetir líneas idénticas, conservando el orden.
+
+    En una memoria de olas la unidad es la entrada, no la línea: dos olas
+    distintas repiten «**Resultado.**» y borrar la segunda dejaría una entrada
+    sin título. Si no hay entradas, se deduplica línea a línea.
+    """
+    if not any(linea.startswith("## ") for linea in nuestras + suyas):
+        return _unir_lineas(nuestras, suyas)
+    def partir(ls):
+        return [b for b in re.split(r"(?m)(?=^## )", "".join(ls)) if b]
+
+    bloques = partir(nuestras)
+    vistas = set(bloques)
+    for bloque in partir(suyas):
+        if bloque not in vistas:
+            vistas.add(bloque)
+            bloques.append(bloque)
+    return "".join(bloques).splitlines(keepends=True)
+
+
+def _resolver_bloque(lineas, i):
+    """Resuelve el conflicto de `i`; recursiva para los conflictos anidados."""
+    i += 1
+    nuestras = []
+    while i < len(lineas):
+        linea = lineas[i]
+        if _INICIO.match(linea):
+            resueltas, i = _resolver_bloque(lineas, i)
+            nuestras.extend(resueltas)
+        elif _SEPARADOR.match(linea):
+            i += 1
+            break
+        elif _FIN.match(linea):
+            return nuestras, i + 1
+        else:
+            nuestras.append(linea)
+            i += 1
+    suyas = []
+    while i < len(lineas):
+        linea = lineas[i]
+        if _INICIO.match(linea):
+            resueltas, i = _resolver_bloque(lineas, i)
+            suyas.extend(resueltas)
+        elif _FIN.match(linea):
+            i += 1
+            break
+        elif _SEPARADOR.match(linea):
+            i += 1
+        else:
+            suyas.append(linea)
+            i += 1
+    return _unir(nuestras, suyas), i
+
+
+def resolver_marcas(texto):
+    """Quita las marcas de conflicto por unión de las dos partes.
+
+    Pura: sin disco, sin red y sin reloj. Conserva el orden (HEAD y después la
+    otra rama), no repite líneas idénticas y entiende conflictos anidados. Una
+    marca suelta de un conflicto truncado también se elimina.
+    """
+    if not texto:
+        return texto
+    lineas = texto.splitlines(keepends=True)
+    salida = []
+    i = 0
+    while i < len(lineas):
+        linea = lineas[i]
+        if _INICIO.match(linea):
+            resueltas, i = _resolver_bloque(lineas, i)
+            salida.extend(resueltas)
+        elif _SEPARADOR.match(linea) or _FIN.match(linea):
+            i += 1
+        else:
+            salida.append(linea)
+            i += 1
+    return "".join(salida)
 
 
 def leer_json(ruta, por_defecto):
@@ -94,6 +194,17 @@ def commitear_memoria(nombre):
         if os.path.exists(os.path.join(ROOT, ".git", marca)):
             return  # algo a medias: ni tocar el índice
     rel = os.path.relpath(MEMORIA, ROOT)
+    try:
+        with open(MEMORIA, encoding="utf-8") as f:
+            texto = f.read()
+    except OSError:
+        return
+    limpio = resolver_marcas(texto)
+    if limpio != texto:
+        with open(MEMORIA, "w", encoding="utf-8") as f:
+            f.write(limpio)
+    if _MARCA_RESIDUAL.search(limpio):
+        return  # no se commitea jamás un archivo con marcas sin resolver
     # Dos intentos, y compruebo el resultado. El 16/09 el `commit` chocó con el de
     # la ola (índice ocupado), el archivo se quedó AÑADIDO pero sin commitear, y
     # el guardia del orquestador —que se niega a arrancar con el árbol sucio—
@@ -156,11 +267,14 @@ def main():
     )
 
     os.makedirs(os.path.dirname(MEMORIA), exist_ok=True)
-    nuevo = not os.path.exists(MEMORIA)
-    with open(MEMORIA, "a", encoding="utf-8") as f:
-        if nuevo:
-            f.write(CABECERA)
-        f.write("\n" + texto)
+    previo = ""
+    if os.path.exists(MEMORIA):
+        with open(MEMORIA, encoding="utf-8") as f:
+            previo = f.read()
+    contenido = (previo or CABECERA) + "\n" + texto
+    # Antes de escribir: se resuelve cualquier marca para que no se guarde ninguna.
+    with open(MEMORIA, "w", encoding="utf-8") as f:
+        f.write(resolver_marcas(contenido))
 
     commitear_memoria(nombre)
 
