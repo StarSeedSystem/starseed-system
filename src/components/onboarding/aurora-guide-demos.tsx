@@ -19,6 +19,21 @@
 
 import { motion, type Transition } from "framer-motion";
 import { DemoGestosHibridos } from "./demo-gestos-hibridos";
+import { DEMOS_SISTEMA } from "./demos-sistema";
+import { DEMOS_RED } from "./demos-red";
+
+/* Aliases en mayúscula: el elemento JSX no admite acceso con corchetes, y así el despacho
+   de las diez demos queda como el resto de casos (una línea por tema). */
+const DemoProtomolecula = DEMOS_SISTEMA.protomolecula;
+const DemoMalla = DEMOS_SISTEMA.malla;
+const DemoCapasConciencia = DEMOS_SISTEMA["capas-conciencia"];
+const DemoNeuronasCerebro = DEMOS_SISTEMA["neuronas-cerebro"];
+const DemoPolitica = DEMOS_RED["pilar-politica"];
+const DemoEducacion = DEMOS_RED["pilar-educacion"];
+const DemoCultura = DEMOS_RED["pilar-cultura"];
+const DemoLibreriaBiblioteca = DEMOS_RED["libreria-biblioteca"];
+const DemoGenesis = DEMOS_RED.genesis;
+const DemoPersonalizacionSegura = DEMOS_RED["personalizacion-segura"];
 
 type DemoProps = {
   stepKey: string;
@@ -421,102 +436,11 @@ function PerfilDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
   );
 }
 
-/* ─────────────────────────── CEREBROS ───────────────────────────────────────
-   Grafo vivo: nodos (servidores/memorias) conectados por aristas que pulsan. */
-function CerebrosDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
-  const nodes = [
-    { x: 40, y: 30 },
-    { x: 120, y: 22 },
-    { x: 176, y: 58 },
-    { x: 90, y: 74 },
-    { x: 32, y: 82 },
-  ];
-  const edges = [
-    [0, 1],
-    [1, 2],
-    [0, 3],
-    [3, 4],
-    [1, 3],
-  ];
-  return (
-    <Stage accent={accent}>
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 210 112" preserveAspectRatio="none">
-        {edges.map(([a, b], i) => (
-          <motion.line
-            key={i}
-            x1={nodes[a].x}
-            y1={nodes[a].y}
-            x2={nodes[b].x}
-            y2={nodes[b].y}
-            stroke={accent}
-            strokeWidth={1}
-            strokeOpacity={0.5}
-            initial={reduce ? { pathLength: 1 } : { pathLength: 0 }}
-            animate={reduce ? { pathLength: 1 } : { pathLength: 1, strokeOpacity: [0.25, 0.7, 0.25] }}
-            transition={
-              reduce
-                ? undefined
-                : {
-                    pathLength: { duration: 0.7, delay: i * 0.12 },
-                    strokeOpacity: loop({ duration: 2.4, delay: i * 0.2 }),
-                  }
-            }
-          />
-        ))}
-        {nodes.map((n, i) => (
-          <motion.circle
-            key={i}
-            cx={n.x}
-            cy={n.y}
-            r={4}
-            fill={accent}
-            initial={reduce ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
-            animate={reduce ? { scale: 1, opacity: 1 } : { scale: 1, opacity: 1 }}
-            transition={reduce ? undefined : { type: "spring", stiffness: 300, damping: 16, delay: 0.3 + i * 0.1 }}
-            style={{ filter: `drop-shadow(0 0 4px ${accent})` }}
-          />
-        ))}
-      </svg>
-    </Stage>
-  );
-}
-
-/* ─────────────────────────── LIBRERÍA ───────────────────────────────────────
-   Estantería/catálogo: fichas (apps/recursos) que se van "encajando". */
-function LibreriaDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
-  const cards = [0, 1, 2, 3, 4, 5];
-  return (
-    <Stage accent={accent}>
-      <div className="absolute inset-0 grid grid-cols-3 place-items-center gap-2 p-3">
-        {cards.map((i) => (
-          <motion.div
-            key={i}
-            className="h-9 w-14 rounded-md border border-white/12"
-            style={{
-              background: `linear-gradient(135deg, color-mix(in srgb, ${accent} ${10 + (i % 3) * 8}%, rgba(255,255,255,0.05)), rgba(255,255,255,0.02))`,
-            }}
-            initial={reduce ? { opacity: 1, y: 0 } : { opacity: 0, y: 14, rotate: -6 }}
-            animate={
-              reduce
-                ? { opacity: 1, y: 0 }
-                : { opacity: 1, y: 0, rotate: 0 }
-            }
-            transition={
-              reduce
-                ? undefined
-                : { type: "spring", stiffness: 260, damping: 18, delay: i * 0.08 }
-            }
-          >
-            <div className="flex h-full flex-col justify-between p-1">
-              <span className="h-1 w-1/2 rounded-full bg-white/40" />
-              <span className="h-1 w-3/4 rounded-full bg-white/15" />
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </Stage>
-  );
-}
+/* ───────── Cerebros y Librería del tour (antes) retiradas ─────────
+   Las sustituyen `NeuronasCerebroDemo` (demos-sistema.tsx, clave `neuronas-cerebro`) y
+   `LibreriaBibliotecaDemo` (demos-red.tsx, clave `libreria-biblioteca`), que enseñan lo
+   mismo con geometría sagrada: la semilla hexagonal de memorias y la referencia en
+   vez de copia. Las claves viejas de `StepDemo` siguen funcionando por compatibilidad. */
 
 /**
  * StepDemo — despacha la mini-demostración correcta según la clave del paso.
@@ -545,10 +469,37 @@ export function StepDemo({ stepKey, accent, reduce }: DemoProps) {
       return <AstrauraDemo accent={accent} reduce={reduce} />;
     case "perfil":
       return <PerfilDemo accent={accent} reduce={reduce} />;
+    /* Los diez temas de la guía (TODOS_LOS_TEMAS), descritos en guias-introduccion.md §3:
+       cuatro del sistema, con su demo en demos-sistema.tsx… */
+    case "protomolecula":
+      return <DemoProtomolecula accent={accent} reduce={reduce} />;
+    case "malla":
+      return <DemoMalla accent={accent} reduce={reduce} />;
+    case "capas-conciencia":
+      return <DemoCapasConciencia accent={accent} reduce={reduce} />;
+    case "neuronas-cerebro":
+      return <DemoNeuronasCerebro accent={accent} reduce={reduce} />;
     case "cerebros":
-      return <CerebrosDemo accent={accent} reduce={reduce} />;
+      // Clave vieja, por compatibilidad: era el paso de Cerebros del tour. Ahora
+      // monto la demo del tema nuevo «neuronas-cerebro» (etiqueta y ruta /cerebro).
+      return <DemoNeuronasCerebro accent={accent} reduce={reduce} />;
+    /* …y seis de la red, con su demo en demos-red.tsx. */
+    case "pilar-politica":
+      return <DemoPolitica accent={accent} reduce={reduce} />;
+    case "pilar-educacion":
+      return <DemoEducacion accent={accent} reduce={reduce} />;
+    case "pilar-cultura":
+      return <DemoCultura accent={accent} reduce={reduce} />;
+    case "libreria-biblioteca":
+      return <DemoLibreriaBiblioteca accent={accent} reduce={reduce} />;
+    case "genesis":
+      return <DemoGenesis accent={accent} reduce={reduce} />;
+    case "personalizacion-segura":
+      return <DemoPersonalizacionSegura accent={accent} reduce={reduce} />;
     case "libreria":
-      return <LibreriaDemo accent={accent} reduce={reduce} />;
+      // Clave vieja, por compatibilidad: la demo propia ya no existe y toca la
+      // del tema nuevo «libreria-biblioteca» (Librería = catálogo, Biblioteca = guardado).
+      return <DemoLibreriaBiblioteca accent={accent} reduce={reduce} />;
     default:
       return null;
   }
