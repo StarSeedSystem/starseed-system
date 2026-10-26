@@ -54,6 +54,16 @@ describe("fusionarBots", () => {
     const r2 = fusionarBots(local, remoto);
     expect(r1.bots.map((b) => b.id).sort()).toEqual(r2.bots.map((b) => b.id).sort());
   });
+
+  it("descarta el remoto inválido aunque sea más reciente y conserva lo local", () => {
+    const invalido = { ...botEjemplo("b1"), gobierno: "tirania" } as unknown as Bot;
+    const local = { bots: [botEjemplo("b1")], actualizado: { b1: 1000 } };
+    const remoto = { bots: [invalido], actualizado: { b1: 9000 } };
+    const res = fusionarBots(local, remoto);
+    expect(res.bots).toHaveLength(1);
+    expect(res.bots[0]).toEqual(botEjemplo("b1"));
+    expect(res.actualizado.b1).toBe(1000);
+  });
 });
 
 describe("migración de abiertos", () => {

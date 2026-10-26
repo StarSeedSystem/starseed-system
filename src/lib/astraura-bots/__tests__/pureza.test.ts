@@ -26,6 +26,13 @@ describe("núcleo puro de los bots de Astraura", () => {
     const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
     for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
   });
+  it("la sincronía del núcleo no importa Supabase, Realtime ni el localStorage", () => {
+    for (const n of ["sincronia-bots", "fusionar-bots"]) {
+      const src = leer(n).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+      expect(src).not.toMatch(/@\/(utils\/supabase|lib\/realtime)/);
+      expect(src).not.toMatch(/\b(localStorage|sessionStorage)\b/);
+    }
+  });
 });
 
 describe("tipos", () => {
