@@ -5,9 +5,13 @@ import {
   imagenAImagen,
   ladosFormato,
   MEGAPIXELES,
+  MUESTREADORES_COMFYUI,
   NODOS_NUCLEO,
+  PLANIFICADORES_COMFYUI,
   textoAImagen,
   variaciones,
+  type EscalaImagen,
+  type FormatoPublicacion,
   type GrafoComfyUI,
   type MuestreadorComfyUI,
   type PlanificadorComfyUI,
@@ -51,6 +55,30 @@ describe("ladosFormato · formatos de publicación", () => {
   it("sd15 da una imagen de 512² en 1:1 (~0,26 MP, la gama SD 1.5)", () => {
     expect(ladosFormato("1:1", "sd15")).toEqual({ ancho: 512, alto: 512 });
   });
+  it("las cuatro proporciones de publicación son distintas entre sí", () => {
+    const proporciones = FORMATOS_PUBLICACION.map((formato) => {
+      const { ancho, alto } = ladosFormato(formato);
+      return Number((ancho / alto).toFixed(3));
+    });
+    expect(new Set(proporciones).size).toBe(FORMATOS_PUBLICACION.length);
+  });
+  it("rechaza formatos y escalas desconocidos con error legible", () => {
+    expect(() => ladosFormato("2:3" as FormatoPublicacion)).toThrow(/formato.*no es de publicación/);
+    expect(() => ladosFormato("1:1", "xl" as EscalaImagen)).toThrow(/escala.*no existe/);
+  });
+});
+
+describe("listas del núcleo · contrato de §2", () => {
+  it("muestreadores y planificadores son exactamente los admitidos", () => {
+    expect([...MUESTREADORES_COMFYUI]).toEqual(["euler", "euler_ancestral", "dpmpp_2m", "dpmpp_sde"]);
+    expect([...PLANIFICADORES_COMFYUI]).toEqual(["normal", "karras", "simple"]);
+  });
+  it("la lista blanca no incluye nodos personalizados de terceros", () => {
+    expect([...NODOS_NUCLEO]).toEqual([
+      "CheckpointLoaderSimple", "CLIPTextEncode", "EmptyLatentImage", "KSampler",
+      "LoadImage", "VAEEncode", "VAEDecode", "ImageScaleBy", "SaveImage",
+    ]);
+  });
 });
 
 describe("todas las plantillas · grafo en formato API", () => {
@@ -86,6 +114,15 @@ describe("textoAImagen", () => {
     expect(g["2"].inputs.text).toBe("una órbita dorada");
     expect(g["3"].inputs.text).toBe("borroso");
   });
+  it("el muestreador toma el positivo del nodo 2 y el negativo del nodo 3, ambos del CLIP del checkpoint", () => {
+    const g = textoAImagen(pet());
+    expect(g["5"].inputs.positive).toEqual(["2", 0]);
+    expect(g["5"].inputs.negative).toEqual(["3", 0]);
+    expect(g["2"].inputs.clip).toEqual(["1", 1]);
+    expect(g["3"].inputs.clip).toEqual(["1", 1]);
+    expect(g["6"].inputs.vae).toEqual(["1", 2]);
+    expect(g["7"].inputs.images).toEqual(["6", 0]);
+  });
   it("rechaza con error legible los parámetros fuera de rango", () => {
     expect(() => textoAImagen({ ...pet(), pasos: 61 })).toThrow(/pasos.*60/);
     expect(() => textoAImagen({ ...pet(), cfg: 0 })).toThrow(/CFG.*15/);
@@ -112,7 +149,13 @@ describe("imagenAImagen y escalar", () => {
     expect(g["2"].inputs.scale_by).toBe(1.5);
     expect(g["2"].inputs.image).toEqual(["1", 0]);
     expect(() => escalar({ imagen: "x.png", metodo: "lanczos", factor: 9 })).toThrow(/factor/);
+    expect(() => escalar({ imagen: "x.png", metodo: "lanczos", factor: 0 })).toThrow(/factor/);
     expect(() => escalar({ imagen: " ", metodo: "lanczos", factor: 2 })).toThrow(/imagen de entrada/);
+  });
+  it("escalado admite todos los métodos del núcleo ImageScaleBy", () => {
+    for (const metodo of ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"] as const) {
+      expect(escalar({ imagen: "x.png", metodo, factor: 2 })["2"].inputs.upscale_method).toBe(metodo);
+    }
   });
 });
 
