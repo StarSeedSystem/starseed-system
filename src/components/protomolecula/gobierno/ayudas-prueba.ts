@@ -1,7 +1,16 @@
 /** Servicios y entornos de mentira para probar la interfaz del gobierno de la Protomolécula (Ola 1026P · P2). */
-import { vi } from "vitest";
 import type { EntornoCargado, ResultadoGuardado, ServiciosGobierno } from "@/lib/protomolecula/gobierno/entorno";
 import type { ReglasProtomolecula } from "@/lib/protomolecula/gobierno/reglas";
+
+/** Espía diminuto: guarda las llamadas para que las pruebas las inspeccionen sin depender de vitest. */
+function espia<A extends unknown[], R>(impl: (...args: A) => R) {
+  const llamadas: A[] = [];
+  const fn = (...args: A): R => {
+    llamadas.push(args);
+    return impl(...args);
+  };
+  return Object.assign(fn, { mock: { calls: llamadas } });
+}
 
 export type Rol = "dueno" | "gestor" | "colaborador" | "observador" | "nadie" | "sin-sesion";
 
@@ -24,9 +33,9 @@ export function cargado(rol: Rol, modo: "democratic" | "hierarchical" = "democra
 
 export function servicios(carga: EntornoCargado, guardado: ResultadoGuardado = { ok: true, donde: "cuenta" }, personas: { id: string; nombre: string }[] = []) {
   const s = {
-    cargar: vi.fn(async () => carga),
-    guardar: vi.fn(async () => guardado),
-    personas: vi.fn(async () => personas),
+    cargar: espia(async () => carga),
+    guardar: espia(async () => guardado),
+    personas: espia(async () => personas),
   } satisfies ServiciosGobierno;
   return s;
 }
