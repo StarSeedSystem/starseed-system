@@ -16,6 +16,7 @@ import { motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana, type Viewport } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -57,6 +58,34 @@ function apuntarVentana(v: VentanaApilada): () => void {
     };
 }
 
+/* ── Posición inicial por geometría (DSN1019B) ──────────────────
+   Composición centrada de Alex: en escritorio la ventana se centra en la
+   pantalla por geometriaVentana; en teléfono es una hoja centrada que sube
+   desde abajo (entrada cardinal, sur). El desvío es puro: entra el viewport
+   y el rectángulo medido del marco, salen los píxeles que hace falta
+   correr desde la posición del flex. */
+export interface RectVentana {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+}
+
+export type ModoVentana = "centro" | "hoja" | "hoja-reducido";
+
+export function desvioGeometrico(
+    viewport: Viewport,
+    rect: RectVentana,
+): { dx: number; dy: number } {
+    const telefono = viewport.ancho < 430;
+    const geometria = geometriaVentana(viewport, {
+        tipo: telefono ? "hoja" : "ventana",
+        ancho: rect.width > 0 ? rect.width : undefined,
+        alto: rect.height > 0 ? rect.height : undefined,
+    });
+    return { dx: geometria.x - rect.left, dy: geometria.y - rect.top };
+}
+
 export interface OSWindowProps {
     title: string;
     subtitle?: string;
@@ -80,6 +109,34 @@ export function OSWindow({
 }: OSWindowProps) {
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+    const arrastreRef = useRef<HTMLDivElement>(null);
+
+    /* Modo de apertura: centro en escritorio y tableta; hoja (sube desde
+       abajo) en teléfono, con su versión de movimiento reducido. */
+    const [modo, setModo] = useState<ModoVentana>("centro");
+
+    useEffect(() => {
+        const medirModo = () => {
+            if (window.innerWidth < 430) {
+                const reducido = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+                setModo(reducido ? "hoja-reducido" : "hoja");
+            } else {
+                setModo("centro");
+            }
+        };
+        medirModo();
+        // Posición inicial: desvío del flex hasta la geometría pedida (puro).
+        const rect = arrastreRef.current?.getBoundingClientRect();
+        if (rect && (rect.width > 0 || rect.height > 0)) {
+            const desvio = desvioGeometrico(
+                { ancho: window.innerWidth, alto: window.innerHeight },
+                { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+            );
+            setOffset({ dx: desvio.dx, dy: desvio.dy });
+        }
+        window.addEventListener("resize", medirModo);
+        return () => window.removeEventListener("resize", medirModo);
+    }, []);
 
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
@@ -114,10 +171,20 @@ export function OSWindow({
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
                 aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
                 el centrado y la ventana SIEMPRE abre centrada. */}
-            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
+            <div
+                ref={arrastreRef}
+                data-modo={modo}
+                className="relative max-w-full max-h-full"
+                style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}
+            >
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    key={modo}
+                    initial={{
+                        opacity: 0,
+                        scale: modo === "centro" ? 0.96 : 1,
+                        y: modo === "hoja" ? "14%" : 0,
+                    }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{ type: "spring", stiffness: 260, damping: 26 }}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
