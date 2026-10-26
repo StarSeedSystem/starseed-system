@@ -1,0 +1,89 @@
+{
+ "ola": "nube-20261025",
+ "tareas": [
+  {
+   "id": "GCA1019Lb",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "API de opciones por ámbito",
+   "archivos": [
+    "src/app/api/genesis/conectores/route.ts",
+    "src/app/api/genesis/conectores/__tests__/route.test.ts"
+   ],
+   "depende": [],
+   "prompt": "GET `?ambito=` → catálogo filtrado, sugerencias de `sugerir.ts` y asignaciones del ámbito (sin claves); POST {accion: \"vincular\", proveedor, valor} guarda con la bóveda y responde solo la huella; POST {accion: \"asignar\", clave, cadena}. Sesión obligatoria y permiso del ámbito (`src/lib/mando/permisos.ts`); límite de 20 peticiones por 10 minutos como `/api/genesis/proponer`. Prueba con dependencias falsas. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-012522-GCA1019L`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-012522-GCA1019L:refs/remotes/origin/nube/a1-20261024-012522-GCA1019L\"` y `git cherry-pick --no-commit d304dd1df976 c55b6294f364`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/genesis/conectores/__tests__/route.test.ts, src/app/api/genesis/conectores/route.ts, src/lib/genesis/conectores/sugerir-conector.ts, src/lib/genesis/conectores/vacio.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GCA1019J"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-012522-GCA1019L",
+   "dependencias_ya_en_main": [
+    "GCA1019K"
+   ]
+  },
+  {
+   "id": "RIA1023Eb",
+   "ola": "1023R",
+   "titulo": "Capas de Astraura · capaEnPropio de verdad (cruzar el SHA con el catálogo local)",
+   "archivos": [
+    "src/lib/astraura/capas/repartir.ts",
+    "src/lib/astraura/capas/__tests__/repartir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\n`capaEnPropio` en `repartir.ts` hoy devuelve siempre false (lo dice su comentario). Hazla real: busca en el almacén la meta de la capa cuyo SHA-256 coincide y comprueba que todos sus trozos están y verificados (usa las claves y metas que ya escribe este módulo; no inventes otro formato). Exportala para probarla. Pruebas: almacén con la capa completa → true; con un trozo que falta → false; con otro SHA → false. Corre `npx vitest run src/lib/astraura/capas` y lee el resumen entero.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-041848`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama (la reasignación apuntaba al run 40083370936 de nube-gh, que ya terminó, y esta rama es de otro medio)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-041848:refs/remotes/origin/nube/a1-20261024-041848\"` y `git cherry-pick --no-commit 5fa9bc679d3a efcf170ef00c d78160453045 17ae44b2c792 bb01192d2bb3 51ea64c486b6 2806dec6aa9f bde8ee2a3c94`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/lib/astraura/capas/__tests__/repartir.test.ts, src/lib/astraura/capas/repartir.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-041848"
+  },
+  {
+   "id": "IMN1021K2d",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en la ramificación y el diseñador de olas",
+   "archivos": [
+    "src/components/mando/ramificacion-agentes.tsx",
+    "src/components/mando/disenador-ola.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios que digan «sueño(s) profundo(s)» o «Dream» por «imaginación profunda» o «imaginación diaria». Nada de identificadores. Las pruebas existentes deben seguir en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-052422`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-052422:refs/remotes/origin/nube/a1-20261024-052422\"` y `git cherry-pick --no-commit 4e05883e999d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/mando/disenador-ola.tsx, src/components/mando/ramificacion-agentes.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-052422"
+  },
+  {
+   "id": "AGF1023F",
+   "ola": "1023A",
+   "titulo": "Mastra · agente de la neurona en TS junto al servidor propio de IA",
+   "archivos": [
+    "servicios/agentes-mastra/src/agente.mjs",
+    "servicios/agentes-mastra/package.json",
+    "servicios/agentes-mastra/test/agente.test.mjs"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): agno, mastra, langgraph, pydantic-ai y openai-agents-python «para los desarrollos de agentes de Astraura, Genesis, PoliGenesis y MetaGenesis en todos sus contextos y medios». Contrato: `architecture/repos-3d-oido-agentes-1023.md` §3 (un contrato de agente, varios motores; modelos siempre por el enrutador propio —gratis primero, Jev, Experiential, servidor propio de IA—; trazas de terceros apagadas; nada de LangSmith ni nubes de los autores). Agentes de hoy: `src/lib/agents/model.ts` (tipo `Agent`) y `src/lib/agents/store.ts`.\n\nProyecto mínimo con `@mastra/core` (Apache-2.0; NO uses nada de carpetas `ee/`) que define un agente con el modelo del servidor propio de IA (OpenAI-compatible en 127.0.0.1:4480) y una herramienta de ejemplo; expone su servidor solo en 127.0.0.1. Pruebas con node --test y el modelo simulado. No toques el package.json raíz.",
+   "revisor_quitadas": [
+    "AGF1023A"
+   ]
+  },
+  {
+   "id": "GUI1021G",
+   "ola": "1021G",
+   "titulo": "Guías · tarjetas de la Guía de la red con los temas nuevos y los textos corregidos",
+   "archivos": [
+    "src/components/onboarding/areas-explicadas.tsx",
+    "src/components/onboarding/onboarding-wizard.tsx",
+    "src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §1 y §3. En `areas-explicadas.tsx`, las explicaciones de `/protomolecula`, `/network/politics`, `/network/education`, `/network/culture`, `/genesis` y `/cerebro` salen de `TODOS_LOS_TEMAS` (queEs = cuerpo, comoFunciona = puntos, empiezaPor = la pregunta a Aurora), y `/cerebros`, `/library` y `/red-mesh` pasan a usar los temas `neuronas-cerebro`, `libreria-biblioteca` y `malla`. En `onboarding-wizard.tsx` añade a `AREAS` las tarjetas que falten de esas rutas (con icono y tip corto) y cambia la de Cerebros a `/cerebro`. Pruebas: cada ruta nueva abre su explicación y ninguna tarjeta habla de «varios cerebros». Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho).",
+   "dependencias_ya_en_main": [
+    "GUI1021B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "IMN1021K2d",
+   "RIA1023Eb",
+   "GUI1021G",
+   "AGF1023F",
+   "GCA1019Lb"
+  ]
+ }
+}
