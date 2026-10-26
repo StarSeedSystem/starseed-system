@@ -217,5 +217,43 @@ class TestAsignacionesAgentes(unittest.TestCase):
             self.assertFalse(habilitar_director(director, asignaciones))
 
 
+class RaizDelRepositorio(unittest.TestCase):
+    """OPS1024A: RAIZ es la raíz del repositorio (no `scripts/`) y respeta STARSEED_ROOT."""
+
+    def _recargar(self, entorno):
+        import importlib
+        from unittest import mock
+        with mock.patch.dict(os.environ, entorno, clear=False):
+            if "STARSEED_ROOT" not in entorno:
+                os.environ.pop("STARSEED_ROOT", None)
+            importlib.reload(
+                sys.modules["asignaciones_agentes"]
+            )
+            modulo = sys.modules["asignaciones_agentes"]
+            return modulo.RAIZ, modulo.RUTA_ASIGNACIONES
+
+    def tearDown(self):
+        import importlib
+        importlib.reload(sys.modules["asignaciones_agentes"])
+
+    def test_raiz_por_defecto_es_la_del_repositorio(self):
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        raiz, ruta = self._recargar({})
+        self.assertEqual(os.path.abspath(raiz), repo)
+        self.assertTrue(os.path.isfile(os.path.join(repo, "CLAUDE.md")))
+        self.assertEqual(
+            ruta, os.path.join(repo, "starseed_memory_root", "mando", "asignaciones-agentes.json")
+        )
+
+    def test_raiz_respeta_starseed_root(self):
+        otra = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(otra, ignore_errors=True))
+        raiz, ruta = self._recargar({"STARSEED_ROOT": otra})
+        self.assertEqual(raiz, otra)
+        self.assertEqual(
+            ruta, os.path.join(otra, "starseed_memory_root", "mando", "asignaciones-agentes.json")
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
