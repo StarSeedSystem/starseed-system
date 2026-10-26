@@ -124,6 +124,47 @@ export async function extractText(cfg: IntegrationConfig, input: any): Promise<I
   return res;
 }
 
+// ════════════════════════════════════════════════════════════════
+// Operaciones según la instancia (PDF1020A): el OS solo ofrece lo que
+// la instancia colada por la bolsa tenga de verdad. Verificado el
+// 2026-10-20 en Stirling-PDF 3.2.0 del A1 (319 rutas en /v1/api-docs;
+// rotar un PDF de 2 páginas: 0,29 s). Aun así se comprueba en vivo.
+// ════════════════════════════════════════════════════════════════
+
+/** Operación de PDF: ruta de la instancia y campos multipart que exige. */
+export interface OperacionPdf {
+  id: string;
+  label: string;
+  ruta: string;
+  campos: string[];
+}
+
+export const OPERACIONES_PDF: readonly OperacionPdf[] = [
+  { id: "fusionar", label: "Fusionar PDFs", ruta: "/api/v1/general/merge-pdfs", campos: [] },
+  { id: "imagen", label: "Convertir a imagen", ruta: "/api/v1/convert/pdf/img", campos: [] },
+  { id: "texto", label: "Extraer texto", ruta: "/api/v1/convert/pdf/text", campos: [] },
+  { id: "rotar", label: "Rotar", ruta: "/api/v1/general/rotate-pdf", campos: ["angle"] },
+  { id: "dividir", label: "Dividir por páginas", ruta: "/api/v1/general/split-pages", campos: ["pageNumbers"] },
+  { id: "quitar-paginas", label: "Quitar páginas", ruta: "/api/v1/general/remove-pages", campos: ["pageNumbers"] },
+  { id: "reordenar", label: "Reordenar páginas", ruta: "/api/v1/general/rearrange-pages", campos: ["pageOrder"] },
+  { id: "comprimir", label: "Comprimir", ruta: "/api/v1/misc/compress-pdf", campos: ["optimizeLevel"] },
+  { id: "ocr", label: "OCR", ruta: "/api/v1/misc/ocr-pdf", campos: ["languages"] },
+  { id: "marca-agua", label: "Marca de agua", ruta: "/api/v1/security/add-watermark", campos: ["watermarkType", "watermarkText"] },
+];
+
+/** Extrae las rutas `paths` de una descripción de API de Stirling (OpenAPI). */
+export function rutasDesdeApiDocs(apiDocs: unknown): string[] {
+  const paths = (apiDocs as { paths?: Record<string, unknown> } | null)?.paths;
+  if (!paths || typeof paths !== "object") return [];
+  return Object.keys(paths).filter((r) => typeof r === "string" && r.startsWith("/api/"));
+}
+
+/** Filtra el catálogo por las rutas que la instancia expone de verdad. */
+export function operacionesDeRutas(rutas: readonly string[]): OperacionPdf[] {
+  const presentes = new Set(rutas);
+  return OPERACIONES_PDF.filter((o) => presentes.has(o.ruta));
+}
+
 /** Salud: info de la API (endpoint público de Stirling). */
 export async function health(cfg: IntegrationConfig): Promise<IntegrationResult> {
   // Reusa el proxy JSON para un GET sencillo a la raíz de la API.
@@ -137,4 +178,65 @@ export async function health(cfg: IntegrationConfig): Promise<IntegrationResult>
     path: "/api/v1/info/status",
     timeoutMs: 10_000,
   });
+}
+
+/** Lee la descripción de API de la instancia y devuelve SOLO sus operaciones. */
+export async function operacionesDisponibles(cfg: IntegrationConfig): Promise<IntegrationResult> {
+  const { proxyFetch } = await import("./_proxy");
+  const res = await proxyFetch({
+    id: "stirling-pdf",
+    endpoint: cleanEndpoint(cfg.endpoint),
+    apiKey: cfg.apiKey,
+    auth: cfg.apiKey ? "x-api-key" : "none",
+    method: "GET",
+    path: "/v1/api-docs",
+    timeoutMs: 15_000,
+  });
+  if (!res.ok) return { ok: false, error: res.error || "No pude leer la descripción de API de la instancia." };
+  return { ok: true, data: { operaciones: operacionesDeRutas(rutasDesdeApiDocs(res.data)) } };
+}
+
+/** Monta el FormData del proxy para una operación del catálogo. */
+function formDeOperacion(
+  cfg: IntegrationConfig,
+  operacion: OperacionPdf,
+  blobs: Blob[],
+  parametros: Record<string, string> = {},
+): string | FormData {
+  const form = new FormData();
+  form.append("__endpoint", cleanEndpoint(cfg.endpoint));
+  form.append("__path", operacion.ruta);
+  if (cfg.apiKey) form.append("__apiKey", cfg.apiKey);
+  form.append("__accept", "binary");
+  blobs.forEach((blob, i) => form.append("fileInput", blob, `doc-${i + 1}.pdf`));
+  for (const campo of operacion.campos) {
+    const valor = parametros[campo];
+    if (typeof valor !== "string" || !valor.trim()) return campo;
+    form.append(campo, valor);
+  }
+  return form;
+}
+
+/** Ejecuta una operación del catálogo con el proxy multipart existente. */
+export async function ejecutarOperacion(
+  cfg: IntegrationConfig,
+  id: string,
+  archivo: FileLike | FileLike[],
+  parametros: Record<string, string> = {},
+): Promise<IntegrationResult> {
+  if (!isClient()) return { ok: false, error: "Disponible solo en el navegador." };
+  const operacion = OPERACIONES_PDF.find((o) => o.id === id);
+  if (!operacion) return { ok: false, error: `«${id}» no es una operación de este catálogo.` };
+  const srcs = Array.isArray(archivo) ? archivo : [archivo];
+  const blobs: Blob[] = [];
+  for (const src of srcs) {
+    const blob = await toBlob(src);
+    if (!blob) return { ok: false, error: `No pude leer uno de los ficheros («${operacion.label}»).` };
+    blobs.push(blob);
+  }
+  const form = formDeOperacion(cfg, operacion, blobs, parametros);
+  if (typeof form === "string") {
+    return { ok: false, error: `Falta el campo «${form}» para «${operacion.label}».` };
+  }
+  return proxyUpload(form);
 }
