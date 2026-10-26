@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "AGF1023D",
+   "ola": "1023A",
+   "titulo": "OpenAI Agents SDK · equipo con traspasos para PoliGenesis (trazas apagadas)",
+   "archivos": [
+    "scripts/agentes/equipo_poligenesis.py",
+    "scripts/agentes/test_equipo_poligenesis.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): agno, mastra, langgraph, pydantic-ai y openai-agents-python «para los desarrollos de agentes de Astraura, Genesis, PoliGenesis y MetaGenesis en todos sus contextos y medios». Contrato: `architecture/repos-3d-oido-agentes-1023.md` §3 (un contrato de agente, varios motores; modelos siempre por el enrutador propio —gratis primero, Jev, Experiential, servidor propio de IA—; trazas de terceros apagadas; nada de LangSmith ni nubes de los autores). Agentes de hoy: `src/lib/agents/model.ts` (tipo `Agent`) y `src/lib/agents/store.ts`.\n\nCon `openai-agents` y el puente de AGF1023B (cliente `AsyncOpenAI` con base_url propia y `set_tracing_disabled(True)`), un equipo de ejemplo: moderador → redactor de propuesta → revisor con guarda de salida (sin datos personales). Pruebas con el modelo simulado del SDK o un cliente falso, sin red; si falta la dependencia, la prueba se salta con motivo.",
+   "dependencias_ya_en_main": [
+    "AGF1023B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "AGF1023D"
+  ]
+ }
+}
