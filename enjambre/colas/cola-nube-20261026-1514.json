@@ -1,0 +1,82 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "LYS1018M",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · aprende de cada decisión y recalibra su umbral por punto y ámbito",
+   "archivos": [
+    "src/lib/astraura/laya/aprendizaje-laya.ts",
+    "src/lib/astraura/laya/__tests__/aprendizaje-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `anotar(registro, { punto, ambito, p, donde, ms, resultado: \"aceptada\"|\"corregida\"|\"escalada\", privado, estado })` guarda el estado SOLO como huella si es privado; `umbralRecalibrado(registro, punto, ambito)` devuelve el umbral que minimiza correcciones con ≥ 30 casos (si hay menos: el del catálogo); `exportarJSONL` saca los casos no privados en el formato del cuaderno de afinado de Laya. Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "VZF1015S",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Malla · elección autogestionada del servidor de voz de la sesión (con relevo solo)",
+   "archivos": [
+    "src/lib/network/servidor-voz-sesion.ts",
+    "src/lib/network/__tests__/servidor-voz-sesion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elegirServidorVoz({ sesion: { miembros, tipo }, fichas, ahora, actual? })` → `{ oido?: neurona, habla?: neurona, motivo }`: la de menor latencia medida (fichas del §5), con RAM libre suficiente, viva (latido < 2 min) y de confianza (tus neuronas o las de los miembros de la sesión), con histéresis (solo cambia si la nueva es un 30 % mejor o la actual dejó de latir). Incluye el A1 (24/7) cuando está en las fichas. Pruebas: elección, histéresis, relevo, privacidad. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015Q"
+   ]
+  },
+  {
+   "id": "IMG1011J",
+   "ola": "Ola 1011E · Imágenes locales de Astraura por capas y malla (Qwen-Image, Krea 2, FLUX, SD, PixArt, Sana) con varias opciones en la Protomolécula",
+   "titulo": "Integración, verificación y estado real de las imágenes locales",
+   "archivos": [
+    "src/components/imagenes/index.ts",
+    "architecture/astraura-imagenes.md"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-imagenes.md` (léelo ENTERO; el §1 tiene las licencias y motores VERIFICADOS el 2026-10-11 — no inventes otros datos). Se apoya en `architecture/generacion-audiovisual-astraura.md` y `src/ai/astraura/media/media-gen.ts` (Pollinations como suelo gratis, proveedores por neurona): su regla de oro sigue intacta y NO se duplica nada de lo que ya hace. El núcleo puro YA está escrito y probado (19 pruebas) y NO se modifica: `src/lib/imagenes/{modelos,plan,sugerencias}.ts` (MODELOS_IMAGEN, MOTORES, cabe, planImagen, paqueteBase, motoresPosibles). Para la malla reutiliza lo que hagan G3D1011D (`src/lib/avatares/adaptadores/reparto-taller.ts`) y el registro de neuronas existente; para referencias 3D, G3D1011E. Reglas: «basta de ilusiones» (si algo no corre aquí, se dice por qué); NUNCA descargas automáticas de pesos (los repos pesan de 6 a 100 GB): solo con permiso, solo los archivos necesarios y tras comprobar ≥ 3 veces su tamaño libre; modelos «gated» necesitan que la persona acepte sus términos en Hugging Face y un token suyo en el entorno (explícale qué es y dónde se consigue, con enlace); nada de claves en código ni registros; nada no comercial en uso comercial; con imagen de referencia nada sale de sus neuronas sin permiso; en la Mac de Alex (8 GB) las imágenes ceden ante el enjambre; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto de qué funciona y qué no.\n\nTAREA: Monta la tarjeta y las sugerencias donde la gente las encuentra (chat de Astraura, ajustes de la neurona, Protomolécula). Pasa tsc y vitest de `src/lib/imagenes`, `src/ai/astraura/media`, `src/lib/astraura-bots` y `src/lib/protomolecula`, y pytest de `servicios/imagenes-local` y `scripts/imagenes`; arregla lo que falle. NO ejecutes `next build` en la Mac. Actualiza el §9 del contrato con el estado REAL de cada tarea.",
+   "revisor_quitadas": [
+    "IMG1011C",
+    "IMG1011F"
+   ],
+   "dependencias_ya_en_main": [
+    "IMG1011A",
+    "IMG1011B",
+    "IMG1011D",
+    "IMG1011E",
+    "IMG1011G",
+    "IMG1011H-d3",
+    "IMG1011I"
+   ]
+  },
+  {
+   "id": "MC1012I",
+   "titulo": "Malla cristalina: las mejores rutas sobre los puentes",
+   "archivos": [
+    "src/lib/malla/cristal/rutas.ts",
+    "src/lib/malla/cristal/__tests__/rutas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Exporta `interface Ruta {saltos: string[]; medios: Medio[]; coste: number; motivo: string}` y `mejoresRutas(cristal: Cristal, r: Reticula, dato: Dato, ctx, k = 3): Ruta[]` (ctx igual que en viabilidad): grafo = puentes del cristal; coste de un salto = 1 − viabilidad(dato, señal del puente) y se excluyen los no aptos; Dijkstra y Yen para k rutas sin bucles; orden por coste y desempate por saltos. Si destino es null (difusión), devuelve el árbol de caminos mínimos a todas como rutas de un salto cada una desde el origen hacia sus vecinos directos. Pruebas: ruta directa si existe; rodeo cuando el directo está vetado por privacidad; k rutas distintas; sin ruta → [].",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "revisor_quitadas": [
+    "MC1012H"
+   ],
+   "dependencias_ya_en_main": [
+    "MC1012F"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "LYS1018M",
+   "MC1012I",
+   "VZF1015S",
+   "IMG1011J"
+  ]
+ }
+}
