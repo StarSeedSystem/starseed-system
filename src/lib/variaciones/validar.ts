@@ -29,7 +29,7 @@ const PATRON_ESQUEMA_PELIGROSO = /^(?:javascript|data|vbscript):/i;
 const PROFUNDIDAD_MAXIMA = 16;
 
 /** Claves cuyo valor es código y por tanto exige aislamiento (contrato §4). */
-const CLAVES_DE_CODIGO = new Set(["html", "js", "javascript", "script", "codigo", "svg", "css"]);
+export const CLAVES_DE_CODIGO = new Set(["html", "js", "javascript", "script", "codigo", "svg", "css"]);
 
 /** Opciones de validación. */
 export interface OpcionesValidar {
