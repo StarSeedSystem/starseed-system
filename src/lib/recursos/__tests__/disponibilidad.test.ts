@@ -33,6 +33,19 @@ describe("disponibilidad.ts", () => {
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
     });
+
+    it("cadena vacía da un mapa de bits vacío", () => {
+      expect(decodificar("")).toEqual(new Uint8Array(0));
+    });
+
+    it("un conjunto de índices marcados viaja a base64 y vuelve", () => {
+      const indices = [0, 1, 2, 5, 8];
+      const bits = crearBits(9);
+      for (const i of indices) marcarIndice(bits, i);
+      const vueltas = decodificar(codificar(bits));
+      for (const i of indices) expect(tieneIndice(vueltas, i)).toBe(true);
+      expect(tieneIndice(vueltas, 3)).toBe(false);
+    });
   });
 
   describe("mapa de bits", () => {
