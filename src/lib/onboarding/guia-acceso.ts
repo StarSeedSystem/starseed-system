@@ -91,6 +91,29 @@ export function abrirGuia(peticion: PeticionGuia, destino?: EventTarget | null):
   }
 }
 
+/* ─────────── Lo que pide la guía al terminar sin cuenta (solo en /login y /bienvenida) ─────────── */
+
+/** El evento con el que la guía le dice a la ventana de acceso de la PÁGINA que vaya al formulario. */
+export const EVENTO_ACCION_GUIA = "starseed:guia-accion";
+
+/** Qué pidió quien terminó la guía sin cuenta. */
+export type AccionGuia = "crear-cuenta" | "entrar";
+
+/**
+ * La guía (que va por encima de la página de acceso) pide ir al formulario en la pestaña que toque.
+ * Devuelve `true` si el evento salió. Nunca lanza.
+ */
+export function pedirAccesoDesdeGuia(accion: AccionGuia, destino?: EventTarget | null): boolean {
+  const objetivo = destino ?? (typeof window === "undefined" ? null : window);
+  if (!objetivo || typeof CustomEvent === "undefined") return false;
+  try {
+    objetivo.dispatchEvent(new CustomEvent<{ accion: AccionGuia }>(EVENTO_ACCION_GUIA, { detail: { accion } }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Une lo visto como INVITADO (claves guardadas en el aparato) a la marca de la
  * CUENTA, sin perder nada ni duplicar: primero lo de la cuenta y detrás lo
