@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "APM1017F",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · servir capacidades: admisión con los topes de préstamo, cola, cancelación y registro",
+   "archivos": [
+    "src/lib/recursos/servir-capacidades.ts",
+    "src/lib/recursos/__tests__/servir-capacidades.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión del relé `capacidad.*`: `crearServidor({ manejadores: Partial<Record<tipo, fn>>, oferta, sesiones, ahora })` con `atender(mensaje)` que comprueba la sesión (sesion-prestamo.ts) y los topes de `capacidadPrestable`, encola si está lleno (máx. 4 en cola), corre el manejador, trocea la respuesta y permite cancelar. `prestamos()` devuelve los préstamos vivos y hechos (quién, qué, ms, bytes) para Procesos activos. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D",
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "RIA1023Ib",
+   "ola": "1023R",
+   "titulo": "App nativa · discos (internos y externos, con velocidad de lectura) y NPU en la detección de Recursos de IA",
+   "archivos": [
+    "native/src-tauri/src/recursos_ia.rs",
+    "native/src-tauri/src/lib.rs",
+    "src/lib/recursos-ia/deteccion.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nLa app nativa vive en `native/src-tauri/` (NO en `src-tauri/`, que está retirada). Añade un comando Tauri `recursos_ia_detectar` que devuelve volúmenes (punto de montaje, total, libre, interno/externo, sistema de archivos) y, si se puede sin permisos especiales, si hay NPU (Apple Neural Engine en Apple Silicon; NPU de Intel/AMD/Qualcomm por el nombre de la CPU). Regístralo en `lib.rs` como los demás comandos. En `deteccion.ts`, si existe `window.__TAURI__`, pide ese comando y mezcla el resultado con lo que ya detecta el navegador (lo nativo gana; `fuente: \"medido\"`). Prueba: `cargo check --manifest-path native/src-tauri/Cargo.toml` si hay cargo; si no, dilo y deja que lo compruebe el CI (`tauri-check`). Y `npx vitest run src/lib/recursos-ia`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40028720503`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40028720503:refs/remotes/origin/nube/40028720503\"` y `git cherry-pick --no-commit f327896ae1fa`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: native/src-tauri/src/lib.rs, native/src-tauri/src/recursos_ia.rs, src/lib/recursos-ia/__tests__/deteccion.test.ts, src/lib/recursos-ia/deteccion.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40028720503"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "RIA1023Ib",
+   "APM1017F"
+  ]
+ }
+}
