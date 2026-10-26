@@ -481,42 +481,16 @@ function CerebrosDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
   );
 }
 
-/* ─────────────────────────── LIBRERÍA ───────────────────────────────────────
-   Estantería/catálogo: fichas (apps/recursos) que se van "encajando". */
-function LibreriaDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
-  const cards = [0, 1, 2, 3, 4, 5];
-  return (
-    <Stage accent={accent}>
-      <div className="absolute inset-0 grid grid-cols-3 place-items-center gap-2 p-3">
-        {cards.map((i) => (
-          <motion.div
-            key={i}
-            className="h-9 w-14 rounded-md border border-white/12"
-            style={{
-              background: `linear-gradient(135deg, color-mix(in srgb, ${accent} ${10 + (i % 3) * 8}%, rgba(255,255,255,0.05)), rgba(255,255,255,0.02))`,
-            }}
-            initial={reduce ? { opacity: 1, y: 0 } : { opacity: 0, y: 14, rotate: -6 }}
-            animate={
-              reduce
-                ? { opacity: 1, y: 0 }
-                : { opacity: 1, y: 0, rotate: 0 }
-            }
-            transition={
-              reduce
-                ? undefined
-                : { type: "spring", stiffness: 260, damping: 18, delay: i * 0.08 }
-            }
-          >
-            <div className="flex h-full flex-col justify-between p-1">
-              <span className="h-1 w-1/2 rounded-full bg-white/40" />
-              <span className="h-1 w-3/4 rounded-full bg-white/15" />
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </Stage>
-  );
-}
+/**
+ * Las claves que `StepDemo` sabe dibujar. DEBE coincidir con los `case` de abajo (lo comprueba
+ * `guia-completa-catalogo.test.ts` y `guia-completa-demos.test.tsx`) y con las demos del catálogo único (`guia-completa.ts`): una demo
+ * que ningún paso usa es una demo hecha para nada (le pasó a las diez de GUI1021D/E).
+ * `libreria` se retiró: la Librería y la Biblioteca tienen su propia demo (`libreria-biblioteca`).
+ */
+export const CLAVES_STEPDEMO = [
+  "orbe", "trinity-zenith", "trinity-horizon", "trinity-logic", "trinity-anchor",
+  "gestos-hibridos", "escritorio", "dashboard", "astraura", "perfil", "cerebros",
+] as const;
 
 /**
  * StepDemo — despacha la mini-demostración correcta según la clave del paso.
@@ -547,8 +521,6 @@ export function StepDemo({ stepKey, accent, reduce }: DemoProps) {
       return <PerfilDemo accent={accent} reduce={reduce} />;
     case "cerebros":
       return <CerebrosDemo accent={accent} reduce={reduce} />;
-    case "libreria":
-      return <LibreriaDemo accent={accent} reduce={reduce} />;
     default:
       return null;
   }

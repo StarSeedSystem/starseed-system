@@ -7,7 +7,10 @@ dentro de cada parte de política, educación y cultura), y una introducción a 
 PoliGenesis y sus opciones de personalización ilimitadas con base a los principios y fundamentos y seguridad y
 privacidad».
 
-## 1. Lo que hay hoy
+> **Actualización (Ola 1025U · GUIA1025U, 2026-10-26):** lo de §1 y §4 es la historia de cómo se llegó aquí. Hoy hay UN
+> catálogo de pasos que recorren a la vez la introducción de la ventana de acceso y el recorrido de Aurora: ver **§6**.
+
+## 1. Lo que hay hoy (hasta la Ola 1021)
 
 - **Tour de Aurora** (`src/components/onboarding/aurora-guide.tsx`): 12 pasos (`orbe`, cuatro de Trinity,
   `gestos-hibridos`, `escritorio`, `dashboard`, `astraura`, `perfil`, `cerebros`, `libreria`), cada uno con su
@@ -170,3 +173,93 @@ para…» con su propio texto suelto y sin ningún acceso a la guía.
 Tareas (cola `cola-guias-sin-cuenta-1021.json`): GUI1021I (puerta común y modo invitado, puro), GUI1021J (la guía
 sin cuenta y por encima del acceso), GUI1021K1 y K2 (botones en las ventanas de acceso), GUI1021L (`AvisoSesion`),
 GUI1021M1–M5 (los avisos sueltos pasan al componente común), GUI1021N (guardia), GUI1021O (Ajustes con lista de temas).
+
+## 6. Un solo catálogo para todas las guías (Ola 1025U · GUIA1025U, Alex 2026-10-26)
+
+«A la guía introducción le faltan varios pasos que no sé por qué no aparecen completos desde cualquier medio, creando
+o no la cuenta.» Causa, medida en el código: había **dos guías con pasos distintos** (la introducción de la ventana de
+acceso, con 4 pasos, y el recorrido de Aurora, con 12) y **diez demostraciones hechas** (Protomolécula, malla, capas
+de conciencia, neuronas, los tres pilares, Librería y Biblioteca, Genesis y personalización segura) que ningún paso
+usaba, porque el tour quedó con sus pasos de antes y las demostraciones solo se enchufaron en el modo «temas».
+
+### 6.1 El catálogo
+
+`src/lib/onboarding/guia-completa.ts` (puro: sin React, sin `node:*`, sin almacén) es la ÚNICA lista de pasos. Cada paso:
+`{id, capitulo, titulo, texto, voz, demo, acento (Trinity), puntos?, tarjetas?, ruta? | borde?, irEtiqueta?, pregunta?,
+textoPorPerfil?, vozPorPerfil?, conSesion?}`. Los textos del sistema y de la red **no se copian**: salen de
+`guia-temas-sistema.ts` y `guia-temas-red.ts` (§3). Lo que NO vive en el catálogo, a propósito: iconos, selectores del
+foco y las acciones de «Hazlo por mí» (son de la interfaz de Aurora).
+
+| # | Capítulo | Pasos (24) |
+|---|---|---|
+| 1 | Bienvenida | `bienvenida`, `que-es` |
+| 2 | Trinity y gestos | `orbe`, `trinity-zenith`, `trinity-horizon`, `trinity-logic`, `trinity-anchor`, `gestos-hibridos` |
+| 3 | El sistema | `protomolecula`, `malla`, `capas-conciencia`, `neuronas-cerebro` |
+| 4 | La red | `pilar-politica`, `pilar-educacion`, `pilar-cultura` |
+| 5 | Librería y Biblioteca | `libreria-biblioteca` |
+| 6 | Genesis y PoliGenesis | `genesis` |
+| 7 | Personalización segura | `personalizacion-segura` |
+| 8 | Tu espacio | `escritorio`, `dashboard`, `astraura`, `perfil`, `cerebros` («Tu cerebro», `/cerebro`) |
+| 9 | Tu cuenta | `cuenta` («Crea tu cuenta o entra»; con sesión, «Tu cuenta, tu espacio») |
+
+Las demostraciones se cargan **a demanda** (`onboarding/demo-paso.tsx` → `DemoPaso`, `React.lazy` + marco quieto +
+límite de error: si una no carga, el paso sigue sin ella). Salen de `demos-sistema.tsx` (`DEMOS_SISTEMA`),
+`demos-red.tsx` (`DEMOS_RED`) y `aurora-guide-demos.tsx` (`StepDemo`, cuyas claves lista `CLAVES_STEPDEMO`). La demo
+`libreria` vieja se retiró: la Librería y la Biblioteca tienen la suya (`libreria-biblioteca`).
+`AuroraGuide` cuelga del layout raíz y ya no arrastra esos archivos a todas las rutas.
+
+**Guardia de huérfanas** (`lib/onboarding/__tests__/guia-completa-catalogo.test.ts` y
+`components/onboarding/__tests__/guia-completa-demos.test.tsx`): falla si una demostración exportada en
+`DEMOS_SISTEMA`, `DEMOS_RED` o `StepDemo` no la usa ningún paso, si un paso pide una que no existe, si cada lista de
+claves no coincide con la del componente, o si la ruta de un «Ir» no tiene página en `src/app`. **Regla:** una
+demostración nueva = su clave en el componente + un paso en el catálogo, o la prueba se pone roja.
+
+### 6.2 Quién lo recorre y dónde se abre
+
+| Quién | Cómo | Con cuenta | Sin cuenta |
+|---|---|---|---|
+| Ventana de acceso (`auth/ventana-acceso.tsx`: `/login`, `/bienvenida`, primer arranque, «Ver la introducción» de la tarjeta de bienvenida) | `ContenidoAcceso` sobre `PASOS_GUIA` | — (con sesión no se pinta) | Todos los pasos; el formulario es el último |
+| Guía de Aurora (`onboarding/aurora-guide.tsx`: Ajustes, «Conoce StarSeed», botón flotante, avisos «Inicia sesión para…») | `abrirGuia({desde, temaInicial?})` → `starseed:open-guide` | Todos los pasos con voz, «Ir» y «Hazlo por mí»; el final lleva a su espacio | Todos los pasos; «Ir»/«Hazlo por mí» a zonas con cuenta pasan a «Disponible al entrar»; el final ofrece crear cuenta, entrar o explorar |
+
+`temaInicial` es el id de **cualquier** paso (también `bienvenida`, `orbe`, `escritorio`…); sin él, la guía retoma por
+donde se quedó. `Ajustes → Reproducir guía del sistema` usa esa misma puerta y añade «Empezar por…» (un capítulo).
+
+Los dos recorridos enseñan lo mismo, con las mismas piezas (`onboarding/guia-completa-ui.tsx`):
+- **Índice de capítulos** accesible (`IndiceGuia`: botón con `aria-expanded`, lista con el capítulo en curso y sus
+  pasos, Esc lo cierra) y **barra de capítulos** (`BarraCapitulos`: nueve tramos de 44 px; 24 puntos no caben a 360 px);
+- **«Paso N de 24»** (`etiquetaProgreso`, anunciado con `aria-live`);
+- **«Saltar a crear cuenta»** en cada paso (menos en el último, donde ya está el formulario) y **«Explorar sin cuenta»**
+  siempre a mano;
+- **Retomar donde se quedó** (`guia-progreso.ts`, clave local `starseed.guia.completa.progreso.v1`, se guarda el **id**
+  del paso, no su posición, para que añadir pasos no desplace a nadie). Llegar al último paso lo borra; el primero no se
+  guarda. Es un dato del aparato: no viaja con la cuenta (sin cuenta no hay a dónde enviarlo). «Empezar de nuevo» lo olvida;
+- **Teclado**: flechas pasan de paso (no dentro del formulario ni cuando la guía de Aurora está por encima), Esc cierra
+  (con el foco en el índice, solo el índice); **dedo**: deslizar pasa de paso (`useDeslizarPasos`, salvo en la práctica
+  de gestos y el formulario); **`prefers-reduced-motion`**: las demostraciones llegan quietas y la ventana solo se funde;
+- **360 px y dianas de 44 px**: la tarjeta de Aurora se desplaza por dentro (`max-h` + `overflow-y-auto`); el pie de la
+  ventana de acceso queda pegado abajo (`sticky`) para que «Siguiente» no se pierda con un paso largo.
+
+### 6.3 Sin cuenta y con cuenta (`hooks/use-hay-sesion.ts`)
+
+`useHaySesion(activo)` devuelve `true` (cuenta real: con correo y no anónima), `false` o `null` (aún no se sabe: no se
+quita nada). Lee la sesión local y se suscribe a los cambios; los módulos de Supabase se cargan a demanda. En el
+catálogo, `irNecesitaCuenta(paso)` dice si el «Ir» de un paso necesita cuenta (cualquier ruta salvo `/escritorios`, que
+se usa sin ella; abrir un borde Trinity nunca la pide).
+
+Final de la guía de Aurora sin cuenta: «Crear cuenta», «Entrar» y «Explorar sin cuenta».
+- Desde `/login` o `/bienvenida` (`desde: "login" | "bienvenida"`) el formulario ya está detrás: la guía cierra y le pide a
+  esa página la pestaña con `pedirAccesoDesdeGuia(accion)` → evento `starseed:guia-accion` (`{accion: "crear-cuenta" |
+  "entrar"}`), que `PaginaAcceso` atiende.
+- Desde cualquier otro sitio abre LA ventana de acceso: `abrirPrimerArranque("acceso", "signup" | "signin")`.
+- «Explorar sin cuenta» deja la marca y lleva a los escritorios (`explorar-sin-cuenta.ts`).
+Con sesión, el último paso es «Tu cuenta, tu espacio» y termina en «Ir a mi espacio» (`/escritorios`).
+
+### 6.4 Límites, dichos como tales
+
+- La guía de Aurora (z 95) **no puede abrirse encima de la ventana de acceso en forma de diálogo** (un diálogo modal de
+  Radix lo impide, z 120/121): por eso la propia ventana lleva la guía completa y, en `/login` y `/bienvenida` (página,
+  z 90), «Conoce StarSeed» abre la de Aurora por encima.
+- Dentro de la ventana de acceso (diálogo), Esc la cierra entera: es el comportamiento de siempre de un diálogo.
+- «Disponible al entrar» se decide por la ruta del paso (`irNecesitaCuenta`), no por probar cada página: es una
+  suposición prudente y está en un solo sitio.
+- El progreso es local al aparato.

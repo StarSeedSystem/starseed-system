@@ -120,7 +120,7 @@ describe("guía · deslizar la tarjeta para pasar de paso", () => {
         vi.mocked(performance.now).mockRestore();
         dispositivo("raton");
         render(<AuroraGuide />);
-        act(() => { window.dispatchEvent(new CustomEvent(OPEN_GUIDE_EVENT, { detail: { step: 5 } })); });
+        act(() => { window.dispatchEvent(new CustomEvent(OPEN_GUIDE_EVENT, { detail: { temaInicial: "gestos-hibridos" } })); });
         fireEvent.click(await screen.findByRole("button", { name: /Solo la guía, sin voz/ }));
         expect(await screen.findByText("Gestos naturales en cualquier pantalla")).toBeTruthy();
         expect(screen.getByText(/Deja el cursor un instante en un borde/)).toBeTruthy();

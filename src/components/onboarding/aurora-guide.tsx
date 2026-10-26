@@ -89,10 +89,23 @@ import {
   Mic,
   Radio,
   EarOff,
+  Atom,
+  Network,
+  Layers,
+  Landmark,
+  GraduationCap,
+  Palette,
+  Hammer,
+  ShieldCheck,
+  UserPlus,
+  LogIn,
+  Lock,
+  RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
-import { StepDemo } from "./aurora-guide-demos";
+import { DemoPaso } from "./demo-paso";
+import { BarraCapitulos, IndiceGuia, PuntosPaso, RazonesCuenta, TarjetasPaso } from "./guia-completa-ui";
 import { IconoStarSeed } from "./icono-starseed";
 import {
   auroraSpeak,
@@ -109,6 +122,23 @@ import {
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { copiarGuiaLocalACuenta, marcarGuiaVista } from "@/lib/onboarding/guia-vista";
+import {
+  ACENTOS_TRINITY,
+  PASOS_GUIA,
+  acotarIndice,
+  capituloDeIndice,
+  etiquetaProgreso,
+  indiceInicial,
+  irNecesitaCuenta,
+  textoDelPaso,
+  vozDelPaso,
+  type PasoGuia,
+} from "@/lib/onboarding/guia-completa";
+import { borrarProgresoGuia, guardarProgresoGuia, leerProgresoGuia } from "@/lib/onboarding/guia-progreso";
+import { pedirAccesoDesdeGuia, type AccionGuia, type OrigenGuia } from "@/lib/onboarding/guia-acceso";
+import { abrirPrimerArranque } from "@/lib/onboarding/primer-arranque";
+import { explorarSinCuenta } from "@/lib/onboarding/explorar-sin-cuenta";
+import { useHaySesion } from "@/hooks/use-hay-sesion";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
@@ -116,7 +146,6 @@ import { useNivelMovimiento } from "@/hooks/use-nivel-movimiento";
 import { useDeslizarPasos } from "@/hooks/use-deslizar-pasos";
 import { useDireccionPaso } from "@/components/movimiento/paso-animado";
 import { transicionPaso, variantesPaso, type Direccion } from "@/lib/movimiento/transiciones";
-import type { PerfilEntrada } from "@/lib/gestos";
 
 // ── contratos externos (solo strings/constantes; sin importar el motor) ──────
 const GUIDE_MODE_KEY = "starseed.guide.mode.v1";
@@ -176,11 +205,16 @@ function useSafePerimeter(): { setActiveEdge: (edge: PerimeterEdge) => void } {
 }
 
 // ── modelo de un paso de la guía ─────────────────────────────────────────────
+// (Ola 1025U · GUIA1025U) Los pasos YA NO se definen aquí: salen del catálogo único
+// `lib/onboarding/guia-completa.ts`, el mismo que recorre la introducción de la ventana de acceso. Este
+// archivo solo les pone lo que es de la interfaz: el icono, el objetivo que se ilumina, «Ir» y «Hazlo por mí».
 type GuideAction = {
   /** Texto del botón "Ir/mostrar" (acompañar). */
   label: string;
   /** Ejecuta la acción de ACOMPAÑAR (navegar / resaltar / abrir suavemente). */
   run: (ctx: GuideCtx) => void;
+  /** Sin cuenta se sustituye por «Disponible al entrar» (lleva a una zona que la pide). */
+  cuenta?: boolean;
 };
 
 type GuideCtx = {
@@ -190,263 +224,125 @@ type GuideCtx = {
 
 type GuideStep = {
   key: string;
+  /** El paso del catálogo del que sale todo lo demás. */
+  paso: PasoGuia;
   title: string;
-  /** Explicación clara y útil (2-4 frases). */
+  /** Explicación clara y útil. */
   body: string;
-  /** Texto compacto que Aurora NARRA por voz (modo voz). Cae al body si falta. */
-  say?: string;
+  /** Texto compacto que Aurora NARRA por voz (modo voz). */
+  say: string;
   icon: React.ComponentType<{ className?: string }>;
-  accent: string; // color de acento (var CSS o hex Trinity)
+  accent: string; // color de acento (hex Trinity)
   /** Selectores candidatos para el spotlight (se usa el primero que exista). */
   targets?: string[];
   /** "Ir/mostrar" — acompañar sin ejecutar la acción disruptiva. */
   go?: GuideAction;
   /** "Hazlo por mí" — dispara la ACCIÓN REAL de este paso. */
-  doIt?: { label: string; run: (ctx: GuideCtx) => void };
+  doIt?: GuideAction;
   /** Frase equivalente por voz (se sugiere a Aurora). */
   ask?: string;
-  /**
-   * Explicación adaptada al dispositivo (táctil / ratón / híbrido): lo que se
-   * enseña es lo que la persona puede hacer AHÍ. Cae a `body` si falta.
-   */
-  bodyPorPerfil?: Partial<Record<PerfilEntrada, string>>;
-  sayPorPerfil?: Partial<Record<PerfilEntrada, string>>;
 };
 
-// Rutas confirmadas del OS.
+/** El icono de cada paso (los que no estén aquí usan la brújula). */
+const ICONOS: Record<string, React.ComponentType<{ className?: string }>> = {
+  bienvenida: Sparkles,
+  "que-es": LayoutGrid,
+  orbe: Sparkles,
+  "trinity-zenith": Sparkles,
+  "trinity-horizon": Layout,
+  "trinity-logic": Settings2,
+  "trinity-anchor": LayoutGrid,
+  "gestos-hibridos": Move,
+  protomolecula: Atom,
+  malla: Network,
+  "capas-conciencia": Layers,
+  "neuronas-cerebro": Brain,
+  "pilar-politica": Landmark,
+  "pilar-educacion": GraduationCap,
+  "pilar-cultura": Palette,
+  "libreria-biblioteca": BookOpen,
+  genesis: Hammer,
+  "personalizacion-segura": ShieldCheck,
+  escritorio: MonitorSmartphone,
+  dashboard: Gauge,
+  astraura: Brain,
+  perfil: UserCircle,
+  cerebros: Server,
+  cuenta: UserPlus,
+};
+
+/** Selectores del objetivo que se ilumina en cada paso (si no existe en la ruta, el paso va centrado). */
+const OBJETIVOS: Record<string, string[]> = {
+  orbe: ['[data-guide="orbe"]', '[aria-label="Aurora"]'],
+  "trinity-zenith": ['[data-guide="trinity-zenith"]', '[data-trinity-edge-handle="zenith"]', '[data-trinity-petal="zenith"]'],
+  "trinity-horizon": ['[data-guide="trinity-horizon"]', '[data-trinity-edge-handle="horizon"]', '[data-trinity-petal="horizon"]'],
+  "trinity-logic": ['[data-guide="trinity-logic"]', '[data-trinity-edge-handle="logic"]', '[data-trinity-petal="logic"]'],
+  "trinity-anchor": ['[data-guide="trinity-anchor"]', '[data-trinity-edge-handle="anchor"]', '[data-trinity-petal="anchor"]'],
+  "gestos-hibridos": ['[data-trinity-edge-handle="horizon"]', '[data-trinity-sensor="horizon"]'],
+  escritorio: ['[data-guide="escritorio"]', '[data-guide="dock-escritorios"]'],
+  dashboard: ['[data-guide="dashboard"]', '[data-guide="dock-dashboard"]'],
+  astraura: ['[data-guide="astraura"]', '[data-guide="dock-ai-studio"]', '[data-guide="dock-apps-ia"]'],
+  perfil: ['[data-guide="perfil"]', '[data-guide="dock-profile"]'],
+  cerebros: ['[data-guide="cerebros"]', '[data-guide="dock-cerebros"]', '[data-guide="dock-cerebro"]'],
+  "libreria-biblioteca": ['[data-guide="libreria"]', '[data-guide="dock-mylib"]', '[data-guide="dock-netlib"]'],
+};
+
+// Rutas confirmadas del OS (la de los escritorios es también adonde lleva «Explorar sin cuenta»).
 const R = {
   escritorios: "/escritorios",
-  dashboard: "/dashboard",
   agent: "/agent",
-  cerebros: "/cerebros",
-  library: "/library",
-  profile: "/profile/me",
 } as const;
 
-/**
- * Pasos del tour. El orden lleva de lo más presente (el Orbe, siempre visible)
- * a las grandes superficies del sistema. Cada uno explica el FUNCIONAMIENTO.
- */
-const STEPS: GuideStep[] = [
-  {
-    key: "orbe",
-    title: "El Orbe de Aurora",
-    body:
-      "Aurora vive en el orbe flotante, presente en todas las pantallas. Un TOQUE activa o para su voz; MANTENER pulsado abre el menú Trinity centrado y, sin soltar, DESLIZAS hacia una opción para abrirla; ARRASTRA el orbe para moverlo (o llévalo arriba para ocultarlo). Con clic derecho abres su chat completo en el Exocórtex.",
-    say:
-      "Este es mi orbe. Tócame para activar o parar mi voz; mantén pulsado para abrir el menú Trinity y desliza hacia una opción; arrástrame para moverme.",
-    icon: Sparkles,
-    accent: "#C9A8FF",
-    targets: ['[data-guide="orbe"]', '[aria-label="Aurora"]'],
-    doIt: {
-      label: "Abrir el chat de Aurora",
-      run: ({ setActiveEdge }) => { setActiveEdge("zenith"); emit(AURORA_EXOCORTEX_OPEN_EVENT); },
-    },
-    ask: "Aurora, abre tu chat en el Exocórtex",
+/** «Hazlo por mí»: la acción REAL de los pasos que la tienen. */
+const HAZLO_POR_MI: Record<string, GuideAction> = {
+  orbe: {
+    label: "Abrir el chat de Aurora",
+    run: ({ setActiveEdge }) => { setActiveEdge("zenith"); emit(AURORA_EXOCORTEX_OPEN_EVENT); },
   },
-  {
-    key: "trinity-zenith",
-    title: "Trinity · Zenith (arriba)",
-    body:
-      "Zenith es tu guía de IA y el Exocórtex: la cortina superior donde Aurora piensa contigo, con acceso a su chat, sentidos y contexto. Es el nodo azul del norte. Ábrelo desde el menú Trinity del orbe o deslizando desde el borde superior.",
-    say:
-      "Arriba está Zenith, el nodo azul: mi Exocórtex, donde pienso contigo. Ábrelo desde el menú Trinity o deslizando desde el borde superior.",
-    icon: Sparkles,
-    accent: "#007FFF",
-    targets: ['[data-guide="trinity-zenith"]', '[data-trinity-edge-handle="zenith"]', '[data-trinity-petal="zenith"]'],
-    go: {
-      label: "Abrir Zenith",
-      run: ({ setActiveEdge }) => setActiveEdge("zenith"),
-    },
-    doIt: {
-      label: "Abrir Exocórtex",
-      run: ({ setActiveEdge }) => { setActiveEdge("zenith"); emit(AURORA_EXOCORTEX_OPEN_EVENT); },
-    },
-    ask: "Aurora, abre Zenith",
+  "trinity-zenith": {
+    label: "Abrir Exocórtex",
+    run: ({ setActiveEdge }) => { setActiveEdge("zenith"); emit(AURORA_EXOCORTEX_OPEN_EVENT); },
   },
-  {
-    key: "trinity-horizon",
-    title: "Trinity · Horizon (izquierda)",
-    body:
-      "Horizon es el lienzo de Creación: el nodo verde del oeste. Desde aquí generas y das forma a ideas, contenidos y espacios. Ábrelo desde el menú Trinity del orbe o deslizando desde el borde izquierdo.",
-    say:
-      "A la izquierda, Horizon, el nodo verde: tu lienzo de creación para dar forma a ideas y contenidos. Ábrelo desde el borde izquierdo.",
-    icon: Layout,
-    accent: "#39FF14",
-    targets: ['[data-guide="trinity-horizon"]', '[data-trinity-edge-handle="horizon"]', '[data-trinity-petal="horizon"]'],
-    go: {
-      label: "Abrir Horizon",
-      run: ({ setActiveEdge }) => setActiveEdge("horizon"),
-    },
-    ask: "Aurora, abre Horizon",
+  escritorio: {
+    label: "Llévame al Escritorio",
+    run: ({ router }) => safeGoto(router, R.escritorios),
+    cuenta: false,
   },
-  {
-    key: "trinity-logic",
-    title: "Trinity · Logic (derecha)",
-    body:
-      "Logic es el control del sistema: el nodo ámbar del este. Reúne ajustes, paneles y el mando de lo que ocurre en el OS. Ábrelo desde el menú Trinity del orbe o deslizando desde el borde derecho.",
-    say:
-      "A la derecha, Logic, el nodo ámbar: el control del sistema, con ajustes y paneles. Ábrelo desde el borde derecho.",
-    icon: Settings2,
-    accent: "#FFBF00",
-    targets: ['[data-guide="trinity-logic"]', '[data-trinity-edge-handle="logic"]', '[data-trinity-petal="logic"]'],
-    go: {
-      label: "Abrir Logic",
-      run: ({ setActiveEdge }) => setActiveEdge("logic"),
-    },
-    ask: "Aurora, abre Logic",
+  astraura: {
+    label: "Llévame a Astraura",
+    run: ({ router }) => safeGoto(router, R.agent),
+    cuenta: true,
   },
-  {
-    key: "trinity-anchor",
-    title: "Trinity · Anchor (abajo)",
-    body:
-      "Anchor es tu dock y acceso raíz: el nodo carmesí del sur. Desde el OmniDock saltas entre las apps y secciones del sistema. Ábrelo desde el menú Trinity del orbe o deslizando desde el borde inferior.",
-    say:
-      "Abajo, Anchor, el nodo carmesí: tu dock y acceso raíz para saltar entre apps y secciones. Ábrelo desde el borde inferior.",
-    icon: LayoutGrid,
-    accent: "#DC143C",
-    targets: ['[data-guide="trinity-anchor"]', '[data-trinity-edge-handle="anchor"]', '[data-trinity-petal="anchor"]'],
-    go: {
-      label: "Abrir el Dock",
-      run: ({ setActiveEdge }) => setActiveEdge("anchor"),
-    },
-    ask: "Aurora, abre el dock",
-  },
-  {
-    // (2026-09-25) Interfaz híbrida: el mismo gesto en cualquier pantalla, con
-    // práctica real dentro de la guía (demo-gestos-hibridos.tsx).
-    key: "gestos-hibridos",
-    title: "Gestos naturales en cualquier pantalla",
-    body:
-      "Los cuatro menús se abren y se cierran igual en móvil, tableta u ordenador. Ábrelos desde su borde; ciérralos devolviéndolos a su borde, tocando fuera, con la X de su esquina o con Escape. StarSeed detecta solo si usas el dedo, el ratón o los dos, y se adapta al tamaño y a la orientación de tu pantalla.",
-    bodyPorPerfil: {
-      tactil:
-        "Desliza el dedo desde cualquier borde hacia dentro: el menú de ese lado aparece bajo tu dedo y lo sigue. Para cerrarlo, arrástralo de vuelta a su borde (un gesto rápido basta), toca fuera o pulsa la X de su esquina. Todo se adapta solo al tamaño y a la orientación de tu pantalla.",
-      raton:
-        "Deja el cursor un instante en un borde, haz clic en él o tira de él con el ratón: el menú sigue a tu puntero. En un portátil también puedes deslizar dos dedos en el panel táctil. Para cerrar: la X de la esquina, un clic fuera, la tecla Escape o arrastrarlo a su borde.",
-      hibrido:
-        "Con el dedo, desliza desde un borde; con el ratón, deja el cursor en el borde, haz clic o tira de él. Para cerrar sirve lo mismo en los dos: devolverlo a su borde, tocar fuera, la X de su esquina o Escape. StarSeed detecta qué usas en cada momento y se adapta solo.",
-    },
-    say:
-      "Los menús se abren desde su borde y se cierran devolviéndolos a su borde, tocando fuera, con la X o con Escape. Pruébalo en el recuadro.",
-    sayPorPerfil: {
-      tactil: "Desliza el dedo desde un borde y el menú te sigue. Para cerrarlo, devuélvelo a su borde, toca fuera o pulsa la X. Pruébalo en el recuadro.",
-      raton: "Deja el cursor en un borde, haz clic o tira de él. Para cerrar, usa la X, un clic fuera o la tecla Escape. Pruébalo en el recuadro.",
-    },
-    icon: Move,
-    accent: "#6FE6D6",
-    targets: ['[data-trinity-edge-handle="horizon"]', '[data-trinity-sensor="horizon"]'],
-    go: {
-      label: "Probar con Horizon",
-      run: ({ setActiveEdge }) => setActiveEdge("horizon"),
-    },
-    ask: "Aurora, ¿cómo cierro los menús?",
-  },
-  {
-    key: "escritorio",
-    title: "El Escritorio",
-    body:
-      "El Escritorio es tu página principal: un espacio soberano con iconos y ventanas que organizas a tu gusto, como un sistema operativo. Aquí conviven tus apps, accesos y contenidos. Aurora puede navegar y actuar sobre él por voz.",
-    say:
-      "El Escritorio es tu página principal: un espacio soberano con iconos y ventanas que organizas a tu gusto, como un sistema operativo.",
-    icon: MonitorSmartphone,
-    accent: "#6FE6D6",
-    targets: ['[data-guide="escritorio"]', '[data-guide="dock-escritorios"]'],
-    go: {
-      label: "Ir al Escritorio",
-      run: ({ router }) => safeGoto(router, R.escritorios),
-    },
-    doIt: {
-      label: "Llévame al Escritorio",
-      run: ({ router }) => safeGoto(router, R.escritorios),
-    },
-    ask: "Aurora, llévame al escritorio",
-  },
-  {
-    key: "dashboard",
-    title: "El Dashboard",
-    body:
-      "El Dashboard reúne tus widgets en una rejilla que puedes reordenar arrastrando: un vistazo vivo a tu red, tus datos y tus herramientas. Personalízalo para tener a mano lo que más usas.",
-    say:
-      "El Dashboard reúne tus widgets en una rejilla que reordenas arrastrando: un vistazo vivo a tu red, tus datos y tus herramientas.",
-    icon: Gauge,
-    accent: "#9FE870",
-    targets: ['[data-guide="dashboard"]', '[data-guide="dock-dashboard"]'],
-    go: {
-      label: "Ir al Dashboard",
-      run: ({ router }) => safeGoto(router, R.dashboard),
-    },
-    ask: "Aurora, abre el dashboard",
-  },
-  {
-    key: "astraura",
-    title: "Astraura · IA (Agente)",
-    body:
-      "Astraura es la mente de Aurora: aquí configuras su cerebro (el modelo de IA), sus memorias, sus skills y sus sentidos, y hablas con ella por voz o texto. Es tu Exocórtex — propiedad tuya, leal a ti. Ajusta qué modelos usa y qué recuerda.",
-    say:
-      "Astraura es mi mente: aquí configuras mi cerebro, mis memorias, mis skills y mis sentidos. Soy tu Exocórtex, propiedad tuya y leal a ti.",
-    icon: Brain,
-    accent: "#E879F9",
-    targets: ['[data-guide="astraura"]', '[data-guide="dock-ai-studio"]', '[data-guide="dock-apps-ia"]'],
-    go: {
-      label: "Abrir Astraura",
-      run: ({ router }) => safeGoto(router, R.agent),
-    },
-    doIt: {
-      label: "Llévame a Astraura",
-      run: ({ router }) => safeGoto(router, R.agent),
-    },
-    ask: "Aurora, abre tu configuración de agente",
-  },
-  {
-    key: "perfil",
-    title: "Tu Perfil",
-    body:
-      "Tu Perfil es tu cara pública en la red: nombre, @handle, avatar, biografía y lo que compartes. Recuerda que tu Cuenta (privada) es el ancla soberana y puedes tener varios perfiles (cívico, artístico, profesional) sobre ella.",
-    say:
-      "Tu Perfil es tu cara pública: nombre, arroba, avatar y lo que compartes. Tu Cuenta privada es el ancla, y puedes tener varios perfiles sobre ella.",
-    icon: UserCircle,
-    accent: "#F0ABFC",
-    targets: ['[data-guide="perfil"]', '[data-guide="dock-profile"]'],
-    go: {
-      label: "Ver mi Perfil",
-      run: ({ router }) => safeGoto(router, R.profile),
-    },
-    ask: "Aurora, muéstrame mi perfil",
-  },
-  {
-    key: "cerebros",
-    title: "Cerebros y Servidores",
-    body:
-      "En Cerebros enlazas servidores y las memorias de cada cerebro en un grafo vivo: conectas fuentes de conocimiento, máquinas y recuerdos para que Aurora piense con más contexto. Es donde tu Exocórtex gana profundidad.",
-    say:
-      "En Cerebros enlazas servidores y memorias en un grafo vivo: fuentes de conocimiento, máquinas y recuerdos para que yo piense con más contexto.",
-    icon: Server,
-    accent: "#22D3EE",
-    targets: ['[data-guide="cerebros"]', '[data-guide="dock-cerebros"]', '[data-guide="dock-cerebro"]'],
-    go: {
-      label: "Ir a Cerebros",
-      run: ({ router }) => safeGoto(router, R.cerebros),
-    },
-    ask: "Aurora, abre los cerebros",
-  },
-  {
-    key: "libreria",
-    title: "La Librería",
-    body:
-      "La Librería es el catálogo unificado de la red: apps, widgets, recursos y saberes que puedes abrir, instalar o vincular. Es tu puerta a lo que el ecosistema StarSeed pone en común.",
-    say:
-      "La Librería es el catálogo unificado de la red: apps, widgets, recursos y saberes que puedes abrir, instalar o vincular. Es tu puerta a lo común.",
-    icon: BookOpen,
-    accent: "#FBBF24",
-    targets: ['[data-guide="libreria"]', '[data-guide="dock-mylib"]', '[data-guide="dock-netlib"]'],
-    go: {
-      label: "Abrir la Librería",
-      run: ({ router }) => safeGoto(router, R.library),
-    },
-    ask: "Aurora, abre la librería",
-  },
-];
+};
+
+/** Un paso del catálogo con lo que le pone esta interfaz. */
+function decorar(paso: PasoGuia): GuideStep {
+  const go: GuideAction | undefined = paso.borde
+    ? { label: paso.irEtiqueta ?? "Abrir", run: ({ setActiveEdge }) => setActiveEdge(paso.borde as PerimeterEdge) }
+    : paso.ruta
+      ? {
+          label: paso.irEtiqueta ?? "Abrir",
+          run: ({ router }) => safeGoto(router, paso.ruta as string),
+          cuenta: irNecesitaCuenta(paso),
+        }
+      : undefined;
+  return {
+    key: paso.id,
+    paso,
+    title: paso.titulo,
+    body: paso.texto,
+    say: paso.voz,
+    icon: ICONOS[paso.id] ?? Compass,
+    accent: ACENTOS_TRINITY[paso.acento],
+    targets: OBJETIVOS[paso.id],
+    go,
+    doIt: HAZLO_POR_MI[paso.id],
+    ask: paso.pregunta,
+  };
+}
+
+/** Los pasos del recorrido: los del catálogo único, en su orden. */
+const STEPS: GuideStep[] = PASOS_GUIA.map(decorar);
 
 // Frase de bienvenida que Aurora narra al empezar en modo voz.
 const INTRO_SAY =
@@ -465,6 +361,9 @@ export function AuroraGuide() {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
+  // (Ola 1025U) De dónde se abrió (decide qué hace el final sin cuenta) y si se retomó por donde se quedó.
+  const [origen, setOrigen] = useState<OrigenGuia | undefined>(undefined);
+  const [reanudadoEn, setReanudadoEn] = useState<number | null>(null);
   // Modo elegido en la pantalla inicial (null = aún no elegido → pregunta).
   const [mode, setMode] = useState<GuideMode | null>(null);
   // Silenciar la narración por voz (sólo TTS; el texto se mantiene). true = mute.
@@ -483,9 +382,15 @@ export function AuroraGuide() {
 
   const step = STEPS[index];
   const ctx = useMemo<GuideCtx>(() => ({ router, setActiveEdge }), [router, setActiveEdge]);
-  // Texto y narración adaptados al dispositivo (caen al texto común si no hay variante).
-  const cuerpo = step ? (step.bodyPorPerfil?.[entrada] ?? step.body) : "";
-  const narracion = step ? (step.sayPorPerfil?.[entrada] ?? step.say ?? cuerpo) : "";
+  // ¿Con cuenta o sin ella? (`null` = aún no se sabe: no se quita nada). Solo se averigua con la guía abierta.
+  const haySesion = useHaySesion(open);
+  const sinCuenta = haySesion === false;
+  // Texto y narración adaptados al dispositivo (caen al texto común si no hay variante) y a la sesión
+  // (el último paso termina distinto con cuenta).
+  const conSesion = haySesion === true ? step?.paso.conSesion : undefined;
+  const titulo = conSesion?.titulo ?? step?.title ?? "";
+  const cuerpo = step ? (conSesion?.texto ?? textoDelPaso(step.paso, entrada)) : "";
+  const narracion = step ? (conSesion?.voz ?? vozDelPaso(step.paso, entrada)) : "";
   // Sentido del cambio de paso: la tarjeta entra girando desde el lado hacia el que se avanza.
   const direccion = useDireccionPaso(index);
 
@@ -537,8 +442,14 @@ export function AuroraGuide() {
   }, []);
 
   // ── reabrir bajo demanda: evento + helper global ───────────────────────────
-  const openGuide = useCallback((startAt = 0) => {
-    setIndex(Math.max(0, Math.min(STEPS.length - 1, startAt)));
+  // `inicio`: una posición, el id de un paso o de un tema; sin él, la guía RETOMA por donde se quedó
+  // (`guia-progreso.ts`, compartido con la introducción de la ventana de acceso) o empieza por el principio.
+  const openGuide = useCallback((inicio?: number | string | null, desde?: OrigenGuia) => {
+    const explicito = inicio !== undefined && inicio !== null;
+    const retomado = explicito ? null : leerProgresoGuia();
+    setIndex(explicito ? indiceInicial(inicio) : (retomado ?? 0));
+    setReanudadoEn(retomado);
+    setOrigen(desde);
     // Reabrir SIEMPRE vuelve a preguntar el modo (respeta la elección del momento).
     setMode(null);
     setMuted(false);
@@ -548,14 +459,15 @@ export function AuroraGuide() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onOpen = (e: Event) => {
-      const at = (e as CustomEvent<{ step?: number }>)?.detail?.step;
-      openGuide(typeof at === "number" ? at : 0);
+      const d = (e as CustomEvent<{ step?: number; temaInicial?: string; desde?: OrigenGuia } | undefined>)?.detail;
+      // `step`: posición (la forma de siempre); `temaInicial`: el id de cualquier paso de la guía.
+      openGuide(typeof d?.step === "number" ? d.step : d?.temaInicial, d?.desde);
     };
     window.addEventListener(OPEN_GUIDE_EVENT, onOpen);
     // Helper global reutilizable desde cualquier parte (menús, ayuda, Aurora).
     try {
       (window as unknown as Record<string, unknown>).openStarseedGuide = (at?: number) =>
-        openGuide(typeof at === "number" ? at : 0);
+        openGuide(typeof at === "number" ? at : undefined);
     } catch { /* */ }
     return () => {
       window.removeEventListener(OPEN_GUIDE_EVENT, onOpen);
@@ -618,6 +530,39 @@ export function AuroraGuide() {
 
   const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
   const goNext = useCallback(() => setIndex((i) => Math.min(STEPS.length - 1, i + 1)), []);
+  const goTo = useCallback((i: number) => setIndex(acotarIndice(i)), []);
+
+  // Retomar donde se quedó: el paso que se está leyendo se apunta (el último, la cuenta, lo borra).
+  useEffect(() => {
+    if (inTour) guardarProgresoGuia(index);
+  }, [inTour, index]);
+
+  /** «Empezar de nuevo» tras retomar. */
+  const empezarDeNuevo = useCallback(() => {
+    borrarProgresoGuia();
+    setReanudadoEn(null);
+    setIndex(0);
+  }, []);
+
+  // ── el final de la guía sin cuenta: crear cuenta, entrar o explorar ──────────
+  // En /login y /bienvenida el formulario ya está detrás: se le pide que vaya a la pestaña que toca.
+  // Desde cualquier otro sitio se abre LA ventana de acceso (la misma que el primer arranque).
+  const irAlAcceso = useCallback(
+    (accion: AccionGuia) => {
+      close();
+      if (origen === "login" || origen === "bienvenida") pedirAccesoDesdeGuia(accion);
+      else abrirPrimerArranque("acceso", accion === "crear-cuenta" ? "signup" : "signin");
+    },
+    [close, origen],
+  );
+  const explorar = useCallback(() => {
+    close();
+    explorarSinCuenta(router);
+  }, [close, router]);
+  const irAMiEspacio = useCallback(() => {
+    close();
+    safeGoto(router, R.escritorios);
+  }, [close, router]);
   // Deslizar la tarjeta en horizontal pasa de paso (como pasar páginas), con
   // dedo, ratón o lápiz; tocar sus botones sigue siendo un clic.
   const deslizar = useDeslizarPasos({ alSiguiente: goNext, alAnterior: goPrev, habilitado: open && mode !== null });
@@ -708,6 +653,8 @@ export function AuroraGuide() {
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
     const onKey = (e: KeyboardEvent) => {
+      // El índice cierra su lista con Escape (y lo marca): entonces la guía se queda abierta.
+      if (e.defaultPrevented) return;
       if (e.key === "Escape") close();
       else if (inTour && e.key === "ArrowRight") setIndex((i) => Math.min(STEPS.length - 1, i + 1));
       else if (inTour && e.key === "ArrowLeft") setIndex((i) => Math.max(0, i - 1));
@@ -783,7 +730,7 @@ export function AuroraGuide() {
   const FloatingAccess = !open && buttonVisible ? (
     <button
       type="button"
-      onClick={() => openGuide(0)}
+      onClick={() => openGuide(undefined, "boton")}
       aria-label="Abrir la guía de StarSeed"
       title="Guía y ayuda de StarSeed"
       className={cn(
@@ -1068,8 +1015,8 @@ export function AuroraGuide() {
                     // Deslizar a la izquierda = siguiente; a la derecha = anterior.
                     {...deslizar}
                     className={cn(
-                      "pointer-events-auto relative w-full max-w-[30rem] overflow-hidden rounded-[24px] touch-pan-y",
-                      "border border-white/12 shadow-2xl shadow-black/60 backdrop-blur-2xl",
+                      "pointer-events-auto relative flex w-full max-w-[30rem] flex-col overflow-hidden rounded-[24px] touch-pan-y",
+                      "max-h-[calc(100dvh-1.5rem)] border border-white/12 shadow-2xl shadow-black/60 backdrop-blur-2xl",
                     )}
                     style={{
                       background:
@@ -1082,7 +1029,8 @@ export function AuroraGuide() {
                       className="h-[2px] w-full bg-gradient-to-r from-[#9FE870] via-[#6FE6D6] to-[#C9A8FF] opacity-85 shadow-[0_0_14px_rgba(111,230,214,0.55)]"
                     />
 
-                    <div className="p-4 sm:p-5">
+                    {/* El contenido se desplaza dentro de la tarjeta: a 360 px y con teclado abierto nada se corta. */}
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5">
                       {/* Cabecera: icono + título + índice + [mute] + cerrar */}
                       <div className="flex items-start gap-3">
                         <div
@@ -1097,11 +1045,12 @@ export function AuroraGuide() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <h2 className="text-[16px] font-bold leading-tight text-white">{step.title}</h2>
+                            <h2 className="text-[16px] font-bold leading-tight text-white">{titulo}</h2>
                           </div>
-                          <div className="mt-0.5 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-white/45">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] font-mono uppercase tracking-[0.18em] text-white/45">
                             <Compass className="h-3 w-3" />
-                            Paso {index + 1} de {STEPS.length}
+                            {etiquetaProgreso(index)}
+                            <span className="normal-case tracking-normal text-white/40">· {capituloDeIndice(index).titulo}</span>
                             {mode === "voice" && (
                               <span className="inline-flex items-center gap-1 text-[#C9A8FF]/80">
                                 · {muted ? <VolumeX className="h-3 w-3" /> : <Radio className="h-3 w-3" />}
@@ -1118,7 +1067,7 @@ export function AuroraGuide() {
                           aria-label={muted ? "Reactivar la voz de Aurora" : "Silenciar la voz de Aurora"}
                           title={muted ? "Reactivar la voz de Aurora" : "Silenciar la voz de Aurora (la guía sigue en texto)"}
                           className={cn(
-                            "shrink-0 rounded-lg border p-1.5 transition cursor-pointer",
+                            "grid h-11 w-11 shrink-0 place-items-center rounded-lg border transition cursor-pointer",
                             muted
                               ? "border-white/12 bg-white/[0.03] text-white/50 hover:text-white"
                               : "border-[#C9A8FF]/30 bg-[#C9A8FF]/10 text-[#C9A8FF] hover:bg-[#C9A8FF]/20",
@@ -1130,20 +1079,39 @@ export function AuroraGuide() {
                         <BotonCerrar etiqueta="Cerrar la guía" atajo="Esc" tamano="sm" onClick={close} />
                       </div>
 
-                      {/* ── EJEMPLO ANIMADO del paso (mini-demostración) ── */}
-                      <div className="mt-3.5">
-                        <AnimatePresence mode="wait">
-                          <motion.div
-                            key={`${step.key}-demo`}
-                            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
-                            transition={{ duration: reduceMotion ? 0.12 : 0.3 }}
+                      {/* ── Retomada: el recorrido sigue por donde se dejó ── */}
+                      {reanudadoEn !== null && reanudadoEn === index && (
+                        <div
+                          data-testid="guia-retomada"
+                          className="mt-3 flex flex-wrap items-center gap-x-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11.5px] text-white/65"
+                        >
+                          <span className="py-2">Retomas donde lo dejaste.</span>
+                          <button
+                            type="button"
+                            onClick={empezarDeNuevo}
+                            className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 rounded-md px-1 text-white/85 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
                           >
-                            <StepDemo stepKey={step.key} accent={step.accent} reduce={reduceMotion} />
-                          </motion.div>
-                        </AnimatePresence>
-                      </div>
+                            <RotateCcw className="h-3 w-3" aria-hidden /> Empezar de nuevo
+                          </button>
+                        </div>
+                      )}
+
+                      {/* ── EJEMPLO ANIMADO del paso (mini-demostración, cargada a demanda) ── */}
+                      {step.paso.demo && (
+                        <div className="mt-3.5">
+                          <AnimatePresence mode="wait">
+                            <motion.div
+                              key={`${step.key}-demo`}
+                              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
+                              transition={{ duration: reduceMotion ? 0.12 : 0.3 }}
+                            >
+                              <DemoPaso clave={step.paso.demo} accent={step.accent} reduce={reduceMotion} />
+                            </motion.div>
+                          </AnimatePresence>
+                        </div>
+                      )}
 
                       {/* Cuerpo animado por paso */}
                       <AnimatePresence mode="wait">
@@ -1158,6 +1126,10 @@ export function AuroraGuide() {
                           {cuerpo}
                         </motion.p>
                       </AnimatePresence>
+
+                      {/* Las ideas clave del tema y, en «Qué es», sus tarjetas */}
+                      <PuntosPaso puntos={step.paso.puntos} color={step.accent} className="mt-3" />
+                      <TarjetasPaso paso={step.paso} className="mt-3" />
 
                       {/* Chips de gestos (solo en el paso del orbe) */}
                       {step.key === "orbe" && (
@@ -1177,25 +1149,26 @@ export function AuroraGuide() {
                         </div>
                       )}
 
-                      {/* Acciones del paso: "Ir/mostrar" (acompañar) + "Hazlo por mí" */}
+                      {/* Acciones del paso: "Ir/mostrar" (acompañar) + "Hazlo por mí".
+                          Sin cuenta, lo que lleva a una zona que la pide pasa a «Disponible al entrar». */}
                       {(step.go || step.doIt) && (
-                        <div className="mt-3.5 flex flex-wrap gap-2">
-                          {step.go && (
+                        <div className="mt-3.5 flex flex-wrap items-center gap-2">
+                          {step.go && !(sinCuenta && step.go.cuenta) && (
                             <button
                               type="button"
                               onClick={() => step.go?.run(ctx)}
-                              className="inline-flex items-center gap-1.5 rounded-xl border border-white/12 bg-white/[0.04] px-3 py-1.5 text-[12px] font-medium text-white/85 transition hover:bg-white/[0.09] cursor-pointer"
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-white/12 bg-white/[0.04] px-3 py-1.5 text-[12px] font-medium text-white/85 transition hover:bg-white/[0.09] cursor-pointer"
                               title="Acompañar: te muestro o abro esta zona"
                             >
                               <ArrowRight className="h-3.5 w-3.5" style={{ color: step.accent }} />
                               {step.go.label}
                             </button>
                           )}
-                          {step.doIt && (
+                          {step.doIt && !(sinCuenta && step.doIt.cuenta) && (
                             <button
                               type="button"
                               onClick={() => step.doIt?.run(ctx)}
-                              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-semibold text-white transition cursor-pointer"
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-semibold text-white transition cursor-pointer"
                               style={{
                                 background: `linear-gradient(90deg, color-mix(in srgb, ${step.accent} 55%, #6d28d9), color-mix(in srgb, ${step.accent} 35%, #0891b2))`,
                               }}
@@ -1205,6 +1178,55 @@ export function AuroraGuide() {
                               {step.doIt.label}
                             </button>
                           )}
+                          {sinCuenta && (step.go?.cuenta || step.doIt?.cuenta) && (
+                            <span
+                              data-testid="solo-con-cuenta"
+                              title="Crea tu cuenta o entra para abrir esta zona"
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-[12px] text-white/55"
+                            >
+                              <Lock className="h-3.5 w-3.5" aria-hidden /> Disponible al entrar
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* El último paso: la cuenta. Sin ella, crear, entrar o explorar; con ella, su espacio. */}
+                      {isLast && (
+                        <div data-testid="guia-cuenta" className="mt-3.5 space-y-3">
+                          <RazonesCuenta />
+                          {haySesion === true ? (
+                            <button
+                              type="button"
+                              onClick={irAMiEspacio}
+                              className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 px-3 py-1.5 text-[13px] font-semibold text-white transition hover:from-emerald-500 hover:to-cyan-500 sm:w-auto"
+                            >
+                              Ir a mi espacio <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                            </button>
+                          ) : (
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                              <button
+                                type="button"
+                                onClick={() => irAlAcceso("crear-cuenta")}
+                                className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-cyan-600 px-4 py-1.5 text-[13px] font-semibold text-white transition hover:from-fuchsia-500 hover:to-cyan-500"
+                              >
+                                <UserPlus className="h-4 w-4" aria-hidden /> Crear cuenta
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => irAlAcceso("entrar")}
+                                className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-1.5 text-[13px] font-medium text-white/90 transition hover:bg-white/[0.09]"
+                              >
+                                <LogIn className="h-4 w-4" aria-hidden /> Entrar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={explorar}
+                                className="inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-md px-2 text-[12px] text-white/65 underline-offset-2 hover:text-white/90 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                              >
+                                Explorar sin cuenta
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -1213,7 +1235,7 @@ export function AuroraGuide() {
                         <button
                           type="button"
                           onClick={askAurora}
-                          className="mt-3 flex w-full items-start gap-2 rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/15 px-3 py-2 text-left transition hover:bg-fuchsia-950/25 cursor-pointer"
+                          className="mt-3 flex min-h-[44px] w-full items-start gap-2 rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/15 px-3 py-2 text-left transition hover:bg-fuchsia-950/25 cursor-pointer"
                           title="Sugerir esta frase a Aurora"
                         >
                           <MessageCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fuchsia-300" />
@@ -1224,23 +1246,17 @@ export function AuroraGuide() {
                         </button>
                       )}
 
-                      {/* Barra de PROGRESO (posición del tour; NO auto-avanza) */}
-                      <div className="mt-4 h-1 w-full overflow-hidden rounded-full bg-white/10">
-                        <motion.div
-                          className="h-full rounded-full bg-gradient-to-r from-[#9FE870] to-[#C9A8FF]"
-                          animate={{ width: `${Math.round(((index + 1) / STEPS.length) * 100)}%` }}
-                          transition={{ duration: reduceMotion ? 0 : 0.35, ease: "easeOut" }}
-                        />
-                      </div>
+                      {/* Capítulos: la barra ES el progreso del recorrido (NO auto-avanza) */}
+                      <BarraCapitulos indice={index} onIr={goTo} className="mt-2" />
 
-                      {/* Controles: Anterior · Siguiente/Terminar · Saltar */}
-                      <div className="mt-3 flex items-center justify-between gap-2">
+                      {/* Controles: Anterior · Siguiente/Terminar */}
+                      <div className="mt-1 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
                             onClick={goPrev}
                             disabled={isFirst}
-                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] text-white/70 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
+                            className="inline-flex min-h-[44px] items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] text-white/70 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
                           >
                             <ChevronLeft className="h-3.5 w-3.5" /> Anterior
                           </button>
@@ -1260,49 +1276,44 @@ export function AuroraGuide() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        {isLast ? (
                           <button
                             type="button"
                             onClick={close}
-                            className="inline-flex items-center gap-1 text-[11px] text-white/40 transition hover:text-white/70 cursor-pointer"
+                            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:from-emerald-500 hover:to-cyan-500 cursor-pointer"
                           >
-                            <SkipForward className="h-3 w-3" /> Saltar
+                            Entendido
                           </button>
-                          {isLast ? (
-                            <button
-                              type="button"
-                              onClick={close}
-                              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:from-emerald-500 hover:to-cyan-500 cursor-pointer"
-                            >
-                              Entendido
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={goNext}
-                              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-cyan-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:from-fuchsia-500 hover:to-cyan-500 cursor-pointer"
-                            >
-                              Siguiente <ChevronRight className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={goNext}
+                            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-cyan-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:from-fuchsia-500 hover:to-cyan-500 cursor-pointer"
+                          >
+                            Siguiente <ChevronRight className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
 
-                      {/* Puntos de navegación por paso */}
-                      <div className="mt-3 flex items-center justify-center gap-1.5">
-                        {STEPS.map((s, i) => (
+                      {/* Índice de capítulos + saltos: «Saltar a crear cuenta» siempre a mano mientras no haya cuenta */}
+                      <IndiceGuia indice={index} onIr={goTo} className="mt-1" />
+                      <div className="flex flex-wrap items-center gap-x-4">
+                        {!isLast && haySesion !== true && (
                           <button
-                            key={s.key}
                             type="button"
-                            onClick={() => setIndex(i)}
-                            aria-label={`Ir al paso ${i + 1}: ${s.title}`}
-                            title={s.title}
-                            className={cn(
-                              "h-1.5 rounded-full transition-all cursor-pointer",
-                              i === index ? "w-6 bg-gradient-to-r from-[#9FE870] to-[#C9A8FF]" : "w-1.5 bg-white/20 hover:bg-white/40",
-                            )}
-                          />
-                        ))}
+                            onClick={() => irAlAcceso("crear-cuenta")}
+                            className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 text-[12px] font-medium text-cyan-200/90 underline-offset-2 transition hover:text-cyan-100 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                          >
+                            <UserPlus className="h-3 w-3" aria-hidden /> Saltar a crear cuenta
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={close}
+                          className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 text-[11px] text-white/45 transition hover:text-white/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                        >
+                          <SkipForward className="h-3 w-3" aria-hidden /> Saltar
+                        </button>
                       </div>
                     </div>
                   </motion.div>

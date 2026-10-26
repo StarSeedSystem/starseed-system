@@ -6,9 +6,11 @@
  * que lanza el evento de siempre (`starseed:open-guide`, el que escucha `aurora-guide.tsx`) con de
  * dónde se abre y, si se quiere, el tema por el que empezar.
  *
- * Alcance honesto: aquí solo está la puerta (se creó con GUI1021L, que la necesitaba). El modo
- * invitado de GUI1021I y que la guía use `desde`/`temaInicial` (GUI1021J) siguen pendientes: hoy la
- * guía se abre desde el principio.
+ * (Ola 1025U · GUIA1025U) La guía que abre este evento recorre el catálogo único de pasos
+ * (`guia-completa.ts`, el mismo que la introducción de la ventana de acceso): `temaInicial` es el id de
+ * cualquiera de esos pasos y `desde` decide qué hace el final de la guía sin cuenta (en `/login` y
+ * `/bienvenida` el formulario ya está detrás; desde cualquier otro sitio se abre la ventana de acceso).
+ * Sin `temaInicial`, la guía retoma por donde se quedó (`guia-progreso.ts`) o empieza desde el principio.
  *
  * Módulo PURO: sin React ni `node:*`; el destino del evento es inyectable para probarlo.
  */
@@ -39,6 +41,29 @@ export function abrirGuia(peticion: PeticionGuia, destino?: EventTarget | null):
   if (peticion.temaInicial) detalle.temaInicial = peticion.temaInicial;
   try {
     objetivo.dispatchEvent(new CustomEvent<PeticionGuia>(EVENTO_ABRIR_GUIA, { detail: detalle }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* ─────────── Lo que pide la guía al terminar sin cuenta (solo en /login y /bienvenida) ─────────── */
+
+/** El evento con el que la guía le dice a la ventana de acceso de la PÁGINA que vaya al formulario. */
+export const EVENTO_ACCION_GUIA = "starseed:guia-accion";
+
+/** Qué pidió quien terminó la guía sin cuenta. */
+export type AccionGuia = "crear-cuenta" | "entrar";
+
+/**
+ * La guía (que va por encima de la página de acceso) pide ir al formulario en la pestaña que toque.
+ * Devuelve `true` si el evento salió. Nunca lanza.
+ */
+export function pedirAccesoDesdeGuia(accion: AccionGuia, destino?: EventTarget | null): boolean {
+  const objetivo = destino ?? (typeof window === "undefined" ? null : window);
+  if (!objetivo || typeof CustomEvent === "undefined") return false;
+  try {
+    objetivo.dispatchEvent(new CustomEvent<{ accion: AccionGuia }>(EVENTO_ACCION_GUIA, { detail: { accion } }));
     return true;
   } catch {
     return false;

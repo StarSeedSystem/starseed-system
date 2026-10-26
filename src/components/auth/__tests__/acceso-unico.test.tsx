@@ -4,8 +4,8 @@
  * Había tres diseños (`/login`, `/bienvenida`, la ventana guiada del primer arranque). Aquí se monta cada
  * superficie real y se comprueba que pintan la MISMA ventana: una tarjeta, el símbolo y «StarSeed» arriba,
  * las pestañas Entrar / Crear cuenta, «Mostrar», el código por correo, «Explorar sin cuenta», las tres
- * razones y los puntos de paso. Y que lo propio de cada ruta se conserva (el `?next=`, «Continuar como…»,
- * el paso por el que abre).
+ * razones y la barra de capítulos de la guía completa (GUIA1025U: el catálogo único). Y que lo propio de
+ * cada ruta se conserva (el `?next=`, «Continuar como…», el paso por el que abre).
  */
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render as renderCrudo, screen, waitFor, within } from "@testing-library/react";
@@ -126,8 +126,10 @@ function comprobarVentanaUnica(raiz: HTMLElement) {
     expect(razones.textContent).toContain("Una sola cuenta");
     expect(razones.textContent).toContain("Dirección @star.seed");
     expect(razones.textContent).toContain("Aurora te guía");
-    // Puntos de paso.
-    expect(within(tarjeta).getAllByRole("button", { name: /^Ir al paso \d de 4/ })).toHaveLength(4);
+    // La barra de capítulos de la guía completa (nueve) y el índice.
+    expect(within(tarjeta).getAllByRole("button", { name: /^Ir al capítulo \d de 9/ })).toHaveLength(9);
+    expect(within(tarjeta).getByTestId("indice-guia-boton")).toBeInTheDocument();
+    expect(within(tarjeta).getByTestId("progreso-guia").textContent).toBe("Paso 24 de 24");
     // Y no quedan restos de los diseños viejos.
     expect(raiz.textContent).not.toContain("Identidad Digital");
     expect(raiz.textContent).not.toContain("Accede al StarSeed Network");
@@ -143,22 +145,22 @@ describe("PaginaAcceso (la ventana en una página)", () => {
         expect(screen.getByRole("tab", { name: "Entrar" })).toHaveAttribute("aria-selected", "true");
     });
 
-    it("sin paso inicial abierto en la cuenta, los puntos recorren la introducción y se vuelve a la cuenta", async () => {
+    it("sin paso inicial abierto en la cuenta, los capítulos recorren la introducción y se vuelve a la cuenta", async () => {
         render(<PaginaAcceso desde="bienvenida" />);
         await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
-        fireEvent.click(screen.getByRole("button", { name: /^Ir al paso 1 de 4/ }));
+        fireEvent.click(screen.getByRole("button", { name: /^Ir al capítulo 1 de 9/ }));
         await screen.findByRole("heading", { name: "Te damos la bienvenida a StarSeed OS" });
         // El cuerpo del paso entra con su animación: se espera al botón.
         fireEvent.click(await screen.findByRole("button", { name: "Empezar la introducción" }));
         await screen.findByRole("heading", { name: "Qué es StarSeed OS" });
-        fireEvent.click(screen.getByRole("button", { name: /^Ir al paso 4 de 4/ }));
+        fireEvent.click(screen.getByRole("button", { name: /^Ir al capítulo 9 de 9/ }));
         await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
     });
 
     it("«Ver la introducción» (paso inicial «intro») arranca desde el principio y termina en «Crear cuenta»", async () => {
         render(<PaginaAcceso desde="login" pasoInicial="intro" />);
         await screen.findByRole("heading", { name: "Te damos la bienvenida a StarSeed OS" });
-        fireEvent.click(screen.getByRole("button", { name: /^Ir al paso 4 de 4/ }));
+        fireEvent.click(screen.getByRole("button", { name: /^Ir al capítulo 9 de 9/ }));
         await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
         // Quien recorrió la introducción llega a «Crear cuenta».
         expect(await screen.findByRole("tab", { name: "Crear cuenta" })).toHaveAttribute("aria-selected", "true");
@@ -261,7 +263,7 @@ describe("VentanaAcceso (la ventana encima de otra página)", () => {
         const ventana = await screen.findByTestId("ventana-bienvenida");
         expect(ventana).toHaveAttribute("role", "dialog");
         expect(ventana.textContent).toContain("Te damos la bienvenida a StarSeed OS");
-        expect(within(ventana).getAllByRole("button", { name: /^Ir al paso \d de 4/ })).toHaveLength(4);
+        expect(within(ventana).getAllByRole("button", { name: /^Ir al capítulo \d de 9/ })).toHaveLength(9);
         fireEvent.click(within(ventana).getByRole("button", { name: /^Cerrar/ }));
         expect(alCerrar).toHaveBeenCalled();
     });

@@ -10,12 +10,23 @@
  *
  *   · UNA tarjeta de cristal oscuro (sin tarjeta dentro de tarjeta), con los acentos Trinity muy sutiles y
  *     el degradado violeta→teal de la marca;
- *   · arriba, el símbolo de StarSeed y el nombre; debajo, los puntos de paso (se puede saltar a cualquiera);
- *   · los pasos: bienvenida → qué es StarSeed OS → gestos → cuenta. El de la cuenta es el formulario único
- *     (`auth-form.tsx`: Entrar / Crear cuenta, «Mostrar», confirmación, código por correo) y, debajo, tres
- *     razones breves;
+ *   · arriba, el símbolo de StarSeed y el nombre; debajo, la barra de capítulos y el índice;
  *   · «Explorar sin cuenta» siempre a mano;
  *   · a pantalla completa en el móvil.
+ *
+ * (Ola 1025U · GUIA1025U · Alex 2026-10-26) La introducción ya no tiene «sus» cuatro pasos: recorre el
+ * CATÁLOGO ÚNICO de la guía completa (`lib/onboarding/guia-completa.ts`), el mismo que el recorrido de
+ * Aurora (`onboarding/aurora-guide.tsx`): bienvenida, Trinity y gestos, el sistema (Protomolécula, malla,
+ * capas de conciencia, neuronas y cerebro), la red (los tres pilares), Librería y Biblioteca, Genesis y
+ * PoliGenesis, personalización segura, tu espacio y, al final, tu cuenta (el formulario único de
+ * `auth-form.tsx`: Entrar / Crear cuenta, «Mostrar», confirmación, código por correo). Se ve igual con
+ * cuenta o sin ella y desde cualquier medio:
+ *
+ *   · índice de capítulos accesible y «Paso N de M»;
+ *   · «Saltar a crear cuenta» en cada paso y «Explorar sin cuenta» siempre;
+ *   · retoma por donde se quedó (`guia-progreso.ts`, compartido con la guía de Aurora);
+ *   · teclado (flechas) y deslizar con el dedo; con `prefers-reduced-motion` solo se funde;
+ *   · la demostración de cada paso se carga a demanda (`DemoPaso`).
  *
  * Tres piezas, un solo contenido:
  *   · `ContenidoAcceso` — el contenido (cabecera, pasos, formulario, pie), sin marco;
@@ -24,21 +35,23 @@
  *   · `PaginaAcceso`    — el marco de PÁGINA, para `/login` y `/bienvenida` (las rutas viejas siguen
  *                         existiendo —hay enlaces guardados— pero enseñan esta misma ventana). Se pinta
  *                         bajo la guía de Aurora (z 90 < 95), así que desde ahí «Conoce StarSeed» abre el
- *                         recorrido completo por encima; un diálogo modal de Radix no lo permitiría.
+ *                         recorrido con voz por encima —un diálogo modal de Radix no lo permitiría— y, al
+ *                         terminarlo sin cuenta, le pide a esta página la pestaña que toca
+ *                         (`starseed:guia-accion`).
  *
  * Quién abre qué (el mapa completo está en `architecture/acceso-unico.md`):
  *   · `/login`, `/bienvenida`, el enlace «Iniciar sesión» de cada aviso → `PaginaAcceso` en la cuenta;
  *   · «Entrar o crear cuenta» / «Ver la introducción» de la puerta de sesión y del aviso de la web →
- *     `VentanaAcceso` (en la cuenta / desde el principio);
+ *     `VentanaAcceso` (en la cuenta / desde el principio, o por donde se quedó);
  *   · el primer arranque de la app nativa y de la web instalada → `VentanaAcceso` desde el principio;
- *   · Ajustes → «Ver la guía» sin sesión → `VentanaAcceso` desde el principio.
+ *   · Ajustes → «Ver la guía» → la guía de Aurora (los mismos pasos), con o sin sesión.
  */
 
-import { useCallback, useEffect, useState, type ElementType, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ElementType, type ReactNode } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { AtSign, BookOpen, ChevronLeft, ChevronRight, KeyRound, LayoutGrid, Sparkles, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCcw, Sparkles, UserPlus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -46,61 +59,27 @@ import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { PasoAnimado, useDireccionPaso } from "@/components/movimiento/paso-animado";
 import { acquireFullscreenModal } from "@/lib/ui/fullscreen-modal";
 import { useDeslizarPasos } from "@/hooks/use-deslizar-pasos";
-import { abrirGuia, type OrigenGuia } from "@/lib/onboarding/guia-acceso";
+import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
+import { abrirGuia, EVENTO_ACCION_GUIA, type AccionGuia, type OrigenGuia } from "@/lib/onboarding/guia-acceso";
 import { explorarSinCuenta } from "@/lib/onboarding/explorar-sin-cuenta";
+import {
+    ACENTOS_TRINITY,
+    PASOS_GUIA,
+    ULTIMO_PASO,
+    acotarIndice,
+    etiquetaProgreso,
+    indiceInicial,
+    textoDelPaso,
+} from "@/lib/onboarding/guia-completa";
+import { borrarProgresoGuia, guardarProgresoGuia, leerProgresoGuia } from "@/lib/onboarding/guia-progreso";
 import type { DestinoAlEntrar } from "@/lib/auth/destino-al-entrar";
 import { AuthForm, type OrigenEntrada, type PestanaAcceso } from "@/components/auth/auth-form";
 
-import { DemoGestosHibridos } from "@/components/onboarding/demo-gestos-hibridos";
-import { StepDemo } from "@/components/onboarding/aurora-guide-demos";
+import { DemoPaso } from "@/components/onboarding/demo-paso";
+import { BarraCapitulos, IndiceGuia, PuntosPaso, RazonesCuenta, TarjetasPaso } from "@/components/onboarding/guia-completa-ui";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 
 /* ───────────────────────────────────── Datos ───────────────────────────────────── */
-
-export const PASOS_ACCESO = ["bienvenida", "que-es", "gestos", "acceso"] as const;
-export type PasoAcceso = (typeof PASOS_ACCESO)[number];
-const ULTIMO = PASOS_ACCESO.length - 1;
-
-const TEXTOS: Record<PasoAcceso, { titulo: string; texto: string }> = {
-    bienvenida: {
-        titulo: "Te damos la bienvenida a StarSeed OS",
-        texto: "Tu sistema operativo social: escritorios, biblioteca, apps y Aurora, tu inteligencia personal, en todos tus dispositivos con una sola cuenta.",
-    },
-    "que-es": {
-        titulo: "Qué es StarSeed OS",
-        texto: "Un sistema abierto que es tuyo: tus datos, tu IA y tu voz en la comunidad.",
-    },
-    gestos: {
-        titulo: "Gestos naturales en cualquier pantalla",
-        texto: "Los menús se abren desde los bordes y se cierran devolviéndolos, tocando fuera, con la X o con Escape. Pruébalo aquí.",
-    },
-    acceso: {
-        titulo: "Crea tu cuenta o entra",
-        texto: "Con tu cuenta, lo que hagas aquí aparece también en tus otros dispositivos.",
-    },
-};
-
-/** Nombre corto de cada paso, para el rótulo accesible de los puntos. */
-const ETIQUETA_PASO: Record<PasoAcceso, string> = {
-    bienvenida: "Bienvenida",
-    "que-es": "Qué es StarSeed OS",
-    gestos: "Gestos",
-    acceso: "Tu cuenta",
-};
-
-const QUE_ES = [
-    { icono: LayoutGrid, titulo: "Tus escritorios", texto: "Ventanas, widgets y apps que se sincronizan en todos tus dispositivos." },
-    { icono: Sparkles, titulo: "Aurora, tu inteligencia", texto: "Una IA que es tuya: te guía, crea contigo y también funciona en tu propio equipo." },
-    { icono: BookOpen, titulo: "Biblioteca y apps", texto: "Lo que guardas e instalas te sigue a cualquier dispositivo." },
-    { icono: Users, titulo: "Comunidad y gobernanza", texto: "Decide con otras personas sin intermediarios: una persona, una voz." },
-];
-
-/** Las tres razones breves bajo el formulario (el mismo texto que tenía `AuthGate`). */
-const RAZONES = [
-    { icono: KeyRound, titulo: "Una sola cuenta", texto: "OS, Nexus, Café y Audiomorphic con un mismo acceso." },
-    { icono: AtSign, titulo: "Dirección @star.seed", texto: "Tu identidad interna en la red, lista al crear la cuenta." },
-    { icono: Sparkles, titulo: "Aurora te guía", texto: "Una guía inteligente te ayuda a dejar todo listo." },
-];
 
 /** Los acentos Trinity, muy sutiles: Zenith arriba, Horizon a la izquierda, Logic a la derecha, Anchor abajo. */
 const FONDO_TRINITY =
@@ -133,8 +112,10 @@ function AcentosTarjeta() {
 type ComponenteTexto = ElementType<{ className?: string; id?: string; children?: ReactNode }>;
 
 export interface ContenidoAccesoProps {
-    /** Con qué paso abre: la introducción desde el principio, o directo a la cuenta. */
+    /** Con qué paso abre: la introducción (retoma por donde se quedó), o directo a la cuenta. */
     pasoInicial: "intro" | "acceso";
+    /** Id de un paso de la guía por el que empezar (si se pide uno, no se retoma nada). */
+    pasoGuiaInicial?: string;
     /** Pestaña del formulario al llegar a la cuenta. Por defecto «Entrar» si se viene a entrar y «Crear cuenta» si se recorrió la introducción. */
     pestanaInicial?: PestanaAcceso;
     /** «Explorar sin cuenta». */
@@ -152,10 +133,18 @@ export interface ContenidoAccesoProps {
     avisoReanudar?: ReactNode;
     /** Si se da, aparece «Conoce StarSeed» y lo llama (abre el recorrido de Aurora). */
     onConocer?: () => void;
+    /** En la página: atiende lo que pide la guía de Aurora al terminar sin cuenta (`starseed:guia-accion`). */
+    escucharGuia?: boolean;
+}
+
+/** Paso desde el que se deslizan las páginas: los de lectura (la práctica de gestos y el formulario usan el dedo para otra cosa). */
+function sePuedeDeslizar(id: string): boolean {
+    return id !== "cuenta" && id !== "gestos-hibridos";
 }
 
 export function ContenidoAcceso({
     pasoInicial,
+    pasoGuiaInicial,
     pestanaInicial,
     onSaltar,
     destinoAlEntrar,
@@ -165,28 +154,104 @@ export function ContenidoAcceso({
     idDescripcion,
     avisoReanudar,
     onConocer,
+    escucharGuia = false,
 }: ContenidoAccesoProps) {
     const reducir = useReducedMotion() ?? false;
-    const [indice, setIndice] = useState(pasoInicial === "acceso" ? ULTIMO : 0);
+    const { entrada } = usePerfilDispositivo();
+    const [indice, setIndice] = useState(() =>
+        pasoInicial === "acceso" ? ULTIMO_PASO : pasoGuiaInicial ? indiceInicial(pasoGuiaInicial) : 0,
+    );
     const [pestana, setPestana] = useState<PestanaAcceso>(pestanaInicial ?? (pasoInicial === "acceso" ? "signin" : "signup"));
+    /** Paso por el que se retomó (para ofrecer «Empezar de nuevo»); `null` si se empezó de cero. */
+    const [retomadoEn, setRetomadoEn] = useState<number | null>(null);
+    /** El progreso solo se apunta cuando la persona se mueve: abrir directo en la cuenta no borra lo que llevaba leído. */
+    const movidoRef = useRef(false);
     const direccion = useDireccionPaso(indice);
-    const paso = PASOS_ACCESO[indice];
-    const ultimo = indice === ULTIMO;
+    const paso = PASOS_GUIA[indice];
+    const ultimo = indice === ULTIMO_PASO;
+    const acento = ACENTOS_TRINITY[paso.acento];
 
-    const siguiente = useCallback(() => setIndice((i) => Math.min(ULTIMO, i + 1)), []);
-    const anterior = useCallback(() => setIndice((i) => Math.max(0, i - 1)), []);
-    const irA = useCallback((i: number) => setIndice(Math.max(0, Math.min(ULTIMO, i))), []);
-    const irAlAcceso = useCallback((p: PestanaAcceso) => {
-        setPestana(p);
-        setIndice(ULTIMO);
+    // Retomar donde se quedó (solo al abrir la introducción sin pedir un paso concreto).
+    useEffect(() => {
+        if (pasoInicial !== "intro" || pasoGuiaInicial) return;
+        const guardado = leerProgresoGuia();
+        if (guardado !== null) {
+            setIndice(guardado);
+            setRetomadoEn(guardado);
+        }
+        // Solo al montar: lo que se lea después lo decide la persona.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-    // Pasar de página deslizando solo en los pasos de lectura (la práctica de gestos y el
-    // formulario usan el dedo para otra cosa).
-    const deslizar = useDeslizarPasos({ alSiguiente: siguiente, alAnterior: anterior, habilitado: paso === "bienvenida" || paso === "que-es" });
+
+    // El paso que se está leyendo se apunta (el último, la cuenta, lo borra).
+    useEffect(() => {
+        if (movidoRef.current) guardarProgresoGuia(indice);
+    }, [indice]);
+
+    const irA = useCallback((i: number) => {
+        movidoRef.current = true;
+        setIndice(acotarIndice(i));
+    }, []);
+    const siguiente = useCallback(() => {
+        movidoRef.current = true;
+        setIndice((i) => acotarIndice(i + 1));
+    }, []);
+    const anterior = useCallback(() => {
+        movidoRef.current = true;
+        setIndice((i) => acotarIndice(i - 1));
+    }, []);
+    const irAlAcceso = useCallback((p: PestanaAcceso) => {
+        movidoRef.current = true;
+        setPestana(p);
+        setIndice(ULTIMO_PASO);
+    }, []);
+    const empezarDeNuevo = useCallback(() => {
+        borrarProgresoGuia();
+        setRetomadoEn(null);
+        movidoRef.current = false;
+        setIndice(0);
+    }, []);
+
+    // Lo que pide la guía de Aurora (que va por encima de esta página) al terminar sin cuenta.
+    useEffect(() => {
+        if (!escucharGuia || typeof window === "undefined") return;
+        const alPedir = (e: Event) => {
+            const accion = (e as CustomEvent<{ accion?: AccionGuia }>).detail?.accion;
+            irAlAcceso(accion === "entrar" ? "signin" : "signup");
+        };
+        window.addEventListener(EVENTO_ACCION_GUIA, alPedir);
+        return () => window.removeEventListener(EVENTO_ACCION_GUIA, alPedir);
+    }, [escucharGuia, irAlAcceso]);
+
+    // Teclado: flechas para pasar de paso. No se mete donde se escribe (el formulario, las pestañas) ni cuando
+    // la guía de Aurora está por encima (ella ya las atiende).
+    const idPasoRef = useRef(paso.id);
+    idPasoRef.current = paso.id;
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const alTeclear = (e: KeyboardEvent) => {
+            if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+            if (idPasoRef.current === "cuenta") return;
+            try {
+                if (document.body.dataset.ssGuia === "1") return;
+            } catch { /* sin documento */ }
+            const t = e.target instanceof Element ? e.target : null;
+            if (t?.closest("input, textarea, select, [contenteditable], [role='tab'], [role='tablist'], [role='slider'], [data-sin-arrastre]")) return;
+            e.preventDefault();
+            if (e.key === "ArrowRight") siguiente();
+            else anterior();
+        };
+        window.addEventListener("keydown", alTeclear);
+        return () => window.removeEventListener("keydown", alTeclear);
+    }, [siguiente, anterior]);
+
+    // Pasar de página deslizando solo en los pasos de lectura.
+    const deslizar = useDeslizarPasos({ alSiguiente: siguiente, alAnterior: anterior, habilitado: sePuedeDeslizar(paso.id) });
 
     return (
-        <div className="relative z-10 flex w-full flex-col gap-4" data-paso={paso}>
-            <header className="flex flex-col items-center gap-1 text-center">
+        <div className="relative z-10 flex w-full flex-col gap-3" data-paso={paso.id} data-capitulo-actual={paso.capitulo}>
+            <header className="flex flex-col items-center gap-0.5 text-center">
                 <div className="inline-flex items-center gap-2.5" data-testid="marca-starseed">
                     <IconoStarSeed size={36} />
                     <span
@@ -196,39 +261,46 @@ export function ContenidoAcceso({
                         StarSeed
                     </span>
                 </div>
-                <div role="group" aria-label="Pasos de la introducción" className="flex items-center justify-center">
-                    {PASOS_ACCESO.map((p, i) => (
-                        <button
-                            key={p}
-                            type="button"
-                            onClick={() => irA(i)}
-                            aria-label={`Ir al paso ${i + 1} de ${PASOS_ACCESO.length}: ${ETIQUETA_PASO[p]}`}
-                            aria-current={i === indice ? "step" : undefined}
-                            className="group inline-flex h-11 w-8 cursor-pointer items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                        >
-                            <span
-                                className={cn(
-                                    "h-1.5 rounded-full transition-all duration-200 motion-reduce:transition-none",
-                                    i === indice
-                                        ? "w-6 bg-gradient-to-r from-[#7c5cff] to-[#23d5ab]"
-                                        : "w-1.5 bg-white/25 group-hover:bg-white/50",
-                                )}
-                            />
-                        </button>
-                    ))}
-                </div>
-                <p className="sr-only" aria-live="polite">Paso {indice + 1} de {PASOS_ACCESO.length}</p>
-                <Titulo className="text-xl font-semibold leading-tight tracking-tight text-white">{TEXTOS[paso].titulo}</Titulo>
+                <BarraCapitulos indice={indice} onIr={irA} />
+                <IndiceGuia
+                    indice={indice}
+                    onIr={irA}
+                    className="text-left"
+                    extra={
+                        <span data-testid="progreso-guia" aria-live="polite" className="text-xs tabular-nums text-white/60">
+                            {etiquetaProgreso(indice)}
+                        </span>
+                    }
+                />
+                <Titulo className="mt-1 text-xl font-semibold leading-tight tracking-tight text-white">{paso.titulo}</Titulo>
                 <Descripcion id={idDescripcion} className="max-w-[26rem] text-sm leading-snug text-white/65">
-                    {TEXTOS[paso].texto}
+                    {textoDelPaso(paso, entrada)}
                 </Descripcion>
             </header>
 
-            <div {...deslizar}>
-                <PasoAnimado clave={paso} direccion={direccion} className="min-h-[12rem]">
-                    {paso === "bienvenida" && (
-                        <div className="flex flex-col items-center gap-3 text-center">
-                            <StepDemo stepKey="orbe" accent="#C9A8FF" reduce={reducir} />
+            {retomadoEn !== null && retomadoEn === indice && (
+                <div
+                    data-testid="guia-retomada"
+                    className="flex flex-wrap items-center justify-center gap-x-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11.5px] text-white/65"
+                >
+                    <span className="py-2">Retomas donde lo dejaste.</span>
+                    <button
+                        type="button"
+                        onClick={empezarDeNuevo}
+                        className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 rounded-md px-1 text-white/85 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                    >
+                        <RotateCcw className="h-3 w-3" aria-hidden /> Empezar de nuevo
+                    </button>
+                </div>
+            )}
+
+            <div {...deslizar} data-testid="pasos-guia">
+                <PasoAnimado clave={paso.id} direccion={direccion} sinSalida className="min-h-[8rem]">
+                    <div className="space-y-3">
+                        {paso.demo && <DemoPaso clave={paso.demo} accent={acento} reduce={reducir} />}
+                        <PuntosPaso puntos={paso.puntos} color={acento} />
+                        <TarjetasPaso paso={paso} />
+                        {paso.id === "bienvenida" && (
                             <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
                                 <Button className="min-h-[44px] cursor-pointer" onClick={siguiente}>
                                     Empezar la introducción
@@ -237,51 +309,60 @@ export function ContenidoAcceso({
                                     Ya tengo cuenta
                                 </Button>
                             </div>
-                        </div>
-                    )}
-                    {paso === "que-es" && (
-                        <div className="space-y-3">
-                            <StepDemo stepKey="escritorio" accent="#39FF14" reduce={reducir} />
-                            <ul className="grid gap-2 sm:grid-cols-2">
-                                {QUE_ES.map(({ icono: Icono, titulo, texto }) => (
-                                    <li key={titulo} className="flex items-start gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                                        <Icono className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" aria-hidden />
-                                        <span className="min-w-0">
-                                            <span className="block text-sm font-semibold text-white">{titulo}</span>
-                                            <span className="block text-xs leading-snug text-white/60">{texto}</span>
-                                        </span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-                    {paso === "gestos" && <DemoGestosHibridos accent="#6FE6D6" reduce={reducir} />}
-                    {paso === "acceso" && (
-                        <div className="space-y-4">
-                            {avisoReanudar}
-                            <AuthForm key={pestana} pestanaInicial={pestana} destinoAlEntrar={destinoAlEntrar} onEntrado={onEntrado} />
-                            <ul className="grid gap-2 border-t border-white/10 pt-3" aria-label="Por qué crear una cuenta StarSeed">
-                                {RAZONES.map(({ icono: Icono, titulo, texto }) => (
-                                    <li key={titulo} className="flex items-start gap-2.5">
-                                        <span
-                                            aria-hidden
-                                            className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-violet-400/25 bg-violet-500/15"
-                                        >
-                                            <Icono className="h-3.5 w-3.5 text-violet-200" />
-                                        </span>
-                                        <span className="min-w-0 text-[11.5px] leading-snug text-white/60">
-                                            <b className="font-semibold text-white/85">{titulo}</b> — {texto}
-                                        </span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
+                        )}
+                        {ultimo && (
+                            <div className="space-y-4">
+                                {avisoReanudar}
+                                <AuthForm key={pestana} pestanaInicial={pestana} destinoAlEntrar={destinoAlEntrar} onEntrado={onEntrado} />
+                                <RazonesCuenta />
+                            </div>
+                        )}
+                    </div>
                 </PasoAnimado>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                <div className="flex flex-wrap items-center gap-x-3">
+            {onConocer && (
+                <div className="flex justify-center">
+                    <button
+                        type="button"
+                        onClick={onConocer}
+                        className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-md px-1 text-xs text-white/65 underline-offset-2 hover:text-white/90 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                    >
+                        <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                        Conoce StarSeed
+                    </button>
+                </div>
+            )}
+
+            {/* El pie queda pegado abajo: en un móvil de 360 px, con un paso largo, «Siguiente» y los saltos no se pierden. */}
+            <nav
+                aria-label="Navegación de la introducción"
+                className="sticky bottom-0 z-10 -mx-5 mt-1 flex flex-col gap-0 border-t border-white/10 bg-[#0a0c16]/95 px-5 pb-[max(0.25rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:-mx-7 sm:px-7"
+            >
+                <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-[44px]">
+                        {indice > 0 && (
+                            <Button variant="outline" size="sm" onClick={anterior} className="min-h-[44px] cursor-pointer gap-1 border-white/15">
+                                <ChevronLeft className="h-3.5 w-3.5" aria-hidden /> Atrás
+                            </Button>
+                        )}
+                    </div>
+                    {!ultimo && (
+                        <Button size="sm" onClick={siguiente} className="min-h-[44px] cursor-pointer gap-1">
+                            {indice === ULTIMO_PASO - 1 ? "Crear cuenta o entrar" : "Siguiente"} <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                        </Button>
+                    )}
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-x-4">
+                    {!ultimo && (
+                        <button
+                            type="button"
+                            onClick={() => irAlAcceso("signup")}
+                            className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 rounded-md px-1 text-xs font-medium text-cyan-200/90 underline-offset-2 hover:text-cyan-100 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                        >
+                            <UserPlus className="h-3.5 w-3.5" aria-hidden /> Saltar a crear cuenta
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={onSaltar}
@@ -289,30 +370,8 @@ export function ContenidoAcceso({
                     >
                         Explorar sin cuenta
                     </button>
-                    {onConocer && (
-                        <button
-                            type="button"
-                            onClick={onConocer}
-                            className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-md px-1 text-xs text-white/65 underline-offset-2 hover:text-white/90 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
-                        >
-                            <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                            Conoce StarSeed
-                        </button>
-                    )}
                 </div>
-                <div className="flex gap-2">
-                    {indice > 0 && (
-                        <Button variant="outline" size="sm" onClick={anterior} className="min-h-[44px] cursor-pointer gap-1 border-white/15">
-                            <ChevronLeft className="h-3.5 w-3.5" aria-hidden /> Atrás
-                        </Button>
-                    )}
-                    {!ultimo && (
-                        <Button size="sm" onClick={siguiente} className="min-h-[44px] cursor-pointer gap-1">
-                            {indice === ULTIMO - 1 ? "Crear cuenta o entrar" : "Siguiente"} <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                        </Button>
-                    )}
-                </div>
-            </div>
+            </nav>
         </div>
     );
 }
@@ -329,6 +388,8 @@ const ID_DESCRIPCION_VENTANA = "bienvenida-desc";
 
 export interface VentanaAccesoProps {
     pasoInicial: "intro" | "acceso";
+    /** Id de un paso de la guía por el que empezar (por defecto, retoma por donde se quedó). */
+    pasoGuiaInicial?: string;
     pestanaInicial?: PestanaAcceso;
     /** «Explorar sin cuenta». */
     onSaltar: () => void;
@@ -338,7 +399,7 @@ export interface VentanaAccesoProps {
     destinoAlEntrar?: DestinoAlEntrar;
 }
 
-export function VentanaAcceso({ pasoInicial, pestanaInicial, onSaltar, onCerrar, destinoAlEntrar = null }: VentanaAccesoProps) {
+export function VentanaAcceso({ pasoInicial, pasoGuiaInicial, pestanaInicial, onSaltar, onCerrar, destinoAlEntrar = null }: VentanaAccesoProps) {
     return (
         <DialogPrimitive.Root open onOpenChange={(o) => { if (!o) onCerrar(); }}>
             <DialogPrimitive.Portal>
@@ -349,6 +410,12 @@ export function VentanaAcceso({ pasoInicial, pestanaInicial, onSaltar, onCerrar,
                     data-tarjeta-acceso=""
                     data-component="dialog"
                     data-ss-modal-content=""
+                    // Con el foco en el índice de capítulos, Esc lo cierra a él y no a la ventana entera.
+                    onEscapeKeyDown={(e) => {
+                        try {
+                            if (document.activeElement?.closest("[data-indice-guia]") && document.querySelector("[data-testid='indice-guia']")) e.preventDefault();
+                        } catch { /* sin documento */ }
+                    }}
                     className={cn(
                         CLASES_TARJETA,
                         "fixed left-1/2 top-1/2 z-[121] flex max-h-[92dvh] w-[min(94vw,31rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-3xl outline-none",
@@ -361,6 +428,7 @@ export function VentanaAcceso({ pasoInicial, pestanaInicial, onSaltar, onCerrar,
                     <div className="relative z-10 min-h-0 flex-1 overflow-y-auto px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-7 sm:pb-6 sm:pt-6">
                         <ContenidoAcceso
                             pasoInicial={pasoInicial}
+                            pasoGuiaInicial={pasoGuiaInicial}
                             pestanaInicial={pestanaInicial}
                             onSaltar={onSaltar}
                             destinoAlEntrar={destinoAlEntrar}
@@ -415,6 +483,9 @@ export function PaginaAcceso({ desde, pasoInicial = "acceso", pestanaInicial, de
                     transition={{ duration: reducir ? 0.15 : 0.3, ease: [0.22, 1, 0.36, 1] }}
                     className={cn(
                         CLASES_TARJETA,
+                        // `overflow-clip` recorta los acentos sin crear un contenedor de scroll: el pie de la introducción
+                        // (`sticky`) se queda pegado al borde de la pantalla.
+                        "overflow-clip",
                         "flex min-h-[100dvh] w-full max-w-[31rem] flex-col justify-center border-0 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]",
                         "sm:min-h-0 sm:rounded-3xl sm:border sm:px-7 sm:py-6",
                     )}
@@ -427,6 +498,7 @@ export function PaginaAcceso({ desde, pasoInicial = "acceso", pestanaInicial, de
                         destinoAlEntrar={destinoAlEntrar}
                         avisoReanudar={avisoReanudar}
                         onConocer={conocer}
+                        escucharGuia
                     />
                 </motion.section>
             </div>

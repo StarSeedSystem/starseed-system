@@ -9,13 +9,19 @@
  * y se aplica EN VIVO: `AuroraGuide` se resuscribe y aparece/desaparece sin
  * recargar. El tour por primera visita y `window.openStarseedGuide()` siguen
  * disponibles aunque el botón esté oculto.
+ *
+ * (Ola 1025U · GUIA1025U) «Reproducir guía del sistema» abre la guía COMPLETA (el catálogo único
+ * `guia-completa.ts`: la misma que la introducción de la ventana de acceso), con o sin sesión; sin
+ * `temaInicial` retoma por donde se quedó y «Empezar por…» salta directo a un capítulo. Se abre por la
+ * puerta común (`abrirGuia`), sin importar el componente de la guía en este panel.
  */
 
 import { useEffect, useState } from "react";
 import { LifeBuoy, LogIn, Play, Sparkles } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { OPEN_GUIDE_EVENT } from "@/components/onboarding/aurora-guide";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
+import { CAPITULOS_GUIA, PASOS_GUIA, primerPasoDelCapitulo } from "@/lib/onboarding/guia-completa";
 import { abrirPrimerArranque } from "@/lib/onboarding/primer-arranque";
 import {
   getGuideButtonVisible,
@@ -68,20 +74,38 @@ export function GuideButtonToggle() {
       <Button
         size="sm"
         variant="outline"
-        className="h-8 gap-1.5 text-xs"
-        onClick={() => {
-          const w = window as unknown as { openStarseedGuide?: () => void };
-          if (typeof w.openStarseedGuide === "function") w.openStarseedGuide();
-          else window.dispatchEvent(new Event(OPEN_GUIDE_EVENT));
-        }}
+        className="min-h-[44px] gap-1.5 text-xs cursor-pointer"
+        onClick={() => abrirGuia({ desde: "ajustes" })}
       >
         <Play className="h-3.5 w-3.5" aria-hidden />
         Reproducir guía del sistema
       </Button>
+      <label className="inline-flex min-h-[44px] items-center gap-1.5 text-xs text-muted-foreground">
+        <span>Empezar por…</span>
+        <select
+          aria-label="Abrir la guía del sistema desde un capítulo"
+          value=""
+          onChange={(e) => {
+            const id = e.target.value;
+            if (!id) return;
+            const capitulo = CAPITULOS_GUIA.find((c) => c.id === id);
+            if (capitulo) abrirGuia({ desde: "ajustes", temaInicial: PASOS_GUIA[primerPasoDelCapitulo(capitulo.id)].id });
+            e.target.value = "";
+          }}
+          className="min-h-[44px] cursor-pointer rounded-md border border-white/10 bg-background px-2 text-xs text-foreground"
+        >
+          <option value="">Elige un capítulo</option>
+          {CAPITULOS_GUIA.map((c, n) => (
+            <option key={c.id} value={c.id}>
+              {n + 1}. {c.titulo}
+            </option>
+          ))}
+        </select>
+      </label>
       <Button
         size="sm"
         variant="outline"
-        className="h-8 gap-1.5 text-xs"
+        className="min-h-[44px] gap-1.5 text-xs cursor-pointer"
         onClick={() => window.dispatchEvent(new Event("starseed:open-onboarding"))}
       >
         <Sparkles className="h-3.5 w-3.5" aria-hidden />
@@ -93,7 +117,7 @@ export function GuideButtonToggle() {
       <Button
         size="sm"
         variant="outline"
-        className="h-8 gap-1.5 text-xs"
+        className="min-h-[44px] gap-1.5 text-xs cursor-pointer"
         onClick={() => abrirPrimerArranque()}
       >
         <LogIn className="h-3.5 w-3.5" aria-hidden />

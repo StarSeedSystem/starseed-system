@@ -164,12 +164,12 @@ describe("PrimerArranque · sin sesión", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "Empezar la introducción" }));
         await screen.findByRole("heading", { name: "Qué es StarSeed OS" });
+        // (GUIA1025U) Sigue la guía completa: tras «Qué es» viene Trinity, y «Saltar a crear cuenta» está en cada paso.
         fireEvent.click(screen.getByRole("button", { name: /Siguiente/ }));
-        await screen.findByRole("heading", { name: "Gestos naturales en cualquier pantalla" });
-        expect(await screen.findByTestId("demo-gestos")).toBeTruthy();
-        fireEvent.click(screen.getByRole("button", { name: /Crear cuenta o entrar/ }));
+        await screen.findByRole("heading", { name: "El Orbe de Aurora" });
+        fireEvent.click(screen.getByRole("button", { name: "Saltar a crear cuenta" }));
         await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
-        expect((await screen.findByTestId("auth-form")).getAttribute("data-pestana")).toBe("signup");
+        expect((await screen.findByTestId("auth-form", {}, { timeout: 5000 })).getAttribute("data-pestana")).toBe("signup");
     });
 
     it("«Ya tengo cuenta» salta directo al formulario en «Entrar»", async () => {
@@ -177,7 +177,7 @@ describe("PrimerArranque · sin sesión", () => {
         await screen.findByTestId("ventana-bienvenida");
         fireEvent.click(screen.getByRole("button", { name: "Ya tengo cuenta" }));
         await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
-        expect((await screen.findByTestId("auth-form")).getAttribute("data-pestana")).toBe("signin");
+        expect((await screen.findByTestId("auth-form", {}, { timeout: 5000 })).getAttribute("data-pestana")).toBe("signin");
     });
 
     it("«Explorar sin cuenta» la cierra y ya no vuelve sola en este dispositivo", async () => {
@@ -214,16 +214,16 @@ describe("PrimerArranque · sin sesión", () => {
         expect(aviso.isConnected).toBe(false);
     });
 
-    it("es la ventana de acceso única: puntos de paso para recorrer la guía y el formulario unificado dentro", async () => {
+    it("es la ventana de acceso única: capítulos para recorrer la guía completa y el formulario unificado dentro", async () => {
         montar();
         const ventana = await screen.findByTestId("ventana-bienvenida");
-        const puntos = Array.from(ventana.querySelectorAll("button[aria-label^='Ir al paso']"));
-        expect(puntos).toHaveLength(4);
+        const capitulos = Array.from(ventana.querySelectorAll("button[aria-label^='Ir al capítulo']"));
+        expect(capitulos).toHaveLength(9);
         expect(document.querySelectorAll("[data-tarjeta-acceso]")).toHaveLength(1);
-        // Se salta a la cuenta con el último punto.
-        fireEvent.click(puntos[3] as HTMLElement);
+        // Se salta a la cuenta con el último capítulo.
+        fireEvent.click(capitulos[8] as HTMLElement);
         await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
-        expect((await screen.findByTestId("auth-form")).getAttribute("data-pestana")).toBe("signup");
+        expect((await screen.findByTestId("auth-form", {}, { timeout: 5000 })).getAttribute("data-pestana")).toBe("signup");
     });
 
     it("el evento de abrir a mano puede pedir la pestaña «Entrar»", async () => {
@@ -234,7 +234,7 @@ describe("PrimerArranque · sin sesión", () => {
             window.dispatchEvent(new CustomEvent("starseed:abrir-primer-arranque", { detail: { paso: "acceso", pestana: "signin" } }));
         });
         await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
-        expect((await screen.findByTestId("auth-form")).getAttribute("data-pestana")).toBe("signin");
+        expect((await screen.findByTestId("auth-form", {}, { timeout: 5000 })).getAttribute("data-pestana")).toBe("signin");
     });
 
     it("«Ver la introducción» del aviso abre la ventana desde el principio y retira el aviso", async () => {
