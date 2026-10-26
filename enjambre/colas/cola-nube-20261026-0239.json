@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "AV1011E",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Sincronía del avatar en escenas compartidas y en XR",
+   "archivos": [
+    "src/lib/vivo/espacial/avatares.ts",
+    "src/lib/avatares/adaptadores/sincronia-adn.ts",
+    "src/lib/avatares/adaptadores/__tests__/sincronia-adn.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Añade a `MetaAvatar` campos opcionales `adnRef` y `adnRev` (sin romper a quien no los mande). Al entrar alguien, los presentes leen su ADN UNA vez (caché por ref+rev). Edición en vivo: los lotes de `lote()` viajan por el MISMO canal de la escena como evento `adn` con `{ref, rev, cambios}`; quien recibe filtra con `sanearCambio` y aplica solo si la revisión es más nueva. En XR, el nivel de avatar sale de la calidad actual (`src/lib/xr/`) y se dibuja con `adnParaCalidad`. Mantén las reglas de 10 Hz del archivo y que las pruebas existentes de espacial sigan en verde.",
+   "dependencias_ya_en_main": [
+    "AV1011A",
+    "AV1011D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "AV1011E"
+  ]
+ }
+}
