@@ -62,6 +62,23 @@ class Cliente(unittest.TestCase):
         base, modelo = c
         self.assertEqual((base, modelo), (M.SERVIDOR_IA, c.modelo))
 
+    def test_local_primero_y_elige_por_capacidad(self):
+        visto = []
+
+        def sonda(base, clave=""):
+            visto.append(base)
+            return ["qwen/qwen3-coder:free", "gemma3n:12b-vision", "bitnet/bitnet-b1.58"]
+
+        c = M.cliente_openai_compatible("codigo", entorno={}, sonda=sonda)
+        self.assertEqual(visto, [M.SERVIDOR_IA])  # el local contesta: no se sondea a expensas de nadie
+        self.assertEqual(c.origen, "servidor-propio")
+        self.assertEqual(c.base_url, M.SERVIDOR_IA)
+        self.assertEqual(c.modelo, "qwen/qwen3-coder:free")
+        self.assertEqual(c.clave, "")  # en main la clave es una cadena ("" sin token), no None
+        v = M.cliente_openai_compatible("vision", entorno={}, sonda=sonda)
+        self.assertEqual(v.origen, "servidor-propio")
+        self.assertIn("gemma", v.modelo)
+
     def test_relevo_a_experiential(self):
         entorno = {
             "STARSEED_PASARELA_EXPLABS_KEY": "clave-experiential",
@@ -72,6 +89,30 @@ class Cliente(unittest.TestCase):
         self.assertEqual(c.base_url, M.EXPLABS)
         self.assertEqual(c.modelo, "clef-flash")
         self.assertEqual(c.cabeceras(), {"Authorization": "Bearer clave-experiential"})
+
+    def test_sin_local_usa_experiential_y_no_filtra_la_clave(self):
+        env = {
+            "STARSEED_PASARELA_EXPLABS_KEY": "xpl_secreta",
+            "STARSEED_PASARELA_EXPLABS_MODELOS": "clef-flash, deepseek-x",
+            "STARSEED_PASARELA_EXPLABS_URL": "https://pasarela.local/v1/",
+        }
+        visto = []
+
+        def sonda(base, clave=""):
+            visto.append(base)
+            return []
+
+        c = M.cliente_openai_compatible("chat", entorno=env, sonda=sonda)
+        # Relevo en orden: solo se sondea el local (que no da modelos). La pasarela no se sondea:
+        # como el env ya trae MODELOS, se elige de la lista sin gastar la petición de /models.
+        self.assertEqual(visto, [M.SERVIDOR_IA])
+        self.assertEqual(c.origen, "experiential")
+        self.assertEqual(c.base_url, "https://pasarela.local/v1")  # sin la barra final del env
+        self.assertEqual(c.modelo, "clef-flash")
+        self.assertEqual(c.clave, "xpl_secreta")
+        self.assertEqual(c.cabeceras(), {"Authorization": "Bearer xpl_secreta"})  # útil, no oculta
+        self.assertNotIn("xpl_secreta", repr(c))
+        self.assertNotIn("xpl_secreta", str(visto))
 
     def test_openrouter_solo_gratis_aunque_el_de_pago_encaje_mejor(self):
         entorno = {"OPENROUTER_API_KEY": "clave-openrouter"}
@@ -98,6 +139,13 @@ class Cliente(unittest.TestCase):
         texto = 'export STARSEED_PASARELA_EXPLABS_KEY="clave"\nSTARSEED_PASARELA_EXPLABS_MODELOS=clef-flash\n'
         c = M.cliente_openai_compatible("texto", leer_env=lambda: texto, sonda=self.sonda)
         self.assertEqual(c.origen, "experiential")
+
+    def test_el_entorno_inyectado_manda_sobre_el_archivo(self):
+        texto = "STARSEED_PASARELA_EXPLABS_KEY=vieja\nSTARSEED_PASARELA_EXPLABS_MODELOS=m1\n"
+        env = {"STARSEED_PASARELA_EXPLABS_KEY": "nueva"}
+        c = M.cliente_openai_compatible("texto", entorno=env, leer_env=lambda: texto, sonda=self.sonda)
+        self.assertEqual(c.origen, "experiential")
+        self.assertEqual(c.clave, "nueva")  # lo ya exportado manda sobre el archivo de claves
 
     def test_la_clave_nunca_sale_en_el_repr(self):
         c = M.ClienteOpenAI("http://x/v1", "m", "clave-secreta")

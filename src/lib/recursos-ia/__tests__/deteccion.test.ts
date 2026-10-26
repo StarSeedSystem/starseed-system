@@ -18,7 +18,7 @@ import {
     nombreGpuNavegador,
     recursosDeServidoresCerebro,
 } from "../deteccion";
-import type { DeteccionMaquina } from "../deteccion-tipos";
+import { esDeteccionMaquina, type DeteccionMaquina } from "../deteccion-tipos";
 import type { MedioAlmacen } from "../tipos";
 
 const ID = "n-mac";
@@ -171,6 +171,16 @@ describe("inventarioDesde · Mac de Alex con servidor local y SSD externo USB", 
         expect(inv.avisos).not.toContain(AVISO_DISCOS);
         expect(inv.avisos).not.toContain(AVISO_RAM_NAVEGADOR);
     });
+
+    it("el servidor contestó pero no pudo leer los discos: su aviso lo dice, no el genérico del navegador", () => {
+        const sinDiscos = inventarioDesde({
+            estaNeurona: desdeNavegador(),
+            maquina: { ...MAC_ALEX, npu: undefined, volumenes: [] },
+            ahora,
+        });
+        expect(sinDiscos.avisos).toContain("El servidor local de esta neurona no pudo leer sus discos.");
+        expect(sinDiscos.avisos).not.toContain(AVISO_DISCOS);
+    });
 });
 
 describe("inventarioDesde · sin servidor local", () => {
@@ -183,6 +193,19 @@ describe("inventarioDesde · sin servidor local", () => {
         expect(esta.almacenes.map((a) => a.tipo)).toEqual(["navegador"]);
         expect(esta.almacenes[0]).toMatchObject({ fuente: "estimado", totalGb: 9.3, libreGb: 8.4 });
         expect(inv.avisos).toEqual(expect.arrayContaining([AVISO_DISCOS, AVISO_RAM_NAVEGADOR]));
+    });
+});
+
+describe("esDeteccionMaquina · la forma rota no se cuela", () => {
+    it("lo que el servidor local contesta se valida antes de usarlo", () => {
+        expect(esDeteccionMaquina(MAC_ALEX)).toBe(true);
+        expect(esDeteccionMaquina(null)).toBe(false);
+        expect(esDeteccionMaquina("macOS")).toBe(false);
+        // Un campo atómico con otro tipo (un «228» suelto, una lista que no es lista) no pasa.
+        expect(esDeteccionMaquina({ ...MAC_ALEX, nucleos: "8" })).toBe(false);
+        expect(esDeteccionMaquina({ ...MAC_ALEX, volumenes: "228" })).toBe(false);
+        // Tampoco un objeto que solo trae los tres campos escasos sin ninguna lista.
+        expect(esDeteccionMaquina({ so: "macOS 26.3.1", nucleos: 8, ramGb: 8 })).toBe(false);
     });
 });
 
