@@ -64,6 +64,16 @@ describe("lector-volumen", () => {
     expect(rapida.llamadas).toEqual([0]);
     expect(lenta.llamadas).toEqual([]);
   });
+  it("elige la fuente más rápida para cada banda del rango", async () => {
+    const bandas = [bytesDe(7, 1), bytesDe(8, 2), bytesDe(9, 3)];
+    const lenta = fuente("lenta", bandas, { velocidad: 1 });
+    const rapida = fuente("rapida", bandas, { velocidad: 99 });
+    const { lector } = await montar(bandas, [lenta, rapida]);
+    const r = await lector.leer(0, 2);
+    expect([...r.bytes]).toEqual([...bandas[0], ...bandas[1], ...bandas[2]]);
+    expect([...lenta.llamadas].sort()).toEqual([]);
+    expect([...rapida.llamadas].sort()).toEqual([0, 1, 2]);
+  });
   it("reintenta si una fuente falla y la anota", async () => {
     const bandas = [bytesDe(7, 4)];
     const rota = fuente("rota", bandas, { velocidad: 9, falla: true });
