@@ -6,6 +6,7 @@ import { Volume2 } from "lucide-react";
 import { FRAME_ALLOW, FRAME_SANDBOX } from "@/components/browser/web-frame";
 import { conParent, detectarFormato } from "@/lib/estaciones/formato";
 import type { Estacion } from "@/lib/estaciones/tipos";
+import { HlsMallaLoader, type ConfigMallaLoader } from "@/lib/recursos/hls-malla-loader";
 
 interface Props {
     estacion: Pick<Estacion, "enlace" | "tipo" | "titulo">;
@@ -43,7 +44,26 @@ export function ReproductorEstacion({ estacion, className, compacto }: Props) {
             if (!vivo) { return; }
             const Hls = m.default;
             if (Hls.isSupported()) {
-                const instancia = new Hls();
+                const hayMallaYPublico = enlace.startsWith("http") || enlace.startsWith("https");
+                const opciones = hayMallaYPublico
+                    ? {
+                        loader: new HlsMallaLoader({
+                            configMalla: {
+                                fuente: {
+                                    consultarDisponibilidad: () => [],
+                                    pedirSegmento: () => Promise.reject(new Error("malla no disponible")),
+                                    pedirOrigen: (url: string, timeout: number) => fetch(url, { signal: AbortSignal.timeout(timeout) }).then((r) => r.arrayBuffer()),
+                                    anunciarTransmisor: () => {},
+                                } as ConfigMallaLoader["fuente"],
+                                reloj: { ahoraMs: () => Date.now() },
+                                topeSubida: { bytesPorSegundo: () => 1024 * 1024 },
+                                contextoPublicoODeCuenta: true,
+                                elemento: enlace,
+                            },
+                        }),
+                    }
+                    : {};
+                const instancia = new Hls(opciones);
                 instancia.loadSource(enlace);
                 instancia.attachMedia(v);
                 hls = instancia;
