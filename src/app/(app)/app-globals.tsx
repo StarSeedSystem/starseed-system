@@ -41,6 +41,12 @@ import { Astraura158WindowHost } from "@/components/astraura/window/astraura-158
 // Genesis (/genesis) no monta nada de esto: ni el sondeo del feed 1.58 (401 antes
 // de iniciar sesión), ni la intro, ni el registro de neuronas. Ahorra memoria para los agentes.
 import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
+import dynamic from "next/dynamic";
+
+const EntradaGlobalXR = dynamic(
+  () => import("@/components/xr/shell/entrada-global").then((m) => m.EntradaGlobalXR),
+  { ssr: false }
+);
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
@@ -84,6 +90,7 @@ export default function AppGlobals() {
           discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
+      <EntradaGlobalXR />
     </SoloFueraDeConsola>
   );
 }
