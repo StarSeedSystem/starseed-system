@@ -1,160 +1,124 @@
 "use client";
+
+/**
+ * NotificationsTab — sección «Alertas» del Centro de Control: las 5 notificaciones más recientes con su
+ * categoría, archivar cada una (botón siempre visible, 44 px: antes solo aparecía al pasar el ratón y en
+ * el móvil no existía), limpiar todo y la página completa con el registro.
+ */
 import React from "react";
-import { Bell, Info, AlertTriangle, CheckCircle, X, ExternalLink } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
-import { useNotifications, type AppNotification } from "@/context/notifications-context";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { AlertTriangle, Bell, Bot, CheckCircle, ExternalLink, Info, X, type LucideIcon } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
+import { useNotifications, type AppNotification } from "@/context/notifications-context";
+
+interface EstiloCategoria {
+    icono: LucideIcon;
+    color: string;
+    borde: string;
+}
+
+// Clases escritas enteras: Tailwind solo ve las que aparecen completas en el código.
+const ESTILOS: Record<string, EstiloCategoria> = {
+    system: { icono: Info, color: "text-sky-300", borde: "border-l-sky-400" },
+    ai: { icono: Bot, color: "text-cyan-300", borde: "border-l-cyan-400" },
+    mention: { icono: Bell, color: "text-pink-300", borde: "border-l-pink-400" },
+    governance: { icono: AlertTriangle, color: "text-red-300", borde: "border-l-red-400" },
+    culture: { icono: CheckCircle, color: "text-purple-300", borde: "border-l-purple-400" },
+    education: { icono: CheckCircle, color: "text-emerald-300", borde: "border-l-emerald-400" },
+    community: { icono: Info, color: "text-indigo-300", borde: "border-l-indigo-400" },
+    achievement: { icono: CheckCircle, color: "text-yellow-300", borde: "border-l-yellow-400" },
+};
 
 export function NotificationsTab() {
-    const { inbox, markRead, clearAll, archive } = useNotifications();
+    const { inbox, clearAll, archive } = useNotifications();
 
-    // Limit display to 5 most recent notifications in the panel
-    const recentNotifications = React.useMemo(() => {
-        return inbox.slice(0, 5);
-    }, [inbox]);
+    // Solo las 5 más recientes en el panel; el resto, en la página completa.
+    const recientes = React.useMemo(() => inbox.slice(0, 5), [inbox]);
 
     return (
-        <div className="flex flex-col h-full space-y-4">
-            <div className="px-4 py-2 flex items-center justify-between shrink-0">
-                <span className="text-xs font-medium text-muted-foreground">Recientes ({inbox.length})</span>
+        <div className="space-y-3 pt-1" data-testid="seccion-alertas">
+            <div className="flex items-center justify-between gap-2 border-b border-amber-300/15">
+                <h3 className="m-0 flex min-h-[44px] items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200/80">
+                    <Bell className="h-4 w-4" aria-hidden="true" /> Recientes ({inbox.length})
+                </h3>
                 {inbox.length > 0 && (
-                    <button 
-                        onClick={clearAll} 
-                        className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                    <button
+                        type="button"
+                        onClick={clearAll}
+                        className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg px-2 text-[12px] text-red-300 outline-none transition-colors duration-150 hover:text-red-200 focus-visible:ring-2 focus-visible:ring-amber-300/70"
                     >
-                        Limpiar Todo
+                        Limpiar todo
                     </button>
                 )}
             </div>
 
-            <div className="flex-1 px-2 space-y-2 overflow-y-auto max-h-[340px] custom-scrollbar">
-                <AnimatePresence mode="popLayout">
-                    {recentNotifications.length > 0 ? (
-                        recentNotifications.map((notif) => (
-                            <NotificationItem 
-                                key={notif.id} 
-                                data={notif} 
-                                onDismiss={() => archive(notif.id)} 
-                            />
-                        ))
-                    ) : (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="flex flex-col items-center justify-center py-14 text-muted-foreground gap-2"
-                        >
-                            <Bell className="w-8 h-8 opacity-20 text-amber-400 animate-bounce" />
-                            <span className="text-xs">Sin notificaciones nuevas</span>
-                        </motion.div>
-                    )}
+            <ul className="space-y-2" aria-label="Notificaciones recientes">
+                <AnimatePresence mode="popLayout" initial={false}>
+                    {recientes.map((notif) => (
+                        <NotificationItem key={notif.id} data={notif} onDismiss={() => archive(notif.id)} />
+                    ))}
                 </AnimatePresence>
-            </div>
+            </ul>
 
-            {/* Bottom Fullscreen Link */}
-            <div className="p-3 border-t border-white/5 shrink-0 bg-black/40 backdrop-blur-xl">
-                <Button 
-                    asChild 
-                    className="w-full text-xs gap-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300"
-                >
-                    <Link href="/notifications">
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        Ver Página Completa & Logs
-                    </Link>
-                </Button>
-            </div>
+            {recientes.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+                    <Bell className="h-8 w-8 text-amber-300/40" aria-hidden="true" />
+                    <span className="text-[13px] text-amber-100/65">Sin notificaciones nuevas</span>
+                </div>
+            )}
+
+            <Link
+                href="/notifications"
+                className="flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-400/10 px-4 text-[13px] font-medium text-amber-100 outline-none transition-colors duration-150 hover:bg-amber-400/20 focus-visible:ring-2 focus-visible:ring-amber-300/70"
+            >
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                Ver página completa y registro
+            </Link>
         </div>
     );
 }
 
-function NotificationItem({ data, onDismiss }: { data: AppNotification, onDismiss: () => void }) {
-    const typeStyles: any = {
-        system: { icon: Info, color: "text-blue-400", border: "border-l-blue-500", bg: "hover:bg-blue-500/5" },
-        ai: { icon: BotIcon, color: "text-cyan-400", border: "border-l-cyan-500", bg: "hover:bg-cyan-500/5" },
-        mention: { icon: Bell, color: "text-pink-400", border: "border-l-pink-500", bg: "hover:bg-pink-500/5" },
-        governance: { icon: AlertTriangle, color: "text-red-400", border: "border-l-red-500", bg: "hover:bg-red-500/5" },
-        culture: { icon: CheckCircle, color: "text-purple-400", border: "border-l-purple-500", bg: "hover:bg-purple-500/5" },
-        education: { icon: CheckCircle, color: "text-emerald-400", border: "border-l-emerald-500", bg: "hover:bg-emerald-500/5" },
-        community: { icon: Info, color: "text-indigo-400", border: "border-l-indigo-500", bg: "hover:bg-indigo-500/5" },
-        achievement: { icon: CheckCircle, color: "text-yellow-400", border: "border-l-yellow-500", bg: "hover:bg-yellow-500/5" }
-    };
+function NotificationItem({ data, onDismiss }: { data: AppNotification; onDismiss: () => void }) {
+    const estilo = ESTILOS[data.category] ?? ESTILOS.system;
+    const Icono = estilo.icono;
 
-    const style = typeStyles[data.category] || typeStyles.system;
-    const Icon = style.icon;
-
-    // Time ago calculator or formatter
-    const formattedTime = React.useMemo(() => {
+    const hora = React.useMemo(() => {
         const diffMs = Date.now() - new Date(data.createdAt).getTime();
-        const diffMins = Math.floor(diffMs / 60000);
-        if (diffMins < 1) return "ahora";
-        if (diffMins < 60) return `${diffMins}m`;
-        const diffHrs = Math.floor(diffMins / 60);
-        if (diffHrs < 24) return `${diffHrs}h`;
+        const mins = Math.floor(diffMs / 60000);
+        if (mins < 1) return "ahora";
+        if (mins < 60) return `${mins} min`;
+        const horas = Math.floor(mins / 60);
+        if (horas < 24) return `${horas} h`;
         return new Date(data.createdAt).toLocaleDateString();
     }, [data.createdAt]);
 
     return (
-        <motion.div
+        <motion.li
             layout
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -16 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className={cn(
-                "relative flex gap-3 p-3 bg-white/5 border border-white/5 rounded-lg transition-colors group cursor-default",
-                "border-l-2",
-                style.border,
-                style.bg
-            )}
+            exit={{ opacity: 0, x: 16 }}
+            transition={{ duration: 0.2 }}
+            className={cn("flex items-start gap-2 rounded-xl border border-l-2 border-white/10 bg-white/[0.04] py-2 pl-3 pr-1", estilo.borde)}
         >
-            <div className={cn("mt-1 shrink-0", style.color)}>
-                <Icon className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex justify-between items-start gap-2">
-                    <h4 className="text-xs font-semibold leading-tight text-white/95 truncate">{data.title}</h4>
-                    <span className="text-[9px] text-muted-foreground shrink-0 font-mono">{formattedTime}</span>
+            <Icono className={cn("mt-1 h-4 w-4 shrink-0", estilo.color)} aria-hidden="true" />
+            <div className="min-w-0 flex-1 space-y-0.5 py-1">
+                <div className="flex items-start justify-between gap-2">
+                    <h4 className="m-0 text-[13px] font-semibold leading-tight text-amber-50">{data.title}</h4>
+                    <span className="shrink-0 font-mono text-[10px] text-amber-100/50">{hora}</span>
                 </div>
-                {data.body && (
-                    <p className="text-[11px] text-muted-foreground leading-normal pr-4">
-                        {data.body}
-                    </p>
-                )}
+                {data.body && <p className="m-0 text-[12px] leading-snug text-amber-100/65">{data.body}</p>}
             </div>
-
             <button
+                type="button"
                 onClick={onDismiss}
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-white"
                 title="Archivar"
+                aria-label={`Archivar «${data.title}»`}
+                className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-lg text-amber-100/55 outline-none transition-colors duration-150 hover:bg-white/10 hover:text-amber-50 focus-visible:ring-2 focus-visible:ring-amber-300/70"
             >
-                <X className="w-3.5 h-3.5" />
+                <X className="h-4 w-4" aria-hidden="true" />
             </button>
-        </motion.div>
-    );
-}
-
-// Temporary internal micro-icon
-function BotIcon(props: any) {
-    return (
-        <svg
-            {...props}
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={props.className}
-        >
-            <path d="M12 8V4H8" />
-            <rect width="16" height="12" x="4" y="8" rx="2" />
-            <path d="M2 14h2" />
-            <path d="M20 14h2" />
-            <path d="M15 13v2" />
-            <path d="M9 13v2" />
-        </svg>
+        </motion.li>
     );
 }

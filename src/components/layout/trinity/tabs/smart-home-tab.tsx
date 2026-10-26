@@ -14,14 +14,16 @@
  * el import en control-center.tsx.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Waves, Sparkles, SunDim, Wifi, Home as HomeIcon, Loader2, Eye, EyeOff } from "lucide-react";
+import { Sparkles, SunDim, Home as HomeIcon, Loader2, Eye, EyeOff, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
-import { Slider } from "@/components/ui/slider";
 import { useAppearance } from "@/context/appearance-context";
 import type { AppearanceConfig } from "@/context/appearance-context";
+import { SeccionLogic } from "../logic/seccion-logic";
+import { PildoraEstado } from "../logic/pildora-estado";
+import { DeslizadorLogic } from "../logic/deslizador-logic";
+import { FilaInterruptor } from "../logic/fila-interruptor";
 
 type LivingVariant = NonNullable<AppearanceConfig["background"]["living"]>["variant"];
 
@@ -54,6 +56,15 @@ const BG_TYPE_LABELS: Partial<Record<AppearanceConfig["background"]["type"], str
     "materia-cristal-liquido": "Materia · Cristal líquido",
     "materia-bosque-dorado": "Materia · Bosque dorado",
 };
+
+/** Nombre legible del fondo activo («Aurora», «Sólido»…); lo usa también la pestaña Inicio. */
+export function etiquetaDelFondo(bg: AppearanceConfig["background"] | undefined): string {
+    if (!bg) return "Fondo";
+    if (bg.type === "living" && bg.living) {
+        return LIVING_VARIANTS.find((v) => v.id === bg.living?.variant)?.label ?? bg.living.variant;
+    }
+    return BG_TYPE_LABELS[bg.type] ?? bg.type;
+}
 
 export function SmartHomeTab() {
     const { config, updateSection } = useAppearance();
@@ -98,75 +109,53 @@ export function SmartHomeTab() {
     };
 
     return (
-        <div className="space-y-4 pt-2">
-            {/* Estado de la atmósfera activa */}
-            <div className="grid grid-cols-2 gap-3">
-                <AtmosphereCard
-                    label="Fondo activo"
-                    icon={Sparkles}
-                    value={currentVariantLabel}
-                    sub={isLiving ? "Fondo vivo · pulsa para ciclar" : "Tipo de fondo"}
-                    color="purple"
-                    onClick={isLiving ? cycleVariant : undefined}
-                />
-                <AtmosphereCard
-                    label="Estado del OS"
-                    icon={Waves}
-                    value="En línea"
-                    sub="Sistema · Interfaz Trinity"
-                    color="emerald"
-                />
-            </div>
-
-            {/* Variantes de fondo vivo (solo si el fondo activo es "living") */}
-            {isLiving && living ? (
-                <div className="grid grid-cols-4 gap-1.5">
-                    {LIVING_VARIANTS.map((v) => (
-                        <VariantChip
-                            key={v.id}
-                            label={v.label}
-                            active={v.id === living.variant}
-                            onClick={() => updateSection("background", { living: { ...living, variant: v.id } })}
-                        />
-                    ))}
+        <div className="space-y-5 pt-1" data-testid="seccion-atmosfera">
+            <SeccionLogic titulo="Fondo" icono={Palette} insignia={currentVariantLabel} testId="seccion-fondo">
+                <div className="space-y-3">
+                    {isLiving && living ? (
+                        <>
+                            <PildoraEstado
+                                icono={Sparkles}
+                                etiqueta="Fondo activo"
+                                estado={`${currentVariantLabel} · toca para pasar al siguiente`}
+                                resaltada
+                                onClick={cycleVariant}
+                                titulo="Pasar a la siguiente variante del fondo vivo"
+                                testId="pildora-fondo"
+                            />
+                            <div role="group" aria-label="Variantes del fondo vivo" className="grid grid-cols-3 gap-1.5">
+                                {LIVING_VARIANTS.map((v) => (
+                                    <VariantChip
+                                        key={v.id}
+                                        label={v.label}
+                                        active={v.id === living.variant}
+                                        onClick={() => updateSection("background", { living: { ...living, variant: v.id } })}
+                                    />
+                                ))}
+                            </div>
+                        </>
+                    ) : (
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 text-[12px] leading-relaxed text-amber-100/70">
+                            <span className="block text-[13px] font-medium text-amber-50">Fondo activo: {currentVariantLabel}</span>
+                            Este fondo no es un «fondo vivo» (canvas), así que no hay variantes que cambiar aquí. Los deslizadores de abajo siguen
+                            afectando a la intensidad y al brillo del fondo actual.
+                        </div>
+                    )}
                 </div>
-            ) : (
-                <div className="p-3 rounded-xl bg-white/5 border border-white/5 text-[11px] text-muted-foreground leading-relaxed">
-                    El fondo activo no es un "fondo vivo" (canvas), así que no hay variantes que ciclar aquí.
-                    Los sliders de abajo siguen afectando a la intensidad y al brillo del fondo actual.
-                </div>
-            )}
+            </SeccionLogic>
 
-            {/* Sliders reales de atmósfera */}
-            <div className="space-y-4 bg-black/20 p-5 rounded-2xl border border-white/5 backdrop-blur-md">
-                <AtmosphereSlider
-                    icon={Sparkles}
-                    value={Math.round((intensityValue ?? 0.7) * 100)}
-                    onChange={(v: number[]) => setIntensity(v[0] / 100)}
-                    label="Intensidad de partículas/efectos"
-                    colorClass="[&>.relative>.absolute]:bg-purple-500"
-                />
-                <AtmosphereSlider
-                    icon={SunDim}
-                    value={brightnessPct}
-                    onChange={(v: number[]) => setBrightnessPct(v[0])}
-                    label="Brillo del fondo"
-                    colorClass="[&>.relative>.absolute]:bg-amber-500"
-                />
-            </div>
-
-            <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between gap-3 overflow-hidden">
-                <div className="flex items-center gap-3 min-w-0">
-                    <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400 shrink-0">
-                        <Wifi className="w-5 h-5 animate-pulse" />
-                    </div>
-                    <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">Renderizado</div>
-                        <div className="text-xs text-emerald-400 truncate">Aplicado en vivo a toda la interfaz</div>
-                    </div>
+            <SeccionLogic titulo="Intensidad y brillo" icono={SunDim} testId="seccion-intensidad">
+                <div className="space-y-1 rounded-2xl border border-white/10 bg-black/25 p-3.5">
+                    <DeslizadorLogic
+                        icono={Sparkles}
+                        valor={Math.round((intensityValue ?? 0.7) * 100)}
+                        onCambio={(v) => setIntensity(v / 100)}
+                        etiqueta="Intensidad de partículas y efectos"
+                    />
+                    <DeslizadorLogic icono={SunDim} valor={brightnessPct} onCambio={setBrightnessPct} etiqueta="Brillo del fondo" />
                 </div>
-                <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981] shrink-0" />
-            </div>
+                <p className="mt-2 px-1 text-[11px] leading-snug text-amber-100/55">Se aplica en vivo a toda la interfaz.</p>
+            </SeccionLogic>
 
             {/* Hogar / IoT (Home Assistant) — opt-in, honesto, config local */}
             <HomeAssistantBlock />
@@ -174,89 +163,22 @@ export function SmartHomeTab() {
     );
 }
 
-function AtmosphereCard({ label, icon: Icon, value, sub, color, onClick }: {
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    value: string;
-    sub: string;
-    color: "purple" | "emerald";
-    onClick?: () => void;
-}) {
-    const colorMap: Record<string, string> = {
-        purple: "group-hover:text-purple-400 group-hover:shadow-[0_0_20px_-5px_rgba(168,85,247,0.5)] group-hover:border-purple-500/50",
-        emerald: "group-hover:text-emerald-400 group-hover:shadow-[0_0_20px_-5px_rgba(16,185,129,0.5)] group-hover:border-emerald-500/50",
-    };
-
-    return (
-        <motion.button
-            type="button"
-            whileHover={onClick ? { scale: 1.02 } : undefined}
-            whileTap={onClick ? { scale: 0.98 } : undefined}
-            onClick={onClick}
-            disabled={!onClick}
-            className={cn(
-                "group relative h-28 rounded-2xl border bg-black/40 backdrop-blur-md p-2 flex flex-col items-center justify-center gap-2 transition-all duration-300 overflow-hidden",
-                "border-white/10",
-                colorMap[color],
-                onClick ? "cursor-pointer" : "cursor-default"
-            )}
-        >
-            <div className="flex items-center justify-center relative w-full">
-                <div className="p-2 rounded-full bg-white/5 transition-colors shrink-0 text-white">
-                    <Icon className="w-4 h-4" />
-                </div>
-                <div className="absolute right-2 top-0 w-1.5 h-1.5 rounded-full shadow-[0_0_8px] animate-pulse bg-current shrink-0" />
-            </div>
-
-            <div className="text-center z-10 w-full px-2 flex flex-col items-center justify-center min-w-0">
-                <div className="text-[10px] md:text-[11px] text-muted-foreground font-medium mb-0.5 truncate w-full">{label}</div>
-                <div className="text-xs md:text-sm font-bold truncate w-full text-white">{value}</div>
-                <div className="text-[9px] text-muted-foreground/70 truncate w-full mt-0.5">{sub}</div>
-            </div>
-
-            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl pointer-events-none" />
-        </motion.button>
-    );
-}
-
 function VariantChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
     return (
-        <motion.button
+        <button
             type="button"
-            whileTap={{ scale: 0.95 }}
             onClick={onClick}
+            aria-pressed={active}
             className={cn(
-                "h-12 rounded-xl border flex items-center justify-center text-[10px] font-medium transition-all duration-200 px-1 min-w-0 w-full text-center cursor-pointer",
+                "flex min-h-[44px] w-full min-w-0 cursor-pointer items-center justify-center rounded-xl border px-1.5 text-center text-[12px] font-medium leading-tight outline-none",
+                "transition-[background-color,border-color,transform] duration-200 focus-visible:ring-2 focus-visible:ring-amber-300/70 motion-safe:active:scale-[0.97]",
                 active
-                    ? "bg-purple-500/20 border-purple-500/40 text-purple-200 shadow-[0_0_12px_-3px_rgba(168,85,247,0.6)]"
-                    : "bg-white/5 border-white/5 text-muted-foreground hover:bg-white/10"
+                    ? "border-amber-300/60 bg-amber-400/20 text-amber-50 shadow-[0_0_14px_-5px_rgba(255,191,0,0.6)]"
+                    : "border-white/10 bg-white/[0.04] text-amber-100/70 hover:border-amber-300/40 hover:bg-amber-400/[0.08]"
             )}
         >
-            <span className="w-full truncate">{label}</span>
-        </motion.button>
-    );
-}
-
-function AtmosphereSlider({ icon: Icon, value, onChange, label, colorClass }: {
-    icon: React.ComponentType<{ className?: string }>;
-    value: number;
-    onChange: (v: number[]) => void;
-    label: string;
-    colorClass?: string;
-}) {
-    return (
-        <div className="space-y-3">
-            <div className="flex justify-between text-xs font-medium text-muted-foreground px-1">
-                <span className="flex items-center gap-2"><Icon className="w-3 h-3" /> {label}</span>
-                <span>{value}%</span>
-            </div>
-            <Slider
-                value={[value]}
-                max={100}
-                onValueChange={onChange}
-                className={cn("cursor-pointer", colorClass)}
-            />
-        </div>
+            <span className="w-full break-words">{label}</span>
+        </button>
     );
 }
 
@@ -404,119 +326,108 @@ function HomeAssistantBlock() {
 
     if (!ready) return null;
     const configured = !!cfg.url && !!cfg.token;
+    const CAMPO = "h-11 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-[13px] text-amber-50 outline-none placeholder:text-amber-100/35 focus:border-amber-300/60 focus-visible:ring-2 focus-visible:ring-amber-300/50";
 
     return (
-        <div className="space-y-3 bg-black/20 p-4 rounded-2xl border border-white/5 backdrop-blur-md">
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                    <div className="p-1.5 rounded-lg bg-sky-500/15 text-sky-300 shrink-0">
-                        <HomeIcon className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">Hogar / IoT (Home Assistant)</div>
-                        <div className="text-[10px] text-muted-foreground truncate">
-                            Opcional · el hogar común de tu Oikos/Sangha, o el tuyo
-                        </div>
-                    </div>
-                </div>
-                <button
-                    type="button"
-                    role="switch"
-                    aria-checked={cfg.enabled}
-                    onClick={toggleEnabled}
-                    title={cfg.enabled ? "Desactivar" : "Activar (opt-in)"}
-                    className={cn(
-                        "shrink-0 relative w-10 h-5 rounded-full transition-colors cursor-pointer",
-                        cfg.enabled ? "bg-sky-500" : "bg-white/15",
-                    )}
-                >
-                    <span className={cn("absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform", cfg.enabled && "translate-x-5")} />
-                </button>
-            </div>
+        <SeccionLogic titulo="Hogar / IoT" icono={HomeIcon} insignia="Opcional" abiertaPorDefecto={cfg.enabled} testId="seccion-hogar">
+            <div className="space-y-3">
+                <FilaInterruptor
+                    etiqueta="Home Assistant"
+                    descripcion="El hogar común de tu Oikos/Sangha, o el tuyo. Se guarda solo en este aparato."
+                    marcado={cfg.enabled}
+                    onCambio={() => toggleEnabled()}
+                    testId="interruptor-home-assistant"
+                />
 
-            {!cfg.enabled ? (
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    No configurado. Actívalo para conectar tu instancia de Home Assistant (URL + token de acceso de
-                    larga duración) y controlar luces/interruptores desde aquí. Se guarda solo en este dispositivo.{" "}
-                    <Link href="/library" className="text-sky-300 hover:underline">Ver ficha del paquete en la Biblioteca</Link>.
-                </p>
-            ) : (
-                <>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                        <label className="flex flex-col gap-1">
-                            <span className="text-[10px] text-muted-foreground">URL de Home Assistant</span>
-                            <input
-                                value={draftUrl}
-                                onChange={(e) => setDraftUrl(e.target.value)}
-                                onBlur={save}
-                                placeholder="http://homeassistant.local:8123"
-                                className="h-8 px-2.5 rounded-lg bg-black/30 border border-white/10 text-xs text-white outline-none focus:border-sky-400/50"
-                                spellCheck={false}
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                            <span className="text-[10px] text-muted-foreground">Token de acceso (larga duración)</span>
-                            <div className="flex gap-1">
+                {!cfg.enabled ? (
+                    <p className="px-1 text-[12px] leading-relaxed text-amber-100/65">
+                        No configurado. Actívalo para conectar tu instancia de Home Assistant (URL + token de acceso de
+                        larga duración) y controlar luces e interruptores desde aquí.{" "}
+                        <Link href="/library" className="text-amber-200 underline-offset-2 hover:underline">Ver ficha del paquete en la Biblioteca</Link>.
+                    </p>
+                ) : (
+                    <>
+                        <div className="grid gap-2.5">
+                            <label className="flex flex-col gap-1">
+                                <span className="text-[11px] text-amber-100/65">URL de Home Assistant</span>
                                 <input
-                                    value={draftToken}
-                                    onChange={(e) => setDraftToken(e.target.value)}
+                                    value={draftUrl}
+                                    onChange={(e) => setDraftUrl(e.target.value)}
                                     onBlur={save}
-                                    type={showToken ? "text" : "password"}
-                                    placeholder="eyJhbGciOi…"
-                                    className="h-8 flex-1 min-w-0 px-2.5 rounded-lg bg-black/30 border border-white/10 text-xs text-white outline-none focus:border-sky-400/50"
+                                    placeholder="http://homeassistant.local:8123"
+                                    className={CAMPO}
                                     spellCheck={false}
+                                    inputMode="url"
+                                    autoComplete="off"
                                 />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowToken((v) => !v)}
-                                    className="h-8 w-8 shrink-0 rounded-lg border border-white/10 bg-white/5 grid place-items-center text-muted-foreground hover:text-white cursor-pointer"
-                                    title={showToken ? "Ocultar" : "Mostrar"}
-                                >
-                                    {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                </button>
-                            </div>
-                        </label>
-                    </div>
-
-                    {!configured ? (
-                        <p className="text-[11px] text-amber-300/80">Añade la URL y el token para conectar.</p>
-                    ) : loading ? (
-                        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" /> Conectando…</p>
-                    ) : error ? (
-                        <div className="flex items-center justify-between gap-2 text-[11px] text-amber-300/80">
-                            <span className="min-w-0 flex-1">{error}</span>
-                            <button type="button" onClick={() => void loadEntities(cfg)} className="shrink-0 text-sky-300 hover:underline cursor-pointer">Reintentar</button>
-                        </div>
-                    ) : entities && entities.length > 0 ? (
-                        <div className="space-y-1.5">
-                            {entities.map((e) => (
-                                <div key={e.entity_id} className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-1.5">
-                                    <span className="min-w-0 flex-1 truncate text-xs text-white/80">{e.attributes?.friendly_name ?? e.entity_id}</span>
+                            </label>
+                            <label className="flex flex-col gap-1">
+                                <span className="text-[11px] text-amber-100/65">Token de acceso (larga duración)</span>
+                                <div className="flex gap-1.5">
+                                    <input
+                                        value={draftToken}
+                                        onChange={(e) => setDraftToken(e.target.value)}
+                                        onBlur={save}
+                                        type={showToken ? "text" : "password"}
+                                        placeholder="eyJhbGciOi…"
+                                        className={cn(CAMPO, "flex-1")}
+                                        spellCheck={false}
+                                        autoComplete="off"
+                                    />
                                     <button
                                         type="button"
-                                        onClick={() => void toggleEntity(e)}
-                                        disabled={busyEntity === e.entity_id}
-                                        className={cn(
-                                            "shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors cursor-pointer",
-                                            e.state === "on" ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-200" : "border-white/10 bg-white/5 text-muted-foreground",
-                                            busyEntity === e.entity_id && "opacity-50 cursor-wait",
-                                        )}
+                                        onClick={() => setShowToken((v) => !v)}
+                                        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-amber-100/70 outline-none transition-colors duration-150 hover:text-amber-50 focus-visible:ring-2 focus-visible:ring-amber-300/70"
+                                        title={showToken ? "Ocultar" : "Mostrar"}
+                                        aria-label={showToken ? "Ocultar el token" : "Mostrar el token"}
                                     >
-                                        {busyEntity === e.entity_id ? "…" : e.state === "on" ? "Encendido" : "Apagado"}
+                                        {showToken ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                                     </button>
                                 </div>
-                            ))}
+                            </label>
                         </div>
-                    ) : entities ? (
-                        <p className="text-[11px] text-muted-foreground">Conectado, pero no se encontraron luces/interruptores.</p>
-                    ) : null}
 
-                    <p className="text-[9px] text-muted-foreground/60 leading-relaxed">
-                        Guardado solo en este dispositivo (localStorage), nunca en la cuenta. Complementa Oikos: una
-                        comunidad/Sangha podría exponer así el hogar común.
-                    </p>
-                </>
-            )}
-        </div>
+                        {!configured ? (
+                            <p className="px-1 text-[12px] text-amber-200/80">Añade la URL y el token para conectar.</p>
+                        ) : loading ? (
+                            <p role="status" className="flex items-center gap-1.5 px-1 text-[12px] text-amber-100/65"><Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" aria-hidden="true" /> Conectando…</p>
+                        ) : error ? (
+                            <div role="alert" className="flex items-center justify-between gap-2 rounded-xl bg-amber-400/10 px-3 py-1 text-[12px] text-amber-100">
+                                <span className="min-w-0 flex-1 py-1.5">{error}</span>
+                                <button type="button" onClick={() => void loadEntities(cfg)} className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center rounded-lg px-2 font-medium text-amber-200 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-amber-300/70">Reintentar</button>
+                            </div>
+                        ) : entities && entities.length > 0 ? (
+                            <ul className="space-y-1.5" aria-label="Luces e interruptores">
+                                {entities.map((e) => (
+                                    <li key={e.entity_id} className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.04] py-1 pl-3 pr-1.5">
+                                        <span className="min-w-0 flex-1 truncate text-[13px] text-amber-50/90">{e.attributes?.friendly_name ?? e.entity_id}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => void toggleEntity(e)}
+                                            disabled={busyEntity === e.entity_id}
+                                            aria-pressed={e.state === "on"}
+                                            className={cn(
+                                                "inline-flex min-h-[44px] min-w-[92px] shrink-0 cursor-pointer items-center justify-center rounded-lg border px-3 text-[12px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-amber-300/70",
+                                                e.state === "on" ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-200" : "border-white/10 bg-white/[0.05] text-amber-100/70",
+                                                busyEntity === e.entity_id && "cursor-wait opacity-50",
+                                            )}
+                                        >
+                                            {busyEntity === e.entity_id ? "…" : e.state === "on" ? "Encendido" : "Apagado"}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : entities ? (
+                            <p className="px-1 text-[12px] text-amber-100/65">Conectado, pero no se encontraron luces ni interruptores.</p>
+                        ) : null}
+
+                        <p className="px-1 text-[11px] leading-relaxed text-amber-100/45">
+                            Guardado solo en este dispositivo (localStorage), nunca en la cuenta. Complementa Oikos: una
+                            comunidad/Sangha podría exponer así el hogar común.
+                        </p>
+                    </>
+                )}
+            </div>
+        </SeccionLogic>
     );
 }
