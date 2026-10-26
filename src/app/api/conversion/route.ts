@@ -11,6 +11,7 @@
 
 import { guardianMando } from "@/lib/mando/guardian";
 import { convertirConFilee, destinosFilee, estadoFilee, MAX_BYTES_CONVERSION } from "@/lib/conversion/filee-servidor";
+import { convertirConMalla, destinosConversorMalla, estadoConversorMalla } from "@/lib/conversion/malla";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +27,14 @@ export async function GET(request: Request): Promise<Response> {
     const filee = { instalado: est.instalado, version: est.version, donde: est.donde };
     const de = url.searchParams.get("de");
     if (!de) return Response.json({ filee }, { headers: SIN_CACHE });
+    if (!est.instalado) {
+        // Sin Filee aquí, la neurona vecina lo tiene: el contrato es «conversor por la malla».
+        const vecina = await estadoConversorMalla();
+        if (vecina.disponible) {
+            const d = await destinosConversorMalla(de);
+            if (d) return Response.json({ filee: { instalado: true, version: d.version, donde: "otra neurona" }, destinos: d.destinos, malla: true }, { headers: SIN_CACHE });
+        }
+    }
     const destinos = est.instalado ? await destinosFilee(de) : null;
     return Response.json({ filee, destinos }, { headers: SIN_CACHE });
 }
@@ -57,6 +66,29 @@ export async function POST(request: Request): Promise<Response> {
         calidad: calidad === null ? null : Number(calidad),
     });
     if (!r.ok || !r.bytes) {
+        // Sin Filee aquí (503), mejor convertirlo la neurona vecina que fallar del todo.
+        if (r.status === 503) {
+            const m = await convertirConMalla({
+                bytes: new Uint8Array(await archivo.arrayBuffer()),
+                nombre,
+                a,
+                calidad: calidad === null ? null : Number(calidad),
+            });
+            if (m.ok && m.bytes) {
+                const nombreMalla = m.nombre ?? "convertido";
+                return new Response(new Blob([m.bytes as Uint8Array<ArrayBuffer>]), {
+                    status: 200,
+                    headers: {
+                        ...SIN_CACHE,
+                        "Content-Type": m.tipo ?? "application/octet-stream",
+                        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(nombreMalla)}`,
+                        "X-Conversion-Nombre": encodeURIComponent(nombreMalla),
+                        "X-Conversion-Salidas": String(m.salidas ?? 1),
+                        "X-Conversion-Motor": "filee por la malla",
+                    },
+                });
+            }
+        }
         return Response.json({ ok: false, motivo: r.motivo ?? "No se pudo convertir." }, { status: r.status ?? 500, headers: SIN_CACHE });
     }
     const est = await estadoFilee();
