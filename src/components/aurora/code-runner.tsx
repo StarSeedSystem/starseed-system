@@ -25,13 +25,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Play, Square, X, Columns2, Code2, Terminal as TerminalIcon, Eye, Maximize2, Minimize2,
-  ExternalLink, PanelRightOpen, Copy, Check, Download, AlertTriangle, Binary,
+  ExternalLink, PanelRightOpen, Copy, Check, Download, AlertTriangle, Binary, ShieldAlert, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   CODE_RUNTIME_EVENT, CODE_SIZE_PX, buildSandboxDoc, detectRunnable, directivesFor, extensionFor,
   isRuntimeMessage, readCodeRuntimePrefs, type CodeSize, type CodeViewMode, type ConsoleEntry,
 } from "@/lib/aurora/code-runtime";
+import { clasesEscena, validarEscena } from "@/lib/protomolecula/manimgx/escena";
 
 export interface CodeRunnerProps {
   lang: string;
@@ -63,6 +64,17 @@ export function CodeRunner({ lang, code, info, className, fallback }: CodeRunner
   const prefs = useCodeRuntimePrefs();
   const directives = useMemo(() => directivesFor(info ?? lang, code), [info, lang, code]);
   const runnable = useMemo(() => detectRunnable(lang, code), [lang, code]);
+
+  /** Un bloque de Python que pinta ser escena de Manim (import de manim/manimgx
+   *  o una clase «*Scene») se valida con el contrato de ManimGX ANTES de
+   *  ofrecérsele cualquier camino de ejecución: §3 de
+   *  architecture/repos-3d-oido-agentes-1023.md — el código que escribe un
+   *  agente nunca corre en el proceso del OS. */
+  const escenaManim = useMemo(() => {
+    if (runnable.kind !== "backend" || !lang.toLowerCase().startsWith("p")) return null;
+    if (!/(?:import|from)\s+manim(?:gx)?\b/.test(code) && !/\bclass\s+\w*Scene\b/.test(code)) return null;
+    return { clases: clasesEscena(code), veredicto: validarEscena(code) };
+  }, [runnable.kind, lang, code]);
 
   const [closed, setClosed] = useState(false);
   const [running, setRunning] = useState(false);
@@ -245,13 +257,35 @@ export function CodeRunner({ lang, code, info, className, fallback }: CodeRunner
         </div>
       </div>
 
+      {/* Veredicto del contrato de escena de ManimGX (antes de ejecutar nada) */}
+      {escenaManim && (
+        escenaManim.veredicto.ok ? (
+          <div className="flex items-start gap-2 border-b border-emerald-400/20 bg-emerald-500/[0.06] px-3 py-2 text-[11px] leading-snug text-emerald-100/90">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              Escena de ManimGX aceptada por el contrato{escenaManim.clases.length > 0 ? ` (clase ${escenaManim.clases.join(", ")})` : ""}: validada, no ejecutada. Se renderizará aislada (Worker o contenedor sin red) cuando exista la boca de render.
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 border-b border-rose-400/20 bg-rose-500/[0.06] px-3 py-2 text-[11px] leading-snug text-rose-100/90">
+            <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <div>
+              <span>No pasa el contrato de escena de ManimGX: se rechaza antes de ejecutar nada y no se envía a ningún ejecutor.</span>
+              <ul className="list-disc py-0.5 pl-4">
+                {escenaManim.veredicto.motivos.map((m, i) => <li key={i}>{m}</li>)}
+              </ul>
+            </div>
+          </div>
+        )
+      )}
+
       {/* Aviso honesto para lo que no corre en el navegador */}
       {!runnable.inBrowser && (
         <div className="flex items-start gap-2 border-b border-amber-400/20 bg-amber-500/[0.06] px-3 py-2 text-[11px] leading-snug text-amber-100/90">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
             {runnable.note ?? "Este bloque no se ejecuta en el navegador."}{" "}
-            {prefs.allowBackend && (
+            {prefs.allowBackend && (!escenaManim || escenaManim.veredicto.ok) && (
               <a className="underline underline-offset-2 hover:text-amber-50" href="/agent?tab=astraura-158&sub=terminal">Abrir Terminal &amp; Sandbox del backend soberano</a>
             )}
           </span>
