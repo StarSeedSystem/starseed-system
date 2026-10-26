@@ -106,41 +106,57 @@ export interface OpcionesTesela {
 }
 
 /**
+ * Sufijo de los `id` internos (clipPath y degradados). Depende solo del dibujo, así que es estable, y hace
+ * que dos teselas distintas no compartan `id` si se incrustan en un mismo documento (un SVG exportado y
+ * pegado en una página, una hoja de muestras): con `id` iguales, todas tomarían los colores de la primera.
+ */
+function sufijoDeIds(d: DisenoIcono): string {
+    const texto = JSON.stringify([d.forma, d.fondo, d.brillo, d.borde ?? null]);
+    let h = 0x811c9dc5;
+    for (let i = 0; i < texto.length; i++) {
+        h ^= texto.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(36);
+}
+
+/**
  * La tesela del diseño: SVG autosuficiente de 100×100 sin glifo. El interior se puede reutilizar para
  * componer el icono entero (`disenoASvg`).
  */
 export function interiorTesela(d: DisenoIcono): string {
     const ruta = rutaForma(d.forma);
-    const defs: string[] = d.fondo.tipo === "ninguno" ? [] : [`<clipPath id="ss-f"><path d="${ruta}"/></clipPath>`];
+    const u = sufijoDeIds(d);
+    const defs: string[] = d.fondo.tipo === "ninguno" ? [] : [`<clipPath id="ss-f-${u}"><path d="${ruta}"/></clipPath>`];
     const capas: string[] = [];
     const f = d.fondo;
 
     if (f.tipo === "color") {
         const [c, a] = separarAlfa(f.color);
         capas.push(`<path d="${ruta}" fill="${c}"${a < 1 ? ` fill-opacity="${n3(a)}"` : ""}/>`);
-        capas.push(`<path d="${ruta}" fill="url(#ss-h)" clip-path="url(#ss-f)"/>`);
-        defs.push(`<linearGradient id="ss-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.22"/><stop offset="0.55" stop-color="#fff" stop-opacity="0"/></linearGradient>`);
+        capas.push(`<path d="${ruta}" fill="url(#ss-h-${u})" clip-path="url(#ss-f-${u})"/>`);
+        defs.push(`<linearGradient id="ss-h-${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.22"/><stop offset="0.55" stop-color="#fff" stop-opacity="0"/></linearGradient>`);
     } else if (f.tipo === "degradado") {
         defs.push(
-            `<linearGradient id="ss-g" x1="0" y1="0" x2="1" y2="0" gradientTransform="rotate(${Math.round(f.angulo)} 0.5 0.5)">` +
+            `<linearGradient id="ss-g-${u}" x1="0" y1="0" x2="1" y2="0" gradientTransform="rotate(${Math.round(f.angulo)} 0.5 0.5)">` +
             `<stop offset="0" stop-color="${hex(f.desde)}"/><stop offset="1" stop-color="${hex(f.hasta, "#0b1220")}"/></linearGradient>`,
-            `<linearGradient id="ss-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.2"/><stop offset="0.55" stop-color="#fff" stop-opacity="0"/></linearGradient>`,
+            `<linearGradient id="ss-h-${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.2"/><stop offset="0.55" stop-color="#fff" stop-opacity="0"/></linearGradient>`,
         );
-        capas.push(`<path d="${ruta}" fill="url(#ss-g)"/>`);
-        capas.push(`<path d="${ruta}" fill="url(#ss-h)" clip-path="url(#ss-f)"/>`);
+        capas.push(`<path d="${ruta}" fill="url(#ss-g-${u})"/>`);
+        capas.push(`<path d="${ruta}" fill="url(#ss-h-${u})" clip-path="url(#ss-f-${u})"/>`);
     } else if (f.tipo === "cristal") {
         const t = hex(f.tinte, "#22d3ee");
         const i = Math.min(1, Math.max(0, f.intensidad));
         defs.push(
-            `<linearGradient id="ss-t" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${t}" stop-opacity="${n3(i * 0.78)}"/><stop offset="1" stop-color="${t}" stop-opacity="${n3(i * 0.2)}"/></linearGradient>`,
-            `<linearGradient id="ss-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>`,
-            `<radialGradient id="ss-r" cx="0.5" cy="0.5" r="0.55"><stop offset="0" stop-color="${t}" stop-opacity="${n3(0.55 * d.brillo)}"/><stop offset="1" stop-color="${t}" stop-opacity="0"/></radialGradient>`,
+            `<linearGradient id="ss-t-${u}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${t}" stop-opacity="${n3(i * 0.78)}"/><stop offset="1" stop-color="${t}" stop-opacity="${n3(i * 0.2)}"/></linearGradient>`,
+            `<linearGradient id="ss-h-${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>`,
+            `<radialGradient id="ss-r-${u}" cx="0.5" cy="0.5" r="0.55"><stop offset="0" stop-color="${t}" stop-opacity="${n3(0.55 * d.brillo)}"/><stop offset="1" stop-color="${t}" stop-opacity="0"/></radialGradient>`,
         );
         // base oscura que da lectura sobre fondos claros, el tinte del cristal, resplandor interior y brillo especular
         capas.push(`<path d="${ruta}" fill="#0b1220" fill-opacity="0.38"/>`);
-        capas.push(`<path d="${ruta}" fill="url(#ss-t)"/>`);
-        if (d.brillo > 0) capas.push(`<path d="${ruta}" fill="url(#ss-r)" clip-path="url(#ss-f)"/>`);
-        capas.push(`<ellipse cx="50" cy="24" rx="33" ry="17" fill="url(#ss-h)" clip-path="url(#ss-f)"/>`);
+        capas.push(`<path d="${ruta}" fill="url(#ss-t-${u})"/>`);
+        if (d.brillo > 0) capas.push(`<path d="${ruta}" fill="url(#ss-r-${u})" clip-path="url(#ss-f-${u})"/>`);
+        capas.push(`<ellipse cx="50" cy="24" rx="33" ry="17" fill="url(#ss-h-${u})" clip-path="url(#ss-f-${u})"/>`);
         capas.push(`<path d="${ruta}" fill="none" stroke="#fff" stroke-opacity="0.24" stroke-width="1.6"/>`);
         capas.push(`<path d="${ruta}" fill="none" stroke="${t}" stroke-opacity="0.55" stroke-width="1"/>`);
     }

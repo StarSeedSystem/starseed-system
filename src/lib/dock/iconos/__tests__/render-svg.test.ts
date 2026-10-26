@@ -61,7 +61,23 @@ describe("teselaSvg", () => {
         expect(teselaDataUrl(base())).toMatch(/^data:image\/svg\+xml[;,]/);
     });
     it("interiorTesela usa ids propios para que dos teselas en la misma página no choquen", () => {
-        expect(interiorTesela(base())).toContain('id="ss-f"');
+        const id = (s: string) => /id="ss-f-([a-z0-9]+)"/.exec(s)?.[1];
+        const a = id(interiorTesela(base()));
+        expect(a).toBeTruthy();
+        // el mismo diseño da siempre los mismos ids; uno distinto, otros
+        expect(id(interiorTesela(base()))).toBe(a);
+        expect(id(interiorTesela(base({ forma: "rombo" })))).not.toBe(a);
+        expect(id(interiorTesela(base({ fondo: { tipo: "color", color: "#ff0000" } })))).not.toBe(a);
+    });
+    it("todo `url(#…)` apunta a un id que existe en la misma tesela", () => {
+        for (const fondo of [
+            { tipo: "cristal", tinte: "#22d3ee", intensidad: 0.6 },
+            { tipo: "degradado", desde: "#ff0000", hasta: "#0000ff", angulo: 90 },
+            { tipo: "color", color: "#00ff00" },
+        ] as const) {
+            const s = interiorTesela(base({ fondo }));
+            for (const [, ref] of s.matchAll(/url\(#([^)]+)\)/g)) expect(s, ref).toContain(`id="${ref}"`);
+        }
     });
 });
 
