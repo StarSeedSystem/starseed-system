@@ -6,7 +6,7 @@ import {
   MotorAgentes,
   type NecesidadesAgentes,
   MOTORES_AGENTES,
-} from "@/lib/agents/motores/tipos";
+} from "@/lib/agents";
 import type { Agent } from "@/lib/agents/model";
 
 /** Agente mínimo: la elección de motor es pura, no lee el resto de la ficha. */

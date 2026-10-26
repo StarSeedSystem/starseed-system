@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 
-import { elegirMotor, MotorAgentes } from "@/lib/agents/motores/tipos";
+import { elegirMotor, MotorAgentes, MOTORES_AGENTES } from "@/lib/agents/motores/tipos";
 import type { Agent } from "@/lib/agents/model";
 
 export interface SelectorMotorProps {
