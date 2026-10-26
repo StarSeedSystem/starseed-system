@@ -4,6 +4,7 @@
  * Lo que comparte con el resto de la ola vive en `@/lib/protomolecula/peticion/contrato`.
  */
 import type {
+  ContextoProto,
   EntidadProto,
   FalloPeticion,
   ModoEdicion,
@@ -28,11 +29,21 @@ export type OrigenPlan = "humano" | "ia";
 /** Por qué falla una petición: lo del contrato, más los fallos propios de la ventana. */
 export type TipoFallo = FalloPeticion["error"] | "fallo" | "tarda";
 
+/**
+ * Un plan que pidió un AGENTE (`[[ACCION: protomolecula {"accion":"pedir"}]]`, `peticion/pedir.ts`) y espera a que
+ * la persona lo confirme. Se ejecuta contra la pantalla en que se pidió (`contexto`), no contra la que haya ahora.
+ */
+export interface PendienteVentana {
+  id: string;
+  agente: string;
+  contexto: ContextoProto;
+}
+
 export type EstadoPeticion =
   | { fase: "reposo" }
   | { fase: "planificando"; texto: string }
-  | { fase: "plan"; texto: string; plan: PlanPeticion; veredicto: VeredictoGobierno; origen: OrigenPlan }
-  | { fase: "propuesta"; plan: PlanPeticion; veredicto: VeredictoGobierno }
+  | { fase: "plan"; texto: string; plan: PlanPeticion; veredicto: VeredictoGobierno; origen: OrigenPlan; pendiente?: PendienteVentana }
+  | { fase: "propuesta"; plan: PlanPeticion; veredicto: VeredictoGobierno; pendiente?: PendienteVentana }
   | { fase: "ejecutando"; plan: PlanPeticion }
   | { fase: "hecho"; plan: PlanPeticion; resultado: ResultadoVentana }
   | { fase: "error"; texto: string; tipo: TipoFallo; motivo: string };

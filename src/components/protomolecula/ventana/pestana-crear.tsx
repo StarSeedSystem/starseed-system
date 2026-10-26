@@ -24,16 +24,18 @@ export interface PestanaCrearProps {
   contexto: ContextoProto;
   alAbrirLienzo: () => void;
   irAPestana: (p: PestanaVentana) => void;
+  /** Cómo navegar dentro del OS (la ventana pasa `router.push`). */
+  abrirRuta?: (ruta: string) => void;
 }
 
-export function PestanaCrear({ contexto, alAbrirLienzo, irAPestana }: PestanaCrearProps) {
+export function PestanaCrear({ contexto, alAbrirLienzo, irAPestana, abrirRuta }: PestanaCrearProps) {
   const [texto, setTexto] = useState("");
   const [modo, setModo] = useState<ModoEdicion>("directo");
   const [historial, setHistorial] = useState<EntradaHistorial[]>(() => leerHistorial());
   const [aviso, setAviso] = useState<string | null>(null);
   const [foco, setFoco] = useState(0);
   const entrada = useRef<HTMLTextAreaElement>(null);
-  const { estado, ocupado, pedir, lanzarPlan, confirmar, volverAlPlan, cancelar, deshacer, reglasLocales } = usePeticion(contexto);
+  const { estado, ocupado, pedir, lanzarPlan, confirmar, volverAlPlan, cancelar, deshacer, reglasLocales } = usePeticion(contexto, undefined, { abrirRuta });
   const herramientas = useMemo(() => herramientasPara(contexto), [contexto]);
   const gobierna = entidadGobernante(contexto);
 
@@ -55,7 +57,9 @@ export function PestanaCrear({ contexto, alAbrirLienzo, irAPestana }: PestanaCre
 
   /** Cierra la espera, el plan o el error y devuelve a la barra lo que se había escrito, para no perderlo. */
   const cerrar = useCallback(() => {
-    if ((estado.fase === "planificando" || estado.fase === "plan" || estado.fase === "error") && estado.texto) setTexto(estado.texto);
+    // Lo que pidió un agente no es tuyo: no se copia a tu barra.
+    const deAgente = estado.fase === "plan" && Boolean(estado.pendiente);
+    if (!deAgente && (estado.fase === "planificando" || estado.fase === "plan" || estado.fase === "error") && estado.texto) setTexto(estado.texto);
     cancelar();
   }, [estado, cancelar]);
 
@@ -95,7 +99,7 @@ export function PestanaCrear({ contexto, alAbrirLienzo, irAPestana }: PestanaCre
       {estado.fase === "planificando" && <Cargando texto="Astraura está pensando el plan…" alCancelar={cerrar} />}
       {estado.fase === "ejecutando" && <Cargando texto="Aplicando el plan…" />}
       {estado.fase === "plan" && (
-        <VistaPlan plan={estado.plan} veredicto={estado.veredicto} texto={estado.texto} alConfirmar={confirmar} alCancelar={cerrar} />
+        <VistaPlan plan={estado.plan} veredicto={estado.veredicto} texto={estado.texto} agente={estado.pendiente?.agente} alConfirmar={confirmar} alCancelar={cerrar} />
       )}
       {estado.fase === "propuesta" && (
         <VistaPropuesta

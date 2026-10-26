@@ -9,10 +9,11 @@ const m = vi.hoisted(() => ({
   decidirCambio: vi.fn(),
   leerContexto: vi.fn((ruta?: string): ContextoProto => ({ ruta: ruta ?? "/", ambito: "personal" })),
 }));
-vi.mock("@/lib/protomolecula/peticion", () => ({ leerContexto: m.leerContexto, planificarPeticion: m.planificarPeticion, ejecutarPlan: m.ejecutarPlan }));
+vi.mock("@/lib/protomolecula/peticion", () => ({ leerContexto: m.leerContexto, planificarPeticion: m.planificarPeticion, ejecutarPlan: m.ejecutarPlan, actorDeLaSesion: async () => null }));
 vi.mock("@/lib/protomolecula/gobierno", () => ({ decidirCambio: m.decidirCambio }));
 vi.mock("@/components/protomolecula/panel-protomolecula", () => ({ PanelProtomoleculaAutonomo: () => <p>panel completo simulado</p> }));
 vi.mock("../pestana-vinculos", () => ({ default: () => <p>mandos simulados</p> }));
+vi.mock("@/components/protomolecula/gobierno", () => ({ GobiernoProtoResumen: (p: { contexto: ContextoProto }) => <div data-testid="resumen-gobierno-p2">{p.contexto.entidad?.nombre}</div> }));
 vi.mock("@/components/governance/proposal-composer", () => ({
   default: (p: { scope: string; scopeRef?: string; initial?: { title?: string; description?: string } }) => (
     <div data-testid="compositor">Compositor simulado · {p.scope} · {p.scopeRef} · {p.initial?.title} · {p.initial?.description}</div>
@@ -448,5 +449,14 @@ describe("ventana de la Protomolécula · teclado y pantallas", () => {
     for (const t of screen.getAllByRole("tab")) expect(t.className).toContain("min-h-[44px]");
     expect(tab("Controles").textContent).toBe("Controles");
     expect(within(tab("Controles")).getByText("Controles").className).toContain("max-sm:sr-only");
+  });
+
+  it("la pestaña «Gobierno» enseña el resumen completo de la entidad en cuanto carga (antes, el local)", async () => {
+    montar();
+    anunciar(grupo);
+    fireEvent.click(tab("Gobierno"));
+    expect(await screen.findByTestId("resumen-gobierno-p2")).toBeTruthy();
+    expect(screen.getByTestId("resumen-gobierno-p2").textContent).toBe("Semilla");
+    expect(screen.queryByTestId("resumen-gobierno-local")).toBeNull();
   });
 });

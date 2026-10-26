@@ -4,7 +4,7 @@
  * después una sola consulta al enrutador económico, con el tope por hora MÁS CORTO de los agentes) y lo deja pendiente
  * de que la PERSONA lo confirme en la ventana. Un agente nunca ejecuta directamente: aquí solo se planifica.
  */
-import type { ContextoProto, PlanPeticion } from "./contrato";
+import { EVENTO_PLAN_PENDIENTE, type ContextoProto, type PlanPeticion } from "./contrato";
 import { leerContexto } from "./contexto";
 import { describirOperacion } from "./esquema";
 import { planificar, type DependenciasPlan } from "./planificar";
@@ -12,8 +12,8 @@ import { TOPE_AGENTE_POR_HORA } from "./tope";
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
 import type { ResultadoAccionProto } from "../accion-agente";
 
-/** La ventana lo escucha (`detail: PlanPendiente`) para enseñar «Astraura propone…» con Confirmar y Descartar. */
-export const EVENTO_PLAN_PENDIENTE = "starseed:protomolecula-plan-pendiente";
+/** La ventana lo escucha (`detail: PlanPendiente`) para enseñar «un agente propone…» con Confirmar y Descartar. */
+export { EVENTO_PLAN_PENDIENTE };
 const MAX_PENDIENTES = 5;
 
 export interface PlanPendiente {

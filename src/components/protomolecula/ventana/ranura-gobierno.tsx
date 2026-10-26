@@ -1,16 +1,11 @@
 "use client";
 /**
- * Ventana de la Protomolécula · RANURA del resumen de gobierno. Un solo punto donde enchufar el componente
- * `GobiernoProtoResumen` de la ola (agente P2, `src/components/protomolecula/gobierno/`).
- *
- * Mientras ese componente no esté integrado, la ranura usa un resumen propio y HONESTO: cómo decide hoy el
- * gobierno de la entidad cada tipo de cambio (el mismo `decidirCambio` que usa la petición al confirmar).
- *
- * PARA INTEGRAR (una línea): sustituir `ResumenGobierno` por
- *   const ResumenGobierno = dynamic(() => import("@/components/protomolecula/gobierno/<archivo>").then((m) => m.GobiernoProtoResumen), { ssr: false, loading: () => <ResumenGobiernoLocal contexto={...} /> })
- * con la misma firma `{ contexto: ContextoProto }`.
+ * Ventana de la Protomolécula · RANURA del resumen de gobierno. Monta el `GobiernoProtoResumen` de la ola (P2,
+ * `src/components/protomolecula/gobierno/`: reglas, quién decide, permisos directos y registro de usos), cargado a
+ * demanda para no engordar la ventana. Mientras llega (o si no carga), se ve el resumen propio y HONESTO: cómo decide
+ * hoy el gobierno de la entidad cada tipo de cambio (el mismo `decidirCambio` que usa la petición al confirmar).
  */
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { decidirCambio } from "@/lib/protomolecula/gobierno";
 import { TIPOS_CAMBIO_PROTO, type ContextoProto, type TipoCambioProto, type VeredictoGobierno } from "@/lib/protomolecula/peticion/contrato";
@@ -58,5 +53,19 @@ export function ResumenGobiernoLocal({ contexto }: ResumenGobiernoProps) {
   );
 }
 
-/** El componente que monta la pestaña. Hoy es el resumen propio; al integrar P2, aquí va `GobiernoProtoResumen`. */
-export const ResumenGobierno: React.ComponentType<ResumenGobiernoProps> = ResumenGobiernoLocal;
+type ModuloGobierno = typeof import("@/components/protomolecula/gobierno");
+
+/** El componente que monta la pestaña: el resumen completo de P2 en cuanto carga; antes (o si falla), el local. */
+export function ResumenGobierno({ contexto }: ResumenGobiernoProps) {
+  const [modulo, setModulo] = useState<ModuloGobierno | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    import("@/components/protomolecula/gobierno")
+      .then((m) => { if (vivo) setModulo(m); })
+      .catch(() => { /* se queda el resumen local, que ya dice la verdad */ });
+    return () => { vivo = false; };
+  }, []);
+  if (!modulo) return <ResumenGobiernoLocal contexto={contexto} />;
+  const Completo = modulo.GobiernoProtoResumen;
+  return <Completo contexto={contexto} />;
+}

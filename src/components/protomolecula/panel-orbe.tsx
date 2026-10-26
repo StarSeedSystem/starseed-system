@@ -44,6 +44,8 @@ export interface PanelOrbeProps {
   alElegirForma: (f: IdForma | null) => void;
   alElegirEstilo: (e: Estilo) => void;
   alAbrirLienzo: () => void;
+  /** Navegar dentro del OS sin recargar (el orbe pasa `router.push`). */
+  abrirRuta?: (ruta: string) => void;
   alApagar: () => void;
   alCerrar: () => void;
   /** Dónde se abre respecto a la orbe. */
@@ -271,7 +273,7 @@ export function PanelOrbe(p: PanelOrbeProps) {
       </div>
 
       <div className="mt-3">
-        {panel("crear", <PestanaCrear contexto={contexto} alAbrirLienzo={p.alAbrirLienzo} irAPestana={ir} />)}
+        {panel("crear", <PestanaCrear contexto={contexto} alAbrirLienzo={p.alAbrirLienzo} irAPestana={ir} abrirRuta={p.abrirRuta} />)}
         {panel(
           "controles",
           <div className="max-h-[50vh] overflow-auto rounded-2xl border border-white/10 bg-black/20 p-2">

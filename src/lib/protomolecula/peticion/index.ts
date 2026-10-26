@@ -8,7 +8,7 @@
  * Mantiene las firmas del contrato (`ejecutarPlan(plan)` y `planificarPeticion(p)` siguen valiendo con un solo argumento).
  * Los motores pesados se cargan a demanda: importar este archivo es barato.
  */
-import type { FalloPeticion, PeticionProto, PlanPeticion } from "./contrato";
+import type { ActorProto, ContextoProto, FalloPeticion, PeticionProto, PlanPeticion } from "./contrato";
 import { leerContexto } from "./contexto";
 import type { OpcionesEjecucion, ResultadoEjecucion } from "./ejecutar";
 import type { DependenciasPlan } from "./planificar";
@@ -39,4 +39,12 @@ export async function planificarPeticion(p: PeticionProto, deps: DependenciasPla
 export async function ejecutarPlan(plan: PlanPeticion, opciones: OpcionesEjecucion = {}): Promise<ResultadoEjecucion> {
   const [{ ejecutarConDependencias }, { dependenciasReales }] = await Promise.all([import("./ejecutar"), import("./dependencias")]);
   return ejecutarConDependencias(plan, { ...opciones, contexto: opciones.contexto ?? leerContexto() }, dependenciasReales({ abrirRuta: opciones.abrirRuta }));
+}
+
+/**
+ * Quién es la persona para el gobierno de esta pantalla: su cuenta y su rol REAL en el grupo (si lo hay). Es el mismo
+ * actor que usa `ejecutarPlan` por defecto, para que la vista previa del veredicto y la ejecución digan lo mismo.
+ */
+export async function actorDeLaSesion(contexto: ContextoProto, origen: ActorProto["origen"]): Promise<ActorProto> {
+  return (await import("./dependencias")).actorPorDefecto(contexto, origen);
 }

@@ -41,6 +41,7 @@ import {
 } from "@/lib/protomolecula/orbe4d/eventos";
 import type { MotorOrbe } from "@/lib/protomolecula/orbe4d/motor";
 import { PanelOrbe } from "./panel-orbe";
+import { EVENTO_PLAN_PENDIENTE } from "@/lib/protomolecula/peticion/contrato";
 import { iniciarEscuchaContexto } from "./ventana/contexto-anunciado";
 import { usePerimeterOpcional } from "@/context/perimeter-context";
 
@@ -238,6 +239,9 @@ export function OrbeProtomolecula() {
       deFab(new CustomEvent("x", { detail: leerActivada(window.localStorage) }));
       setEstilo(leerEstilo(window.localStorage));
     };
+    // Un agente dejó un plan para confirmar: se abre la ventana para que la persona lo vea (nada se aplica solo).
+    const dePlanDeAgente = () => { if (activada) setPanel((p) => (p.abierto ? p : { abierto: true })); };
+    window.addEventListener(EVENTO_PLAN_PENDIENTE, dePlanDeAgente);
     window.addEventListener(PROTO_ORB_FAB_EVENT, deFab);
     window.addEventListener(PROTO_ORB_ABRIR_EVENT, deAbrir);
     window.addEventListener(PROTO_ORB_CERRAR_EVENT, deCerrar);
@@ -246,6 +250,7 @@ export function OrbeProtomolecula() {
     window.addEventListener(SYNC_APPLY_EVENT, deSync);
     window.addEventListener("storage", deAlmacen);
     return () => {
+      window.removeEventListener(EVENTO_PLAN_PENDIENTE, dePlanDeAgente);
       window.removeEventListener(PROTO_ORB_FAB_EVENT, deFab);
       window.removeEventListener(PROTO_ORB_ABRIR_EVENT, deAbrir);
       window.removeEventListener(PROTO_ORB_CERRAR_EVENT, deCerrar);
@@ -455,6 +460,7 @@ export function OrbeProtomolecula() {
               lado={lado}
               alElegirForma={(f) => setFijada(f)}
               alElegirEstilo={(e) => { setEstilo(e); guardarEstilo(window.localStorage, e); }}
+              abrirRuta={(r) => router.push(r)}
               alAbrirLienzo={() => { setPanel({ abierto: false }); router.push(panel.molecula ? `/protomolecula?molecula=${encodeURIComponent(panel.molecula)}` : "/protomolecula"); }}
               alApagar={() => void apagar("panel")}
               alCerrar={() => setPanel({ abierto: false })}

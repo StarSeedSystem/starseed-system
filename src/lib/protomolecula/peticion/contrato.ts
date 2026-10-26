@@ -34,6 +34,9 @@ export interface ContextoProto {
  * cambiar la selección. La ventana se queda con el último. Sin anuncio, P3 lo deduce de la ruta.
  */
 export const EVENTO_CONTEXTO_PROTO = "starseed:protomolecula-contexto";
+/** Un agente dejó un plan esperando a la persona (`detail: PlanPendiente`, `peticion/pedir.ts`). Aquí para que el orbe
+ * lo escuche sin cargar el planificador. */
+export const EVENTO_PLAN_PENDIENTE = "starseed:protomolecula-plan-pendiente";
 
 /** Qué tipo de cambio es (decide qué regla de gobierno aplica). */
 export type TipoCambioProto = "contenido" | "diseno" | "funciones" | "permisos" | "reglas" | "creacion";

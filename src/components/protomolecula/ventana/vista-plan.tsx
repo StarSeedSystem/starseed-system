@@ -14,18 +14,24 @@ export interface VistaPlanProps {
   plan: PlanPeticion;
   veredicto: VeredictoGobierno;
   texto?: string;
+  /** Si lo pidió un agente (no la persona): su nombre. Se dice claro, y Cancelar lo descarta. */
+  agente?: string;
   alConfirmar: () => void;
   alCancelar: () => void;
 }
 
-export function VistaPlan({ plan, veredicto, texto, alConfirmar, alCancelar }: VistaPlanProps) {
+export function VistaPlan({ plan, veredicto, texto, agente, alConfirmar, alCancelar }: VistaPlanProps) {
   const v = textoVeredicto(veredicto);
   const tono = TONO_DECISION[v.tono];
   const IconoDecision = ICONO_GOBIERNO[v.tono];
   const denegado = veredicto.decision === "denegar";
   return (
     <section aria-label="Plan de Astraura" data-testid="vista-plan" className="rounded-2xl border border-white/10 bg-white/5 p-3 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
-      {texto ? <p className="mb-1 truncate text-[11px] text-white/60" title={texto}>Tu petición · {texto}</p> : null}
+      {agente ? (
+        <p className="mb-1 text-[11px] text-[#00F0FF]" data-testid="plan-de-agente">
+          Lo propone {agente} (bot de IA) · no se aplica nada hasta que lo confirmes{texto ? <span className="block truncate text-white/60" title={texto}>Pidió · {texto}</span> : null}
+        </p>
+      ) : texto ? <p className="mb-1 truncate text-[11px] text-white/60" title={texto}>Tu petición · {texto}</p> : null}
       <p className="font-headline text-sm font-semibold tracking-wide">{plan.resumen}</p>
       <p className="mt-0.5 text-[11px] text-white/60">Planificado por: {plan.motor}</p>
 
