@@ -15,6 +15,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as THREE from "three";
+import { funcionesAPedir } from "@/components/xr/shell/aplicar-perfil";
+import { refinarFunciones } from "@/lib/xr/capacidades";
+import { capacidadesDeSesionXR } from "./sesion-xr-funciones";
 
 export type ModoSesionXR = "immersive-vr" | "immersive-ar";
 
@@ -26,6 +29,7 @@ export interface EstadoXR {
     error: string | null;
     entrar: (modo: ModoSesionXR) => Promise<void>;
     salir: () => Promise<void>;
+    funcionesConcedidas?: string[];
 }
 
 function xrDelNavegador(): XRSystem | undefined {
@@ -51,6 +55,7 @@ export function useSesionXR(
     const [activa, setActiva] = useState(false);
     const [modo, setModo] = useState<ModoSesionXR | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [funcionesConcedidas, setFuncionesConcedidas] = useState<string[] | undefined>(undefined);
     const sesionRef = useRef<XRSession | null>(null);
 
     useEffect(() => {
@@ -80,21 +85,26 @@ export function useSesionXR(
         } catch {
             /* ya había terminado */
         }
+        setFuncionesConcedidas(undefined);
     }, []);
 
     const entrar = useCallback(
         async (m: ModoSesionXR) => {
             setError(null);
+            setFuncionesConcedidas(undefined);
             const xr = xrDelNavegador();
             if (!xr || !gl) {
                 setError("WebXR no está disponible en este dispositivo.");
                 return;
             }
             if (sesionRef.current) await salir();
-            const init: XRSessionInit & { domOverlay?: { root: Element } } =
-                m === "immersive-ar"
-                    ? { optionalFeatures: ["local-floor", "hit-test", ...(raizOverlay ? ["dom-overlay"] : [])] }
-                    : { optionalFeatures: ["local-floor", "bounded-floor", "hand-tracking"] };
+
+            const capacidades = capacidadesDeSesionXR(m, raizOverlay);
+            const pedidas = funcionesAPedir(capacidades);
+            const init: XRSessionInit & { domOverlay?: { root: Element } } = {
+                optionalFeatures: pedidas.opcionales,
+                ...(pedidas.requeridas.length ? { requiredFeatures: pedidas.requeridas } : {}),
+            };
             if (m === "immersive-ar" && raizOverlay) init.domOverlay = { root: raizOverlay };
             try {
                 const sesion = await xr.requestSession(m, init);
@@ -120,10 +130,14 @@ export function useSesionXR(
                     }
                     setActiva(false);
                     setModo(null);
+                    setFuncionesConcedidas(undefined);
                 };
                 sesion.addEventListener("end", alTerminar);
                 setActiva(true);
                 setModo(m);
+                // Lo concedido de verdad manda sobre lo esperado: se filtra por el vocabulario cerrado.
+                const concedidas = sesion.enabledFeatures ? Array.from(sesion.enabledFeatures) : [];
+                setFuncionesConcedidas(refinarFunciones(capacidades, concedidas).funciones);
             } catch (e) {
                 sesionRef.current = null;
                 try {
@@ -134,6 +148,7 @@ export function useSesionXR(
                 setError(mensajeErrorXR(e));
                 setActiva(false);
                 setModo(null);
+                setFuncionesConcedidas(undefined);
             }
         },
         [gl, raizOverlay, salir],
@@ -149,5 +164,5 @@ export function useSesionXR(
     );
 
     // Referencia estable mientras nada cambie: quien lo recibe en un efecto no entra en bucle.
-    return useMemo(() => ({ vr, ar, activa, modo, error, entrar, salir }), [vr, ar, activa, modo, error, entrar, salir]);
+    return useMemo(() => ({ vr, ar, activa, modo, error, entrar, salir, funcionesConcedidas }), [vr, ar, activa, modo, error, entrar, salir, funcionesConcedidas]);
 }
