@@ -11,6 +11,8 @@
 //   · Abrir en una pizarra           → emitAttach({kind:'file'})  (la pizarra
 //       que escucha el bus añade un bloque con la URL)
 //   · Insertar en una publicación    → openComposer({content})    (compositor)
+//   · Convertir a…                   → /convertir con el archivo puesto (Filee;
+//       junto a las herramientas PDF en el documento y en la barra para el resto)
 //
 // El `context` ("post" | "message" | "pizarra" | "library") adapta la densidad
 // y qué acciones se muestran (p.ej. dentro de una pizarra no ofrecemos "abrir en
@@ -25,11 +27,12 @@ import {
     FileText, FileCode2, FileImage, FileVideo, FileAudio, FileType2,
     File as FileIcon, Link as LinkIcon, Box, AppWindow, ExternalLink,
     Share2, LayoutDashboard, PenSquare, Download, Play, Globe, Copy, Check,
-    Wrench,
+    Wrench, Repeat,
     type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { emitAttach, openComposer } from "@/lib/share/bridge";
+import { enlaceConvertirA } from "@/lib/files/convertir-enlace";
 
 // Visor 3D ligero: sólo cliente. Si no existe el módulo o falla, degradamos a
 // miniatura/poster vía el catch del propio componente (ver GlbPreview).
@@ -189,8 +192,15 @@ function ActionBar({ file, fmt, context }: { file: FileLike; fmt: FileFormat; co
     const [done, setDone] = useState<string | null>(null);
     const url = file.url || file.launchHref || "";
     const title = fileTitle(file, fmt);
+    // En el PDF lo lleva la fila de herramientas del documento; aquí, el resto.
+    const enlace = enlaceConvertirA(file, fmt);
 
     const flash = (k: string) => { setDone(k); window.setTimeout(() => setDone((d) => (d === k ? null : d)), 1600); };
+
+    const irAConvertir = () => {
+        if (!enlace) return;
+        if (typeof window !== "undefined") window.location.assign(enlace);
+    };
 
     const data: Record<string, unknown> = {
         name: title, mime: file.mime ?? undefined, type: file.type ?? fmt,
@@ -229,7 +239,7 @@ function ActionBar({ file, fmt, context }: { file: FileLike; fmt: FileFormat; co
             disabled={disabled}
             title={label}
             className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
                 "border-white/10 bg-white/[0.03] text-white/70 hover:border-white/25 hover:bg-white/[0.07] hover:text-white",
                 disabled && "opacity-40 cursor-not-allowed hover:bg-white/[0.03] hover:border-white/10",
             )}
@@ -241,6 +251,9 @@ function ActionBar({ file, fmt, context }: { file: FileLike; fmt: FileFormat; co
 
     return (
         <div className="flex flex-wrap items-center gap-1.5 pt-2">
+            {fmt !== "pdf" && enlace && (
+                <Btn onClick={irAConvertir} icon={Repeat} label="Convertir a…" k="conv" />
+            )}
             <Btn onClick={embedInNetwork} icon={Share2} label="Embeder en la red" k="net" />
             <Btn onClick={openExternal} icon={ExternalLink} label="Ventana externa" k="ext" disabled={!url} />
             {context !== "pizarra" && (
@@ -299,6 +312,7 @@ function AudioPreview({ file }: { file: FileLike }) {
 
 function PdfPreview({ file, compact }: { file: FileLike; compact?: boolean }) {
     if (!file.url) return <GenericBody file={file} fmt="pdf" hint="Sin URL de PDF." />;
+    const enlace = enlaceConvertirA(file, "pdf");
     return (
         <div className="overflow-hidden rounded-xl border border-white/10 bg-white">
             <object data={file.url} type="application/pdf" className="w-full" style={{ height: compact ? 280 : 520 }}>
@@ -306,20 +320,31 @@ function PdfPreview({ file, compact }: { file: FileLike; compact?: boolean }) {
                     <FileType2 className="size-7 text-rose-300" />
                     <p className="text-xs text-white/60">Tu navegador no puede incrustar este PDF.</p>
                     <a href={file.url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-500/15 px-3 py-1.5 text-[11px] font-bold text-rose-200 hover:bg-rose-500/25">
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-500/15 px-3 py-1.5 text-[11px] font-bold text-rose-200 hover:bg-rose-500/25 cursor-pointer">
                         <ExternalLink className="size-3.5" /> Abrir PDF
                     </a>
                 </div>
             </object>
-            <a
-                href="https://github.com/Stirling-Tools/Stirling-PDF"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Herramientas PDF self-hosted: unir, dividir, convertir, OCR, firmar (Stirling-PDF)"
-                className="flex items-center gap-1.5 border-t border-black/10 bg-black/5 px-3 py-1.5 text-[11px] font-medium text-black/60 hover:bg-black/10 hover:text-black/80"
-            >
-                <Wrench className="size-3.5" /> Herramientas PDF (Stirling-PDF): unir · dividir · OCR · firmar
-            </a>
+            <div className="flex flex-wrap items-stretch border-t border-black/10 bg-black/5 text-[11px] font-medium text-black/60">
+                <a
+                    href="https://github.com/Stirling-Tools/Stirling-PDF"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Herramientas PDF self-hosted: unir, dividir, convertir, OCR, firmar (Stirling-PDF)"
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 px-3 py-1.5 hover:bg-black/10 hover:text-black/80"
+                >
+                    <Wrench className="size-3.5 shrink-0" /> <span className="truncate">Herramientas PDF (Stirling-PDF): unir · dividir · OCR · firmar</span>
+                </a>
+                {enlace && (
+                    <a
+                        href={enlace}
+                        title="«Convertir a…»: Filee convierte este PDF a Word, imagen, presentación… sin conexión, en esta neurona"
+                        className="flex cursor-pointer items-center gap-1.5 border-l border-black/10 px-3 py-1.5 font-bold text-black/70 hover:bg-black/10 hover:text-black/90"
+                    >
+                        <Repeat className="size-3.5 shrink-0" /> Convertir a…
+                    </a>
+                )}
+            </div>
         </div>
     );
 }
