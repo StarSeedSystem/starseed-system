@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "OPS1024A",
+   "ola": "1024R",
+   "titulo": "asignaciones_agentes.py · RAIZ apunta a scripts/ (mismo fallo que vigia_referencias, OPF1024A)",
+   "archivos": [
+    "scripts/puente/asignaciones_agentes.py",
+    "scripts/puente/test_asignaciones_agentes.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA con la prueba. En scripts/puente/asignaciones_agentes.py (línea ~35) la constante RAIZ se calcula como la carpeta scripts/ y no como la raíz del repositorio, así que las rutas que lee y escribe quedan dentro de scripts/. Arréglalo con la MISMA forma que usa scripts/puente/vigia_referencias.py desde el commit OPF1024A: os.environ.get('STARSEED_ROOT') o dos niveles por encima de scripts/puente/. Añade a scripts/puente/test_asignaciones_agentes.py (créalo si no existe) dos casos: la raíz por defecto es la del repo (contiene CLAUDE.md) y respeta STARSEED_ROOT. Sin red. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "OPS1024A"
+  ]
+ }
+}
