@@ -69,3 +69,71 @@ export function pedirAccesoDesdeGuia(accion: AccionGuia, destino?: EventTarget |
     return false;
   }
 }
+
+/* ─────────── Modo de la guía: con cuenta o invitado (§5) ─────────── */
+
+/** Cómo se recorre la guía: con una cuenta propia o como invitado (sin cuenta). */
+export type ModoGuia = "cuenta" | "invitado";
+
+/**
+ * El modo que toca según si hay sesión. `haySesion === false` es invitado; con sesión o «aún no
+ * se sabe» (`null`/`undefined`, `useHaySesion`) es cuenta: mientras no se sepa, no se quita nada.
+ */
+export function modoGuia(haySesion: boolean | null | undefined): ModoGuia {
+  return haySesion === false ? "invitado" : "cuenta";
+}
+
+/** Lo que se enseña en modo invitado donde con cuenta habría «Ir»: detrás está la pantalla de acceso. */
+export const ETIQUETA_SOLO_CON_CUENTA = "Disponible al entrar";
+
+/** Acciones de un paso, según el modo (§5: en invitado no hay «Ir» ni «Hazlo por mí»). */
+export interface AccionesDelPaso {
+  /** «Ir/mostrar»: acompañar a la ruta o el borde del paso. */
+  conIr: boolean;
+  /** «Hazlo por mí»: disparar la acción real de la interfaz (anda sin cuenta, toca al sistema). */
+  conHazloPorMi: boolean;
+  /** Etiqueta que sustituye a «Ir» en invitado; con cuenta no se enseña (queda por si una parte la pide). */
+  etiquetaSoloConCuenta: string;
+}
+
+/** Con cuenta, «Ir» y «Hazlo por mí» están; en invitado, ninguno: solo «Disponible al entrar». */
+export function accionesDelPaso(modo: ModoGuia): AccionesDelPaso {
+  return modo === "invitado"
+    ? { conIr: false, conHazloPorMi: false, etiquetaSoloConCuenta: ETIQUETA_SOLO_CON_CUENTA }
+    : { conIr: true, conHazloPorMi: true, etiquetaSoloConCuenta: ETIQUETA_SOLO_CON_CUENTA };
+}
+
+/* ─────────── Por encima de las ventanas de acceso (§5) ─────────── */
+
+/** Elevación de la guía de Aurora HOY (`aurora-guide.tsx` la pinta en `z-[95]`). */
+export const Z_GUIA_HOY = 95;
+
+/** Elevación que le hace sitio por encima de la pantalla de acceso (`AuthGate`, z 200) y la bienvenida (z 210). */
+export const Z_GUIA_SOBRE_ACCESO = 240;
+
+/**
+ * A qué altura se pinta la guía: por encima de las ventanas de acceso si se abre desde `login` o
+ * `bienvenida`, o si se la recorre sin cuenta; a su altura de hoy en el resto de los casos.
+ */
+export function zGuia(desde: OrigenGuia, haySesion: boolean | null | undefined): number {
+  const porEncima = desde === "login" || desde === "bienvenida" || haySesion === false;
+  return porEncima ? Z_GUIA_SOBRE_ACCESO : Z_GUIA_HOY;
+}
+
+/* ─────────── Lo visto como invitado se une a la cuenta (§5) ─────────── */
+
+/**
+ * Une las vistas guardadas en el aparato (lo recorrido como invitado) con la marca de la cuenta,
+ * sin perder ninguna: primero la de la cuenta (ya sincronizada entre medios) y detrás lo local
+ * que no estuviera. Idempotente; una entrada nula o vacía cuenta como «sin vistas», no como error.
+ */
+export function unirVistas(
+  local: readonly string[] | null | undefined,
+  cuenta: readonly string[] | null | undefined,
+): string[] {
+  const unidas: string[] = [];
+  for (const vista of [...(cuenta ?? []), ...(local ?? [])]) {
+    if (!unidas.includes(vista)) unidas.push(vista);
+  }
+  return unidas;
+}
