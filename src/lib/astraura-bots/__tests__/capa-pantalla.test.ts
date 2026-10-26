@@ -101,4 +101,13 @@ describe("apilar y retirar", () => {
   it("retirarDeBot quita solo lo de ese bot (al pausarlo nada suyo queda en pantalla)", () => {
     expect(retirarDeBot([capa("a1"), capa("b1", "bot-b"), capa("a2")], "bot-a").map((c) => c.id)).toEqual(["b1"]);
   });
+  it("con menos de 8 añade al final sin tocar las demás y conserva la capa tal cual", () => {
+    const antes = [capa("a1"), capa("b1", "bot-b")];
+    const nueva: CapaActiva = { forma: "flecha", objetivo: "boton-enviar", texto: "Envía aquí", id: "a2", botId: "bot-a", nombreBot: "Bot A" };
+    const despues = apilar(antes, nueva);
+    expect(despues).toHaveLength(3);
+    expect(despues[2]).toBe(nueva);
+    expect(despues.slice(0, 2)).toEqual(antes);
+    expect(antes).toHaveLength(2);
+  });
 });
