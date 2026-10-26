@@ -120,6 +120,18 @@ class Seguir(unittest.TestCase):
         self.assertEqual(L.seguir(reg, {L.rama_pedida("A", "20261022")}, {"A": {"estado": "commit"}}, AHORA),
                          {"A": "olvidar"})
 
+    @unittest.expectedFailure
+    def test_seguir_con_fecha_ilegible_no_se_juzga_devolver(self):
+        """Rescatado de ALT1022A: un `t` ilegible no debe contar como gracia pasada.
+
+        FALLO REAL en main: `seguir` hace `float(s.get("t"))` sin protección y lanza
+        ValueError. Queda como fallo esperado hasta que el módulo (fuera de esta tarea)
+        trate la fecha ilegible como «esperar».
+        """
+        reg = _registro("zN9")
+        reg["sesiones"][0]["t"] = "ayer sin formato"
+        self.assertEqual(L.seguir(reg, set(), {"zN9": dict(PRESTADA)}, AHORA), {"zN9": "esperar"})
+
     def test_seguir_ignora_las_ya_cerradas(self):
         reg = _registro("A")
         reg["sesiones"][0]["final"] = "traida"
