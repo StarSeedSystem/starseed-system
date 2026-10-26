@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { manejarAccionProtomolecula as accion, MENSAJE_PROPONER_CODIGO, TOPE_BYTES_ESTADO, TOPE_LINEAS_ESTADO, type ContextoAccionProto } from "../accion-agente";
+import { manejarAccionProtomolecula as accion, TOPE_BYTES_ESTADO, TOPE_LINEAS_ESTADO, type ContextoAccionProto } from "../accion-agente";
 import { crearControlador, type Controlador } from "../controlador";
 import { registrarControlador, limpiarControladores } from "../controlador-activo";
 import { registrarAtomo, limpiarRegistro, type DefinicionAtomo } from "../registro-atomos";
@@ -96,9 +96,13 @@ describe("acción de agente de la Protomolécula", () => {
     const sinOrbe = ctx();
     expect(accion({ accion: "abrir", molecula: "m 2" }, sinOrbe).ok).toBe(true); expect(sinOrbe.abrirRuta).toHaveBeenCalledWith("/protomolecula?molecula=m%202");
   });
-  it("proponer-codigo es honesto: ok false y no guarda nada", () => {
-    const c = abrirMol(), antes = c.obtener(), r = accion({ accion: "proponer-codigo", codigo: "alert(1)" }, ctx());
-    expect(r).toMatchObject({ ok: false, message: MENSAJE_PROPONER_CODIGO }); expect(c.obtener()).toBe(antes);
+  it("proponer-codigo guarda un candidato SIN ejecutar nada y pide lo que falta", () => {
+    const c = abrirMol(), antes = c.obtener(), falta = accion({ accion: "proponer-codigo", codigo: "alert(1)" }, ctx());
+    expect(falta.ok).toBe(false); expect(c.obtener()).toBe(antes);
+    expect(falta.message).toContain("Falta «capa»");
+    const r = accion({ accion: "proponer-codigo", capa: "capa-1", original: "const a = 1;", propuesto: "const a = 2;" }, ctx());
+    expect(r.ok).toBe(true); expect(r.message).toContain("candidato"); expect(r.message).toContain("no se ejecuta");
+    expect(c.obtener()).toBe(antes);
     expect(accion({ accion: "borrar-todo" }, ctx()).message).toContain("No conozco la acción");
   });
   it("una operación del agente en espacio compartido queda pendiente de la persona", () => {

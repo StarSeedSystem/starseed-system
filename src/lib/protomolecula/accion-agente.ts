@@ -9,13 +9,13 @@ import { PROTO_ORB_ABRIR_EVENT, leerActivada } from "./orbe-bus";
 import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type ModoRelativo, type Parametro } from "./tipos";
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
+import { proponer } from "./candidatos-codigo";
 /** Misma forma que `AuroraActionResult` de `src/lib/aurora/actions.ts`. */
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string }
 /** `avisarOrbe` devuelve `true` solo si la orbe atendió el aviso; `actor` por defecto: el agente personal. */
 export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisarOrbe?: (moleculaId?: string) => boolean;
   actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string }
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
-export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
 const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir"];
 const MODOS: ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
@@ -96,10 +96,19 @@ function convertir(ctx: ContextoAccionProto, a: Record<string, unknown>): Result
   if (!url) return si(`Abrí el conversor${destino ? ` para pasar a ${etiquetaFormato(destino)}` : ""}: suelta ahí el archivo (o pídemelo con «convertir_archivo» y su nombre).`, "Abriendo el conversor…");
   return si(destino ? `Convirtiendo «${nombre || "el archivo"}» a ${etiquetaFormato(destino)} con Filee.` : `Abrí «${nombre || "el archivo"}» en el conversor.`, "Convirtiendo con Filee…");
 }
+/** «proponer-codigo» (PM1010F7A · §8.2): guarda un CANDIDATO sin ejecutar nada; una persona lo acepta o lo rechaza. */
+function proponerCodigo(args: Record<string, unknown>, autor: Autor): ResultadoAccionProto {
+  const capa = texto(args.capa) || texto(args.capaId), propuesto = texto(args.propuesto) || texto(args.codigo);
+  const original = texto(args.original), de = texto(args.de) || texto(args.lenguaje);
+  if (!capa || !propuesto || !original) return no("Falta «capa», «propuesto» y «original»: pide antes el texto de la capa; nada se ejecuta y una persona tiene que aceptarlo.");
+  const r = proponer({ capaId: capa, lenguajeOrigen: de || "texto", lenguajeDestino: texto(args.a) || undefined, propuesto, original, autor });
+  if (!r.ok) return no(r.motivo);
+  return si(`Guardé el candidato «${r.candidato.id}» para la capa «${capa}»: no se ejecuta nada; una persona lo revisa con el diff y lo acepta o lo rechaza.${r.candidato.avisos.length ? ` Avisos: ${r.candidato.avisos.join(" ")}` : " Sin avisos."}`);
+}
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
-  if (accion === "proponer-codigo") return no(MENSAJE_PROPONER_CODIGO);
+  if (accion === "proponer-codigo") return proponerCodigo(args, autor);
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
   if (accion === "convertir") return convertir(ctx, args);
   const c = controladorActivo(moleculaId);
