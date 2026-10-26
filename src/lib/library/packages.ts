@@ -65,7 +65,6 @@ import { applyTheme as applyThemePack } from "@/lib/design/theme-engine";
 // para que aparezcan en la Biblioteca y el Mezclador los liste como fuentes.
 import { DESIGN_ELEMENTS, type DesignElementKind } from "@/lib/design/design-elements";
 import { REPO_DECISIONES } from "./fuentes-decision";
-<<<<<<< HEAD
 // Fuentes de IA locales que se descargan (TurboFieldfare): viven en un módulo sin "use client"
 // para que /api/library/actualizaciones pueda comprobar su upstream.
 import { FICHAS_IA_LOCALES } from "./fuentes-ia-locales";
@@ -76,9 +75,7 @@ import { FICHAS_REPOS_1025, conSeguimiento1025 } from "./repos-1025";
 // Tanda del 2026-10-26 (Ola 1025U · REP1026): Open-Higgsfield-AI, WeKnora, OpenProject y Cap (4 fichas nuevas) y Open Generative AI,
 // que actualiza su ficha vieja en lugar de duplicarse. Contrato: architecture/repos-libreria-1026.md.
 import { FICHAS_REPOS_1026, conSeguimiento1026 } from "./repos-1026";
-=======
 import { REPO_EXTERNOS_1020 } from "./repos-externos-1020";
->>>>>>> 498c56b81 (salvavidas · RLB1020Ab-d3: trabajo del agente antes de las puertas (tsc / vitest))
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
