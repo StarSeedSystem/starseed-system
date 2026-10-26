@@ -17,6 +17,7 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 // ── Tipos del modelo ─────────────────────────────────────────────
 export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
@@ -1137,6 +1138,58 @@ export interface OpenWindowOptions {
     allowDuplicate?: boolean;
 }
 
+/** Ancho/alto mínimo VISIBLE para considerar que una ventana sigue en pantalla. */
+const VENTANA_VISIBLE_MIN = 80;
+
+/**
+ * Geometría de una ventana NUEVA sin posición guardada (DSN1019C · decisión de
+ * Alex del 2026-10-19): composición centrada de `src/lib/design/composicion.ts`
+ * — cada ventana centrada en la pantalla, con el ancho máximo 1186 px y el
+ * margen mínimo de 16 px en teléfono que fija ese módulo. Se acota además a los
+ * límites del escritorio (banda superior B-1 sin invadir; aire para la barra
+ * inferior). Puro: el viewport entra por parámetro.
+ */
+export function rectVentanaCentrada(
+    vw: number,
+    vh: number,
+    anchoPedido?: number,
+    altoPedido?: number,
+): DesktopWindowRect {
+    const ancho = Math.min(anchoPedido ?? 760, Math.max(300, vw - 48));
+    const alto = Math.min(altoPedido ?? 520, Math.max(220, vh - 150));
+    const g = geometriaVentana({ ancho: vw, alto: vh }, { tipo: "ventana", ancho, alto });
+    // La y centrada se recorta para no invadir la banda de la barra superior
+    // (B-1) y dejar aire para la barra inferior del escritorio.
+    const maxY = Math.max(DESKTOP_TOP_INSET, vh - g.alto - 120);
+    return {
+        x: g.x,
+        y: clampWindowY(Math.min(g.y, maxY)),
+        w: g.ancho,
+        h: g.alto,
+    };
+}
+
+/**
+ * Ajuste para una ventana con posición GUARDADA que quedó fuera de la pantalla
+ * (p. ej. se guardó en un monitor más grande y el viewport cambió). Si queda
+ * un trozo utilizable a la vista se respeta su posición tal cual (`undefined`);
+ * si quedó casi todo fuera se desliza de vuelta con `clamp` — la coordenada se
+ * conserva hasta donde cabe: nunca invisible, nunca en bucle. Puro.
+ */
+export function ajusteEnPantalla(
+    rect: DesktopWindowRect,
+    vw: number,
+    vh: number,
+): { x?: number; y?: number } | undefined {
+    const visibleX = Math.max(0, Math.min(rect.x + rect.w, vw) - Math.max(rect.x, 0));
+    const visibleY = Math.max(0, Math.min(rect.y + rect.h, vh) - Math.max(rect.y, 0));
+    if (visibleX >= VENTANA_VISIBLE_MIN && visibleY >= VENTANA_VISIBLE_MIN) return undefined;
+    const x = Math.max(8, Math.min(rect.x, Math.max(8, vw - rect.w - 8)));
+    const y = clampWindowY(Math.min(rect.y, Math.max(DESKTOP_TOP_INSET, vh - rect.h - 120)));
+    if (x === rect.x && y === rect.y) return undefined;
+    return { x, y };
+}
+
 /** Abre una ventana (o enfoca la existente con el mismo contenido). Devuelve su id. */
 export function openWindow(
     desktopId: string,
@@ -1145,6 +1198,8 @@ export function openWindow(
 ): string {
     let resultId = newId("win");
     mutateDesktop(desktopId, (d) => {
+        const vw = isClient() ? window.innerWidth : 1280;
+        const vh = isClient() ? window.innerHeight : 800;
         const dedupe = !opts?.allowDuplicate && contentRef.type !== "browser";
         const existing = dedupe
             ? d.windows.find((w) => w.contentRef.type === contentRef.type && w.contentRef.ref === contentRef.ref)
@@ -1152,27 +1207,31 @@ export function openWindow(
         if (existing) {
             resultId = existing.id;
             const z = nextZ(d);
+            // La posición guardada se respeta… salvo que haya quedado fuera de
+            // la pantalla (viewport cambió): entonces se trae de vuelta. Las
+            // maximizadas/a pantalla completa las re-formatea su propio código.
+            const ajuste = existing.maximized || existing.fullscreen
+                ? undefined
+                : ajusteEnPantalla(existing, vw, vh);
             return {
                 ...d,
                 windows: d.windows.map((w) =>
-                    w.id === existing.id ? { ...w, minimized: false, z } : w,
+                    w.id === existing.id
+                        ? { ...w, minimized: false, z, ...(ajuste ?? {}) }
+                        : w,
                 ),
             };
         }
-        const vw = isClient() ? window.innerWidth : 1280;
-        const vh = isClient() ? window.innerHeight : 800;
-        const w = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
-        const h = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
-        const idx = d.windows.length;
-        // Cascada que NUNCA invade la banda de la barra superior (B-1).
-        const maxY = Math.max(DESKTOP_TOP_INSET, vh - h - 120);
+        // Composición centrada por aparato (composicion.ts): la ventana nueva
+        // sin posición guardada nace SIEMPRE centrada en la pantalla.
+        const geo = rectVentanaCentrada(vw, vh, opts?.w, opts?.h);
         const win: DesktopWindow = {
             id: resultId,
             contentRef,
-            x: Math.max(8, Math.min(48 + (idx % 6) * 36, vw - w - 16)),
-            y: Math.min(clampWindowY(DESKTOP_TOP_INSET + 6 + (idx % 6) * 30), maxY),
-            w,
-            h,
+            x: geo.x,
+            y: geo.y,
+            w: geo.w,
+            h: geo.h,
             z: nextZ(d),
             minimized: false,
             maximized: false,
