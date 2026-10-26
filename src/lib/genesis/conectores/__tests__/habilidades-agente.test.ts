@@ -76,6 +76,14 @@ describe("habilidadesPara · por papel", () => {
     expect(ids(habilidadesPara("imagen", "cuenta", OPCIONES))).toEqual(["av-gen", "vision"]);
   });
 
+  it("voz no recibe las capacidades con sesgo web ni de visión", () => {
+    const conSentidos = [...CAPACIDADES, cap("web-senses", "Sentidos web (Agent-Reach)", { web: true })];
+    const voz = ids(habilidadesPara("voz", "cuenta", { capacidades: conSentidos, desactivadas: [] }));
+    expect(voz).toContain("av-gen");
+    expect(voz).not.toContain("web-senses");
+    expect(voz).not.toContain("vision");
+  });
+
   it("excluir las habilidades desactivadas en el ámbito", () => {
     const out = ids(
       habilidadesPara("escritor", "cuenta", {
@@ -127,6 +135,11 @@ describe("capa del modelo: tamaño de cada habilidad", () => {
     expect(recortarPorCapa(largo, "tarjeta").split(/\s+/)).toHaveLength(60);
     expect(contar("tarjeta")).toBe(60);
     expect(contar("resumen")).toBe(250);
+  });
+
+  it("el recorte señala con elipsis el texto que cortó", () => {
+    expect(recortarPorCapa(largo, "tarjeta").endsWith("…")).toBe(true);
+    expect(recortarPorCapa(largo, "resumen").endsWith("…")).toBe(true);
   });
 
   it("completa conserva el texto íntegro; el recorte corta por palabra", () => {
