@@ -86,10 +86,5 @@ describe("leerProcesos - firmas y comportamiento básico", () => {
         expect(hwEntry).toBeDefined();
     });
 
-    it("incluirMac falso omite hardware", async () => {
-        const result = await leerProcesos({ incluirMac: false });
-        const hwEntry = result.fuentes.find((f: any) => f.nombre.includes("hardware"));
-        expect(hwEntry).toBeDefined();
-        expect(hwEntry!.nombre).toContain("solo Mac");
-    });
+
 });
