@@ -14,6 +14,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Landmark } from "lucide-react";
 import GovernancePanel from "@/components/governance/governance-panel";
 import DelegationPanel from "@/components/governance/delegation-panel";
+import { SeccionGobiernoProto } from "@/components/protomolecula/gobierno/seccion-gobierno-proto";
 
 // Mapa de tipo de entidad → ámbito de gobernanza del motor. Comunidades,
 // entidades federativas, asambleas y partidos comparten el ámbito "community"
@@ -71,6 +72,9 @@ export function DecisionesSection({
 
       {/* Motor de decisiones real, anclado a este scope/scopeRef. */}
       <GovernancePanel scope={scope} scopeRef={scopeRef} />
+
+      {/* Ola 1026P · P2: la privacidad, las reglas y los permisos de la Protomolécula de esta entidad. */}
+      <SeccionGobiernoProto kind={kind} slug={slug} accent={accent} name={name} />
     </div>
   );
 }
