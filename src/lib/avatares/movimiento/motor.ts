@@ -182,7 +182,7 @@ async function generarPorKimodo(g: Gesto, nivel: NivelMovimiento): Promise<Movim
     const compartida = enVuelo.get(clave);
     if (compartida) return compartida;
     if (Date.now() < kimodoPausadoHasta || enVuelo.size >= MAX_EN_VUELO) return null;
-    const peticion = pedirAKimodo(g, nivel).then((clip) => {
+    const peticion = pedirAKimodo(g).then((clip) => {
         if (clip) guardarEnCache(clave, clip);
         return clip;
     }).finally(() => { enVuelo.delete(clave); });
@@ -190,19 +190,18 @@ async function generarPorKimodo(g: Gesto, nivel: NivelMovimiento): Promise<Movim
     return peticion;
 }
 
-async function pedirAKimodo(g: Gesto, nivel: NivelMovimiento): Promise<MovimientoClip | null> {
+async function pedirAKimodo(g: Gesto): Promise<MovimientoClip | null> {
     try {
+        // Cuerpo del contrato de POST /api/movimiento/generar (Ola 229 · M2):
+        // prompt saneado de hasta 300 caracteres, esqueleto admitido, segundos
+        // de 0,5 a 10 y la semilla entera derivada del prompt (la misma del
+        // clip procedural), para que el gesto cuadre con la caché del servidor.
+        const prompt = g.prompt.trim().slice(0, 300);
+        const segundos = Number(Math.min(10, Math.max(0.5, (g.duracionMs ?? 2400) / 1000)).toFixed(2));
         const resp = await fetch("/api/movimiento/generar", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                prompt: g.prompt,
-                emocion: g.emocion,
-                energia: g.energia,
-                duracionMs: g.duracionMs,
-                bucle: g.bucle,
-                nivel,
-            }),
+            body: JSON.stringify({ prompt, esqueleto: "smplx22", segundos, semilla: semillaDePrompt(prompt) }),
             cache: "no-store",
         });
         if (!resp.ok) {
@@ -222,6 +221,17 @@ async function pedirAKimodo(g: Gesto, nivel: NivelMovimiento): Promise<Movimient
 }
 
 /**
+ * Semilla determinista a partir de la frase del gesto: el mismo texto da la
+ * misma semilla entería, así que el mismo gesto suena igual en la vía Kimodo
+ * y en el clip procedural. Función pura compartida por ambos generadores.
+ */
+export function semillaDePrompt(prompt: string): number {
+    let semilla = 0;
+    for (let i = 0; i < prompt.length; i++) semilla = (semilla * 31 + prompt.charCodeAt(i)) >>> 0;
+    return semilla;
+}
+
+/**
  * Genera un clip procedural (nivel «ligero»): respiración, balanceo suave y
  * énfasis sobre un esqueleto SMPL-X de 22 articulaciones, con seno y ruido
  * filtrado. Funciona también sin ventana (SSR/pruebas).
@@ -236,9 +246,7 @@ export function generarClipProcedural(g: Gesto): MovimientoClip {
 
     const rotaciones: number[][] = [];
     const raiz: number[][] = [];
-    // Semilla determinista a partir de la frase: el mismo gesto suena igual.
-    let semilla = 0;
-    for (let i = 0; i < g.prompt.length; i++) semilla = (semilla * 31 + g.prompt.charCodeAt(i)) >>> 0;
+    const semilla = semillaDePrompt(g.prompt);
 
     for (let f = 0; f < fotogramas; f++) {
         const t = f / fps;
