@@ -1,61 +1,16 @@
-# -*- coding: utf-8 -*-
-"""Nodo de MetaGenesis · decisiones PURAS (OPA1011, 2026-10-10).
+from typing import List, Dict, Any, Tuple
 
-Alex: «no está funcionando MetaGenesis por sí misma: aún no ha sido capaz de continuar con las
-tareas sin tener que decírtelo aquí … que funcione desde cualquier medio, en cualquier neurona,
-sin necesidad de esta Mac». Este módulo es el CRITERIO del nodo; nada aquí toca red, disco ni
-procesos (todo entra por argumentos), así que cada regla se prueba sola en
-`test_nodo_metagenesis.py`. La entrada/salida vive en `nodo_metagenesis_bus.py` (Supabase) y
-`nodo_metagenesis_medio.py` (la máquina); el bucle, en `nodo_metagenesis.py`.
-
-Piezas:
-  · identidad y puntos de un nodo (quién merece dirigir: el que tiene las colas en su disco,
-    luego el que nunca se apaga, luego el resto; un nodo «seco» nunca le gana a uno real);
-  · elección de líder sobre el bus (latidos + reclamos con término creciente, determinista:
-    todos los nodos llegan a la misma respuesta con los mismos eventos);
-  · órdenes firmadas (HMAC-SHA256 sobre un texto canónico que TS reproduce igual) con lista
-    blanca de acciones, caducidad y antirepetición;
-  · el PLAN del líder (continuidad, guardianes caídos, bloqueadas, trabajo nuevo, relevo de un
-    medio caído) y la AUTOCURACIÓN de cada nodo, con enfriamientos para no repetir;
-  · el rescate de trabajo de `colas-fuente/` (lo que nadie cerró ni está en ninguna cola viva);
-  · la FOTO compacta que leen las neuronas (sin claves, sin IPs, sin nombres de máquina).
-SOP: architecture/metagenesis-autonoma.md
-"""
-from __future__ import annotations
-
-import hashlib
-import hmac
-import json
-import os
-import re
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
-
-VERSION = "1"
-
-#: Un nodo late cada `LATIDO_S`; quien lleva `TTL_LIDER_S` sin latir ya no cuenta como vivo.
-#: Medido el 2026-10-10: Supabase iba al 81 % del presupuesto diario (20.303 de 25.000
-#: peticiones a las 11:33 UTC), así que el nodo es frugal: ~290 escrituras/día por nodo.
-LATIDO_S = 300
-TTL_LIDER_S = 900
-#: Un nodo preferente (más puntos) solo le quita el mando a un líder vivo si le saca este margen
-#: y lleva vivo al menos dos latidos (evita el baile de líderes al arrancar).
-MARGEN_RELEVO = 100
-ESTABLE_S = 2 * LATIDO_S
-#: Órdenes: caducan a los 15 min (como el lanzador de la nube) y se recuerdan 24 h.
-ORDEN_CADUCA_S = 15 * 60
-NONCE_RECUERDO_S = 24 * 3600
-#: Si el medio con las colas en su disco (la Mac) calla tanto tiempo, otro medio sigue su trabajo.
-RELEVO_MEDIO_S = 20 * 60
-#: Una tarea entregada a otro medio que no vuelve integrada en este plazo vuelve a la cola.
-GRACIA_ASIGNACION_S = 6 * 3600
-
-#: Medios conocidos. `autoritativo` = tiene las colas y el progreso en su disco (hoy, la Mac).
-MEDIOS: Dict[str, Dict[str, Any]] = {
-    "mac": {"etiqueta": "Mac de desarrollo", "base": 300, "siempre": False},
-    "oracle-a1": {"etiqueta": "Oracle A1 (24/7)", "base": 250, "siempre": True},
-    "neurona": {"etiqueta": "Otra neurona", "base": 120, "siempre": False},
-    "nube-cowork": {"etiqueta": "Nube (contenedor de Claude)", "base": 80, "siempre": False},
-    "gh-actions": {"etiqueta": "GitHub Actions", "base": 10, "siempre": False},
+# Conjunto de estados que indican que una tarea ya está cerrada
+CERRADAS = {
+    "commit",
+    "hecho",
+    "integrada",
+    "sustituida",
+    "rechazada",
+    "descartada",
+    "obsoleta",
+    "informe",
+    "reasignada",
 }
 
 #: Acciones que una orden puede pedir (lista blanca; lo demás se rechaza).
@@ -810,6 +765,76 @@ def accion(clave: str, que: str, nodo: str, motivo: str, args: Optional[Dict[str
     return {"clave": clave, "accion": que, "nodo": nodo, "motivo": motivo, "args": args or {}, "espera_s": espera_s}
 
 
+
+# ─── reparaciones de puerta de publicación (MGB1021Ab) ────────────────────────────────────
+
+
+def reparaciones_superadas(
+    tareas: List[Dict[str, Any]],
+    progreso: Dict[str, Any],
+    publicacion: Dict[str, Any],
+) -> List[Tuple[str, str]]:
+    """PURA. De las tareas con `origen: "metagenesis"` cuyo título empieza por «Puerta de publicación en rojo»
+    (y sus sucesoras con sufijos -dN, -b, -c…), devuelve `[(id, nota)]` de las que no están cerradas cuando
+    la publicación está hoy en verde."""
+    if not isinstance(publicacion, dict):
+        return []
+    pub_fase = publicacion.get("fase")
+    pub_sha = publicacion.get("sha") or publicacion.get("sha_publicado") or publicacion.get("publicado")
+    sha_rojo = publicacion.get("sha_rojo") or publicacion.get("sha_roja") or publicacion.get("sha_bloqueado")
+
+    verde = False
+    if pub_fase in ("publicada", "ok", "verde", "exito", "éxito"):
+        verde = True
+    elif pub_sha and sha_rojo and pub_sha != sha_rojo:
+        verde = True
+    elif pub_sha and not sha_rojo:
+        verde = True
+
+    if not verde:
+        return []
+
+    cerradas = ("hecho", "integrada", "integrado", "sustituida", "rechazada", "descartada", "obsoleta", "cerrada", "done")
+    bases_reparacion = set()
+    candidatas_ids = []
+    for t in tareas or []:
+        if not isinstance(t, dict):
+            continue
+        if t.get("origen") == "metagenesis":
+            titulo = str(t.get("titulo") or "")
+            if titulo.startswith("Puerta de publicación en rojo"):
+                tid = str(t.get("id") or "")
+                candidatas_ids.append(tid)
+                bases_reparacion.add(base_de_tarea(tid))
+
+    # Incluir sucesoras con sufijos -dN, -b, -c...
+    for t in tareas or []:
+        if not isinstance(t, dict):
+            continue
+        tid = str(t.get("id") or "")
+        b = base_de_tarea(tid)
+        if b in bases_reparacion and tid not in candidatas_ids:
+            candidatas_ids.append(tid)
+
+    res = []
+    pub_sha_mostrar = str(pub_sha)[:8] if pub_sha else ""
+    nota_base = "NO APLICA: la puerta de publicación volvió a verde"
+    if pub_sha_mostrar:
+        nota = "%s (publicado %s)" % (nota_base, pub_sha_mostrar)
+    else:
+        nota = nota_base
+
+    for tid in candidatas_ids:
+        e = progreso.get(tid) if isinstance(progreso, dict) else None
+        if isinstance(e, dict):
+            estado = e.get("estado")
+            if estado in cerradas or e.get("sustituida_por"):
+                continue
+        # Also check if it's marked as substituted in any form
+        res.append((tid, nota))
+    return res
+
+
 def planificar(mundo: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> List[Dict[str, Any]]:
     """PURA. Lo que el LÍDER decide hacer en esta vuelta, con enfriamientos.
 
@@ -820,9 +845,23 @@ def planificar(mundo: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> 
     lanzar), repo}.
     """
     if not mundo.get("autonomia", True):
+
+def reparaciones_superadas(
+    tareas: List[Dict[str, Any]],
+    progreso: Dict[str, Any],
+    publicacion: Dict[str, Any],
+) -> List[Tuple[str, str]]:
+    """PURA. De las tareas con `origen: "metagenesis"` cuyo título empieza por «Puerta de publicación en rojo»
+    (y sus sucesoras con sufijos -dN, -b, -c…), devuelve `[(id, nota)]` de las que no están cerradas cuando
+    la publicación está hoy en verde."""
+    pub_sha = publicacion.get("sha")
+    pub_fase = publicacion.get("fase")
+
+    # Si la publicación no está en verde, no hay nada que aplicar
+    if pub_fase not in ("publicada", "ok") and not (
+        pub_sha and pub_sha != publicacion.get("sha_rojo")
+    ):
         return []
-    nodos: Dict[str, Dict[str, Any]] = mundo.get("nodos") or {}
-    plan: List[Dict[str, Any]] = []
 
     def anadir(a: Dict[str, Any]) -> None:
         if enfriado(memoria, a["clave"], ahora, a["espera_s"]):
@@ -1175,3 +1214,20 @@ def tachar(texto: Any) -> str:
     t = re.sub(r"https?://[a-z0-9-]+\.trycloudflare\.com\S*", "[túnel]", t)
     t = re.sub(r"\b(?!(?:10|127|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.)(?:\d{1,3}\.){3}\d{1,3}\b", "[ip]", t)
     return t
+    res: List[Tuple[str, str]] = []
+    for t in tareas:
+        if t.get("origen") == "metagenesis" and "Puerta de publicación en rojo" in str(
+            t.get("titulo", "")
+        ):
+            tid = str(t.get("id"))
+            estado = (
+                progreso.get(tid) or {}
+            ).get("estado") if isinstance(progreso.get(tid), dict) else ""
+            if estado not in CERRADAS:
+                res.append(
+                    (
+                        tid,
+                        f"NO APLICA: la puerta de publicación volvió a verde (publicado {pub_sha})",
+                    )
+                )
+    return res
