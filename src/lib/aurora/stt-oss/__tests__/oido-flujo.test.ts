@@ -70,6 +70,9 @@ function crearFlujo() {
 describe("prepararAudio (Float32 → PCM16 a 16 kHz)", () => {
   it("convierte el rango completo en 16 kHz sin remuestrear", () => {
     const pcm = prepararAudio(new Float32Array([0, 1, -1]), 16000);
+    // El contrato es un Int16Array de verdad: `enviar` usa `pcm.buffer`.
+    expect(pcm instanceof Int16Array).toBe(true);
+    expect(pcm.length).toBe(3);
     expect(Array.from(pcm)).toEqual([0, 32767, -32768]);
   });
 
