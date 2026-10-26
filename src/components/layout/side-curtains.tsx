@@ -15,7 +15,7 @@
  *     centrado en vertical y siempre dentro del viewport y de las zonas seguras.
  */
 
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
@@ -29,6 +29,8 @@ import { useRitoActivo } from "@/lib/ui/rito-activo";
 import { ControlCenter } from "./trinity/control-center";
 import { ContenidoHorizon } from "./trinity/contenido-horizon";
 import { PanelCortina, usePanelCortina } from "./trinity/panel-cortina";
+import { pedirSeccion, pedirSeccionAlAbrir } from "./trinity/control-center-events";
+import { escucharAbrirGrabar } from "@/lib/habilidades/grabar-pantalla";
 
 const VERDE = "#10b981";
 const AMBAR = "#f59e0b";
@@ -41,6 +43,14 @@ export function SideCurtains() {
     const rito = useRitoActivo();
 
     const cerrar = useCallback(() => setActiveEdge(null), [setActiveEdge]);
+
+    // La habilidad «grabar la pantalla» (Astraura, Cap) pide abrir la sección Grabar: se abre la cortina Logic y el
+    // Centro de Control va a «Grabar» (si ya estaba abierto, cambia de sección).
+    useEffect(() => escucharAbrirGrabar(() => {
+        pedirSeccionAlAbrir("grabar");
+        pedirSeccion("grabar");
+        setActiveEdge("logic");
+    }), [setActiveEdge]);
     // Navegar cerrando la cortina primero (Adenda 63): la salida se anima sola.
     const ir = useCallback((href: string) => {
         setActiveEdge(null);

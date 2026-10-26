@@ -48,15 +48,23 @@ export default function MontajeIconosDock() {
         const yo = Symbol("iconos-dock");
         montados.add(yo);
         const soyYo = () => montados.values().next().value === yo;
+        // Contrato de `src/lib/dock/eventos-dock.ts`: quien abre su panel lo dice (preventDefault + atender);
+        // si no, el menú del dock enseña «Próximamente».
+        const atender = (ev: Event) => {
+            ev.preventDefault();
+            try { ((ev as CustomEvent).detail as { atender?: () => void } | null)?.atender?.(); } catch { /* detalle ajeno */ }
+        };
         const abrirEditor = (ev: Event) => {
             if (!soyYo()) return;
             const itemId = leerItemId((ev as CustomEvent).detail);
             if (!itemId) return;
+            atender(ev);
             setEditor((e) => ({ itemId, n: (e?.n ?? 0) + 1 }));
             setEditorAbierto(true);
         };
-        const abrirGaleria = () => {
+        const abrirGaleria = (ev: Event) => {
             if (!soyYo()) return;
+            atender(ev);
             setGaleria((g) => ({ n: (g?.n ?? 0) + 1 }));
             setGaleriaAbierta(true);
         };

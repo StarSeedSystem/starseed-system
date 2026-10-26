@@ -27,6 +27,8 @@ vi.mock("@/context/appearance-context", () => ({
 vi.mock("@/lib/ui/rito-activo", () => ({ useRitoActivo: () => false }));
 vi.mock("@/components/ui/confirm-dialog", () => ({ useConfirm: () => async () => true }));
 vi.mock("../../trinity-fab", () => ({ TrinityFab: () => null }));
+// El diseñador de iconos (V1b) se monta con el dock; aquí se prueba el contrato del menú, con o sin él.
+vi.mock("../iconos/montaje-iconos-dock", () => ({ default: () => null }));
 vi.mock("@/components/dashboard/apps/app-catalog", () => ({
     APP_CATALOG: [{ id: "mensajes", description: "Mensajería de StarSeed.", open: { route: "/messages" } }],
 }));

@@ -24,7 +24,7 @@ import { useAppearance } from "@/context/appearance-context";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
 import { usePanelCortina } from "./panel-cortina";
-import { CONTROL_CENTER_NAVIGATE_EVENT, type ControlCenterNavigateDetail } from "./control-center-events";
+import { CONTROL_CENTER_NAVIGATE_EVENT, tomarSeccionPendiente, type ControlCenterNavigateDetail } from "./control-center-events";
 import { SystemTab } from "./tabs/system-tab";
 import { QuickSettingsTab } from "./tabs/quick-settings-tab";
 import { SmartHomeTab } from "./tabs/smart-home-tab";
@@ -97,6 +97,14 @@ export function ControlCenter() {
         // Solo reacciona si la sección activa deja de estar disponible.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [idsVisibles]);
+
+    // Al montarse, si alguien abrió la cortina para ir a una sección concreta (p. ej. «Grabar»), va a ella.
+    useEffect(() => {
+        const pendiente = tomarSeccionPendiente();
+        if (pendiente && idsVisibles.includes(pendiente)) setActiveTab(pendiente);
+        // Solo al montar.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Puente: otras secciones (p. ej. «Atmósfera del fondo» en Inicio) piden navegar a una concreta
     // sin acoplarse a este componente.

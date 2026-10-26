@@ -22,3 +22,21 @@ export function pedirSeccion(tab: string): void {
         /* sin window (servidor) o sin CustomEvent: no hay nada que navegar */
     }
 }
+
+/*
+ * Sección pendiente para cuando el Centro de Control aún no está montado (vive dentro de la cortina Logic y solo
+ * se monta al abrirla). Quien abre la cortina para ir a una sección concreta la deja aquí; el Centro la toma
+ * una vez al montarse. Ej.: la habilidad «grabar la pantalla» (`starseed:abrir-grabar`).
+ */
+let seccionPendiente: string | null = null;
+
+export function pedirSeccionAlAbrir(tab: string): void {
+    seccionPendiente = tab;
+}
+
+/** Devuelve la sección pendiente (si la hay) y la olvida. */
+export function tomarSeccionPendiente(): string | null {
+    const t = seccionPendiente;
+    seccionPendiente = null;
+    return t;
+}
