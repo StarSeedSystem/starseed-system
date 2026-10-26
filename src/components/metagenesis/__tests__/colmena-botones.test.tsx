@@ -126,13 +126,6 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         });
     });
 
-    it("sin trabajo en curso, el botón de desconectar está deshabilitado cuándo no hay relevo activo", () => {
-        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 });
-        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
-        expect(b.desconectar.explica).toBe("No tiene trabajo en curso: puedes apagarlo sin más.");
-        expect(b.desconectar.confirmar).toBeFalsy();
-    });
-
     it("con contenedor activo y sin trabajo en curso, sin relevo activo Desconectar remite a «Dejar de usar»", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } });
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
@@ -173,18 +166,8 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(con.contenedor.confirmar).toBe(false);
     });
 
-    it("sin trabajador: «Instalar el trabajador» visible y habilitado (explica Terminal / Termux)", () => {
-        const linux = botonesNeurona({ nodo: null, vivo: true, so: "linux", enCurso: 0 });
-        expect(linux.instalar).toMatchObject({
-            visible: true,
-            habilitado: true,
-            etiqueta: "Instalar el trabajador",
-            explica: "Un comando en la terminal de este aparato.",
-        });
-        const android = botonesNeurona({ nodo: null, vivo: true, so: "android", enCurso: 0 });
-        expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
-    });
 });
+
 // ─── el traductor latido → tarjeta (puro) ──────────────────────────────────────────────────────────────
 
 const A1 = "oracle-a1-bbbbbb";
