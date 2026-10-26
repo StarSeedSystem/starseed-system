@@ -2,6 +2,7 @@
 import os
 import sys
 import json
+import importlib
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ""))
 
+import asignaciones_agentes
 from asignaciones_agentes import (
     leer_asignaciones_agentes,
     modelo_por_papel,
@@ -33,6 +35,29 @@ class TestAsignacionesAgentes(unittest.TestCase):
         """Limpiar el entorno de prueba."""
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_raiz_por_defecto_es_la_del_repositorio(self):
+        """Sin STARSEED_ROOT, RAIZ es la raíz del repo y no la carpeta scripts/."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("STARSEED_ROOT", None)
+            importlib.reload(asignaciones_agentes)
+            raiz = asignaciones_agentes.RAIZ
+            esperada = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            self.assertEqual(raiz, esperada)
+            self.assertTrue(os.path.isfile(os.path.join(raiz, "CLAUDE.md")))
+            self.assertNotEqual(os.path.basename(raiz), "scripts")
+        importlib.reload(asignaciones_agentes)
+
+    def test_raiz_respeta_starseed_root(self):
+        """Con STARSEED_ROOT definido, RAIZ y las rutas derivadas cuelgan de él."""
+        with patch.dict(os.environ, {"STARSEED_ROOT": self.temp_dir}, clear=False):
+            importlib.reload(asignaciones_agentes)
+            self.assertEqual(asignaciones_agentes.RAIZ, self.temp_dir)
+            self.assertEqual(
+                asignaciones_agentes.RUTA_ASIGNACIONES,
+                os.path.join(self.temp_dir, "starseed_memory_root", "mando", "asignaciones-agentes.json"),
+            )
+        importlib.reload(asignaciones_agentes)
 
     def test_leer_asignaciones_agentes_con_archivo(self):
         """Test que leer_asignaciones_agentes lee desde el JSON cuando existe."""
