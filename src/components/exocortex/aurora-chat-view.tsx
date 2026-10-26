@@ -524,6 +524,7 @@ function Conversation(props: {
               text: m.text,
               ts: m.at ?? Date.now(),
               meta: m.meta,
+              attachments: m.attachments,
               history: visibleConvo
                 .slice(0, i + 1)
                 .filter((e) => e.role !== "system")
