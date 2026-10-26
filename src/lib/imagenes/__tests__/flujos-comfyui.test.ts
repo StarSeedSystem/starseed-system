@@ -5,9 +5,13 @@ import {
   imagenAImagen,
   ladosFormato,
   MEGAPIXELES,
+  MUESTREADORES_COMFYUI,
   NODOS_NUCLEO,
+  PLANIFICADORES_COMFYUI,
   textoAImagen,
   variaciones,
+  type EscalaImagen,
+  type FormatoPublicacion,
   type GrafoComfyUI,
   type MuestreadorComfyUI,
   type PlanificadorComfyUI,
@@ -19,17 +23,25 @@ const pet = () => ({
   muestreador: "euler" as const, planificador: "karras" as const,
 });
 
-/** Ids a los que apunta algún enlace `["<id>", <salida>]` del grafo. */
+/** Ids a los que apunta algún enlace `["<id>", <salida>]` del grafo; exige salida entera y sin signo. */
 function idsDeEnlace(g: GrafoComfyUI): string[] {
   return Object.values(g).flatMap((nodo) =>
-    Object.values(nodo.inputs).flatMap((valor) =>
-      Array.isArray(valor) && valor.length === 2
-        ? typeof valor[0] === "string" && typeof valor[1] === "number"
-          ? [valor[0]]
-          : (() => { throw new Error(`Enlace mal formado: ${JSON.stringify(valor)}`); })()
-        : [],
-    ),
+    Object.values(nodo.inputs).flatMap((valor) => {
+      if (!Array.isArray(valor) || valor.length !== 2) return [];
+      const [id, salida] = valor as unknown[];
+      if (typeof id !== "string" || typeof salida !== "number" || !Number.isInteger(salida) || salida < 0) {
+        throw new Error(`Enlace mal formado: ${JSON.stringify(valor)}`);
+      }
+      return [id];
+    }),
   );
+}
+
+/** `class_type` de cada nodo, en el orden de los ids numéricos: la cadena real del flujo. */
+function cadenaDeNodos(g: GrafoComfyUI): string[] {
+  return Object.keys(g)
+    .sort((a, b) => Number(a) - Number(b))
+    .map((id) => g[id].class_type);
 }
 
 describe("ladosFormato · formatos de publicación", () => {
@@ -51,6 +63,10 @@ describe("ladosFormato · formatos de publicación", () => {
   it("sd15 da una imagen de 512² en 1:1 (~0,26 MP, la gama SD 1.5)", () => {
     expect(ladosFormato("1:1", "sd15")).toEqual({ ancho: 512, alto: 512 });
   });
+  it("rechaza con error legible un formato o una escala que no existen", () => {
+    expect(() => ladosFormato("2:3" as FormatoPublicacion)).toThrow(/2:3.*1:1/);
+    expect(() => ladosFormato("1:1", "xl" as EscalaImagen)).toThrow(/xl.*estandar/);
+  });
 });
 
 describe("todas las plantillas · grafo en formato API", () => {
@@ -58,7 +74,7 @@ describe("todas las plantillas · grafo en formato API", () => {
     ["texto a imagen", textoAImagen(pet())],
     ["imagen a imagen", imagenAImagen({ ...pet(), imagen: "entrada.png", denoise: 0.6 })],
     ["escalado", escalar({ imagen: "entrada.png", metodo: "lanczos", factor: 2 })],
-    ...[42, 1234].map((semilla) => [`variación ${semilla}`, textoAImagen({ ...pet(), semilla })] as [string, GrafoComfyUI]),
+    ...variaciones(pet(), [42, 1234]).map((g, i) => [`variación ${[42, 1234][i]}`, g] as [string, GrafoComfyUI]),
   ];
   for (const [nombre, g] of grafos) {
     it(`${nombre}: solo nodos del núcleo y enlaces que apuntan a nodos que existen`, () => {
@@ -73,6 +89,26 @@ describe("todas las plantillas · grafo en formato API", () => {
       }
     });
   }
+});
+
+describe("plantillas · cadena exacta de nodos del núcleo", () => {
+  it("texto a imagen: carga → texto → latente vacío → muestreo → VAE → guardar", () => {
+    expect(cadenaDeNodos(textoAImagen(pet()))).toEqual([
+      "CheckpointLoaderSimple", "CLIPTextEncode", "CLIPTextEncode", "EmptyLatentImage",
+      "KSampler", "VAEDecode", "SaveImage",
+    ]);
+  });
+  it("imagen a imagen: carga → VAEEncode → muestreo → VAE → guardar", () => {
+    expect(cadenaDeNodos(imagenAImagen({ ...pet(), imagen: "entrada.png", denoise: 0.6 }))).toEqual([
+      "LoadImage", "CheckpointLoaderSimple", "CLIPTextEncode", "CLIPTextEncode",
+      "VAEEncode", "KSampler", "VAEDecode", "SaveImage",
+    ]);
+  });
+  it("escalado: solo carga y escala, sin muestrear ni guardar", () => {
+    expect(cadenaDeNodos(escalar({ imagen: "entrada.png", metodo: "lanczos", factor: 2 }))).toEqual([
+      "LoadImage", "ImageScaleBy",
+    ]);
+  });
 });
 
 describe("textoAImagen", () => {
@@ -93,6 +129,23 @@ describe("textoAImagen", () => {
     expect(() => textoAImagen({ ...pet(), muestreador: "ddim" as MuestreadorComfyUI })).toThrow(/muestreador/);
     expect(() => textoAImagen({ ...pet(), planificador: "ddim_uniform" as PlanificadorComfyUI })).toThrow(/planificador/);
     expect(() => textoAImagen({ ...pet(), checkpoint: "  " })).toThrow(/checkpoint/);
+  });
+});
+
+describe("parámetros · listas admitidas y límites", () => {
+  it("acepta todos los muestreadores y planificadores del núcleo, también en los límites de pasos y CFG", () => {
+    for (const muestreador of MUESTREADORES_COMFYUI) {
+      expect(() => textoAImagen({ ...pet(), muestreador, pasos: 1, cfg: 1 })).not.toThrow();
+    }
+    for (const planificador of PLANIFICADORES_COMFYUI) {
+      expect(() => textoAImagen({ ...pet(), planificador, pasos: 60, cfg: 15 })).not.toThrow();
+    }
+  });
+  it("rechaza pasos y CFG fuera de rango y semillas no enteras", () => {
+    for (const fuera of [{ pasos: 0 }, { pasos: 61 }, { cfg: 0 }, { cfg: 16 }]) {
+      expect(() => textoAImagen({ ...pet(), ...fuera })).toThrow(/fuera de rango/);
+    }
+    expect(() => textoAImagen({ ...pet(), semilla: 1.5 })).toThrow(/entero/);
   });
 });
 
