@@ -53,9 +53,9 @@ function tonoEstado(estado: string): { borde: string; punto: string; texto: stri
     switch (estado) {
         case "commit":
             return { borde: "border-emerald-400/40", punto: "bg-emerald-400", texto: "text-emerald-300", etiqueta: "integrada" };
-        // (2026-09-29) Sueño profundo terminado: informe escrito, nada que integrar (no es «sin cambios»).
+        // (2026-09-29) Imaginación profunda terminada: informe escrito, nada que integrar (no es «sin cambios»).
         case "informe":
-            return { borde: "border-indigo-400/40", punto: "bg-indigo-400", texto: "text-indigo-200", etiqueta: "informe escrito" };
+            return { borde: "border-indigo-400/40", punto: "bg-indigo-400", texto: "text-indigo-200", etiqueta: "imaginación profunda terminada" };
         case "bloqueante":
             return { borde: "border-amber-400/50", punto: "bg-amber-400", texto: "text-amber-300", etiqueta: "integrada · revisión bloqueante" };
         case "en_curso":
