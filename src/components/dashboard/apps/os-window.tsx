@@ -11,11 +11,12 @@
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
 // ════════════════════════════════════════════════════════════════
 
-import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana, type GeometriaVentanaReturn } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -74,12 +75,42 @@ export interface OSWindowProps {
     bare?: boolean;
 }
 
+const useLayoutEffectSeguro = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 export function OSWindow({
     title, subtitle, icon: Icon, accent, onClose, actions, toolbar, children,
     sizeClass = "w-[min(94vw,1100px)] h-[min(86vh,760px)]", bare = true,
 }: OSWindowProps) {
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+
+    // ── Posición inicial con geometriaVentana (DSN1019B) ──
+    // Escritorio: ventana centrada en la pantalla. Teléfono (<430 px): hoja centrada
+    // que sube desde abajo (entrada cardinal sur). El arrastre sigue intacto: vive
+    // en el transform del marco exterior, la geometría solo fija left/top.
+    const contenidoRef = useRef<HTMLDivElement>(null);
+    const [geo, setGeo] = useState<GeometriaVentanaReturn | null>(null);
+    const movReducido = useReducedMotion() ?? false;
+    // En el primer render aún no hay medidas: se decide el tipo por el viewport real,
+    // de modo que la ENTRADA (hoja desde abajo o centrado) ya es la correcta al montar.
+    const anchoViewportInicio = typeof window === "undefined" ? 1280 : window.innerWidth;
+    const hojaSur = anchoViewportInicio < 430;
+    useLayoutEffectSeguro(() => {
+        const medir = () => {
+            const el = contenidoRef.current;
+            if (!el) return;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            setGeo(geometriaVentana({ ancho: vw, alto: vh }, {
+                tipo: vw < 430 ? "hoja" : "ventana",
+                ancho: el.offsetWidth,
+                alto: el.offsetHeight,
+            }));
+        };
+        medir();
+        window.addEventListener("resize", medir);
+        return () => window.removeEventListener("resize", medir);
+    }, []);
 
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
@@ -107,22 +138,46 @@ export function OSWindow({
         dragRef.current = { x: e.clientX, y: e.clientY, ox: offset.dx, oy: offset.dy };
     };
 
+    const entrada = movReducido
+        ? { opacity: 0 }
+        : hojaSur
+            ? { opacity: 0, y: "100%" }
+            : { opacity: 0, scale: 0.96 };
+    const estable = movReducido
+        ? { opacity: 1 }
+        : hojaSur
+            ? { opacity: 1, y: 0 }
+            : { opacity: 1, scale: 1 };
+
     return (
-        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+        <div ref={raizRef} className="fixed inset-0 z-[120]" role="dialog" aria-modal="true" aria-label={title}>
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
-            {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
-                aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
-                el centrado y la ventana SIEMPRE abre centrada. */}
-            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
+            {/* Posición inicial dada por geometriaVentana (no por el flex): centrada
+                en escritorio; en teléfono, hoja apoyada en el borde inferior. El
+                transform de arrastre se suma a esa posición sin pisarla. Antes de
+                medir (solo el primer fotograma, resuelto en useLayoutEffect) y en
+                SSR queda en su sitio con left/top nulos → top-left invisibilizado
+                por la animación; nunca se deja al usuario en otra posición. */}
+            <div
+                className="absolute max-w-full max-h-full"
+                style={{
+                    left: geo ? Math.max(geo.x, 0) : hojaSur ? undefined : "50%",
+                    top: geo ? Math.max(geo.y, 0) : hojaSur ? undefined : "50%",
+                    translate: geo || hojaSur ? undefined : "-50% -50%",
+                    transform: `translate(${offset.dx}px, ${offset.dy}px)`,
+                }}
+            >
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                    ref={contenidoRef}
+                    initial={entrada}
+                    animate={estable}
+                    transition={movReducido ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 26 }}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
                         sizeClass,
                     )}
+                    style={hojaSur ? { borderRadius: "1rem 1rem 0 0" } : undefined}
                 >
                 <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[2px] z-20 opacity-80"
                     style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }} />
