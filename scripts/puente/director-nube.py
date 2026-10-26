@@ -181,7 +181,17 @@ def vigilar_runs():
         return []
 
 
-def elegir_contenedor(contenedores):
+#: (2026-10-26, CAP1026A) Lo que ESTE director sabe lanzar: GitHub Actions, con `nube-gh.py lanzar`.
+#: Cloudroom (`cloudroom_lanzar.py`) y las sesiones de Claude en la nube (`alta-capacidad-nube.py`, en
+#: pausa por decisión de Alex) tienen su propio lanzador y su propio director. MEDIDO a las 09:00 UTC:
+#: con GitHub «lleno» (4 jobs = 2 escritores vivos × 2), el inventario daba como primer desplegable
+#: «Sesiones de Claude Code en la nube» (4 libres, 1 agente por job) y este director lanzaba igualmente
+#: un job de GitHub con `--trabajadores 1`: seis jobs de UN agente (más allá del tope de jobs) en vez
+#: de cuatro de cuatro.
+LANZABLES = frozenset({"nube-gh"})
+
+
+def elegir_contenedor(contenedores, lanzables=LANZABLES):
     """PURA: en qué contenedor desplegar ahora, o None si en ninguno cabe nada.
 
     (2026-09-22) Alex: «que los directores de los agentes también usen esa información
@@ -189,9 +199,13 @@ def elegir_contenedor(contenedores):
     mayor cantidad disponible». Esto es ese enrutado: se elige el contenedor desplegable
     con más sitio libre. El inventario ya viene ordenado por estado y sitio, así que aquí
     no se vuelve a ordenar — un solo criterio, en un solo lugar.
+
+    Solo los que este director sabe lanzar (`lanzables`): elegir otro y lanzar GitHub con sus
+    agentes por job mezclaba el tope de uno con la máquina del otro.
     """
     for c in contenedores or []:
-        if isinstance(c, dict) and c.get("desplegable") and int(c.get("agentes_libres") or 0) > 0:
+        if (isinstance(c, dict) and str(c.get("id") or "") in lanzables and c.get("desplegable")
+                and int(c.get("agentes_libres") or 0) > 0):
             return c
     return None
 
@@ -377,37 +391,85 @@ def reclamar_varadas_de_la_nube(runs_vivos):
     return ids
 
 
-def veredictos_del_ultimo_run(ids, timeout=90):
-    """{id: (estado, nota)} de lo que dijo la nube sobre esas tareas en su último run
-    terminado, leído del artefacto que sube el workflow (progreso.json). Nunca lanza: si no
-    se puede leer, {} y se devuelven sin motivo, como antes."""
+#: (CAP1026B) El progreso de un run TERMINADO no cambia: se guarda aquí y no se vuelve a descargar.
+VEREDICTOS_CACHE = os.path.expanduser("~/.starseed/nube-veredictos")
+#: Cuántos runs terminados se miran (el que llevó la tarea casi nunca es el último) y cuántos se
+#: descargan como mucho por pasada (cada descarga son unos segundos de `gh run download`).
+VEREDICTOS_RUNS = int(os.environ.get("STARSEED_NUBE_VEREDICTOS_RUNS", "16"))
+DESCARGAS_POR_PASADA = 4
+
+
+def _progreso_de_run(run, timeout=90):
+    """{id: [estado, nota]} del progreso.json que subió un run TERMINADO, o None si no se pudo leer
+    (un fallo no se guarda: se reintenta en otra pasada)."""
     import shutil
     import tempfile
 
+    ruta = os.path.join(VEREDICTOS_CACHE, "%s.json" % run)
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            d = json.load(f)
+        if isinstance(d, dict):
+            return d
+    except (OSError, ValueError):
+        pass
     carpeta = tempfile.mkdtemp(prefix="nube-veredictos-")
     try:
-        salida = _sh(["gh", "run", "list", "--workflow", "enjambre-nube.yml", "--status", "completed",
-                      "-L", "1", "--json", "databaseId", "--jq", ".[0].databaseId"], timeout=60).strip()
-        if not salida.isdigit():
-            return {}
-        _sh(["gh", "run", "download", salida, "-D", carpeta], timeout=timeout)
-        fuera = {}
+        _sh(["gh", "run", "download", str(run), "-D", carpeta], timeout=timeout)
+        datos, leido = {}, False
         for raiz, _dirs, archivos in os.walk(carpeta):
-            if "progreso.json" in archivos:
-                try:
-                    with open(os.path.join(raiz, "progreso.json"), encoding="utf-8") as f:
-                        prog = json.load(f)
-                except (OSError, ValueError):
-                    continue
-                for tid in ids:
-                    e = prog.get(tid) if isinstance(prog, dict) else None
-                    if isinstance(e, dict) and e.get("estado"):
-                        fuera[tid] = (str(e.get("estado")), str(e.get("nota") or ""))
-        return fuera
+            if "progreso.json" not in archivos:
+                continue
+            try:
+                with open(os.path.join(raiz, "progreso.json"), encoding="utf-8") as f:
+                    prog = json.load(f)
+            except (OSError, ValueError):
+                continue
+            leido = True
+            for tid, e in (prog.items() if isinstance(prog, dict) else []):
+                if isinstance(e, dict) and e.get("estado"):
+                    datos[str(tid)] = [str(e.get("estado")), str(e.get("nota") or "")[:300]]
+        if not leido:
+            return None
+        os.makedirs(VEREDICTOS_CACHE, exist_ok=True)
+        with open(ruta + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False)
+        os.replace(ruta + ".tmp", ruta)
+        return datos
     except Exception:
-        return {}
+        return None
     finally:
         shutil.rmtree(carpeta, ignore_errors=True)
+
+
+def veredictos_del_ultimo_run(ids, timeout=90):
+    """{id: (estado, nota, run)} de lo que dijo la nube sobre esas tareas en sus últimos runs
+    terminados (`VEREDICTOS_RUNS`), leído del artefacto que sube el workflow (progreso.json).
+    Un «commit» de cualquiera de ellos gana (`repartir_nube.combinar_veredictos`). Nunca lanza: si
+    no se puede leer, {} y se devuelven sin motivo, como antes.
+
+    (2026-10-26, CAP1026B) Antes miraba SOLO el último run terminado: el que llevó la tarea casi
+    nunca es ese, así que una tarea integrada en su rama volvía a «pendiente», se mandaba otra vez y
+    `traer_nube` la veía «reasignada» y esperaba: AGF1023E, dos commits en dos runs y ninguno en main."""
+    if not ids:
+        return {}
+    try:
+        salida = _sh(["gh", "run", "list", "--workflow", "enjambre-nube.yml", "--status", "completed",
+                      "-L", str(VEREDICTOS_RUNS), "--json", "databaseId", "--jq", ".[].databaseId"], timeout=60)
+        runs = [x.strip() for x in salida.split() if x.strip().isdigit()]
+        por_run, descargas = [], 0
+        for run in runs:  # gh los da del más nuevo al más viejo
+            en_cache = os.path.exists(os.path.join(VEREDICTOS_CACHE, "%s.json" % run))
+            if not en_cache:
+                if descargas >= DESCARGAS_POR_PASADA:
+                    continue
+                descargas += 1
+            datos = _progreso_de_run(run, timeout=timeout)
+            if datos:
+                por_run.append((run, {k: tuple(v) for k, v in datos.items() if isinstance(v, (list, tuple))}))
+        return RN.combinar_veredictos(por_run, ids)
+    except Exception:
+        return {}
 
 
 def _cuenta_hoy():

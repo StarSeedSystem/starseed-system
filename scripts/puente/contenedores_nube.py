@@ -111,6 +111,9 @@ CATALOGO = {
         "coste": "gratis, pero sin API: hace falta un cuaderno lanzador",
         "lanza": "",
     },
+    # (2026-10-26, CAP1026C) 3 agentes, no 1: el orquestador del A1 corre con 3 trabajadores desde el
+    # 13-10 (`oracle_a1.py`, «el A1 pasa a 3 trabajadores»). Con 1, el medidor decía «1 de 1 libre» con
+    # el A1 trabajando a tope y sus agentes no contaban en ningún total.
     "oracle": {
         "servicio": "Oracle Always Free",
         "proveedor": "Oracle Cloud (A1 Ampere ARM)",
@@ -118,7 +121,7 @@ CATALOGO = {
         "ram_gb": 12,
         "horas_job": 0,
         "jobs_simultaneos": 1,
-        "agentes_por_job": 1,
+        "agentes_por_job": 3,
         "coste": "Always Free (gratis para siempre): 2 OCPU · 12 GB · 10 TB/mes de salida",
         "lanza": "",
     },
@@ -301,6 +304,30 @@ def resumir(contenedores: list) -> dict:
 
 
 REGISTRO_CLOUDROOM = os.path.expanduser("~/.starseed/cloudroom-hilos.json")
+#: (CAP1026C) Lo que `oracle_nodo.py estado` deja del A1 (sin IPs ni claves en lo que se lee aquí).
+ESTADO_ORACLE = os.path.expanduser("~/.starseed/oracle.json")
+#: Un latido del nodo del A1 más viejo que esto ya no dice qué hace ahora (el ciclo lo refresca cada 30 min).
+LATIDO_ORACLE_MAX_S = 45 * 60
+
+
+def vivos_oracle(estado, ahora) -> int:
+    """PURA (CAP1026C): agentes del A1 = trabajadores de su orquestador, si el nodo late y lo tiene vivo."""
+    nodo = estado.get("nodo") if isinstance(estado, dict) else None
+    if not isinstance(nodo, dict) or not nodo.get("vivo"):
+        return 0
+    try:
+        latido = float(nodo.get("latido") or 0)
+    except (TypeError, ValueError):
+        return 0
+    if latido <= 0 or ahora - latido > LATIDO_ORACLE_MAX_S:
+        return 0
+    orq = nodo.get("orquestador")
+    if not isinstance(orq, dict) or not orq.get("vivo"):
+        return 0
+    try:
+        return max(0, int(orq.get("trabajadores") or 0))
+    except (TypeError, ValueError):
+        return 0
 
 
 def vivos_cloudroom(registro, progreso) -> int:
@@ -330,6 +357,8 @@ def _vivos_por_medio() -> dict:
     vivos["claude-nube"] = {"agentes": n, "runs": n}
     c = vivos_cloudroom(_leer_json(REGISTRO_CLOUDROOM, []), _leer_json(PROGRESO, {}))
     vivos["cloudroom"] = {"agentes": c, "runs": c}
+    o = vivos_oracle(_leer_json(ESTADO_ORACLE, {}), time.time())
+    vivos["oracle"] = {"agentes": o, "runs": 1 if o else 0}
     return vivos
 
 

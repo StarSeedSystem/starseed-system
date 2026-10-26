@@ -111,7 +111,8 @@ class OracleTieneCapacidadReal(unittest.TestCase):
         medio = {"id": "oracle", "nombre": "Oracle Always Free", "estado": "usable",
                  "capacidad": "A1 2 OCPU · 12 GB · 2 micro 1 GB · 10 TB/mes", "detalle": ""}
         c = C.contenedor(medio, C.CATALOGO["oracle"], {})
-        self.assertEqual(c["agentes_libres"], 1)
+        # (2026-10-26, CAP1026C) 3, no 1: el orquestador del A1 corre con 3 trabajadores desde el 13-10.
+        self.assertEqual(c["agentes_libres"], 3)
         self.assertIn("2 vCPU", c["maquina"])
         self.assertIn("12 GB", c["maquina"])
 

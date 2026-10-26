@@ -821,7 +821,40 @@ def devolver_envio_por_el_medio(tid, carpeta_colas, ahora_ts=None, ruta_reapertu
         return None
 
 
-def reclamar_varadas(progreso, runs_en_marcha, ids_vivos=None, colas_jovenes=()):
+#: (2026-10-26, CAP1026B) Lo que la nube integró en su rama espera a `traer_nube` (cada 30 min) como
+#: «integrada · nube». Si en este plazo no llegó a main, algo pasa con su rama: se reclama y, al
+#: devolverla, va a Bloqueadas con el motivo (no a otra vuelta igual).
+ESPERA_TRAER_S = 24 * 3600
+#: Estados con que la nube dice que la tarea quedó integrada en su rama `nube/<run>`.
+VEREDICTOS_INTEGRADA = ("commit", "integrada")
+
+
+def combinar_veredictos(por_run, ids=None):
+    """PURA (CAP1026B). `por_run`: [(run, {id: (estado, nota)})] del run más NUEVO al más viejo →
+    {id: (estado, nota, run)}. Un «commit» de cualquier run gana: ese trabajo ya está en su rama
+    `nube/<run>` y `traer_nube` lo trae; si no hay ninguno, manda lo que dijo el run más nuevo.
+
+    (2026-10-26, MEDIDO) Con el veredicto de SOLO el último run terminado, AGF1023E (commit en los runs
+    40287793488 y 40291799281), AGF1023G y GUI1021Id-d2 volvían a «pendiente» y a la nube: tres envíos,
+    dos commits y ninguno en main, porque mientras la tarea figura «reasignada» `traer_nube` espera."""
+    fuera = {}
+    quiero = None if ids is None else {str(i) for i in ids}
+    for run, datos in por_run or []:
+        for tid, v in (datos or {}).items():
+            if quiero is not None and str(tid) not in quiero:
+                continue
+            if not isinstance(v, (list, tuple)) or not v:
+                continue
+            estado, nota = str(v[0]), str(v[1] if len(v) > 1 else "")
+            previo = fuera.get(tid)
+            if previo is None:
+                fuera[tid] = (estado, nota, str(run))
+            elif previo[0] not in VEREDICTOS_INTEGRADA and estado in VEREDICTOS_INTEGRADA:
+                fuera[tid] = (estado, nota, str(run))
+    return fuera
+
+
+def reclamar_varadas(progreso, runs_en_marcha, ids_vivos=None, colas_jovenes=(), ahora=None):
     """PURA. Las que se mandaron a la nube y allí ya no queda nadie que las haga.
 
     (2026-09-22, MEDIDO) RM3 y RM4 llevaban horas en «reasignada · nube» con CERO runs en
@@ -844,6 +877,8 @@ def reclamar_varadas(progreso, runs_en_marcha, ids_vivos=None, colas_jovenes=())
     estén en él ni en `colas_jovenes`; el llamador solo pasa un conjunto cuando conoce la
     cola de TODOS los runs vivos. `ids_vivos=None` conserva el comportamiento de siempre:
     solo reclamar cuando hayan quedado las colas vacías.
+
+    (2026-10-26, CAP1026B) También las «integrada · nube» que pasaron `ESPERA_TRAER_S` sin llegar a main.
     """
     if ids_vivos is None:
         if runs_en_marcha != 0:
@@ -851,33 +886,71 @@ def reclamar_varadas(progreso, runs_en_marcha, ids_vivos=None, colas_jovenes=())
         prestadas = set()
     else:
         prestadas = {str(i) for i in ids_vivos} | {str(i) for i in colas_jovenes or ()}
+    ahora = time.time() if ahora is None else ahora
     return sorted(
         tid for tid, v in (progreso or {}).items()
         if isinstance(v, dict)
-        and v.get("estado") == "reasignada"
-        and ((v.get("medio") or "") == "nube"
-             # (2026-10-13) Las que soltó la tanda de la Mac al lanzar el run: «movida a nube-gh (run …)»,
-             # sin medio hasta este día. Quedaban «reasignada» para siempre si su run moría.
-             or (not v.get("medio") and str(v.get("nota") or "").startswith("movida a nube")))
+        and ((v.get("estado") == "reasignada"
+              and ((v.get("medio") or "") == "nube"
+                   # (2026-10-13) Las que soltó la tanda de la Mac al lanzar el run: «movida a nube-gh (run …)»,
+                   # sin medio hasta este día. Quedaban «reasignada» para siempre si su run moría.
+                   or (not v.get("medio") and str(v.get("nota") or "").startswith("movida a nube"))))
+             or _integrada_sin_traer(v, ahora))
         and tid not in prestadas
     )
 
 
+def _integrada_sin_traer(entrada, ahora):
+    """PURA: «integrada · nube» desde hace más de `ESPERA_TRAER_S` (traer_nube no la llevó a main)."""
+    if entrada.get("estado") != "integrada" or (entrada.get("medio") or "") != "nube":
+        return False
+    try:
+        desde = float(entrada.get("integrada_nube_t") or 0)
+    except (TypeError, ValueError):
+        return False
+    return desde > 0 and ahora - desde > ESPERA_TRAER_S
+
+
 def devolver_a_pendiente(progreso, ids, fecha, envios=None, veredictos=None,
-                         max_envios=MAX_ENVIOS_NUBE):
+                         max_envios=MAX_ENVIOS_NUBE, ahora=None):
     """Copia del progreso con esos ids de vuelta a `pendiente`, sin perder su historia.
 
     (2026-09-24) Con lo que dijo la nube (`veredictos`: {id: (estado, nota)} del último run)
     y, si ya se mandó `max_envios` veces sin integrarse, a `bloqueada` en vez de a
-    `pendiente`: devolverla otra vez era mandarla otra vez, y así 22 veces seguidas."""
+    `pendiente`: devolverla otra vez era mandarla otra vez, y así 22 veces seguidas.
+
+    (2026-10-26, CAP1026B) Si la nube la INTEGRÓ en su rama (veredicto «commit» de cualquier run reciente,
+    ver `combinar_veredictos`), no vuelve a pendiente: queda «integrada · nube» y `traer_nube` la trae a main
+    con sus puertas (para él, «integrada» que main no tiene se trae comprobada). Mandarla otra vez solo
+    repetía el trabajo y gastaba un envío. Si ya llevaba así más de `ESPERA_TRAER_S`, a Bloqueadas.
+    """
     salida = dict(progreso or {})
+    ahora = time.time() if ahora is None else ahora
     for tid in ids:
         v = dict(salida.get(tid) or {})
         n = int((envios or {}).get(tid, 0))
         dicho = (veredictos or {}).get(tid)
         motivo = ""
         if dicho:
-            motivo = " · la nube dijo «%s»%s" % (dicho[0], (": %s" % dicho[1][:200]) if dicho[1] else "")
+            motivo = " · la nube dijo «%s»%s" % (dicho[0], (": %s" % dicho[1][:200]) if len(dicho) > 1 and dicho[1] else "")
+        if _integrada_sin_traer(v, ahora):
+            v.update(
+                estado="bloqueada", medio=None,
+                nota=("la nube la integró en su rama hace más de %d h y traer_nube no la ha traído a main: "
+                      "mira su rama (traer_nube.py revisar) o «Reintentar con un cambio» en Bloqueadas%s"
+                      % (ESPERA_TRAER_S // 3600, motivo)),
+            )
+            salida[tid] = v
+            continue
+        if dicho and str(dicho[0]) in VEREDICTOS_INTEGRADA:
+            run = dicho[2] if len(dicho) > 2 and dicho[2] else ""
+            v.update(
+                estado="integrada", medio="nube", integrada_nube_t=ahora,
+                nota=("la nube la integró en su rama%s (%s): traer_nube la trae a main con sus puertas; "
+                      "no se vuelve a mandar" % ((" nube/%s" % run) if run else "", (dicho[1] or "commit")[:160])),
+            )
+            salida[tid] = v
+            continue
         if n >= max_envios:
             v.update(
                 estado="bloqueada", medio=None,
