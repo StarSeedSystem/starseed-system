@@ -22,6 +22,7 @@
  */
 
 import { safeGet, safeSet } from "@/lib/safe-storage";
+import { clasesEscena, validarEscena, type ResultadoValidacionEscena } from "@/lib/protomolecula/manimgx/escena";
 
 /* ───────────────────────── Tipos ───────────────────────── */
 
@@ -92,6 +93,14 @@ const SHADER = new Set(["glsl", "frag", "fragment", "shader", "shaderlab", "fs"]
 const REACT = new Set(["jsx", "tsx", "react"]);
 const BACKEND = new Set(["py", "python", "sh", "bash", "zsh", "shell", "console"]);
 
+/** Veredicto del contrato de escena de ManimGX para un bloque Python. */
+export interface ManimEscenaInfo {
+  /** Clases declaradas, para enseñar cuál es la escena. */
+  clases: string[];
+  /** Solo lectura de cadenas: no ejecuta la escena. */
+  veredicto: ResultadoValidacionEscena;
+}
+
 export interface RunnableInfo {
   kind: RunnableKind;
   /** Etiqueta humana del modo de ejecución (para la UI). */
@@ -100,6 +109,19 @@ export interface RunnableInfo {
   inBrowser: boolean;
   /** Explicación honesta cuando NO se puede ejecutar aquí. */
   note?: string;
+  /** Contrato de ManimGX cuando el bloque Python parece una escena 3D. */
+  manim?: ManimEscenaInfo;
+}
+
+/** ¿Declara Manim/ManimGX o una clase que hereda de una escena? */
+function pareceEscenaManim(codigo: string): boolean {
+  return /(?:^|\n)\s*(?:from|import)\s+(?:manim|manimgx)\b/.test(codigo)
+    || /\bclass\s+\w+\s*\([^)]*\b\w*Scene\b[^)]*\)\s*:/.test(codigo);
+}
+
+function veredictoManim(codigo: string): ManimEscenaInfo | null {
+  if (!pareceEscenaManim(codigo)) return null;
+  return { clases: clasesEscena(codigo), veredicto: validarEscena(codigo) };
 }
 
 /**
