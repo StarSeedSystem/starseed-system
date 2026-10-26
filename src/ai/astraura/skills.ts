@@ -25,6 +25,10 @@ import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
 } from "./habilidades/diagramas";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
+import {
+  HABILIDADES_INGENIERIA_A,
+  comoCapacidad as comoCapacidadIngenieria,
+} from "./habilidades/ingenieria-a";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -50,6 +54,12 @@ export interface SkillCapability {
    * y sigue siendo filtrable por chat/personalidad con `only` en skillsSystemPrompt.
    */
   defaultOn?: boolean;
+  /**
+   * Ruta (relativa a la raíz del repo) del SKILL.md completo cuando la
+   * capacidad proviene de una habilidad de ingeniería. El prompt lleva el
+   * resumen; las capas razón, profunda y nube pueden cargar el texto íntegro.
+   */
+  rutaCompleta?: string;
 }
 
 /** Manifiesto: skills de la Biblioteca → capacidad viva de Aurora. */
@@ -653,6 +663,20 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     skillIds: ["aurora-writing-for-agents"],
     packageIds: ["iatool-writing-for-agents"],
   },
+  /* ═══ INGENIERÍA · Habilidades de ingeniería de Matt Pocock (OPS1024Dc) ═══
+   * Las cinco de `habilidades/ingenieria-a.ts` (MIT) en el registro, en el mismo
+   * formato que las de productividad: id sin duplicar, `routing` vacío y llaves
+   * de Biblioteca aurora-<id> / iatool-<id>. El prompt lleva el RESUMEN
+   * (≤ 120 palabras, laya-y-habilidades.md §5) con la atribución y
+   * `rutaCompleta` conserva el SKILL.md íntegro para las capas Razón, Profunda
+   * y Nube. Sin datos pegados a disco ni a red: los trae comoCapacidad. */
+  ...HABILIDADES_INGENIERIA_A.map((h) => ({
+    ...comoCapacidadIngenieria(h, "resumen"),
+    routing: {},
+    skillIds: [`aurora-${h.id}`],
+    packageIds: [`iatool-${h.id}`],
+    rutaCompleta: h.rutaCompleta,
+  })),
   /* ═══ DIAGRAMAS · Habilidad Diagram Design por capas (Ola 1018D · DGM1018G) ═══
    * La tarjeta (≤ 60 palabras) va a Needle y BitNet, el resumen (≤ 120) a Bonsai
    * pequeño y la guía completa (rutaCompleta) a las capas Razón, Profunda y Nube.
