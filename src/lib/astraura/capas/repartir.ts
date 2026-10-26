@@ -78,15 +78,59 @@ const ORDEN_FUENTES: FuenteCapa[] = [
   "oficial",
 ];
 
+const esSha256 = (sha: string): boolean => /^[0-9a-f]{64}$/.test(sha);
+
+/** Une trozos consecutivos en un único buffer (mismo patrón que AlmacenCapas). */
+function concatenar(partes: ArrayBuffer[]): ArrayBuffer {
+  const total = partes.reduce((s, p) => s + p.byteLength, 0);
+  const entero = new Uint8Array(total);
+  let desplaza = 0;
+  for (const p of partes) {
+    entero.set(new Uint8Array(p), desplaza);
+    desplaza += p.byteLength;
+  }
+  return entero.buffer;
+}
+
 /**
- * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén local.
+ * ¿La capa con ese SHA ya está completa y verificada en el almacén local? (§6)
+ * Cruza el SHA con el catálogo local (la meta que ya conoce: id → sha256),
+ * toma los trozos con las claves que este módulo escribe (capa/<id>/trozo/<i>),
+ * comprueba que están todos sin huecos desde el 0 y re-verifica el SHA-256
+ * del archivo entero. Un trozo corrupto o un SHA ajeno devuelven false.
  */
-async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
+export async function capaEnPropio(
+  almacen: Almacenamiento,
+  sha256: string,
+  catalogo: EntradaCapa[] = [],
+): Promise<boolean> {
   try {
+    if (!esSha256(sha256)) return false;
+    const candidatas = catalogo.filter((e) => e.sha256 === sha256);
+    if (candidatas.length === 0) return false;
     const claves = await almacen.claves();
-    // Buscar metas guardadas (prefijo capa/<id>/trozo/ no incluye SHA, así que usamos heurística:
-    // si existe algún trozo con ese SHA en el catálogo local, se asume que está.
-    // En implementación real se cruzaría con catálogo; aquí devolvemos false para forzar búsqueda.
+    for (const entrada of candidatas) {
+      const prefijo = `capa/${entrada.id}/trozo/`;
+      const indices = claves
+        .filter((c) => c.startsWith(prefijo))
+        .map((c) => Number(c.slice(prefijo.length)))
+        .filter((n) => Number.isInteger(n) && n >= 0)
+        .sort((a, b) => a - b);
+      // Todos los trozos presentes: 0..n-1 sin huecos.
+      if (indices.length === 0 || indices.some((n, i) => n !== i)) continue;
+      const partes: ArrayBuffer[] = [];
+      let hueco = false;
+      for (const i of indices) {
+        const datos = await almacen.leer(`${prefijo}${i}`);
+        if (datos === null) {
+          hueco = true;
+          break;
+        }
+        partes.push(datos);
+      }
+      if (hueco) continue;
+      if ((await shaHex(concatenar(partes))) === sha256) return true;
+    }
     return false;
   } catch {
     return false;
@@ -102,7 +146,7 @@ export async function pedirCapa(
   ctx: ContextoPedido,
 ): Promise<ResultadoPedido> {
   // 1. ¿La tengo ya en mi dispositivo? (verificado por SHA en almacén)
-  const enPropio = await capaEnPropio(ctx.almacen, sha256);
+  const enPropio = await capaEnPropio(ctx.almacen, sha256, ctx.catalogo);
   if (enPropio) {
     return { fuente: { tipo: "propio", id: "local", esOficial: true, camino: "webrtc" } };
   }
