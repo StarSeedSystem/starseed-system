@@ -136,7 +136,7 @@ function EmisorPose({ sesion, camaraRef, mundo }: { sesion: SesionEscena; camara
 
 function PuenteXR({ raizOverlay, onXR }: { raizOverlay: HTMLElement | null; onXR: (e: EstadoXR) => void }) {
     const gl = useThree((s) => s.gl);
-    const xr = useSesionXR(gl, raizOverlay);
+    const xr = useSesionXR(gl, raizOverlay, { capacidades: { funciones: ["local-floor", "hand-tracking", "layers"] } });
     useEffect(() => {
         onXR(xr);
     }, [onXR, xr]);
