@@ -5,9 +5,13 @@ import {
   imagenAImagen,
   ladosFormato,
   MEGAPIXELES,
+  MUESTREADORES_COMFYUI,
   NODOS_NUCLEO,
+  PLANIFICADORES_COMFYUI,
   textoAImagen,
   variaciones,
+  type EscalaImagen,
+  type FormatoPublicacion,
   type GrafoComfyUI,
   type MuestreadorComfyUI,
   type PlanificadorComfyUI,
@@ -50,6 +54,40 @@ describe("ladosFormato · formatos de publicación", () => {
   }
   it("sd15 da una imagen de 512² en 1:1 (~0,26 MP, la gama SD 1.5)", () => {
     expect(ladosFormato("1:1", "sd15")).toEqual({ ancho: 512, alto: 512 });
+  });
+  it("ningún formato de publicación pasa del tope de 2048 en ningún lado", () => {
+    for (const escala of ["estandar", "sd15"] as const) {
+      for (const formato of FORMATOS_PUBLICACION) {
+        const { ancho, alto } = ladosFormato(formato, escala);
+        expect(Math.max(ancho, alto), `${formato} a ${escala}`).toBeLessThanOrEqual(2048);
+      }
+    }
+  });
+  it("rechaza con error legible un formato o una escala que no existen", () => {
+    expect(() => ladosFormato("3:2" as FormatoPublicacion)).toThrow(/formato/);
+    expect(() => ladosFormato("1:1", "xl" as EscalaImagen)).toThrow(/escala/);
+  });
+});
+
+describe("listas blancas de muestreadores y planificadores", () => {
+  it("acepta todas las combinaciones del núcleo y las lleva al KSampler", () => {
+    for (const muestreador of MUESTREADORES_COMFYUI) {
+      for (const planificador of PLANIFICADORES_COMFYUI) {
+        const g = textoAImagen({ ...pet(), muestreador, planificador });
+        expect(g["5"].inputs.sampler_name, muestreador).toBe(muestreador);
+        expect(g["5"].inputs.scheduler, planificador).toBe(planificador);
+      }
+    }
+  });
+});
+
+describe("parámetros acotados · extremos admitidos", () => {
+  it("admite justo los límites (pasos 1–60, cfg 1–15) y rechaza lo de fuera", () => {
+    for (const pasos of [1, 60]) expect(() => textoAImagen({ ...pet(), pasos })).not.toThrow();
+    for (const cfg of [1, 15]) expect(() => textoAImagen({ ...pet(), cfg })).not.toThrow();
+    expect(() => textoAImagen({ ...pet(), pasos: 0 })).toThrow(/pasos/);
+    expect(() => textoAImagen({ ...pet(), cfg: 16 })).toThrow(/CFG/);
+    expect(() => textoAImagen({ ...pet(), semilla: 1.5 })).toThrow(/semilla/);
   });
 });
 
@@ -112,6 +150,8 @@ describe("imagenAImagen y escalar", () => {
     expect(g["2"].inputs.scale_by).toBe(1.5);
     expect(g["2"].inputs.image).toEqual(["1", 0]);
     expect(() => escalar({ imagen: "x.png", metodo: "lanczos", factor: 9 })).toThrow(/factor/);
+    expect(() => escalar({ imagen: "x.png", metodo: "lanczos", factor: 0 })).toThrow(/factor/);
+    expect(() => escalar({ imagen: "x.png", metodo: "lanczos", factor: 8 })).not.toThrow();
     expect(() => escalar({ imagen: " ", metodo: "lanczos", factor: 2 })).toThrow(/imagen de entrada/);
   });
 });
