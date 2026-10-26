@@ -23,7 +23,7 @@ export const CATEGORY_LABEL: Record<PublicCategory, string> = {
     app: "Apps", widget: "Widgets", page: "Páginas", publication: "Publicaciones",
     board: "Pizarras", research: "Investigación", project: "Proyectos", design: "Diseño",
     animation: "Animación", function: "Funciones", "ai-source": "Fuentes IA", repo: "Repos",
-    agent: "Agentes", otro: "Otro",
+    agent: "Agentes", iconos: "Diseños de iconos", otro: "Otro",
 };
 
 interface SingleItemProps {
@@ -41,11 +41,13 @@ export type PublishDialogProps = (SingleItemProps | FolderProps) & {
     onOpenChange: (open: boolean) => void;
     entityRef: EntityRef;
     doc: EntityLibraryDoc;
+    /** Categoría con la que se abre el selector (p. ej. «Diseños de iconos» desde el editor de iconos). */
+    defaultCategory?: PublicCategory;
 };
 
 export function PublishDialog(props: PublishDialogProps) {
     const { open, onOpenChange, entityRef, doc } = props;
-    const [category, setCategory] = useState<PublicCategory>("otro");
+    const [category, setCategory] = useState<PublicCategory>(props.defaultCategory ?? "otro");
     const [destFolder, setDestFolder] = useState("");
     const [recursive, setRecursive] = useState(true);
     const [busy, setBusy] = useState(false);

@@ -84,6 +84,7 @@ export const SYNCED_KEYS = [
     "starseed.cursorfx.v1",              // cursor personalizado + animaciones de clic — cursor-fx.tsx
     "starseed.aurora.chatlog.v1",        // registro de conversación con Aurora — aurora-chat-log.ts
     "starseed.dock.folders.v1",          // folders del OmniDock — dock-config.ts
+    "starseed.dock.iconos.v1",           // (Ola 1025U · V1b) plantilla de iconos del perfil (forma, fondo, glifo) — lib/dock/iconos/almacen.ts
     "starseed.aurora.orb.pos.v1",        // posición del orbe de Aurora en pantalla — aurora-orb-bus.ts
     "starseed.a11y.settings",            // accesibilidad (contraste, movimiento reducido…) — accessibility-settings.tsx
     "starseed.perf.v1",                  // modo de rendimiento auto/alto/eco — device-tier.ts

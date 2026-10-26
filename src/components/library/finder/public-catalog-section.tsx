@@ -28,7 +28,7 @@ const CATEGORY_LABEL: Record<PublicCategory, string> = {
     app: "Apps", widget: "Widgets", page: "Páginas", publication: "Publicaciones",
     board: "Pizarras", research: "Investigación", project: "Proyectos", design: "Diseño",
     animation: "Animación", function: "Funciones", "ai-source": "Fuentes IA", repo: "Repos",
-    agent: "Agentes", otro: "Otro",
+    agent: "Agentes", iconos: "Diseños de iconos", otro: "Otro",
 };
 
 function GuardarEnBibliotecaMini({ item }: { item: PublicItem }) {

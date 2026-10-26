@@ -39,10 +39,13 @@ const TABLE = "library_public_items";
 export type PublicCategory =
     | "app" | "widget" | "page" | "publication" | "board" | "research"
     | "project" | "design" | "animation" | "function" | "ai-source" | "repo"
-    | "agent" | "otro";
+    | "agent"
+    /** Ola 1025U · V1b: plantillas y diseños de iconos del dock (JSON `starseed.iconos`). */
+    | "iconos"
+    | "otro";
 
 export const PUBLIC_CATEGORIES: PublicCategory[] = [
-    "publication", "research", "design", "animation", "board", "project",
+    "publication", "research", "design", "iconos", "animation", "board", "project",
     "app", "widget", "page", "function", "ai-source", "agent", "repo", "otro",
 ];
 

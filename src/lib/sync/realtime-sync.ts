@@ -164,6 +164,7 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.perf.v1": ["starseed:perf-changed"],
     "starseed.dock.items.v2": ["starseed:sync:apply"],
     "starseed.dock.folders.v1": ["starseed:sync:apply"],
+    "starseed.dock.iconos.v1": ["starseed:dock-iconos"],
     "starseed.library.installed.v1": ["starseed:library"],
     "starseed.library.mine.v1": ["starseed:library"],
     "starseed.library.published.v1": ["starseed:library"],
