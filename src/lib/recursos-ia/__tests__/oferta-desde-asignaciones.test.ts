@@ -161,6 +161,32 @@ describe("ofertaDesdeAsignaciones", () => {
         expect(oferta.presta.publico).toBe(false);
     });
 
+    it("modelosServidos: modelos instalados en almacén de esta neurona, sin destino y corregidos por asignación", () => {
+        const inventario: InventarioRecursos = {
+            ...inventarioTest(),
+            modelosInstalados: [
+                { modeloId: "en-almacen", almacenId: `${N1}:interno` },
+                { modeloId: "sin-destino" },
+            ],
+        };
+        const estado = asignar(estadoVacio(), {
+            ...asignacionModelo(),
+            elemento: { tipo: "modelo", id: "en-almacen", nombre: "En almacén", tamanoGb: 1 },
+            almacenEn: `${N1}:interno`,
+            procesaEn: `${N1}:cpu`,
+        });
+        expect(modelosServidos(inventario, estado)).toEqual([
+            { id: "en-almacen", version: `${N1}:cpu` },
+            { id: "sin-destino", version: "auto" },
+        ]);
+    });
+
+    it("el medio sale del tipo de la neurona del inventario", () => {
+        const oferta = ofertaDesdeAsignaciones(inventarioTest(), estadoVacio(), new Date(0));
+        expect(oferta.medio).toBe("macOS");
+        expect(ofertaDesdeAsignaciones({ ...inventarioTest(), neuronas: [] }, estadoVacio(), new Date(0)).medio).toBe("neurona");
+    });
+
     it("modelosServidos: inventario sin neurona conocida y asignación a procesador ajeno no la suscriben", () => {
         const vacio: InventarioRecursos = { ...inventarioTest(), neuronas: [], modelosInstalados: [] };
         const estado = asignar(estadoVacio(), asignacionModelo("otra-neurona:cpu"));
