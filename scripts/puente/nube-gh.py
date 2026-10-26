@@ -74,6 +74,26 @@ def _sin_secretos(datos):
     return datos
 
 
+#: (2026-10-26, CAP1026K) Marcas de la salud que solo dicen algo de la máquina que las vio. MEDIDO a las 12:08
+#: (hora de la Mac): con la swap llena (5,7 de 6 GB) y 141 MB de RAM, dos modelos de OpenCode Zen «se colgaron sin
+#: escribir» EN LA MAC y el orquestador apartó Zen 6 h «para todas las olas»; esa salud viajaba con cada cola y los
+#: jobs de GitHub (4 vCPU / 16 GB, sin ese problema) perdían su escritor principal. Un 429 o un «cupo del día» sí
+#: viajan: son del proveedor.
+MARCAS_LOCALES = ("modelos colgados sin escribir",)
+
+
+def salud_para_la_nube(salud):
+    """PURA: la salud sin las marcas «sin cupo» que son de la máquina (cuelgues), no del proveedor."""
+    if not isinstance(salud, dict):
+        return salud
+    salida = {}
+    for prov, e in salud.items():
+        if isinstance(e, dict) and any(m in str(e.get("motivo") or "") for m in MARCAS_LOCALES):
+            e = {k: v for k, v in e.items() if k not in ("sin_cupo_hasta", "motivo")}
+        salida[prov] = e
+    return salida
+
+
 def preparar_estado_para_nube(home: str, destino: str) -> list[str]:
     """Copia a `destino` los archivos de ESTADO_PARA_NUBE que existan en `<home>/.starseed`,
     sin campos de clave. Pura salvo E/S en las rutas inyectadas; sin archivos, no falla.
@@ -86,6 +106,8 @@ def preparar_estado_para_nube(home: str, destino: str) -> list[str]:
                 datos = json.load(f)
         except (OSError, ValueError):
             continue
+        if nombre == "salud-proveedores.json":
+            datos = salud_para_la_nube(datos)
         os.makedirs(destino, exist_ok=True)
         with open(os.path.join(destino, nombre), "w", encoding="utf-8") as f:
             json.dump(_sin_secretos(datos), f, ensure_ascii=False, indent=1)

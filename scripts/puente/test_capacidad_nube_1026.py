@@ -262,5 +262,28 @@ class I_UnPrestamoQueNoSalioNoReserva(unittest.TestCase):
         self.assertEqual([p["ids"] for p in nodo.mem["prestamos"]], [["X1"]])
 
 
+class K_UnCuelgueDeLaMacNoApagaAlProveedorEnLaNube(unittest.TestCase):
+    SALUD = {"opencode": {"sin_cupo_hasta": "2026-10-26 18:08:58",
+                          "motivo": "modelos colgados sin escribir: opencode/glm-5.3-flash-free, opencode/deepseek"},
+             "openrouter": {"estado": "vivo", "sin_cupo_hasta": "2026-10-26 18:00:33",
+                            "motivo": "sonda del botón: cupo del día agotado (429)"},
+             "nim": {"estado": "vivo"}}
+
+    def _nube_gh(self):
+        _spec = importlib.util.spec_from_file_location("nube_gh_cap1026k", os.path.join(AQUI, "nube-gh.py"))
+        G = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(G)
+        return G
+
+    def test_la_salud_que_viaja_no_lleva_el_cuelgue_pero_si_el_429(self):
+        s = self._nube_gh().salud_para_la_nube(self.SALUD)
+        self.assertNotIn("sin_cupo_hasta", s["opencode"])
+        self.assertEqual(s["openrouter"]["sin_cupo_hasta"], "2026-10-26 18:00:33")
+        self.assertIn("sin_cupo_hasta", self.SALUD["opencode"])  # la de la Mac no se toca
+
+    def test_la_capacidad_de_la_nube_cuenta_zen(self):
+        self.assertEqual(BC.escritores_en_la_nube(None, self.SALUD, "2026-10-26 13:00:00"), ["nvidia", "opencode"])
+
+
 if __name__ == "__main__":
     unittest.main()

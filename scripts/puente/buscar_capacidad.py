@@ -193,6 +193,9 @@ def _marcado_sin_cupo(entrada, ahora_txt=""):
         return False
     if str(entrada.get("estado") or "") in ("caido", "caído"):
         return True
+    # (CAP1026K) Un cuelgue de modelos en la Mac no dice nada del proveedor en la nube (no viaja con la cola).
+    if "modelos colgados sin escribir" in str(entrada.get("motivo") or ""):
+        return False
     return str(entrada.get("sin_cupo_hasta") or "") > str(ahora_txt or "")
 
 
