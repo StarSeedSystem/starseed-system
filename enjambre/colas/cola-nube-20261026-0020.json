@@ -1,0 +1,37 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "OPS1024Db",
+   "ola": "1024R",
+   "titulo": "Habilidades de ingeniería (ingenieria-a.ts) visibles: cablearlas en skills.ts junto a productividad",
+   "archivos": [
+    "src/ai/astraura/skills.ts",
+    "src/ai/astraura/__tests__/skills-ingenieria.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta (grep 'ingenieria-a' en src/ fuera de __tests__: si ya lo importa alguien, NO APLICA). src/ai/astraura/habilidades/ingenieria-a.ts (tarjetas TDD, diagnóstico, diseño de módulos, dominio y revisión; commit LYS1018I) no lo importa nadie fuera de su prueba; src/ai/astraura/skills.ts solo importa las de productividad (productividad.ts). Regístralas en skills.ts EXACTAMENTE igual que se registran las de productividad (mismo formato, mismo lugar, sin duplicar ids) y añade una prueba que compruebe que las cinco aparecen en el registro con su rutaCompleta. No cambies ingenieria-a.ts. Máximo 120 líneas nuevas por archivo.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40068699209`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama (la reasignación apuntaba al run 40073425475 de nube-gh, que ya terminó, y esta rama es de otro medio)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40068699209:refs/remotes/origin/nube/40068699209\"` y `git cherry-pick --no-commit 6bd31106821b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/__tests__/skills-ingenieria.test.ts, src/ai/astraura/skills.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40068699209"
+  },
+  {
+   "id": "IMN1021K2d",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en la ramificación y el diseñador de olas",
+   "archivos": [
+    "src/components/mando/ramificacion-agentes.tsx",
+    "src/components/mando/disenador-ola.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios que digan «sueño(s) profundo(s)» o «Dream» por «imaginación profunda» o «imaginación diaria». Nada de identificadores. Las pruebas existentes deben seguir en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-052422`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-052422:refs/remotes/origin/nube/a1-20261024-052422\"` y `git cherry-pick --no-commit 4e05883e999d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/mando/disenador-ola.tsx, src/components/mando/ramificacion-agentes.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-052422"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "OPS1024Db",
+   "IMN1021K2d"
+  ]
+ }
+}
