@@ -168,6 +168,31 @@ class E_LoQueYaViajaNoSeReenvia(unittest.TestCase):
         self.assertEqual(R.en_vuelo(colas, _ts("202610261205") + R.EN_VUELO_S + 1), set())
         self.assertEqual(R.en_vuelo(colas, _ts("202610261205") + 60), {"A"})
 
+    def test_el_prestamo_al_a1_tampoco_coge_lo_que_vuela(self):
+        import json
+        import tempfile
+        import time as _time
+        from unittest import mock
+        import nodo_metagenesis_medio as M
+
+        with tempfile.TemporaryDirectory() as raiz:
+            olas = os.path.join(raiz, "starseed_memory_root", "olas")
+            colas = os.path.join(raiz, "enjambre", "colas")
+            os.makedirs(olas)
+            os.makedirs(colas)
+            tareas = [{"id": i, "titulo": i, "archivos": ["src/a.ts"], "prompt": "x", "depende": []}
+                      for i in ("RTCRM1024D", "IMG1020C")]
+            with open(os.path.join(olas, "cola-prueba-1026.json"), "w") as f:
+                json.dump(tareas, f)
+            with open(os.path.join(olas, "progreso.json"), "w") as f:
+                json.dump({"RTCRM1024D": {"estado": "pendiente"}}, f)
+            nombre = "cola-nube-%s.json" % _time.strftime("%Y%m%d-%H%M", _time.localtime(_time.time() - 600))
+            with open(os.path.join(colas, nombre), "w") as f:
+                json.dump({"tareas": [{"id": "RTCRM1024D"}]}, f)
+            with mock.patch.object(M, "_sh", return_value=(0, "")), mock.patch.object(M, "cola_viva", return_value=None):
+                ids = [t["id"] for t in M.candidatos_reparto(raiz)]
+        self.assertEqual(ids, ["IMG1020C"])
+
     def test_sin_lo_de_la_mac_aparta_lo_que_vuela(self):
         colas = [("cola-1026.json", [{"id": "A"}, {"id": "B"}, {"id": "C"}])]
         fuera = R.sin_lo_de_la_mac(colas, set(), (), {"B"})

@@ -502,9 +502,21 @@ def candidatos_reparto(raiz: str) -> List[Dict[str, Any]]:
     rc, out = _sh(["git", "log", "main", "--since=45 days ago", "--format=%s"], cwd=raiz, tope=40)
     asuntos = out.splitlines() if rc == 0 else []
     listas = V.seleccionar_pendientes(colas_de_codigo_vivas(raiz), progreso, asuntos, ahora=_dt.datetime.now())
+    # (2026-10-26, CAP1026E) Ni lo que ya viaja en una cola de la nube reciente: su progreso puede decir
+    # «pendiente» (lo pisa la foto de la Mac hasta el «soltar») y el A1 recibía RTCRM1024D a las 12:36 con
+    # la tarea en dos jobs de GitHub desde las 12:07.
+    try:
+        import repartir_nube as RN  # noqa: WPS433
+
+        ahora_ts = time.time()
+        vuelo = RN.en_vuelo(RN.leer_colas_nube(os.path.join(raiz, "enjambre", "colas"), ahora_ts), ahora_ts)
+    except Exception:  # noqa: BLE001 — sin la lista de lo que vuela se reparte como antes
+        vuelo = set()
     salida = []
     for t in listas or []:
         if not isinstance(t, dict) or not t.get("id"):
+            continue
+        if str(t["id"]) in vuelo:
             continue
         e = progreso.get(str(t["id"]))
         estado = e.get("estado") if isinstance(e, dict) else ""

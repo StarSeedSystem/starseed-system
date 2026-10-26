@@ -947,6 +947,11 @@ def _lanzar(tope=TOPE_DEFECTO, simular=False, cola_dada=None, ceder=True):
         colas_mac = RN.colas_de_la_tanda_viva(procesos, OLAS)
         tanda = {i for _n, ids_ in colas_mac for i in ids_}
         ajenas = RN.leer_prestadas()  # lo que MetaGenesis ya prestó: ni se cede ni se repite
+        # (2026-10-26, CAP1026E) …ni lo que ya viaja en una cola de la nube reciente (su progreso puede decir
+        # «pendiente» un rato: la foto de la Mac lo pisa hasta procesar el «soltar»).
+        ahora_ts = time.time()
+        ajenas = set(ajenas or ()) | RN.en_vuelo(RN.leer_colas_nube(os.path.join(RAIZ, "enjambre", "colas"), ahora_ts),
+                                                ahora_ts)
         lote = set()
         if ceder and tanda:
             try:
