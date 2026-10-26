@@ -78,6 +78,19 @@ class SshNoResponde(unittest.TestCase):
         self.assertEqual(A.decidir(colgado(60, 12, viejas), SIN_SSH, "RUNNING", T)[0], "softreset")
 
 
+class CerrojoDeGitAbandonado(unittest.TestCase):
+    """CAP1026M · un index.lock de un git muerto dejaba cada cola del A1 en «rc: checkout»."""
+
+    def test_viejo_y_sin_git_vivo_se_aparta(self):
+        self.assertTrue(A.cerrojo_abandonado({"ssh": True, "cerrojo_s": 16488, "git_vivos": 0}))
+
+    def test_reciente_o_con_git_vivo_no(self):
+        self.assertFalse(A.cerrojo_abandonado({"ssh": True, "cerrojo_s": 60, "git_vivos": 0}))
+        self.assertFalse(A.cerrojo_abandonado({"ssh": True, "cerrojo_s": 16488, "git_vivos": 1}))
+        self.assertFalse(A.cerrojo_abandonado({"ssh": True, "cerrojo_s": None, "git_vivos": 0}))
+        self.assertFalse(A.cerrojo_abandonado({"ssh": False, "detalle": "timed out"}))
+
+
 class VueltaDelReinicio(unittest.TestCase):
     def test_tras_volver_se_le_manda_trabajo_una_vez(self):
         e = {"acciones": [{"t": T - 20 * 60, "accion": "softreset"}]}

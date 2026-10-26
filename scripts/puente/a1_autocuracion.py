@@ -50,6 +50,9 @@ ESPERA_TRAS_SUAVE_S = 15 * 60
 ESPERA_TRAS_DURO_S = 20 * 60
 MAX_ACCIONES_DIA = 4
 ENTRE_SERVICIOS_S = 30 * 60
+#: (CAP1026M) El repo del A1 y lo que se considera un cerrojo de git abandonado.
+REPO_A1 = "/home/starseed/starseed-system"
+CERROJO_VIEJO_S = 30 * 60
 #: Lo que Oracle dice mientras la máquina cambia de estado: se espera, no se actúa encima.
 TRANSITORIOS = ("STARTING", "STOPPING", "PROVISIONING", "CREATING_IMAGE", "MOVING")
 
@@ -121,6 +124,16 @@ def decidir(estado, sonda, oci, ahora):
         (ahora - primero) // 60)
 
 
+def cerrojo_abandonado(sonda, minimo_s=CERROJO_VIEJO_S):
+    """PURA (CAP1026M). ¿El `.git/index.lock` del repo del A1 es un resto de un git muerto?
+
+    MEDIDO el 26-10: el reinicio del A1 dejó `.git/index.lock` de un git que murió a media pasada; cada cola que
+    llegó después acabó en «rc: checkout» en un segundo y quedó «procesada» sin hacer nada (cinco colas en dos
+    horas, el A1 en «espera»). Solo se aparta si es viejo y NO hay ningún git vivo en la máquina."""
+    edad = sonda.get("cerrojo_s")
+    return bool(sonda.get("ssh") and edad is not None and edad >= minimo_s and not sonda.get("git_vivos"))
+
+
 def anotar_sonda(estado, sonda, ahora):
     """PURA. El estado tras la sonda: cuenta los fallos seguidos o los pone a cero."""
     e = dict(estado or {})
@@ -168,16 +181,23 @@ def _guardar(datos):
 def sondear():
     import oracle_nodo as O
 
-    orden = "uptime >/dev/null && for s in %s; do echo \"$s $(systemctl is-active $s)\"; done" % " ".join(SERVICIOS)
+    orden = ("uptime >/dev/null && for s in %s; do echo \"$s $(systemctl is-active $s)\"; done; "
+             "L=%s/.git/index.lock; if sudo test -f $L; then echo \"cerrojo $(( $(date +%%s) - $(sudo stat -c %%Y $L) )) "
+             "$(pgrep -c -x git || true)\"; fi") % (" ".join(SERVICIOS), REPO_A1)
     rc, salida = O.ssh(orden, timeout=60)
     if rc != 0:
         return {"ssh": False, "detalle": salida.strip()[-160:]}
-    caidos = []
+    caidos, cerrojo_s, git_vivos = [], None, 0
     for linea in salida.splitlines():
         partes = linea.split()
         if len(partes) == 2 and partes[0] in SERVICIOS and partes[1] in ("failed", "inactive"):
             caidos.append(partes[0])
-    return {"ssh": True, "caidos": caidos}
+        if len(partes) == 3 and partes[0] == "cerrojo":
+            try:
+                cerrojo_s, git_vivos = int(partes[1]), int(partes[2])
+            except ValueError:
+                pass
+    return {"ssh": True, "caidos": caidos, "cerrojo_s": cerrojo_s, "git_vivos": git_vivos}
 
 
 def _oci(args, timeout=90):
@@ -272,6 +292,19 @@ def pasada(forzar=False, ahora=None):
         if ahora - float(estado.get("avisado_tope") or 0) >= 12 * 3600:
             estado["avisado_tope"] = ahora
             _avisar("%s: no hago más reinicios hoy. Mira la consola de Oracle (Instancias → starseed-a1)." % motivo)
+    if cerrojo_abandonado(sonda):
+        import oracle_nodo as O
+
+        rc, _ = O.ssh("L=%s/.git/index.lock; sudo mv $L $L.viejo-$(date +%%s)" % REPO_A1, timeout=60)
+        if rc == 0:
+            _avisar("el repo del A1 tenía un cerrojo de git abandonado desde hace %d min (las colas acababan en "
+                    "«checkout» sin hacer nada): apartado; la próxima cola ya corre." % (sonda["cerrojo_s"] // 60))
+            try:
+                datos = O._leer(O.ESTADO, {}) or {}
+                datos["ultimo_lanzamiento"] = None
+                O._escribir(O.ESTADO, datos)
+            except Exception:  # noqa: BLE001
+                pass
     if volvio_de_un_reinicio(estado, sonda, ahora):
         estado["acciones"][-1]["relanzado"] = ahora
         try:
