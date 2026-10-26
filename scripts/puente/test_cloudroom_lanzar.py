@@ -66,6 +66,17 @@ class Ritmo(unittest.TestCase):
         r = C.ritmo(reg, AHORA, tope_dia=6, max_vivos=10)
         self.assertEqual((r["hoy"], r["por_dia"]), (6, 6.0))
 
+    def test_ritmo_diario_y_ventana(self):
+        # (rama nube de RTCRM1024Db, corregido al contrato de hoy, CAP1025C) El de hace 25 h no
+        # cuenta para HOY pero sí ocupa el ciclo: quedan 96, faltan 29 días, → 4 al día, así que
+        # tres lanzados hoy dejan 1 (no un tope diario fijo: eso era el contrato de antes).
+        ahora = AHORA - 2 * DIA
+        reg = [fila("A", ahora - 10, final="traida"), fila("B", ahora - 20, final="traida"),
+               fila("C", ahora - 30, final="traida"), fila("D", ahora - DIA - 1, final="traida")]
+        r = C.ritmo(reg, ahora)
+        self.assertEqual((r["hoy"], r["quedan"], r["por_dia"]), (1, 96, 4.0))
+        self.assertIn("caben 1 (quedan 96 para 29 día(s): 4 al día, tope 6)", r["motivo"])
+
     def test_ciclo_agotado_dice_sin_cupo(self):
         r = C.ritmo([], AHORA, total=100, usados_cuenta=100)
         self.assertEqual(r["hoy"], 0)
@@ -170,6 +181,14 @@ class CliReal(unittest.TestCase):
         self.assertIn("push a main", b)
         self.assertEqual(C.rama_pedida("CRM1024Z", "20261024"), "nube/cr-20261024/ola/CRM1024Z")
 
+    def test_brief_declara_los_archivos_y_prohibe_main(self):
+        # (rama nube de RTCRM1024Db) El hilo ha de saber qué archivos puede tocar y que main es
+        # intocable; `archivos` puede venir como string (el brief no pinta "['a.py']").
+        b = C.brief({"id": "A", "titulo": "módulo", "archivos": "a.py", "prompt": "haz"}, "20261024")
+        self.assertIn("Título: módulo", b)
+        self.assertIn("Solo los archivos declarados (a.py)", b)
+        self.assertIn("Prohibido: push a main", b)
+
     def test_lee_las_salidas_simuladas_de_room_cli(self):
         self.assertEqual(C.id_hilo({"thread": {"id": "h1"}}), "h1")
         self.assertEqual(C.id_hilo({"data": {"threadId": "h2"}}), "h2")
@@ -189,6 +208,14 @@ class CliReal(unittest.TestCase):
         self.assertEqual(C.extraer_parche(json.dumps([{"patch": diff}, {"patch": diff}])), diff + diff)
         self.assertEqual(C.extraer_parche(""), "")
         self.assertEqual(C.extraer_parche("No changes"), "")
+
+    def test_parche_a_trozos_termina_cada_parte(self):
+        # (rama nube de RTCRM1024Db) Trozos de parche sin salto al final: cada parte sale terminada
+        # en "\n" (a `git apply --cached` sobre un parte en trozos le hace falta el salto de cada
+        # uno); las partes vacías no pintan nada.
+        self.assertEqual(C.extraer_parche(json.dumps([{"patch": "a"}, {"patch": "b"}])), "a\nb\n")
+        self.assertEqual(C.extraer_parche(json.dumps({"patch": "a"})), "a\n")
+        self.assertEqual(C.extraer_parche(json.dumps([{"patch": "a\n"}, {"patch": ""}])), "a\n")
 
     def test_ramas_de_ls_remote(self):
         salida = "abc\trefs/heads/nube/cr-20261024/ola/A\ndef\trefs/heads/nube/cr-20261025/ola/B\nbasura"
@@ -659,10 +686,6 @@ class Maquina(unittest.TestCase):
         self.assertEqual(self.ordenes, [])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ProyectoDelRepo(unittest.TestCase):
     def test_elige_el_proyecto_cuya_fuente_es_el_repo(self):
         lista = [{"id": "proj_a", "sources": [{"path": "/x/otro"}]},
@@ -686,3 +709,7 @@ class RazonamientoPi(unittest.TestCase):
             self.assertNotIn("--reasoning-level", C.orden_spawn("r", {"id": "X"}, "b", "codex", "gpt-6-luna", "p"))
         finally:
             CM.pi_declarados = original
+
+
+if __name__ == "__main__":
+    unittest.main()
