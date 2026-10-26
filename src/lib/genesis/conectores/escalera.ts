@@ -249,4 +249,4 @@ export function elegirCandidatos(params: {
   return candidatos;
 }
 
-export type { Tarea, OfertaContexto, Preferencias, Candidato };
+export type { Tarea, OfertaContexto, Preferencias, Candidato, OpcionCatalogo };
