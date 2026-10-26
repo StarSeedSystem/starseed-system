@@ -63,6 +63,28 @@ describe("habilidadesPara · por papel", () => {
     );
     expect(out).toEqual(["av-gen"]);
   });
+
+  it("el conjunto exacto por papel sale con el orden del manifiesto (rescate RTTIP1013B)", () => {
+    // El escritor sirve con modelo fuerte, web y planificación; no lo de solo visión.
+    // El revisor exige calidad fuerte y web; la de visión se queda fuera.
+    const caps: SkillCapability[] = [
+      cap("base", "Conocimiento base"),
+      cap("fuerte", "Modelo fuerte", { preferStrong: true }),
+      cap("red", "Acceso web", { web: true }),
+      cap("ojos", "Ver imágenes", { vision: true }),
+      cap("plan", "Planificación", { planning: true }),
+    ];
+    const opciones = { capacidades: caps, desactivadas: [] };
+    expect(ids(habilidadesPara("escritor", "cuenta", opciones))).toEqual([
+      "base",
+      "fuerte",
+      "red",
+      "plan",
+    ]);
+    expect(ids(habilidadesPara("revisor", "cuenta", opciones))).toEqual(["base", "fuerte", "red"]);
+    // El de visión lleva además las de modelo fuerte generalista (BANDERAS_POR_PAPEL de hoy).
+    expect(ids(habilidadesPara("visión", "cuenta", opciones))).toEqual(["base", "fuerte", "ojos"]);
+  });
 });
 
 describe("habilidadesPara · por director (etiquetas)", () => {
