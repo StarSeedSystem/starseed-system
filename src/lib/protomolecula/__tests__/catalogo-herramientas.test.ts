@@ -390,3 +390,48 @@ describe("diagram-design tool", () => {
     expect(diagramDesign?.avisos).toEqual(expect.arrayContaining(["sin telemetría", "fuentes del OS", "animaciones solo en iframe aislado"]));
   });
 });
+
+describe("repos-libreria-1020 · fichas de la Protomolécula", () => {
+  const ESPERADAS = [
+    { id: "solidcraft", categoria: "arquitectura-cad", tipo: "app", licencia: "Apache-2.0", web: "https://solidcraft.io", fuente: "github-releases", ref: "tangency-labs/solidcraft", version: "v0.16.2", fecha: "2026-10-19" },
+    { id: "detectron2", categoria: "ia-generativa", tipo: "libreria", licencia: "Apache-2.0", web: "https://detectron2.readthedocs.io/en/latest/", fuente: "github-tags", ref: "facebookresearch/detectron2", version: "v0.6", fecha: "2021-11-15" },
+    { id: "mesh2motion", categoria: "modelado-3d", tipo: "app", licencia: "MIT", web: null, fuente: "github-tags", ref: "Mesh2Motion/mesh2motion-app", version: null, fecha: null },
+  ] as const;
+
+  it("las tres fichas existen una sola vez, con repo de GitHub y fuente de versión real", () => {
+    const cuenta = new Map<string, number>();
+    for (const h of todas) cuenta.set(h.id, (cuenta.get(h.id) ?? 0) + 1);
+    for (const e of ESPERADAS) {
+      expect(cuenta.get(e.id), e.id).toBe(1);
+      const h = herramientaPorId(e.id) as HerramientaProto;
+      expect(h.codigo, e.id).toMatch(/^https:\/\/github\.com\//);
+      expect(h.actualizacion, e.id).toMatchObject({ fuente: e.fuente, ref: e.ref, ultimaVersion: e.version, fechaVersion: e.fecha });
+    }
+    expect(ids).not.toContain("reverse-skill");
+  });
+
+  it("solidcraft es CAD paramétrico, con MCP, y avisa de fijar la versión por SHA", () => {
+    const h = herramientaPorId("solidcraft") as HerramientaProto;
+    expect(h).toMatchObject({ categoria: "arquitectura-cad", tipo: "app", licencia: "Apache-2.0", web: "https://solidcraft.io", estado: "integrable" });
+    expect(h.control.via).toContain("mcp");
+    expect(h.avisos?.join(" ")).toMatch(/SHA/);
+    expect(h.medios).toMatchObject({ macos: true, windows: true, linux: true, servidor: true });
+  });
+
+  it("detectron2 separa el código Apache de los pesos y no se integra sin elegir pesos libres", () => {
+    const h = herramientaPorId("detectron2") as HerramientaProto;
+    expect(h).toMatchObject({ categoria: "ia-generativa", tipo: "libreria", licencia: "Apache-2.0", licenciaPesos: "NOASSERTION", estado: "proximamente" });
+    expect(h.web).toBe("https://detectron2.readthedocs.io/en/latest/");
+    expect(h.avisos?.join(" ")).toMatch(/pesos.*licencias propias/i);
+    expect(h.motivo).toMatch(/pesos libres/i);
+  });
+
+  it("mesh2motion es una app 3D, MIT y con assets CC0, pero aún sin releases", () => {
+    const h = herramientaPorId("mesh2motion") as HerramientaProto;
+    expect(h).toMatchObject({ categoria: "modelado-3d", tipo: "app", licencia: "MIT", web: null, estado: "proximamente" });
+    expect(h.actualizacion.ultimaVersion).toBeNull();
+    expect(h.actualizacion.fechaVersion).toBeNull();
+    expect(h.avisos?.join(" ")).toMatch(/CC0/);
+    expect(h.avisos?.join(" ")).toMatch(/releases/i);
+  });
+});
