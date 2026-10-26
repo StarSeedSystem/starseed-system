@@ -1,0 +1,110 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "GUI1021K1b",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · «Conoce StarSeed (sin cuenta)» en la pantalla de acceso",
+   "archivos": [
+    "src/components/auth/auth-gate.tsx",
+    "src/components/auth/__tests__/auth-gate-guia.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. En `auth-gate.tsx`, bajo los dos modos (Entrar y Crear cuenta), un botón secundario «Conoce StarSeed (sin cuenta)» que llama a `abrirGuia({desde: 'login'})`. No cambia nada del inicio de sesión. Pruebas: el botón está en ambos modos y lanza el evento con `desde: 'login'`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40098899044`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama (la reasignación apuntaba al run 40103101721 de nube-gh, que ya terminó, y esta rama es de otro medio)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40098899044:refs/remotes/origin/nube/40098899044\"` y `git cherry-pick --no-commit 4a8f92691ae5`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/auth/__tests__/auth-gate-guia.test.tsx, src/components/auth/auth-gate.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40098899044"
+  },
+  {
+   "id": "APM1017Bc",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · la bolsa: emparejar peticiones y ofertas con reglas deterministas y su motivo",
+   "archivos": [
+    "src/lib/recursos/bolsa.ts",
+    "src/lib/recursos/__tests__/bolsa.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`planificar(peticion, ofertas, reglas)` PURA del §4: `Peticion` = { id, contexto: { tipo: 'cuenta'|'grupo'|'comunidad'|'publicacion'|'estacion', id, privado: boolean }, partes: { clase: 'computo'|'bytes'|'ventana'|'relevo', necesita: { ramMb?, gpu?, motor?, appId?, volumen?, kbps? }, latenciaMaxMs? }[] }. Devuelve por parte { destino: nodoId | 'local' | 'nube', fuentes?: nodoId[] (varias si se ramifica), enlace?, respaldo?, motivo } y un `suelo` si nada sirve (abrir en local o web y qué falta, nunca vacío). Orden de reglas: permisos y privacidad (privado solo misma cuenta o servidores del cerebro; nunca nube compartida ni vecinos públicos) → latencia → energía → capacidad prestable (usa `capacidadPrestable` de oferta.ts) → gratis y propio primero → reparto en varias fuentes → suelo. Empates por nodoId (determinista). Pruebas por regla y un caso de móvil sin recursos que abre una app pesada. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39493385279`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39493385279:refs/remotes/origin/nube/39493385279\"` y `git cherry-pick --no-commit 33aa69ca1e8f 9e881d575e76`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/mando/__tests__/bloqueadas.test.ts, src/lib/mando/medidores.ts, src/lib/recursos/__tests__/bolsa.test.ts, src/lib/recursos/bolsa.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39493385279",
+   "dependencias_ya_en_main": [
+    "APM1017A"
+   ]
+  },
+  {
+   "id": "APM1017Bb",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · la bolsa: emparejar peticiones y ofertas con reglas deterministas y su motivo",
+   "archivos": [
+    "src/lib/recursos/bolsa.ts",
+    "src/lib/recursos/__tests__/bolsa.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`planificar(peticion, ofertas, reglas)` PURA del §4: `Peticion` = { id, contexto: { tipo: 'cuenta'|'grupo'|'comunidad'|'publicacion'|'estacion', id, privado: boolean }, partes: { clase: 'computo'|'bytes'|'ventana'|'relevo', necesita: { ramMb?, gpu?, motor?, appId?, volumen?, kbps? }, latenciaMaxMs? }[] }. Devuelve por parte { destino: nodoId | 'local' | 'nube', fuentes?: nodoId[] (varias si se ramifica), enlace?, respaldo?, motivo } y un `suelo` si nada sirve (abrir en local o web y qué falta, nunca vacío). Orden de reglas: permisos y privacidad (privado solo misma cuenta o servidores del cerebro; nunca nube compartida ni vecinos públicos) → latencia → energía → capacidad prestable (usa `capacidadPrestable` de oferta.ts) → gratis y propio primero → reparto en varias fuentes → suelo. Empates por nodoId (determinista). Pruebas por regla y un caso de móvil sin recursos que abre una app pesada. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261020-123859-APM1017B`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261020-123859-APM1017B:refs/remotes/origin/nube/a1-20261020-123859-APM1017B\"` y `git cherry-pick --no-commit 828c53a7e1f8 f635ad429314 1bb7862abf51`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/recursos/__tests__/bolsa.test.ts, src/lib/recursos/bolsa.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261020-123859-APM1017B",
+   "dependencias_ya_en_main": [
+    "APM1017A"
+   ]
+  },
+  {
+   "id": "GCA1019G",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Puente con el enrutador de Astraura (sin tocar su lógica)",
+   "archivos": [
+    "src/lib/genesis/conectores/aplicar-escalera.ts",
+    "src/lib/genesis/conectores/__tests__/aplicar-escalera.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Adaptador PURO: convierte la salida de `elegirCandidatos` en el orden de preferencia que entiende `rankCandidates` de `src/ai/astraura/router.ts` (importa sus tipos `RouteCandidate`, `RankCandidatesOptions`) y en la cadena por papel del enjambre (`PapelRuta` de `src/lib/mando/enrutamiento.ts`). No modifiques esos archivos. Prueba: la candidata local del peldaño 1 queda primera; una candidata prohibida no aparece. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019F"
+   ],
+   "dependencias_ya_en_main": [
+    "GCA1019E"
+   ]
+  },
+  {
+   "id": "RLB1020K",
+   "titulo": "Biblioteca · el cargador lee también la 3.ª tanda, quita excluidas y no duplica repos que ya están",
+   "archivos": [
+    "src/lib/library/repos-externos-1020.ts",
+    "src/lib/library/__tests__/repos-externos-1020c.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020c.md y el catálogo verificado config/repos-libreria-1020c.json (14 `paquetes`, `duplicadas` y `excluidas`; datos reales, NO los cambies). `src/lib/library/repos-externos-1020.ts` ya lee las tandas 1020 y 1020b (RLB1020A y RLB1020D): súmale config/repos-libreria-1020c.json con el mismo mapeo. Añade a `REPOS_EXCLUIDOS` los `excluidas` de la 3.ª tanda (Kritt-ai/open-kritt). No dupliques: si un paquete builtin de `src/lib/library/packages.ts` ya apunta al mismo repo de GitHub por `payload.externalUrl` (p. ej. `iatool-penpot` → penpot/penpot), no se crea otro paquete con ese repo: exporta `REPOS_YA_PRESENTES: {repo, id}[]` para que se vea. Pruebas: ids únicos en las tres tandas; ningún repo excluido; penpot/penpot no aparece dos veces; las 13 restantes de la 3.ª tanda están. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical.",
+   "ola": "Ola 1020T · 3.ª tanda de repos para agentes, Astraura, Protomolécula, educación, mensajes, backend y servidores",
+   "dependencias_ya_en_main": [
+    "RLB1020D"
+   ]
+  },
+  {
+   "id": "XR1010AJ",
+   "ola": "Ola 1010X · StarSeed XR: el OS en visores de AR/VR (entrada automática, Trinity espacial, menús 3D, voz de Astraura, mundos, P2P, calidad automática)",
+   "titulo": "Pruebas con IWER: entrada a VR/AR emulada sin visor, y script de humo con navegador real",
+   "archivos": [
+    "src/components/xr/shell/__tests__/iwer-entrada.test.ts",
+    "scripts/xr/humo-iwer.mjs"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/starseed-xr.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §3 (a)–(o) son las reglas del área y §1 la investigación fechada (qué existe y qué NO en cada visor). El núcleo puro YA está escrito y probado (214 pruebas) y NO se modifica: `src/lib/xr/{tipos,capacidades,calidad,calidad-perfiles,espacio-trinity,tokens-3d,transiciones,mundo-tipos,mundo-reglas,mundo-saneo,mundo-spec,intenciones-tipos,intenciones-ref,intenciones-destinos,intenciones-clausulas,intenciones-voz,confort,privacidad,vinculos-xr}.ts` (ábrelos y usa sus nombres reales; la tabla del inicio de §3 dice qué da cada uno). Petición de Alex (2026-10-10): StarSeed OS instalable y usable en gafas de AR/VR de todo tipo (Meta Quest, SteamVR, Android XR, Vision Pro, Pico…) o en cualquier navegador con WebXR; se abre solo en su formato (VR o AR); todo el sistema en 3D con el mismo diseño, funciones y estilo; menús 3D completos con animaciones y transiciones autoadaptables; calidad fijada sola por aparato; Astraura y la Protomolécula incluidas, con voz («crea un mundo virtual… e invita a este grupo de amigos», «súbelo a la Biblioteca / a una estación / a una publicación / a un mensaje»); servidores y estaciones públicos o privados como destinos; herramientas configurables para construir entornos, también en pizarras y llamadas.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/starseed-xr.md` y los módulos de `src/lib/xr/` de arriba. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo XR en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Pruebas sin red, sin hardware y sin WebGL: lo del navegador se inyecta; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom; el lienzo 3D (three/R3F/uikit) se simula con `vi.mock` como hace `src/components/vivo/espacial/__tests__/escena-compartida.test.tsx`; los componentes de R3F son cascarones finos y su LÓGICA vive en funciones puras que sí se prueban. Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Dependencias: NO ejecutes `npm install` salvo que tu tarea sea XR1010A; las 7 dependencias XR (§3 n) las añade esa tarea con el visto bueno de Alex; si tu tarea las necesita y `node_modules` no las trae, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: XR1010A (dependencias XR)». El layout raíz no carga motores pesados: three/uikit/rapier/vrm/spark solo dentro de `src/components/xr/shell/**` y de la ruta `/xr/os` (carga perezosa con `next/dynamic` sin SSR o `import()` dentro de una función). Privacidad (§3 k): nunca pidas la función `camera-access`; la cámara del passthrough y el mapa de la habitación no salen del aparato. Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Migra lo persistido si cambias un valor por defecto. Honestidad: no digas que algo «se ve bien» o «funciona en el visor»: di que pasan tsc y vitest; solo Alex lo comprueba con un visor, en `/xr/diagnostico` (tarea XR1010AI). Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (XR1010AJ): Contrato §3 (l). IWER (`iwer` 2.5.0, MIT, de Meta) emula la API WebXR. Su README remite a la documentación (https://meta-quest.github.io/immersive-web-emulation-runtime): léela; exporta `XRDevice`, `metaQuest2`, `metaQuest3`, `metaQuestPro`, `metaVRGlasses`, `oculusQuest1`. `iwer-entrada.test.ts` (vitest, entorno jsdom: ponle `// @vitest-environment jsdom` si es `.ts`): instala un `XRDevice(metaQuest3)` con su runtime en `window` y comprueba, SIN WebGL: (1) `sondearNavegador` (XR1010B) ve `navigator.xr`, `vr: true` y `ar: true`; (2) `evaluarCapacidades` da plataforma `desconocida`/`escritorio` por el UA de jsdom y, con el UA de Quest inyectado, `quest` y modo recomendado `vr-inmersivo`; (3) `navigator.xr.requestSession('immersive-vr', {optionalFeatures: ['local-floor','hand-tracking']})` devuelve una sesión con `enabledFeatures` que incluye `local-floor`; (4) `funcionesAPedir` (XR1010D) no contiene `camera-access` y la sesión concedida no la tiene; (5) un `requestSession` sin gesto en el mundo real fallaría, pero IWER lo permite: déjalo anotado como límite de la emulación; (6) `refinarFunciones` sustituye lo esperado por lo concedido. Si IWER exige una API que jsdom no tiene, simula esa pieza mínima en el propio test, no en el código de producción. `scripts/xr/humo-iwer.mjs` (Node ESM, ≤ 120 líneas): con `playwright` (ya está en devDependencies) abre `http://localhost:9002/xr/os?modo=vr` (o `STARSEED_XR_URL`), inyecta IWER ANTES de la página (`addInitScript` con el bundle de `iwer`, leído de `node_modules/iwer`), usa el Chrome ya instalado de la Mac (`channel: 'chrome'`; no descarga otro navegador: el disco manda), comprueba que la página pinta el botón «Entrar en VR», lo pulsa y que `navigator.xr` recibió `requestSession`; imprime un informe de una línea por comprobación y sale con código 1 si algo falla; si no hay Chrome, sale con código 0 y el mensaje «sin navegador: omitido». NO se ejecuta en `vitest`. Honestidad: IWER no sustituye al visor real (los gestos, el rendimiento y lo que se ve solo se comprueban con él, en `/xr/diagnostico`). Integración: di en tu última línea cómo se corre cada uno.",
+   "dependencias_ya_en_main": [
+    "XR1010A",
+    "XR1010D",
+    "XR1010E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "APM1017Bc",
+   "GUI1021K1b",
+   "RLB1020K",
+   "APM1017Bb",
+   "GCA1019G",
+   "XR1010AJ"
+  ]
+ }
+}
