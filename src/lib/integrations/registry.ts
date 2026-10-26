@@ -192,7 +192,8 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
       "Experimental y ejecuta código: manténlo SIEMPRE aislado, nunca público ni on-by-default. Para pruebas gratis usa una VM Always Free de Oracle Cloud como sandbox dedicado (Docker).",
     docsUrl: "https://docs.all-hands.dev/",
     actions: [
-      { id: "run-task", label: "Lanzar tarea", description: "Envía una tarea de programación al servidor de OpenHands (experimental; configura extra.path)." },
+      { id: "run-task", label: "Lanzar tarea", description: "Crea una conversación con la tarea y la ejecuta en el Agent Server (configura extra.modelo y extra.directorioTrabajo); el agente pide confirmación antes de cada acción." },
+      { id: "politica-confirmacion", label: "Política de confirmación", description: "Cambia la política de confirmación de una conversación existente: AlwaysConfirm (por defecto), ConfirmRisky o NeverConfirm." },
     ],
   },
   {

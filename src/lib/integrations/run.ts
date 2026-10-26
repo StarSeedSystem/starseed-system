@@ -42,6 +42,9 @@ import * as Langflow from "./clients/langflow";
 import * as Flowise from "./clients/flowise";
 import * as Stirling from "./clients/stirling-pdf";
 import * as GenericTask from "./clients/generic-task";
+// Cliente verificado del Agent Server de OpenHands 1.7.1 (OHS1020A): solo rutas
+// del OpenAPI real (docs/referencias/openhands-agent-server-1.7.1-openapi.json).
+import * as OpenHands from "../agentes/openhands-servidor";
 import * as Audiobookshelf from "./clients/audiobookshelf";
 import * as HomeAssistant from "./clients/home-assistant";
 import * as Immich from "./clients/immich";
@@ -107,6 +110,36 @@ function gate(cfg: IntegrationConfig, fallbackEndpoint?: string): { ok: true; cf
 
 /** `fetch` real inyectado en el cliente puro de Trilium (sin `node:*`). */
 const pedirTrilium: Pedir = (url, init) => fetch(url, init);
+
+/** Opciones del cliente OpenHands a partir de la config del conector. */
+function opcionesOpenHands(c: IntegrationConfig): OpenHands.OpcionesOpenHands {
+  const pedir: OpenHands.FetchLike = (url, init) => fetch(url, init);
+  return { baseUrl: c.endpoint ?? "", fetch: pedir, tiempoMs: 18_000 };
+}
+
+/** Nunca lanza: convierte un ErrorOpenHands en resultado honesto sin filtrar la clave. */
+async function desdeOpenHands(accion: () => Promise<unknown>): Promise<IntegrationResult> {
+  try {
+    return { ok: true, data: await accion() };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof OpenHands.ErrorOpenHands
+        ? error.message
+        : "No se pudo contactar con el Agent Server de OpenHands.",
+    };
+  }
+}
+
+/** Extrae la tarea en lenguaje natural (texto plano o campo del objeto). */
+function tareaDe(input: unknown): string {
+  if (typeof input === "string") return input;
+  if (input && typeof input === "object") {
+    const e = input as Record<string, unknown>;
+    return String(e.task ?? e.instruction ?? "");
+  }
+  return "";
+}
 
 /** Adapta la llamada al cliente Trilium al contrato del runner, sin filtrar el token. */
 async function desdeTrilium<T>(accion: () => Promise<T>): Promise<IntegrationResult<T>> {
@@ -178,9 +211,42 @@ export async function runIntegration(
         if (a === "chat") return await OpenAICompat.chat(id, c, input);
         if (a === "models") return await OpenAICompat.models(id, c);
         break;
-      case "openhands":
-        if (a === "run-task") return await GenericTask.runTask(id, c, input);
+      case "openhands": {
+        if (a === "run-task") {
+          const tarea = tareaDe(input);
+          if (!tarea.trim()) return { ok: false, error: "Indica una tarea/instrucción a ejecutar." };
+          const entrada = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+          const modelo = c.extra?.modelo ?? (typeof entrada.modelo === "string" ? entrada.modelo : "");
+          if (!modelo.trim()) return { ok: false, error: "Configura el modelo del agente en extra.modelo." };
+          const directorio = c.extra?.directorioTrabajo ?? (typeof entrada.directorioTrabajo === "string" ? entrada.directorioTrabajo : "");
+          if (!directorio.trim()) return { ok: false, error: "Configura el directorio de trabajo del agente en extra.directorioTrabajo." };
+          // Por defecto el agente pide permiso antes de cada acción (AlwaysConfirm);
+          // solo con aprobación explícita se relaja a ConfirmRisky o NeverConfirm.
+          const politica: OpenHands.PoliticaConfirmacion =
+            entrada.politica === "ConfirmRisky" || entrada.politica === "NeverConfirm" ? entrada.politica : "AlwaysConfirm";
+          return await desdeOpenHands(async () => {
+            const conversacion = await OpenHands.crearConversacion({
+              ...opcionesOpenHands(c),
+              modelo,
+              apiKey: c.apiKey,
+              directorioTrabajo: directorio,
+              mensajeInicial: tarea,
+              politica,
+            });
+            await OpenHands.ejecutar(conversacion.id, opcionesOpenHands(c));
+            return conversacion;
+          });
+        }
+        if (a === "politica-confirmacion") {
+          const entrada = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+          const id = typeof entrada.id === "string" ? entrada.id : "";
+          if (!id.trim()) return { ok: false, error: "Falta el id de la conversación." };
+          const politica: OpenHands.PoliticaConfirmacion =
+            entrada.politica === "ConfirmRisky" || entrada.politica === "NeverConfirm" ? entrada.politica : "AlwaysConfirm";
+          return await desdeOpenHands(() => OpenHands.politicaConfirmacion(id, politica, opcionesOpenHands(c)));
+        }
         break;
+      }
       case "browser-use":
         if (a === "browser-task") return await GenericTask.runTask(id, c, input);
         break;
@@ -398,6 +464,7 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
       case "localai":
         return await OpenAICompat.health(id, c);
       case "openhands":
+        return await desdeOpenHands(() => OpenHands.salud(opcionesOpenHands(c)));
       case "browser-use":
         return await GenericTask.health(id, c);
       case "audiobookshelf":
