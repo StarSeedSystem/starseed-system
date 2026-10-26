@@ -99,9 +99,73 @@ class Cliente(unittest.TestCase):
         c = M.cliente_openai_compatible("texto", leer_env=lambda: texto, sonda=self.sonda)
         self.assertEqual(c.origen, "experiential")
 
+    def test_el_entorno_manda_sobre_el_archivo_de_claves(self):
+        def leer_archivo():
+            return 'export STARSEED_PASARELA_EXPLABS_KEY="vieja"\nSTARSEED_PASARELA_EXPLABS_MODELOS=m-viejo\n'
+
+        c = M.cliente_openai_compatible(
+            "texto",
+            entorno={
+                "STARSEED_PASARELA_EXPLABS_KEY": "nueva",
+                "STARSEED_PASARELA_EXPLABS_MODELOS": "m-nuevo",
+            },
+            leer_env=leer_archivo,
+            sonda=self.sonda,
+        )
+        self.assertEqual(c.origen, "experiential")
+        self.assertEqual(c.clave, "nueva")
+        self.assertEqual(c.modelo, "m-nuevo")
+        self.assertEqual(c.cabeceras(), {"Authorization": "Bearer nueva"})
+
+    def test_la_url_inyectada_de_pasarela_queda_sin_barra_final(self):
+        c = M.cliente_openai_compatible(
+            "texto",
+            entorno={
+                "STARSEED_PASARELA_EXPLABS_URL": "https://pasarela.local/v1/",
+                "STARSEED_PASARELA_EXPLABS_KEY": "xpl_secreta",
+                "STARSEED_PASARELA_EXPLABS_MODELOS": "clef-flash",
+            },
+            sonda=self.sonda,
+        )
+        self.assertEqual(c.origen, "experiential")
+        self.assertEqual(c.base_url, "https://pasarela.local/v1")
+        self.assertNotIn("xpl_secreta", repr(c))
+
     def test_la_clave_nunca_sale_en_el_repr(self):
         c = M.ClienteOpenAI("http://x/v1", "m", "clave-secreta")
         self.assertNotIn("clave-secreta", repr(c))
+
+
+class Relevo(unittest.TestCase):
+    """El orden de la casa completo (propio → Experiential → OpenRouter) con la API de hoy."""
+
+    @staticmethod
+    def _sonda_vacia(base, clave=""):
+        return None
+
+    def test_con_todas_las_fuentes_vivas_gana_la_primera_del_orden(self):
+        def solo_propio(base, clave=""):
+            return ["ollama/qwen2.5-coder:7b"] if base == M.SERVIDOR_IA else None
+
+        entorno = {
+            "STARSEED_PASARELA_EXPLABS_KEY": "k1",
+            "STARSEED_PASARELA_EXPLABS_MODELOS": "clef-flash",
+            "OPENROUTER_API_KEY": "k2",
+        }
+        c = M.cliente_openai_compatible("texto", entorno=entorno, sonda=solo_propio)
+        self.assertEqual(c.origen, "servidor-propio")
+
+        c2 = M.cliente_openai_compatible("texto", entorno=entorno, sonda=self._sonda_vacia)
+        self.assertEqual(c2.origen, "experiential")
+        self.assertEqual(c2.modelo, "clef-flash")
+
+        def solo_openrouter(base, clave=""):
+            return ["z/prueba:free"] if base == M.OPENROUTER else None
+
+        c3 = M.cliente_openai_compatible(
+            "texto", entorno={"OPENROUTER_API_KEY": "k2"}, sonda=solo_openrouter)
+        self.assertEqual(c3.origen, "openrouter:free")
+        self.assertEqual(c3.modelo, "z/prueba:free")
 
 
 if __name__ == "__main__":
