@@ -21,7 +21,7 @@ import { SeccionGobiernoProto } from "../seccion-gobierno-proto";
 import { olvidarTodo } from "@/lib/protomolecula/gobierno/almacen";
 import { olvidarUsos } from "@/lib/protomolecula/gobierno/registro";
 import { reglasPorDefecto } from "@/lib/protomolecula/gobierno/reglas";
-import { NOMBRES_PROHIBIDOS, cargado, servicios } from "../ayudas-prueba";
+import { NOMBRES_PROHIBIDOS, cargado, servicios } from "../__fixtures__/ayudas-prueba";
 
 beforeEach(() => {
   olvidarTodo();
