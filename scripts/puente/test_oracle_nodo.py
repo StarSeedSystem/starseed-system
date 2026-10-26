@@ -277,6 +277,15 @@ class ModulosDelNodo(unittest.TestCase):
     no viajaba en el paquete. Todo import de nivel superior de los nodo_metagenesis* que no sea de
     la biblioteca estándar tiene que viajar con ellos."""
 
+    def test_el_vigia_de_la_nube_viaja_porque_traer_nube_lo_importa(self):
+        # (2026-10-24) `traer_nube` pasó a importar `vigia_runs_nube` al arrancar para leer las
+        # reasignaciones igual que el vigía. Faltaba en el paquete y reinstalar el nodo del A1
+        # moría en el primer `import`: se fija aquí con su nombre para que el fallo lo diga.
+        dir_ = os.path.dirname(os.path.abspath(__file__))
+        self.assertIn("vigia_runs_nube.py", N.MODULOS_DEL_NODO)
+        with open(os.path.join(dir_, "traer_nube.py"), encoding="utf-8") as f:
+            self.assertIn("import vigia_runs_nube", f.read())
+
     def test_lo_que_el_nodo_importa_al_arrancar_viaja_con_el(self):
         import re
         dir_ = os.path.dirname(os.path.abspath(__file__))
