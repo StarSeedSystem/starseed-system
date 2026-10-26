@@ -141,6 +141,20 @@ let fallosSeguidos = 0;
 const claveGesto = (g: Gesto, nivel: NivelMovimiento): string =>
     JSON.stringify([nivel, g.prompt, g.emocion ?? null, g.energia ?? null, g.duracionMs ?? null, g.bucle ?? null]);
 
+/** Duración por defecto del clip cuando el gesto no trae una (ms). */
+const DURACION_DEFECTO_MS = 2400;
+
+/**
+ * Segundos que se le piden a Kimodo para un gesto: los de `duracionMs`
+ * (2,4 s si no viene), acotados al contrato de la ruta [0,5, 10] y
+ * redondeados a 2 decimales. Función pura, para pruebas.
+ */
+export function segundosDelGesto(duracionMs?: number): number {
+    const bruto = (duracionMs ?? DURACION_DEFECTO_MS) / 1000;
+    const acotado = Math.min(10, Math.max(0.5, bruto));
+    return Math.round(acotado * 100) / 100;
+}
+
 /** Hasta cuándo está en pausa la vía Kimodo (ms desde 1970; 0 = abierta). Para paneles y pruebas. */
 export function kimodoEnPausaHasta(): number {
     return kimodoPausadoHasta > Date.now() ? kimodoPausadoHasta : 0;
@@ -196,12 +210,12 @@ async function pedirAKimodo(g: Gesto, nivel: NivelMovimiento): Promise<Movimient
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                prompt: g.prompt,
-                emocion: g.emocion,
-                energia: g.energia,
-                duracionMs: g.duracionMs,
-                bucle: g.bucle,
-                nivel,
+                // Contrato de la ruta (Ola M2): prompt saneado, esqueleto
+                // admitido, segundos acotados y semilla del hash del prompt.
+                prompt: g.prompt.trim().slice(0, 300),
+                esqueleto: "smplx22",
+                segundos: segundosDelGesto(g.duracionMs),
+                semilla: semillaDelPrompt(g.prompt),
             }),
             cache: "no-store",
         });
@@ -222,6 +236,18 @@ async function pedirAKimodo(g: Gesto, nivel: NivelMovimiento): Promise<Movimient
 }
 
 /**
+ * Semilla determinista a partir de la frase: el mismo gesto siempre produce
+ * el mismo número (entero sin signo). La usan el clip procedural y el cuerpo
+ * que se manda a `/api/movimiento/generar`, para que Kimodo y «ligero»
+ * coincidan en el carácter del gesto. Función pura, para pruebas.
+ */
+export function semillaDelPrompt(prompt: string): number {
+    let semilla = 0;
+    for (let i = 0; i < prompt.length; i++) semilla = (semilla * 31 + prompt.charCodeAt(i)) >>> 0;
+    return semilla;
+}
+
+/**
  * Genera un clip procedural (nivel «ligero»): respiración, balanceo suave y
  * énfasis sobre un esqueleto SMPL-X de 22 articulaciones, con seno y ruido
  * filtrado. Funciona también sin ventana (SSR/pruebas).
@@ -236,9 +262,8 @@ export function generarClipProcedural(g: Gesto): MovimientoClip {
 
     const rotaciones: number[][] = [];
     const raiz: number[][] = [];
-    // Semilla determinista a partir de la frase: el mismo gesto suena igual.
-    let semilla = 0;
-    for (let i = 0; i < g.prompt.length; i++) semilla = (semilla * 31 + g.prompt.charCodeAt(i)) >>> 0;
+    // Semilla determinista a partir de la frase (misma función que usa Kimodo).
+    const semilla = semillaDelPrompt(g.prompt);
 
     for (let f = 0; f < fotogramas; f++) {
         const t = f / fps;
