@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "ola": "1020U",
+   "id": "TRD1020A-d1b",
+   "titulo": "Traducción · cliente puro de LibreTranslate (traducir por lotes, idiomas, detectar, salud) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/traduccion/libretranslate.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Cliente puro con `fetch` inyectado: `traducir({q: texto o lista, source: \"auto\" o código, target, format: \"text\"|\"html\"})` → `POST {base}/translate` en JSON (con `api_key` solo si quien llama la pasa; nunca se guarda) → `translatedText` (texto o lista) y `detectedLanguage` cuando el origen es auto; `idiomas()` → `GET {base}/languages`; `detectar(q)` → `POST {base}/detect`; `salud()` → `GET {base}/health`. Parte en lotes por un límite de caracteres configurable y respeta el orden. Errores 400/403/429/500 en español claro. Pruebas con fetch simulado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## PARTE 1 DE 2 (la dirección dividió TRD1020A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/traduccion/libretranslate.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40215021062`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40215021062:refs/remotes/origin/nube/40215021062\"` y `git cherry-pick --no-commit 431c5bfaaa61`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/traduccion/libretranslate.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "TRD1020A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40215021062"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "TRD1020A-d1b"
+  ]
+ }
+}
