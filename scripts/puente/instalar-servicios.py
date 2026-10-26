@@ -260,7 +260,7 @@ CADA = {
     "autodesarrollo": (
         LANZ + ["--", PY3, "-u", P("director_autodesarrollo.py"), "ciclo"],
         "/tmp/starseed-autodesarrollo.log",
-        15 * 60,
+        900,
         "Standard",
     ),
 }

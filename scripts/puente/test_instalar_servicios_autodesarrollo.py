@@ -75,12 +75,19 @@ class ServicioAutodesarrollo(unittest.TestCase):
         self.assertTrue(resto[2].endswith("scripts/puente/director_autodesarrollo.py") and os.path.isfile(resto[2]))
         self.assertEqual(resto[3:], ["ciclo"])
         self.assertTrue(all(os.path.isabs(a) for a in (args[0], args[1], resto[0], resto[2])))
+        self.assertTrue(args[0].endswith("python3"))           # el binario con permiso de disco
+        for a in args:
+            self.assertFalse(a.endswith("zsh") or a.endswith("bash"))  # nunca un shell
 
     def test_no_se_instala_dos_veces(self):
         # La rama de la nube metía «autodesarrollo» también en SERVICIOS; con la
         # entrada de CADA serían dos instalaciones del mismo label. Solo una.
         self.assertNotIn("autodesarrollo", self.mod.SERVICIOS)
         self.assertIn("autodesarrollo", self.mod.CADA)
+        orden, log, cada_s, _tipo = self.mod.CADA["autodesarrollo"]
+        self.assertEqual(cada_s, 900)
+        self.assertEqual(log, "/tmp/starseed-autodesarrollo.log")
+        self.assertEqual(orden[-1], "ciclo")
 
     def test_carga_por_launchctl_simulado_y_solo_ese(self):
         ag = os.path.join(self.tmp.name, "Library", "LaunchAgents")
