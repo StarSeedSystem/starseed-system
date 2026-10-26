@@ -1,0 +1,104 @@
+{
+ "ola": "nube-20261025",
+ "tareas": [
+  {
+   "id": "MOV1026A",
+   "ola": "Verificación 1026",
+   "titulo": "Motor de movimiento: el cuerpo que se manda a /api/movimiento/generar cumple su contrato",
+   "archivos": [
+    "src/lib/avatares/movimiento/motor.ts",
+    "src/lib/avatares/movimiento/__tests__/contrato-generar.test.ts"
+   ],
+   "depende": [],
+   "importancia": "normal",
+   "prompt": "Verificado por Claude en localhost:9002 el 2026-10-26: TODAS las peticiones del motor de movimiento a POST /api/movimiento/generar responden 400, así que los niveles «vivo» y «fluido» (Kimodo) nunca funcionan y el avatar siempre cae al clip procedural. Causa: `pedirAKimodo` en src/lib/avatares/movimiento/motor.ts manda {prompt, emocion, energia, duracionMs, bucle, nivel}, y la ruta src/app/api/movimiento/generar/route.ts exige {prompt (texto no vacío, ≤ 300), esqueleto ('smplx22' | 'soma30' | 'g1-34'), segundos (número entre 0,5 y 10), semilla (entero, opcional)}.\n\nHaz SOLO esto en motor.ts: el cuerpo pasa a ser {prompt: g.prompt.trim().slice(0, 300), esqueleto: 'smplx22', segundos: el de g.duracionMs/1000 (2,4 si no viene) acotado a [0,5, 10] y redondeado a 2 decimales, semilla: el mismo hash del prompt que usa generarClipProcedural (sácalo a una función pura y úsala en los dos sitios)}. NO toques el freno de la vía (caché por gesto, peticiones compartidas, máximo 2 en vuelo, pausa con Retry-After: kimodoEnPausaHasta / reiniciarFrenoKimodo) ni la ruta.\n\nPrueba nueva src/lib/avatares/movimiento/__tests__/contrato-generar.test.ts (// @vitest-environment jsdom; mockea '@/lib/aurora/voz-starseed/capacidades' con detectarCapacidades: async () => ({}) y capacidadesEnCache: () => null, como en __tests__/freno-kimodo.test.ts; vi.stubGlobal('fetch', …); reiniciarFrenoKimodo() en beforeEach): con moverAvatar(g, {nivel:'vivo'}) el cuerpo enviado tiene exactamente esas cuatro claves; duracionMs 200 → segundos 0.5; 60000 → 10; sin duración → 2.4; un prompt de 400 caracteres llega con 300; la semilla es un entero estable para el mismo prompt. Las pruebas de freno-kimodo.test.ts deben seguir en verde. Como mucho 120 líneas nuevas por archivo; comentarios en español; nada de any."
+  },
+  {
+   "id": "IMN1021K2d",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en la ramificación y el diseñador de olas",
+   "archivos": [
+    "src/components/mando/ramificacion-agentes.tsx",
+    "src/components/mando/disenador-ola.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios que digan «sueño(s) profundo(s)» o «Dream» por «imaginación profunda» o «imaginación diaria». Nada de identificadores. Las pruebas existentes deben seguir en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-052422`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-052422:refs/remotes/origin/nube/a1-20261024-052422\"` y `git cherry-pick --no-commit 4e05883e999d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/mando/disenador-ola.tsx, src/components/mando/ramificacion-agentes.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-052422"
+  },
+  {
+   "id": "SP092941c",
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "titulo": "Vincular labels e inputs en formularios de creación",
+   "archivos": [
+    "src/components/creation/source-picker.tsx",
+    "src/components/creation/pizarras-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092938 (creacion × ux-accesibilidad-diseno) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/creacion--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Asociar etiquetas a campos con htmlFor e id — Los <label> de URL y Etiqueta no tienen htmlFor ni los Input id; también el textarea de comentario y las opciones de votación carecen de label asociado. Los lectores de pantalla no anuncian el propósito de cada campo.\nCITA: src/components/creation/source-picker.tsx:292 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Añadir id único a cada Input/textarea y htmlFor en su label; donde no haya label visible, usar aria-label fijo.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/creation/source-picker.tsx, src/components/creation/pizarras-panel.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39711481854`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39711481854:refs/remotes/origin/nube/39711481854\"` y `git cherry-pick --no-commit 614f65bc8b70 2aaaf40b00b9`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/creation/__tests__/pizarras-panel-form.test.tsx, src/components/creation/__tests__/selector-fuente-form.test.tsx, src/components/creation/pizarras-panel.tsx, src/components/creation/source-picker.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39711481854"
+  },
+  {
+   "id": "SP092935c",
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "titulo": "Versionar spec en architecture/imaginacion-spec.md",
+   "archivos": [
+    "architecture/imaginacion-spec.md",
+    "src/components/astraura/imaginacion/imaginacion-view.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092925 (astraura × arquitectura-deuda) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/astraura--arquitectura-deuda.md`.\n\nHALLAZGO: Mover especificación de imaginación a repositorio versionado — Spec canónica vive en /tmp/imagination-spec.md, ruta efímera local; contrato implícito no versionado que desaparece al reiniciar la máquina.\nCITA: src/components/astraura/imaginacion/imaginacion-view.tsx:7 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Mover especificación a carpeta architecture/ del repo y actualizar import para leer desde fuente versionada controlada por git.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO architecture/imaginacion-spec.md, src/components/astraura/imaginacion/imaginacion-view.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39708414976`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39708414976:refs/remotes/origin/nube/39708414976\"` y `git cherry-pick --no-commit db54fee15361`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: architecture/imaginacion-spec.md, src/components/astraura/imaginacion/imaginacion-view.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39708414976"
+  },
+  {
+   "id": "PM1010F2I",
+   "ola": "Ola 1010P · Protomolécula: función universal de creación y edición (átomos con parámetros, dictado en tiempo real, convergencia, sincronía P2P)",
+   "titulo": "Pizarras: la Protomolécula como ventana y las aristas entre ventanas como dependencias",
+   "archivos": [
+    "src/components/protomolecula/bloque-pizarra.tsx",
+    "src/lib/canvas/canvas.ts",
+    "src/components/canvas/canvas-board.tsx"
+   ],
+   "depende": [],
+   "prompt": "NOTA (Ola 1026P, 2026-10-26 · revisión de Claude): la ventana YA puede «abrir en una pizarra» e «insertar en» (operaciones `abrir-en` e `insertar-en`, `src/lib/protomolecula/peticion/dependencias.ts`). Esta tarea es la Protomolécula como ventana DENTRO de la pizarra y las aristas como dependencias: entra a la pizarra por esas operaciones, sin una ruta nueva.\n\nCONTRATO: `architecture/protomolecula.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §1 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica. §11.1 fija los nombres de las interfaces del runtime. El núcleo puro YA está escrito y probado (120 pruebas) y NO se modifica: `src/lib/protomolecula/{tipos,parametros,dictado,vinculos-control,permisos}.ts` (ábrelos y usa sus nombres reales). `src/lib/protomolecula/catalogo-herramientas.ts` lo escribe OTRA sesión: no lo crees ni lo edites; las herramientas se citan por id (string). Petición de Alex (2026-10-10): «Protomolécula» = función universal de creación y edición (imagen, audio, vídeo, sonido, síntesis, 3D con texturas programables, arquitectura, físicas, videojuegos, VR/AR) que se controla a mano o por la IA de Astraura con dictado en tiempo real de cada parámetro (valor exacto o relativo), presente en el lienzo universal, la biblioteca, pizarras, dashboards, widgets, escritorios, estaciones, llamadas mesh y mensajes de agentes, privada o pública, y sincronizada por la malla P2P primero.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/protomolecula.md` y `src/lib/protomolecula/{tipos,parametros,dictado,vinculos-control,permisos}.ts`. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo: ya pasó con una rama que se inventó `tipos.ts` y `parametros.ts`). Escribe SOLO tus archivos, con los nombres y firmas que te da este prompt y el §11.1 del contrato, no edites ningún archivo del núcleo para que un import resuelva y, si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo de la Protomolécula en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Sin dependencias npm nuevas. Pruebas sin red ni hardware (lo del navegador se inyecta). Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (PM1010F2I): Abre `src/lib/canvas/canvas.ts` (`BlockKind`, `BLOCK_KINDS`; `CanvasEdge` está en `workcenters.ts`) y `canvas-board.tsx` (motor «starseed»). 1) `canvas.ts`: añade `\"protomolecula\"` a `BlockKind` y su definición a `BLOCK_KINDS` (etiqueta «Protomolécula», icono de lucide, tamaño por defecto 420×360); los datos del bloque son SOLO `{moleculaId: string}` (la molécula vive en el almacén, el bloque la cita: Entidad Única). 2) `bloque-pizarra.tsx` (\"use client\"): `BloquePizarraProtomolecula({moleculaId, aristasEntrantes, aristasSalientes})` monta `PanelProtomoleculaAutonomo compacto moleculaId={…}` y debajo una franja de estado que usa `analizarConvergencia` (F2A) con `rutaDeConversion` (F2B): «Recibe de …», «Alimenta a …», y marca las aristas incompatibles o que necesitan conversión (con la ruta: «OBJ → glTF»). Es información: NO bloquea. 3) `canvas-board.tsx` (≤ 30 líneas): el `case` que pinta el bloque nuevo, pasándole las aristas del tablero. Una arista entre dos ventanas YA existe como `CanvasEdge`: significa «la salida de A alimenta a B». El motor «tldraw» queda FUERA de esta fase: comprueba que el bloque nuevo no rompe su selector y deja un comentario con el motivo. Pruebas: la lógica pura ya está probada en F2A y F2B; si el tablero se monta con facilidad en jsdom, añade un caso a una prueba EXISTENTE de canvas (no un archivo nuevo); si no, dilo en tu última línea. Verificación: en tu última línea di que la comprobación en localhost (/pizarras: añadir la ventana y unir dos con una arista) queda para el cierre de la ola.",
+   "revisor_quitadas": [
+    "PM1010F0Gc"
+   ],
+   "dependencias_ya_en_main": [
+    "PM1010F2A",
+    "PM1010F2B"
+   ]
+  },
+  {
+   "id": "GUI1021M3c",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión de publicaciones y entidades",
+   "archivos": [
+    "src/components/social/PostCard.tsx",
+    "src/components/social/governance-entity-page.tsx",
+    "src/components/social/entity-header.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. En PostCard, los avisos que son un botón pequeño dentro de la tarjeta usan `compacto`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40136007455`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40136007455:refs/remotes/origin/nube/40136007455\"` y `git cherry-pick --no-commit 3810e4095a26`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/social/PostCard.tsx, src/components/social/entity-header.tsx, src/components/social/governance-entity-page.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40136007455",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "SP092941c",
+   "SP092935c",
+   "IMN1021K2d",
+   "GUI1021M3c",
+   "PM1010F2I",
+   "MOV1026A"
+  ]
+ }
+}
