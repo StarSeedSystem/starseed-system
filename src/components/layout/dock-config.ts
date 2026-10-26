@@ -30,6 +30,8 @@ import {
   toDockPayload,
   type DockItemLike,
 } from '@/lib/dock/dock-defaults';
+// Ola 1025U · V1b: diseño propio opcional de cada icono (solo el TIPO; el modelo y su saneado viven en lib/dock/iconos).
+import type { DisenoIcono } from '@/lib/dock/iconos/modelo';
 
 export type DockColor = 'neutral' | 'cyan' | 'crimson' | 'amber' | 'emerald' | 'purple';
 
@@ -43,6 +45,12 @@ export interface DockItemConfig {
   enabled: boolean;
   /** Origen: 'preset' (Hermes/system) o 'user' (custom). */
   origin: 'preset' | 'user';
+  /**
+   * (Ola 1025U · V1b) Diseño PROPIO de este icono (forma, fondo, glifo…), cambiado a mano desde el dock.
+   * Opcional y retrocompatible: sin él manda la plantilla de iconos del perfil, y sin plantilla se pinta el
+   * icono de siempre. Se lee SIEMPRE con `disenoEfectivo` (valida: viene del almacén y de la cuenta).
+   */
+  diseno?: DisenoIcono;
 }
 
 /**
