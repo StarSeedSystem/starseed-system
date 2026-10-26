@@ -21,15 +21,17 @@ import {
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
     Trash2, Magnet, FolderInput, Sparkles, Check, PictureInPicture2,
     Eye, Info, Grid2x2, Columns2, Rows2, Frame, Home, Share2, PenLine,
-    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, type LucideIcon,
+    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, Loader2, Replace, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { descargarBlob, type Convertido } from "@/lib/conversion/cliente";
+import { useConversionMenu, type ConversionMenu } from "@/components/conversion/use-conversion-menu";
 import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize, TileMode } from "./desktop-store";
 import {
     addIcon, createNoteIcon, sortIcons, autoArrangeIcons, setSnap, updateIcon,
     duplicateIcon, removeIcon, moveIconToFolder, setDesktopView, DEFAULT_DESKTOP_VIEW,
     moveIconToPage, desktopPageCount, iconPage, addDesktopPage, removeDesktopPage,
-    MAX_DESKTOP_PAGES,
+    MAX_DESKTOP_PAGES, archivoConvertibleDeIcono,
 } from "./desktop-store";
 import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./desktop-clipboard";
 import { canEditIcon } from "./desktop-open";
@@ -105,6 +107,40 @@ function SubMenu({
             </button>
             {open && <div className="mb-0.5 ml-3 border-l border-white/10 pl-1">{children}</div>}
         </div>
+    );
+}
+
+// ── «Convertir a…» (Filee) dentro del menú del icono ─────────────
+// El menú del escritorio es propio (no Radix), así que usa `SubMenu`/`MenuItem`
+// con el mismo contrato que `SubmenuConvertir`. El resultado se descarga.
+function SubmenuConvertirEscritorio({
+    conversion, alElegir,
+}: {
+    conversion: ConversionMenu;
+    alElegir: () => void;
+}): React.ReactElement {
+    const elegir = (fn: () => void) => () => { fn(); alElegir(); };
+    return (
+        <SubMenu icon={Replace} label="Convertir a…">
+            {conversion.estado === "cargando" && (
+                <p className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground">
+                    <Loader2 className="size-3.5 animate-spin" /> Mirando formatos…
+                </p>
+            )}
+            {conversion.estado === "no-disponible" && (
+                <p className="whitespace-normal px-2.5 py-1.5 text-[11px] leading-snug text-muted-foreground/80">
+                    {conversion.motivo ?? "Aquí no hay conversor."}
+                </p>
+            )}
+            {conversion.estado === "listo" && conversion.principales.map((f) => (
+                <MenuItem key={f} label={conversion.etiqueta(f)} onClick={elegir(() => conversion.onConvertir(f))} />
+            ))}
+            <MenuItem
+                icon={Settings2}
+                label={conversion.resto > 0 ? `Más formatos (${conversion.resto})…` : "Abrir el conversor…"}
+                onClick={elegir(conversion.onMas)}
+            />
+        </SubMenu>
     );
 }
 
@@ -278,6 +314,13 @@ export function IconContextMenu({
     // Voz de Aurora para "Leer en voz alta" (defensivo: el provider puede no estar).
     const aurora = useAurora();
     const speak = aurora?.speak;
+    // Filee: «Convertir a…» de un archivo con URL; el resultado se descarga.
+    const archivoConvertible = archivoConvertibleDeIcono(icon);
+    const guardarConvertido = React.useCallback(async (c: Convertido): Promise<string | null> => {
+        descargarBlob(c.blob, c.nombre);
+        return "descargado";
+    }, []);
+    const conversionMenu = useConversionMenu(archivoConvertible, guardarConvertido);
     const run = (fn: () => void) => { fn(); onClose(); };
     const canLivePreview =
         icon.kind === "widget" || (icon.kind === "file" && hasRichThumb(icon));
@@ -302,6 +345,13 @@ export function IconContextMenu({
             )}
             {editable && onEdit && (
                 <MenuItem icon={PenLine} label="Editar" onClick={() => run(() => { onEdit(icon) || onRename(icon.id); })} />
+            )}
+
+            {archivoConvertible && conversionMenu && (
+                <>
+                    <MenuDivider />
+                    <SubmenuConvertirEscritorio conversion={conversionMenu} alElegir={onClose} />
+                </>
             )}
 
             <MenuDivider />

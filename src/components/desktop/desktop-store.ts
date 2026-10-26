@@ -215,6 +215,21 @@ export function iconPage(icon: DesktopIcon): number {
         : 0;
 }
 
+/**
+ * «Convertir a…» (Filee) del clic derecho de los iconos del escritorio.
+ * Solo un ARCHIVO con URL se puede convertir; los enlaces, apps, folders,
+ * widgets y las notas sin URL devuelven null. Devuelve lo mínimo que necesita
+ * `useConversionMenu` (misma forma que `ArchivoConvertible`).
+ */
+export function archivoConvertibleDeIcono(
+    icon: Pick<DesktopIcon, "kind" | "name" | "url">,
+): { nombre: string; url: string } | null {
+    if (icon.kind !== "file") return null;
+    const url = (icon.url ?? "").trim();
+    if (!/^(https?:\/\/|\/)/i.test(url)) return null;
+    return { nombre: icon.name.trim() || "archivo", url };
+}
+
 /** Nº de páginas efectivo (retrocompatible: sin `pageCount` ⇒ 1). */
 export function desktopPageCount(d: Desktop): number {
     const raw = typeof d.pageCount === "number" && Number.isFinite(d.pageCount) ? Math.floor(d.pageCount) : 1;
