@@ -33,6 +33,11 @@ afterEach(() => cleanup());
 const montar = (svc: ReturnType<typeof servicios>, kind = "grupo") =>
   render(<SeccionGobiernoProto kind={kind} slug="semilla" name="Semilla" servicios={svc} />);
 
+const serviciosConGuardaEspiada = (...args: Parameters<typeof servicios>) => {
+  const svc = servicios(...args);
+  return { ...svc, guardar: vi.fn(svc.guardar) };
+};
+
 async function listo() {
   await waitFor(() => expect(screen.queryByText(/Leyendo las reglas de la entidad/)).not.toBeInTheDocument());
 }
@@ -121,7 +126,7 @@ describe("cambiar las reglas sigue su propia regla", () => {
   });
 
   it("jerárquico: quien tiene el rol guarda directamente y se dice dónde quedó", async () => {
-    const svc = servicios(cargado("dueno", "hierarchical"));
+    const svc = serviciosConGuardaEspiada(cargado("dueno", "hierarchical"));
     montar(svc);
     await listo();
     fireEvent.click(screen.getByRole("radio", { name: /Pública/ }));
@@ -147,7 +152,7 @@ describe("cambiar las reglas sigue su propia regla", () => {
   });
 
   it("si la cuenta lo bloquea (solo la dueña escribe), ofrece llevarlo a votación en vez de rendirse", async () => {
-    const svc = servicios(cargado("dueno", "hierarchical"), { ok: false, bloqueado: true, motivo: "Solo el propietario puede guardar la configuración directamente." });
+    const svc = serviciosConGuardaEspiada(cargado("dueno", "hierarchical"), { ok: false, bloqueado: true, motivo: "Solo el propietario puede guardar la configuración directamente." });
     montar(svc);
     await listo();
     fireEvent.click(screen.getByRole("radio", { name: /Pública/ }));
@@ -187,7 +192,7 @@ describe("cambiar las reglas sigue su propia regla", () => {
 
 describe("visibilidad y acceso", () => {
   it("«Privada» acota el acceso a quien gestiona y las opciones lo reflejan", async () => {
-    const svc = servicios(cargado("dueno", "hierarchical"));
+    const svc = serviciosConGuardaEspiada(cargado("dueno", "hierarchical"));
     montar(svc);
     await listo();
     fireEvent.click(screen.getByRole("radio", { name: /Privada/ }));
