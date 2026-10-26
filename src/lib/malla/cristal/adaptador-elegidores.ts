@@ -3,6 +3,7 @@
 
 import { politicaDeTransporte } from './cifrado/politica';
 import type { Medio, ClaseDato } from './tipos';
+export { mejoresRutas, type Ruta } from './rutas';
 
 /**
  * Determina si un enlace debe ser vetado por la política de transporte
