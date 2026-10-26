@@ -1,0 +1,121 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "ola": "1021G",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40102750699",
+   "id": "GUI1021Id-d2",
+   "titulo": "Guía sin cuenta · puerta común abrirGuia y reglas del modo invitado (puro) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/onboarding/__tests__/guia-acceso.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Módulo puro: `EVENTO_ABRIR_GUIA = \"starseed:open-guide\"` (igual que `OPEN_GUIDE_EVENT` de aurora-guide; la prueba lo compara leyendo el texto del archivo, sin importarlo), `abrirGuia({desde, temaInicial?})` (despacha el evento con ese detalle; sin `window`, no hace nada), `modoGuia(haySesion)` → 'invitado' | 'cuenta', `accionesDelPaso(modo)` → en invitado sin «Ir» ni «Hazlo por mí» y con la etiqueta «Disponible al entrar», `zGuia(desde, haySesion)` → 240 si se abre desde una ventana de acceso o sin sesión, si no el valor de hoy, y `unirVistas(local, cuenta)` (lo visto como invitado se une a la marca de la cuenta sin perder nada). Pruebas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40102750699`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40102750699:refs/remotes/origin/nube/40102750699\"` y `git cherry-pick --no-commit 81d4c84af557 5629c4d4a03f`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/__tests__/guia-acceso-aplicado.test.tsx, src/components/onboarding/aurora-guide.tsx, src/components/settings/appearance/guide-button-toggle.tsx, src/lib/onboarding/__tests__/guia-acceso.test.ts, src/lib/onboarding/guia-acceso.ts, src/lib/onboarding/guia-vista.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió GUI1021Id: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/onboarding/__tests__/guia-acceso.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021Id",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "revisor_quitadas": [
+    "GUI1021Id-d1"
+   ]
+  },
+  {
+   "ola": "1020U",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40195780001",
+   "id": "IMG1020Ad-d2",
+   "titulo": "ComfyUI · plantillas puras de flujo (texto a imagen, imagen a imagen, escalado y variaciones por formato de publicación) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/imagenes/__tests__/flujos-comfyui.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §2: un ComfyUI real exige el GRAFO del flujo en formato API: objeto `{\"<id>\": {class_type, inputs}}` con enlaces `[\"<id>\", <salida>]`. Escribe constructores puros: `textoAImagen` (CheckpointLoaderSimple → CLIPTextEncode positivo y negativo → EmptyLatentImage → KSampler → VAEDecode → SaveImage), `imagenAImagen` (LoadImage → VAEEncode → KSampler con `denoise`), `escalar` (LoadImage → ImageScaleBy) y `variaciones` (el mismo flujo con N semillas que da quien llama). Formatos de publicación 1:1, 4:5, 9:16 y 16:9 con lados múltiplos de 8, cerca de 1 megapíxel (y una variante de ~0,26 MP para modelos de la gama SD 1.5). Lista blanca de nodos del núcleo (ningún nodo personalizado), muestreadores `euler`, `euler_ancestral`, `dpmpp_2m`, `dpmpp_sde` y planificadores `normal`, `karras`, `simple`; parámetros acotados (pasos 1–60, cfg 1–15, lado ≤ 2048) con error legible si no. Pruebas: cada formato respeta su proporción (±2 %) y múltiplos de 8; todos los enlaces apuntan a nodos que existen; ningún class_type fuera de la lista. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40195780001`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40195780001:refs/remotes/origin/nube/40195780001\"` y `git cherry-pick --no-commit 036d92616a1a`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/media/__tests__/media-gen-comfyui.test.ts, src/ai/astraura/media/media-gen.ts, src/lib/imagenes/__tests__/flujos-comfyui.test.ts, src/lib/imagenes/flujos-comfyui.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió IMG1020Ad: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/imagenes/__tests__/flujos-comfyui.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG1020Ad",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "IMG1020Ad-d1"
+   ]
+  },
+  {
+   "ola": "1021G",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39969425261",
+   "id": "GUI1021Ib-d1",
+   "titulo": "Guía sin cuenta · puerta común abrirGuia y reglas del modo invitado (puro) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/onboarding/guia-acceso.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Módulo puro: `EVENTO_ABRIR_GUIA = \"starseed:open-guide\"` (igual que `OPEN_GUIDE_EVENT` de aurora-guide; la prueba lo compara leyendo el texto del archivo, sin importarlo), `abrirGuia({desde, temaInicial?})` (despacha el evento con ese detalle; sin `window`, no hace nada), `modoGuia(haySesion)` → 'invitado' | 'cuenta', `accionesDelPaso(modo)` → en invitado sin «Ir» ni «Hazlo por mí» y con la etiqueta «Disponible al entrar», `zGuia(desde, haySesion)` → 240 si se abre desde una ventana de acceso o sin sesión, si no el valor de hoy, y `unirVistas(local, cuenta)` (lo visto como invitado se une a la marca de la cuenta sin perder nada). Pruebas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39969425261`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39969425261:refs/remotes/origin/nube/39969425261\"` y `git cherry-pick --no-commit 29760830cf80`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/onboarding/__tests__/guia-acceso.test.ts, src/lib/onboarding/guia-acceso.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió GUI1021Ib: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/onboarding/guia-acceso.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021Ib",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "id": "TRD1020C",
+   "ola": "1020U",
+   "titulo": "Traducción · toda la página: recoger los textos traducibles, aplicar, volver al original y seguir lo nuevo",
+   "archivos": [
+    "src/lib/traduccion/pagina.ts",
+    "src/lib/traduccion/__tests__/pagina.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Funciones sobre el DOM (pruebas en jsdom): `recogerTextos(raiz)` devuelve los nodos de texto visibles y no vacíos, nunca dentro de `script`, `style`, `noscript`, `code`, `pre`, `textarea`, `input`, `select`, `[contenteditable]`, `[translate=no]`, `[data-no-traducir]` ni `[hidden]`; también los atributos `title`, `alt`, `aria-label` y `placeholder`. `aplicar(nodos, traducciones, idioma)` guarda cada original (WeakMap) y marca el elemento padre con `lang` y `data-traducido`; `restaurar(raiz)` lo devuelve todo como estaba; `observar(raiz, alNuevo)` con MutationObserver devuelve una función para parar y no vuelve a traducir lo ya traducido. Pruebas de cada exclusión, ida y vuelta exacta y texto nuevo detectado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "VZF1015S",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Malla · elección autogestionada del servidor de voz de la sesión (con relevo solo)",
+   "archivos": [
+    "src/lib/network/servidor-voz-sesion.ts",
+    "src/lib/network/__tests__/servidor-voz-sesion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elegirServidorVoz({ sesion: { miembros, tipo }, fichas, ahora, actual? })` → `{ oido?: neurona, habla?: neurona, motivo }`: la de menor latencia medida (fichas del §5), con RAM libre suficiente, viva (latido < 2 min) y de confianza (tus neuronas o las de los miembros de la sesión), con histéresis (solo cambia si la nueva es un 30 % mejor o la actual dejó de latir). Incluye el A1 (24/7) cuando está en las fichas. Pruebas: elección, histéresis, relevo, privacidad. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015Q"
+   ]
+  },
+  {
+   "id": "IMG1011J",
+   "ola": "Ola 1011E · Imágenes locales de Astraura por capas y malla (Qwen-Image, Krea 2, FLUX, SD, PixArt, Sana) con varias opciones en la Protomolécula",
+   "titulo": "Integración, verificación y estado real de las imágenes locales",
+   "archivos": [
+    "src/components/imagenes/index.ts",
+    "architecture/astraura-imagenes.md"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-imagenes.md` (léelo ENTERO; el §1 tiene las licencias y motores VERIFICADOS el 2026-10-11 — no inventes otros datos). Se apoya en `architecture/generacion-audiovisual-astraura.md` y `src/ai/astraura/media/media-gen.ts` (Pollinations como suelo gratis, proveedores por neurona): su regla de oro sigue intacta y NO se duplica nada de lo que ya hace. El núcleo puro YA está escrito y probado (19 pruebas) y NO se modifica: `src/lib/imagenes/{modelos,plan,sugerencias}.ts` (MODELOS_IMAGEN, MOTORES, cabe, planImagen, paqueteBase, motoresPosibles). Para la malla reutiliza lo que hagan G3D1011D (`src/lib/avatares/adaptadores/reparto-taller.ts`) y el registro de neuronas existente; para referencias 3D, G3D1011E. Reglas: «basta de ilusiones» (si algo no corre aquí, se dice por qué); NUNCA descargas automáticas de pesos (los repos pesan de 6 a 100 GB): solo con permiso, solo los archivos necesarios y tras comprobar ≥ 3 veces su tamaño libre; modelos «gated» necesitan que la persona acepte sus términos en Hugging Face y un token suyo en el entorno (explícale qué es y dónde se consigue, con enlace); nada de claves en código ni registros; nada no comercial en uso comercial; con imagen de referencia nada sale de sus neuronas sin permiso; en la Mac de Alex (8 GB) las imágenes ceden ante el enjambre; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto de qué funciona y qué no.\n\nTAREA: Monta la tarjeta y las sugerencias donde la gente las encuentra (chat de Astraura, ajustes de la neurona, Protomolécula). Pasa tsc y vitest de `src/lib/imagenes`, `src/ai/astraura/media`, `src/lib/astraura-bots` y `src/lib/protomolecula`, y pytest de `servicios/imagenes-local` y `scripts/imagenes`; arregla lo que falle. NO ejecutes `next build` en la Mac. Actualiza el §9 del contrato con el estado REAL de cada tarea.",
+   "revisor_quitadas": [
+    "IMG1011C",
+    "IMG1011F"
+   ],
+   "dependencias_ya_en_main": [
+    "IMG1011A",
+    "IMG1011B",
+    "IMG1011D",
+    "IMG1011E",
+    "IMG1011G",
+    "IMG1011H-d3",
+    "IMG1011I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "GUI1021Ib-d1",
+   "TRD1020C",
+   "VZF1015S",
+   "GUI1021Id-d2",
+   "IMG1020Ad-d2",
+   "IMG1011J"
+  ]
+ }
+}
