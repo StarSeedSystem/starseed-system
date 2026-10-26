@@ -4454,3 +4454,44 @@ cortina Horizon rediseñada y sin el aviso «Este aparato no tiene VR ni AR» en
 
 ### Notas / aprendizajes
 - El tsc completo con `.next/types` de una build recién hecha pide más de 4096 MB: con 5120 pasa.
+
+## 2026-10-26 — Ola 1025U · Mundo de los avatares con Hermes3D, dock con pulsación larga, Centro de Control V2 y guía completa
+**Sesión por:** Claude (carril Opus; agentes Sonnet escribieron, Claude integró y verificó en localhost:9002)
+**Resumen ejecutivo:** lo que pidió Alex en cinco mensajes del 25-10: el mundo de los avatares con Hermes3D (agentes por
+personalidad, grupo, página o comunidad; cerebros con capas de conciencia; filtros de percepción; sueños colectivos;
+escenarios AR/VR; vínculos entre cerebros con permisos; siempre etiquetados «bot de IA» y bloqueables), Soup para la
+automejora, ECC, Open-Higgsfield-AI, WeKnora, OpenProject y Cap en la Librería, el Centro de Control rediseñado con
+grabadora, el dock con mantener pulsado (arrastrar, quitar, acciones rápidas, diseños de icono con IA) y una sola guía
+de introducción de 24 pasos.
+
+### Hecho
+- U1–U5, V1a, V1b, V2, V3, G (commits «Ola 1025U · …» en main, integración 2 incluida). Build instalada
+  `rGcSJGyp-6EyIDbHC_sMG` (distintos 0).
+- `maxDuration` de `/api/conversion` 900 → 300 s y guardia para todas las rutas: la producción de Vercel fallaba con
+  `invalid_max_duration` desde el 25-10 (`src/app/__tests__/max-duration-plan.test.ts`).
+
+## 2026-10-26 — REL1026A · el carril de Claude pasa solo al enjambre gratuito
+**Sesión por:** Claude (carril Opus)
+**Resumen ejecutivo:** Alex: «los directores y agentes dejaron de funcionar cuando terminó tu crédito». Lo que murió
+fueron los agentes de Claude (límite de sesión a las 01:57 UTC); el enjambre siguió. Ahora lo que Claude reparte se anota
+antes en `olas/carril-claude/registro.json` y la autocuración lo convierte en cola de MetaGenesis si Claude calla 45 min
+o su límite se agota. Trampa 23 de CLAUDE.md y §21 de `memory/orquestacion-economica.md`.
+
+## 2026-10-26 — Ola 1026P · la ventana de la Protomolécula: pedir sin salir del contexto y gobierno por entidad
+**Sesión por:** Claude (carril Opus; tres agentes escribieron P1 ventana, P2 gobierno y P3 petición; Claude integró)
+**Resumen ejecutivo:** geometría y estilo pasan a «⋯ Apariencia» (pestaña oculta); lo principal es «Crear»: pedirle a
+Astraura cualquier cosa (objeto 3D animado, cambio directo o en rama de un archivo, publicación o mensaje, diseño o
+funciones) con el plan, el veredicto del gobierno y la confirmación en la misma ventana. Grupos, comunidades y páginas
+tienen reglas, permisos directos a personas, decisiones democráticas y registro de usos para su Protomolécula
+(`/grupo/[slug]` → «Gobernanza»). Los planes que pide un agente esperan la confirmación de la persona.
+SOP: `architecture/protomolecula-ventana.md`, `architecture/protomolecula-gobierno.md`.
+
+### Decisiones tomadas
+- El veredicto previo y la ejecución usan el MISMO actor (`actorDeLaSesion`): si no, la vista previa diría «se aplica» y
+  la ejecución «denegado».
+- Un plan de agente nunca pisa lo que la persona está mirando; Cancelar lo descarta de la cola.
+- Las tareas de MetaGenesis que la ola toca (PM1010F1E, F2I, F7A, F7B, PG1013I) llevan ahora una NOTA con lo que ya
+  existe, para que el enjambre las amplíe en vez de duplicarlas (copia previa en `starseed_memory_root/colas-fuente/bak-1026p/`).
+
+### Pendiente
+- Rol real en comunidades y páginas (hoy solo grupos tienen lectura de rol).

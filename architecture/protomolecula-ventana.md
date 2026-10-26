@@ -50,11 +50,23 @@ molécula, rediseñar. Molécula: dar una orden. Perfil: rediseñar. Lo seleccio
 - Historial: local (localStorage), máximo 8, sin duplicados, con «Borrar el historial». Solo en ese aparato.
 - Los mandos funcionan mientras la ventana está abierta; HID, serie, OSC y pulsómetro no se vinculan desde aquí todavía.
 
-## Cómo se integra con la ola
-- **P3 (petición):** `leerContexto`, `planificarPeticion`, `ejecutarPlan` desde `@/lib/protomolecula/peticion`. Si P3 ofrece
-  un `useContextoProto`, se puede sustituir `use-contexto-ventana.ts` por él.
-- **P2 (gobierno):** `decidirCambio` desde `@/lib/protomolecula/gobierno`. La pestaña «Gobierno» usa la ranura
-  `ventana/ranura-gobierno.tsx`: hoy muestra la tabla «tipo de cambio × cómo se decide» con `decidirCambio`; para montar
-  `GobiernoProtoResumen` basta sustituir `ResumenGobierno` por ese componente (misma firma `{ contexto }`).
-- El actor que pide el cambio (`actorDeLaVentana`) no conoce el rol de la persona en la entidad: en lo personal es el
-  dueño; en lo demás, un miembro sin rol. Cuando exista un hook de rol, se cablea en ese único punto.
+## Cómo se integra con la ola (integrado el 2026-10-26)
+- **P3 (petición):** `leerContexto`, `planificarPeticion`, `ejecutarPlan` y `actorDeLaSesion` desde
+  `@/lib/protomolecula/peticion`. `ejecutarPlan(plan, { contexto, abrirRuta })` recibe la pantalla de la ventana y
+  `router.push` (lo pasa el orbe por `PanelOrbe.abrirRuta` → `PestanaCrear` → `usePeticion(…, { abrirRuta })`), para
+  navegar dentro del OS sin recargar.
+- **P2 (gobierno):** `decidirCambio` desde `@/lib/protomolecula/gobierno`. La pestaña «Gobierno» monta
+  `GobiernoProtoResumen` (`@/components/protomolecula/gobierno`) cargado a demanda desde `ventana/ranura-gobierno.tsx`;
+  mientras llega (o si no carga) se ve `ResumenGobiernoLocal`, la tabla «tipo de cambio × cómo se decide».
+- **Quién decide (actor real):** `usePeticion` lee al montar, y cada vez que cambia lo que gobierna la pantalla, el actor
+  de la sesión con `actorDeLaSesion(contexto, "humano")` (= `peticion/dependencias.ts#actorPorDefecto`: cuenta y rol REAL
+  en el grupo con `getMyMembershipRole`). El veredicto previo usa ese actor —el mismo que usará la ejecución— y, mientras
+  se lee o si no hay sesión, la deducción local `actorDeLaVentana`. **Pendiente honesto:** comunidades y páginas aún no
+  tienen lectura de rol (solo grupos); ahí el actor es «miembro sin rol» hasta que exista.
+- **Planes que pide un agente:** `[[ACCION: protomolecula {"accion":"pedir"}]]` (`peticion/pedir.ts`) deja un
+  `PlanPendiente` en la cola y emite `EVENTO_PLAN_PENDIENTE` (definido en `peticion/contrato.ts` para que el orbe lo
+  escuche sin cargar el planificador). El orbe abre la ventana; `usePeticion` lo enseña como plan («Lo propone <agente>
+  (bot de IA) · no se aplica nada hasta que lo confirmes»), con el veredicto calculado para LA PANTALLA EN QUE SE PIDIÓ.
+  Confirmar lo saca de la cola (`tomarPlanPendiente`) y lo ejecuta contra esa pantalla; Cancelar lo descarta
+  (`descartarPlanPendiente`). Nunca pisa un plan que la persona esté mirando ni algo en curso: espera en la cola y se
+  enseña al volver a abrir la ventana (el más reciente).
