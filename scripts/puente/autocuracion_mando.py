@@ -754,11 +754,17 @@ def curar_enjambre(estado, ahora, forzar=False, latido_fn=None, sondear_fn=_sond
     return "enjambre: %s" % porque if forzar else ""
 
 
+def _relevo_claude() -> dict:
+    """Relevo del carril de Claude (REL1026A): ver `relevo_carril_claude.py`."""
+    import relevo_carril_claude
+    return relevo_carril_claude.revisar()
+
+
 def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=limpiar,
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
             buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
             servicios_fn=_servicios, medidores_fn=_levantar_por_medidores, worktrees_fn=None,
-            reparar_fn=None, explabs_fn=None):
+            reparar_fn=None, explabs_fn=None, relevo_fn=None):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO).
     `forzar` (el botón «Reactivar directores»): todo ya, sin los tiempos mínimos."""
     ahora = ahora if ahora is not None else time.time()
@@ -917,6 +923,23 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             exp_fn()
         except Exception as e:
             hechos.append("no pude actualizar las promociones de Experiential Labs: %s" % type(e).__name__)
+
+    # 9 · Relevo del carril de Claude (REL1026A, 2026-10-26). Alex: «los directores y agentes dejaron de funcionar
+    # cuando terminó tu crédito… arréglalo para que pueda funcionar y autorrepararse autónomamente». Lo que Claude
+    # reparte a sus agentes queda anotado en el carril; si Claude calla o se agota su límite, aquí (cero créditos)
+    # pasa a una cola de MetaGenesis que el enjambre gratuito toma solo. Cada pasada; no hace nada si no toca.
+    rel_fn = relevo_fn or (_relevo_claude if limpiar_fn is limpiar else None)
+    if rel_fn:
+        try:
+            r = rel_fn() or {}
+            if r.get("relevado"):
+                linea = "carril de Claude relevado (%s): %s" % (
+                    r.get("motivo"), ("%d tarea(s) a %s" % (r.get("tareas") or 0, r.get("cola"))) if r.get("cola")
+                    else "lo abierto ya estaba en main")
+                hechos.append(linea)
+                avisar_fn("Autocuración: " + linea + ". El enjambre gratuito sigue con ello; Claude no lo repetirá al volver.")
+        except Exception as e:
+            hechos.append("no pude revisar el carril de Claude: %s: %s" % (type(e).__name__, e))
 
     estado.update({"visto": time.strftime("%Y-%m-%d %H:%M:%S"), "responde": any(sondas),
                    "por_que": porque, "libre_gb": None if libre is None else round(libre, 1),

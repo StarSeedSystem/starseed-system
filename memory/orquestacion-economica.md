@@ -981,3 +981,20 @@ Lo que de verdad pasaba, con números:
 **Regla:** antes de decir «el tope es N», que el número salga de `tope_runs_nube` con su motivo; y
 antes de meter o sacar un escritor, una edición REAL con opencode y contexto de tamaño real (el
 chat de 16 tokens no dice si escribe: gpt-oss-20b contesta en 0,6 s y no edita).
+
+## 21. Relevo del carril de Claude: nada de lo que Claude reparte depende de su crédito (regla permanente · 2026-10-26, REL1026A)
+
+Alex: «los directores y agentes dejaron de funcionar cuando terminó tu crédito, no funcionó el autoenrutamiento
+inteligente de modelos para que sea independiente de Claude». Los directores en Python y el enjambre gratuito no
+dependen de Claude; lo que se quedó sin dueño fue el trabajo que la sesión de Claude repartía a sus propios agentes
+(Sonnet/Opus en el contenedor de Cowork): al llegar el límite de sesión murieron y nadie sabía que existía.
+
+- **Antes de repartir**, la sesión de Claude anota cada tarea en el carril
+  (`scripts/puente/relevo_carril_claude.py registrar --json …`) y da `latido` cada vez que trabaja.
+- **La autocuración** (paso 9, cada pasada del vigía) releva sola si el latido pasa de 45 min o si `limites_claude.py`
+  da sesión o semana ≥ 98 %: lo integrado se cierra, lo demás se escribe como `olas/cola-relevo-claude-*.json` con ids
+  `<ID>-rc` y un aviso en el prompt (empezar desde main, NO APLICA si ya está, primera parte coherente si es grande).
+  MetaGenesis la toma como cualquier cola; el revisor de bloqueadas divide lo de más de 3 archivos y `capacidad: alta`
+  va al carril de alta capacidad. Aviso único en el Chat Director.
+- **Al volver**, Claude lee `relevo_carril_claude.py estado`, no repite lo relevado y cierra lo suyo con `cerrar`.
+- Lógica pura y pruebas: `relevo_carril_claude_logica.py`, `test_relevo_carril_claude.py`. Contexto: CLAUDE.md, trampa 23.

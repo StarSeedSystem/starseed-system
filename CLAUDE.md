@@ -1352,6 +1352,19 @@ Medido a las 12:30 (hora de la Mac), con 123 tareas listas:
 Síntomas: `/tmp/enjambre.log` con «no arranco · ajeno:»; el registro del nodo con «Nodos vivos:» de un solo
 nodo en la Mac y otro distinto en el A1; `repartir-a-nube.py --simular` con 0 y decenas de «agotada».
 
+### 23. «Cuando terminó tu crédito dejaron de funcionar los agentes»: el carril de Claude no se queda huérfano (2026-10-26 · REL1026A)
+
+A las 01:57 UTC la sesión de Cowork lanzó tres agentes de Claude para la Ola 1026P y llegó el límite de sesión del plan
+(«You've hit your session limit»): los tres murieron en el acto y su trabajo no estaba en ninguna cola, así que el
+enjambre gratuito no podía seguirlo. **Regla:** todo lo que una sesión de Claude reparte a sus agentes se anota ANTES en
+el carril (`python3 scripts/puente/relevo_carril_claude.py registrar --json <tareas.json>`: id, título, prompt completo,
+archivos, depende, `capacidad: "alta"` si hace falta) y la sesión da `latido` cada vez que trabaja. La autocuración
+(paso 9, cada pasada del vigía, cero créditos) releva si el latido pasa de 45 min (`STARSEED_RELEVO_CLAUDE_MIN`) o si
+`limites_claude.py` dice sesión o semana ≥ 98 %: lo que ya llegó a main se cierra como hecho y el resto va a
+`olas/cola-relevo-claude-*.json` (ids `<ID>-rc`), que MetaGenesis toma como cualquier cola; lo grande lo divide el
+revisor de bloqueadas y lo `capacidad: alta` va al carril de alta capacidad. Al volver, Claude mira `estado` y cierra
+(`cerrar <ID>`) o no repite lo relevado. Registro: `starseed_memory_root/olas/carril-claude/registro.json`.
+
 ### 22. Un informe suelto en la raíz paró el enjambre ~29 h: tres clasificadores de «estorbo» que no coincidían (2026-10-25 · ENJ1025A)
 
 El orquestador de la Mac decía «working tree de main con cambios sin commit: 1 archivos — no arranco» y, debajo,
