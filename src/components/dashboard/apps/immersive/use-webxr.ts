@@ -130,7 +130,7 @@ export function useWebXR(gl: THREE.WebGLRenderer | null | undefined): WebXRState
             setError(null);
             const xr = getXR();
             if (!xr || !gl) {
-                setError('WebXR no está disponible en este dispositivo.');
+                setError(mensajeErrorXR(new Error('WebXR no está disponible en este dispositivo.')));
                 return;
             }
             // Si ya hay sesión, primero la cerramos limpiamente.
