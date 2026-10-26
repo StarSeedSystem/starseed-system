@@ -11,11 +11,14 @@
  *     demás vean dónde te quedaste;
  *   · NUNCA si no hay nadie más dentro (nadie que la reciba) ni con la pestaña oculta.
  * Quien entra después pide una pose puntual a los presentes (`forzar`), así que nadie tiene que
- * emitir latidos para «existir».
+ * emitir latidos para «existir». El ADN del avatar viaja aparte (AV1011E): la presencia solo anuncia
+ * su ref y revisión; la lectura se hace UNA vez y los cambios en vivo van por el mismo canal como
+ * evento `adn` (ver `src/lib/avatares/adaptadores/sincronia-adn.ts`).
  *
  * Módulo PURO (el reloj y los temporizadores se inyectan).
  */
 
+import { esRefInterna } from "@/lib/avatares/adn/adn";
 import { textoLimpio, type Vec3 } from "./modelo";
 
 export type Quat = [number, number, number, number];
@@ -38,6 +41,10 @@ export interface MetaAvatar {
     editor: boolean;
     /** ms de entrada. */
     desde: number;
+    /** ADN del avatar que luce (referencia interna `biblioteca:`/`genesis:`), si eligió uno (AV1011E). */
+    adnRef?: string;
+    /** Revisión del ADN anunciada en la presencia; si falta, vale 0. */
+    adnRev?: number;
 }
 
 export const PALETA_AVATARES = ["#7C5CFF", "#007FFF", "#10B981", "#FFBF00", "#DC143C", "#14B8A6", "#F97316", "#EC4899", "#39FF14"] as const;
@@ -75,7 +82,7 @@ export function sanearMetaAvatar(v: unknown, clave: string): MetaAvatar | null {
     const o = v as Record<string, unknown>;
     const modo: ModoAvatar = o.modo === "vr" || o.modo === "ar" ? o.modo : "3d";
     const color = typeof o.color === "string" && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : colorDeClave(clave);
-    return {
+    const meta: MetaAvatar = {
         clave,
         uid: typeof o.uid === "string" && /^[0-9a-f-]{36}$/i.test(o.uid) ? o.uid : null,
         nombre: textoLimpio(o.nombre, 40) || "Persona",
@@ -84,6 +91,12 @@ export function sanearMetaAvatar(v: unknown, clave: string): MetaAvatar | null {
         editor: o.editor === true,
         desde: typeof o.desde === "number" && Number.isFinite(o.desde) ? o.desde : 0,
     };
+    // El ADN es OPCIONAL: quien no lo manda no cambia nada. La revisión siempre viaja con su ref.
+    if (esRefInterna(o.adnRef)) {
+        meta.adnRef = o.adnRef;
+        meta.adnRev = typeof o.adnRev === "number" && Number.isFinite(o.adnRev) ? Math.max(0, Math.floor(o.adnRev)) : 0;
+    }
+    return meta;
 }
 
 /**
@@ -107,7 +120,7 @@ export function mismosAvatares(a: readonly MetaAvatar[], b: readonly MetaAvatar[
     for (let i = 0; i < a.length; i++) {
         const x = a[i];
         const y = b[i];
-        if (x.clave !== y.clave || x.nombre !== y.nombre || x.color !== y.color || x.modo !== y.modo || x.editor !== y.editor || x.uid !== y.uid) {
+        if (x.clave !== y.clave || x.nombre !== y.nombre || x.color !== y.color || x.modo !== y.modo || x.editor !== y.editor || x.uid !== y.uid || x.adnRef !== y.adnRef || x.adnRev !== y.adnRev) {
             return false;
         }
     }
