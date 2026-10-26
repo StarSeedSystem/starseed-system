@@ -72,9 +72,12 @@ function refIdUnico(): string {
 /** Guarda un diseño o una plantilla en la Biblioteca de la persona. Devuelve el item listo para publicarlo. */
 export async function guardarEnBiblioteca(
     ref: EntityRef,
-    contenido: { tipo: "diseno"; diseno: DisenoIcono; nombre: string } | { tipo: "plantilla"; plantilla: PlantillaIconos },
+    contenido: { tipo: "diseno"; diseno: DisenoIcono; nombre: string; autor?: string; licencia?: string } | { tipo: "plantilla"; plantilla: PlantillaIconos },
 ): Promise<GuardadoOk | GuardadoFallo> {
-    const paquete: PaqueteIconos = contenido.tipo === "diseno" ? empaquetarDiseno(contenido.diseno) : empaquetarPlantilla(contenido.plantilla);
+    const paquete: PaqueteIconos =
+        contenido.tipo === "diseno"
+            ? empaquetarDiseno(contenido.diseno, new Date(), { autor: contenido.autor, licencia: contenido.licencia })
+            : empaquetarPlantilla(contenido.plantilla);
     const nombre = contenido.tipo === "diseno" ? contenido.nombre : contenido.plantilla.nombre;
     const text = paqueteATexto(paquete);
     if (text.length > MAX_PAQUETE_CARACTERES) return { ok: false, error: "Es demasiado grande para guardarlo." };
@@ -105,7 +108,7 @@ function desdeItem(it: SavedItem): ElementoIconos | null {
         return { id: it.id, origen: "biblioteca", tipo: "plantilla", nombre: l.plantilla.nombre, autor: l.plantilla.autor, licencia: l.plantilla.licencia, plantilla: l.plantilla, fecha: it.addedAt };
     }
     if (l.tipo === "diseno" && l.diseno) {
-        return { id: it.id, origen: "biblioteca", tipo: "diseno", nombre: l.diseno.nombre ?? it.title.replace(/\.starseed-iconos.*$/, ""), diseno: l.diseno, fecha: it.addedAt };
+        return { id: it.id, origen: "biblioteca", tipo: "diseno", nombre: l.diseno.nombre ?? it.title.replace(/\.starseed-iconos.*$/, ""), autor: l.autor, licencia: l.licencia, diseno: l.diseno, fecha: it.addedAt };
     }
     return null;
 }
@@ -134,7 +137,7 @@ function desdePublico(p: PublicItem): ElementoIconos | null {
         return { id: p.id, origen: "libreria", tipo: "plantilla", nombre: l.plantilla.nombre, autor: l.plantilla.autor, licencia: l.plantilla.licencia, plantilla: l.plantilla, fecha: p.createdAt };
     }
     if (l.tipo === "diseno" && l.diseno) {
-        return { id: p.id, origen: "libreria", tipo: "diseno", nombre: l.diseno.nombre ?? p.name.replace(/\.starseed-iconos.*$/, ""), diseno: l.diseno, fecha: p.createdAt };
+        return { id: p.id, origen: "libreria", tipo: "diseno", nombre: l.diseno.nombre ?? p.name.replace(/\.starseed-iconos.*$/, ""), autor: l.autor, licencia: l.licencia, diseno: l.diseno, fecha: p.createdAt };
     }
     return null;
 }

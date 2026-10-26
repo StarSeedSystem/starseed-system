@@ -65,6 +65,30 @@ describe("paquete de iconos", () => {
         expect(normalizarPlantilla(l.plantilla)).toEqual(l.plantilla);
     });
 
+    it("un diseño suelto lleva su autoría y su licencia, y se leen al volver", () => {
+        const l = leerPaquete(paqueteATexto(empaquetarDiseno(disenoBase(), new Date(), { autor: "Ana", licencia: "CC0 · dominio público" })));
+        expect(l.autor).toBe("Ana");
+        expect(l.licencia).toBe("CC0 · dominio público");
+    });
+
+    it("la autoría y la licencia se limpian: sin etiquetas, sin saltos y con tope", () => {
+        const p = empaquetarDiseno(disenoBase(), new Date(), { autor: "<img src=x onerror=1>\nAna" + "a".repeat(500), licencia: "  " });
+        expect(p.autor).not.toMatch(/[<>\n]/);
+        expect(p.autor!.length).toBeLessThanOrEqual(60);
+        expect(p.licencia).toBeUndefined();
+        // y lo que viene de fuera también se limpia al leer
+        const crudo = { ...p, autor: "<b>Eva</b>", licencia: "x".repeat(900) };
+        const l = leerPaquete(crudo);
+        expect(l.autor).not.toMatch(/[<>]/);
+        expect(l.licencia!.length).toBeLessThan(200);
+    });
+
+    it("sin autoría ni licencia no escribe campos vacíos", () => {
+        const p = empaquetarDiseno(disenoBase());
+        expect("autor" in p).toBe(false);
+        expect("licencia" in p).toBe(false);
+    });
+
     it("también lee un objeto ya parseado", () => {
         expect(leerPaquete(empaquetarDiseno(disenoBase())).ok).toBe(true);
     });

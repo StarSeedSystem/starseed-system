@@ -10,6 +10,7 @@
  */
 
 import {
+    LIMITES,
     leerPlantilla,
     normalizarDiseno,
     type DisenoIcono,
@@ -31,12 +32,28 @@ export interface PaqueteIconos {
     version: typeof VERSION_PAQUETE;
     tipo: TipoPaquete;
     creado: string;
+    /** Quién lo hizo y con qué licencia se comparte (las plantillas ya lo llevan dentro; los diseños sueltos, aquí). */
+    autor?: string;
+    licencia?: string;
     diseno?: DisenoIcono;
     plantilla?: PlantillaIconos;
 }
 
-export function empaquetarDiseno(diseno: DisenoIcono, ahora: Date = new Date()): PaqueteIconos {
-    return { formato: FORMATO_PAQUETE, version: VERSION_PAQUETE, tipo: "diseno", creado: ahora.toISOString(), diseno };
+export interface MetaPaquete { autor?: string; licencia?: string }
+
+function textoCorto(x: unknown, max: number): string | undefined {
+    if (typeof x !== "string") return undefined;
+    const t = x.replace(/[\u0000-\u001f\u007f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+    return t || undefined;
+}
+
+export function empaquetarDiseno(diseno: DisenoIcono, ahora: Date = new Date(), meta: MetaPaquete = {}): PaqueteIconos {
+    const autor = textoCorto(meta.autor, LIMITES.autorMax);
+    const licencia = textoCorto(meta.licencia, LIMITES.licenciaMax);
+    return {
+        formato: FORMATO_PAQUETE, version: VERSION_PAQUETE, tipo: "diseno", creado: ahora.toISOString(),
+        ...(autor ? { autor } : {}), ...(licencia ? { licencia } : {}), diseno,
+    };
 }
 
 export function empaquetarPlantilla(plantilla: PlantillaIconos, ahora: Date = new Date()): PaqueteIconos {
@@ -52,6 +69,8 @@ export interface LecturaPaquete {
     tipo?: TipoPaquete;
     diseno?: DisenoIcono;
     plantilla?: PlantillaIconos;
+    autor?: string;
+    licencia?: string;
     /** Por qué falló, o qué se descartó (diseños de la plantilla no válidos…). */
     motivos: string[];
 }
@@ -72,7 +91,9 @@ export function leerPaquete(entrada: unknown): LecturaPaquete {
     if (p.tipo === "diseno") {
         const d = normalizarDiseno(p.diseno);
         if (!d) return { ok: false, motivos: ["El diseño no es válido (o su dibujo no pasó el filtro de seguridad)."] };
-        return { ok: true, tipo: "diseno", diseno: d, motivos: [] };
+        const autor = textoCorto(p.autor, LIMITES.autorMax);
+        const licencia = textoCorto(p.licencia, LIMITES.licenciaMax);
+        return { ok: true, tipo: "diseno", diseno: d, ...(autor ? { autor } : {}), ...(licencia ? { licencia } : {}), motivos: [] };
     }
     if (p.tipo === "plantilla") {
         const l = leerPlantilla(p.plantilla);
