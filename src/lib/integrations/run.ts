@@ -42,6 +42,7 @@ import * as Langflow from "./clients/langflow";
 import * as Flowise from "./clients/flowise";
 import * as Stirling from "./clients/stirling-pdf";
 import * as GenericTask from "./clients/generic-task";
+import * as OpenHands from "./clients/openhands";
 import * as Audiobookshelf from "./clients/audiobookshelf";
 import * as HomeAssistant from "./clients/home-assistant";
 import * as Immich from "./clients/immich";
@@ -179,7 +180,9 @@ export async function runIntegration(
         if (a === "models") return await OpenAICompat.models(id, c);
         break;
       case "openhands":
-        if (a === "run-task") return await GenericTask.runTask(id, c, input);
+        // Cliente verificado OHS1020A: rutas reales del Agent Server 1.7.1
+        // (crea la conversación con política AlwaysConfirm y la arranca).
+        if (a === "run-task") return await OpenHands.runTask(c, input);
         break;
       case "browser-use":
         if (a === "browser-task") return await GenericTask.runTask(id, c, input);
@@ -399,6 +402,9 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
         return await OpenAICompat.health(id, c);
       case "openhands":
       case "browser-use":
+        // OpenHands usa el cliente verificado (GET /health del Agent Server);
+        // Browser Use sigue con su runner genérico experimental.
+        if (id === "openhands") return await OpenHands.health(c);
         return await GenericTask.health(id, c);
       case "audiobookshelf":
         return await Audiobookshelf.health(c);
