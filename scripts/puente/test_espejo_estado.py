@@ -41,6 +41,17 @@ class PruebasSeleccion(unittest.TestCase):
                                     "../fuera.json", "/absoluto.json", "cola-.git.json"), AHORA)
         self.assertEqual(sel, ["cola-x.json"])
 
+    def test_seleccion_mixta_un_poco_de_todo(self):
+        """Rescatado de rama nube (GN1010A-d3c): con lo fijo, colas vivas, logs y jsonl juntos,
+        todos viajan; las reglas no se pisan entre sí."""
+        sel = que_copiar(
+            self.pares("progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+                       "cola-1.json", "cola-2.json", "cola-antigua.json",
+                       "evento1.jsonl", "log.txt"), AHORA)
+        self.assertEqual(sel, ["cola-1.json", "cola-2.json", "cola-antigua.json", "evento1.jsonl",
+                               "log.txt", "medios.json", "progreso.json", "progreso.md",
+                               "puntos-control.json"])
+
     def test_cola_justo_en_el_corte_viaja(self):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
@@ -74,6 +85,40 @@ class PruebasEmpaquetar(unittest.TestCase):
             self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
+
+    def test_tar_con_todos_los_tipos_y_recorte_justo(self):
+        """Rescatado de rama nube (GN1010A-d3c): el paquete lleva cada tipo en la raíz, el Markdown
+        viaja entero y un log con exactamente LOG_LINEAS líneas no se recorta (el tope es el límite,
+        no el límite menos uno)."""
+        seleccion = ["progreso.json", "progreso.md", "medios.json",
+                     "puntos-control.json", "cola-1.json", "evento1.jsonl", "log.txt"]
+        contenidos = {
+            "progreso.json": '{"ola": "1012C"}',
+            "medios.json": '{"medios": ["oracle-a1"]}',
+            "puntos-control.json": '{"puntos": [{"nombre": "pc1"}]}',
+            "cola-1.json": '{"tareas": []}',
+            "progreso.md": "\n".join("Línea %d" % i for i in range(300)),
+            "evento1.jsonl": "\n".join(json.dumps({"evento": i, "ts": 1000 + i}) for i in range(200)),
+            "log.txt": "\n".join("registro %d" % i for i in range(200)),
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            olas_dir = os.path.join(tmp_dir, "olas")
+            os.makedirs(olas_dir)
+            for nombre, texto in contenidos.items():
+                with open(os.path.join(olas_dir, nombre), "w", encoding="utf-8") as f:
+                    f.write(texto + "\n")
+            salida_dir = os.path.join(tmp_dir, "salida")
+            os.makedirs(salida_dir)
+            ruta_tar = empaquetar(seleccion, olas_dir, salida_dir)
+            self.assertTrue(os.path.exists(ruta_tar))
+            with tarfile.open(ruta_tar, "r:gz") as tar:
+                self.assertEqual(set(tar.getnames()), set(seleccion))
+                esperadas = {"progreso.json": 1, "progreso.md": 300, "medios.json": 1,
+                             "puntos-control.json": 1, "cola-1.json": 1,
+                             "evento1.jsonl": 200, "log.txt": 200}
+                for nombre, esperada in esperadas.items():
+                    self.assertEqual(len(tar.extractfile(nombre).read().decode("utf-8").splitlines()),
+                                     esperada, nombre)
 
     def test_solo_los_logs_se_recortan_y_conservan_las_ultimas_lineas(self):
         """Rescatado de rama nube (GN1010A-d3c): el estado en Markdown viaja ENTERO aunque sea largo;
