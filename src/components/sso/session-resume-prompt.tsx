@@ -18,6 +18,8 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import {
@@ -334,6 +336,27 @@ export function SessionResumePrompt({
                     }}
                 >
                     Usar otra cuenta
+                </button>
+
+                <button
+                    type="button"
+                    className="ss-sso-other"
+                    onClick={() => abrirGuia({ desde: "login" })}
+                    disabled={entering}
+                    style={{
+                        width: "100%",
+                        background: "transparent",
+                        border: "none",
+                        color: "rgba(255,255,255,.6)",
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        marginTop: 10,
+                        cursor: entering ? "default" : "pointer",
+                        transition: "color .15s",
+                    }}
+                >
+                    <Sparkles size={14} aria-hidden style={{ marginRight: 6 }} />
+                    Conoce StarSeed
                 </button>
 
                 <p
