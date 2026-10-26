@@ -30,6 +30,7 @@ import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
 import { Astraura158NeuronCard } from "@/components/neurons/astraura-158-neuron-card";
+import { SugerenciasInstalacion } from "@/components/imagenes";
 import { safeSet } from "@/lib/safe-storage";
 import { getAstraura158NotifyMode, setAstraura158NotifyMode, type Astraura158NotifyMode } from "@/lib/astraura/astraura-158-notify";
 import { ASTRAURA_158_SEEN_KEY } from "@/lib/astraura/astraura-158-feed";
@@ -208,6 +209,13 @@ export function ConfiguracionTab({ target }: S158TabProps) {
       {/* Sistema soberano ─ Ola 6 · Adenda 158: estado/versión, actualizaciones (con changelog)
           y auto-modificación con consentimiento explícito (checkbox de concesión obligatoria). */}
       <OsSovereignCard target={target} />
+
+      {/* Imágenes locales de esta neurona — IMG1011 (contrato §5): qué instalar según el hierro real;
+          se pinta solo si hay servicio local o algo que decir (sin datos, no inventa). */}
+      <div>
+        <p className={cn(LABEL, "mb-1.5")}>Imágenes locales</p>
+        <SugerenciasInstalacion />
+      </div>
 
       {/* Datos y limpieza ─ acciones locales, honestas y reversibles solo por re-siembra/re-sondeo. */}
       <div className={cn(CARD, "p-3")}>
