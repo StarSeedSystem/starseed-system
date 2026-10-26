@@ -1,4 +1,5 @@
 """Pruebas de interpretación Cloudroom: JSON simulado y ninguna llamada externa."""
+import os
 from datetime import datetime, timezone
 
 import medidor_cloudroom as M
@@ -62,7 +63,52 @@ def test_crm1024h_nube_por_execution_target_en_ms_y_modelos_de_harnesses():
                                           "modelos": ["gpt-6-luna", "gpt-5.6-terra"]}
 
 
+def test_solo_conserva_los_otros_medidores():
+    """(RTCRM1024H) Con --solo no se borran los demás medidores; main usa fusionar_solo."""
+    import medidores_credito as MC
+    previo = {"medidores": {"claude": {"id": "claude", "ok": True},
+                            "codex": {"id": "codex", "ok": True},
+                            "oracle": {"id": "oracle", "ok": True}},
+              "historial": {"claude": [{"t": "x", "v": {}}]}}
+    doc = MC.recoger([{"id": "cloudroom", "tipo": "t"}], previo, AHORA,
+                     adaptadores={"t": lambda cfg, ahora: {"id": "cloudroom", "ok": True}})
+    fusionado = MC.fusionar_solo(previo, doc, {"cloudroom"})
+    assert set(fusionado["medidores"]) == {"cloudroom", "claude", "codex", "oracle"}
+    assert fusionado["medidores"]["claude"]["ok"] is True
+    assert fusionado["historial"]["claude"] == [{"t": "x", "v": {}}]
+    assert fusionado["medidores"]["cloudroom"]["ok"] is True
+
+
+def test_leer_medidor_resuelve_la_ruta_y_consulta_hilos_archivados(monkeypatch):
+    """(RTCRM1024H) Al CLI se le pasa la ruta resuelta (no el nombre suelto) y la lista de
+    hilos pide archivados y ocultos, que también gastaron cupo del ciclo."""
+    ordenes = []
+    monkeypatch.setattr(M, "ruta_cli", lambda *a, **k: "/opt/falsa/room-cli")
+    monkeypatch.setattr(M, "_correr", lambda orden: ordenes.append(list(orden)) or "{}")
+    assert M.disponible() is True
+    assert M.leer_medidor({}, AHORA)["id"] == "cloudroom"
+    assert ordenes == [["/opt/falsa/room-cli", "cloud", "status", "--json"],
+                       ["/opt/falsa/room-cli", "thread", "count", "--json"],
+                       ["/opt/falsa/room-cli", "thread", "list", "--json",
+                        "--include-archived", "--include-hidden"]]
+
+
 def test_crm1024h_ruta_de_la_cli_fuera_del_path():
     assert M.ruta_cli({"CLOUDROOM_CLI": "/x/room-cli"}, existe=lambda p: p == "/x/room-cli",
                       buscar=lambda n: None) == "/x/room-cli"
     assert M.ruta_cli({}, existe=lambda p: False, buscar=lambda n: None) is None
+
+
+def test_crm1024h_ruta_de_launchd_cuando_la_cli_no_esta_en_el_path():
+    """RTCRM1024Hb: launchd no trae room-cli en el PATH; se busca en ~/.local/bin."""
+    local = os.path.expanduser("~/.local/bin/room-cli")
+    assert M.ruta_cli({}, existe=lambda p: p == local, buscar=lambda n: None) == local
+
+
+def test_crm1024h_catalogo_incluye_harness_sin_modelo_superior():
+    """RTCRM1024Hb: un harness con models pero sin model propio igual se cataloga."""
+    estado = {"account": {"id": "x"}, "harnesses": [
+        {"id": "claude-code", "models": [{"model": "opus"}]}]}
+    medidor = M.interpretar(estado, {}, {"threads": []}, AHORA)
+    assert medidor["extras"]["agentes"] == [
+        {"harness": "claude-code", "modelo": "sin modelo", "modelos": ["opus"]}]
