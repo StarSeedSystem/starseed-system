@@ -11,11 +11,30 @@
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
 // ════════════════════════════════════════════════════════════════
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana } from "@/lib/design/composicion";
+
+/* ── DSN1019B · Geometría de apertura ──
+   Posición inicial de la ventana según `geometriaVentana` (src/lib/design/composicion.ts,
+   módulo puro con su propia prueba): centrada en la pantalla en escritorio y, en teléfono
+   (< 430 px, el umbral de composicion.ts), HOJA centrada pegada al borde inferior que sube
+   desde abajo con entrada cardinal (y: 100% → 0, solo transform + opacity). Antes de la
+   primera medición del viewport (SSR y primer fotograma) se mantiene el centrado por flex
+   de siempre; el arrastre de cabecera no cambia: actúa en la capa de arrastre de abajo. */
+
+interface Viewport {
+    ancho: number;
+    alto: number;
+}
+
+function prefiereMovimientoReducido(): boolean {
+    if (typeof window !== "object" || typeof window.matchMedia !== "function") return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -80,6 +99,29 @@ export function OSWindow({
 }: OSWindowProps) {
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+    const [viewport, setViewport] = useState<Viewport | null>(null);
+    const [reducido, setReducido] = useState(false);
+
+    useEffect(() => {
+        const medir = () => setViewport({ ancho: window.innerWidth, alto: window.innerHeight });
+        medir();
+        setReducido(prefiereMovimientoReducido());
+        window.addEventListener("resize", medir);
+        return () => window.removeEventListener("resize", medir);
+    }, []);
+
+    const esTelefono = viewport !== null && viewport.ancho < 430;
+    const geo = useMemo(
+        () => (viewport ? geometriaVentana(viewport, { tipo: esTelefono ? "hoja" : "ventana" }) : null),
+        [viewport, esTelefono],
+    );
+
+    // Entrada cardinal: la hoja sube desde abajo (100 % de su alto) en el teléfono;
+    // con movimiento reducido solo desvanece, y en escritorio se conserva el escalado suave.
+    const entrada = esTelefono && geo && !reducido
+        ? { opacity: 0, y: geo.alto }
+        : { opacity: 0, ...(reducido ? {} : { scale: 0.96 }) };
+    const estiloHoja = esTelefono && geo ? { width: geo.ancho, height: geo.alto } : undefined;
 
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
@@ -108,7 +150,10 @@ export function OSWindow({
     };
 
     return (
-        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+        <div ref={raizRef} className={cn(
+            "fixed inset-0 z-[120] flex justify-center",
+            esTelefono ? "items-end p-4" : "items-center justify-center p-3 sm:p-4",
+        )} role="dialog" aria-modal="true" aria-label={title}>
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
@@ -116,9 +161,11 @@ export function OSWindow({
                 el centrado y la ventana SIEMPRE abre centrada. */}
             <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={entrada}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
                     transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                    style={estiloHoja}
+                    data-hoja-telefono={esTelefono ? "" : undefined}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
                         sizeClass,
