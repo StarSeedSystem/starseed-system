@@ -231,5 +231,36 @@ class F_LosDosDirectoresCuentanGithubIgual(unittest.TestCase):
         self.assertEqual(CN.CATALOGO["nube-gh"]["jobs_simultaneos"], 3)  # el catálogo base no se toca
 
 
+class I_UnPrestamoQueNoSalioNoReserva(unittest.TestCase):
+    """CAP1026I · con el enlace en «tablas» la orden no sale: no se apunta el préstamo (6 h de reserva)."""
+
+    def _nodo(self):
+        import nodo_metagenesis as N
+
+        nodo = N.Nodo.__new__(N.Nodo)
+        nodo.modo, nodo.mem = "real", {}
+        return N, nodo
+
+    def _con_resultado(self, N, nodo, resultado):
+        from unittest import mock
+
+        def repartir(self, a, informe, t):
+            informe.setdefault("acciones", []).append({"resultado": resultado})
+        informe = {"acciones": []}
+        with mock.patch.object(N.Nodo, "_repartir", repartir):
+            return N.Nodo._prestar(nodo, [{"id": "X1", "titulo": "x", "prompt": "p"}], "oracle-a1-cd000b", "m",
+                                   informe, 1e9, trabajadores=3)
+
+    def test_en_tablas_no_se_apunta(self):
+        N, nodo = self._nodo()
+        self.assertFalse(self._con_resultado(N, nodo, "no puedo pedírselo: modo tablas: va por la bitácora"))
+        self.assertEqual(nodo.mem.get("prestamos") or [], [])
+
+    def test_si_sale_se_apunta(self):
+        N, nodo = self._nodo()
+        self.assertTrue(self._con_resultado(N, nodo, "pedido a oracle-a1-cd000b"))
+        self.assertEqual([p["ids"] for p in nodo.mem["prestamos"]], [["X1"]])
+
+
 if __name__ == "__main__":
     unittest.main()

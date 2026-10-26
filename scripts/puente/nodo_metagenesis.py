@@ -880,19 +880,28 @@ class Nodo:
     def _prestar(self, tareas: List[Dict[str, Any]], destino: str, motivo: str, informe: Dict[str, Any],
                  t: float, trabajadores: int = 2) -> None:
         """Manda `tareas` a `destino` como cola firmada (el mismo camino que el relevo de medio) y lo apunta.
-        `trabajadores` (CAP1025E): los que el medio dice que lleva; 2 si no lo dice."""
+        `trabajadores` (CAP1025E): los que el medio dice que lleva; 2 si no lo dice.
+
+        (2026-10-26, CAP1026I) Solo se apunta el préstamo si la orden SALIÓ («pedido a …»), como el relevo.
+        MEDIDO a las 12:36 (hora de la Mac): con el enlace en «tablas» la orden no puede salir («va por la
+        bitácora») y aun así se apuntaba: seis tareas reservadas 6 h (GRACIA_ASIGNACION_S) para un A1 que
+        nunca las recibió y se quedó en «espera». Devuelve si salió."""
         cola = "cola-mg-%s-%s" % (destino.split("-")[0], time.strftime("%m%d-%H%M", time.localtime(t)))
         limpias = [L.tarea_limpia(x) for x in tareas]
         trabajadores = trabajadores if isinstance(trabajadores, int) and 1 <= trabajadores <= 4 else 2
+        antes = len(informe.get("acciones") or [])
         self._repartir(L.accion("prestar:%s" % destino, "lanzar_cola", destino, motivo,
                                 args={"cola": cola, "trabajadores": trabajadores, "_tareas": limpias}, espera_s=0),
                        informe, t)
-        if self.modo == "real":
+        acciones = informe.get("acciones") or []
+        salio = str((acciones[antes] if len(acciones) > antes else {}).get("resultado") or "").startswith("pedido a ")
+        if self.modo == "real" and salio:
             self.mem.setdefault("prestamos", []).append(
                 {"ids": [x["id"] for x in limpias], "destino": destino, "cola": cola, "ts": t})
             # (2026-10-20, CAP1020A) Se podan los préstamos viejos; los que ya terminó su cola
             # conservan su `fin` (los medidores de resultados los siguen contando).
             self.mem["prestamos"] = podar_prestamos(self.mem["prestamos"], t)
+        return salio
 
     def _reparto(self, a: Dict[str, Any], raiz: str, informe: Dict[str, Any], t: float) -> Dict[str, Any]:
         """La Mac (medio con las colas) presta a un medio ocioso las listas del FINAL de su orden."""
@@ -915,8 +924,11 @@ class Nodo:
             self._registrar(d, informe)
             return d
         ids = [str(x["id"]) for x in elegidas]
-        self._prestar(elegidas, destino, "le presto %s · %s" % (", ".join(ids), a["motivo"]), informe, t,
-                      trabajadores=int(args.get("trabajadores") or 2))
+        salio = self._prestar(elegidas, destino, "le presto %s · %s" % (", ".join(ids), a["motivo"]), informe, t,
+                              trabajadores=int(args.get("trabajadores") or 2))
+        if self.modo == "real" and not salio:
+            return {"resultado": "no salió el préstamo a %s (sin orden firmada por este enlace): %s siguen libres"
+                                 % (destino, ", ".join(ids)), "ids": []}
         return {"resultado": "prestadas a %s: %s" % (destino, ", ".join(ids)), "ids": ids}
 
     def _reparar_publicacion(self, a: Dict[str, Any], salud: Dict[str, Any], raiz: str, informe: Dict[str, Any],
