@@ -83,10 +83,16 @@ la persona ni de sus servidores propios.
   sesiones (`handoff`), enseñar (`teach`) y escribir para agentes.
 - **Para nosotros:** instaladas como plugin «Skills For Real Engineers» del directorio de Anthropic (se sincroniza al
   Claude Code de la Mac).
-- **Para Astraura:** copia en `vendor/habilidades/mattpocock-skills/` (commit 546c06669) convertida en capacidades con
-  TRES tamaños, porque cada capa tiene su ventana: **tarjeta** (≤ 60 palabras, para Needle y BitNet), **resumen**
+- **Para Astraura:** copia en `vendor/habilidades/mattpocock-skills/` —origen: commit **49dd158** del repo
+  de Matt Pocock, el que documenta `ORIGEN.md` de la copia (2026-10-09) y la atribución de
+  `src/ai/astraura/habilidades/ingenieria-a.ts`— convertida en capacidades con TRES tamaños, porque cada
+  capa tiene su ventana: **tarjeta** (≤ 60 palabras, para Needle y BitNet), **resumen**
   (≤ 250 palabras, para Bonsai 1,7–4B) y **completa** (el texto original, para razón, profunda y nube). Laya elige
   qué habilidad aplica; el planificador elige el tamaño según la capa que va a responder.
+  *(Corregido el 2026-10-26: este documento citaba antes `546c06669` como commit de origen de las skills,
+  pero esa cifra es el commit de **este repo —StarSeed—** que integró la copia el 2026-10-18 («Habilidades
+  para la IA de Astraura: skills de Matt Pocock…»), no el del repo de Matt Pocock. El origen de las
+  skills es `49dd158` (2026-10-09), el que registra `ORIGEN.md`, la fuente que manda.)*
 - **En todos los contextos, automáticamente:** chats personales y de grupo, agentes, bots, Genesis y los escritores
   del enjambre (que reciben la tarjeta de TDD, diagnóstico o diseño según su tarea). Cada persona y ámbito puede
   apagarlas en Ajustes (misma herencia de capas).
