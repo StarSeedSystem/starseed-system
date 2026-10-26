@@ -171,7 +171,7 @@ describe("PaginaAcceso (la ventana en una página)", () => {
         const oir = (e: Event) => recibidos.push((e as CustomEvent<PeticionGuia>).detail);
         window.addEventListener(EVENTO_ABRIR_GUIA, oir);
         render(<PaginaAcceso desde="bienvenida" />);
-        fireEvent.click(await screen.findByRole("button", { name: "Conoce StarSeed" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Conoce StarSeed (sin cuenta)" }));
         window.removeEventListener(EVENTO_ABRIR_GUIA, oir);
         expect(recibidos).toEqual([{ desde: "bienvenida" }]);
     });

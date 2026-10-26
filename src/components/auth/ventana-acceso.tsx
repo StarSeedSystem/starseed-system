@@ -329,7 +329,7 @@ export function ContenidoAcceso({
                         className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-md px-1 text-xs text-white/65 underline-offset-2 hover:text-white/90 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
                     >
                         <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                        Conoce StarSeed
+                        Conoce StarSeed (sin cuenta)
                     </button>
                 </div>
             )}

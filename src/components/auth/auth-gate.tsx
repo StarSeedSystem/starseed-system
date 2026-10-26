@@ -10,6 +10,10 @@
 // —incluido «Entrar con código por correo (sin contraseña)», con las mismas rutas /api/auth/otp/*— vive
 // en `auth-form.tsx` y `lib/auth/codigo-correo.ts`.
 //
+// (GUI1021K1) La ventana lleva bajo los dos modos (Entrar y Crear cuenta) el botón «Conoce StarSeed
+// (sin cuenta)», que abre la guía completa por la puerta común con `desde: "login"` sin iniciar sesión.
+// Ese botón vive en `ventana-acceso.tsx`; aquí solo se fija el origen de esta puerta global.
+//
 // Se conserva por compatibilidad (`app-providers.tsx` lo importa) y por la marca RECIEN_REGISTRADO.
 // Fail-open: si el chequeo de sesión falla (red/SSR), no bloquea la app.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,7 +53,8 @@ export function AuthGate() {
   if (!ready || authed) return null;
 
   // La página decide qué hacer al entrar (el rito, los escritorios): la ventana se queda.
-  return <PaginaAcceso desde="bienvenida" pasoInicial="acceso" pestanaInicial="signin" destinoAlEntrar={null} />;
+  // Origen «login»: la guía que se abre desde aquí vuelve a este mismo formulario al terminar.
+  return <PaginaAcceso desde="login" pasoInicial="acceso" pestanaInicial="signin" destinoAlEntrar={null} />;
 }
 
 export default AuthGate;
