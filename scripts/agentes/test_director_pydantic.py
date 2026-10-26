@@ -59,6 +59,15 @@ class Indicacion(unittest.TestCase):
         texto = D.construir_indicacion({"titulo": "x" * 2000})
         self.assertLessEqual(len(texto.split("Título: ", 1)[1]), D.MAX_TEXTO)
 
+    def test_texto_tarea_es_puro(self):
+        self.assertEqual(D.construir_indicacion("  bloqueada  "),
+                         "Tarea bloqueada:\nbloqueada")
+        ficha = D.construir_indicacion({"id": "T1", "titulo": "Contrato",
+                                        "dependencias": ["a.py"], "area": ""})
+        self.assertIn("Id: T1", ficha)
+        self.assertIn("Dependencias: ['a.py']", ficha)
+        self.assertNotIn("Área", ficha)
+
     def test_los_campos_vacios_no_aparecen(self):
         texto = D.construir_indicacion({"id": "T1", "titulo": "Contrato",
                                         "area": "   ", "motivo": ""})
