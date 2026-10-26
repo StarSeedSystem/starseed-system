@@ -1,16 +1,21 @@
 /**
  * Guía de introducción · la puerta común para abrirla (§5 de `architecture/guias-introduccion.md`).
  * ═══════════════════════════════════════════════════════════════════════════
- * «Una sola puerta»: quien quiera abrir la guía (la pantalla de acceso, la bienvenida, Ajustes,
- * cada aviso «Inicia sesión para…», un botón suelto) llama a `abrirGuia({desde, temaInicial?})`,
- * que lanza el evento de siempre (`starseed:open-guide`, el que escucha `aurora-guide.tsx`) con de
- * dónde se abre y, si se quiere, el tema por el que empezar.
+ * «Una sola puerta»: la pantalla de acceso, la bienvenida, Ajustes, cada aviso «Inicia sesión
+ * para…» o un botón suelto llaman a `abrirGuia({desde, temaInicial?})`, que lanza el evento de
+ * siempre (`starseed:open-guide`, el que escucha `aurora-guide.tsx`) con de dónde se abre y, si
+ * se quiere, el tema por el que empezar.
  *
  * (Ola 1025U · GUIA1025U) La guía que abre este evento recorre el catálogo único de pasos
  * (`guia-completa.ts`, el mismo que la introducción de la ventana de acceso): `temaInicial` es el id de
  * cualquiera de esos pasos y `desde` decide qué hace el final de la guía sin cuenta (en `/login` y
  * `/bienvenida` el formulario ya está detrás; desde cualquier otro sitio se abre la ventana de acceso).
  * Sin `temaInicial`, la guía retoma por donde se quedó (`guia-progreso.ts`) o empieza desde el principio.
+ *
+ * Aquí viven también las reglas del modo invitado (GUI1021I): `modoGuia` dice si la guía va con
+ * cuenta o como invitada, `accionesDelPaso` reserva «Ir» y «Hazlo por mí» a la cuenta (con la
+ * etiqueta honesta «Disponible al entrar»), `zGuia` decide la capa para no quedar bajo una
+ * ventana de acceso y `unirVistas` une lo visto sin cuenta a la marca de la cuenta al entrar.
  *
  * Módulo PURO: sin React ni `node:*`; el destino del evento es inyectable para probarlo.
  */
@@ -28,6 +33,51 @@ export type OrigenGuia = (typeof ORIGENES_GUIA)[number];
 export interface PeticionGuia {
   desde: OrigenGuia;
   temaInicial?: TemaGuia["key"];
+}
+
+export type ModoGuia = "invitado" | "cuenta";
+
+/**
+ * Lo que se ofrece en CADA paso según el modo. En invitado «Ir» y «Hazlo por
+ * mí» van detrás de la pantalla de acceso: no se ofrecen; se muestra la
+ * etiqueta honesta «Disponible al entrar». Con cuenta, la guía de siempre.
+ */
+export interface AccionesPaso {
+  puedeIr: boolean;
+  puedeHazloPorMi: boolean;
+  etiqueta: string | null;
+}
+
+/** Etiqueta única para las acciones reservadas a la cuenta (con acentos). */
+export const ETIQUETA_SOLO_CUENTA = "Disponible al entrar";
+
+/** Orígenes que son ventanas de acceso encima de las que la guía se pinta. */
+export const VENTANAS_ACCESO: readonly OrigenGuia[] = ["login", "bienvenida", "aviso"];
+
+/** Altura de HOY del panel de la guía (`aurora-guide.tsx`, `z-[95]`). */
+export const Z_GUIA_HOY = 95;
+/** Por encima de AuthGate (z 200) y la bienvenida (z 210), con margen. */
+export const Z_GUIA_SOBRE_ACCESO = 240;
+
+/** Con sesión, guía de cuenta; sin ella, invitado (nunca hay tercera cosa). */
+export function modoGuia(haySesion: boolean): ModoGuia {
+  return haySesion ? "cuenta" : "invitado";
+}
+
+/** Acciones del paso según el modo: en invitado se reservan a la cuenta. */
+export function accionesDelPaso(modo: ModoGuia): AccionesPaso {
+  if (modo === "cuenta") return { puedeIr: true, puedeHazloPorMi: true, etiqueta: null };
+  return { puedeIr: false, puedeHazloPorMi: false, etiqueta: ETIQUETA_SOLO_CUENTA };
+}
+
+/**
+ * Capa de la guía: desde una ventana de acceso, o sin sesión (el invitado
+ * está AÚN más tapado), por encima de todo (240). Con sesión y abierta a mano
+ * o desde Ajustes, la de hoy (95) para no ponerse por encima de nada que no toque.
+ */
+export function zGuia(desde: OrigenGuia, haySesion: boolean): number {
+  const esVentanaAcceso = (VENTANAS_ACCESO as readonly string[]).includes(desde);
+  return !haySesion || esVentanaAcceso ? Z_GUIA_SOBRE_ACCESO : Z_GUIA_HOY;
 }
 
 /**
@@ -68,4 +118,18 @@ export function pedirAccesoDesdeGuia(accion: AccionGuia, destino?: EventTarget |
   } catch {
     return false;
   }
+}
+
+/**
+ * Une lo visto como INVITADO (claves guardadas en el aparato) a la marca de la
+ * CUENTA, sin perder nada ni duplicar: primero lo de la cuenta y detrás lo
+ * nuevo del aparato. Idempotente: unir dos veces lo mismo no repite claves.
+ */
+export function unirVistas(local: readonly string[], cuenta: readonly string[]): string[] {
+  const unidas: string[] = [];
+  for (const vista of [...cuenta, ...local]) {
+    const clave = (vista ?? "").trim();
+    if (clave && !unidas.includes(clave)) unidas.push(clave);
+  }
+  return unidas;
 }
