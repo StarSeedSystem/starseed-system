@@ -48,16 +48,27 @@ vi.mock("../mundo/escena-mundo", () => ({
     );
   },
 }));
+// next/dynamic en jsdom: carga perezosa con React.lazy, como en el navegador.
+vi.mock("next/dynamic", async () => {
+  const React = await import("react");
+  return {
+    default: (cargar: () => Promise<React.ComponentType<Record<string, unknown>>>) => {
+      const Perezoso = React.lazy(() => cargar().then((c) => ({ default: c })));
+      return function Diferido(p: Record<string, unknown>) {
+        return (
+          <React.Suspense fallback={null}>
+            <Perezoso {...p} />
+          </React.Suspense>
+        );
+      };
+    },
+  };
+});
 vi.mock("../ficha/ficha-agente", () => ({
   FichaAgente: (p: { agente: { id: string; nombre: string; esBotIA: boolean }; alCerrar?: () => void }) => {
     h.ficha(p);
     return (
-      <div data-testid="ficha-stub">
-        {p.agente.nombre}
-        <button type="button" onClick={p.alCerrar}>
-          cerrar desde la ficha
-        </button>
-      </div>
+      <div data-testid="ficha-stub">{p.agente.nombre}</div>
     );
   },
 }));
@@ -350,7 +361,7 @@ describe("tope de habitantes visibles", () => {
 });
 
 describe("la ficha del agente en el panel de cristal", () => {
-  it("elegir un habitante abre la ficha con SU referencia (un Bot de IA) y se cierra con la X y con Escape", async () => {
+  it("elegir un habitante abre la ficha con SU referencia (un Bot de IA) y se cierra con la X del panel y con Escape", async () => {
     simularNavegador({ webgl: true });
     montar({ habitantes: varios(3) });
     await asentar();
@@ -359,23 +370,24 @@ describe("la ficha del agente en el panel de cristal", () => {
     fireEvent.click(screen.getAllByTestId("habitante")[1]);
     const panel = screen.getByTestId("panel-cristal");
     expect(panel.getAttribute("role")).toBe("dialog");
+    // La ficha se descarga a demanda (next/dynamic, aquí React.lazy): se asienta y aparece.
+    await asentar();
     expect(within(panel).getByTestId("ficha-stub").textContent).toContain("Agente 1");
-    const props = h.ficha.mock.calls.at(-1)?.[0] as { agente: AgenteMundoRef; alCerrar: () => void };
+    const props = h.ficha.mock.calls.at(-1)?.[0] as { agente: AgenteMundoRef; alCerrar?: () => void };
     expect(props.agente.id).toBe("personalidad:personalidad-1");
     expect(props.agente.esBotIA).toBe(true);
-    expect(typeof props.alCerrar).toBe("function");
+    // Una sola X: la del panel. La ficha no recibe `alCerrar` y no pinta la suya.
+    expect(props.alCerrar).toBeUndefined();
     expect(within(panel).getByText("Bot de IA")).toBeTruthy();
+    expect(within(panel).getAllByRole("button", { name: /cerrar/i })).toHaveLength(1);
 
-    fireEvent.click(within(panel).getByRole("button", { name: /cerrar la ficha/i }));
+    fireEvent.click(within(panel).getByRole("button", { name: /cerrar/i }));
     expect(screen.queryByTestId("panel-cristal")).toBeNull();
 
     fireEvent.click(screen.getAllByTestId("habitante")[2]);
+    await asentar();
     expect(within(screen.getByTestId("panel-cristal")).getByTestId("ficha-stub").textContent).toContain("Agente 2");
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByTestId("panel-cristal")).toBeNull();
-
-    fireEvent.click(screen.getAllByTestId("habitante")[0]);
-    fireEvent.click(screen.getByText("cerrar desde la ficha"));
     expect(screen.queryByTestId("panel-cristal")).toBeNull();
   });
 

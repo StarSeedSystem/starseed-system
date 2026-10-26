@@ -23,7 +23,13 @@ import type * as THREE from "three";
 import { Compass, Loader2 } from "lucide-react";
 
 import { CronicaMundo } from "./cronica-mundo";
-import { FichaAgente } from "./ficha/ficha-agente";
+import dynamic from "next/dynamic";
+
+// La ficha (siete pestañas) solo se descarga al elegir un habitante.
+const FichaAgente = dynamic(() => import("./ficha/ficha-agente").then((m) => m.FichaAgente), {
+  ssr: false,
+  loading: () => <p className="text-xs text-white/60" role="status">Abriendo la ficha…</p>,
+});
 import { EscenaMundo } from "./mundo/escena-mundo";
 import { AvisosMundo } from "./mundo/avisos-mundo";
 import { ControlesMundo } from "./mundo/controles-mundo";
@@ -259,7 +265,8 @@ export function MundoAvatares({ personalidades, habitantes: habitantesProp, esta
 
         {agenteElegido && (
           <PanelCristal titulo={agenteElegido.nombre} subtitulo={ETIQUETA_BOT_IA} alCerrar={cerrarFicha}>
-            <FichaAgente agente={agenteElegido} alCerrar={cerrarFicha} />
+            {/* Sin `alCerrar`: la X es la del panel; si no, salían dos. */}
+            <FichaAgente agente={agenteElegido} />
           </PanelCristal>
         )}
       </div>

@@ -226,6 +226,7 @@ export const SYNCED_KEYS = [
 export const SYNCED_PREFIXES = [
     "starseed.brain.", // starseed.brain.<id>.{moa,channels,memoryRoots,library}
     "starseed.agentes-red.perfil.", // (Ola 1025U · U3) starseed.agentes-red.perfil.<agente>.v1: visibilidad, vínculos y dispositivos virtuales de cada agente
+    "starseed.mundo.agente.", // (Ola 1025U · U2) starseed.mundo.agente.<id>.v1: cerebro, capas, percepción, motores y herramientas de cada agente del mundo (sin claves)
 ] as const;
 
 /**
