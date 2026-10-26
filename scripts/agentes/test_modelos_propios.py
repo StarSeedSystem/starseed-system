@@ -62,6 +62,24 @@ class Cliente(unittest.TestCase):
         base, modelo = c
         self.assertEqual((base, modelo), (M.SERVIDOR_IA, c.modelo))
 
+    def test_local_primero_y_elige_por_capacidad(self):
+        visto = []
+
+        def sonda(base, clave=""):
+            visto.append(base)
+            return ["ollama/qwen2.5-coder:7b", "ollama/llava-vision"]
+
+        c = M.cliente_openai_compatible("código", entorno={}, sonda=sonda)
+        self.assertEqual(visto, [M.SERVIDOR_IA])
+        self.assertEqual(c.origen, "servidor-propio")
+        self.assertEqual(c.base_url, M.SERVIDOR_IA)
+        self.assertEqual(c.modelo, "ollama/qwen2.5-coder:7b")
+        # Sin token de servidor: sin cabecera de Authorization.
+        self.assertEqual(c.cabeceras(), {})
+        v = M.cliente_openai_compatible("visión", entorno={}, sonda=sonda)
+        self.assertEqual(v.origen, "servidor-propio")
+        self.assertEqual(v.modelo, "ollama/llava-vision")
+
     def test_relevo_a_experiential(self):
         entorno = {
             "STARSEED_PASARELA_EXPLABS_KEY": "clave-experiential",
@@ -72,6 +90,42 @@ class Cliente(unittest.TestCase):
         self.assertEqual(c.base_url, M.EXPLABS)
         self.assertEqual(c.modelo, "clef-flash")
         self.assertEqual(c.cabeceras(), {"Authorization": "Bearer clave-experiential"})
+
+    def test_experiential_con_base_url_propia_y_la_clave_visible_solo_para_el_uso(self):
+        entorno = {
+            "STARSEED_PASARELA_EXPLABS_KEY": "xpl_secreta",
+            "STARSEED_PASARELA_EXPLABS_MODELOS": "clef-flash, deepseek-x",
+            "STARSEED_PASARELA_EXPLABS_URL": "https://pasarela.local/v1/",
+        }
+        c = M.cliente_openai_compatible("chat", entorno=entorno, sonda=lambda b, k="": [])
+        self.assertEqual(c.origen, "experiential")
+        self.assertEqual(c.base_url, "https://pasarela.local/v1")
+        self.assertEqual(c.modelo, "clef-flash")
+        self.assertEqual(c.clave, "xpl_secreta")
+        self.assertNotIn("xpl_secreta", repr(c))
+
+    def test_el_entorno_inyectado_manda_sobre_el_archivo(self):
+        texto = (
+            "STARSEED_PASARELA_EXPLABS_KEY=vieja\n"
+            "STARSEED_PASARELA_EXPLABS_MODELOS=clef-flash\n"
+        )
+        entorno = {"STARSEED_PASARELA_EXPLABS_KEY": "nueva"}
+        c = M.cliente_openai_compatible(
+            "chat", entorno=entorno, leer_env=lambda: texto, sonda=lambda b, k="": [])
+        self.assertEqual(c.clave, "nueva")
+        self.assertEqual(c.origen, "experiential")
+        self.assertEqual(c.modelo, "clef-flash")
+
+    def test_capacidad_desconocida_usa_el_primero_gratuito(self):
+        entorno = {"OPENROUTER_API_KEY": "k"}
+        c = M.cliente_openai_compatible(
+            "capacidad-rara",
+            entorno=entorno,
+            sonda=lambda b, k="": None if b == M.SERVIDOR_IA else ["meta/llama:free", "qwen/qwen3-coder:free"],
+        )
+        self.assertEqual(c.origen, "openrouter:free")
+        self.assertTrue(c.modelo.endswith(":free"))
+        self.assertEqual(c.modelo, "meta/llama:free")
 
     def test_openrouter_solo_gratis_aunque_el_de_pago_encaje_mejor(self):
         entorno = {"OPENROUTER_API_KEY": "clave-openrouter"}

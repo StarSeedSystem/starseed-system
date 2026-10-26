@@ -18,7 +18,7 @@ import {
     nombreGpuNavegador,
     recursosDeServidoresCerebro,
 } from "../deteccion";
-import type { DeteccionMaquina } from "../deteccion-tipos";
+import { esDeteccionMaquina, type DeteccionMaquina } from "../deteccion-tipos";
 import type { MedioAlmacen } from "../tipos";
 
 const ID = "n-mac";
@@ -170,6 +170,26 @@ describe("inventarioDesde · Mac de Alex con servidor local y SSD externo USB", 
         expect(inv.avisos).toContain(MAC_ALEX.avisos[0]);
         expect(inv.avisos).not.toContain(AVISO_DISCOS);
         expect(inv.avisos).not.toContain(AVISO_RAM_NAVEGADOR);
+    });
+
+    it("el servidor contestó pero sin discos: su aviso lo dice (y no el del navegador), y lo del navegador y las carpetas se quedan", () => {
+        const carpeta: MedioAlmacen = {
+            id: "carpeta:c1",
+            tipo: "neurona-local",
+            etiqueta: "Carpeta «Modelos»",
+            neuronaId: ID,
+            via: "local",
+            persistente: true,
+            privado: true,
+            disponible: true,
+            fuente: "declarado",
+        };
+        const conCarpeta = { ...desdeNavegador(), almacenes: [...desdeNavegador().almacenes, carpeta] };
+        const sinDiscos = inventarioDesde({ estaNeurona: conCarpeta, maquina: { ...MAC_ALEX, npu: undefined, volumenes: [] }, ahora });
+        expect(sinDiscos.avisos).toContain("El servidor local de esta neurona no pudo leer sus discos.");
+        expect(sinDiscos.avisos).not.toContain(AVISO_DISCOS);
+        expect(sinDiscos.neuronas[0].almacenes.find((a) => a.id === "carpeta:c1")).toMatchObject({ fuente: "declarado" });
+        expect(sinDiscos.neuronas[0].almacenes.find((a) => a.id === `navegador:${ID}`)?.tipo).toBe("navegador");
     });
 });
 
@@ -326,6 +346,18 @@ describe("detectarInventario fuera del navegador", () => {
         expect(inv.neuronas).toHaveLength(1);
         expect(inv.neuronas[0].esEsta).toBe(true);
         expect(inv.avisos).toContain(AVISO_DISCOS);
+    });
+});
+
+describe("esDeteccionMaquina · la forma rota no se cuela", () => {
+    it("lo que el servidor local contesta se valida antes de usarlo", () => {
+        expect(esDeteccionMaquina(MAC_ALEX)).toBe(true);
+        expect(esDeteccionMaquina(null)).toBe(false);
+        expect(esDeteccionMaquina("macOS")).toBe(false);
+        // Un campo atómico con otro tipo (un «228» suelto) o una lista que no es lista, no pasa.
+        expect(esDeteccionMaquina({ ...MAC_ALEX, nucleos: "8" })).toBe(false);
+        expect(esDeteccionMaquina({ ...MAC_ALEX, volumenes: "228" })).toBe(false);
+        expect(esDeteccionMaquina({ so: "macOS 26.3.1", nucleos: 8, ramGb: 8 })).toBe(false);
     });
 });
 
