@@ -18,12 +18,29 @@
  */
 
 import { motion, type Transition } from "framer-motion";
+import type { ComponentType } from "react";
 import { DemoGestosHibridos } from "./demo-gestos-hibridos";
+import { DEMOS_SISTEMA } from "./demos-sistema";
+import { DEMOS_RED } from "./demos-red";
 
 type DemoProps = {
   stepKey: string;
   accent: string;
   reduce: boolean;
+};
+
+type DemoTema = ComponentType<{ accent: string; reduce: boolean }>;
+
+/**
+ * Las diez demostraciones de los temas de la guía (Ola 1021G, `TODOS_LOS_TEMAS`), con la clave
+ * del tema. Las claves viejas del tour («cerebros», «libreria») quedan apuntando a sus
+ * demostraciones nuevas por compatibilidad con pasos y superficies que aún las usan.
+ */
+const DEMOS_TEMAS: Record<string, DemoTema> = {
+  ...DEMOS_SISTEMA,
+  ...DEMOS_RED,
+  cerebros: DEMOS_SISTEMA["neuronas-cerebro"],
+  libreria: DEMOS_RED["libreria-biblioteca"],
 };
 
 // Un loop suave estándar (se anula si reduce-motion está activo).
@@ -421,103 +438,6 @@ function PerfilDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
   );
 }
 
-/* ─────────────────────────── CEREBROS ───────────────────────────────────────
-   Grafo vivo: nodos (servidores/memorias) conectados por aristas que pulsan. */
-function CerebrosDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
-  const nodes = [
-    { x: 40, y: 30 },
-    { x: 120, y: 22 },
-    { x: 176, y: 58 },
-    { x: 90, y: 74 },
-    { x: 32, y: 82 },
-  ];
-  const edges = [
-    [0, 1],
-    [1, 2],
-    [0, 3],
-    [3, 4],
-    [1, 3],
-  ];
-  return (
-    <Stage accent={accent}>
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 210 112" preserveAspectRatio="none">
-        {edges.map(([a, b], i) => (
-          <motion.line
-            key={i}
-            x1={nodes[a].x}
-            y1={nodes[a].y}
-            x2={nodes[b].x}
-            y2={nodes[b].y}
-            stroke={accent}
-            strokeWidth={1}
-            strokeOpacity={0.5}
-            initial={reduce ? { pathLength: 1 } : { pathLength: 0 }}
-            animate={reduce ? { pathLength: 1 } : { pathLength: 1, strokeOpacity: [0.25, 0.7, 0.25] }}
-            transition={
-              reduce
-                ? undefined
-                : {
-                    pathLength: { duration: 0.7, delay: i * 0.12 },
-                    strokeOpacity: loop({ duration: 2.4, delay: i * 0.2 }),
-                  }
-            }
-          />
-        ))}
-        {nodes.map((n, i) => (
-          <motion.circle
-            key={i}
-            cx={n.x}
-            cy={n.y}
-            r={4}
-            fill={accent}
-            initial={reduce ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
-            animate={reduce ? { scale: 1, opacity: 1 } : { scale: 1, opacity: 1 }}
-            transition={reduce ? undefined : { type: "spring", stiffness: 300, damping: 16, delay: 0.3 + i * 0.1 }}
-            style={{ filter: `drop-shadow(0 0 4px ${accent})` }}
-          />
-        ))}
-      </svg>
-    </Stage>
-  );
-}
-
-/* ─────────────────────────── LIBRERÍA ───────────────────────────────────────
-   Estantería/catálogo: fichas (apps/recursos) que se van "encajando". */
-function LibreriaDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
-  const cards = [0, 1, 2, 3, 4, 5];
-  return (
-    <Stage accent={accent}>
-      <div className="absolute inset-0 grid grid-cols-3 place-items-center gap-2 p-3">
-        {cards.map((i) => (
-          <motion.div
-            key={i}
-            className="h-9 w-14 rounded-md border border-white/12"
-            style={{
-              background: `linear-gradient(135deg, color-mix(in srgb, ${accent} ${10 + (i % 3) * 8}%, rgba(255,255,255,0.05)), rgba(255,255,255,0.02))`,
-            }}
-            initial={reduce ? { opacity: 1, y: 0 } : { opacity: 0, y: 14, rotate: -6 }}
-            animate={
-              reduce
-                ? { opacity: 1, y: 0 }
-                : { opacity: 1, y: 0, rotate: 0 }
-            }
-            transition={
-              reduce
-                ? undefined
-                : { type: "spring", stiffness: 260, damping: 18, delay: i * 0.08 }
-            }
-          >
-            <div className="flex h-full flex-col justify-between p-1">
-              <span className="h-1 w-1/2 rounded-full bg-white/40" />
-              <span className="h-1 w-3/4 rounded-full bg-white/15" />
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </Stage>
-  );
-}
-
 /**
  * StepDemo — despacha la mini-demostración correcta según la clave del paso.
  * Si la clave no tiene demo específica, no renderiza nada (la guía sigue).
@@ -545,12 +465,12 @@ export function StepDemo({ stepKey, accent, reduce }: DemoProps) {
       return <AstrauraDemo accent={accent} reduce={reduce} />;
     case "perfil":
       return <PerfilDemo accent={accent} reduce={reduce} />;
-    case "cerebros":
-      return <CerebrosDemo accent={accent} reduce={reduce} />;
-    case "libreria":
-      return <LibreriaDemo accent={accent} reduce={reduce} />;
-    default:
-      return null;
+    default: {
+      // Los diez temas de la guía (Ola 1021G) y, por compatibilidad, las claves
+      // viejas «cerebros» y «libreria», que apuntan a sus demos nuevas.
+      const DemoTema = DEMOS_TEMAS[stepKey];
+      return DemoTema ? <DemoTema accent={accent} reduce={reduce} /> : null;
+    }
   }
 }
 
