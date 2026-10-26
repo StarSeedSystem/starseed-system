@@ -39,10 +39,13 @@
  * defecto del modelo). Clonar una voz solo entra por la puerta con
  * consentimiento explícito (`src/lib/voces/clonacion.ts`). Nunca descarga pesos.
  * Red, disco y reloj inyectables (`ChatterboxDeps`). Nunca lanza.
+ * (SGO1024B) El «primer-sonido» se mide UNA vez por turno —el trozo 0, con el
+ * idioma del texto—, no por trozo: medir todos falseaba la mediana.
  */
 
 import { safeGet, safeSet } from "@/lib/safe-storage";
 import { spaceIdToHost } from "@/lib/aurora/tts-oss/openvoice-discovery";
+import { getVoiceIdentity } from "@/lib/aurora/tts-oss/voice-identity";
 import type { AuroraVoiceEmotion } from "@/lib/aurora/tts-oss/voice-config";
 
 // ── Constantes ───────────────────────────────────────────────────────────────
@@ -121,7 +124,12 @@ export interface ChatterboxDeps {
   /** Primer audio de la salida de un Space (por defecto `firstAudioFromGradio`). */
   audioDeSalida: (out: unknown[] | null, base: string, signal: AbortSignal) => Promise<Blob | null>;
   /** Anota la medida en las medidas de voz de la neurona (por defecto `medidas-voz.ts`). */
-  anotar: (tipo: "primer-sonido" | "tiempo-real-voz", valor: number) => void;
+  anotar: (
+    tipo: "primer-sonido" | "tiempo-real-voz",
+    valor: number,
+    /** Idioma base del texto sintetizado («es», «en»…) — (SGO1024B). */
+    idioma?: string,
+  ) => void;
 }
 
 export interface PeticionChatterbox {
@@ -213,9 +221,9 @@ function depsPorDefecto(): ChatterboxDeps {
       const { firstAudioFromGradio } = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
       return firstAudioFromGradio(out, base, signal);
     },
-    anotar: (tipo, valor) => {
+    anotar: (tipo, valor, idioma) => {
       void import("@/lib/aurora/medidas-voz")
-        .then((m) => m.anotarMedida({ motor: "chatterbox", tipo, valor }))
+        .then((m) => m.anotarMedida({ motor: "chatterbox", tipo, valor, idioma: idioma || undefined }))
         .catch(() => null);
     },
   };
@@ -686,6 +694,19 @@ async function sintetizarLocal(
 let ganador: { id: string; at: number } | null = null;
 
 /**
+ * (SGO1024B · VOZ1024A) ¿Le toca a ESTE trozo anotar el «primer-sonido» del turno?
+ * `speak-router.runLink` cronometra UNA vez por locución con el idioma detectado
+ * para los demás motores; aquí el troceo (160/280) llamaba a este cliente por cada
+ * trozo y todos anotaban sin idioma — la mediana quedaba falseada. La identidad
+ * del mensaje (`voice-identity.ts`) marca `spoke` al ganar el trozo 0: solo mide
+ * el primero. Sin identidad congelada, el trozo ES su propio turno. Pura.
+ */
+export function turnoSinPrimerSonido(): boolean {
+  const id = getVoiceIdentity();
+  return !(id && id.engine === "chatterbox" && id.spoke);
+}
+
+/**
  * Sintetiza con Chatterbox: servicio local primero y, si no hay, Spaces públicos.
  * Devuelve el audio y por dónde salió, o el motivo honesto si no hubo voz.
  */
@@ -718,8 +739,8 @@ export async function sintetizarChatterbox(
       if (r) {
         const lat = d.ahora() - t0;
         marcarResultadoChatterbox(CHATTERBOX_ID_LOCAL, true, lat, d);
-        d.anotar("primer-sonido", lat);
-        if (r.rtf) d.anotar("tiempo-real-voz", r.rtf);
+        if (turnoSinPrimerSonido()) d.anotar("primer-sonido", lat, idioma);
+        if (r.rtf) d.anotar("tiempo-real-voz", r.rtf, idioma);
         ganador = { id: CHATTERBOX_ID_LOCAL, at: d.ahora() };
         return { blob: r.blob, via: "local", endpoint: CHATTERBOX_ID_LOCAL, latenciaMs: lat, factorTiempoReal: r.rtf };
       }
@@ -750,7 +771,7 @@ export async function sintetizarChatterbox(
       if (blob) {
         const lat = d.ahora() - t1;
         marcarResultadoChatterbox(sp.id, true, lat, d);
-        d.anotar("primer-sonido", lat);
+        if (turnoSinPrimerSonido()) d.anotar("primer-sonido", lat, idioma);
         ganador = { id: sp.id, at: d.ahora() };
         return { blob, via: "space", endpoint: sp.id, latenciaMs: lat };
       }
