@@ -128,7 +128,9 @@ describe("fuenteDeAgente", () => {
   it("sin avatar sale el procedural, con el nombre dentro", () => {
     const f = fuenteDeAgente({ id: "bot:1", nombre: "Guía", avatarRef: undefined });
     expect(f.tipo).toBe("procedural");
-    expect(f.tipo === "procedural" && decodeURIComponent(f.svg)).toContain("Guía");
+    expect(f.tipo === "procedural" && f.svg).toContain("Guía");
+    // SVG crudo, no una data URL: AvatarVivo la envuelve una sola vez (antes salía envuelta dos veces y rota).
+    expect(f.tipo === "procedural" && f.svg.trimStart().startsWith("<svg")).toBe(true);
   });
 
   it("acepta una imagen https, un GLB y una ruta del propio sitio", () => {

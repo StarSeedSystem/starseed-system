@@ -233,6 +233,9 @@ export function MundoAvatares({ personalidades, habitantes: habitantesProp, esta
         ) : modo3D ? (
           <>
             <Canvas
+              // Absoluto sobre su caja: la caja crece con flex-1 bajo un min-height, y un `height: 100%` ahí no
+              // se resuelve (el lienzo se quedaba en los 150 px por defecto de un <canvas>).
+              style={{ position: "absolute", inset: 0 }}
               dpr={[1, 1.5]}
               camera={{ position: [0, 5, 16], fov: 55 }}
               gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}

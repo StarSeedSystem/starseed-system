@@ -6,7 +6,7 @@
  */
 import type { FuenteAvatar } from "../avatar-vivo";
 import type { AgenteMundoRef } from "@/lib/avatares/mundo/agente-mundo";
-import { proceduralAvatarDataUrl } from "@/lib/aurora/persona-avatar";
+import { proceduralAvatarSvg } from "@/lib/aurora/persona-avatar";
 import type { PersonalityProfile } from "@/lib/aurora/personalities";
 
 const ES_MODELO = /\.(glb|vrm)(\?.*)?$/i;
@@ -17,7 +17,9 @@ export function fuenteDeAgente(ref: Pick<AgenteMundoRef, "id" | "nombre" | "avat
   if (a && ES_IMAGEN_SEGURA.test(a)) {
     return ES_MODELO.test(a) ? { tipo: "glb", url: a } : { tipo: "imagen", url: a };
   }
-  // `proceduralAvatarDataUrl` solo lee `id`, `name` y `traits`; el resto del perfil no interviene en el dibujo.
+  // `proceduralAvatarSvg` solo lee `id`, `name` y `traits`; el resto del perfil no interviene en el dibujo.
+  // OJO: `procedural` lleva el SVG CRUDO (AvatarVivo lo envuelve en su data URI); con la data URL de
+  // `proceduralAvatarDataUrl` quedaba envuelta dos veces y el navegador pintaba el texto alternativo.
   const perfilMinimo = { id: ref.id, name: ref.nombre, traits: rasgos ?? {} } as unknown as PersonalityProfile;
-  return { tipo: "procedural", svg: proceduralAvatarDataUrl(perfilMinimo, 192) };
+  return { tipo: "procedural", svg: proceduralAvatarSvg(perfilMinimo, 192) };
 }

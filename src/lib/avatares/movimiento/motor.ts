@@ -123,12 +123,74 @@ async function resolverNivel(explicito?: NivelMovimiento): Promise<NivelMovimien
     return preferencia === "auto" ? auto : preferencia;
 }
 
+/* ─────────────── Freno de la vía Kimodo (2026-10-26) ───────────────
+ * Medido en localhost:9002: el mundo de los avatares (18 habitantes que cambian de gesto en cada tick) hizo más
+ * de 43.000 POST a `/api/movimiento/generar`; la ruta respondía 429 (30 cada 10 min por persona) y cada avatar
+ * volvía a pedir en el siguiente gesto. Ahora: el mismo gesto se pide UNA vez (caché y peticiones compartidas),
+ * como mucho 2 a la vez, y un 429/5xx o un fallo de red pausa la vía (respetando `Retry-After`) mientras el
+ * avatar sigue moviéndose con el clip procedural («ligero»). Nada de esto cambia el carácter del gesto. */
+const MAX_CACHE_CLIPS = 64;
+const MAX_EN_VUELO = 2;
+const PAUSA_BASE_MS = 30_000;
+const PAUSA_MAX_MS = 10 * 60_000;
+const cacheClips = new Map<string, MovimientoClip>();
+const enVuelo = new Map<string, Promise<MovimientoClip | null>>();
+let kimodoPausadoHasta = 0;
+let fallosSeguidos = 0;
+
+const claveGesto = (g: Gesto, nivel: NivelMovimiento): string =>
+    JSON.stringify([nivel, g.prompt, g.emocion ?? null, g.energia ?? null, g.duracionMs ?? null, g.bucle ?? null]);
+
+/** Hasta cuándo está en pausa la vía Kimodo (ms desde 1970; 0 = abierta). Para paneles y pruebas. */
+export function kimodoEnPausaHasta(): number {
+    return kimodoPausadoHasta > Date.now() ? kimodoPausadoHasta : 0;
+}
+
+/** Solo para pruebas: olvida la caché, las peticiones en vuelo y la pausa. */
+export function reiniciarFrenoKimodo(): void {
+    cacheClips.clear();
+    enVuelo.clear();
+    kimodoPausadoHasta = 0;
+    fallosSeguidos = 0;
+}
+
+function pausarKimodo(retryAfterS?: number | null): void {
+    fallosSeguidos += 1;
+    const escalonada = Math.min(PAUSA_MAX_MS, PAUSA_BASE_MS * 2 ** (fallosSeguidos - 1));
+    const pedida = retryAfterS && retryAfterS > 0 ? Math.min(PAUSA_MAX_MS * 3, retryAfterS * 1000) : 0;
+    kimodoPausadoHasta = Date.now() + Math.max(escalonada, pedida);
+}
+
+function guardarEnCache(clave: string, clip: MovimientoClip): void {
+    if (cacheClips.size >= MAX_CACHE_CLIPS) {
+        const primera = cacheClips.keys().next().value;
+        if (primera !== undefined) cacheClips.delete(primera);
+    }
+    cacheClips.set(clave, clip);
+}
+
 /**
  * Pide un clip al backend Kimodo (`/api/movimiento/generar`, Ola M2).
- * Sirve a los niveles «vivo» y «fluido». Devuelve `null` si la vía falla.
+ * Sirve a los niveles «vivo» y «fluido». Devuelve `null` si la vía falla, está en pausa o ya hay
+ * demasiadas peticiones en vuelo (el motor baja entonces al clip procedural).
  */
 async function generarPorKimodo(g: Gesto, nivel: NivelMovimiento): Promise<MovimientoClip | null> {
     if (typeof window === "undefined") return null;
+    const clave = claveGesto(g, nivel);
+    const guardado = cacheClips.get(clave);
+    if (guardado) return guardado;
+    const compartida = enVuelo.get(clave);
+    if (compartida) return compartida;
+    if (Date.now() < kimodoPausadoHasta || enVuelo.size >= MAX_EN_VUELO) return null;
+    const peticion = pedirAKimodo(g, nivel).then((clip) => {
+        if (clip) guardarEnCache(clave, clip);
+        return clip;
+    }).finally(() => { enVuelo.delete(clave); });
+    enVuelo.set(clave, peticion);
+    return peticion;
+}
+
+async function pedirAKimodo(g: Gesto, nivel: NivelMovimiento): Promise<MovimientoClip | null> {
     try {
         const resp = await fetch("/api/movimiento/generar", {
             method: "POST",
@@ -143,11 +205,18 @@ async function generarPorKimodo(g: Gesto, nivel: NivelMovimiento): Promise<Movim
             }),
             cache: "no-store",
         });
-        if (!resp.ok) return null;
+        if (!resp.ok) {
+            // 429 (cupo), 5xx (servidor) o 401/404 (sin sesión o sin vía): la vía descansa; el avatar sigue con «ligero».
+            const ra = Number(resp.headers?.get?.("Retry-After"));
+            pausarKimodo(Number.isFinite(ra) ? ra : null);
+            return null;
+        }
         const clip = (await resp.json()) as MovimientoClip;
         if (!clip || !Array.isArray(clip.rotaciones)) return null;
+        fallosSeguidos = 0;
         return clip;
     } catch {
+        pausarKimodo(null);
         return null;
     }
 }

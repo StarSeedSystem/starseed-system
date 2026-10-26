@@ -214,7 +214,9 @@ function AvatarVivoFuente({
         const src =
             fuente.tipo === "imagen"
                 ? fuente.url
-                : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fuente.svg)}`;
+                : fuente.svg.startsWith("data:image/")
+                  ? fuente.svg // ya viene como data URI: no se envuelve otra vez
+                  : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fuente.svg)}`;
         return (
             <div
                 className={cn("relative inline-block select-none", className)}
