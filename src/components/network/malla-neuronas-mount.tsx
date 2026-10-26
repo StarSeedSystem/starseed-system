@@ -79,12 +79,16 @@ function MallaNeuronasEngine() {
   // (namespace `ia.*`, disjunto de `astraura.*`) sobre el MISMO mesh
   // compartido — coexisten sin pisarse.
   useMotorPerezoso(() => import("@/lib/network/ia-por-malla").then((m) => m.iniciarServidorIaPorMalla));
-  // (Ola 369) Motor de ARCHIVOS por la malla: namespace `archivo.*`, mismo
-  // mesh compartido de siempre. La tarjeta de "aceptar/rechazar" de una
-  // oferta entrante se pinta aquí (global) para que llegue con el panel
-  // cerrado; el resto de la UI (botón «Enviar archivo», lista de
-  // transferencias) vive en `MallaNeuronasPanel`.
+// (Ola 369) Motor de ARCHIVOS por la malla: namespace `archivo.*`, mismo
+// mesh compartido de siempre. La tarjeta de "aceptar/rechazar" de una
+// oferta entrante se pinta aquí (global) para que llegue con el panel
+// cerrado; el resto de la UI (botón «Enviar archivo», lista de
+// transferencias) vive en `MallaNeuronasPanel`.
   useMotorPerezoso(() => import("@/lib/network/archivos-malla").then((m) => m.iniciarMotorArchivosPorMalla));
+  // (Ola 1018H) Rol SERVIDOR del relé de CAPACIDADES `capacidad.*`:
+  // atiende `capacidad.pedir` (tipos: render, imagen, voz, oido, palabra,
+  // transcodificar, buscar, construir) sobre el MISMO mesh compartido.
+  useMotorPerezoso(() => import("@/lib/network/capacidad-por-malla").then((m) => m.iniciarServidorCapacidadPorMalla));
   // (2026-10-10) Transporte universal: recepción de mensajes `tu.*` por la malla de la cuenta,
   // vínculos, enlaces locales sin internet, relé y LoRa (`architecture/transporte-universal-sin-internet.md`).
   useMotorPerezoso(() => import("@/lib/malla/transporte-universal").then((m) => m.iniciarTransporteUniversal));
