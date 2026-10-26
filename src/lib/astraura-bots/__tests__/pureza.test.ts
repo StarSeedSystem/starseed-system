@@ -7,10 +7,18 @@ import { EMOCIONES, RASGOS, SENTIDOS, SENTIDOS_INTIMOS, acotar, esBotDeEntidad, 
 const DIR = path.join(__dirname, "..");
 const NUCLEO = readdirSync(DIR).filter((f) => f.endsWith(".ts")).map((f) => f.replace(/\.ts$/, ""));
 const leer = (n: string) => readFileSync(path.join(DIR, `${n}.ts`), "utf8");
+/** Los conectores que el contrato nombra aparte del núcleo: existen como módulo y no están vacíos. */
+const CONECTORES = ["ag-ui", "invitados"] as const;
 
 describe("núcleo puro de los bots de Astraura", () => {
   it("están los seis módulos del contrato (los que se añadan arriba también han de ser puros)", () => {
     expect(NUCLEO).toEqual(expect.arrayContaining(["acciones", "bucle", "permisos", "personalidad-adaptable", "reparto-de-modelo", "tipos"]));
+  });
+  it("los conectores existen y no están vacíos", () => {
+    for (const c of CONECTORES) {
+      expect(NUCLEO).toContain(c);
+      expect(leer(c).trim().length).toBeGreaterThan(0);
+    }
   });
   it.each(NUCLEO)("%s.ts: ≤ 200 líneas", (n) => {
     expect(leer(n).split("\n").length).toBeLessThanOrEqual(200);
