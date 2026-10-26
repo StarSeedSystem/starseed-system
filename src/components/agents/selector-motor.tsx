@@ -22,7 +22,13 @@ export interface SelectorMotorProps {
   /** Agente para el cual elegir un motor. */
   agente: Agent;
   /** Necesidades opcionales que dirigen la elección del motor. */
-  necesidades?: Partial<import "@/lib/agents/motores/tipos">;
+  necesidades?: {
+    ejecucionLargaConReanudacion?: boolean;
+    salidaConEsquema?: boolean;
+    traspasos?: boolean;
+    equipoConMemoriaCompartida?: boolean;
+    correrEnNeuronaNode?: boolean;
+  };
   /** Llamado al cambiar la elección del motor. */
   onMotorCambiar?: (motor: MotorAgentes) => void;
 }
@@ -30,7 +36,7 @@ export interface SelectorMotorProps {
 /** Estado interno: motor actual elegido. */
 function useMotorSeleccionado(
   agente: Agent,
-  necesidades: Partial<import "@/lib/agents/motores/tipos"> | undefined,
+  necesidades: SelectorMotorProps["necesidades"] | undefined,
 ): MotorAgentes {
   const motor = elegirMotor(agente, necesidades ?? {});
   return motor;
@@ -42,10 +48,10 @@ function renderFichaMotor(motor: MotorAgentes) {
   const ficha = MOTORES_AGENTES[motor];
   if (!ficha) return null;
 
-  const dondeCorreLabels: Record<DondeCorreMotor, string> = {
-    navegador: "Navegador (SSR-safe)",
-    neurona-node: "Neurona Node.js",
-    neurona-python: "Neurona Python",
+  const dondeCorreLabels = {
+    "navegador": "Navegador (SSR-safe)",
+    "neurona-node": "Neurona Node.js",
+    "neurona-python": "Neurona Python",
   };
 
   return (
@@ -93,7 +99,7 @@ function renderFichaMotor(motor: MotorAgentes) {
 /* ── Componente principal ──────────────────────────────────────────────────── */
 
 export function SelectorMotor({ agente, necesidades, onMotorCambiar }: SelectorMotorProps) {
-  const motor = usarMotorSeleccionado(agente, necesidades ?? {});
+  const motor = useMotorSeleccionado(agente, necesidades ?? {});
 
   return (
     <Card className="p-4 space-y-3">
