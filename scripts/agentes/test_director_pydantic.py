@@ -59,6 +59,18 @@ class Indicacion(unittest.TestCase):
         texto = D.construir_indicacion({"titulo": "x" * 2000})
         self.assertLessEqual(len(texto.split("Título: ", 1)[1]), D.MAX_TEXTO)
 
+    def test_texto_plano_queda_limpio(self):
+        self.assertEqual(D.construir_indicacion("  bloqueada  "), "Tarea bloqueada:\nbloqueada")
+
+    def test_ignora_campos_vacios_y_desconocidos(self):
+        texto = D.construir_indicacion(
+            {"id": "T1", "titulo": "Contrato", "archivos": ["a.py"], "vacio": ""}
+        )
+        self.assertIn("Id: T1", texto)
+        self.assertIn("Título: Contrato", texto)
+        self.assertNotIn("archivos", texto)
+        self.assertNotIn("vacio", texto)
+
 class Conversion(unittest.TestCase):
     def test_desde_dict_modelo_y_objeto(self):
         plano = {"prioridad": 0.25, "motivo": "reduce el alcance", "accion": "transformar"}
@@ -82,8 +94,38 @@ class Conversion(unittest.TestCase):
         with self.assertRaises(ValueError):
             D.a_decision({"prioridad": 0.4, "motivo": "x", "accion": "ignorar"})
 
+class SinFuente(unittest.TestCase):
+    """Sin agente ni modelo, y sin ninguna fuente del enrutador, avisa en vez de fallar feo."""
+    def setUp(self):
+        import modelos_propios
+        self.original = modelos_propios.cliente_openai_compatible
+
+        def vacia(*_a, **_k):
+            return None
+
+        modelos_propios.cliente_openai_compatible = vacia
+
+    def tearDown(self):
+        import modelos_propios
+        modelos_propios.cliente_openai_compatible = self.original
+
+    def test_sin_fuente_avisa(self):
+        with self.assertRaises(RuntimeError):
+            D.decidir_tarea({"id": "T9", "motivo": "parado"})
+
 @unittest.skipUnless(HAY_PYDANTIC_AI, SIN_DEPENDENCIA)
 class ConPydanticAI(unittest.TestCase):
+
+    def test_modelo_desde_cliente_usa_la_base_del_enrutador(self):
+        from modelos_propios import ClienteOpenAI
+
+        cliente = ClienteOpenAI("http://127.0.0.1:4480/v1", "qwen-coder", "clave-falsa")
+        modelo = D.modelo_desde_cliente(cliente)
+        self.assertEqual(getattr(modelo, "model_name", getattr(modelo, "model", None)),
+                         "qwen-coder")
+        self.assertEqual(str(modelo.client.base_url).rstrip("/"), "http://127.0.0.1:4480/v1")
+        self.assertNotIn("clave-falsa", repr(cliente))
+
     def test_test_model_devuelve_una_decision_valida(self):
         from pydantic_ai.models.test import TestModel
 
