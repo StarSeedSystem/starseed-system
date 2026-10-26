@@ -17,12 +17,25 @@ import { getIntegration, loadIntegrationConfig } from "./registry";
 // cuenta (architecture/repos-libreria-1020d.md §3): el «dónde» lo decide
 // `colocarServicio` y el puerto real lo da `SERVICIOS_INSTALADOS` (127.0.0.1 del A1,
 // bajo demanda: arriba al primer uso si cabe, abajo a los 15 min sin uso).
+// Cómo se LLEGA a ese 127.0.0.1 lo decide `urlPorDefecto` (§7): solo localhost y la
+// app nativa de la Mac alcanzan el túnel `com.starseed.tunel-servicios-a1`; una
+// página https no puede llamar a 127.0.0.1 y lo dice, y las variables
+// (`STIRLING_PDF_URL`…) mandan si existen.
 import {
   colocarServicio,
   SERVICIOS_INSTALADOS,
   type Contexto,
   type ServicioId,
 } from "../recursos/servicios-pesados";
+import {
+  esperaFria,
+  SERVICIOS_A1,
+  urlPorDefecto,
+  type MedioOs,
+  type ServicioA1,
+} from "../servidores/servicios-a1";
+import { esAppNativa } from "../apps-oficiales/dispositivo-actual";
+import { paginaEsLocal } from "../astraura/destino-local";
 import type { OfertaNeurona } from "../recursos/oferta";
 import {
   buscarNotas,
@@ -68,10 +81,32 @@ const SERVICIO_PESADO_DEL_CONECTOR: Readonly<Record<string, ServicioId>> = {
 };
 
 export interface EndpointColocado {
-  /** URL traducible (`127.0.0.1:puerto` del A1) o `null` si el destino no se expresa como endpoint. */
+  /** URL traducible (`127.0.0.1:puerto` del A1, por el túnel o por variable) o `null` si el destino no se expresa como endpoint. */
   endpoint: string | null;
   destino: string;
   motivo: string;
+  /** Cuánto puede tardar la PRIMERA llamada si el servicio se enciende bajo demanda (§7): no lo des por caído antes. */
+  esperaFria?: { segundos: number | null; texto: string };
+}
+
+/** Medio del OS ahora mismo (§11 CLAUDE.md): solo dos alcanzan 127.0.0.1 (§7). En SSR, «otros». */
+export function medioActual(): MedioOs {
+  if (typeof window === "undefined") return "otros";
+  if (esAppNativa()) return "app-nativa-mac";
+  if (window.location?.protocol === "https:") return "https";
+  if (paginaEsLocal()) return "localhost";
+  return "http-remoto";
+}
+
+/** `process.env` del lado que llama: quien corre en el servidor pasa las variables de verdad
+ *  (`STIRLING_PDF_URL`…); quien corre en el navegador Next solo ve las públicas. Sin `process`, vacío. */
+function variablesDisponibles(): Record<string, string | undefined> {
+  try {
+    if (typeof process === "undefined") return {};
+    return { ...process.env };
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -79,17 +114,43 @@ export interface EndpointColocado {
  * (el túnel de la Mac lleva el mismo puerto) o la capa pública `oracle-a1`
  * apuntan a `SERVICIOS_INSTALADOS`; cuenta, malla, web gratis o `ninguno` no se
  * traducen a URL aquí y devuelven `null` para que el conector siga con su URL
+ *
+ * Con `medio` declarado (§7), el 127.0.0.1 del A1 se resuelve con `urlPorDefecto`:
+ * sale la del túnel `com.starseed.tunel-servicios-a1` (o la que mande la variable),
+ * SOLO si el medio lo alcanza; si no, `null` con su motivo. La espera en frío
+ * (`esperaFria`) va anotada para que la primera llamada no se dé por caída antes
+ * de tiempo. Sin `medio` se mantiene la dirección como hasta ahora.
  */
-export function resolverEndpointServicio(conectorId: string, ofertas: OfertaNeurona[], contexto: Contexto): EndpointColocado {
+export function resolverEndpointServicio(
+  conectorId: string,
+  ofertas: OfertaNeurona[],
+  contexto: Contexto,
+  medio?: MedioOs,
+  variables?: Record<string, string | undefined>,
+): EndpointColocado {
   const servicioId = SERVICIO_PESADO_DEL_CONECTOR[conectorId];
   if (!servicioId) return { endpoint: null, destino: "conector-propio", motivo: `«${conectorId}» no lo respalda un servicio pesado del A1: sigue con su endpoint propio.` };
   const colocacion = colocarServicio(servicioId, ofertas, contexto);
   const local = (colocacion.donde.tipo === "aparato" || (colocacion.donde.tipo === "capa-publica" && colocacion.donde.id === "oracle-a1"));
   const instalado = local ? SERVICIOS_INSTALADOS[servicioId] : undefined;
+  if (!instalado || !(servicioId in SERVICIOS_A1) || medio === undefined) {
+    return {
+      endpoint: instalado ? `http://${instalado.host}:${instalado.puerto}` : null,
+      destino: colocacion.donde.tipo,
+      motivo: colocacion.motivo,
+    };
+  }
+  const servicio = servicioId as ServicioA1;
+  const alcance = urlPorDefecto(servicio, medio, variables ?? {});
+  if (alcance.url === null) {
+    return { endpoint: null, destino: colocacion.donde.tipo, motivo: `${colocacion.motivo} Pero: ${alcance.motivo}` };
+  }
+  const frio = esperaFria(servicio);
   return {
-    endpoint: instalado ? `http://${instalado.host}:${instalado.puerto}` : null,
+    endpoint: alcance.url,
     destino: colocacion.donde.tipo,
-    motivo: colocacion.motivo,
+    motivo: `${colocacion.motivo} ${alcance.motivo}` + (alcance.fuente === "tunel" ? ` ${frio.texto}` : ""),
+    esperaFria: alcance.fuente === "tunel" ? { segundos: frio.segundos, texto: frio.texto } : undefined,
   };
 }
 
@@ -136,7 +197,7 @@ export async function runIntegration(
     if (!desc) return { ok: false, error: `Integración desconocida: "${id}".` };
 
     const effective = cfg ?? loadIntegrationConfig(id);
-    const colocado = resolverEndpointServicio(id, SIN_OFERTAS, CONTEXTO_DEL_CONECTOR);
+    const colocado = resolverEndpointServicio(id, SIN_OFERTAS, CONTEXTO_DEL_CONECTOR, medioActual(), variablesDisponibles());
     const g = gate(effective, colocado.endpoint ?? desc.defaultEndpoint);
     if (!g.ok) return g;
     const c = g.cfg;
@@ -374,7 +435,7 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
     const effective = cfg ?? loadIntegrationConfig(id);
     // Para test no exigimos enabled=true (queremos poder probar antes de activar),
     // pero sí un endpoint.
-    const colocado = resolverEndpointServicio(id, SIN_OFERTAS, CONTEXTO_DEL_CONECTOR);
+    const colocado = resolverEndpointServicio(id, SIN_OFERTAS, CONTEXTO_DEL_CONECTOR, medioActual(), variablesDisponibles());
     const endpoint =
       (effective.endpoint && effective.endpoint.trim()) ||
       colocado.endpoint ||

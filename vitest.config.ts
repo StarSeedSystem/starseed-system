@@ -38,7 +38,7 @@ export default defineConfig({
     environment: "node",
     environmentMatchGlobs: [["**/*.test.tsx", "jsdom"]],
     include: ["src/**/*.{test,spec}.ts", "src/**/__tests__/**/*.ts", "src/**/*.{test,spec}.tsx", "src/**/__tests__/**/*.tsx"],
-    exclude: ["node_modules", ".next", "dist"],
+    exclude: ["node_modules", ".next", "dist", "src/**/ayudas-prueba.ts"],
     globals: false,
     // (2026-10-05) Margen para una máquina cargada: ver el porqué en `vitest.setup-dom.ts`.
     // `testTimeout` sube de 5 s a 20 s para que un `findBy*` de 5 s quepa dentro de su prueba.
