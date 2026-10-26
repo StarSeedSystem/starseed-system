@@ -24,6 +24,9 @@ import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
 import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
 } from "./habilidades/diagramas";
+import {
+  ATRIBUCION_SHADERS, HABILIDAD_SHADERS, comoCapacidad as comoCapacidadShaders,
+} from "./habilidades/shaders";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
@@ -668,6 +671,20 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: { preferStrong: true },
     defaultOn: true,
     skillIds: ["diagram-design"],
+  },
+  /* ═══ SHADERS · Habilidad Shaders WebGPU (Ola 1018F) ═══
+   * La tarjeta (≤ 60 palabras) va a Needle y BitNet, el resumen (≤ 120) a Bonsai
+   * pequeño y la guía completa (rutaCompleta) a las capas Razón, Profunda y Nube.
+   * Contrato: architecture/fondos-shaders.md y vendor/habilidades/shaders/SKILL.md.
+   * Valida preset JSON con `presetDesdeRespuesta` (rechaza cámara y tipos no catalogados).
+   * Se activa al instalar la ficha «Shaders» de la Biblioteca (fn-shaders → skillId «shaders»). */
+  {
+    ...comoCapacidadShaders(HABILIDAD_SHADERS, "resumen"),
+    systemPrompt:
+      `${HABILIDAD_SHADERS.resumen} Guía completa en ${HABILIDAD_SHADERS.rutaCompleta} ` +
+      `— con la tarjeta basta para Needle y BitNet. ${ATRIBUCION_SHADERS}`,
+    routing: { preferStrong: true },
+    skillIds: ["shaders"],
   },
   /* ═══ REPOS 1026 · Grabar la pantalla (Cap) · conocimiento (WeKnora) · proyectos (OpenProject) ═══
    * Las tres se activan solas al instalar su ficha de la Biblioteca (la siembra las instala) y sus textos dicen
