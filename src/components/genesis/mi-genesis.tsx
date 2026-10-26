@@ -7,7 +7,7 @@
  * MetaGenesis). SOP: architecture/genesis-personas-poligenesis.md
  */
 
-import { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { useCallback, useMemo, useRef, useState, useEffect, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { ShieldCheck } from "lucide-react";
 import { useAppearance } from "@/context/appearance-context";
@@ -15,6 +15,7 @@ import { puertosDelOs, contextoDeMiCuenta } from "@/lib/genesis/puertos-os";
 import type { Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
+import { PanelProtoGenesis, type PanelProtoGenesisProps } from "@/components/protogenesis/panel-protogenesis";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
 
@@ -34,6 +35,91 @@ const SUGERENCIAS = [
     "Crea un agente privado que me resuma las propuestas abiertas",
     "Haz la letra un poco más grande",
 ];
+
+/** Decisión calculada fuera (src/lib/protogenesis/decision): quién acepta el resultado. */
+export type DecisionEncargo = {
+    modo: string;
+    motivo: string;
+    borrador: { id: string; titulo: string } | null;
+};
+
+export interface SeccionProtoGenesisProps {
+    titulo: string;
+    encargos: RegistroEncargo[] | null;
+    decisionPara: (r: RegistroEncargo) => DecisionEncargo;
+    /** Qué contexto recibe el panel al abrir un encargo (ámbito, rol, gobierno). */
+    panelProps: (r: RegistroEncargo) => PanelProtoGenesisProps;
+    testid: string;
+    /** Acento por contexto: identidad gráfica de cada Genesis. */
+    tono?: "emerald" | "cyan";
+    /** Piezas propias del contexto (por ejemplo, el enlace a Gobernanza en PoliGenesis). */
+    extra?: ReactNode;
+}
+
+const EXPLICACION = "La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.";
+const TONO_DECISION: Record<NonNullable<SeccionProtoGenesisProps["tono"]>, string> = {
+    emerald: "text-emerald-200/70",
+    cyan: "text-cyan-200/70",
+};
+
+/*
+ * SeccionProtoGenesis (PG1013I) — la sección que comparten Mi Genesis y PoliGenesis:
+ * explica en una línea qué es, lista los encargos guardados y al tocar uno abre su
+ * PanelProtoGenesis con el contexto que toque (ámbito personal + esDueno en Mi Genesis;
+ * rol y modo de gobierno en PoliGenesis). No duplica reglas ni decisiones: vienen de
+ * src/lib/protogenesis/{decision,almacen-encargos}. Contrato: architecture/protogenesis.md §2·§6.
+ */
+export function SeccionProtoGenesis({ titulo, encargos, decisionPara, panelProps, testid, tono = "emerald", extra }: SeccionProtoGenesisProps) {
+    const [abiertoId, setAbiertoId] = useState<string | null>(null);
+    const abierto = encargos?.find((r) => r.encargo.id === abiertoId) ?? null;
+    return (
+        <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis" data-testid={testid}>
+            <h2 className="text-base font-semibold">{titulo}</h2>
+            <p className="text-[11px] text-white/55">{EXPLICACION}</p>
+            {extra}
+            {encargos === null ? (
+                <p className="text-[11px] text-white/50">Cargando encargos…</p>
+            ) : encargos.length === 0 ? (
+                <p className="text-[11px] text-white/60">Aún no hay encargos: se encargan desde un panel ProtoGenesis.</p>
+            ) : (
+                <>
+                    <ul className="space-y-1">
+                        {encargos.map((registro) => {
+                            const decision = decisionPara(registro);
+                            return (
+                                <li key={registro.encargo.id}>
+                                    <button
+                                        type="button"
+                                        aria-expanded={abiertoId === registro.encargo.id}
+                                        onClick={() => setAbiertoId(abiertoId === registro.encargo.id ? null : registro.encargo.id)}
+                                        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30"
+                                    >
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate">{registro.encargo.intencion}</span>
+                                            <span className="text-[10px] text-white/45">
+                                                {registro.plan ? `Con plan: ${registro.plan.pasos.length} pasos` : "Sin plan"}
+                                            </span>
+                                            <span className={`block truncate text-[10px] ${TONO_DECISION[tono]}`}>{decision.motivo}</span>
+                                            {decision.modo === "proponer-metagenesis" && decision.borrador ? (
+                                                <span className="block truncate text-[10px] text-amber-200/80">
+                                                    Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
+                                                </span>
+                                            ) : null}
+                                        </span>
+                                        <span className="text-[10px] text-white/45">
+                                            {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
+                                        </span>
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                    {abierto ? <PanelProtoGenesis key={abierto.encargo.id} {...panelProps(abierto)} /> : null}
+                </>
+            )}
+        </section>
+    );
+}
 
 export function MiGenesis() {
     const { rawConfig, updateConfig, bgScopeMode } = useAppearance();
@@ -56,9 +142,9 @@ export function MiGenesis() {
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    const almacen = useMemo(() => almacenNavegador(), []);
 
     useEffect(() => {
-        const almacen = almacenNavegador();
         if (almacen) {
             const lista = cargarEncargos(almacen); // Without moleculaId, we get all, but we want to limit per molecule? The function already limits to 50 per molecule internally.
             // Aquí solo manda Genesis: los ámbitos grupo/pública los decide su entidad en PoliGenesis (§2.7).
@@ -66,9 +152,9 @@ export function MiGenesis() {
         } else {
             setEncargos([]); // No access to storage
         }
-    }, []);
+    }, [almacen]);
 
-    const decisionPara = useCallback((r: RegistroEncargo): { modo: string; motivo: string; borrador: { id: string; titulo: string } | null } => {
+    const decisionPara = useCallback((r: RegistroEncargo): DecisionEncargo => {
         const falta: Falta | null = faltaDePlan(r.plan);
         const d = decidirResultado({
             ambito: r.encargo.ambito,
@@ -77,6 +163,20 @@ export function MiGenesis() {
         });
         return { modo: d.modo, motivo: d.motivo, borrador: falta ? propuestaMetaGenesis(r.encargo, falta) : null };
     }, []);
+
+    // Un acceso a abrir el PanelProtoGenesis de cada encargo: ámbito personal, manda la persona (PG1013I).
+    const panelDeEncargo = useCallback(
+        (r: RegistroEncargo): PanelProtoGenesisProps => ({
+            moleculaId: r.encargo.moleculaId,
+            ambito: r.encargo.ambito,
+            esDueno: true,
+            plan: r.plan,
+            estados: r.estados,
+            asignaciones: r.asignaciones,
+            almacen,
+        }),
+        [almacen],
+    );
 
     return (
         <section className="space-y-4" data-testid="mi-genesis">
@@ -100,44 +200,13 @@ export function MiGenesis() {
                 <h2 className="text-base font-semibold">Mis bots</h2>
                 <SeccionBotsGenesis />
             </section>
-            <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
-                <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
-                {encargos === null ? (
-                    <p className="text-[11px] text-white/50">Cargando encargos…</p>
-                ) : encargos.length === 0 ? (
-                    <p className="text-[11px] text-white/60">
-                        Aún no tienes encargos. Crea uno desde el panel de ProtoGenesis.
-                    </p>
-                ) : (
-                    <ul className="space-y-1">
-                    {encargos.map((registro) => {
-                        const decision = decisionPara(registro);
-                        return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
-                                <div className="flex-1">
-                                    <span className="block truncate">{registro.encargo.intencion}</span>
-                                    {registro.plan ? (
-                                        <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
-                                    ) : (
-                                        <span className="text-[10px] text-white/45">Sin plan</span>
-                                    )}
-                                    {/* La decisión del resultado (§2.7 del contrato): quién acepta y por qué. */}
-                                    <span className="block truncate text-[10px] text-emerald-200/70">{decision.motivo}</span>
-                                    {decision.modo === "proponer-metagenesis" && decision.borrador ? (
-                                        <span className="block truncate text-[10px] text-amber-200/80">
-                                            Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
-                                        </span>
-                                    ) : null}
-                                </div>
-                                <span className="text-[10px] text-white/45">
-                                    {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
-                                </span>
-                            </li>
-                        );
-                    })}
-                    </ul>
-                )}
-            </section>
+            <SeccionProtoGenesis
+                titulo="ProtoGenesis de mis moléculas"
+                encargos={encargos}
+                decisionPara={decisionPara}
+                panelProps={panelDeEncargo}
+                testid="protogenesis-mi-genesis"
+            />
         </section>
     );
 }

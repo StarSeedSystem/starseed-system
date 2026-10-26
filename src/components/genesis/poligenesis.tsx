@@ -20,9 +20,11 @@ import { puertosDelOs } from "@/lib/genesis/puertos-os";
 import { misEntidades, modoDe, proponer, propuestaAprobada, propuestasDe, type EntidadGestionable, type PropuestaGenesis } from "@/lib/genesis/entidades";
 import { decidirAplicacion, type Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
+import { SeccionProtoGenesis } from "./mi-genesis";
 import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import type { PanelProtoGenesisProps } from "@/components/protogenesis/panel-protogenesis";
 
 const SUGERENCIAS = ["Actualiza la descripción para presentar mejor al grupo", "Cambia el color de acento a verde esmeralda", "Crea un agente público que dé la bienvenida a quien llega"];
 
@@ -63,6 +65,22 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
             });
             return { modo: d.modo, motivo: d.motivo, borrador: falta ? propuestaMetaGenesis(registro.encargo, falta) : null };
         },
+        [entidad, modo],
+    );
+
+    // El panel de cada encargo hereda el ámbito de la entidad: 'grupo', con el rol y el
+    // modo de gobierno que este archivo ya conoce (PG1013I, §2.7).
+    const panelDeEncargo = useCallback(
+        (r: RegistroEncargo): PanelProtoGenesisProps => ({
+            moleculaId: r.encargo.moleculaId,
+            ambito: r.encargo.ambito,
+            esDueno: entidad?.dueña ?? false,
+            rol: entidad?.dueña ? "owner" : entidad?.rol ?? null,
+            democratico: modo?.democratico ?? false,
+            plan: r.plan,
+            estados: r.estados,
+            asignaciones: r.asignaciones,
+        }),
         [entidad, modo],
     );
 
@@ -215,45 +233,28 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     </ul>
                 </section>
             ) : null}
-            {/* Nuevo section for ProtoGenesis encargos */}
-            {encargos !== null && (
-                <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis para esta entidad">
-                    <h2 className="text-base font-semibold">ProtoGenesis de esta entidad</h2>
-                    {encargos.length === 0 ? (
-                        <p className="text-[11px] text-white/60">
-                            Aún no hay encargos para esta entidad.
-                        </p>
-                    ) : (
-                        <ul className="space-y-1">
-                    {encargos.map((registro) => {
-                        const decision = decisionPara(registro);
-                        return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
-                                <div className="flex-1">
-                                    <span className="block truncate">{registro.encargo.intencion}</span>
-                                    {registro.plan ? (
-                                        <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
-                                    ) : (
-                                        <span className="text-[10px] text-white/45">Sin plan</span>
-                                    )}
-                                    {/* Quién decide el resultado aquí: el gobierno de la entidad (§2.7). */}
-                                    <span className="block truncate text-[10px] text-cyan-200/70">{decision.motivo}</span>
-                                    {decision.modo === "proponer-metagenesis" && decision.borrador ? (
-                                        <span className="block truncate text-[10px] text-amber-200/80">
-                                            Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
-                                        </span>
-                                    ) : null}
-                                </div>
-                                <span className="text-[10px] text-white/45">
-                                    {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
-                                </span>
-                            </li>
-                        );
-                    })}
-                        </ul>
-                    )}
-                </section>
-            )}
+            {/* La sección de ProtoGenesis (PG1013I): los encargos de las moléculas de la entidad.
+                Enlaza con la Gobernanza de la entidad (nota Ola 1026P): las reglas, permisos y
+                decisiones del grupo se ven ahí; aquí no se duplican. */}
+            {ambito?.tipo === "entidad" && entidad ? (
+                <SeccionProtoGenesis
+                    key={ambito.entidad.id}
+                    titulo="ProtoGenesis de esta entidad"
+                    encargos={encargos}
+                    decisionPara={decisionPara}
+                    panelProps={panelDeEncargo}
+                    testid="protogenesis-poligenesis"
+                    tono="cyan"
+                    extra={
+                        <Link
+                            href={entidad.tipo === "grupo" ? `/grupo/${entidad.slug}` : `/pagina/${entidad.slug}`}
+                            className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-cyan-200 hover:underline"
+                        >
+                            Reglas, permisos y decisiones en marcha: Gobernanza de la entidad <ExternalLink className="h-3 w-3" aria-hidden />
+                        </Link>
+                    }
+                />
+            ) : null}
         </section>
     );
 }
