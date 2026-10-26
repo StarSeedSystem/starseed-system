@@ -15,14 +15,20 @@ import type { IntegrationConfig, IntegrationResult } from "./types";
 import { getIntegration, loadIntegrationConfig } from "./registry";
 // Lo pesado lo coloca la malla y las capas de conciencia, nunca la neurona por su
 // cuenta (architecture/repos-libreria-1020d.md §3): el «dónde» lo decide
-// `colocarServicio` y el puerto real lo da `SERVICIOS_INSTALADOS` (127.0.0.1 del A1,
-// bajo demanda: arriba al primer uso si cabe, abajo a los 15 min sin uso).
+// `colocarServicio`; el «cómo se llega» lo da `urlPorDefecto` de `servicios-a1`
+// (CNX1020A: túnel `com.starseed.tunel-servicios-a1` solo en 127.0.0.1, variable
+// si está, bajo demanda: arriba al primer uso si cabe, abajo a los 15 min sin uso).
 import {
   colocarServicio,
-  SERVICIOS_INSTALADOS,
   type Contexto,
   type ServicioId,
 } from "../recursos/servicios-pesados";
+import {
+  esperaFria,
+  urlPorDefecto,
+  type MedioOs,
+  type ServicioA1,
+} from "../servidores/servicios-a1";
 import type { OfertaNeurona } from "../recursos/oferta";
 import {
   buscarNotas,
@@ -61,8 +67,8 @@ import * as AgentHarness from "./clients/agentharness";
 // ── Bonsai (Adenda 174) ──
 import * as Bonsai from "./clients/bonsai";
 
-/** Conectores respaldados por un servicio pesado instalado en el A1. */
-const SERVICIO_PESADO_DEL_CONECTOR: Readonly<Record<string, ServicioId>> = {
+/** Conectores respaldados por un servicio pesado instalado en el A1 (los cinco servicios del fichero `servicios-a1`). */
+const SERVICIO_PESADO_DEL_CONECTOR: Readonly<Record<string, ServicioId & ServicioA1>> = {
   "stirling-pdf": "stirling-pdf",
   openhands: "openhands-agent-server",
 };
@@ -72,25 +78,75 @@ export interface EndpointColocado {
   endpoint: string | null;
   destino: string;
   motivo: string;
+  /** Cuánto puede tardar la PRIMERA llamada si el servicio está frío (bajo demanda en el A1): quien llama no lo dé por caído antes. */
+  esperaFria: { segundos: number | null; texto: string } | null;
+}
+
+export interface OpcionesColocacionUrl {
+  /** Medio donde corre el OS (§11 de CLAUDE.md). Si no llega, se detecta de la ventana (mejor esfuerzo). */
+  medio?: MedioOs;
+  /** Variables del entorno: `STIRLING_PDF_URL`, `OPENHANDS_AGENT_SERVER_URL`… mandan sobre el túnel si están. */
+  variables?: Record<string, string | undefined>;
+}
+
+/** Clasifica el medio (puro, para poder probar): solo localhost y la app nativa de la Mac pueden llamar a 127.0.0.1. */
+export function medioOsDe(ventana: { tauri: boolean; protocolo: string; host: string } | undefined): MedioOs {
+  if (!ventana) return "otros";
+  if (ventana.tauri) return "app-nativa-mac";
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(ventana.host);
+  if (local) return "localhost";
+  return ventana.protocolo === "https:" ? "https" : "http-remoto";
+}
+
+/** Medio de la ventana de ESTA llamada a integraciones. */
+function medioDetectado(): MedioOs {
+  if (typeof window === "undefined") return "otros";
+  const w = window as unknown as Record<string, unknown>;
+  return medioOsDe({
+    tauri: "__TAURI__" in w || "__TAURI_INTERNALS__" in w,
+    protocolo: window.location?.protocol ?? "",
+    host: window.location?.host ?? "",
+  });
 }
 
 /**
  * La colocación del servicio pesado decide el endpoint del conector: `aparato`
  * (el túnel de la Mac lleva el mismo puerto) o la capa pública `oracle-a1`
- * apuntan a `SERVICIOS_INSTALADOS`; cuenta, malla, web gratis o `ninguno` no se
- * traducen a URL aquí y devuelven `null` para que el conector siga con su URL
+ * apuntan a la DIRECCIÓN DEL A1 (`urlPorDefecto` de `servicios-a1`: variable si
+ * está, túnel solo si el medio alcanza 127.0.0.1, `null` con su motivo en una
+ * página https o un medio remoto); cuenta, malla, web gratis o `ninguno` no se
+ * traducen a URL aquí y devuelven `null` para que el conector siga con su URL.
  */
-export function resolverEndpointServicio(conectorId: string, ofertas: OfertaNeurona[], contexto: Contexto): EndpointColocado {
+export function resolverEndpointServicio(
+  conectorId: string,
+  ofertas: OfertaNeurona[],
+  contexto: Contexto,
+  opciones: OpcionesColocacionUrl = {},
+): EndpointColocado {
   const servicioId = SERVICIO_PESADO_DEL_CONECTOR[conectorId];
-  if (!servicioId) return { endpoint: null, destino: "conector-propio", motivo: `«${conectorId}» no lo respalda un servicio pesado del A1: sigue con su endpoint propio.` };
+  if (!servicioId) return { endpoint: null, destino: "conector-propio", motivo: `«${conectorId}» no lo respalda un servicio pesado del A1: sigue con su endpoint propio.`, esperaFria: null };
   const colocacion = colocarServicio(servicioId, ofertas, contexto);
   const local = (colocacion.donde.tipo === "aparato" || (colocacion.donde.tipo === "capa-publica" && colocacion.donde.id === "oracle-a1"));
-  const instalado = local ? SERVICIOS_INSTALADOS[servicioId] : undefined;
+  if (!local) return { endpoint: null, destino: colocacion.donde.tipo, motivo: colocacion.motivo, esperaFria: null };
+  const fría = esperaFria(servicioId);
+  const medio = opciones.medio ?? medioDetectado();
+  const via = urlPorDefecto(servicioId, medio, opciones.variables);
   return {
-    endpoint: instalado ? `http://${instalado.host}:${instalado.puerto}` : null,
+    endpoint: via.url,
     destino: colocacion.donde.tipo,
-    motivo: colocacion.motivo,
+    motivo: via.url ? colocacion.motivo : `${colocacion.motivo} ${via.motivo}`,
+    esperaFria: { segundos: fría.segundos, texto: fría.texto },
   };
+}
+
+/** Cuando un servicio bajo demanda está frío, quien llama no debe declarar caído lo que aún está arrancando. */
+export function conEsperaFria(conectorId: string, r: IntegrationResult): IntegrationResult {
+  const servicioId = SERVICIO_PESADO_DEL_CONECTOR[conectorId];
+  if (!servicioId || r.ok) return r;
+  const falloDeTiempo = typeof r.error === "string" && /tiempo de espera|timeout/i.test(r.error);
+  if (!falloDeTiempo) return r;
+  const fría = esperaFria(servicioId);
+  return { ...r, error: `${r.error} ${fría.texto}` };
 }
 
 const SIN_OFERTAS: OfertaNeurona[] = [];
@@ -167,9 +223,9 @@ export async function runIntegration(
         if (a === "predict") return await Flowise.predict(c, input);
         break;
       case "stirling-pdf":
-        if (a === "merge") return await Stirling.merge(c, input);
-        if (a === "to-image") return await Stirling.toImage(c, input);
-        if (a === "extract-text") return await Stirling.extractText(c, input);
+        if (a === "merge") return conEsperaFria(id, await Stirling.merge(c, input));
+        if (a === "to-image") return conEsperaFria(id, await Stirling.toImage(c, input));
+        if (a === "extract-text") return conEsperaFria(id, await Stirling.extractText(c, input));
         break;
       case "open-webui":
       case "ollama":
@@ -179,7 +235,7 @@ export async function runIntegration(
         if (a === "models") return await OpenAICompat.models(id, c);
         break;
       case "openhands":
-        if (a === "run-task") return await GenericTask.runTask(id, c, input);
+        if (a === "run-task") return conEsperaFria(id, await GenericTask.runTask(id, c, input));
         break;
       case "browser-use":
         if (a === "browser-task") return await GenericTask.runTask(id, c, input);
@@ -391,7 +447,7 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
       case "dify": return await Dify.health(c);
       case "langflow": return await Langflow.health(c);
       case "flowise": return await Flowise.health(c);
-      case "stirling-pdf": return await Stirling.health(c);
+      case "stirling-pdf": return conEsperaFria(id, await Stirling.health(c));
       case "open-webui":
       case "ollama":
       case "litellm":
@@ -399,7 +455,7 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
         return await OpenAICompat.health(id, c);
       case "openhands":
       case "browser-use":
-        return await GenericTask.health(id, c);
+        return conEsperaFria(id, await GenericTask.health(id, c));
       case "audiobookshelf":
         return await Audiobookshelf.health(c);
       case "home-assistant":
