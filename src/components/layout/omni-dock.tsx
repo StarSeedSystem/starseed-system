@@ -24,6 +24,9 @@ import { useRitoActivo } from "@/lib/ui/rito-activo";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { TrinityFab } from "./trinity-fab";
 import { DockDeslizable } from "./dock-deslizable";
+import { usePerfilIconos } from "@/lib/dock/iconos/almacen";
+import { IconoDeItem } from "./dock/iconos/icono-de-item";
+import MontajeIconosDock from "./dock/iconos/montaje-iconos-dock";
 import { EtiquetaDeslizante } from "./etiqueta-deslizante";
 // Mantener presionado / arrastrar los iconos (Ola 1025U · V1a). El gesto y el orden son
 // ligeros y entran con el dock; el MENÚ de opciones (con el catálogo de apps) se carga a demanda.
@@ -74,6 +77,8 @@ export function OmniDock() {
 
     const [items, setItems] = useState<DockItemConfig[]>(DOCK_PRESETS);
     const [editMode, setEditMode] = useState(false);
+    // Diseño de iconos (Ola 1025U · V1b): la plantilla del perfil; cada item puede traer además el suyo.
+    const perfilIconos = usePerfilIconos();
 
     // ── Folders expandibles del dock ──
     const [folders, setFolders] = useState<DockFolderConfig[]>([]);
@@ -378,6 +383,8 @@ export function OmniDock() {
             Se monta aquí (mismo árbol que el dock, layout raíz) para existir en
             todas las páginas. Él mismo decide si renderizarse (auto/on/off). */}
         <TrinityFab />
+        {/* Editor de un icono y galería de plantillas (se abren con los eventos del menú del dock; todo a demanda). */}
+        <MontajeIconosDock />
         <AnimatePresence>
             {isVisible && (
                 // (2026-09-25) Sube siguiendo al dedo desde el borde inferior y baja
@@ -543,7 +550,7 @@ export function OmniDock() {
                                         <DockItem
                                             key={item.id}
                                             guia={`dock-${item.id}`}
-                                            icon={<Icon className={iconSizeCls} />}
+                                            icon={<IconoDeItem id={item.id} iconKey={item.iconKey} diseno={item.diseno} Icono={Icon} perfil={perfilIconos} className={iconSizeCls} />}
                                             label={item.label}
                                             color={item.color}
                                             active={isActivePath(item.path)}
@@ -562,7 +569,7 @@ export function OmniDock() {
                                 return (
                                     <React.Fragment key={f.id}>
                                         <DockItem
-                                            icon={<FolderIcon className={iconSizeCls} />}
+                                            icon={<IconoDeItem id={f.id} iconKey={f.iconKey} Icono={FolderIcon} perfil={perfilIconos} className={iconSizeCls} />}
                                             label={f.label}
                                             color={f.color}
                                             active={anyChildActive}
@@ -598,7 +605,7 @@ export function OmniDock() {
                                                         return (
                                                             <DockItem
                                                                 key={child.id}
-                                                                icon={<CIcon className={iconSizeCls} />}
+                                                                icon={<IconoDeItem id={child.id} iconKey={child.iconKey} diseno={child.diseno} Icono={CIcon} perfil={perfilIconos} className={iconSizeCls} />}
                                                                 label={child.label}
                                                                 color={child.color}
                                                                 active={isActivePath(child.path)}
