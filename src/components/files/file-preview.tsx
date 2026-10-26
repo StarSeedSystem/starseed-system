@@ -25,11 +25,12 @@ import {
     FileText, FileCode2, FileImage, FileVideo, FileAudio, FileType2,
     File as FileIcon, Link as LinkIcon, Box, AppWindow, ExternalLink,
     Share2, LayoutDashboard, PenSquare, Download, Play, Globe, Copy, Check,
-    Wrench,
+    Replace, Wrench,
     type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { emitAttach, openComposer } from "@/lib/share/bridge";
+import { enlaceConversor } from "@/lib/conversion/cliente";
 
 // Visor 3D ligero: sólo cliente. Si no existe el módulo o falla, degradamos a
 // miniatura/poster vía el catch del propio componente (ver GlbPreview).
@@ -311,15 +312,24 @@ function PdfPreview({ file, compact }: { file: FileLike; compact?: boolean }) {
                     </a>
                 </div>
             </object>
-            <a
-                href="https://github.com/Stirling-Tools/Stirling-PDF"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Herramientas PDF self-hosted: unir, dividir, convertir, OCR, firmar (Stirling-PDF)"
-                className="flex items-center gap-1.5 border-t border-black/10 bg-black/5 px-3 py-1.5 text-[11px] font-medium text-black/60 hover:bg-black/10 hover:text-black/80"
-            >
-                <Wrench className="size-3.5" /> Herramientas PDF (Stirling-PDF): unir · dividir · OCR · firmar
-            </a>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-black/10 bg-black/5 px-3 py-1.5">
+                <a
+                    href="https://github.com/Stirling-Tools/Stirling-PDF"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Herramientas PDF self-hosted: unir, dividir, convertir, OCR, firmar (Stirling-PDF)"
+                    className="flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-black/60 hover:text-black/80"
+                >
+                    <Wrench className="size-3.5" /> Herramientas PDF (Stirling-PDF): unir · dividir · OCR · firmar
+                </a>
+                <a
+                    href={enlaceConversor({ url: file.url, nombre: file.name ?? undefined })}
+                    title="Convertir este PDF a otro formato con Filee, sin subirlo a ningún servicio"
+                    className="flex cursor-pointer items-center gap-1.5 text-[11px] font-bold text-black/70 underline decoration-black/20 underline-offset-2 hover:text-black"
+                >
+                    <Replace className="size-3.5" /> Convertir a…
+                </a>
+            </div>
         </div>
     );
 }
