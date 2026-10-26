@@ -1,0 +1,106 @@
+{
+ "ola": "nube-20261025",
+ "tareas": [
+  {
+   "id": "AGF1023B",
+   "ola": "1023A",
+   "titulo": "Python · puente de modelos para cualquier motor (OpenAI-compatible del enrutador propio)",
+   "archivos": [
+    "scripts/agentes/modelos_propios.py",
+    "scripts/agentes/test_modelos_propios.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): agno, mastra, langgraph, pydantic-ai y openai-agents-python «para los desarrollos de agentes de Astraura, Genesis, PoliGenesis y MetaGenesis en todos sus contextos y medios». Contrato: `architecture/repos-3d-oido-agentes-1023.md` §3 (un contrato de agente, varios motores; modelos siempre por el enrutador propio —gratis primero, Jev, Experiential, servidor propio de IA—; trazas de terceros apagadas; nada de LangSmith ni nubes de los autores). Agentes de hoy: `src/lib/agents/model.ts` (tipo `Agent`) y `src/lib/agents/store.ts`.\n\nFunción `cliente_openai_compatible(capacidad)` que devuelve base_url y modelo del enrutador propio en este orden: servidor propio de IA (`http://127.0.0.1:4480/v1`, ver `servicios/servidor-ia`), pasarela de Experiential (variables `STARSEED_PASARELA_EXPLABS_*` de `~/.starseed/env`, sin imprimir la clave), OpenRouter `:free`. Sin red en las pruebas (todo inyectado). Este puente lo usan AGF1023C–E.",
+   "revisor_quitadas": [
+    "AGF1023A"
+   ]
+  },
+  {
+   "id": "AGF1023H",
+   "ola": "1023A",
+   "titulo": "Biblioteca y Genesis · elegir el motor de cada agente",
+   "archivos": [
+    "src/components/agents/selector-motor.tsx",
+    "src/lib/agents/motores/__tests__/selector-motor.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): agno, mastra, langgraph, pydantic-ai y openai-agents-python «para los desarrollos de agentes de Astraura, Genesis, PoliGenesis y MetaGenesis en todos sus contextos y medios». Contrato: `architecture/repos-3d-oido-agentes-1023.md` §3 (un contrato de agente, varios motores; modelos siempre por el enrutador propio —gratis primero, Jev, Experiential, servidor propio de IA—; trazas de terceros apagadas; nada de LangSmith ni nubes de los autores). Agentes de hoy: `src/lib/agents/model.ts` (tipo `Agent`) y `src/lib/agents/store.ts`.\n\nUn selector (con la sugerencia de `elegirMotor`) en la ficha de cada agente: muestra el motor elegido, por qué se sugiere y dónde corre; los motores sin adaptador aún salen «próximamente» con motivo. Pruebas con Testing Library.",
+   "revisor_quitadas": [
+    "AGF1023A"
+   ]
+  },
+  {
+   "id": "XR1010AQb",
+   "ola": "Ola 1010X · StarSeed XR: el OS en visores de AR/VR (entrada automática, Trinity espacial, menús 3D, voz de Astraura, mundos, P2P, calidad automática)",
+   "titulo": "Migrar use-sesion-xr.ts: delegar el mensaje de error y la lista de funciones en el núcleo",
+   "archivos": [
+    "src/components/vivo/espacial/use-sesion-xr.ts",
+    "src/components/xr/shell/__tests__/compat-sesion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/starseed-xr.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §3 (a)–(o) son las reglas del área y §1 la investigación fechada (qué existe y qué NO en cada visor). El núcleo puro YA está escrito y probado (214 pruebas) y NO se modifica: `src/lib/xr/{tipos,capacidades,calidad,calidad-perfiles,espacio-trinity,tokens-3d,transiciones,mundo-tipos,mundo-reglas,mundo-saneo,mundo-spec,intenciones-tipos,intenciones-ref,intenciones-destinos,intenciones-clausulas,intenciones-voz,confort,privacidad,vinculos-xr}.ts` (ábrelos y usa sus nombres reales; la tabla del inicio de §3 dice qué da cada uno). Petición de Alex (2026-10-10): StarSeed OS instalable y usable en gafas de AR/VR de todo tipo (Meta Quest, SteamVR, Android XR, Vision Pro, Pico…) o en cualquier navegador con WebXR; se abre solo en su formato (VR o AR); todo el sistema en 3D con el mismo diseño, funciones y estilo; menús 3D completos con animaciones y transiciones autoadaptables; calidad fijada sola por aparato; Astraura y la Protomolécula incluidas, con voz («crea un mundo virtual… e invita a este grupo de amigos», «súbelo a la Biblioteca / a una estación / a una publicación / a un mensaje»); servidores y estaciones públicos o privados como destinos; herramientas configurables para construir entornos, también en pizarras y llamadas.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/starseed-xr.md` y los módulos de `src/lib/xr/` de arriba. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo XR en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Pruebas sin red, sin hardware y sin WebGL: lo del navegador se inyecta; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom; el lienzo 3D (three/R3F/uikit) se simula con `vi.mock` como hace `src/components/vivo/espacial/__tests__/escena-compartida.test.tsx`; los componentes de R3F son cascarones finos y su LÓGICA vive en funciones puras que sí se prueban. Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Dependencias: NO ejecutes `npm install` salvo que tu tarea sea XR1010A; las 7 dependencias XR (§3 n) las añade esa tarea con el visto bueno de Alex; si tu tarea las necesita y `node_modules` no las trae, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: XR1010A (dependencias XR)». El layout raíz no carga motores pesados: three/uikit/rapier/vrm/spark solo dentro de `src/components/xr/shell/**` y de la ruta `/xr/os` (carga perezosa con `next/dynamic` sin SSR o `import()` dentro de una función). Privacidad (§3 k): nunca pidas la función `camera-access`; la cámara del passthrough y el mapa de la habitación no salen del aparato. Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Migra lo persistido si cambias un valor por defecto. Honestidad: no digas que algo «se ve bien» o «funciona en el visor»: di que pasan tsc y vitest; solo Alex lo comprueba con un visor, en `/xr/diagnostico` (tarea XR1010AI). Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (XR1010AQ): Contrato §2.2. Lee `src/components/vivo/espacial/use-sesion-xr.ts` ENTERO (153 líneas; `useSesionXR(gl, raizOverlay)`, `mensajeErrorXR`, `ModoSesionXR`, `EstadoXR`) y quién lo usa (`escena-compartida.tsx`, su prueba `escena-compartida.test.tsx`). Cambio de ≤ 30 líneas, sin reescribirlo y SIN cambiar su API pública ni su comportamiento observable: (1) sus `optionalFeatures` para AR/VR salen de `funcionesAPedir` (`src/components/xr/shell/aplicar-perfil.ts`, XR1010D) en lugar de una lista suelta, conservando `dom-overlay` con la raíz de interfaz en AR de mano; (2) tras `requestSession` llama a `refinarFunciones`-compatible: guarda `session.enabledFeatures` en el estado (campo nuevo opcional `funcionesConcedidas?: string[]`); (3) `mensajeErrorXR` se queda aquí exportado (otros ya lo importan, entre ellos XR1010E) y solo añade el caso `NotAllowedError` por gesto. No toques el resto. Prueba `compat-sesion.test.ts` (jsdom, `navigator.xr` falso): `mensajeErrorXR` conserva sus cinco mensajes; la sesión de AR pide `dom-overlay` y nunca `camera-access`; `funcionesConcedidas` refleja `enabledFeatures`; las pruebas de `escena-compartida` siguen pasando. Si alguna prueba existente falla, arregla el código, no la prueba. Integración: grep de que `escena-compartida.tsx` sigue usándolo.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-012522-XR1010AQ`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-012522-XR1010AQ:refs/remotes/origin/nube/a1-20261024-012522-XR1010AQ\"` y `git cherry-pick --no-commit 39efd93d41e3 f713764dde71 8c130aa72fe1 1c7c93b3ebbc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/vivo/espacial/lienzo-escena.tsx, src/components/vivo/espacial/use-sesion-xr.ts, src/components/xr/shell/__tests__/compat-sesion.test.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-012522-XR1010AQ",
+   "dependencias_ya_en_main": [
+    "XR1010D"
+   ]
+  },
+  {
+   "id": "GCA1019Lb",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "API de opciones por ámbito",
+   "archivos": [
+    "src/app/api/genesis/conectores/route.ts",
+    "src/app/api/genesis/conectores/__tests__/route.test.ts"
+   ],
+   "depende": [],
+   "prompt": "GET `?ambito=` → catálogo filtrado, sugerencias de `sugerir.ts` y asignaciones del ámbito (sin claves); POST {accion: \"vincular\", proveedor, valor} guarda con la bóveda y responde solo la huella; POST {accion: \"asignar\", clave, cadena}. Sesión obligatoria y permiso del ámbito (`src/lib/mando/permisos.ts`); límite de 20 peticiones por 10 minutos como `/api/genesis/proponer`. Prueba con dependencias falsas. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-012522-GCA1019L`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-012522-GCA1019L:refs/remotes/origin/nube/a1-20261024-012522-GCA1019L\"` y `git cherry-pick --no-commit d304dd1df976 c55b6294f364`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/genesis/conectores/__tests__/route.test.ts, src/app/api/genesis/conectores/route.ts, src/lib/genesis/conectores/sugerir-conector.ts, src/lib/genesis/conectores/vacio.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GCA1019J"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-012522-GCA1019L",
+   "dependencias_ya_en_main": [
+    "GCA1019K"
+   ]
+  },
+  {
+   "id": "OPS1024Db",
+   "ola": "1024R",
+   "titulo": "Habilidades de ingeniería (ingenieria-a.ts) visibles: cablearlas en skills.ts junto a productividad",
+   "archivos": [
+    "src/ai/astraura/skills.ts",
+    "src/ai/astraura/__tests__/skills-ingenieria.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta (grep 'ingenieria-a' en src/ fuera de __tests__: si ya lo importa alguien, NO APLICA). src/ai/astraura/habilidades/ingenieria-a.ts (tarjetas TDD, diagnóstico, diseño de módulos, dominio y revisión; commit LYS1018I) no lo importa nadie fuera de su prueba; src/ai/astraura/skills.ts solo importa las de productividad (productividad.ts). Regístralas en skills.ts EXACTAMENTE igual que se registran las de productividad (mismo formato, mismo lugar, sin duplicar ids) y añade una prueba que compruebe que las cinco aparecen en el registro con su rutaCompleta. No cambies ingenieria-a.ts. Máximo 120 líneas nuevas por archivo.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40068699209`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama (la reasignación apuntaba al run 40073425475 de nube-gh, que ya terminó, y esta rama es de otro medio)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40068699209:refs/remotes/origin/nube/40068699209\"` y `git cherry-pick --no-commit 6bd31106821b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/__tests__/skills-ingenieria.test.ts, src/ai/astraura/skills.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40068699209"
+  },
+  {
+   "id": "GCA1019R",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Herramientas MCP de Genesis",
+   "archivos": [
+    "src/lib/genesis/mcp/herramientas.ts",
+    "src/lib/genesis/mcp/__tests__/herramientas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Definiciones (nombre, descripción en español, `inputSchema` JSON Schema) y manejadores inyectados para `estado`, `tareas_listar`, `tareas_crear`, `agentes_listar`, `medidores`, `proponer` (operaciones de `src/lib/genesis/operaciones.ts`), `biblioteca_buscar`, `opciones_sugerir` y `chat`. Cada una declara el permiso que necesita. Prueba: esquemas válidos y manejadores llamados con lo validado. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019Q",
+    "GCA1019K"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "GCA1019Lb",
+   "OPS1024Db",
+   "XR1010AQb",
+   "AGF1023B",
+   "GCA1019R",
+   "AGF1023H"
+  ]
+ }
+}
