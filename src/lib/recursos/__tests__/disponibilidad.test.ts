@@ -111,6 +111,12 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+
+    it("sin nada que anunciar emite cero mensajes", () => {
+      expect(anuncio("nodo", "e", 10, [], 0)).toEqual([]);
+      // y con todos los índices fuera de rango o repetidos también
+      expect(anuncio("nodo", "e", 3, [3, 4, -1], 0)).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
@@ -173,6 +179,12 @@ describe("disponibilidad.ts", () => {
       expect(almacenado?.recibidoEn).toBe(AHORA - 10_000);
       expect(almacenado?.t).toBe(200);
       expect([...reg.get("t4")!.orden.get("solo")!.bits.slice(0, 2)]).toEqual([3, 3]);
+    });
+
+    it("fusionar sin anuncios retorna un registro vacío", () => {
+      const reg = fusionar([]);
+      expect(reg.size).toBe(0);
+      expect(quienTiene(reg, "t1", 0, AHORA)).toEqual([]);
     });
   });
 });

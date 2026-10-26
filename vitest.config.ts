@@ -38,7 +38,17 @@ export default defineConfig({
     environment: "node",
     environmentMatchGlobs: [["**/*.test.tsx", "jsdom"]],
     include: ["src/**/*.{test,spec}.ts", "src/**/__tests__/**/*.ts", "src/**/*.{test,spec}.tsx", "src/**/__tests__/**/*.tsx"],
-    exclude: ["node_modules", ".next", "dist"],
+    exclude: [
+      "node_modules",
+      ".next",
+      "dist",
+      // Helpers de prueba dentro de `__tests__` sin sufijo `.test`/`.spec`
+      // (p. ej. `ayudas-prueba.ts` del gobierno): no son suites, son importados
+      // por las pruebas. Sin esto vitest los coge como suite y falla con
+      // «No test suite found». La guardia de vitest-en-producción los deja
+      // pasar porque viven en `__tests__/`.
+      "src/**/__tests__/**/!(*.test.*|*.spec.*)",
+    ],
     globals: false,
     // (2026-10-05) Margen para una máquina cargada: ver el porqué en `vitest.setup-dom.ts`.
     // `testTimeout` sube de 5 s a 20 s para que un `findBy*` de 5 s quepa dentro de su prueba.
