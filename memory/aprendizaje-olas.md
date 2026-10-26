@@ -4614,3 +4614,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCB1013Xb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/RTCB1013Xb conservada)
 - `RTTIP1013Cc` — no escribió nada
 - `RTRTRTRTCOL1012Bdsbbbbbc-d2d` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTRTRTRTCOL1012Bdsbbbbbc-d2d conservada)
+
+## 2026-10-26 12:39 · mg-oracle-1026-0431
+
+**Lo que se pidió.** Biblioteca · siembra por defecto de las de la 2.ª tanda marcadas «siempre
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — otra cosa (RTRLB1020Ec, ALT1021Cd-d2b, OPS1024A, GUI1021Id-d2, AGF1023E, RTAGF1023Bc). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRLB1020Ec` — otra cosa: ningún proveedor respondió (todos caídos)
+- `ALT1021Cd-d2b` — otra cosa: ningún proveedor respondió (todos caídos)
+- `OPS1024A` — otra cosa: ningún proveedor respondió (todos caídos)
+- `GUI1021Id-d2` — otra cosa: ningún proveedor respondió (todos caídos)
+- `AGF1023E` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTAGF1023Bc` — otra cosa: ningún proveedor respondió (todos caídos)
