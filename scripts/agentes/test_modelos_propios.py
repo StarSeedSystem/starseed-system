@@ -22,6 +22,13 @@ class Elegir(unittest.TestCase):
         self.assertIsNone(M.elegir_modelo([], "texto"))
         self.assertIsNone(M.elegir_modelo(["", None, 3], "texto"))
 
+    def test_alias_de_capacidad(self):
+        casos = (("chat", ["razon/x", "chat/y"], "chat/y"),
+                 ("reasoning", ["chat/x", "deepseek-r1"], "deepseek-r1"),
+                 ("code", ["chat/x", "qwen-coder"], "qwen-coder"))
+        for capacidad, modelos, esperado in casos:
+            self.assertEqual(M.elegir_modelo(modelos, capacidad), esperado)
+
 
 class Env(unittest.TestCase):
     def test_parsea_export_comillas_y_comentarios(self):
@@ -98,6 +105,32 @@ class Cliente(unittest.TestCase):
         texto = 'export STARSEED_PASARELA_EXPLABS_KEY="clave"\nSTARSEED_PASARELA_EXPLABS_MODELOS=clef-flash\n'
         c = M.cliente_openai_compatible("texto", leer_env=lambda: texto, sonda=self.sonda)
         self.assertEqual(c.origen, "experiential")
+
+    def test_local_primero_y_bitnet(self):
+        self.mundos[M.SERVIDOR_IA] = ["ollama/llama", "bitnet/bonsai"]
+        c = M.cliente_openai_compatible("texto", entorno={}, sonda=self.sonda)
+        self.assertEqual((c.origen, c.base_url, c.modelo),
+                         ("servidor-propio", M.SERVIDOR_IA, "bitnet/bonsai"))
+
+    def test_modelo_local_forzado_y_url_propia(self):
+        clave = "clave-servidor-falsa"
+        self.mundos["http://127.0.0.1:9999/v1"] = []
+        entorno = {"STARSEED_SERVIDOR_IA_URL": "http://127.0.0.1:9999/v1/",
+                   "STARSEED_SERVIDOR_IA_MODELO": "ollama/elegido",
+                   "STARSEED_SERVIDOR_IA_TOKEN": clave}
+        c = M.cliente_openai_compatible("texto", entorno=entorno, sonda=self.sonda)
+        self.assertEqual((c.base_url, c.modelo), ("http://127.0.0.1:9999/v1", "ollama/elegido"))
+        self.assertNotIn(clave, repr(c))
+
+    def test_pasarela_elige_por_capacidad(self):
+        clave = "clave-pasarela-falsa"
+        entorno = {"STARSEED_PASARELA_EXPLABS_URL": "https://pasarela.example/v1/",
+                   "STARSEED_PASARELA_EXPLABS_KEY": clave,
+                   "STARSEED_PASARELA_EXPLABS_MODELOS": "clef-flash, gpt-6-luna-decisions"}
+        c = M.cliente_openai_compatible("decision", entorno=entorno, sonda=self.sonda)
+        self.assertEqual((c.origen, c.base_url, c.modelo),
+                         ("experiential", "https://pasarela.example/v1", "gpt-6-luna-decisions"))
+        self.assertNotIn(clave, repr(c))
 
     def test_la_clave_nunca_sale_en_el_repr(self):
         c = M.ClienteOpenAI("http://x/v1", "m", "clave-secreta")
