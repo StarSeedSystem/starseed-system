@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OPERACIONES_PDF, ejecutarOperacion, operacionesDeRutas, operacionesDisponibles, rutasDesdeApiDocs } from "../stirling-pdf";
+import { runIntegration } from "../../run";
 
 beforeEach(() => vi.stubGlobal("window", {})); // el cliente solo trabaja en el navegador
 afterEach(() => vi.unstubAllGlobals());
@@ -116,5 +117,30 @@ describe("ejecutarOperacion — con fetch simulado", () => {
     expect(opFalsa.ok).toBe(false);
     expect((opFalsa as { error?: string }).error).toContain("no-existe");
     expect(idFalso.peticiones).toBe(0);
+  });
+});
+
+describe("runIntegration · el catálogo queda conectado al despacho", () => {
+  const cfg = { endpoint: "http://127.0.0.1:8180" };
+
+  it("filtra una descripción de API ya obtenida sin llamar a la red", async () => {
+    let llamadas = 0;
+    vi.stubGlobal("fetch", async () => { llamadas++; return new Response("{}"); });
+    const res = await runIntegration("stirling-pdf", "operaciones", { apiDocs: API_DOCS }, cfg);
+    expect(res.ok).toBe(true);
+    const datos = res.data as { rutas: string[]; operaciones: { id: string }[] };
+    expect(datos.rutas).toContain("/api/v1/general/rotate-pdf");
+    expect(datos.operaciones.map((o) => o.id)).toEqual(["fusionar", "rotar", "dividir", "ocr"]);
+    expect(llamadas).toBe(0);
+  });
+
+  it("rechaza una operación fuera del catálogo antes de tocar el proxy", async () => {
+    let llamadas = 0;
+    vi.stubGlobal("fetch", async () => { llamadas++; return new Response("{}"); });
+    const res = await runIntegration("stirling-pdf", "operar", { operacion: "no-existe", file: new Blob(["pdf"]) }, cfg);
+    expect(res.ok).toBe(false);
+    expect((res as { error?: string }).error).toContain("no-existe");
+    expect((res as { error?: string }).error).toContain("rotar");
+    expect(llamadas).toBe(0);
   });
 });

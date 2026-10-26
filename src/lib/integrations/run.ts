@@ -171,10 +171,23 @@ export async function runIntegration(
         if (a === "to-image") return await Stirling.toImage(c, input);
         if (a === "extract-text") return await Stirling.extractText(c, input);
         // PDF1020A · 1020d: operaciones según la instancia (lee /v1/api-docs).
-        if (a === "operaciones") return await Stirling.operacionesDisponibles(c);
+        // Si quien llama ya tiene la descripción de API (caché o prueba), se filtra
+        // sin otra petición; si no, se lee de la instancia.
+        if (a === "operaciones") {
+          const apiDocs: unknown = input?.apiDocs;
+          if (apiDocs && typeof apiDocs === "object") {
+            const rutas = Stirling.rutasDesdeApiDocs(apiDocs);
+            return { ok: true, data: { rutas, operaciones: Stirling.operacionesDeRutas(rutas) } };
+          }
+          return await Stirling.operacionesDisponibles(c);
+        }
         if (a === "operar") {
-          const archivo = (Array.isArray(input?.files) && input.files.length ? input.files : input?.file) ?? input?.url ?? input;
           const idOperacion = String(input?.operacion ?? input?.id ?? "");
+          if (!Stirling.OPERACIONES_PDF.some((o) => o.id === idOperacion)) {
+            const disponibles = Stirling.OPERACIONES_PDF.map((o) => o.id).join(", ");
+            return { ok: false, error: `«${idOperacion}» no es una operación del catálogo de Stirling-PDF (${disponibles}).` };
+          }
+          const archivo = (Array.isArray(input?.files) && input.files.length ? input.files : input?.file) ?? input?.url ?? input;
           return await Stirling.ejecutarOperacion(c, idOperacion, archivo, input?.parametros ?? {});
         }
         break;
