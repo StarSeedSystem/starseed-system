@@ -35,7 +35,7 @@ describe("guía · StepDemo monta la demostración de cada tema del tour (GUI102
   }
 
   it("la lista de claves cubiertas coincide con TODOS_LOS_TEMAS de la guía", () => {
-    expect(new Set(ETIQUETA_POR_CLAVE.keys())).toEqual(
+    expect(new Set(Object.keys(ETIQUETA_POR_CLAVE))).toEqual(
       new Set(TODOS_LOS_TEMAS.map((t) => t.key)),
     );
   });
