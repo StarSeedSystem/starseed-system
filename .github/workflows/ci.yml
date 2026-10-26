@@ -41,6 +41,11 @@ jobs:
         run: npm ci
       - name: Typecheck (tsc --noEmit)
         run: npx tsc --noEmit
+        env:
+          # (2026-10-26) Con el montón por defecto (~4 GB) tsc ya muere por memoria («JavaScript heap out of
+          # memory», exit 134: runs 40265392894, 40267313842, 40269427314) y la autopublicación se frena con
+          # «CI en rojo». La máquina tiene 16 GB, como para el build de abajo.
+          NODE_OPTIONS: --max-old-space-size=8192
       - name: Tests unitarios (Vitest · gobernanza + seguridad)
         run: npm test
       - name: Tests del núcleo mesh/cripto

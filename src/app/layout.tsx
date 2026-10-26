@@ -183,10 +183,28 @@ const fontCode = Source_Code_Pro({
 });
 
 
+/** La dirección pública del OS (gratuita, en Vercel): base de los enlaces absolutos de las tarjetas al compartir. */
+const URL_PUBLICA = process.env.NEXT_PUBLIC_SITE_URL || "https://starseed-os.vercel.app";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(URL_PUBLICA),
   title: "StarSeed System",
   description: "Sistema operativo social para la regeneración global",
   applicationName: "StarSeed OS",
+  // Tarjeta al compartir el enlace (WhatsApp, Telegram, X, correo…): la imagen la genera `opengraph-image.tsx`.
+  openGraph: {
+    type: "website",
+    siteName: "StarSeed OS",
+    title: "StarSeed OS · sistema operativo social descentralizado",
+    description: "Democracia directa, creación colectiva e inteligencia propia, abierta y gratuita.",
+    url: "/",
+    locale: "es_ES",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "StarSeed OS · sistema operativo social descentralizado",
+    description: "Democracia directa, creación colectiva e inteligencia propia, abierta y gratuita.",
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
