@@ -35,6 +35,38 @@ describe("detectRunnable", () => {
   });
 });
 
+describe("escenas de ManimGX que escribe el agente (validación aplicada)", () => {
+  const escenaBuena = "from manim import Scene, Square\n\nclass MiEscena(Scene):\n    def construct(self):\n        self.play(Create(Square()))";
+  const escenaAbierta = "from manim import Scene\n\nclass Mal(Scene):\n    def construct(self):\n        open(\"/etc/passwd\")";
+
+  it("una escena válida se marca como ManimGX y no corre en el navegador", () => {
+    const info = detectRunnable("python", escenaBuena);
+    expect(info.kind).toBe("backend");
+    expect(info.inBrowser).toBe(false);
+    expect(info.label).toBe("escena de Manim");
+    expect(info.note ?? "").toContain("Worker con Pyodide");
+    const conLenguajeManim = detectRunnable("manim", escenaBuena);
+    expect(conLenguajeManim.label).toBe("escena de Manim");
+  });
+
+  it("una escena peligrosa queda rechazada con sus motivos legibles", () => {
+    const info = detectRunnable("py", escenaAbierta);
+    expect(info.inBrowser).toBe(false);
+    expect(info.label).toBe("escena de Manim (rechazada)");
+    expect(info.note ?? "").toContain("«open(» abre archivos");
+  });
+
+  it("un py que NO es manim sigue comportándose como backend de siempre", () => {
+    const py = detectRunnable("py", "print('hola')\n");
+    expect(py.kind).toBe("backend");
+    expect(py.label).toBe("Python");
+  });
+
+  it("deja una escena detectada por contenido sin lenguaje", () => {
+    const info = detectRunnable("", escenaBuena);
+    expect(info.label).toBe("escena de Manim");
+  });
+});
 describe("directivas escritas en el propio código", () => {
   it("lee el info string del fence", () => {
     const d = parseFenceDirectives('html run autorun mode=split height=520 size=l title="Panel de sensores" tools=consola,guardar');

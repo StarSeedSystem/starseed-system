@@ -22,6 +22,7 @@
  */
 
 import { safeGet, safeSet } from "@/lib/safe-storage";
+import { validarEscena } from "@/lib/protomolecula/manimgx/escena";
 
 /* ───────────────────────── Tipos ───────────────────────── */
 
@@ -103,6 +104,33 @@ export interface RunnableInfo {
 }
 
 /**
+ * Escena de ManimGX escrita por el agente (contrato `repos-3d-oido-agentes-1023.md` §3):
+ * se VALIDA con `validarEscena`, que no ejecuta nada; una escena segura corre en un
+ * Worker con Pyodide o en un contenedor aislado, nunca en el proceso del OS; una que
+ * no pasa la validación no va a ningún sitio y se explica con sus motivos.
+ */
+function runnableDeEscenaManim(lang: string, src: string): RunnableInfo | null {
+  const manimEnLenguaje = ["manim", "manimgx"].includes(lang);
+  const pareceManim = /^\s*(from|import)\s+(manim|manimgx)\b/m.test(src);
+  if (!manimEnLenguaje && !((lang === "" || lang === "py" || lang === "python") && pareceManim)) return null;
+  const resultado = validarEscena(src);
+  if (resultado.ok) {
+    return {
+      kind: "backend",
+      label: "escena de Manim",
+      inBrowser: false,
+      note: "Escena de ManimGX: se ejecuta en un Worker con Pyodide o en un contenedor sin red, nunca en el proceso del OS.",
+    };
+  }
+  return {
+    kind: "backend",
+    label: "escena de Manim (rechazada)",
+    inBrowser: false,
+    note: `Escena de ManimGX rechazada: ${resultado.motivos.join(" ")}`,
+  };
+}
+
+/**
  * Decide qué es el bloque a partir del lenguaje del fence y, si no lo hay, del
  * propio contenido (heurística conservadora: ante la duda, «inerte»).
  */
@@ -115,6 +143,10 @@ export function detectRunnable(lang: string | undefined, code: string): Runnable
   if (SCRIPT.has(l)) return { kind: "script", label: "script", inBrowser: true };
   if (ESTILO.has(l)) return { kind: "estilo", label: "estilo", inBrowser: true };
   if (SHADER.has(l)) return { kind: "shader", label: "shader", inBrowser: true };
+
+  const escena = runnableDeEscenaManim(l, src);
+  if (escena) return escena;
+
   if (BACKEND.has(l)) {
     return {
       kind: "backend",
@@ -130,6 +162,8 @@ export function detectRunnable(lang: string | undefined, code: string): Runnable
     if (/^\s*(precision\s+(highp|mediump|lowp)\s+float|#version\s+300\s+es)\b/m.test(src) || /void\s+main\s*\(\s*\)\s*\{[\s\S]*gl_FragColor|fragColor/.test(src)) {
       return { kind: "shader", label: "shader", inBrowser: true };
     }
+    const escena = runnableDeEscenaManim("", src);
+    if (escena) return escena;
   }
   return { kind: "inerte", label: l || "texto", inBrowser: false };
 }
