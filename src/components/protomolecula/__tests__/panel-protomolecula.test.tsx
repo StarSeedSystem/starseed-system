@@ -69,6 +69,14 @@ afterEach(() => {
   reiniciarSesiones();
 });
 
+describe("PanelProtomolecula · cabecera", () => {
+  it("muestra el título y el ámbito de la molécula", () => {
+    render(<PanelProtomolecula controlador={controlador()} />);
+    expect(screen.getByRole("heading", { name: "Molécula de prueba" })).toBeDefined();
+    expect(screen.getByText("personal")).toBeDefined();
+  });
+});
+
 describe("PanelProtomolecula · herramientas", () => {
   it("muestra el título y el ámbito de la molécula en la cabecera", () => {
     render(<PanelProtomolecula controlador={controlador()} />);
