@@ -1,0 +1,41 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "RTOPS1024B",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · laya-y-habilidades.md · el commit de origen de las habilidades no coincide con ORIGEN.md",
+   "archivos": [
+    "src/lib/protomolecula/__tests__/debug-proximamente.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea OPS1024Bb («laya-y-habilidades.md · el commit de origen de las habilidades no coincide con ORIGEN.md») se hizo en main por otro camino; su rama nube/40254797821 queda archivada en `refs/archivo/nube/40254797821` y traía casos de prueba que main no tiene con ese nombre. Jev veta la regla con p=0.92\n\nTU TAREA (RTOPS1024B · solo estos archivos: src/lib/protomolecula/__tests__/debug-proximamente.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/protomolecula/__tests__/debug-proximamente.test.ts\n  it(\"ninguna herramienta «proximamente» se anuncia como verificada\", () => {\n    const proximas = CATALOGO_PROTOMOLECULA.filter((h) => h.estado === \"proximamente\");\n    expect(proximas.length).toBeGreaterThan(0);\n\n    const items = listProtoLibraryItems();\n    for (const herramienta of proximas) {\n      const item = items.find((i) => i.id === `proto-${herramienta.id}`);\n      expect(item).toBeDefined();\n      expect(item!.verified).toBe(false);\n      expect(item!.description).toContain(`próximamente: ${herramienta.motivo}`);\n    }\n  });\n\n# src/lib/protomolecula/__tests__/debug-proximamente.test.ts\n  it(\"una herramienta del catálogo llega con su licencia, su grupo y sus enlaces\", () => {\n    const herramienta = CATALOGO_PROTOMOLECULA.find(\n      (h) => h.estado === \"proximamente\" && h.web !== null && h.codigo !== null,\n    );\n    expect(herramienta).toBeDefined();\n\n    const item = listProtoLibraryItems().find((i) => i.id === `proto-${herramienta!.id}`);\n    expect(item).toBeDefined();\n    expect(item!.title).toBe(herramienta!.nombre);\n    expect(item!.category).toBe(\"protomolecula\");\n    expect(item!.license).toBe(herramienta!.licencia);\n\n    const grupo = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === herramienta!.categoria)?.grupo;\n    expect(grupo).toBeDefined();\n    expect(item!.tags).toContain(\"protomolecula\");\n    expect(item!.tags).toContain(grupo);\n    expect(item!.links?.find((l) => l.label === \"Web oficial\")?.url).toBe(herramienta!.web);\n    expect(item!.links?.find((l) => l.label === \"Repositorio\")?.url).toBe(herramienta!.codigo);\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "OPS1024Bb",
+    "rama": "nube/40254797821"
+   }
+  },
+  {
+   "id": "RTRIA1023F",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Recursos de IA · publicar la oferta de la neurona (OfertaNeurona) desde sus asignaciones",
+   "archivos": [
+    "src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RIA1023Fb («Recursos de IA · publicar la oferta de la neurona (OfertaNeurona) desde sus asignaciones») se hizo en main por otro camino; su rama nube/a1-20261026-002110-RIA1023Fb queda archivada en `refs/archivo/nube/a1-20261026-002110-RIA1023Fb` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTRIA1023F · solo estos archivos: src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts\n  it(\"neurona sin servidor propio\", () => {\n    const e: EstadoRecursosIa = estadoVacio();\n    e.asignaciones = {\n      modelo: crearAsignacion(crearModelo(\"mod1\", 5), \"storage1\"),\n    };\n    const oferta = ofertaDesdeAsignaciones(e);\n    expect(oferta.presta.cuenta).toBe(false);\n    expect(oferta.almacen.prestaMb).toBe(5);\n  });\n\n# src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts\n  it(\"neurona con servidor propio privado\", () => {\n    const e: EstadoRecursosIa = estadoVacio();\n    e.topologias = {\n      p1: {\n        topologia: \"servidor-propio\",\n        alcance: { tipo: \"perfil\", id: \"p1\", visibilidad: \"privada\" },\n        vias: [\"local\"],\n      },\n    };\n    const oferta = ofertaDesdeAsignaciones(e);\n    expect(oferta.presta.cuenta).toBe(true);\n  });\n\n# src/lib/recursos-ia/__tests__/oferta-desde-asignaciones.test.ts\n  it(\"neurona con alcance de grupo\", () => {\n    const e: EstadoRecursosIa = estadoVacio();\n    e.topologias = {\n      p1: {\n        topologia: \"almacen-externo\",\n        alcance: { tipo: \"grupo\", id: \"g1\", visibilidad: \"publica\" },\n        vias: [\"local\"],\n      },\n    };\n    const oferta = ofertaDesdeAsignaciones(e);\n    expect(oferta.presta.grupos).toContain(\"g1\");\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "RIA1023Fb",
+    "rama": "nube/a1-20261026-002110-RIA1023Fb"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1025-121048.json": [
+   "RTOPS1024B",
+   "RTRIA1023F"
+  ]
+ }
+}
