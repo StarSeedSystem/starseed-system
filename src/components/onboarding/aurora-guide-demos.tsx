@@ -19,6 +19,8 @@
 
 import { motion, type Transition } from "framer-motion";
 import { DemoGestosHibridos } from "./demo-gestos-hibridos";
+import { ProtomoleculaDemo, MallaDemo, CapasConcienciaDemo, NeuronasCerebroDemo } from "./demos-sistema";
+import { PoliticaDemo, EducacionDemo, CulturaDemo, LibreriaBibliotecaDemo, GenesisDemo, PersonalizacionSeguraDemo } from "./demos-red";
 
 type DemoProps = {
   stepKey: string;
@@ -421,103 +423,11 @@ function PerfilDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
   );
 }
 
-/* ─────────────────────────── CEREBROS ───────────────────────────────────────
-   Grafo vivo: nodos (servidores/memorias) conectados por aristas que pulsan. */
-function CerebrosDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
-  const nodes = [
-    { x: 40, y: 30 },
-    { x: 120, y: 22 },
-    { x: 176, y: 58 },
-    { x: 90, y: 74 },
-    { x: 32, y: 82 },
-  ];
-  const edges = [
-    [0, 1],
-    [1, 2],
-    [0, 3],
-    [3, 4],
-    [1, 3],
-  ];
-  return (
-    <Stage accent={accent}>
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 210 112" preserveAspectRatio="none">
-        {edges.map(([a, b], i) => (
-          <motion.line
-            key={i}
-            x1={nodes[a].x}
-            y1={nodes[a].y}
-            x2={nodes[b].x}
-            y2={nodes[b].y}
-            stroke={accent}
-            strokeWidth={1}
-            strokeOpacity={0.5}
-            initial={reduce ? { pathLength: 1 } : { pathLength: 0 }}
-            animate={reduce ? { pathLength: 1 } : { pathLength: 1, strokeOpacity: [0.25, 0.7, 0.25] }}
-            transition={
-              reduce
-                ? undefined
-                : {
-                    pathLength: { duration: 0.7, delay: i * 0.12 },
-                    strokeOpacity: loop({ duration: 2.4, delay: i * 0.2 }),
-                  }
-            }
-          />
-        ))}
-        {nodes.map((n, i) => (
-          <motion.circle
-            key={i}
-            cx={n.x}
-            cy={n.y}
-            r={4}
-            fill={accent}
-            initial={reduce ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
-            animate={reduce ? { scale: 1, opacity: 1 } : { scale: 1, opacity: 1 }}
-            transition={reduce ? undefined : { type: "spring", stiffness: 300, damping: 16, delay: 0.3 + i * 0.1 }}
-            style={{ filter: `drop-shadow(0 0 4px ${accent})` }}
-          />
-        ))}
-      </svg>
-    </Stage>
-  );
-}
-
-/* ─────────────────────────── LIBRERÍA ───────────────────────────────────────
-   Estantería/catálogo: fichas (apps/recursos) que se van "encajando". */
-function LibreriaDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
-  const cards = [0, 1, 2, 3, 4, 5];
-  return (
-    <Stage accent={accent}>
-      <div className="absolute inset-0 grid grid-cols-3 place-items-center gap-2 p-3">
-        {cards.map((i) => (
-          <motion.div
-            key={i}
-            className="h-9 w-14 rounded-md border border-white/12"
-            style={{
-              background: `linear-gradient(135deg, color-mix(in srgb, ${accent} ${10 + (i % 3) * 8}%, rgba(255,255,255,0.05)), rgba(255,255,255,0.02))`,
-            }}
-            initial={reduce ? { opacity: 1, y: 0 } : { opacity: 0, y: 14, rotate: -6 }}
-            animate={
-              reduce
-                ? { opacity: 1, y: 0 }
-                : { opacity: 1, y: 0, rotate: 0 }
-            }
-            transition={
-              reduce
-                ? undefined
-                : { type: "spring", stiffness: 260, damping: 18, delay: i * 0.08 }
-            }
-          >
-            <div className="flex h-full flex-col justify-between p-1">
-              <span className="h-1 w-1/2 rounded-full bg-white/40" />
-              <span className="h-1 w-3/4 rounded-full bg-white/15" />
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </Stage>
-  );
-}
-
+/* ─────────────────── DEMOS DE LOS DIEZ TEMAS DE LA GUÍA ─────────────────────
+   Los diez temas (`guia-temas-sistema.ts` / `guia-temas-red.ts`) reutilizan las
+   demostraciones animadas de `demos-sistema.tsx` y `demos-red.tsx`, pensadas para
+   las tarjetas y ahora también dentro del tour. `cerebros` y `libreria` son las
+   claves antiguas y siguen funcionando apuntando a sus demos nuevas. */
 /**
  * StepDemo — despacha la mini-demostración correcta según la clave del paso.
  * Si la clave no tiene demo específica, no renderiza nada (la guía sigue).
@@ -546,9 +456,31 @@ export function StepDemo({ stepKey, accent, reduce }: DemoProps) {
     case "perfil":
       return <PerfilDemo accent={accent} reduce={reduce} />;
     case "cerebros":
-      return <CerebrosDemo accent={accent} reduce={reduce} />;
+      // Clave vieja: ahora apunta a la demo de «Neuronas y cerebro» por compatibilidad.
+      return <NeuronasCerebroDemo accent={accent} reduce={reduce} />;
     case "libreria":
-      return <LibreriaDemo accent={accent} reduce={reduce} />;
+      // Clave vieja: ahora apunta a la demo de «Librería y Biblioteca» por compatibilidad.
+      return <LibreriaBibliotecaDemo accent={accent} reduce={reduce} />;
+    case "protomolecula":
+      return <ProtomoleculaDemo accent={accent} reduce={reduce} />;
+    case "malla":
+      return <MallaDemo accent={accent} reduce={reduce} />;
+    case "capas-conciencia":
+      return <CapasConcienciaDemo accent={accent} reduce={reduce} />;
+    case "neuronas-cerebro":
+      return <NeuronasCerebroDemo accent={accent} reduce={reduce} />;
+    case "pilar-politica":
+      return <PoliticaDemo accent={accent} reduce={reduce} />;
+    case "pilar-educacion":
+      return <EducacionDemo accent={accent} reduce={reduce} />;
+    case "pilar-cultura":
+      return <CulturaDemo accent={accent} reduce={reduce} />;
+    case "libreria-biblioteca":
+      return <LibreriaBibliotecaDemo accent={accent} reduce={reduce} />;
+    case "genesis":
+      return <GenesisDemo accent={accent} reduce={reduce} />;
+    case "personalizacion-segura":
+      return <PersonalizacionSeguraDemo accent={accent} reduce={reduce} />;
     default:
       return null;
   }
