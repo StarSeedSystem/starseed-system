@@ -1438,6 +1438,10 @@ Medido a las 09:00 UTC (Genesis enseñaba 5 agentes con 307 listas) y otra vez a
   Groq, HuggingFace…) solo vivía en la Mac y el A1. Ahora cada job arranca el suyo (paso «FreeLLMAPI en el runner»,
   versión 47c3a45, solo 127.0.0.1, clave unificada nueva por job) y el orquestador lo usa como escritor; Alex eligió
   subir `MISTRAL_API_KEY` (y Cerebras/Cohere si existen) a los secretos del repo.
+- **M** · el reinicio dejó `.git/index.lock` de un git muerto en el repo del A1: cinco colas en dos horas acabaron en
+  «rc: checkout» en un segundo y quedaron «procesadas» sin hacer nada. La autocuración lo mira en cada sonda y, si
+  pasa de 30 min sin ningún git vivo, lo aparta (`index.lock.viejo-<t>`) y quita la espera de 20 min. Síntoma:
+  `colas.json` del A1 con `"rc": "checkout"` y `fin == inicio`. Verificado: el A1 pasó a «cola» con 3 agentes.
 
 **Regla:** más agentes que escritores con cupo no es capacidad: son 429, proveedores apartados 6 h y envíos gastados.
 El número lo dan los escritores vivos; los jobs a la vez salen de ahí y los dos directores leen el mismo.

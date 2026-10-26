@@ -4513,6 +4513,8 @@ Genesis pasó de 5 agentes a 31 (28 en GitHub, 3 en la Mac); el límite real es 
   préstamo de las 12:35 que nunca salió (copia en `memoria.json.antes-cap1026i`).
 - `0f1ac493d` CAP1026J (autocuración del A1) · `082305601` CAP1026K (Zen vuelve a la nube) · `05371806e` CAP1026L
   (FreeLLMAPI en cada job + MISTRAL_API_KEY en los secretos). Primer job con FreeLLMAPI: run 40385726126 (paso en verde).
+- Verificado en el run 40385726126: «FreeLLMAPI en el runner: HTTP 200 con 6 clave(s)», revisiones con freellmapi/auto
+  y FSH1018Q escrita con freellmapi/auto. `21f449a88` CAP1026M (cerrojo de git abandonado en el A1); el A1 trabaja.
 
 ### Pendiente / Próximos pasos
 - Medidor «Agentes» de Genesis (`src/lib/mando/medidores.ts`): contar el A1 desde oracle.json y revisar los
