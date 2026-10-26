@@ -1,0 +1,19 @@
+{
+  "name": "agentes-mastra",
+  "version": "1.0.0",
+  "description": "Proyecto mínimo Mastra para agente con modelo del servidor propio de IA",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "src/agente.mjs",
+  "scripts": {
+    "test": "node --test test/agente.test.mjs",
+    "start": "node src/agente.mjs"
+  },
+  "dependencies": {
+    "@mastra/core": "1.79.0",
+    "zod": "^3.23.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
