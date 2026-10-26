@@ -108,7 +108,13 @@ export function urlDeConsulta(upstream: string, payload?: PayloadActualizacion):
     if (github) {
         const ruta = github[1].replace(/\.git$/, "");
         const canal = canalDeGitHub(payload);
-        if (canal === "tags") return `https://api.github.com/repos/${ruta}/tags?per_page=100`;
+        if (canal === "tags") {
+            // Con un patrón hay que traer suficientes etiquetas para encontrar
+            // una que case; sin patrón basta la primera.
+            return validarPatronTag(payload?.patronTag).patron
+                ? `https://api.github.com/repos/${ruta}/tags?per_page=100`
+                : `https://api.github.com/repos/${ruta}/tags?per_page=1`;
+        }
         if (canal === "releases") {
             return `https://api.github.com/repos/${ruta}/releases/latest`;
         }
@@ -247,20 +253,36 @@ export async function consultarCodeberg(
 
 const RE_SHA = /^[0-9a-f]{7,40}$/i;
 
+/** Quita el «v» (o «V») inicial de una etiqueta de versión: «v1.2.3» → «1.2.3». */
+export function versionSinV(tag: string): string {
+    return tag.replace(/^v/i, "");
+}
+
 /**
  * Compara identificadores del mismo tipo. Los upstream consultados entregan un
  * sha, por lo que una versión manual como «1.0.0» no demuestra ni igualdad ni
- * cambio y debe quedar como «desconocida».
+ * cambio y debe quedar como «desconocida»… salvo ambos lados sea etiquetas:
+ * un tag no es un sha, así que se quita el «v» inicial y se comparan por
+ * igualdad textual: iguales → «igual», distintos → «hay-actualizacion».
+ * Si los dos lados no son ni shas ni tags comparables, «desconocida».
  */
 export function compararVersiones(
     instalada: string | null | undefined,
     remota: string | null | undefined,
 ): EstadoActualizacion {
     if (!instalada || !remota) return "desconocida";
-    if (!RE_SHA.test(instalada) || !RE_SHA.test(remota)) return "desconocida";
-    const local = instalada.toLowerCase();
-    const upstream = remota.toLowerCase();
-    return local.startsWith(upstream) || upstream.startsWith(local)
+    const esSha = (v: string): boolean => RE_SHA.test(v);
+    if (esSha(instalada) && esSha(remota)) {
+        const local = instalada.toLowerCase();
+        const upstream = remota.toLowerCase();
+        return local.startsWith(upstream) || upstream.startsWith(local)
+            ? "igual"
+            : "hay-actualizacion";
+    }
+    // Mixto (sha contra tag): un tag no demuestra nada de un sha.
+    if (esSha(instalada) !== esSha(remota)) return "desconocida";
+    // Dos tags: versión con «v» inicial normalizada, comparación textual.
+    return versionSinV(instalada) === versionSinV(remota)
         ? "igual"
         : "hay-actualizacion";
 }

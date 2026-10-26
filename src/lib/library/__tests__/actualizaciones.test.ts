@@ -6,6 +6,7 @@ import {
     leerVersion,
     compararVersiones,
     validarPatronTag,
+    versionSinV,
     MAX_LONGITUD_PATRON_TAG,
 } from "../actualizaciones";
 
@@ -94,6 +95,16 @@ describe("canal de etiquetas con patrón", () => {
         });
     });
 
+    it("sin patronTag, el canal tags pide solo la primera etiqueta", () => {
+        expect(urlDeConsulta(URL_RUVIEW, { canal: "tags" })).toBe(
+            "https://api.github.com/repos/ruvnet/RuView/tags?per_page=1",
+        );
+        expect(leerVersion(URL_RUVIEW, [{ name: "v1.2.3" }], { canal: "tags" })).toEqual({
+            version: "v1.2.3",
+            fecha: null,
+        });
+    });
+
     it("sin ninguna etiqueta coincidente no inventa versión: null", () => {
         const tags = [{ name: "v3263" }, { name: "v3264" }];
         expect(leerVersion(URL_RUVIEW, tags, { patronTag: "^ruview-harness-" })).toBeNull();
@@ -150,5 +161,43 @@ describe("canal de releases", () => {
                 { canal: "releases" },
             ),
         ).toEqual({ version: "v0.24.6", fecha: "2026-10-01T10:00:00Z" });
+    });
+
+    it("una release sin published_at da fecha null; sin tag_name, null", () => {
+        const upstream = "https://github.com/go-vikunja/vikunja";
+        expect(
+            leerVersion(upstream, { tag_name: "v0.24.6" }, { canal: "releases" }),
+        ).toEqual({ version: "v0.24.6", fecha: null });
+        expect(leerVersion(upstream, { published_at: "2026-10-01" }, { canal: "releases" })).toBeNull();
+        expect(leerVersion(upstream, {}, { canal: "releases" })).toBeNull();
+    });
+
+    it("para HF el canal se ignora: siempre la ficha del modelo", () => {
+        const upstream = "https://huggingface.co/AlexWortega/openjev";
+        expect(urlDeConsulta(upstream, { canal: "releases" })).toBe(
+            "https://huggingface.co/api/models/AlexWortega/openjev",
+        );
+        expect(urlDeConsulta(upstream, { canal: "tags" })).toBe(
+            "https://huggingface.co/api/models/AlexWortega/openjev",
+        );
+    });
+});
+
+describe("compararVersiones con tags", () => {
+    it("el mismo tag (con o sin v) → «igual»", () => {
+        expect(compararVersiones("v1.0.0", "v1.0.0")).toBe("igual");
+        expect(compararVersiones("v1.0.0", "1.0.0")).toBe("igual");
+        expect(compararVersiones("1.0.0", "V1.0.0")).toBe("igual");
+    });
+
+    it("tags distintos → «hay-actualizacion»", () => {
+        expect(compararVersiones("v1.0.0", "v1.0.1")).toBe("hay-actualizacion");
+        expect(compararVersiones("1.0.0", "v2.0.0")).toBe("hay-actualizacion");
+    });
+
+    it("quita la v inicial, mayúscula o minúscula", () => {
+        expect(versionSinV("v1.2.3")).toBe("1.2.3");
+        expect(versionSinV("V1.2.3")).toBe("1.2.3");
+        expect(versionSinV("1.2.3")).toBe("1.2.3");
     });
 });
