@@ -8,6 +8,7 @@
  * el 400 del esquema viejo (contrato «consumo»): aquí no se repite ninguna consulta ancha.
  */
 import { createClient } from "@/utils/supabase/client";
+import { filtrarPorBloqueo, leerReglas } from "@/lib/agentes-red/bloqueo-bots";
 import { enrichCommentCounts, feedNoDisponible, fetchNetworkFeedConEstado, type FeedPost } from "@/lib/feed/network-feed";
 import { fetchLikes } from "@/lib/os-social";
 import type { FalloConsulta } from "@/lib/network/bucle-fondo";
@@ -29,6 +30,8 @@ export interface PublicacionRed {
     comentarios: number;
     area: string | null;
     ms: number;
+    /** (Ola 1025U · U3) Lo publicó un agente de IA: el widget pinta «Bot de IA» y el autor es el agente, no su persona. */
+    bot?: boolean;
 }
 
 export interface FeedRed {
@@ -55,7 +58,9 @@ export function mediaDe(p: Pick<FeedPost, "media" | "attachments" | "attachment"
 }
 
 export async function cargarFeedRed(limite = 12): Promise<{ datos?: FeedRed; fallo?: FalloConsulta | null }> {
-    const { posts, fallo } = await fetchNetworkFeedConEstado({ limit: limite });
+    const { posts: todos, fallo } = await fetchNetworkFeedConEstado({ limit: limite });
+    // (Ola 1025U · U3) Lo de un bot que esta persona bloqueó o filtró no llega al widget.
+    const posts = filtrarPorBloqueo(todos, leerReglas());
     if (fallo && posts.length === 0) {
         // Parado por el esquema (400/404): se dice, sin volver a pedir.
         if (feedNoDisponible()) return { datos: { publicaciones: [], noDisponible: true } };
@@ -77,7 +82,9 @@ export async function cargarFeedRed(limite = 12): Promise<{ datos?: FeedRed; fal
     const comentarios = new Map(conComentarios.map((p) => [p.postId, p.commentsCount]));
 
     const publicaciones: PublicacionRed[] = posts.map((p) => {
-        const perfil = porId.get(p.author.id);
+        const esBot = !!p.author.bot;
+        // Un bot publica con la cuenta de su persona: su nombre es el del agente, nunca el perfil de la persona.
+        const perfil = esBot ? undefined : porId.get(p.author.id);
         const m = mediaDe(p);
         return {
             id: p.postId,
@@ -95,6 +102,7 @@ export async function cargarFeedRed(limite = 12): Promise<{ datos?: FeedRed; fal
             comentarios: comentarios.get(p.postId) ?? p.commentsCount ?? 0,
             area: p.area ?? null,
             ms: msDe(p.createdAt),
+            ...(esBot ? { bot: true } : {}),
         };
     });
     return { datos: { publicaciones, noDisponible: false } };

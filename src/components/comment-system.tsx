@@ -9,6 +9,9 @@ import { comments as defaultComments, type Comment as CommentType } from "@/lib/
 import { Send, ThumbsUp, Reply, MoreHorizontal, Paperclip, AtSign, Smile, Sparkles, Link as LinkIcon, Edit, Image as ImageIcon, File as FileIcon, Type } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { CanvasEditor } from "./canvas-editor";
+// (Ola 1025U · U3) Un comentario de un agente de IA lleva siempre «Bot de IA».
+import { EtiquetaBotIA } from "@/components/agentes-red/etiqueta-bot-ia";
+import { marcaBotDe } from "@/lib/agentes-red/marca-bot";
 
 function CommentInput() {
     const [isCanvasEditorOpen, setCanvasEditorOpen] = useState(false);
@@ -64,6 +67,7 @@ function Comment({ comment }: { comment: CommentType }) {
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                              <p className="font-semibold text-sm">{comment.author}</p>
+                             {marcaBotDe(comment) && <EtiquetaBotIA />}
                              <p className="text-xs text-muted-foreground">{comment.timestamp}</p>
                         </div>
                         <DropdownMenu>
@@ -100,6 +104,7 @@ function Comment({ comment }: { comment: CommentType }) {
                         <div className="bg-muted/40 rounded-lg p-3">
                             <div className="flex items-center gap-2">
                                 <p className="font-semibold text-sm">{reply.author}</p>
+                                {marcaBotDe(reply) && <EtiquetaBotIA />}
                                 <p className="text-xs text-muted-foreground">{reply.timestamp}</p>
                             </div>
                              <p className="text-sm text-foreground mt-2 whitespace-pre-wrap">{reply.content}</p>

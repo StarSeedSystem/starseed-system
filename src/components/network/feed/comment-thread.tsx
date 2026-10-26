@@ -56,6 +56,12 @@ import type { UniversalAttachment } from "@/lib/files/os-files";
 // (solo mensajes/correos, ver @/lib/invitations/invitations.ts) — aquí solo
 // aplica el caso "ref" (página/grupo/evento/publicación embebidos en vivo).
 import { UniversalAttachmentView, isNetworkRefLike } from "@/components/files/universal-attachment-view";
+// (Ola 1025U · U3) Un comentario de un agente de IA lleva siempre «Bot de IA» y se puede bloquear.
+import { EtiquetaBotIA } from "@/components/agentes-red/etiqueta-bot-ia";
+import { MenuBotIA } from "@/components/agentes-red/menu-bot-ia";
+import { marcaBotDe } from "@/lib/agentes-red/marca-bot";
+import { useFiltradoArbolBots, useReglasBloqueoBots } from "@/lib/agentes-red/use-agentes-red";
+import { FiltroBotsPublicacion } from "@/components/agentes-red/filtro-bots-publicacion";
 
 /** Traduce el `kind` amplio de UniversalAttachment al vocabulario de CommentAttachment. */
 function universalToCommentKind(kind: string): CommentAttachment["kind"] {
@@ -66,6 +72,11 @@ function universalToCommentKind(kind: string): CommentAttachment["kind"] {
 }
 
 // ───────────────────────────── Utilidades ───────────────────────────────────
+
+/** ¿Hay algún comentario de un agente de IA en el árbol? (para enseñar el filtro «Bots de IA» solo cuando sirve). */
+function hayBotEnArbol(nodos: CommentNode[]): boolean {
+    return nodos.some((n) => marcaBotDe(n) !== null || hayBotEnArbol(n.children));
+}
 
 function authorName(p?: { display_name?: string | null; handle?: string | null } | null): string {
     if (!p) return "Ciudadano StarSeed";
@@ -345,6 +356,7 @@ function CommentItem({ node, depth, order, onReply, onChanged, currentUserId }: 
     const mentions = useMemo(() => parseMentions(text), [text]);
     const plainText = useMemo(() => toPlainText(text), [text]);
     const isOwn = Boolean(currentUserId) && node.author_id === currentUserId;
+    const marcaBot = useMemo(() => marcaBotDe(node), [node]);
     const replyCount = countReplies(node);
     const children = useMemo(() => sortLevel(node.children, order), [node.children, order]);
     const indentClamp = Math.min(depth, MAX_VISIBLE_DEPTH_LINES);
@@ -408,12 +420,16 @@ function CommentItem({ node, depth, order, onReply, onChanged, currentUserId }: 
                         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-[10px] text-white/70">
                             <UserIcon className="h-3 w-3" />
                         </span>
-                        <span className="text-sm font-semibold text-white/90">{authorName(node.author)}</span>
+                        <span className="text-sm font-semibold text-white/90">{marcaBot ? marcaBot.nombre : authorName(node.author)}</span>
+                        {marcaBot && <EtiquetaBotIA />}
                         {editedAt && (
                             <span className="text-[10px] italic text-white/35">editado</span>
                         )}
                     </div>
-                    <span className="text-[11px] text-white/40">{fmtDate(node.created_at)}</span>
+                    <span className="flex items-center gap-1">
+                        <span className="text-[11px] text-white/40">{fmtDate(node.created_at)}</span>
+                        {marcaBot && <MenuBotIA marca={marcaBot} />}
+                    </span>
                 </div>
 
                 {editing ? (
@@ -606,8 +622,14 @@ export interface CommentThreadProps {
  * ordenación seleccionable. `comments` ya viene como árbol (`commentTree`); este
  * componente sólo re-ordena cada NIVEL según `order`, preservando la jerarquía.
  */
-export function CommentThread({ postId, comments, currentUserId, onChanged, className }: CommentThreadProps) {
+export function CommentThread({ postId, comments: todos, currentUserId, onChanged, className }: CommentThreadProps) {
     const [order, setOrder] = useState<"reciente" | "relevancia">("relevancia");
+    // Lo que escribió un bot que esta persona bloqueó, o que filtró en esta publicación, no se pinta (sus
+    // respuestas humanas se conservan). Se actualiza al instante.
+    const comments = useFiltradoArbolBots(todos, { postId });
+    // El filtro «Bots de IA» de la publicación solo aparece si hay algún bot en el hilo o ya hay una regla puesta.
+    const reglasBots = useReglasBloqueoBots();
+    const hayBots = useMemo(() => hayBotEnArbol(todos), [todos]);
 
     const totalCount = useMemo(() => {
         let n = 0;
@@ -656,6 +678,8 @@ export function CommentThread({ postId, comments, currentUserId, onChanged, clas
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-white/80">
                     Comentarios ({totalCount})
                 </h3>
+                <div className="flex items-center gap-2">
+                {(hayBots || Boolean(reglasBots.publicaciones[postId])) && <FiltroBotsPublicacion postId={postId} />}
                 <div className="flex items-center gap-1 rounded-full border border-white/10 bg-black/20 p-0.5 text-[11px]">
                     <button
                         type="button"
@@ -677,6 +701,7 @@ export function CommentThread({ postId, comments, currentUserId, onChanged, clas
                     >
                         <Clock className="h-3 w-3" /> Recientes
                     </button>
+                </div>
                 </div>
             </div>
 

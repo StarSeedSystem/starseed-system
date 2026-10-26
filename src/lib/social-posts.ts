@@ -7,6 +7,9 @@
 
 import { parseBlocks, type PostBlock } from "@/lib/creation/post-blocks";
 import { type Marco, normalizarMarco } from "@/lib/profile/marco-foto";
+// (Ola 1025U · U3) Lo que publica un agente de IA lleva la marca de bot dentro de `ss:meta`: retrocompatible.
+import { normalizarMarca, type MarcaBot } from "@/lib/agentes-red/marca-bot";
+import type { EntidadRed } from "@/lib/agentes-red/perfil-agente";
 
 /** Forma cruda de una fila de `cafe_posts` (campos relevantes, todos opcionales/seguros). */
 export interface CafePostRow {
@@ -60,6 +63,10 @@ export interface NormalizedPost {
     blocks?: PostBlock[];
     /** (Adenda 219) Marcos de forma por URL de medio (ss:meta.marcos). */
     marcos?: Record<string, Marco>;
+    /** (Ola 1025U · U3) Marca de «bot de un agente de IA» del autor. Ausente = persona. Ver `agentes-red/marca-bot.ts`. */
+    autorBot?: MarcaBot;
+    /** (Ola 1025U · U3) Página, grupo o comunidad donde vive la publicación, si se sabe (filtros de bots por entidad). */
+    entidad?: EntidadRed;
     isFallback?: boolean;     // viene de datos de ejemplo
 }
 
@@ -154,6 +161,8 @@ export interface SplitBodyResult {
     blocks: PostBlock[];
     /** (Adenda 219) Marcos de forma por URL de medio (ss:meta.marcos), ya normalizados. */
     marcos: Record<string, Marco>;
+    /** (Ola 1025U · U3) Marca de bot del autor (ss:meta.bot), ya saneada; `null` si lo escribió una persona. */
+    bot: MarcaBot | null;
 }
 
 /** Infiere el PostMedia adecuado para una URL de adjunto (por extensión). */
@@ -179,6 +188,7 @@ export function splitBodyAttachments(raw: string | null | undefined): SplitBodyR
     let tags: string[] = [];
     let blocks: PostBlock[] = [];
     const marcos: Record<string, Marco> = {};
+    let bot: MarcaBot | null = null;
 
     // 1) Metadata embebida (invisible para la lectura humana).
     const mm = body.match(SS_META_COMMENT_RE);
@@ -195,6 +205,8 @@ export function splitBodyAttachments(raw: string | null | undefined): SplitBodyR
                     tags = parsed.tags.filter((t): t is string => typeof t === "string");
                 }
                 blocks = parseBlocks(parsed.blocks);
+                // (Ola 1025U · U3) marca de «bot de IA» del autor.
+                bot = normalizarMarca(parsed.bot);
                 // (Adenda 219) marcos de forma por URL de medio.
                 if (parsed.marcos && typeof parsed.marcos === "object") {
                     for (const [u, m] of Object.entries(parsed.marcos as Record<string, unknown>)) {
@@ -238,7 +250,7 @@ export function splitBodyAttachments(raw: string | null | undefined): SplitBodyR
         body = body.replace(ATTACH_BLOCK_RE, "\n");
     }
 
-    return { body: body.trim(), attachments, meta, tags, blocks, marcos };
+    return { body: body.trim(), attachments, meta, tags, blocks, marcos, bot };
 }
 
 /** Normaliza una fila cruda de Supabase a la forma de UI. */
@@ -262,6 +274,7 @@ export function normalizeCafePost(row: CafePostRow): NormalizedPost {
         tags: split.tags.length > 0 ? split.tags : undefined,
         blocks: split.blocks.length > 0 ? split.blocks : undefined,
         marcos: Object.keys(split.marcos).length > 0 ? split.marcos : undefined,
+        ...(split.bot ? { autorBot: split.bot } : {}),
     };
 }
 

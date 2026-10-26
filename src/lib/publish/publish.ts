@@ -19,6 +19,7 @@
 // "registered" cuando el destino no está respaldado por una tabla de entrega.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import type { MarcaBot } from "@/lib/agentes-red/marca-bot";
 import { createClient } from "@/utils/supabase/client";
 
 // ── IDs estables de tipos y destinos (en español, sin tildes para claves) ──
@@ -775,6 +776,8 @@ export interface PublishInput {
     voting?: VotingConfig;
     /** Ámbito / alcance declarado de la publicación. */
     scope?: string;
+    /** (Ola 1025U · U3) Marca de un agente de IA: se guarda en `post_references.bot` y la tarjeta pinta «Bot de IA». */
+    bot?: MarcaBot;
 }
 
 /** Resultado de la entrega a UN destino. */
@@ -973,6 +976,7 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
         voting: input.voting ?? null,
         scope: input.scope ?? null,
         ...(modResult ? { moderation: modResult } : {}),
+        ...(input.bot ? { bot: input.bot } : {}),
     };
 
     for (const dest of input.destinations) {

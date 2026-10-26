@@ -96,6 +96,7 @@ import {
 } from "@/lib/astraura/neuron-persona-systems";
 import { VOICE_ENGINE_REGISTRY } from "@/lib/aurora/tts-oss/engine-registry";
 import { cn } from "@/lib/utils";
+import { AjusteBotsIA } from "@/components/agentes-red/ajuste-bots-ia";
 import { activeProfileId } from "@/lib/profiles/profiles";
 import { deviceId } from "@/lib/sync/entity-state";
 // Solo se carga al abrir Cuenta: pantalla inicial (INI5) + bloqueo del dispositivo (BLQ6).
@@ -515,7 +516,7 @@ function CuentaContent() {
         icon: Lock,
         title: "Datos y privacidad",
         summary: searchable == null ? "Exportar/importar · papelera local" : `Directorio: ${searchable ? "visible" : "oculto"} · exportar/importar · papelera`,
-        keywords: "privacidad exportar importar borrar papelera limpieza directorio buscable searchable",
+        keywords: "privacidad exportar importar borrar papelera limpieza directorio buscable searchable bots ia agentes bloquear",
         accent: "text-emerald-400",
         accentBg: "bg-emerald-400/10 border-emerald-400/20",
       },
@@ -869,6 +870,9 @@ function CuentaContent() {
             />
           </button>
         </div>
+
+        {/* (Ola 1025U · U3) Qué bots de IA ves: regla general y bots bloqueados uno a uno */}
+        <AjusteBotsIA />
 
         <ConfigExportPanel />
         <PrivacyPanel />

@@ -15,6 +15,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient } from "@/utils/supabase/client";
+// (Ola 1025U · U3) Marca «Bot de IA»: el comentario de un agente la lleva dentro del cuerpo y aquí se saca.
+import { leerMarcaDeCuerpo, marcarCuerpo, type MarcaBot } from "@/lib/agentes-red/marca-bot";
 // Señal en vivo SIN DDL (Adenda 63 §4): al publicar, avisamos por broadcast a
 // los demás dispositivos/cuentas. No depende de que `os_posts` esté en la
 // publicación `supabase_realtime` (migración que puede no estar aplicada).
@@ -841,6 +843,8 @@ export interface OsComment {
     authorName: string;
     body: string;
     createdAt: string;
+    /** (Ola 1025U · U3) Presente solo si lo escribió un agente de IA: la etiqueta «Bot de IA» sale de aquí. */
+    bot?: MarcaBot;
 }
 
 interface CommentRow {
@@ -853,13 +857,16 @@ interface CommentRow {
 }
 
 function normalizeComment(row: CommentRow): OsComment {
+    // La marca de bot viaja dentro del cuerpo (`<!--ss:meta …-->`): se saca y el texto queda limpio.
+    const { cuerpo, marca } = leerMarcaDeCuerpo(row.body || "");
     return {
         id: row.id,
         postId: row.post_id || "",
         authorId: row.author_id || undefined,
         authorName: row.author_name || "Ciudadano StarSeed",
-        body: row.body || "",
+        body: cuerpo,
         createdAt: row.created_at || new Date().toISOString(),
+        ...(marca ? { bot: marca } : {}),
     };
 }
 
@@ -994,11 +1001,14 @@ export async function addComment(
     postId: string,
     body: string,
     authorName?: string,
+    /** (Ola 1025U · U3) Si lo envía un agente de IA, su marca; el cuerpo guardado lleva siempre «Bot de IA». */
+    bot?: MarcaBot,
 ): Promise<AddCommentResult> {
     const uid = await getCurrentUserId();
     if (!uid) return { ok: false, needsAuth: true };
     const text = body.trim();
     if (!text) return { ok: false, error: "El comentario está vacío." };
+    const cuerpo = bot ? marcarCuerpo(text, bot) : text;
     const supabase = createClient();
     try {
         const { data, error } = await supabase
@@ -1007,7 +1017,7 @@ export async function addComment(
                 post_id: postId,
                 author_id: uid,
                 author_name: authorName || "Ciudadano StarSeed",
-                body: text,
+                body: cuerpo,
             })
             .select("*")
             .single();

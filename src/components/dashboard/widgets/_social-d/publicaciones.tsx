@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
 import { Avatar, BotonIcono, Miniatura, Tiempo, estilosSocial as estilos, tintaDe } from "./piezas";
 import { formatoNumero } from "./formato";
+import { EtiquetaBotIA } from "@/components/agentes-red/etiqueta-bot-ia";
 
 export interface PublicacionVista {
     id: string;
@@ -31,6 +32,8 @@ export interface PublicacionVista {
     ms: number;
     href: string;
     hrefAutor?: string | null;
+    /** (Ola 1025U · U3) Lo publicó un agente de IA: se pinta siempre «Bot de IA» junto al nombre. */
+    bot?: boolean;
     /** No hay página de conversación para esta publicación: el recuento no es un enlace. */
     sinConversacion?: boolean;
 }
@@ -131,6 +134,7 @@ export function FilaPublicacion({ p, acento, tactil, miniatura = true, lineas = 
             <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
                     <span className="truncate text-[12px] font-semibold text-white">{p.autor}</span>
+                    {p.bot && <EtiquetaBotIA />}
                     {p.etiqueta && <span className="truncate text-[10.5px] font-semibold uppercase tracking-[0.1em]" style={{ color: tintaDe(p.colorEtiqueta ?? acento) }}>{p.etiqueta}</span>}
                     <Tiempo ms={p.ms} corto className="ml-auto text-[10.5px]" />
                 </span>
@@ -162,6 +166,7 @@ export function TarjetaPublicacion({ p, acento, tactil, acciones, altoMedia = 11
             <div className="flex min-w-0 items-center gap-1.5 px-0.5">
                 <Avatar nombre={p.autor} url={p.avatar} tam={22} />
                 <span className="truncate text-[11.5px] font-semibold text-white">{p.autor}</span>
+                {p.bot && <EtiquetaBotIA />}
                 <Tiempo ms={p.ms} corto className="ml-auto text-[10.5px]" />
             </div>
             <Abrir p={p} onAbrir={acciones.onAbrir} className="line-clamp-3 min-h-0 px-0.5 text-[12.5px] leading-snug text-white/85 hover:text-white">{textoDe(p)}</Abrir>
@@ -184,7 +189,7 @@ export function PortadaPublicacion({ p, acento, tactil, acciones }: { p: Publica
                 <div className="flex items-center gap-2">
                     <Avatar nombre={p.autor} url={p.avatar} tam={28} anillo acento={acento} />
                     <span className="min-w-0">
-                        <span className="block truncate text-[12.5px] font-semibold text-white">{p.autor}</span>
+                        <span className="flex min-w-0 items-center gap-1.5"><span className="truncate text-[12.5px] font-semibold text-white">{p.autor}</span>{p.bot && <EtiquetaBotIA />}</span>
                         <span className="flex items-center gap-1.5 text-[10.5px] text-white/60">
                             {p.etiqueta && <span className="font-semibold uppercase tracking-[0.1em]" style={{ color: tintaDe(p.colorEtiqueta ?? acento) }}>{p.etiqueta}</span>}
                             <Tiempo ms={p.ms} />
@@ -220,7 +225,7 @@ export function LectorPublicacion({ p, acento, tactil, onCerrar, acciones, pie }
                 <BotonIcono icono={ArrowLeft} etiqueta="Volver a la lista" onClick={onCerrar} acento={acento} tactil={tactil} />
                 <Avatar nombre={p.autor} url={p.avatar} tam={28} />
                 <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12.5px] font-semibold text-white">{p.autor}</span>
+                    <span className="flex min-w-0 items-center gap-1.5"><span className="truncate text-[12.5px] font-semibold text-white">{p.autor}</span>{p.bot && <EtiquetaBotIA />}</span>
                     <span className="flex items-center gap-1.5 text-[10.5px] text-white/55">
                         {p.etiqueta && <span className="font-semibold uppercase tracking-[0.1em]" style={{ color: tintaDe(p.colorEtiqueta ?? acento) }}>{p.etiqueta}</span>}
                         <Tiempo ms={p.ms} />

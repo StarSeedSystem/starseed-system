@@ -41,6 +41,11 @@ import { ALIAS_ANONIMO, nombrePublicoDesdeMetadata } from "@/lib/social/alias-pu
 import { FotoConMarco } from "@/components/profile/foto-con-marco";
 // Enviar a… (DESTINOS · Adenda 66 §5): publicar en el Lienzo, mensaje, cerebro, etc.
 import { ShareToDialog } from "@/components/sharing/share-to-dialog";
+// (Ola 1025U · U3) Lo que publica o comenta un agente de IA lleva siempre «Bot de IA» y se puede bloquear.
+import { EtiquetaBotIA } from "@/components/agentes-red/etiqueta-bot-ia";
+import { MenuBotIA } from "@/components/agentes-red/menu-bot-ia";
+import { FiltroBotsPublicacion } from "@/components/agentes-red/filtro-bots-publicacion";
+import { useReglasBloqueoBots } from "@/lib/agentes-red/use-agentes-red";
 import type { ShareResourceRef } from "@/lib/sharing/share-targets";
 
 const GOLD = "#E9C46A";
@@ -93,7 +98,7 @@ function RealPostCard({ post }: { post: NormalizedPost }) {
             onShare={handleShare}
             commentsPanel={
                 showComments ? (
-                    <CommentThread accent={accent} comments={comments} />
+                    <CommentThread accent={accent} comments={comments} postId={post.id} />
                 ) : null
             }
         />
@@ -254,6 +259,7 @@ function PostCardShell({
                             <p className="font-semibold truncate text-[clamp(0.9rem,2.5vw,1rem)]">
                                 {post.authorName}
                             </p>
+                            {post.autorBot && <EtiquetaBotIA />}
                             {post.kind && post.kind !== "post" && (
                                 <Badge
                                     variant="outline"
@@ -269,6 +275,7 @@ function PostCardShell({
                             {formatRelativeTime(post.createdAt)}
                         </p>
                     </div>
+                    {post.autorBot && <MenuBotIA marca={post.autorBot} entidad={post.entidad} />}
                 </div>
             </CardHeader>
 
@@ -387,9 +394,11 @@ function PostCardShell({
 function CommentThread({
     accent,
     comments,
+    postId,
 }: {
     accent?: string;
     comments: ReturnType<typeof useComments>;
+    postId: string;
 }) {
     const [body, setBody] = useState("");
     const [sending, setSending] = useState(false);
@@ -397,6 +406,10 @@ function CommentThread({
     const [myUid, setMyUid] = useState<string | null>(null);
     const [myName, setMyName] = useState<string>(ALIAS_ANONIMO);
     const mounted = useRef(true);
+    // El filtro «Bots de IA» de la publicación se ofrece si hay bots a la vista, si se están ocultando o si ya hay regla.
+    const reglasBots = useReglasBloqueoBots();
+    const hayBots = comments.comments.some((c) => c.bot);
+    const mostrarFiltroBots = hayBots || comments.ocultosPorBots > 0 || Boolean(reglasBots.publicaciones[postId]);
 
     useEffect(() => {
         mounted.current = true;
@@ -435,6 +448,19 @@ function CommentThread({
 
     return (
         <div className="mt-3 w-full space-y-3 rounded-xl border border-border/50 bg-muted/20 p-3">
+            {mostrarFiltroBots && (
+                <div className="flex flex-wrap items-center gap-2">
+                    <FiltroBotsPublicacion postId={postId} />
+                    {comments.ocultosPorBots > 0 && (
+                        <span className="text-xs text-muted-foreground" data-testid="bots-ocultos-aviso">
+                            {comments.ocultosPorBots === 1
+                                ? "1 comentario de un bot de IA oculto"
+                                : `${comments.ocultosPorBots} comentarios de bots de IA ocultos`}
+                        </span>
+                    )}
+                </div>
+            )}
+
             {/* Lista */}
             {comments.loading ? (
                 <p className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -458,9 +484,13 @@ function CommentThread({
                             </Avatar>
                             <div className="min-w-0 flex-1 rounded-lg bg-background/60 px-3 py-2">
                                 <div className="flex items-center justify-between gap-2">
-                                    <p className="truncate text-xs font-semibold">{c.authorName}</p>
-                                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                                    <p className="flex min-w-0 items-center gap-1.5 text-xs font-semibold">
+                                        <span className="truncate">{c.bot ? c.bot.nombre : c.authorName}</span>
+                                        {c.bot && <EtiquetaBotIA />}
+                                    </p>
+                                    <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
                                         {formatRelativeTime(c.createdAt)}
+                                        {c.bot && <MenuBotIA marca={c.bot} />}
                                     </span>
                                 </div>
                                 <p className="whitespace-pre-wrap break-words text-sm text-foreground/90">

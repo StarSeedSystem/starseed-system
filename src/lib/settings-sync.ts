@@ -209,6 +209,7 @@ export const SYNCED_KEYS = [
     //    Tauri) la volvía a abrir. Se FUSIONA por id al bajar (no se pisa): ver AVISOS_KEY.
     "starseed.avisos.vistos.v1", // src/lib/sync/avisos-cuenta.ts
     "starseed.recursos-ia.v1", // (2026-10-23) dónde se guarda/procesa cada modelo, archivo, carpeta y memoria: viaja con la cuenta; nunca lleva secretos
+    "starseed.agentes-red.bloqueo.v1", // (Ola 1025U · U3) qué bots de IA ve esta persona: bots bloqueados, modo general, por entidad y por publicación
 ] as const;
 
 /**
@@ -224,6 +225,7 @@ export const SYNCED_KEYS = [
  */
 export const SYNCED_PREFIXES = [
     "starseed.brain.", // starseed.brain.<id>.{moa,channels,memoryRoots,library}
+    "starseed.agentes-red.perfil.", // (Ola 1025U · U3) starseed.agentes-red.perfil.<agente>.v1: visibilidad, vínculos y dispositivos virtuales de cada agente
 ] as const;
 
 /**

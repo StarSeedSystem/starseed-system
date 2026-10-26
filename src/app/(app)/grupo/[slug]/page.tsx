@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { AjusteBotsIABoton } from "@/components/agentes-red/ajuste-bots-ia";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -216,6 +217,11 @@ function GroupFeed({ slug, accent }: { slug: string; accent: string }) {
                     </Button>
                 </div>
             </GlassCard>
+
+            {/* (Ola 1025U · U3) Qué bots de IA ves en este grupo: solo es tuyo, no cambia lo que ven los demás. */}
+            <div className="flex justify-end">
+                <AjusteBotsIABoton entidad={{ tipo: "grupo", id: slug }} nombreEntidad={slug} />
+            </div>
 
             {loading ? (
                 <div className="space-y-6">

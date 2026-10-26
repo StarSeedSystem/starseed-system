@@ -50,6 +50,7 @@ cualquier vía dejando rastro en la cuenta.
 | «Neurona nueva» (ajustes de la neurona) | `neurona.configurada` y `neurona.nueva.luego` (por neurona) | «Más tarde» solo duraba la visita; sin cuenta bajada decidía «nueva» | Marcas por neurona en la cuenta; espera al pull; añade la pregunta de adopción (§4) |
 | Guía de bienvenida (`aurora-guide.tsx`) | `guia.bienvenida` — `lib/onboarding/guia-vista.ts` | `starseed.guide.seen.v1` local | Espera a la cuenta; «vista» en cualquier medio basta; reabrir a demanda no cambia |
 | Aviso de novedad de bloqueo/pantalla inicial | `novedad.arranque.bloqueo-inicio` — `lib/inicio/aviso-novedad.ts` | Respuesta local por dispositivo | Una novedad se anuncia **una vez por cuenta**: `configurado`→hecho, `no-mostrar`→visto, `luego`→luego (3 días). Lo definitivo gana a «luego». Lo que sigue siendo por dispositivo es *tener* bloqueo/pantalla inicial |
+| Agentes de IA en la red (U3) | `starseed.agentes-red.bloqueo.v1` (reglas de bloqueo de bots) y prefijo `starseed.agentes-red.perfil.` (perfil de cada agente) | Sin clave | Viajan con la cuenta (última escritura gana). El tope de envíos por hora (`starseed.agentes-red.envios.<id>.v1`) es de cada medio y no viaja. Ver `architecture/agentes-en-la-red.md` |
 
 ## 4. «¿Es esta una neurona que ya configuraste?» (adoptar una neurona)
 

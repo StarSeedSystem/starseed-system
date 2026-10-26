@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { fetchMyConnectionIds, fetchNetworkFeed, enrichAuthors, type FeedPost } from '@/lib/feed/network-feed';
+import { useFiltradoBots } from '@/lib/agentes-red/use-agentes-red';
 import { ConnectionsHub } from '@/components/hub/connections-hub';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -114,8 +115,10 @@ function useRedLiveStats(): RedLiveStats {
 }
 
 function useRedPulse(): { posts: FeedPost[]; loading: boolean } {
-    const [posts, setPosts] = useState<FeedPost[]>([]);
+    const [postsTodos, setPosts] = useState<FeedPost[]>([]);
     const [loading, setLoading] = useState(true);
+    // (Ola 1025U · U3) Lo de un bot que esta persona bloqueó o filtró no se pinta; se actualiza al instante.
+    const posts = useFiltradoBots(postsTodos);
 
     useEffect(() => {
         let alive = true;

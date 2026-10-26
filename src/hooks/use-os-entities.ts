@@ -15,7 +15,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import {
     fetchPages,
@@ -86,6 +86,10 @@ import {
     splitBodyAttachments,
     type NormalizedPost,
 } from "@/lib/social-posts";
+// (Ola 1025U · U3) Bots de IA: la entidad donde vive cada publicación y el filtro de bloqueo de la persona.
+import { filtrarPorBloqueo } from "@/lib/agentes-red/bloqueo-bots";
+import { entidadDeOs } from "@/lib/agentes-red/perfil-agente";
+import { useFiltradoBots, useReglasBloqueoBots } from "@/lib/agentes-red/use-agentes-red";
 
 // ── Estado de lista genérico ──
 interface ListState<T> {
@@ -343,6 +347,9 @@ function osPostToNormalized(p: OsPost): NormalizedPost {
         blocks: split.blocks.length > 0 ? split.blocks : undefined,
         // (Adenda 219) marcos de forma de fotos/vídeos, por URL.
         marcos: Object.keys(split.marcos).length > 0 ? split.marcos : undefined,
+        // (Ola 1025U · U3) marca de bot del autor y entidad donde vive (filtros de bots por entidad).
+        ...(split.bot ? { autorBot: split.bot } : {}),
+        ...(entidadDeOs(p.entityType, p.entitySlug) ? { entidad: entidadDeOs(p.entityType, p.entitySlug)! } : {}),
     };
 }
 
@@ -486,8 +493,16 @@ export function useOsPosts(
         }
     }, [posts, cargandoMas, entityType, slug]);
 
+    // (Ola 1025U · U3) Lo que publicó un bot que esta persona bloqueó o filtró no se pinta. El estado interno
+    // (`posts`) queda entero para que la paginación por cursor no se descuadre.
+    const reglasBots = useReglasBloqueoBots();
+    const visibles = useMemo(
+        () => filtrarPorBloqueo(posts, reglasBots, { entidad: (p) => p.entidad }),
+        [posts, reglasBots],
+    );
+
     return {
-        posts, loading, usingFallback, needsAuth, error,
+        posts: visibles, loading, usingFallback, needsAuth, error,
         refetch: load, publish,
         cargarMas, hayMas, cargandoMas, // (Ola 224)
     };
@@ -550,7 +565,13 @@ export function useOsPostsByAuthor(
         return () => { mounted.current = false; unsubPg(); unsubLive(); };
     }, [load, authorId]);
 
-    return { posts, loading, error, refetch: load };
+    // (Ola 1025U · U3) mismo filtro de bots que el feed de entidad, con la entidad de cada publicación.
+    const reglasBots = useReglasBloqueoBots();
+    const visibles = useMemo(
+        () => filtrarPorBloqueo(posts, reglasBots, { entidad: (p) => p.entidad }),
+        [posts, reglasBots],
+    );
+    return { posts: visibles, loading, error, refetch: load };
 }
 
 /** (Adenda 220) Recuento real de publicaciones de una cuenta (null si no se sabe). */
@@ -957,6 +978,8 @@ interface CommentsState {
     comments: OsComment[];
     loading: boolean;
     needsAuth: boolean;
+    /** (Ola 1025U · U3) Cuántos comentarios de bots de IA se están ocultando por las reglas de esta persona. */
+    ocultosPorBots: number;
     /** Publica un comentario. Devuelve needsAuth si no hay sesión. */
     add: (body: string, authorName?: string) => Promise<MutationResult>;
     /** Borra un comentario propio. */
@@ -1056,5 +1079,8 @@ export function useComments(postId: string, realtime = false): CommentsState {
         return res;
     }, []);
 
-    return { comments, loading, needsAuth, add, remove, refetch: load };
+    // (Ola 1025U · U3) Los comentarios de un bot que esta persona bloqueó, o que filtró en esta publicación, no se pintan.
+    const visibles = useFiltradoBots(comments, { postId });
+
+    return { comments: visibles, loading, needsAuth, ocultosPorBots: comments.length - visibles.length, add, remove, refetch: load };
 }

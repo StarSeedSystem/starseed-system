@@ -21,6 +21,8 @@ import { createClient } from "@/utils/supabase/client";
 import { uidActual } from "@/lib/consumo/usuario";
 import { clasificarFallo, falloDe, type FalloConsulta } from "@/lib/network/bucle-fondo";
 import type { Post, User } from "@/services/network-simulation-service";
+// (Ola 1025U · U3) La marca «Bot de IA» viaja en `content.bot` / `post_references.bot` (la escribe `marcarComoBot`).
+import { normalizarMarca } from "@/lib/agentes-red/marca-bot";
 import type { CommentAttachment } from "@/lib/posts/post-entity";
 import type {
     LiveAttachmentMode,
@@ -247,11 +249,14 @@ function normalizeRow(row: PostRow): FeedPost {
     const reactions = asObj<Record<string, number>>(interactions.reactions, {});
     const reactionTotal = Object.values(reactions).reduce((a, b) => a + (b || 0), 0);
 
+    // Un agente publica con la cuenta de su persona: el dato que lo delata es la marca, no el id del autor.
+    const marcaBot = normalizarMarca(content.bot) ?? normalizarMarca(refs.bot);
     const author: User = {
         id: row.author_id || "desconocido",
-        name: "Ciudadano StarSeed",
+        name: marcaBot ? marcaBot.nombre : "Ciudadano StarSeed",
         handle: "",
         avatar: "",
+        ...(marcaBot ? { bot: marcaBot } : {}),
     };
 
     return {
@@ -414,7 +419,10 @@ export async function fetchNetworkFeed(opts: FetchFeedOptions = {}): Promise<Fee
 
 /** Enriquecimiento best-effort: resuelve nombre/handle del autor por lote. */
 export async function enrichAuthors(posts: FeedPost[]): Promise<FeedPost[]> {
-    const ids = Array.from(new Set(posts.map((p) => p.author.id).filter((id) => id && id !== "desconocido")));
+    // Los bots conservan su nombre de agente: el perfil que se resuelve por id es el de su persona, no el suyo.
+    const ids = Array.from(new Set(
+        posts.filter((p) => !p.author.bot).map((p) => p.author.id).filter((id) => id && id !== "desconocido"),
+    ));
     if (ids.length === 0) return posts;
     try {
         const supabase = createClient();
@@ -425,7 +433,7 @@ export async function enrichAuthors(posts: FeedPost[]): Promise<FeedPost[]> {
         type ProfRow = { id: string; handle?: string | null; display_name?: string | null; avatar_url?: string | null };
         const byId = new Map<string, ProfRow>(((data ?? []) as ProfRow[]).map((p) => [p.id, p]));
         return posts.map((p) => {
-            const prof = byId.get(p.author.id);
+            const prof = p.author.bot ? undefined : byId.get(p.author.id);
             if (!prof) return p;
             return {
                 ...p,

@@ -12,6 +12,7 @@ import { useFeedPrefs, useFeedFiltered } from "@/lib/social/feed-filters";
 import { fetchMyProfile } from "@/lib/social/os-profiles";
 import { useCafePosts } from "@/hooks/use-cafe-posts";
 import { AvisoSesion } from "@/components/auth/aviso-sesion";
+import { useFiltradoBots } from "@/lib/agentes-red/use-agentes-red";
 import { useRealtime } from "@/lib/realtime/realtime";
 import {
     changeKey,
@@ -47,12 +48,15 @@ export function PostFeed({
     fallbackNotice = "Mostrando publicaciones de ejemplo. Inicia sesión para ver el flujo real de la red.",
     emptyCta,
 }: PostFeedProps) {
-    const { posts, loading, usingFallback, refetch } = useCafePosts({
+    const { posts: postsTodos, loading, usingFallback, refetch } = useCafePosts({
         groupId,
         profileId,
         channelKey,
         limit,
     });
+    // (Ola 1025U · U3) Lo de un bot que esta persona bloqueó o filtró no se pinta; se actualiza al instante.
+    // (`groupId` de este feed es el id del grupo; la regla de entidad se aplica cuando el bot trae el mismo id.)
+    const posts = useFiltradoBots(postsTodos, groupId ? { entidad: { tipo: "grupo", id: groupId } } : undefined);
 
     // (Ola 224) Guard de deduplicación: el feed recibe refetch() desde 4 fuentes
     // redundantes a propósito (useRealtime de `posts`, de `os_posts`, y los dos

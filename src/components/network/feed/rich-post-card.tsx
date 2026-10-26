@@ -33,6 +33,8 @@ import { getCurrentUserId } from "@/lib/os-social";
 import { networkRefRoute } from "@/lib/files/network-content-ref";
 import { CommentThread } from "./comment-thread";
 import { SaveToLibrary } from "@/components/library/save-to-library";
+import { EtiquetaBotIA } from "@/components/agentes-red/etiqueta-bot-ia";
+import { MenuBotIA } from "@/components/agentes-red/menu-bot-ia";
 
 interface RichPostCardProps {
     post: FeedPost;
@@ -212,6 +214,8 @@ export function RichPostCard({ post, preview = false }: RichPostCardProps) {
                             <div className="flex items-center gap-1">
                                 <h3 className="font-bold text-sm text-white">{post.author.name}</h3>
                                 {post.author.verified && <span className="text-blue-400 text-[10px]">✓</span>}
+                                {/* (Ola 1025U · U3) Todo lo que publica un agente de IA lleva siempre «Bot de IA». */}
+                                {post.author.bot && <EtiquetaBotIA />}
                             </div>
                             <p className="text-xs text-white/40">
                                 {post.author.handle && <>{post.author.handle} • </>}
@@ -225,9 +229,13 @@ export function RichPostCard({ post, preview = false }: RichPostCardProps) {
                                 {areaMeta.label}
                             </span>
                         )}
-                        <button className="text-white/30 hover:text-white transition-colors cursor-pointer">
-                            <MoreHorizontal className="w-5 h-5" />
-                        </button>
+                        {post.author.bot ? (
+                            <MenuBotIA marca={post.author.bot} />
+                        ) : (
+                            <button className="text-white/30 hover:text-white transition-colors cursor-pointer">
+                                <MoreHorizontal className="w-5 h-5" />
+                            </button>
+                        )}
                     </div>
                 </div>
 

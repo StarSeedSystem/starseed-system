@@ -12,6 +12,7 @@ import type { Bot, Sentido } from "../tipos";
 import { MAX_PERSISTIDO, crearControlBucle } from "./control-bucle";
 import { crearPuenteSentidos, type ContextoPercibir, type DepsPuenteSentidos } from "./sentidos-puente";
 import type { DepsEjecutor } from "./ejecutor-acciones";
+import { crearAgenteMundoRef } from "@/lib/avatares/mundo/agente-mundo";
 
 export { MAX_PERSISTIDO, crearControlBucle };
 export const claveRegistro = (botId: string) => `starseed.astraura.bots.registro.${botId}.v1`;
@@ -82,7 +83,12 @@ export function useBucleBot(bot: Bot, ctx: ContextoBucle, deps?: DepsEjecutor) {
     const actual = depsRef.current;
     if (!actual) return { ok: false, previo: {}, motivo: "próximamente: falta el enrutador para ejecutar acciones." };
     const { ejecutarAccion } = await import("./ejecutor-acciones");
-    return ejecutarAccion(accion, actual);
+    // (Ola 1025U · U3) Quién actúa, para que lo que publique en la red lleve su marca «Bot de IA».
+    const b = botRef.current;
+    const agente = actual.agente ?? crearAgenteMundoRef({
+      origen: "bot", idOrigen: b.id, nombre: b.nombre, dueno: { tipo: b.dueno.tipo, id: b.dueno.id },
+    });
+    return ejecutarAccion(accion, { ...actual, agente });
   }, []);
   const percibir = useCallback(async (sentido: Sentido, alEvento: (ev: EventoBucle) => void) => {
     sink.current = alEvento;

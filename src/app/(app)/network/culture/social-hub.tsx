@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useFiltradoBots } from "@/lib/agentes-red/use-agentes-red";
 import Link from "next/link";
 import { TabsContent } from "@/components/ui/tabs";
 import {
@@ -68,10 +69,12 @@ export interface CulturalPool {
 
 /** Carga UNA vez el fondo de publicaciones de Cultura + mis conexiones. */
 function useCulturalFeedPool(): CulturalPool {
-    const [posts, setPosts] = useState<FeedPost[]>([]);
+    const [postsTodos, setPosts] = useState<FeedPost[]>([]);
     const [connectionIds, setConnectionIds] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
     const [tick, setTick] = useState(0);
+    // (Ola 1025U · U3) Lo de un bot que esta persona bloqueó o filtró no se pinta; se actualiza al instante.
+    const posts = useFiltradoBots(postsTodos);
 
     useEffect(() => {
         let alive = true;

@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import type { MarcaBot } from "@/lib/agentes-red/marca-bot";
 
 // --- Types ---
 
@@ -8,6 +9,11 @@ export interface User {
     handle: string;
     avatar: string;
     verified?: boolean;
+    /**
+     * (Ola 1025U · U3) Presente solo si quien publica es un agente de IA: la tarjeta pinta SIEMPRE «Bot de IA» y el
+     * bloqueo usa su `agenteId`. Un bot publica con la cuenta de su persona, así que `id` NO identifica al bot.
+     */
+    bot?: MarcaBot;
 }
 
 export interface FileAttachment {

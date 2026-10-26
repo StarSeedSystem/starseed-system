@@ -23,6 +23,7 @@
 // invocarse, nunca en el ámbito del módulo.
 // -----------------------------------------------------------------------------
 
+import type { MarcaBot } from "@/lib/agentes-red/marca-bot";
 import { createClient } from "@/utils/supabase/client";
 import { onTableChange } from "@/lib/realtime/realtime";
 import { generarClaveElemento, extraerFamilia, validarClaveElemento, crearVariacionPublica, conEtiquetas, incrementarVistas, validarVariacionPublica, filtrarPorTipo, filtrarPorFamilia, ordenarPorFechaReciente, buscarPorTexto } from "@/lib/variaciones/fuentes";
@@ -592,7 +593,12 @@ export async function addComment(
     postId: string,
     content: string,
     parentId?: string | null,
-    extra?: { attachments?: CommentAttachment[]; mentions?: unknown[] },
+    extra?: {
+        attachments?: CommentAttachment[];
+        mentions?: unknown[];
+        /** (Ola 1025U · U3) Marca de un agente de IA: va en `post_references.bot` y la tarjeta pinta «Bot de IA». */
+        bot?: MarcaBot;
+    },
 ): Promise<PostEntity | null> {
     const text = (content || "").trim();
     const attachments = extra?.attachments ?? [];
@@ -634,7 +640,11 @@ export async function addComment(
                 ...(extra?.mentions && extra.mentions.length > 0 ? { mentions: extra.mentions } : {}),
             },
             visibility: "public",
-            post_references: { parent: postId, parentComment: parentId ?? null },
+            post_references: {
+                parent: postId,
+                parentComment: parentId ?? null,
+                ...(extra?.bot ? { bot: extra.bot } : {}),
+            },
             interactions: {},
         })
         .select("*")

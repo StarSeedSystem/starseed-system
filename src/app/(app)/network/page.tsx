@@ -35,10 +35,13 @@ import { getCurrentUserId } from "@/lib/os-social";
 import { uploadFile } from "@/lib/files/os-files";
 import MentionInput from "@/components/mentions/mention-input";
 import { createClient } from "@/utils/supabase/client";
+import { useFiltradoBots } from "@/lib/agentes-red/use-agentes-red";
 import { contadoresDe, contarConceptos, resumenDeContadores } from "@/lib/hub/contadores-red";
 
 export default function NetworkPage() {
-    const [rawPosts, setRawPosts] = useState<FeedPost[]>([]);
+    const [rawPostsTodos, setRawPosts] = useState<FeedPost[]>([]);
+    // (Ola 1025U · U3) Lo de un bot que esta persona bloqueó o filtró no se pinta; se actualiza al instante.
+    const rawPosts = useFiltradoBots(rawPostsTodos);
     const [connectionIds, setConnectionIds] = useState<Set<string>>(new Set());
     const [newPostContent, setNewPostContent] = useState("");
     const [loading, setLoading] = useState(true);

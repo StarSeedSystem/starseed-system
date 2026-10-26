@@ -13,6 +13,8 @@
  *   ajuste.proponer   → `validarAccionUi` + aplicador con bitácora deshacible
  *   notificar         → `notifyFromApp`
  *   codigo.proponer   → solo se guarda el CANDIDATO en `starseed.astraura.bots.candidatos.v1`; jamás se ejecuta
+ *   publicacion.borrador → `publicarComoAgente` (Ola 1025U · U3): publica en un grupo, comunidad o página a los que
+ *                       el perfil del bot está VINCULADO, siempre con la marca «Bot de IA»; en privado, no publica
  *   el resto          → «próximamente: …» con la tarea que lo trae.
  * Devuelve el `previo` que `deshacer` (acciones.ts) necesita para el camino de vuelta.
  */
@@ -21,6 +23,7 @@ import { validarAccionUi, type TipoAccionUi } from "@/lib/astraura/ui-acciones";
 import { aplicarAccion, type EntradaBitacora } from "@/lib/astraura/ui-aplicador";
 import { notifyFromApp } from "@/lib/notifications/app-notify";
 import type { AppearanceConfig } from "../../../context/appearance-context";
+import type { AgenteMundoRef } from "@/lib/avatares/mundo/agente-mundo";
 import type { AccionBot, Previo, TipoAccion } from "../acciones";
 import { apilar, esCapaValida, normalizarCapa, retirar, type CapaActiva } from "../capa-pantalla";
 import { ejecutar, type OpcionesComputadora } from "./computadora-cliente";
@@ -32,6 +35,11 @@ export interface DepsEjecutor {
   onStatus?: (estado: string) => void;
   /** Quién actúa, p. ej. `bot:cafe-personal` (queda en la bitácora de ajustes). */
   actor?: string;
+  /**
+   * (Ola 1025U · U3) El agente que actúa, tal como lo conoce el mundo. Sin él, el bot no puede publicar en la red:
+   * no se adivina quién es. Lo pone `useBucleBot` a partir del bot.
+   */
+  agente?: Pick<AgenteMundoRef, "id" | "origen" | "nombre" | "dueno">;
   /** Presente solo si en este contexto se puede aplicar un ajuste de apariencia. */
   apariencia?: {
     actual: AppearanceConfig;
@@ -131,6 +139,28 @@ function capaPantalla(args: AccionBot["args"], dep: DepsEjecutor): ResultadoEjec
   return { ok: true, previo: preparado.previo, motivo: `Capa ${preparado.capa.forma} puesta sobre la pantalla.` };
 }
 
+/**
+ * Publicación de un bot en la red (Ola 1025U · U3). La acción ya está confirmada por la persona; aquí solo se
+ * traduce a `publicarComoAgente`, que comprueba el vínculo del perfil, pone la marca «Bot de IA» y topa los envíos.
+ * Lo que no se puede hacer se dice tal cual (no hay perfil, no está vinculado, falta sesión): nunca se simula.
+ */
+async function publicarBorrador(args: AccionBot["args"], dep: DepsEjecutor): Promise<ResultadoEjecucion> {
+  if (!dep.agente) return f("No sé qué agente publica: este bot no tiene perfil en la red. No se publicó nada.");
+  const { publicarComoAgente, destinoDeTexto } = await import("@/lib/agentes-red/publicar-agente");
+  const destino = destinoDeTexto(args.destino);
+  if (!destino) {
+    return f("El destino debe ser un grupo, una comunidad o una página (por ejemplo «grupo:mi-grupo»). No se publicó nada.");
+  }
+  const r = await publicarComoAgente({ agente: dep.agente, destino, texto: typeof args.texto === "string" ? args.texto : "" });
+  if (!r.ok) return f(r.motivo);
+  return {
+    ok: true,
+    // `createPost` no devuelve el id: no hay con qué retirarla desde aquí (se borra desde la propia publicación).
+    previo: {},
+    motivo: `Publicado en ${destino.tipo} «${destino.id}» con la etiqueta «Bot de IA». No se puede deshacer desde aquí.`,
+  };
+}
+
 function ajusteProponer(args: AccionBot["args"], dep: DepsEjecutor): ResultadoEjecucion {
   if (!dep.apariencia) return f("No tengo la apariencia a mano en este contexto.");
   const accionUi = validarAccionUi({
@@ -174,6 +204,8 @@ export async function ejecutarAccion(accion: AccionBot, dep: DepsEjecutor): Prom
             return ajusteProponer(accion.args, dep);
          case "codigo.proponer":
             return guardarCandidato(accion.args);
+         case "publicacion.borrador":
+            return await publicarBorrador(accion.args, dep);
          case "computadora.ejecutar": {
             const botId = dep.actor ?? "bot:astraura";
             const orden = accion.args.orden as string;

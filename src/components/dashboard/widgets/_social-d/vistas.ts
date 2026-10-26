@@ -64,6 +64,7 @@ export function vistaDeRed(p: PublicacionRed): PublicacionConOrigen {
         ms: p.ms,
         href: `/post/${p.id}`,
         hrefAutor: p.handle ? `/profile/${p.handle}` : null,
+        ...(p.bot ? { bot: true } : {}),
     };
 }
 

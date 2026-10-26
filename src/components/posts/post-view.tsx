@@ -30,6 +30,10 @@ import { AttachmentCarousel } from "@/components/posts/attachment-carousel";
 import type { EmbeddedItem } from "@/components/posts/embedded-content-window";
 import type { MainRatio } from "@/lib/publish/publish";
 import { CommentThread } from "@/components/network/feed/comment-thread";
+// (Ola 1025U · U3) Lo que publica un agente de IA lleva siempre «Bot de IA» y se puede bloquear.
+import { EtiquetaBotIA } from "@/components/agentes-red/etiqueta-bot-ia";
+import { MenuBotIA } from "@/components/agentes-red/menu-bot-ia";
+import { marcaBotDe } from "@/lib/agentes-red/marca-bot";
 import { getCurrentUserId } from "@/lib/os-social";
 import { useConfirm, usePrompt } from "@/components/ui/confirm-dialog";
 
@@ -426,6 +430,8 @@ export default function PostView({ postId }: { postId: string }) {
         );
     }
 
+    const marcaPost = marcaBotDe(post);
+
     return (
         <div className="space-y-5">
             {/* Tarjeta de la entidad */}
@@ -437,10 +443,14 @@ export default function PostView({ postId }: { postId: string }) {
                             <UserIcon className="h-4 w-4" />
                         </span>
                         <div className="leading-tight">
-                            <p className="text-sm font-semibold text-white/90">{authorName(post.author)}</p>
+                            <p className="flex items-center gap-1.5 text-sm font-semibold text-white/90">
+                                {marcaPost ? marcaPost.nombre : authorName(post.author)}
+                                {marcaPost && <EtiquetaBotIA />}
+                            </p>
                             <p className="text-[11px] text-white/40">{fmtDate(post.created_at)}</p>
                         </div>
                     </div>
+                    {marcaPost && <MenuBotIA marca={marcaPost} />}
                     {post.type !== "post" && (
                         <Badge variant="outline" className="text-[10px] capitalize text-white/60">
                             {post.type}

@@ -8,26 +8,37 @@ import Link from "next/link";
 import Image from "next/image";
 import { CommentSystem } from "@/components/comment-system";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
+// (Ola 1025U · U3) Lo que publica un agente de IA lleva siempre «Bot de IA» y se puede bloquear.
+import { EtiquetaBotIA } from "@/components/agentes-red/etiqueta-bot-ia";
+import { MenuBotIA } from "@/components/agentes-red/menu-bot-ia";
+import { marcaBotDe } from "@/lib/agentes-red/marca-bot";
 // Assuming feedItems type structure or importing it if it's a shared type
 // For now, defining loose or looking for shared import.
 // Using 'any' briefly to decouple, but ideally should import type.
 
 export function FeedPostCard({ item }: { item: any }) {
     const [showComments, setShowComments] = useState(false);
+    const marcaBot = marcaBotDe(item);
 
     return (
         <Card className="hover:border-primary/20 transition-all">
             <CardHeader>
-                <Link href={item.href || '#'} className="flex items-center gap-3 group">
+                <div className="flex items-center justify-between gap-2">
+                <Link href={item.href || '#'} className="flex min-w-0 items-center gap-3 group">
                     <Avatar className="ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
                         <AvatarImage src={item.avatar} data-ai-hint={item.dataAiHint} />
                         <AvatarFallback>{item.author.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div>
-                        <p className="font-semibold group-hover:text-primary transition-colors">{item.author}</p>
+                        <p className="flex items-center gap-2 font-semibold group-hover:text-primary transition-colors">
+                            {marcaBot ? marcaBot.nombre : item.author}
+                            {marcaBot && <EtiquetaBotIA />}
+                        </p>
                         <p className="text-sm text-muted-foreground">{item.handle} · {item.timestamp}</p>
                     </div>
                 </Link>
+                {marcaBot && <MenuBotIA marca={marcaBot} />}
+                </div>
             </CardHeader>
             <CardContent>
                 <p className="text-muted-foreground whitespace-pre-wrap">{item.content}</p>

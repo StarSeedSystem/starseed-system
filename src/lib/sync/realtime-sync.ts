@@ -243,6 +243,9 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     // Avisos vistos/hechos/pospuestos (avisos-cuenta.ts): refresco en vivo de las ventanas
     // de arranque (`useAviso`) cuando otro medio de la cuenta marca algo.
     "starseed.avisos.vistos.v1": ["starseed:avisos"],
+
+    // Bots de IA (Ola 1025U · U3, bloqueo-bots.ts): al llegar la regla de otro medio, el feed se refiltra al instante.
+    "starseed.agentes-red.bloqueo.v1": ["starseed:agentes-red-bloqueo"],
 };
 
 /** Prefijo → evento(s); se usa cuando la clave concreta no está en EVENT_BY_KEY. */
@@ -250,6 +253,8 @@ const EVENT_BY_PREFIX: Array<{ prefix: string; events: string[] }> = [
     // Config de integraciones (global y por cerebro) — registry.ts la escucha.
     { prefix: "starseed.integration.", events: ["starseed:integration-config-changed"] },
     { prefix: "starseed.brain.", events: ["starseed:sync:apply"] },
+    // Perfil en la red de cada agente (Ola 1025U · U3, perfil-agente.ts).
+    { prefix: "starseed.agentes-red.perfil.", events: ["starseed:agentes-red-perfil"] },
 ];
 
 function eventsForKey(key: string): string[] {
