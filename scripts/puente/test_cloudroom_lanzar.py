@@ -27,6 +27,12 @@ def fila(tarea, t, hilo=None, **extra):
 
 
 class Ritmo(unittest.TestCase):
+    def test_brief_incluye_encargo_y_puertas(self):
+        p = C.brief({"id": "A", "titulo": "módulo"}, "20261024")
+        self.assertIn('Título: módulo', p)
+        self.assertIn("tsc --noEmit", p)
+        self.assertIn("NO APLICA:", p)
+
     def test_plan_gratis_sin_uso_reparte_hacia_arriba(self):
         # (CAP1025C) 100 en 30 días → 4 al día (3,3 hacia arriba); con 3 hilos a la vez, 3 ahora.
         r = C.ritmo([], AHORA)
