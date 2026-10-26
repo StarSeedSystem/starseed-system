@@ -35,37 +35,47 @@ vi.mock("@/hooks/use-toast", () => ({
 
 import { PizarrasPanel } from "../pizarras-panel";
 
+async function renderConPizarraNube() {
+  vi.mocked(canvas.listCanvases).mockResolvedValue([
+    {
+      id: "c1",
+      owner: null,
+      scope: "account",
+      scope_ref: null,
+      title: "Diagrama del valle",
+      blocks: [],
+      shared: false,
+    },
+  ]);
+
+  render(
+    <AppearanceProvider>
+      <PizarrasPanel />
+    </AppearanceProvider>
+  );
+
+  expect(await screen.findByText("Diagrama del valle")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("Compartir como publicación"));
+  await screen.findByText("Publicar");
+}
+
 describe("PizarrasPanel", () => {
   afterEach(cleanup);
 
   it("abre el diálogo de compartir con su comentario opcional", async () => {
-    vi.mocked(canvas.listCanvases).mockResolvedValue([
-      {
-        id: "c1",
-        owner: null,
-        scope: "account",
-        scope_ref: null,
-        title: "Diagrama del valle",
-        blocks: [],
-        shared: false,
-      },
-    ]);
+    await renderConPizarraNube();
 
-    render(
-      <AppearanceProvider>
-        <PizarrasPanel />
-      </AppearanceProvider>
-    );
-
-    // La pizarra de nube aparece con su acción de compartir.
-    expect(await screen.findByText("Diagrama del valle")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Compartir como publicación"));
-
-    // El diálogo ofrece el comentario opcional y la publicación.
     const comentario = await screen.findByPlaceholderText(
-        "Añade un comentario (opcional)…",
+      "Añade un comentario (opcional)…",
     );
     expect(comentario).toBeInstanceOf(HTMLTextAreaElement);
     expect(screen.getByText("Publicar")).toBeInTheDocument();
+  });
+
+  it("el textarea de comentario lleva aria-label (sin label visible)", async () => {
+    await renderConPizarraNube();
+
+    const comentario = await screen.findByLabelText("Comentario de la publicación (opcional)");
+    expect(comentario).toBeInstanceOf(HTMLTextAreaElement);
   });
 });

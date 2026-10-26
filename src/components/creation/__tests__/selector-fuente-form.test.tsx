@@ -51,8 +51,22 @@ describe("SourcePicker", () => {
     // input dentro del mismo grupo de formulario).
     expect(urlInput.previousElementSibling?.textContent).toBe("URL");
     expect(etiquetaInput.previousElementSibling?.textContent).toBe(
-        "Etiqueta (opcional)",
+      "Etiqueta (opcional)",
     );
+  });
+
+  it("las etiquetas URL y Etiqueta quedan ligadas a su input por id", () => {
+    renderPicker(["url"]);
+
+    const urlInput = screen.getByLabelText("URL");
+    const etiquetaInput = screen.getByLabelText("Etiqueta (opcional)");
+
+    expect(urlInput).toBeInstanceOf(HTMLInputElement);
+    expect(etiquetaInput).toBeInstanceOf(HTMLInputElement);
+    expect(urlInput.id).toBeTruthy();
+    expect(etiquetaInput.id).toBeTruthy();
+    // ids únicos aunque el picker se renderice varias veces en la página.
+    expect(urlInput.id).not.toBe(etiquetaInput.id);
   });
 
   it("el botón de URL solo se habilita con una URL válida y devuelve la referencia", () => {
@@ -90,5 +104,13 @@ describe("SourcePicker", () => {
     expect((archivo as HTMLInputElement).type).toBe("file");
     expect((archivo as HTMLElement).className).toContain("hidden");
     expect(screen.getByText("Elegir archivo")).toBeInTheDocument();
+  });
+
+  it("el input de archivo del dispositivo lleva aria-label (sin label visible)", () => {
+    renderPicker(["device"]);
+
+    const archivo = screen.getByLabelText("Archivo del dispositivo");
+    expect(archivo).toBeInstanceOf(HTMLInputElement);
+    expect((archivo as HTMLInputElement).type).toBe("file");
   });
 });
