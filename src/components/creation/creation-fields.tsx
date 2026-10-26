@@ -100,7 +100,7 @@ export function DestSelector({
 
     return (
         <div className={cn("space-y-3", className)}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div role="radiogroup" aria-label="Destino de la publicación" className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {visible.map((d) => {
                     const Icon = d.icon;
                     const active = value === d.id;
@@ -108,6 +108,8 @@ export function DestSelector({
                         <button
                             key={d.id}
                             type="button"
+                            role="radio"
+                            aria-checked={active}
                             onClick={() => onChange(d.id)}
                             className={cn(
                                 "flex flex-col items-start gap-1.5 rounded-2xl border p-3 text-left transition-all duration-200 cursor-pointer",
@@ -137,7 +139,7 @@ export function DestSelector({
                             «Crear entidades».
                         </p>
                     ) : (
-                        <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                        <div role="radiogroup" aria-label="Selecciona página o grupo propio" className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
                             {own.map((o) => {
                                 const active = ownValue?.entitySlug === o.entitySlug;
                                 const Icon = o.entityType === "group" ? Users2 : BookOpen;
@@ -145,6 +147,8 @@ export function DestSelector({
                                     <button
                                         key={`${o.entityType}-${o.entitySlug}`}
                                         type="button"
+                                        role="radio"
+                                        aria-checked={active}
                                         onClick={() => onOwnChange?.(active ? null : o)}
                                         className={cn(
                                             "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 cursor-pointer",
@@ -180,7 +184,7 @@ export function TipoSelector({ dest, value, onChange, className }: TipoSelectorP
     const tipos = TIPOS_POR_DEST[dest] ?? [];
     if (tipos.length === 0) return null;
     return (
-        <div className={cn("flex flex-wrap gap-1.5", className)}>
+        <div role="radiogroup" aria-label="Tipo" className={cn("flex flex-wrap gap-1.5", className)}>
             {tipos.map((t) => {
                 const Icon = t.icon;
                 const active = value === t.id;
@@ -188,6 +192,8 @@ export function TipoSelector({ dest, value, onChange, className }: TipoSelectorP
                     <button
                         key={t.id}
                         type="button"
+                        role="radio"
+                        aria-checked={active}
                         title={t.desc}
                         onClick={() => onChange(t.id)}
                         className={cn(
