@@ -160,7 +160,15 @@ def main():
         except Exception as e:  # sin la foto de la Mac no se cede nada: como antes
             print("[reparto] no pude medir la Mac para ceder (%s): no cedo nada" % type(e).__name__)
             cedibles, lote = [], set()
-    colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
+    # (2026-10-26, CAP1026E) Ni lo que ya viaja en una cola de la nube de la última hora y cuarto:
+    # el progreso de esas tareas puede decir «pendiente» un rato (lo pisa la foto de la Mac hasta
+    # que procesa el «soltar») y se mandaban a dos o tres jobs seguidos.
+    ahora_ts = datetime.datetime.now().timestamp()
+    vuelo = RN.en_vuelo(RN.leer_colas_nube(DESTINO_DIR, ahora_ts), ahora_ts)
+    if vuelo:
+        print("[reparto] en vuelo en la nube (colas de la última hora y cuarto): %d tarea(s), no se reenvían"
+              % len(vuelo))
+    colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, set(ajenas or ()) | vuelo)
     elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope,
                       envios=envios, mismo_lote=lote)
     # Una cadena que no cabe entera en el tope de este envío no se manda (mandar la mitad deja

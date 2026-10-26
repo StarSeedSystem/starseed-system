@@ -8,6 +8,10 @@ B · lo que la nube integró en su rama volvía a «pendiente» y a la nube (sol
 C · los agentes del A1 (3 trabajadores) no contaban en ningún total: el catálogo decía 1 y nadie los medía.
 D · el «backstop» de 30 lanzamientos al día se alcanzaba TODOS los días desde el 14-10 (el 26, a las 12:00):
     la nube se quedaba parada medio día con 300 tareas listas. El tope del día sale ahora de la capacidad.
+E · «Buscar más capacidad» lanzó 8 jobs en 4 minutos y 11 tareas viajaron en 2 o 3 de ellos: el progreso
+    las volvía a «pendiente» (la foto de la Mac) antes del «soltar». Lo que va en una cola reciente no se reenvía.
+F · los dos directores contaban GitHub distinto (3 jobs fijos frente a «escritores × 2» con la sonda): ahora
+    los dos leen los escritores vivos de la salud compartida, y una marca vigente pesa más que una sonda.
 """
 import importlib.util
 import os
@@ -19,8 +23,10 @@ sys.path.insert(0, AQUI)
 _spec = importlib.util.spec_from_file_location("director_nube_cap1026", os.path.join(AQUI, "director-nube.py"))
 D = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(D)
+import buscar_capacidad as BC  # noqa: E402
 import contenedores_nube as CN  # noqa: E402
 import repartir_nube as R  # noqa: E402
+import datetime as _dt  # noqa: E402
 
 T = 1_800_000_000.0
 
@@ -142,6 +148,62 @@ class D_ElTopeDelDiaSaleDeLaCapacidad(unittest.TestCase):
                                                trabajadores="4", tope_agentes=12)
         self.assertFalse(lanzar)
         self.assertIn("tope del día", motivo)
+
+
+def _ts(txt):
+    return _dt.datetime.strptime(txt, "%Y%m%d%H%M").timestamp()
+
+
+class E_LoQueYaViajaNoSeReenvia(unittest.TestCase):
+    def test_las_colas_de_la_ultima_hora_y_cuarto_estan_en_vuelo(self):
+        ahora = _ts("202610261210")
+        colas = [("cola-nube-20261026-1205.json", ["GUI1021K1b", "RTOPS1024Ed"]),
+                 ("cola-nube-20261026-1206-2.json", ["GUI1021K1b", "RLB1020Sb"]),
+                 ("cola-nube-20261026-0900.json", ["VIEJA1"]),
+                 ("otra-cosa.json", ["NO"])]
+        self.assertEqual(R.en_vuelo(colas, ahora), {"GUI1021K1b", "RTOPS1024Ed", "RLB1020Sb"})
+
+    def test_pasado_el_plazo_vuelve_a_poder_mandarse(self):
+        colas = [("cola-nube-20261026-1205.json", ["A"])]
+        self.assertEqual(R.en_vuelo(colas, _ts("202610261205") + R.EN_VUELO_S + 1), set())
+        self.assertEqual(R.en_vuelo(colas, _ts("202610261205") + 60), {"A"})
+
+    def test_sin_lo_de_la_mac_aparta_lo_que_vuela(self):
+        colas = [("cola-1026.json", [{"id": "A"}, {"id": "B"}, {"id": "C"}])]
+        fuera = R.sin_lo_de_la_mac(colas, set(), (), {"B"})
+        self.assertEqual([t["id"] for t in fuera[0][1]], ["A", "C"])
+
+
+class F_LosDosDirectoresCuentanGithubIgual(unittest.TestCase):
+    AHORA = "2026-10-26 12:04:00"
+    SALUD = {"xkiro": {"estado": "vivo", "sin_cupo_hasta": "2026-10-26 18:00:33"},
+             "openrouter": {"estado": "vivo", "sin_cupo_hasta": "2026-10-26 18:00:33"},
+             "google": {"sin_cupo_hasta": "2026-10-27 01:00:23"}, "nim": {"estado": "vivo"}}
+    SONDAS = [("nvidia/x", True, "responde", 0), ("openrouter/y", True, "responde", 0),
+              ("xkiro/z", True, "responde", 0), ("opencode/w", True, "Zen", 0), ("google/g", True, "responde", 0)]
+
+    def test_una_marca_vigente_pesa_mas_que_la_sonda(self):
+        self.assertEqual(BC.escritores_en_la_nube(self.SONDAS, self.SALUD, self.AHORA), ["nvidia", "opencode"])
+        # sin salud, como antes: manda la sonda
+        self.assertEqual(len(BC.escritores_en_la_nube(self.SONDAS)), 5)
+
+    def test_capacidad_de_github_por_escritores(self):
+        self.assertEqual(CN.capacidad_gh(["nvidia"], 4, 6, 14), 1)
+        self.assertEqual(CN.capacidad_gh(["nvidia", "opencode"], 4, 6, 14), 3)
+        self.assertEqual(CN.capacidad_gh(["a", "b", "c", "d", "e"], 3, 6, 14), 10)
+        self.assertEqual(CN.capacidad_gh([], 4, 6, 14), 0)
+        self.assertEqual(CN.capacidad_gh(list("abcdefghijk"), 3, 6, 14), 14)
+
+    def test_el_catalogo_medido_cambia_los_jobs_y_dice_por_que(self):
+        orig = BC.escritores_en_la_nube
+        try:
+            BC.escritores_en_la_nube = lambda *a, **k: ["nvidia"]
+            c = CN._catalogo_gh_medido(CN.CATALOGO["nube-gh"])
+        finally:
+            BC.escritores_en_la_nube = orig
+        self.assertEqual(c["jobs_simultaneos"], 1)
+        self.assertIn("nvidia", c["coste"])
+        self.assertEqual(CN.CATALOGO["nube-gh"]["jobs_simultaneos"], 3)  # el catálogo base no se toca
 
 
 if __name__ == "__main__":

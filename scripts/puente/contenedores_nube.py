@@ -373,6 +373,38 @@ def _sondeo() -> list:
         return []
 
 
+def capacidad_gh(escritores, agentes_por_job, agentes_por_escritor, max_jobs) -> int:
+    """PURA (2026-10-26, CAP1026F): jobs de GitHub a la vez que tienen un modelo que los escriba.
+
+    El límite de verdad de la nube son los escritores (CLAUDE.md §17), no las máquinas: cada escritor
+    vivo aguanta `agentes_por_escritor` agentes a la vez antes de los 429 (los de «Buscar más
+    capacidad»: 2 jobs × 3). Antes el catálogo decía 3 jobs fijos: el director lanzaba sus 3 con un
+    solo escritor vivo y «Buscar más capacidad» lanzaba los suyos con otra cuenta (9 a las 12:08).
+    Ahora los dos leen el mismo número. Sin escritor, 0: un job sin modelo es un «cero commits»."""
+    n = len(set(escritores or ()))
+    if n <= 0:
+        return 0
+    por_job = max(1, int(agentes_por_job or 1))
+    return max(1, min(int(max_jobs), (n * int(agentes_por_escritor)) // por_job))
+
+
+def _catalogo_gh_medido(cat: dict) -> dict:
+    """El catálogo de nube-gh con los jobs que aguantan los escritores vivos (salud compartida). Nunca lanza."""
+    try:
+        import buscar_capacidad as BC
+
+        esc = BC.escritores_en_la_nube(None, _leer_json(BC.SALUD, {}), time.strftime("%Y-%m-%d %H:%M:%S"))
+        jobs = capacidad_gh(esc, cat.get("agentes_por_job"), BC.RUNS_POR_ESCRITOR * BC.TRABAJADORES_JOB,
+                            BC.MAX_RUNS_NUBE)
+    except Exception:
+        return cat
+    medido = dict(cat)
+    medido["jobs_simultaneos"] = jobs
+    medido["coste"] = "%s · %d escritor(es) con cupo en la nube (%s) → %d job(s) a la vez" % (
+        cat.get("coste") or "", len(esc), ", ".join(esc) or "ninguno", jobs)
+    return medido
+
+
 def inventario(medios_sondeados=None) -> dict:
     """`medios_sondeados`: el resultado de `medios_disponibles.sondear()` si ya se tiene
     (2026-10-05: «Buscar más capacidad» sondea una vez y lo reusa, en vez de pagar dos veces
@@ -380,7 +412,9 @@ def inventario(medios_sondeados=None) -> dict:
     origen = medios_sondeados if medios_sondeados is not None else _sondeo()
     medios = [m for m in origen if str(m.get("id")) not in NO_SON_CONTENEDORES]
     vivos = _vivos_por_medio()
-    conts = [contenedor(m, CATALOGO.get(str(m.get("id")), {}), vivos) for m in medios]
+    # (CAP1026F) GitHub no tiene un número fijo de jobs: los que aguantan los escritores vivos.
+    conts = [contenedor(m, _catalogo_gh_medido(CATALOGO["nube-gh"]) if str(m.get("id")) == "nube-gh"
+                        else CATALOGO.get(str(m.get("id")), {}), vivos) for m in medios]
     # `medios_disponibles` no sondea las sesiones de Claude en la nube: se añaden aquí.
     if not any(str(m.get("id")) == "claude-nube" for m in medios):
         medio, cat = medio_claude_nube(_leer_json(CREDITO_CLAUDE), os.path.exists(LANZADOR_CLAUDE), time.time())

@@ -306,6 +306,39 @@ def sin_lo_de_la_mac(colas, tanda_ids, cedibles=(), ajenas=()):
     return [(n, [t for t in ts if str((t or {}).get("id")) not in fuera]) for n, ts in colas or []]
 
 
+#: (2026-10-26, CAP1026E) Cuánto tiempo una tarea mandada a la nube se da por EN VUELO aunque el
+#: progreso diga otra cosa: el job más largo (60 min los de «Buscar más capacidad», 45 los del
+#: director) más un margen para que GitHub lo arranque.
+EN_VUELO_S = 75 * 60
+
+
+def en_vuelo(colas_nube, ahora_ts, ventana_s=EN_VUELO_S):
+    """PURA (CAP1026E): ids de las colas `cola-nube-AAAAMMDD-HHMM*` mandadas hace menos de `ventana_s`.
+
+    MEDIDO el 26-10 entre las 12:04 y las 12:08 (hora de la Mac): «Buscar más capacidad» lanzó 8 jobs
+    en 4 minutos y 11 tareas viajaron en 2 o 3 de ellos (GUI1021K1b, RTOPS1024Ed y RLB1020Sb en las
+    colas de 12:05, 12:05-2 y 12:06-2). El reparto las marca «reasignada · nube», pero el orquestador
+    de la Mac, que aún las tiene en su tanda, guarda su foto (`fusionar_progreso`: en las propias manda
+    la memoria) y las deja «pendiente» hasta procesar el «soltar»; el reparto de un minuto después
+    las ve libres otra vez. El mismo trabajo en tres jobs, y cada envío cuenta para los 3 que llevan a
+    Bloqueadas. Lo que viaja en una cola reciente no se vuelve a mandar, diga lo que diga el progreso.
+    La hora sale del nombre (hora local, como `leer_colas_nube`), con un minuto de holgura."""
+    import datetime as _dt
+
+    salida = set()
+    for nombre, ids in colas_nube or []:
+        m = re.match(r"cola-nube-(\d{8})-(\d{4})", str(nombre or ""))
+        if not m:
+            continue
+        try:
+            cuando = _dt.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M").timestamp()
+        except ValueError:
+            continue
+        if -120 <= ahora_ts - cuando < ventana_s:
+            salida.update(str(i) for i in ids or [] if i)
+    return salida
+
+
 class CerrojoReparto:
     """Un solo repartidor a la vez (2026-10-13, medido). El reparto a la nube (21:56:41) y el
     préstamo al A1 (21:56:59) leyeron el mismo progreso y se llevaron IMG1011F, IMG1011G e

@@ -187,13 +187,31 @@ def tope_runs_nube(tareas, escritores, maximo=MAX_RUNS_NUBE, por_run=TAREAS_POR_
     return tope, motivo
 
 
+def _marcado_sin_cupo(entrada, ahora_txt=""):
+    """PURA: ¿la salud compartida aparta a este proveedor ahora (caído o «sin cupo hasta» futuro)?"""
+    if not isinstance(entrada, dict):
+        return False
+    if str(entrada.get("estado") or "") in ("caido", "caído"):
+        return True
+    return str(entrada.get("sin_cupo_hasta") or "") > str(ahora_txt or "")
+
+
 def escritores_en_la_nube(resultados=None, salud=None, ahora_txt=""):
     """PURA: proveedores de escritura vivos que la nube puede usar. Con sondas (`resultados`:
     [(modelo, apto, motivo, horas)]) manda la sonda; sin ellas, la salud compartida (con cupo y
-    sin «caído»). Solo cuentan los de `PROVEEDORES_NUBE` (sus claves son secretos del repo)."""
+    sin «caído»). Solo cuentan los de `PROVEEDORES_NUBE` (sus claves son secretos del repo).
+
+    (2026-10-26, CAP1026F) Con sondas, la salud compartida también aparta a quien tiene una marca
+    vigente: la sonda es UNA llamada y la marca sale de los 429 del enjambre entero. MEDIDO a las
+    12:04 (hora de la Mac): openrouter y xkiro estaban «sin cupo hasta las 18:00» y la sonda los dio
+    aptos → «5 escritores × 2» → 8 jobs de 3 en cuatro minutos (28 agentes en la nube); a las 12:08
+    opencode Zen cayó también por 429 y quedó un solo escritor (nvidia) para los 28."""
     if resultados:
-        return sorted({m.split("/", 1)[0] for m, apto, _m, _h in resultados
-                       if apto and m.split("/", 1)[0] in PROVEEDORES_NUBE})
+        aptos = sorted({m.split("/", 1)[0] for m, apto, _m, _h in resultados
+                        if apto and m.split("/", 1)[0] in PROVEEDORES_NUBE})
+        if salud:
+            aptos = [p for p in aptos if not _marcado_sin_cupo(salud.get(SALUD_DE.get(p, p)), ahora_txt)]
+        return aptos
     vivos = []
     for prov in PROVEEDORES_NUBE:
         e = (salud or {}).get(SALUD_DE.get(prov, prov))
@@ -201,9 +219,7 @@ def escritores_en_la_nube(resultados=None, salud=None, ahora_txt=""):
             if prov == "opencode":  # Zen no tiene sonda: sin marca de fallo, cuenta como vivo
                 vivos.append(prov)
             continue
-        if str(e.get("estado") or "") in ("caido", "caído"):
-            continue
-        if str(e.get("sin_cupo_hasta") or "") > str(ahora_txt or ""):
+        if _marcado_sin_cupo(e, ahora_txt):
             continue
         vivos.append(prov)
     return vivos
