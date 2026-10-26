@@ -70,11 +70,7 @@ afterEach(() => {
 });
 
 describe("PanelProtomolecula · herramientas", () => {
-<<<<<<< HEAD
-  it("muestra el título y el ámbito de la molécula en la cabecera", () => {
-=======
   it("muestra el título y el ámbito de la molécula", () => {
->>>>>>> aa691cdf6 (salvavidas · RTRLB1020Eb: trabajo del agente antes de las puertas (tsc / vitest))
     render(<PanelProtomolecula controlador={controlador()} />);
     expect(screen.getByRole("heading", { name: "Molécula de prueba" })).toBeDefined();
     expect(screen.getByText("personal")).toBeDefined();
