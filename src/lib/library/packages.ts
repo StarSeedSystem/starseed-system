@@ -72,6 +72,8 @@ import { FICHAS_REPOS_OS } from "./repos-os";
 // Tanda del 2026-10-25 (Ola 1025R): 26 fichas nuevas + seguimiento real de 3 fichas viejas (Taste Skill, Agent-Reach,
 // CrewAI). Módulo puro: la ruta de actualizaciones lo importa igual. Contrato: architecture/repos-libreria-1025.md.
 import { FICHAS_REPOS_1025, conSeguimiento1025 } from "./repos-1025";
+import { REPO_EXTERNOS_1020 } from "./repos-externos-1020";
+
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -2232,7 +2234,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO, REPO_EXTERNOS_1020];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
