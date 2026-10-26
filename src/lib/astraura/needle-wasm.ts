@@ -13,6 +13,7 @@ import {
   type EntradaCapa,
 } from "./capas/catalogo";
 import { AlmacenCapas, type Almacenamiento } from "./capas/almacen";
+import { capaEnPropio } from "./capas/repartir";
 import type {
   DecisionNeedle,
   HerramientaNeedle,
@@ -289,8 +290,13 @@ export async function cargarNeedleWasm(
   let pesos: ArrayBuffer | null = null;
   let origenPesos = "";
   if (entorno.almacen) {
-    pesos = await new AlmacenCapas(entorno.almacen).abrirCapa(entrada.id);
-    if (pesos) origenPesos = `almacen:${entrada.id}`;
+    // §6 paso 1: la copia local solo vale completa y verificada. `capaEnPropio`
+    // cruza el SHA con el catálogo y re-verifica el SHA-256 del archivo entero;
+    // `abrirCapa` por sí solo no distingue un trozo corrupto o a medias.
+    if (await capaEnPropio(entorno.almacen, entrada.sha256, [entrada])) {
+      pesos = await new AlmacenCapas(entorno.almacen).abrirCapa(entrada.id);
+      if (pesos) origenPesos = `almacen:${entrada.id}`;
+    }
   }
   if (!pesos) {
     for (const url of fuentesPesos(entrada)) {

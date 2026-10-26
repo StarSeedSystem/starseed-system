@@ -189,6 +189,45 @@ describe("needle-wasm", () => {
     expect(buscado).toBe(1); // solo el engine; los pesos vienen del almacén
   });
 
+  it("no se fía del almacén si un trozo está corrupto: cae a las fuentes de la red (capaEnPropio conectado)", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const entrada = entradaNeedleWeb(await catalogoConSha())!;
+    await almacen.escribir("capa/needle3-reflejo/trozo/0", new TextEncoder().encode("trozo-partido").buffer as ArrayBuffer);
+    await almacen.escribir("capa/needle3-reflejo/trozo/1", new TextEncoder().encode("trozo-segundo").buffer as ArrayBuffer);
+    let urlPesosPedida = false;
+    const engine = await cargarNeedleWasm(
+      entornoFalso(await catalogoConSha(), {
+        almacen,
+        buscar: async (url) => {
+          if (url === DEFAULT_URL_ENGINE) return WASM_FALSO;
+          if (url === DEFAULT_URL_PESOS) {
+            urlPesosPedida = true;
+            return PESOS_FALSOS;
+          }
+          return null;
+        },
+      }),
+    );
+    expect(engine.disponible).toBe(true);
+    expect(engine.origenPesos).toBe(DEFAULT_URL_PESOS);
+    expect(urlPesosPedida).toBe(true);
+  });
+
+  it("no se fía del almacén si los trozos están a medias (falta el último)", async () => {
+    const almacen = almacenamientoEnMemoria();
+    await almacen.escribir("capa/needle3-reflejo/trozo/0", PESOS_FALSOS.slice(0, 10));
+    const engine = await cargarNeedleWasm(
+      entornoFalso(await catalogoConSha(), {
+        almacen,
+        buscar: async (url) => (url === DEFAULT_URL_ENGINE ? WASM_FALSO : null),
+      }),
+    );
+    // Sin copia verificada en el almacén y sin pesos en la red: no-disponible,
+    // no bytes a medias con origen «almacen:».
+    expect(engine.disponible).toBe(false);
+    expect(engine.origenPesos).toBe("");
+  });
+
   it("decidirEnDispositivo con motor falso devuelve llamadas normalizadas", async () => {
     const dec = await decidirEnDispositivo("activar modo oscuro", herramientasEjemplo, {
       entorno: entornoFalso(await catalogoConSha()),
