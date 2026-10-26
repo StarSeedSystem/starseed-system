@@ -18,8 +18,8 @@ import {
     nombreGpuNavegador,
     recursosDeServidoresCerebro,
 } from "../deteccion";
-import type { DeteccionMaquina } from "../deteccion-tipos";
-import type { MedioAlmacen } from "../tipos";
+import { esDeteccionMaquina, type DeteccionMaquina } from "../deteccion-tipos";
+import type { MedioAlmacen, NeuronaRecursos } from "../tipos";
 
 const ID = "n-mac";
 
@@ -217,6 +217,48 @@ describe("inventarioDesde · unión de fuentes", () => {
         expect(a.find((x) => x.ruta === "/Volumes/Modelos")).toMatchObject({ tipo: "servidor-externo", lecturaMBs: 100 });
         const soloLectura = almacenesDeMaquina(ID, { ...MAC_ALEX, volumenes: [{ ...MAC_ALEX.volumenes[1], soloLectura: true }] });
         expect(soloLectura[0]).toMatchObject({ disponible: false, etiqueta: "SSD Externo · SSD USB (solo lectura)" });
+    });
+});
+
+describe("Rescate de rama de la nube · contratos de borde", () => {
+    it("la forma rota no se cuela: lo que el servidor local contesta se valida antes de usarlo", () => {
+        expect(esDeteccionMaquina(MAC_ALEX)).toBe(true);
+        expect(esDeteccionMaquina(null)).toBe(false);
+        expect(esDeteccionMaquina("macOS")).toBe(false);
+        // Un campo atómico con otro tipo (un totalGb «228» suelto, listas que no son listas) no pasa.
+        expect(esDeteccionMaquina({ ...MAC_ALEX, nucleos: "8" })).toBe(false);
+        expect(esDeteccionMaquina({ ...MAC_ALEX, volumenes: "228" })).toBe(false);
+        expect(esDeteccionMaquina({ so: "macOS 26.3.1", nucleos: 8, ramGb: 8 })).toBe(false);
+    });
+
+    it("la máquina manda en el hierro sin borrar las carpetas ni el navegador; sin discos, aviso propio y no el del navegador", () => {
+        const conCarpeta: NeuronaRecursos = {
+            ...desdeNavegador(),
+            almacenes: [
+                ...desdeNavegador().almacenes,
+                {
+                    id: "carpeta:c1",
+                    tipo: "neurona-local",
+                    etiqueta: "Carpeta «Modelos»",
+                    neuronaId: ID,
+                    via: "local",
+                    persistente: true,
+                    privado: true,
+                    disponible: true,
+                    fuente: "declarado",
+                },
+            ],
+        };
+        const out = inventarioDesde({ estaNeurona: conCarpeta, maquina: MAC_ALEX, ahora });
+        const esta = out.neuronas[0];
+        // Con la detección nativa: lo medido gana y lo declarado a mano no se borra.
+        expect(esta.almacenes.find((a) => a.id === "carpeta:c1")).toMatchObject({ tipo: "neurona-local", fuente: "declarado" });
+        expect(esta.almacenes.find((a) => a.id === `${ID}:interno`)).toMatchObject({ fuente: "detectado", totalGb: 228 });
+        expect(esta.almacenes.find((a) => a.id === `navegador:${ID}`)?.tipo).toBe("navegador");
+        // El servidor contestó pero no pudo leer los discos: su aviso lo dice, no el genérico del navegador.
+        const sinDiscos = inventarioDesde({ estaNeurona: conCarpeta, maquina: { ...MAC_ALEX, npu: undefined, volumenes: [] }, ahora });
+        expect(sinDiscos.avisos).toContain("El servidor local de esta neurona no pudo leer sus discos.");
+        expect(sinDiscos.avisos).not.toContain(AVISO_DISCOS);
     });
 });
 
