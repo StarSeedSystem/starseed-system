@@ -41,6 +41,9 @@ SECRETOS = (
     "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY",
     # (2026-10-21) OpenCode Zen: sus modelos gratuitos escriben en la nube (aprobado por Alex).
     "OPENCODE_API_KEY",
+    # (2026-10-26, CAP1026L, aprobado por Alex: «subir más claves a GitHub») Los proveedores que solo vivían
+    # dentro de FreeLLMAPI en la Mac y el A1; en la nube los usa el FreeLLMAPI del runner. Sin valor, no se suben.
+    "MISTRAL_API_KEY", "CEREBRAS_API_KEY", "COHERE_API_KEY",
 )
 
 #: Los dos archivos de entorno de esta maquina. Solo se leen NOMBRES y valores para
@@ -50,7 +53,9 @@ SECRETOS = (
 #: El resultado era un aviso permanente pidiendole a Alex que subiera unas claves que ya
 #: tenia, por un archivo que no miramos. Mismo par de archivos que usa jev.py.
 ARCHIVOS_DE_ENTORNO = ("~/.starseed/env", "~/.hermes/.env")
-VARIABLES = ("STARSEED_PASARELA_GROQ_URL", "STARSEED_PASARELA_GROQ_MODELOS", "STARSEED_PASARELA_GROQ_RPM")
+VARIABLES = ("STARSEED_PASARELA_GROQ_URL", "STARSEED_PASARELA_GROQ_MODELOS", "STARSEED_PASARELA_GROQ_RPM",
+             # (CAP1026L) Los modelos y el cupo de FreeLLMAPI que usa la Mac; su URL y su clave son del runner.
+             "STARSEED_PASARELA_FREELLMAPI_MODELOS", "STARSEED_PASARELA_FREELLMAPI_RPM")
 
 # (2026-10-04, NUB1004A) Estado de la Mac que viaja con la cola para que la nube use la
 # MISMA rotación y salud de modelos. Medido el 2026-10-04: 4 runs seguidos con 0 commits

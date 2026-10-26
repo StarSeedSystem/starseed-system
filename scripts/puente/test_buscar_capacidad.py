@@ -409,13 +409,14 @@ class TopeNubeDinamico(unittest.TestCase):
     def test_escritores_en_la_nube_desde_sondas_y_desde_salud(self):
         sondas = [("nvidia/nvidia/nemo", True, "responde", 0), ("freellmapi/auto", True, "responde", 0),
                   ("google/g", False, "cupo del día agotado (429)", 3)]
-        self.assertEqual(B.escritores_en_la_nube(sondas), ["nvidia"])
+        # (2026-10-26, CAP1026L) freellmapi corre también dentro de cada job de la nube: cuenta.
+        self.assertEqual(B.escritores_en_la_nube(sondas), ["freellmapi", "nvidia"])
         salud = {"nim": {"estado": "vivo"}, "google": {"sin_cupo_hasta": "2026-10-10 18:00:00"},
                  "xkiro": {"estado": "caido"}, "openrouter": {"sin_cupo_hasta": "2026-10-10 10:00:00"},
                  "freellmapi": {"estado": "vivo"}}
         # (2026-10-22, ZEN1021B) Zen viaja como secreto y no tiene sonda: sin marca en la salud, cuenta.
         self.assertEqual(B.escritores_en_la_nube(None, salud, "2026-10-10 15:00:00"),
-                         ["nvidia", "openrouter", "opencode"])
+                         ["nvidia", "openrouter", "opencode", "freellmapi"])
 
     def test_plan_con_tope_cero_dice_por_que(self):
         p = B.plan_nube(["A"], [], 0, None, {}, AHORA, tope_runs=0, motivo_tope="ningún escritor con cupo")

@@ -161,6 +161,11 @@ jobs:
           STARSEED_PASARELA_GROQ_RPM: ${{ vars.STARSEED_PASARELA_GROQ_RPM }}
           # (2026-10-21, aprobado por Alex) OpenCode Zen: modelos gratuitos de opencode como escritores.
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          # (2026-10-26, CAP1026L, aprobado por Alex: «subir más claves a GitHub») Proveedores que solo vivían
+          # dentro de FreeLLMAPI en la Mac y el A1: aquí los usa el FreeLLMAPI del runner (paso siguiente).
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
           # (2026-10-21, aprobado por Alex) Groq solo revisa: su tramo gratuito (~8000 tokens/min)
           # no cabe en un prompt de escritura y gpt-oss-20b se colgaba 5-15 min por run sin escribir.
           STARSEED_PASARELA_GROQ_SOLO_REVISOR: "1"
@@ -170,12 +175,77 @@ jobs:
           for v in GEMINI_API_KEY GOOGLE_GENERATIVE_AI_API_KEY NVIDIA_API_KEY NVIDIA_SHARED_KEY OPENROUTER_API_KEY \
                    XKIRO_API_KEY AIHUBMIX_API_KEY TOKENROUTER_API_KEY GROQ_API_KEY STARSEED_PASARELA_GROQ_KEY \
                    STARSEED_PASARELA_GROQ_URL STARSEED_PASARELA_GROQ_MODELOS STARSEED_PASARELA_GROQ_RPM \
-                   OPENCODE_API_KEY; do
+                   OPENCODE_API_KEY MISTRAL_API_KEY CEREBRAS_API_KEY COHERE_API_KEY; do
             if [ -n "${!v:-}" ]; then printf '%s=%q\n' "$v" "${!v}" >> ~/.starseed/env; n=$((n+1)); fi
           done
           echo "variables presentes: $n"
           if [ "$n" = 0 ]; then echo "::error::sin secretos: pon las claves con scripts/puente/nube-gh.py secretos"; exit 1; fi
           printf 'STARSEED_PASARELA_GROQ_SOLO_REVISOR=%s\n' "${STARSEED_PASARELA_GROQ_SOLO_REVISOR:-1}" >> ~/.starseed/env
+
+      - name: FreeLLMAPI en el runner (solo 127.0.0.1, con las claves que haya)
+        # (2026-10-26, CAP1026L) En la Mac y en el A1, FreeLLMAPI reparte entre todos los proveedores gratuitos
+        # tras un solo bearer (Mistral, Groq, NVIDIA, OpenRouter, xKiro, Gemini… con failover); en la nube no
+        # existía y los jobs solo tenían los cinco escritores sueltos. Mismo arranque que el A1
+        # (scripts/puente/a1_freellmapi.py): misma versión, solo en 127.0.0.1, las claves en memoria
+        # (FREEAPI_CONFIG_JSON) y una clave unificada NUEVA por job (no viaja ninguna). Si algo falla, el job
+        # sigue sin él: es un escritor más, no una condición.
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          set -u
+          set -a; . ~/.starseed/env; set +a
+          n=0
+          for v in GROQ_API_KEY NVIDIA_API_KEY OPENROUTER_API_KEY XKIRO_API_KEY GEMINI_API_KEY MISTRAL_API_KEY \
+                   CEREBRAS_API_KEY COHERE_API_KEY; do
+            if [ -n "${!v:-}" ]; then n=$((n+1)); fi
+          done
+          if [ "$n" = 0 ]; then echo "sin claves para FreeLLMAPI: no se arranca"; exit 0; fi
+          DIR="$RUNNER_TEMP/freellmapi"
+          git clone -q https://github.com/tashfeenahmed/freellmapi.git "$DIR"
+          cd "$DIR"
+          git -c advice.detachedHead=false checkout -q 47c3a45
+          npm ci --no-audit --no-fund --loglevel=error
+          npm run build:server --silent
+          umask 077
+          printf 'ENCRYPTION_KEY=%s\n' "$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')" > .env
+          set -a; . ./.env; set +a
+          export FREEAPI_CONFIG_JSON="$(python3 - <<'PY'
+          import json, os
+          mapa = [("GROQ_API_KEY", "groq"), ("NVIDIA_API_KEY", "nvidia"), ("OPENROUTER_API_KEY", "openrouter"),
+                  ("XKIRO_API_KEY", "xkiro"), ("GEMINI_API_KEY", "google"), ("MISTRAL_API_KEY", "mistral"),
+                  ("CEREBRAS_API_KEY", "cerebras"), ("COHERE_API_KEY", "cohere")]
+          keys = [{"platform": p, "key": os.environ[v], "label": "starseed"} for v, p in mapa if os.environ.get(v)]
+          print(json.dumps({"keys": keys, "routing": {"strategy": "balanced"}}))
+          PY
+          )"
+          # Primera vuelta en otro puerto: crea la base. Luego la clave unificada de ESTE job.
+          HOST=127.0.0.1 PORT=3999 NODE_ENV=production timeout 45 node server/dist/index.js >/dev/null 2>&1 || true
+          CLAVE="$(node -e 'console.log(require("crypto").randomBytes(24).toString("hex"))')"
+          FREELLMAPI_KEY="$CLAVE" node -e '
+            const D = require("better-sqlite3");
+            const db = new D("server/data/freeapi.db");
+            const r = db.prepare("UPDATE settings SET value = ? WHERE key = ?").run(process.env.FREELLMAPI_KEY, "unified_api_key");
+            console.log("clave unificada " + (r.changes ? "puesta" : "SIN fila de ajustes"));
+            db.close();
+          '
+          HOST=127.0.0.1 PORT=3001 NODE_ENV=production nohup node server/dist/index.js > "$RUNNER_TEMP/freellmapi.log" 2>&1 &
+          code=000
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CLAVE" http://127.0.0.1:3001/v1/models || true)
+            [ "$code" = 200 ] && break
+            sleep 2
+          done
+          echo "FreeLLMAPI en el runner: HTTP $code con $n clave(s) de proveedor"
+          if [ "$code" = 200 ]; then
+            {
+              printf 'STARSEED_PASARELA_FREELLMAPI_URL=%s\n' "http://127.0.0.1:3001/v1"
+              printf 'STARSEED_PASARELA_FREELLMAPI_KEY=%q\n' "$CLAVE"
+              printf 'STARSEED_PASARELA_FREELLMAPI_MODELOS=%s\n' "${{ vars.STARSEED_PASARELA_FREELLMAPI_MODELOS || 'auto' }}"
+              printf 'STARSEED_PASARELA_FREELLMAPI_RPM=%s\n' "${{ vars.STARSEED_PASARELA_FREELLMAPI_RPM || '20' }}"
+            } >> ~/.starseed/env
+          else
+            tail -5 "$RUNNER_TEMP/freellmapi.log" || true
+          fi
 
       - name: Enjambre
         run: |

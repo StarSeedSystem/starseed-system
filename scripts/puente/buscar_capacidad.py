@@ -78,9 +78,12 @@ MAX_RUNS_NUBE = int(os.environ.get("STARSEED_NUBE_MAX_RUNS") or 14)
 #: Jobs por escritor vivo: un job son 3 agentes y un proveedor gratuito aguanta unos 6 a la vez
 #: antes de los 429 (NIM: 40 RPM por clave; un agente de opencode hace 3-6 llamadas por minuto).
 RUNS_POR_ESCRITOR = 2
-#: Escritores cuyas claves viajan a la nube como secretos (`nube-gh.py SECRETOS`). freellmapi
-#: (127.0.0.1 de la Mac) y Codex (sesión de la Mac) NO llegan allí; Groq llega, pero solo revisa.
-PROVEEDORES_NUBE = ("google", "nvidia", "openrouter", "xkiro", "opencode")
+#: Escritores cuyas claves viajan a la nube como secretos (`nube-gh.py SECRETOS`). Codex (sesión de la Mac)
+#: NO llega allí; Groq llega, pero solo revisa. freellmapi sí desde CAP1026L: cada job arranca el suyo.
+PROVEEDORES_NUBE = ("google", "nvidia", "openrouter", "xkiro", "opencode",
+                    # (2026-10-26, CAP1026L) FreeLLMAPI corre también DENTRO de cada job (Mistral y el resto de
+                    # su flota con las claves que Alex subió). Cuenta como escritor si en la Mac está vivo.
+                    "freellmapi")
 #: (2026-10-22, ZEN1021B) OpenCode Zen gratis: el escritor principal de la nube desde el 21-10
 #: (secreto OPENCODE_API_KEY). No se sondea por HTTP: su API da 403 FreeTierError fuera de
 #: opencode. Copia de `MODELOS_ZEN_GRATIS` de starseed-enjambre.py (sin importar el orquestador).
@@ -166,7 +169,7 @@ def tope_runs_nube(tareas, escritores, maximo=MAX_RUNS_NUBE, por_run=TAREAS_POR_
     vivos = max(0, int(vivos or 0))
     escritores = sorted(set(escritores or ()))
     if not escritores:
-        return 0, ("ningún escritor con cupo llega a la nube (freellmapi y Codex solo viven en la Mac; "
+        return 0, ("ningún escritor con cupo llega a la nube (ni los sueltos ni los de freellmapi; Codex solo vive en la Mac; "
                    "Groq allí solo revisa)")
     if not tareas:
         return 0, "no hay tareas que la nube pueda coger"
