@@ -41,6 +41,7 @@ import {
 } from "@/lib/protomolecula/orbe4d/eventos";
 import type { MotorOrbe } from "@/lib/protomolecula/orbe4d/motor";
 import { PanelOrbe } from "./panel-orbe";
+import { iniciarEscuchaContexto } from "./ventana/contexto-anunciado";
 import { usePerimeterOpcional } from "@/context/perimeter-context";
 
 // El tamaño no es fijo (PRO1025M): `medidasOrbe(ancho)` da el dibujo, la diana táctil (≥ 44 px, puede ser mayor
@@ -107,6 +108,10 @@ export function OrbeProtomolecula() {
     setMontada(true);
     return () => mq?.removeEventListener?.("change", cambio);
   }, []);
+
+  // La ventana de la orbe necesita saber qué pantalla había delante AUNQUE se abra después de que ella anunciara su
+  // contexto (EVENTO_CONTEXTO_PROTO): la orbe escucha mientras vive y guarda el último.
+  useEffect(() => iniciarEscuchaContexto(), []);
 
   // ── motor three.js, a demanda (el layout raíz no carga motores pesados) ───
   useEffect(() => {
@@ -446,6 +451,7 @@ export function OrbeProtomolecula() {
               estilo={estilo}
               moleculaId={panel.molecula}
               completoInicial={panel.completo}
+              ruta={ruta ?? undefined}
               lado={lado}
               alElegirForma={(f) => setFijada(f)}
               alElegirEstilo={(e) => { setEstilo(e); guardarEstilo(window.localStorage, e); }}
