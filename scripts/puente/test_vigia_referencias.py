@@ -61,6 +61,10 @@ def leer_estado(raiz):
 
 
 class Cadenas_y_parseo(unittest.TestCase):
+    def test_cargar_json_archivo_inexistente(self):
+        self.assertEqual(V.cargar_json("/ruta/que/no/existe.json", {"por defecto": "valor"}),
+                         {"por defecto": "valor"})
+
     def test_dominios_y_huellas(self):
         self.assertEqual(V.obtener_dominio("https://Api.Ejemplo.COM/x"), "api.ejemplo.com")
         self.assertEqual(V.obtener_dominio("ni-ideal"), "")
