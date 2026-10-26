@@ -808,7 +808,9 @@ export async function neuralSynthesize(
   // personalidad mantiene la misma voz en todos los trozos.
   if (engine === "chatterbox") {
     try {
-      const { sintetizarChatterbox } = await import("@/lib/aurora/tts-oss/chatterbox");
+      const { sintetizarChatterbox, turnoSinPrimerSonido } = await import(
+        "@/lib/aurora/tts-oss/chatterbox"
+      );
       const r = await sintetizarChatterbox(clean, {
         idioma: s.lang,
         emocion: frozen?.params.emotion ?? s.emotion,
@@ -816,6 +818,8 @@ export async function neuralSynthesize(
         personalityId: opts.personalityId ?? frozen?.personalityId,
         signal: opts.signal,
         presupuestoMs: opts.budgetCapMs ?? ENGINE_TIMEOUT_MS.chatterbox,
+        // Una medida por turno: ya sonó un trozo de este mensaje ⇒ no se anota.
+        primerSonidoDelTurno: turnoSinPrimerSonido(),
       });
       if (!r.blob && r.motivo && r.motivo !== "cancelado") {
         try {

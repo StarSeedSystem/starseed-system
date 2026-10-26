@@ -152,6 +152,12 @@ export interface OpcionesChatterbox {
   signal?: AbortSignal;
   /** Tope total de la locución, en ms. */
   presupuestoMs?: number;
+  /**
+   * ¿Este trozo es el primero del turno? Lo decide quien trocea (`neural-tts.ts`,
+   * que conoce la identidad congelada); si no viene, se pregunta a
+   * `turnoSinPrimerSonido()`.
+   */
+  primerSonidoDelTurno?: boolean;
 }
 
 export interface ResultadoChatterbox {
@@ -721,6 +727,7 @@ export async function sintetizarChatterbox(
     const limpio = (texto || "").trim();
     if (!limpio) return { blob: null, via: null, motivo: "texto-vacio" };
     const idioma = idiomaChatterbox(opts.idioma);
+    const midePrimerSonido = opts.primerSonidoDelTurno ?? turnoSinPrimerSonido();
     const { exageracion, cfg } = exageracionPara(opts.emocion, opts.energia);
     const peticion: PeticionChatterbox = {
       texto: limpio,
@@ -739,7 +746,7 @@ export async function sintetizarChatterbox(
       if (r) {
         const lat = d.ahora() - t0;
         marcarResultadoChatterbox(CHATTERBOX_ID_LOCAL, true, lat, d);
-        if (turnoSinPrimerSonido()) d.anotar("primer-sonido", lat, idioma);
+        if (midePrimerSonido) d.anotar("primer-sonido", lat, idioma);
         if (r.rtf) d.anotar("tiempo-real-voz", r.rtf, idioma);
         ganador = { id: CHATTERBOX_ID_LOCAL, at: d.ahora() };
         return { blob: r.blob, via: "local", endpoint: CHATTERBOX_ID_LOCAL, latenciaMs: lat, factorTiempoReal: r.rtf };
@@ -771,7 +778,7 @@ export async function sintetizarChatterbox(
       if (blob) {
         const lat = d.ahora() - t1;
         marcarResultadoChatterbox(sp.id, true, lat, d);
-        if (turnoSinPrimerSonido()) d.anotar("primer-sonido", lat, idioma);
+        if (midePrimerSonido) d.anotar("primer-sonido", lat, idioma);
         ganador = { id: sp.id, at: d.ahora() };
         return { blob, via: "space", endpoint: sp.id, latenciaMs: lat };
       }
