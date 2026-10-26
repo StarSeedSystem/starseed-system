@@ -26,6 +26,7 @@ import {
   type VisibilidadEscenario,
 } from "@/lib/avatares/mundo/escenarios";
 import { olvidarMundo, type OcupacionMundo } from "@/lib/avatares/mundo/simulacion";
+import { olvidarSuenos } from "@/lib/avatares/suenos/almacen-suenos";
 
 export interface UsoEscenarios {
   almacen: AlmacenEscenarios;
@@ -38,7 +39,7 @@ export interface UsoEscenarios {
   crear: (datos: DatosEscenario) => ResultadoEscenarios;
   renombrar: (id: string, nombre: string) => ResultadoEscenarios;
   duplicar: (id: string) => ResultadoEscenarios;
-  /** Sin `confirmado === true` no borra nada. Al borrar también se olvida el mundo guardado de ese escenario. */
+  /** Sin `confirmado === true` no borra nada. Al borrar también se olvidan el mundo y los sueños guardados de ese escenario. */
   borrar: (id: string, confirmado: boolean) => ResultadoEscenarios;
   elegir: (id: string) => ResultadoEscenarios;
   cambiarVisibilidad: (id: string, visibilidad: VisibilidadEscenario, grupoId?: string) => ResultadoEscenarios;
@@ -88,7 +89,10 @@ export function useEscenarios(inicial?: AlmacenEscenarios): UsoEscenarios {
       duplicar: (id) => aplicar((a, t) => duplicarEscenario(a, id, t)),
       borrar: (id, confirmado) => {
         const r = aplicar((a) => borrarEscenario(a, id, confirmado));
-        if (r.ok) olvidarMundo(id);
+        if (r.ok) {
+          olvidarMundo(id);
+          olvidarSuenos(id);
+        }
         return r;
       },
       elegir: (id) => aplicar((a) => elegirEscenario(a, id)),

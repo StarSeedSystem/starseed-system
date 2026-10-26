@@ -10,12 +10,14 @@
  */
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import {
+  TOPE_CREACIONES,
   avanzar,
   cargarMundo,
   guardarMundo,
   mundoInicial,
   pasosParaTick,
   reconciliarHabitantes,
+  type CreacionMundo,
   type EntradaHabitante,
   type EstadoMundo,
   type ZonaSim,
@@ -58,6 +60,11 @@ export interface ResultadoSimulacion {
   estado: EstadoMundo | null;
   /** `false` si el último guardado en este aparato falló. */
   guardado: boolean;
+  /**
+   * Añade creaciones de fuera de la simulación (los sueños completos) a la crónica del mundo. `crear` recibe el tick
+   * actual. Se ignoran las repetidas (por id) y las de quien ya no vive aquí; el tope de obras se mantiene.
+   */
+  agregarCreaciones: (crear: (tick: number) => CreacionMundo[]) => void;
 }
 
 const claveDe = (escenarioId: string, entradas: readonly EntradaHabitante[]): string =>
@@ -129,5 +136,17 @@ export function useSimulacionMundo(o: OpcionesSimulacion): ResultadoSimulacion {
     };
   }, [guardar]);
 
-  return { estado: actual?.estado ?? null, guardado };
+  const agregarCreaciones = useCallback((crear: (tick: number) => CreacionMundo[]) => {
+    setSim((previo) => {
+      if (!previo) return previo;
+      const nuevas = crear(previo.estado.tick);
+      const vivos = new Set(previo.estado.habitantes.map((h) => h.id));
+      const ya = new Set(previo.estado.creaciones.map((c) => c.id));
+      const admitidas = nuevas.filter((c) => vivos.has(c.autor) && !ya.has(c.id));
+      if (admitidas.length === 0) return previo;
+      return { ...previo, estado: { ...previo.estado, creaciones: [...previo.estado.creaciones, ...admitidas].slice(-TOPE_CREACIONES) } };
+    });
+  }, []);
+
+  return { estado: actual?.estado ?? null, guardado, agregarCreaciones };
 }

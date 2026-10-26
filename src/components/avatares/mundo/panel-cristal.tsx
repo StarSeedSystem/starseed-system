@@ -15,10 +15,12 @@ export interface PanelCristalProps {
   /** Línea pequeña bajo el título (p. ej. «Bot de IA»). */
   subtitulo?: string;
   alCerrar: () => void;
+  /** Nombre accesible del botón de cerrar. Por defecto el de la ficha; el panel de sueños pone el suyo. */
+  etiquetaCerrar?: string;
   children: ReactNode;
 }
 
-export function PanelCristal({ titulo, subtitulo, alCerrar, children }: PanelCristalProps) {
+export function PanelCristal({ titulo, subtitulo, alCerrar, etiquetaCerrar = "Cerrar la ficha", children }: PanelCristalProps) {
   const panel = useRef<HTMLElement>(null);
   const cerrar = useRef(alCerrar);
   cerrar.current = alCerrar;
@@ -66,7 +68,7 @@ export function PanelCristal({ titulo, subtitulo, alCerrar, children }: PanelCri
         <button
           type="button"
           onClick={alCerrar}
-          aria-label="Cerrar la ficha"
+          aria-label={etiquetaCerrar}
           className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/8 text-white/80 transition duration-150 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007FFF]"
         >
           <X className="size-5" aria-hidden="true" />

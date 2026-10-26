@@ -41,6 +41,9 @@ import { useEntornoMundo } from "./mundo/use-entorno-mundo";
 import { useEscenarios } from "./mundo/use-escenarios";
 import { useHabitantesMundo } from "./mundo/use-habitantes-mundo";
 import { useSimulacionMundo } from "./mundo/use-simulacion-mundo";
+import { BotonSonar } from "./suenos/boton-sonar";
+import { PanelSuenos } from "./suenos/panel-suenos";
+import { useSuenos } from "./suenos/use-suenos";
 import { ETIQUETA_BOT_IA, habitantesVisibles, limitarHabitantes } from "@/lib/avatares/mundo/habitantes";
 import type { AgenteMundoRef } from "@/lib/avatares/mundo/agente-mundo";
 import { RADIO_MUNDO, type EstadoMundo, type ZonaSim } from "@/lib/avatares/mundo/simulacion";
@@ -114,7 +117,7 @@ export function MundoAvatares({ personalidades, habitantes: habitantesProp, esta
   zonasRef.current = zonasParaSimulacion(disposicionInicial);
   radioRef.current = radioDelSuelo(disposicionInicial);
 
-  const { estado, guardado } = useSimulacionMundo({
+  const { estado, guardado, agregarCreaciones } = useSimulacionMundo({
     escenarioId: activo.id,
     entradas,
     estadoInicial,
@@ -125,6 +128,26 @@ export function MundoAvatares({ personalidades, habitantes: habitantesProp, esta
     radio: radioRef,
     puedeGuardar: cuenta.completa,
   });
+
+  // Los sueños (Ola 1025U · U4): corren mientras el mundo corre, y lo que sueñan en conjunto entra en su crónica.
+  const suenos = useSuenos({
+    escenarioId: activo.id,
+    agentes: visibles,
+    estado,
+    activo: !pausado && !entorno.oculta,
+    alCrearObras: agregarCreaciones,
+  });
+  const [suenosAbierto, setSuenosAbierto] = useState(false);
+
+  // Quién descansa ahora en la zona de sueños del escenario (la llamada «Sueños» o, si no hay, la primera de descanso).
+  const zonaSuenos = useMemo(
+    () => activo.zonas.find((z) => z.id === "suenos") ?? activo.zonas.find((z) => z.afinidad === "descansar") ?? null,
+    [activo.zonas],
+  );
+  const descansando = useMemo(
+    () => (zonaSuenos ? (estado?.habitantes ?? []).filter((h) => h.zonaId === zonaSuenos.id).map((h) => h.id) : []),
+    [zonaSuenos, estado?.habitantes],
+  );
 
   const disposicion = useMemo(
     () => disponerZonas(activo.zonas, ocupantesPorZona(estado?.habitantes ?? [])),
@@ -152,11 +175,18 @@ export function MundoAvatares({ personalidades, habitantes: habitantesProp, esta
     setCentradoId(null);
   }, [activo.id]);
 
+  // Un solo panel a la vez: abrir la ficha de alguien cierra los sueños, y abrir los sueños suelta la ficha.
   const elegir = useCallback((id: string) => {
     setElegidoId(id);
     setCentradoId(id);
+    setSuenosAbierto(false);
   }, []);
   const cerrarFicha = useCallback(() => setElegidoId(null), []);
+  const alternarSuenos = useCallback(() => {
+    if (!suenosAbierto) setElegidoId(null);
+    setSuenosAbierto(!suenosAbierto);
+  }, [suenosAbierto]);
+  const cerrarSuenos = useCallback(() => setSuenosAbierto(false), []);
   const pausar = useCallback(() => setPausado(true), []);
   const reanudar = useCallback(() => setPausado(false), []);
 
@@ -191,6 +221,7 @@ export function MundoAvatares({ personalidades, habitantes: habitantesProp, esta
           centradoId={centradoId}
           onCentrar={(id) => setCentradoId(id)}
         />
+        <BotonSonar abierto={suenosAbierto} alAlternar={alternarSuenos} sonando={suenos.enCurso !== null} />
         {modo3D && <BotonesEntradaXR xr={xr} />}
       </header>
 
@@ -231,7 +262,7 @@ export function MundoAvatares({ personalidades, habitantes: habitantesProp, esta
             <div className="pointer-events-none absolute bottom-2 left-2 z-10 w-[min(26rem,calc(100%-1rem))]">{avisos}</div>
 
             {/* Crónica lateral: solo en pantallas anchas y mientras no hay una ficha abierta. */}
-            {estado && !agenteElegido && (
+            {estado && !agenteElegido && !suenosAbierto && (
               <aside
                 className="pointer-events-auto absolute right-3 top-3 z-20 hidden max-h-[calc(100%-1.5rem)] w-[22rem] max-w-[40vw] flex-col gap-2 overflow-hidden rounded-2xl border border-white/15 bg-[rgba(8,12,24,0.66)] p-3 backdrop-blur-xl lg:flex"
                 aria-label="Crónica del mundo"
@@ -267,6 +298,12 @@ export function MundoAvatares({ personalidades, habitantes: habitantesProp, esta
           <PanelCristal titulo={agenteElegido.nombre} subtitulo={ETIQUETA_BOT_IA} alCerrar={cerrarFicha}>
             {/* Sin `alCerrar`: la X es la del panel; si no, salían dos. */}
             <FichaAgente agente={agenteElegido} />
+          </PanelCristal>
+        )}
+
+        {suenosAbierto && !agenteElegido && (
+          <PanelCristal titulo="Sueños" subtitulo="Imaginación de agentes · Bot de IA" alCerrar={cerrarSuenos} etiquetaCerrar="Cerrar los sueños">
+            <PanelSuenos uso={suenos} agentes={visibles} descansando={descansando} zonaNombre={zonaSuenos?.nombre ?? "Sueños"} />
           </PanelCristal>
         )}
       </div>

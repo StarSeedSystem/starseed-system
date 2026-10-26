@@ -933,6 +933,15 @@ export interface AstrauraChatRequest {
    */
   agentId?: string;
   /**
+   * (Ola 1025U · U4 · sueños del Mundo de los avatares) true cuando el turno lo habla un AGENTE con su propio
+   * prompt y el resultado va a un texto compartido con otros agentes: no se mezclan en él la personalidad activa de
+   * la cuenta, su contexto personal (perfiles, mensajes, archivos…), el contexto de Aurora (secciones del OS, pantalla
+   * actual, voz, habilidades) ni nada que invite al modelo a actuar «en nombre del usuario». Sin esto, lo personal de
+   * la persona podría acabar escrito en un sueño de un agente de grupo o público. Ausente/false = comportamiento de
+   * siempre.
+   */
+  soloAgente?: boolean;
+  /**
    * Configuración POR CHAT del menú unificado de Astraura (Adenda 71-bis).
    * Leída de aurora_conversations.meta.config por el llamador y pasada aquí
    * para que las opciones elegidas (modelo, skills, conexiones, sentidos,
@@ -1415,7 +1424,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // ── Capacidades activas (skills.ts) ──
   // Filtro POR CHAT del menú unificado (Adenda 71-bis fix-20): si este chat
   // eligió habilidades concretas, el LLM solo recibe esas (no todas globales).
-  const capText = skillsSystemPrompt(cc?.skills && cc.skills.length ? cc.skills : undefined);
+  const capText = req.soloAgente ? "" : skillsSystemPrompt(cc?.skills && cc.skills.length ? cc.skills : undefined);
   // ── Personalidad activa (Adenda 63 §11) ── resuelta por contexto con
   // prioridad chat > cerebro > sección (ruta de red actual) > global, y
   // compilada a un bloque en español. Tolerante: si nada está activo o algo
@@ -1427,7 +1436,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   try {
     const section = typeof window !== "undefined" ? sectionFromPath(window.location.pathname) : undefined;
     persona = resolvePersonalityForContext({ section, chatId: req.chatId, brainId: req.brainId });
-    if (persona) personaText = compilePersonalityPrompt(persona);
+    if (persona && !req.soloAgente) personaText = compilePersonalityPrompt(persona);
   } catch { /* defensivo: sin personalidad, Aurora sigue igual */ }
   // (Ola 1003 · §19) Capas EFECTIVAS de esta petición: cuenta → personalidad →
   // agente. Se calcula UNA vez con los ajustes guardados por entidad; si algo
@@ -1443,8 +1452,10 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   );
   let ctxText = "";
   try {
-    const provLine = await activeProvidersLine().catch(() => "");
-    ctxText = [systemContextPrompt(), screenContextLine(), provLine].filter(Boolean).join("\n\n");
+    if (!req.soloAgente) {
+      const provLine = await activeProvidersLine().catch(() => "");
+      ctxText = [systemContextPrompt(), screenContextLine(), provLine].filter(Boolean).join("\n\n");
+    }
   } catch { /* defensivo */ }
   // Estado REAL de la voz (Adenda 87 · anti-alucinación de voz): una línea que
   // dice qué motor habla AHORA de verdad (OpenVoice/OmniVoice por defecto,
@@ -1454,7 +1465,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // interno; este es un cinturón extra) para NUNCA bloquear la respuesta.
   let voiceStateText = "";
   try {
-    voiceStateText = await withTimeout(describeVoiceStateForPrompt(), 2000, "estado de voz").catch(() => "");
+    if (!req.soloAgente) voiceStateText = await withTimeout(describeVoiceStateForPrompt(), 2000, "estado de voz").catch(() => "");
   } catch { /* defensivo: sin estado de voz, Aurora sigue igual */ }
   // Contexto TOTAL del usuario (perfiles, grupos, archivos, publicaciones, mensajes
   // sin cuerpo, notificaciones, recordatorios, escritorios, espacios) — SOLO si el
@@ -1465,7 +1476,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     const ucSettings = getUserContextSettings();
     // (Ola 1003 · §19) manda la capa EFECTIVA de contexto personal (cuenta →
     // personalidad → agente), que puede apagarlo solo para esta entidad.
-    if (capasEf.contextoPersonal) {
+    if (capasEf.contextoPersonal && !req.soloAgente) {
       userCtxText = await withTimeout(buildUserContext(ucSettings.defaultLevel), 3500, "contexto de usuario").catch(() => "");
     }
   } catch { /* defensivo: Aurora sigue funcionando sin contexto */ }
@@ -1515,16 +1526,18 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // (sin cambios). Función pura y testeada: `local-158-context.ts`.
   let messages158 = messages;
   try {
-    const activeSkillLabels = activeCapabilities()
-      .filter((cap) => !cc?.skills?.length || cc.skills.includes(cap.id))
-      .map((cap) => cap.label);
+    const activeSkillLabels = req.soloAgente
+      ? []
+      : activeCapabilities()
+          .filter((cap) => !cc?.skills?.length || cc.skills.includes(cap.id))
+          .map((cap) => cap.label);
     const connectorNames158 = cc?.connections?.length
       ? cc.connections
           .map((id) => findOssService(id))
           .filter((s): s is NonNullable<typeof s> => !!s)
           .map((s) => s.name || s.id)
       : [];
-    const personalityNames158 = persona?.name ? [persona.name] : [];
+    const personalityNames158 = persona?.name && !req.soloAgente ? [persona.name] : [];
     const compact158Text = buildLocal158CompactContext({
       personalityNames: personalityNames158,
       skillLabels: activeSkillLabels,
