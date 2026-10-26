@@ -284,6 +284,31 @@ describe("cliente Chatterbox", () => {
     expect(m.medidas.filter((x) => x.tipo === "primer-sonido")).toHaveLength(1);
   });
 
+  it("(SGO1024B) si el orquestador dice que NO es el primer trozo, no anota «primer-sonido»", async () => {
+    const m = montar({ local: "vivo" });
+    const r = await sintetizarChatterbox("Mi segundo trozo del mensaje.", {
+      idioma: "es-ES",
+      primerSonidoDelTurno: false,
+    }, m.deps);
+    expect(r.via).toBe("local");
+    expect(m.medidas.filter((x) => x.tipo === "primer-sonido")).toHaveLength(0);
+    expect(m.medidas.find((x) => x.tipo === "tiempo-real-voz")?.idioma).toBe("es");
+  });
+
+  it("(SGO1024B) el primer trozo que marca el orquestador mide aunque la identidad ya diga «habló»", async () => {
+    setVoiceIdentity(identidadMensaje(true));
+    expect(turnoSinPrimerSonido()).toBe(false);
+    const m = montar({ local: "vivo" });
+    const r = await sintetizarChatterbox("Hola otra vez.", {
+      idioma: "es",
+      primerSonidoDelTurno: true,
+    }, m.deps);
+    expect(r.via).toBe("local");
+    const primeras = m.medidas.filter((x) => x.tipo === "primer-sonido");
+    expect(primeras).toHaveLength(1);
+    expect(primeras[0].idioma).toBe("es");
+  });
+
   it("(SGO1024B) una identidad congelada de OTRO motor no apaga la medida del turno propio", async () => {
     const m = montar({ local: "vivo" });
     setVoiceIdentity(identidadMensaje(true, "openvoice2"));
