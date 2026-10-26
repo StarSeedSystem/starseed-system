@@ -312,4 +312,112 @@ export const FICHAS_REPOS_OS: LibraryPackage[] = [
             corre_aqui: false,
         },
     },
+    {
+        id: "repo-soup",
+        kind: "project",
+        name: "Soup · afinar modelos desde un YAML (fábrica de adaptadores)",
+        description:
+            "Programa de línea de órdenes en Python (Apache-2.0) que afina modelos de lenguaje desde UN archivo YAML: SFT, " +
+            "preferencias (DPO, ORPO, KTO, SimPO, IPO), aprendizaje por refuerzo (GRPO, PPO), LoRA y QLoRA; los evalúa " +
+            "(`soup eval`, `soup ab`), diagnostica el entorno (`soup doctor`), exporta a GGUF (`soup export --format gguf " +
+            "--quant q4_k_m`) y los sirve con una API compatible con OpenAI (`soup serve`) y un panel local (`soup ui`, " +
+            "puerto 7860). En StarSeed OS es la tercera fábrica del aprendizaje continuo, junto a QVAC y onebitllms: sirve " +
+            "para que Astraura se automejore (sistemas privados y públicos), para dar más capacidad a las capas de conciencia " +
+            "y para personalizar modelos, agentes, personalidades y bots con adaptadores. Entrena SOLO donde hay GPU " +
+            "(CUDA, o Apple Silicon con memoria de sobra): la Mac de 8 GB y el A1 de Oracle (sin GPU) no entrenan con " +
+            "él, solo preparan y validan datos y configuración; el entrenamiento va a la GPU gratuita de Kaggle o Colab.",
+        icon: "FlaskConical",
+        tags: ["aprendizaje", "fine-tuning", "lora", "qlora", "gguf", "dpo", "astraura", "personalizacion", "python", "gpu"],
+        // Canal de commits: Soup publica etiquetas (v0.76.1) y paquetes en PyPI, pero sus «Releases» de GitHub van
+        // semanas por detrás (la última marcada es la v0.73.3) y la API de etiquetas ordena por nombre, no por versión
+        // (v0.9.0 saldría antes que v0.76.1). El SHA de main es la única señal fiable; `versionPublicada` lleva la de PyPI.
+        version: "51777d1",
+        author: "MakazhanAlpamys",
+        sourceRepoId: "starseed-labs",
+        free: true,
+        comingSoon: true,
+        payload: {
+            upstream: "https://github.com/MakazhanAlpamys/Soup",
+            canal: "commits",
+            licencia: "Apache-2.0",
+            versionPublicada: "0.76.1 (PyPI, 2026-10-14; etiqueta v0.76.1)",
+            requisitos:
+                "Python 3.11 o 3.12 (la 0.76.1 de PyPI no instala en 3.13). GPU CUDA recomendada; Apple Silicon (MPS) soportado; " +
+                "CPU solo experimental y muy lenta. QLoRA: 8 GB de VRAM para 7B, 16 GB para ~14B, 24 GB para ~34B. " +
+                "Instalación con `pip install \"soup-cli[train]\"` (comillas dobles).",
+            corre_aqui: false,
+            note:
+                "Llega con la ola 1025U: el plan (fabricas.ts) elige la fábrica por medio, genera el soup.yaml con solo claves " +
+                "documentadas (la 0.75 rechaza las desconocidas y la 0.76 los ajustes que no aplicaba: `soup doctor --config " +
+                "soup.yaml` antes de actualizar) y lista las órdenes y el guion para Kaggle o Colab. El primer entrenamiento real " +
+                "falta. Un adaptador de Soup se entrena sobre una base estándar de Hugging Face: no se carga sobre el BitNet 1.58.",
+        },
+    },
+    {
+        id: "repo-hermes3d",
+        kind: "project",
+        name: "Hermes3D · oficina 3D para agentes de IA",
+        description:
+            "Estudio web libre (MIT; Next.js, React Three Fiber y Phaser) que pone a tus agentes de IA en una oficina 3D: los " +
+            "ves trabajar, hacer reuniones, revisar código y vigilar la calidad, y se conecta a un gateway (Hermes con su " +
+            "adaptador, un runtime HTTP propio o una demostración). El programa en sí no corre dentro del OS, pero sus ideas " +
+            "ya están portadas, con su licencia y atribución: salas navegables con ocupantes que muestran actividad real y un " +
+            "backend «gateway-first» que posee el estado (la oficina de Genesis y el Mundo de los avatares). Abrir lleva al " +
+            "Mundo de los avatares.",
+        icon: "Move3d",
+        tags: ["3d", "agentes", "oficina", "avatares", "mundo", "genesis", "react-three-fiber", "nextjs"],
+        // Sin lanzamientos: solo una etiqueta v1.0.0 antigua y main avanza. Se sigue por commits (SHA de main).
+        version: "beb7629",
+        author: "iamlukethedev",
+        sourceRepoId: "starseed-labs",
+        free: true,
+        payload: {
+            upstream: "https://github.com/iamlukethedev/Hermes3D",
+            canal: "commits",
+            licencia: "MIT",
+            requisitos:
+                "Node 20+ y npm 10+ (recomendados) y un gateway: Hermes con `npm run hermes-adapter`, un runtime HTTP propio o la " +
+                "demostración (`npm run demo-gateway`). Voz opcional con ElevenLabs (clave del propio usuario). No se instala en el OS.",
+            route: "/mundo-avatares",
+            corre_aqui: false,
+            note:
+                "Las ideas están en src/components/astraura/genesis/oficina/ (con LICENSE-hermes3d.md) y en el Mundo de los " +
+                "avatares; el código del programa no se copió. La ficha existe para seguir su versión y atribuirlo.",
+        },
+    },
+    {
+        id: "repo-ecc",
+        kind: "project",
+        name: "ECC · catálogo de agentes y skills para Claude Code, Codex y OpenCode",
+        description:
+            "Sistema de optimización del arnés de agentes (MIT) con 71 agentes y 311 skills (README del 25-10-2026), comandos, hooks, " +
+            "reglas, memoria y aprendizaje continuo para Claude Code, Codex, OpenCode y Cursor, más el escáner de seguridad AgentShield. Instalarlo " +
+            "entero carga unos 47,6 k tokens fijos en cada sesión; por eso en la Mac de la fundación solo está una selección, " +
+            "`ecc-starseed` (24 skills y 12 agentes, ~3,7 k tokens fijos), instalada como plugin de Claude Code. Es una " +
+            "herramienta de quienes escriben el OS (Claude Code y los agentes de MetaGenesis), no una función del OS: instalar " +
+            "la ficha solo guarda el enlace al repositorio.",
+        icon: "Boxes",
+        tags: ["agentes", "skills", "claude-code", "codex", "opencode", "metagenesis", "tokens", "herramientas"],
+        version: "2.2.3",
+        author: "affaan-m",
+        sourceRepoId: "starseed-labs",
+        free: true,
+        payload: {
+            upstream: "https://github.com/affaan-m/ECC",
+            canal: "releases",
+            // Las etiquetas de sus releases son `vX.Y.Z` (v2.2.3); existe una candidata `v2.0.0-rc.1` marcada como
+            // pre-lanzamiento, que `releases/latest` ya excluye.
+            patronRelease: "v*",
+            externalUrl: "https://github.com/affaan-m/ECC",
+            licencia: "MIT",
+            requisitos:
+                "Node.js 18+ para `npx ecc-universal@2.2.3 setup`; el plugin de Claude Code pide Git y Claude Code 2.1+. " +
+                "Perfil ligero: `npx ecc-universal@2.2.3 install --profile minimal --target claude`. Las reglas son contexto siempre " +
+                "cargado: empezar por `rules/common` y un solo paquete de lenguaje.",
+            corre_aqui: false,
+            note:
+                "No corre dentro del OS. En la Mac de la fundación hay instalada solo la selección `ecc-starseed`; el catálogo " +
+                "entero no, por su coste fijo de contexto por sesión.",
+        },
+    },
 ];

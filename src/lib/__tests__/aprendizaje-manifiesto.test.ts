@@ -3,6 +3,7 @@ import {
   AGENTES_APRENDIZAJE,
   FASES_APRENDIZAJE,
   FUENTES_158,
+  FUENTE_SOUP,
   progresoAprendizaje,
 } from "../astraura/aprendizaje/manifiesto";
 
@@ -41,5 +42,24 @@ describe("manifiesto de aprendizaje continuo 1.58", () => {
     const p = progresoAprendizaje();
     expect(p).toBeGreaterThanOrEqual(0);
     expect(p).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("Soup como fábrica en el manifiesto", () => {
+  it("la fase de la fábrica tiene los hitos de Soup, con ids únicos y la parte de GPU aún pendiente", () => {
+    const fabrica = FASES_APRENDIZAJE.find((f) => f.id === "fabrica")!;
+    const soup = fabrica.hitos.filter((h) => h.id.startsWith("fabrica-soup"));
+    expect(soup.map((h) => h.id)).toEqual(["fabrica-soup", "fabrica-soup-destino", "fabrica-soup-gpu"]);
+    expect(soup.find((h) => h.id === "fabrica-soup")?.estado).toBe("hecho");
+    expect(soup.find((h) => h.id === "fabrica-soup-destino")?.estado).toBe("hecho");
+    // El primer entrenamiento real no se ha hecho: no se marca como hecho.
+    expect(soup.find((h) => h.id === "fabrica-soup-gpu")?.estado).toBe("pendiente");
+  });
+
+  it("Soup se lista como fuente verificada aparte, sin cambiar las cuatro originales", () => {
+    expect(FUENTES_158).toHaveLength(4);
+    expect(FUENTES_158.map((f) => f.url)).not.toContain(FUENTE_SOUP.url);
+    expect(FUENTE_SOUP.url).toBe("https://github.com/MakazhanAlpamys/Soup");
+    expect(FUENTE_SOUP.url.startsWith("https://")).toBe(true);
   });
 });

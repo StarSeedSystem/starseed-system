@@ -66,7 +66,7 @@ export const AGENTES_APRENDIZAJE: AgenteAprendizaje[] = [
   {
     id: "entrenador",
     nombre: "Entrenador",
-    rol: "Fabrica adaptadores LoRA GGUF por personalidad con QVAC llama-finetune-lora en Metal (por turnos de memoria); coordina el refresco del modelo base con onebitllms en GPU de nube.",
+    rol: "Fabrica adaptadores LoRA GGUF por personalidad con QVAC llama-finetune-lora en Metal (por turnos de memoria); con Soup, en una GPU gratuita, los de bases estándar y los de preferencias (DPO, ORPO, KTO); coordina el refresco del modelo base con onebitllms en GPU de nube.",
     modeloPreferido: "bitnet-local",
     entradas: ["corpus curado por personalidad"],
     salidas: ["adaptadores LoRA GGUF", "candidatos de refresco del base"],
@@ -101,7 +101,7 @@ export const AGENTES_APRENDIZAJE: AgenteAprendizaje[] = [
   },
 ];
 
-const hito = (id: string, titulo: string): HitoAprendizaje => ({ id, titulo, estado: "pendiente" });
+const hito = (id: string, titulo: string, estado: EstadoTrabajo = "pendiente"): HitoAprendizaje => ({ id, titulo, estado });
 
 /** Las cinco capas del sistema, como fases con su ola del enjambre (268-272). */
 export const FASES_APRENDIZAJE: FaseAprendizaje[] = [
@@ -122,6 +122,11 @@ export const FASES_APRENDIZAJE: FaseAprendizaje[] = [
     hitos: [
       hito("fabrica-qvac", "QVAC llama-finetune-lora en Metal, por turnos de memoria en la Mac"),
       hito("fabrica-nube", "Refresco del base con onebitllms en GPU de nube (cuentas de Alex)"),
+      // Ola 1025U: la fábrica es intercambiable (QVAC · Soup · onebitllms). Soup cubre las bases estándar y las
+      // preferencias (DPO, ORPO, KTO); entrena solo donde hay GPU (Kaggle o Colab), la Mac y el A1 preparan.
+      hito("fabrica-soup", "Fábrica Soup: elección honesta por medio, soup.yaml validado y órdenes exactas (fabricas.ts, sin entrenar)", "hecho"),
+      hito("fabrica-soup-destino", "Adaptador registrado por sujeto y ámbito (privado o colectivo), con consentimiento y sin memoria personal en lo público", "hecho"),
+      hito("fabrica-soup-gpu", "Primer adaptador real entrenado con Soup en una GPU gratuita (Kaggle o Colab) y pasado por la puerta de regresión"),
     ],
   },
   {
@@ -182,6 +187,17 @@ export const FUENTES_158: FuenteAprendizaje[] = [
     papel: "Recetas de LoRA rango 16, limpieza de trazas, split 80/10/10 y smoke tests antes de producción.",
   },
 ];
+
+/**
+ * Soup, la tercera fábrica (Ola 1025U). No entra en `FUENTES_158` (las cuatro verificadas el 2026-09-07):
+ * verificada el 2026-10-25 contra su README, sus docs y PyPI (soup-cli 0.76.1).
+ */
+export const FUENTE_SOUP: FuenteAprendizaje = {
+  nombre: "Soup (soup-cli)",
+  url: "https://github.com/MakazhanAlpamys/Soup",
+  licencia: "Apache-2.0",
+  papel: "Fine-tuning desde un YAML (SFT, DPO, ORPO, KTO; LoRA y QLoRA), evaluación y export a GGUF: la fábrica de adaptadores para bases estándar y de preferencias, solo en GPU (Kaggle o Colab); la Mac de 8 GB y el A1 preparan y validan.",
+};
 
 /** Proporción de hitos hechos sobre el total, entre 0 y 1. */
 export function progresoAprendizaje(): number {

@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { fichasIaConUpstreamGitHub } from "../fuentes-ia-locales";
@@ -126,5 +128,85 @@ describe("tanda del 2026-10-24 (Cloudroom, servidor de agentes local y en la nub
         const cr = FICHAS_REPOS_OS.find((p) => p.id === "repo-cloudroom")!;
         expect(cr.payload.route).toBe("/metagenesis");
         expect(FICHAS_REPOS_OS.map((p) => p.id)).toContain("repo-cloudroom");
+    });
+});
+
+describe("tanda del 2026-10-25 (Soup, Hermes3D y ECC)", () => {
+    it("Soup va «próximamente»: Apache-2.0, comprobación por commits, requisitos honestos y sin ruta", () => {
+        const soup = FICHAS_REPOS_OS.find((p) => p.id === "repo-soup")!;
+        expect(soup.kind).toBe("project");
+        expect(soup.comingSoon).toBe(true);
+        expect(soup.payload.upstream).toBe("https://github.com/MakazhanAlpamys/Soup");
+        expect(soup.payload.canal).toBe("commits");
+        expect(soup.payload.licencia).toBe("Apache-2.0");
+        // El canal de commits usa el SHA corto de main; la versión de PyPI va aparte, a la vista.
+        expect(soup.version).toMatch(/^[0-9a-f]{7}$/);
+        expect(String(soup.payload.versionPublicada)).toMatch(/0\.76\.1/);
+        // No promete nada que no corra aquí.
+        expect(soup.payload.corre_aqui).toBe(false);
+        expect(soup.payload.route).toBeUndefined();
+        expect(soup.payload.externalUrl).toBeUndefined();
+        const reqs = String(soup.payload.requisitos);
+        expect(reqs).toMatch(/Python 3\.11 o 3\.12/);
+        expect(reqs).toMatch(/no instala en 3\.13/);
+        expect(reqs).toMatch(/pip install "soup-cli\[train\]"/);
+        expect(String(soup.payload.note)).toMatch(/ola 1025U/);
+        expect(String(soup.payload.note)).toMatch(/no se carga sobre el BitNet 1\.58/);
+        expect(soup.description).toMatch(/la Mac de 8 GB y el A1 de Oracle \(sin GPU\) no entrenan/);
+    });
+
+    it("Soup no se instala por error", async () => {
+        const soup = findPackage("repo-soup")!;
+        expect(soup).toBeDefined();
+        const res = await install(soup);
+        expect(res.ok).toBe(false);
+        expect(res.message).toMatch(/próximamente/);
+        expect(isInstalled("repo-soup")).toBe(false);
+    });
+
+    it("Hermes3D sigue los commits de main, es MIT y abre el Mundo de los avatares", async () => {
+        const h = findPackage("repo-hermes3d")!;
+        expect(h.payload.upstream).toBe("https://github.com/iamlukethedev/Hermes3D");
+        expect(h.payload.canal).toBe("commits");
+        expect(h.payload.licencia).toBe("MIT");
+        expect(h.version).toMatch(/^[0-9a-f]{7}$/);
+        expect(h.comingSoon).toBeFalsy();
+        expect(h.payload.corre_aqui).toBe(false);
+        expect(String(h.payload.note)).toMatch(/LICENSE-hermes3d\.md/);
+        const res = await install(h);
+        expect(res.ok).toBe(true);
+        expect(res.action).toBe("route");
+        expect(res.href).toBe("/mundo-avatares");
+        expect(isInstalled("repo-hermes3d")).toBe(true);
+    });
+
+    it("ECC va por releases (v*), es MIT y al instalar guarda el enlace sin fingir que corre en el OS", async () => {
+        const ecc = findPackage("repo-ecc")!;
+        expect(ecc.payload.upstream).toBe("https://github.com/affaan-m/ECC");
+        expect(ecc.payload.canal).toBe("releases");
+        expect(ecc.payload.licencia).toBe("MIT");
+        expect(ecc.version).toBe("2.2.3");
+        // El patrón de las etiquetas de sus releases es informativo: no fuerza el canal de etiquetas.
+        expect(ecc.payload.patronRelease).toBe("v*");
+        expect(ecc.payload.patronTag).toBeUndefined();
+        expect(`v${ecc.version}`).toMatch(/^v\d+\.\d+\.\d+$/);
+        expect(ecc.payload.corre_aqui).toBe(false);
+        expect(String(ecc.payload.note)).toMatch(/ecc-starseed/);
+        expect(ecc.description).toMatch(/24 skills y 12 agentes/);
+        const res = await install(ecc);
+        expect(res.ok).toBe(true);
+        expect(res.action).toBe("external");
+        expect(res.href).toBe("https://github.com/affaan-m/ECC");
+    });
+
+    it("las tres entran en la comprobación de versión upstream y tienen un icono que existe", () => {
+        const ids = fichasIaConUpstreamGitHub(FICHAS_REPOS_OS).map((p) => p.id);
+        expect(ids).toEqual(expect.arrayContaining(["repo-soup", "repo-hermes3d", "repo-ecc"]));
+        const fuente = readFileSync(join(process.cwd(), "src/components/library/package-store.tsx"), "utf8");
+        const mapa = fuente.slice(fuente.indexOf("const ICON_MAP"), fuente.indexOf("const IA_TOOLS_REPO_ID"));
+        for (const id of ["repo-soup", "repo-hermes3d", "repo-ecc"]) {
+            const icono = FICHAS_REPOS_OS.find((p) => p.id === id)!.icon;
+            expect(mapa, `${id}: ${icono}`).toMatch(new RegExp(`\\b${icono}\\b`));
+        }
     });
 });
