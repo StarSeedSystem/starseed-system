@@ -102,9 +102,10 @@ export function useTarjetaImagenes(): EstadoTarjetaImagenes & FuncionesTarjetaIm
         semilla: opcion.semilla,
       });
       
-      if (respuesta.ok) {
+      if (respuesta.ok && respuesta.url) {
+        const url = respuesta.url;
         const guardada = await guardarEnBiblioteca({
-          url: respuesta.url,
+          url,
           prompt: "Una imagen de prueba",
           modelo: "sd-turbo",
           semilla: opcion.semilla,
@@ -112,7 +113,7 @@ export function useTarjetaImagenes(): EstadoTarjetaImagenes & FuncionesTarjetaIm
         
         dispatch({ 
           tipo: 'AGREGAR_GENERADA', 
-          payload: { url: respuesta.url, id: guardada.id, opcion } 
+          payload: { url, id: guardada.id, opcion } 
         });
       } else {
         dispatch({ tipo: 'SET_ERROR', payload: "Error al generar la imagen" });
