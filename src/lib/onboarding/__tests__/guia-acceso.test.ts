@@ -108,6 +108,18 @@ describe("zGuia", () => {
     expect(zGuia("boton", true)).toBe(Z_GUIA_HOY);
     expect(zGuia("ajustes", true)).toBe(Z_GUIA_HOY);
   });
+
+  it("con la sesión aún desconocida (null/undefined), también pinta por encima de todo (§6.3)", () => {
+    expect(zGuia("ajustes", null)).toBe(Z_GUIA_SOBRE_ACCESO);
+    expect(zGuia("boton", undefined)).toBe(Z_GUIA_SOBRE_ACCESO);
+  });
+});
+
+describe("modo desconocido", () => {
+  it("mientras no se sepa si hay sesión (null/undefined), no se le quita nada: solo un «no» claro es invitado (§6.3)", () => {
+    expect(modoGuia(null)).toBe("cuenta");
+    expect(modoGuia(undefined)).toBe("cuenta");
+  });
 });
 
 describe("unirVistas", () => {
@@ -125,6 +137,12 @@ describe("unirVistas", () => {
     const contado = unirVistas([Z_GUIA_HOY, Z_GUIA_SOBRE_ACCESO].map(String), []);
     const otraVez = unirVistas(contado, contado);
     expect(otraVez).toEqual(contado);
+  });
+
+  it("acepta marcas que aún no existen (null/undefined) sin romper ni perder", () => {
+    expect(unirVistas(null, undefined)).toEqual([]);
+    expect(unirVistas(["malla"], null)).toEqual(["malla"]);
+    expect(unirVistas(null, ["genesis"])).toEqual(["genesis"]);
   });
 });
 
