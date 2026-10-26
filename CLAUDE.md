@@ -1395,3 +1395,32 @@ mueve allí (`curacion_logica.mover_informes`). Los sueños (`tipo: analisis`) s
 en `~/.local/bin`) y reiniciar el vigilante (`com.starseed.vigilante`).
 Síntomas: `/tmp/enjambre.log` con «no arranco» + «ajeno:»; el Chat Director con «el orquestador se negó a arrancar y
 salió con error» cada 10 min y ninguna línea de «estorbo sin seguimiento apartado».
+
+
+### 23. «Hay muy pocos agentes»: jobs de uno, un tope del día que se acababa a mediodía y dos directores que contaban distinto (2026-10-26 · CAP1026)
+
+Medido a las 09:00 UTC (Genesis enseñaba 5 agentes con 307 listas) y otra vez al volver la Mac a las 12:00 (hora de la Mac):
+- **A** · `director-nube` elegía «Sesiones de Claude Code en la nube» (1 agente por job) con GitHub lleno y lanzaba
+  igualmente un job de GitHub con `--trabajadores 1`. Ahora solo elige lo que sabe lanzar (`LANZABLES = {"nube-gh"}`).
+- **B** · lo integrado en una rama `nube/<run>` volvía a pendiente y a la nube (solo se miraba el último run). Ahora se
+  combinan los veredictos de los 16 últimos runs: queda «integrada · nube», traer_nube la trae y, a las 24 h sin
+  llegar a main, pasa a Bloqueadas con el motivo.
+- **C** · los 3 trabajadores del A1 no contaban: `contenedores_nube.vivos_oracle` los lee de `~/.starseed/oracle.json`.
+- **D** · `TOPE_DIA = 30` se alcanzaba TODOS los días desde el 14-10 (el 26, a las 12:00): ahora
+  `tope_dia_por_capacidad` = jobs a la vez del medio lanzable × relevos de 45 min en 24 h (96), con 30 de suelo.
+- **E** · una misma tarea viajaba en 2 o 3 jobs seguidos: el reparto marca «reasignada · nube», pero la foto del
+  orquestador de la Mac (que aún la tiene en su tanda) la deja «pendiente» hasta procesar el «soltar». Ahora
+  `repartir_nube.en_vuelo`: lo que va en una cola-nube de los últimos 75 min no se reenvía. Los envíos gastados
+  así se devolvieron como reaperturas.
+- **F** · los dos directores contaban GitHub distinto: el catálogo decía 3 jobs fijos y «Buscar más capacidad»
+  «escritores × 2» según una sonda de UNA llamada. Con openrouter y xkiro marcados «sin cupo hasta las 18:00», la
+  sonda los dio aptos y salieron 8 jobs en 4 minutos (28 agentes); a las 12:08 opencode Zen cayó por 429 y quedó
+  nvidia sola para los 28. Ahora los jobs de `nube-gh` salen de los escritores vivos de la salud compartida
+  (`contenedores_nube.capacidad_gh`: 6 agentes por escritor, techo 14 jobs) y en `escritores_en_la_nube` una marca
+  vigente pesa más que la sonda.
+
+**Regla:** más agentes que escritores con cupo no es capacidad: son 429, proveedores apartados 6 h y envíos gastados.
+El número lo dan los escritores vivos; los jobs a la vez salen de ahí y los dos directores leen el mismo.
+El A1 se colgó ese día (SSH «Connection timed out during banner exchange» con Oracle diciendo «RUNNING» y snapd con
+timeouts en el registro): se reinició en suave por la API de Oracle con la palabra de Alex. Síntomas: `oracle_nodo.py
+estado` con «timed out» y `vivos_oracle` 0 durante horas.

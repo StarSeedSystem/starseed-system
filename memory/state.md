@@ -4498,3 +4498,20 @@ SOP: `architecture/protomolecula-ventana.md`, `architecture/protomolecula-gobier
 
 ### Pendiente
 - Partidos y entidades federativas con censo propio (fuera de `os_memberships`): su rol en la ventana es `null`.
+
+
+## 2026-10-26 — CAP1026: más agentes en la nube, contados por los escritores vivos
+**Sesión por:** Claude (Cowork, Opus 5.5) supervisando; el enjambre siguió escribiendo.
+**Resumen ejecutivo:** «Hay muy pocos agentes»: seis arreglos de capacidad en los directores (A-F, CLAUDE.md §23).
+Genesis pasó de 5 agentes a 31 (28 en GitHub, 3 en la Mac); el límite real es ahora el de los escritores con cupo.
+
+### Hecho
+- `ca2658b88` CAP1026 A/B/C · `b085be717` CAP1026D · `d5c3c89fc` CAP1026E/F (235 pruebas del puente en verde).
+- Reinicio suave del A1 colgado (con la palabra de Alex); vuelve con sus servicios.
+- Reaperturas para los envíos duplicados de 10 tareas.
+
+### Pendiente / Próximos pasos
+- Medidor «Agentes» de Genesis (`src/lib/mando/medidores.ts`): contar el A1 desde oracle.json y revisar los
+  «sin proceso» de la Mac (TSC1021Ab).
+- Cloudroom figura con 30 libres cuando su tope del día es 6: el catálogo debería reflejar el presupuesto.
+- Autocuración del A1 colgado (reinicio suave automático) solo si Alex lo autoriza.
