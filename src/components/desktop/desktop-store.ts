@@ -15,6 +15,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import { useSyncExternalStore, useEffect } from "react";
+import { geometriaVentana } from "@/lib/design/composicion";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 
