@@ -10,6 +10,7 @@
 import React from "react";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 import { useGovVote } from "@/hooks/use-gov-vote";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,6 @@ import {
     ArrowUpRight,
     Check,
     ChevronRight,
-    Lock,
     type LucideIcon,
 } from "lucide-react";
 
@@ -259,12 +259,7 @@ export function MiniVote({
                         );
                     })}
                     {needsAuth ? (
-                        <p className="flex items-center gap-1 pt-1 text-[11px] text-muted-foreground">
-                            <Lock className="h-3 w-3" />
-                            <Link href="/login" className="underline cursor-pointer" style={{ color: GOLD }}>
-                                Inicia sesión para registrar tu voto en la red
-                            </Link>
-                        </p>
+                        <AvisoSesion texto="Inicia sesión para registrar tu voto en la red" compacto />
                     ) : (
                         <p className="pt-1 text-[11px] text-muted-foreground">
                             Voto registrado · {total.toLocaleString("es-ES")} participaciones · soberanía directa
