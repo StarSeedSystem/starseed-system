@@ -88,9 +88,23 @@ import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
+// OÍDO AMBIENTAL (earshot · EAR1023B): la decisión pura de si un tramo SIN voz
+// va al servicio de oído de esta neurona (EAR1023A, contrato §3).
+import { decidirEnvioOido } from "@/lib/aurora/sentidos/oido-ambiental";
+import { getActiveSenses } from "@/lib/senses/senses";
 import { cronometroHabla, cronometroOido } from "@/lib/aurora/medidas-voz";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
+
+// ── OÍDO AMBIENTAL (earshot · EAR1023A/B, Alex 2026-10-23) ───────────────────
+/** Umbral de energía (RMS normalizada 0–1): debajo hay silencio y no interesa. */
+const UMBRAL_ENERGIA_OIDO = 0.015;
+/** Separación mínima entre envíos al servicio de oído (no gastar CPU). */
+const INTERVALO_MINIMO_OIDO_S = 30;
+/** Ventana (ms) tras la que el flujo ya NO considera el tramo como voz. */
+const VENTANA_VOZ_MS = 1500;
+/** Servicio de oído (EAR1023A): POST /oir en la neurona que oye, solo local. */
+const URL_SERVICIO_OIDO = "http://127.0.0.1:8081/oir";
 
 /** La interfaz mínima que el motor de oído fabrica: Web Speech nativa o el
  * oído en FLUJO (Phonon-2), que imita el mismo ciclo de vida. */
@@ -2180,6 +2194,10 @@ export function useAuroraEngine(): AuroraEngine {
     let audioCtx: AudioContext | null = null;
     let mediaStream: MediaStream | null = null;
     let procesador: ScriptProcessorNode | null = null;
+    // Oído ambiental: última vez que el FLUJO llevó voz (parcial/final) y última
+    // vez que se mandó un fragmento al servicio de oído.
+    let ultimaVozFlujo = 0;
+    let ultimoEnvioOido = 0;
 
     /** Medio-dúplex: suelta micro, contexto de audio y flujo, sin tedio. */
     const soltarAudio = () => {
@@ -2266,6 +2284,42 @@ export function useAuroraEngine(): AuroraEngine {
       }
     };
 
+    /**
+     * OÍDO AMBIENTAL (earshot · EAR1023B): decide, por tramo, si la energía
+     * aporta y el flujo NO lleva voz, y entonces manda UN fragmento al
+     * servicio de oído de esta neurona (EAR1023A: solo con los sentidos
+     * encendidos y la escucha activa; nada sale de las neuronas). Sin destino,
+     * sin registro y sin excepciones: nunca tumba la escucha de voz.
+     */
+    const oidoAmbiental = (frame: Float32Array) => {
+      try {
+        const ahora = Date.now();
+        let suma = 0;
+        for (const s of frame) suma += s * s;
+        const energia = Math.min(1, Math.sqrt(suma / (frame.length || 1)) * 2.2);
+        const decision = decidirEnvioOido({
+          sentidos: {
+            encendidos: getActiveSenses("aurora").includes("microfono"),
+            siempreEscuchando: !!keepAliveRef.current,
+          },
+          hayVoz: ahora - ultimaVozFlujo < VENTANA_VOZ_MS,
+          energia,
+          umbralEnergia: UMBRAL_ENERGIA_OIDO,
+          tiempoDesdeUltimoEnvio: ultimoEnvioOido
+            ? (ahora - ultimoEnvioOido) / 1000
+            : Number.POSITIVE_INFINITY,
+          intervaloMinimoSegundos: INTERVALO_MINIMO_OIDO_S,
+        });
+        if (!decision.enviar) return;
+        ultimoEnvioOido = ahora;
+        void fetch(URL_SERVICIO_OIDO, {
+          method: "POST",
+          headers: { "Content-Type": "audio/x-pcm16" },
+          body: prepararAudio(frame, audioCtx ? audioCtx.sampleRate : 16000).buffer as ArrayBuffer,
+        }).catch(() => { /* sin servicio de oído en esta neurona: no pasa nada */ });
+      } catch { /* la decisión ambiental nunca tumba la escucha */ }
+    };
+
     const rec: SpeechRecognitionLike = {
       lang: activeRef.current.voice?.lang || "es-MX",
       interimResults: true,
@@ -2318,8 +2372,8 @@ export function useAuroraEngine(): AuroraEngine {
           flujo = abrirFlujoOido({
             url: `${protocolo}://${window.location.host}/v1/audio/stream`,
             WebSocketImpl: WebSocket,
-            alParcial: (texto: string) => procesar("", texto),
-            alFinal: (texto: string) => procesar(texto, ""),
+            alParcial: (texto: string) => { ultimaVozFlujo = Date.now(); procesar("", texto); },
+            alFinal: (texto: string) => { ultimaVozFlujo = Date.now(); procesar(texto, ""); },
             alCerrar: () => {
               // El servidor atendió su ÚNICO flujo y lo cerró: reconexión NUNCA
               // automática. Se marca caído; el siguiente reenganche elige tramos.
@@ -2335,12 +2389,14 @@ export function useAuroraEngine(): AuroraEngine {
           });
           procesador.onaudioprocess = (ev: AudioProcessingEvent) => {
             if (stopped || !flujo) return;
+            const frame = ev.inputBuffer.getChannelData(0);
             try {
               flujo.enviar(prepararAudio(
-                ev.inputBuffer.getChannelData(0),
+                frame,
                 audioCtx ? audioCtx.sampleRate : 16000,
               ));
             } catch { /* un envío roto no tumba la escucha */ }
+            oidoAmbiental(frame);
           };
         }).catch((err: unknown) => {
           if (!stopped) soltarAudio();
