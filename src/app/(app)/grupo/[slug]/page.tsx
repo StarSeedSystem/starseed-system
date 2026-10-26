@@ -22,6 +22,7 @@ import { GroupJoinRequests } from "@/components/social/group-join-requests";
 import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
 import { libraryRef } from "@/lib/library/entity-library";
+import { anunciarContexto } from "@/lib/protomolecula/peticion/contexto";
 import { useOsEntity, useOsPosts, useOsPostCount, useMembership, useEntityOwner } from "@/hooks/use-os-entities";
 // (Adenda 220) Bienvenida unificada + estados vacíos con acción.
 import { EntityWelcome, type WelcomeStep } from "@/components/social/entity-welcome";
@@ -517,6 +518,14 @@ function GrupoPageContent() {
         if (visibleTabs.length === 0) return;
         if (!visibleTabs.some((t) => t.id === activeTab)) setActiveTab(visibleTabs[0].id);
     }, [visibleTabs, activeTab]);
+
+    // Petición a la Protomolécula (Ola 1026P · P3): la pantalla dice qué enseña, para poder pedirle a Astraura sin salir de ella.
+    // El gobierno que manda aquí es el del propio grupo.
+    useEffect(() => {
+        if (!group?.slug) return;
+        const grupo = { tipo: "grupo" as const, id: group.slug, nombre: group.name };
+        return anunciarContexto({ entidad: grupo, gobernadaPor: grupo, ambito: "grupo" });
+    }, [group?.slug, group?.name]);
 
     if (loading) {
         return (

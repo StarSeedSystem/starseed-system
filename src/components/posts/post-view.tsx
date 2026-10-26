@@ -35,6 +35,7 @@ import { EtiquetaBotIA } from "@/components/agentes-red/etiqueta-bot-ia";
 import { MenuBotIA } from "@/components/agentes-red/menu-bot-ia";
 import { marcaBotDe } from "@/lib/agentes-red/marca-bot";
 import { getCurrentUserId } from "@/lib/os-social";
+import { anunciarContexto } from "@/lib/protomolecula/peticion/contexto";
 import { useConfirm, usePrompt } from "@/components/ui/confirm-dialog";
 
 // ----------------------------- Helpers UI -----------------------------------
@@ -284,6 +285,24 @@ export default function PostView({ postId }: { postId: string }) {
             setReach(await reachOf(post));
         })();
     }, [post]);
+
+    // Petición a la Protomolécula (Ola 1026P · P3): la publicación dice qué enseña, para pedirle a Astraura sin salir de ella.
+    // Lo propio se rige como personal (su autoría decide); lo ajeno, como público, o por la página donde vive.
+    const postIdActual = post?.id ?? null;
+    const autorId = post?.author_id ?? null;
+    const tituloPost = typeof post?.content?.title === "string" ? post.content.title : undefined;
+    const paginaDelPost = post?.post_references?.destinations?.find((d) => d.kind === "page") ?? null;
+    const paginaId = paginaDelPost?.id ?? null;
+    const paginaNombre = paginaDelPost?.label ?? undefined;
+    useEffect(() => {
+        if (!postIdActual) return;
+        const propia = !!currentUserId && autorId === currentUserId;
+        return anunciarContexto({
+            entidad: { tipo: "publicacion", id: postIdActual, ...(tituloPost ? { nombre: tituloPost } : {}) },
+            ambito: propia ? "personal" : "publica",
+            ...(paginaId && !propia ? { gobernadaPor: { tipo: "pagina" as const, id: paginaId, ...(paginaNombre ? { nombre: paginaNombre } : {}) } } : {}),
+        });
+    }, [postIdActual, autorId, currentUserId, tituloPost, paginaId, paginaNombre]);
 
     const refresh = useCallback(async () => {
         const [p, c] = await Promise.all([loadPost(postId), commentTree(postId)]);

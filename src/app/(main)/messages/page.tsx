@@ -43,6 +43,7 @@ import { describirSilencio } from "@/components/messages/marco/formato-tiempo";
 import { ACENTO, pildoraFantasma } from "@/components/messages/marco/estilos";
 import { useAjustesMensajeria } from "@/lib/mensajeria/ajustes-store";
 import { useContactos } from "@/lib/contactos/store";
+import { anunciarContexto } from "@/lib/protomolecula/peticion/contexto";
 import {
     createDm, listThreads, markRead, subscribeThreadsList, type DmAttachment, type DmThreadSummary,
 } from "@/lib/messages/dm";
@@ -273,6 +274,15 @@ function MessagesContent() {
     }, [toHandle, authReady, userId, reloadThreads]);
 
     const selectedThread = threads.find((t) => t.id === selectedId) ?? null;
+
+    // Petición a la Protomolécula (Ola 1026P · P3): el chat abierto dice qué enseña, para pedirle a Astraura sin salir de él.
+    // Es del ámbito personal: el nombre del chat no viaja al modelo, y lo que se envía lo envía la propia persona.
+    const chatAbiertoId = selectedThread?.id ?? null;
+    const chatAbiertoNombre = selectedThread ? threadTitle(selectedThread, profiles, userId) : undefined;
+    useEffect(() => {
+        if (!chatAbiertoId) return;
+        return anunciarContexto({ entidad: { tipo: "mensaje", id: chatAbiertoId, ...(chatAbiertoNombre ? { nombre: chatAbiertoNombre } : {}) }, ambito: "personal" });
+    }, [chatAbiertoId, chatAbiertoNombre]);
 
     // Perfiles de los miembros del chat abierto (ThreadView los fusiona con los suyos).
     const perfilesMiembros = useMemo(() => {

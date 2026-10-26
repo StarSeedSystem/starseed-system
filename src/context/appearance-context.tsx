@@ -23,6 +23,8 @@ import "@/lib/design/theme-catalog";
 import { appliedTheme, applyTheme as applyThemePack, applyThemeTokens } from "@/lib/design/theme-engine";
 import { curatedPresets } from "@/lib/themes/curated-presets";
 import { registrarAdaptadoresApariencia } from "@/lib/variaciones/adaptadores/apariencia";
+// Petición a la Protomolécula (Ola 1026P · P3): solo la constante del aviso (módulo sin dependencias).
+import { EVENTO_APLICAR_FONDO } from "@/lib/protomolecula/peticion/fondo-evento";
 
 export interface CustomFont {
     name: string;
@@ -1306,6 +1308,25 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             };
         });
     }
+
+    // ── Petición a la Protomolécula · «cambia el fondo» (Ola 1026P · P3) ────────
+    // La ventana avisa con un evento cancelable y una función pura (capas → capas nuevas). Se atiende con el MISMO
+    // camino que el panel de fondos (ámbito de edición y deshacer incluidos) y `preventDefault()` dice «atendido».
+    const aplicarFondoRef = useRef<(f: (capas: BackgroundLayer[]) => BackgroundLayer[]) => void>(() => {});
+    aplicarFondoRef.current = (f) => setConfig((prev) => {
+        pushHistory(prev);
+        return withScopedBackground(prev, { layers: f(normalizeLayers(prev.background?.layers)) });
+    });
+    useEffect(() => {
+        const alPedirFondo = (e: Event): void => {
+            const f = (e as CustomEvent<{ aplicar?: unknown }>).detail?.aplicar;
+            if (typeof f !== "function" || !e.cancelable) return;
+            e.preventDefault();
+            aplicarFondoRef.current(f as (capas: BackgroundLayer[]) => BackgroundLayer[]);
+        };
+        window.addEventListener(EVENTO_APLICAR_FONDO, alPedirFondo);
+        return () => window.removeEventListener(EVENTO_APLICAR_FONDO, alPedirFondo);
+    }, []);
 
     // ── Variaciones públicas · familia de apariencia (VPU1019C) ─────────────
     // El registro de familias es global; se cablea aquí, donde vive el estado

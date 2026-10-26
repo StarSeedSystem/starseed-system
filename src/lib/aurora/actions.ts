@@ -1154,11 +1154,11 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
   {
     name: "protomolecula",
     describe:
-      "Controla la PROTOMOLÉCULA (creación y edición universal) por la misma puerta que la mano: cada cambio lleva tu nombre y se puede deshacer. Args {accion, molecula?}: «abrir» (orbe o página; con {herramienta} añade un átomo), «estado» (controles con valor, unidad y rango; {atomo} filtra), «mover» ({parametro, valor} exacto o {parametro, cambio, modo: delta|porcentaje-valor|porcentaje-rango|pasos}; {atomo} si hay dos iguales), «dictar» ({frase}), «deshacer» (solo lo tuyo), «convertir» ({url} o {archivo} y {a}: pasa un archivo a otro formato con Filee) y «proponer-codigo» (próximamente, fase F7). Lo que pida confirmación queda pendiente en el panel.",
+      "Controla la PROTOMOLÉCULA (creación y edición universal) por la misma puerta que la mano: cada cambio lleva tu nombre y se puede deshacer. Args {accion, molecula?}: «abrir» (orbe o página; con {herramienta} añade un átomo), «estado» (controles con valor, unidad y rango; {atomo} filtra), «mover» ({parametro, valor} exacto o {parametro, cambio, modo: delta|porcentaje-valor|porcentaje-rango|pasos}; {atomo} si hay dos iguales), «dictar» ({frase}), «deshacer» (solo lo tuyo), «convertir» ({url} o {archivo} y {a}: pasa un archivo a otro formato con Filee), «pedir» ({texto, modo?: rama|directo}: la persona pide algo en lenguaje natural —un objeto 3D, una imagen, cambiar el fondo, editar un archivo o una publicación, abrirlo en una pizarra— y se prepara un PLAN que NO se ejecuta hasta que ella lo confirme en la ventana de la Protomolécula) y «proponer-codigo» (próximamente, fase F7). Lo que pida confirmación queda pendiente en el panel.",
     example: '[[ACCION: protomolecula {"accion":"mover","parametro":"brillo","valor":50}]]',
     handler: async (args, ctx) => {
-      const { manejarAccionProtomolecula } = await import("@/lib/protomolecula/accion-agente");
-      const r = manejarAccionProtomolecula(args, { abrirRuta: (ruta) => ctx.router.push(ruta) });
+      const { manejarAccionProtomoleculaAsync } = await import("@/lib/protomolecula/accion-agente");
+      const r = await manejarAccionProtomoleculaAsync(args, { abrirRuta: (ruta) => ctx.router.push(ruta) });
       if (r.status) ctx.onStatus?.(r.status);
       return r;
     },

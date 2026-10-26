@@ -979,6 +979,12 @@ export interface AstrauraChatRequest {
    * con la calibrada `answer_confidence`, sin tocar privacidad ni contexto.
    */
   respuestasLaya?: RespuestasLaya | null;
+  /**
+   * (Ola 1026P · P3 · petición a la Protomolécula) true = NINGUNA fuente de PAGO en este turno, aunque la cuenta
+   * tenga claves de pago configuradas, y el modo «manual» (que respeta el proveedor activo, quizá de pago) cede al
+   * ranking automático gratis-primero. Ausente/false = comportamiento de siempre.
+   */
+  soloGratis?: boolean;
 }
 
 /**
@@ -1550,7 +1556,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     messages158 = req.messages;
   }
 
-  if (prefs.mode === "manual") {
+  if (prefs.mode === "manual" && !req.soloGratis) {
     return chat({
       messages,
       temperature: req.temperature,
@@ -1603,7 +1609,9 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // por ella: sin esto, A pide a B, B no tiene el modelo y se lo reenvía a la
   // malla (quizás de vuelta a A) — un bucle. `esFuenteDeMalla` cubre tanto el
   // relé de Astraura 1.58 (Ola 367) como el genérico `ia-malla` (Ola 368).
-  const candidates = req.desdeMalla ? candidatesRankeados.filter((c) => !esFuenteDeMalla(c.source.id)) : candidatesRankeados;
+  const sinMalla = req.desdeMalla ? candidatesRankeados.filter((c) => !esFuenteDeMalla(c.source.id)) : candidatesRankeados;
+  // (Ola 1026P · P3) `soloGratis`: la petición a la Protomolécula nunca gasta dinero, ni siquiera con claves de pago.
+  const candidates = req.soloGratis ? sinMalla.filter((c) => c.source.tier !== "paid") : sinMalla;
 
   // PIN de MODELO por chat (Adenda 71-bis): si el menú fijó un proveedor para
   // este chat y hay un candidato con esa fuente, lo antepone vía forceSource
