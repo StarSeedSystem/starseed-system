@@ -23,12 +23,11 @@ export function cargado(rol: Rol, modo: "democratic" | "hierarchical" = "democra
 }
 
 export function servicios(carga: EntornoCargado, guardado: ResultadoGuardado = { ok: true, donde: "cuenta" }, personas: { id: string; nombre: string }[] = []) {
-  const s = {
+  return {
     cargar: vi.fn(async () => carga),
     guardar: vi.fn(async () => guardado),
     personas: vi.fn(async () => personas),
   } satisfies ServiciosGobierno;
-  return s;
 }
 
 /** Los nombres que ya no se escriben en ningún texto visible; armado en tiempo de ejecución para no incumplir la guardia de nombres. */

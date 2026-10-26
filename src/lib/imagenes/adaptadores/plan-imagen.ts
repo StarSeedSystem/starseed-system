@@ -4,14 +4,14 @@
  * Este adaptador convierte la petición de imagen en un plan de múltiples opciones
  * a generar según el hierro y las capacidades disponibles.
  */
-import type { PeticionImagen, PlanImagen, NeuronaImg, ModeloImagen } from "@/lib/imagenes/plan";
-import { MODELOS_IMAGEN } from "@/lib/imagenes/modelos";
+import type { PeticionImagen, PlanImagen, NeuronaImg } from "@/lib/imagenes/plan";
+import { MODELOS_IMAGEN, type ModeloImagen } from "@/lib/imagenes/modelos";
 
 /** Genera un plan de imágenes basado en una petición y las neuronas disponibles */
 export async function planImagen(
   peticion: PeticionImagen,
-  neuronas: readonly NeuronaImg[],
-  semillaBase: number,
+  neuronas: readonly NeuronaImg[] = [],
+  semillaBase: number = 0,
   catalogo: readonly ModeloImagen[] = MODELOS_IMAGEN
 ): Promise<PlanImagen> {
   // Plan simple: generar opciones básicas basado en la petición
