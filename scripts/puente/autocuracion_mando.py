@@ -552,6 +552,17 @@ def _explabs_en_fondo():
     return True
 
 
+def _a1_en_fondo():
+    """(CAP1026J) `a1_autocuracion.py` suelto: sonda del A1 (SSH + servicios) y, si está colgado, reinicio por la
+    API de Oracle. Se limita solo (una sonda cada 5 min, su propio cerrojo)."""
+    import subprocess
+
+    with open("/tmp/starseed-a1-autocuracion.log", "a", encoding="utf-8") as log:
+        subprocess.Popen([sys.executable, os.path.join(DIRECTORIO, "a1_autocuracion.py")], cwd=RAIZ,
+                         stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+    return True
+
+
 def _buscar():
     """El botón «Buscar más capacidad» sin los sondeos lentos ni la Mac (de ella ya se ocupa
     el llenado de arriba). Avisa él mismo en el Chat Director si suma agentes."""
@@ -764,7 +775,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
             buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
             servicios_fn=_servicios, medidores_fn=_levantar_por_medidores, worktrees_fn=None,
-            reparar_fn=None, explabs_fn=None, relevo_fn=None):
+            reparar_fn=None, explabs_fn=None, relevo_fn=None, a1_fn=None):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO).
     `forzar` (el botón «Reactivar directores»): todo ya, sin los tiempos mínimos."""
     ahora = ahora if ahora is not None else time.time()
@@ -940,6 +951,17 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
                 avisar_fn("Autocuración: " + linea + ". El enjambre gratuito sigue con ello; Claude no lo repetirá al volver.")
         except Exception as e:
             hechos.append("no pude revisar el carril de Claude: %s: %s" % (type(e).__name__, e))
+
+    # 10 · El A1 de Oracle (CAP1026J, 2026-10-26). Alex: «¿Quieres que el A1 se reinicie solo cuando deje de
+    # responder? sí, es obvio que si te pido que se repare automáticamente también considere eso y más». Medido ese
+    # día: ~6,6 h colgado (Oracle «RUNNING», SSH sin saludo) sin que nadie lo viera. `a1_autocuracion.py` lo sondea,
+    # reinicia sus servicios caídos y, si la máquina está colgada o parada, la reinicia o la arranca por Oracle.
+    a1 = a1_fn or (_a1_en_fondo if limpiar_fn is limpiar else None)
+    if a1:
+        try:
+            a1()
+        except Exception as e:
+            hechos.append("no pude lanzar la autocuración del A1: %s" % type(e).__name__)
 
     estado.update({"visto": time.strftime("%Y-%m-%d %H:%M:%S"), "responde": any(sondas),
                    "por_que": porque, "libre_gb": None if libre is None else round(libre, 1),
