@@ -251,11 +251,16 @@ export function CodeRunner({ lang, code, info, className, fallback }: CodeRunner
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
             {runnable.note ?? "Este bloque no se ejecuta en el navegador."}{" "}
-            {prefs.allowBackend && (
+            {prefs.allowBackend && runnable.manim?.valida !== false && (
               <a className="underline underline-offset-2 hover:text-amber-50" href="/agent?tab=astraura-158&sub=terminal">Abrir Terminal &amp; Sandbox del backend soberano</a>
             )}
           </span>
         </div>
+      )}
+      {runnable.manim?.valida === false && (
+        <ul className="list-inside list-disc border-b border-rose-400/30 bg-rose-500/[0.08] px-3 py-2 text-[11px] leading-snug text-rose-100/90">
+          {runnable.manim.motivos?.map((m) => <li key={m}>{m}</li>)}
+        </ul>
       )}
 
       {/* Cuerpo: vista / código / dividido / consola */}

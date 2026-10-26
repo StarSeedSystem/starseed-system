@@ -33,6 +33,25 @@ describe("detectRunnable", () => {
     expect(detectRunnable("", "precision highp float;\nvoid main(){ gl_FragColor = vec4(1.0); }").kind).toBe("shader");
     expect(detectRunnable("", "solo texto suelto").kind).toBe("inerte");
   });
+
+  it("una escena de ManimGX válida llega validada a la puerta del backend", () => {
+    const escena = detectRunnable("python", 'from manim import Scene, ThreeDScene\nclass CuboGiratorio(ThreeDScene):\n    def construct(self):\n        cubo = Cube()\n        self.play(Rotate(cubo, PI))');
+    expect(escena.kind).toBe("backend");
+    expect(escena.manim).toEqual({ esEscena: true, valida: true });
+  });
+
+  it("una escena Python py normal (sin manim) no trae veredicto de ManimGX", () => {
+    expect(detectRunnable("python", "print(1)").manim).toBeUndefined();
+  });
+
+  it("una escena de ManimGX con código prohibido no llega al backend y arrastra sus motivos", () => {
+    const mala = detectRunnable("python", 'import manim\nimport subprocess\nclass Cubo(Scene):\n    def construct(self):\n        subprocess.run(["ls"])\n        self.wait()');
+    expect(mala.manim).toEqual({
+      esEscena: true,
+      valida: false,
+      motivos: expect.arrayContaining([expect.stringContaining("subprocess")]),
+    });
+  });
 });
 
 describe("directivas escritas en el propio código", () => {

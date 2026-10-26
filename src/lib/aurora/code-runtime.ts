@@ -85,12 +85,37 @@ export const DEFAULT_CODE_RUNTIME_PREFS: CodeRuntimePrefs = {
 
 /* ───────────────────── Clasificación del bloque ───────────────────── */
 
+import { validarEscena } from "@/lib/protomolecula/manimgx/escena";
+
+/** ¿Declara imports de Manim/ManimGX o alguna clase que herede de una escena? */
+function pareceEscenaManim(codigo: string): boolean {
+  return /\b(?:from|import)\s+(?:manim|manimgx)\b/.test(codigo);
+}
+
+/** Veredicto ManimGX de un bloque Python, o `null` si no es una escena de Manim. */
+function veredictoManim(codigo: string): ManimVeredicto | null {
+  if (!pareceEscenaManim(codigo)) return null;
+  const resultado = validarEscena(codigo);
+  return resultado.ok
+    ? { esEscena: true, valida: true }
+    : { esEscena: true, valida: false, motivos: resultado.motivos };
+}
+
 const PAGINA = new Set(["html", "htm", "xhtml", "svg", "vue", "svelte"]);
 const SCRIPT = new Set(["js", "javascript", "mjs", "ecmascript", "node"]);
 const ESTILO = new Set(["css", "scss", "less"]);
 const SHADER = new Set(["glsl", "frag", "fragment", "shader", "shaderlab", "fs"]);
 const REACT = new Set(["jsx", "tsx", "react"]);
 const BACKEND = new Set(["py", "python", "sh", "bash", "zsh", "shell", "console"]);
+
+export interface ManimVeredicto {
+  /** ¿El bloque parece una escena de ManimGX (Python de modelos 3D)? */
+  esEscena: boolean;
+  /** ¿La escena pasa validarEscena (imports y usos prohibidos, clase de Manim)? Solo si esEscena. */
+  valida?: boolean;
+  /** Motivos legibles cuando NO valida. */
+  motivos?: string[];
+}
 
 export interface RunnableInfo {
   kind: RunnableKind;
@@ -100,6 +125,8 @@ export interface RunnableInfo {
   inBrowser: boolean;
   /** Explicación honesta cuando NO se puede ejecutar aquí. */
   note?: string;
+  /** Veredicto de ManimGX cuando el bloque Python parece una escena de la Protomolécula/Astraura. */
+  manim?: ManimVeredicto;
 }
 
 /**
@@ -116,12 +143,24 @@ export function detectRunnable(lang: string | undefined, code: string): Runnable
   if (ESTILO.has(l)) return { kind: "estilo", label: "estilo", inBrowser: true };
   if (SHADER.has(l)) return { kind: "shader", label: "shader", inBrowser: true };
   if (BACKEND.has(l)) {
-    return {
+    const info: RunnableInfo = {
       kind: "backend",
       label: l.startsWith("p") ? "Python" : "shell",
       inBrowser: false,
       note: "No se ejecuta en el navegador: necesita el backend soberano 1.58 de una neurona tuya.",
     };
+    if (l.startsWith("p")) {
+      const manim = veredictoManim(src);
+      if (manim) {
+        info.manim = manim;
+        if (!manim.valida) {
+          info.note = "La escena de ManimGX NO pasa la puerta de seguridad (§3): corrige estos motivos antes de mandarla a una neurona.";
+        } else {
+          info.note = "Escena de ManimGX validada: se ejecuta solo aislada (Worker con Pyodide o contenedor sin red), nunca en el proceso del OS.";
+        }
+      }
+    }
+    return info;
   }
 
   // Sin lenguaje declarado: detección por contenido (solo casos claros).
