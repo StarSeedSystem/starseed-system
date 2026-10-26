@@ -247,7 +247,9 @@ export default function MenuDockItem({
         data-dock-menu=""
         onKeyDown={alTeclear}
         onContextMenu={(e) => e.preventDefault()}
-        style={{ left: posicion.left, width: posicion.width, maxHeight: posicion.maxHeight, ...(posicion.bottom !== undefined ? { bottom: posicion.bottom } : { top: posicion.top }) }}
+        // `position: fixed` en línea: `.glass-edge` (globals.css) pone `position: relative` y le gana a la clase `fixed`
+        // de Tailwind; el menú se quedaba relativo al dock y medio fuera de la pantalla (visto en localhost:9002).
+        style={{ position: "fixed", left: posicion.left, width: posicion.width, maxHeight: posicion.maxHeight, ...(posicion.bottom !== undefined ? { bottom: posicion.bottom } : { top: posicion.top }) }}
         className={cn(
           "fixed z-[89] flex flex-col overflow-hidden rounded-3xl",
           "glass-depth glass-edge border border-foreground/15 bg-card/60 text-foreground backdrop-blur-3xl dark:bg-black/55",
