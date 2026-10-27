@@ -1,5 +1,5 @@
 /**
- * Sueños profundos en Genesis (2026-09-29): la derivación de estados tiene que coincidir con
+ * Imaginación profunda en Genesis (2026-09-29): la derivación de estados tiene que coincidir con
  * `scripts/puente/suenos.py estado`, las lentes y áreas no pueden separarse de las del
  * analista y del planificador, y el resto de Genesis tiene que tratar `informe` como un cierre
  * que NO es «sin cambios».
