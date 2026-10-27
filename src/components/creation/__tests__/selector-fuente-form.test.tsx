@@ -47,12 +47,25 @@ describe("SourcePicker", () => {
     const etiquetaInput = screen.getByPlaceholderText("Nombre visible");
     expect(urlInput).toBeInstanceOf(HTMLInputElement);
     expect(etiquetaInput).toBeInstanceOf(HTMLInputElement);
-    // Hoy la asociación etiqueta-input es visual (la etiqueta precede al
-    // input dentro del mismo grupo de formulario).
+    // La asociación es explícita: htmlFor en la label + id en el input.
     expect(urlInput.previousElementSibling?.textContent).toBe("URL");
     expect(etiquetaInput.previousElementSibling?.textContent).toBe(
         "Etiqueta (opcional)",
     );
+  });
+
+  it("cada label queda ligada a su input por htmlFor + id únicos", () => {
+    renderPicker(["url"]);
+
+    const urlInput = screen.getByLabelText("URL");
+    const etiquetaInput = screen.getByLabelText("Etiqueta (opcional)");
+
+    expect(urlInput).toBeInstanceOf(HTMLInputElement);
+    expect(etiquetaInput).toBeInstanceOf(HTMLInputElement);
+    expect(urlInput.id).toBeTruthy();
+    expect(etiquetaInput.id).toBeTruthy();
+    // ids únicos aunque el picker se renderice varias veces en la página.
+    expect(urlInput.id).not.toBe(etiquetaInput.id);
   });
 
   it("el botón de URL solo se habilita con una URL válida y devuelve la referencia", () => {
@@ -81,11 +94,11 @@ describe("SourcePicker", () => {
     });
   });
 
-  it("el input de archivo del dispositivo es type file y permanece oculto", () => {
+  it("el input de archivo del dispositivo lleva aria-label (sin label visible)", () => {
     renderPicker(["device"]);
 
     // El disparo real es el botón «Elegir archivo»; el input vive oculto.
-    const archivo = document.querySelector('input[type="file"]');
+    const archivo = screen.getByLabelText("Archivo del dispositivo");
     expect(archivo).toBeInstanceOf(HTMLInputElement);
     expect((archivo as HTMLInputElement).type).toBe("file");
     expect((archivo as HTMLElement).className).toContain("hidden");
