@@ -9,6 +9,9 @@
 // (CSP / X-Frame-Options), muestra el fallback explícito — nunca queda
 // en blanco. Autocontenido: la ventana se renderiza vía portal a body.
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
+// §5 de apps-en-la-malla.md: cómo se abre la app en la malla lo elige
+// `comoAbrir` (modos-app.ts); sin infra de volúmenes ni ventanas remotas
+// el suelo es abrir en local con el aviso de lo que falta.
 // ════════════════════════════════════════════════════════════════
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -17,17 +20,53 @@ import { useRouter } from "next/navigation";
 import { ExternalLink, Loader2, Hammer } from "lucide-react";
 import { OSWindow } from "./os-window";
 import type { OpenMode, StarseedApp } from "./launcher-types";
+import { comoAbrir } from "@/lib/recursos/modos-app";
+import type { OfertaNeurona } from "@/lib/recursos/oferta";
 
 const EMBED_TIMEOUT_MS = 6000;
 
-type ActiveWindow = { app: StarseedApp; soon: boolean };
+type ActiveWindow = { app: StarseedApp; soon: boolean; aviso?: string };
+
+/**
+ * Lo que esta neurona (el navegador) mide de sí misma, sin red, disco ni
+ * procesos: memoria del aparato (`deviceMemory`, cota con techo de 8 GB),
+ * núcleos y si WebGPU está. Lo que no se pueda medir queda a cero: nunca se
+ * inventa (§3 de apps-en-la-malla.md).
+ */
+function neuronaLocal(): OfertaNeurona {
+    const nav = typeof navigator === "undefined" ? undefined : (navigator as Navigator & {
+        deviceMemory?: number;
+        hardwareConcurrency?: number;
+        gpu?: unknown;
+    });
+    return {
+        nodoId: "local",
+        cuentaId: "",
+        medio: "navegador",
+        computo: {
+            nucleos: typeof nav?.hardwareConcurrency === "number" && nav.hardwareConcurrency > 0 ? nav.hardwareConcurrency : 1,
+            ramLibreMb: typeof nav?.deviceMemory === "number" && nav.deviceMemory > 0 ? nav.deviceMemory * 1024 : 0,
+            gpu: nav?.gpu !== undefined,
+            vramMb: undefined,
+            motores: [],
+        },
+        almacen: { prestaMb: 0, volumenes: [] },
+        apps: [],
+        enlaces: {},
+        energia: { enUso: false },
+        presta: { cuenta: false, grupos: [], publico: false, topes: { cpuPct: 0, ramMb: 0, discoMb: 0, soloCargando: false } },
+        t: Date.now(),
+    };
+}
 
 // ── AppWindow ────────────────────────────────────────────────────
-function AppWindow({ app, soon, onClose }: { app: StarseedApp; soon: boolean; onClose: () => void }) {
+function AppWindow({ app, soon, aviso, onClose }: { app: StarseedApp; soon: boolean; aviso?: string; onClose: () => void }) {
     const [loaded, setLoaded] = useState(false);
     const [stuck, setStuck] = useState(false);
     const href = app.open.href;
     const showEmbed = !soon && !!href && app.open.embeddable !== false;
+
+    const openTab = () => { if (href) window.open(href, "_blank", "noopener,noreferrer"); };
 
     // Heurística de framing bloqueado: si el iframe no carga en ~6s, ofrecer fallback.
     useEffect(() => {
@@ -36,12 +75,10 @@ function AppWindow({ app, soon, onClose }: { app: StarseedApp; soon: boolean; on
         return () => clearTimeout(t);
     }, [showEmbed, loaded]);
 
-    const openTab = () => { if (href) window.open(href, "_blank", "noopener,noreferrer"); };
-
     return (
         <OSWindow
             title={app.name}
-            subtitle={soon ? "Módulo nativo · próximamente" : "Ventana StarSeed"}
+            subtitle={soon ? "Módulo nativo · próximamente" : (aviso ?? "Ventana StarSeed")}
             icon={app.icon}
             accent={app.accent}
             onClose={onClose}
@@ -137,6 +174,13 @@ export function useAppLauncher(): UseAppLauncher {
         const { open, status } = app;
         if (status === "soon") { setActive({ app, soon: true }); return; }
 
+        // §5 de apps-en-la-malla.md: cuando la app declara modos de ejecución o
+        // requisitos para la malla, `comoAbrir` decide el modo y da el motivo.
+        // Sin declaración (el catálogo de hoy) se abre como siempre.
+        const declaraParaLaMalla = (app.ejecucion?.length ?? 0) > 0 || app.requisitos !== undefined;
+        const apertura = declaraParaLaMalla ? comoAbrir(app, neuronaLocal()) : null;
+        const aviso = apertura && (apertura.modo !== "local" || apertura.faltas.length > 0) ? apertura.motivo : undefined;
+
         const mode: OpenMode = modeOverride ?? open.primary;
 
         switch (mode) {
@@ -159,7 +203,7 @@ export function useAppLauncher(): UseAppLauncher {
             case "embed":
             case "window":
             default:
-                if (open.href) setActive({ app, soon: false });
+                if (open.href) setActive({ app, soon: false, aviso });
                 else if (open.route) router.push(open.route);
                 break;
         }
@@ -167,7 +211,7 @@ export function useAppLauncher(): UseAppLauncher {
 
     const windowEl = mounted && active
         ? createPortal(
-            <AppWindow app={active.app} soon={active.soon} onClose={() => setActive(null)} />,
+            <AppWindow app={active.app} soon={active.soon} aviso={active.aviso} onClose={() => setActive(null)} />,
             document.body
         )
         : null;
