@@ -5,6 +5,16 @@ import {
   REPO_EXTERNOS_1020,
 } from "../repos-externos-1020";
 
+function texto(payload: Record<string, unknown>, clave: string): string {
+  const valor = payload[clave];
+  return typeof valor === "string" ? valor : "";
+}
+
+function lista(payload: Record<string, unknown>, clave: string): string[] {
+  const valor = payload[clave];
+  return Array.isArray(valor) ? valor.filter((v): v is string => typeof v === "string") : [];
+}
+
 const paquetes = REPO_EXTERNOS_1020.packages;
 
 function payloadDe(id: string): Record<string, unknown> {
