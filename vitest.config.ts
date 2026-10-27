@@ -37,7 +37,7 @@ export default defineConfig({
   test: {
     environment: "node",
     environmentMatchGlobs: [["**/*.test.tsx", "jsdom"]],
-    include: ["src/**/*.{test,spec}.ts", "src/**/__tests__/**/*.ts", "src/**/*.{test,spec}.tsx", "src/**/__tests__/**/*.tsx"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "src/**/__tests__/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["node_modules", ".next", "dist"],
     globals: false,
     // (2026-10-05) Margen para una máquina cargada: ver el porqué en `vitest.setup-dom.ts`.
