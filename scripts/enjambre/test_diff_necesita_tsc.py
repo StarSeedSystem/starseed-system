@@ -40,10 +40,6 @@ class DecisionPura(unittest.TestCase):
         )
 
 
-class DecisionPuraMas:
-    pass
-
-
 class ExtensionesQuePidenTsc(unittest.TestCase):
     """Cualquier .ts/.js y sus variantes (incluido .d.ts) puede cambiar el resultado."""
 
