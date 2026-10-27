@@ -22,6 +22,20 @@ class ReglasDelGuardia(unittest.TestCase):
     def test_sin_medida_de_memoria_no_se_toca_nada(self):
         self.assertEqual([], G.decidir(True, None, set(), ["llama-server"]))
 
+    def test_congelado_con_presion_2_y_libre_alta_pasa_a_reevaluar(self):
+        # Con enjambre vivo, presión de núcleo >= 2 dispara reevaluación aunque haya memoria libre.
+        self.assertEqual(
+            [("llama-server", "reevaluar")],
+            G.decidir(True, BAJO + 1000, {"llama-server"}, ["llama-server"], presion=2),
+        )
+
+    def test_presion_1_con_libre_alta_no_hace_nada(self):
+        self.assertEqual([], G.decidir(True, BAJO + 1000, set(), ["llama-server"], presion=1))
+
+    def test_presion_none_como_hoy(self):
+        # Sin presión medida, se comporta como antes.
+        self.assertEqual([], G.decidir(True, BAJO + 1, {"tts-server"}, ["tts-server"], presion=None))
+
     def test_con_enjambre_y_poca_memoria_se_congelan_los_sueltos(self):
         acciones = G.decidir(True, BAJO - 1, set(), ["llama-server", "tts-server"])
         self.assertEqual(
