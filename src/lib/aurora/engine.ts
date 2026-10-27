@@ -88,6 +88,13 @@ import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
+import {
+  decidirEnvioAlOido,
+  INTERVALO_MINIMO_MS_POR_DEFECTO,
+  UMBRAL_ENERGIA_POR_DEFECTO,
+  type EstadoSentidos,
+} from "@/lib/aurora/sentidos/oido-ambiental";
+import { getActiveSenses } from "@/lib/senses/senses";
 import { cronometroHabla, cronometroOido } from "@/lib/aurora/medidas-voz";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
@@ -2180,6 +2187,12 @@ export function useAuroraEngine(): AuroraEngine {
     let audioCtx: AudioContext | null = null;
     let mediaStream: MediaStream | null = null;
     let procesador: ScriptProcessorNode | null = null;
+    // Oído ambiental: instante de la última voz vista por el flujo y del último
+    // fragmento aceptado para el servicio de oído.
+    let ultimaVozFlujo = 0;
+    let ultimoEnvioOido: number | null = null;
+    const URL_SERVICIO_OIDO = "http://127.0.0.1:8081/oir";
+    const VENTANA_SIN_VOZ_MS = 1500;
 
     /** Medio-dúplex: suelta micro, contexto de audio y flujo, sin tedio. */
     const soltarAudio = () => {
@@ -2266,6 +2279,44 @@ export function useAuroraEngine(): AuroraEngine {
       }
     };
 
+    /**
+     * OÍDO AMBIENTAL (EAR1023B): el flujo ya sabe si hay voz; con la energía del
+     * tramo se decide si merece viajar al servicio de oído de esta neurona
+     * (EAR1023A). Nunca manda voz y nunca sale de la neurona.
+     */
+    const oidoAmbiental = (frame: Float32Array) => {
+      try {
+        const ahora = Date.now();
+        let suma = 0;
+        for (let i = 0; i < frame.length; i++) suma += frame[i] * frame[i];
+        const energia = Math.min(1, Math.sqrt(suma / (frame.length || 1)) * 2.2);
+        const estado: EstadoSentidos = {
+          encendidos: getActiveSenses("aurora").includes("microfono"),
+          siempreEscuchando: keepAliveRef.current,
+        };
+        const decision = decidirEnvioAlOido(
+          estado,
+          {
+            id: `flujo-${ahora}`,
+            contieneVoz: ahora - ultimaVozFlujo < VENTANA_SIN_VOZ_MS,
+            energia,
+            timestamp: ahora,
+          },
+          ultimoEnvioOido,
+          UMBRAL_ENERGIA_POR_DEFECTO,
+          INTERVALO_MINIMO_MS_POR_DEFECTO,
+        );
+        if (!decision.enviarAlServicio) return;
+        ultimoEnvioOido = ahora;
+        const pcm = prepararAudio(frame, audioCtx ? audioCtx.sampleRate : 16000);
+        void fetch(URL_SERVICIO_OIDO, {
+          method: "POST",
+          headers: { "Content-Type": "audio/x-pcm16" },
+          body: pcm.buffer as ArrayBuffer,
+        }).catch(() => { /* sin servicio de oído en esta neurona: no pasa nada */ });
+      } catch { /* la decisión ambiental nunca tumba la escucha */ }
+    };
+
     const rec: SpeechRecognitionLike = {
       lang: activeRef.current.voice?.lang || "es-MX",
       interimResults: true,
@@ -2318,8 +2369,8 @@ export function useAuroraEngine(): AuroraEngine {
           flujo = abrirFlujoOido({
             url: `${protocolo}://${window.location.host}/v1/audio/stream`,
             WebSocketImpl: WebSocket,
-            alParcial: (texto: string) => procesar("", texto),
-            alFinal: (texto: string) => procesar(texto, ""),
+            alParcial: (texto: string) => { ultimaVozFlujo = Date.now(); procesar("", texto); },
+            alFinal: (texto: string) => { ultimaVozFlujo = Date.now(); procesar(texto, ""); },
             alCerrar: () => {
               // El servidor atendió su ÚNICO flujo y lo cerró: reconexión NUNCA
               // automática. Se marca caído; el siguiente reenganche elige tramos.
@@ -2335,12 +2386,14 @@ export function useAuroraEngine(): AuroraEngine {
           });
           procesador.onaudioprocess = (ev: AudioProcessingEvent) => {
             if (stopped || !flujo) return;
+            const frame = ev.inputBuffer.getChannelData(0);
             try {
               flujo.enviar(prepararAudio(
-                ev.inputBuffer.getChannelData(0),
+                frame,
                 audioCtx ? audioCtx.sampleRate : 16000,
               ));
             } catch { /* un envío roto no tumba la escucha */ }
+            oidoAmbiental(frame);
           };
         }).catch((err: unknown) => {
           if (!stopped) soltarAudio();
