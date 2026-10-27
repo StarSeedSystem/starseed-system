@@ -121,7 +121,7 @@ import {
 } from "@/lib/onboarding/guide-visibility";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
-import { copiarGuiaLocalACuenta, marcarGuiaVista } from "@/lib/onboarding/guia-vista";
+import { GUIA_VERSION, copiarGuiaLocalACuenta, marcarGuiaVista, temasNuevosPara, versionGuiaVistaEnCuenta } from "@/lib/onboarding/guia-vista";
 import {
   ACENTOS_TRINITY,
   PASOS_GUIA,
@@ -360,6 +360,8 @@ export function AuroraGuide() {
 
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+  // Aviso único de novedades para quien ya vio una versión anterior de la guía (`guia-vista.ts`).
+  const [novedades, setNovedades] = useState<readonly string[] | null>(null);
   const [index, setIndex] = useState(0);
   // (Ola 1025U) De dónde se abrió (decide qué hace el final sin cuenta) y si se retomó por donde se quedó.
   const [origen, setOrigen] = useState<OrigenGuia | undefined>(undefined);
@@ -424,6 +426,11 @@ export function AuroraGuide() {
     const decidir = () => {
       // Una marca local antigua se respeta y se copia a la cuenta para los demás medios.
       const seen = copiarGuiaLocalACuenta();
+      // Ya la vio, pero en una versión anterior: UNA vez, el aviso discreto de novedades.
+      if (seen) {
+        const pendientes = temasNuevosPara(versionGuiaVistaEnCuenta());
+        if (pendientes.length > 0) setNovedades(pendientes);
+      }
       // No competir con la presentación breve de Aurora (AuroraIntro): el tour de
       // interfaz solo arranca solo DESPUÉS de que el intro se haya completado, para
       // no solapar dos ventanas la primera vez. El tour sigue disponible a demanda.
@@ -445,6 +452,7 @@ export function AuroraGuide() {
   // `inicio`: una posición, el id de un paso o de un tema; sin él, la guía RETOMA por donde se quedó
   // (`guia-progreso.ts`, compartido con la introducción de la ventana de acceso) o empieza por el principio.
   const openGuide = useCallback((inicio?: number | string | null, desde?: OrigenGuia) => {
+    setNovedades(null);
     const explicito = inicio !== undefined && inicio !== null;
     const retomado = explicito ? null : leerProgresoGuia();
     setIndex(explicito ? indiceInicial(inicio) : (retomado ?? 0));
@@ -723,6 +731,61 @@ export function AuroraGuide() {
     });
   }, [mode, step, narracion]);
 
+  // ── aviso único de novedades (cuentas que ya vieron una versión anterior) ──
+  // «Ver ahora» abre el tour en el PRIMER tema nuevo; «Más tarde» lo descarta. Las dos cosas
+  // guardan la versión en la marca de la cuenta, así que no vuelve a salir en ningún medio.
+  const verNovedades = useCallback(() => {
+    const primero = novedades?.[0];
+    setNovedades(null);
+    marcarGuiaVista(GUIA_VERSION);
+    if (primero) openGuide(primero, "aviso");
+  }, [novedades, openGuide]);
+  const descartarNovedades = useCallback(() => {
+    setNovedades(null);
+    marcarGuiaVista(GUIA_VERSION);
+  }, []);
+
+  const AvisoNovedades = !open && novedades && novedades.length > 0 ? (
+    <motion.div
+      role="region"
+      aria-label="Novedades de la guía"
+      initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+      animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+      transition={{ duration: reduceMotion ? 0 : 0.18 }}
+      className={cn(
+        "fixed bottom-20 left-4 z-[71] w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-white/12",
+        "p-3 text-[12px] text-white/85 shadow-lg shadow-black/40 backdrop-blur-2xl",
+      )}
+      style={{
+        background:
+          "radial-gradient(120% 90% at 20% 0%, rgba(159,232,112,0.12), transparent 60%), radial-gradient(140% 90% at 110% 10%, rgba(201,168,255,0.14), transparent 55%), rgba(9,13,18,0.9)",
+      }}
+    >
+      <p className="text-[12.5px] leading-snug">
+        Novedades de la guía:{" "}
+        <b className="text-white">
+          {novedades.length} {novedades.length === 1 ? "tema nuevo" : "temas nuevos"}
+        </b>
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={verNovedades}
+          className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg bg-gradient-to-r from-fuchsia-600 to-cyan-600 px-3 text-[12px] font-semibold text-white transition hover:from-fuchsia-500 hover:to-cyan-500"
+        >
+          Ver ahora
+        </button>
+        <button
+          type="button"
+          onClick={descartarNovedades}
+          className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg px-2 text-[12px] text-white/60 transition hover:bg-white/10 hover:text-white"
+        >
+          Más tarde
+        </button>
+      </div>
+    </motion.div>
+  ) : null;
+
   // ── acceso flotante discreto (siempre reabrible) ───────────────────────────
   // Se oculta mientras la guía está abierta, o si el usuario lo desactivó en
   // Ajustes → Personalización ("Botón de guía"). El tour por primera visita y el
@@ -772,6 +835,7 @@ export function AuroraGuide() {
 
   return (
     <>
+      {AvisoNovedades}
       {FloatingAccess}
 
       <AnimatePresence>
