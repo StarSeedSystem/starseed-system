@@ -37,6 +37,7 @@ import {
 } from "@/lib/aurora/colchon-voz";
 import { pedirLimiteFondo } from "@/lib/perf/fondo-vivo";
 import { anotarMedida } from "@/lib/aurora/medidas-voz";
+import { identidadVoz } from "@/lib/aurora/identidad-voz";
 
 const BASE = "/api/voz-rt";
 /** (2026-09-24) Lo medido en este equipo: RTF del motor, ritmo del texto, duración típica. */
@@ -78,7 +79,13 @@ interface Pendiente {
     promesa: Promise<AudioBuffer | null>;
 }
 
-/** La voz elegida para una personalidad (preferencia guardada > mapa > F1). PURA salvo localStorage. */
+/**
+ * La voz elegida para una persona, resuelta por el resolutor ÚNICO de identidad
+ * de voz (Ola 1015M, `identidad-voz.ts`): precedencia agente › personalidad ›
+ * cerebro › neurona › cuenta. La fijación manual guardada en ESTA neurona manda
+ * por encima, como hoy, y `VOZ_POR_PERSONA` viaja como capa de personalidad;
+ * si no queda nada definido suena «F1», la voz de Alex. PURA salvo localStorage.
+ */
 export function vozDePersona(personaId?: string): string {
     try {
         const elegida = typeof window !== "undefined" ? window.localStorage.getItem(CLAVE_VOZ) : null;
@@ -87,7 +94,7 @@ export function vozDePersona(personaId?: string): string {
         /* sin almacenamiento */
     }
     const id = (personaId || "").toLowerCase().replace(/\s+/g, "_");
-    return VOZ_POR_PERSONA[id] ?? "F1";
+    return identidadVoz({ personalidad: id ? { id, vozRT: VOZ_POR_PERSONA[id] } : undefined }).vozRT;
 }
 
 class VozRT {
