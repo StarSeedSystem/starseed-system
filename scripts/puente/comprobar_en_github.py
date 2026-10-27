@@ -25,6 +25,7 @@ Nunca imprime claves: el job no tiene ninguna.
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import subprocess
@@ -219,6 +220,81 @@ def esperar_tsc(base_sha, cambiados, cwd, esperar_s, dormir=time.sleep, reloj=ti
         dormir(SONDEO_S)
 
 
+#: (CAP1026R) Un cambio de main en estos archivos invalida cualquier veredicto anterior, toque lo que toque la tarea.
+MUEVEN_TODO = ("package.json", "package-lock.json", "tsconfig.json")
+#: (CAP1026R) Cada cuánto se pregunta a GitHub por una comprobación en curso (de esta base o de otra).
+REFRESCO_S = 60
+
+
+def reutilizable(entrada, parche, movidos):
+    """PURA (2026-10-27, CAP1026R). ¿Vale para la tarea de ahora el veredicto de una comprobación hecha sobre otro main?
+
+    MEDIDO esa noche: la primera pasada con N lanzó 6 comprobaciones sobre main d7d58128 (verdes en 3-4 min), traer
+    integró 3 tareas a las 23:24 y la pasada siguiente, con main ya en 4fe9e85c, no las encontró por (base, árbol):
+    las 6 se quedaron «en curso» para siempre y llenaron los 6 sitios («ya hay 6 comprobaciones en marcha»).
+    Sí vale si es el MISMO cambio de la tarea (`git patch-id`) y lo que main movió desde entonces (`movidos`, o None
+    si la base vieja no es antecesora de la de ahora) no toca sus archivos ni la configuración de TypeScript."""
+    if not isinstance(entrada, dict) or not parche or entrada.get("parche") != parche or movidos is None:
+        return False
+    if any(os.path.basename(m) in MUEVEN_TODO for m in movidos):
+        return False
+    return not (set(movidos) & set(entrada.get("archivos") or []))
+
+
+def _parche(cwd, base_sha):
+    """`git patch-id --stable` del cambio de la tarea (base..HEAD), o "" si no se puede."""
+    try:
+        diff = subprocess.run(["git", "diff", base_sha, "HEAD"], cwd=cwd, capture_output=True, timeout=120)
+        if diff.returncode != 0 or not diff.stdout:
+            return ""
+        r = subprocess.run(["git", "patch-id", "--stable"], cwd=cwd, input=diff.stdout, capture_output=True, timeout=60)
+        return r.stdout.decode(errors="replace").split()[0] if r.returncode == 0 and r.stdout.strip() else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _movidos(cwd, base_vieja, base_nueva):
+    """Archivos que main cambió de `base_vieja` a `base_nueva`, o None si la vieja no es antecesora."""
+    if not base_vieja:
+        return None
+    if base_vieja == base_nueva:
+        return []
+    rc, _ = _git(cwd, ["merge-base", "--is-ancestor", base_vieja, base_nueva], timeout=60)
+    if rc != 0:
+        return None
+    rc, out = _git(cwd, ["diff", "--name-only", base_vieja, base_nueva], timeout=120)
+    return [l.strip() for l in out.splitlines() if l.strip()] if rc == 0 else None
+
+
+def _leer_run(run_id):
+    rc, out, _ = _gh(["api", "repos/{owner}/{repo}/actions/runs/%s" % run_id, "--jq", "{status, conclusion}"])
+    try:
+        return json.loads(out) if rc == 0 else {}
+    except ValueError:
+        return {}
+
+
+def _refrescar(estado, ahora):
+    """(CAP1026R) Lee el veredicto de las comprobaciones en curso cuyo run ya acabó, sean de esta base o de otra:
+    guarda «ok»/«fallo» (y borra su rama), olvida las del medio. Así una base vieja no ocupa los sitios."""
+    for k, e in list(estado.items()):
+        if not isinstance(e, dict) or e.get("estado") != "en_curso" or ahora - float(e.get("visto") or 0) < REFRESCO_S:
+            continue
+        e["visto"] = ahora
+        run = e.get("run") or (_run_de_rama(e.get("rama") or "") or {}).get("id")
+        if not run:
+            continue
+        e["run"] = run
+        datos = _leer_run(run)
+        est, paso = veredicto(datos, _jobs(run) if datos.get("status") == "completed" else [])
+        if est in ("ok", "fallo"):
+            e.update(estado=est, paso=paso, detalle=_detalle_fallo(run) if est == "fallo" else "", t=ahora)
+            _borrar_rama(e["rama"])
+        elif est == "medio":
+            estado.pop(k, None)
+            _borrar_rama(e["rama"])
+
+
 def comprobar(base_sha, shas, cambiados, timeout=None, cwd=None, ahora=None):  # noqa: ARG001 — firma de comprobar_en_a1
     if os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0" or not cwd or not os.path.isdir(cwd):
         return None
@@ -232,39 +308,42 @@ def comprobar(base_sha, shas, cambiados, timeout=None, cwd=None, ahora=None):  #
     rc4, origen_raiz = _git(RAIZ, ["remote", "get-url", "origin"], timeout=30)
     if rc3 != 0 or rc4 != 0 or origen.strip() != origen_raiz.strip() or "github.com" not in origen:
         return None
-    arbol, cabeza, base_sha = arbol.strip(), cabeza.strip(), str(base_sha).strip()
-    ahora = time.time() if ahora is None else ahora
-    estado = podar(_leer(), ahora)
+    # (CAP1026R) traer_nube y la puerta del orquestador escriben el mismo estado: uno a la vez.
+    os.makedirs(os.path.dirname(ESTADO), exist_ok=True)
+    with open(ESTADO + ".lock", "a+") as cerrojo:
+        fcntl.flock(cerrojo, fcntl.LOCK_EX)
+        try:
+            return _comprobar(arbol.strip(), cabeza.strip(), str(base_sha).strip(), cambiados, cwd,
+                              time.time() if ahora is None else ahora)
+        finally:
+            fcntl.flock(cerrojo, fcntl.LOCK_UN)
+
+
+def _comprobar(arbol, cabeza, base_sha, cambiados, cwd, ahora):
+    crudo = _leer()
+    estado = podar(crudo, ahora)
+    # (CAP1026R) Lo que caducó sin veredicto deja de ocupar sitio y su rama no se queda en GitHub.
+    for k, e in crudo.items():
+        if k not in estado and isinstance(e, dict) and e.get("estado") == "en_curso" and e.get("rama"):
+            _borrar_rama(e["rama"])
+    _refrescar(estado, ahora)
     clave = clave_de(base_sha, arbol)
     e = estado.get(clave)
+    parche = None
+    if not e:
+        # (CAP1026R) El mismo cambio comprobado sobre un main anterior que no tocó lo suyo.
+        parche = _parche(cwd, base_sha)
+        for otra in estado.values():
+            if isinstance(otra, dict) and otra.get("parche") == parche and parche and \
+                    reutilizable(otra, parche, _movidos(cwd, otra.get("base"), base_sha)):
+                e = otra
+                break
+    _guardar(estado)
     if e and e.get("estado") in ("ok", "fallo"):
         if e["estado"] == "ok":
             return True, "tsc y pruebas relacionadas en verde en GitHub (run %s)" % e.get("run"), False
         return False, "en GitHub (run %s) falla «%s»: %s" % (e.get("run"), e.get("paso"), e.get("detalle") or ""), False
     if e and e.get("estado") == "en_curso":
-        run = _run_de_rama(e["rama"]) if not e.get("run") else {"id": e["run"]}
-        if run and run.get("id"):
-            rc, out, _ = _gh(["api", "repos/{owner}/{repo}/actions/runs/%s" % run["id"], "--jq", "{status, conclusion}"])
-            try:
-                datos = json.loads(out) if rc == 0 else {}
-            except ValueError:
-                datos = {}
-            est, paso = veredicto(datos, _jobs(run["id"]) if datos.get("status") == "completed" else [])
-            e["run"] = run["id"]
-            if est in ("ok", "fallo"):
-                e.update(estado=est, paso=paso, detalle=_detalle_fallo(run["id"]) if est == "fallo" else "", t=ahora)
-                estado[clave] = e
-                _guardar(estado)
-                _borrar_rama(e["rama"])
-                return comprobar(base_sha, shas, cambiados, timeout, cwd, ahora)
-            if est == "medio":
-                estado.pop(clave, None)
-                _guardar(estado)
-                _borrar_rama(e["rama"])
-                return False, "%s: el run %s acabó «%s» (del medio): se repite en la próxima pasada" % (
-                    ESPERANDO, run["id"], paso), True
-        estado[clave] = e
-        _guardar(estado)
         return False, "%s (run %s, %d min): en la próxima pasada" % (
             ESPERANDO, e.get("run") or "?", (ahora - float(e.get("t") or ahora)) // 60), True
     if en_vuelo(estado) >= MAX_EN_VUELO:
@@ -280,7 +359,9 @@ def comprobar(base_sha, shas, cambiados, timeout=None, cwd=None, ahora=None):  #
         run = _run_de_rama(rama)
         if run:
             break
-    estado[clave] = {"estado": "en_curso", "rama": rama, "run": (run or {}).get("id"), "t": ahora,
-                     "cabeza": cabeza[:12]}
+    estado[clave] = {"estado": "en_curso", "rama": rama, "run": (run or {}).get("id"), "t": ahora, "visto": ahora,
+                     "cabeza": cabeza[:12], "base": base_sha,
+                     "parche": parche if parche is not None else _parche(cwd, base_sha),
+                     "archivos": sorted(set(cambiados or []))[:400]}
     _guardar(estado)
     return False, "%s (run %s): lanzada, el veredicto en la próxima pasada" % (ESPERANDO, (run or {}).get("id") or "?"), True

@@ -134,6 +134,138 @@ class Flujo(unittest.TestCase):
         self.assertEqual(self.empujes, [])
 
 
+class MainSeMueve(unittest.TestCase):
+    """(CAP1026R) La noche del 26-10: 6 comprobaciones verdes sobre un main que avanzó se quedaron «en curso»
+    para siempre y llenaron los 6 sitios. Ahora se leen igual, se reutilizan si es el mismo cambio y no se tocó lo
+    suyo, y lo caducado borra su rama."""
+
+    def test_reutilizable(self):
+        e = {"parche": "p1", "archivos": ["src/a.ts", "scripts/puente/x.py"]}
+        self.assertTrue(G.reutilizable(e, "p1", []))
+        self.assertTrue(G.reutilizable(e, "p1", ["src/otra.ts", "docs/y.md"]))
+        self.assertFalse(G.reutilizable(e, "p1", ["src/a.ts"]))  # main tocó lo suyo
+        self.assertFalse(G.reutilizable(e, "p1", ["package-lock.json"]))  # dependencias: todo cambia
+        self.assertFalse(G.reutilizable(e, "p2", []))  # otro cambio
+        self.assertFalse(G.reutilizable(e, "p1", None))  # la base vieja no es antecesora
+        self.assertFalse(G.reutilizable(e, "", []))
+        self.assertFalse(G.reutilizable(None, "p1", []))
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.estado = os.path.join(self.tmp.name, "comprobar-github.json")
+        for x in (mock.patch.object(G, "ESTADO", self.estado), mock.patch.object(G.time, "sleep", lambda s: None)):
+            x.start()
+            self.addCleanup(x.stop)
+        self.empujes, self.borradas = [], []
+
+    def _git(self, cwd, args, timeout=180):
+        if args[:2] == ["rev-parse", "HEAD^{tree}"]:
+            return 0, ARBOL + "\n"
+        if args[:2] == ["rev-parse", "HEAD"]:
+            return 0, CABEZA + "\n"
+        if args[:3] == ["remote", "get-url", "origin"]:
+            return 0, "https://github.com/StarSeedSystem/starseed-system.git\n"
+        if args[:1] == ["push"]:
+            (self.borradas if "--delete" in args else self.empujes).append(args[-1])
+            return 0, ""
+        return 1, "?"
+
+    def _gh(self, completados):
+        def gh(args, timeout=60):
+            ruta = args[1] if len(args) > 1 else ""
+            if "actions/runs?" in ruta:
+                return 0, json.dumps([{"id": 99, "status": "queued", "name": "comprobar-nube"}]), ""
+            if ruta.endswith("/jobs"):
+                return 0, json.dumps([{"steps": [{"name": "tsc", "conclusion": "success"}]}]), ""
+            if "actions/runs/" in ruta:
+                run = int(ruta.rsplit("/", 1)[-1])
+                return 0, json.dumps({"status": "completed", "conclusion": "success"} if run in completados
+                                     else {"status": "in_progress"}), ""
+            return 1, "", "?"
+        return gh
+
+    def _guardar(self, datos):
+        with open(self.estado, "w") as f:
+            json.dump(datos, f)
+
+    def test_las_de_un_main_viejo_se_leen_y_dejan_sitio(self):
+        viejo = "d" * 40
+        self._guardar({"%s:%d" % (viejo[:12], i): {"estado": "en_curso", "rama": "comprobar/%s/%d" % (viejo, i),
+                                                   "run": 100 + i, "t": T, "visto": T, "base": viejo}
+                       for i in range(G.MAX_EN_VUELO)})
+        with mock.patch.object(G, "_git", self._git), mock.patch.object(G, "_gh", self._gh({100, 101, 102, 103, 104, 105})), \
+                mock.patch.object(G, "_parche", lambda cwd, base: "pX"), mock.patch.object(G, "_movidos", lambda *a: None):
+            ok, detalle, medio = G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 600)
+        self.assertNotIn("ya hay", detalle)
+        self.assertEqual(len(self.empujes), 1)  # la de ahora sí se lanzó
+        self.assertEqual(len(self.borradas), G.MAX_EN_VUELO)  # las viejas, leídas y sus ramas borradas
+        with open(self.estado) as f:
+            d = json.load(f)
+        self.assertEqual(sum(1 for e in d.values() if e["estado"] == "ok"), G.MAX_EN_VUELO)
+        nueva = d[G.clave_de(BASE, ARBOL)]
+        self.assertEqual((nueva["parche"], nueva["base"], nueva["archivos"]), ("pX", BASE, ["src/a.ts"]))
+
+    def test_el_mismo_cambio_sobre_un_main_anterior_vale_si_no_se_toco_lo_suyo(self):
+        viejo = "d" * 40
+        self._guardar({"%s:%s" % (viejo[:12], "e" * 40): {"estado": "ok", "run": 7, "t": T, "base": viejo, "parche": "pX",
+                                                          "archivos": ["src/a.ts"], "rama": "comprobar/x/y"}})
+        with mock.patch.object(G, "_git", self._git), mock.patch.object(G, "_gh", self._gh(set())), \
+                mock.patch.object(G, "_parche", lambda cwd, base: "pX"), \
+                mock.patch.object(G, "_movidos", lambda cwd, a, b: ["src/otra.ts"]):
+            ok, detalle, medio = G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 600)
+        self.assertEqual((ok, medio), (True, False))
+        self.assertIn("run 7", detalle)
+        self.assertEqual(self.empujes, [])
+        with mock.patch.object(G, "_git", self._git), mock.patch.object(G, "_gh", self._gh(set())), \
+                mock.patch.object(G, "_parche", lambda cwd, base: "pX"), \
+                mock.patch.object(G, "_movidos", lambda cwd, a, b: ["src/a.ts"]):
+            ok, detalle, medio = G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 700)
+        self.assertEqual(medio, True)  # main tocó su archivo: se comprueba de nuevo
+        self.assertEqual(len(self.empujes), 1)
+
+    def test_parche_y_movidos_con_git_de_verdad(self):
+        import subprocess as sp
+        repo = os.path.join(self.tmp.name, "repo")
+        os.makedirs(repo)
+
+        def git(*a):
+            return sp.run(["git", *a], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+        git("init", "-q", "-b", "main")
+        git("config", "user.email", "t@t")
+        git("config", "user.name", "t")
+        for n in ("a.ts", "b.ts"):
+            with open(os.path.join(repo, n), "w") as f:
+                f.write("export const x = 1;\n")
+        git("add", ".")
+        git("commit", "-qm", "base")
+        b0 = git("rev-parse", "HEAD")
+        git("checkout", "-q", "-b", "tarea")
+        with open(os.path.join(repo, "a.ts"), "a") as f:
+            f.write("export const y = 2;\n")
+        git("commit", "-qam", "tarea")
+        p0 = G._parche(repo, b0)
+        self.assertTrue(p0)
+        git("checkout", "-q", "main")
+        with open(os.path.join(repo, "b.ts"), "a") as f:
+            f.write("export const z = 3;\n")
+        git("commit", "-qam", "main avanza")
+        b1 = git("rev-parse", "HEAD")
+        git("checkout", "-q", "-b", "tarea2")
+        git("cherry-pick", "tarea")
+        self.assertEqual(G._parche(repo, b1), p0)  # el mismo cambio sobre el main nuevo
+        self.assertEqual(G._movidos(repo, b0, b1), ["b.ts"])
+        self.assertEqual(G._movidos(repo, b1, b0), None)  # al revés no es antecesora
+        self.assertEqual(G._movidos(repo, b1, b1), [])
+
+    def test_lo_caducado_borra_su_rama(self):
+        self._guardar({"vieja": {"estado": "en_curso", "rama": "comprobar/v/1", "t": T - G.CADUCA_S - 10}})
+        with mock.patch.object(G, "_git", self._git), mock.patch.object(G, "_gh", self._gh(set())), \
+                mock.patch.object(G, "_parche", lambda cwd, base: ""), mock.patch.object(G, "_movidos", lambda *a: None):
+            G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T)
+        self.assertIn("comprobar/v/1", self.borradas)
+
+
 class LaPuertaDelOrquestadorEspera(unittest.TestCase):
     """(CAP1026P) La puerta tsc del orquestador de la Mac: lanza en GitHub y ESPERA el veredicto del paso tsc."""
 
