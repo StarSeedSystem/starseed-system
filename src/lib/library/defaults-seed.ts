@@ -60,6 +60,7 @@ import {
 import { DOWNLOADABLE_SOURCES } from "@/ai/astraura/installed-models";
 import { IDS_SIEMBRA_1025 } from "./repos-1025";
 import { IDS_SIEMBRA_1026 } from "./repos-1026";
+import { IDS_SIEMBRA_1027 } from "./repos-1027";
 
 /** Marca de estado de la siembra (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEED_KEY = "starseed.library.seed.v1";
@@ -69,7 +70,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 18;
+export const SEED_VERSION = 19;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -346,9 +347,13 @@ const RECOMMENDED_HASTA_16: string[] = [
  * WeKnora, OpenProject y Cap, más `iatool-open-generative-ai`, que ahora sigue su repo real. Ids de
  * `config/repos-libreria-1026.json` (módulo puro `repos-1026.ts`). Mismo contrato: instalar SOLO registra el enlace,
  * y que ninguno corra hoy en estas máquinas se dice en la ficha (`corre_aqui: false`), no se esconde.
+ *
+ * (SEED_VERSION 19 · Ola MBT1027 · N) LOS TRES REPOS DEL 2026-10-27: OpenMausBot, Insomnia y Colibri, los tres con
+ * `preinstalar: "siempre"` en `config/repos-libreria-1027.json` (módulo puro `repos-1027.ts`). Instalar SOLO registra
+ * el enlace; la activación (permisos, contraseña o descarga de modelos) la decide la persona y está en `aviso`.
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
-  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026]),
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027]),
 );
 
 /**
