@@ -296,7 +296,7 @@ export function RosterStrip({
             <div className="flex -space-x-2.5">
                 {Array.from({ length: shown }).map((_, i) => (
                     <span
-                        key={i}
+key={`${i}-${e.title}`}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-[10px] font-semibold"
                         style={{
                             background: `hsl(${(i * 67 + seed.length * 13) % 360} 60% 45%)`,
