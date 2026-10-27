@@ -140,7 +140,15 @@ export function corregirConGlosario(
       const tieneMayuscula = /[A-ZÁÉÍÓÚÜÑ]/.test(unaPalabra);
       const esPalabraComun = PALABRAS_COMUNES[idioma]?.includes(unaPalabraNormalizada) || false;
 
-      if (tieneMayuscula || !esPalabraComun) {
+      // Si la palabra forma un bigrama con mayúsculas (dudoso nombre propio de dos
+      // palabras), solo el intento de par decide: la corrección individual destrozaría
+      // nombres como "Starra Seed" ("Starra" → "Astraura", "Seed" → "StarSeed").
+      const esParteDeParMayusculas =
+          tieneMayuscula &&
+          ((i > 0 && /[A-ZÁÉÍÓÚÜÑ]/.test(palabras[i - 1])) ||
+            (i + 1 < palabras.length && /[A-ZÁÉÍÓÚÜÑ]/.test(palabras[i + 1])));
+
+      if ((tieneMayuscula || !esPalabraComun) && !esParteDeParMayusculas) {
         mejorDistancia = Infinity;
         for (const candidato of glosario) {
           const candidatoNormalizado = normalizar(candidato);
