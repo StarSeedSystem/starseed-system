@@ -135,6 +135,18 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
     const decision = ambito && modo ? decidirAplicacion(ambito, entidad?.rango ?? 0, modo.democratico) : null;
     const enVotacion = propuestas.filter((p) => p.estado === "open");
     const aprobadas = propuestas.filter((p) => propuestaAprobada(p.estado) && !aplicadas.has(p.id));
+    const tipoAmbito231 = (() => {
+        if (!ambito) return "personal";
+        const a = ambito as { tipo: "persona" | "entidad"; entidad?: { tipo: "grupo" | "pagina" } };
+        if (a.tipo === "entidad") return (a.entidad as { tipo: "grupo" | "pagina" }).tipo === "grupo" ? "grupo" : "publica";
+        return a.tipo === "persona" ? "perfil" : a.tipo;
+    })();
+    const tipoAmbito290 = (() => {
+        if (!ambito) return "personal";
+        const a = ambito as { tipo: "persona" | "entidad"; entidad?: { tipo: "grupo" | "pagina" } };
+        if (a.tipo === "entidad") return (a.entidad as { tipo: "grupo" | "pagina" }).tipo === "grupo" ? "grupo" : "publica";
+        return a.tipo === "persona" ? "perfil" : a.tipo;
+    })();
 
     return (
         <section className="space-y-4" data-testid="poligenesis">
@@ -228,7 +240,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                             contexto={{
                                 ruta: `/grupo/${entidad.slug}`,
                                 entidad: { tipo: entidad.tipo === "grupo" ? "grupo" : "pagina", id: entidad.id, nombre: entidad.nombre },
-                                ambito: ambito ? (ambito.tipo === "entidad" ? (ambito.entidad.tipo === "grupo" ? "grupo" : "publica") : ambito.tipo) : "personal",
+                                ambito: tipoAmbito231,
                                 gobernadaPor: { tipo: entidad.tipo === "grupo" ? "grupo" : "pagina", id: entidad.id, nombre: entidad.nombre },
                             }}
                         />
@@ -287,7 +299,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     </button>
                     <PanelProtoGenesis
                         moleculaId={encargoSeleccionado.encargo.moleculaId || entidad?.id || "entidad"}
-                        ambito={(ambito ? (ambito.tipo === "entidad" ? (entidad ? (entidad.tipo === "grupo" ? "grupo" : "publica") : "personal") : ambito.tipo) : "personal") as "personal" | "perfil" | "grupo" | "publica"}
+                        ambito={tipoAmbito290 as "personal" | "perfil" | "grupo" | "publica"}
                         esDueno={entidad?.dueña ?? false}
                         rol={entidad?.rol ?? null}
                         democratico={modo?.democratico ?? false}
