@@ -184,7 +184,23 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         const android = botonesNeurona({ nodo: null, vivo: true, so: "android", enCurso: 0 });
         expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
+
+    it("sin nodo (solo navegador) y SO no reconocido, el botón de instalar está oculto", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "otro", enCurso: 0 });
+        expect(b.instalar).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+    });
+
+    it("con nodo y en modo desconectando, el botón de desconectar está deshabilitado y muestra el estado (caso de la rama nube, adaptado: el texto del contrato exige relevoActivo)", () => {
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, desconectando: true, relevoActivo: true });
+        expect(b.desconectar).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Desconectando…",
+            explica: "Guarda el trabajo a medias y lo pasa a otro contenedor.",
+        });
+    });
 });
+
 // ─── el traductor latido → tarjeta (puro) ──────────────────────────────────────────────────────────────
 
 const A1 = "oracle-a1-bbbbbb";
