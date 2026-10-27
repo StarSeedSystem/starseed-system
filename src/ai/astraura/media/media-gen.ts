@@ -890,6 +890,114 @@ export function formatoComfyuiMasCercano(ancho?: number, alto?: number): Formato
   );
 }
 
+/** Obtiene la lista de checkpoints disponibles en el servidor ComfyUI (GET /object_info/CheckpointLoaderSimple). */
+export async function checkpointsDisponibles(endpoint: string): Promise<string[]> {
+  if (!isClient() || typeof fetch === "undefined") return [];
+  const url = joinUrl(endpoint, "/object_info/CheckpointLoaderSimple");
+  try {
+    const res = await fetch(url, { method: "GET", credentials: "omit", mode: "cors" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const ckpt = data?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0];
+    return Array.isArray(ckpt) ? ckpt : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Envía un grafo a ComfyUI (/prompt) y devuelve el prompt_id. */
+async function comfyuiEnviarPrompt(endpoint: string, grafo: GrafoComfyUI): Promise<string | null> {
+  if (!isClient() || typeof fetch === "undefined") return null;
+  const url = joinUrl(endpoint, "/prompt");
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ prompt: grafo }),
+      credentials: "omit",
+      mode: "cors",
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data?.prompt_id === "string" ? data.prompt_id : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Espera a que termine la generación consultando /history/{prompt_id}. */
+async function comfyuiEsperarHistorial(
+  endpoint: string,
+  promptId: string,
+  timeoutMs: number,
+): Promise<{ outputs: Record<string, unknown> } | null> {
+  if (!isClient() || typeof fetch === "undefined") return null;
+  const url = joinUrl(endpoint, `/history/${promptId}`);
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(url, { method: "GET", credentials: "omit", mode: "cors" });
+      if (res.ok) {
+        const data = await res.json();
+        const entry = data?.[promptId];
+        if (entry?.outputs) return { outputs: entry.outputs };
+      }
+    } catch {
+      /* ignorar y reintentar */
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return null;
+}
+
+/** Descarga la imagen generada desde /view. */
+async function comfyuiDescargarImagen(
+  endpoint: string,
+  filename: string,
+  subfolder: string,
+  type: string,
+): Promise<Blob | null> {
+  if (!isClient() || typeof fetch === "undefined") return null;
+  const params = new URLSearchParams({ filename, subfolder, type });
+  const url = `${joinUrl(endpoint, "/view")}?${params.toString()}`;
+  try {
+    const res = await fetch(url, { method: "GET", credentials: "omit", mode: "cors" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return blob && blob.size > 0 ? blob : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Ejecuta un grafo (o varios para variaciones) en ComfyUI y devuelve URLs de /view. */
+async function comfyuiEjecutarGrafos(
+  endpoint: string,
+  grafos: GrafoComfyUI[],
+  timeoutMs: number,
+): Promise<string[]> {
+  const urls: string[] = [];
+  for (const grafo of grafos) {
+    const promptId = await comfyuiEnviarPrompt(endpoint, grafo);
+    if (!promptId) continue;
+    const history = await comfyuiEsperarHistorial(endpoint, promptId, timeoutMs);
+    if (!history) continue;
+    for (const nodeOut of Object.values(history.outputs)) {
+      const files = (nodeOut as { images?: Array<{ filename: string; subfolder: string; type: string }> })?.images;
+      if (Array.isArray(files)) {
+        for (const f of files) {
+          const blob = await comfyuiDescargarImagen(endpoint, f.filename, f.subfolder, f.type);
+          if (blob) {
+            const objUrl = safeObjectUrl(blob);
+            if (objUrl) urls.push(objUrl);
+          }
+        }
+      }
+    }
+  }
+  return urls;
+}
+
 /** Traduce la petición de imagen del OS a una plantilla pura del flujo (los lados son del formato; pasos/CFG/muestreo: valores sanos por defecto, acotados como pide la plantilla). */
 export function peticionFlujoComfyui(opts: GenerateImageOptions): PeticionFlujo {
   const checkpoint = (opts.model || "").trim() || COMFYUI_CHECKPOINT_DEFECTO;
