@@ -154,8 +154,6 @@ describe("«Bloqueadas» con las fallidas y rechazadas sin resolver", () => {
             R1: { estado: "rechazada", t: HOY, nota: "no toco NINGUNO de los 3 archivos que declaraba (rama ola/R1 conservada)" },
             // Rechazos que fueron decisiones: no son un problema.
             R2: { estado: "rechazada", t: HOY, nota: "rechazada desde Genesis; rama ola/R2 conservada" },
-            // Nota antigua, de antes del nombre Genesis (montada así para no tropezar con la guardia del nombre).
-            R2b: { estado: "rechazada", t: HOY, nota: "rechazada desde el " + "M" + "ando; rama ola/R2b conservada" },
             R3: { estado: "rechazada", t: HOY, nota: "revisada por la dirección (2026-10-08): no aporta" },
             // Rechazada sin fecha o vieja: no se puede decir que sea de estos días.
             R4: { estado: "rechazada", nota: "no toco NINGUNO" },
