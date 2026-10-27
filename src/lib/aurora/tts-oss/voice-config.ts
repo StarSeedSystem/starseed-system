@@ -597,6 +597,58 @@ function isValidEngine(v: unknown): v is AuroraVoiceEngine {
   return typeof v === "string" && (VALID_ENGINES as readonly string[]).includes(v);
 }
 
+// ── Jerarquía de PINS del motor de voz (VOZ1024D) ────────────────────────────
+
+/**
+ * Pines crudos por NIVEL: cualquier valor (basura incluida) — este módulo solo
+ * VALIDA y elige. "browser" nunca vale como pin: es el suelo garantizado.
+ */
+export interface VoiceEngineHierarchyPins {
+  /** Pin del AGENTE (intelligence.motorVoz / porSentido.voz.fuente en modo fija). */
+  agente?: unknown;
+  /** Pin de la PERSONALIDAD (voiceStyle.engine preferido). */
+  personalidad?: unknown;
+  /** Pin del CEREBRO (override de la ventana de voz de esta neurona). */
+  cerebro?: unknown;
+  /** Pin de la NEURONA (elección según su hardware, p.ej. modo fastweb/local). */
+  neurona?: unknown;
+  /** Pin de la CUENTA (elección explícita en Ajustes → Voz; openvoice2 por defecto). */
+  cuenta?: unknown;
+}
+
+/**
+ * resolveVoiceEngineFromHierarchy — aplica la jerarquía de pines del motor de
+ * voz: agente › personalidad › cerebro › neurona › cuenta (VOZ1024D, hallado
+ * por VOZ1024B). Es la MISMA jerarquía que `refreshPersonalityVoicePin`
+ * resuelve al pin de la personalidad activa, extraída aquí como función PURA
+ * (sin imports de personalidades ni storage) para que
+ * `resolveActiveVoiceEngine` y el router de Astraura la apliquen tal cual. Reglas:
+ *   · Un pin solo si `isVoiceEngineId` lo valida y NO es "browser" (el
+ *     navegador es el suelo del llamador, no un pin: igual que en
+ *     `buildVoiceChain`).
+ *   · El primer nivel con pin válido GANA (jerarquía, no promedio).
+ *   · Nunca lanza y devuelve null si ningún nivel aporta un pin válido.
+ */
+export function resolveVoiceEngineFromHierarchy(
+  pins: VoiceEngineHierarchyPins,
+): AuroraVoiceEngine | null {
+  const order: readonly unknown[] = [
+    pins.agente,
+    pins.personalidad,
+    pins.cerebro,
+    pins.neurona,
+    pins.cuenta,
+  ];
+  try {
+    for (const raw of order) {
+      if (isVoiceEngineId(raw) && raw !== "browser") return raw;
+    }
+  } catch {
+    /* defensivo: cualquier rara excepción → null */
+  }
+  return null;
+}
+
 const VALID_EMOTIONS: readonly AuroraVoiceEmotion[] = [
   "alegre",
   "serena",
