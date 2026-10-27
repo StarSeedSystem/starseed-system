@@ -44,6 +44,8 @@ import { ThemeMixerPanel } from "@/components/design/theme-mixer-panel";
 // widgets y desde la pestaña Hogar de Trinity — que es justo por donde se
 // coló Audiomorphic). Aquí queda por fin accesible: /estudio → "Fondo".
 import { BackgroundSettings } from "@/components/settings/appearance/background-settings";
+// §5 de las guías de introducción (GUI1021M2): el aviso común «Inicia sesión…».
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 
 type ToolTab = "props" | "2d" | "3d" | "aurora" | "mezclador" | "fondo";
 
@@ -210,7 +212,11 @@ export function DesignStudio() {
                             </DropdownMenuItem>
                         ))}
                         {pageTargets.length === 0 && (
-                            <p className="px-2 py-1.5 text-[10px] text-white/40">Inicia sesión y administra páginas/grupos para aplicar ahí.</p>
+                            /* §5 de las guías (GUI1021M2): aviso suelto → componente común, mismo texto. */
+                            <AvisoSesion
+                                compacto
+                                texto="Inicia sesión y administra páginas/grupos para aplicar ahí."
+                            />
                         )}
                     </DropdownMenuContent>
                 </DropdownMenu>
