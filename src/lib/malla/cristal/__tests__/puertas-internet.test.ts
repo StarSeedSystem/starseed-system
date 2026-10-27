@@ -58,14 +58,22 @@ describe('restanteParaOtrosMb', () => {
   });
 
   it('aplica la reserva del 20 % por defecto si no se declara', () => {
+<<<<<<< HEAD
     // tope 1000, usado 200, reserva no declarada → 20 % de 1000 = 200 → 600 MB.
+=======
+    // tope 1000, usado 200 (base), reserva no declarada → 20 % de 1000 = 200 → 600 MB
+>>>>>>> 4319ad7ee (salvavidas · RTTIP1013Bb: trabajo del agente antes de las puertas (tsc / vitest))
     expect(
       restanteParaOtrosMb({ ...basePuerta, reservaDuenoPct: undefined })
     ).toBe(600);
   });
 
   it('respeta una reserva editable distinta de 20 %', () => {
+<<<<<<< HEAD
     // tope 1000, usado 0, reserva 40 % = 400 → 600 MB para otros.
+=======
+    // tope 1000, usado 0, reserva 40 % = 400 → 600 MB para otros
+>>>>>>> 4319ad7ee (salvavidas · RTTIP1013Bb: trabajo del agente antes de las puertas (tsc / vitest))
     expect(
       restanteParaOtrosMb({ ...basePuerta, usadoMesMb: 0, reservaDuenoPct: 40 })
     ).toBe(600);
@@ -196,6 +204,15 @@ describe('puedeUsar', () => {
         puedeUsar({ ...basePuerta, compartir: 'publico' as Compartir }, baseSolicitante)
       ).toEqual({ ok: true, motivo: 'Permitido según configuración de compartir' });
     });
+
+  it('deniega a los demás una puerta sin medida ni tope aunque compartir sea público', () => {
+    expect(
+      puedeUsar(
+        { ...basePuerta, medida: false, topeMensualMb: undefined },
+        baseSolicitante
+      )
+    ).toEqual({ ok: false, motivo: 'Puerta no medida o sin tope definido' });
+  });
 
   it('deniega cuando es público pero no hay datos disponibles', () => {
     expect(
@@ -376,10 +393,22 @@ describe('elegirPuerta', () => {
   });
 
   it('cambia a la de menor coste cuando la actual cuesta mucho más que mejor × 1,2', () => {
+<<<<<<< HEAD
     // Rama de salida de la histéresis (rescate RTTIP1013B):
     // p1: 0,9 + 0,65 = 1,55 × 2 (medida) = 3,1 · p2: 0,01 × 2 = 0,02 → 3,1 > 0,024.
     const actualCara = { ...puertas[0], latenciaMs: 900 };
     const otraBarata = { ...puertas[1], latenciaMs: 10, usadoMesMb: 0 };
+=======
+    const actualCara = {
+      ...puertas[0],
+      latenciaMs: 900, // coste 1,55 × 2 (medida) = 3,1
+    };
+    const otraBarata = {
+      ...puertas[1],
+      latenciaMs: 10, // coste 0,01 × 2 (medida) = 0,02
+      usadoMesMb: 0,
+    };
+>>>>>>> 4319ad7ee (salvavidas · RTTIP1013Bb: trabajo del agente antes de las puertas (tsc / vitest))
 
     const resultado = elegirPuerta({
       clase: 'interno' as ClaseDato,
@@ -418,6 +447,55 @@ describe('elegirPuerta', () => {
 });
 
 describe('puertaParaTesela', () => {
+  it('sin datos opcionales devuelve exactamente los campos base', () => {
+    const puertaBase = {
+      id: 'p1',
+      neurona: 'n1',
+      cuenta: 'c1',
+      tipo: 'wifi-externa',
+      bajadaKbps: 10000,
+      subidaKbps: 5000,
+      latenciaMs: 50,
+      medida: false,
+      compartir: 'publico',
+    };
+
+    const resultado = puertaParaTesela(puertaBase as any);
+    expect(Object.keys(resultado).sort()).toEqual(
+      ['bajadaKbps', 'compartir', 'cuenta', 'id', 'latenciaMs', 'medida', 'neurona', 'subidaKbps', 'tipo']
+    );
+  });
+
+  it('conserva los datos opcionales que sí pertenecen a la interfaz', () => {
+    const puertaConOpcionales = {
+      id: 'p1',
+      neurona: 'n1',
+      cuenta: 'c1',
+      tipo: 'movil-4g',
+      bajadaKbps: 10000,
+      subidaKbps: 5000,
+      latenciaMs: 50,
+      medida: true,
+      topeMensualMb: 1000,
+      usadoMesMb: 200,
+      reservaDuenoPct: 20,
+      grupos: ['grupo1'],
+      compartir: 'publico',
+      iccid: '12345678901234567890',
+      imsi: '123456789012345',
+      pin: '1234',
+      telefono: '+1234567890',
+    };
+
+    const resultado = puertaParaTesela(puertaConOpcionales as any);
+    expect(resultado.topeMensualMb).toBe(1000);
+    expect(resultado.usadoMesMb).toBe(200);
+    expect(resultado.reservaDuenoPct).toBe(20);
+    expect(resultado.grupos).toEqual(['grupo1']);
+    expect('iccid' in resultado).toBe(false);
+    expect('pin' in resultado).toBe(false);
+  });
+
   it('devuelve solo los campos de la interfaz (lista blanca)', () => {
     const puertaConCamposExtra = {
       id: 'p1',
