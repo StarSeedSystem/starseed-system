@@ -79,6 +79,16 @@ class GenesisEnA1(unittest.TestCase):
         self.assertIn("header_up X-Real-IP {remote_host}", self.caddy_cfg)
         self.assertNotIn("+X-Real-IP", self.caddy, "la IP real no puede ser la que traiga el cliente")
 
+    def test_caddy_conserva_la_cookie_de_la_sesion(self):
+        """La puerta de datos borra `Cookie`; copiar eso aquí dejaría a Genesis sin sesión."""
+        self.assertNotRegex(self.caddy_cfg, r"(?m)^\s*header_up\s+-\s*Cookie\b",
+                            "el bloque de Genesis no puede quitar la cabecera Cookie")
+
+    def test_caddy_no_publica_rutas_que_se_apoyan_en_no_estar_en_la_mac(self):
+        """Esas rutas lanzan binarios o gastan créditos sin preguntar: en el A1 no se publican."""
+        for ruta in ("/api/agent-reach", "/api/astraura/decidir", "/api/voz-local/", "/api/telegram/send"):
+            self.assertNotIn(ruta, self.caddy_cfg, f"ruta publicada en el A1: {ruta}")
+
     def test_nada_de_ips_ni_hosts_ni_claves_reales(self):
         """Al repo solo llega el bucle local; ni una URL, ni una IP, ni un host, ni una clave."""
         for nombre, texto in (("la unidad", self.unidad), ("el Caddyfile", self.caddy)):
@@ -122,6 +132,12 @@ class GenesisEnA1(unittest.TestCase):
         self.assertTrue(any(".next/BUILD_ID" in l for l in exige), exige)
         self.assertTrue(any("/usr/local/bin/node" in l for l in exige), exige)
 
+    def test_la_unidad_arranca_el_next_de_opt_y_no_el_del_guardian(self):
+        """Si ExecStart apuntara al next del home, serviría el árbol que el enjambre puede escribir."""
+        arranques = [l for l in self.unidad_cfg.splitlines() if l.startswith("ExecStart=")]
+        self.assertEqual(len(arranques), 1, self.unidad_cfg)
+        self.assertIn("/opt/starseed/genesis", arranques[0])
+        self.assertNotIn(".local/bin/next", arranques[0])
 
     def test_el_bloque_de_bitnet_no_lleva_claves_en_el_caddyfile(self):
         """La clave de BitNet vive en /etc/starseed/bitnet.key (la exige llama-server): el bloque
