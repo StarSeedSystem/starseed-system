@@ -17,6 +17,7 @@ import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
 
 const AMBITO: Ambito = { tipo: "persona" };
 
@@ -56,6 +57,7 @@ export function MiGenesis() {
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    const [encargoSeleccionado, setEncargoSeleccionado] = useState<RegistroEncargo | null>(null);
 
     useEffect(() => {
         const almacen = almacenNavegador();
@@ -102,6 +104,7 @@ export function MiGenesis() {
             </section>
             <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
                 <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
+                <p className="text-[11px] text-white/50">La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.</p>
                 {encargos === null ? (
                     <p className="text-[11px] text-white/50">Cargando encargos…</p>
                 ) : encargos.length === 0 ? (
@@ -123,6 +126,14 @@ export function MiGenesis() {
                                     )}
                                     {/* La decisión del resultado (§2.7 del contrato): quién acepta y por qué. */}
                                     <span className="block truncate text-[10px] text-emerald-200/70">{decision.motivo}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEncargoSeleccionado(registro)}
+                                        className="cursor-pointer rounded-lg border border-white/15 bg-black/30 px-2 py-0.5 text-[10px] text-white/70 hover:bg-black/40"
+                                        aria-label={`Abrir ProtoGenesis de ${registro.encargo.id}`}
+                                    >
+                                        Ver ProtoGenesis
+                                    </button>
                                     {decision.modo === "proponer-metagenesis" && decision.borrador ? (
                                         <span className="block truncate text-[10px] text-amber-200/80">
                                             Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
@@ -137,6 +148,26 @@ export function MiGenesis() {
                     })}
                     </ul>
                 )}
+                {encargoSeleccionado ? (
+                    <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                        <button
+                            type="button"
+                            onClick={() => setEncargoSeleccionado(null)}
+                            className="mb-2 cursor-pointer rounded-lg border border-white/15 bg-black/30 px-2 py-0.5 text-[10px] text-white/60 hover:bg-black/40"
+                        >
+                            Cerrar ProtoGenesis
+                        </button>
+                        <PanelProtoGenesis
+                            moleculaId={encargoSeleccionado.encargo.moleculaId}
+                            ambito={encargoSeleccionado.encargo.ambito}
+                            esDueno={true}
+                            plan={encargoSeleccionado.plan}
+                            estados={encargoSeleccionado.estados}
+                            asignaciones={encargoSeleccionado.asignaciones}
+                            almacen={almacenNavegador()}
+                        />
+                    </div>
+                ) : null}
             </section>
         </section>
     );

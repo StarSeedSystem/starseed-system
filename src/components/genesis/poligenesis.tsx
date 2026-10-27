@@ -23,6 +23,8 @@ import { PanelOperaciones } from "./panel-operaciones";
 import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
+import { GobiernoProtoResumen } from "@/components/protomolecula/gobierno";
 
 const SUGERENCIAS = ["Actualiza la descripción para presentar mejor al grupo", "Cambia el color de acento a verde esmeralda", "Crea un agente público que dé la bienvenida a quien llega"];
 
@@ -35,6 +37,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
     const [aplicadas, setAplicadas] = useState<Set<string>>(new Set());
     const [aplicando, setAplicando] = useState<string | null>(null);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    const [encargoSeleccionado, setEncargoSeleccionado] = useState<RegistroEncargo | null>(null);
     const puertos = useMemo(() => puertosDelOs(), []);
 
     useEffect(() => {
@@ -219,6 +222,17 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
             {encargos !== null && (
                 <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis para esta entidad">
                     <h2 className="text-base font-semibold">ProtoGenesis de esta entidad</h2>
+                    <p className="text-[11px] text-white/50">La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.</p>
+                    {entidad ? (
+                        <GobiernoProtoResumen
+                            contexto={{
+                                ruta: `/grupo/${entidad.slug}`,
+                                entidad: { tipo: entidad.tipo === "grupo" ? "grupo" : "pagina", id: entidad.id, nombre: entidad.nombre },
+                                ambito: ambito ? (ambito.tipo === "entidad" ? (ambito.entidad.tipo === "grupo" ? "grupo" : "publica") : ambito.tipo) : "personal",
+                                gobernadaPor: { tipo: entidad.tipo === "grupo" ? "grupo" : "pagina", id: entidad.id, nombre: entidad.nombre },
+                            }}
+                        />
+                    ) : null}
                     {encargos.length === 0 ? (
                         <p className="text-[11px] text-white/60">
                             Aún no hay encargos para esta entidad.
@@ -238,6 +252,14 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                                     )}
                                     {/* Quién decide el resultado aquí: el gobierno de la entidad (§2.7). */}
                                     <span className="block truncate text-[10px] text-cyan-200/70">{decision.motivo}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEncargoSeleccionado(registro)}
+                                        className="cursor-pointer rounded-lg border border-white/15 bg-black/30 px-2 py-0.5 text-[10px] text-white/70 hover:bg-black/40"
+                                        aria-label={`Abrir ProtoGenesis de ${registro.encargo.id}`}
+                                    >
+                                        Ver ProtoGenesis
+                                    </button>
                                     {decision.modo === "proponer-metagenesis" && decision.borrador ? (
                                         <span className="block truncate text-[10px] text-amber-200/80">
                                             Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
@@ -254,6 +276,28 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     )}
                 </section>
             )}
+            {encargoSeleccionado ? (
+                <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                    <button
+                        type="button"
+                        onClick={() => setEncargoSeleccionado(null)}
+                        className="mb-2 cursor-pointer rounded-lg border border-white/15 bg-black/30 px-2 py-0.5 text-[10px] text-white/60 hover:bg-black/40"
+                    >
+                        Cerrar ProtoGenesis
+                    </button>
+                    <PanelProtoGenesis
+                        moleculaId={encargoSeleccionado.encargo.moleculaId || entidad?.id || "entidad"}
+                        ambito={(ambito ? (ambito.tipo === "entidad" ? (entidad ? (entidad.tipo === "grupo" ? "grupo" : "publica") : "personal") : ambito.tipo) : "personal") as "personal" | "perfil" | "grupo" | "publica"}
+                        esDueno={entidad?.dueña ?? false}
+                        rol={entidad?.rol ?? null}
+                        democratico={modo?.democratico ?? false}
+                        plan={encargoSeleccionado.plan}
+                        estados={encargoSeleccionado.estados}
+                        asignaciones={encargoSeleccionado.asignaciones}
+                        almacen={almacenNavegador()}
+                    />
+                </div>
+            ) : null}
         </section>
     );
 }
