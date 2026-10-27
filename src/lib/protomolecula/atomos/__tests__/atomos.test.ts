@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach } from "vitest";
 import { ATOMOS_PROPIOS, VISTAS_COMPONENTE, registrarAtomosPropios } from "../index";
-import { candidatosDe, limpiarRegistro, listarAtomos, registrarAtomo } from "../../registro-atomos";
+import { candidatosDe, limpiarRegistro, listarAtomos, obtenerAtomo, registrarAtomo } from "../../registro-atomos";
 import { entenderDictado } from "../../dictado";
 import type { AtomoEnUso, Autor, Molecula } from "../../tipos";
 
@@ -43,10 +43,16 @@ describe("átomos propios", () => {
 
   it("registrarAtomosPropios es idempotente", () => {
     registrarAtomosPropios();
-    const primera = listarAtomos().length;
     registrarAtomosPropios();
-    expect(listarAtomos().length).toBe(primera);
-    expect(primera).toBe(ATOMOS_PROPIOS.length);
+    expect(listarAtomos()).toHaveLength(ATOMOS_PROPIOS.length);
+    for (const def of ATOMOS_PROPIOS) {
+      expect(obtenerAtomo(def.herramientaId), def.herramientaId).toBeDefined();
+    }
+  });
+
+  it("no hay ids de herramienta repetidos entre los átomos propios", () => {
+    const ids = ATOMOS_PROPIOS.map((d) => d.herramientaId);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("los ids de parámetros son únicos dentro de cada definición", () => {
