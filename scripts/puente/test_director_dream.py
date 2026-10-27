@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Pruebas de director_dream.py: el que convierte el Dream en encargos."""
+"""Pruebas de director_dream.py: el que convierte la imaginación diaria en encargos."""
 
 import os
 import sys
@@ -8,6 +8,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import director_dream as DD
+import dream_a_cola as DC
 
 #: La forma real de una propuesta, tal como la devuelve `dream_a_cola.puntos`.
 P = {"titulo": "Algo que hacer", "seccion": "top 3 accionables", "cuerpo": "detalle"}
@@ -54,7 +55,7 @@ class TestFormaDelEncargo(unittest.TestCase):
         self.assertIn(P["seccion"], prompt)
 
     def test_deja_salida_si_ya_no_aplica(self):
-        # El Dream lo escriben modelos gratuitos leyendo registros: a veces
+        # La imaginación diaria la escriben modelos gratuitos leyendo registros: a veces
         # proponen algo ya hecho. El encargo tiene que permitir decirlo.
         self.assertIn("NO APLICA", DD.tarea_de(P, "2026-09-17", 0)["prompt"])
 
@@ -62,6 +63,29 @@ class TestFormaDelEncargo(unittest.TestCase):
         t = DD.tarea_de(P, "2026-09-17", 0)
         self.assertEqual(t["depende"], [])
         self.assertEqual(t["archivos"], [])
+
+
+class TestTextosDeImaginacion(unittest.TestCase):
+    """Lo que lee una persona dice «Imaginación», no «Dream» (Ola 1021I, §2).
+
+    Los identificadores no cambian: el id sigue siendo `DR…` y la cola se
+    sigue llamando `cola-dream-…`; solo cambian los textos.
+    """
+
+    def test_el_titulo_de_la_ola_dice_imaginacion(self):
+        t = DD.tarea_de(P, "2026-09-17", 0)
+        self.assertTrue(t["ola"].startswith("Ola Imaginación 2026-09-17"), t["ola"])
+        self.assertNotIn("Dream", t["ola"])
+
+    def test_el_resumen_dice_imaginacion_diaria(self):
+        t = DC.resumen([P], total_leidas=5)
+        self.assertTrue(t.startswith("Imaginación diaria leída: encargo 1"), t)
+        self.assertNotIn("Dream", t)
+
+    def test_el_resumen_vacio_tambien_dice_imaginacion_diaria(self):
+        t = DC.resumen([])
+        self.assertIn("Imaginación diaria leída", t)
+        self.assertNotIn("Dream", t)
 
 
 if __name__ == "__main__":
