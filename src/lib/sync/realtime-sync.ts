@@ -77,6 +77,7 @@ import { activeProfileId } from "@/lib/profiles/profiles";
 // escribirlo (ver el comentario en applyRemoteChanges). Módulo puro y sin
 // dependencias a propósito — no arrastra el catálogo de iconos a este bundle.
 import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaults";
+import { CLAVE_MAUSBOT, EVENTO_MAUSBOT } from "@/lib/mausbot/config";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -157,6 +158,8 @@ interface BroadcastPayload {
 // (storage NO se dispara en el propio documento; hay que replicar el evento
 // custom que cada store usa para refrescar su UI en la MISMA pestaña).
 const EVENT_BY_KEY: Record<string, string[]> = {
+    // Mausbot de Astraura (MBT1027C): su store escucha starseed:mausbot (config.ts).
+    [CLAVE_MAUSBOT]: [EVENTO_MAUSBOT],
     "starseed.desktops.v1": ["starseed:desktops"],
     "starseed.cursorfx.v1": ["starseed:cursorfx"],
     "starseed.aurora.chatlog.v1": ["starseed:aurora-chatlog"],

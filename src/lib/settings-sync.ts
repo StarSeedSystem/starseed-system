@@ -37,6 +37,8 @@ import { AVISOS_KEY, fusionarAvisosCrudo } from "@/lib/sync/avisos-cuenta";
 // de entrada del estado del dock y también debe normalizarlo — si no, bajar los
 // ajustes de una cuenta antigua volvía a borrar «Señales» y «Feed de red».
 import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaults";
+// Mausbot de Astraura (MBT1027C): su config viaja con la cuenta (contrato §3).
+import { CLAVE_MAUSBOT } from "@/lib/mausbot/config";
 
 /** Claves de preferencia que viajan con la cuenta. Aditivo: ampliar sin migración. */
 export const SYNCED_KEYS = [
