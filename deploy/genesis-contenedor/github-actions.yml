@@ -1,0 +1,113 @@
+# Plantilla de contenedor de Genesis para GitHub Actions (Ola 1019G · GCA1019O).
+# Cópiala a .github/workflows/genesis.yml de TU repositorio. Solo necesita el secreto
+# STARSEED_MOTOR_TOKEN y las variables STARSEED_SUPABASE_URL y STARSEED_SUPABASE_ANON_KEY.
+# El token nunca se escribe en el repositorio ni se imprime en el registro.
+name: Genesis · motor de ámbito
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: genesis-motor-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  NEEDLE_TELEMETRY: "0"
+  NEXT_TELEMETRY_DISABLED: "1"
+  DO_NOT_TRACK: "1"
+  STARSEED_MOTOR_TOKEN: ${{ secrets.STARSEED_MOTOR_TOKEN }}
+  NEXT_PUBLIC_SUPABASE_URL: ${{ vars.STARSEED_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.STARSEED_SUPABASE_ANON_KEY }}
+  STARSEED_ESPERA_APROBACION_S: "600"
+
+jobs:
+  tarea:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Comprobar la configuración (sin enseñar valores)
+        run: |
+          set -euo pipefail
+          : "${STARSEED_MOTOR_TOKEN:?falta el secreto STARSEED_MOTOR_TOKEN}"
+          : "${NEXT_PUBLIC_SUPABASE_URL:?falta la variable STARSEED_SUPABASE_URL}"
+          : "${NEXT_PUBLIC_SUPABASE_ANON_KEY:?falta la variable STARSEED_SUPABASE_ANON_KEY}"
+          echo "configuración presente; los valores no se imprimen"
+      - name: Traer TU repositorio (solo lectura)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Traer el OS como herramienta (solo lectura)
+        run: git clone --depth 1 "https://github.com/${{ vars.STARSEED_OS_REPO || 'StarSeedSystem/starseed-system' }}.git" "$RUNNER_TEMP/os"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Pedir trabajo al ámbito
+        id: pedir
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, sys
+          sys.path.insert(0, os.path.join(os.environ["RUNNER_TEMP"], "os", "scripts", "enjambre"))
+          from motor_ambito import Conector
+          conector = Conector.desde_entorno()
+          tareas = [t for t in conector.recoger_tareas() if t.get("estado", "pendiente") == "pendiente"]
+          salida = open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8")
+          if not tareas:
+              salida.write("hay=0\n")
+              print("el ámbito no tiene tareas pendientes")
+              raise SystemExit
+          tarea = tareas[0]
+          cola = {"tareas": [{"id": tarea["id"], "ola": tarea.get("ola") or "contenedor",
+                              "titulo": tarea.get("titulo") or tarea["id"], "depende": tarea.get("depende") or [],
+                              "archivos": tarea.get("archivos") or [], "prompt": tarea.get("prompt") or ""}]}
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "cola-contenedor.json"), "w", encoding="utf-8") as f:
+              json.dump(cola, f, ensure_ascii=False)
+          salida.write("hay=1\nid=%s\n" % tarea["id"])
+          conector.anotar_progreso(tarea["id"], "en_curso", 0)
+          conector.anotar_evento({"tipo": "paso", "tarea": tarea["id"], "texto": "recibida por el motor"})
+          conector.tal_vez_enviar()
+          print("tarea recibida:", tarea["id"])
+          PY
+      - name: Correr una tarea con el orquestador del OS
+        id: correr
+        if: steps.pedir.outputs.hay == '1'
+        timeout-minutes: 25
+        run: |
+          set -euo pipefail
+          bash "$RUNNER_TEMP/os/scripts/enjambre/instalar.sh"
+          ORQ="$HOME/bin/starseed-enjambre.py"; [ -f "$ORQ" ] || ORQ="$HOME/.local/bin/starseed-enjambre.py"
+          [ -f "$ORQ" ] || { echo "::error::no se instaló el orquestador"; exit 1; }
+          mkdir -p .git/info; printf 'node_modules/\n' >> .git/info/exclude
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund --loglevel=error; fi
+          npm install -g opencode-ai@1.18.33 --no-audit --no-fund --loglevel=error
+          set +e; python3 -u "$ORQ" "$RUNNER_TEMP/cola-contenedor.json" --workers 1 --solo "${{ steps.pedir.outputs.id }}"
+          rc=$?; set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          [ "$rc" = 0 ] || [ "$rc" = 124 ] || { echo "::error::el orquestador no pudo trabajar (rc=$rc)"; exit "$rc"; }
+      - name: Devolver el resultado al ámbito
+        if: always() && steps.pedir.outputs.hay == '1'
+        env:
+          TAREA: ${{ steps.pedir.outputs.id }}
+          RC: ${{ steps.correr.outputs.rc }}
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, os.path.join(os.environ["RUNNER_TEMP"], "os", "scripts", "enjambre"))
+          from motor_ambito import Conector
+          tarea, rc = os.environ["TAREA"], os.environ.get("RC", "")
+          estado = "integrada" if rc == "0" else "fallida"
+          conector = Conector.desde_entorno()
+          conector.anotar_progreso(tarea, estado, 1.0 if estado == "integrada" else None)
+          conector.anotar_evento({"tipo": "hecho" if estado == "integrada" else "error", "tarea": tarea,
+                                  "texto": "terminada con rc=%s" % (rc or "?")})
+          conector.tal_vez_enviar()
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write("### Genesis · motor de ámbito\n\n- Tarea: `%s`\n- Resultado: **%s**\n" % (tarea, estado))
+          print("resultado devuelto:", estado)
+          PY
