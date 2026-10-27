@@ -9,12 +9,13 @@
 
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Sparkles } from "lucide-react";
 import { useAppearance } from "@/context/appearance-context";
 import { puertosDelOs, contextoDeMiCuenta } from "@/lib/genesis/puertos-os";
 import type { Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
 
@@ -24,6 +25,11 @@ const AMBITO: Ambito = { tipo: "persona" };
 // el layout raíz no carga nada pesado de forma estática.
 const SeccionBotsGenesis = dynamic(
     () => import("./seccion-bots").then((m) => m.SeccionBotsGenesis),
+    { ssr: false },
+);
+
+const PanelProtoGenesis = dynamic(
+    () => import("@/components/protogenesis/panel-protogenesis").then((m) => m.PanelProtoGenesis),
     { ssr: false },
 );
 
@@ -56,6 +62,7 @@ export function MiGenesis() {
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    const [encargoAbierto, setEncargoAbierto] = useState<RegistroEncargo | null>(null);
 
     useEffect(() => {
         const almacen = almacenNavegador();
@@ -102,6 +109,7 @@ export function MiGenesis() {
             </section>
             <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
                 <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
+                <p className="text-[11px] text-white/60">La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.</p>
                 {encargos === null ? (
                     <p className="text-[11px] text-white/50">Cargando encargos…</p>
                 ) : encargos.length === 0 ? (
@@ -113,31 +121,60 @@ export function MiGenesis() {
                     {encargos.map((registro) => {
                         const decision = decisionPara(registro);
                         return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
-                                <div className="flex-1">
+                            <li key={registro.encargo.id} className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
+                                <button
+                                    type="button"
+                                    onClick={() => setEncargoAbierto(registro)}
+                                    className="flex-1 cursor-pointer text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                                    aria-label={`Abrir panel de ProtoGenesis para ${registro.encargo.intencion}`}
+                                >
                                     <span className="block truncate">{registro.encargo.intencion}</span>
                                     {registro.plan ? (
                                         <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
                                     ) : (
                                         <span className="text-[10px] text-white/45">Sin plan</span>
                                     )}
-                                    {/* La decisión del resultado (§2.7 del contrato): quién acepta y por qué. */}
                                     <span className="block truncate text-[10px] text-emerald-200/70">{decision.motivo}</span>
                                     {decision.modo === "proponer-metagenesis" && decision.borrador ? (
                                         <span className="block truncate text-[10px] text-amber-200/80">
                                             Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
                                         </span>
                                     ) : null}
-                                </div>
-                                <span className="text-[10px] text-white/45">
+                                </button>
+                                <span className="shrink-0 text-[10px] text-white/45">
                                     {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                 </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setEncargoAbierto(registro)}
+                                    className="cursor-pointer rounded-lg border border-cyan-300/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200 hover:bg-cyan-500/20"
+                                    aria-label="Abrir panel"
+                                >
+                                    <Sparkles aria-hidden className="inline h-3 w-3" /> Panel
+                                </button>
                             </li>
                         );
                     })}
                     </ul>
                 )}
             </section>
+            <Dialog open={!!encargoAbierto} onOpenChange={(o) => !o && setEncargoAbierto(null)}>
+                <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Panel ProtoGenesis</DialogTitle>
+                    </DialogHeader>
+                    {encargoAbierto && (
+                        <PanelProtoGenesis
+                            moleculaId={encargoAbierto.encargo.moleculaId || encargoAbierto.encargo.id}
+                            ambito={encargoAbierto.encargo.ambito}
+                            esDueno={true}
+                            plan={encargoAbierto.plan}
+                            estados={encargoAbierto.estados}
+                            asignaciones={encargoAbierto.asignaciones}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </section>
     );
 }

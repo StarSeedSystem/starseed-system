@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ExternalLink, Landmark, Loader2, RefreshCw, Users2, Vote } from "lucide-react";
+import { CheckCircle2, ExternalLink, Landmark, Loader2, RefreshCw, Sparkles, Users2, Vote } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { aplicarOperacion } from "@/lib/genesis/aplicar";
@@ -22,9 +22,18 @@ import { decidirAplicacion, type Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { GobiernoProtoResumen } from "@/components/protomolecula/gobierno";
+import type { ContextoProto } from "@/lib/protomolecula/peticion/contrato";
 
 const SUGERENCIAS = ["Actualiza la descripción para presentar mejor al grupo", "Cambia el color de acento a verde esmeralda", "Crea un agente público que dé la bienvenida a quien llega"];
+
+import dynamic from "next/dynamic";
+const PanelProtoGenesis = dynamic(
+    () => import("@/components/protogenesis/panel-protogenesis").then((m) => m.PanelProtoGenesis),
+    { ssr: false },
+);
 
 export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null }) {
     const [lista, setLista] = useState<EntidadGestionable[] | null>(null);
@@ -35,6 +44,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
     const [aplicadas, setAplicadas] = useState<Set<string>>(new Set());
     const [aplicando, setAplicando] = useState<string | null>(null);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    const [encargoAbierto, setEncargoAbierto] = useState<RegistroEncargo | null>(null);
     const puertos = useMemo(() => puertosDelOs(), []);
 
     useEffect(() => {
@@ -215,10 +225,17 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     </ul>
                 </section>
             ) : null}
+            {/* Gobierno de la Protomolécula de esta entidad (§2.7, sin duplicar) */}
+            {entidad && (
+                <section aria-label="Gobierno de esta entidad" data-testid="poligenesis-gobierno">
+                    <GobiernoProtoResumen contexto={{ ambito: "grupo", gobernadaPor: { tipo: entidad.tipo === "grupo" ? "grupo" : "pagina", id: entidad.id, nombre: entidad.nombre } }} />
+                </section>
+            )}
             {/* Nuevo section for ProtoGenesis encargos */}
             {encargos !== null && (
                 <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis para esta entidad">
                     <h2 className="text-base font-semibold">ProtoGenesis de esta entidad</h2>
+                    <p className="text-[11px] text-white/60">La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.</p>
                     {encargos.length === 0 ? (
                         <p className="text-[11px] text-white/60">
                             Aún no hay encargos para esta entidad.
@@ -228,25 +245,37 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     {encargos.map((registro) => {
                         const decision = decisionPara(registro);
                         return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
-                                <div className="flex-1">
+                            <li key={registro.encargo.id} className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
+                                <button
+                                    type="button"
+                                    onClick={() => setEncargoAbierto(registro)}
+                                    className="flex-1 cursor-pointer text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                                    aria-label={`Abrir panel de ProtoGenesis para ${registro.encargo.intencion}`}
+                                >
                                     <span className="block truncate">{registro.encargo.intencion}</span>
                                     {registro.plan ? (
                                         <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
                                     ) : (
                                         <span className="text-[10px] text-white/45">Sin plan</span>
                                     )}
-                                    {/* Quién decide el resultado aquí: el gobierno de la entidad (§2.7). */}
                                     <span className="block truncate text-[10px] text-cyan-200/70">{decision.motivo}</span>
                                     {decision.modo === "proponer-metagenesis" && decision.borrador ? (
                                         <span className="block truncate text-[10px] text-amber-200/80">
                                             Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
                                         </span>
                                     ) : null}
-                                </div>
-                                <span className="text-[10px] text-white/45">
+                                </button>
+                                <span className="shrink-0 text-[10px] text-white/45">
                                     {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                 </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setEncargoAbierto(registro)}
+                                    className="cursor-pointer rounded-lg border border-cyan-300/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200 hover:bg-cyan-500/20"
+                                    aria-label="Abrir panel"
+                                >
+                                    <Sparkles aria-hidden className="inline h-3 w-3" /> Panel
+                                </button>
                             </li>
                         );
                     })}
@@ -254,6 +283,25 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     )}
                 </section>
             )}
+            <Dialog open={!!encargoAbierto} onOpenChange={(o) => !o && setEncargoAbierto(null)}>
+                <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Panel ProtoGenesis</DialogTitle>
+                    </DialogHeader>
+                    {encargoAbierto && (
+                        <PanelProtoGenesis
+                            moleculaId={encargoAbierto.encargo.moleculaId || encargoAbierto.encargo.id}
+                            ambito={encargoAbierto.encargo.ambito}
+                            rol={entidad?.dueña ? "owner" : entidad?.rol ?? null}
+                            democratico={modo?.democratico ?? false}
+                            esDueno={entidad?.dueña ?? false}
+                            plan={encargoAbierto.plan}
+                            estados={encargoAbierto.estados}
+                            asignaciones={encargoAbierto.asignaciones}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </section>
     );
 }
