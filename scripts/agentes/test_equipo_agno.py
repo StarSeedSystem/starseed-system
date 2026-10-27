@@ -41,6 +41,10 @@ class Piezas(unittest.TestCase):
         self.assertEqual(E.MIEMBROS, ("redactor", "revisor"))
         self.assertTrue(any("agno.com" in r or "nube" in r for r in E.REGLAS_EQUIPO))
 
+    def test_sin_agent_os_en_la_nube(self):
+        # La memoria y el equipo son locales: el módulo no expone AgentOS.
+        self.assertFalse(hasattr(E, "AgentOS"))
+
 
 @unittest.skipUnless(E.AGNO_DISPONIBLE, E.MOTIVO_SIN_AGNO)
 class MemoriaYEquipo(unittest.TestCase):
@@ -56,6 +60,19 @@ class MemoriaYEquipo(unittest.TestCase):
             equipo = E.construir_equipo(
                 [agente, E.construir_agente("revisor", "revisa", modelo, db=db)], db)
             self.assertEqual(len(equipo.members), 2)
+
+    def test_memoria_compartida_y_trazas_apagadas(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = E.memoria_sqlite(os.path.join(tmp, "memoria.sqlite"))
+            modelo = E.modelo_desde_enrutador(E.ClienteOpenAI(
+                base_url="http://127.0.0.1:4480/v1", modelo="modelo-falso",
+                clave="", origen="servidor-propio"))
+            agentes = [E.construir_agente(nombre, "rol", modelo, db=db)
+                       for nombre in E.MIEMBROS]
+            equipo = E.construir_equipo(agentes, db)
+            self.assertTrue(all(agente.db is db for agente in equipo.members))
+            self.assertFalse(equipo.telemetry)
+            self.assertTrue(all(not agente.telemetry for agente in agentes))
 
     def test_equipo_de_tarea_con_modelo_falso(self):
         roles = E.ROL({"redactor": "escribe", "revisor": "revisa"})
