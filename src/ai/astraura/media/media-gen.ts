@@ -63,7 +63,9 @@ import {
   type PlanificadorComfyUI,
   type PeticionFlujo,
 } from "@/lib/imagenes/flujos-comfyui";
-import type { GaleriaImagenes } from "./proveedor-neuronas";
+import type { GaleriaImagenes, OpcionGaleria } from "./proveedor-neuronas";
+import type { CapaImg } from "@/lib/imagenes/plan";
+import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tipos base del catálogo de proveedores
@@ -1049,7 +1051,6 @@ export function grafoComfyuiDe(opts: GenerateImageOptions): GrafoComfyUI {
 async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
   const endpoint = resolveEndpoint("comfyui", getMediaPrefs());
   if (!endpoint) {
-    // Mensaje honesto con lo que el flujo ABRÍA hecho: el formato de publicación, sus lados reales (ladosFormato) y el megapíxel objetivo (MEGAPIXELES: ≈1 MP general, ≈0,26 MP en la gama SD 1.5).
     const p = peticionFlujoComfyui(opts);
     const lados = ladosFormato(p.formato, p.escala ?? "estandar");
     const mp = String(MEGAPIXELES[p.escala ?? "estandar"]).replace(".", ",");
@@ -1059,10 +1060,33 @@ async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGenResult>
       error: `No hay un endpoint de ComfyUI configurado (aquí o en /servicios). El flujo habría sido ${p.formato} a ${lados.ancho}×${lados.alto} (≈${mp} MP).`,
     };
   }
-  // Un ComfyUI real no admite {prompt: "texto"}: pide el GRAFO en formato API, que se construye aquí con las plantillas puras de flujos-comfyui — texto a imagen, o imagen a imagen cuando llega `imagenEntrada`. Seguir /history y bajar por /view lo completa el cliente de flujos (IMG1020B).
-  const grafo = grafoComfyuiDe(opts);
-  // Lista blanca ANTES de enviar: solo nodos del núcleo de ComfyUI (ningún nodo personalizado de terceros, que ejecuta código). Si una plantilla dejara colar uno, fallo legible y no envío.
-  const fuera = [...new Set(Object.values(grafo).map((n) => n.class_type))].filter(
+  const checkpointPref = (opts.model || "").trim();
+  const checkpoints = checkpointPref ? [checkpointPref] : await checkpointsDisponibles(endpoint);
+  if (!checkpoints.length) {
+    return {
+      ok: false,
+      provider: "comfyui",
+      error: "No hay checkpoints instalados en tu ComfyUI. Instala al menos uno (p. ej. v1-5-pruned-emaonly.safetensors) en la carpeta models/checkpoints.",
+    };
+  }
+  const checkpoint = checkpoints[0];
+  const nOpciones =
+    typeof opts.opciones === "number" && Number.isFinite(opts.opciones)
+      ? Math.max(1, Math.min(8, Math.floor(opts.opciones)))
+      : 1;
+  const basePeticion = peticionFlujoComfyui({ ...opts, model: checkpoint });
+  let grafos: GrafoComfyUI[];
+  if (nOpciones > 1) {
+    const semillas = Array.from({ length: nOpciones }, (_, i) =>
+      typeof opts.seed === "number" && Number.isFinite(opts.seed)
+        ? Math.max(0, Math.floor(opts.seed)) + i
+        : Math.floor(Math.random() * 2 ** 31) + i,
+    );
+    grafos = variaciones(basePeticion, semillas);
+  } else {
+    grafos = [grafoComfyuiDe({ ...opts, model: checkpoint })];
+  }
+  const fuera = [...new Set(grafos.flatMap((g) => Object.values(g).map((n) => n.class_type)))].filter(
     (tipo) => !(NODOS_NUCLEO as readonly string[]).includes(tipo),
   );
   if (fuera.length) {
@@ -1072,7 +1096,35 @@ async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGenResult>
       error: `El grafo lleva nodos fuera de la lista blanca del núcleo (${fuera.join(", ")}): no se envía.`,
     };
   }
-  return postForMedia(joinUrl(endpoint, "/prompt"), "comfyui", "image", { prompt: grafo }, LOCAL_TIMEOUT_MS, true);
+  const urls = await comfyuiEjecutarGrafos(endpoint, grafos, LOCAL_TIMEOUT_MS);
+  if (!urls.length) {
+    return {
+      ok: false,
+      provider: "comfyui",
+      error: "ComfyUI no devolvió imágenes (revisa /history para ver node_errors).",
+    };
+  }
+  if (urls.length === 1) {
+    return { ok: true, url: urls[0], provider: "comfyui" };
+  }
+  const capa: CapaImg = "dispositivo";
+  const uso: UsoLicencia = "libre";
+  const galeria: GaleriaImagenes = {
+    ok: true,
+    opciones: urls.map((u, i) => ({
+      url: u,
+      modelo: checkpoint,
+      capa,
+      neurona: "local",
+      semilla: basePeticion.semilla + i,
+      licencia: "GPL-3.0",
+      uso,
+      atribucion: "Generado con ComfyUI local",
+      segundos: 0,
+    })),
+    descartes: [],
+  };
+  return { ok: true, url: urls[0], provider: "comfyui", galeria };
 }
 
 async function customEndpointImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
