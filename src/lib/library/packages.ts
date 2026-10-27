@@ -852,10 +852,11 @@ const LABS_PACKAGES: LibraryPackage[] = [
     id: "voz-chatterbox", kind: "repo", name: "Chatterbox · Resemble AI",
     description:
       "TTS de 0,5 B parámetros (MIT) con control de exageración emocional y clonación zero-shot. PyTorch: necesita GPU o una CPU potente y ~1,5 GB de pesos. Se integra como segundo daemon detrás del mismo contrato de VoiceMorphic. Su dial de estilo ya viaja como instrucción por timbre.",
-    icon: "Sparkles", tags: ["voces", "voz", "tts", "emocion", "pytorch"], version: "0.1.0",
-    author: "Resemble AI", sourceRepoId: "starseed-labs", free: true,
-    payload: { externalUrl: "https://github.com/resemble-ai/chatterbox", githubRepo: "resemble-ai/chatterbox", categoria: "voces", motorId: "chatterbox" },
-  },
+     icon: "Sparkles", tags: ["voces", "voz", "tts", "emocion", "pytorch"], version: "0.1.0",
+     author: "Resemble AI", sourceRepoId: "starseed-labs", free: true,
+     // (VZR1011C) Licencia exacta del contrato y upstream para la comprobación de versión.
+     payload: { externalUrl: "https://github.com/resemble-ai/chatterbox", upstream: "https://github.com/resemble-ai/chatterbox", githubRepo: "resemble-ai/chatterbox", canal: "commits", licencia: "MIT", licenciaCodigo: "MIT", licenciaPesos: "MIT", usoComercial: true, claseLicencia: "libre", categoria: "voces", motorId: "chatterbox" },
+   },
   {
     id: "voz-voxcpm", kind: "repo", name: "VoxCPM · OpenBMB",
     description:
@@ -870,7 +871,32 @@ const LABS_PACKAGES: LibraryPackage[] = [
       "Clonación de voz (MIT) usada por Spaces públicos de Hugging Face: requiere internet y depende de que estén despiertos. Solo respaldo; nunca por defecto en descargas.",
     icon: "Cloud", tags: ["voces", "voz", "tts", "nube", "respaldo"], version: "2.0.0",
     author: "MyShell", sourceRepoId: "starseed-labs", free: true,
-    payload: { externalUrl: "https://github.com/myshell-ai/OpenVoice", githubRepo: "myshell-ai/OpenVoice", categoria: "voces", motorId: "openvoice2" },
+    // (VZR1011C) V2 es MIT con uso comercial libre: el «CC-BY-NC» anterior era un error.
+    payload: { externalUrl: "https://github.com/myshell-ai/OpenVoice", upstream: "https://github.com/myshell-ai/OpenVoice", githubRepo: "myshell-ai/OpenVoice", canal: "commits", licencia: "MIT (uso comercial libre)", licenciaCodigo: "MIT", licenciaPesos: "MIT", usoComercial: true, claseLicencia: "libre", categoria: "voces", motorId: "openvoice2" },
+  },
+  {
+    id: "voz-f5-tts", kind: "repo", name: "F5-TTS · voz opcional de uso personal",
+    description:
+      "TTS de flow matching (código MIT) pero con pesos CC-BY-NC: motor OPCIONAL de uso personal no comercial, apagado por defecto y fuera de la cadena AUTO. Solo se activa si lo instalas a mano y aceptas su licencia en una casilla que la explica; nunca en páginas ni grupos con fines comerciales. Sin español oficial (chino e inglés).",
+    icon: "Mic", tags: ["voces", "voz", "tts", "opcional", "personal", "no-comercial"], version: "main",
+    author: "SWivid", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/SWivid/F5-TTS", upstream: "https://github.com/SWivid/F5-TTS", githubRepo: "SWivid/F5-TTS", canal: "commits", licencia: "MIT (código); CC-BY-NC (pesos)", licenciaCodigo: "MIT", licenciaPesos: "CC-BY-NC", usoComercial: false, claseLicencia: "personal", opcionalPersonal: true, apagadoPorDefecto: true, enAutoPorDefecto: false, categoria: "voces", motorId: "f5-tts" },
+  },
+  {
+    id: "voz-xtts-v2", kind: "repo", name: "XTTS-v2 · voz opcional de uso personal",
+    description:
+      "TTS multilingüe de Coqui (código MPL-2.0) con modelo bajo la Coqui Public Model License, que prohíbe el uso comercial; Coqui cerró y no hay licencia comercial que comprar. Motor OPCIONAL de uso personal no comercial, apagado por defecto y fuera de la cadena AUTO: solo si lo instalas a mano y aceptas la licencia. Habla español (16 idiomas), pero nunca en páginas ni grupos con fines comerciales.",
+    icon: "Mic", tags: ["voces", "voz", "tts", "opcional", "personal", "no-comercial"], version: "main",
+    author: "Coqui", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/coqui-ai/TTS", upstream: "https://github.com/coqui-ai/TTS", githubRepo: "coqui-ai/TTS", canal: "commits", licencia: "MPL-2.0 (código); Coqui Public Model License (modelo, no comercial)", licenciaCodigo: "MPL-2.0", licenciaPesos: "Coqui Public Model License", usoComercial: false, claseLicencia: "personal", opcionalPersonal: true, apagadoPorDefecto: true, enAutoPorDefecto: false, categoria: "voces", motorId: "xtts-v2" },
+  },
+  {
+    id: "voz-chattts", kind: "repo", name: "ChatTTS · solo ficha (no se integra)",
+    description:
+      "Modelo con licencia CC BY-NC 4.0 y uso declarado «solo académico», con ruido añadido a propósito contra el mal uso. No habla español (solo inglés y chino) y NO se integra como motor: esta ficha solo documenta su licencia, su código AGPL-3.0 y por qué queda fuera del producto y de la cadena AUTO.",
+    icon: "FileText", tags: ["voces", "voz", "tts", "ficha", "no-comercial", "academico"], version: "main",
+    author: "2noise", sourceRepoId: "starseed-labs", free: true, comingSoon: true,
+    payload: { externalUrl: "https://github.com/2noise/ChatTTS", upstream: "https://github.com/2noise/ChatTTS", githubRepo: "2noise/ChatTTS", canal: "commits", licencia: "AGPL-3.0 (código); CC BY-NC 4.0, solo académico (modelo)", licenciaCodigo: "AGPL-3.0", licenciaPesos: "CC BY-NC 4.0 (solo académico)", usoComercial: false, integrado: false, claseLicencia: "personal", opcionalPersonal: false, apagadoPorDefecto: true, enAutoPorDefecto: false, categoria: "voces", motorId: "chattts", nota: "Solo ficha: no se integra." },
   },
   {
     id: "voz-referencias", kind: "research", name: "Referencias de voz humana · fuentes públicas",
