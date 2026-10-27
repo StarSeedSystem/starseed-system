@@ -5,11 +5,20 @@
 // un archivo y le manda el archivo para convertirlo con Filee. Lo usan el clic
 // derecho del Explorador, la página /convertir, la acción de Astraura y la
 // Protomolécula. Sin servidor que convierta (p. ej. el OS abierto desde la web
-// pública), lo dice con honestidad: `disponible: false` y el motivo.
+// pública) prueba con los conversores de la malla de la cuenta (`malla.ts`) y,
+// si tampoco hay, lo dice con honestidad: `disponible: false` y el motivo.
 // Contrato: `architecture/conversion-archivos.md`.
 // ════════════════════════════════════════════════════════════════════════════
 
 import { formatoDe, type DestinosFormato } from "./formatos";
+import {
+    convertirEnMalla,
+    consultarDestinosMalla,
+    leerServidores,
+    sanearServidores,
+    type ResolverToken,
+    type ServidorMalla,
+} from "./malla";
 
 export const RUTA_CONVERSOR = "/convertir";
 const API = "/api/conversion";
@@ -22,6 +31,8 @@ export interface EstadoConversor {
 
 export interface ConsultaDestinos extends EstadoConversor {
     destinos: DestinosFormato | null;
+    /** La neurona de la malla que respondió, si la consulta salió de esta máquina. */
+    via?: string;
 }
 
 export interface Convertido {
@@ -30,6 +41,19 @@ export interface Convertido {
     salidas: number;
     motor: string;
     ms: number;
+    /** La neurona de la malla que convirtió, si no fue la local. */
+    via?: string;
+}
+
+/** Opciones con las que el cliente conecta con la malla (todo inyectado y opcional). */
+export interface OpcionesCliente {
+    calidad?: number;
+    fetchImpl?: typeof fetch;
+    signal?: AbortSignal;
+    /** Resolutor de tokens del almacén de credenciales del OS (nunca valores en claro). */
+    tokenDe?: ResolverToken | null;
+    /** Lista de conversores de la malla; por defecto se lee de `starseed.conversion.servidores.v1`. */
+    servidoresMalla?: ServidorMalla[];
 }
 
 const cache = new Map<string, { t: number; v: ConsultaDestinos }>();
@@ -40,8 +64,23 @@ function motivoSinServidor(status: number): string {
     return "El conversor de esta neurona no responde.";
 }
 
+/** ¿Este status de la neurona local admite relevo a la malla? Solo sin conversor aquí. */
+function admiteMalla(status: number): boolean {
+    return status === 404 || status === 503;
+}
+
+/** Lista de la malla: la que venga en opciones o la guardada del OS (siempre saneada). */
+function servidoresDe(opciones?: { servidoresMalla?: ServidorMalla[] }): ServidorMalla[] {
+    if (Array.isArray(opciones?.servidoresMalla)) return sanearServidores(opciones.servidoresMalla);
+    return leerServidores();
+}
+
 /** A qué formatos se puede convertir este archivo aquí (caché de 5 min por formato). */
-export async function consultarDestinos(nombreOFormato: string, fetchImpl: typeof fetch = fetch): Promise<ConsultaDestinos> {
+export async function consultarDestinos(
+    nombreOFormato: string,
+    fetchImpl: typeof fetch = fetch,
+    opciones: OpcionesCliente = {},
+): Promise<ConsultaDestinos> {
     const f = formatoDe(nombreOFormato);
     if (!f) return { disponible: false, version: null, destinos: null, motivo: "No reconozco el formato de este archivo." };
     const hit = cache.get(f);
@@ -51,6 +90,15 @@ export async function consultarDestinos(nombreOFormato: string, fetchImpl: typeo
         const r = await fetchImpl(`${API}?de=${encodeURIComponent(f)}`, { cache: "no-store" });
         if (!r.ok) {
             v = { disponible: false, version: null, destinos: null, motivo: motivoSinServidor(r.status) };
+            // Sin conversor en este medio (o saturado): se prueba con la malla de la cuenta.
+            if (admiteMalla(r.status)) {
+                const m = await consultarDestinosMalla(f, {
+                    servidores: servidoresDe(opciones),
+                    fetchImpl,
+                    tokenDe: opciones.tokenDe,
+                });
+                if (m) v = m;
+            }
         } else {
             const d = (await r.json()) as { filee?: { instalado?: boolean; version?: string | null }; destinos?: DestinosFormato | null };
             const instalado = Boolean(d.filee?.instalado);
@@ -78,7 +126,7 @@ export async function convertirBlob(
     archivo: Blob,
     nombre: string,
     a: string,
-    opciones: { calidad?: number; fetchImpl?: typeof fetch; signal?: AbortSignal } = {},
+    opciones: OpcionesCliente = {},
 ): Promise<Convertido> {
     const form = new FormData();
     form.set("archivo", archivo, nombre);
@@ -87,6 +135,17 @@ export async function convertirBlob(
     if (opciones.calidad) form.set("calidad", String(opciones.calidad));
     const r = await (opciones.fetchImpl ?? fetch)(API, { method: "POST", body: form, signal: opciones.signal });
     if (!r.ok) {
+        // Sin conversor en este medio (o saturado): se prueba con la malla de la cuenta.
+        if (admiteMalla(r.status)) {
+            const m = await convertirEnMalla(archivo, nombre, formatoDe(a) || a, {
+                servidores: servidoresDe(opciones),
+                fetchImpl: opciones.fetchImpl,
+                tokenDe: opciones.tokenDe,
+                signal: opciones.signal,
+                calidad: opciones.calidad,
+            });
+            if (m) return m;
+        }
         let motivo = motivoSinServidor(r.status);
         try {
             const j = (await r.json()) as { motivo?: string };
@@ -110,7 +169,7 @@ export async function convertirDesdeUrl(
     url: string,
     nombre: string,
     a: string,
-    opciones: { calidad?: number; fetchImpl?: typeof fetch; signal?: AbortSignal } = {},
+    opciones: OpcionesCliente = {},
 ): Promise<Convertido> {
     const f = opciones.fetchImpl ?? fetch;
     let origen: Response;
