@@ -84,6 +84,8 @@ export function capacidadPrestable(oferta: OfertaNeurona): OfertaNeurona {
   return { ...oferta, computo: prestableComputo, almacen: prestableStorage };
 }
 
+import { armarArbol, type ArbolRelevo } from "./arbol-relevo";
+
 // Nuevos tipos para la bolsa de recursos (contrato §4)
 export type Peticion = {
   cuentaId: string;
@@ -105,6 +107,23 @@ export type PlanResultado = {
   motivo: string;
   // dónde correr, etc. simplificado
 };
+
+/**
+ * La bolsa arma un árbol de relevo para muchas receptores (contrato §10).
+ * Usa armarArbol para colocar receptores con más subida cerca del origen.
+ */
+export function armarArbolRelevo(
+  origen: string,
+  ofertas: OfertaNeurona[],
+  kbpsFlujo: number
+): ArbolRelevo {
+  const receptores = ofertas.map((oferta) => ({
+    nodoId: oferta.nodoId,
+    subidaKbps: oferta.enlaces.subidaKbps,
+    latenciaMs: oferta.enlaces.latenciaMs ? Math.min(...Object.values(oferta.enlaces.latenciaMs)) : undefined,
+  }));
+  return armarArbol(origen, receptores, kbpsFlujo);
+}
 
 /**
  * Implementación simple de la bolsa: filtra ofertas por visibilidad y capacidad.

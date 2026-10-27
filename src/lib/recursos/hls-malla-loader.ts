@@ -2,6 +2,7 @@
 // Puro: vecinos, verificación, anuncio, reloj y respaldo llegan inyectados. Primero la malla
 // con un tope de espera (300 ms o medio segmento); si no llega, el origen. Al tenerlo se anuncia.
 import { CADUCIDAD_POR_DEFECTO_MS, quienTiene, type RegistroDisponibilidad } from "./disponibilidad";
+import { armarArbol, recolocar, type ArbolRelevo } from "./arbol-relevo";
 import type {
   FragmentLoaderConstructor, FragmentLoaderContext, HlsConfig, Loader, LoaderConfiguration,
   LoaderCallbacks, LoaderStats,
@@ -33,6 +34,8 @@ export interface ConexiónCargadorMalla {
   ahora: () => number;
   esperar: (ms: number) => Promise<null>;
   caducidadMs?: number;
+  arbolRelevo?: ArbolRelevo;
+  receptor?: string;
 }
 
 /** El tope de subida prestado, con ventana y gasto medidos. Sin tope medido, no se sube. */
@@ -43,11 +46,23 @@ export function puedeSubirPrestado(
   return usadoVentanaBytes + bytesExtra <= (topeKbps * 1000 * ventanaMs) / 8000;
 }
 
-/** Pide el segmento a los vecinos que lo anuncian; null si nadie lo dio dentro del tope. */
+/** Pide el segmento a los vecinos que lo anuncian; null si nadie lo dio dentro del tope.
+ * Si hay árbol de relevo, prioriza según el árbol para usar las neuronas con más subida.
+ */
 export async function pedirPorMalla(
   con: ConexiónCargadorMalla, indice: number, topeMs: number,
 ): Promise<Uint8Array | null> {
-  const vecinos = quienTiene(con.registro, con.elemento, indice, con.ahora(), con.caducidadMs ?? CADUCIDAD_POR_DEFECTO_MS);
+  let vecinos = quienTiene(con.registro, con.elemento, indice, con.ahora(), con.caducidadMs ?? CADUCIDAD_POR_DEFECTO_MS);
+  
+  // Si hay árbol de relevo y receptor conocido, priorizar por árbol (más cerca del origen = mejor)
+  if (con.arbolRelevo && con.receptor) {
+    const padreDelReceptor = con.arbolRelevo.padreDe[con.receptor];
+    if (padreDelReceptor) {
+      // Priorizar el padre directo y luego subir por el árbol
+      vecinos = [padreDelReceptor, ...vecinos.filter(v => v !== padreDelReceptor)];
+    }
+  }
+  
   const fin = con.ahora() + topeMs;
   for (const nodo of vecinos) {
     const restante = fin - con.ahora();
@@ -62,6 +77,20 @@ export async function pedirPorMalla(
     if (bytes) { con.anunciar(indice, bytes); return bytes; }
   }
   return null;
+}
+
+/** Arma el árbol de relevo para el contexto de transmisión */
+export function armarArbolParaTransmision(
+  origen: string,
+  receptores: Array<{ nodoId: string; subidaKbps?: number; latenciaMs?: number }>,
+  kbpsFlujo: number
+): ArbolRelevo {
+  return armarArbol(origen, receptores, kbpsFlujo);
+}
+
+/** Recoloca cuando se va un nodo */
+export function recolocarEnTransmision(arbol: ArbolRelevo, seVa: string): ArbolRelevo {
+  return recolocar(arbol, seVa);
 }
 function estadisticas(t: number, bytes: number): LoaderStats {
   return {
