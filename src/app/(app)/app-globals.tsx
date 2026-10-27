@@ -43,6 +43,7 @@ import { Astraura158WindowHost } from "@/components/astraura/window/astraura-158
 import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
+import { MenuTexto } from "@/components/traduccion/menu-texto";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
 
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
@@ -84,6 +85,10 @@ export default function AppGlobals() {
           discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
+      {/* Menú del clic derecho compartido de los textos (Ola 1020U · TRD1020E):
+          una sola capa global donde registran sus entradas Traducir (TRD1020G)
+          y las Variaciones públicas (architecture/repos-libreria-1020d.md §4). */}
+      <MenuTexto />
     </SoloFueraDeConsola>
   );
 }
