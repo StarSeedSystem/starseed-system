@@ -11,6 +11,8 @@
  * Módulo PURO: solo tipos y constantes. Lo importa código de cliente (nada de `node:*`).
  */
 
+import type { DispositivoHF, MetodoCuantizacion } from "./cuantizacion-hf";
+
 /** Lo que una IA hace. Cada capacidad tiene su modelo, su procesador y su almacén. */
 export type Capacidad =
     | "texto" // conversar, escribir
@@ -344,6 +346,10 @@ export interface Sugerencia {
     /** Frases cortas: por qué esta y no otra. */
     porQue: string[];
     alternativas: Alternativa[];
+    /** Dispositivo del procesador sugerido según la tabla de cuantización de transformers. */
+    dispositivoHf?: DispositivoHF;
+    /** Métodos de cuantización que funcionan en ese dispositivo (tabla parcial; no aplicable a BitNet). */
+    cuantizaciones?: MetodoCuantizacion[];
 }
 
 export interface PlanRecursos {

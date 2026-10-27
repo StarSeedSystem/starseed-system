@@ -5,6 +5,8 @@
  * el orden en que llegaron los datos ni por `localeCompare`, que depende del ICU del entorno).
  */
 import { bonoBits, duracionEs, espacioNecesarioGb, numeroEs, potenciaB, tamanoEs, verificar } from "./compatibilidad";
+import { NOTA_BITNET, cuantizacionesPara } from "./cuantizacion-hf";
+import type { DispositivoHF } from "./cuantizacion-hf";
 import type {
     Alcance,
     Alternativa,
@@ -80,6 +82,15 @@ function porId<T extends { id: string }>(xs: T[]): T[] {
 
 function neurona(inv: InventarioRecursos, id?: string): NeuronaRecursos | undefined {
     return id ? inv.neuronas.find((n) => n.id === id) : undefined;
+}
+
+/** Del acelerador del procesador al dispositivo de la tabla de cuantización de transformers. */
+export function dispositivoHfDe(p: Procesador): DispositivoHF {
+    const a = p.aceleradores;
+    if (a.includes("cuda")) return "cuda";
+    if (a.includes("rocm")) return "rocm";
+    if (a.includes("metal") || a.includes("metal4")) return "metal";
+    return "cpu";
 }
 
 /** Lo de una neurona apagada sigue en la lista (se ve), pero como no disponible. */
@@ -341,7 +352,10 @@ function alternativasDe(viables: Opcion[], mejor: Opcion): Alternativa[] {
 function porQueDe(cap: Capacidad, o: Opcion, viables: Opcion[], preferir158: boolean, confirmado: number | undefined, instalado: boolean): string[] {
     const { m, p, a, compat } = o;
     const f: string[] = [];
-    if (m.bits === 1.58) f.push("1.58-bit: el doble de rápido y la mitad de memoria");
+    if (m.bits === 1.58) {
+        f.push("1.58-bit: el doble de rápido y la mitad de memoria");
+        f.push(NOTA_BITNET);
+    }
     else if (m.bits === 1) f.push("1-bit: lo más ligero que hay");
     if (instalado) f.push("ya está instalado: no hay que descargar nada");
     if (typeof p.ramGb === "number") {
@@ -482,6 +496,7 @@ export function sugerirPlan(inv: InventarioRecursos, catalogo: RequisitosModelo[
         const mejor = viables[0];
         const alternativas = alternativasDe(viables, mejor);
         const ya = estaInstalado(mejor.m, mejor.p, mejor.a);
+        const dispositivo = dispositivoHfDe(mejor.p);
         sugerencias.push({
             capacidad: cap,
             modelo: mejor.m,
@@ -491,6 +506,8 @@ export function sugerirPlan(inv: InventarioRecursos, catalogo: RequisitosModelo[
             compat: mejor.compat,
             porQue: porQueDe(cap, mejor, viables, preferir158, confirmados[mejor.m.id], ya),
             alternativas,
+            dispositivoHf: dispositivo,
+            cuantizaciones: cuantizacionesPara(dispositivo),
         });
 
         // Preguntas: el tamaño de lo que se enseña (elegida y alternativas) y la descarga de la elegida.

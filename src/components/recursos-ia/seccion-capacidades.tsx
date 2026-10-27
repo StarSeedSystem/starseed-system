@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { BTN, BTN_PRIMARY, Empty, INPUT, LABEL, MONO, SUB } from "@/components/astraura/s158/shared";
 import { cn } from "@/lib/utils";
 import { cabeEn } from "@/lib/recursos-ia/compatibilidad";
+import { FUENTE_METODOS_HF, NOTA_BITNET } from "@/lib/recursos-ia/cuantizacion-hf";
 import {
     CAPACIDADES,
     NOMBRE_CAPACIDAD,
@@ -251,6 +252,36 @@ function FilaCapacidad({
                                 />
                             ))}
                         </ul>
+                    </Desplegable>
+                )}
+                {s.cuantizaciones && s.cuantizaciones.length > 0 && (
+                    <Desplegable
+                        titulo={`Cuantización en ${s.procesador.nombre} (${s.cuantizaciones.length})`}
+                        testid={`cuantizacion-${s.capacidad}`}
+                    >
+                        <ul className="flex flex-col gap-1.5">
+                            {s.cuantizaciones.map((m) => (
+                                <li key={m.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] leading-snug">
+                                    <a
+                                        href={m.enlace}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="cursor-pointer font-medium text-sky-200/90 underline-offset-2 hover:underline"
+                                    >
+                                        {m.nombre}
+                                    </a>
+                                    {s.dispositivoHf && m.soporte[s.dispositivoHf] === "parcial" && (
+                                        <span className="text-[10px] text-amber-100/80">soporte parcial</span>
+                                    )}
+                                    <span className="text-[10px] text-white/40">
+                                        {m.bitsMin === m.bitsMax ? `${m.bitsMin} bits` : `${m.bitsMin}–${m.bitsMax} bits`} ·{" "}
+                                        {m.alaVuelta ? "se cuantiza al cargar" : "hay que cuantizar antes"} · peft:{" "}
+                                        {m.peft === null ? "desconocido" : m.peft ? "sí" : "no"}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                        <p className="mt-1.5 text-[10px] text-white/40">Fuente: {FUENTE_METODOS_HF}. {NOTA_BITNET}</p>
                     </Desplegable>
                 )}
             </div>
