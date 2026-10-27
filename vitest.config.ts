@@ -42,7 +42,7 @@ export default defineConfig({
     globals: false,
     // (2026-10-05) Margen para una máquina cargada: ver el porqué en `vitest.setup-dom.ts`.
     // `testTimeout` sube de 5 s a 20 s para que un `findBy*` de 5 s quepa dentro de su prueba.
-    setupFiles: ["./vitest.setup-dom.ts"],
+    setupFiles: ["./vitest.setup-dom.ts", "./vitest.setup-mocks.ts"],
     testTimeout: 20_000,
     hookTimeout: 30_000,
     // (2026-09-22) Aísla las pruebas del enjambre vivo: apunta STARSEED_ROOT a un
