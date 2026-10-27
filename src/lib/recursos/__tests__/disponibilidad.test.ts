@@ -117,6 +117,16 @@ describe("disponibilidad.ts", () => {
       expect(quienTiene(registro, "t1", 0, AHORA)).toEqual([]);
     });
 
+    it("un solo anuncio basta para poblar el registro", () => {
+      const reg = fusionar([
+        { anuncio: anuncio("unico", "t5", 20, [7, 8], 300)[0], recibidoEn: AHORA - 1_000 },
+      ]);
+      expect(reg.get("t5")?.orden.size).toBe(1);
+      expect(quienTiene(reg, "t5", 7, AHORA)).toEqual(["unico"]);
+      expect(quienTiene(reg, "t5", 8, AHORA)).toEqual(["unico"]);
+      expect(quienTiene(reg, "t5", 0, AHORA)).toEqual([]);
+    });
+
     const recibidos = (uno: AnuncioDisponibilidad[], dos: AnuncioDisponibilidad[]): AnuncioRecibido[] => [
       ...uno.map((a) => ({ anuncio: a, recibidoEn: AHORA - 20_000 })),
       ...dos.map((a) => ({ anuncio: a, recibidoEn: AHORA - 5_000 })),
