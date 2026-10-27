@@ -1,0 +1,35 @@
+{
+  "esquema": 1,
+  "fecha": "2026-10-27",
+  "contrato": "architecture/colibri-multicapas.md",
+  "motor": {
+    "repo": "JustVugg/colibri",
+    "licencia": "Apache-2.0 (NOTICE: Copyright 2026 Vincenzo Fornaro); terceros MIT en THIRD_PARTY_NOTICES.md",
+    "version": "v2.0.0",
+    "fecha_version": "2026-10-06",
+    "puerto_starseed": 4480,
+    "nota_puerto": "Colibri escucha por defecto en 127.0.0.1:8000, que en las neuronas es el backend de Astraura 1.58: siempre --port 4480 y --host 127.0.0.1.",
+    "fuente": "README.md, c/setup_catalog.py, docs/laya.md, docs/gliner_decide.md, docs/cluster.md y docs/systemone.md del commit e0db083 (2026-10-17), leídos el 2026-10-27; nada se ejecutó ni se descargó"
+  },
+  "verificacion": "Ningún SHA-256 de pesos se ha medido aún: todas las entradas van «por-verificar» hasta que el instalador descargue y anote el SHA de cada archivo (regla de config/capas-astraura.json).",
+  "entradas": [
+    {"id": "colibri-laya", "capa": "juicio", "modelo": "Laya (Convai Innovations)", "repo_hf": "convaiinnovations/laya", "licencia_modelo": "Apache-2.0", "disco_gb": 0.85, "ram_min_gb": 1.7, "ram_ok_gb": 1.7, "medida": "219 ms una pregunta, 882 ms tres (i7-1355U)", "api": "POST /v1/systemone", "medios": ["nativo", "servidor"], "idioma": "inglés", "estado": "por-verificar"},
+    {"id": "colibri-gliner-decide", "capa": "juicio", "modelo": "GLiNER2.5-Decide (fastino)", "repo_hf": "fastino/GLiNER2.5-Decide", "licencia_modelo": "Apache-2.0", "disco_gb": 1.95, "ram_min_gb": 1.9, "ram_ok_gb": 1.9, "medida": "294 ms una pregunta, 897 ms tres (i7-1355U con carga)", "api": "POST /v1/systemone", "medios": ["nativo", "servidor"], "idioma": "inglés", "estado": "por-verificar"},
+    {"id": "colibri-clef", "capa": "juicio", "modelo": "Clef (Cloudflare): Qwen3.8-27B con cabeza de decisión, también conversa", "repo_hf": "por verificar en docs/clef.md", "licencia_modelo": "por verificar", "disco_gb": 52, "ram_min_gb": 19, "ram_ok_gb": 55, "medida": "20,4 s por petición en int8", "api": "POST /v1/systemone y /v1/chat/completions", "medios": ["servidor"], "estado": "por-verificar"},
+    {"id": "colibri-olmoe-7b", "capa": "palabra", "modelo": "OLMoE 7B (int8 tras convertir)", "repo_hf": "por verificar en docs (conversión a mano)", "licencia_modelo": "por verificar", "disco_gb": 7, "descarga_gb": 14, "ram_min_gb": 8, "ram_ok_gb": 8, "medida": "22-23 tok/s (Ryzen 7 8700GE, CPU)", "api": "OpenAI y Anthropic", "medios": ["servidor"], "herramientas": false, "estado": "por-verificar"},
+    {"id": "colibri-qwen3-coder-30b", "capa": "razon", "modelo": "Qwen3-Coder-30B-A3B (int4)", "repo_hf": "Justvugg/Qwen3-Coder-30B-A3B-colibri-int4", "licencia_modelo": "por verificar (Qwen3-Coder)", "disco_gb": 19.4, "ram_min_gb": 8, "ram_ok_gb": 18, "medida": "8,5-9,6 tok/s con todos los expertos en RAM, 5,1 con 32 por capa (CPU)", "api": "OpenAI y Anthropic, herramientas", "medios": ["servidor"], "herramientas": true, "estado": "por-verificar"},
+    {"id": "colibri-qwen36-35b", "capa": "razon", "modelo": "Qwen3.6-35B-A3B (int4, piensa y usa herramientas)", "repo_hf": "Kreuzzelg/qwen36-35b-a3b-colibri-i4-gs64", "licencia_modelo": "por verificar (Qwen3.6)", "disco_gb": 23.1, "ram_min_gb": 10, "ram_ok_gb": 20, "medida": "6,0 tok/s CPU, 9,9 con Vulkan integrada, 30 con CUDA (RTX 3070)", "api": "OpenAI y Anthropic, herramientas", "medios": ["servidor"], "herramientas": true, "estado": "por-verificar"},
+    {"id": "colibri-deepseek-v4-flash-reap", "capa": "profunda", "modelo": "DeepSeek V4 Flash REAP 150B (132 de 256 expertos)", "repo_hf": "puwaer/DeepSeek-V4-Flash-0731-reap-150b", "licencia_modelo": "por verificar", "disco_gb": 84.7, "ram_min_gb": 16, "ram_ok_gb": 32, "streaming_disco": true, "medida": "sin medir en esta poda; el completo da 0,93-1,6 tok/s", "api": "OpenAI y Anthropic, herramientas", "medios": ["servidor"], "herramientas": true, "estado": "por-verificar"},
+    {"id": "colibri-qwen38-flash-next", "capa": "profunda", "modelo": "Qwen3.8-Flash-Next (125B + 51B n-grama; visión y herramientas)", "repo_hf": "Qwen/Qwen3.8-Flash-Next-FP8", "licencia_modelo": "por verificar", "disco_gb": 186, "ram_min_gb": 24, "ram_ok_gb": 32, "streaming_disco": true, "medida": "1,91-2,56 tok/s; 3,99 con expertos int4 opcionales (CPU)", "api": "OpenAI y Anthropic, herramientas, imágenes de entrada", "medios": ["servidor"], "herramientas": true, "estado": "por-verificar"},
+    {"id": "colibri-glm-5.2", "capa": "profunda", "modelo": "GLM-5.2 (744B, modelo de referencia, cabeza MTP)", "repo_hf": "mastouri/GLM-5.2-colibri-int4-g64-with-int8-mtp", "licencia_modelo": "por verificar", "disco_gb": 429.3, "ram_min_gb": 16, "ram_ok_gb": 24, "streaming_disco": true, "medida": "0,05-0,1 tok/s en frío en un portátil de 25 GB; 1,83 con 128 GB", "api": "OpenAI y Anthropic, herramientas", "medios": ["servidor"], "herramientas": true, "estado": "por-verificar"}
+  ],
+  "excluidos": {
+    "qwen-image-2.1": "Qwen Research License, solo uso no comercial: no entra en las capas (regla: nada no comercial en uso comercial).",
+    "kimi-k3, inkling, mimo-v2.6-pro": "de 0,5 a 1,6 TB de disco: ninguna neurona de StarSeed los puede alojar hoy; se añaden cuando exista una."
+  },
+  "neuronas_hoy": {
+    "mac": "8 GB de RAM con presión de memoria y ~5 GB de disco libre: ningún modelo de Colibri tiene margen (Laya ya corre en el A1).",
+    "a1": "12 GB de RAM compartidos con 3 trabajadores del enjambre y BitNet; 18,5 GB de disco libre: caben Laya y GLiNER2.5-Decide (2,8 GB de disco, 3,6 GB de RAM). OLMoE o Qwen3-Coder piden dedicar el A1 o ampliar su volumen (Always Free admite hasta 200 GB de bloque): decisión de Alex.",
+    "nube-gh": "los runners de GitHub no guardan modelos entre trabajos: no es un medio para Colibri."
+  }
+}

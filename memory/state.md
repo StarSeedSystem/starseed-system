@@ -4534,3 +4534,17 @@ Genesis pasó de 5 agentes a 31 (28 en GitHub, 3 en la Mac); el límite real es 
   orquestador de la Mac toma P en su próxima tanda y el director de la nube, Q, al reiniciarse una vez.
 - TSC1021Ab-d1 corría a la vez en la Mac y en el A1 (préstamo de MetaGenesis de las 22:22; la Mac retomó el
   arriendo a las 22:28): el préstamo no debe llevarse lo que la tanda viva de la Mac tiene en curso.
+
+
+## 2026-10-27 — Olas 1027: Mausbot de Astraura, neurona insomne y Colibri en las capas
+**Sesión por:** Claude (Cowork, Opus 5.5) supervisando; el enjambre escribe.
+**Resumen:** tres pedidos de Alex del 27-10 con contrato, datos verificados y cola de 30 tareas
+(`cola-mausbot-insomne-1027.json`): el Mausbot (OpenMausBot portado con atribución: cursor con cara por personalidad,
+interruptor en el Exocórtex, cursor del agente que respeta los permisos de la neurona), la neurona insomne (Insomnia en
+las Mac compatibles: la red le da trabajo de servidor mientras dura su sesión) y Colibri como runtime de las capas
+(capa juicio con Laya y GLiNER2.5-Decide; razón y profunda donde quepan). Biblioteca: tanda 1027.
+
+### Decisiones de Alex
+- Instalar Insomnia en la Mac (contraseña y regla de sudoers).
+- Colibri en el A1: solo juicio (cabe) o dedicarlo a un modelo de razón / ampliar el volumen.
+- OpenMausBot además como app aparte (8 GB de RAM).
