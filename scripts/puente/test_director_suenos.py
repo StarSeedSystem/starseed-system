@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Pruebas del director de los sueños profundos: rechazos, ajustes, duplicados, tramo de
+"""Pruebas del director de la imaginación profunda: rechazos, ajustes, duplicados, tramo de
 capacidad primero, cola propuesta sin lanzar y memoria de lo ya encargado."""
 import json
 import os
@@ -131,7 +131,7 @@ class Consolidar(unittest.TestCase):
         c = S.consolidar(self.informes, self.veredictos)
         r = S.resumen_corto(c, "2026-09-29", 3)
         self.assertNotIn("claves", r)
-        self.assertIn("Sueños profundos 2026-09-29", r)
+        self.assertIn("Imaginación profunda 2026-09-29", r)
 
     def test_render_no_rompe_vacio_ni_lleno(self):
         vacio = S.render_informe(S.consolidar([], {}), "2026-09-29", planificadas=84)
