@@ -53,6 +53,13 @@ describe("apagados por defecto y honestos", () => {
     expect(procedenciaExterna("meshy")?.licencia).toMatch(/CC BY 4\.0/);
     expect(procedenciaExterna("tripo")?.uso).toBe("condicionado");
   });
+  it("Meshy lleva la atribución obligatoria y su herramienta es «meshy»", () => {
+    const p = procedenciaExterna("meshy");
+    expect(p!.herramienta).toBe("meshy");
+    expect(p!.uso).toBe("atribucion");
+    expect(p!.atribucion).toBe("Modelo 3D generado con Meshy");
+    expect(p!.licencia).toContain("CC BY 4.0");
+  });
   it("imagen solo PNG o JPEG con tamaño válido; descargas https del dominio del proveedor", () => {
     expect(motivoImagen(PNG)).toBeNull();
     expect([{ ...PNG, mime: "image/webp" }, { ...PNG, bytes: new Uint8Array(0) }, { ...PNG, bytes: new Uint8Array(9 << 20) }].map(motivoImagen))
