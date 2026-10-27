@@ -100,6 +100,32 @@ describe("disponibilidad.ts", () => {
     });
   });
 
+  describe("rescate rama nube/a1-20261023-184106 (APM1017U) · casos adaptados a la API de hoy", () => {
+    // La rama probaba con otra firma (codificar de índices / anuncio binario / null tolerado).
+    // Casos ya cubiertos por main con otro nombre (ida y vuelta, fusión de nodos, caducidad,
+    // troceado) no se duplican; null/undefined en decodificar se descarta: main lanza a propósito.
+
+    it("decodificar de cadena vacía da un mapa de bits vacío", () => {
+      expect(decodificar("")).toEqual(new Uint8Array(0));
+    });
+
+    it("mapa de bits de índices: codificar y decodificar conservan los bits marcados", () => {
+      const indices = [0, 1, 2, 5, 8];
+      const bitsOrigen = crearBits(9);
+      for (const i of indices) marcarIndice(bitsOrigen, i);
+      const bits = decodificar(codificar(bitsOrigen));
+      expect([...indices].every((i) => tieneIndice(bits, i))).toBe(true);
+      expect(tieneIndice(bits, 3)).toBe(false);
+      expect(tieneIndice(bits, 4)).toBe(false);
+      expect(tieneIndice(bits, 6)).toBe(false);
+      expect(tieneIndice(bits, 7)).toBe(false);
+    });
+
+    it("fusionar sin anuncios da un registro vacío", () => {
+      expect(fusionar([]).size).toBe(0);
+    });
+  });
+
   describe("fusionar y quienTiene", () => {
     const AHORA = 60_000;
 
