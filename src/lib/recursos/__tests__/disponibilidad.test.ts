@@ -124,6 +124,11 @@ describe("disponibilidad.ts", () => {
     it("fusionar sin anuncios da un registro vacío", () => {
       expect(fusionar([]).size).toBe(0);
     });
+
+    it("elemento no disponible: no hay índices, no hay anuncios", () => {
+      const piezas = anuncio("nodo-a", "transmision-0", 5, [], 1000);
+      expect(piezas).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
