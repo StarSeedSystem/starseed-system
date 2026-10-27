@@ -135,6 +135,11 @@ describe("Z-Image-Turbo y el paquete personal", () => {
     expect(rapido?.cuantizacion).toBe("nativa");
     expect(rapido?.porQue).toContain("Modelo libre (Apache-2.0).");
   });
+  it("Z-Image-Turbo solo donde cabe: ni la Mac de 8 GB ni la A1 lo proponen", () => {
+    for (const h of [MAC8, A1]) {
+      expect(paqueteBase(h, { comercial: false }).instalar.some((x) => x.modelo.id === "z-image-turbo")).toBe(false);
+    }
+  });
   it("sin permitirPersonal el Turbo no se propone aunque quepa", () => {
     for (const h of [MAC8, A1, PC24]) {
       const s = paqueteBase(h, { comercial: false });
@@ -155,6 +160,16 @@ describe("Z-Image-Turbo y el paquete personal", () => {
     const s = paqueteBase(A1, { comercial: false, permitirPersonal: true });
     const turbo = s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
     expect(turbo?.porQue).toMatch(/GGUF personal \(Q4_K_M 4,2 GB\):/);
+  });
+  it("A1 con permiso personal: el Turbo es la calidad y el resto del paquete no cambia", () => {
+    const sinCalidad = (s: ReturnType<typeof paqueteBase>) =>
+      s.instalar.filter((x) => x.papel !== "calidad").map((x) => `${x.papel}:${x.modelo.id}`);
+    const base = paqueteBase(A1, { comercial: false });
+    const conPersonal = paqueteBase(A1, { comercial: false, permitirPersonal: true });
+    const turbo = conPersonal.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
+    expect(turbo?.papel).toBe("calidad");
+    expect(turbo?.porQue).toMatch(/GGUF personal \(Q4_K_M 4,2 GB\):/);
+    expect(sinCalidad(conPersonal)).toEqual(sinCalidad(base));
   });
   it("el permiso personal no salta la regla: nada no comercial en uso comercial", () => {
     const s = paqueteBase(MAC8, { comercial: true, permitirPersonal: true });
