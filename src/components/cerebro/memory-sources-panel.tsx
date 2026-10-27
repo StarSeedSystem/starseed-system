@@ -48,6 +48,7 @@ import {
   Cloud,
   FolderOpen,
   Unplug,
+  Layers,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { getBrain, saveBrain, type Brain, type BrainPermission } from "@/lib/brains/brains";
@@ -63,6 +64,17 @@ import {
 } from "@/lib/brains/servers";
 import { listBackends, saveBackend, deleteBackend, type StorageBackend } from "@/lib/storage/backends";
 import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+import { readMirror } from "@/lib/brains/memory-offline";
+import {
+  construirManifiesto,
+  divergencias,
+  proponerLimpieza,
+  resumenManifiesto,
+  huellaContenido,
+  type CopiaMemoria,
+  type DivergenciaMemoria,
+  type PropuestaLimpieza,
+} from "@/lib/storage/memoria-manifiesto";
 import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connect";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 // (Ola 374) Google Drive como medio de este cerebro: OAuth con custodia en
@@ -142,6 +154,7 @@ export default function MemorySourcesPanel({
   return (
     <div className="space-y-4">
       <OsSourceCard files={counts.files} memories={counts.memories} loading={loading} />
+      <ManifiestoCopiasCard brainId={brainId} />
       <GoogleDriveMemoryCard brainId={brainId} brainName={brainName} />
       <ObsidianCard brainId={brainId} obsidian={obsidian} onChanged={reload} />
       <ExternalServerCard brainId={brainId} linked={linked} onChanged={reload} />
@@ -192,6 +205,133 @@ function OsSourceCard({ files, memories, loading }: { files: number; memories: n
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{files} archivos .md</Badge>
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{memories} memorias</Badge>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Copias reales por huella de contenido (INF1025H · memoria-manifiesto) */
+/* ------------------------------------------------------------------ */
+
+interface InformeCopias {
+  resumen: string;
+  nombres: Map<string, string>;
+  divergentes: DivergenciaMemoria[];
+  propuestas: PropuestaLimpieza[];
+}
+
+function ManifiestoCopiasCard({ brainId }: { brainId: string }) {
+  const [informe, setInforme] = useState<InformeCopias | null>(null);
+  const [calculando, setCalculando] = useState(false);
+  const [nota, setNota] = useState<string | null>(null);
+
+  const calcular = useCallback(async () => {
+    setCalculando(true);
+    setNota(null);
+    try {
+      const aMs = (iso?: string): number | null => (iso ? (Number.isNaN(Date.parse(iso)) ? null : Date.parse(iso)) : null);
+      const copias: CopiaMemoria[] = [];
+      const nombres = new Map<string, string>();
+      for (const f of await listMemoryFiles(brainId)) {
+        nombres.set(f.id, f.name);
+        copias.push({
+          cerebroId: brainId,
+          memoriaId: f.id,
+          destino: "starseed",
+          huella: await huellaContenido(f.content),
+          bytes: f.content.length,
+          actualizadoMs: aMs(f.updated_at),
+        });
+      }
+      for (const m of readMirror(brainId)) {
+        if (!nombres.has(m.id)) nombres.set(m.id, m.name);
+        copias.push({
+          cerebroId: brainId,
+          memoriaId: m.id,
+          destino: "local",
+          huella: await huellaContenido(m.content),
+          bytes: m.content.length,
+          actualizadoMs: aMs(m.updated_at),
+        });
+      }
+      const manifiesto = construirManifiesto(copias);
+      setInforme({
+        resumen: resumenManifiesto(manifiesto),
+        nombres,
+        divergentes: divergencias(manifiesto),
+        propuestas: proponerLimpieza(manifiesto),
+      });
+    } catch (e) {
+      setInforme(null);
+      setNota(`No se pudo calcular el manifiesto: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setCalculando(false);
+    }
+  }, [brainId]);
+
+  useEffect(() => { void calcular(); }, [calcular]);
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Layers className="w-4 h-4 text-amber-300" />
+        <span className="text-sm font-semibold text-amber-50">Copias de la memoria</span>
+        <Badge variant="outline" className="ml-auto border-white/15 text-white/50 text-[10px]">por huella de contenido</Badge>
+        <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={calculando} onClick={calcular}>
+          {calculando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Recalcular
+        </Button>
+      </div>
+      <p className="text-[11px] text-white/50">
+        Cuenta cuántas copias reales hay de cada memoria (aquí en StarSeed y el espejo local de este dispositivo), cuál es la más
+        reciente («gana la más nueva») y qué copias redundantes podrían retirarse: SOLO propuestas, siempre con confirmación —
+        ningún borrado se propaga solo.
+      </p>
+      {nota && <p className="text-[11px] leading-snug text-cyan-200/80">{nota}</p>}
+      {informe && (
+        <div className="space-y-2">
+          <Badge variant="outline" className="border-amber-500/40 text-amber-200/90 text-[10px]">{informe.resumen}</Badge>
+          {informe.divergentes.length > 0 && (
+            <ul className="space-y-1.5">
+              {informe.divergentes.map((d) => {
+                const nombre = informe.nombres.get(d.memoriaId) || d.memoriaId;
+                const versiones = d.huellas.map((h) => h.destinos.join(", ")).join(" · ");
+                return (
+                  <li key={d.memoriaId} className="rounded-lg border border-white/10 bg-white/5 p-2">
+                    <div className="flex items-center gap-2">
+                      <BookMarked className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                      <span className="text-xs text-white/85 truncate flex-1" title={nombre}>{nombre}</span>
+                    </div>
+                    <p className="text-[11px] text-white/55 mt-1">
+                      {d.huellas.length} versiones distintas ({versiones}).
+                      {d.ganadora
+                        ? ` Gana la más nueva (destino «${d.ganadora.destino}», del ${new Date(d.ganadora.actualizadoMs ?? 0).toLocaleString()}).`
+                        : " Empate en la fecha: no se escribe nada hasta que lo decidas."}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {informe.propuestas.length > 0 && (
+            <ul className="space-y-1.5">
+              {informe.propuestas.map((p, i) => {
+                const nombre = informe.nombres.get(p.memoriaId) || p.memoriaId;
+                return (
+                  <li key={`${p.memoriaId}-${p.destino}-${p.huella.slice(0, 8)}-${i}`} className="rounded-lg border border-white/10 bg-white/5 p-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Trash2 className="w-3.5 h-3.5 text-red-300 shrink-0" />
+                      <span className="text-xs text-white/85 truncate flex-1" title={nombre}>{nombre}</span>
+                      <Badge variant="outline" className="text-[9px] border-white/15 text-white/50">destino «{p.destino}»</Badge>
+                      <Badge variant="outline" className="text-[9px] border-red-500/30 text-red-200/80">requiere confirmación</Badge>
+                    </div>
+                    <p className="text-[11px] text-white/55 mt-1">{p.motivo}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
