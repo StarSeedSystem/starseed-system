@@ -1,5 +1,5 @@
 """Pruebas puras de la sonda Cloudroom; nunca ejecuta room-cli."""
-import os, sys, unittest
+import os, sys, tempfile, unittest
 sys.path.insert(0, os.path.dirname(__file__))
 from medio_cloudroom import cli_path, interpretar, sondear
 
@@ -81,6 +81,64 @@ class SondaCloudroom(unittest.TestCase):
         d = sondear(correr, {"CLOUDROOM_CLI": os.path.abspath(__file__)})
         self.assertEqual(d["estado"], "requiere_alex")
         self.assertIn("comando fallido", d["detalle"])
+
+    def test_busca_en_home_local_bin_y_respeta_la_ausencia(self):
+        """(RTCRM1024D) Sin CLOUDROOM_CLI ni PATH cae a ~/.local/bin; si no está, no inventa ruta."""
+        consultado = []
+
+        def buscar(nombre):
+            consultado.append(nombre)
+            return None  # el PATH de la prueba nunca encuentra nada
+
+        anterior = os.environ.get("HOME")
+        try:
+            with tempfile.TemporaryDirectory() as casa:
+                bin_dir = os.path.join(casa, ".local", "bin")
+                os.makedirs(bin_dir)
+                ruta = os.path.join(bin_dir, "room-cli")
+                open(ruta, "w").close()
+                os.environ["HOME"] = casa
+                self.assertEqual(cli_path({}, buscar), ruta)
+                self.assertFalse(os.path.isfile(os.path.join(casa, "otra", ".local", "bin", "room-cli")))
+                os.environ["HOME"] = os.path.join(casa, "otra")
+                self.assertEqual(cli_path({}, buscar), "")
+        finally:
+            if anterior is None:
+                os.environ.pop("HOME", None)
+            else:
+                os.environ["HOME"] = anterior
+            # una consulta al PATH por llamada; nunca se busca otro nombre que «room-cli»
+            self.assertEqual(set(consultado), {"room-cli"})
+
+    def test_cuenta_lista_incluye_cupo_declarado_e_hilos(self):
+        """(RTCRM1024D) Cuenta lista: estado, id, cupo del plan gratis, hilos y arranque sin recuento."""
+        self.assertEqual(interpretar({"running": True}, {"authenticated": True, "account": "alex"}, {"count": 4}),
+                         {"id": "cloudroom", "nombre": "Cloudroom", "estado": "usable",
+                          "detalle": "cuenta conectada · 4 hilo(s) abierto(s)",
+                          "capacidad": "100 agentes en la nube / 30 días (plan gratis)", "siguiente_paso": ""})
+        self.assertEqual(interpretar({"running": True}, {"authenticated": True})["estado"], "usable")
+
+    def test_sin_room_cli_no_ejecuta_nada(self):
+        """(RTCRM1024D) Sin CLI en la variable, el PATH ni ~/.local/bin: no se ejecuta ninguna orden."""
+        anterior = os.environ.get("HOME")
+        try:
+            corridas = []
+
+            def falso(orden, timeout=None, **resto):
+                corridas.append(list(orden))
+                return ResultadoFalso(0, "{}")
+
+            with tempfile.TemporaryDirectory() as casa:
+                os.environ["HOME"] = casa  # tampoco hay ~/.local/bin en la casa de la prueba
+                d = sondear(falso, {})
+            self.assertEqual(corridas, [])
+            self.assertEqual(d["estado"], "no_disponible")
+            self.assertEqual(d["detalle"], "app sin instalar")
+        finally:
+            if anterior is None:
+                os.environ.pop("HOME", None)
+            else:
+                os.environ["HOME"] = anterior
 
 if __name__ == "__main__":
     unittest.main()
