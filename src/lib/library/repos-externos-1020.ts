@@ -49,17 +49,21 @@ function paqueteDe(e: Entrada1020): LibraryPackage {
   };
 }
 
-export const REPO_EXTERNOS_1020: LibraryRepo = {
-  id: "starseed-biblioteca-externa", name: "Biblioteca externa",
-  builtin: true, packages: CATALOGO.paquetes.map(paqueteDe),
-};
-
-// ── Fusión 1.ª + 2.ª tanda (Ola 1020D): vista plana y exclusiones de seguridad ──
+// ── Fusión 1.ª + 2.ª tanda (Ola 1020D): exclusiones de seguridad y vista plana ──
 
 export const REPOS_EXCLUIDOS: string[] = [
   CATALOGO.excluida?.repo,
   ...(CATALOGO_B.excluidas ?? []).map((e) => e.repo),
 ].filter((v): v is string => Boolean(v));
+
+const excluidos = new Set(REPOS_EXCLUIDOS);
+const esExcluida = (e: Entrada1020): boolean =>
+  excluidos.has(e.repo) || e.id.includes("reverse-skill") || e.repo.includes("reverse-skill");
+
+export const REPO_EXTERNOS_1020: LibraryRepo = {
+  id: "starseed-biblioteca-externa", name: "Biblioteca externa",
+  builtin: true, packages: CATALOGO.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
+};
 
 export interface ReposExternosPaquete {
   id: string; repo: string; nombre: string; kind: string; canal: string;
@@ -82,9 +86,7 @@ function transformaPaquete(p: Entrada1020): ReposExternosPaquete {
   };
 }
 
-const excluidos = new Set(REPOS_EXCLUIDOS);
-
 export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
   ...CATALOGO.paquetes,
   ...CATALOGO_B.paquetes,
-].map(transformaPaquete).filter((p) => !excluidos.has(p.repo));
+].filter((e) => !esExcluida(e)).map(transformaPaquete);
