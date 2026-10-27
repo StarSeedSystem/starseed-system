@@ -15,14 +15,16 @@ import type {
   Autor,
   Ambito,
   Computo,
+  ValorParametro,
 } from "./tipos";
 import { elegirComputo, Candidato } from "./planificador-computo";
 import { decidir, decidirOperacion } from "./permisos";
 import { obtenerAtomo, candidatosDe } from "./registro-atomos";
 import { entenderVarias } from "./dictado";
-import { aplicarOperacion, deshacerUltimo, rehacerUltimo, registrar, type Historial } from "./parametros";
+import { aplicarOperacion, deshacerUltimo, rehacerUltimo, registrar, valorActual, type Historial } from "./parametros";
 import { operacionASdkOrder } from "../../lib/video-html/operaciones-sdk";
 import { llamarServicio, type DefinicionServicio } from "./servicio-local";
+import { escenaDesdeValores, renderizarAnimacion } from "./atomos/animacion-manimgx";
 
 export interface Pendiente {
   operacion: Operacion;
@@ -97,31 +99,62 @@ export function crearControlador(o: {
      };
      notificar(suscriptores, estado);
      
-     // If the atom is video-html, translate the operation to an SDK order and send it to the HyperFrames service
-     const enUso = estado.molecula.atomos.find((a) => a.id === op.objetivo.atomoId);
-     if (enUso) {
-       const def = obtenerAtomo(enUso.herramientaId);
-       if (def && def.herramientaId === "video-html") {
-         try {
-           const sdkOrder = operacionASdkOrder(op);
-           // Call the HyperFrames service to apply the SDK order
-           const servicioDef: DefinicionServicio = { id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/health" };
-           llamarServicio(servicioDef, "/api/sdk-order", sdkOrder, fetch, {}).then(result => {
-             if (result.ok === false) {
-               console.error("Failed to send SDK order to HyperFrames service:", result.motivo);
-             }
-           }).catch(error => {
-             console.error("Error calling HyperFrames service:", error);
-           });
-         } catch (error) {
-           // If translation fails, we log the error but still return the successful application
-           console.error("Failed to translate operation to SDK order:", error);
-         }
-       }
-     }
-     
-     return { ok: true, cambio: r.cambio };
-   }
+      // If the atom is video-html, translate the operation to an SDK order and send it to the HyperFrames service
+      const enUso = estado.molecula.atomos.find((a) => a.id === op.objetivo.atomoId);
+      const def = enUso ? obtenerAtomo(enUso.herramientaId) : undefined;
+      if (enUso && def && def.herramientaId === "video-html") {
+          try {
+            const sdkOrder = operacionASdkOrder(op);
+            // Call the HyperFrames service to apply the SDK order
+            const servicioDef: DefinicionServicio = { id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/health" };
+            llamarServicio(servicioDef, "/api/sdk-order", sdkOrder, fetch, {}).then(result => {
+              if (result.ok === false) {
+                console.error("Failed to send SDK order to HyperFrames service:", result.motivo);
+              }
+            }).catch(error => {
+              console.error("Error calling HyperFrames service:", error);
+            });
+          } catch (error) {
+            // If translation fails, we log the error but still return the successful application
+            console.error("Failed to translate operation to SDK order:", error);
+          }
+      }
+
+      // MGX1023C · el disparo de «renderizar» del átomo Animación 3D (ManimGX) usa `cliente-render`
+      // (Worker de ManimGX, fuera del proceso del OS, contrato §3) y deja el MP4 como salida del átomo.
+      if (enUso && def && def.herramientaId === "animacion-manimgx" && op.objetivo.parametroId === "renderizar" && op.accion.tipo === "disparo") {
+        try {
+          const valores: Record<string, ValorParametro> = {};
+          for (const prm of def.parametros) {
+            valores[prm.id] = valorActual(estado.molecula.valores, { atomoId: enUso.id, parametroId: prm.id }, prm);
+          }
+          const escena = escenaDesdeValores(valores, enUso.titulo ?? def.nombre);
+          renderizarAnimacion(escena)
+            .then((salida) => {
+              if (!salida.bytes) {
+                console.error(`El render «${escena.nombre}» no salió: ${salida.error ?? "salida vacía"}.`);
+                return;
+              }
+              // El MP4 es la salida del átomo: se descarga para publicaciones y archivos.
+              if (typeof document !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+                const url = URL.createObjectURL(new Blob([salida.bytes as BlobPart], { type: "video/mp4" }));
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${escena.nombre}.mp4`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }
+            })
+            .catch((e) => {
+              console.error("El render de ManimGX falló:", e);
+            });
+        } catch (error) {
+          console.error("No se pudo preparar la escena de ManimGX:", error);
+        }
+      }
+
+      return { ok: true, cambio: r.cambio };
+    }
 
   function obtener(): EstadoControl {
     return estado;
