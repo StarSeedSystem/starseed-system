@@ -18,7 +18,7 @@ import {
   PROTO_ORB_FAB_EVENT,
   PROTO_ORB_FAB_KEY,
   PROTO_ORB_POS_KEY,
-  guardarActivada,
+  fijarOrbeActivada,
   leerActivada,
   type AlmacenLocal,
 } from "@/lib/protomolecula/orbe-bus";
@@ -124,13 +124,10 @@ export function useOrbeProtomolecula(): EstadoOrbe {
     };
   }, []);
 
+  // Puerta común (PMO1020A): guardar, emitir y empujar a la cuenta pasan por `fijarOrbeActivada`,
+  // así el botón del lienzo hace exactamente lo mismo que Astraura desde cualquier medio.
   const alternar = useCallback((encendida: boolean) => {
-    guardarActivada(almacen(), encendida);
-    try {
-      window.dispatchEvent(new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: { activada: encendida } }));
-    } catch {
-      /* defensivo */
-    }
+    fijarOrbeActivada(encendida, { almacen: almacen() });
     setActivada(encendida);
     if (!encendida) return;
     // Si se eligió estilo o forma con la orbe apagada, se le repite al encenderla para que su panel coincida.
