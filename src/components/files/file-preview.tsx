@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { emitAttach, openComposer } from "@/lib/share/bridge";
+import { PanelEditarPdf } from "@/components/pdf/panel-editar-pdf";
+import { loadIntegrationConfig } from "@/lib/integrations/registry";
 
 // Visor 3D ligero: sólo cliente. Si no existe el módulo o falla, degradamos a
 // miniatura/poster vía el catch del propio componente (ver GlbPreview).
@@ -298,6 +300,29 @@ function AudioPreview({ file }: { file: FileLike }) {
 }
 
 function PdfPreview({ file, compact }: { file: FileLike; compact?: boolean }) {
+    const [editor, setEditor] = useState(false);
+    const [cfg, setCfg] = useState<{ endpoint: string; apiKey?: string } | null>(null);
+    const [aviso, setAviso] = useState<string | null>(null);
+
+    const abrirEditor = () => {
+        const guardada = loadIntegrationConfig("stirling-pdf");
+        setCfg(guardada.endpoint ? { endpoint: guardada.endpoint, apiKey: guardada.apiKey } : null);
+        setAviso(null);
+        setEditor((abierto) => !abierto);
+    };
+    const guardarVersion = (blob: Blob, nombre: string) => {
+        const url = typeof URL !== "undefined" && typeof URL.createObjectURL === "function" ? URL.createObjectURL(blob) : null;
+        if (!url) {
+            setAviso("No pude descargar la versión nueva en este navegador; el original no se tocó.");
+            return;
+        }
+        const enlace = document.createElement("a");
+        enlace.href = url; enlace.download = nombre; enlace.rel = "noopener";
+        enlace.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 15000);
+        setAviso(`Versión nueva descargada como «${nombre}». El original no se tocó.`);
+    };
+
     if (!file.url) return <GenericBody file={file} fmt="pdf" hint="Sin URL de PDF." />;
     return (
         <div className="overflow-hidden rounded-xl border border-white/10 bg-white">
@@ -311,15 +336,23 @@ function PdfPreview({ file, compact }: { file: FileLike; compact?: boolean }) {
                     </a>
                 </div>
             </object>
-            <a
-                href="https://github.com/Stirling-Tools/Stirling-PDF"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Herramientas PDF self-hosted: unir, dividir, convertir, OCR, firmar (Stirling-PDF)"
-                className="flex items-center gap-1.5 border-t border-black/10 bg-black/5 px-3 py-1.5 text-[11px] font-medium text-black/60 hover:bg-black/10 hover:text-black/80"
-            >
-                <Wrench className="size-3.5" /> Herramientas PDF (Stirling-PDF): unir · dividir · OCR · firmar
-            </a>
+            <div className="flex flex-wrap items-center gap-1.5 border-t border-black/10 bg-black/5 px-3 py-1.5">
+                <button type="button" onClick={abrirEditor} aria-expanded={editor}
+                    className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-500/15 px-3 text-[11px] font-bold text-rose-700 hover:bg-rose-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-500">
+                    <Wrench className="size-3.5" /> {editor ? "Cerrar editor" : "Editar PDF"}
+                </button>
+                <a href="https://github.com/Stirling-Tools/Stirling-PDF" target="_blank" rel="noopener noreferrer"
+                    title="Qué es Stirling-PDF: edición de PDF self-hosted (unir, dividir, OCR, firmar)"
+                    className="inline-flex min-h-11 cursor-pointer items-center gap-1 text-[11px] font-medium text-black/60 hover:text-black/80">
+                    <ExternalLink className="size-3.5" /> Qué es
+                </a>
+            </div>
+            {editor && (
+                <div className="border-t border-black/10 bg-[#0b0b12] p-2">
+                    <PanelEditarPdf archivo={{ url: file.url, nombre: file.name }} alGuardar={guardarVersion} cfg={cfg ?? undefined} />
+                </div>
+            )}
+            {aviso && <p role="status" className="border-t border-black/10 bg-white px-3 py-1.5 text-[11px] text-black/70">{aviso}</p>}
         </div>
     );
 }
