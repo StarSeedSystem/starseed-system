@@ -62,7 +62,7 @@ describe("skillsSystemPrompt · capa completa y filtro por chat", () => {
     // Sin espejo quedan las defaultOn: hoy «av-gen» (Adenda 138),
     // «diagram-design» (Ola 1018D) y las dos de diseño web (Ola 1025R).
     // El bloque se vacía al apagarlas en Ajustes.
-    desactivar(["av-gen", "diagram-design", "frontend-slides", "awesome-design-md"]);
+    desactivar(["av-gen", "diagram-design", "slides", "design-md"]);
     expect(skillsSystemPrompt()).toBe("");
   });
 });

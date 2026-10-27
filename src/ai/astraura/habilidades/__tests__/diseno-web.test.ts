@@ -89,11 +89,7 @@ describe("comoCapacidadDiseno", () => {
 
 describe("SKILL_CAPABILITIES · diseño web", () => {
   const porId = (id: string) => SKILL_CAPABILITIES.filter((c) => c.id === id);
-  const IDS_CAPACIDAD = [
-    "taste",
-    HABILIDADES_DISENO_WEB.slides.id,
-    HABILIDADES_DISENO_WEB.designmd.id,
-  ];
+  const IDS_CAPACIDAD = ["taste", "slides", "design-md"];
 
   it("contiene taste, slides y design-md con ids únicos", () => {
     for (const id of IDS_CAPACIDAD) expect(porId(id), id).toHaveLength(1);
@@ -106,8 +102,10 @@ describe("SKILL_CAPABILITIES · diseño web", () => {
     expect(taste.packageIds).toContain("iatool-taste-skill");
   });
 
-  it("slides y design-md están encendidas por defecto", () => {
-    for (const id of ["frontend-slides", "awesome-design-md"]) {
+  it("slides y design-md están encendidas por defecto y apuntan a su skill", () => {
+    expect(porId("slides")[0]?.skillIds).toEqual([HABILIDADES_DISENO_WEB.slides.id]);
+    expect(porId("design-md")[0]?.skillIds).toEqual([HABILIDADES_DISENO_WEB.designmd.id]);
+    for (const id of ["slides", "design-md"]) {
       expect(porId(id)[0]?.defaultOn, id).toBe(true);
     }
   });
