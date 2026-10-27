@@ -23,6 +23,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { validarSinCredencialesEpic } from "@/lib/artcraft/juegos-pc";
 
 // ============================================================
 // Tipos
@@ -180,6 +181,15 @@ function writeVault(docs: MemoryDoc[]): void {
   }
 }
 
+/**
+ * Guarda de credenciales de Epic (§5.3 de `architecture/artcraft-y-rare.md`): una memoria jamás
+ * guarda los campos de la sesión de Legendary (sí los repite en los avisos del motivo, jamás el valor).
+ */
+function rechazarCredencialesEpic(doc: Pick<MemoryDoc, "name" | "markdown">): void {
+  const r = validarSinCredencialesEpic(`${doc.name ?? ""}\n${doc.markdown ?? ""}`);
+  if (!r.ok) throw new Error(`Memoria rechazada (qué está prohibido: credenciales de Epic en una memoria): ${r.hallazgos.join("; ")}`);
+}
+
 function emitChange(): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(VAULT_EVENT));
@@ -228,6 +238,7 @@ export function createMemory(partial: Partial<MemoryDoc>): MemoryDoc {
     updatedAt: now,
     active: partial.active ?? true,
   };
+  rechazarCredencialesEpic({ name: partial.name ?? "", markdown: partial.markdown ?? "" });
   const vault = readVault();
   vault.push(doc);
   writeVault(vault);
@@ -240,6 +251,8 @@ export function updateMemory(id: string, patch: Partial<MemoryDoc>): MemoryDoc |
   const vault = readVault();
   const idx = vault.findIndex((d) => d.id === id);
   if (idx === -1) return undefined;
+  if (patch.name !== undefined || patch.markdown !== undefined)
+    rechazarCredencialesEpic({ name: patch.name ?? vault[idx].name, markdown: patch.markdown ?? vault[idx].markdown });
   const updated: MemoryDoc = { ...vault[idx], ...patch, id, updatedAt: Date.now() };
   vault[idx] = updated;
   writeVault(vault);
@@ -575,6 +588,7 @@ export function exportVaultJson(): string {
 export function importVaultJson(json: string): void {
   const parsed = JSON.parse(json);
   if (!Array.isArray(parsed)) throw new Error("Formato inválido: se esperaba un array");
+  for (const d of parsed as MemoryDoc[]) rechazarCredencialesEpic(d);
   writeVault(parsed as MemoryDoc[]);
   emitChange();
 }

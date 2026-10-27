@@ -21,6 +21,7 @@
 
 import type { MarcaBot } from "@/lib/agentes-red/marca-bot";
 import { createClient } from "@/utils/supabase/client";
+import { esUrlPermitidaRare, validarSinCredencialesEpic } from "@/lib/artcraft/juegos-pc";
 
 // ── IDs estables de tipos y destinos (en español, sin tildes para claves) ──
 
@@ -925,6 +926,35 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
 
     // ── Moderación de contenido con decisiones Jev ──
     const textoAModerar = contentToText(input.content);
+
+    // Guarda de credenciales de Epic y de descargas remotas de Rare
+    // (§5.3 de `architecture/artcraft-y-rare.md`): ninguna publicación lleva
+    // campos de la sesión de Legendary, ni enlaces de Rare que no sean su
+    // página oficial de releases. Los hallazgos nunca repiten el valor.
+    const guardaCredenciales = validarSinCredencialesEpic(textoAModerar);
+    const enlacesRare = textoAModerar.match(/https?:\/\/\S+/g) ?? [];
+    const urlProhibida = enlacesRare.some(
+        (u) => /rare/i.test(u) && !esUrlPermitidaRare(u)
+    );
+    if (!guardaCredenciales.ok || urlProhibida) {
+        const errorMsg =
+            "Publicación rechazada por la guarda de credenciales de Epic: " +
+            (guardaCredenciales.ok
+                ? "enlace de Rare no permitido (solo su página de releases de GitHub)"
+                : guardaCredenciales.hallazgos.join("; "));
+        return {
+            ok: false,
+            results: input.destinations.map((d) => ({
+                kind: d.kind,
+                id: d.id,
+                label: d.label,
+                ok: false,
+                status: "failed",
+                error: errorMsg,
+            })),
+        };
+    }
+
     let modResult: { veredicto: string; motivos?: string[]; probabilidades?: Record<string, number>; gasto?: number } | null = null;
     if (textoAModerar && textoAModerar !== "(sin contenido)") {
         try {
