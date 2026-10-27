@@ -12,6 +12,7 @@ sus términos.
 | SlopMonster | MIT | conservar el aviso; solo analiza inglés |
 | transitions.dev (skills y transiciones gratis) | licencia propia: uso personal y comercial ilimitado dentro de productos; prohibido redistribuir la colección como librería; herramientas MIT | conservar el comentario «transitions.dev» en cada transición; no publicar este plugin en un mercado público |
 | Higgsfield | uso comercial de lo generado; créditos de la cuenta de Alex | revelar contenido sintético cuando toque; no quitar marcas C2PA; no entrenar otros modelos con sus salidas |
+| onetake (feitangyuan) | PolyForm Noncommercial 1.0.0; el uso comercial exige su licencia de pago | solo enlace: ni se instala ni se copia; su idea está reescrita en ritmo-y-continuidad.md; Alex puede probarla a mano solo con piezas no comerciales |
 | LottieFiles | animaciones gratis con Lottie Simple License, pero sus términos dicen que los planes Free/Individual son no comerciales | en uso comercial, confirmar antes el plan; reproductores dotLottie MIT |
 | Icons8 | gratis con enlace a Icons8 (pie, «Acerca de» o ajustes); SVG con suscripción | añadir el enlace; no redistribuir iconos de forma extraíble |
 | Fontshare | ITF Free Font License (no es de código abierto) | servir por su CSS; nunca empaquetar los archivos |
