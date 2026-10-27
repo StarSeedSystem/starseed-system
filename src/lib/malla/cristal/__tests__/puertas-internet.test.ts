@@ -65,6 +65,20 @@ describe('restanteParaOtrosMb', () => {
       })
     ).toBe(0);
   });
+
+  it('aplica la reserva del 20 % por defecto si no se declara', () => {
+    // tope 1000, usado 200, reserva no declarada → 20 % de 1000 = 200 → 600 MB
+    expect(
+      restanteParaOtrosMb({ ...basePuerta, reservaDuenoPct: undefined })
+    ).toBe(600);
+  });
+
+  it('respeta una reserva editable distinta de 20 %', () => {
+    // tope 1000, usado 0, reserva 40 % = 400 → 600 MB para otros
+    expect(
+      restanteParaOtrosMb({ ...basePuerta, usadoMesMb: 0, reservaDuenoPct: 40 })
+    ).toBe(600);
+  });
 });
 
 describe('puedeUsar', () => {
@@ -190,6 +204,15 @@ describe('puedeUsar', () => {
         baseSolicitante
       )
     ).toEqual({ ok: false, motivo: 'No queda datos disponibles para compartir' });
+  });
+
+  it('deniega a los demás una puerta sin medida ni tope aunque compartir sea público', () => {
+    expect(
+      puedeUsar(
+        { ...basePuerta, medida: false, topeMensualMb: undefined },
+        baseSolicitante
+      )
+    ).toEqual({ ok: false, motivo: 'Puerta no medida o sin tope definido' });
   });
 });
 
@@ -351,6 +374,31 @@ describe('elegirPuerta', () => {
     });
   });
 
+  it('cambia a la de menor coste cuando la actual cuesta mucho más que mejor × 1,2', () => {
+    const actualCara = {
+      ...puertas[0],
+      latenciaMs: 900, // coste 1,55 × 2 (medida) = 3,1
+    };
+    const otraBarata = {
+      ...puertas[1],
+      latenciaMs: 10, // coste 0,01 × 2 (medida) = 0,02
+      usadoMesMb: 0,
+    };
+
+    const resultado = elegirPuerta({
+      clase: 'interno' as ClaseDato,
+      necesitaInternet: true,
+      puertas: [actualCara, otraBarata],
+      solicitante: baseSolicitante,
+      actual: 'p1',
+    });
+
+    expect(resultado).toEqual({
+      puerta: otraBarata,
+      motivo: 'Puerta de menor coste seleccionada',
+    });
+  });
+
   it('devuelve null cuando ninguna puerta está permitida', () => {
     const puertasNoPermitidas = [
       {
@@ -408,5 +456,63 @@ describe('puertaParaTesela', () => {
     expect(resultado.neurona).toBe('n1');
     expect(resultado.cuenta).toBe('c1');
     expect(resultado.tipo).toBe('movil-4g');
+  });
+
+  it('sin datos opcionales devuelve solo los campos base de la interfaz', () => {
+    const puertaBase: PuertaInternet = {
+      id: 'p1',
+      neurona: 'n1',
+      cuenta: 'c1',
+      tipo: 'movil-4g',
+      bajadaKbps: 10000,
+      subidaKbps: 5000,
+      latenciaMs: 50,
+      medida: false,
+      compartir: 'nadie',
+    };
+
+    const resultado = puertaParaTesela(puertaBase);
+
+    expect(Object.keys(resultado).sort()).toEqual(
+      [
+        'id',
+        'neurona',
+        'cuenta',
+        'tipo',
+        'bajadaKbps',
+        'subidaKbps',
+        'latenciaMs',
+        'medida',
+        'compartir',
+      ].sort()
+    );
+  });
+
+  it('conserva los datos opcionales que sí pertenecen a la interfaz', () => {
+    const puertaConOpcionales: PuertaInternet = {
+      id: 'p1',
+      neurona: 'n1',
+      cuenta: 'c1',
+      tipo: 'movil-5g',
+      bajadaKbps: 20000,
+      subidaKbps: 10000,
+      latenciaMs: 30,
+      medida: true,
+      topeMensualMb: 5000,
+      usadoMesMb: 300,
+      reservaDuenoPct: 25,
+      compartir: 'grupo',
+      grupos: ['grupo1'],
+    };
+
+    const resultado = puertaParaTesela(puertaConOpcionales);
+
+    expect(resultado).toMatchObject({
+      topeMensualMb: 5000,
+      usadoMesMb: 300,
+      reservaDuenoPct: 25,
+      compartir: 'grupo',
+      grupos: ['grupo1'],
+    });
   });
 });

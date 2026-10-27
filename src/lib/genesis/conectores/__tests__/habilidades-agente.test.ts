@@ -49,6 +49,13 @@ describe("habilidadesPara · por papel", () => {
     expect(vision).not.toContain("router-proxy");
   });
 
+  it("revisor exige calidad fuerte: ni visión ni planificación", () => {
+    const revisor = ids(habilidadesPara("revisor", "cuenta", OPCIONES));
+    expect(revisor).toEqual(expect.arrayContaining(["taste", "pm", "memoria-agente"]));
+    expect(revisor).not.toContain("vision");
+    expect(revisor).not.toContain("router-proxy");
+  });
+
   it("voz e imagen solo reciben las neutras; imagen añade lo que ve", () => {
     expect(ids(habilidadesPara("voz", "cuenta", OPCIONES))).toEqual(["av-gen"]);
     expect(ids(habilidadesPara("imagen", "cuenta", OPCIONES))).toEqual(["av-gen", "vision"]);
