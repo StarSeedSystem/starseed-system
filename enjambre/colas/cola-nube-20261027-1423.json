@@ -1,0 +1,46 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "ola": "1021M",
+   "importancia": "capacidad",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40124802549",
+   "id": "TSC1021Ab-d2",
+   "titulo": "Enjambre · sin tsc cuando el diff no toca TypeScript (las tareas de Python no hacen cola para el turno) (parte 2 de 2)",
+   "archivos": [
+    "scripts/enjambre/test_diff_necesita_tsc.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nCaso real medido (2026-10-21 10:30 UTC, Mac de 8 GB con la swap al 94 % y presión del núcleo 2): tres tareas llevaban 5, 30 y 49 min en la fase «tsc», haciendo cola para el turno de un tsc completo (`scripts/enjambre/tsc-turno.sh`), y en 3 h la Mac no integró nada. Una de ellas, VAR1021A, solo toca archivos .py de `scripts/puente/`: su diff no puede cambiar el resultado de tsc, porque cada worktree se pone al día con main (`poner_al_dia`) y main está en verde.\n\nArreglo en `scripts/enjambre/starseed-enjambre.py`, función `tsc(cwd, log)`: si el repo es el del OS (hay tsconfig.json) y el diff de la tarea (`git diff --name-only main...HEAD` + `git diff --name-only`) no toca NINGÚN archivo que tsc mire —extensiones .ts .tsx .mts .cts .js .jsx .mjs .cjs .d.ts, ni `tsconfig*.json`, `package.json`, `package-lock.json`, `next-env.d.ts` ni nada dentro de `src/` o `types/`—, devuelve (0, []) sin lanzar tsc y lo anota en el log («tsc no hace falta: el diff no toca TypeScript»). Ante la menor duda (git falla, lista vacía porque no hay diff) se corre tsc como hoy. Pon la decisión en una función PURA aparte, `diff_necesita_tsc(archivos) -> bool`, con docstring en español del caso medido. Las guardas de cliente (`alcance_pruebas.GUARDAS_CLIENTE`) y vitest no cambian.\n\nPruebas en `scripts/enjambre/test_tsc_sin_terminar.py` (o un archivo nuevo `scripts/enjambre/test_diff_necesita_tsc.py`): solo .py/.md/.json de datos → False; cualquier .ts/.tsx, tsconfig.json, package.json o algo bajo src/ → True; lista vacía → True. Corre `python3 -m unittest` de ese archivo y lee su resumen entero.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40124802549`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40124802549:refs/remotes/origin/nube/40124802549\"` y `git cherry-pick --no-commit 2b250fdf0afc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/enjambre/starseed-enjambre.py, scripts/enjambre/test_diff_necesita_tsc.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió TSC1021Ab: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: scripts/enjambre/test_diff_necesita_tsc.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "TSC1021Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "TSC1021Ab-d1b"
+   ]
+  },
+  {
+   "id": "HFR1018P",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Neuronas · servidor del servicio hyperframes y arranque donde haya Node 22, FFmpeg y navegador",
+   "archivos": [
+    "servicios/hyperframes/src/servidor.mjs",
+    "scripts/puente/instalar-servicios.py",
+    "scripts/puente/test_instalar_hyperframes.py"
+   ],
+   "depende": [
+    "HFR1018F",
+    "HFR1018G"
+   ],
+   "prompt": "servidor.mjs: `node:http` escuchando SOLO en 127.0.0.1:4490 que pasa cada petición a `manejar()` de rutas.mjs con la cola de cola-render.mjs (ejecutar = `child_process.spawn` de `npx hyperframes` con la lista de argumentos, nunca shell) y lee el archivo `entorno` del servicio. Añade la entrada \"hyperframes\" a instalar-servicios.py con el mismo patrón que \"laya\": lanza `node servicios/hyperframes/src/servidor.mjs` solo si `node -v` ≥ 22, hay ffmpeg y el archivo `entorno` del servicio trae HYPERFRAMES_BROWSER_PATH; log en /tmp/starseed-hyperframes.log; nunca en la Mac si quedan menos de 2 GB de disco libres (vista previa sí, render no). Prueba con funciones puras de comprobación. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "TSC1021Ab-d2"
+  ]
+ }
+}
