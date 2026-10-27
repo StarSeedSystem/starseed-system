@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
@@ -8,8 +8,8 @@ import type { LecturaFusion, ResultadoFusion } from "@/lib/cerebros/fusion-aplic
 import FusionarDialog from "@/components/cerebro/fusionar-dialog";
 expect.extend(matchers);
 
-function renderDialog(props: { onHecho?: () => void }) {
-  return render(<AppearanceProvider><FusionarDialog open onOpenChange={() => {}} cerebro={destino} cerebros={[destino, origen]} {...props} /></AppearanceProvider>);
+function renderDialog(props: { onHecho?: () => void; onOpenChange?: (abierto: boolean) => void }) {
+  return render(<AppearanceProvider><FusionarDialog open onOpenChange={props.onOpenChange ?? (() => {})} cerebro={destino} cerebros={[destino, origen]} {...props} /></AppearanceProvider>);
 }
 
 vi.mock("@/lib/cerebros/fusion-aplicar", async (importOriginal) => {
@@ -57,24 +57,25 @@ afterEach(() => cleanup());
 describe("FusionarDialog conecta fusion-aplicar", () => {
   it("descarga la copia ANTES de aplicar la fusión, y avisa al terminar", async () => {
     const onHecho = vi.fn();
+    const onOpenChange = vi.fn();
     const orden: string[] = [];
     vi.mocked(descargarCopia).mockImplementation(() => { orden.push("copia"); return true; });
     vi.mocked(aplicarFusion).mockImplementation(() => { orden.push("fusion"); return Promise.resolve(resultadoOk); });
     const usuario = userEvent.setup();
-    renderDialog({ onHecho });
+    renderDialog({ onHecho, onOpenChange });
 
     await usuario.click(screen.getByRole("checkbox", { name: /Cerebro dos/ }));
-    await usuario.click(screen.getByRole("button", { name: "Ver lo que se fusionará" }));
+    await usuario.click(screen.getByRole("button", { name: "Ver vista previa" }));
     await screen.findByText(/memoria nueva/);
     await usuario.click(screen.getByRole("button", { name: /Fusionar/ }));
 
-    await screen.findByText(/se borró después de fusionar/);
+    await waitFor(() => expect(aplicarFusion).toHaveBeenCalledTimes(1));
     expect(leerParaFusion).toHaveBeenCalledWith("c1", ["c2"]);
     expect(descargarCopia).toHaveBeenCalledTimes(1);
-    expect(aplicarFusion).toHaveBeenCalledTimes(1);
     expect(orden).toEqual(["copia", "fusion"]);
     expect(aplicarFusion).toHaveBeenCalledWith(expect.anything(), { destino, origenIds: ["c2"], quitarOrigenes: true });
     expect(onHecho).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("si quita la casilla, aplicarFusion conserva los orígenes", async () => {
@@ -83,12 +84,12 @@ describe("FusionarDialog conecta fusion-aplicar", () => {
     renderDialog({ onHecho });
 
     await usuario.click(screen.getByRole("checkbox", { name: /Cerebro dos/ }));
-    await usuario.click(screen.getByRole("button", { name: "Ver lo que se fusionará" }));
+    await usuario.click(screen.getByRole("button", { name: "Ver vista previa" }));
     await screen.findByText(/memoria nueva/);
-    await usuario.click(screen.getByLabelText("Quitar los cerebros fusionados cuando termine"));
+    await usuario.click(screen.getByLabelText("Quitar los cerebros fusionados después"));
     await usuario.click(screen.getByRole("button", { name: /Fusionar/ }));
 
-    await screen.findByText(/memorias guardadas/);
+    await waitFor(() => expect(aplicarFusion).toHaveBeenCalledTimes(1));
     expect(aplicarFusion).toHaveBeenCalledWith(expect.anything(), { destino, origenIds: ["c2"], quitarOrigenes: false });
     expect(onHecho).toHaveBeenCalledTimes(1);
   });
@@ -99,8 +100,26 @@ describe("FusionarDialog conecta fusion-aplicar", () => {
     renderDialog({});
 
     await usuario.click(screen.getByRole("checkbox", { name: /Cerebro dos/ }));
-    await usuario.click(screen.getByRole("button", { name: "Ver lo que se fusionará" }));
+    await usuario.click(screen.getByRole("button", { name: "Ver vista previa" }));
     await screen.findByText(/No se pudo leer el cerebro de origen/);
     expect(screen.queryByRole("button", { name: /Fusionar/ })).toBeNull();
+  });
+
+  it("si no se puede descargar la copia, pregunta antes de escribir", async () => {
+    vi.mocked(descargarCopia).mockReturnValue(false);
+    const usuario = userEvent.setup();
+    renderDialog({});
+
+    await usuario.click(screen.getByRole("checkbox", { name: /Cerebro dos/ }));
+    await usuario.click(screen.getByRole("button", { name: "Ver vista previa" }));
+    await screen.findByText(/memoria nueva/);
+    await usuario.click(screen.getByRole("button", { name: /Fusionar/ }));
+
+    await screen.findByText(/No se pudo descargar la copia de seguridad/);
+    expect(aplicarFusion).not.toHaveBeenCalled();
+
+    await usuario.click(screen.getByRole("button", { name: "Seguir sin copia descargada" }));
+    await waitFor(() => expect(aplicarFusion).toHaveBeenCalledTimes(1));
+    expect(descargarCopia).toHaveBeenCalledTimes(1);
   });
 });
