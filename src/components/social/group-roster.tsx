@@ -55,6 +55,7 @@ import { fetchProfilesByIds } from "@/lib/social/os-profiles";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 
 /** Tope de filas renderizadas; por encima se muestra un afijo "+N más". */
 const RENDER_CAP = 60;
@@ -246,7 +247,12 @@ export function GroupRoster({
                 title={hasKnownCensus ? "Directorio no disponible" : "Aún no hay miembros"}
                 description={
                     hasKnownCensus
-                        ? `Este grupo tiene ${(total ?? 0).toLocaleString("es-ES")} miembros. Inicia sesión para ver el directorio.`
+                        ? (
+                            <AvisoSesion
+                                texto={`Este grupo tiene ${(total ?? 0).toLocaleString("es-ES")} miembros. Inicia sesión para ver el directorio.`}
+                                compacto
+                            />
+                        )
                         : "Sé la primera persona en unirte a este grupo."
                 }
             />
