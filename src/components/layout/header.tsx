@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import NextImage from "next/image";
 import { Search } from "lucide-react";
+import SimboloStarSeed from "@/components/marca/simbolo-starseed";
 import { Input } from "@/components/ui/input";
 import { UserNav } from "./user-nav";
 import { NotificationCenter } from "./notification-center";
@@ -18,14 +18,9 @@ export function AppHeader() {
     >
       {/* Marca StarSeed */}
       <Link href="/dashboard" className="flex items-center gap-2 shrink-0 group cursor-pointer">
-        <NextImage
-          src="/starseed-symbol.png"
-          alt="StarSeed"
-          width={28}
-          height={28}
-          priority
-          className="w-7 h-7 object-contain transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 drop-shadow-[0_0_8px_rgba(168,85,247,0.45)]"
-        />
+        <span className="w-7 h-7 shrink-0 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 [filter:drop-shadow(0_0_8px_rgba(168,85,247,0.45))]">
+          <SimboloStarSeed tamano={28} siembra={false} ariaLabel="StarSeed" />
+        </span>
         <span className="hidden sm:inline font-headline text-lg font-bold tracking-wider">StarSeed</span>
       </Link>
 
