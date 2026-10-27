@@ -80,6 +80,24 @@ class Cadenas_y_parseo(unittest.TestCase):
         self.assertEqual(V.cargar_json(ruta, {"por_defecto": "valor"}),
                          {"por_defecto": "valor"})
 
+    def test_cargar_json_archivo_existente(self):
+        raiz = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(raiz, ignore_errors=True))
+        ruta = os.path.join(raiz, "existe.json")
+        with open(ruta, "w", encoding="utf-8") as fichero:
+            json.dump({"guardado": "valor"}, fichero)
+        self.assertEqual(V.cargar_json(ruta, {"por_defecto": "valor"}),
+                         {"guardado": "valor"})
+
+    def test_guardar_json_crea_carpeta_y_conserva_los_datos(self):
+        raiz = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(raiz, ignore_errors=True))
+        ruta = os.path.join(raiz, "sub", "carpeta", "estado.json")
+        datos = {"entrada": {"novedades": [{"url": "https://x/1"}]}}
+        V.guardar_json(ruta, datos)
+        self.assertTrue(os.path.isfile(ruta))
+        self.assertEqual(V.cargar_json(ruta, {}), datos)
+
     def test_fecha_a_iso(self):
         self.assertEqual(V.fecha_a_iso("Tue, 20 Oct 2026 12:00:00 GMT"),
                          "2026-10-20T12:00:00Z")
