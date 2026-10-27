@@ -98,6 +98,38 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
 
+    it("con el relevo activo y desconectando, el botón no se pulsa y dice que guarda el trabajo", () => {
+        const b = botonesNeurona({
+            nodo: "mac-a1b2c3",
+            vivo: true,
+            so: "macos",
+            enCurso: 1,
+            desconectando: true,
+            relevoActivo: true,
+        });
+        expect(b.desconectar).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Desconectando…",
+            explica: "Guarda el trabajo a medias y lo pasa a otro contenedor.",
+        });
+    });
+
+    it("sin trabajador en macOS: «Instalar el trabajador» con el comando de terminal", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(b.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "Un comando en la terminal de este aparato.",
+        });
+    });
+
+    it("sin trabajador en un SO desconocido: no se ofrece instalar", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "otro", enCurso: 0 });
+        expect(b.instalar).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+    });
+
     it("con trabajo en curso y contenedor activo, ambos botones requieren confirmación", () => {
         const b = botonesNeurona({ 
             nodo: "mac-a1b2c3", 
