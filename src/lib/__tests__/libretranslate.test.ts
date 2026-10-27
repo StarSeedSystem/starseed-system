@@ -88,6 +88,11 @@ describe("traducir", () => {
         const { fetch } = fetchSimulado([{ falla: true }]);
         await expect(crearClienteLibreTranslate({ base, fetch }).traducir({ q: "hola", source: "es", target: "en", format: "text" })).rejects.toThrow("No se pudo conectar");
     });
+
+    it("respuesta con otra cantidad de traducciones: error claro", async () => {
+        const { fetch } = fetchSimulado([{ cuerpo: { translatedText: ["solo una"] } }]);
+        await expect(crearClienteLibreTranslate({ base, fetch }).traducir({ q: ["a", "b"], source: "es", target: "en", format: "text" })).rejects.toThrow("otra cantidad");
+    });
 });
 describe("idiomas, detectar y salud", () => {
     it("idiomas: GET /languages y solo entradas con código", async () => {
