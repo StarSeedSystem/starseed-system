@@ -1,0 +1,58 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "CLB1027A",
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "titulo": "Capas · el catálogo acepta la capa «juicio» y el runtime «colibri»",
+   "archivos": [
+    "src/lib/astraura/capas/catalogo.ts",
+    "src/lib/astraura/capas/__tests__/catalogo-colibri.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\nAñade `\"juicio\"` a `Capa`, `\"colibri\"` a `RuntimeCapa` (y a `RUNTIMES`), `\"safetensors\"` a `FormatoCapa`, `\"por-verificar\"` a `EstadoCapa`, y campos opcionales `streaming_disco?: boolean` y `ram_ok_mb?: number` en `EntradaCapa`. `usable()` devuelve false si el estado es «por-verificar» o no hay `sha256` (regla: ninguna capa sin su SHA). Revisa que nada que haga `switch` sobre `Capa` se rompa (busca usos). Prueba: una entrada colibri por-verificar se lee pero no es usable."
+  },
+  {
+   "id": "CLB1027D",
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "titulo": "Jev · varios extremos locales de /v1/systemone (Laya y Colibri), el más rápido que responda",
+   "archivos": [
+    "scripts/puente/jev.py",
+    "scripts/puente/test_jev_locales.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\n`STARSEED_SYSTEMONE_LOCALES` (lista separada por comas; por defecto `http://127.0.0.1:4470/v1/systemone,http://127.0.0.1:4480/v1/systemone`; `STARSEED_LAYA_URL` sigue valiendo y va primero si está). `decidir_con_laya` prueba cada uno con su tope (1,5 s) y se queda el primero que contesta; anota en `motor` «laya-local» o «colibri-local» según el puerto (4480 → colibri) y recuerda 10 min cuál respondió más rápido para probarlo primero. No cambies OpenRouter ni la regla. Pruebas con un transporte falso, sin red."
+  },
+  {
+   "id": "CLB1027E",
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "titulo": "Colibri · qué modelos caben en cada neurona y cómo se instalarían (sin ejecutar nada)",
+   "archivos": [
+    "scripts/puente/colibri_nodo.py",
+    "scripts/puente/test_colibri_nodo.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\nPURO salvo `main`: `caben(entradas, ram_gb, disco_libre_gb, presion_alta)` → por cada entrada de `config/capas-colibri-1027.json`: «cabe» / «cabe en streaming (disco rápido)» / «no cabe» con el porqué (RAM mínima, disco, presión); `plan_instalacion(id, carpeta)` → la lista de órdenes (clonar la etiqueta `v2.0.0`, `./start-here.sh --model <id> --dir <carpeta> --yes --no-gpu` en el A1, servir con `--host 127.0.0.1 --port 4480`) como LISTA de argumentos, sin ejecutarlas. `main --plan` imprime el plan de esta máquina; nunca descarga. Pruebas con el A1 (12 GB, 18,5 GB libres → Laya y GLiNER sí, Qwen3-Coder no) y la Mac (8 GB con presión → ninguno)."
+  },
+  {
+   "id": "MBT1027N",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Biblioteca · tanda 1027 (OpenMausBot, Insomnia, Colibri) como módulo puro",
+   "archivos": [
+    "src/lib/library/repos-1027.ts",
+    "src/lib/library/__tests__/repos-1027.test.ts",
+    "src/components/library/package-store.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nIgual que `src/lib/library/repos-1026.ts` (reutiliza `autorDe`, `resumenRequisitos`, `versionCorta` y el tipo `FichaTanda1026`), pero leyendo `config/repos-libreria-1027.json` (ya en main): `FICHAS_REPOS_1027`, `DECISIONES_1027`, `LICENCIAS_VERIFICADAS_1027`, `CONTRATO_1027 = \"architecture/mausbot-astraura.md\"` y los ids que siembra (`preinstalar: \"siempre\"`). `kind` del paquete: el de la ficha (`tool` o `ai-source`), no «project». Añade `MousePointer2` y `Bird` (lucide-react) a `ICON_MAP` de `package-store.tsx`. Prueba: 3 fichas con licencia, versión, aviso y `payload.upstream`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "CLB1027A",
+   "CLB1027E",
+   "MBT1027N",
+   "CLB1027D"
+  ]
+ }
+}
