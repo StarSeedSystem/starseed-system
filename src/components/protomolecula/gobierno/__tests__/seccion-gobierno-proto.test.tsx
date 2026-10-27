@@ -127,7 +127,7 @@ describe("cambiar las reglas sigue su propia regla", () => {
     fireEvent.click(screen.getByRole("radio", { name: /Pública/ }));
     const boton = screen.getByRole("button", { name: /Guardar cambios/ });
     fireEvent.click(boton);
-    await waitFor(() => expect(svc.guardar).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(svc.guardar.mock.calls.length).toBe(1));
     const [entidad, reglas, quien] = svc.guardar.mock.calls[0] as unknown as [{ tipo: string; id: string }, { visibilidad: string; acceso: { abrir: string } }, string];
     expect(entidad).toMatchObject({ tipo: "grupo", id: "semilla" });
     expect(reglas.visibilidad).toBe("publica");
@@ -152,7 +152,7 @@ describe("cambiar las reglas sigue su propia regla", () => {
     await listo();
     fireEvent.click(screen.getByRole("radio", { name: /Pública/ }));
     fireEvent.click(screen.getByRole("button", { name: /Guardar cambios|Proponer el cambio|Llevar a votación/ }));
-    await waitFor(() => expect(svc.guardar).toHaveBeenCalled());
+    await waitFor(() => expect(svc.guardar.mock.calls.length).toBeGreaterThan(0));
     expect(await screen.findByTestId("estado-guardado")).toHaveTextContent(/propietario.*votación/);
     expect(await screen.findByTestId("compositor")).toBeInTheDocument();
   });
@@ -197,7 +197,7 @@ describe("visibilidad y acceso", () => {
     expect(niveles).not.toContain("cualquiera");
     expect(niveles).not.toContain("miembros");
     fireEvent.click(screen.getByRole("button", { name: /Guardar cambios/ }));
-    await waitFor(() => expect(svc.guardar).toHaveBeenCalled());
+    await waitFor(() => expect(svc.guardar.mock.calls.length).toBeGreaterThan(0));
     const reglas = (svc.guardar.mock.calls[0] as unknown as [unknown, { visibilidad: string; acceso: { abrir: string; usar: string } }])[1];
     expect(reglas).toMatchObject({ visibilidad: "privada", acceso: { abrir: "gestion", usar: "gestion" } });
   });

@@ -1,5 +1,4 @@
 /** Servicios y entornos de mentira para probar la interfaz del gobierno de la Protomolécula (Ola 1026P · P2). */
-import { vi } from "vitest";
 import type { EntornoCargado, ResultadoGuardado, ServiciosGobierno } from "@/lib/protomolecula/gobierno/entorno";
 import type { ReglasProtomolecula } from "@/lib/protomolecula/gobierno/reglas";
 
@@ -22,12 +21,35 @@ export function cargado(rol: Rol, modo: "democratic" | "hierarchical" = "democra
   };
 }
 
-export function servicios(carga: EntornoCargado, guardado: ResultadoGuardado = { ok: true, donde: "cuenta" }, personas: { id: string; nombre: string }[] = []) {
+/** Doble de grabación sin vitest: deja contar llamadas como hacen los mocks de `vi.fn` (Ola 1026P). */
+export type Grabador<R> = {
+  (...args: unknown[]): Promise<R>;
+  mock: { calls: unknown[][] };
+};
+
+function grabador<R>(fn: (...args: unknown[]) => Promise<R>): Grabador<R> {
+  const calls: unknown[][] = [];
+  const llamada = async (...args: unknown[]): Promise<R> => {
+    calls.push(args);
+    return fn(...args);
+  };
+  const doble = llamada as unknown as Grabador<R>;
+  doble.mock = { calls };
+  return doble;
+}
+
+export interface ServiciosGrabados {
+  cargar: Grabador<EntornoCargado | null>;
+  guardar: Grabador<ResultadoGuardado>;
+  personas: Grabador<{ id: string; nombre: string }[]>;
+}
+
+export function servicios(carga: EntornoCargado | null, guardado: ResultadoGuardado = { ok: true, donde: "cuenta" }, personas: { id: string; nombre: string }[] = []): ServiciosGrabados {
   const s = {
-    cargar: vi.fn(async () => carga),
-    guardar: vi.fn(async () => guardado),
-    personas: vi.fn(async () => personas),
-  } satisfies ServiciosGobierno;
+    cargar: grabador(async () => carga),
+    guardar: grabador(async () => guardado),
+    personas: grabador(async () => personas),
+  };
   return s;
 }
 
