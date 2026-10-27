@@ -43,8 +43,23 @@ export interface PoliticaCapa {
 
 export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>;
 
-/** Tipos de sistema/entidad que reciben versiones (los del diálogo «Crear en la red» y el perfil). */
-export type TipoEntidad = "perfil" | "pagina" | "grupo" | "comunidad" | "estudio" | "evento" | "os";
+/**
+ * Tipos de sistema/entidad que reciben versiones (los del diálogo «Crear en la red» y el perfil).
+ * Los cuatro nombres del contrato §4 («perfil-privado», «pagina-publica», «grupo-jerarquico» y
+ * «grupo-democratico») son alias de los tipos de aquí; se aceptan para no romper a quien los use.
+ */
+export type TipoEntidad =
+  | "perfil"
+  | "pagina"
+  | "grupo"
+  | "comunidad"
+  | "estudio"
+  | "evento"
+  | "os"
+  | "perfil-privado"
+  | "pagina-publica"
+  | "grupo-jerarquico"
+  | "grupo-democratico";
 
 export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
   perfil: "perfil privado",
@@ -54,7 +69,19 @@ export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
   estudio: "grupo de estudio",
   evento: "evento",
   os: "StarSeed OS",
+  "perfil-privado": "perfil privado",
+  "pagina-publica": "página pública",
+  "grupo-jerarquico": "grupo jerárquico",
+  "grupo-democratico": "grupo democrático",
 };
+
+/**
+ * Un grupo democrático no publica nada sin votación: su política reparte cómo llega lo YA
+ * aprobado, y cada decisión de una capa nueva se marca como «requiere aprobación».
+ */
+export function exigeAprobacion(tipo: TipoEntidad): boolean {
+  return tipo === "grupo-democratico" || tipo === "comunidad";
+}
 
 export const VENTANA_NOCTURNA: VentanaHoraria = { desdeH: 3, hastaH: 6 };
 
@@ -78,6 +105,10 @@ export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
     nativa: P("manual"),
   };
   if (tipo === "os") return { ...base, modelos: P("programada", VENTANA_NOCTURNA) };
+  if (tipo === "pagina" || tipo === "pagina-publica") {
+    // Una página pública sigue la rama estable sola en todo lo declarativo, sin conexión incluida.
+    return { ...base, sw: P("automatica-todas") };
+  }
   return base;
 }
 
@@ -86,6 +117,10 @@ export interface ContextoDecision {
   ahoraH: number;
   /** Esta neurona es la elegida para «automática solo en esta neurona». */
   esNeuronaElegida: boolean;
+  /** La versión necesita aprobación (grupo democrático) y aún no la tiene. */
+  requiereAprobacion?: boolean;
+  /** La versión ya fue aprobada por quien corresponda. */
+  aprobada?: boolean;
 }
 
 export type Decision = "aplicar" | "avisar" | "esperar";
@@ -97,6 +132,8 @@ function dentroDeVentana(h: number, v: VentanaHoraria): boolean {
 
 /** Qué hacer con una capa pendiente en ESTA neurona según su política. */
 export function decidirPolitica(p: PoliticaCapa, ctx: ContextoDecision): Decision {
+  // Lo que no está aprobado no se aplica ni se avisa como listo: se espera a la votación.
+  if (ctx.requiereAprobacion && !ctx.aprobada) return "esperar";
   switch (p.modo) {
     case "automatica-todas":
       return "aplicar";
