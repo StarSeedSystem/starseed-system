@@ -13,6 +13,7 @@
 
 import { useEffect } from "react";
 import { esErrorDeVersionNueva, recargarPorVersionNueva } from "@/lib/pwa/recarga-por-version";
+import { limpiarDatosPersonales, normalizarError } from "@/lib/mando/errores-neurona";
 
 export default function AppError({
   error,
@@ -23,10 +24,14 @@ export default function AppError({
 }) {
   useEffect(() => {
     try {
-      // eslint-disable-next-line no-console
-      console.error("[app/error]", error?.message, error?.digest);
+      // Evento estilo Sentry (RLB1020J): se limpia de datos personales ANTES de
+      // dejarse a la vista; queda solo en la consola local, nada por red ni a terceros.
+      const evento = limpiarDatosPersonales(
+        normalizarError(error, { ambito: "pagina", proceso: "render" }),
+      );
+      console.error("[app/error]", evento.fingerprint.join("|"), JSON.stringify(evento));
     } catch {
-      /* */
+      // La normalización no puede tumbar la red de seguridad.
     }
     // Una pestaña abierta antes de publicar/reconstruir pide trozos que ya no existen: se recarga sola.
     if (esErrorDeVersionNueva(error)) recargarPorVersionNueva();
