@@ -47,8 +47,9 @@ describe('contenedoresPara', () => {
 
     // Extract the paid
     const paid = result.filter((c) => !c.aptoPrivado && c.requierePago);
-    // De pago, en su orden: google-cloud (pide facturación) y huggingface-spaces (Docker pide PRO)
-    expect(paid.map((c) => c.id)).toEqual(['google-cloud', 'huggingface-spaces']);
+    // De pago, en su orden: google-cloud (pide facturación), huggingface-spaces (Docker pide PRO)
+    // y cloudflare-computer (los Dynamic Workers piden el plan Workers Paid).
+    expect(paid.map((c) => c.id)).toEqual(['google-cloud', 'huggingface-spaces', 'cloudflare-computer']);
   });
 });
 
@@ -127,5 +128,17 @@ describe('CONTENEDORES_OPCIONES', () => {
     const requisitos = cloudroom?.requisitos?.join(' ') ?? '';
     expect(requisitos).toContain('macOS 13+');
     expect(requisitos).toContain('Linux x64');
+  });
+
+  // CFC1025A · Ola 1025R: entra como opción de pago, nunca por defecto, y el enlace de alta
+  // de Cloudflare aún no se comprobó (verificado: null a propósito).
+  it('Cloudflare Computer pide cuenta y pago y declara sus requisitos de alfa', () => {
+    const cf = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudflare-computer');
+    expect(cf).toMatchObject({ requiereCuenta: true, requierePago: true, aptoPrivado: false, verificado: null });
+    const requisitos = cf?.requisitos?.join(' ') ?? '';
+    expect(requisitos).toContain('Workers Paid');
+    expect(requisitos).toContain('wrangler');
+    expect(requisitos).toContain('Alfa');
+    expect(cf?.cupo).toContain('Sin cupo gratuito');
   });
 });

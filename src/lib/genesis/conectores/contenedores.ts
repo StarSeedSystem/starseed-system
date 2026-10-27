@@ -91,6 +91,27 @@ export const CONTENEDORES_OPCIONES: ContenedorOpcion[] = [
     aptoPrivado: false,
     verificado: true,
   },
+  // Cloudflare Computer es de pago porque sus Dynamic Workers (shell y JavaScript aislados) piden el
+  // plan Workers Paid (desde 5 USD/mes); la alternativa sin plan de pago a vigilar es denoland/celld.
+  {
+    id: 'cloudflare-computer',
+    nombre: 'Cloudflare Computer',
+    enlaceAlta: 'https://dash.cloudflare.com/sign-up',
+    guia: null,
+    requiereCuenta: true,
+    requierePago: true,
+    aptoPrivado: false,
+    // El repo y su precio constan en la ficha de la Librería, pero el enlace de alta no se comprobó
+    // en la ola: se deja a null a propósito hasta verificarlo.
+    verificado: null,
+    cupo: 'Sin cupo gratuito comprobado: los Dynamic Workers (shell y JavaScript aislados) piden el plan Workers Paid.',
+    requisitos: [
+      'Cuenta de Cloudflare propia (el OS no abre cuentas)',
+      'Plan Workers Paid (desde 5 USD al mes) para los Dynamic Workers y los contenedores',
+      'Token de wrangler solo en variables de entorno',
+      'Alfa: ContainerBackend, WorkerShellBackend y computerd no son aptos para producción',
+    ],
+  },
 ];
 
 /**
