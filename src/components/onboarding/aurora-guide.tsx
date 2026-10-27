@@ -108,6 +108,7 @@ import { DemoPaso } from "./demo-paso";
 import { BarraCapitulos, IndiceGuia, PuntosPaso, RazonesCuenta, TarjetasPaso } from "./guia-completa-ui";
 import { IconoStarSeed } from "./icono-starseed";
 import {
+  auroraBridge,
   auroraSpeak,
   auroraStopSpeaking,
   auroraSetEnabled,
@@ -155,6 +156,18 @@ const AURORA_SUGGEST_EVENT = "aurora:suggest";
 
 /** Modo de la guía: elegido por el usuario en la pantalla inicial. */
 type GuideMode = "voice" | "silent";
+
+/**
+ * (GUI1021J) Capa del panel de la guía: por encima de la pantalla de acceso (`AuthGate` z 200,
+ * `WelcomeWindow` z 210) cuando la guía se abre desde ella; en cualquier otra, la capa de siempre.
+ */
+export function zGuia(desde?: OrigenGuia): number {
+  return desde === "login" || desde === "bienvenida" ? 240 : 95;
+}
+
+/** Aviso que se muestra cuando el modo voz se pasa a texto por falta del puente de Aurora. */
+const AVISO_SIN_PUENTE =
+  "El puente de Aurora no está disponible ahora mismo: la guía sigue en texto.";
 
 /** Emite un CustomEvent de forma defensiva (no lanza nunca). */
 function emit(name: string, detail?: unknown) {
@@ -368,6 +381,8 @@ export function AuroraGuide() {
   const [reanudadoEn, setReanudadoEn] = useState<number | null>(null);
   // Modo elegido en la pantalla inicial (null = aún no elegido → pregunta).
   const [mode, setMode] = useState<GuideMode | null>(null);
+  // (GUI1021J) El modo voz pasó a texto por falta del puente de Aurora: se le dice aquí.
+  const [avisoVoz, setAvisoVoz] = useState<string | null>(null);
   // Silenciar la narración por voz (sólo TTS; el texto se mantiene). true = mute.
   const [muted, setMuted] = useState(false);
   // Rectángulo del spotlight (si el target existe en la ruta actual).
@@ -387,6 +402,14 @@ export function AuroraGuide() {
   // ¿Con cuenta o sin ella? (`null` = aún no se sabe: no se quita nada). Solo se averigua con la guía abierta.
   const haySesion = useHaySesion(open);
   const sinCuenta = haySesion === false;
+  // (GUI1021J) Al iniciar sesión después de haberla visto sin cuenta, lo visto del aparato
+  // pasa a la marca de la cuenta (`unirVistas`): los demás medios dejan de pedirle la guía nueva.
+  const unirVistas = useCallback(() => {
+    try { copiarGuiaLocalACuenta(); } catch { /* */ }
+  }, []);
+  useEffect(() => {
+    if (haySesion === true) unirVistas();
+  }, [haySesion, unirVistas]);
   // Texto y narración adaptados al dispositivo (caen al texto común si no hay variante) y a la sesión
   // (el último paso termina distinto con cuenta).
   const conSesion = haySesion === true ? step?.paso.conSesion : undefined;
@@ -460,6 +483,7 @@ export function AuroraGuide() {
     setOrigen(desde);
     // Reabrir SIEMPRE vuelve a preguntar el modo (respeta la elección del momento).
     setMode(null);
+    setAvisoVoz(null);
     setMuted(false);
     setOpen(true);
   }, []);
@@ -580,6 +604,14 @@ export function AuroraGuide() {
     // Persistimos la elección (memoria ligera; no bloquea si falla).
     try { window.localStorage.setItem(GUIDE_MODE_KEY, m); } catch { /* */ }
     setMuted(false);
+    // (GUI1021J) Sin el puente de Aurora no hay narración ni escucha: honestidad radical, el
+    // modo voz pasa a TEXTO y se lo dice, en vez de prometer una voz que no va a sonar.
+    if (m === "voice" && !auroraBridge()) {
+      setMode("silent");
+      setAvisoVoz(AVISO_SIN_PUENTE);
+      return;
+    }
+    setAvisoVoz(null);
     // (2026-09-25) Ya no se vuelve al paso 0: `openGuide(paso)` fija el paso
     // pedido (p. ej. «starseed:open-guide» con { step }) y elegir el modo lo
     // respetaba solo hasta aquí. Abrir la guía sin paso sigue empezando en 0.
@@ -846,7 +878,8 @@ export function AuroraGuide() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.22 }}
-            className="fixed inset-0 z-[95]"
+            className="fixed inset-0"
+            style={{ zIndex: zGuia(origen) }}
             aria-modal="true"
             role="dialog"
             aria-label="Guía de StarSeed"
@@ -1158,6 +1191,17 @@ export function AuroraGuide() {
                             <RotateCcw className="h-3 w-3" aria-hidden /> Empezar de nuevo
                           </button>
                         </div>
+                      )}
+
+                      {/* ── El modo voz pasó a texto (sin el puente de Aurora): se dice ── */}
+                      {avisoVoz && (
+                        <p
+                          data-testid="guia-aviso-voz"
+                          role="status"
+                          className="mt-3 flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[12px] leading-snug text-white/65"
+                        >
+                          <EarOff className="h-3.5 w-3.5 shrink-0" aria-hidden /> {avisoVoz}
+                        </p>
                       )}
 
                       {/* ── EJEMPLO ANIMADO del paso (mini-demostración, cargada a demanda) ── */}
