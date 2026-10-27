@@ -182,4 +182,10 @@ describe("analizarPmset", () => {
     const pmset = "Some text without percentage";
     expect(analizarPmset(pmset)).toEqual({ porcentaje: null, cargando: null });
   });
+
+  it("con AC conectado pero SIN batería: no hay porcentaje y el estado de carga se queda en desconocido", () => {
+    // `pmset -g batt` de una Mac sin batería: «?%; AC attached» — no hay número que leer.
+    const pmset = "Now drawing from 'AC Power'\n -internalbattery     ?%; AC attached; present: true\n";
+    expect(analizarPmset(pmset)).toEqual({ porcentaje: null, cargando: null });
+  });
 });
