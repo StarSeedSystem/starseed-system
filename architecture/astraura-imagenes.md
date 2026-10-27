@@ -88,7 +88,27 @@ el enjambre (guardia de memoria); en la A1, hilos limitados para no ahogar sus s
 Supabase (las capacidades se publican al arrancar y al cambiar); el token de Hugging Face, si hace falta, va en
 el entorno y nunca en el código.
 
-## §9 · Cola `cola-imagenes-1011.json`
+## §9 · Estado real (verificado 2026-10-27, tarea IMG1011J)
+
+| Tarea | Estado | Verificación |
+|---|---|---|
+| A · servicio local de imágenes por neurona | **Hecho** (`servicios/imagenes-local/servicio.py`) | 7 pruebas Python OK |
+| B · proveedor «neuronas» en media-gen | **Hecho** (`src/ai/astraura/media/proveedor-neuronas.ts`) | 30 pruebas de `src/ai/astraura/media` OK |
+| C · tarjeta de opciones de la Protomolécula | **Hecho, con límites** (`src/components/imagenes/tarjeta-opciones.tsx`): muestra el plan completo con procedencia, licencia y motivo, y varía semillas. **Aún no ejecuta la generación**: eso va por el chat (`generar_imagen`) y el servicio local, sin cablear aquí | 4 pruebas de su módulo puro `presentacion.ts`; vitest de `src/lib/imagenes` (152) y `src/lib/protomolecula` (1098) OK |
+| D · chats, agentes y bots | **Hecho en bots**: acción `imagen.generar` declarada en `src/lib/astraura-bots/acciones.ts` · la herramienta del chat de Astraura quedó pendiente | vitest de `src/lib/astraura-bots` (495) OK |
+| E · sugerencias e instalador en las apps | **Hecho** (`src/components/imagenes/sugerencias-instalacion.tsx`, montada en ajustes/habilidades) | tsc y vitest de `src/lib/imagenes` OK |
+| F · malla | **Hecho núcleo** (`src/lib/imagenes/adaptadores/malla-imagenes.ts`) | 21+ pruebas OK |
+| G · explorador y autoactualización | **Hecho** (`scripts/imagenes/explorador_modelos.py`) | 11 pruebas Python OK |
+| H · SD-Turbo en la pestaña | **Hecho** (`src/lib/imagenes/adaptadores/webgpu-sd-turbo*`) | 36 pruebas OK |
+| I · fichas del catálogo | **Hecho** (§1, licencias verificadas el 2026-10-11) | — |
+| J · integración y verificación | **Esta tarea** | tsc en verde (turno); vitest de `imagenes`/`media`/`astraura-bots`/`protomolecula`; Python OK; **no** se ejecutó `next build` |
+
+Faltantes honestos: la tarjeta C no dispara la generación (sin cliente conectado al servicio local en el chat);
+la herramienta `generar_imagen` del chat de Astraura (parte de D) no está cableada; el RPC de sd.cpp sigue sin
+autenticación (§1, solo malla privada y apagado). Nada se ejecutó con `next build`.
+
+## §10 · Histórico de la cola (original)
+
 
 IMG1011A servicio local de imágenes por neurona · B proveedor «neuronas» en media-gen · C tarjeta de opciones
 de la Protomolécula · D chats, agentes y bots · E sugerencias e instalador en las apps · F malla · G explorador
