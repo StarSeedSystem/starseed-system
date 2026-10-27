@@ -4,6 +4,7 @@ import {
   REPOS_EXCLUIDOS,
   REPO_EXTERNOS_1020,
 } from "../repos-externos-1020";
+import { listRepos } from "../packages";
 
 const paquetes = REPO_EXTERNOS_1020.packages;
 
@@ -78,6 +79,16 @@ describe("REPO_EXTERNOS_1020 · repo builtin externo de la Ola 1020", () => {
     expect(wordcraft.licencia).toBe("Apache-2.0");
     expect(wordcraft.area).toEqual(["Documentos", "Protomolecula"]);
     expect(payloadDe("lib-wechaty").canal).toBe("tags");
+  });
+
+  it("no incluye ningún repo de la lista de exclusiones", () => {
+    for (const pkg of paquetes) {
+      expect(REPOS_EXCLUIDOS, pkg.id).not.toContain(String(pkg.payload.githubRepo));
+    }
+  });
+
+  it("el repo builtin está en listRepos()", () => {
+    expect(listRepos().some((r) => r.id === "starseed-biblioteca-externa")).toBe(true);
   });
 });
 
