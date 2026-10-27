@@ -1,6 +1,6 @@
-import { Origen, Ambito, Rol } from "@/lib/prototmolecula/tipos";
+import { Origen, Ambito, Rol } from "@/lib/protomolecula/tipos";
 import { decidir } from "@/lib/protomolecula/permisos";
-import { HERRAMIENTAS, AppArtcraft, type HerramientasApp, type PrefijosVetados } from "./politica-tablas";
+import { HERRAMIENTAS, AppArtcraft, type HerramientasApp, type PrefijosVetados, PREFIJOS_VETADOS } from "./politica-tablas";
 
 export interface RaicesTrabajo {
   lectura: readonly string[];

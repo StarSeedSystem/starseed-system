@@ -7,7 +7,7 @@ import {
   rutaDentro,
   rutasEnParametros,
 } from "../politica";
-import type { Origen, Ambito, Rol } from "@/lib/prototmolecula/tipos";
+import type { Origen, Ambito, Rol } from "@/lib/protomolecula/tipos";
 
 const raices: RaicesTrabajo = {
   lectura: ["/app/data"],

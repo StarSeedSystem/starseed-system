@@ -1,5 +1,3 @@
-import type { AppArtcraft } from "./politica-tablas";
-
 export type AppArtcraft = "figcraft" | "gridcraft" | "deckcraft";
 
 export const APPS_ARTCRAFT = {
