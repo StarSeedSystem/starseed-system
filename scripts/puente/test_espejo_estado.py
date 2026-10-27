@@ -92,6 +92,36 @@ class PruebasEmpaquetar(unittest.TestCase):
             self.assertEqual(log[0], "registro %d" % (largo - espejo_estado.LOG_LINEAS))
             self.assertEqual(log[-1], "registro %d" % (largo - 1))
 
+    def test_empaquetar_crea_tar_gz_completo(self):
+        """Rescatado de rama nube (RTCOL1012I): con una selección completa, el paquete
+        contiene TODOS los archivos en la raíz (y solo ellos, aunque haya más en olas/),
+        cada json viaja entero, el Markdown de 300 líneas no se recorta y los logs
+        (``*.jsonl`` y un ``log.txt``) quedan como mucho con LOG_LINEAS líneas."""
+        seleccion = ["progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+                     "cola-1.json", "evento1.jsonl", "log.txt"]
+        with open(os.path.join(self.olas, "progreso.md"), "w", encoding="utf-8") as f:
+            f.write("\n".join("Línea %d" % i for i in range(300)))
+        with open(os.path.join(self.olas, "medios.json"), "w", encoding="utf-8") as f:
+            json.dump({"medios": ["oracle-a1"]}, f)
+        with open(os.path.join(self.olas, "puntos-control.json"), "w", encoding="utf-8") as f:
+            json.dump({"puntos": [{"nombre": "pc1"}]}, f)
+        with open(os.path.join(self.olas, "cola-1.json"), "w", encoding="utf-8") as f:
+            json.dump({"tareas": []}, f)
+        with open(os.path.join(self.olas, "evento1.jsonl"), "w", encoding="utf-8") as f:
+            for i in range(200):
+                f.write(json.dumps({"evento": i, "ts": 1000 + i}) + "\n")
+        with open(os.path.join(self.olas, "log.txt"), "w", encoding="utf-8") as f:
+            f.write("\n".join("Registro %d" % i for i in range(200)))
+        esperadas_lineas = {"progreso.json": 1, "progreso.md": 300, "medios.json": 1,
+                            "puntos-control.json": 1, "cola-1.json": 1,
+                            "evento1.jsonl": 200, "log.txt": 200}
+        with self._tar(seleccion) as tar:
+            self.assertEqual(set(tar.getnames()), set(seleccion))
+            for nombre, esperada in esperadas_lineas.items():
+                lineas = tar.extractfile(nombre).read().decode("utf-8").splitlines()
+                self.assertEqual(len(lineas), esperada,
+                                 "%s: %d líneas != %d" % (nombre, len(lineas), esperada))
+
 
 class PruebasEnviarEstado(unittest.TestCase):
     """enviar_estado con ssh falso: freno de 5 min, huella y orden de extracción atómica."""
