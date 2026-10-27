@@ -390,3 +390,11 @@ describe("diagram-design tool", () => {
     expect(diagramDesign?.avisos).toEqual(expect.arrayContaining(["sin telemetría", "fuentes del OS", "animaciones solo en iframe aislado"]));
   });
 });
+
+describe("excluidas por seguridad (rescate de la rama nube)", () => {
+  it("zhaoxuya520/reverse-skill no está en ninguna ficha del catálogo (excluida por seguridad)", () => {
+    // El candado partió en la Biblioteca (`repos-externos-1020.test.ts`); esté lo repite para el
+    // catálogo de Protomolécula, que es un módulo distinto y no tenía el suyo.
+    expect(JSON.stringify(CATALOGO_PROTOMOLECULA)).not.toContain("reverse-skill");
+  });
+});
