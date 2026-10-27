@@ -127,4 +127,29 @@ describe("Catálogo de voces", () => {
     expect(motorRecomendado("macos", 8, "personal").id).toBe("voicemorphic");
     expect(motorRecomendado("web", 4, "personal").id).toBe("kokoro");
   });
+
+  it("licenciaPesos honesta para los motores cuyos valores no se fijan en el resto del catálogo", () => {
+    // El resto de motores ya fija licenciaPesos y claseLicencia arriba; aquí van
+    // los dos que quedaban a la vista: el del sistema y VoiceStudio.
+    const sistema = MOTORES_VOZ.find((m) => m.id === "sistema");
+    expect(sistema?.licenciaPesos).toBe("VARIES");
+    const voicestudio = MOTORES_VOZ.find((m) => m.id === "voicestudio");
+    expect(voicestudio?.licenciaPesos).toBe("Múltiple (según motor)");
+  });
+
+  it("con poca RAM (0,4 GB) solo cabe la voz del sistema, en personal y en grupo", () => {
+    // Con RAM positiva baja (no NaN, camino distinto del OPF1024F), ningún motor
+    // con ramMinGB > 0 entra y ambos contextos caen en el mismo motor ligero.
+    const personal = motorRecomendado("macos", 0.4, "personal");
+    const grupo = motorRecomendado("macos", 0.4, "grupo");
+    expect(personal.id).toBe("sistema");
+    expect(grupo.id).toBe("sistema");
+    expect(personal.id).toBe(grupo.id);
+  });
+
+  it("respeta la RAM mínima: con 3,9 GB no sale un motor que pide 4", () => {
+    const motor = motorRecomendado("macos", 3.9, "personal");
+    expect(motor.id).not.toBe("voicemorphic");
+    expect(motor.ramMinGB).toBeLessThanOrEqual(3.9);
+  });
 });
