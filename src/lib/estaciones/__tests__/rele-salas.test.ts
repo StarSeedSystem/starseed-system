@@ -181,6 +181,7 @@ describe('crearSalas', () => {
     const result = salas.entrar(tema, conexion);
     expect(result.ok).toBe(true);
   });
+
   it('debería rechazar tema demasiado largo (>80)', () => {
     const salas = crearSalas();
     const tema = 'estacion-vivo:' + 'A'.repeat(81);
@@ -189,6 +190,7 @@ describe('crearSalas', () => {
     expect(result.ok).toBe(false);
     expect(result.motivo).toBe('Tema inválido');
   });
+
   it('debería aceptar el mismo objeto conexion repetidamente', () => {
     const salas = crearSalas();
     const tema = 'estacion-vivo:TemaTest';
