@@ -29,10 +29,12 @@ import {
 import {
     useEntityLibrary,
     listLibrary,
+    myLibraryDestinations,
     removeItem as removeItemFromLibrary,
     applyItemSnapshot,
     applyFolderSnapshot,
     type EntityRef,
+    type EntityLibraryDoc,
     type SavedItem,
     type SavedItemType,
     type LibraryFolder,
@@ -94,6 +96,12 @@ import { listZipEntries } from "@/lib/files/simple-zip";
 import { abrirSelectorMedio, refDeBiblioteca, SelectorMedioGlobal } from "@/components/recursos-ia/abrir-selector-medio";
 // Variaciones públicas (Ola 1019V · §3): «Variaciones públicas» del clic derecho.
 import { accionVariaciones, claveDeItemBiblioteca } from "@/components/variaciones/accion-variaciones";
+// Plan de la Biblioteca (INF1025G · Ola 1025R, patrón Spacedrive): toda operación
+// pasa por validar → avisos de última copia → ejecutar. Este módulo SOLO planifica.
+import {
+    claveInstantanea, planificar, resumenPlan,
+    type PermisosBiblioteca,
+} from "@/lib/library/biblioteca-plan";
 
 const TYPE_FILTERS: Array<{ key: "todos" | SavedItemType; label: string }> = [
     { key: "todos", label: "Todo" },
@@ -312,6 +320,20 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
 
     const handleRemove = useCallback(
         async (id: string) => {
+            // Plan antes de tocar (INF1025G): valida permisos y AVISA si ya no
+            // habrá otra copia del recurso en ninguna biblioteca propia.
+            const plan = planificar(
+                { tipo: "quitar", origen: entityRef, itemIds: [id] },
+                await instantaneasParaPlan(entityRef, doc, null, null),
+                permisosParaPlan(entityRef, doc, null, null, ctx),
+            );
+            if (!plan.validacion.ok) {
+                toast.error("Plan bloqueado", { description: resumenPlan(plan) });
+                return;
+            }
+            if (plan.vistaPrevia.ultimaCopia.length > 0) {
+                toast.message("Es la última copia", { description: plan.validacion.avisos.join(" ") });
+            }
             await removeItem(id);
             setSelectedIds((prev) => {
                 const next = new Set(prev);
@@ -321,7 +343,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             if (previewId === id) setPreviewId(null);
             toast.success("Quitado de la biblioteca");
         },
-        [removeItem, previewId],
+        [removeItem, previewId, entityRef, doc, ctx],
     );
 
     const handleMoveItems = useCallback(
@@ -370,10 +392,31 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             }
             const sourceItemsById = new Map(sourceDoc.items.map((it) => [it.id, it] as const));
 
+            // ── Plan antes de tocar (INF1025G): copiar o mover ENTRE bibliotecas
+            // pasa por validar → omite (Entidad Única: no pisa lo que ya hay) →
+            // aviso de «última copia» cuando el corte deja el recurso sin copia.
+            const plan = planificar(
+                { tipo: entry.mode === "cortar" ? ("mover" as const) : ("copiar" as const), origen: entry.ref, destino: entityRef, itemIds: entry.itemIds },
+                await instantaneasParaPlan(entityRef, doc, entry.ref, sourceDoc),
+                permisosParaPlan(entityRef, doc, entry.ref, sourceDoc, ctx),
+            );
+            if (!plan.validacion.ok) {
+                toast.error("Plan bloqueado", { description: resumenPlan(plan) });
+                return;
+            }
+            const omitidosPorPlan = new Set(plan.vistaPrevia.omite.map((o) => o.id));
+            if (plan.vistaPrevia.ultimaCopia.length > 0) {
+                toast.message("Aviso antes de seguir", { description: resumenPlan(plan) });
+            }
+
             let copied = 0;
             let missing = 0;
             const copiedSourceIds: string[] = [];
             for (const id of entry.itemIds) {
+                if (omitidosPorPlan.has(id)) {
+                    missing++;
+                    continue;
+                }
                 const source = sourceItemsById.get(id);
                 if (!source) {
                     missing++;
@@ -464,7 +507,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                 });
             }
         },
-        [entityRef, moveItem, duplicateItem, saveItem],
+        [entityRef, moveItem, duplicateItem, saveItem, doc, ctx],
     );
 
     // "Compartir" abre el diálogo universal (ámbito + roles + enlace profundo).
@@ -1522,3 +1565,80 @@ async function canWriteSourceLibrary(ref: EntityRef, sourceItemsById: Map<string
 }
 
 export default FinderView;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Plan de la Biblioteca (INF1025G · Ola 1025R, patrón Spacedrive): la conexión
+// de `src/lib/library/biblioteca-plan.ts` con las acciones de ESTE finder.
+// Se planifica (validar → avisos de «última copia») ANTES de ejecutar; quien
+// ejecuta sigue siendo entity-library, sin tocarla.
+// SOP: architecture/repos-libreria-1025.md §3 («Qué le falta a la Biblioteca»).
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Registro de instantáneas (`kind:id` → doc) que `planificar` necesita: la
+ * biblioteca ACTIVA (destino en el pegado entre bibliotecas), la de ORIGEN del
+ * portapapeles y las OTRAS bibliotecas propias, para que «es la última copia»
+ * mire de verdad todo el conjunto, no solo la pantalla actual.
+ */
+async function instantaneasParaPlan(
+    destinoRef: EntityRef,
+    docDestino: EntityLibraryDoc,
+    origenRef: EntityRef | null,
+    docOrigen: EntityLibraryDoc | null,
+): Promise<Record<string, EntityLibraryDoc>> {
+    const out: Record<string, EntityLibraryDoc> = { [claveInstantanea(destinoRef)]: docDestino };
+    if (origenRef && docOrigen) out[claveInstantanea(origenRef)] = docOrigen;
+    try {
+        for (const destino of await myLibraryDestinations()) {
+            const clave = claveInstantanea(destino.ref);
+            if (out[clave]) continue;
+            try {
+                out[clave] = await listLibrary(destino.ref);
+            } catch {
+                /* una biblioteca propia que falla: se planifica con las que sí responden */
+            }
+        }
+    } catch {
+        /* sin sesión o sin destinos a la mano: se planifica con lo que hay */
+    }
+    return out;
+}
+
+/**
+ * Permisos sobre la BASE del plan: los ACL que este finder ya sabe resolver
+ * (herencia biblioteca → folder → ítem, Adenda 66 §3) entran a `planificar`
+ * por parámetro, como pide su contrato (aquí no se recalcula nada propio).
+ */
+function permisosParaPlan(
+    destinoRef: EntityRef,
+    docDestino: EntityLibraryDoc,
+    origenRef: EntityRef | null,
+    docOrigen: EntityLibraryDoc | null,
+    ctx: AclViewerContext,
+): PermisosBiblioteca {
+    const claveO = origenRef ? claveInstantanea(origenRef) : null;
+    const claveD = claveInstantanea(destinoRef);
+    const docDe = (ref: EntityRef): EntityLibraryDoc | null => {
+        const clave = claveInstantanea(ref);
+        if (clave === claveO) return docOrigen;
+        if (clave === claveD) return docDestino;
+        return null;
+    };
+    return {
+        puedeVer: (ref, item) => {
+            const d = docDe(ref);
+            if (!d) return false;
+            return ctx.isOwner || canReadItem(d, item, ctx);
+        },
+        puedeEditar: (ref, item) => {
+            const d = docDe(ref);
+            if (!d) return false;
+            if (item) {
+                const existente = d.items.find((it) => it.id === item.id);
+                if (existente) return ctx.isOwner || canWriteItem(d, existente, ctx);
+            }
+            // ítem nuevo (p. ej. al crearlo en el destino) manda la ACL de la biblioteca
+            return ctx.isOwner || aclCanWrite(d.acl, ctx);
+        },
+    };
+}
