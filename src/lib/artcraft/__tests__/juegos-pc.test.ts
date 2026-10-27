@@ -9,6 +9,14 @@ function rare(): HerramientaProto {
 }
 
 describe("Rare · juegos de PC en el catálogo", () => {
+  it("solo se actualiza desde github.com/RareDevs/Rare/releases", () => {
+    const h = rare();
+    expect(h.codigo).toBe("https://github.com/RareDevs/Rare");
+    expect(h.actualizacion).toMatchObject({ fuente: "github-tags", ref: "RareDevs/Rare" });
+    expect(h.actualizacion.filtro).toBeTruthy();
+    expect(h.actualizacion.ultimaVersion).toMatch(new RegExp(h.actualizacion.filtro as string));
+  });
+
   it("nombra raredevs.github.io (wring) y ProtonDB entre las descargas remotas bloqueadas", () => {
     const avisos = (rare().avisos ?? []).join(" ");
     expect(avisos).toContain("raredevs.github.io/wring");
