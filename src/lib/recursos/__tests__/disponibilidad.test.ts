@@ -98,6 +98,10 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+
+    it("sin piezas disponibles no produce anuncios", () => {
+      expect(anuncio("nodo", "e", 10, [], 0)).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
@@ -107,6 +111,12 @@ describe("disponibilidad.ts", () => {
       ...uno.map((a) => ({ anuncio: a, recibidoEn: AHORA - 20_000 })),
       ...dos.map((a) => ({ anuncio: a, recibidoEn: AHORA - 5_000 })),
     ];
+
+    it("fusionar sin anuncios deja el registro vacío", () => {
+      const registro = fusionar([]);
+      expect(registro.size).toBe(0);
+      expect(quienTiene(registro, "t", 0, AHORA)).toEqual([]);
+    });
 
     it("une piezas de dos nodos y sirve el índice a quien corresponden", () => {
       const uno = fusionar(
