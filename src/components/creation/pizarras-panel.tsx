@@ -139,6 +139,7 @@ function ShareCanvasDialog({
                 </button>
             </div>
             <textarea
+                aria-label="Comentario de la publicación (opcional)"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Añade un comentario (opcional)…"

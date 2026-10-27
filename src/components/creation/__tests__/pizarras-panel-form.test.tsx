@@ -68,4 +68,30 @@ describe("PizarrasPanel", () => {
     expect(comentario).toBeInstanceOf(HTMLTextAreaElement);
     expect(screen.getByText("Publicar")).toBeInTheDocument();
   });
+
+  it("el textarea de comentario lleva aria-label (sin label visible)", async () => {
+    vi.mocked(canvas.listCanvases).mockResolvedValue([
+      {
+        id: "c1",
+        owner: null,
+        scope: "account",
+        scope_ref: null,
+        title: "Diagrama del valle",
+        blocks: [],
+        shared: false,
+      },
+    ]);
+
+    render(
+      <AppearanceProvider>
+        <PizarrasPanel />
+      </AppearanceProvider>
+    );
+
+    await screen.findByText("Diagrama del valle");
+    fireEvent.click(await screen.findByText("Compartir como publicación"));
+
+    const comentario = await screen.findByLabelText("Comentario de la publicación (opcional)");
+    expect(comentario).toBeInstanceOf(HTMLTextAreaElement);
+  });
 });
