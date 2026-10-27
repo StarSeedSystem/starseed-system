@@ -101,10 +101,11 @@ describe("skillsSystemPrompt", () => {
   });
 
   it("sin capacidades activas el bloque es vacío y no deja texto suelto", () => {
-    // Sin espejo queda SIEMPRE la defaultOn («av-gen», Adenda 138): solo se
-    // vacía cuando la persona la apaga en Ajustes.
+    // Sin espejo quedan SIEMPRE las `defaultOn` («av-gen», la de diagramas y las
+    // que vengan): solo se vacían cuando la persona las apaga en Ajustes, así que
+    // aquí se apagan TODAS las defaultOn del manifiesto, no una a mano.
     espejo([]);
-    desactivar(["av-gen"]);
+    desactivar(SKILL_CAPABILITIES.filter((c) => c.defaultOn).map((c) => c.id));
     expect(skillsSystemPrompt()).toBe("");
   });
 });
