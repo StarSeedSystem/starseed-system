@@ -17,6 +17,9 @@
 
 export type EstadoActualizacion = "igual" | "hay-actualizacion" | "desconocida";
 
+/** Canal por el que se sigue la versión de un upstream de GitHub. */
+export type CanalActualizacion = "commits" | "releases" | "tags";
+
 export interface VersionLeida {
     version: string;
     fecha: string | null;
@@ -29,6 +32,13 @@ export interface PayloadActualizacion {
     /** «codeberg:dueño/repo»: el upstream del paquete se mudó ahí. */
     trasladadoA?: unknown;
 }
+
+/**
+ * Segundo argumento de `urlDeConsulta`/`leerVersion`: un canal suelto
+ * (`"releases"`, `"tags"`, `"commits"`) o el `payload` completo del paquete.
+ * Se aceptan las dos formas para no romper a quien ya pasaba el payload.
+ */
+export type OpcionesActualizacion = CanalActualizacion | PayloadActualizacion;
 
 /* ─────────────────── Validación del patrón de etiqueta ─────────────────── */
 
@@ -85,30 +95,50 @@ function urlCodeberg(ruta: string, endpoint: "releases" | "tags"): string {
 const RE_GITHUB = /^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+?)(?:\/.*)?$/;
 const RE_HF = /^https?:\/\/huggingface\.co\/([^/\s]+\/[^/\s]+?)(?:\/.*)?$/;
 
-function canalDeGitHub(payload?: PayloadActualizacion): "commits" | "releases" | "tags" {
+function canalDeGitHub(payload?: PayloadActualizacion): CanalActualizacion {
     if (validarPatronTag(payload?.patronTag).patron) return "tags";
     if (payload?.canal === "tags") return "tags";
     if (payload?.canal === "releases") return "releases";
     return "commits";
 }
 
+/** Canal efectivo: acepta un canal suelto o el `payload` del paquete. */
+function canalDe(opciones?: OpcionesActualizacion): CanalActualizacion {
+    if (typeof opciones === "string") return opciones;
+    return canalDeGitHub(opciones);
+}
+
+function payloadDe(opciones?: OpcionesActualizacion): PayloadActualizacion | undefined {
+    return typeof opciones === "string" || !opciones ? undefined : opciones;
+}
+
 /**
  * A qué URL pública hay que pedir para saber la versión de un upstream.
  * Un `trasladadoA: "codeberg:dueño/repo"` manda la consulta a Codeberg
  * (primero releases; el respaldo a tags lo hace `consultarCodeberg` con el
- * `fetch` en cadena). GitHub → commits, releases o tags según `payload`; si
- * hay un `patronTag` válido manda el canal de etiquetas. Hugging Face →
- * ficha del modelo. Un patrón inválido se ignora (vuelve al canal sin filtro).
- * Cualquier otra forma devuelve null.
+ * `fetch` en cadena). GitHub → commits (por defecto), releases
+ * (`/releases/latest`) o tags (`/tags?per_page=1`) según el canal; si hay un
+ * `patronTag` válido manda el canal de etiquetas y se piden 100 para poder
+ * filtrar. El canal se puede pasar suelto (`"releases"`) o dentro del
+ * `payload` del paquete. Hugging Face → ficha del modelo (el canal se ignora).
+ * Un patrón inválido se ignora (vuelve al canal sin filtro). Cualquier otra
+ * forma devuelve null.
  */
-export function urlDeConsulta(upstream: string, payload?: PayloadActualizacion): string | null {
+export function urlDeConsulta(
+    upstream: string,
+    opciones?: OpcionesActualizacion,
+): string | null {
+    const payload = payloadDe(opciones);
     const traslado = rutaTrasladoCodeberg(payload?.trasladadoA);
     if (traslado) return urlCodeberg(traslado, "releases");
     const github = RE_GITHUB.exec(upstream);
     if (github) {
         const ruta = github[1].replace(/\.git$/, "");
-        const canal = canalDeGitHub(payload);
-        if (canal === "tags") return `https://api.github.com/repos/${ruta}/tags?per_page=100`;
+        const canal = canalDe(opciones);
+        if (canal === "tags") {
+            const perPage = validarPatronTag(payload?.patronTag).patron ? 100 : 1;
+            return `https://api.github.com/repos/${ruta}/tags?per_page=${perPage}`;
+        }
         if (canal === "releases") {
             return `https://api.github.com/repos/${ruta}/releases/latest`;
         }
@@ -152,19 +182,22 @@ function leerRelease(json: unknown): VersionLeida | null {
 }
 
 /**
- * Saca `{version, fecha}` del JSON de la consulta: sha corto y fecha del
- * commit en GitHub (lista), la primera etiqueta que case con `patronTag`, la
- * última release, o `sha`/`lastModified` del modelo en HF (objeto). Sin
- * etiqueta coincidente devuelve null: no se inventa una versión.
+ * Saca `{version, fecha}` del JSON de la consulta según el canal (suelto o
+ * dentro del `payload`): releases → `tag_name`/`published_at`; tags → la
+ * primera etiqueta (filtrada por `patronTag` si lo hay, sin fecha); commits →
+ * sha corto y fecha del commit (como siempre); Hugging Face → sha corto y
+ * `lastModified` del modelo (el canal se ignora). Sin nada legible devuelve
+ * null: no se inventa una versión.
  */
 export function leerVersion(
     upstream: string,
     json: unknown,
-    payload?: PayloadActualizacion,
+    opciones?: OpcionesActualizacion,
 ): VersionLeida | null {
+    const payload = payloadDe(opciones);
     if (rutaTrasladoCodeberg(payload?.trasladadoA)) return leerVersionCodeberg(json);
     if (RE_GITHUB.test(upstream)) {
-        const canal = canalDeGitHub(payload);
+        const canal = canalDe(opciones);
         if (canal === "tags") return leerEtiqueta(json, payload);
         if (canal === "releases") return leerRelease(json);
         if (!Array.isArray(json) || json.length === 0) return null;
@@ -246,21 +279,52 @@ export async function consultarCodeberg(
 /* ───────────────────── Comparación de versiones ───────────────────── */
 
 const RE_SHA = /^[0-9a-f]{7,40}$/i;
+const RE_TAG_COMPARABLE = /^[0-9a-z][0-9a-z._+-]*$/i;
+
+/** Un tag se normaliza quitando el «v» inicial (v1.2.3 → 1.2.3). */
+function normalizarTag(tag: string): string {
+    return tag.trim().replace(/^v/i, "");
+}
+
+/** ¿Es una etiqueta de versión que se puede comparar textualmente? */
+function esTagComparable(tag: string): boolean {
+    const normalizado = normalizarTag(tag);
+    return (
+        normalizado.length > 0 &&
+        normalizado.length <= 120 &&
+        /\d/.test(normalizado) &&
+        RE_TAG_COMPARABLE.test(normalizado)
+    );
+}
 
 /**
- * Compara identificadores del mismo tipo. Los upstream consultados entregan un
- * sha, por lo que una versión manual como «1.0.0» no demuestra ni igualdad ni
- * cambio y debe quedar como «desconocida».
+ * Compara identificadores del mismo tipo:
+ * · dos shas → comparación por prefijo (como siempre);
+ * · dos tags → se normalizan (sin «v» inicial) y se comparan por igualdad
+ *   textual: iguales → «igual», etiquetas de versión distintas →
+ *   «hay-actualizacion»;
+ * · mezcla de sha y tag, o textos que no son etiquetas de versión →
+ *   «desconocida» (no se inventa un cambio).
  */
 export function compararVersiones(
     instalada: string | null | undefined,
     remota: string | null | undefined,
 ): EstadoActualizacion {
     if (!instalada || !remota) return "desconocida";
-    if (!RE_SHA.test(instalada) || !RE_SHA.test(remota)) return "desconocida";
-    const local = instalada.toLowerCase();
-    const upstream = remota.toLowerCase();
-    return local.startsWith(upstream) || upstream.startsWith(local)
-        ? "igual"
-        : "hay-actualizacion";
+    const localEsSha = RE_SHA.test(instalada);
+    const remotaEsSha = RE_SHA.test(remota);
+    if (localEsSha && remotaEsSha) {
+        const local = instalada.toLowerCase();
+        const upstream = remota.toLowerCase();
+        return local.startsWith(upstream) || upstream.startsWith(local)
+            ? "igual"
+            : "hay-actualizacion";
+    }
+    if (localEsSha || remotaEsSha) return "desconocida";
+    const local = normalizarTag(instalada);
+    const upstream = normalizarTag(remota);
+    if (local === upstream) return "igual";
+    return esTagComparable(instalada) && esTagComparable(remota)
+        ? "hay-actualizacion"
+        : "desconocida";
 }
