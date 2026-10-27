@@ -73,6 +73,7 @@ const shaHex = async (datos: ArrayBuffer): Promise<string> => {
 };
 
 const claveTrozo = (id: string, indice: number): string => `capa/${id}/trozo/${indice}`;
+const claveMeta = (id: string): string => `capa/${id}/meta`;
 const esShaValido = (sha: string): boolean => /^[0-9a-f]{64}$/.test(sha);
 
 /**
@@ -131,6 +132,14 @@ export class AlmacenCapas {
       .sort((a, b) => a - b);
   }
 
+  /** Persiste la meta de una capa (capa/<id>/meta), para saber qué hay tras reiniciar. */
+  private async persistirMeta(id: string): Promise<void> {
+    const meta = this.metas.get(id);
+    if (!meta) return;
+    const json = JSON.stringify(meta);
+    await this.almacen.escribir(claveMeta(id), new TextEncoder().encode(json).buffer);
+  }
+
   /**
    * Cierra la capa: concatena los trozos (guardados + los que lleguen ahora)
    * y verifica el SHA-256 del archivo entero. Si no cuadra, borra la capa.
@@ -164,14 +173,16 @@ export class AlmacenCapas {
       return { ok: false, motivo: "sha-total" };
     }
     const meta = this.metas.get(entrada.id);
-    this.metas.set(entrada.id, {
+    const cerrada: MetaCapa = {
       bytes: total,
       ultimoUso: this.ahora(),
       fijada: meta?.fijada ?? false,
       totalTrozos: indices.length,
       completa: true,
       sha256: entrada.sha256,
-    });
+    };
+    this.metas.set(entrada.id, cerrada);
+    await this.persistirMeta(entrada.id);
     return { ok: true };
   }
 
@@ -207,6 +218,7 @@ export class AlmacenCapas {
     for (const i of await this.trozosGuardados(id)) {
       await this.almacen.borrar(claveTrozo(id, i));
     }
+    await this.almacen.borrar(claveMeta(id));
     this.metas.delete(id);
   }
 
