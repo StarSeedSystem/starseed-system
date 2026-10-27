@@ -151,4 +151,57 @@ describe("canal de releases", () => {
             ),
         ).toEqual({ version: "v0.24.6", fecha: "2026-10-01T10:00:00Z" });
     });
+
+    it("acepta el canal como texto suelto y una release sin fecha", () => {
+        const upstream = "https://github.com/go-vikunja/vikunja";
+        expect(urlDeConsulta(upstream, "releases")).toBe(
+            "https://api.github.com/repos/go-vikunja/vikunja/releases/latest",
+        );
+        expect(leerVersion(upstream, { tag_name: "v1.0.0" }, "releases")).toEqual({
+            version: "v1.0.0",
+            fecha: null,
+        });
+        expect(leerVersion(upstream, { sin_tag: true }, "releases")).toBeNull();
+    });
+});
+
+describe("canal de tags", () => {
+    const upstream = "https://github.com/wechaty/wechaty";
+
+    it("consulta /tags y lee el name del primero", () => {
+        expect(urlDeConsulta(upstream, { canal: "tags" })).toBe(
+            "https://api.github.com/repos/wechaty/wechaty/tags?per_page=100",
+        );
+        expect(leerVersion(upstream, [{ name: "v1.20.0" }], { canal: "tags" })).toEqual({
+            version: "v1.20.0",
+            fecha: null,
+        });
+    });
+
+    it("acepta el canal como texto suelto y no inventa versión sin tag", () => {
+        expect(urlDeConsulta(upstream, "tags")).toBe(
+            "https://api.github.com/repos/wechaty/wechaty/tags?per_page=100",
+        );
+        expect(leerVersion(upstream, [], "tags")).toBeNull();
+        expect(leerVersion(upstream, [{ nombre: "v1" }], "tags")).toBeNull();
+    });
+});
+
+describe("compararVersiones con tags", () => {
+    it("el mismo tag, con o sin «v», es «igual»", () => {
+        expect(compararVersiones("1.0.0", "1.0.0")).toBe("igual");
+        expect(compararVersiones("v1.0.0", "1.0.0")).toBe("igual");
+        expect(compararVersiones("1.0.0", "V1.0.0")).toBe("igual");
+    });
+
+    it("dos tags distintos son «hay-actualizacion»", () => {
+        expect(compararVersiones("v1.0.0", "v1.0.1")).toBe("hay-actualizacion");
+        expect(compararVersiones("1.0.0", "v2.0.0")).toBe("hay-actualizacion");
+    });
+
+    it("un tag y un sha, o un texto vacío, son «desconocida»", () => {
+        expect(compararVersiones("v1.0.0", "a1b2c3d")).toBe("desconocida");
+        expect(compararVersiones("a1b2c3d", "v1.0.0")).toBe("desconocida");
+        expect(compararVersiones("   ", "v1.0.0")).toBe("desconocida");
+    });
 });

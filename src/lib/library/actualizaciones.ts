@@ -17,6 +17,9 @@
 
 export type EstadoActualizacion = "igual" | "hay-actualizacion" | "desconocida";
 
+/** Canal por el que se sigue la versión de un upstream de GitHub. */
+export type CanalActualizacion = "releases" | "tags" | "commits";
+
 export interface VersionLeida {
     version: string;
     fecha: string | null;
@@ -28,6 +31,16 @@ export interface PayloadActualizacion {
     patronTag?: unknown;
     /** «codeberg:dueño/repo»: el upstream del paquete se mudó ahí. */
     trasladadoA?: unknown;
+}
+
+/**
+ * El canal se puede pasar como `payload` completo (lo que usan la ruta y las
+ * fichas) o como texto suelto (`"releases"`), la firma antigua y más directa.
+ */
+type EntradaCanal = PayloadActualizacion | CanalActualizacion | undefined;
+
+function comoPayload(entrada: EntradaCanal): PayloadActualizacion | undefined {
+    return typeof entrada === "string" ? { canal: entrada } : entrada;
 }
 
 /* ─────────────────── Validación del patrón de etiqueta ─────────────────── */
@@ -85,7 +98,8 @@ function urlCodeberg(ruta: string, endpoint: "releases" | "tags"): string {
 const RE_GITHUB = /^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+?)(?:\/.*)?$/;
 const RE_HF = /^https?:\/\/huggingface\.co\/([^/\s]+\/[^/\s]+?)(?:\/.*)?$/;
 
-function canalDeGitHub(payload?: PayloadActualizacion): "commits" | "releases" | "tags" {
+function canalDeGitHub(entrada?: EntradaCanal): "commits" | "releases" | "tags" {
+    const payload = comoPayload(entrada);
     if (validarPatronTag(payload?.patronTag).patron) return "tags";
     if (payload?.canal === "tags") return "tags";
     if (payload?.canal === "releases") return "releases";
@@ -101,7 +115,8 @@ function canalDeGitHub(payload?: PayloadActualizacion): "commits" | "releases" |
  * ficha del modelo. Un patrón inválido se ignora (vuelve al canal sin filtro).
  * Cualquier otra forma devuelve null.
  */
-export function urlDeConsulta(upstream: string, payload?: PayloadActualizacion): string | null {
+export function urlDeConsulta(upstream: string, entrada?: EntradaCanal): string | null {
+    const payload = comoPayload(entrada);
     const traslado = rutaTrasladoCodeberg(payload?.trasladadoA);
     if (traslado) return urlCodeberg(traslado, "releases");
     const github = RE_GITHUB.exec(upstream);
@@ -160,8 +175,9 @@ function leerRelease(json: unknown): VersionLeida | null {
 export function leerVersion(
     upstream: string,
     json: unknown,
-    payload?: PayloadActualizacion,
+    entrada?: EntradaCanal,
 ): VersionLeida | null {
+    const payload = comoPayload(entrada);
     if (rutaTrasladoCodeberg(payload?.trasladadoA)) return leerVersionCodeberg(json);
     if (RE_GITHUB.test(upstream)) {
         const canal = canalDeGitHub(payload);
@@ -247,20 +263,39 @@ export async function consultarCodeberg(
 
 const RE_SHA = /^[0-9a-f]{7,40}$/i;
 
+/** Quita la «v» inicial de una etiqueta y la deja comparable; vacía → null. */
+function normalizarTag(valor: string): string | null {
+    const limpio = valor.trim().replace(/^v/i, "");
+    return limpio.length > 0 ? limpio : null;
+}
+
 /**
- * Compara identificadores del mismo tipo. Los upstream consultados entregan un
- * sha, por lo que una versión manual como «1.0.0» no demuestra ni igualdad ni
- * cambio y debe quedar como «desconocida».
+ * Compara identificadores del mismo tipo:
+ * · los dos shas → por prefijo (como siempre);
+ * · los dos tags → normalizados (sin «v» inicial) por igualdad textual:
+ *   iguales → «igual», distintos → «hay-actualizacion»;
+ * · mezcla de sha y tag, o texto que no es ni una cosa ni la otra →
+ *   «desconocida»: no se inventa una alarma.
  */
 export function compararVersiones(
     instalada: string | null | undefined,
     remota: string | null | undefined,
 ): EstadoActualizacion {
     if (!instalada || !remota) return "desconocida";
-    if (!RE_SHA.test(instalada) || !RE_SHA.test(remota)) return "desconocida";
-    const local = instalada.toLowerCase();
-    const upstream = remota.toLowerCase();
-    return local.startsWith(upstream) || upstream.startsWith(local)
-        ? "igual"
-        : "hay-actualizacion";
+    const localEsSha = RE_SHA.test(instalada);
+    const remotaEsSha = RE_SHA.test(remota);
+    if (localEsSha && remotaEsSha) {
+        const local = instalada.toLowerCase();
+        const upstream = remota.toLowerCase();
+        return local.startsWith(upstream) || upstream.startsWith(local)
+            ? "igual"
+            : "hay-actualizacion";
+    }
+    if (!localEsSha && !remotaEsSha) {
+        const local = normalizarTag(instalada);
+        const upstream = normalizarTag(remota);
+        if (!local || !upstream) return "desconocida";
+        return local === upstream ? "igual" : "hay-actualizacion";
+    }
+    return "desconocida";
 }
