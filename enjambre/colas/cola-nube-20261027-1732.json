@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "MBT1027A",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Mausbot · los 10 cuerpos de la mascota-cursor como datos puros",
+   "archivos": [
+    "src/lib/mausbot/cuerpos.ts",
+    "src/lib/mausbot/__tests__/cuerpos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nPorta `integraciones-de-codigo/openmausbot/shared/mascot-bodies.ts` a `src/lib/mausbot/cuerpos.ts` SIN zod: `CUERPOS_MAUSBOT` (los 10: cursor, blob, circle, squircle, capsule, drop, shield, hexagon, diamond, star, con `nombre` en español), tipo `CuerpoId`, `CuerpoMausbot` (id, nombre, fit, body con `{{GRADIENT}}`, clip, anchor) y `cuerpoMausbot(valor: unknown): CuerpoId` (lo desconocido → «cursor»). Si el archivo pasa de 120 líneas por las rutas SVG, deja las rutas tal cual (son datos) y no añadas nada más. Prueba: los 10 ids únicos, cada body contiene `{{GRADIENT}}`, `cuerpoMausbot('x')` da «cursor»."
+  },
+  {
+   "id": "MBT1027B",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Mausbot · expresiones y la tabla estado de Astraura → expresión",
+   "archivos": [
+    "src/lib/mausbot/expresiones.ts",
+    "src/lib/mausbot/__tests__/expresiones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nPorta de `integraciones-de-codigo/openmausbot/src/components/cursor-face-data.ts` lo necesario para dibujar ojos y boca (FACE_BOX, FACE_CENTRE, GAZE_TRAVEL, las 25 expresiones decodificadas y las bocas) a `src/lib/mausbot/expresiones.ts`, y añade `EstadoMausbot` (los estados de CursorAvatar.tsx: sleeping, waking, idle, listening, thinking, searching, working, excited, surprised, suspicious, angry, drowsy, happy, curious, confused, bored, proud, shy) con `expresionDe(estado)` y `estadoDesdeOrbe(voz)` según la tabla del contrato §3 (`QuantumOrbVoiceState` de `src/lib/aurora/quantum-orb-bus.ts`: listening/user_speaking→listening, thinking→thinking, speaking→happy, error→confused, idle→idle). Prueba: 25 expresiones con 2 ojos y 48 puntos cada uno; la tabla."
+  },
+  {
+   "id": "MBT1027C",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Mausbot · configuración por cuenta, perfil y neurona (apagado por defecto)",
+   "archivos": [
+    "src/lib/mausbot/config.ts",
+    "src/lib/mausbot/__tests__/config.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nCrea `ConfigMausbot` del contrato §3 (`v:1`, `encendido` false por defecto, `modo` «cursor»|«acompanante»|«ambos» (por defecto «acompanante»), `disenoPorDefecto` «fabrica-cursor», `porPersonalidad`, `actuar: NivelBot` de `src/lib/astraura-bots/permisos.ts` (por defecto «proponer»), `perfiles` y `neuronas` con lo que cambie cada uno). Clave `CLAVE_MAUSBOT = \"starseed.mausbot.v1\"`, evento `EVENTO_MAUSBOT = \"starseed:mausbot\"`, `leerConfigMausbot()`, `guardarConfigMausbot(patch)`, `resolverMausbot({perfilId, neuronaId})` (neurona > perfil > cuenta, como `resolverPantallaInicial` de `src/lib/inicio/pantalla-inicial.ts`) y `disenoParaPersonalidad(cfg, personaId)`. Lectura defensiva (JSON roto → por defecto) y `try/catch` en localStorage. Prueba de todo lo anterior."
+  },
+  {
+   "id": "INS1027A",
+   "ola": "1027I · Neurona insomne",
+   "titulo": "Neurona insomne · estado, proveedores por plataforma y cuándo soltar trabajo (puro)",
+   "archivos": [
+    "src/lib/neurons/insomne.ts",
+    "src/lib/neurons/__tests__/insomne.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «funcionamiento nativo para las neuronas compatibles de sus capacidades siempre disponibles aun con las pantallas cerradas, incluyendo agentes y procesos programados en segundo plano y la actividad de la red mesh P2P compartida inteligentemente por la red StarSeed, para potenciarlas como servidores completos» (krishhgg/Insomnia, MIT). Contrato: `architecture/neurona-insomne.md` (léelo entero). El OS LEE el estado de Insomnia; nunca ejecuta `pmset` ni usa su regla de sudoers.\n\n`EstadoInsomne`, `capacidadInsomne(plataforma, versionSO?)` con la tabla del contrato §2 (macOS 26+ arm64 → «insomnia»; otra macOS → «caffeinate» solo con corriente; linux → «systemd-inhibit»; windows → «powercfg»; servidor → «siempre»; web/pwa → «wake-lock» solo visible; android/ios → «no»), `politicaInsomne` (agentes, programados, malla, servidorCerebro, biblioteca; todo true por defecto) y `debeSoltarTrabajo(estado, ahora)` (quedan < 15 min, batería < 15 % sin cargar o calor crítico). `estadoDesdeSesionInsomnia(json, ahora)`: de `{startedAt, endsAt, extensions}` (ISO 8601) a `EstadoInsomne` (vencida → inactiva). Pruebas de todo."
+  },
+  {
+   "id": "INS1027E",
+   "ola": "1027I · Neurona insomne",
+   "titulo": "Colmena · preferir neuronas insomnes y soltar a tiempo",
+   "archivos": [
+    "scripts/puente/colmena_logica.py",
+    "scripts/puente/test_colmena_logica.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «funcionamiento nativo para las neuronas compatibles de sus capacidades siempre disponibles aun con las pantallas cerradas, incluyendo agentes y procesos programados en segundo plano y la actividad de la red mesh P2P compartida inteligentemente por la red StarSeed, para potenciarlas como servidores completos» (krishhgg/Insomnia, MIT). Contrato: `architecture/neurona-insomne.md` (léelo entero). El OS LEE el estado de Insomnia; nunca ejecuta `pmset` ni usa su regla de sudoers.\n\nEn `elegir_destino`, a igual preferencia de medio, gana la neurona con `insomne.hasta` posterior (y nunca una cuya sesión termina antes de 15 min). En `debe_desconectarse_solo`, también `True` si `senales.insomne.hasta` llega en menos de 5 min («la sesión insomne termina en N min»). PURAS como ya son. Pruebas nuevas con `python3 -m pytest -q scripts/puente/test_colmena_logica.py`."
+  },
+  {
+   "id": "INS1027F",
+   "ola": "1027I · Neurona insomne",
+   "titulo": "MetaGenesis · una neurona insomne suma estabilidad para liderar y recibir préstamos",
+   "archivos": [
+    "scripts/puente/nodo_metagenesis_logica.py",
+    "scripts/puente/test_nodo_metagenesis_logica.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «funcionamiento nativo para las neuronas compatibles de sus capacidades siempre disponibles aun con las pantallas cerradas, incluyendo agentes y procesos programados en segundo plano y la actividad de la red mesh P2P compartida inteligentemente por la red StarSeed, para potenciarlas como servidores completos» (krishhgg/Insomnia, MIT). Contrato: `architecture/neurona-insomne.md` (léelo entero). El OS LEE el estado de Insomnia; nunca ejecuta `pmset` ni usa su regla de sudoers.\n\nDonde se calculan los puntos de un nodo (mira `elegir_lider` y quién llama a `_clave_mejor`), una neurona con sesión insomne vigente suma los puntos de estabilidad que se definan en una constante `PUNTOS_INSOMNE` (por debajo del A1 siempre encendido: el relevo ordenado de `MARGEN_RELEVO` no debe dispararse solo por estar insomne). Pruebas."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "MBT1027C",
+   "MBT1027A",
+   "INS1027A",
+   "MBT1027B",
+   "INS1027E",
+   "INS1027F"
+  ]
+ }
+}
