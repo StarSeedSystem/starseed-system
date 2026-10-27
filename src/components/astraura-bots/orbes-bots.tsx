@@ -18,6 +18,8 @@ import { EVENTO_BUCLE_UI, type DetalleBucleUI } from "@/lib/astraura-bots/adapta
 import { avanzar, bucleInicial, indicadorVisible, type EstadoBucle, type EventoBucle } from "@/lib/astraura-bots/bucle";
 import type { Bot } from "@/lib/astraura-bots/tipos";
 import { DIAMETRO_ANILLO, IndicadorSentidos } from "./indicador-sentidos";
+import { TarjetaPropuesta } from "./tarjeta-propuesta";
+import { RegistroBot } from "./registro-bot";
 import {
   MAX_ORBES_VISIBLES,
   disposicionOrbes,
@@ -161,6 +163,18 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
                 <IndicadorSentidos estado={est} nombreBot={b.nombre}
                   onApagarSentido={(sentido) => moverBucle(id, { tipo: "soltar", sentido, at: Date.now() })}
                   onPausarBot={() => moverBucle(id, { tipo: "pausar", quien: "persona", at: Date.now() })} />
+              </div>
+            ) : null}
+            {est && est.fase === "esperando" && est.pendiente ? (
+              <TarjetaPropuesta estado={est} nombreBot={b.nombre} pos={p}
+                onConfirmar={() => moverBucle(id, { tipo: "confirmar", quien: "persona", at: Date.now() })}
+                onRechazar={() => moverBucle(id, { tipo: "rechazar", quien: "persona", at: Date.now() })}
+                onApagarSentido={(sentido) => moverBucle(id, { tipo: "soltar", sentido, at: Date.now() })}
+                onPausarBot={() => moverBucle(id, { tipo: "pausar", quien: "persona", at: Date.now() })} />
+            ) : null}
+            {enfocado === id && est ? (
+              <div data-registro-bot={id} className="fixed" style={{ left: Math.min(p.xRatio * vista.ancho + 40, vista.ancho - 304), top: Math.max(12, p.yRatio * vista.alto - 40), zIndex: 43 + capas.indexOf(id) }}>
+                <RegistroBot registro={est.registro} onDeshacer={() => moverBucle(id, { tipo: "deshacer", quien: "persona", at: Date.now() })} />
               </div>
             ) : null}
           </Fragment>
