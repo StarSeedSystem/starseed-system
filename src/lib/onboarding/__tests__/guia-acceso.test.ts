@@ -27,14 +27,12 @@ const leer = (ruta: string) => readFileSync(join(RAIZ, ruta), "utf-8");
 const VALOR_AURORA = /OPEN_GUIDE_EVENT\s*=\s*"([^"]+)"/.exec(
   leer("src/components/onboarding/aurora-guide.tsx"),
 )?.[1];
-const VALOR_MODULO = /EVENTO_ABRIR_GUIA\s*=\s*"([^"]+)"/.exec(
-  leer("src/lib/onboarding/guia-acceso.ts"),
-)?.[1];
 
 describe("EVENTO_ABRIR_GUIA", () => {
   it("es la misma puerta que OPEN_GUIDE_EVENT de aurora-guide (leído del texto, sin importarlo)", () => {
     expect(VALOR_AURORA).toBe("starseed:open-guide");
-    expect(VALOR_MODULO).toBe(VALOR_AURORA);
+    expect(EVENTO_ABRIR_GUIA).toBe("starseed:open-guide");
+    expect(EVENTO_ABRIR_GUIA).toBe(VALOR_AURORA);
   });
 });
 
@@ -59,6 +57,18 @@ describe("abrirGuia", () => {
     expect(ok).toBe(true);
     expect(recibidas).toEqual(["starseed:open-guide"]);
     expect(detalles).toEqual([{ desde: "bienvenida", temaInicial: "malla" }]);
+  });
+
+  it("sin temaInicial no mete la clave en el detalle (no viaja un undefined)", () => {
+    const detalles: Array<Record<string, unknown>> = [];
+    const ventana = new EventTarget();
+    ventana.addEventListener(EVENTO_ABRIR_GUIA, (e) => {
+      detalles.push((e as CustomEvent).detail as Record<string, unknown>);
+    });
+    const ok = abrirGuia({ desde: "ajustes" }, ventana);
+    expect(ok).toBe(true);
+    expect(detalles).toEqual([{ desde: "ajustes" }]);
+    expect(Object.keys(detalles[0])).toEqual(["desde"]);
   });
 
   afterEach(() => {
@@ -92,6 +102,11 @@ describe("accionesDelPaso", () => {
 });
 
 describe("zGuia", () => {
+  it("la capa de acceso es 240, por encima de AuthGate (200) y la bienvenida (210)", () => {
+    expect(Z_GUIA_SOBRE_ACCESO).toBe(240);
+    expect(Z_GUIA_SOBRE_ACCESO).toBeGreaterThan(Z_GUIA_HOY);
+  });
+
   it("desde cualquier ventana de acceso, pinta por encima de AuthGate y la bienvenida", () => {
     for (const desde of ["login", "bienvenida", "aviso"] as const) {
       expect(zGuia(desde, true)).toBe(Z_GUIA_SOBRE_ACCESO);
