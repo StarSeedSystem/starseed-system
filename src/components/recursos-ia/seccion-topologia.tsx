@@ -10,6 +10,7 @@ import { ArrowUp, Check, Hexagon, RadioTower, Server, Sparkles, Split, TriangleA
 
 import { Field, LABEL, SELECT, SUB } from "@/components/astraura/s158/shared";
 import { cn } from "@/lib/utils";
+import { destinoDeIA, type DestinoIA } from "@/lib/recursos-ia/enrutado";
 import {
     CAPACIDADES,
     NOMBRE_CAPACIDAD,
@@ -136,25 +137,32 @@ export function SeccionTopologia({
 }
 
 function ControlServidor({ inv, actual, alGuardar }: { inv: InventarioRecursos; actual: ConfigTopologia; alGuardar: (c: ConfigTopologia) => void }) {
+    // Adónde va la IA con esta topología: lo dice `destinoDeIA` (URL local, vía o el motivo de lo que falta).
+    const destino = destinoDeIA(actual, {}, inv, "texto");
     return (
-        <Field label="Neurona servidora" hint="Procesa la IA de todas tus neuronas. Las demás le mandan las peticiones por las vías permitidas.">
-            <select
-                aria-label="Neurona servidora"
-                className={SELECT}
-                value={actual.servidorNeuronaId ?? ""}
-                onChange={(e) => alGuardar({ ...actual, servidorNeuronaId: e.target.value || undefined })}
-            >
-                <option value="">Elige una neurona…</option>
-                {inv.neuronas.map((n) => {
-                    const ram = Math.max(0, ...n.procesadores.map((p) => p.ramGb ?? 0));
-                    return (
-                        <option key={n.id} value={n.id}>
-                            {n.nombre} · {ram ? `${fmtGb(ram)} RAM` : "RAM sin medir"} · {n.online ? "en línea" : "sin conexión"}
-                        </option>
-                    );
-                })}
-            </select>
-        </Field>
+        <>
+            <Field label="Neurona servidora" hint="Procesa la IA de todas tus neuronas. Las demás le mandan las peticiones por las vías permitidas.">
+                <select
+                    aria-label="Neurona servidora"
+                    className={SELECT}
+                    value={actual.servidorNeuronaId ?? ""}
+                    onChange={(e) => alGuardar({ ...actual, servidorNeuronaId: e.target.value || undefined })}
+                >
+                    <option value="">Elige una neurona…</option>
+                    {inv.neuronas.map((n) => {
+                        const ram = Math.max(0, ...n.procesadores.map((p) => p.ramGb ?? 0));
+                        return (
+                            <option key={n.id} value={n.id}>
+                                {n.nombre} · {ram ? `${fmtGb(ram)} RAM` : "RAM sin medir"} · {n.online ? "en línea" : "sin conexión"}
+                            </option>
+                        );
+                    })}
+                </select>
+            </Field>
+            <p className="text-[10px] leading-snug text-white/60" data-testid="destino-servidor-propio">
+                {destino.baseUrl ? destino.motivo : destino.neuronaId ? `Va por ${nombreVia(destino.via ?? "local")}: ${destino.motivo}` : destino.motivo}
+            </p>
+        </>
     );
 }
 
@@ -219,6 +227,12 @@ function ControlFragmentada({ inv, actual, alGuardar }: { inv: InventarioRecurso
                                     </option>
                                 ))}
                             </select>
+                            {!actual.porCapacidad?.[c]?.procesaEn && (
+                                // Sin pin: el destino lo calcula `destinoDeIA` (esta neurona o la asignada a la capacidad).
+                                <span className="text-[10px] leading-snug text-white/50" data-testid={`destino-fragmentada-${c}`}>
+                                    {destinoDeIA(actual, {}, inv, c).motivo}
+                                </span>
+                            )}
                         </label>
                     </li>
                 ))}
