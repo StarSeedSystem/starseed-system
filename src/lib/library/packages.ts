@@ -75,6 +75,8 @@ import { FICHAS_REPOS_1025, conSeguimiento1025 } from "./repos-1025";
 // Tanda del 2026-10-26 (Ola 1025U · REP1026): Open-Higgsfield-AI, WeKnora, OpenProject y Cap (4 fichas nuevas) y Open Generative AI,
 // que actualiza su ficha vieja en lugar de duplicarse. Contrato: architecture/repos-libreria-1026.md.
 import { FICHAS_REPOS_1026, conSeguimiento1026 } from "./repos-1026";
+// Tanda del 2026-10-27 (Ola MBT1027 · N): OpenMausBot, Insomnia y Colibri. Contrato: architecture/mausbot-astraura.md.
+import { FICHAS_REPOS_1027 } from "./repos-1027";
 // Repo builtin externo de la Ola 1020: 14 repos verificados con upstream y canal
 // para que la Biblioteca autobúsque sus releases/tags/commits.
 import { REPO_EXTERNOS_1020 } from "./repos-externos-1020";
@@ -1001,6 +1003,8 @@ const LABS_PACKAGES: LibraryPackage[] = [
     ...FICHAS_REPOS_1025,
     /* ── Tanda del 2026-10-26 (Ola 1025U · REP1026): contenido audiovisual, conocimiento, proyectos y grabación ── */
     ...FICHAS_REPOS_1026,
+    /* ── Tanda del 2026-10-27 (Ola MBT1027 · N): OpenMausBot, Insomnia y Colibri ── */
+    ...FICHAS_REPOS_1027,
 ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */
