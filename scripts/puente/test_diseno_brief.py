@@ -219,5 +219,81 @@ class TestBriefRise(unittest.TestCase):
         self.assertNotIn("RISE", texto)
 
 
+class TestNuevasHerramientas(unittest.TestCase):
+    """Pruebas para las nuevas herramientas añadidas al contrato."""
+
+    def test_presentacion_trae_frontend_slides(self):
+        tarea = {"titulo": "Crear presentación", "archivos": ["src/app/presentacion/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("frontend-slides", texto)
+        self.assertIn("zarazhangrui/frontend-slides", texto)
+
+    def test_design_md_trae_awesome_design_md(self):
+        tarea = {"titulo": "Crear design.md", "archivos": ["src/app/design/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("awesome-design-md", texto)
+        self.assertIn("VoltAgent/awesome-design-md", texto)
+        self.assertIn("patrones de referencia", texto)
+
+    def test_documentacion_trae_docusaurus(self):
+        tarea = {"titulo": "Escribir documentación", "archivos": ["src/app/docs/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus", texto)
+        self.assertIn("facebook/docusaurus", texto)
+        self.assertIn("documentación en Markdown", texto)
+
+    def test_educacion_trae_docusaurus(self):
+        tarea = {"titulo": "Contenido educativo", "archivos": ["src/app/educacion/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus", texto)
+        self.assertIn("facebook/docusaurus", texto)
+
+    def test_panel_de_datos_trae_refine(self):
+        tarea = {"titulo": "Panel de datos", "archivos": ["src/app/admin/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Refine", texto)
+        self.assertIn("refinedev/refine", texto)
+        self.assertIn("panel de datos", texto)
+        self.assertIn("telemetría apagada", texto)
+
+    def test_taste_skill_en_toda_tarea(self):
+        tarea = {"titulo": "Vista cualquiera", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("taste-skill", texto)
+        self.assertIn("Leonxlnx/taste-skill", texto)
+        self.assertIn("inventario, argumento, capturas a 3 anchos y crítica", texto)
+        self.assertIn("el ADN manda", texto)
+        self.assertIn("en la Biblioteca", texto)
+
+    def test_sin_lineas_duplicadas_con_dos_claves(self):
+        tarea = {"titulo": "Presentación y design.md", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        lineas_herramientas = [l for l in texto.splitlines() if "frontend-slides" in l or "awesome-design-md" in l]
+        self.assertEqual(len(lineas_herramientas), 2)
+        self.assertEqual(len(set(lineas_herramientas)), 2)
+
+    def test_apartados_6_y_7_con_varias_claves(self):
+        tarea = {"titulo": "Presentación, design.md, panel de datos, documentación", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+
+    def test_conferencia_trae_frontend_slides(self):
+        tarea = {"titulo": "Charla en conferencia", "archivos": ["src/app/charla/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("frontend-slides", texto)
+
+    def test_sistema_de_diseno_trae_awesome_design_md(self):
+        tarea = {"titulo": "Sistema de diseño", "archivos": ["src/app/sistema/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("awesome-design-md", texto)
+
+    def test_panel_de_administracion_trae_refine(self):
+        tarea = {"titulo": "Panel de administración", "archivos": ["src/app/admin/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Refine", texto)
+        self.assertIn("refinedev/refine", texto)
+
+
 if __name__ == "__main__":
     unittest.main()
