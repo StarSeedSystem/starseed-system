@@ -10,10 +10,17 @@ describe("TunelMetaGenesisEstado", () => {
 
   beforeEach(() => {
     llamadas.length = 0;
+    // El caso de la visibilidad oculta la deja en «hidden» para siempre (la
+    // propiedad es configurable y no se restaura sola): sin este rearme el
+    // caso siguiente no fetchearía nunca y se quedaría en «Cargando…».
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       llamadas.push({ url, init });
-      
+
       if (url.includes("/api/mando/tunel-metagenesis")) {
         // Simular respuesta del API
         return {
@@ -30,7 +37,7 @@ describe("TunelMetaGenesisEstado", () => {
           })
         } as Response;
       }
-      
+
       // Respuesta por defecto para otros endpoints
       return {
         ok: true,
