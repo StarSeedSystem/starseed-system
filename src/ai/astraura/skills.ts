@@ -25,7 +25,9 @@ import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
 } from "./habilidades/diagramas";
 import {
-  ATRIBUCION_DESIGN_MD, ATRIBUCION_SLIDES, HABILIDADES_DISENO_WEB, comoCapacidadDiseno,
+  ATRIBUCION_DESIGN_MD, ATRIBUCION_SLIDES, ATRIBUCION_TASTE,
+  HABILIDAD_DESIGN_MD, HABILIDAD_SLIDES, HABILIDAD_TASTE,
+  HABILIDADES_DISENO_WEB, comoCapacidadDiseno,
 } from "./habilidades/diseno-web";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
 
@@ -93,9 +95,9 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     label: "Taste · calidad de UI y estética",
     systemPrompt:
       "Cuando generes interfaz, contenido visual o texto, aplica criterio de diseño de alto nivel (jerarquía clara, espacio en blanco, contraste, coherencia con el sistema Crystal Liquid Glass). Prefiere lo elegante, legible y sobrio a lo recargado. " +
-      `${HABILIDADES_DISENO_WEB.taste.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.taste.rutaCompleta} — con la tarjeta basta para Needle y BitNet. En el OS manda el ADN del contexto sobre la estética propia de la skill.`,
+      `${HABILIDADES_DISENO_WEB.taste.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.taste.rutaCompleta} — con la tarjeta basta para Needle y BitNet. En el OS manda el ADN del contexto sobre la estética propia de la skill. ${ATRIBUCION_TASTE}`,
     routing: { preferStrong: true },
-    skillIds: ["aurora-taste", "design-taste-frontend"],
+    skillIds: ["aurora-taste", HABILIDAD_TASTE.id],
     packageIds: ["iatool-taste-skill"],
   },
   {
@@ -677,24 +679,24 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
    * Tres capacidades con la misma forma que la de diagramas: el resumen va al cerebro y
    * la guía completa a razón, profunda y nube. En el OS manda el ADN del contexto. */
   {
-    ...comoCapacidadDiseno(HABILIDADES_DISENO_WEB.slides, "resumen"),
+    ...comoCapacidadDiseno(HABILIDAD_SLIDES, "resumen"),
     id: "slides",
     systemPrompt:
-      `${HABILIDADES_DISENO_WEB.slides.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.slides.rutaCompleta} ` +
+      `${HABILIDAD_SLIDES.resumen} Guía completa en ${HABILIDAD_SLIDES.rutaCompleta} ` +
       `— con la tarjeta basta para Needle y BitNet. ${ATRIBUCION_SLIDES}`,
     routing: { preferStrong: true },
     defaultOn: true,
-    skillIds: ["frontend-slides"],
+    skillIds: [HABILIDAD_SLIDES.id],
   },
   {
-    ...comoCapacidadDiseno(HABILIDADES_DISENO_WEB.designmd, "resumen"),
+    ...comoCapacidadDiseno(HABILIDAD_DESIGN_MD, "resumen"),
     id: "design-md",
     systemPrompt:
-      `${HABILIDADES_DISENO_WEB.designmd.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.designmd.rutaCompleta} ` +
+      `${HABILIDAD_DESIGN_MD.resumen} Guía completa en ${HABILIDAD_DESIGN_MD.rutaCompleta} ` +
       `— con la tarjeta basta para Needle y BitNet. ${ATRIBUCION_DESIGN_MD}`,
     routing: { preferStrong: true },
     defaultOn: true,
-    skillIds: ["awesome-design-md"],
+    skillIds: [HABILIDAD_DESIGN_MD.id],
   },
   /* ═══ REPOS 1026 · Grabar la pantalla (Cap) · conocimiento (WeKnora) · proyectos (OpenProject) ═══
    * Las tres se activan solas al instalar su ficha de la Biblioteca (la siembra las instala) y sus textos dicen
