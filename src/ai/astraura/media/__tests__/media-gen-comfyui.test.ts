@@ -9,7 +9,7 @@ const mockLocalStorage = {
 };
 globalThis.window = { localStorage: mockLocalStorage } as unknown as Window & typeof globalThis;
 
-import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NODOS_NUCLEO, type GrafoComfyUI } from "@/lib/imagenes/flujos-comfyui";
 import {
   formatoComfyuiMasCercano,
@@ -123,9 +123,10 @@ describe("grafoComfyuiDe · texto a imagen o imagen a imagen", () => {
 });
 
 describe("checkpointsDisponibles", () => {
-  let fetchSpy: MockInstance<typeof fetch>;
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    // @ts-expect-error - TypeScript infers the correct type from assignment
     fetchSpy = vi.spyOn(globalThis, "fetch");
   });
 
@@ -170,9 +171,10 @@ describe("checkpointsDisponibles", () => {
 });
 
 describe("comfyuiImage · flujo real con fetch simulado", () => {
-  let fetchSpy: MockInstance<typeof fetch>;
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    // @ts-expect-error - TypeScript infers the correct type from assignment
     fetchSpy = vi.spyOn(globalThis, "fetch");
     // Configurar endpoint de ComfyUI en localStorage
     mockLocalStorage.setItem.mockClear();
@@ -231,7 +233,8 @@ describe("comfyuiImage · flujo real con fetch simulado", () => {
     // Verificar que se llamó a /prompt con el grafo
     const promptCall = fetchSpy.mock.calls.find((c) => String(c[0]).includes("/prompt"));
     expect(promptCall).toBeDefined();
-    const body = JSON.parse(promptCall![1]?.body as string);
+    const init = promptCall![1] as RequestInit | undefined;
+    const body = JSON.parse(init?.body as string);
     expect(body.prompt).toBeDefined();
     expect(body.prompt["1"].class_type).toBe("CheckpointLoaderSimple");
     expect(body.prompt["1"].inputs.ckpt_name).toBe("my-model.safetensors");
