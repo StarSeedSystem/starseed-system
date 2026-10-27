@@ -1,0 +1,58 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "IMG1011Cc",
+   "ola": "Ola 1011E · Imágenes locales de Astraura por capas y malla (Qwen-Image, Krea 2, FLUX, SD, PixArt, Sana) con varias opciones en la Protomolécula",
+   "titulo": "Tarjeta de opciones de imagen con la Protomolécula",
+   "archivos": [
+    "src/components/imagenes/tarjeta-imagenes.tsx",
+    "src/lib/imagenes/adaptadores/use-tarjeta-imagenes.ts",
+    "src/lib/imagenes/adaptadores/__tests__/use-tarjeta-imagenes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-imagenes.md` (léelo ENTERO; el §1 tiene las licencias y motores VERIFICADOS el 2026-10-11 — no inventes otros datos). Se apoya en `architecture/generacion-audiovisual-astraura.md` y `src/ai/astraura/media/media-gen.ts` (Pollinations como suelo gratis, proveedores por neurona): su regla de oro sigue intacta y NO se duplica nada de lo que ya hace. El núcleo puro YA está escrito y probado (19 pruebas) y NO se modifica: `src/lib/imagenes/{modelos,plan,sugerencias}.ts` (MODELOS_IMAGEN, MOTORES, cabe, planImagen, paqueteBase, motoresPosibles). Para la malla reutiliza lo que hagan G3D1011D (`src/lib/avatares/adaptadores/reparto-taller.ts`) y el registro de neuronas existente; para referencias 3D, G3D1011E. Reglas: «basta de ilusiones» (si algo no corre aquí, se dice por qué); NUNCA descargas automáticas de pesos (los repos pesan de 6 a 100 GB): solo con permiso, solo los archivos necesarios y tras comprobar ≥ 3 veces su tamaño libre; modelos «gated» necesitan que la persona acepte sus términos en Hugging Face y un token suyo en el entorno (explícale qué es y dónde se consigue, con enlace); nada de claves en código ni registros; nada no comercial en uso comercial; con imagen de referencia nada sale de sus neuronas sin permiso; en la Mac de Alex (8 GB) las imágenes ceden ante el enjambre; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto de qué funciona y qué no.\n\nTAREA: Tarjeta que muestra todas las opciones de una generación en rejilla (sin solaparse en pantallas pequeñas): por opción, modelo, dónde se hizo (tu aparato, tu PC, la malla, la web), licencia y atribución visibles. Acciones: elegir, variar (más semillas del mismo modelo), editar en la Protomolécula (abre la imagen en su lienzo; busca cómo se abre en src/components y src/lib/protomolecula), ampliar, usar como referencia para 3D (abre el diálogo de G3D1011E si existe), guardar en la Biblioteca y borrador de publicación. Debe poder incrustarse en un mensaje de chat de Astraura, en la respuesta de un agente y en la de un bot. Accesible y con prefers-reduced-motion. Pruebas del hook.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261013-115052-IMG1011Cb`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261013-115052-IMG1011Cb:refs/remotes/origin/nube/a1-20261013-115052-IMG1011Cb\"` y `git cherry-pick --no-commit 8af17e3c6b5f`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/imagenes/tarjeta-imagenes.tsx, src/lib/avatares/referencia3d.ts, src/lib/imagenes/adaptadores/__tests__/use-tarjeta-imagenes.test.tsx, src/lib/imagenes/adaptadores/use-tarjeta-imagenes.ts, src/lib/integrations/aurora-tools.ts, src/lib/library.ts, src/lib/protomolecula/editor.ts, src/lib/publicacion/borrador.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261013-115052-IMG1011Cb"
+  },
+  {
+   "id": "AV1011Jb",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Propuestas y votos de avatar en grupos y páginas (PoliGenesis)",
+   "archivos": [
+    "src/lib/avatares/adaptadores/propuesta-avatar.ts",
+    "src/components/avatares/propuesta-avatar.tsx",
+    "src/lib/avatares/adaptadores/__tests__/propuesta-avatar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Operación `avatar.cambiar` con `{ref, revBase, cambios}` donde `cambios = diffAdn(actual, propuesto)`. Regístrala con el mecanismo de operaciones de Genesis/PoliGenesis que ya existe (búscalo; la tarea BOT1011J1 añade operaciones de bots en `src/lib/genesis/operaciones.ts`: si el registro admite archivos separados úsalo, si no, edición mínima). Al aprobarse: si `revBase` coincide, `aplicarCambios`; si no, se vuelve a calcular el diff sobre la revisión actual y se avisa. La tarjeta muestra los dos avatares lado a lado (actual y propuesto) y la lista de cambios en palabras. Solo se puede proponer si `decidirCambioAvatar` responde «votacion». Pruebas del rebase.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261013-171455-AV1011J`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261013-171455-AV1011J:refs/remotes/origin/nube/a1-20261013-171455-AV1011J\"` y `git cherry-pick --no-commit 46d2541cb248`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/avatares/propuesta-avatar.tsx, src/lib/avatares/adaptadores/__tests__/propuesta-avatar.test.ts, src/lib/avatares/adaptadores/propuesta-avatar.ts, src/lib/genesis/operaciones.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261013-171455-AV1011J",
+   "dependencias_ya_en_main": [
+    "AV1011D"
+   ]
+  },
+  {
+   "id": "TRD1020E",
+   "ola": "1020U",
+   "titulo": "Traducción · menú del clic derecho sobre textos, con registro de entradas compartido (Variaciones públicas)",
+   "archivos": [
+    "src/components/traduccion/menu-texto.tsx",
+    "src/components/traduccion/__tests__/menu-texto.test.tsx",
+    "src/app/(app)/app-globals.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Componente global (montado en `AppGlobals`, dentro de `SoloFueraDeConsola`): escucha `contextmenu`; si el evento ya viene atendido (`defaultPrevented`), si se pulsa Mayúsculas o si el objetivo es editable, no hace nada (manda el menú del navegador); sobre texto, abre un menú propio en el puntero. Exporta `registrarEntradaMenuTexto({id, etiqueta, visible(ctx), ejecutar(ctx)})` para que otras funciones (Traducir, Variaciones públicas) añadan entradas al MISMO menú; `ctx` lleva la selección, el bloque bajo el puntero y si la página está traducida. Accesible: `role=menu` y `menuitem`, flechas, Escape y clic fuera cierran, dianas de 44 px, cursor pointer, cristal líquido de la marca (como `src/components/protomolecula/panel-orbe.tsx`). Pruebas: abre sobre texto, no abre en campos ni con Mayúsculas, entradas registradas visibles, teclado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).",
+   "revisor_quitadas": [
+    "TRD1020D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "AV1011Jb",
+   "IMG1011Cc",
+   "TRD1020E"
+  ]
+ }
+}
