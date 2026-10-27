@@ -89,6 +89,7 @@ import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
 import { cronometroHabla, cronometroOido } from "@/lib/aurora/medidas-voz";
+import { crearDetectorInterrupcion } from "@/lib/aurora/interrumpir-por-voz";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -2180,6 +2181,7 @@ export function useAuroraEngine(): AuroraEngine {
     let audioCtx: AudioContext | null = null;
     let mediaStream: MediaStream | null = null;
     let procesador: ScriptProcessorNode | null = null;
+    const detectorInterrupcion = crearDetectorInterrupcion({ umbralDb: -45, minimoMs: 250 });
 
     /** Medio-dúplex: suelta micro, contexto de audio y flujo, sin tedio. */
     const soltarAudio = () => {
@@ -2336,10 +2338,18 @@ export function useAuroraEngine(): AuroraEngine {
           procesador.onaudioprocess = (ev: AudioProcessingEvent) => {
             if (stopped || !flujo) return;
             try {
+              const datos = ev.inputBuffer.getChannelData(0);
               flujo.enviar(prepararAudio(
-                ev.inputBuffer.getChannelData(0),
+                datos,
                 audioCtx ? audioCtx.sampleRate : 16000,
               ));
+              if (ttsSpeakingGlobal && !esEcoPropio("", Date.now())) {
+                const energia = datos.reduce((sum, v) => sum + Math.abs(v), 0) / datos.length;
+                const db = 20 * Math.log10(energia || 1e-10);
+                if (detectorInterrupcion.actualizar(db, Date.now())) {
+                  interrupt();
+                }
+              }
             } catch { /* un envío roto no tumba la escucha */ }
           };
         }).catch((err: unknown) => {
