@@ -29,6 +29,7 @@ import {
   hexARgb,
   periodos,
   registroParaModo,
+  respiracionDelOrbe,
   type Estilo,
   type IdForma,
   type Modo,
@@ -148,6 +149,7 @@ export function crearMotor(canvas: HTMLCanvasElement, op: OpcionesMotor): MotorO
   let vozNivel = 0, pulsoCrear = 0;
   let indiceSecuencia = 0, tEnForma = 0;
   let reducido = op.reducido;
+  let respiracion = respiracionDelOrbe(estilo, registroBase, reducido);
   let tamano = op.tamano;
   let destruido = false;
   let modelo: { puntos: Vec3[]; aristas: Arista[]; malla: THREE.Mesh | null } | null = null;
@@ -560,7 +562,7 @@ export function crearMotor(canvas: HTMLCanvasElement, op: OpcionesMotor): MotorO
 
     const nueva = instantanea(actual);
     const vieja = transicion < 1 ? (anterior === actual ? nueva : instantanearAnterior()) : null;
-    const respira = 1 + 0.03 * Math.sin(fase.tiempo * (dosPi / 5)) + vozNivel * 0.08 + pulsoCrear * 0.05;
+    const respira = 1 + (respiracion.escala - 1) * Math.sin(fase.tiempo * (dosPi / (respiracion.periodoMs / 1000))) + vozNivel * 0.08 + pulsoCrear * 0.05;
     const escalaNueva = semillaEscala * respira * (vieja ? 0.62 + 0.38 * k : 1);
     const escalaVieja = semillaEscala * respira * (1 + 0.15 * k);
     // En lienzos pequeños (la orbe flotante) un punto más de luz para que se lea sobre cualquier fondo.
@@ -783,8 +785,8 @@ export function crearMotor(canvas: HTMLCanvasElement, op: OpcionesMotor): MotorO
   const repintarSiReducido = () => { if (reducido && !destruido) pintar(0, performance.now()); };
 
   return {
-    fijarEstilo(e) { estilo = e; carasMat.uniforms.uOpacidad.value = ESTILOS[e].opacidadCaras; tEnForma = 0; repintarSiReducido(); },
-    fijarRegistro(r) { registroBase = r; repintarSiReducido(); },
+    fijarEstilo(e) { estilo = e; respiracion = respiracionDelOrbe(estilo, registroBase, reducido); carasMat.uniforms.uOpacidad.value = ESTILOS[e].opacidadCaras; tEnForma = 0; repintarSiReducido(); },
+    fijarRegistro(r) { registroBase = r; respiracion = respiracionDelOrbe(estilo, registroBase, reducido); repintarSiReducido(); },
     fijarModo(m) {
       if (modo === "encendiendo" && m === "reposo") return;
       if (apagado) return;
