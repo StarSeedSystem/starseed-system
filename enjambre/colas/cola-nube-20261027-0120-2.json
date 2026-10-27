@@ -1,0 +1,111 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "LYS1018K",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Habilidades · Laya elige cuál aplica y el tamaño sale de la capa que responde",
+   "archivos": [
+    "src/ai/astraura/habilidades/elegir-habilidad.ts",
+    "src/ai/astraura/skills.ts",
+    "src/ai/astraura/habilidades/__tests__/elegir-habilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`preguntaHabilidad(habilidades)` arma la pregunta `choice` de Laya (criterio = `cuando` de cada una + \"ninguna\"); `bloqueHabilidad(respuesta, capa, umbral)` devuelve el texto a inyectar: tarjeta para reflejo/palabra pequeña, resumen para palabra/razón con Bonsai, y para profunda/nube la referencia a la completa; nada si \"ninguna\" o confianza < umbral. En skills.ts registra la capacidad `habilidades-ingenieria` con `defaultOn: true` (desactivable) que llama a esto (solo añadir). Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018I",
+    "LYS1018Ib",
+    "LYS1018J"
+   ]
+  },
+  {
+   "id": "LYS1018L",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Enjambre · cada escritor recibe la tarjeta de habilidad que encaja con su tarea",
+   "archivos": [
+    "scripts/enjambre/habilidades_enjambre.py",
+    "scripts/enjambre/test_habilidades_enjambre.py",
+    "scripts/enjambre/starseed-enjambre.py"
+   ],
+   "depende": [],
+   "prompt": "habilidades_enjambre.py PURO: `tarjeta_para(tarea)` elige por palabras de título/prompt (prueba → tdd; error, fallo, arreglar → diagnosing-bugs; módulo, interfaz, refactor → codebase-design; contrato, especificación → to-spec) la tarjeta en español (las mismas de src/ai/astraura/habilidades, copiadas como datos) y `con_habilidad(prompt, tarea)` la añade al final con el título «Cómo trabajar (habilidad de Matt Pocock, MIT)». Si Laya local responde en ≤ 3 s, `elegir_con_laya` decide en vez de las palabras. En starseed-enjambre.py añade como mucho 6 líneas donde se arma el prompt del escritor. Pruebas de lo puro. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018I",
+    "LYS1018Ib"
+   ]
+  },
+  {
+   "id": "AV1011B",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Editor del avatar en tiempo real: deslizadores, colores, piezas, voz, Astraura y MIDI",
+   "archivos": [
+    "src/components/avatares/editor-avatar.tsx",
+    "src/lib/avatares/adaptadores/use-editor-avatar.ts",
+    "src/lib/avatares/adaptadores/__tests__/use-editor-avatar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Panel con: morfología (8 deslizadores), color por ranura, piezas por ranura (elementos de la Biblioteca de tipo pieza de avatar; si no hay, dilo y ofrece importar), expresiones, aura, carácter del movimiento y visibilidad. Hook `useEditorAvatar`: aplica con `aplicarCambio` al instante, deshacer/rehacer (pila de ADN, tope 50), emite con `encolar`/`lote` solo si hay otros presentes y guarda con `debeGuardar` en el almacén de AV1011D. Voz y texto: un campo y un botón de micrófono con el dictado que ya tenga el OS (búscalo en src/lib/aurora); lo dicho pasa por `cambiosDesdeFrase`; lo que queda en `sinEntender` va a Astraura con una instrucción que pide SOLO una lista JSON de `CambioAvatar` (se filtra con `sanearCambio`; si no hay modelo disponible, se dice). MIDI: si la Protomolécula ya tiene mapeo de controles, úsalo; si no, Web MIDI con permiso explícito, CC → deslizador elegido. Pruebas del hook con reloj falso: agrupación, deshacer, cuándo guarda y que sin nadie mirando no emite.",
+   "dependencias_ya_en_main": [
+    "AV1011A",
+    "AV1011D"
+   ]
+  },
+  {
+   "id": "AV1011C",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "La orbe del bot puede ser su avatar 3D: emoción, voz y movimiento",
+   "archivos": [
+    "src/lib/avatares/adaptadores/adn-de-bot.ts",
+    "src/components/avatares/cuerpo-3d-bot.tsx",
+    "src/lib/avatares/adaptadores/__tests__/adn-de-bot.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Cuando `bot.cuerpo.forma` es `avatar-3d` o `vrm`, `bot.cuerpo.avatarRef` apunta al ADN (`biblioteca:`). `adnDeBot(bot)` lo carga o crea `adnPorDefecto` con el tono de la orbe y dueño `{tipo:'bot'}`. La emoción del bot (valencia y activación de `src/lib/astraura-bots/tipos.ts`) mueve expresiones (happy/sad/angry/surprised/relaxed) y la intensidad del aura si `aura.ligadaEmocion`; al hablar, visemas por `sincronia-voz.ts` y gestos con `moverAvatar` respetando `adn.movimiento`. Punto de integración: la tarea BOT1011U de la cola de bots crea `src/components/astraura-bots/cuerpo-bot.tsx`; si ya existe, monta ahí `<Cuerpo3dBot>` para esas formas; si no existe, deja el componente exportado y dilo en el resumen (no lo crees tú). Tamaño de widget flotante, pausa al ocultarse, sin animación con prefers-reduced-motion. Pruebas de `adnDeBot` y del mapeo emoción→expresiones.",
+   "dependencias_ya_en_main": [
+    "AV1011A"
+   ]
+  },
+  {
+   "id": "AV1011E",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Sincronía del avatar en escenas compartidas y en XR",
+   "archivos": [
+    "src/lib/vivo/espacial/avatares.ts",
+    "src/lib/avatares/adaptadores/sincronia-adn.ts",
+    "src/lib/avatares/adaptadores/__tests__/sincronia-adn.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Añade a `MetaAvatar` campos opcionales `adnRef` y `adnRev` (sin romper a quien no los mande). Al entrar alguien, los presentes leen su ADN UNA vez (caché por ref+rev). Edición en vivo: los lotes de `lote()` viajan por el MISMO canal de la escena como evento `adn` con `{ref, rev, cambios}`; quien recibe filtra con `sanearCambio` y aplica solo si la revisión es más nueva. En XR, el nivel de avatar sale de la calidad actual (`src/lib/xr/`) y se dibuja con `adnParaCalidad`. Mantén las reglas de 10 Hz del archivo y que las pruebas existentes de espacial sigan en verde.",
+   "dependencias_ya_en_main": [
+    "AV1011A",
+    "AV1011D"
+   ]
+  },
+  {
+   "id": "VZF1015G",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Aurora escucha por el elector: tramos con detector de voz hacia el mejor motor (el navegador queda de suelo)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/escucha-fusionada.ts",
+    "src/lib/aurora/stt-oss/__tests__/escucha-fusionada.test.ts",
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea `escucharFusionado({ obtenerAudio, elegir, transcribir, alParcial, alFinal, idiomaPista, hotwords })`: corta el audio del micrófono en tramos con el detector de energía de `oss-stt.ts` (silencio 800 ms, tramo ≤ 30 s), pide a `elegirOido` el motor de la fase «final» por tramo y transcribe con `transcribirOpenAI` o el demonio; el parcial lo sigue dando el navegador si está (regla 1 del §3). En `engine.ts` (alrededor de `buildRecognition`, l. ~1925) usa este camino cuando el navegador no tiene reconocimiento o la neurona tiene un motor local medido mejor, SIN tocar el cerrojo de dueño único (`claimStt/releaseStt`) ni `esEcoPropio`. Pruebas con audio y motores falsos. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015A",
+    "VZF1015B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "AV1011B",
+   "AV1011C",
+   "AV1011E",
+   "LYS1018K",
+   "VZF1015G",
+   "LYS1018L"
+  ]
+ }
+}
