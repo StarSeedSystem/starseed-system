@@ -47,11 +47,10 @@ describe("prepararGeneracion", () => {
   it("sin hierro medido no promete generar en local", () => {
     expect(prepararGeneracion(ctx({ hierro: null }), deps({ taller: async () => ok() })).via).toBe("ninguna");
   });
-  it("con NVIDIA pero sin taller, el Space sigue de respaldo y se dice por qué no se genera aquí", () => {
+  it("con NVIDIA pero sin taller y sin permiso de cuenta, no ofrece el Space y lo dice", () => {
     const p = prepararGeneracion(ctx({ hierro: NV16 }), deps({ espacio: async () => ok() }));
-    expect(p.via).toBe("remota");
-    expect(p.plan.pasos[0].motor?.id).toBe("pixal3d-espacio");
-    expect(p.motivo).toMatch(/podría generar con Pixal3D.*no está instalado.*saldría de este aparato/);
+    expect(p.via).toBe("ninguna");
+    expect(p.motivo).toMatch(/versiones públicas .* apagadas/i);
   });
   it("sin el registro de neuronas no dice que no haya ninguna", () => expect(prepararGeneracion(ctx({ neuronas: null }), deps()).neurona).toMatch(/no se leyó el registro/));
   it("Mac de 32 GB con taller: genera en local con TRELLIS.2 (no Pixal3D, que pide CUDA) y planifica las 5 etapas", () => {
@@ -69,6 +68,11 @@ describe("prepararGeneracion", () => {
     expect(conSpace.plan.pasos.find((x) => x.etapa === "generar")?.motor?.remoto).toBe(true);
     expect(conSpace.motivo).toMatch(/^Esta neurona no puede generar en local.*saldría de este aparato\.$/);
     expect(prepararGeneracion(ctx({ destino: "bot", hierro: cpu }), deps()).via).toBe("ninguna");
+  });
+  it("sin permiso de la cuenta no ofrece el Space aunque exista el respaldo, y lo dice", () => {
+    const p = prepararGeneracion(ctx({ hierro: { ...MAC8, permiteEspacioHf: false } }), deps({ espacio: async () => ok() }));
+    expect(p.via).toBe("ninguna");
+    expect(p.motivo).toMatch(/versiones públicas .* apagadas/i);
   });
 });
 
