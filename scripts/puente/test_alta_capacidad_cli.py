@@ -147,6 +147,44 @@ class AltaCapacidadCLI(unittest.TestCase):
         self.assertFalse(datos["cupo"]["ok"])
         self.assertIn("tope superado", datos["cupo"]["motivo"])
 
+    def test_cupo_por_limites_semana_vieja_y_sin_fichero(self):
+        cola, progreso, limites = self._preparar(
+            limites={"lecturas": [{"t": _ahora_iso(), "semana_pct": 85, "sesion_pct": 10}]}
+        )
+        datos = json.loads(self._correr("--olas", os.path.dirname(cola), "--progreso", progreso,
+                                        "--limites", limites, "--json").stdout)
+        self.assertFalse(datos["cupo"]["ok"])
+        self.assertIn("semana", datos["cupo"]["motivo"])
+        self.assertEqual(datos["elegidas"], [])
+
+        viejo = (datetime.now(timezone.utc) - timedelta(hours=8)).isoformat()
+        with open(limites, "w", encoding="utf-8") as f:
+            json.dump({"lecturas": [{"t": viejo, "semana_pct": 10, "sesion_pct": 10}]}, f)
+        datos = json.loads(self._correr("--olas", os.path.dirname(cola), "--progreso", progreso,
+                                        "--limites", limites, "--json").stdout)
+        self.assertFalse(datos["cupo"]["ok"])
+        self.assertIn("lectura vieja", datos["cupo"]["motivo"])
+        self.assertEqual(datos["elegidas"], [])
+
+        os.remove(limites)
+        datos = json.loads(self._correr("--olas", os.path.dirname(cola), "--progreso", progreso,
+                                        "--limites", limites, "--json").stdout)
+        self.assertFalse(datos["cupo"]["ok"])
+        self.assertIn("lectura vieja", datos["cupo"]["motivo"])
+
+    def test_olas_por_entorno_sin_raiz(self):
+        cola, _progreso, limites = self._preparar()
+        env = dict(os.environ, STARSEED_OLAS=os.path.dirname(cola),
+                   STARSEED_LIMITES_CLAUDE=limites)
+        env.pop("STARSEED_ROOT", None)
+        env.pop("STARSEED_PROGRESO", None)
+        r = subprocess.run([sys.executable, CLI, "--json"], capture_output=True, text=True,
+                           env=env, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        datos = json.loads(r.stdout)
+        self.assertTrue(datos["cupo"]["ok"])
+        self.assertEqual(datos["elegidas"], ["T1"])
+
     def test_rutas_por_entorno(self):
         cola, progreso, limites = self._preparar()
         r = self._correr(
