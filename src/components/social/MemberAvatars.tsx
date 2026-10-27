@@ -8,6 +8,7 @@ import {
     type SystemKey,
 } from "@/data/sample-entities";
 import { profileHref } from "@/lib/entity-links";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 
 function onImgError(e: React.SyntheticEvent<HTMLImageElement, Event>) {
     e.currentTarget.style.display = "none";
@@ -41,11 +42,17 @@ export function MemberAvatars({
         .slice(0, 9);
 
     if (members.length === 0) {
+        if (total > 0) {
+            return (
+                <AvisoSesion
+                    compacto
+                    texto={`${total.toLocaleString("es-ES")} miembros. Inicia sesión para ver el directorio.`}
+                />
+            );
+        }
         return (
             <div className="rounded-xl border border-dashed border-white/12 p-6 text-center text-sm text-muted-foreground">
-                {total > 0
-                    ? `${total.toLocaleString("es-ES")} miembros. Inicia sesión para ver el directorio.`
-                    : "Aún no hay miembros. Sé el primero en unirte."}
+                {"Aún no hay miembros. Sé el primero en unirte."}
             </div>
         );
     }

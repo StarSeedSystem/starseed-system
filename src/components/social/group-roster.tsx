@@ -38,6 +38,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 import { Users } from "lucide-react";
 
 import { profileHref } from "@/lib/entity-links";
@@ -245,9 +246,15 @@ export function GroupRoster({
                 icon={Users}
                 title={hasKnownCensus ? "Directorio no disponible" : "Aún no hay miembros"}
                 description={
-                    hasKnownCensus
-                        ? `Este grupo tiene ${(total ?? 0).toLocaleString("es-ES")} miembros. Inicia sesión para ver el directorio.`
-                        : "Sé la primera persona en unirte a este grupo."
+                    hasKnownCensus ? (
+                        <AvisoSesion
+                            compacto
+                            texto={`Este grupo tiene ${(total ?? 0).toLocaleString("es-ES")} miembros. Inicia sesión para ver el directorio.`}
+                            className="mt-2 text-left"
+                        />
+                    ) : (
+                        "Sé la primera persona en unirte a este grupo."
+                    )
                 }
             />
         );
