@@ -33,6 +33,19 @@ describe("disponibilidad.ts", () => {
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
     });
+
+    it("una cadena vacía da un mapa vacío", () => {
+      expect(decodificar("").length).toBe(0);
+    });
+
+    it("ida y vuelta de índices marcados con huecos", () => {
+      const indices = [0, 1, 2, 5, 8];
+      const bits = crearBits(9);
+      for (const i of indices) marcarIndice(bits, i);
+      const recuperados = decodificar(codificar(bits));
+      for (const i of indices) expect(tieneIndice(recuperados, i)).toBe(true);
+      for (const i of [3, 4, 6, 7]) expect(tieneIndice(recuperados, i)).toBe(false);
+    });
   });
 
   describe("mapa de bits", () => {
@@ -98,6 +111,10 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+
+    it("un anuncio sin índices no produce piezas", () => {
+      expect(anuncio("nodo", "e", 10, [], 0)).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
@@ -107,6 +124,12 @@ describe("disponibilidad.ts", () => {
       ...uno.map((a) => ({ anuncio: a, recibidoEn: AHORA - 20_000 })),
       ...dos.map((a) => ({ anuncio: a, recibidoEn: AHORA - 5_000 })),
     ];
+
+    it("fusionar sin anuncios da un registro vacío", () => {
+      const reg = fusionar([]);
+      expect(reg.size).toBe(0);
+      expect(quienTiene(reg, "t1", 0, AHORA)).toEqual([]);
+    });
 
     it("une piezas de dos nodos y sirve el índice a quien corresponden", () => {
       const uno = fusionar(
