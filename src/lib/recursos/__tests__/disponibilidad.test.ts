@@ -33,6 +33,10 @@ describe("disponibilidad.ts", () => {
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
     });
+
+    it("la cadena vacía decodifica a cero bytes", () => {
+      expect(decodificar("")).toEqual(new Uint8Array([]));
+    });
   });
 
   describe("mapa de bits", () => {
@@ -116,6 +120,16 @@ describe("disponibilidad.ts", () => {
       const registro = fusionar([]);
       expect(registro.size).toBe(0);
       expect(quienTiene(registro, "t", 0, AHORA)).toEqual([]);
+    });
+
+    it("un solo anuncio basta para poblar el registro", () => {
+      const registro = fusionar([
+        { anuncio: anuncio("unico", "t5", 20, [7, 8], 300)[0], recibidoEn: AHORA - 1_000 },
+      ]);
+      expect(registro.get("t5")?.orden.size).toBe(1);
+      expect(quienTiene(registro, "t5", 7, AHORA)).toEqual(["unico"]);
+      expect(quienTiene(registro, "t5", 8, AHORA)).toEqual(["unico"]);
+      expect(quienTiene(registro, "t5", 0, AHORA)).toEqual([]);
     });
 
     it("une piezas de dos nodos y sirve el índice a quien corresponden", () => {
