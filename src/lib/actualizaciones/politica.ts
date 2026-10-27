@@ -42,6 +42,12 @@ export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
 
 export const VENTANA_NOCTURNA: VentanaHoraria = { desdeH: 3, hastaH: 6 };
 const P = (modo: ModoPolitica, ventana?: VentanaHoraria): PoliticaCapa => (ventana ? { modo, ventana: { ...ventana } } : { modo });
+
+/** ¿Este tipo de sistema exige aprobación antes de aplicar una versión? */
+export function sistemaRequiereAprobacion(tipo: TipoSistema): boolean {
+  return tipo === "grupo-democratico";
+}
+
 /** Política por defecto (contrato §4): perfil y grupo jerárquico → datos e interfaz automáticas,
  * sw solo en la neurona elegida, el resto avisa; página pública → además el sw va solo;
  * grupo democrático → los mismos modos marcados «requiere aprobación»; OS → modelos nocturnos. */
@@ -52,17 +58,12 @@ export function politicaPorDefecto(tipo: TipoSistema): PoliticaSistema {
   };
   if (tipo === "os") return { ...base, modelos: P("programada", VENTANA_NOCTURNA) };
   if (tipo === "pagina" || tipo === "pagina-publica") return { ...base, sw: P("automatica-todas") };
-  if (tipo === "grupo-democratico") {
+  if (sistemaRequiereAprobacion(tipo)) {
     const out = {} as PoliticaSistema;
     for (const capa of CAPAS_ORDEN) out[capa] = { ...base[capa], requiereAprobacion: true };
     return out;
   }
   return base;
-}
-
-/** ¿Este tipo de sistema exige aprobación antes de aplicar una versión? */
-export function sistemaRequiereAprobacion(tipo: TipoSistema): boolean {
-  return tipo === "grupo-democratico";
 }
 
 /** Hora local, neurona elegida y aprobación (opcionales para no romper llamadores existentes). */

@@ -31,6 +31,17 @@ describe("política por defecto por tipo de sistema", () => {
     expect(sistemaRequiereAprobacion("grupo-democratico")).toBe(true);
     expect(sistemaRequiereAprobacion("grupo-jerarquico")).toBe(false);
   });
+  it("la marca de aprobación de la política por defecto sale de sistemaRequiereAprobacion", () => {
+    const tipos = [
+      "perfil", "pagina", "grupo", "comunidad", "estudio", "evento", "os",
+      "perfil-privado", "pagina-publica", "grupo-jerarquico", "grupo-democratico",
+    ] as const;
+    for (const tipo of tipos) {
+      const requiere = sistemaRequiereAprobacion(tipo);
+      for (const capa of CAPAS_ORDEN)
+        expect(politicaPorDefecto(tipo)[capa].requiereAprobacion === true).toBe(requiere);
+    }
+  });
   it("el OS programa los modelos en la ventana nocturna y entrega las capas en orden", () => {
     const p = politicaPorDefecto("os");
     expect(p.modelos).toEqual({ modo: "programada", ventana: VENTANA_NOCTURNA });
