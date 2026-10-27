@@ -163,6 +163,18 @@ def guardar_marca(motor, pids):
         f.write("\n".join(str(p) for p in sorted(pids)))
 
 
+def presion_nucleo():
+    """Nivel de presión de memoria del kernel (macOS): 1 = bajo, 2 = mediano, 3 = alto."""
+    try:
+        s = subprocess.run(
+            ["sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
+            capture_output=True, text=True, timeout=5
+        ).stdout
+        return int(s.strip())
+    except Exception:
+        return None
+
+
 def swap_pct():
     """Porcentaje aproximado de swap usada (macOS sysctl)."""
     try:
@@ -238,7 +250,7 @@ def accion_para(motor, congelado_min, swap_pct):
     return "nada"
 
 
-def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False):
+def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False, presion=None):
     """Que hacer, pura: lista de (motor, 'congelar'|'descongelar').
 
     `congelados` son los motores que el guardia tiene marcados Y verificados como
@@ -253,6 +265,9 @@ def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False):
       · Un motor marcado cuyo proceso ya no esta parado («T») NO es `congelado`: no se
         le manda SIGCONT a un proceso vivo y el marcador se borra fuera, asi un motor
         nuevo con el mismo nombre vuelve a poder congelarse. Ver `main`.
+      · Si hay presión de kernel (`presion >= 2`), se trata como si faltara memoria:
+        un motor ya congelado pasa a «reevaluar» y uno suelto se congela con las mismas
+        condiciones de bajo memoria.
     """
     acciones = []
     if conversando:
@@ -275,6 +290,12 @@ def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False):
             # estaban parados: el tts-server pasó 13 h congelado reteniendo ~900 MB
             # con la swap al 95 % y el enjambre atascado.
             acciones.append((motor, "reevaluar"))
+        elif presion is not None and presion >= 2:
+            # Presión de kernel alta: trata como memoria baja.
+            if motor not in congelados:
+                acciones.append((motor, "congelar"))
+            else:
+                acciones.append((motor, "reevaluar"))
     return acciones
 
 
@@ -310,7 +331,7 @@ def main():
             congelados = obtener_congelados(motores) if ps_ok else set()
 
             conversando = _conv.activa(_conv.leer_concesion())
-            acciones = decidir(orq, libres_mb(), congelados, vivos, conversando)
+            acciones = decidir(orq, libres_mb(), congelados, vivos, conversando, presion_nucleo())
             # El enjambre cede la RAM mientras dura la conversación y vuelve al acabar.
             if conversando or _conv.leer_marca():
                 print("conversación: %s" % _conv.aplicar(), flush=True)
