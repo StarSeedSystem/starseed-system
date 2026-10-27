@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // @vitest-environment-options {"url": "https://starseed-os.vercel.app/metagenesis"}
 /**
  * Los botones «Desconectar» y «Usar como contenedor» de la tarjeta de cada neurona (COL1012I).
@@ -48,16 +49,46 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
 
     it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" }, relevoActivo: true });
+=======
+/**
+ * Test suite for MetaGenesis botonesNeurona component
+ * Tests from the cloud branch that weren't covered in main
+ */
+import { describe, expect, it } from "vitest";
+import { botonesNeurona, type NeuronaColmena } from "@/lib/metagenesis/colmena";
+
+describe("MetaGenesis · test cases from cloud branch", () => {
+    it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 } as NeuronaColmena);
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
+        expect(b.desconectar.explica).toBe("No tiene trabajo en curso: puedes apagarlo sin más.");
+        expect(b.desconectar.confirmar).toBe(false);
+    });
+
+    it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
+        const b = botonesNeurona({ 
+            nodo: "mac-a1b2c3", 
+            vivo: true, 
+            so: "macos", 
+            enCurso: 0, 
+            contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } 
+        } as NeuronaColmena);
+>>>>>>> cefa99c9b (salvavidas · RTRTRTRTCOL1012Bdsbbbbbc-d2: trabajo del agente antes de las puertas (tsc / vitest))
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
     });
 
     it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente", () => {
+<<<<<<< HEAD
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, relevoActivo: true });
+=======
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1 } as NeuronaColmena);
+>>>>>>> cefa99c9b (salvavidas · RTRTRTRTCOL1012Bdsbbbbbc-d2: trabajo del agente antes de las puertas (tsc / vitest))
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
         expect(b.desconectar.explica).toContain("1 agente");
         expect(b.desconectar.confirmar).toBe(true);
     });
+<<<<<<< HEAD
 
     it("contenedor activo: explica «Termina lo que lleva y no coge más.» y pide confirmar si hay trabajo", () => {
         const sin = botonesNeurona({
@@ -737,3 +768,6 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         await waitFor(() => expect(enviarOrden).toHaveBeenCalledWith("revisar_bloqueadas", "lider"));
     });
 });
+=======
+});
+>>>>>>> cefa99c9b (salvavidas · RTRTRTRTCOL1012Bdsbbbbbc-d2: trabajo del agente antes de las puertas (tsc / vitest))
