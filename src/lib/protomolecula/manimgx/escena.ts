@@ -6,11 +6,16 @@
 
 export type CalidadManim = "480p" | "720p" | "1080p";
 
-export interface EscenaManimContrato {
+export interface EscenaManim {
+  /** Código Python completo de la escena, listo para el Worker/contenedor. */
   codigo: string;
+  /** Nombre de la clase principal de la escena (p. ej. «CuboGiratorio»). */
   clase: string;
+  /** Resolución de referencia del vídeo. */
   calidad: CalidadManim;
+  /** Cuadros por segundo: 24, 30 o 60. */
   fps: number;
+  /** Tope de seguridad en segundos: nada se ejecuta más allá de esto. */
   duracionMax: number;
 }
 
@@ -62,12 +67,6 @@ function esClaseEscena(bases: string): boolean {
   });
 }
 
-function revisarModulo(modulo: string, motivos: Set<string>): void {
-  const raiz = raizDeModulo(modulo);
-  if (MODULOS_PERMITIDOS.includes(raiz)) return;
-  motivos.add(`Import del módulo «${modulo}» no permitido: solo manim, manimgx, math y numpy.`);
-}
-
 function revisarImport(codigo: string, motivos: Set<string>): void {
   for (const linea of codigo.split("\n")) {
     const desde = linea.match(/^\s*from\s+([.\w]+)\s+import\b/);
@@ -82,9 +81,16 @@ function revisarImport(codigo: string, motivos: Set<string>): void {
   }
 }
 
+function revisarModulo(modulo: string, motivos: Set<string>): void {
+  const raiz = raizDeModulo(modulo);
+  if (MODULOS_PERMITIDOS.includes(raiz)) return;
+  motivos.add(`Import del módulo «${modulo}» no permitido: solo manim, manimgx, math y numpy.`);
+}
+
 /**
  * Decide si un código es una escena de Manim segura. NO ejecuta nada y NO toca
- * disco ni red: solo lee cadenas. Acumula los motivos legibles, sin repetir.
+ * disco ni red: solo lee cadenas. Acumula todos los motivos en orden, sin
+ * repetir, con frases legibles para el agente que escribió la escena.
  */
 export function validarEscena(codigo: string): ResultadoValidacionEscena {
   if (codigo.trim().length === 0) {
