@@ -102,6 +102,32 @@ class PruebasEmpaquetar(unittest.TestCase):
             self.assertEqual(log[0], "registro %d" % (largo - espejo_estado.LOG_LINEAS))
             self.assertEqual(log[-1], "registro %d" % (largo - 1))
 
+    def test_los_fijos_y_la_cola_viajan_enteros_y_el_log_en_el_borde_no_se_recorta(self):
+        """Rescatado de rama nube (RTRTRTRTS1010-EV-ORACLE-1abc): en un mismo paquete viajan
+        enteros los cuatro archivos fijos y una cola reciente (no solo ``progreso.json``), y un
+        log con exactamente ``LOG_LINEAS`` líneas se conserva tal cual: el recorte empieza por encima."""
+        fijos = {
+            "progreso.json": '{"ola": "1012C"}',
+            "progreso.md": "# Ola 1012C\n",
+            "medios.json": '{"medios": ["oracle-a1"]}',
+            "puntos-control.json": '{"puntos": [{"nombre": "pc1"}]}',
+            "cola-1.json": '{"tareas": []}',
+        }
+        for nombre, texto in fijos.items():
+            with open(os.path.join(self.olas, nombre), "w", encoding="utf-8") as f:
+                f.write(texto)
+        for nombre in ("evento1.jsonl", "log.txt"):
+            with open(os.path.join(self.olas, nombre), "w", encoding="utf-8") as f:
+                f.write("".join('{"evento": %d}\n' % i for i in range(espejo_estado.LOG_LINEAS)))
+        seleccion = sorted(fijos) + ["evento1.jsonl", "log.txt"]
+        with self._tar(seleccion) as tar:
+            self.assertEqual(sorted(tar.getnames()), sorted(seleccion))
+            for nombre, texto in fijos.items():
+                self.assertEqual(tar.extractfile(nombre).read().decode("utf-8"), texto)
+            for nombre in ("evento1.jsonl", "log.txt"):
+                lineas = tar.extractfile(nombre).read().decode("utf-8").splitlines()
+                self.assertEqual(len(lineas), espejo_estado.LOG_LINEAS)
+
 
 class PruebasEnviarEstado(unittest.TestCase):
     """enviar_estado con ssh falso: freno de 5 min, huella y orden de extracción atómica."""
