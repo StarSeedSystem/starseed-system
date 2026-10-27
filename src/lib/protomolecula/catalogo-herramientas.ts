@@ -4068,6 +4068,62 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
       "Los pesos de completado son MIT; la licencia del adaptador es Qwen Research, no comercial.",
     ],
   },
+
+  // ── repos-libreria-1020 (verificado 2026-10-20) ───────────────────
+  {
+    id: "solidcraft", nombre: "SolidCraft", categoria: "arquitectura-cad", tipo: "app", origen: "github",
+    descripcion: "CAD 3D paramétrico en Rust: croquis con restricciones, extrusión, revolución, barrido, loft, chaflán, vaciado, ensamblajes, chapa metálica y línea de tiempo paramétrica. Corre en escritorio y navegador y expone un servidor MCP para agentes.",
+    licencia: "Apache-2.0", codigo: "https://github.com/tangency-labs/solidcraft", web: "https://solidcraft.io",
+    medios: { web: "wasm", android: true, ios: true, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "iframe-aislado",
+    formatos: { entrada: ["step", "stp", "iges", "igs", "3mf", "stl", "obj", "gltf", "glb", "solidcraft"], salida: ["step", "stp", "iges", "igs", "3mf", "stl", "obj", "gltf", "glb", "urdf", "solidcraft"] },
+    control: { via: ["cli", "mcp"], notas: "Binario nativo con CLI (`solidcraft-cli`) y servidor MCP (`solidcraft-cli mcp`), ambos sobre el mismo registro de comandos. El build web (zip estático WebAssembly) NO trae canal de control: en iframe el control es «solo ventana» + archivos." },
+    actualizacion: { fuente: "github-releases", ref: "tangency-labs/solidcraft", ultimaVersion: "v0.16.2", fechaVersion: "2026-10-19" },
+    ia: ["mcp", "cli-agentes"],
+    estado: "integrable", motivo: "Se aloja su build web (`solidcraft-web-<versión>.zip`) como origen aparte en un iframe con sandbox; el control por CLI/MCP exige el binario nativo en una neurona de escritorio o servidor.",
+    verificado: "2026-10-20",
+    avisos: [
+      "Proyecto joven con versiones casi diarias: fija la versión por SHA y comprueba SHA256SUMS antes de alojar el build web.",
+      "Las descargas aún no están firmadas: Windows SmartScreen y macOS piden abrirlas a mano la primera vez.",
+      "En móvil solo corre por el navegador; no verificado en Android ni iOS.",
+    ],
+  },
+  {
+    id: "detectron2", nombre: "Detectron2", categoria: "ia-generativa", tipo: "libreria", origen: "github",
+    descripcion: "Plataforma de visión por computador de Meta AI sobre PyTorch para detección de objetos, segmentación, keypoints y otras tareas, con modelos del zoo y herramientas de entrenamiento y evaluación.",
+    licencia: "Apache-2.0", licenciaPesos: "NOASSERTION", codigo: "https://github.com/facebookresearch/detectron2", web: "https://detectron2.readthedocs.io/en/latest/",
+    medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "servicio-local",
+    formatos: { entrada: ["jpg", "jpeg", "png", "tif", "tiff", "bmp", "webp"], salida: ["json", "png", "jpg"] },
+    control: { via: ["python", "cli"], notas: "API de Python sobre PyTorch (`import detectron2`); `tools/train_net.py` y `demo.py` permiten entrenar y probar por línea de órdenes. Requiere un entorno con torch y, para ir fino, GPU." },
+    actualizacion: { fuente: "github-tags", ref: "facebookresearch/detectron2", ultimaVersion: "v0.6", fechaVersion: "2021-11-15" },
+    ia: ["vision", "deteccion-objetos", "segmentacion", "keypoints"],
+    estado: "proximamente", motivo: "El código es Apache-2.0 y puede correr como servicio local, pero los pesos del model zoo tienen licencias propias por modelo: entra como candidata y solo con pesos de uso libre elegidos uno a uno.",
+    verificado: "2026-10-20",
+    sinComprobar: ["licencia de cada peso del model zoo"],
+    avisos: [
+      "Pesos del model zoo con licencias propias: elegir solo los de uso libre.",
+      "Algunos datasets de entrenamiento son solo para investigación; no se usan en encargos comerciales.",
+    ],
+  },
+  {
+    id: "mesh2motion", nombre: "Mesh2Motion", categoria: "modelado-3d", tipo: "app", origen: "github",
+    descripcion: "App web (Vite y TypeScript, al estilo Mixamo) que importa un modelo GLB/glTF, le encaja un esqueleto, le asigna animaciones de su biblioteca y exporta el GLB/glTF animado.",
+    licencia: "MIT", codigo: "https://github.com/Mesh2Motion/mesh2motion-app", web: null,
+    medios: { web: "embebible", android: true, ios: true, macos: true, windows: true, linux: true, servidor: false },
+    integracion: "iframe-aislado",
+    formatos: { entrada: ["glb", "gltf"], salida: ["glb", "gltf"] },
+    control: { via: ["ninguno"], notas: "Sin API de control documentada: se embebe tal cual y el intercambio es por archivos." },
+    actualizacion: { fuente: "github-tags", ref: "Mesh2Motion/mesh2motion-app", ultimaVersion: null, fechaVersion: null },
+    ia: ["rigging", "animacion"],
+    estado: "integrable", motivo: "Se aloja su build web estático (`npm run build`, Vite) como origen aparte en un iframe con sandbox; sin releases, fija el commit. Control «solo ventana» + archivos.",
+    verificado: "2026-10-20",
+    avisos: [
+      "Assets 3D (modelos, rigs y animaciones) en CC0; el código en MIT.",
+      "Sin releases ni etiquetas todavía: se construye desde el commit fijado.",
+      "GitHub no detecta una única licencia porque el repo separa LICENSE-MIT.MD y LICENSE-CC0.MD; el README declara MIT para el código y CC0 para los assets.",
+    ],
+  },
 ];
 
 /* ─────────────────────── Licencias: qué se puede hacer ─────────────────────── */

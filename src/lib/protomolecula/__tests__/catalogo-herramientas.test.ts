@@ -396,3 +396,29 @@ describe("seguridad · exclusión de la rama nube", () => {
     expect(JSON.stringify(CATALOGO_PROTOMOLECULA)).not.toContain("reverse-skill");
   });
 });
+
+describe("repos-libreria-1020 protomolécula", () => {
+  it("las 3 ids existen, son únicas, con codigo de GitHub y actualizacion.fuente válida", () => {
+    const idsProto = ["solidcraft", "detectron2", "mesh2motion"];
+    const setIds = new Set(ids);
+    for (const id of idsProto) {
+      const fichas = todas.filter((h) => h.id === id);
+      expect(fichas, id).toHaveLength(1);
+      expect(setIds.has(id)).toBe(true);
+      const h = herramientaPorId(id) as HerramientaProto;
+      expect(h.codigo).toMatch(/^https:\/\/github\.com\//);
+      expect(FUENTES).toContain(h.actualizacion.fuente);
+      expect(h.actualizacion.ref).toMatch(/^[\w.-]+\/[\w.-]+$/);
+      expect(h.verificado).toBe("2026-10-20");
+    }
+    expect(new Set(idsProto).size).toBe(3);
+  });
+
+  it("cada ficha declara su licencia verificada y su aviso de origen", () => {
+    expect(herramientaPorId("solidcraft")).toMatchObject({ licencia: "Apache-2.0", tipo: "app", categoria: "arquitectura-cad" });
+    expect(herramientaPorId("solidcraft")?.control.via).toContain("mcp");
+    expect(herramientaPorId("detectron2")).toMatchObject({ licencia: "Apache-2.0", licenciaPesos: "NOASSERTION", tipo: "libreria" });
+    expect(herramientaPorId("mesh2motion")).toMatchObject({ licencia: "MIT", tipo: "app", categoria: "modelado-3d" });
+    expect(herramientaPorId("mesh2motion")?.actualizacion).toMatchObject({ fuente: "github-tags", ultimaVersion: null, fechaVersion: null });
+  });
+});
