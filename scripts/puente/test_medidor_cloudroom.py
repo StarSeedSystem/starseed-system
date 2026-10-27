@@ -1,7 +1,10 @@
 """Pruebas de interpretación Cloudroom: JSON simulado y ninguna llamada externa."""
+import json
+import os
 from datetime import datetime, timezone
 
 import medidor_cloudroom as M
+import medidores_credito as mc
 
 AHORA = datetime(2026, 10, 24, tzinfo=timezone.utc)
 
@@ -96,3 +99,56 @@ def test_crm1024h_ruta_de_la_cli_fuera_del_path():
     assert M.ruta_cli({"CLOUDROOM_CLI": "/x/room-cli"}, existe=lambda p: p == "/x/room-cli",
                       buscar=lambda n: None) == "/x/room-cli"
     assert M.ruta_cli({}, existe=lambda p: False, buscar=lambda n: None) is None
+
+
+def test_crm1024h_ruta_de_launchd_cuando_la_cli_no_esta_en_el_path():
+    """RTCRM1024Hb: launchd no trae room-cli en el PATH; se busca en ~/.local/bin."""
+    local = os.path.expanduser("~/.local/bin/room-cli")
+    assert M.ruta_cli({}, existe=lambda p: p == local, buscar=lambda n: None) == local
+
+
+def test_crm1024h_leer_medidor_pide_archivados_y_ocultos_en_milisegundos():
+    """RTCRM1024Hb: el listado incluye archivados/ocultos y cuenta hilos de 30 días en ms."""
+    ordenes = []
+    ms = int(AHORA.timestamp() * 1000)
+    original = (M.disponible, M.ruta_cli, M._correr)
+
+    def correr(orden):
+        ordenes.append(orden)
+        if "status" in orden:
+            return json.dumps({"account": {"id": "x"}, "plan": None, "planUsage": None})
+        if "thread" in orden and "list" in orden:
+            return json.dumps({"threads": [
+                {"executionTarget": "cloud", "createdAt": ms - 3600 * 1000},
+                {"executionTarget": "cloud", "createdAt": ms - 31 * 86400 * 1000},
+                {"executionTarget": "local", "createdAt": ms - 3600 * 1000},
+            ]})
+        return ""
+
+    M.disponible, M.ruta_cli, M._correr = (lambda: True), (lambda: "fake-room-cli"), correr
+    try:
+        medidor = M.leer_medidor({}, AHORA)
+    finally:
+        M.disponible, M.ruta_cli, M._correr = original
+    lista = [o for o in ordenes if "thread" in o and "list" in o][0]
+    assert "--include-archived" in lista and "--include-hidden" in lista
+    assert medidor["ventanas"][0]["usado"] == 1
+
+
+def test_crm1024h_catalogo_incluye_harness_sin_modelo_superior():
+    """RTCRM1024Hb: un harness con models pero sin model propio igual se cataloga."""
+    estado = {"account": {"id": "x"}, "harnesses": [
+        {"id": "claude-code", "models": [{"model": "opus"}]}]}
+    medidor = M.interpretar(estado, {}, {"threads": []}, AHORA)
+    assert medidor["extras"]["agentes"] == [
+        {"harness": "claude-code", "modelo": "sin modelo", "modelos": ["opus"]}]
+
+
+def test_crm1024h_fusionar_solo_conserva_los_otros_medidores():
+    """RTCRM1024Hb: `--solo` solo pisa los elegidos; los demás medidores e historial quedan."""
+    previo = {"medidores": {"cloudroom": {"v": 1}, "claude": {"v": 2}},
+              "historial": {"claude": [{"v": 2}]}}
+    nuevo = {"medidores": {"cloudroom": {"v": 3}}, "historial": previo["historial"]}
+    doc = mc.fusionar_solo(previo, nuevo, {"cloudroom"})
+    assert doc["medidores"] == {"cloudroom": {"v": 3}, "claude": {"v": 2}}
+    assert doc["historial"] == previo["historial"]
