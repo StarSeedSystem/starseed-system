@@ -24,6 +24,7 @@ import {
 import type { EstadoAutonomo, NodoVista, OrdenVista } from "@/lib/metagenesis/remoto-nodos";
 
 const estado = { miembro: true, lectura: null as unknown };
+const OCULTO_CASE = { visible: false, habilitado: false, etiqueta: "", explica: "" };
 const enviarOrden = vi.fn(async (..._a: unknown[]) => ({ ok: true, clave: "nonce-1", modo: "bus" }) as { ok: true; clave: string; modo: string } | { ok: false; motivo: string });
 
 vi.mock("@/lib/metagenesis/accesos", () => ({ miAccesoMetaGenesis: async () => ({ miembro: estado.miembro, dueno: false }) }));
@@ -96,6 +97,52 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         });
         const android = botonesNeurona({ nodo: null, vivo: true, so: "android", enCurso: 0 });
         expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
+    });
+
+    it("sin trabajador: instalar también para macOS y Windows (WSL2)", () => {
+        const macos = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(macos.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "Un comando en la terminal de este aparato.",
+        });
+        const windows = botonesNeurona({ nodo: null, vivo: true, so: "windows", enCurso: 0 });
+        expect(windows.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "En Windows se instala dentro de WSL2.",
+        });
+    });
+
+    it("sin trabajador: instalar oculto para iOS y para otro SO", () => {
+        expect(botonesNeurona({ nodo: null, vivo: true, so: "ios", enCurso: 0 }).instalar).toEqual(OCULTO_CASE);
+        expect(botonesNeurona({ nodo: null, vivo: true, so: "otro", enCurso: 0 }).instalar).toEqual(OCULTO_CASE);
+    });
+
+    it("con nodo y en modo desconectando, el botón de desconectar está deshabilitado y muestra el estado", () => {
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, desconectando: true, relevoActivo: true });
+        expect(b.desconectar).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Desconectando…",
+            explica: "Guarda el trabajo a medias y lo pasa a otro contenedor.",
+        });
+        expect(b.desconectar.confirmar).toBeFalsy();
+    });
+
+    it("desconectando sin relevo activo: no promete el traspaso que aún no existe", () => {
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, desconectando: true });
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectando…" });
+        expect(b.desconectar.explica).toContain("aún no está activo");
+        expect(b.desconectar.explica).not.toContain("lo pasa a otro contenedor");
+    });
+
+    it("sin nodo (solo navegador): desconectar y contenedor están ocultos", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(b.desconectar).toEqual(OCULTO_CASE);
+        expect(b.contenedor).toEqual(OCULTO_CASE);
     });
 
     it("con trabajo en curso y contenedor activo, ambos botones requieren confirmación", () => {
