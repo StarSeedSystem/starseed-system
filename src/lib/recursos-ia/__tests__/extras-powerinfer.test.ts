@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { catalogoRecursos } from "../catalogo";
+import { Arquitectura } from "../tipos";
 import {
     maxNCached,
     isaDeProcCpuinfo,
@@ -51,8 +52,8 @@ describe("PowerInfer extras", () => {
             expect(maxNCached(NaN)).toBe(0);
             expect(maxNCached(0)).toBe(0);
             expect(maxNCached(Infinity)).toBe(0);
-            expect(maxNCached(null)).toBe(0);
-            expect(maxNCached(undefined)).toBe(0);
+            expect(maxNCached(null as unknown as number)).toBe(0);
+            expect(maxNCached(undefined as unknown as number)).toBe(0);
         });
     });
 
