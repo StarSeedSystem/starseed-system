@@ -99,8 +99,8 @@ export function DestSelector({
     const showOwnPicker = value === "propia" && !!onOwnChange;
 
     return (
-        <div className={cn("space-y-3", className)}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className={cn("space-y-3", className)} role="radiogroup">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="group">
                 {visible.map((d) => {
                     const Icon = d.icon;
                     const active = value === d.id;
@@ -109,6 +109,7 @@ export function DestSelector({
                             key={d.id}
                             type="button"
                             onClick={() => onChange(d.id)}
+                            aria-pressed={active}
                             className={cn(
                                 "flex flex-col items-start gap-1.5 rounded-2xl border p-3 text-left transition-all duration-200 cursor-pointer",
                                 active
@@ -180,7 +181,7 @@ export function TipoSelector({ dest, value, onChange, className }: TipoSelectorP
     const tipos = TIPOS_POR_DEST[dest] ?? [];
     if (tipos.length === 0) return null;
     return (
-        <div className={cn("flex flex-wrap gap-1.5", className)}>
+        <div className={cn("flex flex-wrap gap-1.5", className)} role="radiogroup">
             {tipos.map((t) => {
                 const Icon = t.icon;
                 const active = value === t.id;
@@ -190,6 +191,7 @@ export function TipoSelector({ dest, value, onChange, className }: TipoSelectorP
                         type="button"
                         title={t.desc}
                         onClick={() => onChange(t.id)}
+                        aria-pressed={active}
                         className={cn(
                             "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-150 cursor-pointer",
                             active

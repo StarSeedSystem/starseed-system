@@ -123,9 +123,9 @@ export function LibraryLocationPicker({ value, onChange, className }: LibraryLoc
     return (
         <div className={cn("space-y-3", className)}>
             {/* Biblioteca */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5" role="radiogroup">
                 <p className="text-[11px] font-medium uppercase tracking-wider text-white/40">Biblioteca</p>
-                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto" role="group">
                     {destinations.map((d) => {
                         const key = `${d.ref.kind}:${d.ref.id}`;
                         const active = key === libKey;
@@ -134,6 +134,7 @@ export function LibraryLocationPicker({ value, onChange, className }: LibraryLoc
                                 key={key}
                                 type="button"
                                 onClick={() => setLibKey(key)}
+                                aria-pressed={active}
                                 className={cn(
                                     "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 cursor-pointer",
                                     active
@@ -157,10 +158,11 @@ export function LibraryLocationPicker({ value, onChange, className }: LibraryLoc
                         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando folders…
                     </p>
                 ) : (
-                    <div className="space-y-1 max-h-40 overflow-y-auto pr-0.5">
+                    <div className="space-y-1 max-h-40 overflow-y-auto pr-0.5" role="group">
                         <button
                             type="button"
                             onClick={() => selectFolder(null)}
+                            aria-pressed={value?.folderId === null}
                             className={cn(
                                 "flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer",
                                 (value?.folderId ?? null) === null
@@ -179,6 +181,7 @@ export function LibraryLocationPicker({ value, onChange, className }: LibraryLoc
                                     type="button"
                                     onClick={() => selectFolder(folder.id, folder.name)}
                                     style={{ paddingLeft: `${0.625 + depth * 0.9}rem` }}
+                                    aria-pressed={active}
                                     className={cn(
                                         "flex w-full items-center gap-2 rounded-lg border py-1.5 pr-2.5 text-left text-xs transition-colors cursor-pointer",
                                         active
