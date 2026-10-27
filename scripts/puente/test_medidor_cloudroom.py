@@ -62,6 +62,36 @@ def test_crm1024h_nube_por_execution_target_en_ms_y_modelos_de_harnesses():
                                           "modelos": ["gpt-6-luna", "gpt-5.6-terra"]}
 
 
+def test_solo_conserva_los_otros_medidores():
+    """(RTCRM1024H) Con --solo no se borran los demás medidores; main usa fusionar_solo."""
+    import medidores_credito as MC
+    previo = {"medidores": {"claude": {"id": "claude", "ok": True},
+                            "codex": {"id": "codex", "ok": True},
+                            "oracle": {"id": "oracle", "ok": True}},
+              "historial": {"claude": [{"t": "x", "v": {}}]}}
+    doc = MC.recoger([{"id": "cloudroom", "tipo": "t"}], previo, AHORA,
+                     adaptadores={"t": lambda cfg, ahora: {"id": "cloudroom", "ok": True}})
+    fusionado = MC.fusionar_solo(previo, doc, {"cloudroom"})
+    assert set(fusionado["medidores"]) == {"cloudroom", "claude", "codex", "oracle"}
+    assert fusionado["medidores"]["claude"]["ok"] is True
+    assert fusionado["historial"]["claude"] == [{"t": "x", "v": {}}]
+    assert fusionado["medidores"]["cloudroom"]["ok"] is True
+
+
+def test_leer_medidor_resuelve_la_ruta_y_consulta_hilos_archivados(monkeypatch):
+    """(RTCRM1024H) Al CLI se le pasa la ruta resuelta (no el nombre suelto) y la lista de
+    hilos pide archivados y ocultos, que también gastaron cupo del ciclo."""
+    ordenes = []
+    monkeypatch.setattr(M, "ruta_cli", lambda *a, **k: "/opt/falsa/room-cli")
+    monkeypatch.setattr(M, "_correr", lambda orden: ordenes.append(list(orden)) or "{}")
+    assert M.disponible() is True
+    assert M.leer_medidor({}, AHORA)["id"] == "cloudroom"
+    assert ordenes == [["/opt/falsa/room-cli", "cloud", "status", "--json"],
+                       ["/opt/falsa/room-cli", "thread", "count", "--json"],
+                       ["/opt/falsa/room-cli", "thread", "list", "--json",
+                        "--include-archived", "--include-hidden"]]
+
+
 def test_crm1024h_ruta_de_la_cli_fuera_del_path():
     assert M.ruta_cli({"CLOUDROOM_CLI": "/x/room-cli"}, existe=lambda p: p == "/x/room-cli",
                       buscar=lambda n: None) == "/x/room-cli"
