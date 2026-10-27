@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BTN, BTN_PRIMARY, Empty, INPUT, LABEL, MONO, SUB } from "@/components/astraura/s158/shared";
 import { cn } from "@/lib/utils";
+import { NOTA_BITNET, cuantizacionesPara, dispositivoDe, type MetodoCuantizacion } from "@/lib/recursos-ia/cuantizacion-hf";
 import { cabeEn } from "@/lib/recursos-ia/compatibilidad";
 import {
     CAPACIDADES,
@@ -176,6 +177,9 @@ function FilaCapacidad({
     const IconoA = ICONO_ALMACEN[s.almacen.tipo];
     const esFijada = !!fijada?.modeloId && fijada.modeloId === s.modelo.id && fijada.procesaEn === s.procesador.id && fijada.almacenEn === s.almacen.id;
     const tokS = s.compat.tokSEstimado;
+    /** BitNet y Ternary Bonsai no se cuantizan al vuelo (QAT): la tabla de transformers no se les aplica. */
+    const esBitNet = s.modelo.bits === 1.58 || /bitnet|bonsai/i.test(`${s.modelo.id} ${s.modelo.familia} ${s.modelo.runtime}`);
+    const sugerirCuantizacion: MetodoCuantizacion[] | null = esBitNet ? null : cuantizacionesPara(dispositivoDe(s.procesador));
     return (
         <li data-testid={`fila-capacidad-${s.capacidad}`} className={cn(SUB, "flex flex-col gap-2 p-3")}>
             <div className="flex flex-wrap items-center gap-2">
@@ -235,6 +239,15 @@ function FilaCapacidad({
                     <Desplegable titulo={`Motivos (${s.compat.motivos.length})`} testid={`motivos-${s.capacidad}`}>
                         <ListaMotivos motivos={s.compat.motivos} />
                     </Desplegable>
+                )}
+                {sugerirCuantizacion === null ? (
+                    <p className="text-[10px] leading-snug text-amber-100/90" data-testid={`cuantizacion-${s.capacidad}`}>
+                        {NOTA_BITNET}
+                    </p>
+                ) : (
+                    <Linea className="text-[10px] text-white/55" data-testid={`cuantizacion-${s.capacidad}`} titulo={sugerirCuantizacion.map((m) => m.nombre).join(", ")}>
+                        {`Cuantización en transformers: ${sugerirCuantizacion.map((m) => m.nombre).join(", ")}`}
+                    </Linea>
                 )}
                 {s.alternativas.length > 0 && (
                     <Desplegable titulo={`Alternativas (${s.alternativas.length})`} testid={`alternativas-${s.capacidad}`}>

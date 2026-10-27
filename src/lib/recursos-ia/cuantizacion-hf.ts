@@ -11,6 +11,9 @@
 
 export type Soporte = "ok" | "parcial" | "no";
 
+/** Solo el TIPO: nada de lógica del contrato entra en este módulo. */
+import type { Procesador } from "./tipos";
+
 export type DispositivoHF = "cpu" | "cuda" | "rocm" | "metal" | "intel";
 
 export interface MetodoCuantizacion {
@@ -59,6 +62,16 @@ export const FUENTE_METODOS_HF =
 
 export const NOTA_BITNET =
     "Los modelos BitNet no se cuantizan al vuelo en transformers: solo existen ya entrenados en ternario por QAT. No apliques esta tabla a BitNet ni a Ternary Bonsai.";
+
+/** El dispositivo HF de un procesador del inventario: por su acelerador (cuda › rocm › metal), por un x86 con IA de Intel (avx) o CPU. */
+export function dispositivoDe(procesador: Procesador): DispositivoHF {
+    const a = procesador.aceleradores;
+    if (a.includes("cuda")) return "cuda";
+    if (a.includes("rocm")) return "rocm";
+    if (a.includes("metal") || a.includes("metal4")) return "metal";
+    if ((a.includes("avx2") || a.includes("avx512")) && !!procesador.so && /windows|linux/i.test(procesador.so)) return "intel";
+    return "cpu";
+}
 
 /** Métodos con soporte real en un dispositivo, filtrados y ordenados (ok antes que parcial). */
 export function cuantizacionesPara(
