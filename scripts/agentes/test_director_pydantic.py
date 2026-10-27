@@ -111,5 +111,21 @@ class ConPydanticAI(unittest.TestCase):
         self.assertEqual(decision.como_dict()["accion"], "pedir-a-alex")
         self.assertEqual(decision.prioridad, 0.3)
 
+    def test_modelo_desde_cliente_usa_la_base_del_enrutador(self):
+        from modelos_propios import ClienteOpenAI
+        try:
+            from pydantic_ai.models.openai import OpenAIChatModel as ModeloEsperado
+        except ImportError:
+            from pydantic_ai.models.openai import OpenAIModel as ModeloEsperado
+
+        cliente = ClienteOpenAI("http://127.0.0.1:4480/v1", "qwen-coder", "clave-falsa")
+        modelo = D.modelo_desde_cliente(cliente)
+        self.assertIsInstance(modelo, ModeloEsperado)
+        self.assertEqual(getattr(modelo, "model_name", getattr(modelo, "model", None)), "qwen-coder")
+        base_url = getattr(getattr(modelo, "client", None), "base_url", None)
+        if base_url is not None:
+            self.assertEqual(str(base_url).rstrip("/"), "http://127.0.0.1:4480/v1")
+        self.assertNotIn("clave-falsa", repr(cliente))
+
 if __name__ == "__main__":
     unittest.main()
