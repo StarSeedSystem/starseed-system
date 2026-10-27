@@ -178,6 +178,33 @@ class Extracciones_y_cortes(unittest.TestCase):
                          "https://registry.npmjs.org/@lottiefiles/dotlottie-react/latest")
 
 
+class PersistenciaJson(unittest.TestCase):
+    """Leer y guardar el estado en disco, adaptado a la API pública de hoy."""
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.raiz, ignore_errors=True))
+
+    def test_cargar_json_archivo_existente(self):
+        ruta = os.path.join(self.raiz, "existe.json")
+        with open(ruta, "w", encoding="utf-8") as fichero:
+            json.dump({"clave": "valor", "n": 3}, fichero)
+        self.assertEqual(V.cargar_json(ruta, {}), {"clave": "valor", "n": 3})
+
+    def test_cargar_json_archivo_inexistente(self):
+        ruta = os.path.join(self.raiz, "no-existe.json")
+        self.assertEqual(V.cargar_json(ruta, {"por_defecto": "valor"}),
+                         {"por_defecto": "valor"})
+
+    def test_guardar_json_crea_carpeta_y_conserva_acentos(self):
+        ruta = os.path.join(self.raiz, "sub", "carpeta", "estado.json")
+        datos = {"titulo": "Entrada con acentos: ñ á é"}
+        V.guardar_json(ruta, datos)
+        with open(ruta, encoding="utf-8") as fichero:
+            self.assertEqual(json.load(fichero), datos)
+        self.assertEqual(V.cargar_json(ruta, None), datos)
+
+
 class VigiaConRaizTemp(unittest.TestCase):
     """Recorridos completos con red, espera y reloj falsos (sin conexión)."""
 
