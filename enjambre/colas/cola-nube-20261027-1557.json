@@ -1,0 +1,35 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "RIA1023Ec",
+   "ola": "1023R",
+   "titulo": "Capas de Astraura · capaEnPropio de verdad (cruzar el SHA con el catálogo local)",
+   "archivos": [
+    "src/lib/astraura/capas/repartir.ts",
+    "src/lib/astraura/capas/__tests__/repartir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\n`capaEnPropio` en `repartir.ts` hoy devuelve siempre false (lo dice su comentario). Hazla real: busca en el almacén la meta de la capa cuyo SHA-256 coincide y comprueba que todos sus trozos están y verificados (usa las claves y metas que ya escribe este módulo; no inventes otro formato). Exportala para probarla. Pruebas: almacén con la capa completa → true; con un trozo que falta → false; con otro SHA → false. Corre `npx vitest run src/lib/astraura/capas` y lee el resumen entero.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40302966651`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40302966651:refs/remotes/origin/nube/40302966651\"` y `git cherry-pick --no-commit 9e6bbebacfed 4c8b60872b46`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/components/protomolecula/gobierno/__tests__/ayudas-prueba.ts, src/components/protomolecula/gobierno/__tests__/gobierno-proto-resumen.test.tsx, src/components/protomolecula/gobierno/__tests__/seccion-gobierno-proto.test.tsx, src/components/protomolecula/gobierno/ayudas-prueba.ts, src/lib/astraura/capas/__tests__/repartir.test.ts, src/lib/astraura/capas/almacen.ts, src/lib/astraura/capas/repartir.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40302966651"
+  },
+  {
+   "id": "RIA1023C",
+   "ola": "1023R",
+   "titulo": "Recursos de IA · resolver a qué servidor de IA va cada capacidad según la topología (núcleo puro)",
+   "archivos": [
+    "src/lib/recursos-ia/enrutado.ts",
+    "src/lib/recursos-ia/__tests__/enrutado.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nFunción PURA `destinoDeIA(plan, asignaciones, inventario, capacidad)` → `{via, neuronaId, baseUrl|null, motivo}`: con topología `servidor-propio` devuelve la URL del servidor de la neurona elegida (`http://<host>:4480/v1`, el host sale del inventario/oferta de esa neurona; si no se conoce, `baseUrl: null` y un motivo legible), con `cada-neurona` → `local`, con `fragmentada` → la neurona asignada a esa capacidad, y nunca `antena` para chat (solo decisiones, §3). Sin `node:*`, sin `fetch`. Reutiliza los tipos de `tipos.ts` (no inventes otros). Pruebas vitest de las cuatro topologías y del caso sin host. Corre `npx vitest run src/lib/recursos-ia` y lee el resumen entero."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "RIA1023Ec",
+   "RIA1023C"
+  ]
+ }
+}
