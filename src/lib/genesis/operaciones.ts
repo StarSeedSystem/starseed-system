@@ -24,7 +24,12 @@
 import { validarContraInvariantes, type Violacion } from "@/lib/nucleo/invariantes";
 import { pareceCodigo } from "@/lib/nucleo/ui-spec";
 import { validarAccionUi, type TipoAccionUi } from "@/lib/astraura/ui-acciones";
+<<<<<<< HEAD
 import { type CambioBot } from "@/lib/astraura-bots/permisos";
+=======
+import { type AdnAvatar } from "@/lib/avatares/adn/adn";
+import { type CambioAvatar } from "@/lib/avatares/adn/cambios";
+>>>>>>> 46d2541cb (salvavidas · AV1011J: trabajo del agente antes de las puertas (tsc / vitest))
 
 /* ── Vocabulario ─────────────────────────────────────────────────────────── */
 
@@ -38,8 +43,12 @@ export type TipoOperacion =
     | "dashboard.widget.añadir"
     | "dashboard.widget.quitar"
     | "agente.crear"
+<<<<<<< HEAD
     | "bot.crear"
     | "bot.configurar";
+=======
+    | "avatar.cambiar";
+>>>>>>> 46d2541cb (salvavidas · AV1011J: trabajo del agente antes de las puertas (tsc / vitest))
 
 export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "perfil.editar",
@@ -51,15 +60,24 @@ export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "dashboard.widget.añadir",
     "dashboard.widget.quitar",
     "agente.crear",
+<<<<<<< HEAD
     "bot.crear",
     "bot.configurar",
+=======
+    "avatar.cambiar",
+>>>>>>> 46d2541cb (salvavidas · AV1011J: trabajo del agente antes de las puertas (tsc / vitest))
 ];
 
 /** Lo que cada nivel puede tocar. PoliGenesis: solo lo de la entidad. */
 export const OPERACIONES_POR_AMBITO: Record<"persona" | "entidad", readonly TipoOperacion[]> = {
+<<<<<<< HEAD
     // Crear un bot común es de la entidad; configurar el tuyo también es personal.
     persona: TIPOS_OPERACION.filter((t) => t !== "bot.crear"),
     entidad: ["pagina.editar", "agente.crear", "bot.crear", "bot.configurar"],
+=======
+    persona: TIPOS_OPERACION,
+    entidad: ["pagina.editar", "agente.crear", "avatar.cambiar"],
+>>>>>>> 46d2541cb (salvavidas · AV1011J: trabajo del agente antes de las puertas (tsc / vitest))
 };
 
 export type TipoEntidad = "pagina" | "grupo";
@@ -101,6 +119,16 @@ export interface DatosPaginaNueva {
     descripcion?: string;
     etiquetas?: string[];
     acento?: string;
+}
+
+/** Avatar change operation data */
+export interface AvatarCambioDatos {
+    /** Avatar id (ref field of AdnAvatar) */
+    ref: string;
+    /** Revision base that the diff was computed against */
+    revBase: number;
+    /** Array of CambioAvatar representing the diff */
+    cambios: CambioAvatar[];
 }
 
 export interface ElementoDock {
@@ -148,8 +176,12 @@ export type Operacion =
     | (Base & { tipo: "dashboard.widget.añadir"; tablero?: string; widget: string; talla?: "S" | "M" | "L" })
     | (Base & { tipo: "dashboard.widget.quitar"; tablero?: string; widget: string })
     | (Base & { tipo: "agente.crear"; agente: DatosAgente })
+<<<<<<< HEAD
     | (Base & { tipo: "bot.crear"; datos: DatosBotNuevo })
     | (Base & { tipo: "bot.configurar"; cambios: CambiosBot });
+=======
+    | (Base & { tipo: "avatar.cambiar"; datos: AvatarCambioDatos });
+>>>>>>> 46d2541cb (salvavidas · AV1011J: trabajo del agente antes de las puertas (tsc / vitest))
 
 /** Lo que la validación sabe del entorno (lo pasa quien llama; todo opcional). */
 export interface ContextoValidacion {
@@ -214,6 +246,7 @@ function esObjeto(v: unknown): v is Record<string, unknown> {
 
 /** Texto limpio o `null` si no es texto, es demasiado largo o parece código. */
 function texto(v: unknown, max: number, campo: string, problemas: string[], vacioPermitido = false): string | undefined {
+    console.log('texto called with v:', v, 'campo:', campo); // DEBUG
     if (v === undefined || v === null) return undefined;
     if (typeof v !== "string") {
         problemas.push(`«${campo}» debe ser texto.`);
@@ -297,6 +330,26 @@ function tocaFondo(parche: Record<string, unknown>): boolean {
     return esObjeto(parche.background);
 }
 
+/* Validar lote (lo que propone el agente de una vez). Máximo `LIMITES.loteMaximo`. */
+export function validarLote(
+    lista: unknown,
+    ctx: ContextoValidacion,
+): { validas: { op: Operacion; avisos: string[] }[]; rechazadas: { indice: number; problemas: string[] }[] } {
+    const validas: { op: Operacion; avisos: string[] }[] = [];
+    const rechazadas: { indice: number; problemas: string[] }[] = [];
+    if (!Array.isArray(lista)) return { validas, rechazadas: [{ indice: 0, problemas: ["No llegó una lista de operaciones."] }] };
+    lista.forEach((bruto, indice) => {
+        if (indice >= LIMITES.loteMaximo) {
+            rechazadas.push({ indice, problemas: [`Como mucho ${LIMITES.loteMaximo} operaciones por propuesta.`] });
+            return;
+        }
+        const r = validarOperacion(bruto, ctx);
+        if (r.ok) validas.push({ op: r.op, avisos: r.avisos });
+        else rechazadas.push({ indice, problemas: r.problemas });
+    });
+    return { validas, rechazadas };
+}
+
 /* ── Validación ──────────────────────────────────────────────────────────── */
 
 /**
@@ -313,10 +366,15 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
             return fallo();
         }
         const tipo = bruto.tipo;
+        console.log('tipo:', tipo); // DEBUG
+        console.log('tipo chars:', [...tipo].map(c => c.charCodeAt(0))); // DEBUG
         if (typeof tipo !== "string" || !(TIPOS_OPERACION as readonly string[]).includes(tipo)) {
             problemas.push(`Tipo de operación desconocido: «${String(tipo).slice(0, 40)}».`);
             return fallo();
         }
+        console.log('bruto:', bruto); // DEBUG
+        console.log('bruto.motivo:', bruto.motivo); // DEBUG
+        console.log('About to call texto'); // DEBUG
         const ambitoTipo = ctx.ambito.tipo;
         if (!OPERACIONES_POR_AMBITO[ambitoTipo].includes(tipo as TipoOperacion)) {
             problemas.push(
@@ -326,8 +384,20 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
             );
             return fallo();
         }
-        const motivo = texto(bruto.motivo ?? "Lo pediste tú.", LIMITES.motivo, "motivo", problemas) ?? "";
+        // console.log('Before texto call, motivo input:', bruto.motivo); // DEBUG
+        let motivoTemp: string | undefined;
+        console.log('After let motivoTemp'); // DEBUG
+        try {
+            motivoTemp = texto(bruto.motivo ?? "Lo pediste tú.", LIMITES.motivo, "motivo", problemas);
+        } catch (e) {
+            console.error('Error in texto call:', e);
+            problemas.push('Error in texto function');
+            return fallo();
+        }
+        const motivo = motivoTemp ?? "";
+        console.log('After texto call, motivo:', motivo); // DEBUG
         if (problemas.length) return fallo();
+        console.log('About to enter switch, motivo:', motivo); // DEBUG
 
         switch (tipo as TipoOperacion) {
             case "perfil.editar": {
@@ -523,6 +593,7 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
                 return { ok: true, avisos, op: { tipo: "agente.crear", motivo, agente: agente as DatosAgente } };
             }
 
+<<<<<<< HEAD
             case "bot.crear": {
                 const d = esObjeto(bruto.datos) ? bruto.datos : {};
                 const nombre = texto(d.nombre, LIMITES.nombre, "nombre", problemas);
@@ -553,34 +624,20 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
                 if (json && pareceCodigo(json)) problemas.push("«valor» contiene algo que parece código; Genesis solo acepta contenido.");
                 if (problemas.length) return fallo();
                 return { ok: true, avisos, op: { tipo: "bot.configurar", motivo, cambios: { botId, cambio: cambio as CambioBot, valor: b.valor } } };
+=======
+            case "avatar.cambiar": {
+                const d = esObjeto(bruto.datos) ? bruto.datos : {};
+                return { ok: true, avisos, op: { tipo: "avatar.cambiar", datos: d } };
+>>>>>>> 46d2541cb (salvavidas · AV1011J: trabajo del agente antes de las puertas (tsc / vitest))
             }
         }
         problemas.push("Operación no reconocida.");
         return fallo();
-    } catch {
+    } catch (e) {
+        console.error('Unexpected error in validarOperacion:', e);
         problemas.push("No se pudo validar la operación.");
         return fallo();
     }
-}
-
-/** Valida un lote (lo que propone el agente de una vez). Máximo `LIMITES.loteMaximo`. */
-export function validarLote(
-    lista: unknown,
-    ctx: ContextoValidacion,
-): { validas: { op: Operacion; avisos: string[] }[]; rechazadas: { indice: number; problemas: string[] }[] } {
-    const validas: { op: Operacion; avisos: string[] }[] = [];
-    const rechazadas: { indice: number; problemas: string[] }[] = [];
-    if (!Array.isArray(lista)) return { validas, rechazadas: [{ indice: 0, problemas: ["No llegó una lista de operaciones."] }] };
-    lista.forEach((bruto, indice) => {
-        if (indice >= LIMITES.loteMaximo) {
-            rechazadas.push({ indice, problemas: [`Como mucho ${LIMITES.loteMaximo} operaciones por propuesta.`] });
-            return;
-        }
-        const r = validarOperacion(bruto, ctx);
-        if (r.ok) validas.push({ op: r.op, avisos: r.avisos });
-        else rechazadas.push({ indice, problemas: r.problemas });
-    });
-    return { validas, rechazadas };
 }
 
 /* ── Vista previa en palabras ────────────────────────────────────────────── */
@@ -598,7 +655,7 @@ const NOMBRE_CAMPO: Record<string, string> = {
 const NOMBRE_FAJA: Record<FajaApariencia, string> = {
     apariencia: "el estilo visual",
     fondo: "el fondo",
-    tipografia: "la tipografía",
+    tipografia: "la tipografia",
     distribucion: "la distribución",
     preset: "el preset visual",
     movimiento: "el movimiento",
@@ -652,29 +709,34 @@ export function describirOperacion(op: Operacion, ambito: Ambito): VistaPrevia {
                 detalles: Object.entries(op.cambios).map(([k, v]) => `${NOMBRE_CAMPO[k] ?? k}: ${valorCorto(v)}`),
                 deshacer: "Deshacer repone los valores anteriores si nadie los ha cambiado después.",
             };
-        case "apariencia.aplicar":
+        case "apariencia.aplicar": {
             return {
                 titulo: `Cambiar ${NOMBRE_FAJA[op.faja]}`,
                 detalles: rutasDe(op.parche).slice(0, 8),
                 deshacer: "Deshacer repone exactamente lo que había en esas opciones.",
             };
-        case "dock.añadir":
+        }
+        case "dock.añadir": {
             return {
                 titulo: op.elemento.id ? `Poner «${op.elemento.id}» en tu dock` : `Añadir al dock «${op.elemento.etiqueta}»`,
                 detalles: op.elemento.id ? [] : [`abre: ${op.elemento.ruta}`, ...(op.elemento.icono ? [`icono: ${op.elemento.icono}`] : [])],
                 deshacer: "Deshacer lo vuelve a quitar.",
             };
-        case "dock.quitar":
+        }
+        case "dock.quitar": {
             return { titulo: `Quitar «${op.id}» del dock`, detalles: ["Sigue disponible en el lanzador de apps."], deshacer: "Deshacer lo vuelve a poner." };
-        case "dashboard.widget.añadir":
+        }
+        case "dashboard.widget.añadir": {
             return {
                 titulo: `Añadir el widget ${op.widget}`,
                 detalles: [`tablero: ${op.tablero ?? "el principal"}`, ...(op.talla ? [`talla: ${op.talla}`] : [])],
                 deshacer: "Deshacer quita ese widget.",
             };
-        case "dashboard.widget.quitar":
+        }
+        case "dashboard.widget.quitar": {
             return { titulo: `Quitar el widget ${op.widget}`, detalles: [`tablero: ${op.tablero ?? "el principal"}`], deshacer: "Deshacer lo repone con su configuración." };
-        case "agente.crear":
+        }
+        case "agente.crear": {
             return {
                 titulo: `Crear el agente «${op.agente.nombre}»${de}`,
                 detalles: [
@@ -696,6 +758,21 @@ export function describirOperacion(op: Operacion, ambito: Ambito): VistaPrevia {
                 detalles: [`cambio: ${op.cambios.cambio}`, `valor: ${valorCorto(op.cambios.valor)}`],
                 deshacer: "Deshacer repone el valor anterior del bot.",
             };
+        }
+        case "avatar.cambiar": {
+            return {
+                titulo: `Cambiar avatar «${op.datos.ref}»`,
+                detalles: [
+                    `revisión base: ${op.datos.revBase}`,
+                    ...op.datos.cambios.map(c => {
+                        // We need to describe each cambio; we can reuse claveCambio and maybe a simple description.
+                        // For simplicity, we'll just show the op.
+                        return `${c.op}`;
+                    })
+                ],
+                deshacer: "Deshacer repone el avatar anterior si nadie lo ha cambiado después.",
+            };
+        }
     }
 }
 
@@ -752,8 +829,12 @@ export type Inverso =
     | { tipo: "widget.quitar"; tablero: string; widgetId: string }
     | { tipo: "widget.reponer"; tablero: string; widget: Record<string, unknown> }
     | { tipo: "agente.borrar"; agenteId: string; vinculo?: { tipo: "page" | "group"; id: string } }
+<<<<<<< HEAD
     | { tipo: "bot.borrar"; botId: string }
     | { tipo: "bot.restaurar"; botId: string; campo: CambioBot; antes: unknown; despues: unknown };
+=======
+    | { tipo: "avatar.restaurar"; clave: string; antes: AdnAvatar; despues: AdnAvatar };
+>>>>>>> 46d2541cb (salvavidas · AV1011J: trabajo del agente antes de las puertas (tsc / vitest))
 
 export type EstadoEntrada = "aplicada" | "deshecha" | "propuesta" | "fallida";
 
