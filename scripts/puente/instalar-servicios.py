@@ -418,7 +418,7 @@ def instalar_chatterbox():
 
 # Reinstalar TODOS reinicia Genesis y los directores; con STARSEED_SOLO se toca solo lo nombrado.
 SOLO = {n.strip() for n in os.environ.get("STARSEED_SOLO", "").split(",") if n.strip()}
-if not SOLO or "chatterbox" in SOLO:
+if "chatterbox" in SOLO:
     instalar_chatterbox()
 for nombre, (orden, log, siempre) in SERVICIOS.items():
     if SOLO and nombre not in SOLO:
