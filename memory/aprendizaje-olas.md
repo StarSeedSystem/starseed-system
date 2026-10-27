@@ -4614,3 +4614,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCB1013Xb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/RTCB1013Xb conservada)
 - `RTTIP1013Cc` — no escribió nada
 - `RTRTRTRTCOL1012Bdsbbbbbc-d2d` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTRTRTRTCOL1012Bdsbbbbbc-d2d conservada)
+
+## 2026-10-27 10:19 · mg-oracle-1027-0033
+
+**Lo que se pidió.** pruebas del puente en rojo
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — los tipos no compilan (CNV1023E, IMG1020C, VPU1019D, RTAGF1023C). Es 67 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (MGP1024-0D7DB1, DSN1019C). Es 33 % de la ola.
+- google/gemini-3.6-flash no integró ninguna de sus 3 tareas.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1024-0D7DB1` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-27 08:52:14 [0m > build · auto [0m [0m→ [0mRead scripts/puente/test_oracle_n
+- `CNV1023E` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CNV1023E conservada)
+- `IMG1020C` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/IMG1020C conservada)
+- `VPU1019D` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VPU1019D conservada)
+- `DSN1019C` — otra cosa: sin decisión en 0 h; rama ola/DSN1019C conservada
+- `RTAGF1023C` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTAGF1023C conservada)
