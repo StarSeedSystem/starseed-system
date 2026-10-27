@@ -625,6 +625,18 @@ export function findIconInTree(icons: DesktopIcon[], id: string): DesktopIcon | 
     return null;
 }
 
+/**
+ * Archivo del escritorio listo para «Convertir a…» (Filee).
+ * Solo los iconos de tipo archivo con URL real: las notas embebidas y los
+ * enlaces no se convierten. Sin red, sin disco.
+ */
+export function archivoDeIcono(icon: DesktopIcon): { nombre: string; url: string } | null {
+    if (icon.kind !== "file") return null;
+    const url = typeof icon.url === "string" ? icon.url.trim() : "";
+    if (!url) return null;
+    return { nombre: icon.name || "archivo", url };
+}
+
 /** ¿`ancestorId` contiene (directa o indirectamente) a `nodeId`? Evita ciclos. */
 function isDescendant(icons: DesktopIcon[], ancestorId: string, nodeId: string): boolean {
     const anc = findIconInTree(icons, ancestorId);
