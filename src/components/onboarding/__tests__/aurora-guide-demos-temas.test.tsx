@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { StepDemo } from "../aurora-guide-demos";
+import { CLAVES_STEPDEMO, StepDemo } from "../aurora-guide-demos";
 import { TODOS_LOS_TEMAS } from "../../../lib/onboarding/guia-temas-red";
 
 /** Cada clave de tema monta SU demostración: se distingue por la etiqueta accesible del SVG. */
@@ -27,17 +27,17 @@ describe("guía · StepDemo monta la demostración de cada tema del tour (GUI102
     for (const reduce of [false, true]) {
       it(`cada clave de TODOS_LOS_TEMAS (${clave}, reduce=${reduce}) monta su demostración`, () => {
         expect(TODOS_LOS_TEMAS.map((t) => t.key)).toContain(clave);
+        expect(CLAVES_STEPDEMO as readonly string[]).toContain(clave);
         const { container } = monta(clave, reduce);
         const svg = screen.getByRole("img", { name: ETIQUETA_POR_CLAVE[clave] });
         expect(container.contains(svg)).toBe(true);
+        expect(container.querySelectorAll("svg")).toHaveLength(1);
       });
     }
   }
 
-  it("la lista de claves cubiertas coincide con TODOS_LOS_TEMAS de la guía", () => {
-    expect(new Set(Object.keys(ETIQUETA_POR_CLAVE))).toEqual(
-      new Set(TODOS_LOS_TEMAS.map((t) => t.key)),
-    );
+  it("la lista de claves cubiertas coincide con TODOS_LOS_TEMAS de la guía, en su orden", () => {
+    expect(Object.keys(ETIQUETA_POR_CLAVE)).toEqual(TODOS_LOS_TEMAS.map((t) => t.key));
   });
 
   it("la clave vieja `cerebros` monta la demo nueva de neuronas y cerebro", () => {
