@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { thisDeviceId } from "@/lib/neurons/neurons";
 import { toPrettyJson } from "@/lib/network/netjson";
+import { RoutersMallaPanel } from "./routers-malla-panel";
 import {
   compatibilidad,
   type EntradaTabla,
@@ -317,6 +318,7 @@ export function RouterCenter({ neuronId }: { neuronId?: string }) {
 
       {/* Compatibilidad con OpenWrt (instalar firmware libre) */}
       <CompatibilidadOpenwrt />
+      <RoutersMallaPanel tabla={TABLA_HARDWARE} />
 
       {/* Controlador OpenWISP */}
       <div className="rounded-xl border border-white/10 bg-white/5 p-3">
