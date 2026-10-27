@@ -5,6 +5,7 @@ import type { Controlador, EstadoControl } from "./controlador";
 import { candidatosDe } from "./registro-atomos";
 import { claveDe, describirCambio, formatearValor, normalizar, valorActual } from "./parametros";
 import { metricaDeFuente } from "./permisos";
+import { proponer, type Candidato } from "./candidatos-codigo";
 import { PROTO_ORB_ABRIR_EVENT, leerActivada } from "./orbe-bus";
 import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type ModoRelativo, type Parametro } from "./tipos";
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
@@ -99,7 +100,21 @@ function convertir(ctx: ContextoAccionProto, a: Record<string, unknown>): Result
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
-  if (accion === "proponer-codigo") return no(MENSAJE_PROPONER_CODIGO);
+  if (accion === "proponer-codigo") {
+    const capa = texto(args.capa) || texto(args.capaId) || "capa-codigo";
+    const original = texto(args.original) || "";
+    const propuesto = texto(args.propuesto) || texto(args.contenido) || "";
+    const candidato = proponer(
+      texto(args.id) || `candidato-${++secuencia}`,
+      capa,
+      texto(args.lenguajeOrigen) || "typescript",
+      original,
+      propuesto,
+      autor,
+      texto(args.lenguajeDestino) || undefined
+    );
+    return si(`Candidato propuesto: ${candidato.id} sobre capa «${capa}» (${candidato.lenguajeOrigen}). Queda pendiente de revisión con la mano. Estado: ${candidato.estado}.`, "Proponiendo código…");
+  }
   if (accion === "pedir") return no("«pedir» espera a la IA para planificar: usa manejarAccionProtomoleculaAsync.");
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
   if (accion === "convertir") return convertir(ctx, args);
