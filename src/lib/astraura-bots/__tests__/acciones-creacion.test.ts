@@ -72,6 +72,13 @@ describe("xr.intencion", () => {
     expect(r.voz.ok && r.voz.tarjeta).toBe(null);
     expect(r.tarjeta).toEqual({ titulo: TITULO_PROPUESTA_BOT, lineas: ["Ir a «Cumbre»"], acciones: TARJETA });
   });
+  it("el éxito lo dice sin ambigüedad: tarjeta lista, nada ejecutado y sin previo", () => {
+    const r = ejecutarIntencionXR(voz("llévame a la estación Cumbre"), ctxVoz);
+    expect(r.ok).toBe(true);
+    expect(r.motivo).toBe("Tarjeta lista: no se hace nada hasta que la confirmes.");
+    expect(r.previo).toEqual({});
+    expect(r.tarjeta?.titulo).toBe(TITULO_PROPUESTA_BOT);
+  });
   it("sin contexto no adivina: pregunta y no hay tarjeta", () => {
     const r = ejecutarIntencionXR(voz("invita al grupo Banda"), ctxVoz);
     expect(r).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("mundo") });
