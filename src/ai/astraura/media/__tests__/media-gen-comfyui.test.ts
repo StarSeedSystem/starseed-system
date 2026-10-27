@@ -1,3 +1,14 @@
+// Mock window for isClient() check before importing the module
+const mockLocalStorage: Storage = {
+  length: 0,
+  clear: vi.fn(),
+  getItem: vi.fn(),
+  key: vi.fn(),
+  removeItem: vi.fn(),
+  setItem: vi.fn(),
+};
+globalThis.window = { localStorage: mockLocalStorage } as unknown as Window & typeof globalThis;
+
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NODOS_NUCLEO, type GrafoComfyUI } from "@/lib/imagenes/flujos-comfyui";
 import {
@@ -163,10 +174,24 @@ describe("comfyuiImage · flujo real con fetch simulado", () => {
 
   beforeEach(() => {
     fetchSpy = vi.spyOn(globalThis, "fetch");
+    // Configurar endpoint de ComfyUI en localStorage
+    mockLocalStorage.setItem.mockClear();
+    mockLocalStorage.getItem.mockImplementation((key) => {
+      if (key === "starseed.media.prefs.v1") {
+        return JSON.stringify({
+          defaultImage: "comfyui",
+          customEndpoints: { comfyui: "http://127.0.0.1:8188" },
+        });
+      }
+      return null;
+    });
   });
 
   afterEach(() => {
     fetchSpy.mockRestore();
+    mockLocalStorage.clear();
+    mockLocalStorage.setItem.mockClear();
+    mockLocalStorage.getItem.mockClear();
   });
 
   const endpoint = "http://127.0.0.1:8188";
@@ -293,6 +318,13 @@ describe("comfyuiImage · flujo real con fetch simulado", () => {
   });
 
   it("sin endpoint configurado: conserva el mensaje actual con formato y megapíxeles", async () => {
+    // Sobrescribir el mock para que no haya endpoint
+    mockLocalStorage.getItem.mockImplementation((key) => {
+      if (key === "starseed.media.prefs.v1") {
+        return JSON.stringify({ defaultImage: "pollinations" });
+      }
+      return null;
+    });
     // No se mock fetch porque no debe llamarse sin endpoint
     const result = await comfyuiImage({ ...baseOpts, model: "model.safetensors" });
 

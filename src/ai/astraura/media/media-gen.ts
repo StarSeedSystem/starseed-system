@@ -56,6 +56,7 @@ import {
   imagenAImagen,
   ladosFormato,
   textoAImagen,
+  variaciones,
   type EscalaImagen,
   type FormatoPublicacion,
   type GrafoComfyUI,
@@ -1048,7 +1049,7 @@ export function grafoComfyuiDe(opts: GenerateImageOptions): GrafoComfyUI {
     : textoAImagen(base);
 }
 
-async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
+export async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
   const endpoint = resolveEndpoint("comfyui", getMediaPrefs());
   if (!endpoint) {
     const p = peticionFlujoComfyui(opts);
