@@ -16,6 +16,7 @@ function docEscritorio(ventana: Record<string, unknown>) {
 }
 
 function ventanaDe(state: ReturnType<typeof normalizeState>) {
+    if (!state) throw new Error("normalizeState devolvió null");
     return state.desktops[0].windows[0];
 }
 
