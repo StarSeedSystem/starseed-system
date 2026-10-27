@@ -94,8 +94,59 @@ import {
   UMBRAL_ENERGIA_POR_DEFECTO,
   type EstadoSentidos,
 } from "@/lib/aurora/sentidos/oido-ambiental";
+// EAR1023C · las etiquetas del oído (earshot) se convierten en una línea corta
+// «Se oye: …» para el contexto del agente (la registra el flujo y la lee el
+// componedor del prompt, aquí y en turn.ts).
+import {
+  lineaContextoOido,
+  CADUCIDAD_OID_MS,
+  type EtiquetaOida,
+} from "@/lib/aurora/sentidos/contexto-oido";
 import { getActiveSenses } from "@/lib/senses/senses";
 import { cronometroHabla, cronometroOido } from "@/lib/aurora/medidas-voz";
+
+// ── EAR1023C · registro del oído ambiental ───────────────────────────────────
+// Las etiquetas que el servicio de oído (earshot) devuelve en ESTA neurona.
+// Nada sale de aquí: solo se lee en local para la línea «Se oye: …» del prompt.
+const etiquetasOidas: EtiquetaOida[] = [];
+const ETIQUETAS_OID_TOPE = 32; // suficiente para 2 minutos de ambiente sonoro
+
+/** Normaliza la respuesta del servicio («tags») y la registra con su instante. */
+function recibirEtiquetasOidas(datos: unknown, ahora: number): void {
+  try {
+    const lista = (datos as { tags?: unknown } | null | undefined)?.tags;
+    const items = Array.isArray(lista) ? lista : Array.isArray(datos) ? datos : [];
+    for (const item of items) {
+      const entrada: EtiquetaOida | null = typeof item === "string" && item.trim()
+        ? { etiqueta: item.trim(), confianza: 1, timestamp: ahora }
+        : item && typeof item === "object"
+          ? (() => {
+              const o = item as Record<string, unknown>;
+              const etiqueta = typeof o.etiqueta === "string" && o.etiqueta.trim()
+                ? o.etiqueta
+                : typeof o.label === "string" ? o.label
+                : typeof o.name === "string" ? o.name
+                : "";
+              const bruto = o.confianza ?? o.confidence ?? o.score;
+              if (!etiqueta.trim() || typeof bruto !== "number") return null;
+              return { etiqueta: etiqueta.trim(), confianza: bruto, timestamp: ahora };
+            })()
+          : null;
+      if (entrada) etiquetasOidas.push(entrada);
+    }
+    // Poda: solo lo que la caducidad del oído aún considera vivo.
+    const corte = ahora - CADUCIDAD_OID_MS;
+    while (etiquetasOidas.length && etiquetasOidas[0].timestamp < corte) etiquetasOidas.shift();
+    while (etiquetasOidas.length > ETIQUETAS_OID_TOPE) etiquetasOidas.shift();
+  } catch { /* una respuesta mala del oído no tumba la escucha */ }
+}
+
+/** Línea «Se oye: …» para el contexto del agente. "" si ahora no se oye nada. */
+export function lineaContextoOidoParaPrompt(): string {
+  try {
+    return lineaContextoOido(etiquetasOidas, Date.now(), CADUCIDAD_OID_MS);
+  } catch { return ""; }
+}
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -1698,12 +1749,15 @@ export function useAuroraEngine(): AuroraEngine {
       // Aurora entienda cada contexto/sección y responda/actúe interconectando.
       let knowledge = "";
       try { knowledge = buildSystemKnowledge(routeContext()); } catch { knowledge = ""; }
+      // EAR1023C: lo que suena AHORA alrededor de la orbe, en una línea corta.
+      const notaOido = lineaContextoOidoParaPrompt();
       const system =
         buildSystemPrompt(activeRef.current) + "\n\n" +
         actionsSystemPromptSection() +
         (toolsSection ? "\n\n" + toolsSection : "") +
         (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
-        contextNote;
+        contextNote +
+        (notaOido ? "\n\n" + notaOido : "");
       // Se incluye el historial reciente (conversationRef) antes del mensaje actual.
       // Así mantenemos el contexto continuo en los comandos de voz.
       const historyMessages = conversationRef.current.map((msg): ChatMessage => ({
@@ -2313,7 +2367,11 @@ export function useAuroraEngine(): AuroraEngine {
           method: "POST",
           headers: { "Content-Type": "audio/x-pcm16" },
           body: pcm.buffer as ArrayBuffer,
-        }).catch(() => { /* sin servicio de oído en esta neurona: no pasa nada */ });
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          // EAR1023C: la respuesta del earshot son etiquetas para el contexto.
+          .then((datos) => { if (datos) recibirEtiquetasOidas(datos, ahora); })
+          .catch(() => { /* sin servicio de oído en esta neurona: no pasa nada */ });
       } catch { /* la decisión ambiental nunca tumba la escucha */ }
     };
 
