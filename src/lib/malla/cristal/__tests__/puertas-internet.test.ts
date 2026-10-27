@@ -508,3 +508,50 @@ describe('puertaParaTesela', () => {
     expect(salida.grupos).toEqual(['grupo1']);
   });
 });
+
+describe("rama · comportamiento adicional", () => {
+  it('permite al dueño aunque la puerta sea para nadie: las reglas de compartir no le aplican', () => {
+    expect(
+      podeUsar(
+        { ...basePuerta, compartir: 'nadie' },
+        { ...baseSolicitante, cuenta: 'c1' } // dueño
+      )
+    ).toEqual({ ok: true, motivo: 'Dueño dentro de su tope' });
+  });
+
+  it('desempata por id cuando dos permitidas empatan en coste', () => {
+    const gemelas: PuertaInternet[] = [
+      {
+        id: 'zeta',
+        neurona: 'n1',
+        cuenta: 'c1',
+        tipo: 'wifi-externa',
+        bajadaKbps: 5000,
+        subidaKbps: 5000,
+        latenciaMs: 100, // coste 0,1 + 0,5 = 0,6 (no medida)
+        medida: false,
+        compartir: 'publico',
+      },
+      {
+        id: 'alfa',
+        neurona: 'n2',
+        cuenta: 'c1',
+        tipo: 'cable',
+        bajadaKbps: 5000,
+        subidaKbps: 5000,
+        latenciaMs: 100, // mismo coste que zeta: 0,6
+        medida: false,
+        compartir: 'publico',
+      },
+    ];
+
+    const resultado = elegirPuerta({
+      clase: 'interno' as ClaseDato,
+      necesitaInternet: true,
+      puertas: gemelas,
+      solicitante: baseSolicitante,
+    });
+
+    expect(resultado.puerta?.id).toBe('alfa');
+  });
+});

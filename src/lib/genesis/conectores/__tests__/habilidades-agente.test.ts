@@ -24,7 +24,17 @@ const CAPACIDADES: SkillCapability[] = [
   cap("memoria-agente", "Memoria agéntica (Raven · Skales)", { preferStrong: true }),
 ];
 
+/** Conjunto de capacidades con IDs base/fuerte/red/ojos/plan para tests de routing. */
+const CAPS: SkillCapability[] = [
+  cap("base", "Conocimiento base"),
+  cap("fuerte", "Modelo fuerte", { preferStrong: true }),
+  cap("red", "Acceso web", { web: true }),
+  cap("ojos", "Ver imágenes", { vision: true }),
+  cap("plan", "Planificación", { planning: true }),
+];
+
 const OPCIONES = { capacidades: CAPACIDADES, desactivadas: [] };
+const OPCIONES_CAPS = { capacidades: CAPS, desactivadas: [] };
 
 function ids(resultado: SkillCapability[]): string[] {
   return resultado.map((h) => h.id);
@@ -176,5 +186,80 @@ describe("capa del modelo: tamaño de cada habilidad", () => {
   it("aptaParaRol coincide con la selección de habilidadesPara", () => {
     const seleccion = CAPACIDADES.filter((h) => aptaParaRol(h, "código"));
     expect(ids(seleccion).sort()).toEqual(ids(habilidadesPara("código", "cuenta", OPCIONES)).sort());
+  });
+
+  describe("rama · comportamiento adicional", () => {
+    it("elige por routing según el papel", () => {
+      const de = (papel: string) => habilidadesPara(papel, "cuenta", OPCIONES_CAPS);
+      // El escritor sirve con modelo fuerte, web y planificación; no lo de solo visión.
+      expect(ids(de("escritor"))).toEqual(["base", "fuerte", "red", "plan"]);
+      // El de visión solo lleva las de visión (y las sin routing).
+      expect(ids(de("visión"))).toEqual(["base", "ojos"]);
+      // El revisor exige calidad fuerte.
+      expect(ids(de("revisor"))).toEqual(["base", "fuerte", "red"]);
+      // Un papel desconocido recibe solo el conocimiento de base.
+      expect(ids(de("curioso"))).toEqual(["base"]);
+    });
+
+    it("excluye las desactivadas del ámbito", () => {
+      const salida = habilidadesPara("escritor", "cuenta", {
+        capacidades: CAPS,
+        desactivadas: ["fuerte", "ojos"],
+      });
+      expect(ids(salida)).toEqual(["base", "red", "plan"]);
+    });
+
+    it("entra por etiqueta aunque el routing no encaje", () => {
+      const vozWeb = cap("pipecat", "Voz en tiempo real (Pipecat)", { web: true });
+      // Para el papel de voz basta la etiqueta «voz», aunque su routing sea web.
+      expect(
+        ids(habilidadesPara("voz", "cuenta", {
+          capacidades: [vozWeb, ...CAPS],
+          desactivadas: [],
+        }))
+      ).toContain("pipecat");
+      // Para el revisor ni la etiqueta ni el encajan: se queda fuera.
+      expect(habilidadesPara("revisor", "cuenta", {
+        capacidades: [vozWeb],
+        desactivadas: [],
+      })).toHaveLength(0);
+    });
+
+    it("los directores también eligen, por routing o por etiqueta", () => {
+      const pizarra = cap("tldraw", "Pizarra profesional (tldraw)", "Dibuja a mano.", { vision: true });
+      const conDiseno = { capacidades: [pizarra, CAPS[2]], desactivadas: [] };
+      // …la toma por la etiqueta «pizarra»…
+      expect(ids(habilidadesPara("diseno", "cuenta", conDiseno))).toEqual(["tldraw"]);
+      expect(ids(habilidadesPara("diseño", "cuenta", conDiseno))).toEqual(["tldraw"]);
+      // …y descarta la de solo web.
+    });
+
+    it("en grupo o página, la deliberación colectiva sirve a cualquier papel", () => {
+      const consejo = cap("council", "Consejo de Aurora · deliberación política", "Deliberación.", { preferStrong: true });
+      // En una cuenta personal, el papel de voz no la recibe.
+      expect(habilidadesPara("voz", "cuenta", { capacidades: [consejo], desactivadas: [] })).toHaveLength(0);
+      // En un grupo o página (PoliGenesis) sí: deliberar es de todos.
+      expect(ids(habilidadesPara("voz", "página", { capacidades: [consejo], desactivadas: [] }))).toContain("council");
+      expect(ids(habilidadesPara("voz", "grupo", { capacidades: [consejo], desactivadas: [] }))).toContain("council");
+    });
+
+    it("recorta el prompt por capa: tarjeta ≤ 60, resumen ≤ 250, completa intacta", () => {
+      const largo = "palabra ".repeat(300).trim();
+      const opciones = { capacidades: [cap("largo", "Largo", largo, {})], desactivadas: [] };
+      const tarjeta = habilidadesPara("chat", "cuenta", opciones, "tarjeta");
+      expect(tarjeta[0].systemPrompt.split(/\s+/).length).toBe(60);
+      expect(tarjeta[0].systemPrompt.endsWith("…")).toBe(true);
+      const resumen = habilidadesPara("chat", "cuenta", opciones, "resumen");
+      expect(resumen[0].systemPrompt.split(/\s+/).length).toBe(250);
+      const completa = habilidadesPara("chat", "cuenta", opciones, "completa");
+      expect(completa[0].systemPrompt).toBe(largo);
+    });
+
+    it("no toca un prompt que ya cabe en la capa", () => {
+      const corto = "texto breve";
+      const opciones = { capacidades: [cap("corto", "Corto", corto, {})], desactivadas: [] };
+      const salida = habilidadesPara("chat", "cuenta", opciones, "tarjeta");
+      expect(salida[0].systemPrompt).toBe(corto);
+    });
   });
 });
