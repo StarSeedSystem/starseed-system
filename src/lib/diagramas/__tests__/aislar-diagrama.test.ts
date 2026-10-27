@@ -14,6 +14,18 @@ function plantillaDeVendor(nombre: string): string {
   );
 }
 
+const PLANTILLA = plantillaDeVendor("template.html");
+const PLANTILLA_MOTION = plantillaDeVendor("template-motion.html");
+const MALICIOSO = `<!DOCTYPE html>
+<html><head></head><body>
+<iframe src="https://malo.example"></iframe>
+<object data="malo.swf"></object>
+<embed src="malo.swf">
+<form action="javascript:alert(3)"><input name="x"></form>
+<a href="javascript:alert(4)">enlace</a>
+<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>
+</body></html>`;
+
 describe("prepararDiagrama", () => {
   it("exige un solo documento HTML con <svg>", () => {
     const sinSvg = prepararDiagrama("<!DOCTYPE html><html><body>hola</body></html>");
@@ -146,5 +158,42 @@ body { background: url(https://ejemplo.com/fondo.png); }
     expect(salida).not.toContain("fonts.googleapis.com");
     expect(salida).not.toContain("<link");
     expect(salida).toContain("<script");
+  });
+
+  it("acepta una plantilla de diagram-design sin recursos remotos", () => {
+    const r = prepararDiagrama(PLANTILLA, { permitirAnimacion: false });
+    expect(r.ok).toBe(true);
+    expect(r.sandbox).toBe("");
+    expect(r.srcdoc).not.toContain("<link");
+    expect(r.srcdoc).not.toContain("@import");
+    expect(r.srcdoc).not.toContain("https://fonts.googleapis.com");
+    expect(r.srcdoc).not.toContain("cdn.example.com");
+    expect(r.srcdoc).toContain("<svg");
+    expect(r.motivos.length).toBeGreaterThan(0);
+  });
+
+  it("neutraliza HTML malicioso en lugar de mostrarlo", () => {
+    const r = prepararDiagrama(MALICIOSO, { permitirAnimacion: true });
+    expect(r.ok).toBe(true);
+    const doc = r.srcdoc ?? "";
+    expect(doc).not.toContain("<iframe");
+    expect(doc).not.toContain("<object");
+    expect(doc).not.toContain("<embed");
+    expect(doc).not.toContain("<form");
+    expect(doc).not.toContain("<link");
+    expect(doc).not.toMatch(/\son[a-z]+\s*=/i);
+    expect(doc).not.toContain("javascript:");
+    expect(doc).toContain("<svg");
+    expect(doc).toContain("Content-Security-Policy");
+  });
+
+  it("nunca usa allow-same-origin", () => {
+    for (const permitirAnimacion of [true, false]) {
+      const r = prepararDiagrama(PLANTILLA, { permitirAnimacion });
+      expect(r.sandbox).not.toContain("allow-same-origin");
+      expect(r.srcdoc).not.toContain("allow-same-origin");
+    }
+    expect(prepararDiagrama(PLANTILLA, { permitirAnimacion: true }).sandbox).toBe("allow-scripts");
+    expect(prepararDiagrama(PLANTILLA, { permitirAnimacion: false }).sandbox).toBe("");
   });
 });

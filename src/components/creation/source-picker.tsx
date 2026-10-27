@@ -16,7 +16,7 @@
 // Estilo Crystal Liquid Glass · iconos Lucide · alias @/.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import {
     Dialog,
     DialogContent,
@@ -273,6 +273,7 @@ function DevicePanel({ folder, onPick }: { folder: string; onPick: (r: SourceRef
             <input
                 ref={inputRef}
                 type="file"
+                aria-label="Archivo del dispositivo"
                 className="hidden"
                 onChange={(e) => void onChoose(e)}
             />
@@ -283,14 +284,17 @@ function DevicePanel({ folder, onPick }: { folder: string; onPick: (r: SourceRef
 // ── Panel: URL ───────────────────────────────────────────────────────────────
 
 function UrlPanel({ onPick }: { onPick: (r: SourceRef) => void }) {
+    const idUrl = useId();
+    const idEtiqueta = useId();
     const [url, setUrl] = useState("");
     const [label, setLabel] = useState("");
     const valid = /^https?:\/\/\S+/i.test(url.trim());
     return (
         <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
             <div className="space-y-1.5">
-                <label className="text-[11px] uppercase tracking-wider text-white/40">URL</label>
+                <label htmlFor={idUrl} className="text-[11px] uppercase tracking-wider text-white/40">URL</label>
                 <Input
+                    id={idUrl}
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     placeholder="https://…"
@@ -298,8 +302,9 @@ function UrlPanel({ onPick }: { onPick: (r: SourceRef) => void }) {
                 />
             </div>
             <div className="space-y-1.5">
-                <label className="text-[11px] uppercase tracking-wider text-white/40">Etiqueta (opcional)</label>
+                <label htmlFor={idEtiqueta} className="text-[11px] uppercase tracking-wider text-white/40">Etiqueta (opcional)</label>
                 <Input
+                    id={idEtiqueta}
                     value={label}
                     onChange={(e) => setLabel(e.target.value)}
                     placeholder="Nombre visible"

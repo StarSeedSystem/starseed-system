@@ -91,4 +91,26 @@ describe("SourcePicker", () => {
     expect((archivo as HTMLElement).className).toContain("hidden");
     expect(screen.getByText("Elegir archivo")).toBeInTheDocument();
   });
+
+  it("las etiquetas URL y Etiqueta quedan ligadas a su input por id", () => {
+    renderPicker(["url"]);
+
+    const urlInput = screen.getByLabelText("URL");
+    const etiquetaInput = screen.getByLabelText("Etiqueta (opcional)");
+
+    expect(urlInput).toBeInstanceOf(HTMLInputElement);
+    expect(etiquetaInput).toBeInstanceOf(HTMLInputElement);
+    expect(urlInput.id).toBeTruthy();
+    expect(etiquetaInput.id).toBeTruthy();
+    // ids únicos aunque el picker se renderice varias veces en la página.
+    expect(urlInput.id).not.toBe(etiquetaInput.id);
+  });
+
+  it("el input de archivo del dispositivo lleva aria-label (sin label visible)", () => {
+    renderPicker(["device"]);
+
+    const archivo = screen.getByLabelText("Archivo del dispositivo");
+    expect(archivo).toBeInstanceOf(HTMLInputElement);
+    expect((archivo as HTMLInputElement).type).toBe("file");
+  });
 });
