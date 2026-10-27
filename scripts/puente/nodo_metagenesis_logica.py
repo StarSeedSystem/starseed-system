@@ -607,6 +607,8 @@ def tarea_de_reparacion(pub: Dict[str, Any], archivos: Sequence[str], ahora: flo
         "archivos": archivos,
         "depende": [],
         "origen": "metagenesis",
+        #: El sha rojo, para cerrarla sola cuando la publicación vuelva a verde con otro sha.
+        "sha_rojo": str(ev.get("sha") or ""),
         "prompt": (
             "NOTA DE METAGENESIS (%s): la autopublicación lleva más de %d min frenada en %s por «%s» y "
             "ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n%s\n```\n"
@@ -1039,6 +1041,73 @@ def autocurar(salud: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> L
 #: Estados que cierran una tarea para siempre (no se rescata).
 CERRADAS = {"commit", "hecho", "integrada", "sustituida", "rechazada", "descartada", "obsoleta", "informe",
             "reasignada"}
+
+_TITULO_REPARACION = "Puerta de publicación en rojo"
+_RE_SHA_FRENADA = re.compile(r"frenada en ([0-9a-f]{7,40})")
+#: «publicada»/«publicado» son las dos formas que escribe `autopublicar`; «ok» llega del bus.
+_FASES_VERDES = ("publicada", "publicado", "ok")
+
+
+def _es_reparacion_de_publicacion(t: Any) -> bool:
+    """PURA. ¿La creó MetaGenesis para una puerta de publicación en rojo?"""
+    return (isinstance(t, dict) and str(t.get("origen") or "") == "metagenesis"
+            and str(t.get("titulo") or "").startswith(_TITULO_REPARACION))
+
+
+def _sha_rojo_de(t: Any) -> str:
+    """PURA. El sha rojo que guardó la tarea: campo propio o el que va escrito en su prompt."""
+    t = t or {}
+    guardado = str(t.get("sha_rojo") or "").strip().lower()
+    if guardado:
+        return guardado
+    m = _RE_SHA_FRENADA.search(str(t.get("prompt") or ""))
+    return m.group(1).lower() if m else ""
+
+
+def _mismo_sha(a: str, b: str) -> bool:
+    """PURA. Compara shas de 7+ caracteres aunque uno venga recortado (8 vs 12)."""
+    n = min(len(a or ""), len(b or ""), 12)
+    return n >= 7 and a[:n] == b[:n]
+
+
+def reparaciones_superadas(tareas: List[Dict[str, Any]], progreso: Dict[str, Any],
+                           publicacion: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """PURA. Reparaciones de una puerta de publicación en rojo que ya no aplican.
+
+    De las tareas con `origen: "metagenesis"` cuyo título empieza por «Puerta de publicación en
+    rojo» —y sus sucesoras de la misma cadena (`-dN`, `-b`, `-c`…)—, devuelve `[(id, nota)]` de
+    las que siguen abiertas cuando la publicación está hoy en verde: fase `publicada`/`publicado`/
+    `ok`, o un sha publicado DISTINTO del sha rojo que la tarea guardó en su prompt. Si la puerta
+    sigue roja con el mismo sha, no cierra nada.
+    """
+    pub = publicacion or {}
+    fase = str(pub.get("fase") or "")
+    publicado = str(pub.get("sha") or "").strip().lower()
+    verde_por_fase = fase in _FASES_VERDES
+    if not verde_por_fase and not publicado:
+        return []
+    por_id: Dict[str, Dict[str, Any]] = {}
+    for t in tareas or ():
+        if isinstance(t, dict) and t.get("id"):
+            por_id[str(t["id"])] = t
+    bases = {base_de_tarea(tid) for tid, t in por_id.items() if _es_reparacion_de_publicacion(t)}
+    ids = set(por_id) | {str(tid) for tid in (progreso or {})}
+    salida: List[Tuple[str, str]] = []
+    for tid in sorted(ids):
+        tarea = por_id.get(tid) or {}
+        if not (_es_reparacion_de_publicacion(tarea) or base_de_tarea(tid) in bases):
+            continue
+        entrada = (progreso or {}).get(tid)
+        estado = entrada.get("estado") if isinstance(entrada, dict) else ""
+        if estado in CERRADAS:
+            continue
+        if not verde_por_fase:
+            rojo = _sha_rojo_de(tarea)
+            if not rojo or not publicado or _mismo_sha(publicado, rojo):
+                continue
+        muestra = publicado[:12] if publicado else "ok"
+        salida.append((tid, "NO APLICA: la puerta de publicación volvió a verde (publicado %s)" % muestra))
+    return salida
 
 
 def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, Any]]]], ids_vivos: set,
