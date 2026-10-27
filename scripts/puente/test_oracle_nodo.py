@@ -152,6 +152,13 @@ class Resumen(unittest.TestCase):
         self.assertEqual([s["nombre"] for s in servicios], ["caddy", "bitnet-publico"])
         self.assertNotIn("140-1-2-3", str(servicios))
 
+    def test_lleva_desde_cuando_trabaja_su_cola(self):
+        """(CAP1026O) El medidor «Agentes» de Genesis dice cuánto lleva la cola de los trabajadores del A1."""
+        e = {"latido": 1000, "fase": "cola", "fase_desde": 400, "cola": "cola-nube-x.json",
+             "orquestador": {"vivo": True, "cola": "cola-nube-x.json", "trabajadores": 3}}
+        nodo, _ = N.resumen_para_oracle_json(e, None, 1100)
+        self.assertEqual((nodo["fase_desde"], nodo["orquestador"]["trabajadores"]), (400, 3))
+
     def test_avisa_solo_cuando_cambia(self):
         verde = {"vivo": True, "guardian": {"t": 1, "ok": True, "sha": "a", "pasos": []}}
         rojo = {"vivo": True, "guardian": {"t": 2, "ok": False, "sha": "b", "asunto": "x",

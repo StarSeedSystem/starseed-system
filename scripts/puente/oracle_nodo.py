@@ -307,6 +307,8 @@ def resumen_para_oracle_json(estado_a1, publico, ahora):
         "latido": e.get("latido"),
         "vivo": nodo_vivo(e, ahora),
         "fase": e.get("fase"),
+        # (CAP1026O) Desde cuándo está en esa fase: Genesis dice cuánto lleva la cola de sus trabajadores.
+        "fase_desde": e.get("fase_desde"),
         "cola": e.get("cola"),
         "orquestador": e.get("orquestador"),
         "colas": e.get("colas"),

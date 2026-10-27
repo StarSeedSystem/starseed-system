@@ -238,5 +238,143 @@ class ModelosOllama(unittest.TestCase):
             self.assertEqual(A.resumen_modelos_ollama(raro), "sin modelos")
 
 
+class UnCheckoutFallidoNoSeComeLaCola(unittest.TestCase):
+    """(2026-10-27, CAP1026O) Un checkout que falla es de la máquina: la cola se reintenta, no se da por hecha."""
+
+    T = 1_800_000_000.0
+
+    def test_esperando_reintento(self):
+        r = {"sha": "a" * 40, "n": 1, "t": self.T}
+        self.assertTrue(A.esperando_reintento(r, "a" * 40, self.T + 60))
+        self.assertFalse(A.esperando_reintento(r, "a" * 40, self.T + A.ESPERA_CHECKOUT_S + 1))
+        self.assertFalse(A.esperando_reintento(r, "b" * 40, self.T + 60))  # se reescribió: otra cola
+        self.assertTrue(A.esperando_reintento(r, None, self.T + 60))  # bandeja: solo el tiempo
+        for raro in (None, {}, "x"):
+            self.assertFalse(A.esperando_reintento(raro, "a" * 40, self.T))
+
+    def test_tres_intentos_y_se_abandona(self):
+        accion, r = A.tras_checkout_fallido(None, "a" * 40, self.T)
+        self.assertEqual((accion, r["n"]), ("reintentar", 1))
+        accion, r = A.tras_checkout_fallido(r, "a" * 40, self.T + 700)
+        self.assertEqual((accion, r["n"]), ("reintentar", 2))
+        accion, r = A.tras_checkout_fallido(r, "a" * 40, self.T + 1400)
+        self.assertEqual((accion, r["n"]), ("abandonar", A.REINTENTOS_CHECKOUT))
+        # otro sha empieza de cero
+        self.assertEqual(A.tras_checkout_fallido(r, "b" * 40, self.T)[1]["n"], 1)
+
+    def test_cerrojo_abandonado(self):
+        self.assertTrue(A.cerrojo_git_abandonado(600, False))
+        self.assertFalse(A.cerrojo_git_abandonado(600, True))  # el de un git vivo nunca se toca
+        self.assertFalse(A.cerrojo_git_abandonado(30, False))  # recién creado: puede ser de un git que arranca
+        self.assertFalse(A.cerrojo_git_abandonado(None, False))
+
+    def test_colas_pendientes_salta_las_que_esperan(self):
+        refs = {"colas/oracle-x": ("a" * 40, 1.0), "colas/oracle-y": ("b" * 40, 2.0)}
+        reint = {"colas/oracle-x": {"sha": "a" * 40, "n": 1, "t": self.T}}
+        self.assertEqual(A.colas_pendientes(refs, {}, reint, self.T + 60), ["colas/oracle-y"])
+        self.assertEqual(A.colas_pendientes(refs, {}, reint, self.T + A.ESPERA_CHECKOUT_S + 1),
+                         ["colas/oracle-x", "colas/oracle-y"])
+
+
+class CheckoutEnElNodo(unittest.TestCase):
+    """(CAP1026O) El nodo de verdad, con git simulado: la cola vuelve y el cerrojo abandonado se aparta."""
+
+    def setUp(self):
+        import tempfile
+        from unittest import mock
+        self.mock = mock
+        self.tmp = tempfile.mkdtemp()
+        self.raiz = os.path.join(self.tmp, "repo")
+        os.makedirs(os.path.join(self.raiz, ".git"))
+        self.bandeja = os.path.join(self.tmp, "entrantes")
+        os.makedirs(self.bandeja)
+        for nombre, valor in (("ESTADO_DIR", os.path.join(self.tmp, "estado")), ("RAIZ", self.raiz),
+                              ("LOGS", os.path.join(self.tmp, "logs")), ("BANDEJA", self.bandeja)):
+            p = mock.patch.object(A, nombre, valor)
+            p.start()
+            self.addCleanup(p.stop)
+        self.ordenes = []
+
+    def _git_que_falla(self, salida="fatal: Unable to create '/x/.git/index.lock': File exists."):
+        def git(args, timeout=300, cwd=None):
+            self.ordenes.append(list(args))
+            if args[:1] == ["checkout"]:
+                return 128, salida
+            if args[:1] == ["diff-tree"]:
+                return 0, "enjambre/colas/cola-nube-1.json\n"
+            return 0, ""
+        return git
+
+    def _colas(self):
+        import json
+        try:
+            with open(os.path.join(A.ESTADO_DIR, "colas.json"), encoding="utf-8") as f:
+                return json.load(f)
+        except OSError:
+            return {}
+
+    def test_la_cola_no_se_da_por_hecha_hasta_el_tercer_fallo(self):
+        nodo = A.Nodo()
+        with self.mock.patch.object(A, "_git", self._git_que_falla()), \
+                self.mock.patch.object(A, "_git_vivos", lambda: True):
+            nodo.procesar_cola("colas/oracle-x", "a" * 40)
+            colas = self._colas()
+            self.assertNotIn("colas/oracle-x", colas.get("procesadas") or {})
+            self.assertEqual(colas["reintentos"]["colas/oracle-x"]["n"], 1)
+            self.assertIn("index.lock", colas["reintentos"]["colas/oracle-x"]["error"])
+            nodo.procesar_cola("colas/oracle-x", "a" * 40)
+            nodo.procesar_cola("colas/oracle-x", "a" * 40)
+        colas = self._colas()
+        self.assertEqual(colas["procesadas"]["colas/oracle-x"], "a" * 40)
+        self.assertNotIn("colas/oracle-x", colas.get("reintentos") or {})
+        self.assertEqual(colas["historial"][-1]["rc"], "checkout")
+        self.assertEqual(colas["historial"][-1]["intentos"], A.REINTENTOS_CHECKOUT)
+
+    def test_aparta_el_cerrojo_abandonado_y_repite(self):
+        cerrojo = os.path.join(self.raiz, ".git", "index.lock")
+        open(cerrojo, "w").close()
+        viejo = time.time() - 900
+        os.utime(cerrojo, (viejo, viejo))
+        intentos = []
+
+        def git(args, timeout=300, cwd=None):
+            if args[:1] == ["checkout"]:
+                intentos.append(1)
+                return (0, "") if not os.path.exists(cerrojo) else (128, "fatal: Unable to create index.lock")
+            return 0, ""
+        nodo = A.Nodo()
+        with self.mock.patch.object(A, "_git", git), self.mock.patch.object(A, "_git_vivos", lambda: False):
+            self.assertEqual(nodo._poner_en(["checkout", "-q", "-B", "main", "a" * 40])[0], 0)
+        self.assertEqual(len(intentos), 2)
+        self.assertFalse(os.path.exists(cerrojo))
+        self.assertTrue([n for n in os.listdir(os.path.join(self.raiz, ".git")) if n.startswith("index.lock.viejo-")])
+
+    def test_un_cerrojo_de_un_git_vivo_no_se_toca(self):
+        cerrojo = os.path.join(self.raiz, ".git", "index.lock")
+        open(cerrojo, "w").close()
+        viejo = time.time() - 900
+        os.utime(cerrojo, (viejo, viejo))
+        nodo = A.Nodo()
+        with self.mock.patch.object(A, "_git", self._git_que_falla()), \
+                self.mock.patch.object(A, "_git_vivos", lambda: True):
+            self.assertNotEqual(nodo._poner_en(["checkout", "-q", "-B", "main", "a" * 40])[0], 0)
+        self.assertTrue(os.path.exists(cerrojo))
+        self.assertEqual(sum(1 for o in self.ordenes if o[:1] == ["checkout"]), 1)
+
+    def test_la_entrante_vuelve_a_la_bandeja_y_espera(self):
+        import json
+        with open(os.path.join(self.bandeja, "cola-z.json"), "w", encoding="utf-8") as f:
+            json.dump([{"id": "TAREA1"}], f)
+        nodo = A.Nodo()
+        with self.mock.patch.object(A, "_git", self._git_que_falla()), \
+                self.mock.patch.object(A, "_git_vivos", lambda: True), \
+                self.mock.patch.object(A, "tareas_de_entrante", lambda d: d), \
+                self.mock.patch.object(A.Nodo, "candidatos_main", lambda self, refs: [("c" * 40, 1.0, "origin/main")]):
+            nodo.procesar_entrante("cola-z.json", {})
+            self.assertTrue(os.path.exists(os.path.join(self.bandeja, "cola-z.json")))
+            self.assertEqual(nodo.entrantes(), [])  # espera su reintento
+        self.assertNotIn(A.PREFIJO_BANDEJA + "cola-z.json", self._colas().get("procesadas") or {})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -20,6 +20,7 @@ import { ENLACE_USO_CLAUDE, estadoCreditoClaude, resumenCreditoClaude, type Conf
 import { estadoLimitesClaude, resumenLimitesClaude } from "./limites-claude";
 import { DONDE_CLAUDE_NUBE, TEXTO_CLAUDE_NUBE } from "./agentes-claude-nube";
 import { DONDE_CLOUDROOM, TEXTO_CLOUDROOM } from "./agentes-cloudroom";
+import { DONDE_ORACLE, TEXTO_ORACLE } from "./agentes-oracle";
 import { estadoCreditos, type DocCreditos } from "./creditos-pago-tipos";
 import {
     resumirBloqueadas,
@@ -2334,6 +2335,17 @@ export function detalleDeMedidor(
                         estado = "escribiendo";
                         porque = `${base}${veces}`;
                     }
+                } else if (l.donde === DONDE_ORACLE && l.trabajadores) {
+                    // (CAP1026O) Los trabajadores del orquestador del A1, leídos del ciclo del nodo: no se
+                    // sabe qué tarea lleva cada uno (lo dice su rama al entregar) ni si escribe o comprueba.
+                    estado = "trabajando en el A1";
+                    const tanda = l.tareasDeTanda ?? [];
+                    porque =
+                        `${TEXTO_ORACLE} · trabajador ${l.trabajador ?? 1} de ${l.trabajadores}` +
+                        (tanda.length
+                            ? ` · su tanda: ${tanda.slice(0, 6).join(", ")}${tanda.length > 6 ? ` y ${tanda.length - 6} más` : ""} · qué tarea lleva cada trabajador lo dice su rama al entregar`
+                            : " · su cola no está en esta neurona (una de la bandeja de MetaGenesis)") +
+                        ` · su estado llega con el ciclo del nodo (cada 30 min; último hace ${Math.round((l.latidoHaceS ?? 0) / 60)} min)`;
                 } else if (externo) {
                     estado = "trabajando fuera";
                     porque = `fase: ${l.fase ?? "sin fase"} · avisa al cambiar de fase (no escribe registro en la Mac)`;
@@ -2368,14 +2380,16 @@ export function detalleDeMedidor(
                     const escrito = bytesLegibles(l.bytesLog);
                     porque = `${escrito ?? "sin bytes medidos todavía"}${proceso ? ` · proceso ${proceso.pid}` : ""}${enLaMac ? "" : ` · en ${dondeCorto(l.donde)}`}`;
                 }
-                if (latidoViejo && !nubeGh) porque += latidoViejo;
+                if (latidoViejo && !nubeGh && !(l.donde === DONDE_ORACLE && l.trabajadores)) porque += latidoViejo;
                 const cola = String(l.cola ?? "").replace(/^cola-/, "");
                 const fila: FilaMedidor = {
                     id: enLaMac
                         ? l.tarea
                         : nubeGh
                           ? `${l.tarea} · ${l.trabajador && l.trabajadores ? `trabajador ${l.trabajador} de ${l.trabajadores}` : "trabajador"} · ${l.minutos} min`
-                          : `${l.tarea} · ${dondeCorto(l.donde)} · ${modelo || "agente"} · ${l.minutos} min`,
+                          : l.donde === DONDE_ORACLE && l.trabajadores
+                            ? `${l.tarea} · A1 de Oracle · trabajador ${l.trabajador ?? 1} de ${l.trabajadores} · ${l.minutos} min`
+                            : `${l.tarea} · ${dondeCorto(l.donde)} · ${modelo || "agente"} · ${l.minutos} min`,
                     // El id ya va en la cabecera de la tarjeta: aquí, solo QUÉ es la tarea.
                     titulo: externo && l.titulo ? l.titulo : titulo(l.tarea) !== l.tarea ? titulo(l.tarea) : "sin título en su cola",
                     estado,
@@ -2412,6 +2426,7 @@ export function detalleDeMedidor(
                 [cuenta("entregando"), "entregando"],
                 [cuenta("esperando máquina"), "esperando máquina"],
                 [cuenta("trabajando fuera"), "fuera"],
+                [cuenta("trabajando en el A1"), "en el A1 de Oracle"],
             ]
                 .filter(([n]) => Number(n) > 0)
                 .map(([n, t]) => `${n} ${t}`);

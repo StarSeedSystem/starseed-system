@@ -130,7 +130,9 @@ CATALOGO = {
         "servicio": "Cloudroom (agentes en su nube)",
         "proveedor": "Cloudroom · Pi con NIM/xKiro gratis o Codex",
         "horas_job": 0,
-        "jobs_simultaneos": 30,
+        # (CAP1026O) Lo de verdad lo mide `_catalogo_cloudroom_medido`: hilos vivos + los que caben HOY (su tope
+        # diario y sus 3 abiertos a la vez, de `cloudroom_lanzar`). Este 3 es el tope a la vez, por si no se lee.
+        "jobs_simultaneos": 3,
         "agentes_por_job": 1,
         "coste": "100 agentes en la nube cada 30 días (plan gratis); los modelos, de cada proveedor",
         "lanza": "python3 scripts/puente/cloudroom_lanzar.py lanzar --ids …",
@@ -405,6 +407,46 @@ def _catalogo_gh_medido(cat: dict) -> dict:
     return medido
 
 
+def catalogo_cloudroom(cat: dict, cupo_hoy, vivos, max_vivos, motivo: str = "") -> dict:
+    """PURA (2026-10-27, CAP1026O): Cloudroom con el sitio que tiene HOY, no 30 fijos.
+
+    MEDIDO el 26-10: el medidor decía «30 libres» en Cloudroom mientras `cloudroom_lanzar` solo lanzaba 6 al día y
+    3 abiertos a la vez (`ritmo`): «Buscar más capacidad» y el director contaban 24 agentes que no existían. Ahora
+    los jobs a la vez = los hilos vivos + los que caben hoy (sin pasar de `max_vivos`): libres = lo que se lanzaría."""
+    try:
+        hoy, vivos, tope = max(0, int(cupo_hoy or 0)), max(0, int(vivos or 0)), max(0, int(max_vivos or 0))
+    except (TypeError, ValueError):
+        return cat
+    medido = dict(cat)
+    medido["jobs_simultaneos"] = min(tope, vivos + hoy)
+    medido["coste"] = "%s · hoy: %s" % (cat.get("coste") or "", motivo or ("caben %d" % hoy))
+    return medido
+
+
+def _catalogo_cloudroom_medido(cat: dict) -> dict:
+    """El catálogo de Cloudroom con el cupo de hoy del propio lanzador (su registro; sin llamar a su CLI). Nunca lanza."""
+    try:
+        import cloudroom_lanzar as CL
+
+        ahora = time.time()
+        registro = CL.leer_registro()
+        pausa = CL.pausa_por_medio(registro, ahora)
+        r = {"hoy": 0, "motivo": pausa} if pausa else CL.ritmo(registro, ahora)
+        vivos = vivos_cloudroom(registro, _leer_json(PROGRESO, {}))
+        return catalogo_cloudroom(cat, r.get("hoy"), vivos, CL.MAX_VIVOS, r.get("motivo") or "")
+    except Exception:
+        return cat
+
+
+def _catalogo_de(mid: str) -> dict:
+    if mid == "nube-gh":
+        # (CAP1026F) GitHub no tiene un número fijo de jobs: los que aguantan los escritores vivos.
+        return _catalogo_gh_medido(CATALOGO["nube-gh"])
+    if mid == "cloudroom":
+        return _catalogo_cloudroom_medido(CATALOGO["cloudroom"])
+    return CATALOGO.get(mid, {})
+
+
 def inventario(medios_sondeados=None) -> dict:
     """`medios_sondeados`: el resultado de `medios_disponibles.sondear()` si ya se tiene
     (2026-10-05: «Buscar más capacidad» sondea una vez y lo reusa, en vez de pagar dos veces
@@ -412,9 +454,7 @@ def inventario(medios_sondeados=None) -> dict:
     origen = medios_sondeados if medios_sondeados is not None else _sondeo()
     medios = [m for m in origen if str(m.get("id")) not in NO_SON_CONTENEDORES]
     vivos = _vivos_por_medio()
-    # (CAP1026F) GitHub no tiene un número fijo de jobs: los que aguantan los escritores vivos.
-    conts = [contenedor(m, _catalogo_gh_medido(CATALOGO["nube-gh"]) if str(m.get("id")) == "nube-gh"
-                        else CATALOGO.get(str(m.get("id")), {}), vivos) for m in medios]
+    conts = [contenedor(m, _catalogo_de(str(m.get("id"))), vivos) for m in medios]
     # `medios_disponibles` no sondea las sesiones de Claude en la nube: se añaden aquí.
     if not any(str(m.get("id")) == "claude-nube" for m in medios):
         medio, cat = medio_claude_nube(_leer_json(CREDITO_CLAUDE), os.path.exists(LANZADOR_CLAUDE), time.time())

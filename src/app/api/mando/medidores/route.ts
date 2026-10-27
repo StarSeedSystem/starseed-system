@@ -24,6 +24,7 @@ import { POST as reintentarTareas } from "@/app/api/mando/reintentar/route";
 import { leerCreditosPago } from "@/lib/mando/creditos-pago";
 import { agentesDeClaudeNube } from "@/lib/mando/agentes-claude-nube";
 import { agentesDeCloudroom } from "@/lib/mando/agentes-cloudroom";
+import { agentesDelA1, colaDelA1, DONDE_ORACLE } from "@/lib/mando/agentes-oracle";
 import {
     colaInteligente,
     enjambreEnMarcha,
@@ -406,6 +407,32 @@ async function leerHilosCloudroom(progreso: Record<string, { estado?: unknown; m
     try {
         const crudo = await readFile(path.join(os.homedir(), ".starseed", "cloudroom-hilos.json"), "utf8");
         return agentesDeCloudroom(JSON.parse(crudo), progreso);
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * (2026-10-27, CAP1026O) Los trabajadores del A1 de Oracle: del estado que deja el ciclo del nodo
+ * (`~/.starseed/oracle.json`, sin IPs ni claves) y las tareas de su cola (`enjambre/colas/<cola>`, la que
+ * le mandó `oracle_nodo.py lanzar`). Sin red en la petición. Antes solo podían llegar por el bus de medios
+ * de la Mac, donde el A1 no escribe: el medidor «Agentes» no contaba ninguno.
+ */
+async function leerAgentesDelA1() {
+    try {
+        const estado = JSON.parse(await readFile(path.join(os.homedir(), ".starseed", "oracle.json"), "utf8")) as unknown;
+        const cola = colaDelA1(estado);
+        let ids: string[] = [];
+        // Solo un nombre de cola, nunca una ruta: el archivo lo escribe otro proceso.
+        if (/^cola-[A-Za-z0-9._-]{1,120}\.json$/.test(cola)) {
+            const ruta = path.join("enjambre", "colas", cola);
+            try {
+                ids = tareasDeCola(JSON.parse(await readFile(path.join(RAÍZ, ruta), "utf8")), ruta).map((t) => t.id);
+            } catch {
+                /* una cola de la bandeja de MetaGenesis no está aquí: se cuentan sus trabajadores sin tareas */
+            }
+        }
+        return agentesDelA1(estado, ids);
     } catch {
         return [];
     }
@@ -810,6 +837,15 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         }
     }
 
+    // (CAP1026O) Los trabajadores del A1. Si el bus ya trae latidos suyos, mandan ellos (son por tarea).
+    const agentesA1 = latidosDeAqui.some((l) => l.donde === DONDE_ORACLE || /oracle/i.test(String(l.donde ?? "")))
+        ? []
+        : await midiendo("agentesA1", leerAgentesDelA1());
+    if (agentesA1[0] && !titulos[agentesA1[0].tarea]) {
+        const n = agentesA1[0].tareasDeTanda.length;
+        titulos[agentesA1[0].tarea] = `Cola ${agentesA1[0].cola} en el A1 de Oracle${n ? ` (${n} tarea${n === 1 ? "" : "s"})` : ""}`;
+    }
+
     // Si tardó más de 5 s, se dice QUÉ fuente lo hizo (las tres más lentas): así el log
     // de Genesis explica las esperas en vez de solo registrar «heap out of memory».
     const total = Date.now() - inicio;
@@ -832,6 +868,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             ...agentesNube,
             ...(await leerSesionesClaudeNube(progreso)),
             ...(await leerHilosCloudroom(progreso)),
+            ...agentesA1,
         ],
         escritores,
         fantasmas,

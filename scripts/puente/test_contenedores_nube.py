@@ -233,3 +233,42 @@ class VivosCloudroom(unittest.TestCase):
         self.assertEqual(CN.vivos_cloudroom(reg, prog), 1)
         self.assertEqual(CN.vivos_cloudroom({"hilos": reg}, prog), 1)
         self.assertEqual(CN.vivos_cloudroom(None, prog), 0)
+
+
+class CloudroomConElCupoDeHoy(unittest.TestCase):
+    """(2026-10-27, CAP1026O) Decía «30 libres» con 6 al día y 3 abiertos a la vez: ahora, lo que caben hoy."""
+
+    CAT = {"jobs_simultaneos": 3, "agentes_por_job": 1, "coste": "100 cada 30 días"}
+
+    def test_libres_son_los_que_caben_hoy(self):
+        cat = C.catalogo_cloudroom(self.CAT, cupo_hoy=2, vivos=1, max_vivos=3, motivo="caben 2 (…)")
+        self.assertEqual(cat["jobs_simultaneos"], 3)
+        self.assertEqual(C.libres_de(cat, agentes_ahora=1, runs_ahora=1), 2)
+        self.assertIn("hoy: caben 2", cat["coste"])
+
+    def test_sin_cupo_hoy_no_hay_sitio(self):
+        cat = C.catalogo_cloudroom(self.CAT, cupo_hoy=0, vivos=0, max_vivos=3, motivo="sin cupo hoy: ya van 6 hoy")
+        self.assertEqual(C.libres_de(cat, 0, 0), 0)
+        self.assertIn("ya van 6", cat["coste"])
+
+    def test_nunca_pasa_del_tope_a_la_vez(self):
+        cat = C.catalogo_cloudroom(self.CAT, cupo_hoy=6, vivos=2, max_vivos=3)
+        self.assertEqual(cat["jobs_simultaneos"], 3)
+        self.assertEqual(C.libres_de(cat, 2, 2), 1)
+
+    def test_el_catalogo_base_no_se_toca_y_lo_raro_no_rompe(self):
+        C.catalogo_cloudroom(self.CAT, 2, 0, 3)
+        self.assertEqual(self.CAT["jobs_simultaneos"], 3)
+        self.assertIs(C.catalogo_cloudroom(self.CAT, "x", 0, 3), self.CAT)
+        self.assertEqual(C.CATALOGO["cloudroom"]["jobs_simultaneos"], 3)
+
+    def test_el_inventario_usa_el_ritmo_del_lanzador(self):
+        from unittest import mock
+        import cloudroom_lanzar as CL
+
+        with mock.patch.object(CL, "leer_registro", lambda: []), \
+                mock.patch.object(CL, "ritmo", lambda reg, ahora: {"hoy": 1, "motivo": "caben 1 (tope 6)"}), \
+                mock.patch.object(C, "_leer_json", lambda ruta, defecto=None: defecto):
+            cat = C._catalogo_de("cloudroom")
+        self.assertEqual(cat["jobs_simultaneos"], 1)
+        self.assertIn("caben 1", cat["coste"])

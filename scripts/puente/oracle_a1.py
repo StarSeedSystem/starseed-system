@@ -90,6 +90,13 @@ MINUTOS_COLA = int(os.environ.get("STARSEED_A1_MINUTOS", "180"))
 GUARDIAN_CADA_S = int(float(os.environ.get("STARSEED_GUARDIAN_CADA_H", "2")) * 3600)
 GUARDIAN_MIN_S = int(os.environ.get("STARSEED_GUARDIAN_MIN_S", "2700"))  # 45 min entre pasadas
 SONDEO_S = int(os.environ.get("STARSEED_A1_SONDEO_S", "120"))
+#: (2026-10-27, CAP1026O) Un `checkout` que falla es de la MÁQUINA, no de la cola (el 26-10, tras el reinicio del A1,
+#: un `.git/index.lock` de un git muerto: cinco colas en dos horas quedaron «procesadas» con rc=checkout en un segundo).
+#: Se reintenta a los ESPERA_CHECKOUT_S, hasta REINTENTOS_CHECKOUT veces; solo entonces se da por hecha.
+REINTENTOS_CHECKOUT = 3
+ESPERA_CHECKOUT_S = 10 * 60
+#: Un `.git/index.lock` con más de esto y sin ningún git vivo es de un git que murió (reinicio, OOM): se aparta.
+CERROJO_GIT_VIEJO_S = 120
 DIAS_ENTREGAS = 7
 DEJAR_ARCHIVO_OLAS = 15
 HOST_ARCHIVO = "/etc/starseed/host"
@@ -113,18 +120,46 @@ PASOS_GUARDIAN = (
 
 # ── decisiones (puras) ──────────────────────────────────────────────────────────────────────────
 
-def colas_pendientes(refs, procesadas):
+def colas_pendientes(refs, procesadas, reintentos=None, ahora=None):
     """PURA. Las ramas `colas/oracle-*` que aún no se trabajaron, la más vieja primero.
     `refs`: {rama: (sha, fecha_ts)}; `procesadas`: {rama: sha}. Una rama que se reescribió
-    (otro sha con el mismo nombre) vuelve a contar: es otra cola."""
+    (otro sha con el mismo nombre) vuelve a contar: es otra cola. (CAP1026O) `reintentos`: {rama: {sha, n, t}}
+    de las que fallaron su checkout; mientras esperan su reintento no cuentan (ni cortan al guardián)."""
+    ahora = time.time() if ahora is None else ahora
     salida = []
     for rama, (sha, fecha) in (refs or {}).items():
         if not str(rama).startswith(PREFIJO_COLA):
             continue
         if (procesadas or {}).get(rama) == sha:
             continue
+        if esperando_reintento((reintentos or {}).get(rama), sha, ahora):
+            continue
         salida.append((float(fecha or 0), rama))
     return [r for _, r in sorted(salida)]
+
+
+def esperando_reintento(reintento, sha, ahora, espera_s=ESPERA_CHECKOUT_S):
+    """PURA (CAP1026O). ¿Esta cola falló su checkout hace menos de `espera_s`? `reintento`: {"sha", "n", "t"};
+    con otro sha (la rama se reescribió) es otra cola y no espera. `sha` None: no se compara (bandeja)."""
+    if not isinstance(reintento, dict):
+        return False
+    if sha is not None and reintento.get("sha") != sha:
+        return False
+    return ahora - float(reintento.get("t") or 0) < espera_s
+
+
+def tras_checkout_fallido(reintento, sha, ahora, maximo=REINTENTOS_CHECKOUT):
+    """PURA (CAP1026O). Tras un checkout fallido: ("reintentar" | "abandonar", {"sha", "n", "t"}).
+    Cuenta los intentos del MISMO sha; al llegar a `maximo` se abandona (se anota y no se repite en bucle)."""
+    previos = int(reintento.get("n") or 0) if isinstance(reintento, dict) and reintento.get("sha") == sha else 0
+    registro = {"sha": sha, "n": previos + 1, "t": ahora}
+    return ("abandonar" if registro["n"] >= maximo else "reintentar"), registro
+
+
+def cerrojo_git_abandonado(edad_s, git_vivos, minimo_s=CERROJO_GIT_VIEJO_S):
+    """PURA (CAP1026O). ¿Un `.git/index.lock` de esta edad es de un git que ya no existe? Sin edad (no hay
+    cerrojo) o con algún git vivo, no: el de un git en marcha nunca se toca."""
+    return edad_s is not None and edad_s >= minimo_s and not git_vivos
 
 
 def cola_de_commit(nombres):
@@ -315,6 +350,14 @@ def _git(args, timeout=300, cwd=None):
         return r.returncode, (r.stdout or "") + (r.stderr or "")
     except Exception as e:  # noqa: BLE001
         return 1, "%s: %s" % (type(e).__name__, e)
+
+
+def _git_vivos():
+    """¿Hay algún `git` corriendo en el A1? Sin poder saberlo, sí (un cerrojo dudoso no se toca)."""
+    try:
+        return subprocess.run(["pgrep", "-x", "git"], capture_output=True, timeout=10).returncode == 0
+    except Exception:  # noqa: BLE001
+        return True
 
 
 def sha_y_fecha(rc, salida):
@@ -648,12 +691,65 @@ class Nodo:
         colas = _leer(os.path.join(ESTADO_DIR, "colas.json"), {})
         procesadas = colas.setdefault("procesadas", {})
         procesadas[rama] = sha
+        if isinstance(colas.get("reintentos"), dict):
+            colas["reintentos"].pop(rama, None)
         historial = colas.setdefault("historial", [])
         historial.append(dict(extra, rama=rama))
         colas["historial"] = historial[-30:]
         entregas = [e for e in colas.get("entregas") or [] if e not in entregas_viejas([e], time.time())]
         colas["entregas"] = sorted(set(entregas) | set(extra.get("entregas") or []))
         _escribir(os.path.join(ESTADO_DIR, "colas.json"), colas)
+
+    def _apartar_cerrojo_abandonado(self):
+        """(CAP1026O) Aparta (`.viejo-<t>`, no se borra) un `.git/index.lock` que no es de ningún git vivo."""
+        cerrojo = os.path.join(RAIZ, ".git", "index.lock")
+        try:
+            edad = time.time() - os.path.getmtime(cerrojo)
+        except OSError:
+            return False
+        if not cerrojo_git_abandonado(edad, _git_vivos()):
+            return False
+        try:
+            os.replace(cerrojo, "%s.viejo-%d" % (cerrojo, int(time.time())))
+        except OSError:
+            return False
+        try:
+            with open(os.path.join(LOGS, "nodo-errores.log"), "a", encoding="utf-8") as f:
+                f.write("%s cerrojo de git abandonado (%d s, sin git vivo): apartado\n"
+                        % (time.strftime("%FT%TZ", time.gmtime()), int(edad)))
+        except OSError:
+            pass
+        return True
+
+    def _poner_en(self, args):
+        """reset + clean + `git <args>` (un checkout). Si falla por un `index.lock` abandonado, lo aparta y
+        repite UNA vez (CAP1026O). Devuelve (rc, salida)."""
+        rc, salida = 1, ""
+        for intento in (0, 1):
+            _git(["reset", "-q", "--hard"])
+            _git(["clean", "-fdq"])
+            rc, salida = _git(args)
+            if rc == 0 or intento or "index.lock" not in salida or not self._apartar_cerrojo_abandonado():
+                break
+        return rc, salida
+
+    def _checkout_fallido(self, clave, sha, salida):
+        """(CAP1026O) La cola NO se da por hecha: el fallo es de la máquina. Se anota en `reintentos` y vuelve a
+        los ESPERA_CHECKOUT_S; tras REINTENTOS_CHECKOUT, se anota con rc «checkout» (sin bucle). True = reintentar."""
+        ruta = os.path.join(ESTADO_DIR, "colas.json")
+        colas = _leer(ruta, {})
+        reintentos = colas.get("reintentos") if isinstance(colas.get("reintentos"), dict) else {}
+        accion, registro = tras_checkout_fallido(reintentos.get(clave), sha, time.time())
+        registro["error"] = sin_secretos(str(salida or "").strip())[-200:]
+        if accion == "abandonar":
+            ahora = time.time()
+            self._anotar_cola(clave, sha, {"inicio": ahora, "fin": ahora, "rc": "checkout", "entregas": [],
+                                           "intentos": registro["n"], "error": registro["error"]})
+            return False
+        reintentos[clave] = registro
+        colas["reintentos"] = reintentos
+        _escribir(ruta, colas)
+        return True
 
     def reanudar_interrumpida(self):
         """Si el servicio murió con una cola a medias (reinicio, actualización), lo hecho se
@@ -675,10 +771,9 @@ class Nodo:
         if not cola:
             self._anotar_cola(rama, sha, {"inicio": time.time(), "fin": time.time(), "rc": "sin-cola", "entregas": []})
             return
-        _git(["reset", "-q", "--hard"])
-        _git(["clean", "-fdq"])
-        if _git(["checkout", "-q", "-B", "main", sha])[0] != 0:
-            self._anotar_cola(rama, sha, {"inicio": time.time(), "fin": time.time(), "rc": "checkout", "entregas": []})
+        rc, salida = self._poner_en(["checkout", "-q", "-B", "main", sha])
+        if rc != 0:
+            self._checkout_fallido(rama, sha, salida)
             return
         # El estado de la Mac que viajó con la cola (rotación y salud de modelos, sin claves).
         estado_dir = os.path.join(RAIZ, "enjambre", "colas", "estado-" + os.path.splitext(os.path.basename(cola))[0])
@@ -720,7 +815,10 @@ class Nodo:
                         if os.path.isfile(os.path.join(BANDEJA, n))]
         except OSError:
             return []
-        return entrantes_pendientes(archivos)
+        reintentos = (_leer(os.path.join(ESTADO_DIR, "colas.json"), {}) or {}).get("reintentos") or {}
+        ahora = time.time()
+        return [n for n in entrantes_pendientes(archivos)
+                if not esperando_reintento(reintentos.get(PREFIJO_BANDEJA + n), None, ahora)]
 
     def procesar_entrante(self, nombre, refs):
         """Una cola que dejó el líder de MetaGenesis: sale de la bandeja ANTES de correr (si el
@@ -733,19 +831,24 @@ class Nodo:
         clave = PREFIJO_BANDEJA + nombre
         hechas = os.path.join(BANDEJA, "hechas")
         os.makedirs(hechas, exist_ok=True)
+        movida = os.path.join(hechas, "%s.%s" % (nombre, time.strftime("%Y%m%d-%H%M%S")))
         try:
-            os.replace(ruta, os.path.join(hechas, "%s.%s" % (nombre, time.strftime("%Y%m%d-%H%M%S"))))
+            os.replace(ruta, movida)
         except OSError:
-            pass
+            movida = None
         ahora = time.time()
         if not tareas:
             self._anotar_cola(clave, huella, {"inicio": ahora, "fin": ahora, "rc": "sin-tareas", "entregas": []})
             return
         sha, _ = objetivo_guardian(self.candidatos_main(refs))
-        _git(["reset", "-q", "--hard"])
-        _git(["clean", "-fdq"])
-        if not sha or _git(["checkout", "-q", "-B", "main", sha])[0] != 0:
-            self._anotar_cola(clave, huella, {"inicio": ahora, "fin": ahora, "rc": "checkout", "entregas": []})
+        rc, salida = self._poner_en(["checkout", "-q", "-B", "main", sha]) if sha else (1, "sin main candidato")
+        if rc != 0:
+            # (CAP1026O) Vuelve a la bandeja y se reintenta luego (`entrantes()` la salta mientras espera).
+            if self._checkout_fallido(clave, huella, salida) and movida:
+                try:
+                    os.replace(movida, ruta)
+                except OSError:
+                    pass
             return
         # Las colas vivas no se versionan (`starseed_memory_root/olas/`): el árbol sigue limpio y el
         # orquestador arranca como en la Mac.
@@ -810,9 +913,7 @@ class Nodo:
         datos = _leer(os.path.join(ESTADO_DIR, "guardian.json"), {})
         if not forzar and not guardian_toca(datos.get("ultimo"), time.time(), sha):
             return False
-        _git(["reset", "-q", "--hard"])
-        _git(["clean", "-fdq"])
-        if _git(["checkout", "-q", "--detach", sha])[0] != 0:
+        if self._poner_en(["checkout", "-q", "--detach", sha])[0] != 0:
             return False
         _, asunto = _git(["log", "-1", "--format=%s", sha])
         inicio = time.time()
@@ -840,8 +941,9 @@ class Nodo:
                 break
             # Una cola del enjambre manda sobre el guardián: si llegó una, se le cede la máquina
             # (la pasada se descarta sin veredicto y se repite cuando toque).
-            procesadas = (_leer(os.path.join(ESTADO_DIR, "colas.json"), {}) or {}).get("procesadas") or {}
-            if colas_pendientes(self.refs_remotas(), procesadas) or self.entrantes():
+            colas = _leer(os.path.join(ESTADO_DIR, "colas.json"), {}) or {}
+            if colas_pendientes(self.refs_remotas(), colas.get("procesadas") or {}, colas.get("reintentos")) \
+                    or self.entrantes():
                 cedida = True
                 break
             parcial = os.path.join(LOGS, "guardian-%s.log" % nombre)
@@ -881,8 +983,8 @@ class Nodo:
         while not self._salir:
             try:
                 refs = self.refs_remotas()
-                procesadas = (_leer(os.path.join(ESTADO_DIR, "colas.json"), {}) or {}).get("procesadas") or {}
-                pendientes = colas_pendientes(refs, procesadas)
+                colas = _leer(os.path.join(ESTADO_DIR, "colas.json"), {}) or {}
+                pendientes = colas_pendientes(refs, colas.get("procesadas") or {}, colas.get("reintentos"))
                 if pendientes:
                     rama = pendientes[0]
                     self.procesar_cola(rama, refs[rama][0])
