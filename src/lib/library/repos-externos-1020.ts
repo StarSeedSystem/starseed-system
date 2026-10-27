@@ -28,6 +28,14 @@ const ICONOS: Record<string, string> = { app: "AppWindow", "ai-source": "BrainCi
 
 function autorDe(repo: string): string { return repo.split("/")[0] ?? repo; }
 
+// Defensivo: los 14 de la 1.ª tanda usan solo kinds válidos, pero este módulo
+// convive con la 2.ª tanda (1020b), que trae kinds ajenos a PackageKind
+// («tool», «link»). Nunca se cuela un kind falso con un cast: si una entrada
+// foránea entra algún día, cae honesta en «app» (ficha externa).
+function kindSeguro(kind: string): PackageKind {
+  return kind === "app" || kind === "ai-source" || kind === "function" ? kind : "app";
+}
+
 function payloadDe(e: Entrada1020): Record<string, unknown> {
   return {
     externalUrl: `https://github.com/${e.repo}`,
@@ -39,7 +47,7 @@ function payloadDe(e: Entrada1020): Record<string, unknown> {
 
 function paqueteDe(e: Entrada1020): LibraryPackage {
   return {
-    id: e.id, kind: e.kind as PackageKind, name: e.nombre,
+    id: e.id, kind: kindSeguro(e.kind), name: e.nombre,
     description: e.que_es + (e.aviso ? ` — ${e.aviso}` : ""),
     icon: ICONOS[e.kind] ?? "Package",
     tags: [...e.area, e.canal, e.licencia ? "lic" : ""].filter(Boolean),

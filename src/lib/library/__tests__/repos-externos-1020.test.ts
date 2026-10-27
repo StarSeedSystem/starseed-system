@@ -4,7 +4,13 @@ import {
   REPOS_EXCLUIDOS,
   REPO_EXTERNOS_1020,
 } from "../repos-externos-1020";
-import { listRepos } from "../packages";
+import { listRepos, VALID_KINDS } from "../packages";
+
+const iconosPorKind: Record<string, string> = {
+  app: "AppWindow",
+  "ai-source": "BrainCircuit",
+  function: "Boxes",
+};
 
 const paquetes = REPO_EXTERNOS_1020.packages;
 
@@ -89,6 +95,13 @@ describe("REPO_EXTERNOS_1020 · repo builtin externo de la Ola 1020", () => {
 
   it("el repo builtin está en listRepos()", () => {
     expect(listRepos().some((r) => r.id === "starseed-biblioteca-externa")).toBe(true);
+  });
+
+  it("los 14 kinds son válidos del sistema y su icono coincide con el kind", () => {
+    for (const pkg of paquetes) {
+      expect(VALID_KINDS, pkg.id).toContain(pkg.kind);
+      expect(pkg.icon, pkg.id).toBe(iconosPorKind[pkg.kind] ?? "Package");
+    }
   });
 });
 
