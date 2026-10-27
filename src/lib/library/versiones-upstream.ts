@@ -47,10 +47,15 @@ function textoDe(tono: TonoVersion, r: FuenteVersion): string {
 
 function tonoDe(r: FuenteVersion): TonoVersion {
     if (!r.remota) return "sin-comprobar";
-    const comparable = normalizarVersion(r.remota) !== normalizarVersion(r.instalada);
-    if (r.estado === "hay-actualizacion" || comparable) return "novedad";
-    if (r.estado === "igual" || !comparable) return "al-dia";
-    return "al-dia";
+    const instaladaNormalizada = normalizarVersion(r.instalada);
+    const remotaNormalizada = normalizarVersion(r.remota);
+    if (remotaNormalizada === instaladaNormalizada) return "al-dia";
+    // Un SHA no es comparable con una versión semántica: si el upstream dice que
+    // está al día, nos fiamos de él y no marcamos novedad por el formato.
+    if (ES_SHA.test(remotaNormalizada) && r.estado !== "hay-actualizacion") {
+        return "al-dia";
+    }
+    return "novedad";
 }
 
 /** Resumen en solo lectura de las versiones upstream de lo instalado. */
