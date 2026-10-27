@@ -182,6 +182,49 @@ class TestBriefAdn(unittest.TestCase):
         self.assertNotIn("Synthwave Horizon", fichas)
 
 
+class TestBriefHerramientas(unittest.TestCase):
+    """Herramientas nuevas del brief (§7) según las palabras de la tarea."""
+
+    def _brief(self, titulo):
+        tarea = {"titulo": titulo, "archivos": ["src/app/cafe/page.tsx"]}
+        return brief(tarea, MEMORIA_PRUEBA)
+
+    def test_presentacion_trae_frontend_slides(self):
+        texto = self._brief("Presentación de resultados")
+        self.assertIn("frontend-slides — https://github.com/zarazhangrui/frontend-slides", texto)
+
+    def test_design_md_trae_awesome_design_md(self):
+        texto = self._brief("design.md del panel")
+        self.assertIn("awesome-design-md — https://github.com/VoltAgent/awesome-design-md", texto)
+
+    def test_documentacion_y_educacion_traen_docusaurus(self):
+        self.assertIn("Docusaurus — https://github.com/facebook/docusaurus",
+                      self._brief("Documentación del grupo"))
+        self.assertIn("Docusaurus — https://github.com/facebook/docusaurus",
+                      self._brief("Curso de educación"))
+
+    def test_panel_de_datos_trae_refine(self):
+        texto = self._brief("Panel de datos del grupo")
+        self.assertIn("Refine — https://github.com/refinedev/refine", texto)
+
+    def test_taste_skill_sigue_en_toda_tarea(self):
+        self.assertIn("taste-skill — https://github.com/Leonxlnx/taste-skill",
+                      self._brief("Formulario de ajustes"))
+        self.assertIn("taste-skill — https://github.com/Leonxlnx/taste-skill",
+                      self._brief("Presentación con design.md y documentación"))
+
+    def test_ninguna_linea_se_repite(self):
+        texto = self._brief("Presentación, diapositivas y conferencia")
+        self.assertEqual(texto.count("frontend-slides — https://github.com/zarazhangrui/frontend-slides"), 1)
+        texto = self._brief("design.md y sistema de diseño")
+        self.assertEqual(texto.count("awesome-design-md — https://github.com/VoltAgent/awesome-design-md"), 1)
+
+    def test_apartados_6_y_7_sobreviven_con_varias_claves(self):
+        texto = self._brief("Presentación con design.md y documentación")
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+
+
 class TestBriefRise(unittest.TestCase):
     """§10: sección RISE solo si la tarea toca movimiento."""
 
