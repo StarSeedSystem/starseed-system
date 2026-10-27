@@ -1,0 +1,120 @@
+{
+  "ola": "Ola 1027b · Librería · MTN1027 y MVD1027: Meta^n (automejora recursiva de las capas) y Memvid (cápsulas de memoria), pedidos de Alex del 2026-10-27",
+  "fecha": "2026-10-27",
+  "principio": "Misma regla que las tandas 1025, 1026 y 1027: canal de versión declarado, instalar SOLO registra el enlace (cero descarga, cero ejecución, cero clave) y lo que pide Docker, GB o permisos queda como activación explicada en `aviso`. Licencia, commits y fecha comprobados el 2026-10-27 con clones de solo lectura y los registros públicos de paquetes: Meta^n (LICENSE, README, pyproject.toml, meta_n/utils/safety.py, meta_n/core/meta_layer.py; sin etiquetas ni versiones) y Memvid (LICENSE, Cargo.toml, README, MV2_SPEC.md, src/types/common.rs, src/memvid/mutation.rs; crates.io, npm y PyPI; el paquete npm @memvid/sdk 2.0.160 abierto en un directorio aparte para leer dist/analytics.js).",
+  "fusionadas": {},
+  "duplicadas": {},
+  "decisiones": [
+    "Meta^n en el A1: corre cada noche dentro de una caja Docker sin red, con las llamadas a modelos por una pasarela con tope (gratis primero). Hoy el A1 tiene ~1 GB libre de 11 con el enjambre: solo arranca con ≥ 1,5 GB libres. ¿Le reservas una franja nocturna con un agente menos?",
+    "Memvid: StarSeed usa su núcleo en Rust (sin red, sin telemetría) en un servidor propio; cada cápsula tiene 50 MB sin un ticket de memvid.com, así que se reparte en varias por sujeto y trimestre (no se piden tickets ni se crea cuenta). En la Mac no hay Rust y quedan ~5,5 GB de disco: el binario llega compilado por GitHub Actions como artefacto. ¿Te vale así o prefieres instalar Rust en la Mac (~1,5 GB)?"
+  ],
+  "licencias_verificadas": {
+    "automejora": "2026-10-27: LICENSE de minnesotanlp/meta-n (MIT, Copyright 2026 Zae Myung Kim); pyproject.toml 0.2.0 (Python ≥ 3.11; pydantic, openai, httpx, rich, numpy, pyyaml); dos commits, el último b7081843d3c7 del 2026-08-26; sin etiquetas. Artículo arXiv 2608.24735. Nada se ejecutó.",
+    "memorias": "2026-10-27: LICENSE de memvid/memvid (Apache-2.0); Cargo.toml memvid-core 2.0.140 (Rust ≥ 1.85, edition 2024; reqwest solo con api_embed); etiqueta v2.0.140 del 2026-05-27 y crate igual en crates.io; último commit 2026-07-14; SDKs @memvid/sdk, memvid-cli y memvid-sdk 2.0.160 (Apache-2.0) con telemetría encendida por defecto en Node (MEMVID_TELEMETRY=0 la apaga); tope de 50 MB por archivo en el nivel libre (src/types/common.rs). Nada se ejecutó."
+  },
+  "paquetes": [
+    {
+      "id": "lib-meta-n",
+      "repo": "minnesotanlp/meta-n",
+      "nombre": "Meta^n",
+      "titulo": "automejora recursiva: mejora el proceso, no solo la respuesta",
+      "kind": "ai-source",
+      "icono": "Repeat",
+      "grupo": "automejora",
+      "canal": "commits",
+      "rama": "main",
+      "licencia": "MIT (Copyright 2026 Zae Myung Kim)",
+      "version_actual": "b7081843d3c7",
+      "fecha_version": "2026-08-26",
+      "estado": "alfa",
+      "actividad": "2 commits (publicación inicial y un arreglo, ambos del 2026-08-26); sin etiquetas; CI con Python 3.11 y 3.12; prototipo de investigación.",
+      "area": [
+        "astraura",
+        "capas",
+        "automejora",
+        "aprendizaje",
+        "jev",
+        "laya",
+        "colibri",
+        "agentes",
+        "malla"
+      ],
+      "efecto": "MOTOR-IA",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "gratis": true,
+      "gratis_motivo": "Libre; en StarSeed usa modelos gratis por la pasarela (FreeLLMAPI o Colibri local) con tope de llamadas y 0 USD de gasto.",
+      "corre_aqui": false,
+      "que_es": "Código del artículo «Meta^n: Recursive Self-Improvement through Emergent Depth» (Minnesota NLP, 2026). Una operación fija, Ω, lee las trazas de las capas de abajo y escribe una capa nueva: pautas de estrategia en texto y funciones de ayuda; las capas se apilan mientras sirvan y una puede deshacer a la que empeoró. Búsqueda evolutiva con un archivo que solo crece y cualquier extremo compatible con OpenAI.",
+      "nota": "Es el tercer nivel de la automejora de Astraura (architecture/automejora-meta-n.md): pesos (Needle y la Fábrica), orden (medidas y Colibri) y proceso (Meta^n). Propone dentro de una caja; el juez de StarSeed prueba cada pauta con la capa real sobre casos apartados y solo activa las que aciertan más; el código que propone entra por el enjambre con sus puertas.",
+      "aviso": "Solo guarda el enlace. Ejecuta código que escribe un modelo: en StarSeed corre SIEMPRE dentro de Docker sin red, sin claves y con 1 GB de RAM como mucho; sin Docker no corre. Necesita Python ≥ 3.11 y Docker (el A1 los tiene).",
+      "requisitos": {
+        "ram_gb": 1,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "obligatorio (caja sin red)",
+        "arquitecturas": [
+          "arm64",
+          "amd64"
+        ],
+        "so": [
+          "linux"
+        ],
+        "fuente": "pyproject.toml y README del repo (2026-10-27) y medida del A1 (Python 3.12.3, Docker 29.1.3)"
+      }
+    },
+    {
+      "id": "lib-memvid",
+      "repo": "memvid/memvid",
+      "nombre": "Memvid",
+      "titulo": "memoria de IA en un solo archivo que se puede rebobinar",
+      "kind": "ai-source",
+      "icono": "Film",
+      "grupo": "memorias",
+      "canal": "tags",
+      "patron_tag": "^v\\d+\\.\\d+\\.\\d+$",
+      "licencia": "Apache-2.0 (memvid-core y SDKs)",
+      "version_actual": "v2.0.140",
+      "fecha_version": "2026-05-27",
+      "estado": "activo",
+      "actividad": "Núcleo v2.0.140 (2026-05-27) en GitHub y crates.io; SDKs 2.0.160 del mismo día; último commit el 2026-07-14 (README).",
+      "area": [
+        "memorias",
+        "cerebros",
+        "capas",
+        "astraura",
+        "agentes",
+        "bots",
+        "personalidades",
+        "perfiles",
+        "paginas",
+        "malla"
+      ],
+      "efecto": "MOTOR-IA",
+      "preinstalar": "siempre",
+      "claude": "mcp",
+      "gratis": true,
+      "gratis_motivo": "Libre y local; StarSeed usa el núcleo sin cuenta ni tickets de memvid.com, con cápsulas de hasta 50 MB repartidas por sujeto.",
+      "corre_aqui": false,
+      "que_es": "Capa de memoria para agentes de IA en un solo archivo .mv2: datos, índice de texto (BM25), vectores opcionales, línea del tiempo y metadatos juntos, sin base de datos. Escribe por fotogramas inmutables (solo añadir), así que se puede consultar cualquier estado pasado, repetir sesiones de agentes y sobrevivir a un corte. Cápsulas cifradas opcionales (.mv2e).",
+      "nota": "En StarSeed (architecture/memvid-capsulas.md) cada perfil, personalidad, agente, bot, página, grupo, comunidad, cerebro y capa tiene sus cápsulas con su alcance de memoria (personal y perfil, cifradas); los cerebros la tienen como destino de sincronía y Astraura busca en ellas antes de responder. Corre en un servidor propio (native/memvid-servidor, 127.0.0.1:4490) con el núcleo en Rust.",
+      "aviso": "Solo guarda el enlace. El SDK de Node manda telemetría a memvid.com por defecto (MEMVID_TELEMETRY=0 la apaga) y trae muchas dependencias: StarSeed no lo usa. Cada archivo tiene 50 MB sin ticket de memvid.com. La búsqueda por vectores descarga un modelo ONNX: solo con el visto bueno de cada neurona.",
+      "requisitos": {
+        "ram_gb": 1,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "arm64",
+          "amd64"
+        ],
+        "so": [
+          "macos",
+          "windows",
+          "linux"
+        ],
+        "fuente": "Cargo.toml y README del repo y crates.io (2026-10-27); compilar necesita Rust ≥ 1.85 (el A1 tiene cargo; la Mac no)"
+      }
+    }
+  ]
+}

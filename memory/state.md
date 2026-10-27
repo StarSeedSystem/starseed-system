@@ -4548,3 +4548,17 @@ las Mac compatibles: la red le da trabajo de servidor mientras dura su sesión) 
 - Instalar Insomnia en la Mac (contraseña y regla de sudoers).
 - Colibri en el A1: solo juicio (cabe) o dedicarlo a un modelo de razón / ampliar el volumen.
 - OpenMausBot además como app aparte (8 GB de RAM).
+
+
+## 2026-10-27 — Olas 1027b: Meta^n en la automejora de las capas y Memvid en las memorias
+**Sesión por:** Claude (Cowork, Opus 5.5) supervisando; el enjambre escribe.
+**Resumen:** dos pedidos más de Alex del 27-10, con contrato, datos verificados y cola de 28 tareas
+(`cola-meta-n-memvid-1027.json`). Meta^n (MIT, prototipo) es el tercer nivel de la automejora (pesos · orden ·
+proceso): corre cada noche en el A1 dentro de Docker sin red, propone pautas y ayudas, y solo se activa lo que el juez
+de StarSeed aprueba con casos apartados. Memvid (Apache-2.0): cápsulas `.mv2` por perfil, personalidad, agente, bot,
+página, grupo, cerebro y capa, servidas por un servidor Rust propio; el SDK de Node no entra (telemetría por defecto).
+Además: CLB1027F apuntaba a `deploy/oracle/nodo/` y `preparar-a1.sh` solo instala `deploy/oracle/nodo/systemd/`.
+
+### Decisiones de Alex
+- Franja nocturna del A1 para Meta^n (hoy ~1 GB libre de 11 con el enjambre).
+- Memvid en la Mac: binario por GitHub Actions (artefacto) o instalar Rust (~1,5 GB).
