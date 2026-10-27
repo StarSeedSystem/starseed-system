@@ -67,12 +67,16 @@ class TscRemotoTest(unittest.TestCase):
 
         return doble_sh, locales, peticiones, comprobar
 
-    def _pila(self, doble_sh, comprobar=None):
+    con_github_real = False
+
+    def _pila(self, doble_sh, comprobar=None, en_github=None):
         """Parches: la puerta fija, el evento silenciado y el cerrojo pesado sin efectos."""
         pila = contextlib.ExitStack()
         pila.enter_context(mock.patch.object(enjambre, "sh", doble_sh))
         if comprobar is not None:
             pila.enter_context(mock.patch.object(enjambre, "_comprobar_en_a1", return_value=comprobar))
+        if en_github is not None or not self.con_github_real:
+            pila.enter_context(mock.patch.object(enjambre, "_comprobar_en_github", return_value=en_github))
         pila.enter_context(mock.patch.object(enjambre, "evento"))
         pila.enter_context(mock.patch.object(enjambre, "SEM_PESADO"))
         pila.enter_context(mock.patch.object(enjambre, "cerrojo"))
@@ -114,6 +118,50 @@ class TscRemotoTest(unittest.TestCase):
                 self.assertEqual(enjambre.tsc(self.wt, self.log), (0, []))
         self.assertEqual(len(locales), 1)
         self.assertEqual(peticiones, [])  # desde la nube ni se pregunta al A1
+
+
+    # ── (CAP1026P) GitHub primero ──
+    def _github(self, veredicto):
+        llamadas = []
+
+        def en_github(base, cambiados, cwd):
+            llamadas.append((base, cambiados, cwd))
+            if isinstance(veredicto, Exception):
+                raise veredicto
+            return veredicto
+        return en_github, llamadas
+
+    def test_github_verde_no_pregunta_al_a1_ni_compila_aqui(self):
+        doble_sh, locales, peticiones, comprobar = self._dobles((True, "no debería llamarme", False))
+        en_github, llamadas = self._github((True, "tsc en verde en GitHub (run 7)"))
+        with self._pila(doble_sh, comprobar, en_github):
+            self.assertEqual(enjambre.tsc(self.wt, self.log), (0, []))
+        self.assertEqual((locales, peticiones), ([], []))
+        self.assertEqual(llamadas[0][1], ["a.ts"])  # la foto con lo sin commitear
+        self.assertNotEqual(llamadas[0][2], self.wt)
+
+    def test_github_rojo_devuelve_sus_errores(self):
+        detalle = "en GitHub (run 8) falla «tsc»: src/a.ts(1,1): error TS2322: no encaja\nError: Process completed"
+        doble_sh, locales, peticiones, comprobar = self._dobles((True, "no", False))
+        en_github, _ = self._github((False, detalle))
+        with self._pila(doble_sh, comprobar, en_github):
+            self.assertEqual(enjambre.tsc(self.wt, self.log), (1, ["en GitHub (run 8) falla «tsc»: src/a.ts(1,1): error TS2322: no encaja"]))
+        self.assertEqual((locales, peticiones), ([], []))
+
+    def test_github_sin_veredicto_o_roto_sigue_con_el_a1(self):
+        for veredicto in (None, RuntimeError("gh no está")):
+            doble_sh, locales, peticiones, comprobar = self._dobles((True, "verde en el A1", False))
+            en_github, llamadas = self._github(veredicto)
+            with self._pila(doble_sh, comprobar, en_github):
+                self.assertEqual(enjambre.tsc(self.wt, self.log), (0, []))
+            self.assertEqual((len(llamadas), len(peticiones), locales), (1, 1, []))
+
+    def test_github_sin_veredicto_y_sin_a1_compila_aqui(self):
+        doble_sh, locales, _, _ = self._dobles(None)
+        en_github, _ = self._github(None)
+        with self._pila(doble_sh, None, en_github), mock.patch.object(enjambre, "_comprobar_en_a1", return_value=None):
+            self.assertEqual(enjambre.tsc(self.wt, self.log), (0, []))
+        self.assertEqual(len(locales), 1)
 
 
 if __name__ == "__main__":

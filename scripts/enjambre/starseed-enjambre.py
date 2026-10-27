@@ -4117,6 +4117,26 @@ def _comprobar_en_a1():
     return comprobar
 
 
+#: (2026-10-27, CAP1026P) Lo que la puerta tsc de la Mac espera el veredicto de GitHub antes de caer al A1 o a la
+#: Mac. Un runner (4 vCPU, 16 GB) tarda ~8-12 min con el checkout y `npm ci`; la Mac llevaba 20-30 min por tsc.
+TSC_GITHUB_ESPERA_S = int(os.environ.get("STARSEED_TSC_GITHUB_ESPERA_S", "1500"))
+
+
+def _comprobar_en_github():
+    """(CAP1026P) La puerta tsc en GitHub Actions (`comprobar_en_github.esperar_tsc`), o None si no aplica.
+    Solo en la Mac (la nube y el A1 compilan donde tienen memoria) y con STARSEED_COMPROBAR_GITHUB ≠ 0."""
+    if os.environ.get("STARSEED_MEDIO") != "mac" or os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0":
+        return None
+    ruta = os.path.join(ROOT, "scripts", "puente")
+    if not os.path.isfile(os.path.join(ruta, "comprobar_en_github.py")):
+        return None
+    if ruta not in sys.path:
+        sys.path.insert(0, ruta)
+    import comprobar_en_github as G
+
+    return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
+
+
 def errores_de_a1(detalle):
     """PURA: el detalle del A1 en líneas «error TS», el formato que la reparación automática espera."""
     lineas = [l.strip() for l in str(detalle or "").splitlines() if "error TS" in l]
@@ -4126,15 +4146,19 @@ def errores_de_a1(detalle):
     return lineas
 
 
-def tsc_en_a1(cwd, log=None, comprobar=None):
-    """Puerta tsc en el A1. Devuelve (rc, errores) si el A1 dio verde o rojo y None si hay que
-    compilar aquí (no es la Mac, el A1 no responde o está ocupado: fallo del medio, no de la tarea).
-    `comprobar` es inyectable para las pruebas."""
+def tsc_en_a1(cwd, log=None, comprobar=None, en_github=None):
+    """Puerta tsc fuera de la Mac: primero GitHub Actions (CAP1026P), luego el A1. Devuelve (rc, errores) si
+    uno de los dos dio verde o rojo y None si hay que compilar aquí (no es la Mac, ninguno responde o están
+    ocupados: fallo del medio, no de la tarea). `comprobar` y `en_github` son inyectables para las pruebas."""
     try:
         comprobar = comprobar or _comprobar_en_a1()
     except Exception:  # noqa: BLE001 — sin el módulo se comprueba en local
         comprobar = None
-    if comprobar is None:
+    try:
+        en_github = en_github or _comprobar_en_github()
+    except Exception:  # noqa: BLE001 — sin el módulo, como antes
+        en_github = None
+    if comprobar is None and en_github is None:
         return None
     tid = os.path.basename(cwd.rstrip("/"))
     inicio = time.time()
@@ -4169,6 +4193,25 @@ def tsc_en_a1(cwd, log=None, comprobar=None):
             shutil.rmtree(tmp, ignore_errors=True)
             return None
         try:
+            if en_github is not None:
+                inicio_gh = time.time()
+                # La base que va en el nombre de la rama ha de estar en la historia que se sube: si main
+                # avanzó después del rebase de la tarea, la de la tarea (merge-base), no la de ahora.
+                rc_mb, mb = sh(["git", "merge-base", base, snap], cwd=cwd, timeout=60)
+                base_gh = mb.strip() if rc_mb == 0 and mb.strip() else base
+                try:
+                    gh = en_github(base_gh, cambiados, tmp)
+                except Exception as e:  # noqa: BLE001 — GitHub nunca tumba la puerta
+                    gh = None
+                    evento("aviso", tid, "puerta tsc: GitHub no disponible (%s)" % str(e)[:120])
+                if gh is not None:
+                    ok_gh, detalle_gh = gh
+                    evento("aviso", tid, "puerta tsc: GitHub (%.0f s) %s · %s" % (
+                        time.time() - inicio_gh, "en verde" if ok_gh else "en rojo", str(detalle_gh)[:160]))
+                    return (0, []) if ok_gh else (1, errores_de_a1(detalle_gh))
+                evento("aviso", tid, "puerta tsc: GitHub sin veredicto en %.0f s → A1 o Mac" % (time.time() - inicio_gh))
+            if comprobar is None:
+                return None
             ok, detalle, del_medio = comprobar(base, [snap], cambiados, timeout=900, cwd=tmp)
         finally:
             sh(["git", "worktree", "remove", "--force", tmp], cwd=cwd, timeout=60)

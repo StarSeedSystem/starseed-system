@@ -44,6 +44,10 @@ CADUCA_S = 50 * 60
 OLVIDO_S = 3 * 24 * 3600
 #: Pasos del job cuyo fallo es de la TAREA; cualquier otro (checkout, dependencias…) es del medio.
 PASOS_DE_LA_TAREA = ("tsc", "pruebas TS", "pruebas del puente")
+#: (CAP1026P) Cada cuánto mira la puerta tsc del orquestador si GitHub ya tiene veredicto.
+SONDEO_S = 30
+#: (CAP1026P) Sin run en GitHub pasado esto desde el push, la puerta del orquestador deja de esperar.
+SIN_RUN_S = 180
 
 
 # ── lógica pura ──
@@ -157,6 +161,62 @@ def _detalle_fallo(run_id):
 
 def _borrar_rama(rama):
     _git(RAIZ, ["push", "-q", "origin", "--delete", rama], timeout=120)
+
+
+def paso_tsc(jobs):
+    """PURA (CAP1026P). Cómo acabó el paso «tsc» de un job, aunque el run siga: "success" | "failure" |
+    "skipped" (no había TypeScript que comprobar) | "" (aún no acabó o no se sabe)."""
+    for j in jobs or []:
+        for st in j.get("steps") or []:
+            if st.get("name") == "tsc" and st.get("conclusion") in ("success", "failure", "skipped"):
+                return st["conclusion"]
+    return ""
+
+
+def _entrada(base_sha, cwd):
+    rc, arbol = _git(cwd, ["rev-parse", "HEAD^{tree}"], timeout=30)
+    if rc != 0:
+        return None
+    return podar(_leer(), time.time()).get(clave_de(str(base_sha).strip(), arbol.strip()))
+
+
+def esperar_tsc(base_sha, cambiados, cwd, esperar_s, dormir=time.sleep, reloj=time.time):
+    """(2026-10-27, CAP1026P) La puerta tsc del ORQUESTADOR de la Mac en GitHub. Ella no puede «volver en la
+    próxima pasada» como traer_nube: lanza la comprobación y espera su veredicto, mirando el paso tsc del job
+    aunque el run siga (las pruebas las pasa luego su propia puerta). (ok, detalle) o None si no aplica, no se
+    pudo lanzar, el runner falló o pasó `esperar_s`: entonces el orquestador sigue como antes (A1, luego la Mac).
+
+    MEDIDO el 26-10: main de la Mac sin una sola integración del enjambre desde las 12:03; las tareas pasaban
+    20-30 min en «tsc» y el tsc de la Mac moría por memoria («puerta tsc: Mac (… A1: otra comprobación en
+    marcha en el A1)»)."""
+    inicio = reloj()
+    fin = inicio + max(0, esperar_s)
+    while True:
+        r = comprobar(base_sha, [], cambiados, cwd=cwd)
+        if r is None:
+            return None
+        ok, detalle, del_medio = r
+        if not del_medio:
+            if ok:
+                return True, detalle
+            e = _entrada(base_sha, cwd) or {}
+            if e.get("paso") and e.get("paso") != "tsc":
+                return True, "tsc en verde en GitHub (run %s); «%s» en rojo: eso lo ve la puerta de pruebas" % (
+                    e.get("run"), e.get("paso"))
+            return False, detalle
+        if ESPERANDO not in str(detalle) or "ya hay" in str(detalle) or "del medio" in str(detalle):
+            return None
+        e = _entrada(base_sha, cwd) or {}
+        if not e.get("run") and reloj() - inicio > SIN_RUN_S:
+            return None  # GitHub no ha creado el run: mejor el A1 o la Mac que esperar a ciegas
+        if e.get("run"):
+            paso = paso_tsc(_jobs(e["run"]))
+            if paso in ("success", "skipped"):
+                return True, "tsc %s en GitHub (run %s); el resto del job sigue" % (
+                    "en verde" if paso == "success" else "sin TypeScript que comprobar", e["run"])
+        if reloj() >= fin:
+            return None
+        dormir(SONDEO_S)
 
 
 def comprobar(base_sha, shas, cambiados, timeout=None, cwd=None, ahora=None):  # noqa: ARG001 — firma de comprobar_en_a1

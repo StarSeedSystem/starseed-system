@@ -134,6 +134,76 @@ class Flujo(unittest.TestCase):
         self.assertEqual(self.empujes, [])
 
 
+class LaPuertaDelOrquestadorEspera(unittest.TestCase):
+    """(CAP1026P) La puerta tsc del orquestador de la Mac: lanza en GitHub y ESPERA el veredicto del paso tsc."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        p = mock.patch.object(G, "ESTADO", os.path.join(self.tmp.name, "comprobar-github.json"))
+        p.start()
+        self.addCleanup(p.stop)
+        self.t = [T]
+        self.dormidas = []
+
+    def _reloj(self):
+        return self.t[0]
+
+    def _dormir(self, s):
+        self.dormidas.append(s)
+        self.t[0] += s
+
+    def _correr(self, respuestas, entrada=None, jobs=None, esperar_s=600):
+        seq = list(respuestas)
+
+        def comprobar(base, shas, cambiados, cwd=None):
+            return seq.pop(0) if len(seq) > 1 else seq[0]
+        with mock.patch.object(G, "comprobar", comprobar), \
+                mock.patch.object(G, "_entrada", lambda b, c: entrada), \
+                mock.patch.object(G, "_jobs", lambda run: jobs or []):
+            return G.esperar_tsc(BASE, ["src/a.ts"], self.tmp.name, esperar_s, dormir=self._dormir, reloj=self._reloj)
+
+    def test_paso_tsc(self):
+        self.assertEqual(G.paso_tsc([{"steps": [{"name": "tsc", "conclusion": "success"}]}]), "success")
+        self.assertEqual(G.paso_tsc([{"steps": [{"name": "tsc", "conclusion": None}]}]), "")
+        self.assertEqual(G.paso_tsc([{"steps": [{"name": "tsc", "conclusion": "skipped"}]}]), "skipped")
+        self.assertEqual(G.paso_tsc([]), "")
+
+    def test_espera_y_da_el_verde(self):
+        esperando = (False, G.ESPERANDO + " (run 9): lanzada", True)
+        r = self._correr([esperando, esperando, (True, "tsc y pruebas en verde en GitHub (run 9)", False)])
+        self.assertEqual(r[0], True)
+        self.assertEqual(self.dormidas, [G.SONDEO_S, G.SONDEO_S])
+
+    def test_el_paso_tsc_en_verde_no_espera_a_las_pruebas(self):
+        esperando = (False, G.ESPERANDO + " (run 9, 3 min): en la próxima pasada", True)
+        jobs = [{"steps": [{"name": "tsc", "conclusion": "success"}, {"name": "pruebas TS", "conclusion": None}]}]
+        r = self._correr([esperando], entrada={"run": 9, "estado": "en_curso"}, jobs=jobs)
+        self.assertEqual(r[0], True)
+        self.assertIn("run 9", r[1])
+        self.assertEqual(self.dormidas, [])
+
+    def test_unas_pruebas_rojas_no_son_un_tsc_rojo(self):
+        r = self._correr([(False, "en GitHub (run 5) falla «pruebas TS»: x", False)], entrada={"paso": "pruebas TS", "run": 5})
+        self.assertEqual(r[0], True)
+        r = self._correr([(False, "en GitHub (run 5) falla «tsc»: error TS1", False)], entrada={"paso": "tsc", "run": 5})
+        self.assertEqual(r, (False, "en GitHub (run 5) falla «tsc»: error TS1"))
+
+    def test_sin_veredicto_cae_al_a1_o_a_la_mac(self):
+        self.assertIsNone(self._correr([None]))
+        self.assertIsNone(self._correr([(False, G.ESPERANDO + ": ya hay 6 comprobaciones en marcha", True)]))
+        self.assertIsNone(self._correr([(False, "GitHub: no pude subir la rama de comprobación (x)", True)]))
+        self.assertIsNone(self._correr([(False, G.ESPERANDO + ": el run 3 acabó «Dependencias» (del medio): se repite", True)]))
+        self.assertEqual(self.dormidas, [])
+        # y si pasa el tiempo sin veredicto, tampoco se queda esperando para siempre
+        self.assertIsNone(self._correr([(False, G.ESPERANDO + " (run 4): lanzada", True)], entrada={"run": 4}, esperar_s=95))
+        self.assertEqual(len(self.dormidas), 4)
+
+    def test_sin_run_en_github_no_espera_a_ciegas(self):
+        self.assertIsNone(self._correr([(False, G.ESPERANDO + " (run ?): lanzada", True)], entrada={"estado": "en_curso"}))
+        self.assertEqual(len(self.dormidas), G.SIN_RUN_S // G.SONDEO_S + 1)
+
+
 class EnTraerNube(unittest.TestCase):
     def test_comprobandose_es_del_medio_y_no_toca_el_a1(self):
         import traer_nube as Tn
