@@ -1,0 +1,134 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "ola": "Rescate de las ramas de la nube",
+   "id": "RTPM1010F2Kd-d3d",
+   "titulo": "Rescate de pruebas · Biblioteca por categorías: una ficha por herramienta con licencia, enlaces, versión y estado real (parte 3 de 3)",
+   "archivos": [
+    "src/lib/protomolecula/__tests__/debug-proximamente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea PM1010F2K («Biblioteca por categorías: una ficha por herramienta con licencia, enlaces, versión y estado real») se hizo en main por otro camino; su rama nube/a1-20261011-163945-PM1010F2K queda archivada en `refs/archivo/nube/a1-20261011-163945-PM1010F2K` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.93)\n\nTU TAREA (RTPM1010F2K · solo estos archivos: src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts, src/lib/protomolecula/__tests__/debug-proximamente-atom.test.ts, src/lib/protomolecula/__tests__/debug-proximamente.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts\n  it(\"devuelve un array vacío cuando no hay átomos registrados\", () => {\n    const resultado = fichasProtomolecula();\n    expect(resultado).toEqual([]);\n  });\n\n# src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts\n  it(\"convierte un átomo registrado en una ficha de biblioteca\", () => {\n    const atomo = crearAtomoValido(\"test-tool\", \"Herramienta de Prueba\");\n    registrarAtomo(atomo);\n    \n    const resultado = fichasProtomolecula();\n    \n    expect(resultado).toHaveLength(1);\n    expect(resultado[0].id).toBe(\"proto-test-tool\");\n    expect(resultado[0].title).toBe(\"Herramienta de Prueba\");\n    expect(resultado[0].category).toBe(\"protomolecula\");\n    expect(resultado[0].categoryLabel).toBe(\"Protomolécula\");\n    expect(resultado[0].author).toBe(\"StarSeed OS\");\n  });\n\n# src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts\n  it(\"usa la información de versiones cuando se proporciona\", () => {\n    const atomo = crearAtomoValido(\"versioned-tool\", \"Herramienta con Versión\");\n    registrarAtomo(atomo);\n    \n    const versiones = {\n      \"versioned-tool\": {\n        version: \"1.2.3\",\n        fecha: \"2026-10-10\",\n        licencia: \"MIT\",\n        sha: \"abc123\",\n        estado: \"disponible\"\n      }\n    };\n    \n    const resultado = fichasProtomolecula(versiones);\n    \n    expect(resultado[0].license).toBe(\"MIT\");\n    // La versión debería aparecer en la descripción o en algún otro campo\n    // Como no estamos mostrando explícitamente la versión en la ficha básica,\n    // verificamos que al menos se procese correctamente\n    expect(resultado[0].description).toContain(\"Herramienta con Versión\");\n  });\n\n# src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts\n  it(\"marca las fichas como no verificadas cuando el estado es 'proximamente'\", () => {\n    const atomo = crearAtomoValido(\"future-tool\", \"Herramienta Futura\");\n    registrarAtomo(atomo);\n    \n    const versiones = {\n      \"future-tool\": {\n        estado: \"proximamente\"\n      }\n    };\n    \n    const resultado = fichasProtomolecula(versiones);\n    \n    expect(resultado[0].verified).toBe(false);\n    expect(resultado[0].description).toContain(\"Próximamente\");\n  });\n\n# src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts\n  it(\"usa la información del catálogo cuando se proporciona\", () => {\n    const atomo = crearAtomoValido(\"catalog-tool\", \"Herramienta del Catálogo\");\n    registrarAtomo(atomo);\n    \n    const catalogo = [{\n      id: \"catalog-tool\",\n      nombre: \"Nombre desde Catálogo\",\n      descripcion: \"Esta es una descripción detallada desde el catálogo\",\n      licencia: \"GPL-3.0\",\n      repositorio: \"https://github.com/usuario/repo\",\n      web: \"https://ejemplo.com\",\n      documento: \"https://docs.ejemplo.com\",\n      integracion: \"iframe-aislado\",\n      control: \"total\",\n      estado: \"integrable\",\n      motivo: \"\"\n    }];\n    \n    const resultado = fichasProtomolecula({}, catalogo);\n    \n    expect(resultado[0].title).toBe(\"Nombre desde Catálogo\");\n    expect(resultado[0].description).toContain(\"Esta es una descripción detallada desde el catálogo\");\n    expect(resultado[0].license).toBe(\"GPL-3.0\");\n    // Verificar que los enlaces se crearon correctamente\n    expect(resultado[0].links).toBeDefined();\n    expect(resultado[0].links?.length).toBeGreaterThan(0);\n  });\n\n# src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts\n  it(\"muestra 'Próximamente' cuando el átomo tiene el campo proximamente\", () => {\n    const atomo: DefinicionAtomo = {\n      ...crearAtomoValido(\"proximate-tool\", \"Herramienta Próxima\"),\n      proximamente: \"Falta implementar el envoltorio nativo\"\n    };\n    registrarAtomo(atomo);\n    \n    const resultado = fichasProtomolecula();\n    \n    expect(resultado[0].description).toContain(\"Próximamente: Falta implementar el envoltorio nativo\");\n    expect(resultado[0].verified).toBe(false);\n  });\n\n# src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts\n  it(\"agrupa correctamente las fichas por categoría\", () => {\n    // Crear átomos de diferentes categorías\n    registrarAtomo(crearAtomoValido(\"img-tool\", \"Herramienta de Imagen\", \"imagen\"));\n    registrarAtomo(crearAtomoValido(\"aud-tool\", \"Herramienta de Audio\", \"audio\"));\n    registrarAtomo(crearAtomoValido(\"vid-tool\", \"Herramienta de Video\", \"video\"));\n    \n    const resultado = fichasProtomolecula();\n    \n    // Verificar que tenemos 3 fichas\n    expect(resultado).toHaveLength(3);\n    \n    // Verificar que cada ficha tiene el tag de categoría correspondiente\n    const imgFicha = resultado.find(f => f.title === \"Herramienta de Imagen\");\n    const audFicha = resultado.find(f => f.title === \"Herramienta de Audio\");\n    const vidFicha = resultado.find(f => f.title === \"Herramienta de Video\");\n    \n    expect(imgFicha).toBeDefined();\n    expect(audFicha).toBeDefined();\n    expect(vidFicha).toBeDefined();\n    \n    expect(imgFicha?.tags).toContain(\"imagen\");\n    expect(audFicha?.tags).toContain(\"audio\");\n    expect(vidFicha?.tags).toContain(\"video\");\n  });\n\n# src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts\n  it(\"ordena las fichas según el orden especificado en el contrato\", () => {\n    // Crear átomos en orden aleatorio\n    registrarAtomo(crearAtomoValido(\"juego-tool\", \"Herramienta de Juegos\", \"juegos\"));\n    registrarAtomo(crearAtomoValido(\"img-tool\", \"Herramienta de Imagen\", \"imagen\"));\n    registrarAtomo(crearAtomoValido(\"ia-tool\", \"Herramienta de IA\", \"ia\"));\n    \n    const resultado = fichasProtomolecula();\n    \n    // El orden debería ser: imagen, audio, video, 3d, arquitectura, fisicas, juegos, vr-ar, codigo, ia\n    // Entonces: img-tool (posición 0), juego-tool (posición 6), ia-tool (posición 9)\n    expect(resultado[0].title).toBe(\"Herramienta de Imagen\");\n    expect(resultado[6].title).toBe(\"Herramienta de Juegos\");\n    expect(resultado[9].title).toBe(\"Herramienta de IA\");\n  });\n\n# src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts\n  it(\"maneja correctamente cuando se proporcionan tanto versiones como catalogo\", () => {\n    const atomo = crearAtomoValido(\"full-tool\", \"Herramienta Completa\");\n    registrarAtomo(atomo);\n    \n    const versiones = {\n      \"full-tool\": {\n        version: \"2.0.0\",\n        licencia: \"Apache-2.0\"\n      }\n    };\n    \n    const catalogo = [{\n      id: \"full-tool\",\n      nombre: \"Nombre desde Catálogo\",\n      descripcion: \"Descripción desde el catálogo\",\n      web: \"https://ejemplo.com\",\n      motivo: \"Estado de prueba\"\n    }];\n    \n    const resultado = fichasProtomolecula(versiones, catalogo);\n    \n    expect(resultado[0].title).toBe(\"Nombre desde Catálogo\");\n    expect(resultado[0].description).toContain(\"Descripción desde el catálogo\");\n    expect(resultado[0].description).toContain(\"Próximamente: Estado de prueba\");\n    expect(resultado[0].license).toBe(\"Apache-2.0\"); // La de versiones tiene precedencia\n    expect(resultado[0].links).toBeDefined();\n    expect(resultado[0].links?.find(l => l.label === \"Web oficial\")?.url).toBe(\"https://ejemplo.com\");\n  });\n\n# src/lib/protomolecula/__tests__/debug-proximamente-atom.test.ts\n  it(\"should show proximamente when atom has proximamente field\", () => {\n    const atomo: DefinicionAtomo = {\n      ...crearAtomoValido(\"proximate-tool\", \"Herramienta Próxima\"),\n      proximamente: \"Falta implementar el envoltorio nativo\"\n    };\n    const registroResult = registrarAtomo(atomo);\n    console.log(\"Registro result:\", registroResult);\n    \n    const resultado = fichasProtomolecula();\n    console.log(\"Resultado:\", resultado);\n    console.log(\"Resultado length:\", resultado.length);\n    \n    if (resultado.length > 0) {\n      console.log(\"First item:\", resultado[0]);\n      console.log(\"Verified:\", resultado[0].verified);\n      console.log(\"Description:\", resultado[0].description);\n    }\n    \n    expect(resultado[0].description).toContain(\"Próximamente: Falta implementar el envoltorio nativo\");\n    expect(resultado[0].verified).toBe(false);\n  });\n\n# src/lib/protomolecula/__tests__/debug-proximamente.test.ts\n  it(\"should show proximamente when version estado is proximamente\", () => {\n    const atomo = crearAtomoValido(\"future-tool\", \"Herramienta Futura\");\n    const registroResult = registrarAtomo(atomo);\n    console.log(\"Registro result:\", registroResult);\n    \n    const versiones = {\n      \"future-tool\": {\n        estado: \"proximamente\"\n      }\n    };\n    \n    const resultado = fichasProtomolecula(versiones);\n    console.log(\"Resultado:\", resultado);\n    console.log(\"Resultado length:\", resultado.length);\n    \n    if (resultado.length > 0) {\n      console.log(\"First item:\", resultado[0]);\n      console.log(\"Verified:\", resultado[0].verified);\n      console.log(\"Description:\", resultado[0].description);\n    }\n    \n    expect(resultado[0].verified).toBe(false);\n    expect(resultado[0].description).toContain(\"Próximamente\");\n  });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39840608451`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39840608451:refs/remotes/origin/nube/39840608451\"` y `git cherry-pick --no-commit 855af8b661fb`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/protomolecula/__tests__/debug-proximamente.test.ts.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (src/lib/protomolecula/__tests__/debug-proximamente.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).",
+   "revisor": {
+    "origen": "RTPM1010F2Kd",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "revisor_quitadas": [
+    "RTPM1010F2Kd-d2"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39840608451"
+  },
+  {
+   "id": "GCA1019M",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Asistente «Conectar Genesis» (cuenta, grupo o página)",
+   "archivos": [
+    "src/components/genesis/conectores/asistente-conectores.tsx",
+    "src/components/genesis/conectores/__tests__/asistente-conectores.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Tres pasos: 1) lo local del contexto (neuronas, servidores del cerebro, capa de Astraura que cabe) con interruptores; 2) lo gratis sugerido, con botón «Vincular» que abre el `enlaceAlta`/`enlaceClave` oficial en pestaña nueva y un campo para pegar la clave (se envía a la API y se borra del campo); 3) resumen por papel con la cadena elegida y su motivo. Estética de Genesis (cristal, píldoras). Prueba con Testing Library y API simulada. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019L"
+   ]
+  },
+  {
+   "id": "GCA1019N",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Panel de asignaciones por papel y por director",
+   "archivos": [
+    "src/components/genesis/conectores/asignaciones-panel.tsx",
+    "src/components/genesis/conectores/__tests__/asignaciones-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Una fila por papel o director con su cadena (arrastrar para ordenar, añadir del catálogo, quitar), etiqueta del peldaño (local, malla, contenedor, gratis, pago) y motivo; botón «Restaurar sugeridas». En PoliGenesis democrático, guardar crea una propuesta en vez de aplicar. Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019F",
+    "GCA1019L"
+   ]
+  },
+  {
+   "id": "GCA1019R",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Herramientas MCP de Genesis",
+   "archivos": [
+    "src/lib/genesis/mcp/herramientas.ts",
+    "src/lib/genesis/mcp/__tests__/herramientas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Definiciones (nombre, descripción en español, `inputSchema` JSON Schema) y manejadores inyectados para `estado`, `tareas_listar`, `tareas_crear`, `agentes_listar`, `medidores`, `proponer` (operaciones de `src/lib/genesis/operaciones.ts`), `biblioteca_buscar`, `opciones_sugerir` y `chat`. Cada una declara el permiso que necesita. Prueba: esquemas válidos y manejadores llamados con lo validado. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019Q",
+    "GCA1019K"
+   ]
+  },
+  {
+   "id": "CB1013S",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Ajustes del cerebro: diálogo y pestaña Medios (capacidades y almacenamiento)",
+   "archivos": [
+    "src/components/cerebro/ajustes-cerebro-dialog.tsx",
+    "src/components/cerebro/ajustes-medios.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §8 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Sustituye `ajustes-cerebro-dialog.tsx` manteniendo `AjustesCerebroDialogProps { open; onOpenChange; cerebro; cerebros; onHecho? }` y el default. Arriba el selector «Aplicar a»: cerebro completo, una memoria (nombres de `brain_memory_files` de este cerebro) o una carpeta (ids de `starseed.brain.<id>.memoryRoots`). Pestañas: Medios, Seguridad y privacidad, Vinculación y sincronización. Guardar con `saveBrain({ ...cerebro, config: conAjustes(...) })` y `onHecho()`. `ajustes-medios.tsx` (`export function AjustesMedios(...)`): por cada `CAPACIDADES`, un selector con 'auto' + `cerebro.servers` + neuronas de `listNeurons()` (src/lib/neurons/neurons.ts); almacenamiento con los destinos de `getMemoryDestinations(cerebro)` (src/lib/brains/memory-destinations.ts: local, StarSeed, externos y P2P) que, en el nivel cerebro, se guardan con `setMemoryDestinations` (se aplica de verdad) y una línea por destino explicando adónde va cada dato con `destinosDe()` de src/lib/malla/cristal/destinos-almacen.ts si encaja su firma. Junto a cada ajuste, la marca de `APLICACION` («se aplica ya» / «solo se guarda por ahora»).",
+   "revisor_quitadas": [
+    "CB1013R"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013T"
+   ]
+  },
+  {
+   "id": "DGM1018O",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Vigía · vigilar Diagram Design y renovar su copia",
+   "archivos": [
+    "config/vigia-areas.json",
+    "scripts/puente/test_vigia_areas.py"
+   ],
+   "depende": [],
+   "prompt": "Añade (sin borrar nada) en el área `habilidades` el repo cathrynlavery/diagram-design con su manifiesto `.claude-plugin/plugin.json` (campo version) como señal de versión y la carpeta de destino vendor/habilidades/diagram-design. Amplía la prueba. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VST1018M"
+   ]
+  },
+  {
+   "id": "DSN1019D",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Fuentes de la marca por papel: Satoshi, Rajdhani, Inter, Quicksand y JetBrains Mono",
+   "archivos": [
+    "src/components/theme/fuentes-marca.tsx",
+    "src/components/theme/__tests__/fuentes-marca.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente que carga bajo demanda (una sola vez) la hoja de Satoshi de Fontshare `https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap` cuando el registro o la pieza usa el papel «display editorial», y Quicksand de Google Fonts para el tema Natural; expone las variables `--ss-font-display`, `--ss-font-titular`, `--ss-font-organica` con respaldos. Sin archivos de Satoshi en el repo. Prueba que no duplica enlaces y que hay respaldo. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DSN1019G",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Biblioteca de movimiento StarSeed (WAAPI, puro)",
+   "archivos": [
+    "src/lib/design/movimiento-starseed.ts",
+    "src/lib/design/__tests__/movimiento-starseed.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Keyframes y opciones para siembra, entrada cardinal (por punto de la Trinity), fundido con desenfoque, elemento compartido, barrido de horizonte, respiración, cristalización y alquimia, con las curvas reales (`cubic-bezier(0.22, 1, 0.36, 1)`, `cubic-bezier(0.16, 1, 0.3, 1)`, `cubic-bezier(0.22, 0.9, 0.3, 1)`) y duraciones de interfaz (140/220/240 ms) y de escena (600–900 ms); `opcionesReducidas()` para movimiento reducido. Copia el comportamiento de `memory/diseno/estudio-audiovisual/examples/transiciones.html` y `siembra.html`. Prueba: solo propiedades permitidas. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "RTPM1010F2Kd-d3d",
+   "GCA1019R",
+   "DSN1019G",
+   "GCA1019M",
+   "DSN1019D",
+   "GCA1019N",
+   "CB1013S",
+   "DGM1018O"
+  ]
+ }
+}
