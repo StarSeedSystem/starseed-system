@@ -18,6 +18,8 @@ import { EVENTO_BUCLE_UI, type DetalleBucleUI } from "@/lib/astraura-bots/adapta
 import { avanzar, bucleInicial, indicadorVisible, type EstadoBucle, type EventoBucle } from "@/lib/astraura-bots/bucle";
 import type { Bot } from "@/lib/astraura-bots/tipos";
 import { DIAMETRO_ANILLO, IndicadorSentidos } from "./indicador-sentidos";
+import { TarjetaPropuesta } from "./tarjeta-propuesta";
+import { RegistroBot } from "./registro-bot";
 import {
   MAX_ORBES_VISIBLES,
   disposicionOrbes,
@@ -147,6 +149,21 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
         const b = porId.get(id), p = moviendo?.id === id ? moviendo.pos : pos, est = bucle[id];
         return b ? (
           <Fragment key={id}>
+            {est?.fase === "esperando" && est.pendiente && (
+              <div className="fixed z-50" style={{ left: p.xRatio * vista.ancho + 24, top: p.yRatio * vista.alto - 24 }}>
+                <TarjetaPropuesta accion={est.pendiente.accion} decision={est.pendiente.decision} estado={est} 
+                  onConfirmar={() => moverBucle(id, { tipo: "confirmar", quien: "persona", at: Date.now() })}
+                  onRechazar={() => moverBucle(id, { tipo: "rechazar", quien: "persona", at: Date.now() })}
+                  onVotacion={() => { /* TODO: proximamente */ }}
+                  onApagarSentido={(s) => moverBucle(id, { tipo: "soltar", sentido: s, at: Date.now() })}
+                  onPausarBot={() => moverBucle(id, { tipo: "pausar", quien: "persona", at: Date.now() })} />
+              </div>
+            )}
+            {enfocado === id && est && (
+              <div className="fixed z-50" style={{ left: p.xRatio * vista.ancho + 24, top: p.yRatio * vista.alto + 24 }}>
+                <RegistroBot entradas={est.registro} onDeshacer={(at) => moverBucle(id, { tipo: "deshacer", quien: "persona", at })} />
+              </div>
+            )}
             <button type="button" aria-label={`Orbe de ${b.nombre}`} aria-pressed={enfocado === id} data-bot-id={id}
               title={`${b.nombre} · toca para enfocarlo, arrastra para moverlo`}
               onPointerDown={(e) => { arrastre.current = { id, x0: e.clientX, y0: e.clientY, movido: false }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* sin captura */ } }}
