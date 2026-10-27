@@ -76,6 +76,8 @@ import {
   type AuroraVoiceConfig,
   type NeuralEngineSettings,
 } from "@/lib/aurora/tts-oss/voice-config";
+import { trocearTexto } from "@/lib/voces/trocear";
+import { elegirMotorPorLatencia, sintetizarConversacionFluida } from "@/lib/aurora/tts-oss/conversacion-fluida";
 
 /**
  * Evento global de PROCESAMIENTO DE VOZ (Adenda V2-VOZ). Lo pinta el
@@ -631,6 +633,177 @@ export async function speakWithConfiguredEngine(
     // Red de seguridad: nunca dejar el indicador colgado (try/finally).
     endProcessing();
   }
+}
+
+/** Habla con cadena de motores usando conversación fluida: síntesis por trozos,
+ * motor elegido por latencia medida, y detección de interrupciones.
+ * A diferencia de `speakWithConfiguredEngine`, este función rompe el texto en
+ * trozos y los reproduce uno por uno, cambiando de motor si el presupuesto de
+ * latencia se excede o si hay interrupción del usuario.
+ */
+export async function speakConFluida(
+  text: string,
+  opts: ConfiguredSpeakOptions = {},
+): Promise<boolean> {
+  const clean = (text || "").trim();
+  if (!clean) return false;
+
+  let cfg: AuroraVoiceConfig;
+  try {
+    cfg = getVoiceConfig();
+  } catch {
+    return false;
+  }
+  if (!cfg) return false;
+
+  // Detección de idioma en el texto
+  const detection = detectSpokenLang(clean);
+  const detectedLang = detection.confident ? detection.lang : undefined;
+
+  // Pin de personalidad
+  const pin = await refreshPersonalityVoicePin().catch(() => null);
+
+  // Construir cadena normal
+  const chain = buildVoiceChain(cfg, pin);
+  if (!chain.length) return false;
+
+  const orderedChain = applyVoiceChainPriority(chain);
+
+  // Motores disponibles por latencia (orden preferente)
+  const motoresDisponibles = [
+    "voice158",
+    "omnivoice",
+    "openvoice2",
+    "chatterbox",
+    "kokoro",
+    "browser",
+  ];
+
+  // Obtener medidas históricas de la neurona
+  const medidasHistoricas = (() => {
+    try {
+      const leer = typeof window !== "undefined"
+        ? () => window.localStorage.getItem("starseed.voz.medidas.v2")
+        : null;
+      if (leer) {
+        const raw = leer();
+        if (raw) {
+          let parsed: unknown;
+          try { parsed = JSON.parse(raw); } catch { return []; }
+          if (Array.isArray(parsed)) {
+            return parsed
+              .filter((x): x => typeof x === "object" && x !== null)
+              .filter((x): x => x.neurona && x.motor && typeof x.tipo === "string");
+          }
+        }
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  })();
+
+  let motorElegido = elegirMotorPorLatencia(
+    motoresDisponibles,
+    medidasHistoricas,
+    cfg.neurona ?? undefined,
+  );
+
+  // Manejador de interrupción (click o tecla)
+  let interrupted = false;
+  const handleInterruption = () => {
+    interrupted = true;
+  };
+
+  if (typeof window !== "undefined") {
+    try {
+      window.addEventListener("click", handleInterruption, { once: true });
+      window.addEventListener("keydown", handleInterruption, { once: true });
+    } catch { /* */ }
+  }
+
+  // Trocear el texto
+  const textChunks = trocearTexto(clean, 180);
+
+  // Medida base para primer sonido
+  const baseMedida: { motor: string; neurona?: string; idioma?: string } = {
+    motor: motorElegido,
+    neurona: cfg.neurona ?? undefined,
+    idioma: detectedLang,
+  };
+
+  for (let i = 0; i < textChunks.length; i++) {
+    if (interrupted) break;
+
+    const t = textChunks[i];
+    const t0 = Date.now();
+
+    // Cronómetro para primer sonido de este trozo
+    const habla = motorElegido === "chatterbox" ? null : cronometroHabla({
+      motor: motorElegido,
+      idioma: detectedLang,
+    });
+
+    const safe = {
+      onStart: () => {
+        habla?.sono();
+        try { opts.onStart?.(); } catch { /* */ }
+      },
+      onEnd: () => {
+        if (!habla?.sono()) return;
+        try { opts.onEnd?.(); } catch { /* */ }
+      },
+      onError: (m: string) => {
+        try { opts.onError?.(m); } catch { /* */ }
+      },
+    };
+
+    // Ejecutar eslabón con el motor elegido
+    let outcome: LinkOutcome;
+    try {
+      outcome = await Promise.resolve()
+        .then(() => runLink(motorElegido, t, cfg, safe, detectedLang))
+        .catch((): LinkOutcome => "declined");
+    } catch {
+      outcome = "declined";
+    }
+
+    const delta = Math.max(1, Date.now() - t0);
+
+    if (i === 0) {
+      // Primer trozo: latencia medida (para lógica interna)
+    }
+
+    if (outcome === "spoke" && !interrupted) {
+      // Motor habló exitosamente; continuar con el siguiente trozo
+      continue;
+    }
+
+    if (outcome === "started" && !interrupted) {
+      // Llegó a sonar pero se cortó; turno consumido
+      break;
+    }
+
+    // "declined" o interrupción → probar siguiente motor
+    const motorIdx = motoresDisponibles.indexOf(motorElegido);
+    if (motorIdx < motoresDisponibles.length - 1) {
+      motorElegido = motoresDisponibles[motorIdx + 1];
+      // Continuar con el mismo índice i (reintentar trozo con nuevo motor)
+      i--;
+      continue;
+    }
+
+    // Sin más motores: fallback al navegador
+    const fallbackSafe = {
+      onStart: () => {},
+      onEnd: () => {},
+      onError: (m: string) => { try { opts.onError?.(m); } catch { /* */ } },
+    };
+    await runLink("browser", t, cfg, fallbackSafe, detectedLang);
+    break;
+  }
+
+  return true;
 }
 
 /** Corta cualquier reproducción OSS/neural en curso. NUNCA lanza. */
