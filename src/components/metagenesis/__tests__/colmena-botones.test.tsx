@@ -540,6 +540,15 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         expect(info).not.toHaveTextContent("task-1");
     });
 
+    it("la línea de información bajo el nombre cuenta la tarea a medias: una con punto y otra sin punto", async () => {
+        estado.lectura = lectura([nodo({ enCurso: [tarea("task-1", 5 * 60_000), tarea("task-2", null)] })]);
+        pintar();
+        const info = await screen.findByTestId(id("info"));
+        expect(info).toHaveTextContent("2 tareas en curso · Último punto de control hace 5 min · 1 tarea sin punto");
+        expect(info).not.toHaveTextContent("task-1");
+        expect(info).not.toHaveTextContent("task-2");
+    });
+
     it("«Dejar de usar» apaga (activo=false, sin trabajadores), sin pedir confirmar, y el aviso dice lo que hace de verdad", async () => {
         estado.lectura = lectura([nodo({ contenedor: { activo: true, agentes: 2, apto: true, motivo: "" }, enCurso: [tarea("t1", 60_000)] })]);
         pintar();
