@@ -1,6 +1,7 @@
 /* Protomolécula · ACCIÓN DE AGENTE (PM1010F0M, contrato §5.1): `[[ACCION: protomolecula {json}]]` pasa por la MISMA puerta
  * que la mano (controlador activo, `decidirOperacion`, deshacer por autor). Sin React, red ni `node:*`: todo se inyecta. */
 import { controladorActivo } from "./controlador-activo";
+import { proponer } from "./candidatos-codigo";
 import type { Controlador, EstadoControl } from "./controlador";
 import { candidatosDe } from "./registro-atomos";
 import { claveDe, describirCambio, formatearValor, normalizar, valorActual } from "./parametros";
@@ -15,7 +16,6 @@ export interface ResultadoAccionProto { ok: boolean; message: string; status?: s
 export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisarOrbe?: (moleculaId?: string) => boolean;
   actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string }
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
-export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
 const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir"];
 const MODOS: ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
@@ -99,7 +99,13 @@ function convertir(ctx: ContextoAccionProto, a: Record<string, unknown>): Result
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
-  if (accion === "proponer-codigo") return no(MENSAJE_PROPONER_CODIGO);
+  if (accion === "proponer-codigo") {
+    const capaId = texto(args.capa) || texto(args.capaId);
+    const propuesto = typeof args.codigo === "string" ? args.codigo : typeof args.propuesto === "string" ? args.propuesto : "";
+    if (!capaId || !propuesto) return no("Para proponer código hacen falta «capa» y «codigo»: no se ejecuta nada a medias.");
+    const c = proponer({ capaId, lenguajeOrigen: texto(args.lenguajeOrigen) || texto(args.lenguaje) || "texto", lenguajeDestino: texto(args.lenguajeDestino) || undefined, propuesto, original: typeof args.original === "string" ? args.original : "", autor });
+    return si(`Candidato ${c.id} guardado para la capa «${capaId}»: NO se ha ejecutado ni cambiado nada${c.avisos.length ? `. Avisos: ${c.avisos.join("; ")}` : ""}. Una persona lo revisa y lo acepta con la mano.`, "Código como candidato…");
+  }
   if (accion === "pedir") return no("«pedir» espera a la IA para planificar: usa manejarAccionProtomoleculaAsync.");
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
   if (accion === "convertir") return convertir(ctx, args);
