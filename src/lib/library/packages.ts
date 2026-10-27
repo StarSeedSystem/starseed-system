@@ -75,6 +75,9 @@ import { FICHAS_REPOS_1025, conSeguimiento1025 } from "./repos-1025";
 // Tanda del 2026-10-26 (Ola 1025U · REP1026): Open-Higgsfield-AI, WeKnora, OpenProject y Cap (4 fichas nuevas) y Open Generative AI,
 // que actualiza su ficha vieja en lugar de duplicarse. Contrato: architecture/repos-libreria-1026.md.
 import { FICHAS_REPOS_1026, conSeguimiento1026 } from "./repos-1026";
+// Tanda del 2026-10-20 (Ola 1020R · parte 1 de 3): las 14 repos del visionario
+// como publicaciones autoactualizables (externalUrl/githubRepo/canal/área).
+import { REPO_EXTERNOS_1020 } from "./repos-externos-1020";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -2238,7 +2241,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO, REPO_EXTERNOS_1020];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
