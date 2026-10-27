@@ -93,6 +93,15 @@ describe("Guía de la red · tarjetas con los temas nuevos (GUI1021G)", () => {
     }
   });
 
+  it("Librería, Red Mesh y el antiguo /cerebros usan sus temas de la fuente única", () => {
+    expect(TEMA_POR_RUTA["/library"]).toBe("libreria-biblioteca");
+    expect(TEMA_POR_RUTA["/red-mesh"]).toBe("malla");
+    expect(TEMA_POR_RUTA["/cerebros"]).toBe("neuronas-cerebro");
+    const tema = temaDe("/cerebros");
+    expect(tema?.key).toBe("neuronas-cerebro");
+    expect(explicacionDe(area("/cerebros", "Cerebros")).queEs).toBe(tema?.cuerpo);
+  });
+
   it("ninguna tarjeta habla de «varios cerebros»", () => {
     const texto = AREAS.map((a) => `${a.label} ${a.tip}`).join(" ");
     expect(texto).not.toMatch(/varios cerebros/i);
@@ -102,16 +111,10 @@ describe("Guía de la red · tarjetas con los temas nuevos (GUI1021G)", () => {
     );
   });
 
-  it("el antiguo /cerebros sigue abriendo su explicación por compatibilidad", () => {
-    const tema = temaDe("/cerebros");
-    expect(tema?.key).toBe("neuronas-cerebro");
-    expect(explicacionDe(area("/cerebros", "Cerebros")).queEs).toBe(tema?.cuerpo);
-  });
-
   it("una ruta sin ficha propia cae en su tip y en cómo empezar, sin ventana vacía", () => {
     const dialogo = abrir(area("/ruta-sin-ficha", "Ruta rara"));
     expect(within(dialogo).getByText(TIP)).toBeInTheDocument();
-    expect(within(dialogo).getByText("Abre Ruta rara y mira a su alrededor sin miedo.")).toBeInTheDocument();
+    expect(within(dialogo).getByText("Abre Ruta rara y mira a tu alrededor sin miedo.")).toBeInTheDocument();
   });
 
   it("«Ir a» navega a la ruta de la tarjeta abierta", () => {
