@@ -79,7 +79,8 @@ export function parseSha256Sums(texto: string): Map<string, string> {
 
 /** SHA-256 de unos bytes, en hex minúsculas, con `crypto.subtle` (puro, sin `node:crypto`). */
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digesto = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  // La vista garantiza por contrato un búfer propio; `subtle.digest` pide BufferSource serrado.
+  const digesto = await globalThis.crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>);
   return Array.from(new Uint8Array(digesto), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
