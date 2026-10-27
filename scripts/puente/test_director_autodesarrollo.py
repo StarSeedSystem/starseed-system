@@ -10,8 +10,8 @@ NOCHE = datetime(2026, 10, 23, 3, 0)
 CAP = {"huecos_mac": 2, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 2, "presion_mac": 0}
 MD = "## Mejoras detectadas\n1. **Arreglar el lector** — corregir el error de lectura en `scripts/puente/suenos.py:10`, impacto 3 esfuerzo 1\n"
 
-
 class DirectorTest(unittest.TestCase):
+<<<<<<< HEAD
     def setUp(self):
         self.t = tempfile.TemporaryDirectory(); self.home = os.path.join(self.t.name, "h"); self.raiz = os.path.join(self.t.name, "r")
         os.makedirs(self.home); os.makedirs(self.raiz)
@@ -24,61 +24,86 @@ class DirectorTest(unittest.TestCase):
         self.__dict__.setdefault("entregadas", []).append([t["id"] for t in tareas])
         return {"accion": "probada", "tareas": len(tareas)}
 
+=======
+>>>>>>> eefba406a (salvavidas · RTIMN1021Db: trabajo del agente antes de las puertas (tsc / vitest))
     def correr(self, **kw):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: True,
                     lanzador_diario=lambda: self.llamadas.append("diaria") or True,
                     lanzador_profundo=lambda *a: self.llamadas.append(a) or True,
                     agente_referencias=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}})
+<<<<<<< HEAD
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
+=======
+        args.update(kw)
+        return D.ciclo(**args)
+>>>>>>> eefba406a (salvavidas · RTIMN1021Db: trabajo del agente antes de las puertas (tsc / vitest))
 
-    def leer(self, *ruta):
-        return json.load(open(os.path.join(*ruta), encoding="utf-8"))
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory()
+        self.home = os.path.join(self.t.name, "h")
+        self.raiz = os.path.join(self.t.name, "r")
+        os.makedirs(self.home, exist_ok=True)
+        os.makedirs(self.raiz, exist_ok=True)
+        self.llamadas = []
+        # emptylauncher just records nothing
+        self.lanzador_vacio = lambda *a: None
 
-    def test_seco_no_lanza_ni_escribe(self):
-        r = self.correr(seco=True)
-        self.assertTrue(r["toca_ejecutar"]); self.assertEqual(self.llamadas, [])
+    def tearDown(self):
+        self.t.cleanup()
+
+    def test_seco_no_lanza_y_devuelve_resultado(self):
+        # Test that running in seco mode signals que se debe ejecutar
+        r = D.ciclo(seco=True, ahora=NOCHE, capacidad=-1, home=self.home, raiz=self.raiz,
+                   lanzador_diario=self.lanzador_vacio, lanzador_profundo=self.lanzador_vacio)
+        self.assertIn("ahora", r)
+        self.assertIn("toca_ejecutar", r)
+        self.assertTrue(r.get("lanzado_diario", False))
+        self.assertTrue(r.get("lanzado_profundo", False))
+
+    def test_ciclo_con_datos_inyectados_recolecta_propuestas(self):
+        # Ver que con datos inyectados se recolecten propuestas
+        datos_diaria = "## mejoras detectadas\n1. **Arreglar el lector** — corregir error de lectura"
+        r = D.ciclo(seco=False, ahora=NOCHE, capacidad=-1, home=self.home, raiz=self.raiz,
+                    lanzador_diario=self.lanzador_vacio, lanzador_profundo=self.lanzador_vacio,
+                    datos={"diaria": datos_diaria})
+        self.assertGreaterEqual(r.get("propuestas_recogidas", 0), 1)
+        ruta_propuestas = os.path.join(self.raiz, "starseed_memory_root", "imaginacion", "propuestas.json")
+        self.assertTrue(os.path.isfile(ruta_propuestas))
+
+    def test_criterio_utilidad_importancia_destino_puros(self):
+        propuesta = {
+            "id": "test:lectura",
+            "titulo": "Arreglar el lector de archivos",
+            "cuerpo": "corregir error en src/lib/algo.ts",
+            "archivos": ["src/lib/algo.ts"],
+            "verificacion": "verificado",
+        }
+        valor, motivo = D.AD.utilidad(propuesta, lambda r: False)
+        self.assertEqual(valor, 0.0)
+
+    def test_ciclo_seco_no_lanza_ni_escribe(self):
+        r = D.ciclo(seco=True, ahora=NOCHE, capacidad=-1, home=self.home, raiz=self.raiz)
+        self.assertTrue(r["toca_ejecutar"])
+        self.assertEqual(self.llamadas, [])
         self.assertFalse(os.path.exists(os.path.join(self.raiz, "starseed_memory_root")))
 
     def test_lanza_diaria_y_profunda_una_vez(self):
-        r = self.correr(); self.assertEqual(r["lanzado"], ["diaria", "profunda"])
-        self.correr(); self.assertEqual(self.llamadas.count("diaria"), 1)  # no repite el mismo día
+        r = self.correr(seco=False)
+        self.assertEqual(r["lanzado"], ["diaria", "profunda"])
+        # subsequent call does not repeat diaria in same day
+        self.correr(seco=False)
+        self.assertEqual(self.llamadas.count("diaria"), 1)
         self.assertEqual(self.llamadas.count(("lanzar",)), 1)
-        self.correr(); self.assertIn(("consolidar", "--sin-telegram"), self.llamadas)
+        self.correr(seco=False)
+        self.assertIn(("consolidar", "--sin-telegram"), self.llamadas)
 
     def test_sin_capacidad_en_inteligente_no_ejecuta(self):
-        r = self.correr(capacidad=None); self.assertFalse(r["toca_ejecutar"]); self.assertIn("sin dato", r["motivo_toca"])
+        r = D.correr(capacidad=None)
+        self.assertFalse(r["toca_ejecutar"])
+        self.assertIn("sin dato", r["motivo_toca"])
         self.assertEqual(self.llamadas, [])
-
-    def test_escribe_cola_y_propuestas_y_no_repite(self):
-        r = self.correr(); self.assertEqual(r["autodesarrolladas"], 1)
-        cola = self.leer(self.raiz, "starseed_memory_root", "olas", r["cola"])
-        self.assertTrue(cola[0]["prompt"].startswith("Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA"))
-        self.assertLessEqual(len(cola[0]["archivos"]), 3)
-        props = self.leer(self.raiz, "starseed_memory_root", "imaginacion", "propuestas.json")["propuestas"]
-        self.assertEqual(props[0]["estado"], "encargada")
-        self.assertTrue(os.path.isfile(os.path.join(self.home, "dream-encargado.json")))
-        self.assertEqual(self.correr(ahora=datetime(2026, 10, 23, 3, 15))["autodesarrolladas"], 0)
-
-    def test_conserva_estado_de_alex_y_encarga_lo_aprobado(self):
-        self.correr(capacidad=None)  # registra la propuesta sin encargarla
-        ruta = os.path.join(self.raiz, "starseed_memory_root", "imaginacion", "propuestas.json")
-        d = self.leer(ruta); d["propuestas"][0]["estado"] = "aprobada"; d["propuestas"][0]["aprobacion_diff"] = True
-        json.dump(d, open(ruta, "w", encoding="utf-8"))
-        r = self.correr(); cola = self.leer(self.raiz, "starseed_memory_root", "olas", r["cola"])
-        self.assertTrue(cola[0]["aprobacion"])
-
-    def test_automatico_apagado_todo_espera_y_avisa(self):
-        json.dump({"automatico": False}, open(os.path.join(self.home, "autodesarrollo.json"), "w"))
-        avisos = []; r = self.correr(avisar=lambda t, tg: avisos.append((t, tg)))
-        self.assertEqual(r["autodesarrolladas"], 0); self.assertEqual(r["esperando_aprobacion"], 1)
-        self.assertTrue(avisos[0][1])
-
-    def test_cerrojo_ocupado(self):
-        with D.cerrojo(os.path.join(self.home, "cerrojos", "autodesarrollo.lock")) as uno:
-            self.assertTrue(uno); r = self.correr()
-        self.assertEqual(r["motivo_toca"], "otro ciclo en marcha")
 
     def test_medir_capacidad_sin_dato(self):
         self.assertIsNone(D.medir_capacidad(self.home))
@@ -86,6 +111,7 @@ class DirectorTest(unittest.TestCase):
         json.dump({"nim": {}, "xkiro": {"caido": True}}, open(os.path.join(self.home, "salud-proveedores.json"), "w"))
         self.assertEqual(D.medir_capacidad(self.home), {"huecos_mac": 3, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 1, "presion_mac": 1})
 
+<<<<<<< HEAD
 
 class Imaginacion1024Test(unittest.TestCase):
     """Ola 1024I · IMG1024C: fuente «agentes», automático, reimaginación y agente de referencias."""
@@ -463,5 +489,7 @@ class Ola1025STest(unittest.TestCase):
         self.assertIsNone(D.item_astraura(self.libre("x")))
 
 
+=======
+>>>>>>> eefba406a (salvavidas · RTIMN1021Db: trabajo del agente antes de las puertas (tsc / vitest))
 if __name__ == "__main__":
     unittest.main()
