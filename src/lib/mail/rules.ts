@@ -9,19 +9,15 @@ export const BASE = {
   de: "",
 };
 
-export function R(tipo: string, campos?: Record<string, unknown>, cuándo?: string | Record<string, unknown>) {
+export function R(tipo: string, parametro?: string, cuándo?: string) {
   const rule: Record<string, unknown> = { tipo };
-  if (campos) Object.assign(rule, campos);
+  if (parametro !== undefined) rule.parametro = parametro;
   if (cuándo !== undefined) rule.cuándo = cuándo;
   return rule as Record<string, unknown>;
 }
 
 export function R0(tipo: string) {
   return { tipo };
-}
-
-function esObjetoCuando(cuando: unknown): boolean {
-  return typeof cuando === "object" && cuando !== null && !Array.isArray(cuando);
 }
 
 export function validarRegla(rule: Record<string, unknown>): boolean {
@@ -31,24 +27,18 @@ export function validarRegla(rule: Record<string, unknown>): boolean {
   const tipo = rule.tipo as string;
 
   if (tipo === "etiquetar") {
-    const cuando = rule.cuándo;
-    if (cuando === undefined) return false;
-
-    if (typeof cuando === "string") {
-      if (cuando.length === 0) return false;
-    } else if (esObjetoCuando(cuando)) {
-      if (cuando.antiguedadHorasMin !== undefined) {
-        const ah = cuando.antiguedadHorasMin;
-        if (typeof ah !== "number" || ah < 0) return false;
-      }
-      if (cuando.tieneAdjunto !== undefined && typeof cuanto.tieneAdjunto !== "string") return false;
-    } else {
-      return false;
+    if (rule.parametro === undefined || typeof rule.parametro !== "string") return false;
+    if (rule.parametro.length === 0 || rule.parametro.length > 100) return false;
+    if (rule.cuándo !== undefined && typeof rule.cuándo !== "string") return false;
+    if (rule.cuándo && "antiguedadHorasMin" in rule.cuándo) {
+      const ah = (rule.cuándo as Record<string, unknown>).antiguedadHorasMin;
+      if (typeof ah !== "number" || ah < 0) return false;
     }
-
+    if (rule.cuándo && "tieneAdjunto" in rule.cuándo) {
+      const ta = (rule.cuándo as Record<string, unknown>).tieneAdjunto;
+      if (typeof ta !== "string") return false;
+    }
     if (rule.etiqueta && typeof rule.etiqueta !== "string") return false;
-    if (rule.parametro && typeof rule.parametro !== "string") return false;
-    if (rule.parametro !== undefined && rule.parametro.length > 100) return false;
     return true;
   }
 
@@ -58,6 +48,7 @@ export function validarRegla(rule: Record<string, unknown>): boolean {
   }
 
   if (tipo === "mover") {
+    if (rule.parametro !== undefined && typeof rule.parametro !== "string") return false;
     if (rule.tieneAdjunto !== undefined && typeof rule.tieneAdjunto !== "boolean") return false;
     return true;
   }
@@ -91,25 +82,27 @@ export function aplicarReglas(
     const tipo = regla.tipo as string;
 
     if (tipo === "etiquetar") {
-      const cuando = regla.cuándo;
+      const parametro = regla.parametro as string;
       const baseTieneAdjunto = base.tieneAdjunto === true;
 
-      if (typeof cuando === "string") {
-        if (cuando.length === 0) continue;
-      } else if (esObjetoCuando(cuando)) {
-        if (cuando.antiguedadHorasMin !== undefined && typeof cuanto.antiguedadHorasMin === "number") {
-          const diffHoras = (ahora.getTime() - (base.ultimoMensaje ? new Date(base.ultimoMensaje).getTime() : ahora.getTime())) / 36e5;
-          if (diffHoras < cuanto.antiguedadHorasMin) continue;
-        }
-        if (cuando.tieneAdjunto !== undefined && cuanto.tieneAdjunto !== baseTieneAdjunto) continue;
+      if (regla.cuándo && "tieneAdjunto" in regla.cuándo) {
+        const condTieneAdjunto = (regla.cuándo as Record<string, unknown>).tieneAdjunto;
+        if (condTieneAdjunto !== undefined && condTieneAdjunto !== baseTieneAdjunto) continue;
       }
 
-      resultado.push({ tipo, parametro: typeof cuando === "string" ? cuando : String(cuando) });
+      if (regla.tieneAdjunto !== undefined && regla.tieneAdjunto !== baseTieneAdjunto) continue;
+
+      if (regla.cuándo && "asuntoContiene" in regla.cuándo) {
+        const asuntoContiene = (regla.cuándo as Record<string, unknown>).asuntoContiene;
+        const asunto = base.asunto || "";
+        if (!asunto.toUpperCase().includes(asuntoContiene.toUpperCase())) continue;
+      }
+
+      resultado.push({ tipo, parametro });
     }
 
     if (tipo === "mover") {
-      const baseTieneAdjunto = base.tieneAdjunto === true;
-      if (regla.tieneAdjunto !== undefined && regla.tieneAdjunto !== baseTieneAdjunto) continue;
+      if (regla.tieneAdjunto !== undefined && regla.tieneAdjunto !== base.tieneAdjunto) continue;
       resultado.push({ tipo });
     }
 
@@ -138,14 +131,14 @@ export function aplicarReglas(
     }
 
     if (tipo === "esperar-respuesta") {
-      const ah = regla.antiguedadHorasMin;
+      const antiguedadHorasMin = regla.antiguedadHorasMin;
       const ultimoMensaje = base.ultimoMensaje
         ? new Date(base.ultimoMensaje)
         : ahora;
       const diffHoras = (ahora.getTime() - ultimoMensaje.getTime()) / 36e5;
 
-      if (ah !== undefined && typeof ah === "number") {
-        if (diffHoras < ah) continue;
+      if (antiguedadHorasMin !== undefined && typeof antiguedadHorasMin === "number") {
+        if (diffHoras < antiguedadHorasMin) continue;
       }
 
       resultado.push({ tipo });
@@ -174,7 +167,7 @@ export function clasificarHilo(
   if (umbrales && umbrales.horasPorResponder !== undefined) {
     if (diffHoras > umbrales.horasPorResponder) return "resuelto";
   } else {
-    if (diffHoras > 48) return "resuelto";
+    if (diffHoras > 48) return "por-responder";
   }
 
   if (esUltimoPropio) {
