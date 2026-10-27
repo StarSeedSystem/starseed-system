@@ -237,5 +237,8 @@ describe("textoEstadoOrden", () => {
 
     it("estado desconocido se devuelve tal cual", () => {
         expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+        // Del rescate de la rama nube/39284689789: la vacía y una con espacios pasan por la parrilla.
+        expect(textoEstadoOrden("")).toBe("");
+        expect(textoEstadoOrden("otro estado")).toBe("otro estado");
     });
 });
