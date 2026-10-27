@@ -15,6 +15,7 @@ import { Hexagon, Orbit } from "lucide-react";
 
 import { Bar, LABEL, SUB } from "@/components/astraura/s158/shared";
 import { cn } from "@/lib/utils";
+import { FUENTE_METODOS_HF, NOTA_BITNET } from "@/lib/recursos-ia/cuantizacion-hf";
 import type { ConfigTopologia, InventarioRecursos, MedioAlmacen, NeuronaRecursos, PlanRecursos, Procesador, Via } from "@/lib/recursos-ia/tipos";
 import {
     FOCO,
@@ -29,10 +30,12 @@ import {
     TRAZO_VIA,
     TRINITY,
     colorLlenado,
+    dispositivoHFDe,
     fmtGb,
     fmtLibre,
     fraccionOcupada,
     nombreVia,
+    textoCuantizaHF,
     tonoBarra,
 } from "./piezas";
 
@@ -650,8 +653,8 @@ function DetalleNodo({ inv, sel, alCerrar }: { inv: InventarioRecursos; sel: Non
                         <Dato k="VRAM" v={typeof proc.vramGb === "number" ? fmtGb(proc.vramGb) : undefined} />
                         <Dato k="Núcleos" v={proc.nucleos} />
                         <Dato k="Aceleradores" v={proc.aceleradores.map((a) => NOMBRE_ACELERADOR[a] ?? a).join(" · ") || "ninguno"} />
-                        <Dato k="Runtimes" v={proc.runtimes.join(" · ") || "ninguno"} />
-                        <Dato k="Herramientas" v={proc.herramientas?.join(" · ") || "ninguna"} />
+                        <Dato k="Cuantización (transformers)" v={textoCuantizaHF(proc)} />
+                        <Dato k="Runtimes" v={proc.runtimes.join(" · ") || "ninguno"} />                        <Dato k="Herramientas" v={proc.herramientas?.join(" · ") || "ninguna"} />
                         <Dato k="Vía" v={nombreVia(proc.via)} />
                         <Dato k="Prestable" v={proc.prestable ? "sí" : "no"} />
                     </>
@@ -669,6 +672,10 @@ function DetalleNodo({ inv, sel, alCerrar }: { inv: InventarioRecursos; sel: Non
                     </>
                 )}
             </dl>
+            {proc && dispositivoHFDe(proc) && (
+                <p className="mt-1 text-[10px] text-white/50">Métodos según la tabla de cuantización: {FUENTE_METODOS_HF}.</p>
+            )}
+            {proc && /bitnet|bonsai/i.test(proc.runtimes.join(" ")) && <p className="mt-1 text-[10px] text-white/50">{NOTA_BITNET}</p>}
             {(proc || alm) && (
                 <p className="mt-2 flex items-center gap-1.5 text-[10px] text-white/50">
                     Fuente: <FuenteBadge fuente={(proc ?? alm)!.fuente} />

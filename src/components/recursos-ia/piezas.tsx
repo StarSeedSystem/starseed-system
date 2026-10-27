@@ -24,6 +24,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { verificar, type ContextoCompat } from "@/lib/recursos-ia/compatibilidad";
+import { cuantizacionesPara, type DispositivoHF } from "@/lib/recursos-ia/cuantizacion-hf";
 import { detectarInventario } from "@/lib/recursos-ia/deteccion";
 import {
     ORDEN_NIVEL,
@@ -214,6 +215,28 @@ export const ICONO_PROCESADOR: Record<TipoProcesador, LucideIcon> = {
 
 /** Letra del procesador dentro de su nodo de la constelación. */
 export const LETRA_PROCESADOR: Record<TipoProcesador, string> = { cpu: "C", gpu: "G", npu: "N", webgpu: "W", servidor: "S" };
+
+/**
+ * Dispositivo de la tabla de cuantización de transformers (`cuantizacion-hf.ts`) equivalente a un
+ * procesador detectado: cuda, rocm o metal por sus aceleradores; el resto, cpu. En un navegador
+ * transformers no corre: ahí no hay método que sugerir (devuelve `undefined`).
+ */
+export function dispositivoHFDe(p: Procesador): DispositivoHF | undefined {
+    if (p.tipo === "webgpu") return undefined;
+    if (p.aceleradores.includes("cuda")) return "cuda";
+    if (p.aceleradores.includes("rocm")) return "rocm";
+    if (p.aceleradores.includes("metal") || p.aceleradores.includes("metal4")) return "metal";
+    return "cpu";
+}
+
+/** Métodos aptos en este procesador según la tabla (ok sin marca, parcial con «parcial»); solo nombres. */
+export function textoCuantizaHF(p: Procesador): string {
+    const d = dispositivoHFDe(p);
+    if (!d) return "";
+    return cuantizacionesPara(d)
+        .map((m) => (m.soporte[d] === "parcial" ? `${m.nombre} (parcial)` : m.nombre))
+        .join(" · ");
+}
 
 export function nombreVia(v: Via): string {
     return VIA_REFERENCIA[v]?.nombre ?? v;
