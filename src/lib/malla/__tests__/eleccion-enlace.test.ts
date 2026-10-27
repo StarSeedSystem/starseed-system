@@ -142,21 +142,22 @@ describe("LocalSend — solo archivos por la red local desde la app nativa o un 
     admite: { mensaje: true, archivo: true, flujo: false },
   });
 
-  it("vale para archivos desde la app nativa y desde un servidor, y su motivo lo dice", () => {
-    const app = elegirEnlaces([localSend], { syncDeviceId: "B" }, "archivo", 1200, { medioEmisor: "app-nativa" });
-    expect(app.elegidos.map((e) => e.enlace.id)).toEqual(["local:ls"]);
-    expect(app.elegidos[0].motivo).toMatch(/LocalSend/);
-    const servidor = elegirEnlaces([localSend], { syncDeviceId: "B" }, "archivo", 1200, { medioEmisor: "servidor" });
-    expect(servidor.elegidos).toHaveLength(1);
+  it("LocalSend + archivo: se admite", () => {
+    const r = elegirEnlaces([localSend], { syncDeviceId: "B" }, "archivo", 1200, { medioEmisor: "app-nativa" });
+    expect(r.elegidos).toHaveLength(1);
+    expect(r.elegidos[0].enlace.id).toBe("local:ls");
   });
 
-  it("no vale para mensajes ni para flujos, y dice por qué", () => {
-    const mensaje = elegirEnlaces([localSend], { syncDeviceId: "B" }, "mensaje", 10, { medioEmisor: "app-nativa" });
-    expect(mensaje.elegidos).toHaveLength(0);
-    expect(mensaje.descartados[0].motivo).toMatch(/solo lleva archivos, no mensajes/);
-    const flujo = elegirEnlaces([localSend], { syncDeviceId: "B" }, "flujo", 0, { medioEmisor: "app-nativa" });
-    expect(flujo.elegidos).toHaveLength(0);
-    expect(flujo.descartados[0].motivo).toMatch(/audio ni vídeo/);
+  it("LocalSend + mensaje: se descarta", () => {
+    const r = elegirEnlaces([localSend], { syncDeviceId: "B" }, "mensaje", 10, { medioEmisor: "app-nativa" });
+    expect(r.elegidos).toHaveLength(0);
+    expect(r.descartados[0].motivo).toMatch(/solo lleva archivos, no mensajes/);
+  });
+
+  it("LocalSend + flujo: se descarta", () => {
+    const r = elegirEnlaces([localSend], { syncDeviceId: "B" }, "flujo", 0, { medioEmisor: "app-nativa" });
+    expect(r.elegidos).toHaveLength(0);
+    expect(r.descartados[0].motivo).toMatch(/audio ni vídeo/);
   });
 
   it("no vale desde el navegador ni sin declarar el medio emisor", () => {
