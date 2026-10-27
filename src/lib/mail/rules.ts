@@ -9,9 +9,15 @@ export const BASE = {
   de: "",
 };
 
-export function R(tipo: string, parametro?: string, cuándo?: string) {
+export function R(tipo: string, parametro?: string | Record<string, unknown>, cuándo?: string) {
   const rule: Record<string, unknown> = { tipo };
-  if (parametro !== undefined) rule.parametro = parametro;
+  if (parametro !== undefined) {
+    if (typeof parametro === "string") {
+      rule.parametro = parametro;
+    } else {
+      Object.assign(rule, parametro);
+    }
+  }
   if (cuándo !== undefined) rule.cuándo = cuándo;
   return rule as Record<string, unknown>;
 }
@@ -27,17 +33,10 @@ export function validarRegla(rule: Record<string, unknown>): boolean {
   const tipo = rule.tipo as string;
 
   if (tipo === "etiquetar") {
-    if (rule.parametro === undefined || typeof rule.parametro !== "string") return false;
-    if (rule.parametro.length === 0 || rule.parametro.length > 100) return false;
-    if (rule.cuándo !== undefined && typeof rule.cuándo !== "string") return false;
-    if (rule.cuándo && "antiguedadHorasMin" in rule.cuándo) {
-      const ah = (rule.cuándo as Record<string, unknown>).antiguedadHorasMin;
-      if (typeof ah !== "number" || ah < 0) return false;
-    }
-    if (rule.cuándo && "tieneAdjunto" in rule.cuándo) {
-      const ta = (rule.cuándo as Record<string, unknown>).tieneAdjunto;
-      if (typeof ta !== "string") return false;
-    }
+    if (rule.cuándo === undefined || typeof rule.cuándo !== "string") return false;
+    if (rule.cuándo.length === 0) return false;
+    if (rule.parametro !== undefined && typeof rule.parametro !== "string") return false;
+    if (rule.parametro !== undefined && rule.parametro.length > 100) return false;
     if (rule.etiqueta && typeof rule.etiqueta !== "string") return false;
     return true;
   }
@@ -171,11 +170,7 @@ export function clasificarHilo(
   }
 
   if (esUltimoPropio) {
-    if (umbrales && umbrales.horasPorResuelto !== undefined) {
-      if (diffHoras > umbrales.horasPorResuelto) return "resuelto";
-    } else {
-      if (diffHoras > 24) return "resuelto";
-    }
+    if (diffHoras > 24) return "resuelto";
   } else {
     if (diffHoras > 24) return "por-responder";
   }
