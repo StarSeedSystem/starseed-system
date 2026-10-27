@@ -228,7 +228,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
             {/* Gobierno de la Protomolécula de esta entidad (§2.7, sin duplicar) */}
             {entidad && (
                 <section aria-label="Gobierno de esta entidad" data-testid="poligenesis-gobierno">
-                    <GobiernoProtoResumen contexto={{ ambito: "grupo", gobernadaPor: { tipo: entidad.tipo === "grupo" ? "grupo" : "pagina", id: entidad.id, nombre: entidad.nombre } }} />
+                    <GobiernoProtoResumen contexto={{ ruta: entidad.tipo === "grupo" ? `/grupo/${entidad.id}` : `/pagina/${entidad.id}`, ambito: "grupo", gobernadaPor: { tipo: entidad.tipo === "grupo" ? "grupo" : "pagina", id: entidad.id, nombre: entidad.nombre } }} />
                 </section>
             )}
             {/* Nuevo section for ProtoGenesis encargos */}
