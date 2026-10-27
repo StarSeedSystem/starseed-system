@@ -1,0 +1,14 @@
+[Unit]
+Description=StarSeed OS Filee Conversor Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/filee convert %F --to %T -o %O --json --overwrite
+EnvironmentFile=-%h/.starseed/conversor.env
+WorkingDirectory=%h
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
