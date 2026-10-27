@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "EAR1023Bb",
+   "ola": "1023X",
+   "titulo": "Sentidos · mandar al oído solo los fragmentos sin voz, con los sentidos encendidos",
+   "archivos": [
+    "src/lib/aurora/sentidos/oido-ambiental.ts",
+    "src/lib/aurora/sentidos/__tests__/oido-ambiental.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «manimgx para todo el desarrollo de modelos 3D con Astraura y la Protomolécula en cualquier medio y publicación o archivo» y «earshot para los sentidos de cada agente de Astraura y de la orbe flotante si tiene su ajuste de sentidos encendidos siempre escuchando». Contrato: `architecture/repos-3d-oido-agentes-1023.md` (§3 son reglas duras: el código que escribe un agente nunca corre en el proceso del OS; el oído solo con sentidos encendidos, solo fragmentos sin voz, nada sale de las neuronas; nada de subir audio a Gemini).\n\nMódulo puro con la decisión: dado el estado de los sentidos (encendidos, siempre escuchando), la detección de voz del flujo de `src/lib/aurora/stt-oss/oido-flujo.ts` y la energía del fragmento, decide si un tramo de audio va al servicio de oído (EAR1023A): solo sin voz, solo sobre un umbral, como mucho uno cada N segundos (para no gastar CPU), nunca con los sentidos apagados. Pruebas de cada caso.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40436519565`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40436519565:refs/remotes/origin/nube/40436519565\"` y `git cherry-pick --no-commit f4970b66fd5e 0a02e862b41a`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/protomolecula/gobierno/__tests__/ayudas-prueba.ts, src/components/protomolecula/gobierno/__tests__/gobierno-proto-resumen.test.tsx, src/components/protomolecula/gobierno/__tests__/seccion-gobierno-proto.test.tsx, src/components/protomolecula/gobierno/ayudas-prueba.ts, src/lib/aurora/sentidos/__tests__/oido-ambiental.test.ts, src/lib/aurora/sentidos/oido-ambiental.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "EAR1023A"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40436519565"
+  },
+  {
+   "id": "RLB1020Jc",
+   "titulo": "Genesis · errores con formato de evento de Sentry, sin datos personales y con huella, para la autocuración",
+   "archivos": [
+    "src/lib/mando/errores-neurona.ts",
+    "src/lib/mando/__tests__/errores-neurona.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020b.md y el catálogo verificado config/repos-libreria-1020b.json (14 entradas en `paquetes` y la lista `excluidas`; datos reales, NO los cambies). Alex quiere autorreparación de errores de cada neurona, cerebro, perfil, cuenta, página, proceso y creación de contenido; el servidor de Sentry no cabe (16 GB + swap) y su FSL no es abierta, así que Genesis lo hace con el FORMATO de evento del SDK de Sentry. Crea `src/lib/mando/errores-neurona.ts`, PURO: `normalizarError(e, contexto)` → evento estilo Sentry {event_id, timestamp, level, platform, exception:{values:[{type, value, stacktrace:{frames}}]}, tags:{ambito, neurona, proceso}, fingerprint} donde ambito ∈ neurona|cerebro|perfil|cuenta|pagina|proceso|contenido; `limpiarDatosPersonales(evento)` quita o enmascara correos, teléfonos, IP, tokens (`sk-`, `gsk_`, `Bearer …`, `eyJ…`) y rutas de usuario (`/Users/<nombre>`); `huella(evento)` agrupa por tipo + primer marco propio + ámbito; `agrupar(eventos)` → {huella, veces, primero, ultimo, ejemplo}. Sin red y sin enviar nada a terceros. Pruebas: limpia cada tipo de dato personal; dos errores iguales con mensajes de distinto id comparten huella; uno de otro ámbito no. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (la ficha dice lo que hace de verdad).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40436539080`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40436539080:refs/remotes/origin/nube/40436539080\"` y `git cherry-pick --no-commit 8f9cd050298c`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/__tests__/error-fichas-sentry.test.tsx, src/app/error.tsx, src/components/protomolecula/gobierno/__mocks__/ayudas-prueba.ts, src/components/protomolecula/gobierno/__tests__/ayudas-prueba.ts, src/components/protomolecula/gobierno/__tests__/gobierno-proto-resumen.test.tsx, src/components/protomolecula/gobierno/__tests__/seccion-gobierno-proto.test.tsx, src/lib/mando/__tests__/errores-neurona.test.ts, src/lib/mando/errores-neurona.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "ola": "Ola 1020S · 2.ª tanda de repos en la Librería, preinstaladas con criterio e integradas por área",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40436539080"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "EAR1023Bb",
+   "RLB1020Jc"
+  ]
+ }
+}
