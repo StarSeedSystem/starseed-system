@@ -147,6 +147,33 @@ def disco_libre_gb(ruta: str) -> Optional[float]:
         return None
 
 
+def cpu_pct() -> Optional[float]:
+    """CPU ocupada en %: Linux, dos lecturas de `/proc/stat` separadas 0,3 s.
+    macOS u otros: None (nunca un número inventado; la carga de 1 min ya va aparte)."""
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        with open("/proc/stat") as f:
+            linea = f.readline()
+        if not linea.startswith("cpu "):
+            return None
+        tiempos1 = list(map(int, linea.split()[1:]))
+        # 0,3 s de ventana: bastante para ver si la CPU respira sin frenar el latido.
+        time.sleep(0.3)
+        with open("/proc/stat") as f:
+            linea = f.readline()
+        if not linea.startswith("cpu "):
+            return None
+        tiempos2 = list(map(int, linea.split()[1:]))
+    except (OSError, ValueError, IndexError):
+        return None
+    total = sum(tiempos2) - sum(tiempos1)
+    ocioso = tiempos2[3] - tiempos1[3]
+    if total > 0:
+        return round((total - ocioso) * 100.0 / total, 1)
+    return None
+
+
 def ram_total_mb() -> Optional[int]:
     """RAM TOTAL del aparato (no la libre): la capacidad de contenedor se decide con ella (§2 del contrato).
     None si no se pudo medir: entonces no se inventa un contenedor (ni «no apto» por un 0 falso)."""
@@ -159,10 +186,19 @@ def ram_total_mb() -> Optional[int]:
         pass
     if sys.platform == "darwin":
         # Ruta absoluta: launchd no lleva /usr/sbin en el PATH (mismo motivo que `ioreg` en huella_maquina).
-        rc, out = _sh(["/usr/sbin/sysctl", "-n", "hw.memsize"], tope=10)
+        # Tope de 2 s: es una medida del latido, no puede quedarse colgada.
+        rc, out = _sh(["/usr/sbin/sysctl", "-n", "hw.memsize"], tope=2)
         if rc == 0 and out.strip().isdigit():
             return int(out.strip()) // (1024 * 1024)
     return None
+
+
+def disco_total_gb(ruta: str) -> Optional[float]:
+    """Disco TOTAL de la ruta en GB (`shutil.disk_usage`); None si no se puede medir."""
+    try:
+        return round(shutil.disk_usage(ruta).total / 1e9, 1)
+    except OSError:
+        return None
 
 
 def bateria_de(texto_pmset: str) -> Dict[str, Any]:
@@ -646,9 +682,12 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         "autoritativo": autoritativo,
         "orquestadores": orqs,
         "disco_gb": disco_libre_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
+        "disco_total_gb": disco_total_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
         "ram_libre_mb": ram_libre_mb(),
+        "ram_total_mb": ram_total_mb(),
         "nucleos": os.cpu_count(),
         "carga": round(os.getloadavg()[0], 2) if hasattr(os, "getloadavg") else None,
+        "cpu_pct": cpu_pct(),
         "servicios_caidos": [],
         "guardianes_caidos": [],
     }
@@ -694,12 +733,12 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
     except Exception:  # noqa: BLE001 — medir nunca tumba la vuelta
         en_curso = None
     try:
-        ram_mb = ram_total_mb()
+        # Ya medida arriba para `salud`: no se vuelve a llamar a sysctl/meminfo en cada latido.
+        ram_mb = salud["ram_total_mb"]
         contenedor = contenedor_de(salud["disco_gb"], ram_mb)
     except Exception:  # noqa: BLE001
         ram_mb, contenedor = None, None
     salud["periodo_s"] = float(os.environ.get("STARSEED_NODO_LATIDO_S", L.LATIDO_S))
-    salud["ram_total_mb"] = ram_mb
     salud["en_curso"] = en_curso
     salud["contenedor"] = contenedor
     salud["desconectando"] = desconectando_ahora(ahora)

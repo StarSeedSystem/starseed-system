@@ -7,6 +7,7 @@ la máquina es un medio falso y el reloj se mueve a mano.
 """
 import json
 import os
+import shutil
 import sys
 import tempfile
 import time
@@ -21,6 +22,7 @@ if DIR not in sys.path:
 import nodo_metagenesis as N  # noqa: E402
 import nodo_metagenesis_bus as B  # noqa: E402
 import nodo_metagenesis_logica as L  # noqa: E402
+import nodo_metagenesis_medio as M  # noqa: E402
 
 T0 = 1_791_640_000.0  # 2026-10-10 ~11:46 UTC
 SECRETO = "s" * 48  # secreto de PRUEBA
@@ -391,6 +393,65 @@ class TestFotoYTachado(unittest.TestCase):
         self.assertEqual(L.trabajo_de_medidores({"listas": "32 se pueden coger ya", "en-curso": "Ninguna en marcha",
                                                  "bloqueadas": "80 esperando"}),
                          {"listas": 32, "en_curso": 0, "agentes": None, "bloqueadas": 80})
+
+
+# ─── salud del nodo · cpu_pct, ram_total_mb, disco_total_gb (CB1013Q) ───────────────────
+
+
+class TestSaludDelNodo(unittest.TestCase):
+    def latido(self, salud_extra):
+        return {"nodo": "nodo-x-aaaaaa", "medio": "neurona", "modo": "real", "ts": T0, "salud": salud_extra}
+
+    def test_la_vista_lleva_los_campos_nuevos(self):
+        s = {"disco_gb": 12.3, "ram_libre_mb": 500, "cpu_pct": 14.2, "ram_total_mb": 8192,
+             "disco_total_gb": 256.1, "nucleos": 4, "carga": 0.5}
+        v = L.resumen_nodo("nodo-x-aaaaaa", self.latido(s), None, T0)
+        self.assertEqual(v["cpu_pct"], 14.2)
+        self.assertEqual(v["ram_total_mb"], 8192)
+        self.assertEqual(v["disco_total_gb"], 256.1)
+        self.assertEqual(v["nucleos"], 4)
+        self.assertEqual(v["carga"], 0.5)
+        # Lo que ya había no se toca.
+        self.assertEqual(v["disco_gb"], 12.3)
+        self.assertEqual(v["ram_libre_mb"], 500)
+        self.assertNotIn("salud", v)
+
+    def test_none_se_respeta(self):
+        v = L.resumen_nodo("nodo-x-aaaaaa", self.latido({}), None, T0)
+        for k in ("cpu_pct", "ram_total_mb", "disco_total_gb", "nucleos", "carga", "disco_gb", "ram_libre_mb"):
+            self.assertIsNone(v[k])
+
+    def test_huella_ignora_los_volatiles(self):
+        """CPU, RAM y carga cambian cada latido: no han de hacer republicar la foto."""
+        s1 = {"cpu_pct": 12.0, "ram_total_mb": 8192, "disco_total_gb": 256.0, "ram_libre_mb": 400,
+              "disco_gb": 12.0, "carga": 0.4, "nucleos": 4}
+        s2 = dict(s1, cpu_pct=98.0, ram_total_mb=8191, disco_total_gb=255.9, ram_libre_mb=900, carga=3.7)
+        a = L.foto("nodo-x-aaaaaa", 2, {"nodo-x-aaaaaa": self.latido(s1)}, [], {}, True, "real", T0)
+        b = L.foto("nodo-x-aaaaaa", 2, {"nodo-x-aaaaaa": self.latido(s2)}, [], {}, True, "real", T0)
+        self.assertEqual(L.huella_foto(a), L.huella_foto(b))
+        # Los núcleos sí son de verdad: si cambian, la foto cambia.
+        c = L.foto("nodo-x-aaaaaa", 2, {"nodo-x-aaaaaa": self.latido(dict(s1, nucleos=8))}, [], {}, True, "real", T0)
+        self.assertNotEqual(L.huella_foto(a), L.huella_foto(c))
+
+    def test_medidas_en_linux(self):
+        # La máquina de pruebas es Linux (o no: fuera de /proc y sin sysctl de la Mac, None).
+        v = M.ram_total_mb()
+        if sys.platform.startswith("linux"):
+            self.assertIsInstance(v, int)
+            self.assertGreater(v or 0, 0)
+        else:
+            self.assertIsNone(v)
+        pct = M.cpu_pct()
+        if sys.platform.startswith("linux"):
+            self.assertIsInstance(pct, float)
+            self.assertTrue(0.0 <= (pct or 0.0) <= 100.0)
+        else:
+            self.assertIsNone(pct)
+
+    def test_disco_total_gb(self):
+        total = round(shutil.disk_usage(DIR).total / 1e9, 1)
+        self.assertEqual(M.disco_total_gb(DIR), total)
+        self.assertIsNone(M.disco_total_gb(os.path.join(DIR, "no-existe-ni-habrá")))
 
 
 # ─── el nodo entero contra el Supabase simulado ─────────────────────────────────────────
