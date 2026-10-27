@@ -10,7 +10,8 @@ import {
   type LecturaFusion,
 } from "@/lib/cerebros/fusion-aplicar";
 
-/** Pruebas de fusión aplicada (§4): camino feliz, fallo al escribir, orígenes con selecciones y copia. */
+/** Pruebas de fusión aplicada (§4): lectura y dificultades, copia y su descarga,
+ *  camino feliz al aplicar, fallos (memoria, guardado) y orígenes con selecciones. */
 
 const h = vi.hoisted(() => {
   const estado = {
@@ -21,6 +22,7 @@ const h = vi.hoisted(() => {
     idFalloAlEscribir: null as string | null,
     idsConSelecciones: [] as string[],
     borrados: [] as string[],
+    falloAlGuardar: false,
   };
   const datosPrefs = new Map<string, string>();
   return { estado, datosPrefs };
@@ -67,6 +69,7 @@ vi.mock("@/utils/supabase/client", () => ({
 vi.mock("@/lib/brains/brains", () => ({
   getBrain: (id: string) => Promise.resolve(h.estado.cerebros.get(id) ?? null),
   saveBrain: (cerebro: Record<string, unknown>) => {
+    if (h.estado.falloAlGuardar) return Promise.resolve(null);
     h.estado.cerebros.set(String(cerebro.id), cerebro);
     return Promise.resolve(cerebro);
   },
@@ -156,6 +159,7 @@ beforeEach(() => {
   h.estado.idFalloAlEscribir = null;
   h.estado.idsConSelecciones = [];
   h.estado.borrados = [];
+  h.estado.falloAlGuardar = false;
   h.datosPrefs.clear();
   almacen = {
     getItem: (k: string) => h.datosPrefs.get(k) ?? null,
@@ -205,6 +209,20 @@ describe("leerParaFusion", () => {
     const r = await leerParaFusion("c1", ["c2"]);
     expect(r).toEqual({ ok: false, motivo: "No se pudo leer el cerebro de origen (c2)." });
   });
+
+  it("con localStorage bloqueado la lectura sigue y vuelve sin prefs", async () => {
+    h.estado.cerebros.set("c1", cerebro("c1", "Destino"));
+    vi.unstubAllGlobals();
+    vi.stubGlobal("window", {
+      get localStorage() {
+        throw new Error("acceso bloqueado");
+      },
+    });
+
+    const r = await leerParaFusion("c1", []);
+    if (!r.ok) throw new Error("la lectura debía seguir con la memoria bloqueada");
+    expect(r.prefs).toEqual({});
+  });
 });
 
 describe("copiaDeSeguridad", () => {
@@ -230,6 +248,44 @@ describe("descargarCopia", () => {
   it("sin window no hace nada y devuelve false", () => {
     vi.unstubAllGlobals();
     expect(descargarCopia({ nombre: "x.json", texto: "{}" })).toBe(false);
+  });
+
+  it("con window y document disponibles crea el enlace, lo pincha y lo retira", () => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal("window", {} as unknown as Window);
+    const pasa: string[] = [];
+    const enlace = {
+      href: "",
+      download: "",
+      click: () => pasa.push("clic"),
+      remove: () => pasa.push("retira"),
+    };
+    const añadidos: unknown[] = [];
+    vi.stubGlobal("document", {
+      createElement: () => enlace,
+      body: { appendChild: (n: unknown) => añadidos.push(n) },
+    });
+
+    const r = descargarCopia({ nombre: "copia.json", texto: '{"a":1}' });
+    expect(r).toBe(true);
+    expect(pasa).toEqual(["clic", "retira"]);
+    expect(enlace.download).toBe("copia.json");
+    expect(añadidos).toContain(enlace);
+  });
+
+  it("si la descarga se tuerce devuelve false y no tumba a quien llama", () => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal("window", {} as unknown as Window);
+    vi.stubGlobal("document", {
+      createElement: () => ({}),
+      body: {
+        appendChild: () => {
+          throw new Error("bloqueado por la política");
+        },
+      },
+    });
+
+    expect(descargarCopia({ nombre: "copia.json", texto: "{}" })).toBe(false);
   });
 });
 
@@ -294,6 +350,20 @@ describe("aplicarFusion", () => {
     expect(r.ok).toBe(true);
     expect(r.origenesQuitados).toEqual([]);
     expect(r.origenesConservados).toEqual([]);
+    expect(h.estado.borrados).toEqual([]);
+  });
+
+  it("si el cerebro no se guarda, la fusión llega a false y ningún origen se toca", async () => {
+    h.estado.falloAlGuardar = true;
+    const r = await aplicarFusion(planSimple(), {
+      destino: cerebro("c1", "Destino"),
+      origenIds: ["c2"],
+      quitarOrigenes: true,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain("No se pudo guardar el cerebro");
+    expect(r.archivosEscritos).toBe(2);
+    expect(r.origenesQuitados).toEqual([]);
     expect(h.estado.borrados).toEqual([]);
   });
 });
