@@ -50,6 +50,7 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
     expect(ficha!.nota).toContain("sin comprobar del todo");
     expect(ficha!.motores).toContain("onnx-web");
     expect(ficha!.uso).toBe("condicionado");
+    expect(ficha!.licencia).toContain("Stability");
   });
 
   it("el total de pesos cuadra con los 2,51 GB documentados y en claro son «2,3 GB»", () => {
@@ -60,6 +61,11 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
   it("solo los TRES archivos necesarios: ni encoder del VAE ni scheduler", () => {
     expect(PESOS_SD_TURBO.map((p) => p.ruta)).toEqual(["unet/model.onnx", "text_encoder/model.onnx", "vae_decoder/model.onnx"]);
     for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
+  });
+
+  it("los tres pesos son ONNX con su tamaño medido y verificado (2026-10-22)", () => {
+    expect(PESOS_SD_TURBO.every((p) => p.ruta.endsWith(".onnx"))).toBe(true);
+    expect(PESOS_SD_TURBO.map((p) => p.bytes)).toEqual([1733430199, 681393168, 99094314]);
   });
 
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
@@ -86,6 +92,7 @@ describe("detectaSDTurbo · las tres sondas de WebGPU", () => {
     ];
     expect(new Set(motivos).size).toBe(3);
     for (const m of motivos) expect(m).toContain("Se usan las demás capas");
+    expect(motivos[0]).toContain("no tiene WebGPU");
     expect(motivos[2]).toContain("no se baja nada");
     const puede = detectaSDTurbo(BUENAS);
     expect(puede.motivo).toContain(textoBytes(BYTES_PESOS_SD_TURBO));
@@ -100,6 +107,7 @@ describe("planPesos · reglas de la descarga (contrato §8)", () => {
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: null })).toMatchObject({ accion: "sin-espacio", bytes: BYTES_PESOS_SD_TURBO });
     expect(planPesos({ enCache: true, permiso: false, cuotaLibreBytes: null }).motivo).toContain("no se descarga nada");
     expect(planPesos({ enCache: false, permiso: false, cuotaLibreBytes: 1e12 }).motivo).toContain("sin que lo permitas");
+    expect(planPesos({ enCache: false, permiso: false, cuotaLibreBytes: 1e12 }).motivo).toContain(textoBytes(BYTES_PESOS_SD_TURBO));
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: null }).motivo).toContain("No se puede comprobar el espacio libre");
   });
 
