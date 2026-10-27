@@ -70,6 +70,14 @@ class Disponible(unittest.TestCase):
         self.assertIn("solo Windows 10/11", r["fallo"])
         self.assertIn("blender-voxel", r["fallo"])
 
+    def test_en_darwin_tambien_dice_que_no_y_por_que(self):
+        """La prueba de arriba solo comprueba el último SO del bucle; macOS también lo dice."""
+        with mock.patch.object(pa.platform, "system", return_value="Darwin"):
+            r = pa.disponible(ComfyFalso())
+        self.assertFalse(r["ok"])
+        self.assertIn("solo Windows 10/11", r["fallo"])
+        self.assertIn("blender-voxel", r["fallo"])
+
     def test_windows_sin_nvidia_dice_que_no(self):
         with mock.patch.object(pa.platform, "system", return_value="Windows"), \
              mock.patch.object(pa, "_hay_nvidia", return_value=False):
