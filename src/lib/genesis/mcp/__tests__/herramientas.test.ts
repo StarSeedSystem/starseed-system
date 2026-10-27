@@ -116,4 +116,95 @@ describe("herramientas MCP · tools/call", () => {
     expect(resultado.contenido[0].texto).toBe("Operación propuesta: perfil.editar");
     expect(resultado.contenido[1].texto).toBe("Cambio: Nuevo nombre");
   });
+
+  it("tareas_listar devuelve lista de tareas con límite", async () => {
+    const tareasListar = herramientaDePrueba("tareas_listar", async (args) => ({
+      contenido: [
+        { tipo: "texto", texto: "Tareas encontradas:" },
+        { tipo: "texto", texto: "tarea-1" },
+        { tipo: "texto", texto: "tarea-2" },
+      ],
+    }));
+
+    const respuesta = await llamarHerramienta([tareasListar], "tareas_listar", { limite: 5 });
+    const resultado = resultadoDe(respuesta);
+
+    expect(resultado.contenido).toHaveLength(3);
+    expect(resultado.contenido[0].texto).toContain("Tareas encontradas:");
+    expect(resultado.contenido[1].texto).toContain("tarea-1");
+  });
+
+  it("agentes_listar devuelve lista de agentes activos", async () => {
+    const agentesListar = herramientaDePrueba("agentes_listar", async (args) => ({
+      contenido: [
+        { tipo: "texto", texto: "Agentes encontrados:" },
+        { tipo: "texto", texto: "Claude" },
+        { tipo: "texto", texto: "Codex" },
+      ],
+    }));
+
+    const respuesta = await llamarHerramienta([agentesListar], "agentes_listar", { activo: true });
+    const resultado = resultadoDe(respuesta);
+
+    expect(resultado.contenido).toHaveLength(3);
+    expect(resultado.contenido[0].texto).toContain("Agentes encontrados:");
+    expect(resultado.contenido[1].texto).toContain("Claude");
+  });
+
+  it("medidores devuelve métricas del sistema", async () => {
+    const medidores = herramientaDePrueba("medidores", async () => ({
+      contenido: [{ tipo: "texto", texto: "cpu: 45%, memoria: 62%, disco: 38%" }],
+    }));
+
+    const respuesta = await llamarHerramienta([medidores], "medidores", { tipo: "general" });
+    const resultado = resultadoDe(respuesta);
+
+    expect(resultado.contenido).toHaveLength(1);
+    expect(resultado.contenido[0].texto).toContain("cpu");
+    expect(resultado.contenido[0].texto).toContain("memoria");
+  });
+
+  it("biblioteca_buscar encuentra paquetes", async () => {
+    const bibliotecaBuscar = herramientaDePrueba("biblioteca_buscar", async (args) => ({
+      contenido: [
+        { tipo: "texto", texto: `Resultados de biblioteca para "${args.query ?? ""}"` },
+        { tipo: "texto", texto: "starseed-os" },
+      ],
+    }));
+
+    const respuesta = await llamarHerramienta([bibliotecaBuscar], "biblioteca_buscar", { query: "starseed", limite: 5 });
+    const resultado = resultadoDe(respuesta);
+
+    expect(resultado.contenido).toHaveLength(2);
+    expect(resultado.contenido[0].texto).toContain("Resultados de biblioteca");
+    expect(resultado.contenido[1].texto).toContain("starseed-os");
+  });
+
+  it("opciones_sugerir devuelve sugerencias", async () => {
+    const opcionesSugerir = herramientaDePrueba("opciones_sugerir", async (args) => ({
+      contenido: [{ tipo: "texto", texto: `Sugerencias para "${args.ambito ?? ""}"` }],
+    }));
+
+    const respuesta = await llamarHerramienta([opcionesSugerir], "opciones_sugerir", { ambito: "persona" });
+    const resultado = resultadoDe(respuesta);
+
+    expect(resultado.contenido).toHaveLength(1);
+    expect(resultado.contenido[0].texto).toContain("Sugerencias para");
+  });
+
+  it("chat registra un evento", async () => {
+    const chat = herramientaDePrueba("chat", async (args) => ({
+      contenido: [
+        { tipo: "texto", texto: `Evento de chat registrado: ${args.tipo ?? "desconocido"}` },
+        { tipo: "texto", texto: `${args.mensaje ?? "Sin mensaje"}` },
+      ],
+    }));
+
+    const respuesta = await llamarHerramienta([chat], "chat", { mensaje: "Prueba de evento", tipo: "hecho" });
+    const resultado = resultadoDe(respuesta);
+
+    expect(resultado.contenido).toHaveLength(2);
+    expect(resultado.contenido[0].texto).toContain("Evento de chat registrado:");
+    expect(resultado.contenido[1].texto).toContain("Prueba de evento");
+  });
 });
