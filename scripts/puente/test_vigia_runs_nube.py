@@ -105,6 +105,18 @@ class Devolver(unittest.TestCase):
         _nuevo, hechas = VR.devolver(prog, ["Q", "R"], 9, "se atascó", "20261013")
         self.assertEqual(hechas, ["Q"])
 
+    def test_reabre_sin_medio_y_con_su_run_en_la_nota(self):
+        """Un caso de la rama nube/40068699209: la devuelta vuelve SIN medio y con su run en la nota."""
+        prog = {"VZF": {"estado": "reasignada", "medio": "nube", "nota": MOVIDA % 9},
+                "DGM": {"estado": "commit"}}
+        nuevo, hechas = VR.devolver(prog, ["VZF", "DGM"], 9, "se atascó", "20261024")
+        self.assertEqual(hechas, ["VZF"])
+        self.assertEqual(nuevo["VZF"]["estado"], "pendiente")
+        self.assertIsNone(nuevo["VZF"]["medio"])  # ya no es de la nube: vuelve por su cola normal
+        self.assertIn("run 9", nuevo["VZF"]["nota"])
+        self.assertIn("no cuenta como envío", nuevo["VZF"]["nota"])
+        self.assertEqual(prog["VZF"]["medio"], "nube")  # no muta lo recibido
+
     def test_ids_de_cola(self):
         self.assertEqual(VR.ids_de_cola({"tareas": [{"id": "X"}, {"id": "Y"}, {}]}), ["X", "Y"])
         self.assertEqual(VR.ids_de_cola([{"id": "Z"}]), ["Z"])
@@ -207,6 +219,13 @@ class VaradasPuras(unittest.TestCase):
         self.assertEqual([h[0] for h in hechas], ["VZF1015Q"])
         self.assertIn("39588171249", hechas[0][2])
 
+    def test_sin_medio_pero_nota_nube_gh_cuenta(self):
+        """Como `reclamar_varadas`: las soltadas a nube-gh pueden quedar sin medio (rama 40068699209)."""
+        prog = {"Q": {"estado": "reasignada", "medio": None, "nota": MOVIDA % 9}}
+        hechas = VR.varadas_tras_su_run(prog, {"9": "completed"}, set(), HOY)
+        self.assertEqual([h[0] for h in hechas], ["Q"])
+        self.assertEqual(hechas[0][1], "9")
+
     def test_sin_run_solo_pasadas_24_h(self):
         prog = {"VIEJA": {"estado": "reasignada", "medio": "nube", "nota": "reasignada a la nube 20261021"},
                 "NUEVA": {"estado": "reasignada", "medio": "nube", "nota": "reasignada a la nube 20261024"},
@@ -290,6 +309,13 @@ class DevolverVaradas(unittest.TestCase):
         self.assertIsNone(VR.devolver_varadas({"runs": []}, self.dir, ahora=HOY, estado_run=lambda r: None))
         self.assertEqual(self._leer(), self.prog)
         self.assertEqual(self.avisos, [])
+
+    def test_avisa_una_vez_la_segunda_pasada_ya_no_hace_nada(self):
+        """Rama nube/40068699209: devueltos, la pasada siguiente no repite el aviso."""
+        texto = VR.devolver_varadas({"runs": []}, self.dir, ahora=HOY, estado_run=self._api)
+        self.assertIn("devolví 2 tarea(s)", texto)
+        self.assertIsNone(VR.devolver_varadas({"runs": []}, self.dir, ahora=HOY, estado_run=self._api))
+        self.assertEqual(len(self.avisos), 1)  # UNA línea, no dos
 
     def test_actuar_las_devuelve_en_cada_pasada(self):
         from unittest import mock
