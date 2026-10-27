@@ -47,8 +47,8 @@ describe('contenedoresPara', () => {
 
     // Extract the paid
     const paid = result.filter((c) => !c.aptoPrivado && c.requierePago);
-    // De pago, en su orden: google-cloud (pide facturación) y huggingface-spaces (Docker pide PRO)
-    expect(paid.map((c) => c.id)).toEqual(['google-cloud', 'huggingface-spaces']);
+    // De pago, en su orden: google-cloud (pide facturación), huggingface-spaces y cloudflare-computer
+    expect(paid.map((c) => c.id)).toEqual(['google-cloud', 'huggingface-spaces', 'cloudflare-computer']);
   });
 });
 
