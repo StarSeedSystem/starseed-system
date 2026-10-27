@@ -1,0 +1,18 @@
+{
+  "name": "agentes-mastra",
+  "version": "1.0.0",
+  "description": "Agente de la neurona con @mastra/core, modelo del servidor propio de IA y servidor solo en 127.0.0.1",
+  "type": "module",
+  "license": "Apache-2.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/agente.test.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.17",
+    "@mastra/core": "1.79.0",
+    "@mastra/hono": "^1.7.21",
+    "hono": "^4.13.7",
+    "zod": "^4.6.7"
+  }
+}
