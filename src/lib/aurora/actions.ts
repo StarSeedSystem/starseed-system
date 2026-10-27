@@ -1163,6 +1163,24 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
       return r;
     },
   },
+  {
+    name: "animar_escena",
+    describe:
+      "Crea una ANIMACIÓN 3D con ManimGX a partir de una descripción en lenguaje natural. Args {descripcion} y opcional {calidad} (480p|720p|1080p). Un modelo escribe la escena (API de Manim CE), se VALIDA con un contrato puro (sin open, exec, red ni procesos: el código nunca se ejecuta fuera del Worker) y se abre la Protomolécula con el átomo Animación 3D cargado para renderizar el MP4.",
+    example: '[[ACCION: animar_escena {"descripcion":"un cubo girando con la flor de la vida","calidad":"720p"}]]',
+    handler: async (args, ctx) => {
+      const { crearAccionAnimarEscena, pedirEscenaAlModelo } = await import("@/lib/aurora/animar-escena");
+      return crearAccionAnimarEscena({
+        pedirEscena: pedirEscenaAlModelo,
+        abrirConAtomo: async (atomArgs, atomCtx) => {
+          const { manejarAccionProtomoleculaAsync } = await import("@/lib/protomolecula/accion-agente");
+          const r = await manejarAccionProtomoleculaAsync(atomArgs, { abrirRuta: (ruta) => atomCtx.router.push(ruta) });
+          if (r.status) atomCtx.onStatus?.(r.status);
+          return r;
+        },
+      })(args, ctx);
+    },
+  },
 ];
 
 // Índice por nombre para ejecución O(1).
