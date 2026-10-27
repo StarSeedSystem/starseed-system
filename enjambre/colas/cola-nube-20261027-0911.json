@@ -1,0 +1,83 @@
+{
+ "ola": "oracle-20261027",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "ola": "Ola 1010S · Actualizaciones por capas: lo que faltaba",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261016-070944-S1010-ACT2c",
+   "id": "S1010-ACT2d-d1",
+   "titulo": "Política de actualización por sistema y capa (parte 1 de 2)",
+   "archivos": [
+    "src/lib/actualizaciones/politica.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo /home/claude/starseed-system (Next 15, TypeScript, vitest). REGLAS: módulo PURO (sin React/red/node:*); español; producto = Genesis; máx. 3 archivos y 120 líneas por archivo; sin git ni next build; `npx vitest run src/lib/actualizaciones`. DEPENDE de ACT1: importa `CapaActualizacion` y `CAPAS_ORDEN` de './manifiesto' (si aún no existe, declara una copia local idéntica marcada TODO). Contrato: architecture/actualizaciones-por-capas-y-niveles.md §4. CREA src/lib/actualizaciones/politica.ts con: `export type ModoPolitica = \"automatica-todas\"|\"automatica-esta\"|\"programada\"|\"manual\"; export interface PoliticaCapa { modo: ModoPolitica; ventana?: { desdeH: number; hastaH: number } }; export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>; export type TipoEntidad = \"perfil-privado\"|\"pagina-publica\"|\"grupo-jerarquico\"|\"grupo-democratico\"`; `export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema` (perfil-privado: datos e interfaz automatica-todas, sw automatica-esta, servicios/modelos/nativa manual; pagina-publica: todas las capas permitidas siguen automáticamente la rama estable → automatica-todas salvo servicios/modelos/nativa manual; grupo-jerarquico: como perfil-privado; grupo-democratico: igual pero marcado en el resultado de decidir como «requiere aprobación»); `export function decidirPolitica(p: PoliticaCapa, ctx: { ahoraH: number; esNeuronaElegida: boolean; aprobada: boolean; requiereAprobacion: boolean }): \"aplicar\"|\"avisar\"|\"esperar\"` (sin aprobación cuando se requiere → siempre 'esperar'; manual → 'avisar'; automatica-esta → 'aplicar' solo si esNeuronaElegida, si no 'avisar'; programada → 'aplicar' dentro de la ventana [desdeH,hastaH) con cruce de medianoche si desdeH>hastaH, fuera 'esperar'; automatica-todas → 'aplicar'). Validación: `export function sanearPolitica(x: unknown): PoliticaSistema` que rellena con manual lo que falte o venga mal. Pruebas ≥ 14 casos (cada modo, cruce de medianoche, aprobación, saneado de basura).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261016-070944-S1010-ACT2c`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261016-070944-S1010-ACT2c:refs/remotes/origin/nube/a1-20261016-070944-S1010-ACT2c\"` y `git cherry-pick --no-commit 93bd64f58c60 fde450df87cc bc5224e76449 413ee9681443 940ecf8ecccc 361407a79bc0 70e58ebd453d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/actualizaciones/__tests__/politica.test.ts, src/lib/actualizaciones/politica.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió S1010-ACT2d: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/actualizaciones/politica.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "S1010-ACT2d",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "id": "GUI1021J",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · la guía entera funciona sin sesión y por encima de las ventanas de acceso",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx",
+    "src/components/onboarding/__tests__/aurora-guide-invitado.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. En `aurora-guide.tsx`: lee el detalle del evento (`desde`, `temaInicial`) y empieza por ese tema si viene; sin sesión usa `modoGuia`: oculta «Ir» y «Hazlo por mí» con la etiqueta «Disponible al entrar», guarda lo visto solo en el aparato, y si el puente de Aurora no está, el modo voz pasa a texto diciéndolo; el panel usa `zGuia` (por encima de la pantalla de acceso cuando toca) y al cerrarse no navega a ninguna parte; el último paso, sin sesión, muestra «Crear cuenta», «Entrar» y «Explorar sin cuenta» que cierran la guía y devuelven a la ventana de acceso. Al iniciar sesión después, `unirVistas`. Pruebas: sin sesión no hay «Hazlo por mí», el z es 240 desde login y `temaInicial` funciona. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ],
+   "dependencias_ya_en_main": [
+    "GUI1021H"
+   ]
+  },
+  {
+   "id": "VPU1019W",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Claves en el DOM: ajustes",
+   "archivos": [
+    "src/components/variaciones/con-clave.tsx",
+    "src/lib/variaciones/claves-ajustes.ts",
+    "src/lib/variaciones/__tests__/claves-ajustes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`<ConClave clave>` envuelve cualquier bloque y pone `data-ss-elemento`; `clavesDeAjustes()` genera las claves `ajuste:` desde `SETTINGS_SEARCH_INDEX` y `SETTINGS_INDEX` para que cada panel de Ajustes las use. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A"
+   ]
+  },
+  {
+   "id": "LYS1018L",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Enjambre · cada escritor recibe la tarjeta de habilidad que encaja con su tarea",
+   "archivos": [
+    "scripts/enjambre/habilidades_enjambre.py",
+    "scripts/enjambre/test_habilidades_enjambre.py",
+    "scripts/enjambre/starseed-enjambre.py"
+   ],
+   "depende": [],
+   "prompt": "habilidades_enjambre.py PURO: `tarjeta_para(tarea)` elige por palabras de título/prompt (prueba → tdd; error, fallo, arreglar → diagnosing-bugs; módulo, interfaz, refactor → codebase-design; contrato, especificación → to-spec) la tarjeta en español (las mismas de src/ai/astraura/habilidades, copiadas como datos) y `con_habilidad(prompt, tarea)` la añade al final con el título «Cómo trabajar (habilidad de Matt Pocock, MIT)». Si Laya local responde en ≤ 3 s, `elegir_con_laya` decide en vez de las palabras. En starseed-enjambre.py añade como mucho 6 líneas donde se arma el prompt del escritor. Pruebas de lo puro. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018I",
+    "LYS1018Ib"
+   ]
+  },
+  {
+   "id": "VZF1015M",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Un solo resolutor de identidad de voz por persona (agente › personalidad › cerebro › neurona › cuenta)",
+   "archivos": [
+    "src/lib/aurora/identidad-voz.ts",
+    "src/lib/aurora/__tests__/identidad-voz.test.ts",
+    "src/lib/aurora/voz-rt.ts"
+   ],
+   "depende": [],
+   "prompt": "Hay seis mapas de «qué voz tiene esta persona» sin coordinar (VOZ_POR_PERSONA de voz-rt, pines del registro, timbres/voz-inicial/voz-rito, INSTRUCT del demonio, seedKindFor de openvoice2, xai-persona-voices). Crea `identidadVoz({ agente?, personalidad, cerebro?, neurona?, cuenta? })` → `{ timbre, motor, vozRT, origen }` con esa precedencia, leyendo los mapas existentes (no los borres) y que `vozDePersona` de `voz-rt.ts` la use. Pruebas de la precedencia y de que la voz F1 de Alex se conserva por defecto. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  }
+ ]
+}
