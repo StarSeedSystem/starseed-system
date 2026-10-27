@@ -39,23 +39,19 @@ export const MAX_TAMANO_DOC = 200 * 1024;
 
 /**
  * Escapa un texto para que jamás se vuelva código: `{}<>` a entidades HTML y la
- * primera letra de toda línea que empiece por «import » o «export » a su
- * entidad (`&#105;` / `&#101;`), para que ni siquiera en MDX sea JavaScript.
+ * primera letra de toda aparición de la palabra «import» o «export» a su
+ * entidad (`&#105;` / `&#101;`), esté donde esté en la línea, para que ni
+ * siquiera en MDX sea JavaScript.
  */
 export function escaparMd(texto: string): string {
-  const escapado = texto
+  return texto
     .replace(/\{/g, "&#123;")
     .replace(/\}/g, "&#125;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-  return escapado
-    .split("\n")
-    .map((linea) => {
-      if (linea.startsWith("import ")) return `&#105;${linea.slice(1)}`;
-      if (linea.startsWith("export ")) return `&#101;${linea.slice(1)}`;
-      return linea;
-    })
-    .join("\n");
+    .replace(/>/g, "&gt;")
+    .replace(/\b(import|export)(?=\s)/g, (palabra) =>
+      palabra === "import" ? "&#105;mport" : "&#101;xport",
+    );
 }
 
 /** Slug en minúsculas ASCII (sin acentos); vacío si no queda nada. */
