@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "EAR1023C",
+   "ola": "1023X",
+   "titulo": "Agentes y orbe · lo que se oye entra al contexto",
+   "archivos": [
+    "src/lib/aurora/sentidos/contexto-oido.ts",
+    "src/lib/aurora/sentidos/__tests__/contexto-oido.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «manimgx para todo el desarrollo de modelos 3D con Astraura y la Protomolécula en cualquier medio y publicación o archivo» y «earshot para los sentidos de cada agente de Astraura y de la orbe flotante si tiene su ajuste de sentidos encendidos siempre escuchando». Contrato: `architecture/repos-3d-oido-agentes-1023.md` (§3 son reglas duras: el código que escribe un agente nunca corre en el proceso del OS; el oído solo con sentidos encendidos, solo fragmentos sin voz, nada sale de las neuronas; nada de subir audio a Gemini).\n\nConvierte las etiquetas del oído en una línea corta de contexto para el agente («Se oye: timbre (0,82), lluvia (0,64)»), con caducidad (lo de hace más de 2 min no cuenta), sin repetir la misma etiqueta y con un tope de 200 caracteres. Puro y con pruebas; el cableado al prompt va en otra tarea.",
+   "dependencias_ya_en_main": [
+    "EAR1023B"
+   ]
+  }
+ ]
+}
