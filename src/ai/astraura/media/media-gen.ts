@@ -1087,9 +1087,9 @@ export async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGen
   } else {
     grafos = [grafoComfyuiDe({ ...opts, model: checkpoint })];
   }
-  const fuera = [...new Set(grafos.flatMap((g) => Object.values(g).map((n) => n.class_type)))].filter(
-    (tipo) => !(NODOS_NUCLEO as readonly string[]).includes(tipo),
-  );
+  const fuera = Array.from(
+    new Set(grafos.flatMap((g) => Object.values(g).map((n) => n.class_type))),
+  ).filter((tipo) => !(NODOS_NUCLEO as readonly string[]).includes(tipo));
   if (fuera.length) {
     return {
       ok: false,
