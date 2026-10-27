@@ -6,6 +6,7 @@ import {
     crearEstrangulador,
     intervaloPara,
     mismosAvatares,
+    sanearMetaAvatar,
     sanearPose,
     type Pose,
 } from "@/lib/vivo/espacial/avatares";
@@ -166,5 +167,27 @@ describe("avatares · saneado y presencia", () => {
         expect(lista[1].modo).toBe("vr");
         expect(lista[0].color).toBe(colorDeClave("leo:3"));
         expect(mismosAvatares(lista, avataresDePresencia(estado, "yo:1"))).toBe(true);
+    });
+});
+
+describe("presencia con el ADN del avatar (AV1011E)", () => {
+    it("acepta el par adnRef+adnRev y degrada a null lo que no sea una referencia interna", () => {
+        const m = sanearMetaAvatar({ nombre: "Ana", adnRef: "biblioteca:adn-1", adnRev: 3 }, "ana:2");
+        expect([m?.adnRef, m?.adnRev]).toEqual(["biblioteca:adn-1", 3]);
+        const sinAdn = sanearMetaAvatar({ nombre: "Ana" }, "ana:2");
+        expect([sinAdn?.adnRef, sinAdn?.adnRev]).toEqual([null, null]);
+        const roto = sanearMetaAvatar({ nombre: "Ana", adnRef: "https://ajeno/x.vrm", adnRev: -2 }, "ana:2");
+        expect([roto?.adnRef, roto?.adnRev]).toEqual([null, null]);
+        const sinRev = sanearMetaAvatar({ nombre: "Ana", adnRef: "biblioteca:adn-1" }, "ana:2");
+        expect([sinRev?.adnRef, sinRev?.adnRev]).toEqual([null, null]);
+    });
+
+    it("mismosAvatares se entera de que alguien cambió de avatar o de revisión", () => {
+        const a = avataresDePresencia({ "ana:2": [{ nombre: "Ana", adnRef: "biblioteca:adn-1", adnRev: 1 }] }, "yo:1");
+        expect(mismosAvatares(a, avataresDePresencia({ "ana:2": [{ nombre: "Ana", adnRef: "biblioteca:adn-1", adnRev: 1 }] }, "yo:1"))).toBe(true);
+        expect(mismosAvatares(a, avataresDePresencia({ "ana:2": [{ nombre: "Ana", adnRef: "biblioteca:adn-1", adnRev: 2 }] }, "yo:1"))).toBe(false);
+        expect(mismosAvatares(a, avataresDePresencia({ "ana:2": [{ nombre: "Ana", adnRef: "biblioteca:adn-2", adnRev: 1 }] }, "yo:1"))).toBe(false);
+        // quien no manda ADN sigue igualándose con quien tampoco lo manda (sin romper a nadie)
+        expect(mismosAvatares(avataresDePresencia({ "ana:2": [{ nombre: "Ana" }] }, "yo:1"), avataresDePresencia({ "ana:2": [{ nombre: "Ana" }] }, "yo:1"))).toBe(true);
     });
 });

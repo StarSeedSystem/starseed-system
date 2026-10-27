@@ -16,6 +16,7 @@
  * Módulo PURO (el reloj y los temporizadores se inyectan).
  */
 
+import { esRefInterna } from "@/lib/avatares/adn/adn";
 import { textoLimpio, type Vec3 } from "./modelo";
 
 export type Quat = [number, number, number, number];
@@ -38,6 +39,9 @@ export interface MetaAvatar {
     editor: boolean;
     /** ms de entrada. */
     desde: number;
+    /** ADN del avatar que lleva puesto (AV1011E): ref `biblioteca:`/`genesis:` y su revisión. */
+    adnRef?: string | null;
+    adnRev?: number | null;
 }
 
 export const PALETA_AVATARES = ["#7C5CFF", "#007FFF", "#10B981", "#FFBF00", "#DC143C", "#14B8A6", "#F97316", "#EC4899", "#39FF14"] as const;
@@ -75,6 +79,10 @@ export function sanearMetaAvatar(v: unknown, clave: string): MetaAvatar | null {
     const o = v as Record<string, unknown>;
     const modo: ModoAvatar = o.modo === "vr" || o.modo === "ar" ? o.modo : "3d";
     const color = typeof o.color === "string" && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : colorDeClave(clave);
+    // El par adnRef+adnRev se acepta entero o no se acepta: media referencia no sirve para leer.
+    const adnRev =
+        typeof o.adnRev === "number" && Number.isFinite(o.adnRev) && o.adnRev >= 0 ? Math.floor(o.adnRev) : null;
+    const adnRef = adnRev !== null && esRefInterna(o.adnRef) ? o.adnRef : null;
     return {
         clave,
         uid: typeof o.uid === "string" && /^[0-9a-f-]{36}$/i.test(o.uid) ? o.uid : null,
@@ -83,6 +91,8 @@ export function sanearMetaAvatar(v: unknown, clave: string): MetaAvatar | null {
         modo,
         editor: o.editor === true,
         desde: typeof o.desde === "number" && Number.isFinite(o.desde) ? o.desde : 0,
+        adnRef,
+        adnRev,
     };
 }
 
@@ -108,6 +118,9 @@ export function mismosAvatares(a: readonly MetaAvatar[], b: readonly MetaAvatar[
         const x = a[i];
         const y = b[i];
         if (x.clave !== y.clave || x.nombre !== y.nombre || x.color !== y.color || x.modo !== y.modo || x.editor !== y.editor || x.uid !== y.uid) {
+            return false;
+        }
+        if ((x.adnRef ?? null) !== (y.adnRef ?? null) || (x.adnRev ?? null) !== (y.adnRev ?? null)) {
             return false;
         }
     }
