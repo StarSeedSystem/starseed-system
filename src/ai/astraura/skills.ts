@@ -25,6 +25,7 @@ import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
 } from "./habilidades/diagramas";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
+import { HABILIDADES_INGENIERIA } from "./skills-ingenieria";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -674,6 +675,19 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
    * lo que NO hacen hoy: sin instancia ni herramienta de Aurora que las consulte. Contrato:
    * architecture/repos-libreria-1026.md; datos en src/ai/astraura/habilidades/repos-1026.ts. */
   ...CAPACIDADES_REPOS_1026,
+  /* ═══ HABILIDADES · Laya elige qué habilidad aplica y el tamaño sale de la capa (Ola 1018L · LYS1018K) ═══
+   * Punto de decisión «habilidad.elegir» (architecture/laya-y-habilidades.md §4-§5): al empezar una
+   * tarea se pregunta a Laya con una `choice` (preguntaHabilidad, en
+   * ./habilidades/elegir-habilidad.ts) entre las 12 habilidades de ingeniería y «ninguna», y la CAPA que
+   * va a responder define el TAMAÑO (bloqueHabilidad): tarjeta → reflejo, resumen → palabra y razón
+   * (Bonsai), referencia a la completa → profunda y nube. Decidir con la calibrada `answer_confidence`. */
+  {
+    id: "habilidades-ingenieria",
+    label: "Habilidades de ingeniería (elegidas por Laya)",
+    defaultOn: true,
+    systemPrompt: `Tienes ${HABILIDADES_INGENIERIA.length} habilidades de ingeniería para tareas de código y diseño (${HABILIDADES_INGENIERIA.map((h) => h.id).join(" · ")}), de Matt Pocock (licencia MIT). Antes de trabajar, elige la que convenga con la pregunta «¿Qué habilidad conviene aplicar a esta tarea?» de Laya (punto «habilidad.elegir», que incluye siempre la opción «ninguna»); aplícala solo si su answer_confidence alcanza el umbral, y si la respuesta es «ninguna» o hay duda, continúa sin aplicar ninguna. Lo que se inyecta se adapta a la capa que responda: tarjeta breve para el reflejo, resumen para palabra y razón, y la referencia del SKILL.md completo para profunda y nube (bloqueHabilidad del módulo elegir-habilidad).`,
+    routing: { preferStrong: true },
+  },
 ];
 
 function isClient(): boolean {
