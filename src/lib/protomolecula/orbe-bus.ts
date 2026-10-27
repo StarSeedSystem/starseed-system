@@ -10,6 +10,8 @@ export const PROTO_ORB_FAB_KEY = "starseed.protomolecula.orbe.enabled.v1";
 export const PROTO_ORB_FAB_EVENT = "starseed:protomolecula-orb-fab";
 /** Lo emite la acción del agente (F0M) y lo escucha la orbe (F0L). */
 export const PROTO_ORB_ABRIR_EVENT = "starseed:protomolecula-abrir";
+/** Cierra la ventana de la orbe (PMO1020A: lo usa el botón del lienzo de creación). */
+export const PROTO_ORB_CERRAR_EVENT = "starseed:protomolecula-cerrar";
 
 /** Diámetro del dibujo de la orbe en pantallas anchas (≥ 640 px). En pantallas chicas se reduce: `medidasOrbe`. */
 export const TAMANO_ORBE = 56;
@@ -175,4 +177,74 @@ export function guardarActivada(almacen: AlmacenLocal, activada: boolean): void 
   } catch {
     /* defensivo */
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * UNA SOLA PUERTA para activar o desactivar la orbe (PMO1020A, petición de
+ * Alex 2026-10-20): la usan el botón del lienzo de creación (Trinidad
+ * izquierda) y Astraura desde cualquier medio. Guarda, avisa a esta pestaña
+ * con un evento y empuja a la cuenta para que las demás neuronas lo reciban
+ * al instante (realtime-sync aplica la clave y repite el mismo evento).
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+export interface DepsOrbeActivada {
+  /** Almacén inyectable (por defecto `window.localStorage` si existe `window`). */
+  almacen?: AlmacenLocal;
+  /** Emisor inyectable (por defecto `window.dispatchEvent`). */
+  emitir?: (e: Event) => boolean;
+  /** Empuje a la cuenta (por defecto `pushPreferences` settings-sync, sin esperar). */
+  empujar?: () => void;
+}
+
+/** Evento del FAB con `detail: { activada }`; cae a `Event` plano si no hay `CustomEvent`. */
+function crearEventoFab(activada: boolean): Event {
+  if (typeof CustomEvent === "function") {
+    return new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: { activada } });
+  }
+  return Object.assign(new Event(PROTO_ORB_FAB_EVENT), { detail: { activada } });
+}
+
+/** Almacén por defecto: el del navegador, si lo hay (SSR → undefined). */
+function almacenPorDefecto(): AlmacenLocal | undefined {
+  return typeof window !== "undefined" ? window.localStorage : undefined;
+}
+
+/**
+ * Guarda el estado, emite `PROTO_ORB_FAB_EVENT` con `detail: { activada }` y llama a
+ * `empujar` una sola vez para que las demás neuronas lo reciban (por defecto
+ * `import("@/lib/settings-sync").then(m => m.pushPreferences())`, sin esperar y sin
+ * lanzar jamás). Devuelve el valor guardado. Nunca lanza.
+ */
+export function fijarOrbeActivada(activada: boolean, deps?: DepsOrbeActivada): boolean {
+  const almacen = deps?.almacen ?? almacenPorDefecto();
+  if (almacen) guardarActivada(almacen, activada);
+
+  try {
+    const emitir = deps?.emitir;
+    const evento = crearEventoFab(activada);
+    if (emitir) emitir(evento);
+    else if (typeof window !== "undefined") window.dispatchEvent(evento);
+  } catch {
+    /* defensivo: un emisor roto no impide guardar */
+  }
+
+  try {
+    if (deps?.empujar) deps.empujar();
+    else if (typeof window !== "undefined") {
+      void import("@/lib/settings-sync")
+        .then((m) => m.pushPreferences())
+        .catch(() => undefined);
+    }
+  } catch {
+    /* defensivo: un empuje roto nunca rompe la activación */
+  }
+
+  return activada;
+}
+
+/** Invierte `leerActivada` y lo fija por la misma puerta única. */
+export function alternarOrbe(deps?: DepsOrbeActivada): boolean {
+  const almacen = deps?.almacen ?? almacenPorDefecto();
+  const actual = almacen ? leerActivada(almacen) : true;
+  return fijarOrbeActivada(!actual, deps);
 }
