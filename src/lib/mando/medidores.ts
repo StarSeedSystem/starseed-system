@@ -1587,7 +1587,7 @@ export function filasDeOlasActivas(d: DatosMedidores, repo?: string): FilaMedido
                 etapa = "integrada";
                 porcentaje = 100;
             } else if (estado === "informe") {
-                // Sueño profundo terminado: su «entrega» es un informe, no un commit.
+                // Imaginación profunda terminada: su «entrega» es un informe, no un commit.
                 estadoFila = "informe escrito";
                 etapa = "informe";
                 porcentaje = 100;
