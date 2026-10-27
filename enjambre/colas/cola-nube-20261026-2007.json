@@ -1,0 +1,99 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos d",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTRTCOL1012Bdsbbb («Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos del latido · lo que fa») se hizo en main por otro camino; su rama nube/38500780177 queda archivada en `refs/archivo/nube/38500780177` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.94)\n\nTU TAREA (RTRTRTCOL1012Bdsbbb · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39517405142`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39517405142:refs/remotes/origin/nube/39517405142\"` y `git cherry-pick --no-commit 88d5fb5c4122 d49e3fc16129`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39517405142"
+  },
+  {
+   "id": "GCA1019M",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Asistente «Conectar Genesis» (cuenta, grupo o página)",
+   "archivos": [
+    "src/components/genesis/conectores/asistente-conectores.tsx",
+    "src/components/genesis/conectores/__tests__/asistente-conectores.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Tres pasos: 1) lo local del contexto (neuronas, servidores del cerebro, capa de Astraura que cabe) con interruptores; 2) lo gratis sugerido, con botón «Vincular» que abre el `enlaceAlta`/`enlaceClave` oficial en pestaña nueva y un campo para pegar la clave (se envía a la API y se borra del campo); 3) resumen por papel con la cadena elegida y su motivo. Estética de Genesis (cristal, píldoras). Prueba con Testing Library y API simulada. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019L"
+   ]
+  },
+  {
+   "id": "GCA1019N",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Panel de asignaciones por papel y por director",
+   "archivos": [
+    "src/components/genesis/conectores/asignaciones-panel.tsx",
+    "src/components/genesis/conectores/__tests__/asignaciones-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Una fila por papel o director con su cadena (arrastrar para ordenar, añadir del catálogo, quitar), etiqueta del peldaño (local, malla, contenedor, gratis, pago) y motivo; botón «Restaurar sugeridas». En PoliGenesis democrático, guardar crea una propuesta en vez de aplicar. Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019F",
+    "GCA1019L"
+   ]
+  },
+  {
+   "id": "CB1013S",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Ajustes del cerebro: diálogo y pestaña Medios (capacidades y almacenamiento)",
+   "archivos": [
+    "src/components/cerebro/ajustes-cerebro-dialog.tsx",
+    "src/components/cerebro/ajustes-medios.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §8 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Sustituye `ajustes-cerebro-dialog.tsx` manteniendo `AjustesCerebroDialogProps { open; onOpenChange; cerebro; cerebros; onHecho? }` y el default. Arriba el selector «Aplicar a»: cerebro completo, una memoria (nombres de `brain_memory_files` de este cerebro) o una carpeta (ids de `starseed.brain.<id>.memoryRoots`). Pestañas: Medios, Seguridad y privacidad, Vinculación y sincronización. Guardar con `saveBrain({ ...cerebro, config: conAjustes(...) })` y `onHecho()`. `ajustes-medios.tsx` (`export function AjustesMedios(...)`): por cada `CAPACIDADES`, un selector con 'auto' + `cerebro.servers` + neuronas de `listNeurons()` (src/lib/neurons/neurons.ts); almacenamiento con los destinos de `getMemoryDestinations(cerebro)` (src/lib/brains/memory-destinations.ts: local, StarSeed, externos y P2P) que, en el nivel cerebro, se guardan con `setMemoryDestinations` (se aplica de verdad) y una línea por destino explicando adónde va cada dato con `destinosDe()` de src/lib/malla/cristal/destinos-almacen.ts si encaja su firma. Junto a cada ajuste, la marca de `APLICACION` («se aplica ya» / «solo se guarda por ahora»).",
+   "revisor_quitadas": [
+    "CB1013R"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013T"
+   ]
+  },
+  {
+   "id": "DGM1018O",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Vigía · vigilar Diagram Design y renovar su copia",
+   "archivos": [
+    "config/vigia-areas.json",
+    "scripts/puente/test_vigia_areas.py"
+   ],
+   "depende": [],
+   "prompt": "Añade (sin borrar nada) en el área `habilidades` el repo cathrynlavery/diagram-design con su manifiesto `.claude-plugin/plugin.json` (campo version) como señal de versión y la carpeta de destino vendor/habilidades/diagram-design. Amplía la prueba. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VST1018M"
+   ]
+  },
+  {
+   "id": "DSN1019D",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Fuentes de la marca por papel: Satoshi, Rajdhani, Inter, Quicksand y JetBrains Mono",
+   "archivos": [
+    "src/components/theme/fuentes-marca.tsx",
+    "src/components/theme/__tests__/fuentes-marca.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente que carga bajo demanda (una sola vez) la hoja de Satoshi de Fontshare `https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap` cuando el registro o la pieza usa el papel «display editorial», y Quicksand de Google Fonts para el tema Natural; expone las variables `--ss-font-display`, `--ss-font-titular`, `--ss-font-organica` con respaldos. Sin archivos de Satoshi en el repo. Prueba que no duplica enlaces y que hay respaldo. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb",
+   "GCA1019M",
+   "DSN1019D",
+   "GCA1019N",
+   "CB1013S",
+   "DGM1018O"
+  ]
+ }
+}
