@@ -99,6 +99,22 @@ describe("canal de etiquetas con patrón", () => {
         expect(leerVersion(URL_RUVIEW, tags, { patronTag: "^ruview-harness-" })).toBeNull();
     });
 
+    it("elige la primera coincidencia saltando v3263 aunque las etiquetas traigan fecha", () => {
+        const tags = [
+            { name: "v3263", commit: { committer: { date: "2026-09-01T00:00:00Z" } } },
+            { name: "ruview-harness-42", commit: { committer: { date: "2026-09-15T00:00:00Z" } } },
+            { name: "ruview-harness-41", commit: { committer: { date: "2026-09-10T00:00:00Z" } } },
+        ];
+        expect(leerVersion(URL_RUVIEW, tags, { patronTag: "^ruview-harness-" })).toEqual({
+            version: "ruview-harness-42",
+            fecha: null,
+        });
+    });
+
+    it("una respuesta vacía en el canal de etiquetas tampoco inventa versión", () => {
+        expect(leerVersion(URL_RUVIEW, [], { patronTag: "^ruview-harness-" })).toBeNull();
+    });
+
     it("el canal tags sin patrón toma la primera etiqueta", () => {
         expect(
             leerVersion(URL_RUVIEW, [{ name: "ruview-harness-2026-10-20" }], { canal: "tags" }),
@@ -125,6 +141,23 @@ describe("canal de etiquetas con patrón", () => {
         expect(urlDeConsulta(URL_RUVIEW, { patronTag: largo })).toBe(
             "https://api.github.com/repos/ruvnet/RuView/commits?per_page=1",
         );
+    });
+
+    it("un patrón válido compila como regex y no da error", () => {
+        const validado = validarPatronTag("^ruview-harness-");
+        expect(validado.error).toBeNull();
+        expect(validado.patron).toBeInstanceOf(RegExp);
+        expect(validado.patron?.test("ruview-harness-42")).toBe(true);
+        expect(validado.patron?.test("v3263")).toBe(false);
+        expect(validarPatronTag("v\\d+").error).toBeNull();
+        expect(validarPatronTag("a").error).toBeNull();
+    });
+
+    it("un patrón que no es una regex válida devuelve el motivo", () => {
+        const invalido = validarPatronTag("[invalid");
+        expect(invalido.patron).toBeNull();
+        expect(invalido.error).toContain("expresión regular");
+        expect(validarPatronTag("(?").patron).toBeNull();
     });
 
     it("sin patrón todo sigue igual: commits y Hugging Face", () => {
