@@ -1,129 +1,114 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { spawn } from "node:child_process";
-import { promises as fs } from "node:fs";
+import { access } from "node:fs/promises";
+import { constants } from "node:fs";
+import { homedir } from "node:os";
+import {
+  resolverCapacidad,
+  validarEntrada,
+  leerSobre,
+  tipoDeCapacidad,
+} from "@/lib/integrations/agent-reach-comandos";
 
-// ══════════════════════════════════════════════════════════════════════
-// Proxy de AGENT REACH (https://github.com/Panniantong/Agent-Reach)
-// ----------------------------------------------------------------------------
-// Da a los agentes Astraura acceso a la web externa (Twitter/X, Reddit,
-// YouTube, GitHub, Bilibili, búsqueda, RSS) TODO GRATIS. El cliente
-// (src/ai/astraura/integrations/agent-reach.ts) pasa SIEMPRE por aquí.
-//
-// El proxy invoca el CLI de agent-reach SOLO si está instalado en la neurona
-// del usuario (donde el usuario corrió `pip install agent-reach`). En Vercel
-// el CLI no existe → degrada a { ok:false } SIN romper el build ni el runtime.
-//
-// SEGURIDAD:
-//   · Allowlist estricta de `capability` (no hay ruta arbitraria del cliente).
-//   · Argumentos validados como strings (sin shell injection: usamos spawn
-//     con array de args, nunca shell).
-//   · Timeout duro. Sin credenciales: agent-reach usa cookies locales del
-//     usuario en su neurona; el proxy nunca las toca.
-// ══════════════════════════════════════════════════════════════════════
-
+/**
+ * Proxy de Agent Reach v1.6 (2026-10-23) · SOLO local (404 en producción).
+ * ─────────────────────────────────────────────────────────────────────────
+ * POST /api/agent-reach/<capacidad> · GET /api/agent-reach/health (= version).
+ * Exige sesión de Supabase (o STARSEED_LOCAL=1). R1: canales con sesión
+ * bloqueados salvo STARSEED_AGENT_REACH_LOGIN=1. Spawn sin shell, con límite.
+ */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
 
 const TIMEOUT_MS = 45_000;
+const INSTALAR =
+  "uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip" +
+  " (el paquete `agent-reach` de PyPI NO es este proyecto)";
 
-/** Capacidades permitidas (deben coincidir con AgentReachCapability del cliente). */
-const ALLOWED: Record<string, string> = {
-  web: "read", // agent-reach read <url>
-  search: "search", // agent-reach search "<q>"
-  youtube: "youtube", // agent-reach youtube <url>
-  github: "github", // agent-reach github <repo>
-  reddit: "reddit", // agent-reach reddit "<q>"
-  twitter: "twitter", // agent-reach twitter <url> (requiere config del usuario)
-  rss: "rss", // agent-reach rss <feed>
-  bilibili: "bilibili", // agent-reach bilibili "<q>"
-};
-
-function json(data: unknown, status = 200) {
-  return NextResponse.json(data, { status });
+function json(datos: unknown, status = 200) {
+  return NextResponse.json(datos, { status });
 }
 
-/** ¿Está agent-reach instalado en esta neurona? Comprueba el binario. */
-async function agentReachAvailable(): Promise<boolean> {
-  try {
-    await fs.access("/usr/local/bin/agent-reach");
-    return true;
-  } catch {
-    /* intenta via PATH */
+/** Sesión de Supabase vía `Authorization: Bearer`, como /api/mail/enviar; o local. */
+async function haySesion(req: NextRequest): Promise<boolean> {
+  if (process.env.STARSEED_LOCAL === "1") return true;
+  const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!token || !url) return false;
+  const sb = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "", {
+    auth: { persistSession: false },
+  });
+  const { data } = await sb.auth.getUser(token);
+  return Boolean(data?.user);
+}
+
+/** Env → ~/.local/bin → /usr/local/bin → which. null si no está. */
+async function resolverBinario(): Promise<string | null> {
+  const candidatos = [
+    process.env.STARSEED_AGENT_REACH_BIN,
+    `${homedir()}/.local/bin/agent-reach`,
+    "/usr/local/bin/agent-reach",
+  ].filter((c): c is string => Boolean(c));
+  for (const c of candidatos) {
+    try { await access(c, constants.X_OK); return c; } catch { /* siguiente */ }
   }
-  return new Promise((resolve) => {
+  return new Promise((resolver) => {
     const p = spawn("which", ["agent-reach"], { stdio: "ignore" });
-    p.on("close", (c) => resolve(c === 0));
-    p.on("error", () => resolve(false));
+    p.on("close", (c) => resolver(c === 0 ? "agent-reach" : null));
+    p.on("error", () => resolver(null));
   });
 }
 
-/** Ejecuta el subcomando de agent-reach de forma aislada (spawn, sin shell). */
-function runAgentReach(sub: string, arg: string): Promise<{ ok: boolean; out?: string; error?: string }> {
-  return new Promise((resolve) => {
-    const bin = "/usr/local/bin/agent-reach";
-    const args = sub === "search" || sub === "reddit" || sub === "bilibili"
-      ? [sub, arg]
-      : [sub, arg];
-    const child = spawn(bin, args, { timeout: TIMEOUT_MS, stdio: ["ignore", "pipe", "pipe"] });
-    let out = "";
-    let err = "";
-    child.stdout?.on("data", (d) => (out += d.toString()));
-    child.stderr?.on("data", (d) => (err += d.toString()));
-    const timer = setTimeout(() => child.kill("SIGKILL"), TIMEOUT_MS);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      if (code === 0) resolve({ ok: true, out: out.trim() || "(sin salida)" });
-      else resolve({ ok: false, error: err.trim() || `agent-reach exit ${code}` });
-    });
-    child.on("error", (e) => {
-      clearTimeout(timer);
-      resolve({ ok: false, error: (e as Error)?.message || "spawn error" });
-    });
+function ejecutar(bin: string, argv: string[]): Promise<{ salida: string; fallo?: string }> {
+  return new Promise((resolver) => {
+    const hijo = spawn(bin, argv, { shell: false, stdio: ["ignore", "pipe", "pipe"] });
+    let salida = "";
+    hijo.stdout?.on("data", (d) => (salida += String(d)));
+    hijo.stderr?.on("data", (d) => (salida += String(d)));
+    const reloj = setTimeout(() => hijo.kill("SIGKILL"), TIMEOUT_MS);
+    hijo.on("close", (c) => { clearTimeout(reloj); resolver({ salida, fallo: c === 0 ? undefined : `exit ${c}` }); });
+    hijo.on("error", (e) => { clearTimeout(reloj); resolver({ salida: "", fallo: (e as { code?: string }).code ?? "spawn" }); });
   });
 }
 
-export async function POST(
-  req: NextRequest,
-  ctx: { params: Promise<{ capability: string }> },
-) {
+/** POST `/api/agent-reach/<capacidad>` con { q?, url?, repo?, limite? }. */
+export async function POST(req: NextRequest, ctx: { params: Promise<{ capability: string }> }) {
   const { capability } = await ctx.params;
-  const sub = ALLOWED[capability];
-  if (!sub) return json({ ok: false, error: "capability no permitida" }, 404);
+  if (!(await haySesion(req))) return json({ ok: false, error: "Sesión requerida." }, 401);
+  if (process.env.NODE_ENV === "production") return json({ ok: false, error: "Solo local." }, 404);
 
   let body: Record<string, unknown> = {};
-  try {
-    body = (await req.json()) as Record<string, unknown>;
-  } catch {
-    return json({ ok: false, error: "cuerpo inválido" });
-  }
+  try { body = (await req.json()) as Record<string, unknown>; } catch { /* sigue */ }
+  const tipo = tipoDeCapacidad(capability);
+  const arg = String(body[tipo === "q" ? "q" : tipo === "repo" ? "repo" : "url"] ?? "");
+  const resuelto = resolverCapacidad(capability, arg, {
+    limite: Number(body.limite) || undefined,
+    loginPermitido: process.env.STARSEED_AGENT_REACH_LOGIN === "1",
+  });
+  if (resuelto.accion === "rechazar") return json({ ok: false, motivo: resuelto.motivo }, 403);
+  const entrada = validarEntrada(tipo, arg);
+  if (!entrada.ok) return json({ ok: false, error: { code: entrada.motivo } }, 400);
 
-  // Extrae el argumento según la capacidad (siempre string, sin shell).
-  const arg =
-    typeof body.url === "string" ? body.url
-    : typeof body.repo === "string" ? body.repo
-    : typeof body.feed === "string" ? body.feed
-    : typeof body.q === "string" ? body.q
-    : "";
-  if (!arg) return json({ ok: false, error: "falta argumento (url/repo/feed/q)" });
-
-  const available = await agentReachAvailable();
-  if (!available) {
-    // Degradación limpia: la neurona no tiene agent-reach instalado.
-    return json({
-      ok: false,
-      error: "agent-reach no instalado en esta neurona",
-      hint: "pip install agent-reach  (ver https://github.com/Panniantong/Agent-Reach)",
-    });
+  const bin = await resolverBinario();
+  if (!bin) return json({ ok: false, error: { code: "NEED_SETUP" }, hint: INSTALAR, meta: { capability } }, 503);
+  const { salida, fallo } = await ejecutar(bin, resuelto.argv);
+  const sobre = leerSobre(salida);
+  if (!sobre.ok && salida.trim() === "" && fallo) {
+    return json({ ok: false, error: { code: "NEED_SETUP" }, hint: INSTALAR, meta: { capability } }, 503);
   }
-
-  const result = await runAgentReach(sub, arg);
-  if (result.ok) {
-    return json({ ok: true, content: result.out, meta: { capability, arg } });
-  }
-  return json({ ok: false, error: result.error, meta: { capability, arg } });
+  return json({ ...sobre, meta: { capability, arg } });
 }
 
-export async function HEAD() {
-  return NextResponse.json({ ok: true, service: "starseed-agent-reach-proxy" });
+/** GET = comprobación de salud: `agent-reach version`. */
+export async function GET(req: NextRequest) {
+  if (!(await haySesion(req))) return json({ ok: false, error: "Sesión requerida." }, 401);
+  if (process.env.NODE_ENV === "production") return json({ ok: false, error: "Solo local." }, 404);
+  const bin = await resolverBinario();
+  if (!bin) return json({ ok: false, error: { code: "NEED_SETUP" }, hint: INSTALAR }, 503);
+  const { salida, fallo } = await ejecutar(bin, ["version"]);
+  const sobre = leerSobre(salida);
+  return json({ ...sobre, fallo: fallo ?? undefined });
 }
+
+
