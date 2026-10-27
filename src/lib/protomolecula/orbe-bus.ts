@@ -10,6 +10,8 @@ export const PROTO_ORB_FAB_KEY = "starseed.protomolecula.orbe.enabled.v1";
 export const PROTO_ORB_FAB_EVENT = "starseed:protomolecula-orb-fab";
 /** Lo emite la acción del agente (F0M) y lo escucha la orbe (F0L). */
 export const PROTO_ORB_ABRIR_EVENT = "starseed:protomolecula-abrir";
+/** Lo emite la acción del agente (F0M) para CERRAR la orbe desde cualquier medio. */
+export const PROTO_ORB_CERRAR_EVENT = "starseed:protomolecula-cerrar";
 
 /** Diámetro del dibujo de la orbe en pantallas anchas (≥ 640 px). En pantallas chicas se reduce: `medidasOrbe`. */
 export const TAMANO_ORBE = 56;
@@ -175,4 +177,68 @@ export function guardarActivada(almacen: AlmacenLocal, activada: boolean): void 
   } catch {
     /* defensivo */
   }
+}
+
+/**
+ * Puerta común de la orbe (PMO1020A): el botón del lienzo de creación de Trinidad y Astraura
+ * desde cualquier medio pasan por AQUÍ, así que activar o desactivar queda sincronizado.
+ * Guarda con `guardarActivada`, emite `PROTO_ORB_FAB_EVENT` (CustomEvent con el valor en el
+ * detalle) y empuja a la cuenta para que las demás neuronas lo reciban al instante.
+ */
+export interface DepsOrbe {
+  /** Almacén de preferencias (por defecto `window.localStorage` si existe ventana). */
+  almacen?: AlmacenLocal;
+  /** Cómo se emite el evento (por defecto `window.dispatchEvent` si existe ventana). */
+  emitir?: (e: Event) => boolean;
+  /** Cómo se empuja a la cuenta; por defecto `pushPreferences()` sin esperarla. */
+  empujar?: () => void;
+}
+
+function resolverAlmacen(deps?: DepsOrbe): AlmacenLocal | undefined {
+  if (deps?.almacen) return deps.almacen;
+  if (typeof window !== "undefined") {
+    try {
+      return window.localStorage;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function empujePorDefecto(): void {
+  // Sin esperar y sin lanzar jamás: un fallo de red no rompe el botón.
+  void import("@/lib/settings-sync")
+    .then((m) => m.pushPreferences())
+    .catch(() => undefined);
+}
+
+/**
+ * ACTIVAR o DESACTIVAR la orbe: guarda el valor, emite el evento de la orbe y empuja a la
+ * cuenta. Devuelve el valor que quedó guardado. Nunca lanza.
+ */
+export function fijarOrbeActivada(activada: boolean, deps?: DepsOrbe): boolean {
+  const almacen = resolverAlmacen(deps);
+  if (almacen) guardarActivada(almacen, activada);
+  const guardado = almacen ? leerActivada(almacen) : activada;
+  try {
+    const evento = new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: { activada: guardado } });
+    if (deps?.emitir) deps.emitir(evento);
+    else if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(evento);
+  } catch {
+    /* defensivo */
+  }
+  try {
+    (deps?.empujar ?? empujePorDefecto)();
+  } catch {
+    /* una subida fallida nunca rompe el botón */
+  }
+  return guardado;
+}
+
+/** Invierte la preferencia actual y activa/desactiva por la misma puerta (`fijarOrbeActivada`). */
+export function alternarOrbe(deps?: DepsOrbe): boolean {
+  const almacen = resolverAlmacen(deps);
+  const actual = almacen ? leerActivada(almacen) : true;
+  return fijarOrbeActivada(!actual, deps);
 }

@@ -208,6 +208,8 @@ const EVENT_BY_KEY: Record<string, string[]> = {
 
     // Orbe, avatar, intro, canales
     "starseed.aurora.fab.enabled.v1": ["starseed:aurora-orb-fab", "starseed:aurora-orb-visibility"],
+    // Orbe de la Protomolécula (Ola 1020P): que un cambio en otra neurona refresca su FAB en vivo.
+    "starseed.protomolecula.orbe.enabled.v1": ["starseed:protomolecula-orb-fab"],
     "starseed.aurora.avatar.v1": ["starseed:aurora-avatar-config"],
     "starseed.aurora.intro.v1": ["starseed:aurora-setup"],
     "starseed.aurora.channels.v1": ["starseed:connectors"],
