@@ -29,8 +29,8 @@ describe("motoresPermitidos", () => {
   it("contexto publico permite solo libres y condicionados cumplidos", () => {
     const resultado = motoresPermitidos(motores, "publico", { comunidad: "condicionada" });
     expect(resultado.permitidos.map((m) => m.id).sort()).toEqual(["kokoro", "supertonic"].sort());
-    const motivos = resultado.excluidos.reduce((acc, e) => ({ ...acc, [e.id]: e.motivo }), {});
-    expect(motivos.omnivoice).toContain("solo uso personal");
+    const motivos = new Map(resultado.excluidos.map((e) => [e.id, e.motivo]));
+    expect(motivos.get("omnivoice")).toContain("solo uso personal");
   });
 
   it("contexto comercial trata igual que publico sin uso personal", () => {
