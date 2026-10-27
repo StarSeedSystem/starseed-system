@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CAPAS_ORDEN } from "../manifiesto";
 import {
   VENTANA_NOCTURNA, decidirPolitica, politicaPorDefecto, sanearPolitica,
-  type PoliticaCapa,
+  type PoliticaCapa, type TipoEntidad,
 } from "../politica";
 
 describe("política: rescate de la rama nube/40439436739", () => {
@@ -16,6 +16,12 @@ describe("política: rescate de la rama nube/40439436739", () => {
 
   it("página pública toma la política del perfil: lo declarativo va solo", () => {
     expect(politicaPorDefecto("pagina")).toEqual(politicaPorDefecto("perfil"));
+  });
+
+  it("todos los tipos que no son el OS comparten la política base", () => {
+    const base = politicaPorDefecto("perfil");
+    const otros: TipoEntidad[] = ["pagina", "grupo", "comunidad", "estudio", "evento"];
+    for (const tipo of otros) expect(politicaPorDefecto(tipo), tipo).toEqual(base);
   });
 
   it("programada: la ventana es [desdeH, hastaH), el borde justo ya no cabe", () => {
@@ -41,6 +47,12 @@ describe("política: rescate de la rama nube/40439436739", () => {
     expect(p.sw.modo).toBe("automatica-esta");
     expect(p.servicios.modo).toBe("manual");
     expect(Object.keys(p)).toEqual(CAPAS_ORDEN);
+  });
+
+  it("sanear una entrada nula deja las seis capas en orden y en manual", () => {
+    const p = sanearPolitica(null);
+    expect(Object.keys(p)).toEqual(CAPAS_ORDEN);
+    for (const capa of CAPAS_ORDEN) expect(p[capa].modo).toBe("manual");
   });
 
   it("sanear conserva una ventana válida que cruza la medianoche", () => {

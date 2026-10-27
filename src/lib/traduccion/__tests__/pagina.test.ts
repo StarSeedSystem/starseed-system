@@ -24,6 +24,37 @@ describe("recogerTextos", () => {
         expect(textos(recogerTextos(raiz))).toEqual(["visible"]);
     });
 
+    it("una exclusión no se lleva por delante el texto visible que la acompaña", () => {
+        const casos = [
+            "<code>prohibido()</code>",
+            "<span data-no-traducir>prohibido</span>",
+            "<span translate='no'>prohibido</span>",
+            "<span hidden>prohibido</span>",
+            "<span contenteditable='true'>prohibido</span>",
+            "<input value='prohibido'>",
+        ];
+        for (const trozo of casos) {
+            const raiz = montar(`<p>Visible ${trozo}</p>`);
+            expect(textos(recogerTextos(raiz)).map((t) => t.trim()), trozo).toEqual(["Visible"]);
+        }
+    });
+
+    it("recoge title, alt, aria-label y placeholder, no solo en imágenes", () => {
+        const raiz = montar("<img alt='Logo' title='Imagen'><input placeholder='Busca…' aria-label='Campo'>");
+        const recogidos = recogerTextos(raiz)
+            .filter((item) => item.clase === "atributo")
+            .map((item) => `${item.atributo}=${item.texto}`)
+            .sort();
+        expect(recogidos).toEqual(["alt=Logo", "aria-label=Campo", "placeholder=Busca…", "title=Imagen"]);
+    });
+
+    it("no recoge atributos vacíos ni en blanco, pero sí el texto de su elemento", () => {
+        const raiz = montar("<img alt='' title='  '><p aria-label='  '>Texto</p>");
+        const recogidos = recogerTextos(raiz);
+        expect(recogidos.filter((item) => item.clase === "atributo")).toEqual([]);
+        expect(textos(recogidos)).toEqual(["Texto"]);
+    });
+
     it("respeta translate=no, data-no-traducir y hidden, también en sus atributos", () => {
         const raiz = montar(
             `<p translate="no">prohibido</p><p data-no-traducir>prohibido dos</p>` +
