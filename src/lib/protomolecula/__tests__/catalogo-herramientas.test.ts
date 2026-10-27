@@ -390,3 +390,9 @@ describe("diagram-design tool", () => {
     expect(diagramDesign?.avisos).toEqual(expect.arrayContaining(["sin telemetría", "fuentes del OS", "animaciones solo en iframe aislado"]));
   });
 });
+
+describe("seguridad · exclusión de la rama nube", () => {
+  it("zhaoxuya520/reverse-skill no está en ninguna ficha (excluida por seguridad)", () => {
+    expect(JSON.stringify(CATALOGO_PROTOMOLECULA)).not.toContain("reverse-skill");
+  });
+});
