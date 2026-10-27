@@ -1460,6 +1460,12 @@ Medido a las 09:00 UTC (Genesis enseñaba 5 agentes con 307 listas) y otra vez a
 - **Q** · los procesos que viven horas guardan el código con el que arrancaron: `director-nube.py` se vuelve a
   ejecutar cuando cambia algo que cargó, como el vigía. El orquestador no: toma el código nuevo en su próxima
   tanda (`lanzar-enjambre.sh` reinstala). Síntoma: `contenedores.json` igual tras un commit que debía cambiarlo.
+- **R** · primera pasada con N (23:18): 6 comprobaciones sobre main d7d58128, verdes en 3-4 min; traer integró 3
+  tareas a las 23:24 y la pasada siguiente, con main en 4fe9e85c, no encontró los veredictos por (base, árbol): las
+  6 quedaron «en curso» y llenaron los 6 sitios. Ahora se lee en cada pasada toda comprobación en curso (de la base
+  que sea), un veredicto vale para el MISMO cambio (`git patch-id`) sobre un main posterior que no tocó sus archivos
+  ni package*.json/tsconfig.json, y lo que caduca borra su rama. Síntoma: «ya hay 6 comprobaciones en marcha» con
+  runs de `comprobar-nube` ya acabados.
 
 **Regla:** más agentes que escritores con cupo no es capacidad: son 429, proveedores apartados 6 h y envíos gastados.
 El número lo dan los escritores vivos; los jobs a la vez salen de ahí y los dos directores leen el mismo.

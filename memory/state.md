@@ -4520,6 +4520,10 @@ Genesis pasó de 5 agentes a 31 (28 en GitHub, 3 en la Mac); el límite real es 
   instalado; Genesis: «Agentes 25 en total», con los 3 del A1) · `aa9fcbe1e` CAP1026P (puerta tsc del orquestador en
   GitHub; instalado en ~/.local/bin) · CAP1026Q (el director de la nube se recarga). oracle_a1 nuevo en el A1
   (`oracle_nodo.py instalar`, «listo» a las 04:30 UTC).
+- 27/10 00:00: N funciona — 6 runs de `comprobar-nube` en verde en 3-4 min (40454558023…) y main avanzó a las 22:53 y
+  23:24 con 4 integraciones del enjambre (SGO1024Eb, IMN1021K8c, MGB1021Ab, GCA1019Ob), las primeras desde las 12:03.
+  `872241fa5` CAP1026R: esos veredictos se perdían al avanzar main y bloqueaban los 6 sitios; ahora se leen y se
+  reutilizan.
 
 ### Pendiente / Próximos pasos
 - Primera comprobación real en GitHub: la pasada de traer de las 20:36 seguía con el código de antes de N; el
