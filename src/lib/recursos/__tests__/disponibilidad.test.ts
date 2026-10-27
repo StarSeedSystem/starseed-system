@@ -33,6 +33,11 @@ describe("disponibilidad.ts", () => {
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
     });
+
+    it("una cadena vacía decodifica a un mapa vacío", () => {
+      // Caso rescatado de la rama nube/a1-20261023-184106: vacío también al decodificar.
+      expect(decodificar("").length).toBe(0);
+    });
   });
 
   describe("mapa de bits", () => {
@@ -98,6 +103,11 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+
+    it("sin nada que anunciar no crea piezas", () => {
+      // Rescate de la rama: un elemento sin piezas disponibles no emite anuncio.
+      expect(anuncio("nodo-vacio", "e-vacio", 10, [], 0)).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
@@ -107,6 +117,13 @@ describe("disponibilidad.ts", () => {
       ...uno.map((a) => ({ anuncio: a, recibidoEn: AHORA - 20_000 })),
       ...dos.map((a) => ({ anuncio: a, recibidoEn: AHORA - 5_000 })),
     ];
+
+    it("fusionar sin anuncios da un registro vacío", () => {
+      // Rescate de la rama (fusionar vacío): sin anuncios, registro vacío y nadie responde.
+      const reg = fusionar([]);
+      expect(reg.size).toBe(0);
+      expect(quienTiene(reg, "t1", 0, AHORA)).toEqual([]);
+    });
 
     it("une piezas de dos nodos y sirve el índice a quien corresponden", () => {
       const uno = fusionar(
