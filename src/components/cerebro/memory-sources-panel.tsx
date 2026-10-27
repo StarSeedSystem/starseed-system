@@ -63,6 +63,20 @@ import {
 } from "@/lib/brains/servers";
 import { listBackends, saveBackend, deleteBackend, type StorageBackend } from "@/lib/storage/backends";
 import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+import { readMirror } from "@/lib/brains/memory-offline";
+// (INF1025H) Manifiesto de copias POR CONTENIDO: cuántas réplicas reales hay de
+// cada memoria, cuál es la «última copia», dónde divergen y qué limpieza se
+// PROPONE (siempre con confirmación; ningún borrado se propaga solo).
+import {
+  construirManifiesto,
+  divergencias,
+  huellaContenido,
+  proponerLimpieza,
+  resumenManifiesto,
+  type CopiaMemoria,
+  type DestinoMemoria,
+  type ManifiestoMemoria,
+} from "@/lib/storage/memoria-manifiesto";
 import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connect";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 // (Ola 374) Google Drive como medio de este cerebro: OAuth con custodia en
