@@ -45,9 +45,10 @@ export function recogerTextos(raiz: ParentNode): TextoRecogido[] {
             const texto = hijo instanceof Text ? hijo : null;
             if (texto?.data.trim() && !dentroDe(texto, raiz, excluido)) salida.push({ nodo: texto, clase: "texto", texto: texto.data });
         }
-        for (const atributo of ATRIBUTOS_TRADUCIBLES) {
-            const valor = el.getAttribute(atributo);
-            if (valor?.trim() && !dentroDe(el, raiz, zonaProhibida)) salida.push({ nodo: el, clase: "atributo", atributo, texto: valor });
+        for (const nombre of el.getAttributeNames()) {
+            if (!(ATRIBUTOS_TRADUCIBLES as readonly string[]).includes(nombre)) continue;
+            const valor = el.getAttribute(nombre);
+            if (valor?.trim() && !dentroDe(el, raiz, zonaProhibida)) salida.push({ nodo: el, clase: "atributo", atributo: nombre, texto: valor });
         }
     }
     return salida;

@@ -155,6 +155,12 @@ import { AppPopupHost } from "@/components/notifications/app-popup-host";
 // Auto-actualización de la Biblioteca (Adenda 69 · J-2): si está activada, aplica
 // solas las actualizaciones de los paquetes instalados y avisa. Sin UI.
 import { AutoUpdateWatcher } from "@/components/notifications/auto-update-watcher";
+// Traducción de la página entera (TRD1020C · Ola 1020U): si el perfil eligió
+// autotraducción «siempre» en el contexto «páginas», traduce el DOM visible con
+// LibreTranslate de la neurona y sigue los textos nuevos. Sin UI; el original
+// queda guardado y «Ver original» (TRD1020G) lo devuelve. GLOBAL — como los
+// ajustes de lectura valen en cualquier ruta. Ver src/lib/traduccion/pagina.ts.
+import { PaginaVivaMontaje } from "@/components/traduccion/pagina-viva-montaje";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -373,6 +379,7 @@ export default function RootLayout({
                         <AppPopupHost />
                         {/* Auto-actualización de la Biblioteca (J-2): aplica solas las actualizaciones si el usuario lo activó. */}
                         <AutoUpdateWatcher />
+                        <PaginaVivaMontaje />
                         {/* Fragua de Widgets universal (escucha 'starseed:open-forge' fuera del dashboard). */}
                         <GlobalForgeHost />
                         {/* Editor Universal global (escucha 'starseed:open-editor' desde el Centro de Creación). */}
