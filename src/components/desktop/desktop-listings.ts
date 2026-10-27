@@ -7,6 +7,8 @@
 // store de cursor-fx ('starseed.cursorfx.v1').
 // ════════════════════════════════════════════════════════════════
 
+import { CUERPOS_MAUSBOT, IDS_CUERPO_MAUSBOT } from "@/lib/mausbot/cuerpos";
+
 export interface DesktopListing {
     id: string;
     nombre: string;
@@ -16,6 +18,21 @@ export interface DesktopListing {
     /** Paleta representativa (hex) para el marco/acento de la tarjeta. */
     paleta: string[];
 }
+
+/** Prefijo de los diseños de cursor que vienen del catálogo del Mausbot. */
+export const PREFIJO_CURSOR_MAUSBOT = "mausbot-" as const;
+
+/** Los diez cuerpos del Mausbot como diseños de cursor de fábrica (Biblioteca y ajustes). */
+const CURSORES_MAUSBOT: DesktopListing[] = IDS_CUERPO_MAUSBOT.map((id) => {
+    const cuerpo = CUERPOS_MAUSBOT[id];
+    return {
+        id: `${PREFIJO_CURSOR_MAUSBOT}${id}`,
+        nombre: `Mausbot · ${cuerpo.nombre}`,
+        descripcion: `El cuerpo ${cuerpo.nombre.toLowerCase()} del Mausbot de Astraura como puntero, con su forma y su degradado.`,
+        preview: "🤖",
+        paleta: ["#66E3FF", "#007FFF", "#7C3AED"],
+    };
+});
 
 /** Cursores del escritorio (opciones de `cursor` en cursor-fx). */
 export const CURSOR_LISTINGS: DesktopListing[] = [
@@ -40,6 +57,7 @@ export const CURSOR_LISTINGS: DesktopListing[] = [
         preview: "🔮",
         paleta: ["#EAF6FF", "#3FB6FF", "#6D28D9"],
     },
+    ...CURSORES_MAUSBOT,
 ];
 
 /** Animaciones de gesto/clic del escritorio (opciones de `click` en cursor-fx). */

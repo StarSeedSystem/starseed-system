@@ -17,11 +17,26 @@
 import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { MousePointer2, MousePointerClick, Accessibility } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CURSOR_LISTINGS, GESTURE_ANIMATION_LISTINGS } from "./desktop-listings";
+import {
+    CUERPO_MAUSBOT_POR_DEFECTO,
+    CUERPOS_MAUSBOT,
+    IDS_CUERPO_MAUSBOT,
+    cuerpoMausbot,
+    type CuerpoId,
+} from "@/lib/mausbot/cuerpos";
+import { CURSOR_LISTINGS, GESTURE_ANIMATION_LISTINGS, PREFIJO_CURSOR_MAUSBOT } from "./desktop-listings";
 
 // ── Config + store mínimo ────────────────────────────────────────
-export type CursorOption = "system" | "starseed-triangle" | "orb";
+type CursorMausbotOption = `${typeof PREFIJO_CURSOR_MAUSBOT}${CuerpoId}`;
+export type CursorOption = "system" | "starseed-triangle" | "orb" | CursorMausbotOption;
 export type ClickFxOption = "none" | "liquid-ripple" | "star-burst" | "neon-bubble";
+
+/** Un cuerpo del Mausbot elegido como cursor; cualquier otra cosa cae al puntero del sistema. */
+function esCursorMausbot(valor: unknown): valor is CursorMausbotOption {
+    return typeof valor === "string"
+        && valor.startsWith(PREFIJO_CURSOR_MAUSBOT)
+        && (IDS_CUERPO_MAUSBOT as readonly string[]).includes(valor.slice(PREFIJO_CURSOR_MAUSBOT.length));
+}
 
 export interface CursorFxConfig {
     cursor: CursorOption;
@@ -52,7 +67,9 @@ function readConfig(): CursorFxConfig {
         try {
             const p = JSON.parse(raw) as Partial<CursorFxConfig>;
             const cursor: CursorOption =
-                p.cursor === "starseed-triangle" || p.cursor === "orb" ? p.cursor : "system";
+                p.cursor === "starseed-triangle" || p.cursor === "orb" || esCursorMausbot(p.cursor)
+                    ? p.cursor
+                    : "system";
             const click: ClickFxOption =
                 p.click === "none" || p.click === "star-burst" || p.click === "neon-bubble" || p.click === "liquid-ripple"
                     ? p.click
@@ -105,15 +122,39 @@ const TRIANGLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height=
 /** Orbe mini: esfera de luz líquida con brillo interior. */
 const ORB_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><defs><radialGradient id="o" cx="0.35" cy="0.3" r="0.85"><stop offset="0" stop-color="#EAF6FF" stop-opacity="0.95"/><stop offset="0.45" stop-color="#3FB6FF" stop-opacity="0.85"/><stop offset="1" stop-color="#6D28D9" stop-opacity="0.9"/></radialGradient></defs><circle cx="10" cy="10" r="8.2" fill="url(#o)" stroke="rgba(255,255,255,0.75)" stroke-width="1"/><circle cx="7.2" cy="6.4" r="2.3" fill="rgba(255,255,255,0.55)"/></svg>`;
 
-export const CURSOR_PREVIEW_URI: Record<Exclude<CursorOption, "system">, string> = {
+export const CURSOR_PREVIEW_URI: Record<"starseed-triangle" | "orb", string> = {
     "starseed-triangle": svgUri(TRIANGLE_SVG),
     orb: svgUri(ORB_SVG),
 };
 
-function cursorCssValue(cursor: CursorOption): string | null {
-    if (cursor === "starseed-triangle") return `url("${CURSOR_PREVIEW_URI["starseed-triangle"]}") 3 2, auto`;
-    if (cursor === "orb") return `url("${CURSOR_PREVIEW_URI.orb}") 10 10, auto`;
+/** Cuerpo del catálogo que pinta un cursor del Mausbot (o el de fábrica si no lo es). */
+function cuerpoDeCursor(cursor: CursorOption): CuerpoId {
+    return esCursorMausbot(cursor)
+        ? cuerpoMausbot(cursor.slice(PREFIJO_CURSOR_MAUSBOT.length))
+        : CUERPO_MAUSBOT_POR_DEFECTO;
+}
+
+/** El cuerpo del Mausbot como SVG de cursor, con el degradado de fábrica. */
+function mausbotSvg(cursor: CursorOption): string {
+    const cuerpo = CUERPOS_MAUSBOT[cuerpoDeCursor(cursor)];
+    const gradiente = `<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#66E3FF"/><stop offset="0.55" stop-color="#007FFF"/><stop offset="1" stop-color="#7C3AED"/></linearGradient>`;
+    const body = cuerpo.body.replace(/\{\{GRADIENT\}\}/g, "url(#g)");
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="-15 -15 258.541 258.541"><defs>${gradiente}</defs><g transform="${cuerpo.fit}">${body}</g></svg>`;
+}
+
+/** Vista previa de cualquier cursor; `null` para el puntero del sistema. */
+function cursorPreviewUri(cursor: CursorOption): string | null {
+    if (cursor === "starseed-triangle" || cursor === "orb") return CURSOR_PREVIEW_URI[cursor];
+    if (esCursorMausbot(cursor)) return svgUri(mausbotSvg(cursor));
     return null;
+}
+
+function cursorCssValue(cursor: CursorOption): string | null {
+    const uri = cursorPreviewUri(cursor);
+    if (!uri) return null;
+    if (cursor === "starseed-triangle") return `url("${uri}") 3 2, auto`;
+    if (cursor === "orb") return `url("${uri}") 10 10, auto`;
+    return `url("${uri}") ${cuerpoDeCursor(cursor) === "cursor" ? "8 1" : "16 16"}, auto`;
 }
 
 // ── Preferencia de movimiento reducido (viva) ────────────────────
@@ -352,9 +393,7 @@ export function CursorSettingsPanel({ className }: { className?: string }): Reac
                 <div className="grid grid-cols-3 gap-2">
                     {CURSOR_LISTINGS.map((c) => {
                         const selected = cfg.cursor === c.id;
-                        const uri = c.id === "starseed-triangle" || c.id === "orb"
-                            ? CURSOR_PREVIEW_URI[c.id]
-                            : null;
+                        const uri = cursorPreviewUri(c.id as CursorOption);
                         return (
                             <button
                                 key={c.id}
