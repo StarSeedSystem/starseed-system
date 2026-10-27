@@ -37,7 +37,10 @@ export default defineConfig({
   test: {
     environment: "node",
     environmentMatchGlobs: [["**/*.test.tsx", "jsdom"]],
-    include: ["src/**/*.{test,spec}.ts", "src/**/__tests__/**/*.ts", "src/**/*.{test,spec}.tsx", "src/**/__tests__/**/*.tsx"],
+    // (2026-10-27) En `__tests__` solo se consideran pruebas los archivos con sufijo
+    // `.test` / `.spec` (misma convención que la guardia de vitest en producción): los
+    // ayudantes compartidos (`ayudas-prueba.ts`) viven allí pero no son suites.
+    include: ["src/**/*.{test,spec}.ts", "src/**/*.{test,spec}.tsx"],
     exclude: ["node_modules", ".next", "dist"],
     globals: false,
     // (2026-10-05) Margen para una máquina cargada: ver el porqué en `vitest.setup-dom.ts`.
