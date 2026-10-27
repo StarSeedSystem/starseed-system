@@ -1,0 +1,108 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "ola": "Rescate de las ramas de la nube",
+   "id": "RTRTRTRTCOL1012Bdsbbbbbc-d3d",
+   "titulo": "Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contened (parte 3 de 3)",
+   "archivos": [
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTRTRTCOL1012Bdsbbb («Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos d») se hizo en main por otro camino; su rama nube/a1-20261014-085445 queda archivada en `refs/archivo/nube/a1-20261014-085445` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.96)\n\nTU TAREA (RTRTRTRTCOL1012Bdsbbb · solo estos archivos: servicios/taller-3d/motores/test_pixelartistry.py, src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# servicios/taller-3d/motores/test_pixelartistry.py\n    def test_remallar_imagen_cuando_no_disponible(self):\n        \"\"\"When the motor is not available, remallar_imagen should return an error dict.\"\"\"\n        result = pa.remallar_imagen(\n            \"/fake/path/image.png\",\n            resolucion=512,\n            carpeta_workflows=self.tmp,\n            comfy=pa.ClienteComfyUI(),\n            dormir=lambda _: None\n        )\n        self.assertFalse(result[\"ok\"])\n        self.assertIsNone(result[\"glb\"])\n        self.assertIsInstance(result[\"procedencia\"], list)\n        self.assertGreaterEqual(len(result[\"procedencia\"]), 2)  # flujo and nodos pieces\n        self.assertIsInstance(result[\"fallo\"], str)\n        self.assertGreaterEqual(len(result[\"fallo\"]), 1)\n        self.assertGreaterEqual(result[\"segundos\"], 0.0)\n        self.assertGreaterEqual(result[\"pico_memoria_gb\"], 0.0)\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ \n            nodo: \"mac-a1b2c3\", \n            vivo: true, \n            so: \"macos\", \n            enCurso: 0, \n            contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } \n        } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261020-135517`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261020-135517:refs/remotes/origin/nube/a1-20261020-135517\"` y `git cherry-pick --no-commit c0fa958f3c6f 99d954e7898e 7b5efa175389 c47cff0b30df`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, servicios/taller-3d/motores/test_pixelartistry.py, src/lib/metagenesis/__tests__/remoto-nodos.test.ts.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (src/lib/metagenesis/__tests__/remoto-nodos.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).",
+   "revisor": {
+    "origen": "RTRTRTRTCOL1012Bdsbbbbbc",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "revisor_quitadas": [
+    "RTRTRTRTCOL1012Bdsbbbbbc-d2"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261020-135517"
+  },
+  {
+   "ola": "1020U",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40136829749",
+   "id": "TRD1020Db-d3",
+   "titulo": "Traducción · idioma de lectura y autotraducción por perfil, sincronizados con la cuenta (parte 3 de 3)",
+   "archivos": [
+    "src/lib/traduccion/__tests__/preferencias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Clave `starseed.traduccion.v1` (añádela a `SYNCED_KEYS` con su comentario, como las demás). Preferencias por perfil: `{idioma, entiende: string[], auto: {paginas, mensajes, publicaciones, agentes, astraura}: \"nunca\"|\"preguntar\"|\"siempre\"}`; por defecto el idioma lo da quien llama (p. ej. `navigator.language`) y todo en «preguntar». `leer`/`guardar` con try/catch, validación (lo inválido vuelve al valor por defecto) y `debeTraducir(perfil, contexto, idiomaDelTexto)` (no si el idioma del texto está en `entiende`). Pruebas, incluida la auditoría de claves sincronizadas existente en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40136829749`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40136829749:refs/remotes/origin/nube/40136829749\"` y `git cherry-pick --no-commit e17d8fd5d9c7`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/settings-sync.ts, src/lib/traduccion/__tests__/preferencias.test.ts, src/lib/traduccion/preferencias.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió TRD1020Db: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/traduccion/__tests__/preferencias.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "TRD1020Db",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "TRD1020Db-d2"
+   ]
+  },
+  {
+   "id": "APM1017V",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Medios · árbol de relevo: los que más suben en el centro y recolocación al irse uno",
+   "archivos": [
+    "src/lib/recursos/arbol-relevo.ts",
+    "src/lib/recursos/__tests__/arbol-relevo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO (§10): `armarArbol(origen, receptores: { nodoId, subidaKbps?, latenciaMs? }[], kbpsFlujo)` → padre de cada receptor; cada nodo sostiene como mucho `floor(subida / kbpsFlujo)` hijos (sin medida: 1), los de más subida más cerca del origen; determinista. `recolocar(arbol, seVa)` mueve solo la rama del que se fue. Pruebas con 1, 10 y 200 receptores y con una salida. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017A"
+   ]
+  },
+  {
+   "id": "DGM1018N",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · edición en grupo en tiempo real sobre la especificación",
+   "archivos": [
+    "src/lib/diagramas/sincronia-diagrama.ts",
+    "src/lib/diagramas/__tests__/sincronia-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elementosDeEspecificacion(espec, autor, t)` convierte cada nodo, arista y texto en `ElementoSala` (src/lib/salas/sincronia-sala.ts) y `especificacionDeEstado(estado)` lo recompone; usa `fusionarEstados`. Prueba: dos personas renombran nodos distintos a la vez y una borra una arista; las tres neuronas convergen. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DGM1018M"
+   ]
+  },
+  {
+   "id": "INV1025I",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "Correos inteligentes del OS: reglas en lenguaje natural como datos y seguimiento de respuestas",
+   "archivos": [
+    "src/lib/mail/reglas-correo.ts",
+    "src/lib/mail/seguimiento-respuestas.ts",
+    "src/lib/mail/__tests__/correos-inteligentes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Patrón de producto de Inbox Zero (AGPL con términos adicionales: NO se copia código ni textos; se reescribe desde cero lo que describe su README público) aplicado al correo interno del OS (`src/lib/mail/os-mail.ts`: un correo es un hilo de `os_dm_threads` con `meta.mail = true`, `meta.subject`, `meta.creatorId` y `meta.flags[uid]`). Crea dos módulos puros y su prueba.\n(1) `reglas-correo.ts`: una regla es un DATO `{id, texto, cuando:{de?, dominio?, asuntoContiene?, tieneAdjunto?, etiqueta?, antiguedadHorasMin?}, hacer:\"etiquetar\"|\"mover\"|\"destacar\"|\"esperar-respuesta\"|\"sugerir-borrador\", parametro?}`. `validarRegla(x)` rechaza cualquier acción fuera de la lista (jamás enviar, responder solo, borrar ni reenviar), campos extra y textos largos. `aplicarReglas(reglas, hilo)` devuelve las acciones propuestas, en orden y sin repetir. Pasar de lenguaje natural a regla lo hará Astraura en otra tarea: aquí solo se valida su salida.\n(2) `seguimiento-respuestas.ts` («Reply Zero» propio): `clasificarHilo(hilo, yo, ahora, cfg)` → `por-responder` (el último mensaje es de otro y pasaron más de N horas sin respuesta mía), `esperando` (el último es mío y pasaron más de D días; 14 por defecto para el alcance) o `resuelto`; `resumenSeguimiento(hilos)`. Reloj inyectado y tipos mínimos locales (`HiloLite`) para no importar `os-mail.ts` (cliente con Supabase).\n(3) `__tests__/correos-inteligentes.test.ts`. Sirven al alcance (respuestas a lo enviado desde la dirección pública) y a Mensajes. R2: ninguna regla ni función puede enviar nada.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA."
+  },
+  {
+   "id": "ART1025L",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Rare: «Juegos de PC», lanzamiento confirmado y guarda de credenciales de Epic",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/protomolecula/servicio-local.ts",
+    "src/lib/artcraft/juegos-pc.ts",
+    "src/lib/artcraft/__tests__/juegos-pc.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §5 completo (rutas A, B y C, y §5.3 credenciales de Epic). Rare es GPL-3.0-or-later: SOLO como programa aparte, nunca enlazado. Las credenciales de Epic son SIEMPRE de la persona y nunca van a un repositorio, memoria, sala, grupo ni registro.\n\n1) En `src/lib/protomolecula/servicio-local.ts` añade `rare: \"Rare\"` a `BINARIOS_PERMITIDOS` (una línea; el objeto sigue congelado) sin tocar nada más: `pedirLanzamiento(\"rare\", …)` ya pide siempre la confirmación de una persona y una IA nunca lo abre sola. Añade en sus pruebas existentes (`src/lib/protomolecula/__tests__/servicio-local.test.ts`) SOLO si hace falta para que sigan en verde.\n\n2) `src/lib/artcraft/juegos-pc.ts` (PURO) exporta: `CONDICIONES_EPIC_DECIDIDAS = false` (constante; hasta que Alex decida, la ruta C no se ofrece); `planificarJuegoPc(e: { neurona: { sistema: \"macos\" | \"linux\" | \"windows\" | \"otro\"; tienePantalla: boolean; binarioRare: boolean; gpu: boolean; memoriaMB: number }; servidores: { id: string; propio: boolean; compartido: boolean; gpu: boolean; wineOProton: boolean; transmision: \"selkies\" | \"sunshine\" | null; libreDiscoGB: number }[]; persona: { id: string; aceptaCondicionesEpic: boolean } })` → `{ ruta: \"neurona-propia\" | \"servidor-propio\" | \"servidor-compartido\" | \"ninguna\"; motivo: string; pasos: string[]; avisos: string[] }`. Ruta A si hay pantalla y Rare instalado; B si hay un servidor propio con GPU, Wine o Proton y transmisión; C solo si `CONDICIONES_EPIC_DECIDIDAS` y la persona acepta (una sesión por persona, cada una con SU cuenta); si no, `ninguna` con el motivo. Los `pasos` son frases cortas («abre Rare», «inicia sesión en Epic tú mismo»…) y los `avisos` incluyen que el A1 de Oracle (sin GPU) no sirve para 3D cuando el servidor tiene `gpu: false`. `rutaConfigEpic(datos: string, personaId: string): { ruta: string; modo: number }` → `<datos>/juegos/<persona>/legendary` con modo `0o700` (persona solo `^[a-z0-9-]{1,64}$`, si no lanza). `validarSinCredencialesEpic(texto: string): { ok: boolean; hallazgos: string[] }` detecta en un texto los campos típicos de la sesión de Legendary (`access_token`, `refresh_token`, `account_id`, `exchange_code` con valor de más de 8 caracteres) y los tokens con prefijo `eg1~`; los hallazgos NO repiten el valor. `esUrlPermitidaRare(url: string): boolean` devuelve `false` para `raredevs.github.io`, `protondb.com` y cualquier descarga remota de Rare (se bloquean hasta que haya SHA fijado) y `true` solo para `https://github.com/RareDevs/Rare/releases/…`.\n\nPruebas (≥ 14) en `juegos-pc.test.ts`: las tres rutas; C bloqueada con la constante en `false`; Mac sin pantalla; A1 sin GPU; `rutaConfigEpic` con persona inválida; credenciales detectadas SIN que la prueba contenga una clave real (monta las cadenas con `[\"eg1\", \"~abc…\"].join(\"\")`); URL bloqueadas.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "RTRTRTRTCOL1012Bdsbbbbbc-d3d",
+   "APM1017V",
+   "ART1025L",
+   "INV1025I",
+   "DGM1018N",
+   "TRD1020Db-d3"
+  ]
+ }
+}
