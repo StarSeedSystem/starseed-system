@@ -4623,3 +4623,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023J` — pruebas en rojo: Traceback (most recent call last):
 - `RIA1023G` — pruebas en rojo: Traceback (most recent call last):
 - `RLB1020J` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-27 18:08 · mg-oracle-1027-0853
+
+**Lo que se pidió.** pruebas del puente en rojo
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (INF1025G, VPU1019D, DSN1019C). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (MGP1024-0D7DB1, GUI1021Ib-d2). Es 33 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+- nvidia/z-ai/glm-5.3 no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1024-0D7DB1` — no escribió nada
+- `INF1025G` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/INF1025G conservada)
+- `GUI1021Ib-d2` — no escribió nada
+- `VPU1019H` — otra cosa: directorio sin worktree Git: conservado para recuperación
+- `VPU1019D` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VPU1019D conservada)
+- `DSN1019C` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/DSN1019C conservada)
