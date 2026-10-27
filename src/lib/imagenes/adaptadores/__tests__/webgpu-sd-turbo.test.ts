@@ -48,6 +48,7 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
     const ficha = modeloPorId(MODELO_SD_TURBO);
     expect(ficha).toBeDefined();
     expect(ficha!.nota).toContain("sin comprobar del todo");
+    expect(ficha!.licencia).toContain("Stability");
     expect(ficha!.motores).toContain("onnx-web");
     expect(ficha!.uso).toBe("condicionado");
   });
@@ -60,6 +61,11 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
   it("solo los TRES archivos necesarios: ni encoder del VAE ni scheduler", () => {
     expect(PESOS_SD_TURBO.map((p) => p.ruta)).toEqual(["unet/model.onnx", "text_encoder/model.onnx", "vae_decoder/model.onnx"]);
     for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
+  });
+
+  it("cada peso lleva su tamaño medido el 2026-10-22 y los tres suman 2,51 GB", () => {
+    expect(PESOS_SD_TURBO.map((p) => p.bytes)).toEqual([1733430199, 681393168, 99094314]);
+    expect(BYTES_PESOS_SD_TURBO).toBe(1733430199 + 681393168 + 99094314);
   });
 
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
@@ -86,6 +92,7 @@ describe("detectaSDTurbo · las tres sondas de WebGPU", () => {
     ];
     expect(new Set(motivos).size).toBe(3);
     for (const m of motivos) expect(m).toContain("Se usan las demás capas");
+    expect(motivos[0]).toContain("no tiene WebGPU");
     expect(motivos[2]).toContain("no se baja nada");
     const puede = detectaSDTurbo(BUENAS);
     expect(puede.motivo).toContain(textoBytes(BYTES_PESOS_SD_TURBO));
@@ -108,6 +115,13 @@ describe("planPesos · reglas de la descarga (contrato §8)", () => {
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: BYTES_PESOS_SD_TURBO * 3 }).accion).toBe("descargar");
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: BYTES_PESOS_SD_TURBO * 3 - 1 }).motivo).toContain(textoBytes(BYTES_PESOS_SD_TURBO * 3));
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: BYTES_PESOS_SD_TURBO * 4 }).motivo).toContain("caché del navegador");
+  });
+
+  it("sin permiso pide antes de bajar nada y dice el tamaño en claro", () => {
+    const plan = planPesos({ enCache: false, permiso: false, cuotaLibreBytes: null });
+    expect(plan.accion).toBe("pedir-permiso");
+    expect(plan.motivo).toContain(textoBytes(BYTES_PESOS_SD_TURBO));
+    expect(plan.motivo).toContain("Nada se descarga sin que lo permitas");
   });
 });
 
@@ -155,10 +169,12 @@ describe("generaEnPestana · flujo completo con el motor simulado", () => {
     expect(falloDescarga).toMatchObject({ ok: false, accion: "error" });
     expect(falloDescarga.motivo).toContain("No se pudieron descargar los pesos");
     expect(falloDescarga.motivo).toContain("red caída");
+    expect(falloDescarga.motivo).toContain("Se usan las demás capas");
     const falloGenera = await generaEnPestana(motor({ generar: async () => { throw "sin memoria en la GPU"; } }), PETICION);
     expect(falloGenera).toMatchObject({ ok: false, accion: "error" });
     expect(falloGenera.motivo).toContain("SD-Turbo no pudo generar");
     expect(falloGenera.motivo).toContain("sin memoria en la GPU");
+    expect(falloGenera.motivo).toContain("Se usan las demás capas");
     expect(falloGenera.imagen).toBeUndefined();
     expect(llamadas).toEqual([]);
   });
