@@ -32,7 +32,6 @@ export const R = (tipo: string, params?: Record<string, unknown>, paramAdicional
     parametro: paramAdicional,
     ...params,
     id: crypto.randomUUID(),
-    reglaId: crypto.randomUUID(),
 });
 
 export const R0 = (tipo: string): Regla => ({
@@ -44,7 +43,7 @@ export const validarRegla = (r: unknown): r is Regla => {
     if (!r || typeof r !== "object") return false;
     const regla = r as Regla;
     if (regla.tipo === undefined || typeof regla.tipo !== "string") return false;
-    if (regla.id === undefined || typeof regla.id !== "string" || regla.id.trim() === "") return false;
+    if (regla.reglaId === undefined || typeof regla.reglaId !== "string" || regla.reglaId.trim() === "") return false;
     if (regla.parametro !== undefined && typeof regla.parametro !== "string") return false;
     if (regla.parametro !== undefined && regla.parametro.length > 100) return false;
     if (regla.etiqueta !== undefined && typeof regla.etiqueta !== "string") return false;
@@ -62,7 +61,7 @@ export const validarRegla = (r: unknown): r is Regla => {
         }
     }
     // Reject extra/unknown top-level fields
-    const knownKeys = new Set(["tipo", "parametro", "etiqueta", "dominio", "cuando", "id", "de", "reglaId"]);
+    const knownKeys = new Set(["tipo", "parametro", "etiqueta", "dominio", "cuando", "reglaId", "de"]);
     const reglaKeys = Object.keys(regla as object);
     for (const key of reglaKeys) {
         if (!knownKeys.has(key)) return false;
