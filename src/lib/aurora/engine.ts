@@ -88,7 +88,9 @@ import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
-import { cronometroHabla, cronometroOido } from "@/lib/aurora/medidas-voz";
+import { escucharFusionado } from "@/lib/aurora/stt-oss/escucha-fusionada";
+import { cronometroHabla, cronometroOido, leerMedidas } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -364,6 +366,30 @@ function releaseStt(id: symbol): void {
     sttOwner = null;
     sttOwnerTs = 0;
   }
+}
+
+/**
+ * Retraso medio medido del oído por motor en ESTA neurona (menor = mejor).
+ * Sin medidas devuelve `{}` y el elector usa su orden de precisión por defecto.
+ */
+function medidasOidoPorMotor(): Record<string, number> {
+  const acumulado: Record<string, { suma: number; n: number }> = {};
+  try {
+    for (const m of leerMedidas(neuronDeviceIdActual())) {
+      if (m.tipo !== "tiempo-real-oido") continue;
+      const a = acumulado[m.motor] ?? { suma: 0, n: 0 };
+      a.suma += m.valor;
+      a.n += 1;
+      acumulado[m.motor] = a;
+    }
+  } catch {
+    return {};
+  }
+  const medidas: Record<string, number> = {};
+  for (const [motor, a] of Object.entries(acumulado)) {
+    if (a.n > 0) medidas[motor] = a.suma / a.n;
+  }
+  return medidas;
 }
 
 /**
@@ -1957,19 +1983,29 @@ export function useAuroraEngine(): AuroraEngine {
   const buildRecognition = useCallback(() => {
     if (typeof window === "undefined") return null;
     // Elector del oído (contrato voz-fusionada-astraura.md §3): Phonon-2 es el
-    // OÍDO EN FLUJO (WebSocket /v1/audio/stream); cualquier otro motor usa la
-    // Web Speech del navegador (el resto de motores se conectan en sus tareas).
-    const eleccionOido = elegirOido({
-      idioma: (activeRef.current.voice?.lang || "es").split("-")[0],
-      disponibles: MOTORES_OIDO.filter(
-        (m) => !(m.id === "phonon-2" && phononCaidoRef.current),
-      ).map((m) => m.id),
-      fase: "parcial",
-      medidas: {},
-    });
-    if (eleccionOido.motor === "phonon-2") return buildFlujoOido();
+    // OÍDO EN FLUJO (WebSocket /v1/audio/stream); el resto usa la Web Speech y,
+    // si no la hay o un motor local mide mejor, la ESCUCHA FUSIONADA por tramos.
+    const idiomaOido = (activeRef.current.voice?.lang || "es").split("-")[0];
+    const disponibles = MOTORES_OIDO.filter(
+      (m) => !(m.id === "phonon-2" && phononCaidoRef.current),
+    ).map((m) => m.id);
+    const medidas = medidasOidoPorMotor();
+    const eleccionOido = elegirOido({ idioma: idiomaOido, disponibles, fase: "parcial", medidas });
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return null;
+    const final = elegirOido({ idioma: idiomaOido, disponibles, fase: "final", medidas });
+    const tipoFinal = MOTORES_OIDO.find((m) => m.id === final.motor)?.tipo;
+    const medido = medidas[final.motor];
+    const motorLocalMejor =
+      tipoFinal === "local" && typeof medido === "number" &&
+      medido < (medidas["navegador"] ?? Infinity);
+    if (!SR || motorLocalMejor) {
+      // Navegador como suelo: si existe, sigue siendo el parcial y este camino
+      // solo añade el final por tramos cuando un motor local midió mejor.
+      if (final.motor === "navegador") return null;
+      if (final.motor === "phonon-2" && !phononCaidoRef.current) return buildFlujoOido();
+      return buildFlujoOido(final.motor);
+    }
+    if (eleccionOido.motor === "phonon-2") return buildFlujoOido();
     const rec = new SR();
     // Esta reconocimiento toma la GENERACIÓN vigente. Su onend solo reinicia si
     // sigue siendo la más reciente (evita reinicios en paralelo competitivos).
@@ -2165,7 +2201,7 @@ export function useAuroraEngine(): AuroraEngine {
   // (`prepararAudio`) y lo manda por el flujo (`abrirFlujoOido`), que reparte
   // parciales y finales. Si el servidor cierra su ÚNICO flujo, NUNCA se
   // reconecta a este: marca el oído caído y el reenganche elige tramos.
-  const buildFlujoOido = useCallback(() => {
+  const buildFlujoOido = useCallback((motorFinal?: string) => {
     const gen = ++recGenRef.current;
     const isMobile = isMobileDevice();
     const HEALTHY_RUN_MS = 900;
@@ -2174,15 +2210,24 @@ export function useAuroraEngine(): AuroraEngine {
     let sawResult = false;
     let lastErr = "";
     let stopped = false;
-    // (VOZ1024A) Retraso del oído en flujo (Phonon-2) en ESTA neurona: del último parcial al final.
-    const oidoMedido = cronometroOido({ motor: "phonon-2", idioma: activeRef.current.voice?.lang || "es-MX", flujo: true });
+    // (VOZ1024A) Retraso del oído en ESTA neurona: del último parcial (o fin del
+    // tramo) al texto final. `motorFinal` también elige el camino por tramos.
+    const oidoMedido = cronometroOido({
+      motor: motorFinal || "phonon-2",
+      idioma: activeRef.current.voice?.lang || "es-MX",
+      flujo: !motorFinal,
+    });
     let flujo: OidoFlujo | null = null;
     let audioCtx: AudioContext | null = null;
     let mediaStream: MediaStream | null = null;
     let procesador: ScriptProcessorNode | null = null;
+    let despertarTramos: (() => void) | null = null;
+    let abortarTramos: AbortController | null = null;
 
     /** Medio-dúplex: suelta micro, contexto de audio y flujo, sin tedio. */
     const soltarAudio = () => {
+      if (despertarTramos) { const d = despertarTramos; despertarTramos = null; d(); }
+      if (abortarTramos) { try { abortarTramos.abort(); } catch { /* */ } abortarTramos = null; }
       if (procesador) { try { procesador.disconnect(); } catch { /* */ } procesador = null; }
       if (audioCtx) { try { void audioCtx.close(); } catch { /* */ } audioCtx = null; }
       if (mediaStream) {
@@ -2313,6 +2358,52 @@ export function useAuroraEngine(): AuroraEngine {
           silencioso.gain.value = 0;
           procesador.connect(silencioso);
           silencioso.connect(audioCtx.destination);
+          // ¿Camino FUSIONADO por tramos? El navegador no tiene reconocimiento o
+          // un motor local midió mejor: éste corta por energía y transcribe con
+          // el motor FINAL que elija el elector (Phonon/POST, Parakeet, demonio).
+          if (motorFinal) {
+            const cola: Float32Array[] = [];
+            const control = new AbortController();
+            abortarTramos = control;
+            procesador.onaudioprocess = (ev: AudioProcessingEvent) => {
+              if (stopped) return;
+              try {
+                cola.push(new Float32Array(ev.inputBuffer.getChannelData(0)));
+                const d = despertarTramos;
+                despertarTramos = null;
+                if (d) d();
+              } catch { /* un bloque roto no tumba la escucha */ }
+            };
+            const obtenerAudio = async function* obtenerTramos() {
+              while (!stopped && gen === recGenRef.current) {
+                const siguiente = cola.shift();
+                if (siguiente) { yield siguiente; continue; }
+                await new Promise<void>((r) => { despertarTramos = r; });
+              }
+            };
+            void escucharFusionado({
+              obtenerAudio,
+              elegir: (o) => elegirOido(o),
+              alParcial: (texto: string) => procesar("", texto),
+              alFinal: (texto: string) => { sawResult = true; oidoMedido.final(); procesar(texto, ""); },
+              idiomaPista: rec.lang,
+              hotwords: [],
+              disponibles: MOTORES_OIDO.filter(
+                (m) => !(m.id === "phonon-2" && phononCaidoRef.current),
+              ).map((m) => m.id),
+              medidas: medidasOidoPorMotor(),
+              sampleRate: audioCtx ? audioCtx.sampleRate : 16000,
+              señal: control.signal,
+            }).finally(() => {
+              if (stopped || gen !== recGenRef.current) return;
+              stopped = true;
+              soltarAudio();
+              releaseRecognition(rec);
+              setListening(false);
+              rearmar();
+            });
+            return;
+          }
           // El flujo hacia Phonon-2 (mismo origen que la app).
           const protocolo = window.location.protocol === "https:" ? "wss" : "ws";
           flujo = abrirFlujoOido({
@@ -2434,21 +2525,20 @@ export function useAuroraEngine(): AuroraEngine {
 
   const start = useCallback(() => {
     if (typeof window === "undefined") return;
-    // Elector del oído (contrato voz-fusionada-astraura.md §3). Si Phonon-2 va
-    // a salir elegido NO exigimos Web Speech: el texto puede venir del servidor
-    // por el flujo. Si el oído de flujo ya cayó, entonces sí hace falta.
+    // Elector del oído (contrato voz-fusionada-astraura.md §3). Solo exigimos
+    // Web Speech si el motor FINAL es el propio navegador: Phonon-2 escucha por
+    // su flujo y la escucha fusionada transcribe por tramos con los motores
+    // locales/endpoint, así que sin SpeechRecognition Aurora sigue oyendo.
+    const idiomaOido = (activeRef.current.voice?.lang || "es").split("-")[0];
     const disponibles = MOTORES_OIDO.filter(
       (m) => !(m.id === "phonon-2" && phononCaidoRef.current),
     ).map((m) => m.id);
-    const eleccionOido = elegirOido({
-      idioma: (activeRef.current.voice?.lang || "es").split("-")[0],
-      disponibles,
-      fase: "parcial",
-      medidas: {},
-    });
-    if (eleccionOido.motor !== "phonon-2") {
-      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SR) { toast.error("Tu navegador no soporta reconocimiento de voz."); return; }
+    const medidas = medidasOidoPorMotor();
+    const final = elegirOido({ idioma: idiomaOido, disponibles, fase: "final", medidas });
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR && final.motor === "navegador") {
+      toast.error("Tu navegador no soporta reconocimiento de voz.");
+      return;
     }
     // Guard singleton TEMPORAL: si otra instancia VIVA posee el testigo del STT,
     // esta cede (no arranca un segundo reconocimiento → no se duplican acciones).
