@@ -240,6 +240,8 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.astraura.chime.v1": ["starseed:astraura-chime"],
     "starseed.voz.modo.v1": ["starseed:voz-modo"],
     "starseed.inicio.pantalla.v1": ["starseed:inicio"],
+    // Traducción por perfil (TRD1020D): el panel de cuenta se refresca al llegar de otro medio.
+    "starseed.traduccion.v1": ["starseed:traduccion"],
 
     // Avisos vistos/hechos/pospuestos (avisos-cuenta.ts): refresco en vivo de las ventanas
     // de arranque (`useAviso`) cuando otro medio de la cuenta marca algo.
