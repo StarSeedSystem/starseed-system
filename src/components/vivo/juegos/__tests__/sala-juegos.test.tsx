@@ -93,6 +93,8 @@ describe("ayudantes de fuga de palabra", () => {
         expect(textoContienePalabra("Ronda 1: pingüino", "pingüino")).toBe(true);
         expect(textoContienePalabra("globo\naerostático", "globo aerostático")).toBe(true);
         expect(textoContienePalabra("Escríbelo con sol y fogata", "sol")).toBe(true);
+        // espacios de sobra alrededor de la palabra: no la convierten en otra cosa
+        expect(textoContienePalabra("hola mundo", " mundo ")).toBe(true);
     });
 
     test("lo que no es la palabra propia no se cuenta", () => {
@@ -101,6 +103,7 @@ describe("ayudantes de fuga de palabra", () => {
         expect(textoContienePalabra("intento: solar", "sol")).toBe(false);
         expect(textoContienePalabra("zzzz", "vela")).toBe(false);
         expect(textoContienePalabra(null, "vela")).toBe(false);
+        expect(textoContienePalabra("", "vela")).toBe(false);
         expect(textoContienePalabra("hola", "")).toBe(false);
         expect(textoContienePalabra("hola", "   ")).toBe(false);
     });
@@ -110,6 +113,8 @@ describe("ayudantes de fuga de palabra", () => {
         // textContent pega las filas sin separador: «…zzzzBetovela…» era invisible con `\b`
         expect(textoContienePegado("zzzzBeto", `Beto${palabraVela}`)).toBe(false);
         expect(textoContienePegado("zzzzBetovela salir", `Beto${palabraVela}`)).toBe(true);
+        // encajado entre letras por los dos lados: sigue siendo una fuga
+        expect(textoContienePegado("abcBetovelad", `Beto${palabraVela}`)).toBe(true);
         expect(textoContienePegado("Beto vela", `Beto${palabraVela}`)).toBe(false);
         expect(textoContienePegado(null, `Beto${palabraVela}`)).toBe(false);
         expect(textoContienePegado("Beto ", "Beto")).toBe(true);
