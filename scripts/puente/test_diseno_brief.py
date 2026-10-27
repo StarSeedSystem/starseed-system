@@ -219,5 +219,50 @@ class TestBriefRise(unittest.TestCase):
         self.assertNotIn("RISE", texto)
 
 
+class TestHerramientasDiseno(unittest.TestCase):
+    def test_presentacion_trae_frontend_slides(self):
+        tarea = {"titulo": "Presentación", "archivos": ["src/app/slides.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("frontend-slides — https://github.com/zarazhangrui/frontend-slides", texto)
+
+    def test_design_md_trae_awesome_design_md(self):
+        tarea = {"titulo": "design.md", "archivos": []}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("awesome-design-md — https://github.com/VoltAgent/awesome-design-md", texto)
+
+    def test_documentacion_trae_docusaurus(self):
+        tarea = {"titulo": "Documentación", "archivos": []}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus — https://github.com/facebook/docusaurus", texto)
+
+    def test_educacion_trae_docusaurus(self):
+        tarea = {"titulo": "Educación", "archivos": []}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus — https://github.com/facebook/docusaurus", texto)
+
+    def test_panel_datos_trae_refine(self):
+        tarea = {"titulo": "Panel de datos", "archivos": []}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Refine — https://github.com/refinedev/refine", texto)
+
+    def test_taste_skill_siempre_presente(self):
+        tarea = {"titulo": "Cualquier tarea", "archivos": []}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("taste-skill — https://github.com/Leonxlnx/taste-skill", texto)
+        self.assertIn("método: inventario, argumento, capturas a 3 anchos y crítica", texto)
+
+    def test_sin_duplicados_con_claves_multiples(self):
+        tarea = {"titulo": "Presentación con diapositivas y conferencia", "archivos": []}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        lineas = [l for l in texto.splitlines() if "frontend-slides — https://github.com/zarazhangrui/frontend-slides" in l]
+        self.assertEqual(len(lineas), 1)
+
+    def test_apartados_6_y_7_con_varias_claves(self):
+        tarea = {"titulo": "Presentación design.md documentación panel de datos", "archivos": []}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=2500)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+
+
 if __name__ == "__main__":
     unittest.main()
