@@ -1,129 +1,139 @@
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
-
-// ══════════════════════════════════════════════════════════════════════
-// Proxy de AGENT REACH (https://github.com/Panniantong/Agent-Reach)
-// ----------------------------------------------------------------------------
-// Da a los agentes Astraura acceso a la web externa (Twitter/X, Reddit,
-// YouTube, GitHub, Bilibili, búsqueda, RSS) TODO GRATIS. El cliente
-// (src/ai/astraura/integrations/agent-reach.ts) pasa SIEMPRE por aquí.
-//
-// El proxy invoca el CLI de agent-reach SOLO si está instalado en la neurona
-// del usuario (donde el usuario corrió `pip install agent-reach`). En Vercel
-// el CLI no existe → degrada a { ok:false } SIN romper el build ni el runtime.
-//
-// SEGURIDAD:
-//   · Allowlist estricta de `capability` (no hay ruta arbitraria del cliente).
-//   · Argumentos validados como strings (sin shell injection: usamos spawn
-//     con array de args, nunca shell).
-//   · Timeout duro. Sin credenciales: agent-reach usa cookies locales del
-//     usuario en su neurona; el proxy nunca las toca.
-// ══════════════════════════════════════════════════════════════════════
+import { createClient } from "@supabase/supabase-js";
+import {
+  AVISO_PYPI,
+  ORDEN_INSTALACION,
+  leerSobre,
+  loginPermitido,
+  resolverCapacidad,
+  type EntradaAgentReach,
+} from "@/lib/integrations/agent-reach-comandos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+// ══════════════════════════════════════════════════════════════════════════
+// Proxy de Agent-Reach v1.6 (INV1025A). Ruta SOLO local: estas rutas deben
+// responder 404 en producción (regla del área mando) y jamás devuelven claves
+// ni rutas del disco. Cada capacidad pasa por la tabla pura de
+// agent-reach-comandos.ts; aquí solo vive lo de proceso (binario, spawn, sesión).
+// ══════════════════════════════════════════════════════════════════════════
+
 const TIMEOUT_MS = 45_000;
+const BINARIO_GLOBAL = "/usr/local/bin/agent-reach";
 
-/** Capacidades permitidas (deben coincidir con AgentReachCapability del cliente). */
-const ALLOWED: Record<string, string> = {
-  web: "read", // agent-reach read <url>
-  search: "search", // agent-reach search "<q>"
-  youtube: "youtube", // agent-reach youtube <url>
-  github: "github", // agent-reach github <repo>
-  reddit: "reddit", // agent-reach reddit "<q>"
-  twitter: "twitter", // agent-reach twitter <url> (requiere config del usuario)
-  rss: "rss", // agent-reach rss <feed>
-  bilibili: "bilibili", // agent-reach bilibili "<q>"
-};
-
-function json(data: unknown, status = 200) {
-  return NextResponse.json(data, { status });
-}
-
-/** ¿Está agent-reach instalado en esta neurona? Comprueba el binario. */
-async function agentReachAvailable(): Promise<boolean> {
-  try {
-    await fs.access("/usr/local/bin/agent-reach");
-    return true;
-  } catch {
-    /* intenta via PATH */
-  }
-  return new Promise((resolve) => {
-    const p = spawn("which", ["agent-reach"], { stdio: "ignore" });
-    p.on("close", (c) => resolve(c === 0));
-    p.on("error", () => resolve(false));
-  });
-}
-
-/** Ejecuta el subcomando de agent-reach de forma aislada (spawn, sin shell). */
-function runAgentReach(sub: string, arg: string): Promise<{ ok: boolean; out?: string; error?: string }> {
-  return new Promise((resolve) => {
-    const bin = "/usr/local/bin/agent-reach";
-    const args = sub === "search" || sub === "reddit" || sub === "bilibili"
-      ? [sub, arg]
-      : [sub, arg];
-    const child = spawn(bin, args, { timeout: TIMEOUT_MS, stdio: ["ignore", "pipe", "pipe"] });
-    let out = "";
-    let err = "";
-    child.stdout?.on("data", (d) => (out += d.toString()));
-    child.stderr?.on("data", (d) => (err += d.toString()));
-    const timer = setTimeout(() => child.kill("SIGKILL"), TIMEOUT_MS);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      if (code === 0) resolve({ ok: true, out: out.trim() || "(sin salida)" });
-      else resolve({ ok: false, error: err.trim() || `agent-reach exit ${code}` });
-    });
-    child.on("error", (e) => {
-      clearTimeout(timer);
-      resolve({ ok: false, error: (e as Error)?.message || "spawn error" });
-    });
-  });
-}
+const json = (data: unknown, status = 200) => NextResponse.json(data, { status });
 
 export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ capability: string }> },
 ) {
   const { capability } = await ctx.params;
-  const sub = ALLOWED[capability];
-  if (!sub) return json({ ok: false, error: "capability no permitida" }, 404);
-
-  let body: Record<string, unknown> = {};
+  let cuerpo: Record<string, unknown> = {};
   try {
-    body = (await req.json()) as Record<string, unknown>;
+    cuerpo = (await req.json()) as Record<string, unknown>;
   } catch {
-    return json({ ok: false, error: "cuerpo inválido" });
+    cuerpo = {};
   }
-
-  // Extrae el argumento según la capacidad (siempre string, sin shell).
-  const arg =
-    typeof body.url === "string" ? body.url
-    : typeof body.repo === "string" ? body.repo
-    : typeof body.feed === "string" ? body.feed
-    : typeof body.q === "string" ? body.q
-    : "";
-  if (!arg) return json({ ok: false, error: "falta argumento (url/repo/feed/q)" });
-
-  const available = await agentReachAvailable();
-  if (!available) {
-    // Degradación limpia: la neurona no tiene agent-reach instalado.
-    return json({
-      ok: false,
-      error: "agent-reach no instalado en esta neurona",
-      hint: "pip install agent-reach  (ver https://github.com/Panniantong/Agent-Reach)",
-    });
-  }
-
-  const result = await runAgentReach(sub, arg);
-  if (result.ok) {
-    return json({ ok: true, content: result.out, meta: { capability, arg } });
-  }
-  return json({ ok: false, error: result.error, meta: { capability, arg } });
+  return atender(capability, { url: cuerpo.url, q: cuerpo.q, limit: cuerpo.limit, texto: cuerpo.texto }, req);
 }
 
-export async function HEAD() {
-  return NextResponse.json({ ok: true, service: "starseed-agent-reach-proxy" });
+/** Salud del proxy (la llama el cliente con GET): equivale a `agent-reach version`. */
+export async function GET(req: NextRequest) {
+  return atender("health", {}, req);
+}
+
+/** Resuelve el binario: variable de la neurona → ~/.local/bin → /usr/local/bin → PATH. */
+async function binarioAgenteReach(): Promise<string | null> {
+  const delEntorno = (process.env.STARSEED_AGENT_REACH_BIN || "").trim();
+  if (delEntorno) return delEntorno;
+  const home = (process.env.HOME || "").trim();
+  const candidatos = [home ? `${home}/.local/bin/agent-reach` : "", BINARIO_GLOBAL].filter(Boolean);
+  for (const ruta of candidatos) {
+    try {
+      await fs.access(ruta);
+      return ruta;
+    } catch {
+      /* tampoco ahí: seguimos */
+    }
+  }
+  return new Promise((resolve) => {
+    const p = spawn("which", ["agent-reach"], { shell: false, stdio: "ignore" });
+    p.on("close", (c) => resolve(c === 0 ? "agent-reach" : null));
+    p.on("error", () => resolve(null));
+  });
+}
+
+/** Sesión de Supabase como /api/mail/enviar, o modo local de la neurona. */
+async function sesionOk(req: NextRequest): Promise<boolean> {
+  if ((process.env.STARSEED_LOCAL || "").trim() === "1") return true;
+  const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return false;
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+    { auth: { persistSession: false } },
+  );
+  const { data } = await sb.auth.getUser(token);
+  return Boolean(data?.user?.id);
+}
+
+/** Ejecución aislada: spawn SIN shell, args como array y tiempo límite duro. */
+function ejecutar(bin: string, argv: string[]): Promise<{ ok: boolean; timeout?: boolean; salida?: string; error?: string }> {
+  return new Promise((resolve) => {
+    const hijo = spawn(bin, argv, { shell: false, stdio: ["ignore", "pipe", "pipe"] });
+    let out = "", err = "", timeout = false;
+    hijo.stdout?.on("data", (d) => (out += d.toString()));
+    hijo.stderr?.on("data", (d) => (err += d.toString()));
+    const t = setTimeout(() => {
+      timeout = true;
+      hijo.kill("SIGKILL");
+    }, TIMEOUT_MS);
+    hijo.on("close", (code) => {
+      clearTimeout(t);
+      if (timeout) return resolve({ ok: false, timeout: true });
+      if (code === 0) return resolve({ ok: true, salida: out });
+      resolve({ ok: false, error: err.trim() || out.trim() || `agent-reach terminó con exit ${code}` });
+    });
+    hijo.on("error", (e) => {
+      clearTimeout(t);
+      resolve({ ok: false, error: (e as Error)?.message || "spawn fallo" });
+    });
+  });
+}
+
+/** Camino común de POST (cualquier capacidad) y GET (health → `version`). */
+async function atender(id: string, entrada: EntradaAgentReach, req: NextRequest) {
+  if (!(await sesionOk(req))) {
+    return json(
+      { ok: false, error: { code: "SESION_REQUERIDA", hint: "Sesión de Supabase obligatoria, o STARSEED_LOCAL=1 en la neurona." } },
+      401,
+    );
+  }
+  const res = resolverCapacidad(id, entrada, loginPermitido(process.env));
+  if (!res.ok) {
+    const estado = res.code === "NOT_FOUND" ? 404 : res.code === "NEED_LOGIN_BLOQUEADO" ? 403 : 400;
+    return json({ ok: false, error: { code: res.code, hint: res.hint } }, estado);
+  }
+  const bin = await binarioAgenteReach();
+  if (!bin) {
+    return json({
+      ok: false,
+      error: {
+        code: "NEED_SETUP",
+        hint: `agent-reach no está en esta neurona. Instálalo con: ${ORDEN_INSTALACION} — y recuerda ${AVISO_PYPI}`,
+      },
+    });
+  }
+  const r = await ejecutar(bin, res.argv);
+  if (r.timeout) {
+    return json({ ok: false, error: { code: "TIMEOUT", hint: `agent-reach no respondió en ${TIMEOUT_MS / 1000} s.` }, meta: { capacidad: id } });
+  }
+  if (!r.ok) {
+    return json({ ok: false, error: { code: "UPSTREAM_BROKEN", hint: r.error || "agent-reach falló." }, meta: { capacidad: id } });
+  }
+  return json({ ...leerSobre(r.salida), meta: { capacidad: id } });
 }
