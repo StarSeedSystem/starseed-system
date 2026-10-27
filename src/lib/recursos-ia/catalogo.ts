@@ -16,6 +16,7 @@
  * `gb: null` = desconocido o depende de la variante: hay que PREGUNTAR (regla de Alex).
  */
 import capasJson from "../../../config/capas-astraura.json";
+import { MODELOS_POWERINFER } from "./extras-powerinfer";
 import { LOCAL_LLM_SPECS, LOCAL_VOICE_SPECS, type ModelSpec } from "@/ai/astraura/model-requirements";
 import { MODELOS_IMAGEN, type ModeloImagen } from "@/lib/imagenes/modelos";
 import type { Acelerador, Arquitectura, Bits, Capacidad, MedioApp, RequisitosModelo } from "./tipos";
@@ -526,6 +527,7 @@ export function catalogoRecursos(): RequisitosModelo[] {
         const todos = [
             ...modelosDeCapas(capasJson),
             ...MODELOS_EXTRA,
+            ...MODELOS_POWERINFER,
             ...modelosLocales([...LOCAL_LLM_SPECS, ...LOCAL_VOICE_SPECS]),
             SUPERTONIC_3,
             ...modelosDeImagen(MODELOS_IMAGEN),
