@@ -4,9 +4,9 @@
  * Aplica los estilos generados por `estiloDifusion` con su transformación y máscara.
  */
 
-import React from "react";
-import type { DifusionConfig, Transform, MascaraKind } from "./background-layers";
-import { estiloDifusion } from "./difusion";
+import * as React from "react";
+import type { DifusionConfig, Transform, MascaraKind } from "@/lib/appearance/background-layers";
+import { estiloDifusion } from "@/lib/appearance/difusion";
 
 interface CapaDifusionProps {
   difusion: DifusionConfig;

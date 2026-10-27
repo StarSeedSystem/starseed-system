@@ -29,7 +29,8 @@
  * `screen`, y sus controles solo se tocan en "modo interacción".
  */
 
-import React, { useEffect, useState } from "react";
+import * as React from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Check, Mic, Sparkles } from "lucide-react";
 import { useAppearance } from "@/context/appearance-context";
@@ -40,6 +41,7 @@ import {
     patchAudiomorphic,
     type BackgroundLayer,
 } from "@/lib/appearance/background-layers";
+import { CapaDifusion } from "@/components/backgrounds/capa-difusion";
 import type { VisualizerParams } from "@/lib/audiomorphic/types";
 
 // El motor nativo se carga en diferido: una capa apagada no cuesta NADA.
@@ -77,6 +79,14 @@ function LayerBody({ layer }: { layer: BackgroundLayer }) {
                     muted
                     loop
                     playsInline
+                />
+            ) : null;
+        case "difusion":
+            return layer.difusion ? (
+                <CapaDifusion
+                    difusion={layer.difusion}
+                    transform={layer.transform}
+                    mascara={layer.mascara}
                 />
             ) : null;
         default:
