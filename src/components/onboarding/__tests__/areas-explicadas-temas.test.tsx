@@ -91,6 +91,31 @@ describe("Guía de la red · tarjetas con los temas nuevos (GUI1021G)", () => {
     }
   });
 
+  it("las tarjetas REALES de AREAS abren su explicación del tema (conexión aplicada)", () => {
+    // La conexión no debe probarse solo con tarjetas fabricadas: las de AREAS,
+    // con su icono y su tip de la guía, deben abrir los mismos textos.
+    const EXTRA: Array<[string, string]> = [
+      ["/library", "Librería y Biblioteca"],
+      ["/red-mesh", "Redes mesh"],
+    ];
+    for (const [ruta, label] of [...RUTAS, ...EXTRA]) {
+      const tema = temaDe(ruta);
+      expect(tema, `sin tema para ${ruta}`).toBeDefined();
+      if (!tema) continue;
+      const tarjeta = AREAS.find((a) => a.path === ruta);
+      expect(tarjeta, `la tarjeta real ${ruta} no está en AREAS`).toBeDefined();
+      if (!tarjeta) continue;
+      abrir(tarjeta);
+      const dialogo = screen.getByRole("dialog");
+      expect(within(dialogo).getByText(tema.cuerpo)).toBeInTheDocument();
+      for (const punto of tema.puntos) {
+        expect(within(dialogo).getByText(punto)).toBeInTheDocument();
+      }
+      expect(within(dialogo).getByText(tema.preguntaAurora)).toBeInTheDocument();
+      cleanup();
+    }
+  });
+
   it("Librería, Red Mesh y el antiguo /cerebros también usan sus temas", () => {
     expect(TEMA_POR_RUTA["/library"]).toBe("libreria-biblioteca");
     expect(TEMA_POR_RUTA["/red-mesh"]).toBe("malla");
