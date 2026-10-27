@@ -1,120 +1,254 @@
 "use client";
 
-/**
- * Vinculación y sincronización de un cerebro, una memoria o una carpeta (CB1013T, contrato §8).
- * Controlado por props: enseña `valor.sync` y avisa con `onCambio({ sync })`; no guarda nada.
- * Los destinos salen de `config.memoryDestinations` (memory-destinations.ts) y los vínculos, de
- * `normalizarVinculos(cerebro.config)` (telepatia.ts). Las tres marcas dicen «solo se guarda» (ver MARCA_SYNC).
- */
-
-import { useMemo } from "react";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Ban, Link2, RefreshCw } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+/** Pestaña Vinculación y sincronización de los ajustes del cerebro. */
+import React from "react";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import type { AjustesObjetivo } from "@/lib/cerebros/ajustes";
-import { normalizarVinculos, type VinculoTelepatico } from "@/lib/cerebros/telepatia";
-import { normalizeMemoryDestinations } from "@/lib/brains/memory-destinations";
-import type { Brain } from "@/lib/brains/brains";
-import { MarcaAplicacion } from "@/components/cerebro/ajustes-seguridad";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { APLICACION, AJUSTES_POR_DEFECTO, type AjustesObjetivo } from "@/lib/cerebros/ajustes";
 
-type Sync = AjustesObjetivo["sync"];
-// Nadie lee aún config.ajustes.sync (dirección, auto ni destinos): el cableado va con syncBrainMemoryNow.
-const MARCA_SYNC = "solo-se-guarda" as const;
-
-export interface AjustesSyncProps {
-  valor: Pick<AjustesObjetivo, "sync">;
-  onCambio: (parcial: Partial<AjustesObjetivo>) => void;
-  cerebro: Pick<Brain, "config">;
-  /** Abre el diálogo de Telepatía; sin él no se enseña el botón. */
-  onAbrirTelepatia?: () => void;
+interface TelepatiaVinculo {
+    id: string;
+    destino: { tipo: string; id: string };
+    alcance: { completo: boolean; memorias: string[]; carpetas: string[]; configuraciones: string[] };
+    direccion: string;
+    acceso: string;
+    auto: boolean;
+    estado: string;
+    creadoEn: string;
+    ultimaSync: string | null;
 }
 
-const DIRECCIONES: { id: Sync["direccion"]; texto: string; ayuda: string; Icono: LucideIcon }[] = [
-  { id: "enviar", texto: "Enviar", ayuda: "Manda sus cambios a los destinos.", Icono: ArrowUpFromLine },
-  { id: "recibir", texto: "Recibir", ayuda: "Trae los cambios de los destinos.", Icono: ArrowDownToLine },
-  { id: "ambas", texto: "Ambas", ayuda: "Manda y trae.", Icono: ArrowLeftRight },
-  { id: "ninguna", texto: "Ninguna", ayuda: "No se sincroniza.", Icono: Ban },
-];
-const TIPO_DESTINO: Record<VinculoTelepatico["destino"]["tipo"], string> = { cerebro: "Cerebro", grupo: "Grupo", comunidad: "Comunidad", pagina: "Página", cuenta: "Cuenta" };
-const DIRECCION_VINCULO: Record<VinculoTelepatico["direccion"], string> = { enviar: "envía", recibir: "recibe", ambas: "envía y recibe" };
-const ESTADO_VINCULO: Record<VinculoTelepatico["estado"], string> = { activo: "activo", pausado: "en pausa", pendiente: "pendiente" };
-
-function alcanceDe(v: VinculoTelepatico): string {
-  if (v.alcance.completo) return "todo el cerebro";
-  const { memorias: m, carpetas: c, configuraciones: k } = v.alcance;
-  return `${m.length} memorias, ${c.length} carpetas, ${k.length} configuraciones`;
+interface AjustesSyncProps {
+    valor: Pick<AjustesObjetivo, "sync">;
+    onCambio: (parcial: Partial<AjustesObjetivo>) => void;
+    cerebro: { config?: { memoryDestinations?: unknown; telepatia?: TelepatiaVinculo[] } };
+    onAbrirTelepatia?: () => void;
 }
 
-function fecha(iso: string | null | undefined): string {
-  const t = iso ? Date.parse(iso) : NaN;
-  return Number.isNaN(t) ? "sin medida" : new Date(t).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
+function MarcaAplicacion({ texto }: { texto: "se-aplica" | "solo-se-guarda" }) {
+    return (
+        <span className={cn(
+            "text-[11px] px-2 py-0.5 rounded border",
+            texto === "se-aplica" 
+                ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" 
+                : "bg-amber-500/15 text-amber-300 border-amber-500/30"
+        )}>
+            {texto === "se-aplica" ? "Se aplica ya" : "Solo se guarda por ahora"}
+        </span>
+    );
+}
+
+function BotonOpcion({ 
+    activo, 
+    etiqueta,
+    onClick,
+    ariaPressed,
+    disabled 
+}: { 
+    activo: boolean; 
+    etiqueta: string;
+    onClick: () => void;
+    ariaPressed: boolean;
+    disabled?: boolean;
+}) {
+    return (
+        <button
+            type="button"
+            role="button"
+            aria-pressed={ariaPressed}
+            aria-label={etiqueta}
+            onClick={onClick}
+            disabled={disabled}
+            className={cn(
+                "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                disabled 
+                    ? "opacity-50 cursor-not-allowed" 
+                    : activo 
+                        ? "bg-white/10 text-white border-white/20" 
+                        : "text-white/70 hover:bg-white/5 hover:text-white"
+            )}
+        >
+            {etiqueta}
+        </button>
+    );
+}
+
+function getMarcaSync(): "se-aplica" | "solo-se-guarda" {
+    return "solo-se-guarda";
 }
 
 export function AjustesSync({ valor, onCambio, cerebro, onAbrirTelepatia }: AjustesSyncProps) {
-  const sync = valor.sync;
-  const cambiar = (parcial: Partial<Sync>) => onCambio({ sync: { ...sync, ...parcial } });
-  const vinculos = useMemo(() => normalizarVinculos(cerebro.config), [cerebro.config]);
-  const destinos = useMemo(() => {
-    const d = normalizeMemoryDestinations(cerebro.config?.memoryDestinations);
-    return [
-      { id: "local", texto: "Este aparato", activo: d.local.enabled },
-      { id: "starseed", texto: "StarSeed", activo: d.starseed.enabled },
-      ...d.external.map((e) => ({ id: e.id, texto: e.label, activo: true })),
-      { id: "p2p", texto: d.p2p.label ? `Syncthing · ${d.p2p.label}` : "Syncthing (P2P)", activo: d.p2p.enabled },
-    ];
-  }, [cerebro.config]);
-  const alternar = (id: string) => cambiar({ destinos: sync.destinos.includes(id) ? sync.destinos.filter((x) => x !== id) : [...sync.destinos, id] });
+    const sync = valor.sync ?? AJUSTES_POR_DEFECTO.sync;
+    const memoryDestinations = (cerebro.config?.memoryDestinations as { 
+        starseed?: { enabled: boolean }; 
+        external?: { id: string; url: string; label: string }[] 
+    }) ?? {};
+    const telepatia = (cerebro.config?.telepatia as TelepatiaVinculo[]) ?? [];
 
-  return (
-    <section className="space-y-5 text-white" aria-label="Vinculación y sincronización">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2"><RefreshCw className="h-4 w-4 text-white/60" /><h3 className="text-sm font-semibold">Dirección</h3><MarcaAplicacion estado={MARCA_SYNC} /></div>
-        <div className="flex flex-wrap gap-2">
-          {DIRECCIONES.map(({ id, texto, ayuda, Icono }) => (
-            <Button key={id} type="button" size="sm" variant={sync.direccion === id ? "default" : "outline"} className="h-auto whitespace-normal py-1.5" aria-pressed={sync.direccion === id} title={ayuda} onClick={() => cambiar({ direccion: id })}>
-              <Icono className="h-4 w-4" />{texto}
-            </Button>
-          ))}
+    const handleDireccionChange = (nuevaDireccion: "enviar" | "recibir" | "ambas" | "ninguna") => {
+        onCambio({ sync: { ...sync, direccion: nuevaDireccion } });
+    };
+
+    const handleAutoChange = (checked: boolean) => {
+        onCambio({ sync: { ...sync, auto: checked } });
+    };
+
+    const handleDestinosChange = (destinos: string[]) => {
+        onCambio({ sync: { ...sync, destinos } });
+    };
+
+    const vinculosValidos = telepatia.filter(v => v.estado === "activo" && v.destino?.id);
+    const hayVinculosValidos = vinculosValidos.length > 0;
+
+    return (
+        <div className="space-y-6">
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-semibold text-white/80 uppercase tracking-wide">Dirección de sincronización</h3>
+                    <MarcaAplicacion texto={getMarcaSync()} />
+                </div>
+                <p className="text-xs text-white/50">
+                    Define si este cerebro/envía/recibe datos de los destinos configurados.
+                </p>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Dirección de sincronización">
+                    <BotonOpcion
+                        activo={sync.direccion === "ambas"}
+                        ariaPressed={sync.direccion === "ambas"}
+                        onClick={() => handleDireccionChange("ambas")}
+                        etiqueta="Bidireccional"
+                    />
+                    <BotonOpcion
+                        activo={sync.direccion === "enviar"}
+                        ariaPressed={sync.direccion === "enviar"}
+                        onClick={() => handleDireccionChange("enviar")}
+                        etiqueta="Enviar"
+                    />
+                    <BotonOpcion
+                        activo={sync.direccion === "recibir"}
+                        ariaPressed={sync.direccion === "recibir"}
+                        onClick={() => handleDireccionChange("recibir")}
+                        etiqueta="Recibir"
+                    />
+                    <BotonOpcion
+                        activo={sync.direccion === "ninguna"}
+                        ariaPressed={sync.direccion === "ninguna"}
+                        onClick={() => handleDireccionChange("ninguna")}
+                        etiqueta="Sin sincronizar"
+                    />
+                </div>
+            </section>
+
+            <section className="space-y-4 pt-4 border-t border-white/10">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-semibold text-white/80 uppercase tracking-wide">Sincronización automática</h3>
+                    <MarcaAplicacion texto={getMarcaSync()} />
+                </div>
+                <p className="text-xs text-white/50">
+                    Sincroniza automáticamente cuando cambien los datos. Intervalo configurable en ajustes de procesos.
+                </p>
+                <div className="flex items-center gap-3">
+                    <Switch
+                        checked={sync.auto}
+                        onCheckedChange={handleAutoChange}
+                    />
+                    <Label className="text-sm text-white/90">Activar sincronización automática</Label>
+                </div>
+            </section>
+
+            <section className="space-y-4 pt-4 border-t border-white/10">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-semibold text-white/80 uppercase tracking-wide">Destinos de sincronización</h3>
+                    <MarcaAplicacion texto={getMarcaSync()} />
+                </div>
+                <p className="text-xs text-white/50">
+                    Qué servidores reciben los datos al sincronizar. Se usa junto con la dirección seleccionada arriba.
+                </p>
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                        <BotonOpcion
+                            activo={sync.destinos?.includes("local") ?? false}
+                            ariaPressed={sync.destinos?.includes("local") ?? false}
+                            onClick={() => handleDestinosChange(
+                                sync.destinos?.includes("local") 
+                                    ? (sync.destinos ?? []).filter(d => d !== "local")
+                                    : [...(sync.destinos ?? []), "local"]
+                            )}
+                            etiqueta="Este aparato"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <BotonOpcion
+                            activo={sync.destinos?.includes("starseed") ?? false}
+                            ariaPressed={sync.destinos?.includes("starseed") ?? false}
+                            onClick={() => handleDestinosChange(
+                                sync.destinos?.includes("starseed") 
+                                    ? (sync.destinos ?? []).filter(d => d !== "starseed")
+                                    : [...(sync.destinos ?? []), "starseed"]
+                            )}
+                            disabled={!memoryDestinations.starseed?.enabled}
+                            etiqueta={`StarSeed · ${memoryDestinations.starseed?.enabled ? "encendido" : "apagado"}`}
+                        />
+                    </div>
+                    {memoryDestinations.external?.map((ext) => (
+                        <div key={ext.id} className="flex items-center gap-2">
+                            <BotonOpcion
+                                activo={sync.destinos?.includes(ext.id) ?? false}
+                                ariaPressed={sync.destinos?.includes(ext.id) ?? false}
+                                onClick={() => handleDestinosChange(
+                                    sync.destinos?.includes(ext.id) 
+                                        ? (sync.destinos ?? []).filter(d => d !== ext.id)
+                                        : [...(sync.destinos ?? []), ext.id]
+                                )}
+                                etiqueta={ext.label}
+                            />
+                        </div>
+                    ))}
+                    {(!memoryDestinations.external || memoryDestinations.external.length === 0) && (
+                        <div className="text-white/40 text-xs">Ningún servidor externo configurado.</div>
+                    )}
+                    <div className="text-xs text-white/50" id="elegidos-text">
+                        {`Elegidos: ${sync.destinos?.length ?? 0} · ${sync.destinos?.join(", ") || "Ninguno elegido."}`}
+                    </div>
+                </div>
+            </section>
+
+            <section className="space-y-4 pt-4 border-t border-white/10">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-semibold text-white/80 uppercase tracking-wide">Telepatía</h3>
+                </div>
+                <p className="text-xs text-white/50">
+                    Vínculos activos que sincronizan memorias, carpetas y configuraciones con otros cerebros, grupos o cuentas.
+                </p>
+                <div className="space-y-2">
+                    <p className="text-sm text-white/90">
+                        {vinculosValidos.length} vínculo{vinculosValidos.length !== 1 ? "s" : ""}
+                    </p>
+                    {vinculosValidos.map((v) => (
+                        <div key={v.id} className="pl-4 border-l border-white/10 space-y-1">
+                            <p className="text-xs font-medium text-white/80">
+                                {v.destino.tipo.charAt(0).toUpperCase() + v.destino.tipo.slice(1)} · {v.destino.id}
+                            </p>
+                            <p className="text-xs text-white/50 whitespace-nowrap">
+                                {v.acceso === "leer" ? "Solo lectura" : "Lectura y escritura"} · 
+                                {v.auto ? "auto" : "manual"} · 
+                                {v.alcance.memorias.length} memorias, {v.alcance.carpetas.length} carpetas, {v.alcance.configuraciones.length} configuraciones · 
+                                última sincronización: {v.ultimaSync ? new Date(v.ultimaSync).toLocaleString() : "sin medida"}
+                            </p>
+                        </div>
+                    ))}
+                    {!hayVinculosValidos && (
+                        <p className="text-white/50 text-xs">Este cerebro no tiene vínculos de Telepatía.</p>
+                    )}
+                    {onAbrirTelepatia && hayVinculosValidos && (
+                        <Button variant="outline" size="sm" onClick={onAbrirTelepatia}>
+                            Abrir Telepatía
+                        </Button>
+                    )}
+                </div>
+            </section>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Switch id="sync-solo" checked={sync.auto} disabled={sync.direccion === "ninguna"} onCheckedChange={(v) => cambiar({ auto: v })} />
-        <label htmlFor="sync-solo" className="cursor-pointer text-sm">Sincronizar solo</label><MarcaAplicacion estado={MARCA_SYNC} />
-        <span className="text-xs text-white/60">{sync.direccion === "ninguna" ? "Con «Ninguna» no se sincroniza." : sync.auto ? "Se sincroniza sin pedírtelo." : "Solo cuando lo pidas."}</span>
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">Destinos</h3><MarcaAplicacion estado={MARCA_SYNC} /></div>
-        <p className="text-xs text-white/60">Los destinos de memoria de este cerebro. Elige a cuáles va esta sincronización.</p>
-        <div className="flex flex-wrap gap-2">
-          {destinos.map((d) => (
-            <Button key={d.id} type="button" size="sm" variant={sync.destinos.includes(d.id) ? "default" : "outline"} className="h-auto whitespace-normal py-1.5" aria-pressed={sync.destinos.includes(d.id)} disabled={!d.activo} title={d.activo ? d.texto : `${d.texto}: apagado en los destinos del cerebro`} onClick={() => alternar(d.id)}>
-              {d.texto}{d.activo ? "" : " · apagado"}
-            </Button>
-          ))}
-        </div>
-        {sync.destinos.length === 0 && <p className="text-xs text-white/50">Ninguno elegido.</p>}
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Link2 className="h-4 w-4 text-white/60" /><h3 className="text-sm font-semibold">Vínculos de Telepatía</h3>
-          <span className="text-xs text-white/60">{vinculos.length === 1 ? "1 vínculo" : `${vinculos.length} vínculos`}</span>
-          {onAbrirTelepatia && <Button type="button" size="sm" variant="outline" className="ml-auto h-auto whitespace-normal py-1.5" onClick={onAbrirTelepatia}>Abrir Telepatía</Button>}
-        </div>
-        {vinculos.length === 0 ? <p className="text-xs text-white/50">Este cerebro no tiene vínculos de Telepatía.</p> : (
-          <ul className="space-y-1.5">
-            {vinculos.map((v) => (
-              <li key={v.id} className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-white/80">
-                <span className="break-words font-medium text-white">{TIPO_DESTINO[v.destino.tipo]} · {v.destino.id}</span>
-                <span className="block text-white/60">{DIRECCION_VINCULO[v.direccion]} · {v.acceso === "leer" ? "solo lectura" : "lectura y escritura"} · {ESTADO_VINCULO[v.estado]} · {alcanceDe(v)} · última sincronización: {fecha(v.ultimaSync)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
-  );
+    );
 }

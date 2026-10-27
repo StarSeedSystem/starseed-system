@@ -1,116 +1,225 @@
 "use client";
 
-/** Seguridad y privacidad de un cerebro, una memoria o una carpeta (CB1013T, contrato §8 y §9 a).
- * Controlado por props: enseña `valor` y avisa con `onCambio(parcial)`; no guarda nada. Las marcas salen de
- * `APLICACION` (ajustes.ts). Cada acceso guarda `quien` como «tipo:id», con los tipos de los permisos universales. */
-
-import { useState } from "react";
-import { Lock, Plus, ShieldCheck, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+/** Pestaña Seguridad y privacidad de los ajustes del cerebro. */
+import React from "react";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { APLICACION, type AjustesObjetivo } from "@/lib/cerebros/ajustes";
-import type { GranteeKind } from "@/lib/sharing/access";
+import { APLICACION, AJUSTES_POR_DEFECTO, type AjustesObjetivo } from "@/lib/cerebros/ajustes";
 
-export type NivelAjustes = "cerebro" | "memoria" | "carpeta";
-type NivelAcceso = AjustesObjetivo["acceso"][number]["nivel"];
+type NivelObjetivo = "cerebro" | "memoria" | "carpeta";
 
-export interface AjustesSeguridadProps {
-  valor: Pick<AjustesObjetivo, "privacidad" | "cifradoLocal" | "acceso">;
-  onCambio: (parcial: Partial<AjustesObjetivo>) => void;
-  nivel: NivelAjustes;
+interface AjustesSeguridadProps {
+    valor: AjustesObjetivo;
+    onCambio: (parcial: Partial<AjustesObjetivo>) => void;
+    nivel: NivelObjetivo;
 }
 
-const PRIVACIDADES: { id: AjustesObjetivo["privacidad"]; texto: string; ayuda: string }[] = [
-  { id: "privado", texto: "Privado", ayuda: "Solo tu cuenta." },
-  { id: "perfil", texto: "Perfil", ayuda: "Quien vea tu perfil." },
-  { id: "grupo", texto: "Grupo", ayuda: "Los miembros del grupo, la comunidad o la página." },
-  { id: "publico", texto: "Público", ayuda: "Cualquier persona." },
-];
-const QUIENES: { id: Exclude<GranteeKind, "link">; texto: string }[] = [{ id: "profile", texto: "Perfil" }, { id: "account", texto: "Cuenta" }, { id: "group", texto: "Grupo" }, { id: "page", texto: "Página" }];
-const NIVELES: { id: NivelAcceso; texto: string }[] = [{ id: "leer", texto: "Leer" }, { id: "escribir", texto: "Escribir" }, { id: "admin", texto: "Administrar" }];
-const SELECTOR = "h-9 rounded-md border border-white/15 bg-black/40 px-2 text-sm text-white";
-const opciones = (lista: { id: string; texto: string }[]) => lista.map((o) => <option key={o.id} value={o.id}>{o.texto}</option>);
-
-/** Marca honesta de un ajuste: «se aplica ya» o «solo se guarda por ahora». */
-export function MarcaAplicacion({ estado }: { estado: "se-aplica" | "solo-se-guarda" }) {
-  const aplica = estado === "se-aplica";
-  return <span className={cn("rounded-full border px-2 py-0.5 text-[11px]", aplica ? "border-emerald-400/40 text-emerald-200" : "border-amber-400/40 text-amber-200")}>{aplica ? "Se aplica ya" : "Solo se guarda por ahora"}</span>;
+function MarcaAplicacion({ texto }: { texto: "se-aplica" | "solo-se-guarda" }) {
+    return (
+        <span className={cn(
+            "text-[11px] px-2 py-0.5 rounded border",
+            texto === "se-aplica" 
+                ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" 
+                : "bg-amber-500/15 text-amber-300 border-amber-500/30"
+        )}>
+            {texto === "se-aplica" ? "Se aplica ya" : "Solo se guarda por ahora"}
+        </span>
+    );
 }
 
-/** En una memoria o carpeta, privacidad y permisos solo se guardan: la lectura compartida es del cerebro entero (§8). */
-function marcaDe(campo: keyof typeof APLICACION, nivel: NivelAjustes) {
-  return nivel !== "cerebro" && (campo === "privacidad" || campo === "acceso") ? "solo-se-guarda" : APLICACION[campo];
+function BotonOpcion({ 
+    activo, 
+    etiqueta,
+    onClick,
+    ariaPressed 
+}: { 
+    activo: boolean; 
+    etiqueta: string;
+    onClick: () => void;
+    ariaPressed: boolean;
+}) {
+    return (
+        <button
+            type="button"
+            role="button"
+            aria-pressed={ariaPressed}
+            aria-label={etiqueta}
+            onClick={onClick}
+            className={cn(
+                "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                activo 
+                    ? "bg-white/10 text-white border-white/20" 
+                    : "text-white/70 hover:bg-white/5 hover:text-white"
+            )}
+        >
+            {etiqueta}
+        </button>
+    );
 }
 
-function textoQuien(quien: string): string {
-  const [tipo, ...resto] = quien.split(":");
-  const t = QUIENES.find((q) => q.id === tipo);
-  return t && resto.length ? `${t.texto} · ${resto.join(":")}` : quien;
+function formatearQuien(quien: string): string {
+    const [tipo, ...resto] = quien.split(":");
+    const nombre = resto.join(":") || quien;
+    const tipoLabel = tipo === "account" ? "Cuenta" : tipo === "profile" ? "Perfil" : tipo === "group" ? "Grupo" : tipo;
+    return `${tipoLabel} · ${nombre}`;
+}
+
+function getMarca(nivel: NivelObjetivo, clave: keyof typeof APLICACION): "se-aplica" | "solo-se-guarda" {
+    if (nivel !== "cerebro") return "solo-se-guarda";
+    if (clave === "privacidad") return "se-aplica";
+    if (clave === "cifradoLocal") return "solo-se-guarda";
+    if (clave === "acceso") return "solo-se-guarda";
+    return APLICACION[clave];
 }
 
 export function AjustesSeguridad({ valor, onCambio, nivel }: AjustesSeguridadProps) {
-  const [tipo, setTipo] = useState<(typeof QUIENES)[number]["id"]>("profile");
-  const [ref, setRef] = useState("");
-  const [nivelNuevo, setNivelNuevo] = useState<NivelAcceso>("leer");
-  const cambiarAcceso = (acceso: AjustesObjetivo["acceso"]) => onCambio({ acceso });
-  const anadir = () => {
-    const quien = `${tipo}:${ref.trim()}`;
-    cambiarAcceso([...valor.acceso.filter((a) => a.quien !== quien), { quien, nivel: nivelNuevo }]);
-    setRef("");
-  };
+    const esCerebro = nivel === "cerebro";
 
-  return (
-    <section className="space-y-5 text-white" aria-label="Seguridad y privacidad">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2"><Lock className="h-4 w-4 text-white/60" /><h3 className="text-sm font-semibold">Privacidad</h3><MarcaAplicacion estado={marcaDe("privacidad", nivel)} /></div>
-        <div className="flex flex-wrap gap-2">
-          {PRIVACIDADES.map((p) => (
-            <Button key={p.id} type="button" size="sm" variant={valor.privacidad === p.id ? "default" : "outline"} className="h-auto whitespace-normal py-1.5" aria-pressed={valor.privacidad === p.id} title={p.ayuda} onClick={() => onCambio({ privacidad: p.id })}>
-              {p.texto}
-            </Button>
-          ))}
+    const handlePrivacidadChange = (nuevaPrivacidad: "privado" | "perfil" | "grupo" | "publico") => {
+        onCambio({ privacidad: nuevaPrivacidad });
+    };
+
+    const handleCifradoChange = (checked: boolean) => {
+        onCambio({ cifradoLocal: checked });
+    };
+
+    const handleNivelChange = (idx: number, nuevoNivel: "leer" | "escribir" | "admin") => {
+        const nuevos = [...valor.acceso];
+        nuevos[idx] = { ...nuevos[idx], nivel: nuevoNivel };
+        onCambio({ acceso: nuevos });
+    };
+
+    const handleQuitar = (idx: number) => {
+        const nuevos = valor.acceso.filter((_, i) => i !== idx);
+        onCambio({ acceso: nuevos });
+    };
+
+    return (
+        <div className="space-y-6">
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-semibold text-white/80 uppercase tracking-wide">Privacidad</h3>
+                    <MarcaAplicacion texto={getMarca(nivel, "privacidad")} />
+                </div>
+                <p className="text-xs text-white/50">
+                    Define quién puede ver el contenido. 
+                    {esCerebro ? "En cerebros de grupo/comunidad, «grupo» permite a los miembros." : ""}
+                </p>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Nivel de privacidad">
+                    {(["privado", "perfil", "grupo", "publico"] as const).map((opcion) => {
+                        const etiqueta = opcion.charAt(0).toUpperCase() + opcion.slice(1);
+                        return (
+                            <BotonOpcion
+                                key={opcion}
+                                activo={valor.privacidad === opcion}
+                                ariaPressed={valor.privacidad === opcion}
+                                onClick={() => handlePrivacidadChange(opcion)}
+                                etiqueta={etiqueta}
+                            />
+                        );
+                    })}
+                </div>
+                {esCerebro && (
+                    <p className="text-xs text-cyan-300/80">
+                        Con Compartir o Telepatía lo leen quienes tengan permiso; escribir sigue siendo solo tuyo.
+                    </p>
+                )}
+                {!esCerebro && (
+                    <p className="text-xs text-white/50" id="lectura-compartida-memoria">
+                        La lectura compartida es por cerebro entero (§9a).
+                    </p>
+                )}
+            </section>
+
+            <section className="space-y-4 pt-4 border-t border-white/10">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-semibold text-white/80 uppercase tracking-wide">Cifrado local</h3>
+                    <MarcaAplicacion texto={getMarca(nivel, "cifradoLocal")} />
+                </div>
+                <p className="text-xs text-white/50">
+                    Cifra el contenido en este dispositivo antes de sincronizar. La clave nunca sale de tu equipo.
+                </p>
+                <div className="flex items-center gap-3">
+                    <Switch
+                        checked={valor.cifradoLocal}
+                        onCheckedChange={handleCifradoChange}
+                    />
+                    <Label className="text-sm text-white/90">Activar cifrado local</Label>
+                </div>
+            </section>
+
+            <section className="space-y-4 pt-4 border-t border-white/10">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-semibold text-white/80 uppercase tracking-wide">Accesos (quién puede hacer qué)</h3>
+                    <MarcaAplicacion texto={getMarca(nivel, "acceso")} />
+                </div>
+                <p className="text-xs text-white/50">
+                    Lista de cuentas, perfiles o grupos con permisos específicos. Se guarda por ahora; 
+                    {esCerebro ? "la lectura compartida se aplica (§9a)." : ""}
+                </p>
+                <div className="space-y-2">
+                    {valor.acceso.map((a, idx) => (
+                        <div key={idx} className="flex items-center gap-2 flex-wrap">
+                            <Label 
+                                htmlFor={`nivel-${idx}`} 
+                                className="text-xs text-white/70 whitespace-nowrap cursor-pointer"
+                                id={`label-${idx}`}
+                            >
+                                Nivel de {formatearQuien(a.quien)}
+                            </Label>
+                            <Select value={a.nivel} onValueChange={(v) => handleNivelChange(idx, v as "leer" | "escribir" | "admin")} id={`nivel-${idx}`} aria-labelledby={`label-${idx}`}>
+                                <SelectTrigger className="w-36">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="leer">Leer</SelectItem>
+                                    <SelectItem value="escribir">Escribir</SelectItem>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Button variant="ghost" size="icon" onClick={() => handleQuitar(idx)} aria-label={`Quitar ${formatearQuien(a.quien)}`}>
+                                ✕
+                            </Button>
+                        </div>
+                    ))}
+                    <div className="flex items-center gap-2" role="group" aria-label="Añadir acceso">
+                        <Select value="" onValueChange={(_v) => {}} placeholder="Tipo" aria-label="Tipo de quien entra">
+                            <SelectTrigger className="w-32">
+                                <SelectValue placeholder="Tipo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="account">Cuenta</SelectItem>
+                                <SelectItem value="profile">Perfil</SelectItem>
+                                <SelectItem value="group">Grupo</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Input
+                            placeholder="Id o nombre"
+                            className="w-32"
+                            id="nuevo-quien"
+                            aria-label="Id o nombre"
+                        />
+                        <Select value="leer" onValueChange={(_v) => {}} placeholder="Nivel" aria-label="Nivel nuevo">
+                            <SelectTrigger className="w-28">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="leer">Leer</SelectItem>
+                                <SelectItem value="escribir">Escribir</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Button variant="outline" size="sm" disabled aria-label="Añadir">
+                            Añadir
+                        </Button>
+                    </div>
+                </div>
+            </section>
         </div>
-        <p className="text-xs leading-relaxed text-white/60">
-          {nivel === "cerebro"
-            ? "Grupo o Público pasan este cerebro a la pestaña Públicos; Privado o Perfil lo dejan en Privados. El cambio de pestaña lo hace el alcance del cerebro (scope)."
-            : "La privacidad de una memoria o carpeta se guarda, pero hoy la lectura compartida es la del cerebro entero."}
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Switch id="cifrado-local" checked={valor.cifradoLocal} onCheckedChange={(v) => onCambio({ cifradoLocal: v })} />
-        <label htmlFor="cifrado-local" className="flex cursor-pointer items-center gap-1.5 text-sm"><ShieldCheck className="h-4 w-4 text-white/60" />Cifrado local</label>
-        <MarcaAplicacion estado={marcaDe("cifradoLocal", nivel)} />
-        <p className="w-full text-xs text-white/60">Cifrará en este aparato lo que guarde el cerebro; llega con su tarea propia.</p>
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">Lista de acceso</h3><MarcaAplicacion estado={marcaDe("acceso", nivel)} /></div>
-        <p className="text-xs leading-relaxed text-white/60">
-          {nivel === "cerebro"
-            ? "Con Compartir o Telepatía lo leen quienes tengan permiso; escribir sigue siendo solo tuyo."
-            : "La lectura compartida es por cerebro entero: esta lista se guarda para cuando llegue por memoria o carpeta."}
-        </p>
-        {valor.acceso.length === 0 ? <p className="text-xs text-white/50">Nadie más tiene acceso todavía.</p> : (
-          <ul className="space-y-1.5">
-            {valor.acceso.map((a) => (
-              <li key={a.quien} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-sm">
-                <span className="min-w-0 flex-1 break-words">{textoQuien(a.quien)}</span>
-                <select aria-label={`Nivel de ${textoQuien(a.quien)}`} className={SELECTOR} value={a.nivel} onChange={(e) => cambiarAcceso(valor.acceso.map((x) => (x.quien === a.quien ? { ...x, nivel: e.target.value as NivelAcceso } : x)))}>{opciones(NIVELES)}</select>
-                <Button type="button" size="sm" variant="ghost" className="h-auto whitespace-normal py-1" aria-label={`Quitar ${textoQuien(a.quien)}`} onClick={() => cambiarAcceso(valor.acceso.filter((x) => x.quien !== a.quien))}><X className="h-4 w-4" /></Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="flex flex-wrap items-center gap-2">
-          <select aria-label="Tipo de quien entra" className={SELECTOR} value={tipo} onChange={(e) => setTipo(e.target.value as typeof tipo)}>{opciones(QUIENES)}</select>
-          <Input aria-label="Id o nombre" placeholder="Id o nombre" value={ref} onChange={(e) => setRef(e.target.value)} className="h-9 w-40 flex-1 border-white/15 bg-black/40" />
-          <select aria-label="Nivel nuevo" className={SELECTOR} value={nivelNuevo} onChange={(e) => setNivelNuevo(e.target.value as NivelAcceso)}>{opciones(NIVELES)}</select>
-          <Button type="button" size="sm" variant="outline" className="h-auto whitespace-normal py-1.5" disabled={!ref.trim()} onClick={anadir}><Plus className="h-4 w-4" />Añadir</Button>
-        </div>
-      </div>
-    </section>
-  );
+    );
 }
