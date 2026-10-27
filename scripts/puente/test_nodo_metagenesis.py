@@ -21,6 +21,7 @@ if DIR not in sys.path:
 import nodo_metagenesis as N  # noqa: E402
 import nodo_metagenesis_bus as B  # noqa: E402
 import nodo_metagenesis_logica as L  # noqa: E402
+import nodo_metagenesis_medio as M  # noqa: E402
 
 T0 = 1_791_640_000.0  # 2026-10-10 ~11:46 UTC
 SECRETO = "s" * 48  # secreto de PRUEBA
@@ -391,6 +392,70 @@ class TestFotoYTachado(unittest.TestCase):
         self.assertEqual(L.trabajo_de_medidores({"listas": "32 se pueden coger ya", "en-curso": "Ninguna en marcha",
                                                  "bloqueadas": "80 esperando"}),
                          {"listas": 32, "en_curso": 0, "agentes": None, "bloqueadas": 80})
+
+
+# ─── salud del medio (CB1013Q, contrato §7.2) ────────────────────────────────────────────
+
+
+class TestSaludDelMedio(unittest.TestCase):
+    def test_pct_ocupado_pura(self):
+        t1, t2 = (100, 40), (300, 60)
+        # Ocupado entre las dos lecturas: 200 de tiempo total, 20 en reposo → 90,0 % ocupado.
+        self.assertEqual(M.pct_ocupado_de(t1, t2), 90.0)
+        self.assertEqual(M.pct_ocupado_de((100, 100), (200, 200)), 0.0)
+        self.assertEqual(M.pct_ocupado_de((100, 0), (200, 0)), 100.0)
+
+    def test_pct_ocupado_sin_dato_es_none_y_no_inventa(self):
+        self.assertIsNone(M.pct_ocupado_de(None, (200, 60)))
+        self.assertIsNone(M.pct_ocupado_de((100, 40), None))
+        self.assertIsNone(M.pct_ocupado_de((100, 40), (100, 40)), "sin tiempo transcurrido no hay %")
+
+    def test_cpu_pct_medida_real_o_none(self):
+        v = M.cpu_pct()
+        if sys.platform.startswith("linux"):
+            self.assertIsInstance(v, float)
+            assert v is not None
+            self.assertTrue(0.0 <= v <= 100.0)
+        else:
+            self.assertIsNone(v)
+
+    def test_disco_total_gb_y_none_si_no_existe(self):
+        with tempfile.TemporaryDirectory() as d:
+            total = M.disco_total_gb(d)
+            self.assertIsInstance(total, float)
+            assert total is not None
+            self.assertGreater(total, 0.0)
+            libre = M.disco_libre_gb(d)
+            if isinstance(libre, float):
+                self.assertGreaterEqual(total, libre)
+        self.assertIsNone(M.disco_total_gb("/no/ex/iste"))
+
+    def test_resumen_nodo_lleva_los_campos_nuevos(self):
+        latido = {"nodo": "mac-aaaaaa", "medio": "mac", "modo": "real", "ts": T0,
+                  "salud": {"cpu_pct": 12.5, "ram_total_mb": 8192, "disco_total_gb": 500.0,
+                            "nucleos": 4, "carga": 0.7, "disco_gb": 40.0, "ram_libre_mb": 2048}}
+        r = L.resumen_nodo("mac-aaaaaa", latido, "mac-aaaaaa", T0)
+        for campo, valor in (("cpu_pct", 12.5), ("ram_total_mb", 8192), ("disco_total_gb", 500.0),
+                             ("nucleos", 4), ("carga", 0.7)):
+            self.assertEqual(r[campo], valor)
+            self.assertIn(campo, r)
+
+    def test_resumen_nodo_none_se_respeta(self):
+        # Medio sin esas medidas (no las pudo medir): la vista las publica como None, no inventadas.
+        latido = {"nodo": "oracle-a1-bbbbbb", "medio": "oracle-a1", "modo": "real", "ts": T0, "salud": {}}
+        r = L.resumen_nodo("oracle-a1-bbbbbb", latido, None, T0)
+        for campo in ("cpu_pct", "ram_total_mb", "disco_total_gb", "nucleos", "carga"):
+            self.assertIsNone(r[campo])
+
+    def test_huella_ignora_las_medidas_del_medio(self):
+        latido = {"nodo": "mac-aaaaaa", "medio": "mac", "modo": "real", "ts": T0,
+                  "salud": {"cpu_pct": 10.0, "ram_total_mb": 8192, "disco_total_gb": 500.0,
+                            "nucleos": 4, "carga": 0.5}}
+        a = L.foto("mac-aaaaaa", 1, {"mac-aaaaaa": latido}, [], {}, True, "real", T0)
+        latido = dict(latido, salud=dict(latido["salud"], cpu_pct=95.0, carga=4.2,
+                                         ram_total_mb=4096, disco_total_gb=498.5, nucleos=8))
+        b = L.foto("mac-aaaaaa", 1, {"mac-aaaaaa": latido}, [], {}, True, "real", T0 + 60)
+        self.assertEqual(L.huella_foto(a), L.huella_foto(b))
 
 
 # ─── el nodo entero contra el Supabase simulado ─────────────────────────────────────────

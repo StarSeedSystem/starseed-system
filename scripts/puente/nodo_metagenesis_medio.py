@@ -147,6 +147,42 @@ def disco_libre_gb(ruta: str) -> Optional[float]:
         return None
 
 
+# ─── las medidas nuevas del contrato §7.2 ────────────────────────────────────────────────
+
+
+def cpu_pct() -> Optional[float]:
+    """CPU OCUPADA (contrato §7.2): dos lecturas de /proc/stat separadas 0,3 s.
+    macOS u otros medios: None — nunca un número inventado (el contrato solo fija /proc)."""
+    return pct_ocupado_de(_lectura_cpu(), _lectura_cpu(0.3))
+
+
+def _lectura_cpu(espera_s: float = 0.0) -> Optional[Tuple[int, int]]:
+    """(tiempo total, tiempo en reposo) acumulados del `/proc/stat` de Linux; None sin /proc.
+    Con `espera_s`, espera ese tiempo antes de leer (para comparar dos instantes)."""
+    if espera_s > 0:
+        time.sleep(espera_s)
+    try:
+        with open("/proc/stat") as f:
+            linea = f.readline()
+        if not linea.startswith("cpu "):
+            return None
+        tiempos = [int(x) for x in linea.split()[1:]]
+        return sum(tiempos), tiempos[3]
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def pct_ocupado_de(a: Optional[Tuple[int, int]], b: Optional[Tuple[int, int]]) -> Optional[float]:
+    """PURA. % de CPU ocupada entre dos lecturas (total, reposo): lo que NO es reposo, en % del total.
+    None si faltan lecturas o no pasa tiempo entre ellas (nada de inventar un 0)."""
+    if a is None or b is None:
+        return None
+    total, idle = b[0] - a[0], b[1] - a[1]
+    if total <= 0:
+        return None
+    return round(max(0.0, (total - idle) * 100.0 / total), 1)
+
+
 def ram_total_mb() -> Optional[int]:
     """RAM TOTAL del aparato (no la libre): la capacidad de contenedor se decide con ella (§2 del contrato).
     None si no se pudo medir: entonces no se inventa un contenedor (ni «no apto» por un 0 falso)."""
@@ -333,6 +369,14 @@ def desconectando_ahora(ahora: float) -> bool:
         return isinstance(d, dict) and d.get("desconectando") is True and 0 <= ahora - float(d.get("t")) < C.GRACIA_DESCONECTAR_S
     except (TypeError, ValueError):
         return False
+
+
+def disco_total_gb(ruta: str) -> Optional[float]:
+    """Disco TOTAL del sistema de archivos de `ruta` (`shutil.disk_usage`); None si no se puede medir."""
+    try:
+        return round(shutil.disk_usage(ruta).total / 1e9, 1)
+    except OSError:
+        return None
 
 
 def lineas_ps() -> List[str]:
@@ -640,15 +684,19 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
     progreso = os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json")
     autoritativo = os.environ.get("STARSEED_NODO_AUTORITATIVO")
     autoritativo = (autoritativo == "1") if autoritativo in ("0", "1") else (medio == "mac" and os.path.exists(progreso))
+    raiz_disco = raiz if os.path.isdir(raiz) else os.path.expanduser("~")
     salud: Dict[str, Any] = {
         "repo": os.path.isdir(os.path.join(raiz, ".git")),
         "orquestador": sabe_orquestar(raiz),
         "autoritativo": autoritativo,
         "orquestadores": orqs,
-        "disco_gb": disco_libre_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
+        "disco_gb": disco_libre_gb(raiz_disco),
+        # (CB1013Q, contrato §7.2) El total del disco y la CPU ocupada, junto a lo que ya había.
+        "disco_total_gb": disco_total_gb(raiz_disco),
         "ram_libre_mb": ram_libre_mb(),
         "nucleos": os.cpu_count(),
         "carga": round(os.getloadavg()[0], 2) if hasattr(os, "getloadavg") else None,
+        "cpu_pct": cpu_pct(),
         "servicios_caidos": [],
         "guardianes_caidos": [],
     }

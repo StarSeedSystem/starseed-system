@@ -1185,6 +1185,12 @@ def resumen_nodo(n: str, l: Dict[str, Any], lider: Optional[str], ahora: float) 
         "orquestadores": [o.get("cola") for o in s.get("orquestadores") or []][:4],
         "caidos": (s.get("servicios_caidos") or [])[:6],
         "disco_gb": s.get("disco_gb"),
+        # (CB1013Q, contrato §7.2) Salud del medio: CPU ocupada, RAM y disco TOTALES, núcleos y carga.
+        "cpu_pct": s.get("cpu_pct"),
+        "ram_total_mb": s.get("ram_total_mb"),
+        "disco_total_gb": s.get("disco_total_gb"),
+        "nucleos": s.get("nucleos"),
+        "carga": s.get("carga"),
         "ram_libre_mb": s.get("ram_libre_mb"),
         "trabajo": s.get("trabajo") or {},
         "version": l.get("version"),
@@ -1227,7 +1233,11 @@ def huella_foto(f: Dict[str, Any]) -> str:
         "lider": f.get("lider"),
         "termino": f.get("termino"),
         "autonomia": f.get("autonomia"),
-        "nodos": [{k: v for k, v in n.items() if k not in ("hace_s", "ram_libre_mb", "disco_gb")}
+        # (CB1013Q) Las medidas del medio (CPU, RAM, disco, núcleos y carga) no cuentan como cambio:
+        # cambian por segundo y harían republicar la foto en cada latido.
+        "nodos": [{k: v for k, v in n.items() if k not in ("hace_s", "ram_libre_mb", "disco_gb",
+                                                           "cpu_pct", "ram_total_mb", "disco_total_gb",
+                                                           "nucleos", "carga")}
                   for n in f.get("nodos") or []],
         # De cada medidor, solo su cifra: sus textos llevan la hora de la medida y cambiarían siempre.
         "medidores": {k: _numero(v) for k, v in (f.get("medidores") or {}).items()},
