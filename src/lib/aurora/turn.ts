@@ -69,6 +69,9 @@ import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { buildAttachmentsContext, type UniversalAttachment } from "@/lib/aurora/attachments";
 import { workspaceSystemExtra } from "@/lib/workspaces/workspaces";
 import { describeUserVoiceEmotionForPrompt } from "@/lib/aurora/audio-emotion";
+// EAR1023C: la línea «Se oye: …» la registra el motor de oído (engine.ts) y se
+// lee aquí para el contexto de cualquier superficie del orbe/agente.
+import { lineaContextoOidoParaPrompt } from "@/lib/aurora/engine";
 // Adenda 154: trazas del enjambre Astraura 1.58-bit → metadatos del mensaje.
 import { astraura158MetaFromRaw, astraura158ToolMetas, isAstraura158Source } from "@/lib/astraura/astraura-158-meta";
 
@@ -281,6 +284,14 @@ export async function composeAuroraSystem(opts: {
     const emo = describeUserVoiceEmotionForPrompt();
     if (emo) pieces.push(emo);
   } catch { /* sin oído emocional: prompt idéntico */ }
+
+  // 0.75) OÍDO AMBIENTAL (EAR1023C): lo que suena AHORA alrededor del agente.
+  // El registro solo se llena con sentidos encendidos y tramos sin voz; la
+  // caducidad (2 min), la deduplicación y el tope los aplica `lineaContextoOido`.
+  try {
+    const oye = lineaContextoOidoParaPrompt();
+    if (oye) pieces.push(oye);
+  } catch { /* sin oído ambiental: prompt idéntico */ }
 
   // 1) Acciones del OS (control real). Determinista y barato.
   try { pieces.push(actionsSystemPromptSection()); } catch { /* */ }

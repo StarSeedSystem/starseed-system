@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const engine = fs.readFileSync(path.resolve(__dirname, "../../engine.ts"), "utf-8");
+const turn = fs.readFileSync(path.resolve(__dirname, "../../turn.ts"), "utf-8");
 
 describe("EAR1023B · cableado del oído ambiental", () => {
   it("importa la decisión pura y la llama desde el flujo de audio", () => {
@@ -25,5 +26,19 @@ describe("EAR1023B · cableado del oído ambiental", () => {
     expect(engine).toMatch(/fetch\(URL_SERVICIO_OIDO/);
     expect(engine).toContain("UMBRAL_ENERGIA_POR_DEFECTO");
     expect(engine).toContain("INTERVALO_MINIMO_MS_POR_DEFECTO");
+  });
+});
+
+describe("EAR1023C · cableado de la línea de contexto del oído", () => {
+  it("el flujo registra las etiquetas que devuelve el servicio de oído", () => {
+    expect(engine).toContain('from "@/lib/aurora/sentidos/contexto-oido"');
+    expect(engine).toMatch(/lineaContextoOido\s*\(/);
+    expect(engine).toMatch(/lineaContextoOidoParaPrompt\s*\(/);
+    expect(engine).toMatch(/recibirEtiquetasOidas\s*\(/);
+  });
+
+  it("la línea entra al prompt del motor y al del pipeline compartido", () => {
+    expect(engine).toMatch(/notaOido\s*\?\s*"\\n\\n"\s*\+\s*notaOido/);
+    expect(turn).toMatch(/lineaContextoOidoParaPrompt/);
   });
 });
