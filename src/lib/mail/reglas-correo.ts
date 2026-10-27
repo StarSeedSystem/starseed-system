@@ -110,7 +110,7 @@ export function validarRegla(x: unknown): ReglaCorreo | null {
     texto,
     cuando: cuandoNormalizado,
     hacer,
-    parametro,
+    parametro: parametro ?? undefined,
   };
   return regla;
 }
