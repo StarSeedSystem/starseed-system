@@ -25,13 +25,14 @@ import {
     FileText, FileCode2, FileImage, FileVideo, FileAudio, FileType2,
     File as FileIcon, Link as LinkIcon, Box, AppWindow, ExternalLink,
     Share2, LayoutDashboard, PenSquare, Download, Play, Globe, Copy, Check,
-    Wrench,
+    Wrench, Replace,
     type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { emitAttach, openComposer } from "@/lib/share/bridge";
 import { PanelEditarPdf } from "@/components/pdf/panel-editar-pdf";
 import { loadIntegrationConfig } from "@/lib/integrations/registry";
+import { enlaceConversionDeVista } from "@/lib/conversion/vista-previa";
 
 // Visor 3D ligero: sólo cliente. Si no existe el módulo o falla, degradamos a
 // miniatura/poster vía el catch del propio componente (ver GlbPreview).
@@ -187,6 +188,27 @@ function fileTitle(file: FileLike, fmt: FileFormat): string {
 
 // ───────────────────────────── Acciones ─────────────────────────────────────
 
+/** «Convertir a…» (Filee): lleva a /convertir con este archivo ya puesto. */
+function EnlaceConvertir({ file, claro }: { file: FileLike; claro?: boolean }) {
+    const href = enlaceConversionDeVista(file);
+    if (!href) return null;
+    return (
+        <a
+            href={href}
+            title="Convertir a otro formato con Filee, sin sacar el archivo de tu neurona"
+            className={cn(
+                "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border transition-colors",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500",
+                claro
+                    ? "min-h-11 border-violet-400/40 bg-violet-500/10 px-3 text-[11px] font-bold text-violet-700 hover:border-violet-500/60 hover:bg-violet-500/20 hover:text-violet-900"
+                    : "border-violet-400/30 bg-violet-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-violet-200 hover:border-violet-300/60 hover:bg-violet-500/20 hover:text-white",
+            )}
+        >
+            <Replace className="size-3.5" /> Convertir a…
+        </a>
+    );
+}
+
 function ActionBar({ file, fmt, context }: { file: FileLike; fmt: FileFormat; context: FilePreviewContext }) {
     const [done, setDone] = useState<string | null>(null);
     const url = file.url || file.launchHref || "";
@@ -251,6 +273,7 @@ function ActionBar({ file, fmt, context }: { file: FileLike; fmt: FileFormat; co
             {context !== "post" && (
                 <Btn onClick={insertInPost} icon={PenSquare} label="Insertar en publicación" k="post" />
             )}
+            {fmt !== "pdf" && fmt !== "link" && fmt !== "app" && <EnlaceConvertir file={file} />}
         </div>
     );
 }
@@ -341,6 +364,7 @@ function PdfPreview({ file, compact }: { file: FileLike; compact?: boolean }) {
                     className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-500/15 px-3 text-[11px] font-bold text-rose-700 hover:bg-rose-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-500">
                     <Wrench className="size-3.5" /> {editor ? "Cerrar editor" : "Editar PDF"}
                 </button>
+                <EnlaceConvertir file={file} claro />
                 <a href="https://github.com/Stirling-Tools/Stirling-PDF" target="_blank" rel="noopener noreferrer"
                     title="Qué es Stirling-PDF: edición de PDF self-hosted (unir, dividir, OCR, firmar)"
                     className="inline-flex min-h-11 cursor-pointer items-center gap-1 text-[11px] font-medium text-black/60 hover:text-black/80">
