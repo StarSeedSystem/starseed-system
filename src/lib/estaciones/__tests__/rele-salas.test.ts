@@ -77,6 +77,25 @@ describe('crearSalas', () => {
     expect(salas.presencia(tema)).toBe(0);
   });
 
+  it('salir dos veces no descuenta de más ni deja la sala contada', () => {
+    // Rescatado de la rama nube: al cerrar un socket que ya se había ido (o al repetir el cierre),
+    // la cuenta de la sala no puede bajar de cero ni quedar viva sin conexiones.
+    const salas = crearSalas();
+    const tema = 'estacion-p:Tema12345678';
+    const conexion1 = {};
+    const conexion2 = {};
+    salas.entrar(tema, conexion1);
+    salas.entrar(tema, conexion2);
+    salas.salir(conexion1);
+    salas.salir(conexion1);
+    expect(salas.presencia(tema)).toBe(1);
+    expect(salas.temaDe(conexion1)).toBeUndefined();
+    salas.salir(conexion2);
+    salas.salir(conexion2);
+    expect(salas.presencia(tema)).toBe(0);
+    expect(salas.temaDe(conexion2)).toBeUndefined();
+  });
+
   it('debería no reenviar al emisor en difundir', () => {
     const salas = crearSalas({ maxSalas: 100, maxPorSala: 100, maxBytes: 100 });
     const tema = 'estacion-vivo:Tema112345678';
