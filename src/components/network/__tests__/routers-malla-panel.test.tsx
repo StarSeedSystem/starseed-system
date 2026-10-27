@@ -4,12 +4,15 @@
  * «bloqueado-operador» con su aviso; uno desconocido muestra «desconocido» y
  * el enlace a la tabla de hardware de OpenWrt; la lista queda en localStorage.
  */
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { describe, it, expect, beforeEach } from "vitest";
 import { RoutersMallaPanel } from "@/components/network/routers-malla-panel";
 
 describe("RoutersMallaPanel", () => {
   beforeEach(() => {
+    /* Con `globals: false` Testing Library no limpia sola: sin esto, el DOM de
+     * un render anterior deja inputs duplicados y las consultas «Multiple» fallan. */
+    cleanup();
     window.localStorage.clear();
   });
 
