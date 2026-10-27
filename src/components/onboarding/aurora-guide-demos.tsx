@@ -17,8 +17,23 @@
  * Uso: <StepDemo stepKey="orbe" accent="#C9A8FF" reduce={reduceMotion} />
  */
 
+import type { ComponentType } from "react";
 import { motion, type Transition } from "framer-motion";
 import { DemoGestosHibridos } from "./demo-gestos-hibridos";
+import {
+  CapasConcienciaDemo,
+  MallaDemo,
+  NeuronasCerebroDemo,
+  ProtomoleculaDemo,
+} from "./demos-sistema";
+import {
+  CulturaDemo,
+  EducacionDemo,
+  GenesisDemo,
+  LibreriaBibliotecaDemo,
+  PersonalizacionSeguraDemo,
+  PoliticaDemo,
+} from "./demos-red";
 
 type DemoProps = {
   stepKey: string;
@@ -421,65 +436,26 @@ function PerfilDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
   );
 }
 
-/* ─────────────────────────── CEREBROS ───────────────────────────────────────
-   Grafo vivo: nodos (servidores/memorias) conectados por aristas que pulsan. */
-function CerebrosDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
-  const nodes = [
-    { x: 40, y: 30 },
-    { x: 120, y: 22 },
-    { x: 176, y: 58 },
-    { x: 90, y: 74 },
-    { x: 32, y: 82 },
-  ];
-  const edges = [
-    [0, 1],
-    [1, 2],
-    [0, 3],
-    [3, 4],
-    [1, 3],
-  ];
-  return (
-    <Stage accent={accent}>
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 210 112" preserveAspectRatio="none">
-        {edges.map(([a, b], i) => (
-          <motion.line
-            key={i}
-            x1={nodes[a].x}
-            y1={nodes[a].y}
-            x2={nodes[b].x}
-            y2={nodes[b].y}
-            stroke={accent}
-            strokeWidth={1}
-            strokeOpacity={0.5}
-            initial={reduce ? { pathLength: 1 } : { pathLength: 0 }}
-            animate={reduce ? { pathLength: 1 } : { pathLength: 1, strokeOpacity: [0.25, 0.7, 0.25] }}
-            transition={
-              reduce
-                ? undefined
-                : {
-                    pathLength: { duration: 0.7, delay: i * 0.12 },
-                    strokeOpacity: loop({ duration: 2.4, delay: i * 0.2 }),
-                  }
-            }
-          />
-        ))}
-        {nodes.map((n, i) => (
-          <motion.circle
-            key={i}
-            cx={n.x}
-            cy={n.y}
-            r={4}
-            fill={accent}
-            initial={reduce ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
-            animate={reduce ? { scale: 1, opacity: 1 } : { scale: 1, opacity: 1 }}
-            transition={reduce ? undefined : { type: "spring", stiffness: 300, damping: 16, delay: 0.3 + i * 0.1 }}
-            style={{ filter: `drop-shadow(0 0 4px ${accent})` }}
-          />
-        ))}
-      </svg>
-    </Stage>
-  );
-}
+/**
+ * Las diez demostraciones de los temas nuevos (§2): salen de `demos-sistema.tsx` y `demos-red.tsx`
+ * y se montan tal cual. `neuronas-cerebro` y `libreria-biblioteca` sustituyen a las claves viejas
+ * `cerebros` y `libreria`, que se conservan para que un paso antiguo no se quede sin demo.
+ */
+type DemoRender = ComponentType<{ accent: string; reduce: boolean }>;
+const DEMOS_POR_CLAVE: Record<string, DemoRender> = {
+  protomolecula: ProtomoleculaDemo,
+  malla: MallaDemo,
+  "capas-conciencia": CapasConcienciaDemo,
+  "neuronas-cerebro": NeuronasCerebroDemo,
+  "pilar-politica": PoliticaDemo,
+  "pilar-educacion": EducacionDemo,
+  "pilar-cultura": CulturaDemo,
+  "libreria-biblioteca": LibreriaBibliotecaDemo,
+  genesis: GenesisDemo,
+  "personalizacion-segura": PersonalizacionSeguraDemo,
+  cerebros: NeuronasCerebroDemo,
+  libreria: LibreriaBibliotecaDemo,
+};
 
 /**
  * Las claves que `StepDemo` sabe dibujar. DEBE coincidir con los `case` de abajo (lo comprueba
@@ -520,9 +496,11 @@ export function StepDemo({ stepKey, accent, reduce }: DemoProps) {
     case "perfil":
       return <PerfilDemo accent={accent} reduce={reduce} />;
     case "cerebros":
-      return <CerebrosDemo accent={accent} reduce={reduce} />;
-    default:
-      return null;
+      return <NeuronasCerebroDemo accent={accent} reduce={reduce} />;
+    default: {
+      const Demo = DEMOS_POR_CLAVE[stepKey];
+      return Demo ? <Demo accent={accent} reduce={reduce} /> : null;
+    }
   }
 }
 
