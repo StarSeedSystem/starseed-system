@@ -182,6 +182,11 @@ const PanelProtomoleculaAutonomo = dynamic(
     () => import("@/components/protomolecula/panel-protomolecula").then((mod) => mod.PanelProtomoleculaAutonomo),
     { ssr: false, loading: dashboardWidgetLoading }
 );
+// Ola 1018K: ventana/widget «Estudio de vídeo» (HyperFrames), carga perezosa igual
+const EstudioVideoVentana = dynamic(
+    () => import("@/components/video/estudio-video-ventana").then((mod) => mod.EstudioVideoVentana),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
 
 interface WidgetProps {
     widget: DashboardWidget;
@@ -280,6 +285,11 @@ function cuerpoClasico(
     weatherVariant: string | undefined,
     onUpdateSettings?: (patch: Record<string, any>) => void,
 ): React.ReactElement {
+    // Ola 1018K: widget «estudio-video» (HyperFrames). Su tipo aún no está en la
+    // unión de WidgetType, así que se compara ensanchado a string; cuando entra
+    // en la unión, esto pasa a ser un `case` normal.
+    const tipo: string = widget.widget_type;
+    if (tipo === "estudio-video") return <EstudioVideoVentana compacto />;
     switch (widget.widget_type) {
         case 'EXPLORE_NETWORK':
             return <ExploreNetworkWidget />;
