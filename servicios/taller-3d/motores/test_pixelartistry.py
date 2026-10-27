@@ -63,12 +63,13 @@ def _flujo_en_disco(tmp, nombre="PixelArtistry_01_Image_to_Watertight_Mesh.json"
 
 class Disponible(unittest.TestCase):
     def test_en_mac_o_linux_dice_que_no_y_por_que(self):
+        # Se afirman dentro del bucle: antes solo se comprobaba el último SO.
         for so in ("Darwin", "Linux"):
             with mock.patch.object(pa.platform, "system", return_value=so):
                 r = pa.disponible(ComfyFalso())
-        self.assertFalse(r["ok"])
-        self.assertIn("solo Windows 10/11", r["fallo"])
-        self.assertIn("blender-voxel", r["fallo"])
+            self.assertFalse(r["ok"], so)
+            self.assertIn("solo Windows 10/11", r["fallo"], so)
+            self.assertIn("blender-voxel", r["fallo"], so)
 
     def test_windows_sin_nvidia_dice_que_no(self):
         with mock.patch.object(pa.platform, "system", return_value="Windows"), \
