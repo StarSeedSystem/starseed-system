@@ -43,8 +43,21 @@ export interface PoliticaCapa {
 
 export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>;
 
-/** Tipos de sistema/entidad que reciben versiones (los del diálogo «Crear en la red» y el perfil). */
-export type TipoEntidad = "perfil" | "pagina" | "grupo" | "comunidad" | "estudio" | "evento" | "os";
+/** Tipos de sistema/entidad que reciben versiones (los del diálogo «Crear en la red» y el perfil).
+ * Los nombres del contrato §4 (perfil-privado, página pública, grupo jerárquico o democrático)
+ * son variantes de los mismos: se mapean a la política base y el democrático exige aprobación. */
+export type TipoEntidad =
+  | "perfil"
+  | "pagina"
+  | "grupo"
+  | "comunidad"
+  | "estudio"
+  | "evento"
+  | "os"
+  | "perfil-privado"
+  | "pagina-publica"
+  | "grupo-jerarquico"
+  | "grupo-democratico";
 
 export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
   perfil: "perfil privado",
@@ -54,6 +67,10 @@ export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
   estudio: "grupo de estudio",
   evento: "evento",
   os: "StarSeed OS",
+  "perfil-privado": "perfil privado",
+  "pagina-publica": "página pública",
+  "grupo-jerarquico": "grupo jerárquico",
+  "grupo-democratico": "grupo democrático",
 };
 
 export const VENTANA_NOCTURNA: VentanaHoraria = { desdeH: 3, hastaH: 6 };
@@ -62,8 +79,9 @@ const P = (modo: ModoPolitica, ventana?: VentanaHoraria): PoliticaCapa => (venta
 
 /**
  * Política por defecto según el tipo (contrato §4):
- *   · perfil privado → datos e interfaz automáticas; servicios, modelos y app nativa avisan;
- *   · página o espacio público de un grupo → sigue la rama estable sola en lo declarativo;
+ *   · perfil privado, grupo jerárquico → datos e interfaz automáticas; servicios, modelos y app nativa avisan;
+ *   · página o espacio público de un grupo → sigue la rama estable sola en lo declarativo (igual que el perfil);
+ *   · grupo democrático → igual, y además cada capa pide aprobación antes de aplicarse;
  *   · el OS → igual que un perfil, pero los modelos (descargas grandes) en la ventana nocturna.
  * Lo que una entidad democrática PUBLICA se vota antes (eso es la aprobación del manifiesto,
  * no esta política): lo ya aprobado llega automático a quien lo tenga así.
@@ -81,11 +99,20 @@ export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
   return base;
 }
 
+/** Un grupo democrático no aplica ni una capa sin la votación correspondiente (contrato §4). */
+export function requiereAprobacion(tipo: TipoEntidad): boolean {
+  return tipo === "grupo-democratico";
+}
+
 export interface ContextoDecision {
   /** Hora local actual (0-23). */
   ahoraH: number;
   /** Esta neurona es la elegida para «automática solo en esta neurona». */
   esNeuronaElegida: boolean;
+  /** ¿Requiere esta entidad votación (grupo democrático) para aplicar lo que llegue? */
+  requiereAprobacion?: boolean;
+  /** ¿Llegó ya aprobada (por votación o vía del manifiesto)? */
+  aprobada?: boolean;
 }
 
 export type Decision = "aplicar" | "avisar" | "esperar";
@@ -95,8 +122,11 @@ function dentroDeVentana(h: number, v: VentanaHoraria): boolean {
   return v.desdeH < v.hastaH ? h >= v.desdeH && h < v.hastaH : h >= v.desdeH || h < v.hastaH;
 }
 
-/** Qué hacer con una capa pendiente en ESTA neurona según su política. */
+/** Qué hacer con una capa pendiente en ESTA neurona según su política.
+ * Primera regla (grupo democrático, contrato §4): si lo que llega exige votación y no la tiene,
+ * se ESPERA siempre — sin excepción, pase cualquiera que sea el modo de la capa. */
 export function decidirPolitica(p: PoliticaCapa, ctx: ContextoDecision): Decision {
+  if (ctx.requiereAprobacion && ctx.aprobada !== true) return "esperar";
   switch (p.modo) {
     case "automatica-todas":
       return "aplicar";
