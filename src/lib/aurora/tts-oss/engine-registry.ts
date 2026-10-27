@@ -439,6 +439,8 @@ export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
   "voice158",
   // VibeVoice va después: único motor multi-locutor GPU-native (hasta 4 speakers).
   "vibevoice",
+  // (SGO1024C) xAI en la prioridad que le da el registro.
+  "xai",
   "voxcpm",
   "voicebox",
   "gpt-sovits",

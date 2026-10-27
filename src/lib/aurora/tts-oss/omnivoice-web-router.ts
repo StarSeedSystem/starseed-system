@@ -116,6 +116,8 @@ const DEFAULT_CHAIN_PRIORITY = [
   // si no responde, el router los salta sin coste (salud previa).
   "voice158",
   "vibevoice",
+  // (SGO1024C) xAI entra en el sitio que le da el registro/AUTO_ENDPOINT_ORDER.
+  "xai",
   "voicebox",
   "omnivoice",
   "openvoice2",

@@ -160,8 +160,8 @@ describe("su sitio en la cadena respeta el registro", () => {
   it("un orden guardado de antes conserva lo de la persona y los suma en su sitio", () => {
     const viejo = ["omnivoice", "openvoice2", "chatterbox", "kokoro", "voicebox", "voxcpm", "bark", "gpt-sovits", "kitten", "browser"];
     const nuevo = completarPrioridad(viejo);
-    expect(nuevo.slice(0, 2)).toEqual(["voice158", "vibevoice"]);
-    expect(nuevo.slice(2)).toEqual(viejo);
+    expect(nuevo.slice(0, 3)).toEqual(["voice158", "vibevoice", "xai"]);
+    expect(nuevo.slice(3)).toEqual(viejo);
   });
 });
 

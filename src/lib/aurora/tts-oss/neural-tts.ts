@@ -664,7 +664,13 @@ async function neuralSpeakVibeVoice(
 
   let blob: Blob | null = null;
   try {
-    const url = endpoint.replace(/\/$/, "") + "/api/vibevoice/synthesize";
+    // (SGO1024C) Si el endpoint ya trae ruta explícita, respétala.
+    let url: string;
+    if (hasExplicitPath(endpoint)) {
+      url = endpoint.replace(/\/+$/, "");
+    } else {
+      url = endpoint.replace(/\/+$/, "") + "/api/vibevoice/synthesize";
+    }
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
