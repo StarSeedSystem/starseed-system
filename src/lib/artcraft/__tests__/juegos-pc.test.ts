@@ -21,8 +21,8 @@ describe("artcraft · rare", () => {
     const notas = rare().control.notas;
     expect(notas).toContain("LEGENDARY_CONFIG_PATH");
     expect(notas).toContain("0700");
-    expect(notas).toMatch(/por persona/);
-    expect(notas).toMatch(/nunca/);
+    expect(notas).toContain("por persona");
+    expect(notas).toContain("nunca");
   });
 
   it("no expone campos de la sesión de Epic en la ficha publicada", () => {
