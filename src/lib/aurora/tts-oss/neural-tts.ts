@@ -340,6 +340,20 @@ function hasExplicitPath(endpoint: string): boolean {
   }
 }
 
+/**
+ * URL de síntesis de VibeVoice. Si el endpoint configurado YA trae una ruta
+ * explícita (p. ej. `https://mi-tunel.example/voz/vibevoice`), se respeta TAL
+ * CUAL: antes se le pegaba `/api/vibevoice/synthesize` detrás y la petición
+ * acababa en una ruta inexistente. Solo al origen se le añade la ruta por
+ * defecto del backend Astraura. PURA y testeable; "" si no hay endpoint.
+ */
+export function vibevoiceSynthesizeUrl(endpoint: string): string {
+  const base = (endpoint || "").trim();
+  if (!base) return "";
+  if (hasExplicitPath(base)) return base;
+  return `${base.replace(/\/+$/, "")}/api/vibevoice/synthesize`;
+}
+
 /** URLs candidatas a las que POSTear para este motor. */
 function candidateUrls(engine: NeuralVoiceEngine, endpoint: string): string[] {
   if (hasExplicitPath(endpoint)) return [endpoint];
@@ -664,7 +678,9 @@ async function neuralSpeakVibeVoice(
 
   let blob: Blob | null = null;
   try {
-    const url = endpoint.replace(/\/$/, "") + "/api/vibevoice/synthesize";
+    // Respeta la ruta explícita del endpoint (túnel directo a VibeVoice); si es
+    // solo origen, añade la ruta por defecto del backend Astraura.
+    const url = vibevoiceSynthesizeUrl(endpoint);
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

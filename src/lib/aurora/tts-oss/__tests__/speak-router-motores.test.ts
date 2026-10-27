@@ -160,8 +160,25 @@ describe("su sitio en la cadena respeta el registro", () => {
   it("un orden guardado de antes conserva lo de la persona y los suma en su sitio", () => {
     const viejo = ["omnivoice", "openvoice2", "chatterbox", "kokoro", "voicebox", "voxcpm", "bark", "gpt-sovits", "kitten", "browser"];
     const nuevo = completarPrioridad(viejo);
-    expect(nuevo.slice(0, 2)).toEqual(["voice158", "vibevoice"]);
-    expect(nuevo.slice(2)).toEqual(viejo);
+    expect(nuevo.slice(0, 3)).toEqual(["voice158", "vibevoice", "xai"]);
+    expect(nuevo.slice(3)).toEqual(viejo);
+  });
+});
+
+describe("xai: el pin de una personalidad deja de caer detrás de Kokoro", () => {
+  it("ocupa el sitio de su realismo (5) en la jerarquía, por delante de Kokoro", () => {
+    const pri = getVoiceChainPriority();
+    expect(pri).toContain("xai");
+    expect(pri.indexOf("xai")).toBeGreaterThan(pri.indexOf("vibevoice"));
+    expect(pri.indexOf("xai")).toBeLessThan(pri.indexOf("kokoro"));
+  });
+
+  it("una cadena con xai fijado por la personalidad lo mantiene delante de Kokoro", () => {
+    const cadena = buildVoiceChain(getVoiceConfig(), "xai");
+    expect(cadena).toContain("xai");
+    const ordenada = applyVoiceChainPriority(cadena);
+    expect(ordenada[0]).toBe("xai");
+    expect(ordenada.indexOf("xai")).toBeLessThan(ordenada.indexOf("kokoro"));
   });
 });
 
@@ -268,5 +285,85 @@ describe("voz 1.58-bit: habla con el servidor cuya salud se comprobó", () => {
     await vi.advanceTimersByTimeAsync(ENGINE_TIMEOUT_MS.voice158);
     expect(await p).toBeNull();
     expect(onError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("VibeVoice: respeta la ruta explícita de su endpoint", () => {
+  type Real = typeof import("@/lib/aurora/tts-oss/neural-tts");
+  const real = () => vi.importActual<Real>("@/lib/aurora/tts-oss/neural-tts");
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "Audio",
+      class {
+        onended: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        constructor(public src: string) {}
+        play() {
+          this.onended?.();
+          return Promise.resolve();
+        }
+      },
+    );
+    URL.createObjectURL = vi.fn(() => "blob:vibevoice");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it("solo añade /api/vibevoice/synthesize cuando el endpoint es un origen", async () => {
+    const { vibevoiceSynthesizeUrl } = await real();
+    expect(vibevoiceSynthesizeUrl("https://mi-tunel.example")).toBe(
+      "https://mi-tunel.example/api/vibevoice/synthesize",
+    );
+    expect(vibevoiceSynthesizeUrl("https://mi-tunel.example/")).toBe(
+      "https://mi-tunel.example/api/vibevoice/synthesize",
+    );
+    expect(vibevoiceSynthesizeUrl("https://mi-tunel.example/voz/vibevoice")).toBe(
+      "https://mi-tunel.example/voz/vibevoice",
+    );
+    expect(vibevoiceSynthesizeUrl("http://127.0.0.1:7860/tts/")).toBe(
+      "http://127.0.0.1:7860/tts/",
+    );
+  });
+
+  it("la síntesis pega a la ruta configurada TAL CUAL, sin duplicarla", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        urls.push(url);
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => "audio/wav" },
+          arrayBuffer: async () => new Uint8Array([82, 73, 70, 70]).buffer,
+        };
+      }),
+    );
+    conServidor("vibevoice", "https://mi-tunel.example/voz/vibevoice");
+    const { neuralSpeak } = await real();
+    const audio = await neuralSpeak("vibevoice", TEXTO);
+    expect(audio).not.toBeNull();
+    expect(urls).toEqual(["https://mi-tunel.example/voz/vibevoice"]);
+  });
+
+  it("un endpoint que es solo origen sigue recibiendo la ruta del backend", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        urls.push(url);
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => "audio/wav" },
+          arrayBuffer: async () => new Uint8Array([82, 73, 70, 70]).buffer,
+        };
+      }),
+    );
+    conServidor("vibevoice", "https://gpu.local:7860");
+    const { neuralSpeak } = await real();
+    const audio = await neuralSpeak("vibevoice", TEXTO);
+    expect(audio).not.toBeNull();
+    expect(urls).toEqual(["https://gpu.local:7860/api/vibevoice/synthesize"]);
   });
 });

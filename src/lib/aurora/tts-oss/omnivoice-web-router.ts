@@ -116,6 +116,11 @@ const DEFAULT_CHAIN_PRIORITY = [
   // si no responde, el router los salta sin coste (salud previa).
   "voice158",
   "vibevoice",
+  // xAI · Grok Voice (Adenda 97): realism 5 en el registro (`engine-registry`),
+  // igual que VibeVoice/VoxCPM. No entra por AUTO (gratis-primero manda), pero
+  // si una personalidad lo fija, sin estar aquí `applyVoiceChainPriority` lo
+  // mandaba DETRÁS de Kokoro y el pin acababa ignorado.
+  "xai",
   "voicebox",
   "omnivoice",
   "openvoice2",
