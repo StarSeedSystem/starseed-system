@@ -182,6 +182,17 @@ const PanelProtomoleculaAutonomo = dynamic(
     () => import("@/components/protomolecula/panel-protomolecula").then((mod) => mod.PanelProtomoleculaAutonomo),
     { ssr: false, loading: dashboardWidgetLoading }
 );
+// Estudio de vídeo (HFR1018K · video-hyperframes.md): perezosa por lo mismo.
+const EstudioVideoVentana = dynamic(
+    () => import("@/components/video/estudio-video-ventana").then((mod) => mod.EstudioVideoVentana),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+/** Widgets con id de registro propio fuera del manifiesto: los abren la pizarra, el
+ *  escritorio y la ventana flotante por su id (aquí solo vive la entrada). */
+type PropsWidgetExtra = { widget?: DashboardWidget; onUpdateSettings?: (patch: Record<string, unknown>) => void };
+const WIDGETOS_EXTRA: { [id: string]: React.ComponentType<PropsWidgetExtra> | undefined } = {
+    "estudio-video": EstudioVideoVentana,
+};
 
 interface WidgetProps {
     widget: DashboardWidget;
@@ -523,11 +534,15 @@ function cuerpoClasico(
         case 'PROTOMOLECULA':
             return <PanelProtomoleculaAutonomo compacto />;
 
-        default:
+        default: {
+            // Widgets con id de registro propio fuera del manifiesto (HFR1018K).
+            const Extra = WIDGETOS_EXTRA[widget.widget_type];
+            if (Extra) return <Extra widget={widget} onUpdateSettings={onUpdateSettings} />;
             return (
                 <div className="flex h-full items-center justify-center p-4">
                     <span className="text-muted-foreground text-sm">Widget desconocido: {widget.widget_type}</span>
                 </div>
             );
+        }
     }
 }
