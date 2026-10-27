@@ -50,6 +50,7 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
     expect(ficha!.nota).toContain("sin comprobar del todo");
     expect(ficha!.motores).toContain("onnx-web");
     expect(ficha!.uso).toBe("condicionado");
+    expect(ficha!.licencia).toContain("Stability");
   });
 
   it("el total de pesos cuadra con los 2,51 GB documentados y en claro son «2,3 GB»", () => {
@@ -60,6 +61,17 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
   it("solo los TRES archivos necesarios: ni encoder del VAE ni scheduler", () => {
     expect(PESOS_SD_TURBO.map((p) => p.ruta)).toEqual(["unet/model.onnx", "text_encoder/model.onnx", "vae_decoder/model.onnx"]);
     for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
+  });
+
+  it("los bytes de cada peso son los MEDIDOS del repo oficial, sin redondeos", () => {
+    expect(Object.fromEntries(PESOS_SD_TURBO.map((p) => [p.ruta, p.bytes]))).toEqual({
+      "unet/model.onnx": 1733430199,
+      "text_encoder/model.onnx": 681393168,
+      "vae_decoder/model.onnx": 99094314,
+    });
+    expect(BYTES_PESOS_SD_TURBO).toBe(1733430199 + 681393168 + 99094314);
+    expect(`${REPO_ONNX_SD_TURBO}/${PESOS_SD_TURBO[0].ruta}`)
+      .toBe("https://huggingface.co/schmuell/sd-turbo-ort-web/resolve/main/unet/model.onnx");
   });
 
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
