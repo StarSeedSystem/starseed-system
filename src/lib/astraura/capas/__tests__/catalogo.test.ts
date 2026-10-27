@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   leerCatalogo,
@@ -142,5 +144,37 @@ describe("profundidadNeedle", () => {
   it("sin presupuesto suficiente no hay reflejo local", () => {
     expect(profundidadNeedle(0)).toBe(0);
     expect(profundidadNeedle(7)).toBe(0);
+  });
+});
+
+interface EntradaCruda {
+  id: string;
+  estado: EntradaCapa["estado"];
+  sha256: string;
+  tamano_bytes?: number;
+}
+
+describe("catálogo real · Ternary Bonsai 2 en el banco", () => {
+  const json = JSON.parse(
+    readFileSync(join(process.cwd(), "config/capas-astraura.json"), "utf8"),
+  ) as { capas: EntradaCruda[] };
+  const porId = (id: string): EntradaCruda | undefined => json.capas.find((c) => c.id === id);
+  const nuevos = ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"];
+
+  it("el JSON sigue siendo válido y los ids siguen siendo únicos", () => {
+    expect(Array.isArray(json.capas)).toBe(true);
+    const ids = json.capas.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("da de alta los tres tamaños como en-banco, sin promoverlos", () => {
+    for (const id of nuevos) {
+      const entrada = porId(id);
+      expect(entrada, id).toBeDefined();
+      expect(entrada!.estado, id).toBe("en-banco");
+      expect(entrada!.sha256, id).toMatch(/^[0-9a-f]{64}$/);
+      expect(entrada!.tamano_bytes ?? 0, id).toBeGreaterThan(0);
+      expect(usable({ ...entradaBase, estado: entrada!.estado, sha256: entrada!.sha256 }), id).toBe(false);
+    }
   });
 });
