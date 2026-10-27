@@ -70,6 +70,12 @@ describe("prepararGeneracion", () => {
     expect(conSpace.motivo).toMatch(/^Esta neurona no puede generar en local.*saldría de este aparato\.$/);
     expect(prepararGeneracion(ctx({ destino: "bot", hierro: cpu }), deps()).via).toBe("ninguna");
   });
+  it("sin permiso de la cuenta no ofrece el Space aunque exista el respaldo, y lo dice", () => {
+    const hierroSinPermiso: Hierro = { ...MAC8, permiteEspacioHf: false };
+    const p = prepararGeneracion(ctx({ hierro: hierroSinPermiso }), deps({ espacio: async () => ok() }));
+    expect(p.via).toBe("ninguna");
+    expect(p.motivo).toMatch(/versiones p[úu]blicas .* apagadas/i);
+  });
 });
 
 describe("generar3d", () => {
