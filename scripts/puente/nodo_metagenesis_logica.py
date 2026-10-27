@@ -1040,6 +1040,50 @@ def autocurar(salud: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> L
 CERRADAS = {"commit", "hecho", "integrada", "sustituida", "rechazada", "descartada", "obsoleta", "informe",
             "reasignada"}
 
+#: El sha rojo que `tarea_de_reparacion` escribió en el prompt («…min frenada en %s por…»).
+_RE_SHA_ROJO = re.compile(r"frenada en ([0-9a-f]{7,40})")
+#: Fases de la autopublicación (autopublishar.py) en las que la puerta está de verdad en verde.
+PUBLICACION_VERDE = ("publicado", "publicada", "ok", "al-dia")
+
+
+def reparaciones_superadas(tareas: Sequence[Any], progreso: Dict[str, Any],
+                           publicacion: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """PURA. Las reparaciones de UNA PUERTA DE PUBLICACIÓN EN ROJO que ya no tienen nada que arreglar
+    (MGB1021Ab). Caso real del 21-10: la puerta volvió a verde y publicó, pero la cadena de tareas de
+    reparación siguió reintentándose una semana hasta quedar «sin salida».
+
+    De las tareas `origen: metagenesis` cuyo título empieza por «Puerta de publicación en rojo» y de
+    TODAS sus sucesoras de cadena (`-dN`, `-b`, `-c…`: misma raíz), devuelve `[(id, nota)]` de las
+    que siguen abiertas cuando la publicación está hoy en verde: su `fase` está en
+    `PUBLICACION_VERDE`, o hay un sha publicado distinto del sha rojo que guardó la tarea en su
+    prompt (la puerta ya veta OTRO commit). Se cierran con estado «sustituida» y una nota que lo
+    dice: en progreso.json nunca se borra nada."""
+    pub = publicacion if isinstance(publicacion, dict) else {}
+    fase = str(pub.get("fase") or "")
+    sha_pub = str(pub.get("sha") or "").strip()
+    rojas = {base_de_tarea(t["id"]) for t in tareas or () if isinstance(t, dict) and t.get("id")
+             and str(t.get("origen") or "") == "metagenesis"
+             and str(t.get("titulo") or "").startswith("Puerta de publicación en rojo")}
+    if not rojas:
+        return []
+    salida: List[Tuple[str, str]] = []
+    for t in tareas or ():
+        if not isinstance(t, dict) or not t.get("id") or base_de_tarea(t["id"]) not in rojas:
+            continue
+        tid = str(t["id"])
+        e = (progreso or {}).get(tid)
+        estado = e.get("estado") if isinstance(e, dict) else ""
+        if estado in CERRADAS:
+            continue
+        verde = fase in PUBLICACION_VERDE
+        if not verde and sha_pub:
+            m = _RE_SHA_ROJO.search(str(t.get("prompt") or ""))
+            verde = bool(m) and sha_pub[:len(m.group(1))] != m.group(1)
+        if verde:
+            salida.append((tid, "NO APLICA: la puerta de publicación volvió a verde (publicado %s)"
+                           % (sha_pub[:12] or "sin sha")))
+    return salida
+
 
 def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, Any]]]], ids_vivos: set,
                        progreso: Dict[str, Any], asuntos_git: Sequence[str], ahora: float,

@@ -470,6 +470,9 @@ class Nodo:
             sin_aut = not any((l.get("salud") or {}).get("autoritativo") for l in vivos.values())
             if sin_aut and enlace is not None and t - float(self.mem.get("ultimo_autoritativo_ts") or t) >= L.RELEVO_MEDIO_S:
                 mundo["colas_portables"] = enlace.ultimas_colas()
+            # MGB1021Ab · las reparaciones de la puerta de publicación que ya no aplican se cierran
+            # solas, en el mismo paso de la vuelta en el que se crean o se presta una.
+            self._cerrar_reparaciones_superadas(salud, medida["raiz"], informe, t)
             for a in L.planificar(mundo, self.mem, t):
                 if a["accion"] == "avisar":
                     self._avisar(a, informe, t)
@@ -810,6 +813,42 @@ class Nodo:
         informe["acciones"].append(d)
         if self.enlace is not None and self.modo == "real":
             self.enlace.decision(d)
+
+    def _cerrar_reparaciones_superadas(self, salud: Dict[str, Any], raiz: str, informe: Dict[str, Any],
+                                       t: float) -> None:
+        """Las reparaciones de UNA PUERTA DE PUBLICACIÓN EN ROJO se cierran solas cuando la puerta
+        vuelve a verde (MGB1021Ab): la cadena MGP1014-C715AA-d1b…d3 siguió reintentándose una semana
+        después de que la autopublicación ya hubiera publicado. Va en la misma pasada que las crea,
+        en el medio con las colas en su disco, y se cierra con el MECANISMO de escritura de progreso
+        que ya usa la nube (`traer_nube`): cerrojo `progreso` (flock con espera) y escritura atómica.
+        Nunca se borra nada de progreso.json: cada tarea queda «sustituida» con la nota que lo explica."""
+        r = salud.get("resultados") or {}
+        pub = r.get("publicacion") if isinstance(r, dict) else None
+        if self.modo == "seco" or not isinstance(pub, dict) or not (pub.get("fase") or pub.get("sha")):
+            return
+        try:
+            progreso = M.leer_json(os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json"), {})
+            superadas = L.reparaciones_superadas([x for _, x in T._colas_por_id().values()],
+                                                 progreso if isinstance(progreso, dict) else {}, pub)
+            if not superadas:
+                return
+            T._actualizar_progreso({tid: {"estado": "sustituida", "nota": nota, "t": t}
+                                    for tid, nota in superadas})
+        except TimeoutError:  # noqa: PERF203 — el cerrojo `progreso` tan pronto se libera
+            informe["avisos"].append("cerrojo progreso ocupado: el cierre de reparaciones superadas se reintenta")
+            return
+        except OSError:
+            informe["avisos"].append("sin disco: el cierre de reparaciones superadas se reintenta")
+            return
+        sha = str(pub.get("sha") or "")[:12] or str(pub.get("fase") or "")
+        texto = ("publicado %s: cierro %d reparación(es) de la puerta en rojo que ya no aplican (%s)"
+                 % (sha, len(superadas), ", ".join(tid for tid, _ in superadas[:8])))
+        d = {"ts": t, "accion": "cerrar_reparaciones", "nodo": self.yo,
+             "motivo": "la puerta de publicación volvió a verde", "resultado": texto,
+             "seco": self.modo == "seco", "termino": self.mem.get("termino")}
+        self._registrar(d, informe)
+        self._decir("MetaGenesis · la puerta de publicación volvió a verde (%s): %s, nadie tiene ya que arreglarla."
+                    % (sha, texto[:180]))
 
     def _avisar(self, a: Dict[str, Any], informe: Dict[str, Any], t: float) -> None:
         """Un aviso a la dirección (Chat Director), una vez por motivo y enfriamiento."""
