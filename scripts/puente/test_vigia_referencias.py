@@ -67,6 +67,10 @@ class Cadenas_y_parseo(unittest.TestCase):
         self.assertEqual(len(V.huella_sha256(b"algo")), 64)
         self.assertNotEqual(V.huella_sha256(b"algo"), V.huella_sha256(b"algo2"))
 
+    def test_cargar_json_sin_archivo_devuelve_el_valor_por_defecto(self):
+        self.assertEqual(V.cargar_json("/ruta/que/no/existe.json", {"por defecto": "valor"}),
+                         {"por defecto": "valor"})
+
     def test_fecha_a_iso(self):
         self.assertEqual(V.fecha_a_iso("Tue, 20 Oct 2026 12:00:00 GMT"),
                          "2026-10-20T12:00:00Z")
