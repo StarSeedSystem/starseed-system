@@ -467,6 +467,11 @@ class Nodo:
                      "ultimo_autoritativo_ts": self.mem.get("ultimo_autoritativo_ts")}
             # COL1012G · relevo sin pérdidas: las tareas a medias de un aparato que se fue siguen en otro.
             self._relevar(nov, vivos, medida["raiz"], informe, t)
+            # (MGB1021Ab) La misma pasada que repara una puerta en rojo cierra las reparaciones de
+            # una puerta que YA volvió a verde: antes se reintentaban hasta quedarse «sin salida».
+            if salud.get("autoritativo"):
+                self._cerrar_reparaciones(medida["raiz"], (salud.get("resultados") or {}).get("publicacion") or {},
+                                          informe, t)
             sin_aut = not any((l.get("salud") or {}).get("autoritativo") for l in vivos.values())
             if sin_aut and enlace is not None and t - float(self.mem.get("ultimo_autoritativo_ts") or t) >= L.RELEVO_MEDIO_S:
                 mundo["colas_portables"] = enlace.ultimas_colas()
@@ -962,6 +967,71 @@ class Nodo:
                     self._prestar([tarea], destino, "reparar la publicación: %s" % tarea["id"], informe, t)
         self._registrar({"ts": t, "accion": "reparar_publicacion", "nodo": a["nodo"],
                          "motivo": L.tachar(a["motivo"])[:200], "resultado": L.tachar(resultado)[:200],
+                         "seco": self.modo == "seco", "termino": self.mem.get("termino")}, informe)
+
+    def _tareas_de_reparacion(self, raiz: str) -> List[Dict[str, Any]]:
+        """Tareas que pueden ser reparaciones de MetaGenesis: colas vivas y colas-fuente, sin repetir."""
+        vistas: Dict[str, Dict[str, Any]] = {}
+        for _nombre, lista in M.colas_de_codigo_vivas(raiz):
+            for x in lista or ():
+                if isinstance(x, dict) and x.get("id"):
+                    vistas.setdefault(str(x["id"]), x)
+        fuente = os.path.join(raiz, "starseed_memory_root", "colas-fuente")
+        try:
+            nombres = sorted(os.listdir(fuente), reverse=True)
+        except OSError:
+            nombres = []
+        for n in nombres:
+            if not (n.startswith("cola-") and n.endswith(".json")):
+                continue
+            d = M.leer_json(os.path.join(fuente, n), [])
+            lista = d if isinstance(d, list) else (d or {}).get("tareas", []) if isinstance(d, dict) else []
+            for x in lista or ():
+                if isinstance(x, dict) and x.get("id"):
+                    vistas.setdefault(str(x["id"]), x)
+        return list(vistas.values())
+
+    def _cerrar_reparaciones(self, raiz: str, pub: Dict[str, Any], informe: Dict[str, Any], t: float) -> None:
+        """Cierra como `sustituida` las reparaciones de una puerta que ya volvió a verde (MGB1021Ab).
+
+        Usa el mismo cerrojo y la misma escritura atómica que el resto de `progreso.json`; nunca
+        borra una entrada, solo le añade el estado, la nota y la hora.
+        """
+        if not pub.get("fase") and not pub.get("sha"):
+            return
+        ruta = os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json")
+        tareas = self._tareas_de_reparacion(raiz)
+        cierres: List[tuple] = []
+        try:
+            if self.modo == "seco":
+                cierres = L.reparaciones_superadas(tareas, M.leer_json(ruta, {}), pub)
+            else:
+                with T._Cerrojo("progreso", 60):
+                    progreso = T._leer_json(ruta, {})
+                    progreso = progreso if isinstance(progreso, dict) else {}
+                    cierres = L.reparaciones_superadas(tareas, progreso, pub)
+                    if cierres:
+                        hora = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t))
+                        for tid, nota in cierres:
+                            entrada = dict(progreso.get(tid) or {}) if isinstance(progreso.get(tid), dict) else {}
+                            entrada.update(estado="sustituida", nota=nota, t=hora)
+                            progreso[tid] = entrada
+                        T._escribir_json(ruta, progreso)
+        except Exception as e:  # noqa: BLE001 — una vuelta del nodo no se cae por el cerrojo
+            informe.setdefault("avisos", []).append("cerrar reparaciones: %s" % type(e).__name__)
+            return
+        if not cierres:
+            return
+        ids = ", ".join(tid for tid, _ in cierres)
+        if self.modo == "seco":
+            resultado = "seca: cerraría %s" % ids
+        else:
+            resultado = "cerradas %d: %s" % (len(cierres), ids)
+            self._decir("MetaGenesis · %d reparación(es) de una puerta de publicación ya superada pasan a "
+                        "«sustituida»: %s. La puerta volvió a verde; no se borra nada del progreso." % (
+                            len(cierres), ids))
+        self._registrar({"ts": t, "accion": "cerrar_reparaciones", "nodo": self.yo,
+                         "motivo": "la puerta de publicación volvió a verde", "resultado": L.tachar(resultado)[:200],
                          "seco": self.modo == "seco", "termino": self.mem.get("termino")}, informe)
 
     def _publicar_foto(self, vivos: Dict[str, Dict[str, Any]], termino: int, salud: Dict[str, Any], t: float,
