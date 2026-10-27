@@ -69,6 +69,16 @@ describe("componerProcesos", () => {
             presencia: { medios: [{}] },
         })).toEqual([]);
     });
+
+    // Rescate de rama nube 39788552674
+    it("no mezcla procesos en marcha con los que esperan", () => {
+        const r = componerProcesos({
+            poligenesis: { propuestas: [{ id: "p1", titulo: "Votación", estado: "open" }] },
+            medidores: { latidos: [{ tarea: "CB1", fase: "escribiendo", modelo: "m", minutos: 1, donde: "mac" }] },
+        });
+        expect(r[0].estado).toBe("en-marcha");
+        expect(r[r.length - 1].estado).toBe("esperando");
+    });
 });
 
 describe("leerProcesos - firmas y comportamiento básico", () => {
