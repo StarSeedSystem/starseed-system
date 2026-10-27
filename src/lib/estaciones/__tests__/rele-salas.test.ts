@@ -77,6 +77,21 @@ describe('crearSalas', () => {
     expect(salas.presencia(tema)).toBe(0);
   });
 
+  it('debería poder salir dos veces sin descontar de más', () => {
+    // Rescatado de rama nube: `salir` es idempotente; una segunda salida no toca la sala ni a los demás.
+    const salas = crearSalas();
+    const tema = 'estacion-vivo:Tema12345678';
+    const conexion1 = {};
+    const conexion2 = {};
+    salas.entrar(tema, conexion1);
+    salas.entrar(tema, conexion2);
+    salas.salir(conexion1);
+    salas.salir(conexion1);
+    expect(salas.presencia(tema)).toBe(1);
+    expect(salas.temaDe(conexion1)).toBeUndefined();
+    expect(salas.temaDe(conexion2)).toBe(tema);
+  });
+
   it('debería no reenviar al emisor en difundir', () => {
     const salas = crearSalas({ maxSalas: 100, maxPorSala: 100, maxBytes: 100 });
     const tema = 'estacion-vivo:Tema112345678';

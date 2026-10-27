@@ -45,6 +45,23 @@ class PruebasSeleccion(unittest.TestCase):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
 
+    def test_seleccion_combinada_no_pierde_ninguna_categoria(self):
+        """Rescatado de rama nube: fijos, logs y cola reciente conviven; una cola vieja se queda fuera."""
+        listado = self.pares(
+            "progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+            "cola-reciente.json", "evento.jsonl", "log.txt",
+        ) + [("cola-vieja.json", VIEJO)]
+        self.assertEqual(
+            que_copiar(listado, AHORA),
+            ["cola-reciente.json", "evento.jsonl", "log.txt", "medios.json",
+             "progreso.json", "progreso.md", "puntos-control.json"],
+        )
+
+    def test_log_txt_por_nombre_viaja_aunque_no_sea_jsonl(self):
+        """Rescatado de rama nube: un log no se reconoce solo por la extensión; «log.txt» también viaja."""
+        sel = que_copiar(self.pares("log.txt", "notas.txt"), AHORA)
+        self.assertEqual(sel, ["log.txt"])
+
 
 class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
@@ -91,6 +108,21 @@ class PruebasEmpaquetar(unittest.TestCase):
             self.assertEqual(len(log), espejo_estado.LOG_LINEAS)
             self.assertEqual(log[0], "registro %d" % (largo - espejo_estado.LOG_LINEAS))
             self.assertEqual(log[-1], "registro %d" % (largo - 1))
+
+
+    def test_log_txt_recortado_y_json_entero_en_la_raiz(self):
+        """Rescatado de rama nube: un .txt con «log» en el nombre se recorta como cualquier log,
+        un JSON fijo viaja entero y todo queda en la raíz del paquete."""
+        with open(os.path.join(self.olas, "medios.json"), "w", encoding="utf-8") as f:
+            json.dump({"medios": ["oracle-a1"]}, f)
+        with open(os.path.join(self.olas, "log.txt"), "w", encoding="utf-8") as f:
+            f.write("\n".join("registro %d" % i for i in range(espejo_estado.LOG_LINEAS + 50)))
+        with self._tar(["medios.json", "log.txt"]) as tar:
+            self.assertEqual(sorted(tar.getnames()), ["log.txt", "medios.json"])
+            log = tar.extractfile("log.txt").read().decode("utf-8").splitlines()
+            self.assertEqual(len(log), espejo_estado.LOG_LINEAS)
+            self.assertEqual(log[-1], "registro %d" % (espejo_estado.LOG_LINEAS + 49))
+            self.assertIn(b"oracle-a1", tar.extractfile("medios.json").read())
 
 
 class PruebasEnviarEstado(unittest.TestCase):

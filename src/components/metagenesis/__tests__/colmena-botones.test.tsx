@@ -642,6 +642,15 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         expect(enviarOrden).not.toHaveBeenCalled();
     });
 
+    it("con el relevo activo y el contenedor ya apuntado: «Dejar de usar» lleva su explicación en el title", async () => {
+        estado.lectura = lectura([nodo({ relevo: true, contenedor: { activo: true, agentes: 2, apto: true, motivo: "Listo para trabajar" } })]);
+        pintar();
+        const boton = await screen.findByTestId(id("contenedor"));
+        expect(boton).toHaveTextContent("Dejar de usar como contenedor");
+        expect(boton).not.toBeDisabled();
+        expect(boton).toHaveAttribute("title", "Termina lo que lleva y no coge más.");
+    });
+
     it("con el relevo activo: «Usar como contenedor» activa con sus agentes y sin pedir confirmación", async () => {
         estado.lectura = lectura([nodo({ relevo: true })]);
         pintar();
