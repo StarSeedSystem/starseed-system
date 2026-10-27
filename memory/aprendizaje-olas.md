@@ -4632,3 +4632,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `APM1017G` — pruebas en rojo: vitest falla (rama conservada)
 - `RTRTCOL1012Bdsbbbbbbbbbbc` — no escribió nada
 - `VZF1015V` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-27 22:38 · mg-oracle-1027-1424
+
+**Lo que se pidió.** Traducción · idioma de lectura y autotraducción por perfil, sincronizados con la cuenta (parte 2 de 3)
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — los tipos no compilan (RTTRD1020Db-d2, RTMGP1011-1ECCC4dobjbbbbbbbb-d2, DSN1019B, VPU1019U, VPU1019P). Es 83 % de la ola.
+- freellmapi/auto no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTTRD1020Db-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTTRD1020Db-d2 conservada)
+- `COL1012H` — pruebas en rojo: vitest falla (rama conservada)
+- `RTMGP1011-1ECCC4dobjbbbbbbbb-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTMGP1011-1ECCC4dobjbbbbbbbb-d2 conservada)
+- `DSN1019B` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/DSN1019B conservada)
+- `VPU1019U` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VPU1019U conservada)
+- `VPU1019P` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VPU1019P conservada)
