@@ -10,9 +10,48 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { formatoDe, type DestinosFormato } from "./formatos";
+import { safeGet } from "@/lib/safe-storage";
 
 export const RUTA_CONVERSOR = "/convertir";
 const API = "/api/conversion";
+export const CLAVE_SERVIDORES_MALLA = "starseed.conversion.servidores.v1";
+
+export interface ServidorConversionMalla {
+    url: string;
+    /** Nombre de la clave en la bóveda de credenciales del OS; nunca el valor. */
+    tokenRef?: string;
+}
+
+/** PRUEBA: parsea la lista guardada en el almacén, sin URLs raras ni secretos en claro. */
+export function parsearServidoresMalla(crudo: string | null): ServidorConversionMalla[] {
+    if (!crudo) return [];
+    try {
+        const datos: unknown = JSON.parse(crudo);
+        if (!Array.isArray(datos)) return [];
+        const limpio: ServidorConversionMalla[] = [];
+        for (const entrada of datos) {
+            const url = typeof (entrada as { url?: unknown })?.url === "string" ? (entrada as { url: string }).url : "";
+            try {
+                if (!/^https?:\/\//i.test(new URL(url).toString())) throw new Error();
+            } catch { continue; }
+            const tokenRef = typeof (entrada as { tokenRef?: unknown })?.tokenRef === "string" ? (entrada as { tokenRef: string }).tokenRef : "";
+            const valido = tokenRef.length <= 120 && /^[A-Za-z0-9._:-]+$/.test(tokenRef);
+            limpio.push({ url: url.replace(/\/+$/, ""), ...(valido ? { tokenRef } : {}) });
+            if (limpio.length >= 8) break;
+        }
+        return limpio;
+    } catch {
+        return [];
+    }
+}
+
+interface OpcionesMalla {
+    /** Por defecto se lee del almacén (`CLAVE_SERVIDORES_MALLA`); en pruebas se inyectan. */
+    servidores?: ServidorConversionMalla[];
+    /** Saca el token del almacén de credenciales del OS por su nombre. */
+    servirToken?: (tokenRef: string) => Promise<string | null>;
+    almacenGet?: (clave: string) => string | null;
+}
 
 export interface EstadoConversor {
     disponible: boolean;
@@ -22,6 +61,8 @@ export interface EstadoConversor {
 
 export interface ConsultaDestinos extends EstadoConversor {
     destinos: DestinosFormato | null;
+    /** URL de la neurona de la malla que respondió, si no fue la local. */
+    viaMalla?: string;
 }
 
 export interface Convertido {
@@ -40,16 +81,96 @@ function motivoSinServidor(status: number): string {
     return "El conversor de esta neurona no responde.";
 }
 
+/** Lee la lista de conversores de la malla del almacén (o la de la prueba). */
+function servidoresDeMalla(op: OpcionesMalla = {}): ServidorConversionMalla[] {
+    if (op.servidores) return op.servidores;
+    try { return parsearServidoresMalla((op.almacenGet ?? safeGet)(CLAVE_SERVIDORES_MALLA)); }
+    catch { return []; }
+}
+
+/** Token del almacén de credenciales del OS: por defecto la bóveda de la cuenta. */
+async function tokenDeMalla(s: ServidorConversionMalla, op: OpcionesMalla): Promise<string | null> {
+    if (!s.tokenRef) return null;
+    if (op.servirToken) return op.servirToken(s.tokenRef);
+    try {
+        const [{ uidActual }, { vaultSecret }] = await Promise.all([
+            import("@/lib/consumo/usuario"),
+            import("@/lib/security/security"),
+        ]);
+        const uid = await uidActual();
+        if (!uid) return null;
+        const r = await vaultSecret(uid, "get", s.tokenRef);
+        return r.ok ? r.value ?? null : null;
+    } catch {
+        return null;
+    }
+}
+
+async function pedirYMirar(
+    u: URL,
+    init: RequestInit,
+    f: typeof fetch,
+): Promise<Response | null> {
+    try {
+        const r = await f(u.toString(), init);
+        return r.status >= 500 ? null : r.ok ? r : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Pregunta a los conversores de la malla; devuelve el primer que tenga Filee con ese formato. */
+async function destinosPorMalla(
+    formato: string,
+    op: OpcionesMalla,
+    f: typeof fetch,
+): Promise<ConsultaDestinos> {
+    const lista = servidoresDeMalla(op);
+    let ultimo = "Ninguna neurona de tu malla convierte archivos ahora mismo.";
+    for (const s of lista) {
+        const u = new URL("/api/conversion", s.url);
+        u.searchParams.set("de", formato);
+        const token = await tokenDeMalla(s, op);
+        const r = await pedirYMirar(u, { cache: "no-store", headers: token ? { Authorization: `Bearer ${token}` } : {} }, f);
+        if (!r) continue;
+        const d = (await r.json().catch(() => null)) as { filee?: { instalado?: boolean; version?: string | null }; destinos?: DestinosFormato | null; motivo?: string } | null;
+        const instalado = Boolean(d?.filee?.instalado);
+        if (!instalado) { ultimo = d?.motivo ?? ultimo; continue; }
+        return {
+            disponible: true,
+            version: d?.filee?.version ?? null,
+            destinos: d?.destinos ?? null,
+            motivo: d?.destinos ? undefined : `Filee no convierte archivos .${formato}.`,
+            viaMalla: s.url,
+        };
+    }
+    return { disponible: false, version: null, destinos: null, motivo: ultimo };
+}
+
+function conviertePorMalla(status: number): boolean {
+    return status === 404 || status === 503;
+}
+
 /** A qué formatos se puede convertir este archivo aquí (caché de 5 min por formato). */
-export async function consultarDestinos(nombreOFormato: string, fetchImpl: typeof fetch = fetch): Promise<ConsultaDestinos> {
+export async function consultarDestinos(
+    nombreOFormato: string,
+    fetchImpl: typeof fetch = fetch,
+    malla: OpcionesMalla = {},
+): Promise<ConsultaDestinos> {
     const f = formatoDe(nombreOFormato);
     if (!f) return { disponible: false, version: null, destinos: null, motivo: "No reconozco el formato de este archivo." };
     const hit = cache.get(f);
     if (hit && Date.now() - hit.t < 5 * 60_000) return hit.v;
-    let v: ConsultaDestinos;
+    let v: ConsultaDestinos = {
+        disponible: false,
+        version: null,
+        destinos: null,
+        motivo: "Sin conexión con la neurona que convierte.",
+    };
     try {
         const r = await fetchImpl(`${API}?de=${encodeURIComponent(f)}`, { cache: "no-store" });
         if (!r.ok) {
+            if (conviertePorMalla(r.status)) return guardarYDevolver(f, await destinosPorMalla(f, malla, fetchImpl));
             v = { disponible: false, version: null, destinos: null, motivo: motivoSinServidor(r.status) };
         } else {
             const d = (await r.json()) as { filee?: { instalado?: boolean; version?: string | null }; destinos?: DestinosFormato | null };
@@ -62,8 +183,12 @@ export async function consultarDestinos(nombreOFormato: string, fetchImpl: typeo
             };
         }
     } catch {
-        v = { disponible: false, version: null, destinos: null, motivo: "Sin conexión con la neurona que convierte." };
+        v = await destinosPorMalla(f, malla, fetchImpl);
     }
+    return guardarYDevolver(f, v);
+}
+
+function guardarYDevolver(f: string, v: ConsultaDestinos): ConsultaDestinos {
     cache.set(f, { t: Date.now(), v });
     return v;
 }
@@ -78,15 +203,27 @@ export async function convertirBlob(
     archivo: Blob,
     nombre: string,
     a: string,
-    opciones: { calidad?: number; fetchImpl?: typeof fetch; signal?: AbortSignal } = {},
+    opciones: { calidad?: number; fetchImpl?: typeof fetch; signal?: AbortSignal; malla?: OpcionesMalla } = {},
 ): Promise<Convertido> {
-    const form = new FormData();
-    form.set("archivo", archivo, nombre);
-    form.set("nombre", nombre);
-    form.set("a", formatoDe(a) || a);
-    if (opciones.calidad) form.set("calidad", String(opciones.calidad));
-    const r = await (opciones.fetchImpl ?? fetch)(API, { method: "POST", body: form, signal: opciones.signal });
+    const destino = formatoDe(a) || a;
+    const form = () => {
+        const fd = new FormData();
+        fd.set("archivo", archivo, nombre);
+        fd.set("nombre", nombre);
+        fd.set("a", destino);
+        if (opciones.calidad) fd.set("calidad", String(opciones.calidad));
+        return fd;
+    };
+    const f = opciones.fetchImpl ?? fetch;
+    const initTmp = { method: "POST", body: form(), signal: opciones.signal };
+    let r: Response;
+    try {
+        r = await f(API, initTmp);
+    } catch {
+        return convertirPorMalla(archivo, nombre, destino, opciones, form(), f);
+    }
     if (!r.ok) {
+        if (conviertePorMalla(r.status)) return convertirPorMalla(archivo, nombre, destino, opciones, form(), f);
         let motivo = motivoSinServidor(r.status);
         try {
             const j = (await r.json()) as { motivo?: string };
@@ -94,15 +231,46 @@ export async function convertirBlob(
         } catch { /* sin cuerpo JSON */ }
         throw new Error(motivo);
     }
-    const blob = await r.blob();
+    return leidoDeRespuesta(r, nombre);
+}
+
+async function leidoDeRespuesta(r: Response, nombre: string): Promise<Convertido> {
     const crudo = r.headers.get("X-Conversion-Nombre");
     return {
-        blob,
+        blob: await r.blob(),
         nombre: crudo ? decodeURIComponent(crudo) : nombre,
         salidas: Number(r.headers.get("X-Conversion-Salidas") ?? 1) || 1,
         motor: r.headers.get("X-Conversion-Motor") ?? "filee",
         ms: Number(r.headers.get("X-Conversion-Ms") ?? 0) || 0,
     };
+}
+
+/** Último recurso: los conversores de la malla en `CLAVE_SERVIDORES_MALLA`. */
+async function convertirPorMalla(
+    archivo: Blob,
+    nombre: string,
+    a: string,
+    opciones: { signal?: AbortSignal; malla?: OpcionesMalla },
+    form: FormData,
+    f: typeof fetch,
+): Promise<Convertido> {
+    const ultimo = new Error("Ninguna neurona de tu malla convierte archivos ahora mismo.");
+    for (const s of servidoresDeMalla(opciones.malla ?? {})) {
+        const token = await tokenDeMalla(s, opciones.malla ?? {});
+        const u = new URL("/api/conversion", s.url);
+        const r = await pedirYMirar(u, {
+            method: "POST",
+            body: form,
+            signal: opciones.signal,
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }, f);
+        if (!r) continue;
+        if (r.ok) return leidoDeRespuesta(r, nombre);
+        const j = (await r.json().catch(() => null)) as { motivo?: string } | null;
+        ultimo.message = j?.motivo ?? ultimo.message;
+        continue;
+    }
+    throw ultimo;
 }
 
 /** Descarga el archivo de una URL (Biblioteca, mensajes…) y lo convierte. */
