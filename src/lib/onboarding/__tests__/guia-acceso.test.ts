@@ -12,6 +12,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EVENTO_ABRIR_GUIA,
   ETIQUETA_SOLO_CUENTA,
+  ORIGENES_GUIA,
+  VENTANAS_ACCESO,
   Z_GUIA_HOY,
   Z_GUIA_SOBRE_ACCESO,
   abrirGuia,
@@ -36,6 +38,11 @@ describe("EVENTO_ABRIR_GUIA", () => {
     expect(VALOR_AURORA).toBe("starseed:open-guide");
     expect(VALOR_MODULO).toBe(VALOR_AURORA);
   });
+
+  it("la constante exportada vale exactamente la puerta de siempre", () => {
+    expect(EVENTO_ABRIR_GUIA).toBe("starseed:open-guide");
+    expect(EVENTO_ABRIR_GUIA).toBe(VALOR_MODULO);
+  });
 });
 
 describe("abrirGuia", () => {
@@ -59,6 +66,29 @@ describe("abrirGuia", () => {
     expect(ok).toBe(true);
     expect(recibidas).toEqual(["starseed:open-guide"]);
     expect(detalles).toEqual([{ desde: "bienvenida", temaInicial: "malla" }]);
+  });
+
+  it("sin temaInicial no viaja la clave (ni un undefined) y acepta un destino inyectado", () => {
+    const detalles: Array<Record<string, unknown>> = [];
+    const ventana = new EventTarget();
+    ventana.addEventListener(EVENTO_ABRIR_GUIA, (e) => {
+      detalles.push((e as CustomEvent).detail as Record<string, unknown>);
+    });
+    const ok = abrirGuia({ desde: "ajustes" }, ventana);
+    expect(ok).toBe(true);
+    expect(detalles).toEqual([{ desde: "ajustes" }]);
+    expect(Object.keys(detalles[0])).toEqual(["desde"]);
+  });
+
+  it("si el navegador impide el despacho, devuelve false y no lanza", () => {
+    const roto = {
+      dispatchEvent() {
+        throw new Error("sin permiso");
+      },
+    } as unknown as EventTarget;
+    expect(() => abrirGuia({ desde: "boton" }, roto)).not.toThrow();
+    expect(abrirGuia({ desde: "boton" }, roto)).toBe(false);
+    expect(abrirGuia({ desde: "boton" }, null)).toBe(false);
   });
 
   afterEach(() => {
@@ -92,6 +122,16 @@ describe("accionesDelPaso", () => {
 });
 
 describe("zGuia", () => {
+  it("la capa de acceso es 240, por encima de AuthGate (200) y la bienvenida (210)", () => {
+    expect(Z_GUIA_SOBRE_ACCESO).toBe(240);
+    expect(Z_GUIA_SOBRE_ACCESO).toBeGreaterThan(Z_GUIA_HOY);
+  });
+
+  it("las ventanas de acceso son login, bienvenida y aviso (§5)", () => {
+    expect([...VENTANAS_ACCESO].sort()).toEqual(["aviso", "bienvenida", "login"]);
+    for (const desde of VENTANAS_ACCESO) expect(ORIGENES_GUIA).toContain(desde);
+  });
+
   it("desde cualquier ventana de acceso, pinta por encima de AuthGate y la bienvenida", () => {
     for (const desde of ["login", "bienvenida", "aviso"] as const) {
       expect(zGuia(desde, true)).toBe(Z_GUIA_SOBRE_ACCESO);
@@ -143,6 +183,14 @@ describe("unirVistas", () => {
     expect(unirVistas(null, undefined)).toEqual([]);
     expect(unirVistas(["malla"], null)).toEqual(["malla"]);
     expect(unirVistas(null, ["genesis"])).toEqual(["genesis"]);
+  });
+
+  it("no muta las listas que recibe", () => {
+    const local = ["malla", "malla"];
+    const cuenta = ["genesis"];
+    unirVistas(local, cuenta);
+    expect(local).toEqual(["malla", "malla"]);
+    expect(cuenta).toEqual(["genesis"]);
   });
 });
 
