@@ -25,6 +25,7 @@ import { validarContraInvariantes, type Violacion } from "@/lib/nucleo/invariant
 import { pareceCodigo } from "@/lib/nucleo/ui-spec";
 import { validarAccionUi, type TipoAccionUi } from "@/lib/astraura/ui-acciones";
 import { type CambioBot } from "@/lib/astraura-bots/permisos";
+import { sanearCambio, type CambioAvatar } from "@/lib/avatares/adn/cambios";
 
 /* ── Vocabulario ─────────────────────────────────────────────────────────── */
 
@@ -39,7 +40,8 @@ export type TipoOperacion =
     | "dashboard.widget.quitar"
     | "agente.crear"
     | "bot.crear"
-    | "bot.configurar";
+    | "bot.configurar"
+    | "avatar.cambiar";
 
 export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "perfil.editar",
@@ -53,13 +55,14 @@ export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "agente.crear",
     "bot.crear",
     "bot.configurar",
+    "avatar.cambiar",
 ];
 
 /** Lo que cada nivel puede tocar. PoliGenesis: solo lo de la entidad. */
 export const OPERACIONES_POR_AMBITO: Record<"persona" | "entidad", readonly TipoOperacion[]> = {
     // Crear un bot común es de la entidad; configurar el tuyo también es personal.
     persona: TIPOS_OPERACION.filter((t) => t !== "bot.crear"),
-    entidad: ["pagina.editar", "agente.crear", "bot.crear", "bot.configurar"],
+    entidad: ["pagina.editar", "agente.crear", "bot.crear", "bot.configurar", "avatar.cambiar"],
 };
 
 export type TipoEntidad = "pagina" | "grupo";
@@ -133,6 +136,17 @@ export interface CambiosBot {
     valor: unknown;
 }
 
+/**
+ * Propuesta de avatar (AV1011J): se vota el diff, no el avatar entero. `revBase` es la revisión
+ * sobre la que se calculó; al aprobarse se comprueba antes de aplicar (si no coincide, se recalcula).
+ */
+export interface AvatarCambioDatos {
+    /** Id del ADN del avatar (su campo `id`, no la malla base). */
+    ref: string;
+    revBase: number;
+    cambios: CambioAvatar[];
+}
+
 interface Base {
     /** Por qué, en una frase (se enseña en la vista previa). */
     motivo: string;
@@ -149,7 +163,8 @@ export type Operacion =
     | (Base & { tipo: "dashboard.widget.quitar"; tablero?: string; widget: string })
     | (Base & { tipo: "agente.crear"; agente: DatosAgente })
     | (Base & { tipo: "bot.crear"; datos: DatosBotNuevo })
-    | (Base & { tipo: "bot.configurar"; cambios: CambiosBot });
+    | (Base & { tipo: "bot.configurar"; cambios: CambiosBot })
+    | (Base & { tipo: "avatar.cambiar"; datos: AvatarCambioDatos });
 
 /** Lo que la validación sabe del entorno (lo pasa quien llama; todo opcional). */
 export interface ContextoValidacion {
@@ -554,6 +569,26 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
                 if (problemas.length) return fallo();
                 return { ok: true, avisos, op: { tipo: "bot.configurar", motivo, cambios: { botId, cambio: cambio as CambioBot, valor: b.valor } } };
             }
+
+            case "avatar.cambiar": {
+                const d = esObjeto(bruto.datos) ? bruto.datos : {};
+                const ref = typeof d.ref === "string" ? d.ref.trim() : "";
+                if (!PATRON_ID.test(ref)) problemas.push("Falta el avatar a cambiar (su identificador).");
+                const revBase = typeof d.revBase === "number" && Number.isInteger(d.revBase) && d.revBase >= 0 ? d.revBase : null;
+                if (revBase === null) problemas.push("«revBase» debe ser la revisión del avatar sobre la que se calculó el cambio.");
+                if (!Array.isArray(d.cambios)) problemas.push("«cambios» debe ser una lista de cambios de avatar.");
+                const lista = Array.isArray(d.cambios) ? d.cambios : [];
+                if (Array.isArray(d.cambios) && lista.length === 0) problemas.push("No hay ningún cambio de avatar que proponer.");
+                if (lista.length > 64) problemas.push("Como mucho 64 cambios por propuesta de avatar.");
+                const cambios: CambioAvatar[] = [];
+                for (const brutoCambio of lista.slice(0, 64)) {
+                    const c = sanearCambio(brutoCambio);
+                    if (!c) problemas.push("Uno de los cambios del avatar no es válido.");
+                    else cambios.push(c);
+                }
+                if (problemas.length || revBase === null) return fallo();
+                return { ok: true, avisos, op: { tipo: "avatar.cambiar", motivo, datos: { ref, revBase, cambios } } };
+            }
         }
         problemas.push("Operación no reconocida.");
         return fallo();
@@ -619,6 +654,65 @@ function rutasDe(o: Record<string, unknown>, base = ""): string[] {
         else salida.push(`${ruta} → ${valorCorto(v)}`);
     }
     return salida;
+}
+
+const NOMBRE_MORFOLOGIA: Record<string, string> = {
+    altura: "altura",
+    complexion: "complexión",
+    cabeza: "tamaño de cabeza",
+    hombros: "hombros",
+    cintura: "cintura",
+    piernas: "piernas",
+    brazos: "brazos",
+    estilizado: "estilo (de realista a caricatura)",
+};
+
+const NOMBRE_SLOT: Record<string, string> = {
+    piel: "piel",
+    cabello: "cabello",
+    ojos: "ojos",
+    "ropa-1": "ropa (1)",
+    "ropa-2": "ropa (2)",
+    acento: "acento",
+    aura: "aura",
+    cabeza: "cabeza",
+    torso: "torso",
+    piernas: "piernas",
+    cara: "cara",
+    pies: "pies",
+    manos: "manos",
+    "accesorio-1": "accesorio (1)",
+    espalda: "espalda",
+    "accesorio-2": "accesorio (2)",
+    mascota: "mascota",
+};
+
+const pct = (v: number): string => `${Math.round(v * 100)} %`;
+
+/** Un cambio de avatar contado en palabras (para la vista previa y la tarjeta de votación). */
+export function describirCambioAvatar(c: CambioAvatar): string {
+    switch (c.op) {
+        case "morfologia": return `${NOMBRE_MORFOLOGIA[c.clave] ?? c.clave}: ${pct(c.valor)}`;
+        case "expresion": return `expresión «${c.clave}»: ${pct(c.valor)}`;
+        case "material": {
+            const slot = NOMBRE_SLOT[c.slot] ?? c.slot;
+            if (c.campo === "color") return `color de ${slot}: ${typeof c.valor === "number" ? String(c.valor) : c.valor}`;
+            const campo = c.campo === "metal" ? "metal" : c.campo === "rugosidad" ? "rugosidad" : "brillo";
+            return `${campo} de ${slot}: ${typeof c.valor === "number" ? pct(c.valor) : String(c.valor)}`;
+        }
+        case "pieza":
+            return c.ref
+                ? `poner ${NOMBRE_SLOT[c.slot] ?? c.slot} (${c.ref})`
+                : `quitar ${NOMBRE_SLOT[c.slot] ?? c.slot}`;
+        case "aura":
+            if (c.campo === "tono") return `tono del aura: ${Math.round(Number(c.valor))}°`;
+            if (c.campo === "intensidad") return `intensidad del aura: ${pct(Number(c.valor))}`;
+            return `aura ligada a la emoción: ${c.valor ? "sí" : "no"}`;
+        case "movimiento": return `movimiento · ${c.campo}: ${pct(c.valor)}`;
+        case "base": return c.ref ? `base del avatar: ${c.tipo} (${c.ref})` : `base del avatar: ${c.tipo}`;
+        case "nombre": return `nombre: «${c.valor}»`;
+        case "visibilidad": return `visibilidad: ${c.valor === "publico" ? "público" : c.valor === "grupo" ? "del grupo" : "privado"}`;
+    }
 }
 
 export interface VistaPrevia {
@@ -695,6 +789,12 @@ export function describirOperacion(op: Operacion, ambito: Ambito): VistaPrevia {
                 titulo: `Configurar el bot «${op.cambios.botId}»`,
                 detalles: [`cambio: ${op.cambios.cambio}`, `valor: ${valorCorto(op.cambios.valor)}`],
                 deshacer: "Deshacer repone el valor anterior del bot.",
+            };
+        case "avatar.cambiar":
+            return {
+                titulo: `Proponer un cambio de avatar${de}`,
+                detalles: [`revisión base: ${op.datos.revBase}`, ...op.datos.cambios.map(describirCambioAvatar)],
+                deshacer: "Al aprobarse se comprueba la revisión: si cambió, el diff se recalcula sobre la actual y se avisa.",
             };
     }
 }
