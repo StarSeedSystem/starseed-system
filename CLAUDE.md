@@ -1442,6 +1442,24 @@ Medido a las 09:00 UTC (Genesis enseñaba 5 agentes con 307 listas) y otra vez a
   «rc: checkout» en un segundo y quedaron «procesadas» sin hacer nada. La autocuración lo mira en cada sonda y, si
   pasa de 30 min sin ningún git vivo, lo aparta (`index.lock.viejo-<t>`) y quita la espera de 20 min. Síntoma:
   `colas.json` del A1 con `"rc": "checkout"` y `fin == inicio`. Verificado: el A1 pasó a «cola» con 3 agentes.
+- **N** · main no avanzó de las 14:19 a las 21:55: 25 tareas que la nube ya había integrado esperaban en
+  `traer_nube` «la Mac no tiene memoria para un tsc completo» o, en el A1, «tsc no terminó por la máquina (rc=134)».
+  `comprobar_en_github.py` empuja `comprobar/<base>/<árbol>` (main de la Mac + la tarea; main no se toca) y el
+  workflow `comprobar-nube.yml` (por push, sin secretos) pasa tsc con 8 GB, vitest related y las pruebas del
+  puente en un runner. Asíncrono: «comprobándose en GitHub» es del medio y el veredicto, guardado por (base,
+  árbol) en `~/.starseed/comprobar-github.json`, se lee en la pasada siguiente; 6 a la vez como mucho.
+- **O** · el A1 daba por «procesada» una cola cuyo checkout fallaba: `oracle_a1._poner_en` aparta el
+  `index.lock` de un git muerto (más de 2 min y ningún git vivo) y repite; si aún falla, la cola vuelve a los
+  10 min (3 intentos; una de la bandeja vuelve a la bandeja). Cloudroom decía 30 libres con 6 al día y 3 a la vez:
+  ahora sale de `cloudroom_lanzar.ritmo`. El medidor «Agentes» cuenta los trabajadores del A1 desde
+  `~/.starseed/oracle.json` cuando el bus no trae sus latidos (`agentes-oracle.ts`).
+- **P** · el orquestador de la Mac no integraba nada desde las 12:03: tsc de 20-30 min que moría por memoria y
+  el A1 «otra comprobación en marcha». Su puerta tsc espera el veredicto de GitHub (`esperar_tsc`: el paso
+  «tsc» del job aunque el run siga, 25 min como mucho; sin run en 3 min o con el runner roto, sigue sin esperar);
+  sin veredicto, A1 y Mac como antes.
+- **Q** · los procesos que viven horas guardan el código con el que arrancaron: `director-nube.py` se vuelve a
+  ejecutar cuando cambia algo que cargó, como el vigía. El orquestador no: toma el código nuevo en su próxima
+  tanda (`lanzar-enjambre.sh` reinstala). Síntoma: `contenedores.json` igual tras un commit que debía cambiarlo.
 
 **Regla:** más agentes que escritores con cupo no es capacidad: son 429, proveedores apartados 6 h y envíos gastados.
 El número lo dan los escritores vivos; los jobs a la vez salen de ahí y los dos directores leen el mismo.

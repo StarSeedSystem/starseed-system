@@ -4515,9 +4515,14 @@ Genesis pasó de 5 agentes a 31 (28 en GitHub, 3 en la Mac); el límite real es 
   (FreeLLMAPI en cada job + MISTRAL_API_KEY en los secretos). Primer job con FreeLLMAPI: run 40385726126 (paso en verde).
 - Verificado en el run 40385726126: «FreeLLMAPI en el runner: HTTP 200 con 6 clave(s)», revisiones con freellmapi/auto
   y FSH1018Q escrita con freellmapi/auto. `21f449a88` CAP1026M (cerrojo de git abandonado en el A1); el A1 trabaja.
+- 26-27/10: `ab3301b92` CAP1026N (puertas de traer_nube en GitHub) · `5b309fe6e` CAP1026O (checkout del A1, Cloudroom
+  por el cupo de hoy, el A1 en «Agentes»; build `MkXEmwySS5Dyr4lfzSi3z` compilado en la nube del árbol 58e52d82 e
+  instalado; Genesis: «Agentes 25 en total», con los 3 del A1) · `aa9fcbe1e` CAP1026P (puerta tsc del orquestador en
+  GitHub; instalado en ~/.local/bin) · CAP1026Q (el director de la nube se recarga). oracle_a1 nuevo en el A1
+  (`oracle_nodo.py instalar`, «listo» a las 04:30 UTC).
 
 ### Pendiente / Próximos pasos
-- Medidor «Agentes» de Genesis (`src/lib/mando/medidores.ts`): contar el A1 desde oracle.json y revisar los
-  «sin proceso» de la Mac (TSC1021Ab).
-- Cloudroom figura con 30 libres cuando su tope del día es 6: el catálogo debería reflejar el presupuesto.
-- Autocuración del A1 colgado (reinicio suave automático) solo si Alex lo autoriza.
+- Primera comprobación real en GitHub: la pasada de traer de las 20:36 seguía con el código de antes de N; el
+  orquestador de la Mac toma P en su próxima tanda y el director de la nube, Q, al reiniciarse una vez.
+- TSC1021Ab-d1 corría a la vez en la Mac y en el A1 (préstamo de MetaGenesis de las 22:22; la Mac retomó el
+  arriendo a las 22:28): el préstamo no debe llevarse lo que la tanda viva de la Mac tiene en curso.
