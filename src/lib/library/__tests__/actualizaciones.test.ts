@@ -5,6 +5,7 @@ import {
     urlDeConsulta,
     leerVersion,
     compararVersiones,
+    etiquetaNormalizada,
     validarPatronTag,
     MAX_LONGITUD_PATRON_TAG,
 } from "../actualizaciones";
@@ -70,6 +71,50 @@ describe("compararVersiones", () => {
     it("falta un dato → «desconocida»", () => {
         expect(compararVersiones(undefined, "a1b2c3d")).toBe("desconocida");
         expect(compararVersiones("a1b2c3d", null)).toBe("desconocida");
+    });
+
+    it("etiquetas iguales tras quitar la v inicial → «igual»", () => {
+        expect(compararVersiones("v1.2.3", "1.2.3")).toBe("igual");
+        expect(compararVersiones("V1.2.3", "v1.2.3")).toBe("igual");
+        expect(compararVersiones("1.2.3", "1.2.3")).toBe("igual");
+    });
+
+    it("etiquetas distintas → «hay-actualizacion»", () => {
+        expect(compararVersiones("v1.2.3", "v1.3.0")).toBe("hay-actualizacion");
+        expect(compararVersiones("1.2.3", "2.0.0")).toBe("hay-actualizacion");
+    });
+
+    it("tipos mezclados (sha contra etiqueta) → «desconocida»", () => {
+        expect(compararVersiones("a1b2c3d", "v1.2.3")).toBe("desconocida");
+        expect(compararVersiones("v1.2.3", "a1b2c3d")).toBe("desconocida");
+        expect(compararVersiones("1a2b3c4", "v1.2.3")).toBe("desconocida");
+    });
+
+    it("sueltas de texto ni versiones no se comparan", () => {
+        expect(compararVersiones("hola", "1.2.3")).toBe("desconocida");
+        expect(compararVersiones("v-1", "1.2.3")).toBe("desconocida");
+        expect(etiquetaNormalizada("  V0.24.6  ")).toBe("0.24.6");
+    });
+
+    it("canal suelto como string: misma consulta y lectura", () => {
+        const upstream = "https://github.com/go-vikunja/vikunja";
+        expect(urlDeConsulta(upstream, "releases")).toBe(
+            "https://api.github.com/repos/go-vikunja/vikunja/releases/latest",
+        );
+        expect(urlDeConsulta(upstream, "tags")).toBe(
+            "https://api.github.com/repos/go-vikunja/vikunja/tags?per_page=100",
+        );
+        expect(
+            leerVersion(upstream, { tag_name: "v0.24.6" }, "releases"),
+        ).toEqual({ version: "v0.24.6", fecha: null });
+        expect(leerVersion(upstream, [{ name: "v1.0" }], "tags")).toEqual({
+            version: "v1.0",
+            fecha: null,
+        });
+        expect(leerVersion(upstream, [{ sha: "a1b2c3d4e5f6" }])).toEqual({
+            version: "a1b2c3d",
+            fecha: null,
+        });
     });
 });
 
