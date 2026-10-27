@@ -114,10 +114,10 @@ export const aplicarReglas = (reglas: Regla[], base: BaseCorreo): AplicarResulta
 
 export const M = (mensajes: {id: string; remitente: string; fecha: string}[]): {id: string; remitente: string; fecha: string}[] => mensajes;
 
-export const clasificarHilo = (hilos: {id: string; remitente: string; fecha: string}[] | [],
+export const clasificarHilo = (hilos: {id: string; remitente: string; fecha: string}[],
     remitente: string,
     now: number | Date,
-    opciones?: {horasPorResponder?: number; diasEsperando?: number}: {horasPorResponder?: number; diasEsperando?: number}
+    opciones?: {horasPorResponder?: number; diasEsperando?: number}
 ): string => {
     const n = typeof now === "number" ? now : typeof now === "object" ? now.getTime() : Date.now();
     const msgs = hilos.filter((m): m is {id: string; remitente: string; fecha: string} => m !== undefined && m !== null);
