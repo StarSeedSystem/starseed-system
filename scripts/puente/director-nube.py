@@ -521,7 +521,34 @@ def _anotar():
     json.dump({k: v for k, v in sorted(d.items())[-14:]}, open(CUENTA, "w"))
 
 
+def huellas_del_puente(modulos=None, directorio=None) -> dict:
+    """{archivo: (mtime, tamaño)} de los módulos de `scripts/puente/` que este proceso ya cargó (él incluido).
+
+    (2026-10-27, CAP1026Q) MEDIDO: este director vive horas en el mismo proceso (`KeepAlive`) y Python guarda
+    cada `import` para siempre: arrancado a las 13:16, a las 22:37 seguía midiendo Cloudroom con el
+    `contenedores_nube` de antes de CAP1026O («30 libres» con un tope del día de 6). Como el vigía de medidores
+    (OPO1011), entre pasadas mira si cambió el código que ya cargó y, si cambió, se vuelve a ejecutar."""
+    directorio = directorio or os.path.dirname(os.path.abspath(__file__))
+    salida = {}
+    for m in list((modulos if modulos is not None else sys.modules).values()):
+        ruta = getattr(m, "__file__", None) or ""
+        if not ruta.endswith(".py") or os.path.dirname(os.path.abspath(ruta)) != directorio:
+            continue
+        try:
+            st = os.stat(ruta)
+        except OSError:
+            continue
+        salida[os.path.abspath(ruta)] = (int(st.st_mtime), st.st_size)
+    return salida
+
+
+def codigo_cambiado(antes: dict, ahora: dict) -> list:
+    """PURA. Los archivos ya cargados cuyo contenido cambió en disco (o desaparecieron)."""
+    return sorted(r for r, h in (antes or {}).items() if (ahora or {}).get(r) != h)
+
+
 def main():
+    huellas = {}
     print("Director de la nube · cada %d s · %s agentes por job · tope %d agentes / %d lanzamientos al día%s"
           % (INTERVALO_S, TRABAJADORES, TOPE_AGENTES, tope_dia_por_capacidad(_jobs_del_lanzable(None)),
              " (fijado a mano)" if TOPE_DIA_FIJO else " (según capacidad; suelo %d)" % TOPE_DIA), flush=True)
@@ -580,6 +607,15 @@ def main():
                     medir_nube()
         except Exception as e:
             print("director-nube: %s: %s" % (type(e).__name__, e), flush=True)
+        # (CAP1026Q) Código nuevo en algo que ya importó: se vuelve a ejecutar (mismo PID para launchd, mismo
+        # python con su permiso de disco) y la próxima pasada ya mide y decide con él.
+        ahora = huellas_del_puente()
+        cambiados = codigo_cambiado(huellas, ahora) if huellas else []
+        if cambiados:
+            print("[%s] código nuevo en %s: me recargo" % (time.strftime("%H:%M"), ", ".join(
+                os.path.basename(c) for c in cambiados[:6])), flush=True)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        huellas = {**ahora, **{r: h for r, h in huellas.items() if r not in ahora}}
         time.sleep(INTERVALO_S)
 
 

@@ -285,5 +285,30 @@ class K_UnCuelgueDeLaMacNoApagaAlProveedorEnLaNube(unittest.TestCase):
         self.assertEqual(BC.escritores_en_la_nube(None, self.SALUD, "2026-10-26 13:00:00"), ["nvidia", "opencode"])
 
 
+
+class ElDirectorSeRecarga(unittest.TestCase):
+    """(CAP1026Q) El director de la nube vive horas: si cambia el código que cargó, se vuelve a ejecutar."""
+
+    def test_ve_lo_que_cambio_en_disco(self):
+        import tempfile
+        import types
+
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "contenedores_nube.py")
+            with open(ruta, "w") as f:
+                f.write("x = 1\n")
+            otro = os.path.join(d, "..", "fuera.py")
+            mods = {"contenedores_nube": types.SimpleNamespace(__file__=ruta), "fuera": types.SimpleNamespace(__file__=otro),
+                    "sin": types.SimpleNamespace()}
+            antes = D.huellas_del_puente(mods, d)
+            self.assertEqual(list(antes), [os.path.abspath(ruta)])
+            self.assertEqual(D.codigo_cambiado(antes, D.huellas_del_puente(mods, d)), [])
+            with open(ruta, "a") as f:
+                f.write("y = 2\n")
+            self.assertEqual(D.codigo_cambiado(antes, D.huellas_del_puente(mods, d)), [os.path.abspath(ruta)])
+            os.remove(ruta)
+            self.assertEqual(D.codigo_cambiado(antes, D.huellas_del_puente(mods, d)), [os.path.abspath(ruta)])
+
+
 if __name__ == "__main__":
     unittest.main()
