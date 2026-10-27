@@ -76,7 +76,6 @@ describe("habilidadesPara · por papel", () => {
     expect(ids(habilidadesPara("imagen", "cuenta", OPCIONES))).toEqual(["av-gen", "vision"]);
   });
 
-<<<<<<< HEAD
   it("voz no recibe las capacidades con sesgo web ni de visión", () => {
     const conSentidos = [...CAPACIDADES, cap("web-senses", "Sentidos web (Agent-Reach)", { web: true })];
     const voz = ids(habilidadesPara("voz", "cuenta", { capacidades: conSentidos, desactivadas: [] }));
@@ -101,13 +100,6 @@ describe("habilidadesPara · por papel", () => {
         "apagada",
       ]);
     }
-=======
-  it("el revisor exige calidad fuerte: ni planning ni visión sola", () => {
-    const revisor = ids(habilidadesPara("revisor", "cuenta", OPCIONES));
-    expect(revisor).toEqual(["av-gen", "taste", "pm", "memoria-agente"]);
-    expect(revisor).not.toContain("router-proxy");
-    expect(revisor).not.toContain("vision");
->>>>>>> 4319ad7ee (salvavidas · RTTIP1013Bb: trabajo del agente antes de las puertas (tsc / vitest))
   });
 
   it("excluir las habilidades desactivadas en el ámbito", () => {
