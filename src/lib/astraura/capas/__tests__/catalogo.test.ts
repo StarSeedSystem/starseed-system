@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   leerCatalogo,
   candidatosDe,
@@ -142,5 +144,29 @@ describe("profundidadNeedle", () => {
   it("sin presupuesto suficiente no hay reflejo local", () => {
     expect(profundidadNeedle(0)).toBe(0);
     expect(profundidadNeedle(7)).toBe(0);
+  });
+});
+
+describe("catalogo real", () => {
+  it("añade las entradas Ternary Bonsai 2 en banco con sha256 válido", () => {
+    const raw = readFileSync(join(process.cwd(), "config/capas-astraura.json"), "utf8");
+    const json = JSON.parse(raw);
+    expect(json).toBeTypeOf("object");
+    const ids = new Set<string>();
+    for (const e of json.capas) {
+      expect(typeof e.id).toBe("string");
+      expect(ids.has(e.id)).toBe(false);
+      ids.add(e.id);
+    }
+    const idsNecesarios = ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"];
+    for (const id of idsNecesarios) {
+      const e = json.capas.find((x: any) => x.id === id);
+      expect(e).toBeDefined();
+      expect(e.estado).toBe("en-banco");
+      expect(typeof e.sha256).toBe("string");
+      expect(e.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(typeof e.tamano_bytes).toBe("number");
+      expect(e.tamano_bytes).toBeGreaterThan(0);
+    }
   });
 });
