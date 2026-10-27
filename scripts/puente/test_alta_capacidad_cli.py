@@ -178,6 +178,32 @@ class AltaCapacidadCLI(unittest.TestCase):
         self.assertEqual([c["id"] for c in datos["candidatas"]], ["B"])
         self.assertEqual(datos["elegidas"], ["B"])
 
+    def test_vivas_en_otro_medio_se_listan_pero_no_se_eigen(self):
+        """`en_curso`, `reasignada` y `por_traer` son estados vivos (prestada al A1 o
+        al carril nube): una tarea ya cogida por ahí no se elige desde la dirección
+        aunque su cola siga pidiendo capacidad alta."""
+        cola, progreso, limites = self._entorno(
+            [
+                {"id": "A", "titulo": "En curso aquí", "capacidad": "alta"},
+                {"id": "B", "titulo": "Reasignada a otro medio", "capacidad": "alta"},
+                {"id": "C", "titulo": "Por traer de la nube", "capacidad": "alta"},
+                {"id": "D", "titulo": "Libre", "capacidad": "alta"},
+            ],
+            {"A": {"estado": "en_curso"}, "B": {"estado": "reasignada"},
+             "C": {"estado": "por_traer"}},
+            _limites_frescos(),
+        )
+        r = self._correr("--olas", os.path.dirname(cola), "--progreso", progreso,
+                         "--limites", limites, "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        datos = json.loads(r.stdout)
+        # en_curso ni se lista; reasignada y por_traer se listan con su estado
+        # visible, pero solo D (libre y reintentable) pasa a elegibles.
+        self.assertEqual([c["id"] for c in datos["candidatas"]], ["B", "C", "D"])
+        self.assertEqual({c["id"]: c["estado"] for c in datos["candidatas"]},
+                         {"B": "reasignada", "C": "por_traer", "D": "pendiente"})
+        self.assertEqual(datos["elegidas"], ["D"])
+
     def test_rutas_por_entorno(self):
         cola, progreso, limites = self._preparar()
         r = self._correr(
