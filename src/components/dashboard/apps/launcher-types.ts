@@ -24,6 +24,23 @@ export type AppCategory = "starseed" | "sistema" | "media" | "utilidad" | "creac
 /** 'live' = destino real · 'native' = módulo nativo del OS · 'soon' = en construcción. */
 export type AppStatus = "live" | "native" | "soon";
 
+/** Formas de ejecución que admite una app (architecture/apps-en-la-malla.md §5). */
+export type AppEjecucion =
+    | "local"
+    | "por-bandas"
+    | "montada"
+    | "transmitida"
+    | "ramificada";
+
+/** Lo que la app necesita para abrirse. Todo opcional: lo no declarado no se exige. */
+export interface AppRequisitos {
+    ramMb?: number;
+    gpu?: boolean;
+    motores?: string[];
+    /** Volumen del contexto donde vive la app (por bandas o montaje). */
+    volumen?: string;
+}
+
 export interface AppOpenSpec {
     /** Modo por defecto al tocar la app. */
     primary: OpenMode;
@@ -53,6 +70,10 @@ export interface StarseedApp {
     status?: AppStatus;
     /** Marca apps con modo inmersivo (VR/AR — Fase 3). */
     vrCapable?: boolean;
+    /** Modos admitidos; sin campo = ['local'] (como hoy). */
+    ejecucion?: AppEjecucion[];
+    /** Qué necesita para abrirse: RAM, GPU, motores y volumen. */
+    requisitos?: AppRequisitos;
 }
 
 // ── Presets de personalización ───────────────────────────────────
