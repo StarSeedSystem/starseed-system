@@ -63,9 +63,24 @@ def leer_estado(raiz):
 class Cadenas_y_parseo(unittest.TestCase):
     def test_dominios_y_huellas(self):
         self.assertEqual(V.obtener_dominio("https://Api.Ejemplo.COM/x"), "api.ejemplo.com")
+        self.assertEqual(V.obtener_dominio("http://sub.dominio.org:8080/path"), "sub.dominio.org:8080")
+        self.assertEqual(V.obtener_dominio("https://usuario:pass@dominio.com"),
+                         "usuario:pass@dominio.com")
         self.assertEqual(V.obtener_dominio("ni-ideal"), "")
         self.assertEqual(len(V.huella_sha256(b"algo")), 64)
         self.assertNotEqual(V.huella_sha256(b"algo"), V.huella_sha256(b"algo2"))
+        self.assertEqual(V.huella_sha256(b"algo"), V.huella_sha256(b"algo"))
+
+    def test_cargar_json_usa_el_valor_por_defecto_si_falta_o_esta_roto(self):
+        carpeta = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(carpeta, ignore_errors=True))
+        por_defecto = {"por_defecto": True}
+        self.assertEqual(V.cargar_json(os.path.join(carpeta, "no-existe.json"), por_defecto),
+                         por_defecto)
+        roto = os.path.join(carpeta, "roto.json")
+        with open(roto, "w", encoding="utf-8") as fichero:
+            fichero.write("{no es json")
+        self.assertEqual(V.cargar_json(roto, por_defecto), por_defecto)
 
     def test_fecha_a_iso(self):
         self.assertEqual(V.fecha_a_iso("Tue, 20 Oct 2026 12:00:00 GMT"),
@@ -86,6 +101,9 @@ class Cadenas_y_parseo(unittest.TestCase):
         self.assertFalse(V.canal_permitido({"tipo": "blog", "url": "https://x/blog/"}))
         self.assertFalse(V.canal_permitido({"tipo": "youtube-canal", "ref": "@alguien"}))
         self.assertFalse(V.canal_permitido({"tipo": "api", "url": "https://api.ajena.com/v2"}))
+        # Sin tipo o con un tipo que no existe, tampoco se rastrea:
+        self.assertFalse(V.canal_permitido({"ref": "https://x/feed"}))
+        self.assertFalse(V.canal_permitido({"tipo": "tipo-desconocido", "ref": "https://x"}))
 
     def test_parsear_rss(self):
         items = V.parsear_rss(_RSS_V1)
@@ -98,6 +116,22 @@ class Cadenas_y_parseo(unittest.TestCase):
             <published>2026-10-21T08:00:00Z</published></entry></feed>"""
         self.assertEqual(V.parsear_rss(atom), [{"titulo": "Uno", "url": "https://atom.ejemplo.com/1",
                                                 "fecha": "2026-10-21T08:00:00Z"}])
+        # Atom sin <published> cae a <updated>:
+        atom_actualizado = b"""<feed xmlns="http://www.w3.org/2005/Atom">
+            <entry><title>Dos</title>
+            <link href="https://atom.ejemplo.com/2"/>
+            <updated>2026-10-22T08:00:00Z</updated></entry></feed>"""
+        self.assertEqual(V.parsear_rss(atom_actualizado)[0]["fecha"], "2026-10-22T08:00:00Z")
+        # RSS: manda pubDate; si falta, se usa date.
+        rss_con_dos_fechas = b"""<rss><channel><item><title>Tres</title>
+            <link>https://blog.ejemplo.com/c</link>
+            <pubDate>Tue, 20 Oct 2026 12:00:00 GMT</pubDate>
+            <date>2026-10-25</date></item></channel></rss>"""
+        self.assertEqual(V.parsear_rss(rss_con_dos_fechas)[0]["fecha"], "2026-10-20T12:00:00Z")
+        rss_solo_date = b"""<rss><channel><item><title>Cuatro</title>
+            <link>https://blog.ejemplo.com/d</link>
+            <date>2026-10-25</date></item></channel></rss>"""
+        self.assertEqual(V.parsear_rss(rss_solo_date)[0]["fecha"], "2026-10-25T00:00:00Z")
         self.assertEqual(V.parsear_rss(b"no es xml"), [])
 
     def test_parsear_sitemap(self):
@@ -236,6 +270,41 @@ class VigiaConRaizTemp(unittest.TestCase):
         # Nunca escribimos ni copiamos clase de uso ni contenido: solo huella y fecha:
         self.assertNotIn("clase_uso", estado)
         self.assertNotIn("cuerpo_terminos", estado)
+
+    def test_terminos_sin_cambio_mes_despues_no_los_marca(self):
+        red = self.red()
+        dorm = []
+        V.vigilar_referencias(self.raiz, red, dorm.append,
+                              ahora=dt.datetime(2026, 10, 22, tzinfo=dt.timezone.utc))
+        salida = V.vigilar_referencias(
+            self.raiz, self.red(), dorm.append,
+            ahora=dt.datetime(2026, 12, 6, tzinfo=dt.timezone.utc))
+        estado = leer_estado(self.raiz)["fuente-prueba"]
+        self.assertFalse(any(n["tipo"] == "terminos" for n in salida))
+        self.assertNotIn("a_revisar", estado)
+        self.assertEqual(estado["verificacion_terminos"], "2026-12-06T00:00:00Z")
+
+    def test_entrada_sin_canales_y_config_vacia_no_fallan(self):
+        raiz = hacer_raiz([{"id": "sin-canales", "nombre": "Sin canales"}])
+        self.addCleanup(lambda: __import__("shutil").rmtree(raiz, ignore_errors=True))
+        ahora = dt.datetime(2026, 10, 22, tzinfo=dt.timezone.utc)
+        self.assertEqual(V.vigilar_referencias(raiz, RedFalsa({}), lambda s: None, ahora=ahora), [])
+        self.assertEqual(leer_estado(raiz)["sin-canales"]["ultima_revision"],
+                         "2026-10-22T00:00:00Z")
+        vacia = hacer_raiz([])
+        self.addCleanup(lambda: __import__("shutil").rmtree(vacia, ignore_errors=True))
+        self.assertEqual(V.vigilar_referencias(vacia, RedFalsa({}), lambda s: None, ahora=ahora), [])
+        self.assertEqual(leer_estado(vacia), {})
+
+    def test_canal_sin_referencia_no_pide_red(self):
+        raiz = hacer_raiz([{"id": "sin-ref", "nombre": "Sin ref",
+                            "actualizacion": [{"tipo": "rss"}]}])
+        self.addCleanup(lambda: __import__("shutil").rmtree(raiz, ignore_errors=True))
+        red = RedFalsa({})
+        salida = V.vigilar_referencias(raiz, red, lambda s: None,
+                                       ahora=dt.datetime(2026, 10, 22, tzinfo=dt.timezone.utc))
+        self.assertEqual(salida, [])
+        self.assertEqual(red.peticiones, [])
 
     def test_pausas_y_robots_entre_las_peticiones_del_mismo_dominio(self):
         dorm = []
