@@ -26,7 +26,8 @@ import {
 } from "./habilidades/diagramas";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
 import {
-  ATRIBUCION_DESIGN_MD, ATRIBUCION_SLIDES, HABILIDADES_DISENO_WEB,
+  ATRIBUCION_DESIGN_MD, ATRIBUCION_SLIDES, ATRIBUCION_TASTE, HABILIDADES_DISENO_WEB,
+  comoCapacidadDiseno,
 } from "./habilidades/diseno-web";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
@@ -93,7 +94,7 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     label: "Taste · calidad de UI y estética",
     systemPrompt:
       "Cuando generes interfaz, contenido visual o texto, aplica criterio de diseño de alto nivel (jerarquía clara, espacio en blanco, contraste, coherencia con el sistema Crystal Liquid Glass). Prefiere lo elegante, legible y sobrio a lo recargado. " +
-      `${HABILIDADES_DISENO_WEB.taste.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.taste.rutaCompleta} — con la tarjeta basta para Needle y BitNet. En el OS manda el ADN del contexto sobre la estética propia de la skill.`,
+      `${HABILIDADES_DISENO_WEB.taste.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.taste.rutaCompleta} — con la tarjeta basta para Needle y BitNet. En el OS manda el ADN del contexto sobre la estética propia de la skill. ${ATRIBUCION_TASTE}`,
     routing: { preferStrong: true },
     skillIds: ["aurora-taste", "design-taste-frontend"],
     packageIds: ["iatool-taste-skill"],
@@ -679,8 +680,8 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
    * Contrato: architecture/repos-libreria-1025.md §5. En el OS manda el ADN del
    * contexto sobre la estética propia de la skill. */
   {
+    ...comoCapacidadDiseno(HABILIDADES_DISENO_WEB.slides, "resumen"),
     id: "slides",
-    label: HABILIDADES_DISENO_WEB.slides.nombre,
     systemPrompt:
       `${HABILIDADES_DISENO_WEB.slides.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.slides.rutaCompleta} ` +
       `— con la tarjeta basta para Needle y BitNet. ${ATRIBUCION_SLIDES}`,
@@ -689,8 +690,8 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     skillIds: [HABILIDADES_DISENO_WEB.slides.id],
   },
   {
+    ...comoCapacidadDiseno(HABILIDADES_DISENO_WEB.designmd, "resumen"),
     id: "design-md",
-    label: HABILIDADES_DISENO_WEB.designmd.nombre,
     systemPrompt:
       `${HABILIDADES_DISENO_WEB.designmd.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.designmd.rutaCompleta} ` +
       `— con la tarjeta basta para Needle y BitNet. ${ATRIBUCION_DESIGN_MD}`,
