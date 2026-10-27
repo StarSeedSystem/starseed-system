@@ -4559,6 +4559,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-10-22 01:14 · mg-oracle-1021-1740
 
 **Lo que se pidió.** espera
+## 2026-10-19 17:48 · mg-oracle-1019-1015
+
+**Lo que se pidió.** Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar
 
 **Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
 
@@ -4623,3 +4626,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023J` — pruebas en rojo: Traceback (most recent call last):
 - `RIA1023G` — pruebas en rojo: Traceback (most recent call last):
 - `RLB1020J` — pruebas en rojo: vitest falla (rama conservada)
+- 2 tareas se fueron por lo mismo — pruebas en rojo (APM1017G, VZF1015V). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `APM1017G` — pruebas en rojo: vitest falla (rama conservada)
+- `RTRTCOL1012Bdsbbbbbbbbbbc` — no escribió nada
+- `VZF1015V` — pruebas en rojo: vitest falla (rama conservada)
