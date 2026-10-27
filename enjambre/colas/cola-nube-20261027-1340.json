@@ -1,0 +1,30 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "ola": "Ola 1010S · Actualizaciones por capas: lo que faltaba",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261016-070944-S1010-ACT2c",
+   "id": "S1010-ACT2d-d2",
+   "titulo": "Política de actualización por sistema y capa (parte 2 de 2)",
+   "archivos": [
+    "src/lib/actualizaciones/__tests__/politica.test.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo /home/claude/starseed-system (Next 15, TypeScript, vitest). REGLAS: módulo PURO (sin React/red/node:*); español; producto = Genesis; máx. 3 archivos y 120 líneas por archivo; sin git ni next build; `npx vitest run src/lib/actualizaciones`. DEPENDE de ACT1: importa `CapaActualizacion` y `CAPAS_ORDEN` de './manifiesto' (si aún no existe, declara una copia local idéntica marcada TODO). Contrato: architecture/actualizaciones-por-capas-y-niveles.md §4. CREA src/lib/actualizaciones/politica.ts con: `export type ModoPolitica = \"automatica-todas\"|\"automatica-esta\"|\"programada\"|\"manual\"; export interface PoliticaCapa { modo: ModoPolitica; ventana?: { desdeH: number; hastaH: number } }; export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>; export type TipoEntidad = \"perfil-privado\"|\"pagina-publica\"|\"grupo-jerarquico\"|\"grupo-democratico\"`; `export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema` (perfil-privado: datos e interfaz automatica-todas, sw automatica-esta, servicios/modelos/nativa manual; pagina-publica: todas las capas permitidas siguen automáticamente la rama estable → automatica-todas salvo servicios/modelos/nativa manual; grupo-jerarquico: como perfil-privado; grupo-democratico: igual pero marcado en el resultado de decidir como «requiere aprobación»); `export function decidirPolitica(p: PoliticaCapa, ctx: { ahoraH: number; esNeuronaElegida: boolean; aprobada: boolean; requiereAprobacion: boolean }): \"aplicar\"|\"avisar\"|\"esperar\"` (sin aprobación cuando se requiere → siempre 'esperar'; manual → 'avisar'; automatica-esta → 'aplicar' solo si esNeuronaElegida, si no 'avisar'; programada → 'aplicar' dentro de la ventana [desdeH,hastaH) con cruce de medianoche si desdeH>hastaH, fuera 'esperar'; automatica-todas → 'aplicar'). Validación: `export function sanearPolitica(x: unknown): PoliticaSistema` que rellena con manual lo que falte o venga mal. Pruebas ≥ 14 casos (cada modo, cruce de medianoche, aprobación, saneado de basura).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261016-070944-S1010-ACT2c`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261016-070944-S1010-ACT2c:refs/remotes/origin/nube/a1-20261016-070944-S1010-ACT2c\"` y `git cherry-pick --no-commit 93bd64f58c60 fde450df87cc bc5224e76449 413ee9681443 940ecf8ecccc 361407a79bc0 70e58ebd453d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/actualizaciones/__tests__/politica.test.ts, src/lib/actualizaciones/politica.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió S1010-ACT2d: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/actualizaciones/__tests__/politica.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "S1010-ACT2d",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "revisor_quitadas": [
+    "S1010-ACT2d-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "S1010-ACT2d-d2"
+  ]
+ }
+}
