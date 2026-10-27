@@ -4614,3 +4614,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCB1013Xb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/RTCB1013Xb conservada)
 - `RTTIP1013Cc` — no escribió nada
 - `RTRTRTRTCOL1012Bdsbbbbbc-d2d` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTRTRTRTCOL1012Bdsbbbbbc-d2d conservada)
+
+## 2026-10-27 01:32 · mg-oracle-1026-1636
+
+**Lo que se pidió.** pruebas del puente en rojo
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — los tipos no compilan (CNV1023F, VPU1019W, VPU1019S, SGO1024C). Es 67 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+- opencode/minimax-m3.1-flash-free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1024-0D7DB1` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-27 00:32:50 [0m > build · auto [0m [0m• [0mExplorar test_oracle_nodo.py[90m
+- `CNV1023F` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CNV1023F conservada)
+- `CNV1023E` — no escribió nada
+- `VPU1019W` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VPU1019W conservada)
+- `VPU1019S` — los tipos no compilan: 2 errores tsc (rama ola/VPU1019S conservada)
+- `SGO1024C` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/SGO1024C conservada)
