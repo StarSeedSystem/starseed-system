@@ -71,7 +71,8 @@ function leerPrefs(ids: string[]): Record<string, PrefsCerebro> {
       const m = REGEX_PREF.exec(clave);
       if (!m || !deseados.has(m[1])) continue;
       try {
-        (prefs[m[1]] ??= {})[m[2]] = JSON.parse(almacen.getItem(clave) ?? "");
+        const valor = JSON.parse(almacen.getItem(clave) ?? "");
+        (prefs[m[1]] ??= {})[m[2]] = valor;
       } catch {
         /* preferencia rota: se ignora, no tumba la lectura */
       }
