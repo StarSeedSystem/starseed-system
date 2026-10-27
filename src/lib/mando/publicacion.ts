@@ -17,6 +17,7 @@ import { promisify } from "node:util";
 import path from "node:path";
 
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { validarSinCredencialesEpic } from "@/lib/artcraft/juegos-pc";
 
 const execFileAsync = promisify(execFile);
 
@@ -232,6 +233,10 @@ export async function leerPublicacion(): Promise<EstadoPublicacion> {
  */
 export async function prepararPublicacion(nota: string): Promise<ManifiestoPublicacion> {
     const estado = await leerPublicacion();
+    const validacion = validarSinCredencialesEpic(nota);
+    if (!validacion.ok) {
+      throw new Error(`Credenciales de Epic detectadas en la publicación: ${validacion.hallazgos.join(", ")}`);
+    }
     const manifiesto: ManifiestoPublicacion = {
         ...estado,
         nota: nota.trim(),
