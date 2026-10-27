@@ -37,6 +37,7 @@ mod carpetas;
 mod disco;
 mod faro;
 mod nativa;
+mod recursos_ia;
 #[cfg(desktop)]
 mod segundo_plano;
 mod serie;
@@ -566,7 +567,8 @@ pub fn run() {
             nativa::capas_verificar,
             nativa::capas_borrar,
             nativa::nas_listar,
-            nativa::nas_leer
+            nativa::nas_leer,
+            recursos_ia::recursos_ia_detectar,
         ])
         .build(tauri::generate_context!())
         .expect("error irrecuperable arrancando la app nativa StarSeed")
