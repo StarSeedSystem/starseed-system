@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261026",
+ "tareas": [
+  {
+   "id": "GUI1021H",
+   "ola": "1021G",
+   "titulo": "Guías · aviso único de novedades para las cuentas que ya vieron la guía",
+   "archivos": [
+    "src/lib/onboarding/guia-vista.ts",
+    "src/components/onboarding/aurora-guide.tsx",
+    "src/lib/onboarding/__tests__/guia-novedades.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §2. En `guia-vista.ts` añade `GUIA_VERSION = 2` y `temasNuevosPara(versionVista)` (puro): una cuenta que vio la versión 1 tiene pendientes los diez temas. En `aurora-guide.tsx`, si la guía ya se vio pero con versión menor, aparece UNA vez un aviso discreto «Novedades de la guía: 10 temas nuevos» con «Ver ahora» (abre el tour en el primer tema nuevo) y «Más tarde»; al verlo o descartarlo se guarda la versión en la misma marca de la cuenta que ya usa `guia-vista.ts` (para que llegue a todos sus medios) y no vuelve a salir. Pruebas de la lógica pura y del aviso. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho).",
+   "revisor_quitadas": [
+    "GUI1021C",
+    "GUI1021F"
+   ]
+  }
+ ]
+}
