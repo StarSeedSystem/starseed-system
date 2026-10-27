@@ -1,71 +1,92 @@
-import { fireEvent, render, screen, cleanup } from "@testing-library/react";
-import { describe, expect, it, vi, afterEach } from "vitest";
-import * as matchers from "@testing-library/jest-dom/matchers";
-import * as canvas from "@/lib/canvas/canvas";
+// @vitest-environment jsdom
+/**
+ * pizarras-panel-form.test.tsx — el diálogo de compartir de PizarrasPanel
+ * (SP092941d, sugiere SA092938). El textarea de comentario no tiene label
+ * visible, así que lleva aria-label «Comentario de la publicación (opcional)»
+ * para que los lectores de pantalla anuncien su propósito.
+ */
+import "@testing-library/jest-dom/vitest";
+import { afterEach, describe, expect, it, test, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { Canvas } from "@/lib/canvas/canvas";
 import { AppearanceProvider } from "@/context/appearance-context";
 
-expect.extend(matchers);
+vi.mock("@/lib/canvas/canvas", () => ({
+    listCanvases: vi.fn(async () => [unaPizarra()]),
+}));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
-  usePathname: () => "/crear",
-  useSearchParams: () => new URLSearchParams(),
+    useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+    usePathname: () => "/crear",
+    useSearchParams: () => new URLSearchParams(),
 }));
-
 vi.mock("@/lib/os-social", () => ({
-  createPost: vi.fn().mockResolvedValue({ ok: true }),
-  fetchMyEntities: vi.fn().mockResolvedValue({ pages: [], groups: [] }),
+    createPost: vi.fn(async () => ({ ok: true })),
+    fetchMyEntities: vi.fn(async () => ({ pages: [], groups: [] })),
 }));
-
-vi.mock("@/lib/canvas/canvas", () => ({
-  listCanvases: vi.fn().mockResolvedValue([]),
-}));
-
 vi.mock("@/context/board-context", () => ({
-  useBoardSystem: () => ({ boards: [], setActiveBoard: vi.fn() }),
+    useBoardSystem: () => ({ boards: [], setActiveBoard: vi.fn() }),
 }));
-
 vi.mock("@/context/control-panel-context", () => ({
-  useControlPanel: () => ({ setActiveTab: vi.fn(), setIsOpen: vi.fn() }),
+    useControlPanel: () => ({ setActiveTab: vi.fn(), setIsOpen: vi.fn() }),
+}));
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock("@/components/creation/creation-fields", () => ({ DestSelector: () => null }));
+vi.mock("@/components/creation/creation-config", () => ({
+    buildSsMetaComment: vi.fn(() => "ss-meta"),
+    destToEntity: vi.fn(() => ({ entityType: "persona", entitySlug: "yo" })),
+    CREATION_DEST_BY_ID: {},
 }));
 
-vi.mock("@/hooks/use-toast", () => ({
-  useToast: () => ({ toast: vi.fn() }),
-}));
-
-import { PizarrasPanel } from "../pizarras-panel";
-
-describe("PizarrasPanel", () => {
-  afterEach(cleanup);
-
-  it("abre el diálogo de compartir con su comentario opcional", async () => {
-    vi.mocked(canvas.listCanvases).mockResolvedValue([
-      {
-        id: "c1",
-        owner: null,
-        scope: "account",
-        scope_ref: null,
-        title: "Diagrama del valle",
+function unaPizarra(): Canvas {
+    return {
+        id: "p-1",
+        owner: "uid-1",
+        scope: "persona",
+        scope_ref: "yo",
+        title: "Origen de la bigorna",
         blocks: [],
         shared: false,
-      },
-    ]);
+    };
+}
 
-    render(
-      <AppearanceProvider>
-        <PizarrasPanel />
-      </AppearanceProvider>
-    );
+import { PizarrasPanel } from "@/components/creation/pizarras-panel";
 
-    // La pizarra de nube aparece con su acción de compartir.
-    expect(await screen.findByText("Diagrama del valle")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Compartir como publicación"));
+afterEach(() => cleanup());
 
-    // El diálogo ofrece el comentario opcional y la publicación.
-    const comentario = await screen.findByPlaceholderText(
-        "Añade un comentario (opcional)…",
-    );
-    expect(comentario).toBeInstanceOf(HTMLTextAreaElement);
-    expect(screen.getByText("Publicar")).toBeInTheDocument();
-  });
+describe("PizarrasPanel · diálogo de compartir", () => {
+    it("abre el diálogo de compartir con su comentario opcional", async () => {
+        render(
+            <AppearanceProvider>
+                <PizarrasPanel />
+            </AppearanceProvider>,
+        );
+
+        // La pizarra de nube aparece con su acción de compartir.
+        expect(await screen.findByText("Origen de la bigorna")).toBeInTheDocument();
+        fireEvent.click(screen.getByText("Compartir como publicación"));
+
+        // El diálogo ofrece el comentario opcional y la publicación.
+        const comentario = await screen.findByPlaceholderText(
+            "Añade un comentario (opcional)…",
+        );
+        expect(comentario).toBeInstanceOf(HTMLTextAreaElement);
+        expect(screen.getByText("Publicar")).toBeInTheDocument();
+    });
+
+    test("el textarea de comentario lleva aria-label (sin label visible)", async () => {
+        render(
+            <AppearanceProvider>
+                <PizarrasPanel />
+            </AppearanceProvider>,
+        );
+        await screen.findByText("Origen de la bigorna");
+
+        fireEvent.click(screen.getByText("Compartir como publicación"));
+
+        const comentario = await screen.findByLabelText(
+            "Comentario de la publicación (opcional)",
+        );
+        expect(comentario).toBeInstanceOf(HTMLTextAreaElement);
+    });
 });
