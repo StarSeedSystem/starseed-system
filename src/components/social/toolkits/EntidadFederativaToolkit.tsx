@@ -17,6 +17,8 @@ import {
   EmptyHint,
   EntityQuickActions,
   GOLD,
+  claveEstable,
+  clavesUnicas,
 } from "@/components/social/toolkits/shared";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
@@ -112,6 +114,8 @@ export function EntidadFederativaToolkit({
       </div>
     );
   }
+
+  const clavesDelegados = clavesUnicas(data.delegates, (d) => claveEstable(d.name, d.domain));
 
 
   return (
@@ -457,7 +461,7 @@ export function EntidadFederativaToolkit({
             <div className="space-y-2">
               {data.delegates.map((d, i) => (
                 <PersonRow
-                  key={d.name}
+                  key={clavesDelegados[i]}
                   name={d.name}
                   role={d.domain}
                   badge={`${d.delegatedVotes.toLocaleString("es-ES")} votos`}
