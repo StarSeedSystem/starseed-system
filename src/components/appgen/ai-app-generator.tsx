@@ -45,6 +45,7 @@ import {
   Link2,
   BrainCircuit,
   Server,
+  Database,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -79,6 +80,8 @@ import {
   runOnBrain,
   appShareRef,
 } from "@/lib/appgen/appgen";
+
+import { plantillaRefine } from "@/lib/appgen/plantilla-refine";
 
 import { createClient } from "@/utils/supabase/client";
 import { listBrains, type Brain, type BrainServer } from "@/lib/brains/brains";
@@ -120,6 +123,25 @@ function buildTree(files: AppFile[]): TreeNode {
   };
   sort(root);
   return root;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Plantilla «panel de datos» (Refine): parseo del texto de recursos
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Convierte «articulos: titulo, autor\nclientes: nombre» en recursos para plantillaRefine. */
+function parsearRecursos(texto: string): { nombre: string; campos: string[] }[] {
+  return texto
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((linea) => {
+      const [nombre, ...resto] = linea.split(":");
+      const campos = resto.length
+        ? resto.join(":").split(",").map((c) => c.trim()).filter(Boolean)
+        : ["id"];
+      return { nombre: (nombre ?? "").trim(), campos };
+    });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -593,6 +615,52 @@ export default function AiAppGenerator() {
     w.document.close();
   }, [srcDoc]);
 
+  // Plantilla «panel de datos» (Refine): genera el proyecto con plantillaRefine
+  // y lo carga en el estudio. La activación (npm install / dev) es manual (LEEME.md).
+  const onPlantillaRefine = useCallback(async () => {
+    if (
+      !(await confirm({
+        title: "Plantilla «panel de datos» (Refine)",
+        description:
+          "Genera un proyecto Vite + React + Refine 5 con la telemetría apagada y una página de listado por recurso, y lo carga en el estudio (reemplaza el proyecto actual). ¿Continuar?",
+      }))
+    ) {
+      return;
+    }
+    const nombre = (await prompt({
+      title: "Nombre del proyecto",
+      label: "Nombre (se reduce a slug ASCII):",
+      defaultValue: "Panel de datos",
+    }));
+    if (nombre == null) return;
+    const recursosTxt = await prompt({
+      title: "Recursos del panel",
+      description: "Uno por línea: «recurso: campo1, campo2». Si un recurso no declara campos, se le da «id».",
+      label: "Recursos:",
+      placeholder: "articulos: titulo, autor\nclientes: nombre",
+      validate: (v) => (v.trim() ? null : "Escribe al menos un recurso."),
+    });
+    if (recursosTxt == null) return;
+    try {
+      const archivos = plantillaRefine({
+        nombre: nombre.trim() || "Panel de datos",
+        recursos: parsearRecursos(recursosTxt),
+      });
+      setApp((prev) => ({
+        ...prev,
+        name: nombre.trim() || "Panel de datos",
+        files: archivos,
+      }));
+      setActivePath("src/App.tsx");
+      setPreviewKey((k) => k + 1);
+      toast.success("Plantilla «panel de datos» cargada", {
+        description: "Se activa a mano: npm install + npm run dev (ver LEEME.md).",
+      });
+    } catch (err) {
+      toast.error("La plantilla no se pudo generar", { description: (err as Error)?.message });
+    }
+  }, [confirm, prompt]);
+
   const newProject = useCallback(async () => {
     if (!(await confirm({
       title: "Empezar proyecto nuevo",
@@ -694,6 +762,15 @@ export default function AiAppGenerator() {
             />
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={newProject}>
               <Plus className="h-3.5 w-3.5" /> Nuevo
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1 text-xs"
+              onClick={onPlantillaRefine}
+              title="Generar un panel de datos con Refine (telemetría apagada)"
+            >
+              <Database className="h-3.5 w-3.5" /> Panel de datos
             </Button>
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={openList}>
               <FolderTree className="h-3.5 w-3.5" /> Mis apps
