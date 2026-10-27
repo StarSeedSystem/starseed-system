@@ -39,12 +39,23 @@ export interface VentanaHoraria {
 export interface PoliticaCapa {
   modo: ModoPolitica;
   ventana?: VentanaHoraria;
+  /**
+   * La capa exige aprobación (entidad democrática): hasta que no esté aprobada, decidir
+   * devuelve «esperar» aunque el modo sea automático.
+   */
+  requiereAprobacion?: boolean;
 }
 
 export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>;
 
-/** Tipos de sistema/entidad que reciben versiones (los del diálogo «Crear en la red» y el perfil). */
+/** Tipos del diálogo «Crear en la red» y del perfil (nombres que ya usa la interfaz de Genesis). */
 export type TipoEntidad = "perfil" | "pagina" | "grupo" | "comunidad" | "estudio" | "evento" | "os";
+
+/** Taxonomía del contrato §4 (actualizaciones por capas y niveles). */
+export type TipoEntidadContrato = "perfil-privado" | "pagina-publica" | "grupo-jerarquico" | "grupo-democratico";
+
+/** Todo tipo de sistema al que se le puede pedir una política por defecto. */
+export type TipoEntidadPolitica = TipoEntidad | TipoEntidadContrato;
 
 export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
   perfil: "perfil privado",
@@ -56,9 +67,20 @@ export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
   os: "StarSeed OS",
 };
 
+export const NOMBRE_TIPO_CONTRATO: Record<TipoEntidadContrato, string> = {
+  "perfil-privado": "perfil privado",
+  "pagina-publica": "página pública",
+  "grupo-jerarquico": "grupo jerárquico",
+  "grupo-democratico": "grupo democrático",
+};
+
 export const VENTANA_NOCTURNA: VentanaHoraria = { desdeH: 3, hastaH: 6 };
 
-const P = (modo: ModoPolitica, ventana?: VentanaHoraria): PoliticaCapa => (ventana ? { modo, ventana: { ...ventana } } : { modo });
+const P = (modo: ModoPolitica, ventana?: VentanaHoraria, requiereAprobacion?: boolean): PoliticaCapa => {
+  const c: PoliticaCapa = ventana ? { modo, ventana: { ...ventana } } : { modo };
+  if (requiereAprobacion) c.requiereAprobacion = true;
+  return c;
+};
 
 /**
  * Política por defecto según el tipo (contrato §4):
@@ -66,9 +88,10 @@ const P = (modo: ModoPolitica, ventana?: VentanaHoraria): PoliticaCapa => (venta
  *   · página o espacio público de un grupo → sigue la rama estable sola en lo declarativo;
  *   · el OS → igual que un perfil, pero los modelos (descargas grandes) en la ventana nocturna.
  * Lo que una entidad democrática PUBLICA se vota antes (eso es la aprobación del manifiesto,
- * no esta política): lo ya aprobado llega automático a quien lo tenga así.
+ * no esta política): lo ya aprobado llega automático a quien lo tenga así. Por eso las capas de
+ * `grupo-democratico` quedan marcadas con `requiereAprobacion`: sin aprobación, deciden «esperar».
  */
-export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
+export function politicaPorDefecto(tipo: TipoEntidadPolitica): PoliticaSistema {
   const base: PoliticaSistema = {
     datos: P("automatica-todas"),
     interfaz: P("automatica-todas"),
@@ -78,6 +101,11 @@ export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
     nativa: P("manual"),
   };
   if (tipo === "os") return { ...base, modelos: P("programada", VENTANA_NOCTURNA) };
+  if (tipo === "grupo-democratico") {
+    const aprobada = {} as PoliticaSistema;
+    for (const capa of CAPAS_ORDEN) aprobada[capa] = { ...base[capa], requiereAprobacion: true };
+    return aprobada;
+  }
   return base;
 }
 
@@ -86,6 +114,10 @@ export interface ContextoDecision {
   ahoraH: number;
   /** Esta neurona es la elegida para «automática solo en esta neurona». */
   esNeuronaElegida: boolean;
+  /** La versión que se va a aplicar ya pasó la votación de la entidad. */
+  aprobada?: boolean;
+  /** La entidad exige votación antes de aplicar, aunque la capa no lo lleve marcado. */
+  requiereAprobacion?: boolean;
 }
 
 export type Decision = "aplicar" | "avisar" | "esperar";
@@ -97,6 +129,8 @@ function dentroDeVentana(h: number, v: VentanaHoraria): boolean {
 
 /** Qué hacer con una capa pendiente en ESTA neurona según su política. */
 export function decidirPolitica(p: PoliticaCapa, ctx: ContextoDecision): Decision {
+  const requiere = p.requiereAprobacion === true || ctx.requiereAprobacion === true;
+  if (requiere && ctx.aprobada !== true) return "esperar";
   switch (p.modo) {
     case "automatica-todas":
       return "aplicar";
@@ -118,12 +152,13 @@ export function sanearPolitica(x: unknown): PoliticaSistema {
   for (const capa of CAPAS_ORDEN) {
     const c = src[capa] as Record<string, unknown> | undefined;
     const modo = c && MODOS_POLITICA.includes(c.modo as ModoPolitica) ? (c.modo as ModoPolitica) : "manual";
+    const aprueba = c?.requiereAprobacion === true;
     if (modo === "programada") {
       const v = c?.ventana as Record<string, unknown> | undefined;
       const d = hora(v?.desdeH);
       const h = hora(v?.hastaH);
-      out[capa] = P("programada", d !== null && h !== null ? { desdeH: d, hastaH: h } : VENTANA_NOCTURNA);
-    } else out[capa] = P(modo);
+      out[capa] = P("programada", d !== null && h !== null ? { desdeH: d, hastaH: h } : VENTANA_NOCTURNA, aprueba);
+    } else out[capa] = P(modo, undefined, aprueba);
   }
   return out;
 }
