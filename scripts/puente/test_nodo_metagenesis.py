@@ -379,6 +379,37 @@ class TestFotoYTachado(unittest.TestCase):
         self.assertNotEqual(L.huella_foto(a), L.huella_foto(c))
         self.assertIn("líder mac-aaaaaa", L.texto_foto(a))
 
+    def test_la_vista_lleva_el_hardware_del_nodo(self):
+        salud = {"disco_gb": 12.5, "disco_total_gb": 480.0, "ram_libre_mb": 900, "ram_total_mb": 8192,
+                 "nucleos": 8, "carga": 1.25, "cpu_pct": 37.5}
+        n = {"a1-bbbbbb": {"nodo": "a1-bbbbbb", "medio": "oracle-a1", "modo": "real", "ts": T0, "salud": salud}}
+        vista = L.resumen_nodo("a1-bbbbbb", n["a1-bbbbbb"], None, T0)
+        self.assertEqual(vista["disco_total_gb"], 480.0)
+        self.assertEqual(vista["ram_total_mb"], 8192)
+        self.assertEqual(vista["nucleos"], 8)
+        self.assertEqual(vista["carga"], 1.25)
+        self.assertEqual(vista["cpu_pct"], 37.5)
+
+    def test_la_vista_respeta_lo_que_no_se_pudo_medir(self):
+        salud = {"disco_gb": 12.5, "disco_total_gb": None, "ram_libre_mb": 900, "ram_total_mb": None,
+                 "nucleos": None, "carga": None, "cpu_pct": None}
+        n = {"mac-cccccc": {"nodo": "mac-cccccc", "medio": "mac", "modo": "real", "ts": T0, "salud": salud}}
+        vista = L.resumen_nodo("mac-cccccc", n["mac-cccccc"], None, T0)
+        for clave in ("disco_total_gb", "ram_total_mb", "nucleos", "carga", "cpu_pct"):
+            self.assertIn(clave, vista)
+            self.assertIsNone(vista[clave])
+
+    def test_huella_ignora_el_hardware_que_se_mueve(self):
+        base = {"nodo": "a1-bbbbbb", "medio": "oracle-a1", "modo": "real", "ts": T0,
+                "salud": {"disco_gb": 12.5, "ram_libre_mb": 900}}
+        uno = dict(base, salud=dict(base["salud"], cpu_pct=10.0, ram_total_mb=8192, disco_total_gb=480.0,
+                                    nucleos=8, carga=0.5))
+        dos = dict(base, salud=dict(base["salud"], cpu_pct=91.0, ram_total_mb=8192, disco_total_gb=480.0,
+                                    nucleos=8, carga=7.5))
+        a = L.foto("a1-bbbbbb", 3, {"a1-bbbbbb": uno}, [], {}, True, "real", T0)
+        b = L.foto("a1-bbbbbb", 3, {"a1-bbbbbb": dos}, [], {}, True, "real", T0)
+        self.assertEqual(L.huella_foto(a), L.huella_foto(b))
+
     def test_tachar(self):
         clave = "".join(["sk", "-", "abcdef1234567890XYZ"])
         t = L.tachar("clave %s túnel https://abc-def.trycloudflare.com/x ip 8.8.4.4 local 127.0.0.1" % clave)

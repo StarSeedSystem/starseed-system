@@ -147,6 +147,33 @@ def disco_libre_gb(ruta: str) -> Optional[float]:
         return None
 
 
+def cpu_pct() -> Optional[float]:
+    """CPU ocupada en % (contrato §7.2): dos lecturas de `/proc/stat` separadas 0,3 s.
+    Solo Linux: en macOS u otros devuelve None, nunca un número inventado."""
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        with open("/proc/stat") as f:
+            primera = f.readline().split()
+        if not primera or primera[0] != "cpu":
+            return None
+        tiempos1 = [int(x) for x in primera[1:]]
+        time.sleep(0.3)
+        with open("/proc/stat") as f:
+            segunda = f.readline().split()
+        if not segunda or segunda[0] != "cpu":
+            return None
+        tiempos2 = [int(x) for x in segunda[1:]]
+    except (OSError, ValueError, IndexError):
+        return None
+    total = sum(tiempos2) - sum(tiempos1)
+    if total <= 0:
+        return None
+    # El cuarto campo es el tiempo idle; lo ocupado es todo lo demás.
+    idle = tiempos2[3] - tiempos1[3]
+    return round((total - idle) * 100.0 / total, 1)
+
+
 def ram_total_mb() -> Optional[int]:
     """RAM TOTAL del aparato (no la libre): la capacidad de contenedor se decide con ella (§2 del contrato).
     None si no se pudo medir: entonces no se inventa un contenedor (ni «no apto» por un 0 falso)."""
@@ -159,10 +186,18 @@ def ram_total_mb() -> Optional[int]:
         pass
     if sys.platform == "darwin":
         # Ruta absoluta: launchd no lleva /usr/sbin en el PATH (mismo motivo que `ioreg` en huella_maquina).
-        rc, out = _sh(["/usr/sbin/sysctl", "-n", "hw.memsize"], tope=10)
+        rc, out = _sh(["/usr/sbin/sysctl", "-n", "hw.memsize"], tope=2)
         if rc == 0 and out.strip().isdigit():
             return int(out.strip()) // (1024 * 1024)
     return None
+
+
+def disco_total_gb(ruta: str) -> Optional[float]:
+    """Disco TOTAL del aparato en GB (contrato §7.2); None si no se pudo medir."""
+    try:
+        return round(shutil.disk_usage(ruta).total / 1e9, 1)
+    except OSError:
+        return None
 
 
 def bateria_de(texto_pmset: str) -> Dict[str, Any]:
@@ -646,9 +681,12 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         "autoritativo": autoritativo,
         "orquestadores": orqs,
         "disco_gb": disco_libre_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
+        "disco_total_gb": disco_total_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
         "ram_libre_mb": ram_libre_mb(),
+        "ram_total_mb": ram_total_mb(),
         "nucleos": os.cpu_count(),
         "carga": round(os.getloadavg()[0], 2) if hasattr(os, "getloadavg") else None,
+        "cpu_pct": cpu_pct(),
         "servicios_caidos": [],
         "guardianes_caidos": [],
     }
