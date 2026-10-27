@@ -4524,6 +4524,10 @@ Genesis pasó de 5 agentes a 31 (28 en GitHub, 3 en la Mac); el límite real es 
   23:24 con 4 integraciones del enjambre (SGO1024Eb, IMN1021K8c, MGB1021Ab, GCA1019Ob), las primeras desde las 12:03.
   `872241fa5` CAP1026R: esos veredictos se perdían al avanzar main y bloqueaban los 6 sitios; ahora se leen y se
   reutilizan.
+- 27/10 01:00: R verificado — las 6 viejas se leyeron y borraron su rama; 12 comprobaciones nuevas (6 verdes) y main
+  avanzó de 00:56 a 00:59 con RTRLB1020H, RTRTRTRTRTS1010-EV-ORACLE-1acb-d2b, CNV1023Ab, MGX1023B y RTVZF1015Hb.
+  El disco de la Mac llegó a 0,6 GB a las 00:50 (swap 11,7 GB; el director de la nube cayó con ENOSPC y launchd lo
+  relanzó ya con O y Q: Cloudroom 0 libres «sin cupo hoy»); `reparar_medidor.py disco` lo dejó en 5,2 GB.
 
 ### Pendiente / Próximos pasos
 - Primera comprobación real en GitHub: la pasada de traer de las 20:36 seguía con el código de antes de N; el
