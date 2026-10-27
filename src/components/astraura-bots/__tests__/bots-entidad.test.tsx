@@ -14,6 +14,10 @@ vi.mock("@/utils/supabase/client", () => ({
   },
 }));
 
+vi.mock("@/components/avatares/cuerpo-3d-bot", () => ({
+  Cuerpo3dBot: (p: { bot: { id: string } }) => <div data-testid="cuerpo-3d-bot">{p.bot.id}</div>,
+}));
+
 import { BotsEntidad, botDeFila, type ServiciosBots } from "../bots-entidad";
 const ENTIDAD = { tipo: "grupo" as const, id: "g-1", slug: "huerto", nombre: "Huerto" };
 const FILA = { id: "b-1", nombre: "Semilla", cuenta_id: "c-1", dueno_tipo: "grupo", dueno_id: "g-1", activo: true };
@@ -107,6 +111,11 @@ describe("BotsEntidad", () => {
     const conocida = (TIPOS_OPERACION as readonly string[]).includes("bot.configurar");
     expect(screen.queryByText(/próximamente: cambiar o pausar/) !== null).toBe(!conocida);
     expect(screen.queryByRole("button", { name: "Cambiar configuración" }) !== null).toBe(conocida);
+  });
+
+  it("monta el cuerpo 3D del bot cuando su forma es avatar-3d o vrm", async () => {
+    montar("admin", false, { filas: [{ ...FILA, datos: { cuerpo: { forma: "avatar-3d", avatarRef: "biblioteca:adn-1", tono: 200, escala: 1 } } }] });
+    expect((await screen.findByTestId("cuerpo-3d-bot")).textContent).toBe("b-1");
   });
 
   it("botDeFila sanea la fila: rasgos acotados, sentidos válidos y el gobierno de la entidad", () => {
