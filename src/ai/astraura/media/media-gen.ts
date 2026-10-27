@@ -1183,11 +1183,14 @@ export async function generateImage(opts: GenerateImageOptions): Promise<MediaGe
       : resolveProvider("image", opts.neuronId);
 
   // Galería: varias opciones a la vez repartidas por capas/neuronas (IMG1011B).
+  // Con ComfyUI elegido, las opciones las genera `comfyuiImage` él mismo
+  // (variaciones con semillas distintas en el servidor local, IMG1020C): no
+  // se las lleva el proveedor de neuronas.
   const nOpciones =
     typeof opts.opciones === "number" && Number.isFinite(opts.opciones)
       ? Math.max(1, Math.min(8, Math.floor(opts.opciones)))
       : 1;
-  if (nOpciones > 1 || chosen === "neuronas") {
+  if ((nOpciones > 1 && chosen !== "comfyui") || chosen === "neuronas") {
     try {
       const mod = await import("./proveedor-neuronas");
       const galeria = await mod.generarGaleriaImagenes({
