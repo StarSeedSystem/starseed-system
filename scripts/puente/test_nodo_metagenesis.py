@@ -21,6 +21,7 @@ if DIR not in sys.path:
 import nodo_metagenesis as N  # noqa: E402
 import nodo_metagenesis_bus as B  # noqa: E402
 import nodo_metagenesis_logica as L  # noqa: E402
+import nodo_metagenesis_medio as M  # noqa: E402
 
 T0 = 1_791_640_000.0  # 2026-10-10 ~11:46 UTC
 SECRETO = "s" * 48  # secreto de PRUEBA
@@ -378,6 +379,38 @@ class TestFotoYTachado(unittest.TestCase):
         c = L.foto("mac-aaaaaa", 4, n, [], {"listas": "3"}, True, "real", T0 + 500)
         self.assertNotEqual(L.huella_foto(a), L.huella_foto(c))
         self.assertIn("líder mac-aaaaaa", L.texto_foto(a))
+
+    def test_vista_del_nodo_lleva_cpu_ram_y_disco_total(self):
+        l = {"nodo": "mac-aaaaaa", "medio": "mac", "modo": "real", "ts": T0, "puntos": 1500,
+             "salud": {"disco_gb": 12.5, "disco_total_gb": 80.0, "ram_libre_mb": 2048,
+                       "ram_total_mb": 8192, "cpu_pct": 37.4, "nucleos": 4, "carga": 1.25}}
+        n = L.resumen_nodo("mac-aaaaaa", l, "mac-aaaaaa", T0 + 10)
+        self.assertEqual(n["cpu_pct"], 37.4)
+        self.assertEqual(n["ram_total_mb"], 8192)
+        self.assertEqual(n["disco_total_gb"], 80.0)
+        self.assertEqual(n["nucleos"], 4)
+        self.assertEqual(n["carga"], 1.25)
+
+    def test_vista_respeta_lo_que_no_se_pudo_medir(self):
+        l = {"nodo": "oracle-a1-bbbbbb", "medio": "oracle-a1", "modo": "real", "ts": T0, "puntos": 1250,
+             "salud": {"cpu_pct": None, "ram_total_mb": None, "disco_total_gb": None,
+                       "nucleos": None, "carga": None}}
+        n = L.resumen_nodo("oracle-a1-bbbbbb", l, "mac-aaaaaa", T0 + 10)
+        for campo in ("cpu_pct", "ram_total_mb", "disco_total_gb", "nucleos", "carga"):
+            self.assertIsNone(n[campo], campo)
+
+    def test_huella_ignora_las_medidas_que_cambian(self):
+        def foto(cpu, ram_libre):
+            nodo = {"nodo": "mac-aaaaaa", "medio": "mac", "modo": "real", "ts": T0,
+                    "salud": {"cpu_pct": cpu, "ram_libre_mb": ram_libre, "ram_total_mb": 8192,
+                              "disco_gb": 12.5, "disco_total_gb": 80.0, "nucleos": 4, "carga": 1.25}}
+            return L.foto("mac-aaaaaa", 3, {"mac-aaaaaa": nodo}, [], {"listas": "3"}, True, "real", T0)
+        self.assertEqual(L.huella_foto(foto(10.0, 2048)), L.huella_foto(foto(90.0, 512)))
+
+    def test_disco_total_gb_mide_el_aparato(self):
+        with tempfile.TemporaryDirectory() as d:
+            total = M.disco_total_gb(d)
+        self.assertTrue(total is not None and total > 0.0)
 
     def test_tachar(self):
         clave = "".join(["sk", "-", "abcdef1234567890XYZ"])
