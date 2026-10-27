@@ -135,7 +135,7 @@ import {
   type PasoGuia,
 } from "@/lib/onboarding/guia-completa";
 import { borrarProgresoGuia, guardarProgresoGuia, leerProgresoGuia } from "@/lib/onboarding/guia-progreso";
-import { pedirAccesoDesdeGuia, type AccionGuia, type OrigenGuia } from "@/lib/onboarding/guia-acceso";
+import { pedirAccesoDesdeGuia, type AccionGuia, type OrigenGuia, zGuia } from "@/lib/onboarding/guia-acceso";
 import { abrirPrimerArranque } from "@/lib/onboarding/primer-arranque";
 import { explorarSinCuenta } from "@/lib/onboarding/explorar-sin-cuenta";
 import { useHaySesion } from "@/hooks/use-hay-sesion";
@@ -846,7 +846,8 @@ export function AuroraGuide() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.22 }}
-            className="fixed inset-0 z-[95]"
+            className="fixed inset-0"
+            style={{ zIndex: zGuia(origen ?? "boton", haySesion) }}
             aria-modal="true"
             role="dialog"
             aria-label="Guía de StarSeed"

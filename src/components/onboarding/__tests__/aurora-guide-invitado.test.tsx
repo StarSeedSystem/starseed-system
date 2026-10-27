@@ -5,7 +5,7 @@
  * y temaInicial funciona.
  */
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const sim = vi.hoisted(() => ({
@@ -205,17 +205,3 @@ describe("GUI1021J · guía de Aurora sin cuenta (invitado)", () => {
         }
     });
 });
-
-function within(el: HTMLElement) {
-    return {
-        getByRole: (role: string, opts?: { name?: string | RegExp }) => {
-            return el.querySelector(`[role="${role}"]`) as HTMLElement;
-        },
-        queryByRole: (role: string, opts?: { name?: string | RegExp }) => {
-            return el.querySelector(`[role="${role}"]`) as HTMLElement | null;
-        },
-        getByTestId: (id: string) => {
-            return el.querySelector(`[data-testid="${id}"]`) as HTMLElement;
-        },
-    };
-}
