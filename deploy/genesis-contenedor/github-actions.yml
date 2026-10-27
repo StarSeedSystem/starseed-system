@@ -1,0 +1,103 @@
+name: Genesis Contenedor
+
+# Plantilla de GitHub Actions de StarSeed OS (Ola 1019G · tarea O · acción O):
+# un motor del ámbito que vive en TU repositorio. Copia ESTE archivo tal cual a
+# .github/workflows/genesis.yml en tu repositorio, guarda las llaves de acceso
+# como SECRETOS de tu repositorio (véase el README de esta misma carpeta) y
+# cada hora, o cuando la lanzas a mano, hace tres cosas:
+#   1. pide las tareas pendientes de su ámbito (RPC mando_motor_pendiente),
+#   2. las escribe con el orquestador del OS (scripts/enjambre/starseed-enjambre.py),
+#   3. informa el progreso (RPC mando_motor_reportar), sin latidos ni medidores:
+#      telemetría apagada, solo el estado de las tareas que atendió.
+# Corre dentro de los minutos gratuitos de tu plan de GitHub Actions:
+# https://docs.github.com/es/actions/learn-github-actions/usage-limits-billing-and-administration
+
+"on":
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: genesis-contenedor
+  cancel-in-progress: false
+
+jobs:
+  conectar:
+    name: Pedir, atender e informar
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      STARSEED_MOTOR_TOKEN: ${{ secrets.STARSEED_MOTOR_TOKEN }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      STARSEED_ROOT: ${{ github.workspace }}/starseed-os
+      STARSEED_MEDIO: acciones
+      NO_COLOR: '1'
+      TERM: dumb
+    steps:
+      - name: Traer el orquestador del OS
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.STARSEED_SISTEMA_REPO || 'StarSeedSystem/starseed-system' }}
+          path: starseed-os
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Pedir tarea al ámbito
+        id: pedir
+        run: |
+          cd starseed-os
+          python3 - <<'PY'
+          import json, os, sys
+          sys.path.insert(0, "scripts/enjambre")
+          from motor_ambito import Conector
+          c = Conector.desde_entorno()
+          os.makedirs("starseed_memory_root/olas", exist_ok=True)
+          cola = []
+          for t in c.recoger_tareas():
+              if isinstance(t, dict) and t.get("tarea_id"):
+                  cola.append({"id": t["tarea_id"], "ola": t.get("ola", ""), "titulo": t.get("titulo", ""),
+                               "prompt": t.get("prompt", ""), "archivos": t.get("archivos", []),
+                               "depende": t.get("depende", []), "estado": "pendiente"})
+          ruta = "starseed_memory_root/olas/cola-acciones-motor.json"
+          with open(ruta, "w", encoding="utf-8") as f:
+              json.dump(cola, f, ensure_ascii=False, indent=1), f.write("\n")
+          print("Tareas pendientes en tu ámbito: %d." % len(cola))
+          env_ga = open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8")
+          env_ga.write("n=%d\n" % len(cola)), env_ga.close()
+          PY
+
+      - name: Escribir la tarea con el orquestador
+        if: steps.pedir.outputs.n != '0'
+        run: |
+          cd "$STARSEED_ROOT"
+          python3 -u scripts/enjambre/starseed-enjambre.py \
+            starseed_memory_root/olas/cola-acciones-motor.json --workers 1
+
+      - name: Informar el resultado
+        run: |
+          cd starseed-os
+          python3 - <<'PY'
+          import json, os, sys
+          sys.path.insert(0, "scripts/enjambre")
+          from motor_ambito import Conector
+          c = Conector.desde_entorno()
+          if not c.activo:
+              # Sin llave de acceso no se envía nada: telemetría apagada.
+              sys.exit(0)
+          try:
+              prog = json.load(open("starseed_memory_root/olas/progreso.json", encoding="utf-8"))
+          except (OSError, ValueError):
+              prog = {}
+          for tid, dato in prog.items():
+              if isinstance(dato, dict) and "estado" in dato:
+                  avance = dato.get("avance")
+                  c.anotar_progreso(tid, str(dato["estado"]),
+                                    float(avance) if isinstance(avance, (int, float)) and not isinstance(avance, bool) else None)
+          hechos = len(c.progreso)
+          c.tal_vez_enviar()
+          print("Progreso informado al ámbito: %d tarea(s)." % hechos)
+          PY
