@@ -50,6 +50,7 @@ import { FilePreview, detectFormat, type FileLike } from "@/components/files/fil
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
 import { prepararDiagrama } from "@/lib/diagramas/aislar-diagrama";
+import { VistaDiagrama } from "@/components/diagramas/vista-diagrama";
 import type { MainRatio } from "@/lib/publish/publish";
 import { SANDBOX_CODIGO } from "@/lib/variaciones/validar";
 
@@ -393,7 +394,8 @@ function SandboxedIframeBody({ item, boxed, context }: { item: EmbeddedItem; box
  *    `prepararDiagrama`, que quita red, recursos externos y elementos
  *    interactivos, añade la CSP y decide el `sandbox` — `allow-scripts` solo
  *    si hay animación (scripts), `""` si no. Nunca `allow-same-origin`. Si no
- *    valida, se muestran los motivos y NO se pinta el diagrama.
+ *    valida, se muestran los motivos y NO se pinta el diagrama; si valida, se
+ *    pinta con `VistaDiagrama` (zoom, desplazamiento, piel y exportar SVG/PNG).
  *  · RESTO de código (layouts / apps del Lienzo): se mantiene tal cual con el
  *    sandbox mínimo de siempre (`SANDBOX_CODIGO`). */
 function CodeSandboxBody({ item, boxed, context }: { item: EmbeddedItem; boxed: boolean; context: EmbedContext }) {
@@ -412,6 +414,11 @@ function CodeSandboxBody({ item, boxed, context }: { item: EmbeddedItem; boxed: 
                 </ul>
             </div>
         );
+    }
+    // Diagrama de Diagram Design ya validado: la vista con zoom, desplazamiento,
+    // piel clara/oscura y exportar SVG/PNG (DGM1018I), en lugar del iframe pelado.
+    if (resultado?.ok) {
+        return <VistaDiagrama html={contenido} titulo={titleOf(item)} nombre={titleOf(item)} />;
     }
     return (
         <iframe
