@@ -1,0 +1,10 @@
+/home/runner/work/_temp/starseed-wt/APR1019A/native/src-tauri/target/debug/deps/tauri_runtime-7b8df17884da41cf.d: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/dpi.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/monitor.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/webview.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/webview_permissions.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/window.rs
+
+/home/runner/work/_temp/starseed-wt/APR1019A/native/src-tauri/target/debug/deps/libtauri_runtime-7b8df17884da41cf.rmeta: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/dpi.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/monitor.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/webview.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/webview_permissions.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/window.rs
+
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/lib.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/dpi.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/monitor.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/webview.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/webview_permissions.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.12.2/src/window.rs:
