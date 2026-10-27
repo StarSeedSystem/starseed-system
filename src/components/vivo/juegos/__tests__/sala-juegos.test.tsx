@@ -72,6 +72,7 @@ function tokensDeTexto(texto: string): string[] {
  */
 function textoContienePalabra(texto: string | null, palabra: string): boolean {
     if (!texto || !palabra) return false;
+<<<<<<< HEAD
     const partes = palabra.trim().split(/\s+/).map(normalizarPalabra);
     if (partes.some((p) => p.length === 0)) return false;
     const tokens = tokensDeTexto(texto);
@@ -79,6 +80,9 @@ function textoContienePalabra(texto: string | null, palabra: string): boolean {
         if (partes.every((p, j) => tokens[i + j] === p)) return true;
     }
     return false;
+=======
+    return texto.includes(palabra);
+>>>>>>> 05fd76080 (salvavidas · RTMGP1011-1ECCC4dobjb: trabajo del agente antes de las puertas (tsc / vitest))
 }
 
 /** ¿El texto contiene el trozo tal cual, pegado a lo que sea? Para fugas sin separador («Beto»+palabra). */
