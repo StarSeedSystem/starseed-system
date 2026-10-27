@@ -45,6 +45,16 @@ class PruebasSeleccion(unittest.TestCase):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
 
+    def test_viajan_todas_las_colas_recientes_y_el_log_txt(self):
+        """Rescatado de rama nube (RTCOL1012I): la selección no depende del nombre de la cola
+        (una «antigua» tocada hace una hora viaja) y un ``log.txt`` también es un log."""
+        listado = self.pares(
+            "progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+            "cola-1.json", "cola-2.json", "cola-antigua.json",
+            "evento1.jsonl", "evento2.jsonl", "log.txt",
+        )
+        self.assertEqual(que_copiar(listado, AHORA), sorted(n for n, _ in listado))
+
 
 class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
