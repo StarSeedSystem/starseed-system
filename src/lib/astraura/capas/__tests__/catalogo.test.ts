@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   leerCatalogo,
   candidatosDe,
@@ -142,5 +144,70 @@ describe("profundidadNeedle", () => {
   it("sin presupuesto suficiente no hay reflejo local", () => {
     expect(profundidadNeedle(0)).toBe(0);
     expect(profundidadNeedle(7)).toBe(0);
+  });
+});
+
+describe("catálogo real del disco · Ternary Bonsai 2 en el banco", () => {
+  const raw: unknown = JSON.parse(
+    readFileSync(join(process.cwd(), "config/capas-astraura.json"), "utf8"),
+  );
+  interface Cruda {
+    id: string;
+    capa: string;
+    estado: string;
+    archivo?: string;
+    sha256?: string;
+    tamano_bytes?: number;
+    verificado?: string;
+  }
+  const crudas = ((raw as { capas?: unknown }).capas ?? []) as Cruda[];
+  const cruda = (id: string): Cruda | undefined => crudas.find((c) => c.id === id);
+  const catalogo = leerCatalogo(raw);
+  const entrar = (id: string): EntradaCapa | undefined => catalogo.capas.find((e) => e.id === id);
+
+  it("el JSON del disco es un catálogo válido y sus ids son únicos", () => {
+    expect(catalogo.esquema).toBe(1);
+    const ids = catalogo.capas.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("ternary-bonsai2-2b dado de alta en el banco, no usable", () => {
+    const c = cruda("ternary-bonsai2-2b");
+    expect(c).toBeDefined();
+    expect(c?.estado).toBe("en-banco");
+    expect(c?.capa).toBe("palabra");
+    expect(c?.archivo).toBe("Ternary-Bonsai-2-2B-PTQ1_0.gguf");
+    const e = entrar("ternary-bonsai2-2b");
+    expect(e && usable(e)).toBe(false);
+  });
+
+  it("ternary-bonsai2-4b dado de alta en el banco, no usable", () => {
+    const c = cruda("ternary-bonsai2-4b");
+    expect(c).toBeDefined();
+    expect(c?.estado).toBe("en-banco");
+    expect(c?.capa).toBe("palabra");
+    expect(c?.archivo).toBe("Ternary-Bonsai-2-4B-PTQ1_0.gguf");
+    const e = entrar("ternary-bonsai2-4b");
+    expect(e && usable(e)).toBe(false);
+  });
+
+  it("ternary-bonsai2-9b dado de alta en el banco, no usable", () => {
+    const c = cruda("ternary-bonsai2-9b");
+    expect(c).toBeDefined();
+    expect(c?.estado).toBe("en-banco");
+    expect(c?.capa).toBe("razon");
+    expect(c?.archivo).toBe("Ternary-Bonsai-2-9B-PTQ1_0.gguf");
+    const e = entrar("ternary-bonsai2-9b");
+    expect(e && usable(e)).toBe(false);
+  });
+
+  it("las tres entradas llevan SHA hex de 64 en minúsculas y tamaño medido", () => {
+    for (const id of ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"]) {
+      const c = cruda(id);
+      expect(c, id).toBeDefined();
+      expect(/^[0-9a-f]{64}$/.test(c?.sha256 ?? ""), id).toBe(true);
+      expect(c?.tamano_bytes ?? 0, id).toBeGreaterThan(0);
+      expect(c?.verificado, id).toBe("2026-10-25");
+    }
   });
 });
