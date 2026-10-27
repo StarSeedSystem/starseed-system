@@ -1,0 +1,117 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "ola": "repos-libreria-1020",
+   "id": "RLB1020Ab-d3c",
+   "titulo": "Biblioteca · repo builtin externo 1020 (14 publicaciones autoactualizables) (parte 3 de 3)",
+   "archivos": [
+    "src/lib/library/packages.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee entero el contrato architecture/repos-libreria-1020.md (§1-§5) y el catálogo verificado config/repos-libreria-1020.json (14 entradas en `paquetes`; datos reales, NO los cambies).\n\n1. Crea src/lib/library/repos-externos-1020.ts: importa el JSON (import … assert {type:'json'} o require tipado; el proyecto ya importa JSON en otros módulos de library) y mapea cada entrada a LibraryPackage (de ./packages): id, kind=entrada.kind, name=entrada.nombre, description=entrada.que_es + (entrada.aviso? ' — '+entrada.aviso : ''), icon por kind (app→AppWindow, ai-source→BrainCircuit, function→Boxes), tags=[...entrada.area, entrada.canal, entrada.licencia?'lic':''].filter(Boolean), version='1.0.0', author derivado de repo (owner), sourceRepoId='starseed-biblioteca-externa', free=true, comingSoon=true (ninguna tiene efecto de instalación real todavía), payload={ externalUrl: 'https://github.com/'+entrada.repo, githubRepo: entrada.repo, canal: entrada.canal, area: entrada.area, licencia: entrada.licencia, assets: entrada.assets??false, ...(entrada.skillId?{skillId:entrada.skillId}:{}) }. Exporta REPO_EXTERNOS_1020: LibraryRepo = { id:'starseed-biblioteca-externa', name:'Biblioteca externa', builtin:true, packages: [...] }.\n2. En packages.ts, añade REPO_EXTERNOS_1020 a listRepos() (impórtalo; colócalo en `base` junto a los demás builtins). Un solo punto de cambio; no toques nada más de packages.ts.\n3. Test: las 14 ids son únicas; cada paquete tiene payload.externalUrl que empieza por 'https://github.com/' y payload.githubRepo con forma owner/repo; NINGÚN id/repo contiene 'reverse-skill'; lib-anatomy lleva payload.skillId==='anatomy'; lib-gods-eye está en area 'mapas'. available-updates.ts ya autobusca releases con payload.externalUrl: NO dupliques ese motor.\n Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos puros sin `node:*` en cliente; nada de `any`; honestidad radical en cada ficha (qué hace DE VERDAD; botón deshabilitado con `comingSoon:true` si aún no hay efecto); respeta `canal` y licencia de cada entrada; NO incluyas zhaoxuya520/reverse-skill (excluida por seguridad).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261026-183502-RLB1020Ab-d3b`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261026-183502-RLB1020Ab-d3b:refs/remotes/origin/nube/a1-20261026-183502-RLB1020Ab-d3b\"` y `git cherry-pick --no-commit 688bf1835362 ee362bbbaef2 da11e265a521`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/repos-externos-1020.test.ts, src/lib/library/packages.ts, src/lib/library/repos-externos-1020.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "RLB1020Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "RLB1020Ab-d2"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261026-183502-RLB1020Ab-d3b"
+  },
+  {
+   "ola": "1021A",
+   "importancia": "capacidad",
+   "revisor_quitadas": [
+    "ALT1021Ab",
+    "ALT1021Cd-d1"
+   ],
+   "id": "ALT1021Cd-d2b",
+   "titulo": "Carril de alta capacidad · `alta-capacidad.py` lista las candidatas y el cupo de Claude para la dirección (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/test_alta_capacidad_cli.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (regla de Alex, 2026-10-21): «para tareas muy complicadas … que requieran más capacidad de detalle en su producción y desarrollo técnico y creativo puedes utilizar agentes potentes más especializados (Claude Opus 5.5 en un contenedor en la nube, los más nuevos de Gemini y ChatGPT, o los gratuitos más potentes) supervisando los créditos para no agotarlos». Es el «carril de alta capacidad» de `memory/orquestacion-economica.md` §0. Hoy lo opera a mano la sesión de dirección (Cowork); estas tareas le dan una lista honesta de qué tareas lo necesitan y si hay cupo de Claude para ellas. Piloto medido: GUI1021D/E (dos agentes Opus, ~240k y ~280k tokens, 12/12 y 14/14 pruebas, tsc limpio).\n\nCrea `scripts/puente/alta-capacidad.py` (ejecutable, sin dependencias nuevas): lee `starseed_memory_root/olas/progreso.json`, las colas fuente (usa el MISMO cargador de colas que ya usa `scripts/puente/revisor_bloqueadas.py` o `reconciliar_progreso.py`; no escribas otro) y `limites_claude.leer()`. Con `alta_capacidad_logica` imprime: una línea de cupo («Cupo de Claude: sí/no · motivo»), y debajo las candidatas (id · título · estado · intentos) y cuáles elegiría ahora con `--en-marcha N` (por defecto 0). Con `--json` devuelve lo mismo como objeto {cupo:{ok,motivo}, candidatas:[…], elegidas:[…]}. Solo lee: no toca `progreso.json` ni lanza agentes.\n\nPruebas en `scripts/puente/test_alta_capacidad_cli.py`: con un directorio temporal de colas y progreso falsos (inyecta las rutas por variables de entorno o argumentos, como hacen los otros scripts del puente) comprueba la salida `--json`. Corre `python3 -m unittest scripts/puente/test_alta_capacidad_cli.py` y lee su resumen entero.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40209357823`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40209357823:refs/remotes/origin/nube/40209357823\"` y `git cherry-pick --no-commit ecd4c593a2ea fde1f884105f`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: architecture/vigia-modelos.md, config/vigia-areas.json, scripts/puente/alta-capacidad.py, scripts/puente/test_alta_capacidad_cli.py, scripts/puente/test_vigia_areas.py, vendor/habilidades/awesome-design-md/ORIGEN.md, vendor/habilidades/design-taste-frontend/ORIGEN.md, vendor/habilidades/frontend-slides/ORIGEN.md.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "ALT1021Cd",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40209357823"
+  },
+  {
+   "ola": "repos-libreria-1020",
+   "id": "RLB1020Ab-d1d",
+   "titulo": "Biblioteca · repo builtin externo 1020 (14 publicaciones autoactualizables) (parte 1 de 3)",
+   "archivos": [
+    "src/lib/library/repos-externos-1020.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee entero el contrato architecture/repos-libreria-1020.md (§1-§5) y el catálogo verificado config/repos-libreria-1020.json (14 entradas en `paquetes`; datos reales, NO los cambies).\n\n1. Crea src/lib/library/repos-externos-1020.ts: importa el JSON (import … assert {type:'json'} o require tipado; el proyecto ya importa JSON en otros módulos de library) y mapea cada entrada a LibraryPackage (de ./packages): id, kind=entrada.kind, name=entrada.nombre, description=entrada.que_es + (entrada.aviso? ' — '+entrada.aviso : ''), icon por kind (app→AppWindow, ai-source→BrainCircuit, function→Boxes), tags=[...entrada.area, entrada.canal, entrada.licencia?'lic':''].filter(Boolean), version='1.0.0', author derivado de repo (owner), sourceRepoId='starseed-biblioteca-externa', free=true, comingSoon=true (ninguna tiene efecto de instalación real todavía), payload={ externalUrl: 'https://github.com/'+entrada.repo, githubRepo: entrada.repo, canal: entrada.canal, area: entrada.area, licencia: entrada.licencia, assets: entrada.assets??false, ...(entrada.skillId?{skillId:entrada.skillId}:{}) }. Exporta REPO_EXTERNOS_1020: LibraryRepo = { id:'starseed-biblioteca-externa', name:'Biblioteca externa', builtin:true, packages: [...] }.\n2. En packages.ts, añade REPO_EXTERNOS_1020 a listRepos() (impórtalo; colócalo en `base` junto a los demás builtins). Un solo punto de cambio; no toques nada más de packages.ts.\n3. Test: las 14 ids son únicas; cada paquete tiene payload.externalUrl que empieza por 'https://github.com/' y payload.githubRepo con forma owner/repo; NINGÚN id/repo contiene 'reverse-skill'; lib-anatomy lleva payload.skillId==='anatomy'; lib-gods-eye está en area 'mapas'. available-updates.ts ya autobusca releases con payload.externalUrl: NO dupliques ese motor.\n Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos puros sin `node:*` en cliente; nada de `any`; honestidad radical en cada ficha (qué hace DE VERDAD; botón deshabilitado con `comingSoon:true` si aún no hay efecto); respeta `canal` y licencia de cada entrada; NO incluyas zhaoxuya520/reverse-skill (excluida por seguridad).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/cc-20261023/ola/RLB1020Ab-d1c`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/cc-20261023/ola/RLB1020Ab-d1c:refs/remotes/origin/nube/cc-20261023/ola/RLB1020Ab-d1c\"` y `git cherry-pick --no-commit 02ba8897d7fe`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/repos-externos-1020.test.ts, src/lib/library/packages.ts, src/lib/library/repos-externos-1020.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "RLB1020Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/cc-20261023/ola/RLB1020Ab-d1c"
+  },
+  {
+   "id": "MGP1014-561AD5d",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: CI en rojo",
+   "archivos": [
+    "src/lib/astraura-bots/__tests__/pureza.test.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DE METAGENESIS (2026-10-14 22:09): la autopublicación lleva más de 60 min frenada en 6e0e3764 por «CI en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n    const ant = pp.viejo as BotSync | null;\n    const b = reg ?? ant;\n    if (!b) return;\n    const { dueno } = b;\n    if (!dueno || !e.includes(dueno.id) || ![\\\"grupo\\\", \\\"comunidad\\\", \\\"pagina\\\"].includes(dueno.tipo)) return;\n    c({ t: p.eventType as \\\"INSERT\\\" | \\\"U\\\" | \\\"D\\\", r: reg, a: ant });\n  }).subscribe();\n  return () => s.removeChannel(ch);\n}\nexport function abiertosEnEstaNeurona(): string[] {\n  if (typeof window === \\\"undefined\\\") return [];\n  const r = window.localStorage.getItem(\\\"starseed.as\n2026-10-15T03:08:02.6015880Z \n2026-10-15T03:08:02.6020828Z ##[error]AssertionError: expected '@/utils/supabase/client' to match /^(\\.\\/|@\\/lib\\/nucleo\\/(alcance-me…/|@\\\n\n- Expected: \n/^(\\.\\/|@\\/lib\\/nucleo\\/(alcance-memoria|ui-spec|paquete-sistema)$)/\n\n+ Received: \n\"@/utils/supabase/client\"\n\n ❯ src/lib/astraura-bots/__tests__/pureza.test.ts:27:43\n\n\n2026-10-15T03:08:02.8363903Z ##[error]Process completed with exit code 1.\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `npx vitest run src/lib/astraura-bots/__tests__/pureza.test.ts`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261022-011415-MGP1014-561AD5c`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261022-011415-MGP1014-561AD5c:refs/remotes/origin/nube/a1-20261022-011415-MGP1014-561AD5c\"` y `git cherry-pick --no-commit 6a7fce53ed44 a0f2b2f34a78 25408f72c6f4 56409885c386 b580ad8afedc 43d60d3b4476 35be541b0c9f 90cc23a5e053 8d50c255b6a8 86445e7f4441 619f0d1fe62c`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/lib/astraura-bots/__tests__/pureza.test.ts, src/lib/astraura-bots/__tests__/sincronia-bots.test.ts, src/lib/astraura-bots/adaptadores/sincronia-bots-supabase.ts, src/lib/astraura-bots/adaptadores/sincronia-bots.ts, src/lib/astraura-bots/efectos/sincronia-bots.ts, src/lib/astraura-bots/fusionar-bots.ts, src/lib/astraura-bots/sincronia-bots.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261022-011415-MGP1014-561AD5c"
+  },
+  {
+   "ola": "1021M",
+   "importancia": "capacidad",
+   "id": "GRD1021A-d2",
+   "titulo": "Guardia de memoria · mira la presión del núcleo, no solo la memoria inactiva (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/test_guardia_memoria.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nCaso real medido (2026-10-21 10:30 UTC): el llama-server de BitNet llevaba 22 h congelado por el guardia (estado T, 1,15 GB residentes) con la swap al 94 % y la presión del núcleo en 2. La regla CNS1010 (`accion_para`) dice matarlo tras 20 min congelado con swap ≥ 80 %, pero nunca se llegaba a aplicar: `decidir` solo pide «reevaluar» si `libres_mb() < CONGELAR_BAJO_MB` (1600), y `libres_mb()` suma la memoria INACTIVA, que con macOS presionado sigue alta. Es la misma trampa que ya se arregló en el gobernador (CLAUDE.md, punto 16: mira `kern.memorystatus_vm_pressure_level`). Claude lo mató a mano y la swap bajó de 7,7 a 5,6 GB.\n\nArreglo en `scripts/puente/guardia-memoria.py`: una función que lea la presión del núcleo (`sysctl -n kern.memorystatus_vm_pressure_level`, None si falla), y `decidir(...)` recibe `presion=None`: con el enjambre vivo, un motor ya congelado pasa a «reevaluar» si `libre_mb < CONGELAR_BAJO_MB` O `presion >= 2`, y uno suelto se congela con esas mismas condiciones. `main` le pasa la presión. Sin presión medida, todo como hoy. La reanudación sigue igual (con la histéresis).\n\nPruebas en `scripts/puente/test_guardia_memoria.py`: congelado + presión 2 + libre alta → «reevaluar»; presión 1 + libre alta → nada; presión None → como hoy; las pruebas actuales en verde. Corre `python3 -m unittest scripts/puente/test_guardia_memoria.py` y lee su resumen entero.\n\n## PARTE 2 DE 2 (la dirección dividió GRD1021A: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/test_guardia_memoria.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GRD1021A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "GRD1021A-d1c"
+   ]
+  },
+  {
+   "id": "HFR1018O",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Servicio hyperframes · actualización segura con render de prueba y vuelta atrás",
+   "archivos": [
+    "servicios/hyperframes/src/actualizar.mjs",
+    "src/lib/__tests__/hyperframes-actualizar.test.ts"
+   ],
+   "depende": [
+    "HFR1018G"
+   ],
+   "prompt": "`planActualizacion({ actual, disponible })` y `aplicar(plan, deps)` con deps inyectadas (instalar en carpeta aparte, `lint`, `render` de 3 fotogramas de la plantilla, comparar huellas con las de referencia con tolerancia, cambiar el enlace). Si algo falla, se queda la versión anterior y devuelve el motivo. Nunca baja de versión sola; nunca ejecuta nada si la versión no es semver. Pruebas con deps falsas. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "GRD1021A-d2",
+   "RLB1020Ab-d3c",
+   "MGP1014-561AD5d",
+   "RLB1020Ab-d1d",
+   "ALT1021Cd-d2b"
+  ]
+ }
+}
