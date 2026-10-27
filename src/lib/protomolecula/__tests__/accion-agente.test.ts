@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { manejarAccionProtomolecula as accion, MENSAJE_PROPONER_CODIGO, TOPE_BYTES_ESTADO, TOPE_LINEAS_ESTADO, type ContextoAccionProto } from "../accion-agente";
+import { candidatosDeCodigo, reiniciarCandidatos } from "../candidatos-codigo";
 import { crearControlador, type Controlador } from "../controlador";
 import { registrarControlador, limpiarControladores } from "../controlador-activo";
 import { registrarAtomo, limpiarRegistro, type DefinicionAtomo } from "../registro-atomos";
@@ -23,7 +24,7 @@ function abrirMol(ambito: Ambito = "personal", rol: Rol = "dueno", atomos: Molec
 const ctx = (extra: Omit<ContextoAccionProto, "abrirRuta"> = {}): ContextoAccionProto & { abrirRuta: ReturnType<typeof vi.fn> } =>
   ({ abrirRuta: vi.fn(), avisarOrbe: () => false, ahora: () => ++n, nuevoId: () => `op-${++n}`, ...extra });
 const valor = (c: Controlador, k: string, atomo = "at-1") => c.obtener().molecula.valores[`${atomo}::${k}`];
-beforeEach(() => { limpiarRegistro(); limpiarControladores(); expect(registrarAtomo(def("eq", P)).ok).toBe(true); });
+beforeEach(() => { limpiarRegistro(); limpiarControladores(); reiniciarCandidatos(); expect(registrarAtomo(def("eq", P)).ok).toBe(true); });
 describe("acción de agente de la Protomolécula", () => {
   it("estado: una línea compacta por control con valor, unidad y rango", () => {
     abrirMol();
@@ -96,9 +97,13 @@ describe("acción de agente de la Protomolécula", () => {
     const sinOrbe = ctx();
     expect(accion({ accion: "abrir", molecula: "m 2" }, sinOrbe).ok).toBe(true); expect(sinOrbe.abrirRuta).toHaveBeenCalledWith("/protomolecula?molecula=m%202");
   });
-  it("proponer-codigo es honesto: ok false y no guarda nada", () => {
-    const c = abrirMol(), antes = c.obtener(), r = accion({ accion: "proponer-codigo", codigo: "alert(1)" }, ctx());
-    expect(r).toMatchObject({ ok: false, message: MENSAJE_PROPONER_CODIGO }); expect(c.obtener()).toBe(antes);
+  it("proponer-codigo guarda un candidato y no ejecuta ni toca la molécula", () => {
+    const c = abrirMol(), antes = c.obtener();
+    const r = accion({ accion: "proponer-codigo", capa: "cod", propuesto: "alert(1)", original: "" }, ctx());
+    expect(r.ok).toBe(true); expect(r.message).toContain(MENSAJE_PROPONER_CODIGO); expect(r.message).toContain("cand-");
+    expect(candidatosDeCodigo()).toHaveLength(1);
+    expect(candidatosDeCodigo()[0]).toMatchObject({ capaId: "cod", estado: "propuesto", propuesto: "alert(1)", autor: { tipo: "agente", id: "astraura" } });
+    expect(c.obtener()).toBe(antes);
     expect(accion({ accion: "borrar-todo" }, ctx()).message).toContain("No conozco la acción");
   });
   it("una operación del agente en espacio compartido queda pendiente de la persona", () => {
