@@ -18,6 +18,12 @@ import { BTN, BTN_PRIMARY, Empty, INPUT, LABEL, MONO, SUB } from "@/components/a
 import { cn } from "@/lib/utils";
 import { cabeEn } from "@/lib/recursos-ia/compatibilidad";
 import {
+    cuantizacionesPara,
+    FUENTE_METODOS_HF,
+    NOTA_BITNET,
+    type DispositivoHF,
+} from "@/lib/recursos-ia/cuantizacion-hf";
+import {
     CAPACIDADES,
     NOMBRE_CAPACIDAD,
     type Alternativa,
@@ -50,6 +56,20 @@ import {
 } from "./piezas";
 
 /* ── Por capacidad ─────────────────────────────────────────────────────────── */
+
+/** Dispositivo de la tabla de Transformers para un procesador del inventario: por su acelerador de la tabla (CUDA, ROCm, Metal); CPU si no lleva ninguno. */
+function dispositivoHfDe(p: Procesador): DispositivoHF {
+    const a = new Set(p.aceleradores);
+    if (a.has("rocm")) return "rocm";
+    if (a.has("cuda")) return "cuda";
+    if (a.has("metal") || a.has("metal4")) return "metal";
+    return "cpu";
+}
+
+/** Rango de bits de un método («4» o «1-8»). */
+function bitsMetodo(m: { bitsMin: number; bitsMax: number }): string {
+    return m.bitsMin === m.bitsMax ? `${m.bitsMin} bits` : `${m.bitsMin} a ${m.bitsMax} bits`;
+}
 
 function Eslabon({ etiqueta, valor, sub, icono: Icono }: { etiqueta: string; valor: string; sub?: string; icono: typeof HardDrive }) {
     return (
@@ -176,6 +196,15 @@ function FilaCapacidad({
     const IconoA = ICONO_ALMACEN[s.almacen.tipo];
     const esFijada = !!fijada?.modeloId && fijada.modeloId === s.modelo.id && fijada.procesaEn === s.procesador.id && fijada.almacenEn === s.almacen.id;
     const tokS = s.compat.tokSEstimado;
+    // Ternario (BitNet, Bonsai): no se cuantiza al vuelo; la tabla de Transformers NO se le aplica.
+    const ternario = s.modelo.bits === 1.58 || s.modelo.runtime === "bitnet-cpp";
+    const cuanti = useMemo(
+        () =>
+            ternario || s.procesador.via === "antena"
+                ? []
+                : cuantizacionesPara(dispositivoHfDe(s.procesador), s.modelo.bits <= 8 ? { bitsMax: s.modelo.bits } : {}),
+        [s, ternario],
+    );
     return (
         <li data-testid={`fila-capacidad-${s.capacidad}`} className={cn(SUB, "flex flex-col gap-2 p-3")}>
             <div className="flex flex-wrap items-center gap-2">
@@ -218,6 +247,36 @@ function FilaCapacidad({
                 <Flecha />
                 <Eslabon etiqueta="Almacén" valor={s.almacen.etiqueta} sub={`${fmtLibre(s.almacen)} · ${nombreVia(s.via)}`} icono={IconoA} />
             </div>
+
+            {ternario ? (
+                <p data-testid={`nota-bitnet-${s.capacidad}`} className="flex items-start gap-1.5 text-[10px] leading-snug text-white/60">
+                    <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0 text-[#FFBF00]" aria-hidden="true" /> {NOTA_BITNET}
+                </p>
+            ) : (
+                cuanti.length > 0 && (
+                    <Desplegable titulo={`Cuantización en ${s.procesador.nombre} (${cuanti.length})`} testid={`cuantizacion-${s.capacidad}`}>
+                        <ul className="flex flex-col gap-1.5">
+                            {cuanti.map((m) => (
+                                <li key={m.id} data-cuantizador={m.id} className="flex flex-wrap items-baseline gap-x-1.5 text-[11px] leading-snug">
+                                    <a
+                                        href={m.enlace}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="cursor-pointer font-medium text-white/85 underline decoration-white/25 transition-colors duration-200 hover:text-white"
+                                    >
+                                        {m.nombre}
+                                    </a>
+                                    <span className="text-[10px] text-white/50">
+                                        {bitsMetodo(m)} · {m.alaVuelta ? "al vuelo" : "se cuantiza antes de guardar"}
+                                        {m.peft === true ? " · afinable con PEFT" : m.peft === null ? " · PEFT: por confirmar" : ""}
+                                    </span>
+                                </li>
+                            ))}
+                            <li className="text-[10px] text-white/40">Fuente: {FUENTE_METODOS_HF}</li>
+                        </ul>
+                    </Desplegable>
+                )
+            )}
 
             {s.porQue.length > 0 && (
                 <ul className="grid gap-x-6 gap-y-0.5 text-[11px] leading-snug text-white/70 lg:grid-cols-2">
