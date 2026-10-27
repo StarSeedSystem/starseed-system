@@ -47,8 +47,8 @@ describe("SourcePicker", () => {
     const etiquetaInput = screen.getByPlaceholderText("Nombre visible");
     expect(urlInput).toBeInstanceOf(HTMLInputElement);
     expect(etiquetaInput).toBeInstanceOf(HTMLInputElement);
-    // Hoy la asociación etiqueta-input es visual (la etiqueta precede al
-    // input dentro del mismo grupo de formulario).
+    // Además de la asociación por id (htmlFor), cada etiqueta precede a su
+    // input dentro del mismo grupo de formulario.
     expect(urlInput.previousElementSibling?.textContent).toBe("URL");
     expect(etiquetaInput.previousElementSibling?.textContent).toBe(
         "Etiqueta (opcional)",
