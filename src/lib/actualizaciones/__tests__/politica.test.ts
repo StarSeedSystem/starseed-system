@@ -23,6 +23,11 @@ describe("política por defecto por tipo de sistema", () => {
   it("grupo jerárquico se comporta como un perfil privado", () => {
     expect(politicaPorDefecto("grupo-jerarquico")).toEqual(politicaPorDefecto("perfil-privado"));
   });
+  it("comunidad, estudio y evento comparten la política base del perfil", () => {
+    const base = politicaPorDefecto("perfil");
+    for (const tipo of ["grupo", "comunidad", "estudio", "evento"] as const)
+      expect(politicaPorDefecto(tipo)).toEqual(base);
+  });
   it("grupo democrático: mismos modos, cada capa marcada «requiere aprobación»", () => {
     const demo = politicaPorDefecto("grupo-democratico");
     expect(demo).toEqual(Object.fromEntries(CAPAS_ORDEN.map((c) => [c, {

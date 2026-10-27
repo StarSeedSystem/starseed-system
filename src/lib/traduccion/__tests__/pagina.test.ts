@@ -24,6 +24,22 @@ describe("recogerTextos", () => {
         expect(textos(recogerTextos(raiz))).toEqual(["visible"]);
     });
 
+    it("recoge además aria-label y placeholder, no solo title y alt", () => {
+        const raiz = montar(`<img alt="Logo" title="Imagen"><input placeholder="Busca…" aria-label="Campo">`);
+        const atributos = recogerTextos(raiz)
+            .filter((nodo) => nodo.clase === "atributo")
+            .map((nodo) => `${nodo.atributo}=${nodo.texto}`)
+            .sort();
+        expect(atributos).toEqual(["alt=Logo", "aria-label=Campo", "placeholder=Busca…", "title=Imagen"]);
+    });
+
+    it("no recoge atributos vacíos ni en blanco", () => {
+        const raiz = montar(`<img alt="" title="  "><p aria-label="  ">Texto</p>`);
+        const nodos = recogerTextos(raiz);
+        expect(nodos.filter((nodo) => nodo.clase === "atributo")).toEqual([]);
+        expect(nodos.map((nodo) => nodo.texto)).toEqual(["Texto"]);
+    });
+
     it("respeta translate=no, data-no-traducir y hidden, también en sus atributos", () => {
         const raiz = montar(
             `<p translate="no">prohibido</p><p data-no-traducir>prohibido dos</p>` +
@@ -54,6 +70,23 @@ describe("aplicar y restaurar", () => {
         expect(traducido.hasAttribute("data-traducido")).toBe(false);
         expect(imagen.getAttribute("alt")).toBe("imagen de la cumbre");
         expect(imagen.getAttribute("title")).toBe("señaliza");
+    });
+
+    it("conserva los espacios del original y devuelve el lang que ya tenía el elemento", () => {
+        const raiz = montar("<p>  Hola  </p><p lang='pt'>Dos</p>");
+        expect(aplicar(recogerTextos(raiz), { "  Hola  ": "Hello", Dos: "Two" }, "en")).toBe(2);
+        const [primero, segundo] = Array.from(raiz.querySelectorAll("p"));
+        expect(primero?.textContent).toBe("Hello");
+        expect(primero?.getAttribute("lang")).toBe("en");
+        expect(segundo?.textContent).toBe("Two");
+        expect(segundo?.getAttribute("lang")).toBe("en");
+
+        restaurar(raiz);
+        expect(primero?.textContent).toBe("  Hola  ");
+        expect(primero?.hasAttribute("lang")).toBe(false);
+        expect(primero?.hasAttribute("data-traducido")).toBe(false);
+        expect(segundo?.textContent).toBe("Dos");
+        expect(segundo?.getAttribute("lang")).toBe("pt");
     });
 });
 
