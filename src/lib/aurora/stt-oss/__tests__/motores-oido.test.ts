@@ -33,6 +33,16 @@ describe("catálogo MOTORES_OIDO", () => {
     expect(m?.idiomas).toEqual(['en','es']);
     expect(m?.tamanoMB).toBe(60);
   });
+
+  it("voicestudio tiene tipo endpoint", () => {
+    const m = MOTORES_OIDO.find((x) => x.id === 'voicestudio');
+    expect(m?.tipo).toBe('endpoint');
+  });
+
+  it("moonshine tiene tipo local", () => {
+    const m = MOTORES_OIDO.find((x) => x.id === 'moonshine');
+    expect(m?.tipo).toBe('local');
+  });
 });
 
 describe("elegirOido", () => {
@@ -137,5 +147,27 @@ describe("elegirOido", () => {
     });
     // moonshine debe ser elegido antes que whisper-web
     expect(r.motor).toBe('moonshine');
+  });
+
+  it("voicestudio se selecciona en final para español cuando parakeet-v3 no está disponible", () => {
+    const r = elegirOido({
+      idioma: 'es',
+      disponibles: ['voicestudio', 'whisper-web'],
+      fase: 'final',
+    });
+    // Order: parakeet-v3 (not available), voicestudio (available) -> should pick voicestudio
+    expect(r.motor).toBe('voicestudio');
+    expect(r.motivo).toContain('fase final: mayor precisión para es');
+  });
+
+  it("voicestudio se selecciona en final para inglés cuando phonon-2 y parakeet-v3 no están disponibles", () => {
+    const r = elegirOido({
+      idioma: 'en',
+      disponibles: ['voicestudio', 'moonshine'],
+      fase: 'final',
+    });
+    // English order: ... malla, voicestudio, moonshine
+    // voicestudio comes before moonshine, so it should be chosen.
+    expect(r.motor).toBe('voicestudio');
   });
 });
