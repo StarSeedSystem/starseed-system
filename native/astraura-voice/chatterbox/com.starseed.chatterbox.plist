@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  StarSeed OS · Chatterbox TTS local (VOZ1024C dejó servidor.py en 127.0.0.1:4505).
+  Plantilla de launchd: instalar-servicios.py sustituye __PYTHON__ (el padre, con el
+  TCC), __INTERPRETE__ (el python con el paquete chatterbox), __RAIZ__ y __HOME__ y
+  copia el resultado a ~/Library/LaunchAgents/com.starseed.chatterbox.plist. Sólo se
+  instala si el paquete «chatterbox» ya está en el intérprete: nunca descarga pesos.
+-->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.starseed.chatterbox</string>
+  <key>ProgramArguments</key><array>
+    <string>__PYTHON__</string>
+    <string>__RAIZ__/scripts/puente/lanzador-tcc.py</string>
+    <string>--</string>
+    <string>__INTERPRETE__</string>
+    <string>-u</string>
+    <string>__RAIZ__/native/astraura-voice/chatterbox/servidor.py</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>WorkingDirectory</key><string>__RAIZ__/native/astraura-voice/chatterbox</string>
+  <key>StandardOutPath</key><string>/tmp/starseed-chatterbox.log</string>
+  <key>StandardErrorPath</key><string>/tmp/starseed-chatterbox.log</string>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>LowPriorityIO</key><false/>
+  <key>Nice</key><integer>0</integer>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HF_HUB_OFFLINE</key><string>1</string>
+    <key>TRANSFORMERS_OFFLINE</key><string>1</string>
+    <key>CHATTERBOX_PORT</key><string>4505</string>
+    <key>STARSEED_ROOT</key><string>__RAIZ__</string>
+  </dict>
+</dict></plist>
