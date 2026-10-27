@@ -189,13 +189,14 @@ export function SocialCrosspost({
             Tu Postiz no tiene canales conectados todavía. Conéctalos en su panel y vuelve aquí.
           </p>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
+          <div role="group" aria-label="Canales externos" className="flex flex-wrap gap-1.5">
             {channels.map((c) => {
               const on = selected.has(c.id);
               return (
                 <button
                   key={c.id}
                   type="button"
+                  aria-pressed={on}
                   onClick={() => toggle(c.id)}
                   className={cn(
                     "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
