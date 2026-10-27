@@ -21,7 +21,8 @@ import {
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
     Trash2, Magnet, FolderInput, Sparkles, Check, PictureInPicture2,
     Eye, Info, Grid2x2, Columns2, Rows2, Frame, Home, Share2, PenLine,
-    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, type LucideIcon,
+    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, Replace,
+    type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize, TileMode } from "./desktop-store";
@@ -35,6 +36,8 @@ import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./deskto
 import { canEditIcon } from "./desktop-open";
 import { hasRichThumb } from "./desktop-thumbs";
 import type { QuickLookTab } from "./desktop-quick-look";
+import { descargarBlob, type Convertido } from "@/lib/conversion/cliente";
+import { useConversionMenu, type ArchivoConvertible } from "@/components/conversion/use-conversion-menu";
 
 const MENU_W = 210;
 
@@ -291,6 +294,19 @@ export function IconContextMenu({
     // Pegar DENTRO de este folder (destino natural del portapapeles).
     const canPasteHere = Boolean(clip) && icon.kind === "folder";
 
+    // «Convertir a…» con Filee (CNV1023C): solo iconos-ARCHIVO que apuntan a una
+    // URL real (las notas embebidas no tienen fuente que convertir). El resultado
+    // SE DESCARGA: en el escritorio no hay carpeta de Biblioteca donde guardarlo.
+    const archivoConvertible = React.useMemo<ArchivoConvertible | null>(
+        () => (icon.kind === "file" && icon.url ? { nombre: icon.name, url: icon.url } : null),
+        [icon.kind, icon.url, icon.name],
+    );
+    const guardarDescarga = React.useCallback(async (c: Convertido) => {
+        descargarBlob(c.blob, c.nombre);
+        return null;
+    }, []);
+    const conversion = useConversionMenu(archivoConvertible, guardarDescarga);
+
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
             <MenuItem icon={ExternalLink} label="Abrir" onClick={() => run(() => onOpen(icon))} />
@@ -299,6 +315,30 @@ export function IconContextMenu({
             )}
             {onQuickLook && (
                 <MenuItem icon={Share2} label="Compartir…" onClick={() => run(() => onQuickLook(icon, "preview", true))} />
+            )}
+            {conversion && (
+                <SubMenu icon={Replace} label="Convertir a…">
+                    {conversion.estado === "cargando" && (
+                        <MenuItem label="Mirando formatos…" onClick={() => run(() => { /* solo espera */ })} />
+                    )}
+                    {conversion.estado === "no-disponible" && (
+                        <MenuItem
+                            label={conversion.motivo ?? "Aquí no hay conversor."}
+                            onClick={() => run(() => { /* sin conversor aquí */ })}
+                        />
+                    )}
+                    {conversion.estado === "listo" && conversion.principales.map((f) => (
+                        <MenuItem
+                            key={f}
+                            label={conversion.etiqueta(f)}
+                            onClick={() => run(() => conversion.onConvertir(f))}
+                        />
+                    ))}
+                    <MenuItem
+                        label={conversion.resto > 0 ? `Más formatos (${conversion.resto})…` : "Abrir el conversor…"}
+                        onClick={() => run(conversion.onMas)}
+                    />
+                </SubMenu>
             )}
             {editable && onEdit && (
                 <MenuItem icon={PenLine} label="Editar" onClick={() => run(() => { onEdit(icon) || onRename(icon.id); })} />
