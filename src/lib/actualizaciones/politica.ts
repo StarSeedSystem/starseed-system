@@ -39,12 +39,29 @@ export interface VentanaHoraria {
 export interface PoliticaCapa {
   modo: ModoPolitica;
   ventana?: VentanaHoraria;
+  /** Lo publicado por una entidad democrática se vota antes: sin aprobación, se espera. */
+  requiereAprobacion?: boolean;
 }
 
 export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>;
 
-/** Tipos de sistema/entidad que reciben versiones (los del diálogo «Crear en la red» y el perfil). */
-export type TipoEntidad = "perfil" | "pagina" | "grupo" | "comunidad" | "estudio" | "evento" | "os";
+/**
+ * Tipos de sistema/entidad que reciben versiones (los del diálogo «Crear en la red» y el perfil).
+ * Los cuatro tipos del contrato §4 conviven con los nombres históricos del OS: «perfil» es
+ * «perfil-privado», «pagina» es «pagina-publica» y «comunidad» es «grupo-democratico».
+ */
+export type TipoEntidad =
+  | "perfil"
+  | "pagina"
+  | "grupo"
+  | "comunidad"
+  | "estudio"
+  | "evento"
+  | "os"
+  | "perfil-privado"
+  | "pagina-publica"
+  | "grupo-jerarquico"
+  | "grupo-democratico";
 
 export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
   perfil: "perfil privado",
@@ -54,6 +71,10 @@ export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
   estudio: "grupo de estudio",
   evento: "evento",
   os: "StarSeed OS",
+  "perfil-privado": "perfil privado",
+  "pagina-publica": "página pública",
+  "grupo-jerarquico": "grupo jerárquico",
+  "grupo-democratico": "grupo democrático",
 };
 
 export const VENTANA_NOCTURNA: VentanaHoraria = { desdeH: 3, hastaH: 6 };
@@ -78,6 +99,12 @@ export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
     nativa: P("manual"),
   };
   if (tipo === "os") return { ...base, modelos: P("programada", VENTANA_NOCTURNA) };
+  // Página pública: lo declarativo sigue la rama estable sola, también la copia sin conexión.
+  if (tipo === "pagina" || tipo === "pagina-publica") return { ...base, sw: P("automatica-todas") };
+  // Grupo democrático: mismas capas que un perfil, pero cada decisión exige aprobación previa.
+  if (tipo === "comunidad" || tipo === "grupo-democratico") {
+    for (const capa of CAPAS_ORDEN) base[capa] = { ...base[capa], requiereAprobacion: true };
+  }
   return base;
 }
 
@@ -86,6 +113,10 @@ export interface ContextoDecision {
   ahoraH: number;
   /** Esta neurona es la elegida para «automática solo en esta neurona». */
   esNeuronaElegida: boolean;
+  /** La publicación ya superó la votación o aprobación que exige la entidad. */
+  aprobada?: boolean;
+  /** La entidad exige aprobación para esta capa (además de lo que diga la política). */
+  requiereAprobacion?: boolean;
 }
 
 export type Decision = "aplicar" | "avisar" | "esperar";
@@ -97,6 +128,8 @@ function dentroDeVentana(h: number, v: VentanaHoraria): boolean {
 
 /** Qué hacer con una capa pendiente en ESTA neurona según su política. */
 export function decidirPolitica(p: PoliticaCapa, ctx: ContextoDecision): Decision {
+  // Sin aprobación cuando se requiere, no se aplica ni se avisa: se espera a la votación.
+  if ((p.requiereAprobacion === true || ctx.requiereAprobacion === true) && ctx.aprobada !== true) return "esperar";
   switch (p.modo) {
     case "automatica-todas":
       return "aplicar";
@@ -118,12 +151,14 @@ export function sanearPolitica(x: unknown): PoliticaSistema {
   for (const capa of CAPAS_ORDEN) {
     const c = src[capa] as Record<string, unknown> | undefined;
     const modo = c && MODOS_POLITICA.includes(c.modo as ModoPolitica) ? (c.modo as ModoPolitica) : "manual";
+    let limpia: PoliticaCapa;
     if (modo === "programada") {
       const v = c?.ventana as Record<string, unknown> | undefined;
       const d = hora(v?.desdeH);
       const h = hora(v?.hastaH);
-      out[capa] = P("programada", d !== null && h !== null ? { desdeH: d, hastaH: h } : VENTANA_NOCTURNA);
-    } else out[capa] = P(modo);
+      limpia = P("programada", d !== null && h !== null ? { desdeH: d, hastaH: h } : VENTANA_NOCTURNA);
+    } else limpia = P(modo);
+    out[capa] = c?.requiereAprobacion === true ? { ...limpia, requiereAprobacion: true } : limpia;
   }
   return out;
 }
