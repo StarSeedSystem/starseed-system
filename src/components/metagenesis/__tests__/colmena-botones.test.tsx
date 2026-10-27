@@ -187,6 +187,48 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         const android = botonesNeurona({ nodo: null, vivo: true, so: "android", enCurso: 0 });
         expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
+
+    it("sin trabajador: instalar se ofrece en macOS, Linux y Windows y se oculta en iOS y otro SO", () => {
+        for (const so of ["macos", "linux"] as const) {
+            expect(botonesNeurona({ nodo: null, vivo: true, so, enCurso: 0 }).instalar).toMatchObject({
+                visible: true,
+                habilitado: true,
+                etiqueta: "Instalar el trabajador",
+                explica: "Un comando en la terminal de este aparato.",
+            });
+        }
+        expect(botonesNeurona({ nodo: null, vivo: true, so: "windows", enCurso: 0 }).instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "En Windows se instala dentro de WSL2.",
+        });
+        for (const so of ["ios", "otro"] as const) {
+            expect(botonesNeurona({ nodo: null, vivo: true, so, enCurso: 0 }).instalar).toMatchObject({
+                visible: false,
+                habilitado: false,
+                etiqueta: "",
+                explica: "",
+            });
+        }
+    });
+
+    it("sin nodo (solo navegador), ni Desconectar ni contenedor se ofrecen", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        for (const x of [b.desconectar, b.contenedor]) {
+            expect(x).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+        }
+    });
+
+    it("con el relevo activo y el nodo ya desconectando, el botón lo dice y no se vuelve a pulsar", () => {
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, desconectando: true, relevoActivo: true });
+        expect(b.desconectar).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Desconectando…",
+            explica: "Guarda el trabajo a medias y lo pasa a otro contenedor.",
+        });
+    });
 });
 // ─── el traductor latido → tarjeta (puro) ──────────────────────────────────────────────────────────────
 
