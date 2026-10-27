@@ -1,9 +1,8 @@
 /**
  * StarSeed OS — PUERTA LOCAL HACIA VOICESTUDIO (Ola 1018V · VST1018Gc).
  * ============================================================================
- * VoiceStudio (el estudio de voz local de la fusión) sirve su motor aparte, sólo
- * en la máquina, en `127.0.0.1:3900`, con un descubrimiento por máquina
- * (`GET /.well-known/voicestudio-speech`) y una API compatible con OpenAI.
+ * VoiceStudio (estudio de voz local de la fusión) sirve su motor aparte, sólo en
+ * la máquina, en `127.0.0.1:3900`, con descubrimiento por máquina y API OpenAI.
  *
  * Este módulo es la puerta del demonio de voz (`127.0.0.1:4444`) hacia él:
  *   · `detectar(fetcher, ahora)` — huele el descubrimiento como MUCHO una vez
@@ -12,30 +11,27 @@
  *     contrato; cualquier otra devuelve 404 sin salir de la máquina.
  *   · `estado(fetcher, ahora)` — la línea «voicestudio: vivo | ausente».
  *
- * Red y reloj inyectables (pruebas sin red). Si no está, se aparta (502) y el
- * demonio sigue con su voz propia. Contrato: `architecture/voz-voicestudio.md`.
+ * Red y reloj inyectables. Si no está, se aparta (502): contrato voz-voicestudio.md.
  */
 
-// Motor de VoiceStudio: sólo loopback (su propia guía lo exige).
-export const VOICE_STUDIO_URL = "http://127.0.0.1:3900";
-export const RUTA_DESCUBRIMIENTO = "/.well-known/voicestudio-speech";
-export const CACHE_DETECCION_MS = 60_000;
+// Motor de VoiceStudio: sólo loopback (su propia guía lo exige). Son detalles
+// internos de la puerta: la superficie pública son detectar, reenviar y estado.
+const VOICE_STUDIO_URL = "http://127.0.0.1:3900";
+const RUTA_DESCUBRIMIENTO = "/.well-known/voicestudio-speech";
+const CACHE_DETECCION_MS = 60_000;
 
 // Únicas rutas que atraviesan la puerta, con el método de su contrato (§1).
-export const RUTAS_PERMITIDAS = Object.freeze({
+const RUTAS_PERMITIDAS = Object.freeze({
   "/v1/audio/speech": "POST",
   "/v1/audio/transcriptions": "POST",
   "/v1/audio/voices": "GET",
 });
 let deteccion = { en: null, vivo: false };
-/** Reabre la caché de detección (pruebas y re-medición a mano). */
-export function reiniciarDeteccion() {
-  deteccion = { en: null, vivo: false };
-}
+/** Reabre la caché de detección cuando un reenvío demuestra que el estudio cayó. */
+function reiniciarDeteccion() { deteccion = { en: null, vivo: false }; }
 
 /** AbortSignal con plazo, sin romper en runtimes que no lo traen. */
-const senalDeTiempo = (ms) =>
-  typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(ms) : undefined;
+const senalDeTiempo = (ms) => typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(ms) : undefined;
 
 /** ¿Está vivo VoiceStudio? Nunca lanza: si no contesta, se aparta con false. */
 export async function detectar(fetcher = fetch, ahora = Date.now()) {
@@ -58,9 +54,7 @@ export async function detectar(fetcher = fetch, ahora = Date.now()) {
 }
 
 /** ¿La ruta existe y el método es el suyo? (la puerta no reenvía otra cosa). */
-export function metodoPermitido(ruta, metodo) {
-  return RUTAS_PERMITIDAS[ruta] === metodo;
-}
+function metodoPermitido(ruta, metodo) { return RUTAS_PERMITIDAS[ruta] === metodo; }
 
 /**
  * Reenvía a VoiceStudio y devuelve su respuesta SIN transformarla: `{ status,
@@ -72,6 +66,10 @@ export function metodoPermitido(ruta, metodo) {
 export async function reenviar(ruta, cuerpo, fetcher = fetch, opciones = {}) {
   const metodo = RUTAS_PERMITIDAS[ruta];
   if (!metodo) return { status: 404, error: "ruta de VoiceStudio no permitida" };
+  // El demonio pasa el método real: si no es el del contrato, 404 sin salir.
+  if (opciones.metodo && !metodoPermitido(ruta, opciones.metodo)) {
+    return { status: 404, error: "ruta de VoiceStudio no permitida" };
+  }
 
   const cabeceras = {};
   let cuerpoFinal;
@@ -108,6 +106,8 @@ export async function reenviar(ruta, cuerpo, fetcher = fetch, opciones = {}) {
     if (tieneJson) return { status: estadoHttp, data: await res.json() };
     return { status: estadoHttp, data: null };
   } catch {
+    // Falló el estudio: la próxima salud lo re-mide sin esperar los 60 s.
+    reiniciarDeteccion();
     // Sin IP ni ruta en el mensaje: se registra en la salud, no se filtra.
     return { status: 502, error: "VoiceStudio no responde" };
   }

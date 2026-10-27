@@ -73,7 +73,7 @@ import os from "node:os";
 import { spawn, spawnSync, execFile } from "node:child_process";
 // Ola 1018V (VST1018Gc): puerta local hacia VoiceStudio (127.0.0.1:3900).
 // Detecta, reenvía y se aparta si no está — ver voicestudio-proxy.mjs.
-import { reenviar, estado, detectar, metodoPermitido } from "./voicestudio-proxy.mjs";
+import { reenviar, estado, detectar } from "./voicestudio-proxy.mjs";
 import {
   PATHS,
   BIN,
@@ -3092,9 +3092,6 @@ const server = http.createServer(async (req, res) => {
       }
       if (url === "/voicestudio" || url.startsWith("/voicestudio/")) {
         const subruta = url.slice("/voicestudio".length) || "/";
-        if (!metodoPermitido(subruta, req.method)) {
-          return sendJson(res, 404, cors, { ok: false, error: "ruta de VoiceStudio no permitida" });
-        }
         let cuerpo;
         if (req.method === "POST") {
           const crudo = await readRawBody(req, ASR_MAX_BODY_BYTES);
@@ -3104,7 +3101,8 @@ const server = http.createServer(async (req, res) => {
           cuerpo = crudo;
         }
         const contentType = req.headers["content-type"] || "";
-        const resultado = await reenviar(subruta, cuerpo, fetch, { contentType });
+        // El proxy valida ruta y método del contrato: cualquier otra cosa → 404.
+        const resultado = await reenviar(subruta, cuerpo, fetch, { contentType, metodo: req.method });
         if (resultado.audio !== undefined) {
           const buf = Buffer.from(resultado.audio);
           res.writeHead(resultado.status, {

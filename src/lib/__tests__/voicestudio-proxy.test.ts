@@ -1,52 +1,55 @@
 import { describe, expect, it } from "vitest";
-import {
-  VOICE_STUDIO_URL,
-  RUTA_DESCUBRIMIENTO,
-  CACHE_DETECCION_MS,
-  detectar,
-  reenviar,
-  estado,
-  reiniciarDeteccion,
-} from "../../../native/astraura-voice/voicestudio-proxy.mjs";
-
+import { detectar, reenviar, estado } from "../../../native/astraura-voice/voicestudio-proxy.mjs";
 /** Ola 1018V · VST1018Gc. Puerta pura: red y reloj inyectados, sin procesos. */
 type Fetcher = (input: URL | RequestInfo, init?: RequestInit) => Promise<Response>;
-const json = (status: number, data: unknown): Response =>
-  new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
+const ESTUDIO = "http://127.0.0.1:3900";
+const DESCUBRIMIENTO = `${ESTUDIO}/.well-known/voicestudio-speech`;
+const CACHE_MS = 60_000;
+const json = (status: number, data: unknown): Response => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 const audio = (status: number, bytes: ArrayBuffer): Response =>
   new Response(bytes, { status, headers: { "Content-Type": "audio/wav" } });
 const caido: Fetcher = async () => { throw new Error("sin estudio"); };
-
+// Reloj monótono: cada caso cae fuera de la caché del anterior (no se exporta).
+let reloj = 1_000_000;
+const siguienteAhora = () => (reloj += 1_000_000);
 describe("detectar con caché", () => {
   it("huele el descubrimiento y devuelve true si responde", async () => {
-    reiniciarDeteccion();
     const llamadas: string[] = [];
     const fetcher: Fetcher = async (url) => {
       llamadas.push(String(url));
       return json(200, { vivo: true });
     };
-    expect(await detectar(fetcher)).toBe(true);
-    expect(llamadas).toEqual([`${VOICE_STUDIO_URL}${RUTA_DESCUBRIMIENTO}`]);
-  });
-  it("nunca lanza: sin estudio devuelve false", async () => {
-    reiniciarDeteccion();
-    expect(await detectar(caido)).toBe(false);
+    expect(await detectar(fetcher, siguienteAhora())).toBe(true);
+    expect(llamadas).toEqual([DESCUBRIMIENTO]);
   });
   it("cachea 60 s, también el «ausente», y reconsulta al cumplirse", async () => {
-    reiniciarDeteccion();
     let llamadas = 0;
     const fetcher: Fetcher = async () => {
       llamadas += 1;
       return json(503, {});
     };
-    expect(await detectar(fetcher, 1_000)).toBe(false);
-    expect(await detectar(fetcher, 1_000 + CACHE_DETECCION_MS - 1)).toBe(false);
+    const t = siguienteAhora();
+    expect(await detectar(fetcher, t)).toBe(false);
+    expect(await detectar(fetcher, t + CACHE_MS - 1)).toBe(false);
     expect(llamadas).toBe(1);
-    expect(await detectar(fetcher, 1_000 + CACHE_DETECCION_MS)).toBe(false);
+    expect(await detectar(fetcher, t + CACHE_MS)).toBe(false);
     expect(llamadas).toBe(2);
   });
+  it("un reenvío caído reabre la detección (no espera los 60 s)", async () => {
+    const t = siguienteAhora();
+    expect(await detectar(async () => json(200, {}), t)).toBe(true);
+    const res = await reenviar("/v1/audio/speech", {}, caido);
+    expect(res.status).toBe(502);
+    expect(res.error).not.toMatch(/127\.|3900/);
+    let llamadas = 0;
+    const fetcher: Fetcher = async () => {
+      llamadas += 1;
+      return json(503, {});
+    };
+    expect(await detectar(fetcher, t + 1)).toBe(false);
+    expect(llamadas).toBe(1);
+  });
 });
-
 describe("reenviar solo el contrato", () => {
   it("cualquier otra ruta responde 404 sin tocar la red", async () => {
     let llamadas = 0;
@@ -57,6 +60,16 @@ describe("reenviar solo el contrato", () => {
     for (const ruta of ["/otra/ruta", "/v1/audio/speech/../x", "/v1/audio/voces"]) {
       expect((await reenviar(ruta, {}, fetcher)).status).toBe(404);
     }
+    expect(llamadas).toBe(0);
+  });
+  it("el método del contrato manda: GET a speech o POST a voices dan 404", async () => {
+    let llamadas = 0;
+    const fetcher: Fetcher = async () => {
+      llamadas += 1;
+      return json(200, {});
+    };
+    expect((await reenviar("/v1/audio/speech", {}, fetcher, { metodo: "GET" })).status).toBe(404);
+    expect((await reenviar("/v1/audio/voices", {}, fetcher, { metodo: "POST" })).status).toBe(404);
     expect(llamadas).toBe(0);
   });
   it("speech sale por POST en JSON y devuelve el audio tal cual", async () => {
@@ -98,18 +111,10 @@ describe("reenviar solo el contrato", () => {
     expect(res.data).toEqual({ voices: [] });
     expect(opciones).toEqual({ method: "GET", signal: expect.anything() });
   });
-  it("si no responde, 502 y el mensaje no filtra IP ni puerto", async () => {
-    const res = await reenviar("/v1/audio/speech", {}, caido);
-    expect(res.status).toBe(502);
-    expect(res.error).not.toMatch(/127\.|3900/);
-  });
 });
-
 describe("línea de salud", () => {
   it("dice «vivo» o «ausente» según el descubrimiento", async () => {
-    reiniciarDeteccion();
-    expect(await estado(async () => json(200, {}), 1)).toBe("voicestudio: vivo");
-    reiniciarDeteccion();
-    expect(await estado(caido, 1)).toBe("voicestudio: ausente");
+    expect(await estado(async () => json(200, {}), siguienteAhora())).toBe("voicestudio: vivo");
+    expect(await estado(caido, siguienteAhora())).toBe("voicestudio: ausente");
   });
 });
