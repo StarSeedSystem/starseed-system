@@ -39,13 +39,12 @@ describe("guia-acceso", () => {
     expect(EVENTO_ABRIR_GUIA).toBe(OPEN_GUIDE_EVENT_DE_AURORA);
   });
 
-  it("sin dónde lanzar el evento devuelve false y no lanza", () => {
+  it("en Node o SSR no lanza ni despacha y devuelve false", () => {
     vi.stubGlobal("window", undefined);
+    expect(typeof window).toBe("undefined");
     expect(() => abrirGuia({ desde: "login" })).not.toThrow();
     expect(abrirGuia({ desde: "login" })).toBe(false);
   });
-
-});
 
   it("con origen y tema inicial", () => {
     const detalles: Array<Record<string, unknown>> = [];
@@ -63,11 +62,12 @@ describe("guia-acceso", () => {
     expect(detalles).toEqual([{ desde: "aviso" }]);
   });
 
-  it("no importa nada de valor en tiempo de ejecución", () => {
+  it("no importa nada de valor en tiempo de ejecución, ni node:*", () => {
     const fuente = leerRelativo("src/lib/onboarding/guia-acceso.ts");
+    expect(fuente, "módulo puro: sin node:*").not.toMatch(/from\s+"node:/);
     const deValor = fuente
       .split("\n")
       .filter((linea) => /^\s*import\s/.test(linea) && !/^\s*import\s+type\s/.test(linea));
     expect(deValor, "solo imports de tipo").toEqual([]);
   });
-
+});
