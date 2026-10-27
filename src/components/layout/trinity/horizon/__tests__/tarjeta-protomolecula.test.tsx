@@ -7,17 +7,17 @@ import {
 } from "@/lib/protomolecula/orbe-bus";
 import { PROTO_ORB_ESTADO_EVENT, PROTO_ORB_ESTILO_KEY } from "@/lib/protomolecula/orbe4d/eventos";
 
-// Se espían las dos funciones de la API de la orbe que tocan el almacén, conservando su comportamiento real.
+// Se espía la PUERTA única de la orbe (PMO1020A), conservando su comportamiento real.
 vi.mock("@/lib/protomolecula/orbe-bus", async (original) => {
   const m = await original<typeof import("@/lib/protomolecula/orbe-bus")>();
-  return { ...m, guardarActivada: vi.fn(m.guardarActivada) };
+  return { ...m, fijarOrbeActivada: vi.fn(m.fijarOrbeActivada) };
 });
 vi.mock("@/lib/protomolecula/orbe4d/eventos", async (original) => {
   const m = await original<typeof import("@/lib/protomolecula/orbe4d/eventos")>();
   return { ...m, guardarEstilo: vi.fn(m.guardarEstilo) };
 });
 
-import { guardarActivada } from "@/lib/protomolecula/orbe-bus";
+import { fijarOrbeActivada } from "@/lib/protomolecula/orbe-bus";
 import { guardarEstilo } from "@/lib/protomolecula/orbe4d/eventos";
 import { TarjetaProtomolecula } from "../tarjeta-protomolecula";
 
@@ -56,16 +56,16 @@ describe("Tarjeta «Protomolécula» · interruptor de la orbe", () => {
     expect(encendido()).toBe(false);
   });
 
-  it("al apagarla llama a guardarActivada y emite PROTO_ORB_FAB_EVENT; al encenderla, igual", () => {
+  it("al apagarla pasa por la puerta fijarOrbeActivada y emite PROTO_ORB_FAB_EVENT; al encenderla, igual", () => {
     const fab = escuchar<{ activada: boolean }>(PROTO_ORB_FAB_EVENT);
     render(<TarjetaProtomolecula ir={ir} />);
     fireEvent.click(interruptor());
-    expect(guardarActivada).toHaveBeenLastCalledWith(window.localStorage, false);
+    expect(fijarOrbeActivada).toHaveBeenLastCalledWith(false);
     expect(window.localStorage.getItem(PROTO_ORB_FAB_KEY)).toBe("false");
     expect(fab.recibidos.at(-1)).toEqual({ activada: false });
     expect(encendido()).toBe(false);
     fireEvent.click(interruptor());
-    expect(guardarActivada).toHaveBeenLastCalledWith(window.localStorage, true);
+    expect(fijarOrbeActivada).toHaveBeenLastCalledWith(true);
     expect(fab.recibidos.at(-1)).toEqual({ activada: true });
     expect(encendido()).toBe(true);
     fab.quitar();
