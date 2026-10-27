@@ -1,0 +1,105 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "ART1025C",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Cliente MCP por stdio con límites (puro, transporte inyectado)",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/artcraft/mcp-stdio.ts",
+    "src/lib/artcraft/__tests__/mcp-stdio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §3.1 (puntos 1 y 7) y §2.1 (MCP por stdio, líneas de hasta 32 MiB). Crea un cliente JSON-RPC 2.0 de MCP por líneas, PURO: no abre procesos; recibe un transporte inyectado `{ escribir(linea: string): void; alRecibir(cb: (texto: string) => void): void; cerrar(): void }` y un reloj inyectado `{ tras(ms: number, cb: () => void): () => void }` para los tiempos.\n\nExporta: `LIMITE_LINEA = 32 * 1024 * 1024`; `trocearLineas(pendiente: string, trozo: string): { lineas: string[]; resto: string }` (separa por `\\n`, ignora `\\r` final y líneas vacías); `class ClienteMcpStdio` con `iniciar()` (envía `initialize` con `protocolVersion: \"2025-06-18\"`, `clientInfo: { name: \"starseed-os\", version: \"1\" }`, espera la respuesta y manda la notificación `notifications/initialized`), `listar(tiempoMs)` (`tools/list`), `llamar(herramienta, argumentos, tiempoMs)` (`tools/call`) y `cerrar()`. Los ids son enteros secuenciales; las respuestas pueden llegar desordenadas; las notificaciones del servidor y las líneas sin `id` se ignoran; una línea que no es JSON no tumba el cliente (se cuenta en `ilegibles`). Errores tipados `ErrorMcp { tipo: \"tiempo\" | \"enorme\" | \"rpc\" | \"cerrado\" | \"protocolo\"; mensaje: string }`: si el resto sin salto de línea supera `LIMITE_LINEA` se corta (`enorme`) y NO se despachan más peticiones; al `cerrar()` las pendientes fallan con `cerrado`; un `result.isError === true` de una herramienta se devuelve como `{ ok: false, texto }` y no como excepción. El texto de `result.content` (tipo `text`) se concatena; las imágenes se devuelven como `{ tipo: \"imagen\", mime, bytes }` con base64 decodificado.\n\nPruebas (≥ 12): handshake completo con transporte falso; respuestas desordenadas; notificación ignorada; línea ilegible; línea enorme cortada y sin más despachos; tiempo agotado; `isError`; cierre con pendientes; trozos partidos a mitad de línea; imagen base64.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`."
+  },
+  {
+   "id": "HFR1018K",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Superficies · ventana «Estudio de vídeo» (dashboard, escritorio, pizarra y flotante)",
+   "archivos": [
+    "src/components/video/estudio-video-ventana.tsx",
+    "src/components/dashboard/widget-registry.tsx",
+    "src/components/video/__tests__/estudio-video-ventana.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente con: lista de capas/clips y línea de tiempo simple (de los atributos data-*), panel de propiedades que emite órdenes de operaciones-sdk.ts, vista previa con `<hyperframes-player>` servido por el servicio local (si no hay servicio: mensaje claro y botón «Abrir en otra neurona»), aviso cuando la composición trae GSAP. Regístralo en widget-registry.tsx como widget `estudio-video` (lo usan dashboard, escritorio y pizarra; solo añadir la entrada). Estética del OS. Prueba con Testing Library. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "HFR1018C"
+   ],
+   "dependencias_ya_en_main": [
+    "HFR1018E"
+   ]
+  },
+  {
+   "id": "APR1019A",
+   "ola": "Ola 1019N · Apps en la malla, lado nativo: ventana_remota rehecha con las API reales (cargo check en verde)",
+   "titulo": "Ventanas prestables y captura con xcap 0.9 (compila)",
+   "archivos": [
+    "native/src-tauri/src/ventana_remota.rs",
+    "native/src-tauri/Cargo.toml",
+    "native/src-tauri/src/lib.rs"
+   ],
+   "depende": [],
+   "prompt": "Rehaz `ventanas_prestables` y `capturar_ventana` de `ventana_remota.rs` con la API real de xcap 0.9 (lista de `Window::all()`, sin duplicar por id; nombre de app con `app_name()`; captura con `capture_image()`, redimensiona con image 0.25 y devuelve PNG en base64 con el engine de base64 0.22). Quita el campo repetido de `VentanaInfo`. Deja `entrada_ventana` fuera por ahora (APR1019B). Vuelve a declarar `#[cfg(desktop)] mod ventana_remota;` y registra los dos comandos en `generate_handler!` separados por comas; si `generate_handler!` no admite `#[cfg]` dentro, registra la lista de escritorio en un bloque `#[cfg(desktop)]` aparte. Añade xcap = \"0.9\", image = \"0.25\" y base64 = \"0.22\". Contexto: `architecture/apps-en-la-malla.md` y el commit 4e8fac291, que sacó `ventana_remota` de la compilación porque no compilaba (features inexistentes, comandos sin comas en `generate_handler!`, campo repetido, API de xcap y base64 que ya no existen). Versiones REALES: xcap 0.9 (features: image, wgc; `xcap::Window::all()`, `app_name()`, `title()`, `id()` devuelven Result; `capture_image()` devuelve `image::RgbaImage` de image 0.25), enigo 0.6 (sin features keyboard/mouse; `Enigo::new(&Settings::default())`, traits `Keyboard` y `Mouse`, `Direction::Click`, `Coordinate::Abs`), image 0.25 y base64 0.22 (`base64::engine::general_purpose::STANDARD.encode`). Comprueba la API en docs.rs de esa versión antes de escribir. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las dependencias van en la sección de escritorio de Cargo.toml; no quites el pin de rust-ini; comentarios en español; `cargo check --manifest-path native/src-tauri/Cargo.toml` debe pasar en Linux (es el job «Tauri · cargo check» del CI)."
+  },
+  {
+   "id": "VZF1015N",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Plática · interrupción por voz: si la persona habla > 250 ms, Astraura calla al momento",
+   "archivos": [
+    "src/lib/aurora/interrumpir-por-voz.ts",
+    "src/lib/aurora/__tests__/interrumpir-por-voz.test.ts",
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Hoy solo se interrumpe tocando la orbe. Crea un detector PURO por energía con histéresis (`decidirInterrupcion(muestras, estado, { umbralDb, minimoMs: 250 })`) y un montaje que lee el micrófono con `echoCancellation: true` y `noiseSuppression: true` mientras Astraura habla y llama a `interrupt()` del motor. No puede cortarse con su propio eco: respeta `esEcoPropio`/`ventanaEcoMs` de `anti-bucle-voz.ts`. En `engine.ts` solo el enganche (activar al hablar, soltar al callar). Pruebas del detector con muestras sintéticas. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015I"
+   ]
+  },
+  {
+   "id": "MR1012E",
+   "titulo": "Routers a nodos: panel en la configuración de neuronas y cerebros",
+   "archivos": [
+    "src/components/network/routers-malla-panel.tsx",
+    "src/components/network/router-center.tsx",
+    "src/components/network/__tests__/routers-malla-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Panel 'use client' «Routers de la malla»: añadir router (fabricante, modelo, versión, ¿es del operador?); muestra `compatibilidad` (con la tabla que se pase por prop; si no hay, estado 'desconocido' y el enlace a https://openwrt.org/toh/start para buscarlo), el aviso y los pasos; tras marcar «ya tiene OpenWrt»: región, troncales entre routers (elegir pares), `planRadios` en una tabla por enlace (banda, canal, ancho, potencia) editable dentro de lo legal, y por router los botones «Copiar guion» (guionAplicar) y «Descargar configuración» (Blob .txt). La clave de la malla se genera en el navegador (crypto.getRandomValues, 24 bytes en base64url) y solo se muestra al copiar. Guarda la lista de routers (sin claves) en localStorage con try/catch. Móntalo en router-center.tsx (cambio mínimo). Diseño del OS, legible en móvil. Prueba jsdom: añadir un router de operador muestra 'bloqueado-operador'.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MR1012A",
+    "MR1012B",
+    "MR1012C",
+    "MR1012D"
+   ]
+  },
+  {
+   "id": "VZR1011C",
+   "ola": "Ola 1011I · Voces locales fluidas (Chatterbox, OpenVoice V2; F5/XTTS opcionales personales) y el pato Open Duck Mini como cuerpo de bots y agentes",
+   "titulo": "Licencias de voz: F5-TTS y XTTS-v2 como opcionales de uso personal; ChatTTS solo ficha",
+   "archivos": [
+    "src/lib/aurora/tts-oss/voces-no-comerciales.ts",
+    "src/lib/aurora/tts-oss/__tests__/voces-no-comerciales.test.ts",
+    "src/lib/library/packages.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-voces-y-robots.md` (léelo ENTERO; el §1 tiene licencias y datos VERIFICADOS el 2026-10-11 — no inventes otros). Reutiliza lo que YA existe y no lo dupliques: `architecture/aurora-voz-motores.md` + `src/lib/aurora/tts-oss/engine-registry.ts` (cadena `buildVoiceChain`, `AUTO_ENDPOINT_ORDER`, OpenVoice V2 ya es el motor principal), `architecture/forja-voz-158.md` §4 (en producto solo MIT/Apache), `src/lib/aurora/voz-starseed/` (motor único por niveles, Supertonic: la voz F1 de Astraura que le gusta a Alex se mantiene), `src/lib/voces/` (clonación con consentimiento obligatorio, trocear, perfil neuronal), `src/lib/astraura/needle3-client.ts` y `decision-hibrida.ts` (capa Needle), `architecture/astraura-bots.md` y `src/lib/astraura-bots/` (cuerpos, acciones con META y riesgo). Reglas: «basta de ilusiones»; nunca descargas automáticas de pesos (solo con permiso y tras comprobar ≥ 3 veces el espacio); en la Mac de Alex (8 GB) los motores pesados ceden ante el enjambre (`scripts/puente/guardia-memoria.py`); clonar una voz exige consentimiento explícito de su dueño y jamás se imita a una persona real sin él; nada no comercial en uso comercial; nada de claves en código; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Toda repo o modelo que entre lleva su ficha en la Biblioteca (`src/lib/library/packages.ts`, `kind: \"ai-source\"` o `\"repo\"`) con comprobación de versión (regla de CLAUDE.md). Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto.\n\nTAREA: F5-TTS (pesos CC-BY-NC) y XTTS-v2 (Coqui Public Model License) entran como motores OPCIONALES de uso personal no comercial: apagados por defecto, solo si la persona los instala y acepta su licencia en una casilla que la explica, nunca en contextos comerciales (páginas o grupos con fines comerciales) ni en la cadena AUTO por defecto; respetan la regla de la forja §4 para el producto. ChatTTS (modelo CC BY-NC 4.0 «solo académico», sin español) NO se integra: solo su ficha. Fichas en la Biblioteca para Chatterbox, OpenVoice V2, F5-TTS, XTTS-v2 y ChatTTS con licencia exacta del contrato y comprobación de versión. Pruebas del filtro comercial.",
+   "dependencias_ya_en_main": [
+    "VZR1011B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "MR1012E",
+   "HFR1018K",
+   "ART1025C",
+   "APR1019A",
+   "VZR1011C",
+   "VZF1015N"
+  ]
+ }
+}
