@@ -6,13 +6,14 @@ export type Capa =
   | "memoria"
   | "palabra"
   | "razon"
+  | "juicio"
   | "profunda"
   | "voz"
   | "adaptador";
 
 export type Medio = "web" | "pwa" | "nativo" | "servidor";
 
-export type FormatoCapa = "cact" | "gguf" | "mlx" | "onnx";
+export type FormatoCapa = "cact" | "gguf" | "mlx" | "onnx" | "safetensors";
 
 export type RuntimeCapa =
   | "needle-wasm"
@@ -20,9 +21,12 @@ export type RuntimeCapa =
   | "webgpu-onnx"
   | "llama-cpp"
   | "bitnet-cpp"
-  | "mlx";
+  | "mlx"
+  | "colibri";
 
-export type EstadoCapa = "recomendado" | "respaldo" | "en-banco" | "retirado";
+// «por-verificar»: la entrada se conoce (contrato de Colibri) pero su SHA-256 aún no se ha
+// medido. Se lee y se enseña, pero nunca se usa hasta que el instalador anote el SHA.
+export type EstadoCapa = "recomendado" | "respaldo" | "en-banco" | "retirado" | "por-verificar";
 
 export interface ProfundidadNeedle {
   capas: number;
@@ -46,6 +50,10 @@ export interface EntradaCapa {
   espejos: string[];
   estado: EstadoCapa;
   medios: Medio[];
+  // Colibri lee los expertos del disco en vez de cargarlos enteros en RAM.
+  streaming_disco?: boolean;
+  // RAM recomendada (no mínima) para que el modelo vaya con margen.
+  ram_ok_mb?: number;
 }
 
 export interface CatalogoCapas {
@@ -59,12 +67,13 @@ const CAPAS: readonly Capa[] = [
   "memoria",
   "palabra",
   "razon",
+  "juicio",
   "profunda",
   "voz",
   "adaptador",
 ];
 const MEDIOS: readonly Medio[] = ["web", "pwa", "nativo", "servidor"];
-const FORMATOS: readonly FormatoCapa[] = ["cact", "gguf", "mlx", "onnx"];
+const FORMATOS: readonly FormatoCapa[] = ["cact", "gguf", "mlx", "onnx", "safetensors"];
 const RUNTIMES: readonly RuntimeCapa[] = [
   "needle-wasm",
   "needle-nativo",
@@ -72,12 +81,14 @@ const RUNTIMES: readonly RuntimeCapa[] = [
   "llama-cpp",
   "bitnet-cpp",
   "mlx",
+  "colibri",
 ];
 const ESTADOS: readonly EstadoCapa[] = [
   "recomendado",
   "respaldo",
   "en-banco",
   "retirado",
+  "por-verificar",
 ];
 
 // Preferencia de §3 por capa: ids de mejor a más ligero.
@@ -92,6 +103,7 @@ const ORDEN_POR_CAPA: Record<Capa, readonly string[]> = {
     "bonsai-1bit-1.7b",
   ],
   razon: ["ternary-bonsai-8b", "bitnet-b1.58-2b-4t", "ternary-bonsai-4b"],
+  juicio: ["colibri-laya", "colibri-gliner-decide", "colibri-clef"],
   profunda: ["ternary-bonsai2-27b", "bonsai-1bit-27b", "ternary-bonsai-8b"],
   voz: ["vibeasr-cpp"],
   adaptador: [],
@@ -136,6 +148,8 @@ function entradaValida(v: unknown): v is EntradaCapa {
       if (!esNumero(pr.capas) || !esNumero(pr.disco_mb) || pr.capas < 1) return false;
     }
   }
+  if (e.streaming_disco !== undefined && typeof e.streaming_disco !== "boolean") return false;
+  if (e.ram_ok_mb !== undefined && !esNumero(e.ram_ok_mb)) return false;
   return true;
 }
 
@@ -171,6 +185,7 @@ export function candidatosDe(
 
 /** Una capa solo se usa con su SHA verificado y estado recomendado o respaldo (§6, §11). */
 export function usable(entrada: EntradaCapa): boolean {
+  if (entrada.estado === "por-verificar") return false;
   return (
     /^[0-9a-f]{64}$/.test(entrada.sha256) &&
     (entrada.estado === "recomendado" || entrada.estado === "respaldo")

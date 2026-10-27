@@ -28,7 +28,7 @@ export interface PuntoDecision {
 export const UMBRAL_POR_DEFECTO = 0.6;
 export const PLAZO_MAX_MS = 30_000;
 export const MEDIOS_LAYA: readonly MedioLaya[] = ["a1", "mac", "navegador", "malla"];
-const CAPAS: Record<Capa, true> = { reflejo: true, memoria: true, palabra: true, razon: true, profunda: true, voz: true, adaptador: true };
+const CAPAS: Record<Capa, true> = { reflejo: true, memoria: true, palabra: true, razon: true, juicio: true, profunda: true, voz: true, adaptador: true };
 /** Invariantes del contrato: moderar nunca publica si duda; la privacidad la deciden las reglas y no sale. */
 const OBLIGADO: Partial<Record<IdPuntoDecision, Partial<Record<"siDuda" | "privacidad", string>>>> =
   { "publicar.moderar": { siDuda: "revisar" }, "privacidad.subir": { siDuda: "regla", privacidad: "solo-propias" } };
