@@ -18,6 +18,8 @@ import { EVENTO_BUCLE_UI, type DetalleBucleUI } from "@/lib/astraura-bots/adapta
 import { avanzar, bucleInicial, indicadorVisible, type EstadoBucle, type EventoBucle } from "@/lib/astraura-bots/bucle";
 import type { Bot } from "@/lib/astraura-bots/tipos";
 import { DIAMETRO_ANILLO, IndicadorSentidos } from "./indicador-sentidos";
+import { TarjetaPropuesta } from "./tarjeta-propuesta";
+import { RegistroBot } from "./registro-bot";
 import {
   MAX_ORBES_VISIBLES,
   disposicionOrbes,
@@ -161,6 +163,18 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
                 <IndicadorSentidos estado={est} nombreBot={b.nombre}
                   onApagarSentido={(sentido) => moverBucle(id, { tipo: "soltar", sentido, at: Date.now() })}
                   onPausarBot={() => moverBucle(id, { tipo: "pausar", quien: "persona", at: Date.now() })} />
+              </div>
+            ) : null}
+            {est?.fase === "esperando" && est.pendiente ? (
+              <div data-tarjeta-bot={id} className="pointer-events-none fixed" style={{ left: p.xRatio * vista.ancho - DIAMETRO_ANILLO / 2, top: p.yRatio * vista.alto - DIAMETRO_ANILLO / 2, width: DIAMETRO_ANILLO, height: DIAMETRO_ANILLO, zIndex: 41 + capas.indexOf(id) }}>
+                <TarjetaPropuesta estado={est} nombreBot={b.nombre} onConfirmar={() => moverBucle(id, { tipo: "confirmar", quien: ids?.cuenta ?? "persona", at: Date.now() })} onRechazar={() => moverBucle(id, { tipo: "rechazar", quien: ids?.cuenta ?? "persona", at: Date.now() })} onApagarSentido={(sentido) => moverBucle(id, { tipo: "soltar", sentido, at: Date.now() })} onPausarBot={() => moverBucle(id, { tipo: "pausar", quien: "persona", at: Date.now() })} />
+              </div>
+            ) : null}
+            {est && enfocado === id && !(est.fase === "esperando" && est.pendiente) ? (
+              <div className="pointer-events-none fixed w-72" style={{ left: p.xRatio * vista.ancho - 144, top: p.yRatio * vista.alto + DIAMETRO_ANILLO / 2 + 8, zIndex: 41 + capas.indexOf(id) }}>
+                <div data-registro-bot={id} className="pointer-events-auto max-h-60 overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-zinc-950/95 p-3">
+                  <RegistroBot registro={est.registro} onDeshacer={() => moverBucle(id, { tipo: "deshacer", quien: ids?.cuenta ?? "persona", at: Date.now() })} />
+                </div>
               </div>
             ) : null}
           </Fragment>

@@ -146,4 +146,27 @@ describe("OrbesBots", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pausar el bot" }));
     expect(screen.queryByTestId("anillo-sentidos")).toBeNull();
   });
+
+  it("la tarjeta de propuesta sale junto a la orbe esperando y el registro deshace (BOT1011H2)", () => {
+    sembrar([PRED, bot("bot:a", "Luna")], { "bot:a": "1" });
+    render(<OrbesBots perfilId={PERFIL} principal={PRINCIPAL} />);
+    const proponer = { tipo: "widget.mover", args: { id: "Clima", x: 0.2, y: 0.3 } };
+    const envio = (evento: Record<string, unknown>) =>
+      act(() => { window.dispatchEvent(new CustomEvent(EVENTO_BUCLE_UI, { detail: { botId: "bot:a", evento } })); });
+    envio({ tipo: "proponer", accion: proponer, decision: { permitido: false, requiere: "confirmacion", motivo: "Prefiero preguntarte.", indicador: false }, at: 1 });
+    const tarjeta = screen.getByRole("dialog", { name: "Propuesta de Luna" });
+    expect(tarjeta.textContent).toContain("Mover el widget Clima");
+    expect(tarjeta.textContent).toContain("Prefiero preguntarte.");
+    envio({ tipo: "confirmar", quien: "yo", at: 2 });
+    envio({ tipo: "aplicada", previo: { valor: { x: 0.1 } }, at: 3 });
+    expect(screen.queryByRole("dialog", { name: "Propuesta de Luna" })).toBeNull();
+    const orbe = screen.getByLabelText("Orbe de Luna");
+    fireEvent.pointerDown(orbe, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(orbe, { clientX: 100, clientY: 100, pointerId: 1 });
+    const registro = screen.getByLabelText("Registro del bot");
+    expect(registro.textContent).toContain("Aplicó");
+    fireEvent.click(screen.getByRole("button", { name: "Deshacer: Aplicó" }));
+    expect(registro.textContent).toContain("Deshecho");
+    expect(screen.queryByRole("button", { name: /^Deshacer:/ })).toBeNull();
+  });
 });
