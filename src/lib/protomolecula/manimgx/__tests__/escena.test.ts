@@ -1,108 +1,242 @@
 import { describe, it, expect } from "vitest";
-import {
-  clasesEscena,
-  validarEscena,
-  type EscenaManimContrato,
-} from "../escena";
+import { validarEscena, clasesEscena, type EscenaManim } from "../escena";
 
-const CUBO_TRES_DE: string[] = [
-  "from manim import ThreeDScene, Cube, Rotate, deg",
+const ESCENA_2D = [
+  "from manim import Scene, Circle, Create, Wait",
   "",
-  "class CuboProtomolecula(ThreeDScene):",
+  "class CirculoAparece(Scene):",
   "    def construct(self):",
-  "        cubo = Cube(side_length=2.0)",
-  "        self.set_camera_orientation(phi=75 * deg, theta=30 * deg)",
-  "        self.add(cubo)",
-  "        self.play(Rotate(cubo, axis=[0, 1, 0], angle=2)),",
-];
+  "        circulo = Circle()",
+  "        self.play(Create(circulo))",
+  "        self.wait(1)",
+].join("\n");
 
-const ESCENA_PLANA: string[] = [
+const ESCENA_3D = [
   "import numpy as np",
-  "from manim import Scene, Circle",
+  "from manim import ThreeDScene, Cube, ThreeDAxes, DEGREES, RIGHT",
   "",
-  "class CirculoVesica(Scene):",
+  "class CuboGiratorio(ThreeDScene):",
   "    def construct(self):",
-  "        self.add(Circle(radius=1.618))",
-];
+  "        cubo = Cube().set_fill(np.array([0.2, 0.6, 1.0]))",
+  "        self.set_camera_orientation(phi=75 * DEGREES)",
+  "        self.begin_ambient_camera_rotation(rate=0.2)",
+  "        self.play(cubo.animate.rotate(0.5, RIGHT), run_time=2)",
+].join("\n");
 
-describe("validarEscena", () => {
-  it("acepta una escena ThreeDScene con cubo y rotación de cámara", () => {
-    const resultado = validarEscena(CUBO_TRES_DE.join("\n"));
-    expect(resultado).toEqual({ ok: true });
+const escenaReal: EscenaManim = {
+  codigo: ESCENA_3D,
+  clase: "CuboGiratorio",
+  calidad: "1080p",
+  fps: 60,
+  duracionMax: 30,
+};
+
+describe("clasesEscena", () => {
+  it("lee los nombres de las clases en orden", () => {
+    expect(clasesEscena(ESCENA_3D)).toEqual(["CuboGiratorio"]);
   });
 
-  it("acepta una escena plana de Scene con numpy", () => {
-    const resultado = validarEscena(ESCENA_PLANA.join("\n"));
-    expect(resultado).toEqual({ ok: true });
-  });
-
-  it("rechaza el código vacío", () => {
-    const resultado = validarEscena("   \n  ");
-    expect(resultado.ok).toBe(false);
-    if (!resultado.ok) expect(resultado.motivos[0]).toContain("vacía");
-  });
-
-  it("rechaza imports fuera de los módulos permitidos", () => {
+  it("admite clases ayudantes junto a la escena", () => {
     const codigo = [
-      "from scipy import spatial",
-      "class Escena(Scene):",
-      "    def construct(self):",
-      "        pass",
+      "class Cubo(Cube):",
+      "    pass",
+      "",
+      "class Fin(Scene):",
+      "    pass",
     ].join("\n");
-    const resultado = validarEscena(codigo);
-    expect(resultado.ok).toBe(false);
-    if (!resultado.ok) {
-      expect(resultado.motivos.some((m) => m.includes("scipy"))).toBe(true);
-    }
+    expect(clasesEscena(codigo)).toEqual(["Cubo", "Fin"]);
+  });
+
+  it("devuelve vacío si no hay clases", () => {
+    expect(clasesEscena("x = 1")).toEqual([]);
   });
 });
 
-describe("prohibiciones de validarEscena", () => {
-  const casos: { nombre: string; fragmento: string }[] = [
-    { nombre: "open(", fragmento: "open('/etc/passwd')" },
-    { nombre: "exec(", fragmento: "exec('pass')" },
-    { nombre: "eval(", fragmento: "eval('2+2')" },
-    { nombre: "__import__", fragmento: "__import__('os')" },
-    { nombre: "subprocess", fragmento: "import subprocess" },
-    { nombre: "os.", fragmento: "import os\nos.environ" },
-    { nombre: "sys.", fragmento: "import sys\nsys.argv" },
-    { nombre: "networking", fragmento: "import socket" },
-  ];
+describe("validarEscena · escenas buenas", () => {
+  it("acepta una escena 2D simple", () => {
+    expect(validarEscena(ESCENA_2D)).toEqual({ ok: true });
+  });
 
-  for (const caso of casos) {
-    it(`rechaza ${caso.nombre} con motivo legible`, () => {
+  it("acepta una ThreeDScene con cubo y rotación de cámara", () => {
+    expect(validarEscena(ESCENA_3D)).toEqual({ ok: true });
+  });
+
+  it("acepta imports con alias y de varios módulos permitidos", () => {
+    const codigo = [
+      "import numpy as np",
+      "import math",
+      "from manimgx import EscenaBase",
+      "from manim import Scene",
+      "",
+      "class Todo(Scene):",
+      "    def construct(self):",
+      "        self.play(Create(Circle().set_fill(np.array(math.tau))))",
+    ].join("\n");
+    expect(validarEscena(codigo)).toEqual({ ok: true });
+  });
+
+  it("acepta una escena con clase ayudante que no es de Manim", () => {
+    const codigo = [
+      "from manim import Scene, Square",
+      "",
+      "class Cuadrado(Square):",
+      "    pass",
+      "",
+      "class Final(Scene):",
+      "    def construct(self):",
+      "        self.play(Create(Cuadrado()))",
+    ].join("\n");
+    expect(validarEscena(codigo)).toEqual({ ok: true });
+  });
+
+  it("la ficha tipo EscenaManim queda rellena con la escena 3D", () => {
+    expect(escenaReal.clase).toBe("CuboGiratorio");
+    expect(escenaReal.calidad).toBe("1080p");
+    expect(escenaReal.fps).toBe(60);
+    expect(escenaReal.duracionMax).toBe(30);
+    expect(validarEscena(escenaReal.codigo)).toEqual({ ok: true });
+  });
+});
+
+describe("validarEscena · escenas malas", () => {
+  it("rechaza código vacío", () => {
+    const resultado = validarEscena("   \n  ");
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.motivos[0]).toMatch(/está vacía/);
+  });
+
+  it("rechaza imports fuera de lo permitido, con el módulo en el motivo", () => {
+    const codigo = [
+      "import os",
+      "",
+      "class UsaSolo(Scene):",
+      "    def construct(self):",
+      "        self.wait(1)",
+    ].join("\n");
+    const resultado = validarEscena(codigo);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.motivos.join(" ")).toMatch(/«os» no permitido/);
+  });
+
+  it("rechaza ejecución de código: exec, eval y __import__", () => {
+    for (const trampa of ["exec(entrada)", "eval('1+1')", "__import__('os')"]) {
       const codigo = [
         "from manim import Scene",
-        "class Escena(Scene):",
+        "",
+        "class Trampa(Scene):",
         "    def construct(self):",
-        `        ${caso.fragmento}`,
+        `        ${trampa}`,
       ].join("\n");
       const resultado = validarEscena(codigo);
       expect(resultado.ok).toBe(false);
       if (!resultado.ok) {
-        expect(resultado.motivos.length).toBeGreaterThan(0);
-        if (caso.nombre === "__import__") {
-          expect(resultado.motivos.some((m) => m.includes("__import__"))).toBe(true);
-        }
+        expect(resultado.motivos.join(" ")).toContain(trampa.split("(")[0]);
       }
-    });
-  }
-});
-
-describe("clasesEscena y contrato", () => {
-  it("devuelve los nombres de las clases en orden", () => {
-    expect(clasesEscena(CUBO_TRES_DE.join("\n"))).toEqual(["CuboProtomolecula"]);
+    }
   });
 
-  it("un contrato válido respeta los tipos declarados", () => {
-    const contrato: EscenaManimContrato = {
-      codigo: CUBO_TRES_DE.join("\n"),
-      clase: "CuboProtomolecula",
-      calidad: "1080p",
-      fps: 30,
-      duracionMax: 12,
-    };
-    expect(contrato.calidad).toBe("1080p");
-    expect(contrato.fps).toBe(30);
+  it("rechaza disco («open(»), procesos (subprocess) y sistema (os., sys.)", () => {
+    const codigo = [
+      "import subprocess",
+      "import os",
+      "import sys",
+      "",
+      "class Peligro(Scene):",
+      "    def construct(self):",
+      "        datos = open('secreto.txt')",
+      "        subprocess.run(['ls'])",
+      "        os.system('ls')",
+      "        sys.exit(1)",
+    ].join("\n");
+    const resultado = validarEscena(codigo);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.motivos.join(" ")).toMatch(/open\(/);
+      expect(resultado.motivos.join(" ")).toMatch(/subprocess/);
+      expect(resultado.motivos.join(" ")).toMatch(/os\./);
+      expect(resultado.motivos.join(" ")).toMatch(/sys\./);
+    }
+  });
+
+  it("rechaza red: requests, urllib, socket y fetch", () => {
+    const codigos = [
+      [
+        "import requests",
+        "from manim import Scene",
+        "",
+        "class VoyPorRed(Scene):",
+        "    def construct(self):",
+        "        requests.get('https://ejemplo.com')",
+      ].join("\n"),
+      [
+        "import urllib.request",
+        "from manim import Scene",
+        "",
+        "class Volcado(Scene):",
+        "    def construct(self):",
+        "        urlopen('http://ejemplo.com')",
+      ].join("\n"),
+      [
+        "import socket",
+        "from manim import Scene",
+        "",
+        "class Escucha(Scene):",
+        "    def construct(self):",
+        "        bocina = socket.socket()",
+      ].join("\n"),
+      [
+        "from manim import Scene",
+        "",
+        "class Grito(Scene):",
+        "    def construct(self):",
+        "        fetch('http://ejemplo.com')",
+      ].join("\n"),
+    ];
+    for (const codigo of codigos) {
+      const resultado = validarEscena(codigo);
+      expect(resultado.ok).toBe(false);
+      if (!resultado.ok) expect(resultado.motivos.join(" ")).toMatch(/red/);
+    }
+  });
+
+  it("rechaza imports relativos a secretos", () => {
+    const codigo = [
+      "from .secreto import CLAVE",
+      "",
+      "class OjoCiego(Scene):",
+      "    def construct(self):",
+      "        self.wait(1)",
+    ].join("\n");
+    const resultado = validarEscena(codigo);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.motivos.join(" ")).toMatch(/«\.secreto»/);
+  });
+
+  it("rechaza código sin clases y clases que no heredan de escena", () => {
+    expect(validarEscena("x = 1").ok).toBe(false);
+    const sinEscena = [
+      "from manim import Circle",
+      "",
+      "class Algo:",
+      "    pass",
+    ].join("\n");
+    const resultado = validarEscena(sinEscena);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.motivos.join(" ")).toMatch(/Ninguna clase hereda/);
+  });
+
+  it("acumula varios motivos distintos a la vez", () => {
+    const codigo = [
+      "import os",
+      "from manim import Scene",
+      "",
+      "class Mal(Scene):",
+      "    def construct(self):",
+      "        open('a.txt')",
+      "        eval('1')",
+    ].join("\n");
+    const resultado = validarEscena(codigo);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.motivos.length).toBeGreaterThanOrEqual(3);
   });
 });
