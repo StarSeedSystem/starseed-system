@@ -77,6 +77,7 @@ export async function optimizar({ glb, plan, motor, escribir }) {
     lods.push({ triangulos, objetivo, archivo: `lod${i}.glb`, pesoMB: peso, datos });
   }
   if (plan.cerrada) avisos.push("No se mide si la malla sigue cerrada (watertight) tras simplificar: la cerró el remallador (§11.1) y meshoptimizer conserva la topología, pero no se ha comprobado.");
+  validarPesoMax(lods, plan.pesoMaxMB);
   const original = { archivo: "original.glb", triangulos: triangulosOriginal, pesoMB: pesoMB(glb.byteLength) };
   const manifiesto = { destino: plan.destino ?? null, compresion: plan.compresion, atlas: plan.atlas, texturaPx: plan.texturaPx,
     lods: lods.map(({ datos, ...nivel }) => nivel), ...(plan.conservarOriginal ? { original } : {}), avisos };
@@ -122,6 +123,10 @@ export async function tomarCerrojo(ruta, intento = 0) {
   return rm(ruta, { force: true }).then(() => tomarCerrojo(ruta, 1));
 }
 async function principal([entrada, rutaPlan, salida]) {
+  const args = parseArgs(process.argv);
+  entrada = entrada ?? args.entrada;
+  rutaPlan = rutaPlan ?? args.plan;
+  salida = salida ?? args.salida;
   if (!salida) return console.error("Uso: node optimizar.mjs <entrada.glb> <plan.json> <carpeta-salida>"), 2;
   if (resolve(dirname(entrada)) === resolve(salida) && /^(lod\d+\.glb|original\.glb|manifiesto\.json)$/.test(basename(entrada))) return console.error("La entrada está en la carpeta de salida con un nombre que se reescribiría: elige otra carpeta de salida."), 2;
   const cerrojo = join(tmpdir(), "starseed-taller3d-optimizar.lock");
@@ -130,6 +135,8 @@ async function principal([entrada, rutaPlan, salida]) {
     const [glb, plan] = await Promise.all([readFile(entrada), readFile(rutaPlan, "utf8").then((t) => { try { return JSON.parse(t); } catch { throw new Error("el plan no es un JSON válido"); } })]);
     const escribir = async (n, datos) => (await mkdir(salida, { recursive: true }), writeFile(join(salida, n), datos));
     const m = await optimizar({ glb, plan, motor: await crearMotorGltf(), escribir }); // la carpeta solo nace si todo cupo
+    await mkdir(salida, { recursive: true });
+    await escribirManifiesto(m, join(salida, "manifiesto.json"));
     console.log([...m.lods.map((l) => `${l.archivo}: ${l.triangulos} triángulos · ${l.pesoMB} MB`), ...m.avisos.map((a) => `Aviso: ${a}`)].join("\n"));
     return 0;
   } catch (e) { return console.error(`No se pudo optimizar: ${e.code === "ENOENT" ? `no existe «${e.path}»` : e.message}`), 1; } finally { await rm(cerrojo, { force: true }); }
