@@ -4614,3 +4614,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCB1013Xb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/RTCB1013Xb conservada)
 - `RTTIP1013Cc` — no escribió nada
 - `RTRTRTRTCOL1012Bdsbbbbbc-d2d` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTRTRTRTCOL1012Bdsbbbbbc-d2d conservada)
+
+## 2026-10-15 20:39 · mg-oracle-1015-1231
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (CB1013V, RTRTRTRTS1010-EV-ORACLE-1abc). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CB1013V` — otra cosa: sin decisión en 0 h; rama ola/CB1013V conservada
+- `RTRTS1010-TU-LL1cobjb` — no escribió nada
+- `RTRTRTRTS1010-EV-ORACLE-1abc` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-15 20:19:51 > build · auto • Explorar código actual
