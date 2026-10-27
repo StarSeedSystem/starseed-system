@@ -19,6 +19,7 @@ import { chat } from "@/ai/client/chat";
 import type { ChatMessage } from "@/ai/providers/types";
 import { runOnServer, type RunResult } from "@/lib/brains/runtime";
 import type { BrainServer } from "@/lib/brains/brains";
+import { plantillaRefine, validarSlugYRecursos } from "./plantilla-refine";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -689,3 +690,5 @@ export function appShareRef(app: GeneratedApp): AppShareRef {
     url: `/app/${app.id}`,
   };
 }
+
+export { plantillaRefine, validarSlugYRecursos };
