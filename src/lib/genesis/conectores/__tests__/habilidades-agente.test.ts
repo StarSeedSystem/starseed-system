@@ -54,6 +54,13 @@ describe("habilidadesPara · por papel", () => {
     expect(ids(habilidadesPara("imagen", "cuenta", OPCIONES))).toEqual(["av-gen", "vision"]);
   });
 
+  it("el revisor exige calidad fuerte: ni planning ni visión sola", () => {
+    const revisor = ids(habilidadesPara("revisor", "cuenta", OPCIONES));
+    expect(revisor).toEqual(["av-gen", "taste", "pm", "memoria-agente"]);
+    expect(revisor).not.toContain("router-proxy");
+    expect(revisor).not.toContain("vision");
+  });
+
   it("excluir las habilidades desactivadas en el ámbito", () => {
     const out = ids(
       habilidadesPara("escritor", "cuenta", {
