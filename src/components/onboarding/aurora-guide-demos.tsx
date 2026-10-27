@@ -19,6 +19,20 @@
 
 import { motion, type Transition } from "framer-motion";
 import { DemoGestosHibridos } from "./demo-gestos-hibridos";
+import {
+  ProtomoleculaDemo,
+  MallaDemo,
+  CapasConcienciaDemo,
+  NeuronasCerebroDemo,
+} from "./demos-sistema";
+import {
+  PoliticaDemo,
+  EducacionDemo,
+  CulturaDemo,
+  LibreriaBibliotecaDemo,
+  GenesisDemo,
+  PersonalizacionSeguraDemo,
+} from "./demos-red";
 
 type DemoProps = {
   stepKey: string;
@@ -421,75 +435,21 @@ function PerfilDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
   );
 }
 
-/* ─────────────────────────── CEREBROS ───────────────────────────────────────
-   Grafo vivo: nodos (servidores/memorias) conectados por aristas que pulsan. */
-function CerebrosDemo({ accent, reduce }: { accent: string; reduce: boolean }) {
-  const nodes = [
-    { x: 40, y: 30 },
-    { x: 120, y: 22 },
-    { x: 176, y: 58 },
-    { x: 90, y: 74 },
-    { x: 32, y: 82 },
-  ];
-  const edges = [
-    [0, 1],
-    [1, 2],
-    [0, 3],
-    [3, 4],
-    [1, 3],
-  ];
-  return (
-    <Stage accent={accent}>
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 210 112" preserveAspectRatio="none">
-        {edges.map(([a, b], i) => (
-          <motion.line
-            key={i}
-            x1={nodes[a].x}
-            y1={nodes[a].y}
-            x2={nodes[b].x}
-            y2={nodes[b].y}
-            stroke={accent}
-            strokeWidth={1}
-            strokeOpacity={0.5}
-            initial={reduce ? { pathLength: 1 } : { pathLength: 0 }}
-            animate={reduce ? { pathLength: 1 } : { pathLength: 1, strokeOpacity: [0.25, 0.7, 0.25] }}
-            transition={
-              reduce
-                ? undefined
-                : {
-                    pathLength: { duration: 0.7, delay: i * 0.12 },
-                    strokeOpacity: loop({ duration: 2.4, delay: i * 0.2 }),
-                  }
-            }
-          />
-        ))}
-        {nodes.map((n, i) => (
-          <motion.circle
-            key={i}
-            cx={n.x}
-            cy={n.y}
-            r={4}
-            fill={accent}
-            initial={reduce ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
-            animate={reduce ? { scale: 1, opacity: 1 } : { scale: 1, opacity: 1 }}
-            transition={reduce ? undefined : { type: "spring", stiffness: 300, damping: 16, delay: 0.3 + i * 0.1 }}
-            style={{ filter: `drop-shadow(0 0 4px ${accent})` }}
-          />
-        ))}
-      </svg>
-    </Stage>
-  );
-}
-
 /**
  * Las claves que `StepDemo` sabe dibujar. DEBE coincidir con los `case` de abajo (lo comprueba
  * `guia-completa-catalogo.test.ts` y `guia-completa-demos.test.tsx`) y con las demos del catálogo único (`guia-completa.ts`): una demo
  * que ningún paso usa es una demo hecha para nada (le pasó a las diez de GUI1021D/E).
- * `libreria` se retiró: la Librería y la Biblioteca tienen su propia demo (`libreria-biblioteca`).
+ * Las diez claves de `TODOS_LOS_TEMAS` montan aquí la demostración suya de `demos-sistema.tsx` o `demos-red.tsx`.
+ * La clave vieja `cerebros` (paso y tarjeta pasaron a «neuronas-cerebro», `/cerebro`) apunta a la demo nueva
+ * por compatibilidad; `libreria` se retiró (§6.1 de la SOP): la Librería y la Biblioteca tienen la suya
+ * (`libreria-biblioteca`).
  */
 export const CLAVES_STEPDEMO = [
   "orbe", "trinity-zenith", "trinity-horizon", "trinity-logic", "trinity-anchor",
-  "gestos-hibridos", "escritorio", "dashboard", "astraura", "perfil", "cerebros",
+  "gestos-hibridos", "escritorio", "dashboard", "astraura", "perfil",
+  "protomolecula", "malla", "capas-conciencia", "neuronas-cerebro",
+  "pilar-politica", "pilar-educacion", "pilar-cultura", "libreria-biblioteca",
+  "genesis", "personalizacion-segura", "cerebros",
 ] as const;
 
 /**
@@ -519,8 +479,27 @@ export function StepDemo({ stepKey, accent, reduce }: DemoProps) {
       return <AstrauraDemo accent={accent} reduce={reduce} />;
     case "perfil":
       return <PerfilDemo accent={accent} reduce={reduce} />;
-    case "cerebros":
-      return <CerebrosDemo accent={accent} reduce={reduce} />;
+    case "cerebros": // clave vieja del tour: el paso y la tarjeta pasaron a «neuronas-cerebro» (/cerebro)
+    case "neuronas-cerebro":
+      return <NeuronasCerebroDemo accent={accent} reduce={reduce} />;
+    case "protomolecula":
+      return <ProtomoleculaDemo accent={accent} reduce={reduce} />;
+    case "malla":
+      return <MallaDemo accent={accent} reduce={reduce} />;
+    case "capas-conciencia":
+      return <CapasConcienciaDemo accent={accent} reduce={reduce} />;
+    case "pilar-politica":
+      return <PoliticaDemo accent={accent} reduce={reduce} />;
+    case "pilar-educacion":
+      return <EducacionDemo accent={accent} reduce={reduce} />;
+    case "pilar-cultura":
+      return <CulturaDemo accent={accent} reduce={reduce} />;
+    case "libreria-biblioteca":
+      return <LibreriaBibliotecaDemo accent={accent} reduce={reduce} />;
+    case "genesis":
+      return <GenesisDemo accent={accent} reduce={reduce} />;
+    case "personalizacion-segura":
+      return <PersonalizacionSeguraDemo accent={accent} reduce={reduce} />;
     default:
       return null;
   }
