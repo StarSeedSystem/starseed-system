@@ -7,6 +7,7 @@
  * así que este módulo es puro y sus pruebas no tocan la red.
  */
 
+import { crearLotes } from "./libretranslate";
 import { aplicar, observar, recogerTextos, restaurar, type TextoRecogido } from "./pagina";
 
 type LotePedido = { q: string[]; source: string; target: string; format: string };
@@ -25,8 +26,7 @@ async function traducirLotes(
 ): Promise<Record<string, string>> {
     const unicos = Array.from(new Set(textos.map((t) => t.trim()).filter(Boolean)));
     const salida: Record<string, string> = {};
-    for (let i = 0; i < unicos.length; i += LOTE) {
-        const grupo = unicos.slice(i, i + LOTE);
+    for (const grupo of crearLotes(unicos, LOTE)) {
         const respuesta = await cliente.traducir({ q: grupo, source: "auto", target: idioma, format: "text" });
         const trozos = Array.isArray(respuesta.translatedText) ? respuesta.translatedText : [respuesta.translatedText];
         grupo.forEach((original, j) => {
