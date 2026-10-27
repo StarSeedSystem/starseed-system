@@ -43,6 +43,7 @@ import XRView from "@/components/canvas/xr-view";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { BloquePizarraProtomolecula } from "@/components/protomolecula/bloque-pizarra";
 import { claveDeHerramienta, claveDeMolecula, atributosClave } from "@/lib/variaciones/claves-protomolecula";
 import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
 import { usePrompt } from "@/components/ui/confirm-dialog";
@@ -93,6 +94,7 @@ import {
   Check,
   Mail,
   PenTool,
+  Atom,
 } from "lucide-react";
 import {
   BLOCK_KINDS,
@@ -163,6 +165,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutGrid,
   Globe,
   Image: ImageIcon,
+  Atom,
 };
 
 function KindIcon({ kind, className }: { kind: BlockKind; className?: string }) {
@@ -1813,6 +1816,7 @@ export default function CanvasBoard({
               onData={(patch) => updateBlockData(b.id, patch)}
               onTitle={(t) => updateBlock(b.id, { title: t })}
               onPickFile={(e) => onPickFile(b.id, e)}
+              edges={edges}
             />
           ))}
         </div>
@@ -2011,6 +2015,7 @@ function BlockCard({
   onData,
   onTitle,
   onPickFile,
+  edges,
 }: {
   block: CanvasBlock;
   editing: boolean;
@@ -2030,6 +2035,7 @@ function BlockCard({
   onData: (patch: Record<string, any>) => void;
   onTitle: (t: string) => void;
   onPickFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  edges: CanvasEdge[];
 }) {
   const def = blockKindDef(block.kind);
   const locked = !!block.locked;
@@ -2140,7 +2146,11 @@ function BlockCard({
         {editing ? (
           <BlockEditor block={block} vaults={vaults} memories={memories} onData={onData} onPickFile={onPickFile} />
         ) : (
-          <BlockPreview block={block} />
+          <BlockPreview
+            block={block}
+            aristasEntrantes={edges.filter((e) => e.to === block.id)}
+            aristasSalientes={edges.filter((e) => e.from === block.id)}
+          />
         )}
       </div>
 
@@ -2162,7 +2172,15 @@ function BlockCard({
 }
 
 // ---- Vista (no edición) ----------------------------------------------------
-function BlockPreview({ block }: { block: CanvasBlock }) {
+function BlockPreview({
+  block,
+  aristasEntrantes = [],
+  aristasSalientes = [],
+}: {
+  block: CanvasBlock;
+  aristasEntrantes?: CanvasEdge[];
+  aristasSalientes?: CanvasEdge[];
+}) {
   const d = block.data || {};
   switch (block.kind) {
     case "text":
@@ -2232,6 +2250,14 @@ function BlockPreview({ block }: { block: CanvasBlock }) {
         </div>
       ) : (
         <Empty label={`Indica el nombre del ${block.kind === "app" ? "app/programa" : "widget"}.`} />
+      );
+    case "protomolecula":
+      return (
+        <BloquePizarraProtomolecula
+          moleculaId={d.moleculaId ?? ""}
+          aristasEntrantes={aristasEntrantes}
+          aristasSalientes={aristasSalientes}
+        />
       );
     default:
       return <Empty label="Sin contenido." />;
@@ -2360,6 +2386,19 @@ function BlockEditor({
             placeholder="Configuración (ruta, comando, params, JSON…)"
             className="bg-white/5 text-xs min-h-[60px] resize-none"
           />
+        </div>
+      );
+    case "protomolecula":
+      return (
+        <div className="space-y-1.5" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <Input
+            autoFocus
+            value={d.moleculaId ?? ""}
+            onChange={(e) => onData({ moleculaId: e.target.value })}
+            placeholder="ID de la molécula"
+            className="bg-white/5 text-xs"
+          />
+          <p className="text-[10px] text-white/35">La molécula vive en el almacén; el bloque solo la cita.</p>
         </div>
       );
     default:
