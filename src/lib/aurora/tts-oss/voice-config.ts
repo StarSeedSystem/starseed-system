@@ -1543,6 +1543,149 @@ export function currentPreferredVoiceGender(): VoiceGenderPref {
   }
 }
 
+/**
+ * ── JERARQUÍA DEL MOTOR DE VOZ (VOZ1024D, parte 1) ───────────────────────────
+ * La misma precedencia que el sistema primario (_sistema-primario §3.2) pero
+ * para la VOZ: la capa más específica con un motor FIJADO gana y las demás
+ * heredan. Orden: agente › personalidad › cerebro › neurona › cuenta.
+ *
+ * Diferencia clave con el pin de personalidad de `engine-registry`: aquí el
+ * PREDETERMINADO (openvoice2/omnivoice de fábrica) NO es un pin — se declara
+ * `motor: "auto"` y la resolución sigue bajando hasta la cuenta o hasta `null`
+ * (la cadena de voz: elección explícita + AUTO). Así la cuenta que eligió
+ * VibeVoice de verdad lo consigue, y `resolveActiveVoiceEngine` deja de
+ * devolver siempre el pin por defecto.
+ *
+ * Función PURA y SSR-safe: no toca storage ni red; los llamadores (registro de
+ * motores, router) le pasan los mapas ya leídos. Nunca lanza.
+ */
+
+/** Capas de la jerarquía (de más a menos específica). */
+export type MotorVozProcedencia =
+  | "agente"
+  | "personalidad"
+  | "cerebro"
+  | "neurona"
+  | "cuenta";
+
+/** Elección de motor de voz de una capa. */
+export interface MotorVozEntidad {
+  /** Id de motor de voz; "auto" o vacío = esta capa no fija nada (hereda). */
+  motor?: string;
+}
+
+/** Mapa completo de la jerarquía del motor de voz. */
+export interface MapaMotorVoz {
+  porAgente?: Record<string, MotorVozEntidad>;
+  porPersonalidad?: Record<string, MotorVozEntidad>;
+  porCerebro?: Record<string, MotorVozEntidad>;
+  porNeurona?: Record<string, MotorVozEntidad>;
+  /** Elección de la cuenta (Ajustes → Voz, `config.engine`). */
+  cuenta?: MotorVozEntidad;
+}
+
+/** Contexto del turno: qué agente/personalidad/cerebro/neurona habla ahora. */
+export interface ContextoVozEntidad {
+  agentId?: string | null;
+  personaId?: string | null;
+  brainId?: string | null;
+  deviceId?: string | null;
+}
+
+/** Motor de voz con su procedencia. `null` = nada fijado → la cadena manda. */
+export interface MotorVozResuelto {
+  motor: AuroraVoiceEngine;
+  procedencia: MotorVozProcedencia;
+  /** Id del ámbito que decidió (agentId/personaId/brainId/deviceId). */
+  ambitoId?: string;
+}
+
+/** Etiquetas de procedencia para la UI. */
+export const MOTOR_VOZ_PROCEDENCIA_LABEL: Record<MotorVozProcedencia, string> = {
+  agente: "Fijado por el agente",
+  personalidad: "Fijado por la personalidad",
+  cerebro: "Fijado por el cerebro",
+  neurona: "Fijado por esta neurona",
+  cuenta: "Elección de la cuenta",
+};
+
+/** ¿Cuenta como PIN REAL? "browser" no: es el suelo del dispositivo, no una elección. */
+export function esMotorVozPin(v: unknown): v is AuroraVoiceEngine {
+  return isVoiceEngineId(v) && v !== "browser";
+}
+
+/** Sanea la elección de una capa: solo `motor` reconocido, texto corto. */
+function sanitizarEntidadMotorVoz(input: unknown): MotorVozEntidad | undefined {
+  if (!input || typeof input !== "object") return undefined;
+  const r = input as Record<string, unknown>;
+  const out: MotorVozEntidad = {};
+  if (typeof r.motor === "string" && r.motor.trim()) {
+    out.motor = r.motor.trim().slice(0, 60);
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Sanea el MAPA completo de la jerarquía: ids limpios, máx. 500 capas por mapa. */
+export function sanitizarMapaMotorVoz(raw: unknown): MapaMotorVoz {
+  const out: MapaMotorVoz = {};
+  if (!raw || typeof raw !== "object") return out;
+  const r = raw as Record<string, unknown>;
+  const mapa = (v: unknown): Record<string, MotorVozEntidad> | undefined => {
+    if (!v || typeof v !== "object") return undefined;
+    const src = v as Record<string, unknown>;
+    const clean: Record<string, MotorVozEntidad> = {};
+    for (const [k, vv] of Object.entries(src).slice(0, 500)) {
+      const id = typeof k === "string" ? k.trim().slice(0, 160) : "";
+      const e = sanitizarEntidadMotorVoz(vv);
+      if (id && e) clean[id] = e;
+    }
+    return Object.keys(clean).length ? clean : undefined;
+  };
+  out.porAgente = mapa(r.porAgente);
+  out.porPersonalidad = mapa(r.porPersonalidad);
+  out.porCerebro = mapa(r.porCerebro);
+  out.porNeurona = mapa(r.porNeurona);
+  out.cuenta = sanitizarEntidadMotorVoz(r.cuenta);
+  return out;
+}
+
+/**
+ * Resolución PURA de la jerarquía del motor de voz: la capa más específica que
+ * haya fijado un motor (agente › personalidad › cerebro › neurona › cuenta)
+ * gana; "auto", "browser", vacío o un id desconocido NO cuentan como fijado y
+ * la resolución sigue bajando. Sin nada fijado → `null`: manda la cadena de voz
+ * (elección explícita + AUTO) tal como la construye `buildVoiceChain`.
+ * Nunca lanza.
+ */
+export function resolverMotorVozJerarquia(
+  mapa: MapaMotorVoz | null | undefined,
+  ctx: ContextoVozEntidad | null | undefined,
+): MotorVozResuelto | null {
+  try {
+    const pick = (
+      m: Record<string, MotorVozEntidad> | undefined,
+      id: string | null | undefined,
+      procedencia: MotorVozProcedencia,
+    ): MotorVozResuelto | null => {
+      if (!id || !m) return null;
+      const motor = m[id]?.motor;
+      if (!esMotorVozPin(motor)) return null;
+      return { motor, procedencia, ambitoId: id };
+    };
+    return (
+      pick(mapa?.porAgente, ctx?.agentId, "agente") ??
+      pick(mapa?.porPersonalidad, ctx?.personaId, "personalidad") ??
+      pick(mapa?.porCerebro, ctx?.brainId, "cerebro") ??
+      pick(mapa?.porNeurona, ctx?.deviceId, "neurona") ??
+      (mapa?.cuenta && esMotorVozPin(mapa.cuenta.motor)
+        ? { motor: mapa.cuenta.motor, procedencia: "cuenta" as const }
+        : null)
+    );
+  } catch {
+    return null;
+  }
+}
+
 /** Busca un preset por id (o undefined). Nunca lanza. */
 export function findVoicePreset(id: string | undefined): AuroraVoicePreset | undefined {
   if (!id) return undefined;
