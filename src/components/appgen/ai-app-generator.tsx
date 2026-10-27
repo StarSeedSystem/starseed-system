@@ -45,6 +45,7 @@ import {
   Link2,
   BrainCircuit,
   Server,
+  Database,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -79,6 +80,8 @@ import {
   runOnBrain,
   appShareRef,
 } from "@/lib/appgen/appgen";
+
+import { plantillaRefine, type RecursoRefine } from "@/lib/appgen/plantilla-refine";
 
 import { createClient } from "@/utils/supabase/client";
 import { listBrains, type Brain, type BrainServer } from "@/lib/brains/brains";
@@ -120,6 +123,24 @@ function buildTree(files: AppFile[]): TreeNode {
   };
   sort(root);
   return root;
+}
+
+/** «clientes:nombre,email; pedidos:fecha,total» → recursos para plantillaRefine. */
+function parsearRecursos(texto: string): RecursoRefine[] {
+  return texto
+    .split(";")
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => {
+      const trozos = p.split(":");
+      return {
+        nombre: (trozos[0] ?? "").trim(),
+        campos: (trozos[1] ?? "")
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean),
+      };
+    });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -593,6 +614,39 @@ export default function AiAppGenerator() {
     w.document.close();
   }, [srcDoc]);
 
+  // Nuevo proyecto desde la plantilla «panel de datos» (Refine, telemetría
+  // apagada): pide los recursos, genera el proyecto como archivos del Estudio
+  // de Apps y queda exportable con el mismo Exportar de siempre.
+  const newPanelRefine = useCallback(async () => {
+    const entrada = (await prompt({
+      title: "Nuevo panel de datos (Refine)",
+      description:
+        "Proyecto vite + React listo para correr fuera del OS (activación manual: npm install, npm run dev). Telemetría de Refine va apagada de serie.",
+      label: "Recursos en una línea, así: clientes:nombre,email; pedidos:fecha,total",
+      placeholder: "clientes:nombre,email",
+      validate: (v) => (parsearRecursos(v).length === 0 ? "Escribe al menos un recurso con sus campos." : null),
+    }))?.trim() ?? "";
+    if (!entrada) return;
+    const nombre = app.name?.trim() || "Panel de datos";
+    try {
+      const archivos = plantillaRefine({ nombre, recursos: parsearRecursos(entrada) });
+      setApp((prev) => ({
+        ...prev,
+        files: archivos,
+        meta: {
+          ...prev.meta,
+          notes: "Proyecto «panel de datos» con Refine generado desde la plantilla. Activación manual: mira LEEME.md.",
+        },
+      }));
+      setActivePath("LEEME.md");
+      toast.success("Panel de datos creado ✦", {
+        description: "Nada se ejecuta aquí dentro: se activa fuera del OS con npm install y npm run dev.",
+      });
+    } catch (err) {
+      toast.error("No se pudo crear el panel de datos", { description: (err as Error)?.message });
+    }
+  }, [app.name, prompt]);
+
   const newProject = useCallback(async () => {
     if (!(await confirm({
       title: "Empezar proyecto nuevo",
@@ -694,6 +748,15 @@ export default function AiAppGenerator() {
             />
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={newProject}>
               <Plus className="h-3.5 w-3.5" /> Nuevo
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1 text-xs"
+              onClick={newPanelRefine}
+              title="Plantilla «panel de datos»: proyecto vite + Refine con telemetría apagada, para usar fuera del OS"
+            >
+              <Database className="h-3.5 w-3.5" /> Panel de datos
             </Button>
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={openList}>
               <FolderTree className="h-3.5 w-3.5" /> Mis apps
