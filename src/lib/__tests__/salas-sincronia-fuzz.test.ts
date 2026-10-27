@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { LIMITE_ELEMENTOS, excedeLimite, fusionarEstados, type ElementoSala, type EstadoSala } from "../salas/sincronia-sala";
 
-function mulberry32(seed: number) {
+type Rng = () => number;
+
+function mulberry32(seed: number): Rng {
   let s = seed >>> 0;
   return () => {
     s = (s + 0x6d2b79f5) >>> 0;
@@ -11,10 +13,10 @@ function mulberry32(seed: number) {
   };
 }
 
-function gen(rng, salaId, baseT) {
+function gen(rng: Rng, salaId: string, baseT: number): EstadoSala {
   const devs = ["a", "b", "c"];
   const n = 1 + Math.floor(rng() * 12);
-  const els = {};
+  const els: Record<string, ElementoSala> = {};
   for (let i = 0; i < n; i += 1) {
     const id = `e${i}`, d = devs[Math.floor(rng() * 3)];
     els[id] = { id, tipo: "nota", datos: {}, actualizadoEn: baseT + Math.floor(rng() * 5), porDispositivo: d, ...(rng() < 0.15 ? { borrado: true } : {}) };
@@ -22,7 +24,7 @@ function gen(rng, salaId, baseT) {
   return { salaId, elementos: els, reloj: baseT + Math.floor(rng() * 3) };
 }
 
-function eq(a, b) {
+function eq(a: Record<string, ElementoSala>, b: Record<string, ElementoSala>): boolean {
   const ka = Object.keys(a).sort(), kb = Object.keys(b).sort();
   if (ka.join() !== kb.join()) return false;
   return ka.every(k => a[k].actualizadoEn === b[k].actualizadoEn && a[k].porDispositivo === b[k].porDispositivo && a[k].borrado === b[k].borrado);
@@ -31,7 +33,7 @@ function eq(a, b) {
 const SEMILLAS = [0x9e3779b9, 0x12345678, 0xabcdef00, 0xdeadbeef, 0xcafebabe];
 const MI = "observer";
 
-function run(seed) {
+function run(seed: number): void {
   const rng = mulberry32(seed), baseT = 1_000_000;
   for (let c = 0; c < 300; c += 1) {
     const a = gen(rng, "s", baseT), b = gen(rng, "s", baseT), c3 = gen(rng, "s", baseT);
@@ -51,10 +53,12 @@ function run(seed) {
   }
 }
 
-function mutant(l, r, mio, mut) {
+type MutantStrategy = "gana-el-menor" | "empate-sin-lapida" | "ignora-lapidas" | "sin-desempate-por-dispositivo";
+
+function mutant(l: EstadoSala, r: EstadoSala, mio: string, mut: MutantStrategy): { resultado: EstadoSala; conflictos: string[] } {
   if (l.salaId !== r.salaId) return { resultado: l, conflictos: ["sala-distinta"] };
-  const els = { ...l.elementos ?? {} }, conf = [];
-  for (const [id, e] of Object.entries(r.elementos ?? {})) {
+  const els: Record<string, ElementoSala> = { ...l.elementos ?? {} }, conf: string[] = [];
+  for (const [id, e] of Object.entries(r.elementos ?? {}) as [string, ElementoSala][]) {
     if (e.porDispositivo === mio) continue;
     const a = els[id];
     if (!a) { els[id] = e; continue; }
@@ -63,8 +67,8 @@ function mutant(l, r, mio, mut) {
     let gana = false;
     if (mut === "gana-el-menor") gana = e.actualizadoEn < a.actualizadoEn || (e.actualizadoEn === a.actualizadoEn && e.porDispositivo > a.porDispositivo);
     else if (mut === "empate-sin-lapida") gana = e.actualizadoEn > a.actualizadoEn || (e.actualizadoEn === a.actualizadoEn && e.porDispositivo < a.porDispositivo);
-    else if (mut === "ignora-lapidas") { gana = e.actualizadoEn > a.actualizadoEn || (e.actualizadoEn === a.actualizadoEn && e.porDispositivo < a.porDispositivo); if (gana && e.borrado) gana = false; }
-    else gana = e.actualizadoEn > a.actualizadoEn || (e.actualizadoEn === a.actualizadoEn && e.borrado && !a.borrado);
+    else if (mut === "ignora-lapidas") { gana = e.actualizadoEn > a.actualizadoEn || (e.actualizadoEn === a.actualizadoEn && e.porDispositivo < a.porDispositivo); if (gana && e.borrado === true) gana = false; }
+    else gana = e.actualizadoEn > a.actualizadoEn || (e.actualizadoEn === a.actualizadoEn && e.borrado === true && a.borrado !== true);
     if (gana) els[id] = e;
   }
   const res = { salaId: l.salaId, elementos: els, reloj: Math.max(l.reloj ?? 0, r.reloj ?? 0) };
@@ -75,7 +79,7 @@ function mutant(l, r, mio, mut) {
 describe("fuzz semilla", () => {
   for (const s of SEMILLAS) it(`semilla ${s}`, () => run(s));
   it("limite", () => {
-    const base = 2_000_000, vivos = LIMITE_ELEMENTOS + 1, els = {};
+    const base = 2_000_000, vivos = LIMITE_ELEMENTOS + 1, els: Record<string, ElementoSala> = {};
     for (let i = 0; i < vivos; i += 1) els[`v${i}`] = { id: `v${i}`, tipo: "nota", datos: {}, actualizadoEn: base + i, porDispositivo: "x" };
     const g = { salaId: "s", elementos: els, reloj: base };
     expect(excedeLimite(g)).toBe(true);
@@ -85,7 +89,8 @@ describe("fuzz semilla", () => {
 });
 
 describe("gemelos mutantes", () => {
-  for (const m of ["gana-el-menor", "empate-sin-lapida", "ignora-lapidas", "sin-desempate-por-dispositivo"]) {
+  const mutantes: MutantStrategy[] = ["gana-el-menor", "empate-sin-lapida", "ignora-lapidas", "sin-desempate-por-dispositivo"];
+  for (const m of mutantes) {
     it(`mut ${m} rompe`, () => {
       const rng = mulberry32(SEMILLAS[0]), baseT = 1_000_000;
       let roto = false;
