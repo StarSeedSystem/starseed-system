@@ -224,6 +224,29 @@ class RemallarImagen(unittest.TestCase):
         self.assertGreaterEqual(r["segundos"], 0.0)
         self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
 
+    def test_cuando_no_disponible_devuelve_dict_de_error(self):
+        import tempfile
+        tmp = tempfile.mkdtemp()
+        try:
+            result = pa.remallar_imagen(
+                "/fake/path/image.png",
+                resolucion=512,
+                carpeta_workflows=tmp,
+                comfy=pa.ClienteComfyUI(),
+                dormir=lambda _: None,
+            )
+            self.assertFalse(result["ok"])
+            self.assertIsNone(result["glb"])
+            self.assertIsInstance(result["procedencia"], list)
+            self.assertGreaterEqual(len(result["procedencia"]), 2)  # flujo and nodos
+            self.assertIsInstance(result["fallo"], str)
+            self.assertGreaterEqual(len(result["fallo"]), 1)
+            self.assertGreaterEqual(result["segundos"], 0.0)
+            self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_flujo_desconocido(self):
         r = pa.remallar_imagen("a.png", flujo="inventado", comfy=ComfyFalso())
         self.assertFalse(r["ok"])
