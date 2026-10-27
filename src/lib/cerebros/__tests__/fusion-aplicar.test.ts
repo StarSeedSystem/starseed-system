@@ -21,6 +21,7 @@ const h = vi.hoisted(() => {
     idFalloAlEscribir: null as string | null,
     idsConSelecciones: [] as string[],
     borrados: [] as string[],
+    guardarNulo: false,
   };
   const datosPrefs = new Map<string, string>();
   return { estado, datosPrefs };
@@ -67,6 +68,7 @@ vi.mock("@/utils/supabase/client", () => ({
 vi.mock("@/lib/brains/brains", () => ({
   getBrain: (id: string) => Promise.resolve(h.estado.cerebros.get(id) ?? null),
   saveBrain: (cerebro: Record<string, unknown>) => {
+    if (h.estado.guardarNulo) return Promise.resolve(null);
     h.estado.cerebros.set(String(cerebro.id), cerebro);
     return Promise.resolve(cerebro);
   },
@@ -156,6 +158,7 @@ beforeEach(() => {
   h.estado.idFalloAlEscribir = null;
   h.estado.idsConSelecciones = [];
   h.estado.borrados = [];
+  h.estado.guardarNulo = false;
   h.datosPrefs.clear();
   almacen = {
     getItem: (k: string) => h.datosPrefs.get(k) ?? null,
@@ -205,6 +208,23 @@ describe("leerParaFusion", () => {
     const r = await leerParaFusion("c1", ["c2"]);
     expect(r).toEqual({ ok: false, motivo: "No se pudo leer el cerebro de origen (c2)." });
   });
+
+  it("con el almacenamiento bloqueado la lectura sigue y las prefs quedan vacías", async () => {
+    h.estado.cerebros.set("c1", cerebro("c1", "Destino"));
+    vi.stubGlobal("window", {
+      localStorage: {
+        length: 1,
+        key: () => "starseed.brain.c1.tema",
+        getItem: () => {
+          throw new Error("almacenamiento bloqueado");
+        },
+      },
+    });
+    const r = await leerParaFusion("c1", []);
+    expect(r.ok).toBe(true);
+    if (!r.ok) throw new Error("la lectura debía funcionar");
+    expect(r.prefs).toEqual({});
+  });
 });
 
 describe("copiaDeSeguridad", () => {
@@ -230,6 +250,37 @@ describe("descargarCopia", () => {
   it("sin window no hace nada y devuelve false", () => {
     vi.unstubAllGlobals();
     expect(descargarCopia({ nombre: "x.json", texto: "{}" })).toBe(false);
+  });
+
+  it("con window y document disponibles descarga la copia y devuelve true", () => {
+    const enlace: Record<string, unknown> = { click: () => {}, remove: () => {} };
+    const urlCreada: string[] = [];
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("document", {
+      createElement: () => enlace,
+      body: { appendChild: () => {} },
+    });
+    vi.stubGlobal("URL", {
+      createObjectURL: () => {
+        urlCreada.push("blob:falso");
+        return "blob:falso";
+      },
+      revokeObjectURL: () => {},
+    });
+    expect(descargarCopia({ nombre: "copia.json", texto: '{"a":1}' })).toBe(true);
+    expect(enlace.download).toBe("copia.json");
+    expect(enlace.href).toBe("blob:falso");
+  });
+
+  it("si algo falla dentro del bloque descarga silencioso devuelve false", () => {
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("document", {
+      createElement: () => {
+        throw new Error("sin documento");
+      },
+      body: { appendChild: () => {} },
+    });
+    expect(descargarCopia({ nombre: "copia.json", texto: "{}" })).toBe(false);
   });
 });
 
@@ -292,6 +343,21 @@ describe("aplicarFusion", () => {
       quitarOrigenes: false,
     });
     expect(r.ok).toBe(true);
+    expect(r.origenesQuitados).toEqual([]);
+    expect(r.origenesConservados).toEqual([]);
+    expect(h.estado.borrados).toEqual([]);
+  });
+
+  it("si no se pudo guardar el cerebro destino, ok es false y no se toca ningún origen", async () => {
+    h.estado.guardarNulo = true;
+    const r = await aplicarFusion(planSimple(), {
+      destino: cerebro("c1", "Destino"),
+      origenIds: ["c2"],
+      quitarOrigenes: true,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe("No se pudo guardar el cerebro «Destino».");
+    expect(r.archivosEscritos).toBe(2);
     expect(r.origenesQuitados).toEqual([]);
     expect(r.origenesConservados).toEqual([]);
     expect(h.estado.borrados).toEqual([]);
