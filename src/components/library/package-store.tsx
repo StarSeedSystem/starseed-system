@@ -61,6 +61,8 @@ import {
   FileText, Table2, LayoutDashboard, Gamepad2, Box, Glasses,
   // Genesis y PoliGenesis en la Biblioteca (Ola 1010S)
   Users,
+  // Tanda 1027 (Mausbot, neurona insomne y Colibri)
+  MousePointer2, Bird,
   type LucideIcon,
   Flame, LogIn, Replace, Ear, Atom, ShieldCheck, Network,
 } from "lucide-react";
@@ -178,6 +180,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   FileText, Table2, LayoutDashboard, Gamepad2, Box, Glasses,
   // Genesis y PoliGenesis en la Biblioteca (Ola 1010S)
   Users,
+  // Tanda 1027 (Mausbot, neurona insomne y Colibri)
+  MousePointer2, Bird,
 };
 
 /** Id del repo builtin de Herramientas IA & Agentes (para la sección destacada). */
