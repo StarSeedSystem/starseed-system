@@ -8,6 +8,8 @@ import tempfile
 import unittest
 
 from scripts.puente.diseno_brief import (
+    HERRAMIENTAS,
+    HERRAMIENTAS_BASE,
     LINEA_E_RISE,
     TOPE_PROMPT_ADN,
     brief,
@@ -217,6 +219,76 @@ class TestBriefRise(unittest.TestCase):
         tarea = {"titulo": "Vista del Café", "archivos": ["src/app/cafe/page.tsx"]}
         texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
         self.assertNotIn("RISE", texto)
+
+
+class TestBriefHerramientas1025(unittest.TestCase):
+    """Ola 1025 · Diseño: líneas nuevas del §6 (frontend-slides, awesome-design-md,
+    Docusaurus y Refine) y el método de taste-skill en HERRAMIENTAS_BASE."""
+
+    LINES = dict((clave, linea) for clave, linea in HERRAMIENTAS)
+    SLIDES = LINES["presentaci"]
+    DESIGN_MD = LINES["design.md"]
+    DOCUSAURUS = LINES["documentaci"]
+    REFINE = LINES["panel de datos"]
+
+    def test_tarea_con_presentacion_trae_frontend_slides(self):
+        tarea = {"titulo": "Presentación de resultados", "archivos": ["src/app/live/page.tsx"]}
+        self.assertIn(self.SLIDES, brief(tarea, MEMORIA_PRUEBA, max_chars=9000))
+
+    def test_tarea_con_diapositivas_o_conferencia_trae_frontend_slides(self):
+        for titulo in ("Diapositivas de la tanda", "Charla de conferencia"):
+            tarea = {"titulo": titulo, "archivos": ["src/app/live/page.tsx"]}
+            self.assertIn(self.SLIDES, brief(tarea, MEMORIA_PRUEBA, max_chars=9000))
+
+    def test_tarea_con_design_md_trae_awesome_design_md(self):
+        tarea = {"titulo": "Escribe el DESIGN.md del Café", "archivos": ["src/app/cafe/page.tsx"]}
+        self.assertIn(self.DESIGN_MD, brief(tarea, MEMORIA_PRUEBA, max_chars=9000))
+
+    def test_tarea_con_sistema_de_diseno_trae_awesome_design_md(self):
+        tarea = {"titulo": "Sistema de diseño de la comunidad", "archivos": ["src/app/x/page.tsx"]}
+        self.assertIn(self.DESIGN_MD, brief(tarea, MEMORIA_PRUEBA, max_chars=9000))
+
+    def test_tarea_con_documentacion_o_educacion_trae_docusaurus(self):
+        for titulo in ("Exportar la documentación", "Curso de educación"):
+            tarea = {"titulo": titulo, "archivos": ["src/app/x/page.tsx"]}
+            self.assertIn(self.DOCUSAURUS, brief(tarea, MEMORIA_PRUEBA, max_chars=9000))
+
+    def test_tarea_con_panel_de_datos_o_administracion_trae_refine(self):
+        for titulo in ("Panel de datos del grupo", "Panel de administración del curso"):
+            tarea = {"titulo": titulo, "archivos": ["src/app/x/page.tsx"]}
+            self.assertIn(self.REFINE, brief(tarea, MEMORIA_PRUEBA, max_chars=9000))
+
+    def test_taste_skill_en_toda_tarea(self):
+        tarea = {"titulo": "Vista del Café", "archivos": ["src/app/cafe/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn(HERRAMIENTAS_BASE[0], texto)
+        self.assertIn("método: inventario, argumento, capturas a 3 anchos y crítica", texto)
+
+    def test_ninguna_linea_sale_dos_veces(self):
+        tarea = {
+            "titulo": "Presentación de conferencia con diapositivas y panel de "
+                      "administración de datos",
+            "archivos": ["src/app/live/page.tsx"],
+        }
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertEqual(texto.count(self.SLIDES), 1)
+        self.assertEqual(texto.count(self.REFINE), 1)
+
+    def test_apartados_6_y_7_con_varias_claves(self):
+        tarea = {
+            "titulo": "Presentación de resultados con DESIGN.md y panel de datos",
+            "archivos": ["src/app/cafe/page.tsx"],
+        }
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=2500)
+        self.assertIn(self.SLIDES, texto)
+        self.assertIn(self.DESIGN_MD, texto)
+        self.assertIn(self.REFINE, texto)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+
+    def test_lineas_nuevas_dentro_del_tope_de_150(self):
+        for clave, linea in HERRAMIENTAS:
+            self.assertLessEqual(len(linea), 150, clave)
 
 
 if __name__ == "__main__":
