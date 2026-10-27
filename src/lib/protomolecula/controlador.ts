@@ -3,18 +3,20 @@
  * Módulo PURO: sin React, sin red, sin `node:*`.
  */
 import type {
+  AtomoEnUso,
+  EstadoValores,
   Molecula,
   Operacion,
   Cambio,
   ParametroRef,
   Parametro,
-  AtomoEnUso,
   Rol,
   Sesion,
   Origen,
   Autor,
   Ambito,
   Computo,
+  ValorParametro,
 } from "./tipos";
 import { elegirComputo, Candidato } from "./planificador-computo";
 import { decidir, decidirOperacion } from "./permisos";
@@ -23,6 +25,7 @@ import { entenderVarias } from "./dictado";
 import { aplicarOperacion, deshacerUltimo, rehacerUltimo, registrar, type Historial } from "./parametros";
 import { operacionASdkOrder } from "../../lib/video-html/operaciones-sdk";
 import { llamarServicio, type DefinicionServicio } from "./servicio-local";
+import { ANIMACION_MANIMGX, enviarDesde, renderizarAnimacion, type RespuestaEnvio, type SalidaAnimacion } from "./atomos/animacion-manimgx";
 
 export interface Pendiente {
   operacion: Operacion;
@@ -65,14 +68,32 @@ function notificar(suscriptores: Set<(estado: EstadoControl) => void>, estado: E
   for (const s of suscriptores) s(estado);
 }
 
+/** Los valores de UN átomo en uso: del compuesto `atomoId::parametroId` a lo que el átomo espera por id. */
+function valoresDeAtomo(valores: EstadoValores, atomoId: string): Record<string, ValorParametro | undefined> {
+  const prefijo = `${atomoId}::`;
+  const delAtomo: Record<string, ValorParametro | undefined> = {};
+  for (const [clave, valor] of Object.entries(valores)) {
+    if (clave.startsWith(prefijo)) delAtomo[clave.slice(prefijo.length)] = valor;
+  }
+  return delAtomo;
+}
+
 export function crearControlador(o: {
   molecula: Molecula;
   rol: Rol | null;
   sesion?: Pick<Sesion, "ambito" | "consentimientos">;
   ahora: () => number;
   nuevoId: () => string;
+  /** Resuelve la entrada «py» de un átomo (el código de la escena de ManimGX). Hoy ninguna
+   *  superficie la trae aún: sin código, el propio átomo responde con su motivo honesto. */
+  codigoDeEscena?: (atomo: AtomoEnUso) => string;
+  /** Ejecuta la acción «renderizar» (por defecto, la del átomo); inyectable para probar el cableado. */
+  renderizarManimgx?: (respuesta: RespuestaEnvio) => Promise<SalidaAnimacion>;
+  /** Quien archiva o publica la salida del átomo (el MP4). Sin él, un fallo se informa y la salida se descarta. */
+  alSalida?: (salida: SalidaAnimacion) => void;
 }): Controlador {
   const { molecula: moleculaInicial, rol, sesion, ahora, nuevoId } = o;
+  const codigoDeEscena = o.codigoDeEscena, renderizarManimgx = o.renderizarManimgx, alSalida = o.alSalida;
   let estado = crearEstadoInicial(moleculaInicial);
   const suscriptores = new Set<(estado: EstadoControl) => void>();
 
@@ -116,6 +137,26 @@ export function crearControlador(o: {
          } catch (error) {
            // If translation fails, we log the error but still return the successful application
            console.error("Failed to translate operation to SDK order:", error);
+         }
+       } else if (def && def.herramientaId === ANIMACION_MANIMGX.herramientaId && op.accion.tipo === "disparo" && op.objetivo.parametroId === "renderizar") {
+         // Acción «renderizar» del átomo Animación 3D (ManimGX): los parámetros de la mano, dictado o
+         // agente se traducen al envío y se mandan al cliente-render (MGX1023B). Aquí no se interpreta
+         // ningún código de Manim: el Worker de Pyodide es quien renderiza (contractos §3); el MP4
+         // queda como salida del átomo para quien lo publica o archiva.
+         try {
+           const respuesta = enviarDesde(
+             valoresDeAtomo(estado.molecula.valores, enUso.id),
+             codigoDeEscena?.(enUso) ?? "",
+             enUso.titulo ?? ANIMACION_MANIMGX.nombre,
+           );
+           (renderizarManimgx ?? renderizarAnimacion)(respuesta)
+             .then((salida) => {
+               if (salida.mp4) alSalida?.(salida);
+               else console.error(`ManimGX (${enUso.id}): ${salida.error ?? "el render no produjo MP4"}`);
+             })
+             .catch((error: unknown) => console.error(`ManimGX (${enUso.id}):`, error));
+         } catch (error) {
+           console.error(`ManimGX (${enUso.id}): no se pudo encolar el render:`, error);
          }
        }
      }

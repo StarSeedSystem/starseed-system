@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { crearControlador, type Controlador } from "../controlador";
 import { registrarControlador, controladorActivo, listarControladores, limpiarControladores } from "../controlador-activo";
 import { registrarAtomo, limpiarRegistro, type DefinicionAtomo } from "../registro-atomos";
+import { ANIMACION_MANIMGX, type RespuestaEnvio, type SalidaAnimacion } from "../atomos/animacion-manimgx";
 import type { Ambito, Autor, Molecula, Operacion, Origen, Parametro, Rol, Sesion } from "../tipos";
 
 const P_BRILLO: Parametro = { id: "brillo", nombre: "brillo", tipo: "numero", min: 0, max: 100, unidad: "%" };
@@ -116,4 +117,82 @@ describe("controlador", () => {
     offA(); expect(controladorActivo("mol-1")).toBeNull(); expect(listarControladores()).toEqual([b]);
   });
   it("obtener expone la molécula inicial", () => expect(ctrl(mol(), "dueno").obtener().molecula.titulo).toBe("Prueba"));
+});
+
+describe("controlador · la acción «renderizar» del átomo ManimGX se aplica", () => {
+  const MP4 = new Uint8Array([1, 2, 3, 4]);
+  const CODIGO_PY = "def construir():\n    return Circle()";
+  const molManim = (): Molecula => ({
+    id: "mol-mgx", titulo: "Escena 3D", ambito: "personal", capas: [],
+    atomos: [{ id: "mgx-1", herramientaId: "animacion-manimgx", titulo: "Intro", estado: "activo" }],
+    valores: {}, version: 0, creadaEn: 0, actualizadaEn: 0,
+  });
+  const mover = (c: Controlador, ref: Operacion["objetivo"], accion: Operacion["accion"]) =>
+    c.mover({ id: `op-${++n}`, objetivo: ref, accion, autor: persona, origen: "mano", t: ++t });
+  const alAcabarMicrotarea = () => new Promise((hecho) => setTimeout(hecho, 0));
+
+  beforeEach(() => {
+    expect(registrarAtomo(ANIMACION_MANIMGX).ok).toBe(true);
+  });
+
+  it("el disparo «renderizar» construye el envío con los valores del átomo y entrega el MP4 a quien lo archiva", async () => {
+    const envios: RespuestaEnvio[] = [];
+    const salidas: SalidaAnimacion[] = [];
+    const c = crearControlador({
+      molecula: molManim(), rol: "dueno", ahora: () => ++t, nuevoId: () => `id-${++n}`,
+      codigoDeEscena: () => CODIGO_PY,
+      renderizarManimgx: async (r) => {
+        envios.push(r);
+        return { escena: r.ok ? r.envio.escena.nombre : "", bytes: MP4, cancelado: false, mp4: MP4 };
+      },
+      alSalida: (s) => salidas.push(s),
+    });
+    expect(mover(c, { atomoId: "mgx-1", parametroId: "fps" }, { tipo: "exacta", valor: 24 }).ok).toBe(true);
+    expect(mover(c, { atomoId: "mgx-1", parametroId: "renderizar" }, { tipo: "disparo" }).ok).toBe(true);
+    await alAcabarMicrotarea();
+    expect(envios).toHaveLength(1);
+    const e = envios[0];
+    expect(e.ok).toBe(true);
+    if (!e.ok) return;
+    expect(e.envio.escena).toEqual({ nombre: "Intro", codigoPython: CODIGO_PY, duracionMaxSegundos: 10 });
+    expect(e.envio.fps).toBe(24); // lo movió la mano; el resto son los defectos del átomo
+    expect(e.envio.ancho).toBe(1920);
+    expect(e.envio.rotacionCamara).toBe(0);
+    expect(e.envio.colorFondo).toBe("#0b0b14");
+    expect(salidas).toHaveLength(1);
+    expect(salidas[0].mp4).toBe(MP4); // el MP4 queda como salida del átomo
+  });
+
+  it("sin resolver de código, el envío no se construye y el motivo honesto del átomo es el que llega", async () => {
+    const motivos: string[] = [];
+    const c = crearControlador({
+      molecula: molManim(), rol: "dueno", ahora: () => ++t, nuevoId: () => `id-${++n}`,
+      renderizarManimgx: async (r) => {
+        if (!r.ok) motivos.push(r.motivo);
+        return { escena: "", bytes: null, cancelado: false, mp4: null, error: r.ok ? undefined : r.motivo };
+      },
+    });
+    expect(mover(c, { atomoId: "mgx-1", parametroId: "renderizar" }, { tipo: "disparo" }).ok).toBe(true);
+    await alAcabarMicrotarea();
+    expect(motivos).toEqual(["falta el código Python de la escena"]);
+  });
+
+  it("otras operaciones y disparos de otros parámetros no ejecutan la acción", async () => {
+    let llamadas = 0;
+    const c = crearControlador({
+      molecula: molManim(), rol: "dueno", ahora: () => ++t, nuevoId: () => `id-${++n}`,
+      renderizarManimgx: async () => { llamadas++; return { escena: "", bytes: null, cancelado: false, mp4: null }; },
+    });
+    expect(mover(c, { atomoId: "mgx-1", parametroId: "fps" }, { tipo: "exacta", valor: 60 }).ok).toBe(true);
+    expect(mover(c, { atomoId: "mgx-1", parametroId: "color-fondo" }, { tipo: "disparo" }).ok).toBe(false);
+    await alAcabarMicrotarea();
+    expect(llamadas).toBe(0);
+  });
+
+  it("el render real inyectado por defecto nunca lanza: un fallo queda informado y sin MP4", async () => {
+    const c = crearControlador({ molecula: molManim(), rol: "dueno", ahora: () => ++t, nuevoId: () => `id-${++n}` });
+    expect(mover(c, { atomoId: "mgx-1", parametroId: "renderizar" }, { tipo: "disparo" }).ok).toBe(true);
+    await alAcabarMicrotarea();
+    expect(c.obtener().pendientes).toHaveLength(0);
+  });
 });

@@ -9,10 +9,11 @@
  */
 import { esMoleculaGuardable, guardarMolecula, type AlmacenLocal } from "./almacen-moleculas";
 import { registrarAtomosPropios } from "./atomos";
+import type { RespuestaEnvio, SalidaAnimacion } from "./atomos/animacion-manimgx";
 import { crearControlador, type Controlador } from "./controlador";
 import { registrarControlador } from "./controlador-activo";
 import { resolverMolecula } from "./resolver-molecula";
-import type { Molecula, Rol } from "./tipos";
+import type { AtomoEnUso, Molecula, Rol } from "./tipos";
 
 export const ESPERA_GUARDADO_MS = 400;
 
@@ -28,6 +29,12 @@ export interface DependenciasSesion {
   rol?: Rol;
   /** Programa `f` dentro de `ms` y devuelve cómo cancelarlo. Por defecto, `setTimeout`. */
   programar?: (f: () => void, ms: number) => () => void;
+  /** Resuelve la entrada «py» de un átomo (el código de la escena de ManimGX); sin ella, el átomo responde con su motivo honesto. */
+  codigoDeEscena?: (atomo: AtomoEnUso) => string;
+  /** Ejecuta la acción «renderizar» del átomo ManimGX; por defecto, la del propio átomo. Inyectable para pruebas. */
+  renderizarManimgx?: (respuesta: RespuestaEnvio) => Promise<SalidaAnimacion>;
+  /** Quien archiva o publica la salida de un átomo (el MP4 de ManimGX) para publicaciones y archivos. */
+  alSalida?: (salida: SalidaAnimacion) => void;
 }
 
 export interface SesionMolecula {
@@ -46,7 +53,10 @@ const error = (motivo: string): EstadoGuardado => ({ estado: "error", motivo });
 
 /** Crea el controlador y el guardado con retardo. Devuelve la sesión y cómo cerrarla. */
 function montar(m: Molecula, d: DependenciasSesion): { sesion: SesionMolecula; cerrar: () => void } {
-  const controlador = crearControlador({ molecula: m, rol: d.rol ?? "dueno", ahora: d.ahora, nuevoId: d.nuevoId });
+  const controlador = crearControlador({
+    molecula: m, rol: d.rol ?? "dueno", ahora: d.ahora, nuevoId: d.nuevoId,
+    codigoDeEscena: d.codigoDeEscena, renderizarManimgx: d.renderizarManimgx, alSalida: d.alSalida,
+  });
   const programar = d.programar ?? porDefecto;
   const oyentes = new Set<() => void>();
   let guardado: EstadoGuardado = { estado: "sin-cambios" };
