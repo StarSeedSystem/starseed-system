@@ -2,6 +2,7 @@
 // Puro: vecinos, verificación, anuncio, reloj y respaldo llegan inyectados. Primero la malla
 // con un tope de espera (300 ms o medio segmento); si no llega, el origen. Al tenerlo se anuncia.
 import { CADUCIDAD_POR_DEFECTO_MS, quienTiene, type RegistroDisponibilidad } from "./disponibilidad";
+import { recolocar, type ArbolRelevo } from "./arbol-relevo";
 import type {
   FragmentLoaderConstructor, FragmentLoaderContext, HlsConfig, Loader, LoaderConfiguration,
   LoaderCallbacks, LoaderStats,
@@ -33,6 +34,10 @@ export interface ConexiónCargadorMalla {
   ahora: () => number;
   esperar: (ms: number) => Promise<null>;
   caducidadMs?: number;
+  /** Árbol de relevo del contexto; sin él se pide por el orden de siempre. */
+  arbol?: ArbolRelevo;
+  /** Este receptor dentro del árbol: se empieza por su padre. */
+  receptor?: string;
 }
 
 /** El tope de subida prestado, con ventana y gasto medidos. Sin tope medido, no se sube. */
@@ -43,23 +48,54 @@ export function puedeSubirPrestado(
   return usadoVentanaBytes + bytesExtra <= (topeKbps * 1000 * ventanaMs) / 8000;
 }
 
-/** Pide el segmento a los vecinos que lo anuncian; null si nadie lo dio dentro del tope. */
+/** Ordena los vecinos que tienen el segmento: primero el padre y sus ancestros, luego la
+ * descendencia propia y al final el resto. Solo reordena: no inventa quien tiene la pieza. */
+export function vecinosPorRelevo(arbol: ArbolRelevo, receptor: string, vecinos: string[]): string[] {
+  const orden: string[] = [], vistos = new Set<string>();
+  let actual = arbol.padres.get(receptor);
+  while (actual !== undefined && !vistos.has(actual)) {
+    vistos.add(actual); orden.push(actual); actual = arbol.padres.get(actual);
+  }
+  const cola = [receptor];
+  while (cola.length > 0) {
+    const id = cola.shift()!;
+    for (const hijo of arbol.hijos.get(id) ?? []) {
+      if (vistos.has(hijo)) continue;
+      vistos.add(hijo); orden.push(hijo); cola.push(hijo);
+    }
+  }
+  for (const vecino of vecinos) if (!vistos.has(vecino)) orden.push(vecino);
+  const conPieza = new Set(vecinos);
+  return orden.filter((id) => conPieza.has(id));
+}
+
+/** Pide el segmento a los vecinos que lo anuncian; null si nadie lo dio dentro del tope.
+ * Con árbol de relevo se empieza por la rama propia; si un vecino se va, se recoloca su rama. */
 export async function pedirPorMalla(
   con: ConexiónCargadorMalla, indice: number, topeMs: number,
 ): Promise<Uint8Array | null> {
-  const vecinos = quienTiene(con.registro, con.elemento, indice, con.ahora(), con.caducidadMs ?? CADUCIDAD_POR_DEFECTO_MS);
+  const vivos = quienTiene(con.registro, con.elemento, indice, con.ahora(), con.caducidadMs ?? CADUCIDAD_POR_DEFECTO_MS);
+  const vecinos = con.arbol && con.receptor ? vecinosPorRelevo(con.arbol, con.receptor, vivos) : vivos;
   const fin = con.ahora() + topeMs;
   for (const nodo of vecinos) {
     const restante = fin - con.ahora();
     if (restante <= 0) return null;
+    let termino = false;
     let llegada: Promise<Uint8Array | null>;
     try {
-      llegada = Promise.resolve(con.pedir(nodo, indice)).then((b) => (b && con.verificar(b, indice) ? b : null), () => null);
+      llegada = Promise.resolve(con.pedir(nodo, indice)).then(
+        (b) => { termino = true; return b && con.verificar(b, indice) ? b : null; },
+        () => { termino = true; return null; },
+      );
     } catch {
-      continue;
+      termino = true; llegada = Promise.resolve(null);
     }
     const bytes = await Promise.race([llegada, con.esperar(restante)]);
     if (bytes) { con.anunciar(indice, bytes); return bytes; }
+    if (!termino) return null; // agotó el tope de espera: lento, no se ha ido
+    if (con.arbol && con.receptor && nodo !== con.receptor && con.arbol.padres.has(nodo)) {
+      con.arbol = recolocar(con.arbol, nodo);
+    }
   }
   return null;
 }

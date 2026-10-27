@@ -7,6 +7,7 @@ import {
   type ConexiónCargadorMalla,
 } from "../hls-malla-loader";
 import { anuncio, fusionar } from "../disponibilidad";
+import { armarArbol } from "../arbol-relevo";
 const AHORA = 1_000_000, ELEMENTO = "t1", BUENOS = new Uint8Array([1, 2, 3, 4]), MENTIRA = new Uint8Array([9, 9, 9, 9]);
 function registroCon(fuentes: Array<{ nodo: string; piezas: number[]; t: number }>, recibidoEn = AHORA) {
   return fusionar(fuentes.flatMap((f) =>
@@ -79,6 +80,25 @@ describe("hls-malla-loader.ts", () => {
     }, (b) => b === BUENOS, () => undefined,
     [{ nodo: "roto", piezas: [4], t: 20 }, { nodo: "honesto", piezas: [4], t: 10 }]);
     expect(await pedirPorMalla(con, 4, 200)).toBe(BUENOS);
+  });
+  it("árbol de relevo: pide primero al padre y recoloca su rama si se va", async () => {
+    const arbol = armarArbol({ nodoId: "origen", subidaKbps: 1000 }, [
+      { nodoId: "padre", subidaKbps: 3000 },
+      { nodoId: "yo", subidaKbps: 1000 },
+      { nodoId: "otro", subidaKbps: 500 },
+    ], 1000);
+    expect(arbol.padres.get("yo")).toBe("padre");
+    const pedidos: string[] = [];
+    const con = conexión(async (nodo) => {
+      pedidos.push(nodo);
+      return nodo === "padre" ? null : BUENOS;
+    }, (b) => b === BUENOS, () => undefined,
+    [{ nodo: "otro", piezas: [4], t: 20 }, { nodo: "padre", piezas: [4], t: 10 }]);
+    con.arbol = arbol; con.receptor = "yo";
+    expect(await pedirPorMalla(con, 4, 200)).toBe(BUENOS);
+    expect(pedidos[0]).toBe("padre");
+    expect(con.arbol?.padres.has("padre")).toBe(false);
+    expect(con.arbol?.padres.get("yo")).toBe("origen");
   });
   it("vecino caducado no se consulta", async () => {
     let consultado = 0;
