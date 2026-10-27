@@ -56,6 +56,7 @@ import {
   imagenAImagen,
   ladosFormato,
   textoAImagen,
+  variaciones,
   type EscalaImagen,
   type FormatoPublicacion,
   type GrafoComfyUI,
@@ -63,7 +64,7 @@ import {
   type PlanificadorComfyUI,
   type PeticionFlujo,
 } from "@/lib/imagenes/flujos-comfyui";
-import type { GaleriaImagenes } from "./proveedor-neuronas";
+import type { GaleriaImagenes, OpcionGaleria } from "./proveedor-neuronas";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tipos base del catálogo de proveedores
@@ -938,7 +939,94 @@ export function grafoComfyuiDe(opts: GenerateImageOptions): GrafoComfyUI {
     : textoAImagen(base);
 }
 
-async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
+/** Checkpoints que anuncia `GET /object_info/CheckpointLoaderSimple`. PURO: no toca la red. */
+export function checkpointsDeObjetoInfo(data: unknown): string[] {
+  if (!data || typeof data !== "object") return [];
+  const raiz = data as Record<string, unknown>;
+  const nodo = (raiz.CheckpointLoaderSimple ?? raiz) as Record<string, unknown>;
+  const required = ((nodo.input as Record<string, unknown>)?.required ?? {}) as Record<string, unknown>;
+  const ckpt = required.ckpt_name;
+  const lista = Array.isArray(ckpt) ? (Array.isArray(ckpt[0]) ? ckpt[0] : ckpt) : [];
+  return [...new Set(lista.filter((v): v is string => typeof v === "string" && !!v.trim()).map((v) => v.trim()))];
+}
+
+/** URL(s) `/view` de las imágenes de un `GET /history/{id}` ya completado. PURO: no descarga nada. */
+export function urlsDeHistorialComfyui(data: unknown, endpoint: string): string[] {
+  if (!data || typeof data !== "object") return [];
+  const urls: string[] = [];
+  for (const entrada of Object.values(data as Record<string, unknown>)) {
+    const outputs = entrada && typeof entrada === "object" ? (entrada as Record<string, unknown>).outputs : undefined;
+    if (!outputs || typeof outputs !== "object") continue;
+    for (const nodo of Object.values(outputs as Record<string, unknown>)) {
+      const imgs = nodo && typeof nodo === "object" ? (nodo as Record<string, unknown>).images : undefined;
+      if (!Array.isArray(imgs)) continue;
+      for (const img of imgs) {
+        const o = img && typeof img === "object" ? (img as Record<string, unknown>) : null;
+        if (!o || typeof o.filename !== "string" || !o.filename.trim()) continue;
+        const params = new URLSearchParams({
+          filename: o.filename,
+          subfolder: typeof o.subfolder === "string" ? o.subfolder : "",
+          type: typeof o.type === "string" ? o.type : "output",
+        });
+        urls.push(joinUrl(endpoint, `/view?${params.toString()}`));
+      }
+    }
+  }
+  return urls;
+}
+
+/** `node_errors` de ComfyUI como frases legibles (nunca `[object Object]`). PURO. */
+export function erroresDelFlujoComfyui(data: unknown): string[] {
+  if (!data || typeof data !== "object") return [];
+  const nodos = (data as Record<string, unknown>).node_errors;
+  if (!nodos || typeof nodos !== "object") return [];
+  const frases: string[] = [];
+  for (const [id, raw] of Object.entries(nodos as Record<string, unknown>)) {
+    const errores = raw && typeof raw === "object" ? (raw as Record<string, unknown>).errors : undefined;
+    for (const e of Array.isArray(errores) ? errores : [raw]) {
+      const o = e && typeof e === "object" ? (e as Record<string, unknown>) : null;
+      const texto = typeof e === "string" ? e : o && typeof o.message === "string" ? o.message : o && typeof o.details === "string" ? o.details : "";
+      if (texto.trim()) frases.push(`nodo ${id}: ${texto.trim()}`);
+    }
+  }
+  return frases;
+}
+
+async function consultarCheckpoints(endpoint: string): Promise<{ ok: boolean; checkpoints: string[] }> {
+  const res = await safeFetchJson(joinUrl(endpoint, "/object_info/CheckpointLoaderSimple"), {}, LOCAL_TIMEOUT_MS);
+  return { ok: res.ok, checkpoints: res.ok ? checkpointsDeObjetoInfo(res.data) : [] };
+}
+
+/** Checkpoints instalados en el ComfyUI del endpoint (vacía si no responde o no tiene). */
+export async function checkpointsDisponibles(endpoint: string): Promise<string[]> {
+  return (await consultarCheckpoints(endpoint)).checkpoints;
+}
+
+async function ejecutarGrafoComfyui(endpoint: string, grafo: GrafoComfyUI): Promise<{ urls: string[]; error?: string }> {
+  const res = await safeFetchJson(joinUrl(endpoint, "/prompt"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ prompt: grafo, client_id: "starseed-os" }),
+  }, LOCAL_TIMEOUT_MS);
+  const errores = erroresDelFlujoComfyui(res.data);
+  if (errores.length) return { urls: [], error: `ComfyUI rechazó el flujo: ${errores.join("; ")}.` };
+  if (!res.ok) return { urls: [], error: netFailMessage("ComfyUI", res, LOCAL_TIMEOUT_MS) };
+  const datos = res.data && typeof res.data === "object" ? (res.data as Record<string, unknown>) : {};
+  const id = typeof datos.prompt_id === "string" ? datos.prompt_id : "";
+  if (!id) return { urls: [], error: "ComfyUI aceptó la petición pero no devolvió el identificador del flujo." };
+  const fin = Date.now() + LOCAL_TIMEOUT_MS;
+  while (Date.now() < fin) {
+    const hist = await safeFetchJson(joinUrl(endpoint, `/history/${encodeURIComponent(id)}`), {}, LOCAL_TIMEOUT_MS);
+    if (!hist.ok) return { urls: [], error: netFailMessage("ComfyUI", hist, LOCAL_TIMEOUT_MS) };
+    const urls = urlsDeHistorialComfyui(hist.data, endpoint);
+    if (urls.length) return { urls };
+    await new Promise((listo) => setTimeout(listo, 800));
+  }
+  return { urls: [], error: "ComfyUI no terminó el flujo a tiempo (puede seguir en cola). Revisa su cola y vuelve a intentarlo." };
+}
+
+/** Genera con el ComfyUI del usuario: descubre su checkpoint, envía el grafo, sigue `/history/{id}` y devuelve la URL de `/view`. */
+export async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
   const endpoint = resolveEndpoint("comfyui", getMediaPrefs());
   if (!endpoint) {
     // Mensaje honesto con lo que el flujo ABRÍA hecho: el formato de publicación, sus lados reales (ladosFormato) y el megapíxel objetivo (MEGAPIXELES: ≈1 MP general, ≈0,26 MP en la gama SD 1.5).
@@ -951,20 +1039,52 @@ async function comfyuiImage(opts: GenerateImageOptions): Promise<MediaGenResult>
       error: `No hay un endpoint de ComfyUI configurado (aquí o en /servicios). El flujo habría sido ${p.formato} a ${lados.ancho}×${lados.alto} (≈${mp} MP).`,
     };
   }
-  // Un ComfyUI real no admite {prompt: "texto"}: pide el GRAFO en formato API, que se construye aquí con las plantillas puras de flujos-comfyui — texto a imagen, o imagen a imagen cuando llega `imagenEntrada`. Seguir /history y bajar por /view lo completa el cliente de flujos (IMG1020B).
-  const grafo = grafoComfyuiDe(opts);
-  // Lista blanca ANTES de enviar: solo nodos del núcleo de ComfyUI (ningún nodo personalizado de terceros, que ejecuta código). Si una plantilla dejara colar uno, fallo legible y no envío.
-  const fuera = [...new Set(Object.values(grafo).map((n) => n.class_type))].filter(
+  const consulta = await consultarCheckpoints(endpoint);
+  if (!consulta.ok) {
+    return { ok: false, provider: "comfyui", error: "No se pudo leer la lista de checkpoints de ComfyUI: revisa que esté encendido y que /object_info responda." };
+  }
+  if (!consulta.checkpoints.length) {
+    return { ok: false, provider: "comfyui", error: "ComfyUI no tiene ningún checkpoint instalado. Instala un checkpoint en tu ComfyUI y vuelve a intentarlo." };
+  }
+  const checkpoint = (opts.model || "").trim() || consulta.checkpoints[0];
+  const base = peticionFlujoComfyui({ ...opts, model: checkpoint });
+  const cuantas = typeof opts.opciones === "number" && Number.isFinite(opts.opciones)
+    ? Math.max(1, Math.min(8, Math.floor(opts.opciones))) : 1;
+  const grafos = cuantas > 1
+    ? variaciones(base, Array.from({ length: cuantas }, (_, i) => base.semilla + i))
+    : [grafoComfyuiDe({ ...opts, model: checkpoint })];
+  // Lista blanca ANTES de enviar: solo nodos del núcleo (un nodo de terceros ejecuta código y no entra sin revisar).
+  const fuera = [...new Set(grafos.flatMap((g) => Object.values(g).map((n) => n.class_type)))].filter(
     (tipo) => !(NODOS_NUCLEO as readonly string[]).includes(tipo),
   );
   if (fuera.length) {
-    return {
-      ok: false,
-      provider: "comfyui",
-      error: `El grafo lleva nodos fuera de la lista blanca del núcleo (${fuera.join(", ")}): no se envía.`,
-    };
+    return { ok: false, provider: "comfyui", error: `El grafo lleva nodos fuera de la lista blanca del núcleo (${fuera.join(", ")}): no se envía.` };
   }
-  return postForMedia(joinUrl(endpoint, "/prompt"), "comfyui", "image", { prompt: grafo }, LOCAL_TIMEOUT_MS, true);
+  const opciones: OpcionGaleria[] = [];
+  let primerError = "";
+  for (const [i, grafo] of grafos.entries()) {
+    const salida = await ejecutarGrafoComfyui(endpoint, grafo);
+    if (!salida.urls.length) {
+      if (!primerError) primerError = salida.error || "ComfyUI no devolvió ninguna imagen.";
+      continue;
+    }
+    for (const url of salida.urls) {
+      opciones.push({
+        url,
+        modelo: checkpoint,
+        capa: "neurona",
+        semilla: base.semilla + i,
+        licencia: "GPL-3.0",
+        uso: "libre",
+        atribucion: `Generada con ComfyUI (GPL-3.0) en tu servidor, con el checkpoint ${checkpoint}.`,
+        segundos: 0,
+      });
+    }
+  }
+  if (!opciones.length) return { ok: false, provider: "comfyui", error: primerError };
+  const galeria: GaleriaImagenes | undefined = cuantas > 1
+    ? { ok: true, opciones, descartes: [] } : undefined;
+  return { ok: true, url: opciones[0].url, provider: "comfyui", ...(galeria ? { galeria } : {}) };
 }
 
 async function customEndpointImage(opts: GenerateImageOptions): Promise<MediaGenResult> {
@@ -1049,7 +1169,8 @@ export async function generateImage(opts: GenerateImageOptions): Promise<MediaGe
     typeof opts.opciones === "number" && Number.isFinite(opts.opciones)
       ? Math.max(1, Math.min(8, Math.floor(opts.opciones)))
       : 1;
-  if (nOpciones > 1 || chosen === "neuronas") {
+  // ComfyUI compone sus propias variaciones (semillas distintas) dentro del flujo, así que no pasa por la galería de neuronas.
+  if (chosen === "neuronas" || (nOpciones > 1 && chosen !== "comfyui")) {
     try {
       const mod = await import("./proveedor-neuronas");
       const galeria = await mod.generarGaleriaImagenes({
@@ -1088,7 +1209,8 @@ export async function generateImage(opts: GenerateImageOptions): Promise<MediaGe
   if (chosen === "pollinations") return pollinationsImage(args);
 
   const attempt = await tryProviderImage(chosen, args);
-  if (attempt.ok) return attempt;
+  // ComfyUI elegido a propósito: su error se dice tal cual (p. ej. «instala un checkpoint»), sin taparlo con otra imagen.
+  if (attempt.ok || chosen === "comfyui") return attempt;
   // Failover honesto: Pollinations SIEMPRE disponible para imagen.
   return pollinationsImage(args);
 }
