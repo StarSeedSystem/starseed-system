@@ -73,6 +73,9 @@ import {
     type XRMode,
 } from '@/components/dashboard/apps/immersive/use-webxr';
 import { DOCK_PRESETS, type DockItemConfig } from '@/components/layout/dock-config';
+// (§5, Ola 1021G) El aviso suelto «Inicia sesión para…» pasa al componente común: el mismo texto
+// y, ahora sí, el botón de iniciar sesión y «Conoce StarSeed» (la guía completa sin cuenta).
+import { AvisoSesion } from '@/components/auth/aviso-sesion';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tipos de las filas (solo lectura del grafo)
@@ -1451,12 +1454,25 @@ export function XRNetworkHub({ ctx }: { ctx?: string | null }) {
             )}
 
             {noData && (
-                <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 px-6 text-center">
-                    <p className="text-sm font-semibold text-white/70">
-                        {uid
-                            ? 'Aún no hay nodos en tu red. Crea cerebros, memorias o pizarras para verlos aquí en 3D.'
-                            : 'Inicia sesión para ver tu red real en 3D. Mientras tanto puedes explorar el espacio.'}
-                    </p>
+                <div
+                    className={
+                        uid
+                            ? 'pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 px-6 text-center'
+                            : 'pointer-events-auto absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 px-4'
+                    }
+                >
+                    {uid ? (
+                        <p className="text-sm font-semibold text-white/70">
+                            Aún no hay nodos en tu red. Crea cerebros, memorias o pizarras para verlos aquí en 3D.
+                        </p>
+                    ) : (
+                        <AvisoSesion
+                            texto="Inicia sesión para ver tu red real en 3D."
+                            detalle="Mientras tanto puedes explorar el espacio."
+                            compacto
+                            className="mx-auto w-full max-w-md"
+                        />
+                    )}
                 </div>
             )}
 

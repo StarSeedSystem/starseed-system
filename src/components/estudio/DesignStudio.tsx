@@ -25,6 +25,10 @@ import type { ElementFamily, ElementOverride, ThemeDraftMeta } from "./types";
 import { makeId } from "./types";
 import { defaultOverride } from "./property-defaults";
 import { useMyLibraryDestinations } from "@/lib/library/entity-library";
+// (§5, Ola 1021G) El aviso suelto «Inicia sesión…» pasa al componente común; sin cuenta lo enseña
+// el aviso común, con sesión (o mientras el hook no lo sepa) la nota de siempre.
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
+import { useHaySesion } from "@/hooks/use-hay-sesion";
 import {
     resolveStudioDesign, clearStashedDesign, resolveDesignTokens,
     applyDesignToProfile, applyDesignToEntity, type DesignFile,
@@ -58,6 +62,7 @@ export function DesignStudio() {
     }));
     const searchParams = useSearchParams();
     const { destinations } = useMyLibraryDestinations();
+    const sinSesion = useHaySesion() === false;
     const [applyBusy, setApplyBusy] = useState(false);
     const [loadedName, setLoadedName] = useState<string | null>(null);
 
@@ -210,7 +215,15 @@ export function DesignStudio() {
                             </DropdownMenuItem>
                         ))}
                         {pageTargets.length === 0 && (
-                            <p className="px-2 py-1.5 text-[10px] text-white/40">Inicia sesión y administra páginas/grupos para aplicar ahí.</p>
+                            sinSesion ? (
+                                <AvisoSesion
+                                    compacto
+                                    texto="Inicia sesión y administra páginas/grupos para aplicar ahí."
+                                    className="mt-1"
+                                />
+                            ) : (
+                                <p className="px-2 py-1.5 text-[10px] text-white/40">Inicia sesión y administra páginas/grupos para aplicar ahí.</p>
+                            )
                         )}
                     </DropdownMenuContent>
                 </DropdownMenu>
