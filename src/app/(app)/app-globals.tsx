@@ -32,6 +32,7 @@ import { ModelDownloadNotifier } from "@/components/neurons/model-download-notif
 import { NeuronActivityLogger } from "@/components/neurons/neuron-activity-logger";
 import { useEffect } from "react";
 import { startAstraura158Feed } from "@/lib/astraura/astraura-158-feed";
+import { MenuTexto } from "@/components/traduccion/menu-texto";
 // Ventana universal Astraura 1.58 (Ola 5 · Adenda 157): se monta UNA sola vez
 // aquí (mismo patrón que el resto de globales de este archivo) para que
 // CUALQUIER superficie del OS (orbe, Exocórtex, notificaciones, pestañas del
@@ -84,6 +85,9 @@ export default function AppGlobals() {
           discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
+      {/* Menú contextual de texto (TRD1020E): clic derecho sobre selección para
+          traducir, variaciones públicas, etc. Compartido por registro de entradas. */}
+      <MenuTexto />
     </SoloFueraDeConsola>
   );
 }
