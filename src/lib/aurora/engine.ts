@@ -86,6 +86,9 @@ import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
 import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
 import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
+// Interrupción por voz (Ola 1015V): mientras Astraura habla, un oído por energía
+// con cancelación de eco vigila; si la persona suena > 250 ms, calla al instante.
+import { crearInterruptorVoz } from "@/lib/aurora/interrumpir-por-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
 import { cronometroHabla, cronometroOido } from "@/lib/aurora/medidas-voz";
@@ -1392,6 +1395,20 @@ export function useAuroraEngine(): AuroraEngine {
     // (medio-dúplex): el navegador puede no disparar utterance.onend al cancelar.
     finishTts();
   }, [finishTts]);
+
+  // Interrupción por voz (Ola 1015V · architecture/voz-fusionada-astraura.md):
+  // se activa al empezar a hablar y se suelta al callar (o al pausar). El
+  // montaje abre el micro con `echoCancellation`/`noiseSuppression`, no se arma
+  // hasta pasar `ventanaEcoMs` y llama a `interrupt()` si la persona suena
+  // ≥ 250 ms. Nada se corta con su propio eco.
+  useEffect(() => {
+    if (!speaking || paused || pausedRef.current) return;
+    const interruptor = crearInterruptorVoz({
+      alInterrumpir: () => interrupt(),
+      movil: isMobileDevice(),
+    });
+    return () => { interruptor.detener(); };
+  }, [speaking, paused, interrupt]);
 
   const toggleSpeech = useCallback(() => {
     // Si está hablando y no pausada → pausa; si está pausada → reanuda;
