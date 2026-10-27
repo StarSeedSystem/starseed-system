@@ -57,6 +57,45 @@ describe("aplicar y restaurar", () => {
     });
 });
 
+describe("rescate de la rama nube/40550707104", () => {
+    it("recoge los atributos title, alt, aria-label y placeholder fuera de los campos editables", () => {
+        const raiz = montar(
+            `<img alt='Logo' title='Imagen'><button aria-label='Campo'></button><section placeholder='Busca…'></section>`,
+        );
+        const recogidos = recogerTextos(raiz)
+            .filter((t): t is Extract<TextoRecogido, { clase: "atributo" }> => t.clase === "atributo")
+            .map((t) => `${t.atributo}=${t.texto.trim()}`);
+        expect(recogidos).toHaveLength(4);
+        for (const par of ["title=Imagen", "alt=Logo", "aria-label=Campo", "placeholder=Busca…"])
+            expect(recogidos).toContain(par);
+    });
+
+    it("no recoge atributos vacíos ni en blanco", () => {
+        const raiz = montar(`<img alt='' title='  '/><p aria-label='  '>Texto</p>`);
+        const recogidos = recogerTextos(raiz);
+        expect(recogidos.filter((t): t is Extract<TextoRecogido, { clase: "atributo" }> => t.clase === "atributo")).toEqual([]);
+        expect(recogidos.map((t) => t.texto)).toEqual(["Texto"]);
+    });
+
+    it("aplica sobre el texto exacto y al restaurar conserva el lang previo del elemento", () => {
+        const raiz = montar("<p>  Hola  </p><p lang='pt'>Dos</p>");
+        expect(aplicar(recogerTextos(raiz), { "  Hola  ": "Hello", Dos: "Two" }, "en")).toBe(2);
+        const primero = raiz.querySelectorAll("p")[0] as HTMLElement;
+        const segundo = raiz.querySelectorAll("p")[1] as HTMLElement;
+        expect(primero.textContent).toBe("Hello");
+        expect(primero.getAttribute("lang")).toBe("en");
+        expect(primero.hasAttribute("data-traducido")).toBe(true);
+        expect(segundo.getAttribute("lang")).toBe("en");
+
+        restaurar(raiz);
+        expect(primero.textContent).toBe("  Hola  ");
+        expect(primero.getAttribute("lang")).toBeNull();
+        expect(primero.hasAttribute("data-traducido")).toBe(false);
+        expect(segundo.textContent).toBe("Dos");
+        expect(segundo.getAttribute("lang")).toBe("pt");
+    });
+});
+
 describe("observar", () => {
     it("avisa de los textos nuevos y no vuelve a traducir lo ya traducido", async () => {
         const raiz = montar("<p>viejo</p>");

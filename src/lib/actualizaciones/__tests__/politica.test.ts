@@ -48,3 +48,15 @@ describe("política: rescate de la rama nube/40439436739", () => {
     expect(modelos).toEqual({ modo: "programada", ventana: { desdeH: 22, hastaH: 4 } });
   });
 });
+
+describe("política: rescate de la rama nube/40550707104", () => {
+  it("los tipos que no son el OS comparten la política base", () => {
+    const base = politicaPorDefecto("perfil");
+    for (const tipo of ["grupo", "comunidad", "estudio", "evento"] as const)
+      expect(politicaPorDefecto(tipo)).toEqual(base);
+  });
+
+  it("sanear: con entrada nula igual entrega las seis capas en orden", () => {
+    expect(Object.keys(sanearPolitica(null))).toEqual(CAPAS_ORDEN);
+  });
+});
