@@ -24,7 +24,7 @@ class TransporteFalso implements TransporteMcp {
   }
 
   linea(id: number, cuerpo: Record<string, unknown>): void {
-    this.recibir(JSON.stringify({ jsonrpc: "2.0", id, ...cuerpo }));
+    this.recibir(JSON.stringify({ jsonrpc: "2.0", id, ...cuerpo }) + "\n");
   }
 }
 
@@ -143,7 +143,7 @@ describe("ClienteMcpStdio", () => {
     const pendiente = cliente.llamar("a", {}, 1_000);
     const entera = respuesta(1, { result: { content: [{ type: "text", text: "hola" }] } });
     transporte.recibir(entera.slice(0, 10));
-    transporte.recibir(entera);
+    transporte.recibir(entera.slice(10));
     expect((await pendiente).texto).toBe("hola");
   });
 
