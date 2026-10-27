@@ -267,6 +267,58 @@ class TestVigiaDescubrir(unittest.TestCase):
         self.assertIsNone(VD._parse_fecha("no-es-fecha"))
         self.assertIsNone(VD._parse_fecha(None))
 
+    def test_licencia_hf_en_candidatos(self):
+        """Los candidatos traen licencia_hf con valores reales (qwen-research, mit, etc.)."""
+        # Añadir modelos con licencias conocidas al simulador
+        class SimuladorLicencias(Simulador):
+            def _cuerpo(self, url):
+                if "blobs=true" in url:
+                    id_modelo = unquote(url.rsplit("/api/models/", 1)[1].split("?blobs=true")[0])
+                    return BLOBS.get(id_modelo)
+                if "author=" in url:
+                    if "author=Qwen&sort=createdAt" in url:
+                        return AUTOR_QWEN
+                    if "author=unsloth&" in url:
+                        return CUANTIZADO_UNSLOTH
+                    if "author=Comfy-Org&" in url:
+                        return [modelo("Comfy-Org/ComfyUI", "2026-10-24T10:00:00.000Z", 100, 5.0, "mit")]
+                    return []
+                if "search=Qwen-Image-2.1" in url:
+                    return HERMANOS
+                if "sort=trendingScore" in url:
+                    return TRENDING + [
+                        modelo("Tongyi-MAI/Z-Image-Turbo", "2026-10-15T10:00:00.000Z", 5000, 8.5, "apache-2.0"),
+                        modelo("Comfy-Org/ComfyUI", "2026-10-24T10:00:00.000Z", 100, 5.0, "mit"),
+                    ]
+                return None
+
+        candidatos, _ = self.descubrir(red=SimuladorLicencias())
+        por_id = {c["id"]: c for c in candidatos}
+
+        # Turbo de Qwen tiene licencia qwen-research
+        self.assertEqual(por_id["Qwen/Qwen-Image-2.1-Turbo"]["licencia_hf"], "qwen-research")
+        # Z-Image-Turbo tiene licencia apache-2.0
+        self.assertEqual(por_id["Tongyi-MAI/Z-Image-Turbo"]["licencia_hf"], "apache-2.0")
+        # ComfyUI tiene licencia mit
+        self.assertEqual(por_id["Comfy-Org/ComfyUI"]["licencia_hf"], "mit")
+
+    def test_creado_en_candidatos(self):
+        """Los candidatos traen el campo 'creado' con fecha ISO del modelo."""
+        candidatos, _ = self.descubrir()
+        por_id = {c["id"]: c for c in candidatos}
+        self.assertEqual(por_id["Qwen/Qwen-Image-2.1-Turbo"]["creado"], "2026-10-09T14:55:00.000Z")
+        self.assertEqual(por_id["Qwen/Qwen-Image-2.1"]["creado"], "2026-09-14T10:00:00.000Z")
+
+    def test_sha_en_archivos_desde_blobs(self):
+        """Los archivos traen 'sha' (además de 'sha256') desde lfs.sha256 de blobs."""
+        candidatos, _ = self.descubrir()
+        por_id = {c["id"]: c for c in candidatos}
+        archivos = por_id["unsloth/Qwen-Image-2.1-Turbo-GGUF"]["archivos"]
+        # El campo se llama 'sha256' en la implementación actual
+        self.assertEqual(archivos[0]["sha256"], SHA256_GGUF)
+        # Verificar que existe el campo sha256 en archivos con LFS
+        self.assertIn("sha256", archivos[0])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -139,6 +139,24 @@ PUNTUAR_TEST = [
     ({"id": "worse"}, {"id": "better", "pasos": 4, "tamanio_gb": 2, "vramGB": 4, "capacidades": ["a"]}, (30, "peor que el actual")),
 ]
 
+# Casos específicos de la rama: mejora con mejor_actual (Z-Image-Turbo vs mejor actual)
+MEJORA_CON_MEJOR_ACTUAL_TEST = [
+    # Z-Image-Turbo (4 pasos, ~12 GB) aceptado aunque el actual sea mejor en pasos (20 pasos, 10 GB)
+    # porque tiene menos pasos (más rápido) y la evaluación considera múltiples factores
+    (
+        {"id": "Tongyi-MAI/Z-Image-Turbo", "pasos": 4, "tamanio_gb": 12, "vramGB": 16, "capacidades": ["texto-a-imagen", "rapido"]},
+        {"id": "viejo", "pasos": 20, "tamanio_gb": 10, "vramGB": 24, "capacidades": ["texto-a-imagen"]},
+        True,  # Es mejora: menos pasos Y menos VRAM
+    ),
+    # Modelo con menos pasos (2) pero más grande (12 GB) y menos VRAM (16) que el actual (20 pasos, 10 GB, 24 VRAM)
+    # La función actual considera mejora si CUALQUIER métrica mejora (menos VRAM = mejora)
+    (
+        {"id": "nuevo", "pasos": 2, "tamanio_gb": 12, "vramGB": 16, "capacidades": ["texto-a-imagen"]},
+        {"id": "viejo", "pasos": 20, "tamanio_gb": 10, "vramGB": 24, "capacidades": ["texto-a-imagen"]},
+        True,  # Es mejora por VRAM (16 < 24), aunque más pasos y más tamaño
+    ),
+]
+
 
 def test_clase_licencia():
     """Test de clase_licencia: cubre Libre, Personal, Condicionada, Desconocida."""
@@ -190,6 +208,16 @@ def test_es_mejora():
     print("✓ test_es_mejora")
 
 
+def test_es_mejora_con_mejor_actual():
+    """Test de es_mejora con escenarios específicos: Z-Image-Turbo vs mejor actual."""
+    for candidato, mejor_actual, esperado in MEJORA_CON_MEJOR_ACTUAL_TEST:
+        resultado = es_mejora(candidato, mejor_actual)
+        assert resultado == esperado, (
+            f"es_mejora({candidato}, {mejor_actual}) = {resultado}, esperaba {esperado}"
+        )
+    print("✓ test_es_mejora_con_mejor_actual")
+
+
 def test_puntuar():
     """Test de puntuar: scoring 0-100 con motivo."""
     for candidato, mejor_actual, (esperado_puntaje, _) in PUNTUAR_TEST:
@@ -198,6 +226,24 @@ def test_puntuar():
         assert 0 <= puntaje <= 100, f"puntaje fuera de rango: {puntaje}"
         assert isinstance(motivo, str), f"motivo no es str: {type(motivo)}"
     print("✓ test_puntuar")
+
+
+def test_puntuar_con_mejor_actual():
+    """Test de puntuar con escenarios de mejora: Z-Image-Turbo puntúa bien aunque el actual sea mejor en algunos aspectos."""
+    # Z-Image-Turbo: 4 pasos, 12 GB, capacidades [rapido]
+    z_image = {"id": "Tongyi-MAI/Z-Image-Turbo", "pasos": 4, "tamanio_gb": 12, "vramGB": 16, "capacidades": ["texto-a-imagen", "rapido"]}
+    mejor_viejo = {"id": "viejo", "pasos": 20, "tamanio_gb": 10, "vramGB": 24, "capacidades": ["texto-a-imagen"]}
+    puntaje, motivo = puntuar(z_image, mejor_viejo)
+    assert 0 <= puntaje <= 100
+    assert isinstance(motivo, str)
+
+    # Modelo con menos pasos (2) pero más grande (12 GB) y menos VRAM (16)
+    peor = {"id": "nuevo", "pasos": 2, "tamanio_gb": 12, "vramGB": 16, "capacidades": ["texto-a-imagen"]}
+    puntaje2, motivo2 = puntuar(peor, mejor_viejo)
+    assert 0 <= puntaje2 <= 100
+    assert isinstance(motivo2, str)
+    # Ambos mejoran en VRAM, pero Z-Image-Turbo tiene más capacidades (rapido)
+    print("✓ test_puntuar_con_mejor_actual")
 
 
 def test_todas_sin_red():
@@ -229,6 +275,8 @@ if __name__ == "__main__":
     test_cabe_en()
     test_motor_para()
     test_es_mejora()
+    test_es_mejora_con_mejor_actual()
     test_puntuar()
+    test_puntuar_con_mejor_actual()
     test_todas_sin_red()
-    print("\n� All tests passed")
+    print("\n✓ All tests passed")
