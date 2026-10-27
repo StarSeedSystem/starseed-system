@@ -85,6 +85,7 @@ describe("crearTarea con fetch simulado", () => {
   it("apagado no toca la red; errores honestos y sin la clave: 401, 402, código de Tripo y sin red", async () => {
     const apagado = simulado([]);
     expect((await crearTarea("meshy", PNG, {}, apagado.buscar)).ok).toBe(false);
+    expect((await crearTarea("tripo", PNG, {}, apagado.buscar)).ok).toBe(false);
     expect(apagado.llamadas).toHaveLength(0);
     const motivos = (await Promise.all([
       crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 401, cuerpo: { message: "Missing or invalid API key" } }]).buscar),
@@ -123,7 +124,8 @@ describe("consultarTarea: una sola petición por llamada", () => {
 
 /* ── Casos añadidos (RTAV1011Ld). Todos usan el módulo REAL; ninguno reimplementa su lógica. ──
  * Descartados a propósito, porque main cambió el contrato: «tripo: no disponible» (Tripo ya está implementado) y el cuerpo con
- * `target_formats` / la URL `/v2` de la rama archivada (main usa /openapi/v1 con data URI, `ai_model` y `should_texture`). */
+ * `target_formats` / la URL `/v2` de la rama archivada (main usa /openapi/v1 con data URI, `ai_model` y `should_texture`).
+ * Rescatado de la rama nube/39284689789 (RTRTRTRTRTRTRTCOL1012): «apagado» cubre a los DOS proveedores sin tocar la red. */
 const sinRed = (): { buscar: Buscar; llamadas: Llamada[] } => simulado([]);
 /** `fetch` que contesta UN texto crudo (no JSON) con el estado dado. */
 function crudo(texto: string, status = 200): { buscar: Buscar; llamadas: Llamada[] } {
