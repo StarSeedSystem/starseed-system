@@ -33,6 +33,10 @@ describe("disponibilidad.ts", () => {
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
     });
+
+    it("la cadena vacía se decodifica a cero bytes", () => {
+      expect(decodificar("")).toEqual(new Uint8Array(0));
+    });
   });
 
   describe("mapa de bits", () => {
@@ -98,10 +102,20 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+
+    it("sin piezas disponibles no genera ningún anuncio", () => {
+      expect(anuncio("nodo", "e", 5, [], 0)).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
     const AHORA = 60_000;
+
+    it("sin anuncios devuelve un registro vacío", () => {
+      const registro = fusionar([]);
+      expect(registro.size).toBe(0);
+      expect(quienTiene(registro, "t1", 0, AHORA)).toEqual([]);
+    });
 
     const recibidos = (uno: AnuncioDisponibilidad[], dos: AnuncioDisponibilidad[]): AnuncioRecibido[] => [
       ...uno.map((a) => ({ anuncio: a, recibidoEn: AHORA - 20_000 })),
