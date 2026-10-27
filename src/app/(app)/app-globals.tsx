@@ -44,6 +44,10 @@ import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
+// Menú del clic derecho sobre texto (TRD1020E · Ola 1020U): UNA capa de menú
+// contextual con registro compartido de entradas (Traducir, «Variaciones
+// públicas»). En campos editables, con Mayúsculas o ya atendido, manda el del navegador.
+import { MenuTexto } from "@/components/traduccion/menu-texto";
 
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
@@ -84,6 +88,9 @@ export default function AppGlobals() {
           discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
+      {/* Menú compartido del clic derecho sobre texto (TRD1020E).
+          Sus entradas las registra cada función con `registrarEntradaMenuTexto`. */}
+      <MenuTexto />
     </SoloFueraDeConsola>
   );
 }
