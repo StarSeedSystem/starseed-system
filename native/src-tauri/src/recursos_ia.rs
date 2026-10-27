@@ -243,7 +243,7 @@ pub fn montajes_solo_lectura(salida: &str) -> Vec<String> {
         let ro = opciones
             .trim_end_matches(')')
             .split(',')
-            .any(|o| matches!(o.trim(), "ro" | "read-only"));
+            .any(|o| o.trim().trim_start_matches('(') == "ro" || matches!(o.trim(), "read-only"));
         if ro && montaje.trim() != "/" {
             out.push(montaje.trim().to_string());
         }
