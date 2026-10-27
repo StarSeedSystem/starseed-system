@@ -10,6 +10,8 @@ export const PROTO_ORB_FAB_KEY = "starseed.protomolecula.orbe.enabled.v1";
 export const PROTO_ORB_FAB_EVENT = "starseed:protomolecula-orb-fab";
 /** Lo emite la acción del agente (F0M) y lo escucha la orbe (F0L). */
 export const PROTO_ORB_ABRIR_EVENT = "starseed:protomolecula-abrir";
+/** Lo escucha la orbe para cerrarse (arrastre a su zona o petición de Astraura). */
+export const PROTO_ORB_CERRAR_EVENT = "starseed:protomolecula-cerrar";
 
 /** Diámetro del dibujo de la orbe en pantallas anchas (≥ 640 px). En pantallas chicas se reduce: `medidasOrbe`. */
 export const TAMANO_ORBE = 56;
@@ -175,4 +177,77 @@ export function guardarActivada(almacen: AlmacenLocal, activada: boolean): void 
   } catch {
     /* defensivo */
   }
+}
+
+/** Piezas sustituibles en las pruebas: almacén, emisor del aviso y empuje a las demás neuronas. */
+export interface DepsOrbe {
+  almacen?: AlmacenLocal;
+  emitir?: (e: Event) => boolean;
+  empujar?: () => void;
+}
+
+/** Almacén del navegador; null en SSR o si el acceso lanza (modo privado estricto). */
+function almacenDeWindow(): AlmacenLocal | null {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return null;
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Emisor por defecto: `window.dispatchEvent` si hay ventana. Nunca lanza. */
+function emitirEnWindow(e: Event): boolean {
+  try {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") return false;
+    return window.dispatchEvent(e);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Empuje por defecto a la cuenta: carga `settings-sync` a demanda para no acoplar este módulo puro al
+ * cliente de Supabase, no espera el resultado y se traga cualquier fallo (sin red, sin sesión…).
+ */
+function empujarACuenta(): void {
+  try {
+    void import("@/lib/settings-sync")
+      .then((m) => m.pushPreferences())
+      .catch(() => undefined);
+  } catch {
+    /* defensivo */
+  }
+}
+
+/**
+ * PUERTA ÚNICA para encender o apagar la orbe de la Protomolécula (botón del lienzo de creación o
+ * petición de Astraura): guarda la preferencia, avisa al resto del OS con `PROTO_ORB_FAB_EVENT` y
+ * empuja el cambio a la cuenta para que las demás neuronas lo reciban. Devuelve el valor fijado.
+ */
+export function fijarOrbeActivada(activada: boolean, deps: DepsOrbe = {}): boolean {
+  const almacen = deps.almacen ?? almacenDeWindow();
+  if (almacen) guardarActivada(almacen, activada);
+
+  const emitir = deps.emitir ?? emitirEnWindow;
+  try {
+    emitir(new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: { activada } }));
+  } catch {
+    /* un emisor roto no debe impedir el guardado */
+  }
+
+  try {
+    (deps.empujar ?? empujarACuenta)();
+  } catch {
+    /* empujar nunca debe romper la acción */
+  }
+
+  return activada;
+}
+
+/** Invierte el estado actual (por defecto, ACTIVADA) y lo fija por la puerta común. */
+export function alternarOrbe(deps: DepsOrbe = {}): boolean {
+  const almacen = deps.almacen ?? almacenDeWindow();
+  const actual = almacen ? leerActivada(almacen) : true;
+  return fijarOrbeActivada(!actual, deps);
 }
