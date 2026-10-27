@@ -147,6 +147,37 @@ class AltaCapacidadCLI(unittest.TestCase):
         self.assertFalse(datos["cupo"]["ok"])
         self.assertIn("tope superado", datos["cupo"]["motivo"])
 
+    def test_tope_de_semana_bloquea(self):
+        # El tope de la semana (80 %) también cierra el cupo, aunque la sesión vaya floja.
+        cola, progreso, limites = self._preparar(
+            limites={"lecturas": [{"t": _ahora_iso(), "semana_pct": 85, "sesion_pct": 10}]}
+        )
+        r = self._correr("--olas", os.path.dirname(cola), "--progreso", progreso,
+                         "--limites", limites, "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        datos = json.loads(r.stdout)
+        self.assertFalse(datos["cupo"]["ok"])
+        self.assertIn("semana", datos["cupo"]["motivo"])
+        self.assertEqual(datos["elegidas"], [])
+
+    def test_en_curso_en_otro_medio_no_es_candidata(self):
+        """`en_curso` (tarea ya cogida, en la Mac o prestada a otro medio como el A1)
+        no aparece como candidata del carril de la dirección."""
+        cola, progreso, limites = self._entorno(
+            [
+                {"id": "A", "titulo": "Prestada al A1", "capacidad": "alta"},
+                {"id": "B", "titulo": "Libre", "capacidad": "alta"},
+            ],
+            {"A": {"estado": "en_curso", "medio": "oracle"}},
+            _limites_frescos(),
+        )
+        r = self._correr("--olas", os.path.dirname(cola), "--progreso", progreso,
+                         "--limites", limites, "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        datos = json.loads(r.stdout)
+        self.assertEqual([c["id"] for c in datos["candidatas"]], ["B"])
+        self.assertEqual(datos["elegidas"], ["B"])
+
     def test_rutas_por_entorno(self):
         cola, progreso, limites = self._preparar()
         r = self._correr(
