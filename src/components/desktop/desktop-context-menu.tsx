@@ -35,6 +35,10 @@ import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./deskto
 import { canEditIcon } from "./desktop-open";
 import { hasRichThumb } from "./desktop-thumbs";
 import type { QuickLookTab } from "./desktop-quick-look";
+import { Replace } from "lucide-react";
+import { descargarBlob, type Convertido } from "@/lib/conversion/cliente";
+import { useConversionMenu, type ArchivoConvertible } from "@/components/conversion/use-conversion-menu";
+import { iconoConvertible } from "./desktop-convertir";
 
 const MENU_W = 210;
 
@@ -291,6 +295,16 @@ export function IconContextMenu({
     // Pegar DENTRO de este folder (destino natural del portapapeles).
     const canPasteHere = Boolean(clip) && icon.kind === "folder";
 
+    // ── Filee · «Convertir a…» (conversion-archivos.md): iconos que son un
+    // archivo con URL. El resultado se DESCARGA en este dispositivo, no se
+    // guarda en la Biblioteca (allí ya lo hace el Explorador).
+    const archivo: ArchivoConvertible | null = iconoConvertible(icon);
+    const guardarConvertido = React.useCallback(async (c: Convertido): Promise<string | null> => {
+        descargarBlob(c.blob, c.nombre);
+        return "descarga iniciada";
+    }, []);
+    const conversion = useConversionMenu(archivo, guardarConvertido);
+
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
             <MenuItem icon={ExternalLink} label="Abrir" onClick={() => run(() => onOpen(icon))} />
@@ -302,6 +316,31 @@ export function IconContextMenu({
             )}
             {editable && onEdit && (
                 <MenuItem icon={PenLine} label="Editar" onClick={() => run(() => { onEdit(icon) || onRename(icon.id); })} />
+            )}
+            {conversion && (
+                <SubMenu icon={Replace} label="Convertir a…">
+                    {conversion.estado === "cargando" && (
+                        <MenuItem label="Mirando formatos…" onClick={() => { /* nada: espera a la neurona */ }} />
+                    )}
+                    {conversion.estado === "no-disponible" && (
+                        <MenuItem
+                            label={conversion.motivo ?? "Aquí no hay conversor."}
+                            onClick={() => { /* nada: honestidad, no convierte */ }}
+                        />
+                    )}
+                    {conversion.estado === "listo" && (
+                        <>
+                            {conversion.principales.map((f) => (
+                                <MenuItem key={f} label={conversion.etiqueta(f)} onClick={() => run(() => conversion.onConvertir(f))} />
+                            ))}
+                            <MenuItem
+                                icon={Settings2}
+                                label={conversion.resto > 0 ? `Más formatos (${conversion.resto})…` : "Abrir el conversor…"}
+                                onClick={() => run(conversion.onMas)}
+                            />
+                        </>
+                    )}
+                </SubMenu>
             )}
 
             <MenuDivider />
