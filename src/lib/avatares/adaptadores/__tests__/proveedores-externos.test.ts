@@ -196,6 +196,12 @@ describe("crearTarea: respuestas incompletas y errores HTTP, siempre una sola pe
 });
 
 describe("lo que sale a la red", () => {
+  it("Tripo sin permiso no toca la red aunque tenga su clave, y el motivo nombra la variable", async () => {
+    const red = sinRed();
+    const r = await crearTarea("tripo", PNG, { MESHY_API_KEY: CLAVE, TRIPO_API_KEY: CLAVE }, red.buscar);
+    expect(razon(r)).toMatch(/AVATARES_EXTERNOS_PERMITIDOS=1/);
+    expect(red.llamadas).toHaveLength(0);
+  });
   it("una imagen no admitida (webp, vacía, demasiado grande) no toca la red con ningún proveedor", async () => {
     const malas: Imagen[] = [{ ...PNG, mime: "image/webp" }, { ...PNG, bytes: new Uint8Array(0) }, { ...PNG, bytes: new Uint8Array(9 << 20) }];
     for (const p of ["meshy", "tripo"] as const) {
