@@ -8,15 +8,17 @@
  * dashboard: sin título, dictado ni historial, pero con «Añadir herramienta», parámetros y pendientes
  * (un widget vacío sin forma de llenarlo sería un callejón sin salida).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { registrarAtomosPropios } from "@/lib/protomolecula/atomos";
 import type { Controlador } from "@/lib/protomolecula/controlador";
 import { AVISO_SALUD } from "@/lib/protomolecula/permisos";
-import { candidatosDe } from "@/lib/protomolecula/registro-atomos";
+import { candidatosDe, obtenerAtomo } from "@/lib/protomolecula/registro-atomos";
 import type { EstadoGuardado } from "@/lib/protomolecula/sesion-molecula";
-import type { Ambito, Autor } from "@/lib/protomolecula/tipos";
+import type { Ambito, Autor, Operacion } from "@/lib/protomolecula/tipos";
 
 import { BarraDictado } from "./barra-dictado";
+import { MarcoAislado, blobDeExportacion, idOperacion } from "./marco-aislado";
 import { PanelActividad, hayLecturaSalud } from "./panel-actividad";
 import { AnadirHerramienta, ListaPendientes } from "./panel-estructura";
 import { PanelParametros } from "./panel-parametros";
@@ -39,7 +41,14 @@ export interface PanelProtomoleculaProps {
 export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, compacto = false, guardado }: PanelProtomoleculaProps) {
   const estado = useEstadoControl(ctl);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [descarga, setDescarga] = useState<{ url: string; nombre: string } | null>(null);
+  useEffect(() => { registrarAtomosPropios(); }, []);
+  useEffect(() => () => { if (descarga) URL.revokeObjectURL(descarga.url); }, [descarga]);
   if (!estado) return null;
+  const exportar = (formato: string, datos: unknown) => {
+    const { blob, nombre } = blobDeExportacion(formato, datos);
+    setDescarga({ url: URL.createObjectURL(blob), nombre });
+  };
 
   return (
     <div className={`flex h-full w-full flex-col gap-3 overflow-auto ${compacto ? "p-2" : "p-4"}`}>
@@ -54,6 +63,21 @@ export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, comp
       <AnadirHerramienta controlador={ctl} estado={estado} />
       <ListaPendientes controlador={ctl} estado={estado} />
       {!compacto && <BarraDictado alDictar={(frase) => ctl.dictar(frase, autor).resultados} />}
+      {estado.molecula.atomos.filter((a) => a.estado === "activo").map((atomo) => {
+        const def = obtenerAtomo(atomo.herramientaId);
+        if (!def?.vista) return null;
+        return (
+          <section key={atomo.id} aria-label={`Vista de ${atomo.titulo ?? def.nombre}`}>
+            <MarcoAislado definicion={def} atomoId={atomo.id} valores={estado.molecula.valores} alExportar={exportar}
+              alCambio={(parametroId, valor) => {
+                const op: Operacion = { id: idOperacion(), objetivo: { atomoId: atomo.id, parametroId }, accion: { tipo: "exacta", valor }, autor, origen: "mano", t: Date.now() };
+                const r = ctl.mover(op);
+                setAviso(r.ok ? null : r.motivo);
+              }} />
+          </section>
+        );
+      })}
+      {descarga && <a href={descarga.url} download={descarga.nombre} className="cursor-pointer text-sm underline">Descargar</a>}
       <PanelParametros
         candidatos={candidatosDe(estado.molecula)}
         valores={estado.molecula.valores}
