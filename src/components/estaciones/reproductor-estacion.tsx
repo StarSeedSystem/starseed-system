@@ -7,6 +7,7 @@ import { FRAME_ALLOW, FRAME_SANDBOX } from "@/components/browser/web-frame";
 import { conParent, detectarFormato } from "@/lib/estaciones/formato";
 import type { Estacion } from "@/lib/estaciones/tipos";
 import { anuncio as anuncioMalla, codificar, decodificar, fusionar, type AnuncioDisponibilidad, type AnuncioRecibido, type RegistroDisponibilidad } from "@/lib/recursos/disponibilidad";
+import { armarArbol, recolocar } from "@/lib/recursos/arbol-relevo";
 import { contextoMalla, crearCargadorMalla, puedeSubirPrestado, type ConexiónCargadorMalla } from "@/lib/recursos/hls-malla-loader";
 import type { FragmentLoaderConstructor } from "hls.js";
 
@@ -60,11 +61,22 @@ async function conectarMalla(enlace: string, contexto: "publico" | "cuenta"): Pr
     const mesh = meshMod.getSharedMesh(), vecinos = reg.enlacesLocalesVivos().length > 0 || (mesh?.getPeers().some((p) => p.state === "connected" && p.channelOpen) ?? false);
     if (!vecinos) return null;
     const propio = id.identidadDispositivo().syncDeviceId || mesh?.myDeviceId; if (!propio) return null;
+    const fuentes = reg.enlacesLocalesVivos()
+        .map((e) => ({
+            nodoId: e.par.syncDeviceId ?? "",
+            subidaKbps: e.capacidadKbps() ?? undefined,
+            latenciaMs: e.rttMs() ?? undefined,
+        }))
+        .filter((n) => n.nodoId !== "" && n.nodoId !== propio);
+    const arbol = fuentes.length > 0
+        ? armarArbol({ nodoId: propio, subidaKbps: TOPE_SUBIDA_KBPS }, fuentes, TOPE_SUBIDA_KBPS)
+        : undefined;
     const elemento = idElemento(enlace), soloCuenta = contexto === "cuenta", ahora = () => Date.now();
     const esperados = new Map<string, (b: Uint8Array | null) => void>(); let recibidos: AnuncioRecibido[] = [];
     const bajas: (() => void)[] = [];
     const con: ConexiónCargadorMalla = {
         elemento, registro: new Map() as RegistroDisponibilidad,
+        ...(arbol ? { arbol, receptor: propio } : {}),
         verificar: (bytes) => bytes.byteLength > 0,
         anunciar: (indice, bytes) => {
             const trozos = servidos.get(elemento) ?? new Map<number, Uint8Array>();
@@ -87,6 +99,16 @@ async function conectarMalla(enlace: string, contexto: "publico" | "cuenta"): Pr
         ahora,
         esperar: (ms) => new Promise((r) => { setTimeout(r, ms); }),
     };
+    const conocidos = new Set(fuentes.map((f) => f.nodoId));
+    bajas.push(reg.suscribirEnlacesLocales(() => {
+        const vivos = new Set(reg.enlacesLocalesVivos().map((e) => e.par.syncDeviceId).filter((x): x is string => !!x));
+        for (const id of Array.from(conocidos)) {
+            if (vivos.has(id)) continue;
+            conocidos.delete(id);
+            const actual = con.arbol;
+            if (actual) con.arbol = recolocar(actual, id);
+        }
+    }));
     bajas.push(tu.alRecibirMensaje(CANAL_DISPONIBILIDAD, (m) => {
         if (soloCuenta && m.origen.tipo !== "cuenta") return;
         if (!esAnuncio(m.cuerpo, propio, elemento)) return;
