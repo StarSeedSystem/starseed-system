@@ -64,5 +64,30 @@ class TestFormaDelEncargo(unittest.TestCase):
         self.assertEqual(t["archivos"], [])
 
 
+class TestNombreImaginacion(unittest.TestCase):
+    """Todo texto que lee una persona o un agente dice «Imaginación», no «Dream».
+
+    (Ola 1021I, architecture/imaginacion-autodesarrollo.md §2.) El nombre del
+    fichero y las rutas no cambian a propósito; lo que se lee sí.
+    """
+
+    def test_la_ola_nueva_se_llama_imaginacion(self):
+        self.assertEqual(
+            DD.tarea_de(P, "2026-09-17", 0)["ola"],
+            "Ola Imaginación 2026-09-17 · lo que el análisis nocturno encontró",
+        )
+
+    def test_el_resumen_dice_imaginacion_diaria(self):
+        t = DD.D.resumen([{"titulo": "Algo que hacer"}], total_leidas=3)
+        self.assertTrue(t.startswith("Imaginación diaria leída: encargo 1"))
+        self.assertNotIn("Dream leído", t)
+
+    def test_el_resumen_sin_nada_tambien_lo_dice(self):
+        self.assertEqual(
+            DD.D.resumen([]),
+            "Imaginación diaria leída: nada accionable nuevo que encargar.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
