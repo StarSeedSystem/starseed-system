@@ -37,6 +37,7 @@ mod carpetas;
 mod disco;
 mod faro;
 mod nativa;
+mod recursos_ia;
 #[cfg(desktop)]
 mod segundo_plano;
 mod serie;
@@ -545,6 +546,7 @@ pub fn run() {
             reiniciar_para_actualizar,
             estado_actualizacion,
             device_info,
+            recursos_ia::recursos_ia_detectar,
             nativa::antenas_estado,
             nativa::antenas_medir,
             nativa::antenas_config,
