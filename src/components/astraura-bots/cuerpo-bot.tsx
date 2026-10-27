@@ -4,19 +4,27 @@ import * as React from 'react';
 import { planCuerpo } from '@/lib/astraura-bots/cuerpo';
 import { resolverRefBiblioteca } from '@/lib/avatares/adaptadores/resolver-ref-biblioteca';
 import { QuantumOrbAvatar } from '@/components/aurora/quantum-orb-avatar';
+import { Cuerpo3dBot } from '@/components/avatares/cuerpo-3d-bot';
+import type { Bot, EstadoEmocional, Medio } from '@/lib/astraura-bots/tipos';
 
 // We'll also need to import a component for the ser genesis avatar if it exists.
 // For now, we'll use a placeholder.
 
 export interface CuerpoBotProps {
   cuerpo: NonNullable<NonNullable<import('@/lib/astraura-bots/tipos').Bot>['cuerpo']>;
-  medio: import('@/lib/astraura-bots/tipos').Medio;
+  medio: Medio;
   xrDisponible: boolean;
   vrmDisponible: boolean;
+  /** Bot completo: hace falta para cargar su ADN («biblioteca:») y su tono. */
+  bot?: Bot;
+  emocion?: EstadoEmocional;
+  hablando?: boolean;
+  texto?: string;
 }
 
-export const CuerpoBot: React.FC<CuerpoBotProps> = ({ cuerpo, medio, xrDisponible, vrmDisponible }) => {
+export const CuerpoBot: React.FC<CuerpoBotProps> = ({ cuerpo, medio, xrDisponible, vrmDisponible, bot, emocion, hablando, texto }) => {
   const { render, ref, motivo } = React.useMemo(() => planCuerpo(cuerpo, medio, { xrDisponible, vrmDisponible }), [cuerpo, medio, xrDisponible, vrmDisponible]);
+  const usaAvatar3d = cuerpo.forma === 'avatar-3d' || cuerpo.forma === 'vrm';
 
   // State for the resolved URL when we need to display an image
   const [imageUrl, setImageUrl] = React.useState<string | null>(null);
@@ -40,6 +48,11 @@ export const CuerpoBot: React.FC<CuerpoBotProps> = ({ cuerpo, medio, xrDisponibl
       });
     }
   }, [render, ref]);
+
+  // El avatar 3D del bot (AV1011C) va por su componente: ADN, emoción, visemas y movimiento.
+  if (bot && usaAvatar3d) {
+    return <Cuerpo3dBot bot={bot} emocion={emocion} hablando={hablando} texto={texto} tamano={96} className="shadow-lg" />;
+  }
 
   // Now, render based on the render type
   switch (render) {
