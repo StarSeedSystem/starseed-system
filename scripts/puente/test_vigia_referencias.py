@@ -64,8 +64,21 @@ class Cadenas_y_parseo(unittest.TestCase):
     def test_dominios_y_huellas(self):
         self.assertEqual(V.obtener_dominio("https://Api.Ejemplo.COM/x"), "api.ejemplo.com")
         self.assertEqual(V.obtener_dominio("ni-ideal"), "")
+        # El puerto forma parte del dominio a efectos de pausas por dominio:
+        self.assertEqual(V.obtener_dominio("http://sub.dominio.org:8080/path"),
+                         "sub.dominio.org:8080")
+        self.assertEqual(V.obtener_dominio("https://usuario:pass@dominio.com"),
+                         "usuario:pass@dominio.com")
         self.assertEqual(len(V.huella_sha256(b"algo")), 64)
         self.assertNotEqual(V.huella_sha256(b"algo"), V.huella_sha256(b"algo2"))
+        self.assertEqual(V.huella_sha256(b"algo"), V.huella_sha256(b"algo"))
+
+    def test_cargar_json_archivo_inexistente(self):
+        raiz = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(raiz, ignore_errors=True))
+        ruta = os.path.join(raiz, "no-existe.json")
+        self.assertEqual(V.cargar_json(ruta, {"por_defecto": "valor"}),
+                         {"por_defecto": "valor"})
 
     def test_fecha_a_iso(self):
         self.assertEqual(V.fecha_a_iso("Tue, 20 Oct 2026 12:00:00 GMT"),
