@@ -22,11 +22,17 @@ import os
 import re
 import threading
 import time
+import urllib.parse
 import urllib.request
 
 URL = "https://openrouter.ai/api/alpha/decisions"
 MODELO = "~typesafe/jev-latest"
 LAYA_URL = os.environ.get("STARSEED_LAYA_URL", "http://127.0.0.1:4470/v1/systemone")
+#: (2026-10-27, CLB1027D) Extremos locales SystemOne: contesta el primero que responda.
+SYSTEMONE_POR_DEFECTO = (
+    "http://127.0.0.1:4470/v1/systemone", "http://127.0.0.1:4480/v1/systemone",
+)
+PREFERENCIA_LOCAL_S = 600  # cuánto se recuerda al que contestó más rápido
 CONCESION = os.path.expanduser(
     os.environ.get("STARSEED_CONVERSACION", "~/.starseed/conversacion.json")
 )
@@ -62,6 +68,9 @@ EXPLABS_POR_DEFECTO = ("jev-latest", "clef-flash")
 #: Transporte de Experiential (se sustituye en las pruebas). Con `TRANSPORTE` falso y este sin
 #: poner, las pruebas NUNCA tocan la red de verdad aunque la Mac tenga la clave.
 TRANSPORTE_EXPLABS = None
+
+#: Transporte de los SystemOne locales: (endpoint, cuerpo, timeout); falso en las pruebas.
+TRANSPORTE_LOCAL = None
 
 
 def clave():
@@ -263,7 +272,7 @@ def _anotar_uso(respuesta, segundos, hoy=None, medio="openrouter", ms=0.0, quien
     for t in tipos or ():
         _sumar(dia.setdefault("por_tipo", {}), t)
         _sumar(uso.setdefault("por_tipo", {}), t)
-    if medio in ("local", "laya-local"):
+    if medio in ("local", "laya-local", "colibri-local"):
         uso["local_fallos_seguidos"] = 0
     # (2026-09-21) El desglose por medio vivia SOLO al nivel global del archivo, y el
     # medidor de Genesis lo busca dentro de cada dia: por eso enseñaba «local 0 ·
@@ -401,41 +410,80 @@ def conversando(ruta=None, ahora=None):
     return hasta > (time.time() if ahora is None else ahora)
 
 
-def decidir_con_laya(estado, preguntas, timeout=1.5, url=None):
-    """Consulta a Laya local (SystemOne en 127.0.0.1:4470/v1/systemone).
+def _transporte_systemone_real(endpoint, cuerpo, timeout):
+    req = urllib.request.Request(
+        endpoint,
+        data=json.dumps(cuerpo, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8")) if resp.status == 200 else None
 
-    Devuelve un diccionario con las respuestas y motor: "laya-local",
-    o None si no responde, responde 503/error o hay conversación en curso.
-    """
+
+def _motor_de(endpoint):
+    try:
+        return "colibri-local" if urllib.parse.urlsplit(endpoint).port == 4480 else "laya-local"
+    except ValueError:
+        return "laya-local"
+
+
+def _preferido_systemone(ahora=None):
+    p = _leer(USO, {}).get("systemone") or {}
+    t = time.time() if ahora is None else ahora
+    if p.get("url") and t - float(p.get("t") or 0) < PREFERENCIA_LOCAL_S:
+        return p["url"]
+    return None
+
+
+def locales_systemone(ahora=None):
+    """Extremos /v1/systemone: `STARSEED_LAYA_URL` primero, luego la lista; el ganador 10 min."""
+    laya = os.environ.get("STARSEED_LAYA_URL")
+    candidatos = [laya] if laya else []
+    lista = os.environ.get("STARSEED_SYSTEMONE_LOCALES")
+    if lista is None:
+        candidatos.extend(SYSTEMONE_POR_DEFECTO)
+    else:
+        candidatos.extend(x.strip() for x in lista.split(",") if x.strip())
+    orden = list(dict.fromkeys(candidatos))
+    preferido = _preferido_systemone(ahora)
+    if preferido in orden:
+        orden.remove(preferido)
+        orden.insert(0, preferido)
+    return orden
+
+
+def decidir_con_laya(estado, preguntas, timeout=1.5, url=None):
+    """Prueba cada SystemOne local con su tope, se queda el primero y anota su motor."""
     if conversando():
         return None
-    endpoint = url or os.environ.get("STARSEED_LAYA_URL", LAYA_URL)
+    transporte = TRANSPORTE_LOCAL
+    if transporte is None:
+        if TRANSPORTE is not None or _transporte_real is not _TRANSPORTE_REAL_DE_FABRICA:
+            return None  # en pruebas: ningún extremo local toca la red de verdad
+        transporte = _transporte_systemone_real
     cuerpo = {"state": estado, "questions": preguntas}
-    try:
-        req = urllib.request.Request(
-            endpoint,
-            data=json.dumps(cuerpo, ensure_ascii=False).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
+    for endpoint in [url] if url else locales_systemone():
+        t0 = time.time()
+        try:
+            res_data = transporte(endpoint, cuerpo, timeout)
+        except Exception:
+            continue
+        if not isinstance(res_data, dict):
+            continue
+        respuestas = dict(
+            res_data.get("answers")
+            if "answers" in res_data and isinstance(res_data["answers"], dict)
+            else res_data
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            if resp.status != 200:
-                return None
-            res_data = json.loads(resp.read().decode("utf-8"))
-            if not isinstance(res_data, dict):
-                return None
-            respuestas = dict(
-                res_data.get("answers")
-                if "answers" in res_data and isinstance(res_data["answers"], dict)
-                else res_data
-            )
-            respuestas["motor"] = "laya-local"
-            return respuestas
-    except urllib.error.HTTPError as e:
-        e.close()
-        return None
-    except Exception:
-        return None
+        respuestas["motor"] = _motor_de(endpoint)
+        if url is None:
+            uso = _leer(USO, {})
+            uso["systemone"] = {"url": endpoint, "ms": round((time.time() - t0) * 1000, 1),
+                                "t": time.time()}
+            _escribir(USO, uso)
+        return respuestas
+    return None
 
 
 def _local():
@@ -518,9 +566,9 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     jl = _local()
     respuestas = None
     medio_usado = None
-    # Pirámide: BitNet local -> Laya local -> Experiential (gratis) -> OpenRouter remoto (de pago).
+    # Pirámide: BitNet local -> SystemOne local (Laya/Colibri) -> Experiential (gratis) -> OpenRouter.
     intenta_local = medio in (None, "local")
-    intenta_laya = medio in (None, "laya", "laya-local")
+    intenta_laya = medio in (None, "laya", "laya-local", "colibri-local")
     intenta_open = medio in (None, "openrouter")
     intenta_explabs = medio in (None, "explabs")
     local_disponible = False
@@ -535,12 +583,12 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
         respuestas = _intenta_local(jl, estado, preguntas)
         if respuestas is not None:
             medio_usado = "local"
-    # Capa local Laya (SystemOne) antes del Jev remoto
+    # Capa local SystemOne (Laya 4470 o Colibri 4480) antes del Jev remoto
     if respuestas is None and intenta_laya:
         resp_laya = decidir_con_laya(estado, preguntas)
         if resp_laya is not None:
             respuestas = resp_laya
-            medio_usado = "laya-local"
+            medio_usado = resp_laya.get("motor") or "laya-local"
     # Gratis en la nube antes que de pago: Jev/Clef Flash de Experiential Labs.
     if respuestas is None and intenta_explabs:
         resp_exp, _modelo = _intenta_explabs(estado, preguntas, quien=quien)
@@ -558,7 +606,7 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     res = dict(respuestas)
     res["medio"] = medio_usado
     res["ms"] = ms
-    if medio_usado in ("local", "laya-local"):
+    if medio_usado in ("local", "laya-local", "colibri-local"):
         _anotar_uso({}, time.time() - t0, medio=medio_usado, ms=ms, quien=quien, tipos=tipos)
     if usar_cache:
         # Cache separa respuestas de metadatos (evita mezclar 'medio'/'ms' con claves de pregunta).
