@@ -20,11 +20,36 @@
 // Local-first, tolerante sin sesión, realtime entre dispositivos/miembros.
 // ════════════════════════════════════════════════════════════════════════════
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
-import { AlertTriangle, BookMarked, CloudOff, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, BookMarked, CloudOff, FolderCog, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { watchLibrary, useLibraryPendingSync, type EntityRef } from "@/lib/library/entity-library";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+    watchLibrary,
+    useLibraryPendingSync,
+    readLibrarySnapshot,
+    type EntityRef,
+    type LibraryFolder,
+    type SavedItem,
+} from "@/lib/library/entity-library";
+// Filee (2026-10-23): reglas «carpeta de la Biblioteca → formato» que aplica el
+// vigilante. La lógica pura vive en `src/lib/conversion/vigiladas.ts`.
+import {
+    CLAVE_VIGILADAS,
+    TOPE_HECHAS,
+    agregarRegla,
+    alternarRegla,
+    estadoInicial,
+    escribirEstado,
+    leerEstado,
+    pendientes,
+    quitarRegla,
+    reglaDe,
+    type EstadoVigiladas,
+    type ReglaVigilada,
+} from "@/lib/conversion/vigiladas";
 // Archivos ya subidos a Storage cuya fila `os_files` aún no se ha podido
 // registrar (Adenda 66 §2): se avisa y se reintenta, nunca se da por bueno.
 import { FILES_PENDING_EVENT, flushPendingFiles, pendingFilesCount } from "@/lib/files/os-files";
@@ -115,6 +140,208 @@ function useAclContext(ref: EntityRef | null): AclViewerContext {
     }, [ref?.kind, ref?.id]);
 
     return ctx;
+}
+
+/** Ruta «A/B/C» de una carpeta (vacía si es la raíz). */
+function rutaDeCarpeta(folderId: string | null, folders: LibraryFolder[]): string {
+    const byId = new Map(folders.map((f) => [f.id, f] as const));
+    const partes: string[] = [];
+    const vistos = new Set<string>();
+    let cursor = folderId;
+    while (cursor && !vistos.has(cursor)) {
+        vistos.add(cursor);
+        const f = byId.get(cursor);
+        if (!f) break;
+        partes.unshift(f.name);
+        cursor = f.parentId;
+    }
+    return partes.join("/");
+}
+
+/**
+ * Carpetas vigiladas de ESTA biblioteca: reglas «carpeta → formato» y cuántos
+ * archivos nuevos esperan conversión. La lógica la pone `vigiladas.ts`; aquí
+ * solo se administra y se muestra. El vigilante que convierte es otra tarea.
+ */
+function VigiladasButton({ libraryRef, accent = "#7FB8FF" }: { libraryRef: EntityRef; accent?: string }) {
+    const [open, setOpen] = useState(false);
+    const [estado, setEstado] = useState<EstadoVigiladas>(estadoInicial);
+    const [folders, setFolders] = useState<LibraryFolder[]>([]);
+    const [items, setItems] = useState<SavedItem[]>([]);
+    const [carpeta, setCarpeta] = useState("");
+    const [destino, setDestino] = useState("jpg");
+    const [error, setError] = useState<string | null>(null);
+
+    const cargar = useCallback(() => {
+        const doc = readLibrarySnapshot(libraryRef);
+        setFolders(doc.folders);
+        setItems(doc.items);
+        let guardado = "";
+        try {
+            guardado = window.localStorage.getItem(CLAVE_VIGILADAS) ?? "";
+        } catch {
+            /* almacenamiento no disponible: se trabaja en memoria */
+        }
+        setEstado(leerEstado(guardado));
+        setError(null);
+    }, [libraryRef]);
+
+    const persistir = useCallback((next: EstadoVigiladas) => {
+        setEstado(next);
+        try {
+            window.localStorage.setItem(CLAVE_VIGILADAS, escribirEstado(next));
+        } catch {
+            /* almacenamiento no disponible: la regla sigue viva en memoria */
+        }
+    }, []);
+
+    const abrir = () => {
+        cargar();
+        setOpen(true);
+    };
+
+    const carpetas = useMemo(
+        () => folders.map((f) => rutaDeCarpeta(f.id, folders)).filter(Boolean).sort((a, b) => a.localeCompare(b)),
+        [folders],
+    );
+
+    const pendientesDe = useCallback(
+        (r: ReglaVigilada): number => {
+            const nombres = items
+                .filter((it) => it.type === "file" && it.url)
+                .filter((it) => reglaDe(estado, rutaDeCarpeta(it.folderId ?? null, folders))?.id === r.id)
+                .map((it) => it.title);
+            return pendientes(estado, r.carpeta, nombres).length;
+        },
+        [estado, folders, items],
+    );
+
+    const agregar = () => {
+        try {
+            persistir(agregarRegla(estado, carpeta, destino));
+            setDestino("");
+            setError(null);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "No se pudo guardar la regla.");
+        }
+    };
+
+    const reglaDeLaCarpeta = carpeta ? reglaDe(estado, carpeta) : null;
+
+    return (
+        <>
+            <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 cursor-pointer gap-1.5 border-white/15 text-xs"
+                onClick={abrir}
+                title="Reglas «carpeta → formato»: lo que entre en una carpeta vigilada se convierte solo"
+            >
+                <FolderCog className="h-3.5 w-3.5" style={{ color: accent }} /> Carpetas vigiladas
+                {estado.reglas.length > 0 && (
+                    <span className="rounded-full bg-white/10 px-1.5 text-[10px] text-white/70">{estado.reglas.length}</span>
+                )}
+            </Button>
+
+            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setError(null); }}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <FolderCog className="h-4 w-4" style={{ color: accent }} /> Carpetas vigiladas
+                        </DialogTitle>
+                        <DialogDescription>
+                            Todo lo que entre en una carpeta vigilada se convierte al formato elegido. Se recuerdan las
+                            últimas {TOPE_HECHAS} conversiones para no repetir ni convertir en bucle una salida.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <select
+                                value={carpeta}
+                                onChange={(e) => setCarpeta(e.target.value)}
+                                className="h-9 min-w-0 flex-1 cursor-pointer rounded-xl border border-white/10 bg-black/20 px-2.5 text-xs text-white/85 outline-none"
+                                aria-label="Carpeta a vigilar"
+                            >
+                                <option value="">{carpetas.length ? "Elige una carpeta…" : "Aún no hay carpetas"}</option>
+                                {carpetas.map((c) => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
+                            <Input
+                                value={destino}
+                                onChange={(e) => setDestino(e.target.value)}
+                                placeholder="jpg"
+                                aria-label="Formato de destino"
+                                className="h-9 w-full rounded-xl border-white/10 bg-black/20 text-xs sm:w-24"
+                            />
+                            <Button
+                                type="button"
+                                size="sm"
+                                className="h-9 cursor-pointer gap-1.5"
+                                onClick={agregar}
+                                disabled={!carpeta || !destino.trim()}
+                            >
+                                <Plus className="h-3.5 w-3.5" /> Vigilar
+                            </Button>
+                        </div>
+
+                        {reglaDeLaCarpeta && (
+                            <p className="text-[11px] text-white/50">
+                                «{reglaDeLaCarpeta.carpeta}» ya está vigilada → {reglaDeLaCarpeta.destino.toUpperCase()}
+                                {reglaDeLaCarpeta.activa ? "" : " (pausada)"}. Guardar sustituye la regla.
+                            </p>
+                        )}
+                        {error && <p className="text-xs text-rose-300">{error}</p>}
+                        {carpetas.length === 0 && (
+                            <p className="py-4 text-center text-xs text-muted-foreground">Crea una carpeta en la Biblioteca para poder vigilarla.</p>
+                        )}
+
+                        {estado.reglas.length > 0 && (
+                            <ul className="space-y-1.5">
+                                {estado.reglas.map((r) => {
+                                    const n = pendientesDe(r);
+                                    return (
+                                        <li key={r.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 text-xs">
+                                            <label className="flex min-w-0 cursor-pointer items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={r.activa}
+                                                    onChange={() => persistir(alternarRegla(estado, r.id, !r.activa))}
+                                                    className="cursor-pointer"
+                                                    aria-label={`${r.activa ? "Pausar" : "Activar"} la vigilancia de ${r.carpeta}`}
+                                                />
+                                                <span className="truncate font-medium text-white/90">{r.carpeta}</span>
+                                                <span className="shrink-0 text-white/50">→ {r.destino.toUpperCase()}</span>
+                                            </label>
+                                            <span className="text-white/45">
+                                                {r.activa ? (n ? `${n} pendiente${n === 1 ? "" : "s"}` : "al día") : "pausada"}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => persistir(quitarRegla(estado, r.id))}
+                                                className="ml-auto cursor-pointer text-white/40 hover:text-rose-300"
+                                                aria-label={`Dejar de vigilar ${r.carpeta}`}
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
+                    </div>
+
+                    <DialogFooter>
+                        <Button type="button" variant="outline" className="cursor-pointer" onClick={() => setOpen(false)}>
+                            Cerrar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
 }
 
 /* ───────────────────────── Panel principal ───────────────────────── */
@@ -239,6 +466,7 @@ export function EntityLibraryPanel({
                         </Button>
                     )}
                     <SmartOrganizeButton libraryRef={entityRef} accent={accent} />
+                    <VigiladasButton libraryRef={entityRef} accent={accent} />
                     <SaveToBookmarks libraryRef={entityRef} label="Guardar enlace…" />
                 </div>
             </div>

@@ -168,6 +168,7 @@ export function pendientes(e: EstadoVigiladas, carpeta: string, nombres: string[
     const hechasRegla = new Set(e.hechas.filter((h) => h.regla === r.id).map((h) => h.salida.toLowerCase()));
     const out: Pendiente[] = [];
     const vistos = new Set<string>();
+    const salidas = new Set<string>();
     for (const n of limpios) {
         const nombre = n.split(/[\\/]/).pop() ?? "";
         if (vistos.has(nombre.toLowerCase())) continue;
@@ -176,6 +177,10 @@ export function pendientes(e: EstadoVigiladas, carpeta: string, nombres: string[
         if (salida.toLowerCase() === nombre.toLowerCase()) continue;
         if (estaEnCarpeta(limpios, salida)) continue;
         if (hechasRegla.has(salida.toLowerCase())) continue;
+        // Dos orígenes con distinta extensión y la misma base (a.heic y a.jpeg
+        // → a.jpg) chocarían en la misma salida: se convierte solo el primero.
+        if (salidas.has(salida.toLowerCase())) continue;
+        salidas.add(salida.toLowerCase());
         out.push({ regla: r.id, origen: nombre, destino: r.destino, salida });
     }
     return out;

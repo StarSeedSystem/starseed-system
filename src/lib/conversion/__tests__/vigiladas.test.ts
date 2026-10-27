@@ -117,6 +117,14 @@ describe("pendientes / marcarHechas (sin repetir, sin bucles)", () => {
         expect(pendientes(e, "Fotos", ["a.heic", "a.heic"])).toHaveLength(1);
     });
 
+    it("dos orígenes con la misma base no se pisan en la salida", () => {
+        const e = agregarRegla(estadoInicial(), "Fotos", "jpg", 1);
+        expect(pendientes(e, "Fotos", ["a.heic", "a.jpeg", "b.heic"])).toEqual([
+            { regla: "fotos", origen: "a.heic", destino: "jpg", salida: "a.jpg" },
+            { regla: "fotos", origen: "b.heic", destino: "jpg", salida: "b.jpg" },
+        ]);
+    });
+
     it("nunca toca lo que ya está en el formato destino (el resultado de la conversión)", () => {
         const e = agregarRegla(estadoInicial(), "Fotos", "jpg", 1);
         expect(pendientes(e, "Fotos", ["X.JPG", "y.jpeg"])).toEqual([
