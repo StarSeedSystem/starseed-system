@@ -249,4 +249,67 @@ export function elegirCandidatos(params: {
   return candidatos;
 }
 
+export interface PuenteEscalera {
+  candidaturas: Array<{
+    source: { id: string; privacy: string };
+    score: number;
+  }>;
+  papelRuta: string;
+  opciones: {
+    personaAllowsPaid: boolean | null;
+  };
+}
+
+/**
+ * Aplica la escalera de candidatos y devuelve el puente con candidaturas ordenadas,
+ * papel de ruta y opciones de pago.
+ */
+export function aplicarEscalera(params: {
+  tarea: Tarea;
+  candidatos: Candidato[];
+  catalogo: OpcionCatalogo[];
+  preferencias: Preferencias;
+}): PuenteEscalera {
+  const { tarea, candidatos, catalogo, preferencias } = params;
+
+  const candidatosFiltrados = candidatos.filter(c => !preferencias.prohibidos.includes(c.candidatoId));
+
+  const candidaturas = candidatosFiltrados.map((c, index) => {
+    const opcion = catalogo.find(o => o.id === c.candidatoId);
+    const score = 100 - index * 10 - (c.peldano - 1) * 5;
+    return {
+      source: {
+        id: c.candidatoId,
+        privacy: opcion?.privacidad ?? "desconocida",
+      },
+      score: Math.max(score, 1),
+    };
+  });
+
+  const papelRuta = papelRutaDe(tarea.papel);
+  const personaAllowsPaid = preferencias.permitirPago ? true : null;
+
+  return {
+    candidaturas,
+    papelRuta,
+    opciones: { personaAllowsPaid },
+  };
+}
+
+/**
+ * Mapea el papel de la tarea al papel de ruta para la cadena de relevo.
+ * revisor → revisor, chat → director, visión → director, otros → escritor.
+ */
+export function papelRutaDe(papel: Papel): string {
+  switch (papel) {
+    case "revisor":
+      return "revisor";
+    case "chat":
+    case "visión":
+      return "director";
+    default:
+      return "escritor";
+  }
+}
+
 export type { Tarea, OfertaContexto, Preferencias, Candidato };
