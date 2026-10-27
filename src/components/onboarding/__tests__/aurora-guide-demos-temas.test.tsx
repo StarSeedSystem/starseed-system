@@ -35,21 +35,37 @@ describe("guía · StepDemo monta la demostración de cada tema del tour (GUI102
   }
 
   it("la lista de claves cubiertas coincide con TODOS_LOS_TEMAS de la guía", () => {
+<<<<<<< HEAD
     expect(new Set(Object.keys(ETIQUETA_POR_CLAVE))).toEqual(
+=======
+    expect(new Set(ETIQUETA_POR_CLAVE.keys())).toEqual(
+>>>>>>> 3d5a4962e (salvavidas · GUI1021F: trabajo del agente antes de las puertas (tsc / vitest))
       new Set(TODOS_LOS_TEMAS.map((t) => t.key)),
     );
   });
 
+<<<<<<< HEAD
   it("la clave vieja `cerebros` monta la demo nueva de neuronas y cerebro", () => {
+=======
+  it("las claves viejas del tour (cerebros, libreria) montan las demos nuevas", () => {
+>>>>>>> 3d5a4962e (salvavidas · GUI1021F: trabajo del agente antes de las puertas (tsc / vitest))
     const { container: conCerebros } = monta("cerebros", true);
     expect(
       screen.getByRole("img", { name: ETIQUETA_POR_CLAVE["neuronas-cerebro"] }),
     ).toBe(conCerebros.querySelector("svg"));
+<<<<<<< HEAD
   });
 
   it("la clave `libreria` se retiró (§6.1 de la SOP): no muestra la demo suelta", () => {
     const { container: conLibreria } = monta("libreria", true);
     expect(conLibreria.querySelector("svg")).toBeNull();
+=======
+    cleanup();
+    const { container: conLibreria } = monta("libreria", true);
+    expect(
+      screen.getByRole("img", { name: ETIQUETA_POR_CLAVE["libreria-biblioteca"] }),
+    ).toBe(conLibreria.querySelector("svg"));
+>>>>>>> 3d5a4962e (salvavidas · GUI1021F: trabajo del agente antes de las puertas (tsc / vitest))
   });
 
   it("una clave sin demostración no renderiza nada (la guía sigue)", () => {

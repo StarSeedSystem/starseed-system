@@ -479,21 +479,22 @@ export function StepDemo({ stepKey, accent, reduce }: DemoProps) {
       return <AstrauraDemo accent={accent} reduce={reduce} />;
     case "perfil":
       return <PerfilDemo accent={accent} reduce={reduce} />;
-    case "cerebros": // clave vieja del tour: el paso y la tarjeta pasaron a «neuronas-cerebro» (/cerebro)
-    case "neuronas-cerebro":
-      return <NeuronasCerebroDemo accent={accent} reduce={reduce} />;
     case "protomolecula":
       return <ProtomoleculaDemo accent={accent} reduce={reduce} />;
     case "malla":
       return <MallaDemo accent={accent} reduce={reduce} />;
     case "capas-conciencia":
       return <CapasConcienciaDemo accent={accent} reduce={reduce} />;
+    case "cerebros": // clave vieja del tour → demo nueva de neuronas y cerebro
+    case "neuronas-cerebro":
+      return <NeuronasCerebroDemo accent={accent} reduce={reduce} />;
     case "pilar-politica":
       return <PoliticaDemo accent={accent} reduce={reduce} />;
     case "pilar-educacion":
       return <EducacionDemo accent={accent} reduce={reduce} />;
     case "pilar-cultura":
       return <CulturaDemo accent={accent} reduce={reduce} />;
+    case "libreria": // clave vieja del tour → demo nueva de Librería y Biblioteca
     case "libreria-biblioteca":
       return <LibreriaBibliotecaDemo accent={accent} reduce={reduce} />;
     case "genesis":
