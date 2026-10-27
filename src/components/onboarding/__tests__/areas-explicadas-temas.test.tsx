@@ -20,6 +20,12 @@ import {
 import { TODOS_LOS_TEMAS } from "@/lib/onboarding/guia-temas-red";
 import { AREAS } from "../onboarding-wizard";
 
+// El Dialog del OS lee el tema activo desde el contexto de apariencia; en
+// pruebas se da el modo primario (patrón de bienvenida-se-cierra.test.tsx).
+vi.mock("@/context/appearance-context", () => ({
+  useAppearance: () => ({ config: { themeStore: { activeMode: "primary" } } }),
+}));
+
 afterEach(() => cleanup());
 
 const area = (path: string, label: string, tip = "tip de prueba"): AreaTip => ({
@@ -111,10 +117,10 @@ describe("Guía de la red · conservado del rescate RTIMN1021I", () => {
     render(<AreasExplicadas areas={[area("/ruta-sin-ficha", "Ruta rara", tip)]} onIr={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Ruta rara/ }));
     const dialogo = screen.getByRole("dialog");
-    expect(within(dialogo).getByText(tip)).toBeInTheDocument();
+    expect(within(dialogo).getByText(tip)).toBeTruthy();
     expect(
       within(dialogo).getByText("Abre Ruta rara y mira a tu alrededor sin miedo."),
-    ).toBeInTheDocument();
+    ).toBeTruthy();
   });
 
   it("«Ir a» navega a la ruta de la tarjeta abierta", () => {
