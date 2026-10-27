@@ -138,7 +138,7 @@ export function EventoToolkit({
               <div className="space-y-2">
                 {data.speakers.map((s) => (
                   <PersonRow
-                    key={s.name}
+                    key={`sp-${s.role ?? "sin-rol"}-${s.name}`}
                     name={s.name}
                     role={s.role}
                     accent={ac}

@@ -296,7 +296,7 @@ export function RosterStrip({
             <div className="flex -space-x-2.5">
                 {Array.from({ length: shown }).map((_, i) => (
                     <span
-                        key={i}
+key={`roster-${seed}-${i}`}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-[10px] font-semibold"
                         style={{
                             background: `hsl(${(i * 67 + seed.length * 13) % 360} 60% 45%)`,
@@ -425,6 +425,7 @@ export function LinkCard({
 
 // ── TimelineItem / Timeline: agenda, actas, hitos ──
 export interface TimelineEntry {
+    id?: string;
     time?: string;
     title: string;
     detail?: string;
@@ -437,7 +438,7 @@ export function Timeline({ entries, accent }: { entries: TimelineEntry[]; accent
                 const color =
                     e.status === "done" ? "#34d399" : e.status === "active" ? accent || GOLD : "#64748b";
                 return (
-                    <li key={i} className="relative">
+                    <li key={e.id ?? `tl-${e.title}-${i}`} className="relative">
                         <span
                             className="absolute -left-[26px] top-1 h-3 w-3 rounded-full border-2 border-background"
                             style={{ background: color }}

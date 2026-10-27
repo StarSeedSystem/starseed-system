@@ -457,7 +457,7 @@ export function EntidadFederativaToolkit({
             <div className="space-y-2">
               {data.delegates.map((d, i) => (
                 <PersonRow
-                  key={d.name}
+                  key={`del-${d.domain}-${d.name}`}
                   name={d.name}
                   role={d.domain}
                   badge={`${d.delegatedVotes.toLocaleString("es-ES")} votos`}
