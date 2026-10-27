@@ -576,7 +576,9 @@ CARPETA_COMPROBAR = os.path.join(os.path.dirname(RAIZ), "starseed-wt", "_traer")
 ORDEN_TSC = ["npx", "tsc", "--noEmit", "--skipLibCheck"]
 MEMORIA_TSC = "--max-old-space-size=3072"
 _SENALES_MEDIO = ("heap out of memory", "FATAL ERROR", "node::LoadEnvironment", "se pasó de", "Killed",
-                  "ENOMEM", "another git process", "index.lock", "la Mac no tiene memoria")
+                  "ENOMEM", "another git process", "index.lock", "la Mac no tiene memoria",
+                  # (CAP1026N) comprobándose en GitHub: el veredicto llega en la próxima pasada.
+                  "comprobándose en GitHub", "GitHub: no pude")
 
 
 def presion_memoria():
@@ -666,6 +668,24 @@ def _puertas(base_sha, shas, cambiados, cwd=None):
     # (2026-10-13) Al A1 se le manda la carpeta `cwd` (HEAD ya cherry-pickeado): lo empaqueta
     # sobre el main de la Mac que el A1 ya tiene y lo comprueba en un clon aparte.
     if archivos_ts(cambiados):
+        # (2026-10-26, CAP1026N) Primero GitHub: un runner de 16 GB pasa el tsc en minutos; la Mac (8 GB) y el A1
+        # (con su enjambre y su guardián) ya no podían y main estuvo 7 h quieto con 25 tareas de la nube esperando.
+        # Es asíncrono: «comprobándose en GitHub» es un fallo del medio (próxima pasada) y entonces no se gasta
+        # memoria de nadie más; si GitHub no está (None) o no pudo subir la rama, se sigue como antes.
+        try:
+            if DIRECTORIO not in sys.path:
+                sys.path.insert(0, DIRECTORIO)
+            import comprobar_en_github
+
+            gh = comprobar_en_github.comprobar(base_sha, shas, cambiados, cwd=cwd)
+        except Exception as e:  # noqa: BLE001
+            gh = (False, "GitHub: no pude comprobar (%s)" % type(e).__name__, True)
+        if gh is not None:
+            ok, detalle, del_medio = gh
+            if not del_medio:
+                return ok, detalle
+            if "comprobándose en GitHub" in detalle:
+                return False, detalle
         motivo_a1 = ""
         try:
             if DIRECTORIO not in sys.path:
@@ -745,7 +765,7 @@ def _traer(fila, espera_integrar_s=60):
         cambiados_list = [c for c in cambiados.splitlines() if c.strip()]
         ok, detalle = _puertas(base_sha=orig, shas=shas, cambiados=cambiados_list, cwd=wt)
         if not ok:
-            donde = "no pasa " if detalle.startswith("en el A1") else "en la Mac no pasa: "
+            donde = "no pasa " if detalle.startswith(("en el A1", "en GitHub", "comprobándose en GitHub")) else "en la Mac no pasa: "
             return False, donde + detalle, es_fallo_del_medio(detalle)
         propios = [c for c in cambiados.splitlines() if c.strip()]
         _, nuevo = _git_en(wt, ["rev-parse", "HEAD"])

@@ -1,0 +1,97 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Comprobar en la nube lo que traer_nube quiere llevar a main (CAP1026N, 2026-10-26)
+# ----------------------------------------------------------------------------
+# La Mac (8 GB) y el A1 (12 GB con su enjambre, su guardián y BitNet) ya no pasan un tsc completo: el 26-10 main
+# no avanzó en 7 h con 25 tareas de la nube esperando «la Mac no tiene memoria» / «tsc no terminó por la máquina».
+# `scripts/puente/comprobar_en_github.py` empuja aquí `comprobar/<base>/<árbol>` (main de la Mac + los commits de
+# la tarea) y este job pasa lo mismo que la Mac: tsc con 8 GB de heap, vitest related y las pruebas del puente.
+# Se dispara por PUSH (corre la versión de este archivo que va en el propio commit, no hace falta que esté en el
+# main de GitHub). Sin secretos: no los necesita. main no se toca; la rama la borra quien la creó al leer el
+# veredicto. Vercel no la previsualiza (vercel.json: "comprobar/**": false).
+# ════════════════════════════════════════════════════════════════════════════
+name: comprobar-nube
+
+on:
+  push:
+    branches: ["comprobar/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: comprobar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  puertas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        timeout-minutes: 6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        timeout-minutes: 6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Qué cambia
+        id: cambia
+        run: |
+          # La base (el main de la Mac sobre el que se cherry-pickeó) va en el nombre de la rama.
+          BASE="$(echo "$GITHUB_REF_NAME" | cut -d/ -f2)"
+          git cat-file -e "${BASE}^{commit}" || { echo "::error::no está la base $BASE en la rama"; exit 1; }
+          git diff --name-only "$BASE" HEAD > "$RUNNER_TEMP/cambiados.txt"
+          echo "cambiados:"; head -60 "$RUNNER_TEMP/cambiados.txt"
+          python3 - "$RUNNER_TEMP/cambiados.txt" >> "$GITHUB_OUTPUT" <<'PY'
+          import os, re, sys
+          c = [l.strip() for l in open(sys.argv[1], encoding="utf-8") if l.strip()]
+          ts = any(re.search(r"\.(ts|tsx|mts|cts)$", x) or os.path.basename(x) in ("tsconfig.json", "package.json",
+                   "package-lock.json") for x in c)
+          codigo = [x for x in c if x.startswith("src/") and re.search(r"\.(ts|tsx)$", x) and os.path.exists(x)]
+          py = []
+          for x in c:
+              if x.startswith("scripts/") and x.endswith(".py"):
+                  d, n = os.path.split(x)
+                  cand = x if n.startswith("test_") else os.path.join(d, "test_" + n)
+                  if cand not in py and os.path.exists(cand):
+                      py.append(cand)
+          print("ts=%s" % ("1" if ts else "0"))
+          print("codigo=%s" % " ".join(codigo))
+          print("py=%s" % " ".join(py))
+          PY
+
+      - name: Dependencias
+        if: steps.cambia.outputs.ts == '1' || steps.cambia.outputs.codigo != ''
+        timeout-minutes: 12
+        run: npm ci --include=dev --no-audit --no-fund --loglevel=error
+
+      - name: tsc
+        if: steps.cambia.outputs.ts == '1'
+        timeout-minutes: 25
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: npx tsc --noEmit --skipLibCheck
+
+      - name: pruebas TS
+        if: steps.cambia.outputs.codigo != ''
+        timeout-minutes: 20
+        env:
+          CODIGO: ${{ steps.cambia.outputs.codigo }}
+        run: npx vitest related --run --maxWorkers=2 --minWorkers=1 --passWithNoTests $CODIGO
+
+      - name: pruebas del puente
+        if: steps.cambia.outputs.py != ''
+        timeout-minutes: 15
+        env:
+          PY: ${{ steps.cambia.outputs.py }}
+        run: |
+          python3 -m pip install -q pytest
+          set +e
+          python3 -m pytest -q -p no:cacheprovider $PY
+          rc=$?
+          # 5 = no encontró pruebas (como en la Mac)
+          if [ "$rc" != 0 ] && [ "$rc" != 5 ]; then exit "$rc"; fi
