@@ -45,6 +45,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { claveDeHerramienta, claveDeMolecula, atributosClave } from "@/lib/variaciones/claves-protomolecula";
 import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
+import { BloquePizarraProtomolecula, aristasDePizarra, type AristaPizarra } from "@/components/protomolecula/bloque-pizarra";
 import { usePrompt } from "@/components/ui/confirm-dialog";
 import {
   Plus,
@@ -163,6 +164,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutGrid,
   Globe,
   Image: ImageIcon,
+  Sparkles,
 };
 
 function KindIcon({ kind, className }: { kind: BlockKind; className?: string }) {
@@ -751,6 +753,8 @@ export default function CanvasBoard({
 
   // ---- conexiones (aristas) -----------------------------------------------
   const edges = useMemo(() => getEdges(canvas), [canvas]);
+  // Aristas ya traducidas a ventanas con nombre (y formatos, si los declaran).
+  const aristasPizarra = useMemo(() => aristasDePizarra(edges, canvas.blocks), [edges, canvas.blocks]);
 
   // Click sobre un bloque en modo conectar: primer click marca origen, segundo
   // crea la arista.
@@ -1798,6 +1802,7 @@ export default function CanvasBoard({
               connectMode={connectMode}
               connectActive={connectFrom === b.id}
               memoryView={isMemoryView}
+              aristas={aristasPizarra}
               onSelect={() => selectBlock(b.id)}
               onConnectClick={() => onBlockConnectClick(b.id)}
               onEditToggle={() => {
@@ -2001,6 +2006,7 @@ function BlockCard({
   connectMode,
   connectActive,
   memoryView,
+  aristas,
   onSelect,
   onConnectClick,
   onEditToggle,
@@ -2020,6 +2026,7 @@ function BlockCard({
   connectMode: boolean;
   connectActive: boolean;
   memoryView: boolean;
+  aristas: AristaPizarra[];
   onSelect: () => void;
   onConnectClick: () => void;
   onEditToggle: () => void;
@@ -2137,10 +2144,10 @@ function BlockCard({
 
       {/* Cuerpo */}
       <div className="flex-1 min-h-0 overflow-auto p-2 text-xs text-white/80">
-        {editing ? (
+        {editing && block.kind !== "protomolecula" ? (
           <BlockEditor block={block} vaults={vaults} memories={memories} onData={onData} onPickFile={onPickFile} />
         ) : (
-          <BlockPreview block={block} />
+          <BlockPreview block={block} aristas={aristas} />
         )}
       </div>
 
@@ -2162,7 +2169,7 @@ function BlockCard({
 }
 
 // ---- Vista (no edición) ----------------------------------------------------
-function BlockPreview({ block }: { block: CanvasBlock }) {
+function BlockPreview({ block, aristas }: { block: CanvasBlock; aristas: AristaPizarra[] }) {
   const d = block.data || {};
   switch (block.kind) {
     case "text":
@@ -2233,6 +2240,20 @@ function BlockPreview({ block }: { block: CanvasBlock }) {
       ) : (
         <Empty label={`Indica el nombre del ${block.kind === "app" ? "app/programa" : "widget"}.`} />
       );
+    // La Protomolécula es una ventana más del motor «starseed». El motor
+    // «tldraw» queda FUERA de esta fase: no lee `canvas.blocks` ni este
+    // selector de tipos, así que este caso no lo altera; tenerla allí exigiría
+    // una forma propia del SDK y no se finge.
+    case "protomolecula": {
+      const moleculaId = typeof d.moleculaId === "string" ? d.moleculaId : "";
+      return (
+        <BloquePizarraProtomolecula
+          moleculaId={moleculaId}
+          aristasEntrantes={aristas.filter((a) => a.a.id === block.id)}
+          aristasSalientes={aristas.filter((a) => a.de.id === block.id)}
+        />
+      );
+    }
     default:
       return <Empty label="Sin contenido." />;
   }

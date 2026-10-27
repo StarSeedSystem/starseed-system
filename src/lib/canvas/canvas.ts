@@ -27,6 +27,10 @@ export type BlockKind =
   // Tarjeta de Previsualización (portada obligatoria) del Lienzo Universal.
   | "cover";
 
+// Datos del bloque `protomolecula`: la molécula vive en su almacén y el bloque
+// solo la cita. No se guardan átomos, valores ni copias aquí (Entidad Única).
+export type DatosProtomolecula = { moleculaId: string };
+
 export type CanvasBlock = {
   id: string;
   kind: BlockKind;
@@ -168,6 +172,16 @@ export const BLOCK_KINDS: BlockKindDef[] = [
     blurb: "Muestra una imagen por URL.",
     connect: "Pega la URL de la imagen.",
   },
+  {
+    // La molécula vive en su almacén: el bloque solo la CITA (Entidad Única).
+    // Sus datos son únicamente `{ moleculaId: string }`.
+    kind: "protomolecula",
+    category: "herramientas",
+    label: "Protomolécula",
+    icon: "Sparkles",
+    blurb: "Abre una Protomolécula dentro de la pizarra, con sus parámetros y dictado.",
+    connect: "Cita una molécula; las aristas del tablero son sus dependencias.",
+  },
 ];
 
 export function blockKindDef(kind: BlockKind): BlockKindDef | undefined {
@@ -194,9 +208,21 @@ export function defaultBlock(kind: BlockKind, index = 0): CanvasBlock {
     kind,
     x: 40 + (index % 5) * 36,
     y: 40 + (index % 5) * 36,
-    w: kind === "browser" || kind === "image" ? 360 : 280,
-    h: kind === "browser" ? 260 : kind === "text" ? 180 : 200,
-    data: {},
+    w:
+      kind === "protomolecula"
+        ? 420
+        : kind === "browser" || kind === "image"
+          ? 360
+          : 280,
+    h:
+      kind === "protomolecula"
+        ? 360
+        : kind === "browser"
+          ? 260
+          : kind === "text"
+            ? 180
+            : 200,
+    data: kind === "protomolecula" ? { moleculaId: "" } : {},
     title: def?.label,
   };
 }
