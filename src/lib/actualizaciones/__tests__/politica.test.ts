@@ -128,4 +128,24 @@ describe("sanearPolitica: nada roto llega al motor", () => {
     expect(sanearPolitica({ datos: { modo: "automatica-todas", requiereAprobacion: "sí" } }).datos)
       .toEqual({ modo: "automatica-todas" });
   });
+  it("sanear conserva lo válido de cada capa y entrega las capas en orden", () => {
+    const p = sanearPolitica({
+      interfaz: { modo: "automatica-todas" },
+      sw: { modo: "automatica-esta" },
+      servicios: { modo: "manual" },
+    });
+    expect(p.interfaz.modo).toBe("automatica-todas");
+    expect(p.sw.modo).toBe("automatica-esta");
+    expect(p.servicios.modo).toBe("manual");
+    expect(Object.keys(p)).toEqual(CAPAS_ORDEN);
+  });
+  it("sanear una entrada nula deja las seis capas en orden y en manual", () => {
+    const p = sanearPolitica(null);
+    expect(Object.keys(p)).toEqual(CAPAS_ORDEN);
+    for (const capa of CAPAS_ORDEN) expect(p[capa].modo).toBe("manual");
+  });
+  it("sanear conserva una ventana válida que cruza la medianoche", () => {
+    const modelos = sanearPolitica({ modelos: { modo: "programada", ventana: { desdeH: 22, hastaH: 4 } } }).modelos;
+    expect(modelos).toEqual({ modo: "programada", ventana: { desdeH: 22, hastaH: 4 } });
+  });
 });
