@@ -182,6 +182,7 @@ export function SocialCrosspost({
           </button>
         </div>
 
+        /* Multi-selección de canales: grupo de botones con estado aria-pressed. */
         {loading && channels.length === 0 ? (
           <p className="py-2 text-xs text-white/40">Leyendo tus canales…</p>
         ) : channels.length === 0 ? (
@@ -189,7 +190,11 @@ export function SocialCrosspost({
             Tu Postiz no tiene canales conectados todavía. Conéctalos en su panel y vuelve aquí.
           </p>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
+          <div
+            role="group"
+            aria-label="Canales donde publicar"
+            className="flex flex-wrap gap-1.5"
+          >
             {channels.map((c) => {
               const on = selected.has(c.id);
               return (
@@ -197,6 +202,7 @@ export function SocialCrosspost({
                   key={c.id}
                   type="button"
                   onClick={() => toggle(c.id)}
+                  aria-pressed={on}
                   className={cn(
                     "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
                     on
