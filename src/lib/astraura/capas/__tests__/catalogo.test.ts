@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   leerCatalogo,
   candidatosDe,
@@ -142,5 +144,33 @@ describe("profundidadNeedle", () => {
   it("sin presupuesto suficiente no hay reflejo local", () => {
     expect(profundidadNeedle(0)).toBe(0);
     expect(profundidadNeedle(7)).toBe(0);
+  });
+});
+
+describe("catálogo real · Ternary Bonsai 2 (2B/4B/9B) en el banco", () => {
+  const json: unknown = JSON.parse(readFileSync(join(process.cwd(), "config/capas-astraura.json"), "utf8"));
+  const capas = ((json as { capas: { id: string; estado: string; sha256: string; tamano_bytes: number }[] }).capas);
+  const ids = capas.map((c) => c.id);
+
+  it("las tres entradas existen y están en-banco", () => {
+    for (const id of ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"]) {
+      const e = capas.find((c) => c.id === id);
+      expect(e, `falta ${id}`).toBeDefined();
+      expect(e!.estado).toBe("en-banco");
+      expect(usable({ ...entradaBase, id, estado: "en-banco" })).toBe(false);
+    }
+  });
+
+  it("sus SHA son hex de 64 en minúsculas y el tamaño es positivo", () => {
+    for (const id of ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"]) {
+      const e = capas.find((c) => c.id === id)!;
+      expect(e.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(e.tamano_bytes).toBeGreaterThan(0);
+    }
+  });
+
+  it("el JSON sigue siendo válido y los ids siguen siendo únicos", () => {
+    expect(capas.length).toBeGreaterThan(0);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
