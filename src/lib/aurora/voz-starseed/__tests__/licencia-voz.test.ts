@@ -32,6 +32,25 @@ describe("licencias de voz · contexto", () => {
     }
   });
 
+  it("en personal, con la condición cumplida, suenan las tres clases", () => {
+    for (const motor of MOTORES_VOZ) {
+      const ficha = fichaLicencia(motor, "personal", true);
+      expect(ficha.suena, motor.id).toBe(true);
+      expect(ficha.motivo, motor.id).toBeNull();
+    }
+  });
+
+  it("fuera de lo personal y sin condición cumplida, solo suenan los libres", () => {
+    for (const contexto of NO_PERSONALES) {
+      for (const motor of MOTORES_VOZ) {
+        const ficha = fichaLicencia(motor, contexto);
+        expect(ficha.suena, `${contexto} · ${motor.id}`).toBe(
+          motor.claseLicencia === "libre",
+        );
+      }
+    }
+  });
+
   it("comercial se comporta igual que público, con la condición cumplida o no", () => {
     for (const motor of MOTORES_VOZ) {
       for (const cumplida of [false, true]) {

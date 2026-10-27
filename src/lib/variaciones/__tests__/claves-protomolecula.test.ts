@@ -41,6 +41,7 @@ describe("claveDeHerramienta", () => {
   it("devuelve null para un id vacío o no registrado", () => {
     expect(claveDeHerramienta("")).toBeNull();
     expect(claveDeHerramienta(" ")).toBeNull();
+    expect(claveDeHerramienta("   ")).toBeNull();
     expect(claveDeHerramienta("PhotoCraft")).toBeNull();
     expect(claveDeHerramienta("fotografia-mental")).toBeNull();
   });
@@ -54,6 +55,7 @@ describe("claveDeAtomo", () => {
   it("devuelve null para un id vacío o no registrado", () => {
     expect(claveDeAtomo("")).toBeNull();
     expect(claveDeAtomo(" ")).toBeNull();
+    expect(claveDeAtomo("   ")).toBeNull();
     expect(claveDeAtomo("video-dream")).toBeNull();
   });
 
@@ -70,6 +72,7 @@ describe("claveDeMolecula", () => {
   it("devuelve null para un id vacío o sin pieza registrada", () => {
     expect(claveDeMolecula("")).toBeNull();
     expect(claveDeMolecula(" ")).toBeNull();
+    expect(claveDeMolecula("   ")).toBeNull();
     expect(claveDeMolecula("molecula-inventada")).toBeNull();
   });
 
@@ -122,6 +125,9 @@ describe("atributosClave", () => {
     });
     expect(atributosClave("apariencia.radio:tema-oscuro")).toEqual({
       "data-ss-elemento": "apariencia.radio:tema-oscuro",
+    });
+    expect(atributosClave("widget:clima#hora")).toEqual({
+      "data-ss-elemento": "widget:clima#hora",
     });
   });
 
