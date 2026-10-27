@@ -14,9 +14,10 @@ import { obtenerAtomo, registrarAtomo } from "../registro-atomos";
 import { SINTETIZADOR } from "./sintetizador";
 import { DOBLAJE } from "./doblaje";
 import { TEXTURAS } from "./texturas-webgl";
+import { VIDEO_HTML } from "./video-html";
 
 /** Los átomos que el OS trae de serie. Las tareas siguientes (F1E) añaden los suyos aquí. */
-export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS];
+export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, VIDEO_HTML];
 
 /**
  * Registra los átomos propios que falten en el registro. Es idempotente: llamarla dos
