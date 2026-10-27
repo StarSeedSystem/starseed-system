@@ -15,6 +15,7 @@ import { puertosDelOs, contextoDeMiCuenta } from "@/lib/genesis/puertos-os";
 import type { Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
 
@@ -56,6 +57,8 @@ export function MiGenesis() {
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    // Encargo cuyo panel ProtoGenesis está abierto (uno a la vez: la sección se queda corta).
+    const [abierto, setAbierto] = useState<string | null>(null);
 
     useEffect(() => {
         const almacen = almacenNavegador();
@@ -102,6 +105,9 @@ export function MiGenesis() {
             </section>
             <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
                 <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
+                <p className="text-[11px] text-white/55">
+                    La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.
+                </p>
                 {encargos === null ? (
                     <p className="text-[11px] text-white/50">Cargando encargos…</p>
                 ) : encargos.length === 0 ? (
@@ -112,26 +118,50 @@ export function MiGenesis() {
                     <ul className="space-y-1">
                     {encargos.map((registro) => {
                         const decision = decisionPara(registro);
+                        const id = registro.encargo.id;
+                        const estaAbierto = abierto === id;
                         return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
-                                <div className="flex-1">
-                                    <span className="block truncate">{registro.encargo.intencion}</span>
-                                    {registro.plan ? (
-                                        <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
-                                    ) : (
-                                        <span className="text-[10px] text-white/45">Sin plan</span>
-                                    )}
-                                    {/* La decisión del resultado (§2.7 del contrato): quién acepta y por qué. */}
-                                    <span className="block truncate text-[10px] text-emerald-200/70">{decision.motivo}</span>
-                                    {decision.modo === "proponer-metagenesis" && decision.borrador ? (
-                                        <span className="block truncate text-[10px] text-amber-200/80">
-                                            Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
-                                        </span>
-                                    ) : null}
+                            <li key={id} className="rounded-lg border border-white/10 bg-black/20 text-left text-xs text-white/80">
+                                <div className="flex items-center gap-2 px-2.5 py-1.5">
+                                    <div className="min-w-0 flex-1">
+                                        <span className="block truncate">{registro.encargo.intencion}</span>
+                                        {registro.plan ? (
+                                            <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
+                                        ) : (
+                                            <span className="text-[10px] text-white/45">Sin plan</span>
+                                        )}
+                                        {/* La decisión del resultado (§2.7 del contrato): quién acepta y por qué. */}
+                                        <span className="block truncate text-[10px] text-emerald-200/70">{decision.motivo}</span>
+                                        {decision.modo === "proponer-metagenesis" && decision.borrador ? (
+                                            <span className="block truncate text-[10px] text-amber-200/80">
+                                                Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                    <span className="text-[10px] text-white/45">
+                                        {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        aria-expanded={estaAbierto}
+                                        onClick={() => setAbierto(estaAbierto ? null : id)}
+                                        className="shrink-0 cursor-pointer rounded-lg border border-white/15 px-2 py-1 text-[10px] text-emerald-200 transition-colors duration-200 hover:bg-white/10"
+                                    >
+                                        {estaAbierto ? "Cerrar ProtoGenesis" : "Abrir ProtoGenesis"}
+                                    </button>
                                 </div>
-                                <span className="text-[10px] text-white/45">
-                                    {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
-                                </span>
+                                {estaAbierto ? (
+                                    <div className="border-t border-white/10 p-2">
+                                        <PanelProtoGenesis
+                                            moleculaId={registro.encargo.moleculaId}
+                                            ambito="personal"
+                                            esDueno
+                                            plan={registro.plan}
+                                            estados={registro.estados}
+                                            asignaciones={registro.asignaciones}
+                                        />
+                                    </div>
+                                ) : null}
                             </li>
                         );
                     })}
