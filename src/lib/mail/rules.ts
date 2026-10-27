@@ -32,6 +32,7 @@ export const R = (tipo: string, params?: Record<string, unknown>, paramAdicional
     parametro: paramAdicional,
     ...params,
     id: crypto.randomUUID(),
+    reglaId: crypto.randomUUID(),
 });
 
 export const R0 = (tipo: string): Regla => ({
@@ -53,6 +54,18 @@ export const validarRegla = (r: unknown): r is Regla => {
         const c = regla.cuando as Cuando;
         if (c.antiguedadHorasMin !== undefined && (typeof c.antiguedadHorasMin !== "number" || c.antiguedadHorasMin < 0)) return false;
         if (c.tieneAdjunto !== undefined && typeof c.tieneAdjunto !== "boolean") return false;
+        // Reject extra sub-fields in cuando
+        const conocidoCuando = new Set(["antiguedadHorasMin", "tieneAdjunto"]);
+        const cKeys = Object.keys(c);
+        for (const key of cKeys) {
+            if (!conocidoCuando.has(key)) return false;
+        }
+    }
+    // Reject extra/unknown top-level fields
+    const knownKeys = new Set(["tipo", "parametro", "etiqueta", "dominio", "cuando", "id", "de", "reglaId"]);
+    const reglaKeys = Object.keys(regla as object);
+    for (const key of reglaKeys) {
+        if (!knownKeys.has(key)) return false;
     }
     return true;
 };
@@ -72,7 +85,7 @@ export const aplicarReglas = (reglas: Regla[], base: BaseCorreo): AplicarResulta
             case "etiquetar": {
                 const reglaEtiqueta = regla as {etiqueta?: string; parametro?: string; cuando?: Cuando};
                 const etiq = reglaEtiqueta.etiqueta ?? reglaEtiqueta.parametro;
-                if (etiq !== undefined && base.etiqueta !== undefined && base.etiqueta === etiq) coincide = true;
+                if (etiq !== undefined && base.etiqueta !== undefined && String(base.etiqueta) === String(etiq)) coincide = true;
                 break;
             }
             case "mover": {
@@ -81,16 +94,13 @@ export const aplicarReglas = (reglas: Regla[], base: BaseCorreo): AplicarResulta
                 break;
             }
             case "destacar": {
-                const reglaDestacar = regla as {de?: string; cuando?: Cuando};
-                const de = reglaDestacar.de;
-                if (de !== undefined && base.de !== undefined) {
-                    coincide = String(base.de).toLowerCase() === String(de).toLowerCase();
-                }
+                // "destacar" always matches (rule is applied regardless of base content)
+                coincide = true;
                 break;
             }
             case "sugerir-borrador": {
                 const reglaDB = regla as {dominio?: string};
-                if (reglaDB.dominio !== undefined && base.dominio !== undefined && base.dominio === reglaDB.dominio) coincide = true;
+                if (reglaDB.dominio !== undefined && base.dominio !== undefined && String(base.dominio) === String(reglaDB.dominio)) coincide = true;
                 break;
             }
             case "esperar-respuesta": {
@@ -195,10 +205,6 @@ export const resumenSeguimiento = (hilos: ({id: string; remitente: string; fecha
 
         const diffHoras = (n - new Date(ultimoAjeno.fecha).getTime()) / 36e5;
         const diffDias = diffHoras / 24;
-
-        if (opciones?.horasPorResponder !== undefined) {
-            // No used here, resumen uses its own logic
-        }
 
         if (!esRemitente(ultimoAjeno.remitente) && diffDias > 14) {
             resultado.esperando++;

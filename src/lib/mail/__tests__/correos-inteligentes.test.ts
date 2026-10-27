@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { R, R0, validarRegla, aplicarReglas, M, clasificarHilo, resumenSeguimiento } from "../rules";
 
 const base: Record<string, unknown> = {
-    etiqueta: "",
+    etiqueta: "t",
     dominio: "",
     tieneAdjunto: false,
     de: "",
