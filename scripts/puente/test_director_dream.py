@@ -7,6 +7,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import dream_a_cola as D
 import director_dream as DD
 
 #: La forma real de una propuesta, tal como la devuelve `dream_a_cola.puntos`.
@@ -41,6 +42,33 @@ class TestIdsUnicosPorDia(unittest.TestCase):
         # Los DR1..DR3 del día 15 siguen en progreso.json: ninguno puede repetirse.
         nuevos = {DD.tarea_de(P, "2026-09-17", i)["id"] for i in range(3)}
         self.assertFalse(nuevos & {"DR1", "DR2", "DR3"})
+
+
+class TestLaOlaYElResumen(unittest.TestCase):
+    """Rescate de la rama nube/40141133642 (ESP1011Bb), adaptado a main.
+
+    La rama renombró «Dream» a «Imaginación»; main siguió con «Dream», así que aquí
+    se prueban los mismos comportamientos con las palabras de hoy: la ola lleva fecha
+    y razón de ser, y el resumen del canal cuenta qué se encargó y de dónde salió.
+    """
+
+    def test_la_ola_lleva_el_dia_y_su_razon(self):
+        self.assertEqual(
+            DD.tarea_de(P, "2026-09-17", 0)["ola"],
+            "Ola Dream 2026-09-17 · lo que el análisis nocturno encontró",
+        )
+
+    def test_el_resumen_cuenta_encargos_y_leidas(self):
+        t = D.resumen([{"titulo": "Algo que hacer"}], total_leidas=3)
+        self.assertTrue(t.startswith("Dream leído: encargo 1"))
+        self.assertIn("3 leídas", t)
+        self.assertIn("Algo que hacer", t)
+
+    def test_el_resumen_sin_nada_tambien_lo_dice(self):
+        self.assertEqual(
+            D.resumen([]),
+            "Dream leído: nada accionable nuevo que encargar.",
+        )
 
 
 class TestFormaDelEncargo(unittest.TestCase):
