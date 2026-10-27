@@ -19,7 +19,7 @@ import {
   PROTO_ORB_FAB_EVENT,
   PROTO_ORB_FAB_KEY,
   PROTO_ORB_POS_KEY,
-  guardarActivada,
+  fijarOrbeActivada,
   guardarPosicion,
   leerActivada,
   leerPosicion,
@@ -53,15 +53,6 @@ const AURORA_SPEAK_EVENT = "aurora:speak";
 
 function viewport() {
   return { ancho: window.innerWidth, alto: window.innerHeight };
-}
-
-/** Avisa al resto del OS (botón del lienzo de creación, otras pestañas) de que la orbe cambió. */
-function emitirActivada(activada: boolean) {
-  try {
-    window.dispatchEvent(new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: { activada } }));
-  } catch {
-    /* defensivo */
-  }
 }
 
 export function OrbeProtomolecula() {
@@ -162,8 +153,7 @@ export function OrbeProtomolecula() {
     apagando.current = true;
     setPanel({ abierto: false });
     if (origen !== "fuera") {
-      guardarActivada(window.localStorage, false);
-      emitirActivada(false);
+      fijarOrbeActivada(false);
     }
     try { await motor.current?.apagar(); } catch { /* defensivo */ }
     setActivada(false);
@@ -172,8 +162,7 @@ export function OrbeProtomolecula() {
   }, []);
 
   const encender = useCallback(() => {
-    guardarActivada(window.localStorage, true);
-    emitirActivada(true);
+    fijarOrbeActivada(true);
     setActivada(true);
     setAviso(null);
   }, []);

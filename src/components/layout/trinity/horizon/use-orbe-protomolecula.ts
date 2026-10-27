@@ -5,7 +5,7 @@
  *
  * NO hay almacenamiento propio. Todo pasa por la API de la orbe, así el cambio es instantáneo y viaja con la
  * cuenta a todas las neuronas igual que hoy (las dos claves están en `SYNCED_KEYS`):
- *   · encendida → `guardarActivada` + `PROTO_ORB_FAB_EVENT` (la orbe se enciende o se apaga al momento);
+ *   · encendida → `fijarOrbeActivada` (la orbe se enciende o se apaga al momento y el cambio viaja a la cuenta);
  *   · estilo    → `guardarEstilo` + aviso `estilo` por `PROTO_ORB_ESTADO_EVENT`;
  *   · forma     → aviso `forma` (la orbe la guarda solo en la sesión: no es un ajuste de cuenta);
  *   · posición  → se borra su clave local y se avisa a la orbe con un `storage` (la posición es de cada
@@ -18,7 +18,7 @@ import {
   PROTO_ORB_FAB_EVENT,
   PROTO_ORB_FAB_KEY,
   PROTO_ORB_POS_KEY,
-  guardarActivada,
+  fijarOrbeActivada,
   leerActivada,
   type AlmacenLocal,
 } from "@/lib/protomolecula/orbe-bus";
@@ -125,12 +125,7 @@ export function useOrbeProtomolecula(): EstadoOrbe {
   }, []);
 
   const alternar = useCallback((encendida: boolean) => {
-    guardarActivada(almacen(), encendida);
-    try {
-      window.dispatchEvent(new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: { activada: encendida } }));
-    } catch {
-      /* defensivo */
-    }
+    fijarOrbeActivada(encendida, { almacen: almacen() });
     setActivada(encendida);
     if (!encendida) return;
     // Si se eligió estilo o forma con la orbe apagada, se le repite al encenderla para que su panel coincida.
