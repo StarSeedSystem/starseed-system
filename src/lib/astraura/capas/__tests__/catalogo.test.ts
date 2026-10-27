@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   leerCatalogo,
@@ -6,6 +8,9 @@ import {
   profundidadNeedle,
   type EntradaCapa,
 } from "../catalogo";
+
+type EntradaReal = EntradaCapa & { tamano_bytes?: number };
+const rutaCatalogo = join(process.cwd(), "config/capas-astraura.json");
 
 const entradaBase: EntradaCapa = {
   id: "prueba",
@@ -142,5 +147,36 @@ describe("profundidadNeedle", () => {
   it("sin presupuesto suficiente no hay reflejo local", () => {
     expect(profundidadNeedle(0)).toBe(0);
     expect(profundidadNeedle(7)).toBe(0);
+  });
+});
+
+describe("catálogo real · Ternary Bonsai 2 pequeños en el banco", () => {
+  const crudo: unknown = JSON.parse(readFileSync(rutaCatalogo, "utf8"));
+  const capasReales = (crudo as { capas: EntradaReal[] }).capas;
+
+  it("las tres entradas existen, están en-banco y traen SHA y tamaño medidos", () => {
+    const esperadas: ReadonlyArray<readonly [string, number]> = [
+      ["ternary-bonsai2-2b", 429183456],
+      ["ternary-bonsai2-4b", 949549920],
+      ["ternary-bonsai2-9b", 1997486976],
+    ];
+    for (const [id, bytes] of esperadas) {
+      const entrada = capasReales.find((c) => c.id === id);
+      expect(entrada, id).toBeDefined();
+      expect(entrada!.estado).toBe("en-banco");
+      expect(entrada!.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(entrada!.tamano_bytes).toBe(bytes);
+      expect(entrada!.tamano_bytes!).toBeGreaterThan(0);
+    }
+  });
+
+  it("el JSON sigue siendo válido y los ids son únicos", () => {
+    const leido = leerCatalogo(crudo);
+    expect(leido.esquema).toBe(1);
+    expect(leido.capas.map((c) => c.id)).toEqual(
+      expect.arrayContaining(["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"]),
+    );
+    const ids = capasReales.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
