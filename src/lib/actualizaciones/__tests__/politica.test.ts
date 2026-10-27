@@ -104,11 +104,19 @@ describe("decidirPolitica: la aprobación manda sobre el modo", () => {
 });
 
 describe("sanearPolitica: nada roto llega al motor", () => {
-  it("nulo o no-objeto → todas las capas en manual, en orden", () => {
-    const p = sanearPolitica(null);
+  it("basura (nulo, primitivos o array) → todas las capas en manual, en orden", () => {
+    for (const basura of [null, undefined, 7, "algo", ["datos"]]) {
+      const p = sanearPolitica(basura);
+      expect(Object.keys(p)).toEqual(CAPAS_ORDEN);
+      expect(CAPAS_ORDEN.every((c) => p[c].modo === "manual")).toBe(true);
+      expect(CAPAS_ORDEN.every((c) => p[c].requiereAprobacion === undefined)).toBe(true);
+    }
+  });
+  it("ignora capas desconocidas y no las cuela en el resultado", () => {
+    const p = sanearPolitica({ widgets: { modo: "automatica-todas" }, datos: { modo: "automatica-todas" } });
     expect(Object.keys(p)).toEqual(CAPAS_ORDEN);
-    expect(CAPAS_ORDEN.every((c) => p[c].modo === "manual")).toBe(true);
-    expect(CAPAS_ORDEN.every((c) => p[c].requiereAprobacion === undefined)).toBe(true);
+    expect(Object.keys(p)).not.toContain("widgets");
+    expect(p.datos.modo).toBe("automatica-todas");
   });
   it("modo inventado → manual; lo válido sobrevive", () => {
     const p = sanearPolitica({ interfaz: { modo: "automatica-todas" }, datos: { modo: "magia" } });
