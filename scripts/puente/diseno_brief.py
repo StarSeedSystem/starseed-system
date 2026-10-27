@@ -48,10 +48,19 @@ HERRAMIENTAS = [
     ("grafo", "LangGraph.js — https://github.com/langchain-ai/langgraphjs (grafos con estado)"),
     ("cartel", "OpenDesign — https://github.com/nexu-io/open-design (piezas gráficas)"),
     ("generativ", "Tambo — https://github.com/tambo-ai/tambo (interfaz generativa)"),
+    ("diapositiv", "frontend-slides — https://github.com/zarazhangrui/frontend-slides (presentaciones HTML de un archivo, escenario 16:9 fijo)"),
+    ("presentaci", "frontend-slides — https://github.com/zarazhangrui/frontend-slides (presentaciones HTML de un archivo, escenario 16:9 fijo)"),
+    ("conferencia", "frontend-slides — https://github.com/zarazhangrui/frontend-slides (presentaciones HTML de un archivo, escenario 16:9 fijo)"),
+    ("design.md", "awesome-design-md — https://github.com/VoltAgent/awesome-design-md (patrones de referencia y formato DESIGN.md; nunca la identidad de una marca)"),
+    ("sistema de diseño", "awesome-design-md — https://github.com/VoltAgent/awesome-design-md (patrones de referencia y formato DESIGN.md; nunca la identidad de una marca)"),
+    ("documentaci", "Docusaurus — https://github.com/facebook/docusaurus (documentación en Markdown; el OS solo exporta e importa texto)"),
+    ("educaci", "Docusaurus — https://github.com/facebook/docusaurus (documentación en Markdown; el OS solo exporta e importa texto)"),
+    ("panel de datos", "Refine — https://github.com/refinedev/refine (plantilla de panel de datos para apps exportadas; telemetría apagada)"),
+    ("panel de administraci", "Refine — https://github.com/refinedev/refine (plantilla de panel de datos para apps exportadas; telemetría apagada)"),
 ]
 
 HERRAMIENTAS_BASE = [
-    "taste-skill — https://github.com/Leonxlnx/taste-skill (criterio estético, en la Biblioteca)",
+    "taste-skill — https://github.com/Leonxlnx/taste-skill (método: inventario, argumento, capturas a 3 anchos y crítica; el ADN manda; en la Biblioteca)",
     "UI-TARS — https://github.com/bytedance/UI-TARS (verificación visual de §4)",
 ]
 
