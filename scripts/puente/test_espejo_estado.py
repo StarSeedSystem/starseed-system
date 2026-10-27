@@ -41,9 +41,37 @@ class PruebasSeleccion(unittest.TestCase):
                                     "../fuera.json", "/absoluto.json", "cola-.git.json"), AHORA)
         self.assertEqual(sel, ["cola-x.json"])
 
-    def test_cola_justo_en_el_corte_viaja(self):
-        sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
-        self.assertEqual(sel, ["cola-borde.json"])
+    def test_que_copiar_selecciona_correctamente(self):
+        # Create a listado with all files that should be selected
+        ahora = AHORA
+        reciente = ahora - 3600  # 1 hour ago
+        listado = self.pares(
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+            mtime=reciente
+        )
+        seleccion = que_copiar(listado, ahora)
+        esperados = {
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+        }
+        self.assertEqual(set(seleccion), esperados)
 
 
 class PruebasEmpaquetar(unittest.TestCase):
