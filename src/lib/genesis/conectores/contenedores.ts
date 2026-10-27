@@ -91,6 +91,29 @@ export const CONTENEDORES_OPCIONES: ContenedorOpcion[] = [
     aptoPrivado: false,
     verificado: true,
   },
+  // cloudflare/computer (MIT, alfa 0.7.0): un ordenador virtual por agente (sistema de archivos en un
+  // Durable Object + shell/JavaScript aislados y contenedor Linux). De pago porque los Dynamic Workers
+  // piden el plan Workers Paid (desde 5 USD/mes): choca con «gratis primero», así que solo entra como
+  // opción de pago. Alternativa a vigilar sin plan de pago: denoland/celld (ya en la Librería).
+  {
+    id: 'cloudflare-computer',
+    nombre: 'Cloudflare Computer',
+    enlaceAlta: 'https://dash.cloudflare.com/sign-up',
+    guia: null, // TODO: ruta de guía en el repo
+    requiereCuenta: true,
+    requierePago: true,
+    aptoPrivado: false,
+    // A propósito: el repo y su precio constan en la ficha de la Librería (architecture/repos-libreria-1025.md
+    // §8), pero el enlace de alta no se comprobó en la ola.
+    verificado: null,
+    cupo: 'Sin cupo gratuito comprobado: los Dynamic Workers (shell y JavaScript aislados) piden el plan Workers Paid.',
+    requisitos: [
+      'Cuenta de Cloudflare propia (el OS no abre cuentas)',
+      'Plan Workers Paid (desde 5 USD al mes) para los Dynamic Workers y los contenedores',
+      'Token de wrangler solo en variables de entorno',
+      'Alfa: ContainerBackend, WorkerShellBackend y computerd no son aptos para producción',
+    ],
+  },
 ];
 
 /**

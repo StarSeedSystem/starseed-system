@@ -47,8 +47,9 @@ describe('contenedoresPara', () => {
 
     // Extract the paid
     const paid = result.filter((c) => !c.aptoPrivado && c.requierePago);
-    // De pago, en su orden: google-cloud (pide facturación) y huggingface-spaces (Docker pide PRO)
-    expect(paid.map((c) => c.id)).toEqual(['google-cloud', 'huggingface-spaces']);
+    // De pago, en su orden: google-cloud (pide facturación), huggingface-spaces (Docker pide PRO)
+    // y cloudflare-computer (Dynamic Workers con plan Workers Paid).
+    expect(paid.map((c) => c.id)).toEqual(['google-cloud', 'huggingface-spaces', 'cloudflare-computer']);
   });
 });
 
@@ -127,5 +128,21 @@ describe('CONTENEDORES_OPCIONES', () => {
     const requisitos = cloudroom?.requisitos?.join(' ') ?? '';
     expect(requisitos).toContain('macOS 13+');
     expect(requisitos).toContain('Linux x64');
+  });
+
+  // CFC1025A · cloudflare/computer: los Dynamic Workers (shell y JavaScript aislados) piden el plan
+  // Workers Paid, así que entra solo como opción de pago (architecture/repos-libreria-1025.md §8).
+  it('Cloudflare Computer pide cuenta y pago, y declara que no hay cupo gratuito', () => {
+    const cfc = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudflare-computer');
+    expect(cfc).toMatchObject({
+      requiereCuenta: true,
+      requierePago: true,
+      aptoPrivado: false,
+      verificado: null,
+      cupo: expect.stringContaining('Sin cupo gratuito'),
+    });
+    const requisitos = cfc?.requisitos?.join(' ') ?? '';
+    expect(requisitos).toContain('Workers Paid');
+    expect(requisitos).toContain('wrangler');
   });
 });

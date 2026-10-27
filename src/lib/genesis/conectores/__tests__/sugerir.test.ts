@@ -105,7 +105,7 @@ describe("sugerirParaAmbito", () => {
     it("sin presupuesto no sugiere pago en ningún grupo", () => {
       const gs = sugerir({ asignaciones: [asig("escritor"), asig("código")], catalogo, contenedores });
       expect(gs.map((g) => g.clave)).not.toContain("de-pago-con-permiso");
-      expect(JSON.stringify(gs)).not.toMatch(/pago-1|huggingface-spaces|google-cloud/);
+      expect(JSON.stringify(gs)).not.toMatch(/pago-1|huggingface-spaces|google-cloud|cloudflare-computer/);
       expect(ids(gs, "gratis-por-vincular")).toEqual(expect.arrayContaining(["nube-a", "oracle-a1", "github-actions"]));
       expect(ids(gs, "local-por-activar")).toEqual(["servidor-propio", "neurona-contenedor"]);
       expect(sinOpcion(gs)).toEqual([{ papel: "código", motivo: expect.stringContaining("no permite pago") }]);
@@ -116,8 +116,9 @@ describe("sugerirParaAmbito", () => {
       const gs = sugerir({ asignaciones: [asig("escritor", conTope), asig("código", conTope)], catalogo, contenedores });
       expect(gs.map((g) => g.clave)).toEqual(["local-por-activar", "gratis-por-vincular", "de-pago-con-permiso", "sin-opcion"]);
       expect(opciones(gs, "de-pago-con-permiso").find((s) => s.id === "pago-1")?.papeles).toEqual(["código"]);
-      expect(ids(gs, "de-pago-con-permiso")).toEqual(expect.arrayContaining(["huggingface-spaces", "google-cloud"]));
+      expect(ids(gs, "de-pago-con-permiso")).toEqual(expect.arrayContaining(["huggingface-spaces", "google-cloud", "cloudflare-computer"]));
       expect(ids(gs, "gratis-por-vincular")).not.toContain("google-cloud");
+      expect(ids(gs, "gratis-por-vincular")).not.toContain("cloudflare-computer");
       expect(sinOpcion(gs)).toEqual([]);
     });
   });
