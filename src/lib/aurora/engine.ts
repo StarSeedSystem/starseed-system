@@ -49,6 +49,8 @@ import { ejecutarAccion } from "@/lib/astraura-bots/adaptadores/ejecutor-accione
 import { decidirAccion, NIVEL_POR_DEFECTO } from "@/lib/astraura-bots/permisos";
 import { avanzar, bucleInicial } from "@/lib/astraura-bots/bucle";
 import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
+// TONO del bot en el chat (BOT1011S): la personalidad del bot entra al prompt.
+import { bloqueTono, situacionDesdeTexto } from "@/lib/astraura-bots/adaptadores/tono-chat";
 // Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
 // eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
 import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
@@ -1691,11 +1693,20 @@ export function useAuroraEngine(): AuroraEngine {
       // Aurora entienda cada contexto/sección y responda/actúe interconectando.
       let knowledge = "";
       try { knowledge = buildSystemKnowledge(routeContext()); } catch { knowledge = ""; }
+      // ── BOT1011S · la orbe ES el bot (astraura-bots.md §4): TONO del bot predeterminado
+      //    (personalidad activa como agente encarnado + situación por palabras clave).
+      //    Defensivo: cualquier fallo deja el prompt como siempre (el tono no rompe el turno).
+      let tonoBot = "";
+      try {
+        tonoBot = bloqueTono(botPredeterminado("perfil", "local"), activeRef.current,
+          { sesion: "privada", situacion: situacionDesdeTexto(text) });
+      } catch { tonoBot = ""; }
       const system =
         buildSystemPrompt(activeRef.current) + "\n\n" +
         actionsSystemPromptSection() +
         (toolsSection ? "\n\n" + toolsSection : "") +
-        (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
+        (knowledge ? "\n\n" + knowledge : "") +
+        (tonoBot ? "\n\n" + tonoBot : "") + "\n\n" +
         contextNote;
       // Se incluye el historial reciente (conversationRef) antes del mensaje actual.
       // Así mantenemos el contexto continuo en los comandos de voz.
