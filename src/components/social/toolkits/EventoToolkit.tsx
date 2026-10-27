@@ -16,6 +16,8 @@ import {
   EmptyHint,
   EntityQuickActions,
   GOLD,
+  claveEstable,
+  clavesUnicas,
 } from "@/components/social/toolkits/shared";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
@@ -65,6 +67,7 @@ export function EventoToolkit({
 }) {
   const data = getEventExtras(slug) ?? fallback;
   const ac = accent ?? GOLD;
+  const clavesPonentes = clavesUnicas(data.speakers, (s) => claveEstable(s.name, s.role));
   // `Tabs` controlado: lo exige el carril externo (`SectionTabs`).
   const [tab, setTab] = useState("programa");
 
@@ -136,9 +139,9 @@ export function EventoToolkit({
               <EmptyHint>Los ponentes se anunciarán próximamente.</EmptyHint>
             ) : (
               <div className="space-y-2">
-                {data.speakers.map((s) => (
+                {data.speakers.map((s, i) => (
                   <PersonRow
-                    key={s.name}
+                    key={clavesPonentes[i]}
                     name={s.name}
                     role={s.role}
                     accent={ac}

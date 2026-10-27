@@ -29,6 +29,37 @@ function hex(accent: string | undefined, alpha = ""): string {
     return `${accent || GOLD}${alpha}`;
 }
 
+function normalizarClave(valor: string | number): string {
+    return String(valor)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+}
+
+export function claveEstable(...partes: Array<string | number | null | undefined>): string {
+    return partes
+        .filter((p): p is string | number => p !== undefined && p !== null && p !== "")
+        .map(normalizarClave)
+        .filter(Boolean)
+        .join("--");
+}
+
+export function clavesUnicas<T>(
+    items: readonly T[],
+    base: (item: T, indice: number) => string,
+): string[] {
+    const vistas = new Map<string, number>();
+    return items.map((item, i) => {
+        const raiz = base(item, i) || "item";
+        const repeticiones = vistas.get(raiz) ?? 0;
+        vistas.set(raiz, repeticiones + 1);
+        return repeticiones === 0 ? raiz : `${raiz}--${repeticiones}`;
+    });
+}
+
 // Acepta tanto un componente de icono (LucideIcon) como un elemento ya
 // renderizado (<Icon/>), para tolerar ambos estilos de uso sin fricción.
 export type IconLike = LucideIcon | React.ReactElement;
@@ -296,7 +327,7 @@ export function RosterStrip({
             <div className="flex -space-x-2.5">
                 {Array.from({ length: shown }).map((_, i) => (
                     <span
-key={`${i}-${e.title}`}
+                        key={`${seed}-${i}`}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-[10px] font-semibold"
                         style={{
                             background: `hsl(${(i * 67 + seed.length * 13) % 360} 60% 45%)`,
@@ -425,19 +456,21 @@ export function LinkCard({
 
 // ── TimelineItem / Timeline: agenda, actas, hitos ──
 export interface TimelineEntry {
+    id?: string;
     time?: string;
     title: string;
     detail?: string;
     status?: "done" | "active" | "upcoming";
 }
 export function Timeline({ entries, accent }: { entries: TimelineEntry[]; accent?: string }) {
+    const claves = clavesUnicas(entries, (e) => claveEstable(e.id, e.time, e.title));
     return (
         <ol className="relative space-y-4 border-l border-white/10 pl-5">
             {entries.map((e, i) => {
                 const color =
                     e.status === "done" ? "#34d399" : e.status === "active" ? accent || GOLD : "#64748b";
                 return (
-                    <li key={i} className="relative">
+                    <li key={claves[i]} className="relative">
                         <span
                             className="absolute -left-[26px] top-1 h-3 w-3 rounded-full border-2 border-background"
                             style={{ background: color }}
