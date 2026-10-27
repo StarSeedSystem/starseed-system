@@ -150,9 +150,12 @@ export type AreaTip = {
 };
 
 const AREAS: AreaTip[] = [
-  { path: "/agent", label: "Agente · Aurora", icon: Brain, accent: "text-fuchsia-300", tip: "Usar: configura tu IA y habla con Aurora por voz o texto." },
-  { path: "/memorias", label: "Memorias", icon: BookOpen, accent: "text-amber-300", tip: "Crear: guarda notas, ideas y archivos; vincúlalos en baúles." },
-  { path: "/cerebros", label: "Cerebros", icon: Network, accent: "text-cyan-300", tip: "Conectar: enlaza memorias y skills en un grafo vivo." },
+  { path: "/protomolecula", label: "Protomolécula", icon: Brain, accent: "text-fuchsia-300", tip: "Crear: une programas abiertos de imagen, audio, vídeo y 3D en un panel." },
+  { path: "/network/politics", label: "Política", icon: Vote, accent: "text-emerald-300", tip: "Publicar: propón leyes, debates y votaciones sin intermediarios." },
+  { path: "/network/education", label: "Educación", icon: BookOpen, accent: "text-cyan-300", tip: "Aprender: explora el mapa del conocimiento y estudia con Aurora." },
+  { path: "/network/culture", label: "Cultura", icon: Palette, accent: "text-violet-300", tip: "Crear: publica, encuentra y comparte en el Lienzo Universal." },
+  { path: "/genesis", label: "Genesis y PoliGenesis", icon: Sparkles, accent: "text-sky-300", tip: "Crear: pide cambios del sistema en tus palabras y vota en grupo." },
+  { path: "/cerebro", label: "Neurona y cerebro", icon: Network, accent: "text-amber-300", tip: "Conectar: enlaza memorias, habilidades y almacenamientos en un grafo vivo." },
   { path: "/decisiones", label: "Decisiones", icon: Vote, accent: "text-emerald-300", tip: "Publicar: propón y vota decisiones de la red." },
   { path: "/pizarra", label: "Pizarra", icon: PenSquare, accent: "text-violet-300", tip: "Crear: dibuja y co-crea ideas en un lienzo compartido." },
   { path: "/navegador", label: "Navegador", icon: Globe, accent: "text-sky-300", tip: "Usar: explora la red y descubre contenidos y nodos." },
