@@ -54,6 +54,36 @@ describe("habilidadesPara · por papel", () => {
     expect(ids(habilidadesPara("imagen", "cuenta", OPCIONES))).toEqual(["av-gen", "vision"]);
   });
 
+  it("el conjunto exacto por papel respeta sus banderas y el orden del manifiesto", () => {
+    const caps: SkillCapability[] = [
+      cap("base", "Conocimiento base"),
+      cap("fuerte", "Modelo fuerte", { preferStrong: true }),
+      cap("red", "Acceso web", { web: true }),
+      cap("ojos", "Ver imágenes", { vision: true }),
+      cap("plan", "Planificación", { planning: true }),
+    ];
+    const opciones = { capacidades: caps, desactivadas: [] };
+    // Escritor: planning, web y preferStrong; la de solo visión se queda fuera.
+    expect(ids(habilidadesPara("escritor", "cuenta", opciones))).toEqual([
+      "base",
+      "fuerte",
+      "red",
+      "plan",
+    ]);
+    // Revisor: exige calidad fuerte y web; ni visión ni planificación.
+    expect(ids(habilidadesPara("revisor", "cuenta", opciones))).toEqual([
+      "base",
+      "fuerte",
+      "red",
+    ]);
+    // Visión: lo que ve más el modelo fuerte generalista.
+    expect(ids(habilidadesPara("visión", "cuenta", opciones))).toEqual([
+      "base",
+      "fuerte",
+      "ojos",
+    ]);
+  });
+
   it("excluir las habilidades desactivadas en el ámbito", () => {
     const out = ids(
       habilidadesPara("escritor", "cuenta", {
@@ -71,6 +101,19 @@ describe("habilidadesPara · por director (etiquetas)", () => {
     const out = ids(habilidadesPara("diseno", "cuenta", { capacidades: conEjemplo, desactivadas: [] }));
     expect(out).toEqual(["taste", "design-import"]);
     expect(esDirector("diseno")).toBe(true);
+  });
+
+  it("diseno entra por la etiqueta «pizarra» aunque su routing sea de visión", () => {
+    const pizarra = cap("tldraw", "Pizarra profesional (tldraw)", { vision: true });
+    const soloWeb = cap("red", "Acceso web", { web: true });
+    const salida = ids(
+      habilidadesPara("diseno", "cuenta", {
+        capacidades: [pizarra, soloWeb],
+        desactivadas: [],
+      }),
+    );
+    // La etiqueta manda para un director; el routing no le da ni quita nada.
+    expect(salida).toEqual(["tldraw"]);
   });
 
   it("producción elige lo audiovisual y de voz; aprendizaje, lo de memoria", () => {
