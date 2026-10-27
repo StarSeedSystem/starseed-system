@@ -1,0 +1,14 @@
+{
+  "name": "starseed-agentes-mastra",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Agente de neurona con Mastra y servidor propio de IA",
+  "dependencies": {
+    "@mastra/core": "^1.79.0",
+    "zod": "^3.23.0"
+  },
+  "scripts": {
+    "start": "node src/agente.mjs"
+  }
+}
