@@ -91,6 +91,27 @@ export const CONTENEDORES_OPCIONES: ContenedorOpcion[] = [
     aptoPrivado: false,
     verificado: true,
   },
+  // De pago: los Dynamic Workers (shell y JavaScript aislados) y los contenedores piden el plan
+  // Workers Paid; la alternativa sin plan de pago que se vigila es `denoland/celld` (Librería).
+  {
+    id: 'cloudflare-computer',
+    nombre: 'Cloudflare Computer',
+    enlaceAlta: 'https://dash.cloudflare.com/sign-up',
+    guia: null,
+    requiereCuenta: true,
+    requierePago: true,
+    aptoPrivado: false,
+    // null a propósito: el repo y su precio constan en la ficha de la Librería
+    // (lib-cloudflare-computer), pero el enlace de alta no se comprobó en la ola 1025R.
+    verificado: null,
+    cupo: 'Sin cupo gratuito comprobado: los Dynamic Workers (shell y JavaScript aislados) piden el plan Workers Paid.',
+    requisitos: [
+      'Cuenta de Cloudflare propia (el OS no abre cuentas)',
+      'Plan Workers Paid (desde 5 USD al mes) para los Dynamic Workers y los contenedores',
+      'Token de wrangler solo en variables de entorno',
+      'Alfa: ContainerBackend, WorkerShellBackend y computerd no son aptos para producción',
+    ],
+  },
 ];
 
 /**
