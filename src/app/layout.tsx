@@ -72,6 +72,10 @@ import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal
 import VentanaPerfilInicial from "@/components/onboarding/ventana-perfil-inicial";
 import { PrimerArranque } from "@/components/onboarding/primer-arranque";
 import { CursorFxHost } from "@/components/desktop/cursor-fx";
+// Mausbot de Astraura (MBT1027): UNA instancia, perezosa desde el cliente y fuera de
+// /genesis. Sigue al puntero y toma el diseño de la personalidad activa; apagado por
+// defecto hasta que la persona lo encienda en el Exocórtex.
+import MausbotHostCliente from "@/components/mausbot/mausbot-host-cliente";
 import { PerfController, PerfHeavyOnly, PerfStaticBackdrop } from "@/components/perf/perf-gate";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
 import { MediaMiniDock } from "@/components/dashboard/apps/media/media-mini-dock";
@@ -422,6 +426,8 @@ export default function RootLayout({
                         {/* Cursor personalizado + animaciones de clic (config en
                             Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
                         <CursorFxHost />
+                        {/* Mausbot: una sola instancia, cargada sin SSR y fuera de la consola. */}
+                        <SoloFueraDeConsola><MausbotHostCliente /></SoloFueraDeConsola>
                         <AlarmsEngine />
                         <SoloFueraDeMinima><MontajeGlobalMensajeria /></SoloFueraDeMinima>
                         <MontajeConsumo />
