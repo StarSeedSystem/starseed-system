@@ -1,7 +1,10 @@
 """Pruebas de arbol_de_trabajo: separar lo que ensucia el enjambre de lo ajeno."""
 
+import json
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -89,6 +92,82 @@ class TestClasificar(unittest.TestCase):
         self.assertEqual(clasificar(""), ([], [], []))
         self.assertEqual(clasificar("\n  \n"), ([], [], []))
         self.assertEqual(clasificar("?? notas/x.md", propias=("notas/x.md",)), (["notas/x.md"], [], []))
+
+
+class TestColasVersionadas(unittest.TestCase):
+    """(2026-10-28, DEC1028E) Una cola versionada que el enjambre re-apunta (` M`) es
+    contabilidad PROPIA si sigue siendo una lista JSON de tareas con `id`. Las tres colas
+    reales de la ola 1025 pararon el arranque de la Mac desde el 27/10 a las 22:26."""
+
+    REALES = (
+        "cola-artcraft-1025.json",
+        "cola-blender-1025.json",
+        "cola-investigacion-1025.json",
+    )
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, ignore_errors=True)
+
+    def _ruta(self, nombre):
+        return "starseed_memory_root/olas/%s" % nombre
+
+    def _escribe(self, nombre, texto, carpeta="starseed_memory_root/olas"):
+        ruta = "%s/%s" % (carpeta, nombre)
+        destino = os.path.join(self.raiz, ruta)
+        os.makedirs(os.path.dirname(destino), exist_ok=True)
+        with open(destino, "w", encoding="utf-8") as f:
+            f.write(texto)
+        return ruta
+
+    def test_las_tres_colas_reales_son_propias(self):
+        for nombre in self.REALES:
+            self._escribe(nombre, json.dumps([{"id": "ART1025B-d3", "depende": []}]))
+        lineas = "\n".join(" M " + self._ruta(n) for n in self.REALES)
+        mias, estorbo, ajenas = clasificar(lineas, raiz=self.raiz)
+        self.assertEqual(mias, [self._ruta(n) for n in self.REALES])
+        self.assertEqual((estorbo, ajenas), ([], []))
+
+    def test_una_cola_rota_sigue_siendo_ajena(self):
+        rota = self._escribe("cola-rota-1025.json", "{esto no es json")
+        mias, _estorbo, ajenas = clasificar(" M " + rota, raiz=self.raiz)
+        self.assertEqual((mias, ajenas), ([], [rota]))
+
+    def test_una_cola_que_no_es_lista_de_tareas_sigue_siendo_ajena(self):
+        casos = (
+            ("cola-dict-1025.json", json.dumps({"id": "X1"})),
+            ("cola-sin-id-1025.json", json.dumps([{"titulo": "sin id"}])),
+            ("cola-lista-simple-1025.json", json.dumps(["X1"])),
+        )
+        for nombre, texto in casos:
+            ruta = self._escribe(nombre, texto)
+            mias, _estorbo, ajenas = clasificar(" M " + ruta, raiz=self.raiz)
+            self.assertEqual((mias, ajenas), ([], [ruta]), nombre)
+
+    def test_sin_seguimiento_y_otros_estados_siguen_como_hoy(self):
+        nueva = self._escribe("cola-nueva-1025.json", json.dumps([{"id": "N1"}]))
+        staged = self._escribe("cola-staged-1025.json", json.dumps([{"id": "S1"}]))
+        _m, _e, ajenas = clasificar("?? %s\nM  %s" % (nueva, staged), raiz=self.raiz)
+        self.assertEqual(ajenas, [nueva, staged])
+
+    def test_un_ts_modificado_sigue_siendo_ajeno(self):
+        mias, _estorbo, ajenas = clasificar(" M src/lib/algo.ts", raiz=self.raiz)
+        self.assertEqual((mias, ajenas), ([], ["src/lib/algo.ts"]))
+
+    def test_mezcla_conserva_el_orden(self):
+        cola = self._escribe("cola-artcraft-1025.json", json.dumps([{"id": "A"}]))
+        mias, _estorbo, ajenas = clasificar(
+            " M src/b.ts\n M %s\n M src/a.ts" % cola, raiz=self.raiz
+        )
+        self.assertEqual(mias, [cola])
+        self.assertEqual(ajenas, ["src/b.ts", "src/a.ts"])
+
+    def test_una_cola_fuera_de_olas_es_ajena(self):
+        ruta = self._escribe(
+            "cola-x-1025.json", json.dumps([{"id": "X"}]), carpeta="starseed_memory_root"
+        )
+        mias, _estorbo, ajenas = clasificar(" M " + ruta, raiz=self.raiz)
+        self.assertEqual((mias, ajenas), ([], [ruta]))
 
 
 class TestSoloEsNuestro(unittest.TestCase):
