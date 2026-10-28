@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "RTCRM1024Dds",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · MetaGenesis · Cloudroom como medio: sonda de room-cli en medios_disponibles · lo que faltó: src/components/protomolecula/__tests__/panel-protomolecula.test.tsx, src/lib/astraura-bots/__tests__/capa-pantalla.test.ts",
+   "archivos": [
+    "src/components/protomolecula/__tests__/panel-protomolecula.test.tsx",
+    "src/lib/astraura-bots/__tests__/capa-pantalla.test.ts"
+   ],
+   "prompt": "SEGUIMIENTO de RTCRM1024Dd, que ya está integrada. Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/components/protomolecula/__tests__/panel-protomolecula.test.tsx, src/lib/astraura-bots/__tests__/capa-pantalla.test.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Rescate de pruebas · MetaGenesis · Cloudroom como medio: sonda de room-cli en medios_disponibles\n\n--- encargo original, como contexto ---\nORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea CRM1024D («MetaGenesis · Cloudroom como medio: sonda de room-cli en medios_disponibles») se hizo en main por otro camino; su rama nube/40073425475 queda archivada en `refs/archivo/nube/40073425475` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.92)\n\nTU TAREA (RTCRM1024D · solo estos archivos: scripts/puente/test_medio_cloudroom.py, src/components/protomolecula/__tests__/panel-protomolecula.test.tsx, src/lib/astraura-bots/__tests__/capa-pantalla.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# scripts/puente/test_medio_cloudroom.py\n    def test_variable_de_entorno_manda(self):\n        self.assertEqual(M.localizar({\"CLOUDROOM_CLI\": \"/opt/room-cli\"}, \"/nada\"), \"/opt/room-cli\")\n\n# scripts/puente/test_medio_cloudroom.py\n    def test_busca_en_local_bin_y_respeta_la_ausencia(self):\n        with tempfile.TemporaryDirectory() as casa:\n            os.makedirs(os.path.join(casa, \".local\", \"bin\"))\n            ruta = os.path.join(casa, \".local\", \"bin\", \"room-cli\")\n            open(ruta, \"w\").close()\n            self.assertEqual(M.localizar({}, casa), ruta)\n            self.assertIsNone(M.localizar({}, os.path.join(casa, \"otra\")))\n\n# scripts/puente/test_medio_cloudroom.py\n    def test",
+   "origen": "seguimiento de alcance parcial",
+   "rama_nube": "nube/a1-20261028-050656-RTCRM1024D",
+   "depende_de": []
+  }
+ ]
+}
