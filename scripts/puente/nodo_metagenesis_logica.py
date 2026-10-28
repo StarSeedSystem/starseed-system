@@ -50,6 +50,12 @@ RELEVO_MEDIO_S = 20 * 60
 GRACIA_ASIGNACION_S = 6 * 3600
 
 #: Medios conocidos. `autoritativo` = tiene las colas y el progreso en su disco (hoy, la Mac).
+#: (INS1027F) Sesión insomne vigente: puntos de estabilidad que suma una neurona que sirve con la
+#: pantalla cerrada (para liderar y para recibir préstamos). Por debajo de `MARGEN_RELEVO` (100):
+#: estar insomne NO dispara por sí solo el relevo ordenado del líder; y por debajo del A1 siempre
+#: encendido (base 250): una neurona insomne queda en 200, aún bajo el siempre-encendido de referencia.
+PUNTOS_INSOMNE = 80
+
 MEDIOS: Dict[str, Dict[str, Any]] = {
     "mac": {"etiqueta": "Mac de desarrollo", "base": 300, "siempre": False},
     "oracle-a1": {"etiqueta": "Oracle A1 (24/7)", "base": 250, "siempre": True},
@@ -112,11 +118,28 @@ def id_valido(nodo: Any) -> bool:
     return isinstance(nodo, str) and bool(_RE_ID.match(nodo))
 
 
-def puntos_nodo(cap: Dict[str, Any]) -> int:
+def insomne_vigente(cap: Dict[str, Any], ahora: Optional[float] = None) -> bool:
+    """PURA (INS1027F). ¿Este nodo declara una sesión insomne VIGENTE?
+
+    `cap["insomne"]` = {"activo", "hasta" (epoch de fin), …}: lo declara el nodo al medirse
+    (`debeSoltarTrabajo` de `src/lib/neurons/insomne.ts` regula lo que sigue). Con `ahora` se mira
+    además que la sesión no se haya acabado; sin él, basta lo que el nodo midió de sí mismo."""
+    i = (cap or {}).get("insomne")
+    if not isinstance(i, dict) or not i.get("activo"):
+        return False
+    hasta = i.get("hasta")
+    if ahora is not None and isinstance(hasta, (int, float)) and float(hasta) <= ahora:
+        return False
+    return True
+
+
+def puntos_nodo(cap: Dict[str, Any], ahora: Optional[float] = None) -> int:
     """PURA. Cuánto merece dirigir un nodo. Real ≫ seco; colas en disco ≫ siempre encendido ≫ resto.
 
     Un nodo con las colas en su disco (`autoritativo`) es el que sabe la verdad del trabajo;
-    uno siempre encendido es el que sostiene cuando la Mac duerme. RAM libre y disco desempatan.
+    uno siempre encendido es el que sostiene cuando la Mac duerme. Una neurona con sesión insomne
+    vigente suma `PUNTOS_INSOMNE` (por debajo del A1: `architecture/neurona-insomne.md`; no dispara
+    sola el relevo de `elegir_lider` por ser menos que `MARGEN_RELEVO`). RAM libre y disco desempatan.
     """
     medio = cap.get("medio") if cap.get("medio") in MEDIOS else "neurona"
     p = int(MEDIOS[medio]["base"])
@@ -134,6 +157,8 @@ def puntos_nodo(cap: Dict[str, Any]) -> int:
     disco = cap.get("disco_gb")
     if isinstance(disco, (int, float)) and disco < 2:
         p -= 80
+    if insomne_vigente(cap, ahora):
+        p += PUNTOS_INSOMNE
     return p
 
 
