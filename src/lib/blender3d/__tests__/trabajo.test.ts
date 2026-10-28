@@ -30,6 +30,8 @@ describe("validarTrabajo", () => {
     expect(t.limites).toBeUndefined();
     const porDefecto = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "Cubo", tam: 1 }, { op: "transformar", objeto: "Cubo" }]));
     expect(porDefecto.escena[1]).toMatchObject({ ubicacion: [0, 0, 0], rotacion: [0, 0, 0], escala: [1, 1, 1] });
+    const conMaterial = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "Cubo", tam: 1 }, { op: "material", objeto: "Cubo" }]));
+    expect(conMaterial.escena[1]).toMatchObject({ color: [0.8, 0.8, 0.8, 1] });
   });
   it("comprueba la versión, el título y los límites", () => {
     expect(motivos({ ...base(), v: 2 }).join(" ")).toContain("v debe ser 1");
@@ -91,7 +93,7 @@ describe("validarTrabajo", () => {
     for (const nombre of ["Cuboño", "立立方方", "a".repeat(33), "2empieza", "Cubo\nrm -rf /"]) {
       expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre, tam: 1 }])).join(" ")).toContain("nombre inválido");
     }
-    for (const texto of ["hola\nimport os", "emoji 😈"]) expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto, extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto con caracteres no permitidos");
+    for (const texto of ["hola\nimport os", "emoji 😈", "Cubo\u2028 业"]) expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto, extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto con caracteres no permitidos");
     expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto: "x".repeat(65), extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto más largo de 64");
     const conTildes = valido(conEscena([{ op: "texto3d", nombre: "tex", texto: "¿Versión con ñ? ¡Sí! (n.1) 'cosas'", extrusion: 0.2, tam: 1.2 }]));
     expect(conTildes.escena[0]).toMatchObject({ op: "texto3d", texto: "¿Versión con ñ? ¡Sí! (n.1) 'cosas'" });
@@ -143,6 +145,12 @@ describe("estimarCoste y necesitaConfirmacion", () => {
     const c = estimarCoste(t);
     expect(c.vertices).toBe(8 + 8 * 15);
     expect(c.segundos).toBeCloseTo((1000 * 1000 * 100) / 120000, 2);
+    // Los otros dos: cycles-gpu 1 000 000 px · 150 muestras / 1 500 000 = 100 s; eevee 900 000 · 10 / 15 000 = 60 s.
+    const otros = estimarCoste(valido({ ...base(), salidas: [
+      { tipo: "render_png", ancho: 1000, alto: 1000, muestras: 150, motor: "cycles-gpu" },
+      { tipo: "render_png", ancho: 300, alto: 300, muestras: 10, motor: "eevee" },
+    ] }));
+    expect(otros.segundos).toBeCloseTo(160, 2);
   });
   it("cuenta los fotogramas del mp4 y el exportar_glb no añade segundos", () => {
     const mp4 = estimarCoste(valido(conEscena([], [{ tipo: "render_mp4", ancho: 320, alto: 240, fps: 12, desde: 0, hasta: 60, muestras: 16, motor: "workbench" }])));
@@ -154,6 +162,7 @@ describe("estimarCoste y necesitaConfirmacion", () => {
   });
   it("pide confirmación por ámbito, importar, final y coste sobre el perfil ligero", () => {
     expect(necesitaConfirmacion(valido(base()), "ligero")).toBe(false);
+    expect(necesitaConfirmacion(valido(base()), "estandar")).toBe(false);
     expect(necesitaConfirmacion({ ...valido(base()), ambito: "grupo" }, "estudio")).toBe(true);
     expect(necesitaConfirmacion({ ...valido(base()), ambito: "publica" }, "estudio")).toBe(true);
     expect(necesitaConfirmacion({ ...valido(base()), calidad: "final" }, "estudio")).toBe(true);
@@ -162,6 +171,14 @@ describe("estimarCoste y necesitaConfirmacion", () => {
     const pesado = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }], [{ tipo: "render_png", ancho: 1600, alto: 900, muestras: 64, motor: "workbench" }]));
     expect(necesitaConfirmacion(pesado, "ligero")).toBe(true);
     expect(necesitaConfirmacion(pesado, "estandar")).toBe(false);
+    // El ligero corta por fotogramas del mp4 (151 > 120) con solo ~33 s de coste estimado.
+    const pocosFotogramas = valido({ ...base(), salidas: [{ tipo: "render_mp4", ancho: 320, alto: 240, fps: 12, desde: 0, hasta: 150, muestras: 1, motor: "workbench" }] });
+    expect(necesitaConfirmacion(pocosFotogramas, "ligero")).toBe(true);
+    expect(necesitaConfirmacion(pocosFotogramas, "estandar")).toBe(false);
+    // El ligero corta por `limites.memoriaMB` fuera de su tope; el estándar lo admite.
+    const limites = valido({ ...base(), limites: { memoriaMB: 4096 } });
+    expect(necesitaConfirmacion(limites, "ligero")).toBe(true);
+    expect(necesitaConfirmacion(limites, "estandar")).toBe(false);
   });
   it("el perfil ligero pide confirmación cuando el coste en vértices pesa", () => {
     const razonable = valido(conEscena(Array.from({ length: 100 }, (_, i) => ({ op: "primitiva", tipo: "esfera", nombre: `e${i}`, tam: 1 }))));
