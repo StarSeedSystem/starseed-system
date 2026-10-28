@@ -24,7 +24,18 @@ interface Catalogo1020b { paquetes: Entrada1020[]; excluidas?: { repo: string }[
 
 const CATALOGO = catalogo1020 as unknown as Catalogo1020;
 const CATALOGO_B = catalogo1020b as unknown as Catalogo1020b;
-const ICONOS: Record<string, string> = { app: "AppWindow", "ai-source": "BrainCircuit", function: "Boxes" };
+
+/** El catálogo es dato externo: normalizamos antes de confiar en su `kind`. */
+function kindSeguro(kind: string): PackageKind {
+  return kind === "app" || kind === "ai-source" || kind === "function" ? kind : "app";
+}
+
+function iconoDeKind(kind: string): string {
+  if (kind === "app") return "AppWindow";
+  if (kind === "ai-source") return "BrainCircuit";
+  if (kind === "function") return "Boxes";
+  return "Package";
+}
 
 function autorDe(repo: string): string { return repo.split("/")[0] ?? repo; }
 
@@ -39,9 +50,9 @@ function payloadDe(e: Entrada1020): Record<string, unknown> {
 
 function paqueteDe(e: Entrada1020): LibraryPackage {
   return {
-    id: e.id, kind: e.kind as PackageKind, name: e.nombre,
+    id: e.id, kind: kindSeguro(e.kind), name: e.nombre,
     description: e.que_es + (e.aviso ? ` — ${e.aviso}` : ""),
-    icon: ICONOS[e.kind] ?? "Package",
+    icon: iconoDeKind(e.kind),
     tags: [...e.area, e.canal, e.licencia ? "lic" : ""].filter(Boolean),
     version: "1.0.0", author: autorDe(e.repo),
     sourceRepoId: "starseed-biblioteca-externa", free: true, comingSoon: true,
@@ -51,10 +62,10 @@ function paqueteDe(e: Entrada1020): LibraryPackage {
 
 // ── Fusión 1.ª + 2.ª tanda (Ola 1020D): exclusiones de seguridad y vista plana ──
 
-export const REPOS_EXCLUIDOS: string[] = [
+export const REPOS_EXCLUIDOS: string[] = [...new Set([
   CATALOGO.excluida?.repo,
   ...(CATALOGO_B.excluidas ?? []).map((e) => e.repo),
-].filter((v): v is string => Boolean(v));
+].filter((v): v is string => Boolean(v)))];
 
 const excluidos = new Set(REPOS_EXCLUIDOS);
 const esExcluida = (e: Entrada1020): boolean =>
