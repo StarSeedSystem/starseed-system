@@ -1,0 +1,114 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "ola": "1021G",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40253173687",
+   "id": "GUI1021Gb-d2",
+   "titulo": "Guías · tarjetas de la Guía de la red con los temas nuevos y los textos corregidos (parte 2 de 3)",
+   "archivos": [
+    "src/components/onboarding/onboarding-wizard.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §1 y §3. En `areas-explicadas.tsx`, las explicaciones de `/protomolecula`, `/network/politics`, `/network/education`, `/network/culture`, `/genesis` y `/cerebro` salen de `TODOS_LOS_TEMAS` (queEs = cuerpo, comoFunciona = puntos, empiezaPor = la pregunta a Aurora), y `/cerebros`, `/library` y `/red-mesh` pasan a usar los temas `neuronas-cerebro`, `libreria-biblioteca` y `malla`. En `onboarding-wizard.tsx` añade a `AREAS` las tarjetas que falten de esas rutas (con icono y tip corto) y cambia la de Cerebros a `/cerebro`. Pruebas: cada ruta nueva abre su explicación y ninguna tarjeta habla de «varios cerebros». Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40253173687`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40253173687:refs/remotes/origin/nube/40253173687\"` y `git cherry-pick --no-commit a5cc4606efbc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx, src/components/onboarding/areas-explicadas.tsx, src/components/onboarding/onboarding-wizard.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 3 (la dirección dividió GUI1021Gb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/onboarding/onboarding-wizard.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021Gb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "GUI1021Gb-d1"
+   ]
+  },
+  {
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261028-135546-CLB1027G",
+   "id": "CLB1027Gb-d1",
+   "titulo": "Capas · automejora: lo medido en cada neurona reordena los candidatos (parte 1 de 3)",
+   "archivos": [
+    "src/lib/astraura/capas/medidas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\n`medidas.ts` PURO: `registrarMedida(almacen, {neurona, modelo, capa, latenciaMs, tokPorS?, acierto?})` (media móvil de las últimas 20), `ordenarPorMedidas(candidatos, medidas, neurona)` (más rápido y más acertado primero; sin medida, el orden del catálogo). En `planificador.ts`, si recibe `medidas` en su entrada, ordena los candidatos de la capa con `ordenarPorMedidas` ANTES de elegir; sin medidas, nada cambia (la salida tiene que ser idéntica a hoy). Pruebas de las dos cosas.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261028-135546-CLB1027G`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261028-135546-CLB1027G:refs/remotes/origin/nube/a1-20261028-135546-CLB1027G\"` y `git cherry-pick --no-commit ee663d629cb9 7aeceb57efd2 b38ce5bb7264 1fde1f0630ca 7dd1493bb269 a5a18d57e193 6cbbbff1156f 175ab0613b76`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/astraura-bots/adaptadores/reparto-vivo.ts, src/lib/astraura/capas/__tests__/medidas.test.ts, src/lib/astraura/capas/__tests__/planificador.test.ts, src/lib/astraura/capas/medidas.ts, src/lib/astraura/capas/planificador.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 3 (la dirección dividió CLB1027Gb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/astraura/capas/medidas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CLB1027Gb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "CLB1027A"
+   ]
+  },
+  {
+   "id": "GCA1019G",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Puente con el enrutador de Astraura (sin tocar su lógica)",
+   "archivos": [
+    "src/lib/genesis/conectores/aplicar-escalera.ts",
+    "src/lib/genesis/conectores/__tests__/aplicar-escalera.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Adaptador PURO: convierte la salida de `elegirCandidatos` en el orden de preferencia que entiende `rankCandidates` de `src/ai/astraura/router.ts` (importa sus tipos `RouteCandidate`, `RankCandidatesOptions`) y en la cadena por papel del enjambre (`PapelRuta` de `src/lib/mando/enrutamiento.ts`). No modifiques esos archivos. Prueba: la candidata local del peldaño 1 queda primera; una candidata prohibida no aparece. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019F"
+   ],
+   "dependencias_ya_en_main": [
+    "GCA1019E"
+   ]
+  },
+  {
+   "id": "DEC1028F",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "Pasarelas · un 5xx es «saturada» (se repone sola), no «caída»",
+   "archivos": [
+    "scripts/puente/pasarelas.py",
+    "scripts/puente/test_pasarelas.py",
+    "scripts/puente/enrutar-hermes.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en el código, en las pruebas ni en lo que imprimas.\n\nContexto (medido el 2026-10-28): «Te toca a ti» le pidió a Alex «Google AI Studio (Gemini): renovar la clave» con detalle «http 503 · modelo gemini-3.5-flash-lite». La clave funcionaba: listar modelos 200 y generateContent 200 «ok» minutos después. El 503 de Google es «The model is overloaded. Please try again later» (status UNAVAILABLE): una saturación pasajera suya. Hoy `pasarelas.clasificar` manda todo `http >= 500` a CAIDA y `acciones-de-alex.py` convierte CAIDA en «renovar la clave». Mandar a renovar una clave que funciona es la peor clase de aviso (ver el comentario «TARDAR NO ES MORIR» de `_PISTAS`). Además, los modelos gemini-2.5-flash y gemini-2.5-flash-lite contestan 404 «no longer available to new users».\n\nEn `pasarelas.py`: añade el estado `SATURADA = \"saturada\"` (comentario fechado: el servidor existe y contesta, pero está sobrecargado ahora mismo; se repone sola). En `_PISTAS`, DESPUÉS de las de fichaje y de «unavailable for free» (que deben seguir ganando), añade («overloaded», SATURADA), («try again later», SATURADA), («high demand», SATURADA), («temporarily unavailable», SATURADA), («service unavailable», SATURADA) y («no longer available», MODELO_FUERA). En `clasificar`: 500, 502, 503, 504 y 529 → SATURADA; cualquier otro ≥ 500 sigue en CAIDA. Añade SATURADA a `OPCIONES_CONSEJERO` con su frase. `hay_que_renovar` NO cambia (SATURADA no pide persona). `accion_de(SATURADA)` → «saturada ahora mismo: se repone sola, reintenta en un rato», `humano: False`, sin enlace. En `informe`, ordénala justo detrás de LENTA. En `enrutar-hermes.py`, `ORDEN_ESTADO` incluye «saturada» justo detrás de «lenta» (y renumera), y una pasarela saturada se queda en la cadena de respaldo como la «lenta» (no se tira fuera). Pruebas en `test_pasarelas.py`: 503 con el cuerpo de Google → SATURADA; 503 sin cuerpo → SATURADA; 500 → SATURADA; 501 → CAIDA; «daily check-in required» con 503 → FICHAJE; 404 «no longer available to new users» → MODELO_FUERA; `hay_que_renovar(SATURADA)` es False. Corre `python3 -m pytest scripts/puente/test_pasarelas.py -q`."
+  },
+  {
+   "id": "RLB1020P",
+   "ola": "1020U",
+   "titulo": "Biblioteca · el cargador lee la 4.ª tanda, no duplica Coolify, OpenHands ni Stirling-PDF y corrige la URL de OpenHands",
+   "archivos": [
+    "src/lib/library/repos-externos-1020.ts",
+    "src/lib/library/__tests__/repos-externos-1020d.test.ts",
+    "src/lib/library/packages.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). `src/lib/library/repos-externos-1020.ts` ya lee las tandas 1020, 1020b y 1020c: súmale config/repos-libreria-1020d.json con el mismo mapeo. La comparación de repos para no duplicar es SIN distinguir mayúsculas (GitHub no las distingue): Coolify (`iatool-coolify`), OpenHands (`iatool-openhands`) y Stirling-PDF (`iatool-stirling-pdf`) ya existen en `packages.ts` y van a `REPOS_YA_PRESENTES`, no como paquetes nuevos. En `packages.ts` cambia SOLO el `externalUrl` de `iatool-openhands` a https://github.com/OpenHands/OpenHands. Exporta `REQUISITOS_1020D: Record<string, …>` con los `requisitos` de cada paquete de la tanda (tipados; `null` = sin medir) para la bolsa de recursos. Pruebas: ids únicos en las cuatro tandas; las tres duplicadas no aparecen dos veces aunque cambien las mayúsculas; están comfyui, harness2, libretranslate, archivebox, localsend, gallery-dl y openrig; la URL nueva de OpenHands; gallery-dl conserva su aviso del traslado a Codeberg. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).",
+   "dependencias_ya_en_main": [
+    "RLB1020K-d2"
+   ]
+  },
+  {
+   "id": "PM1010F1F",
+   "ola": "Ola 1010P · Protomolécula: función universal de creación y edición (átomos con parámetros, dictado en tiempo real, convergencia, sincronía P2P)",
+   "titulo": "Apps ajenas embebidas (solo ventana): Excalidraw, editor de three.js y las que admitan incrustarse",
+   "archivos": [
+    "src/lib/protomolecula/apps-embebidas.ts",
+    "src/lib/protomolecula/__tests__/apps-embebidas.test.ts",
+    "src/lib/protomolecula/atomos/index.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/protomolecula.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §1 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica. §11.1 fija los nombres de las interfaces del runtime. El núcleo puro YA está escrito y probado (120 pruebas) y NO se modifica: `src/lib/protomolecula/{tipos,parametros,dictado,vinculos-control,permisos}.ts` (ábrelos y usa sus nombres reales). `src/lib/protomolecula/catalogo-herramientas.ts` lo escribe OTRA sesión: no lo crees ni lo edites; las herramientas se citan por id (string). Petición de Alex (2026-10-10): «Protomolécula» = función universal de creación y edición (imagen, audio, vídeo, sonido, síntesis, 3D con texturas programables, arquitectura, físicas, videojuegos, VR/AR) que se controla a mano o por la IA de Astraura con dictado en tiempo real de cada parámetro (valor exacto o relativo), presente en el lienzo universal, la biblioteca, pizarras, dashboards, widgets, escritorios, estaciones, llamadas mesh y mensajes de agentes, privada o pública, y sincronizada por la malla P2P primero.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/protomolecula.md` y `src/lib/protomolecula/{tipos,parametros,dictado,vinculos-control,permisos}.ts`. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo: ya pasó con una rama que se inventó `tipos.ts` y `parametros.ts`). Escribe SOLO tus archivos, con los nombres y firmas que te da este prompt y el §11.1 del contrato, no edites ningún archivo del núcleo para que un import resuelva y, si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo de la Protomolécula en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Sin dependencias npm nuevas. Pruebas sin red ni hardware (lo del navegador se inyecta). Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (PM1010F1F): Tercer grado de integración (§3.2): la app completa se muestra TAL CUAL y Protomolécula solo controla su ventana y sus archivos. `apps-embebidas.ts` exporta `APPS_EMBEBIDAS: DefinicionAtomo[]` con `control: \"ventana\"`, `parametros: []`, `integracion: \"iframe-aislado\"`, `vista: {tipo: \"externa\", url}` y `ficha`. Candidatas: Excalidraw (https://excalidraw.com, repo excalidraw/excalidraw, MIT), el editor de three.js (https://threejs.org/editor/, mrdoob/three.js, MIT), Hydra (https://hydra.ojack.xyz, repo hydra-synth/hydra) y Strudel (https://strudel.cc, repo tidalcycles/strudel). HONESTIDAD OBLIGATORIA: para CADA una (1) comprueba la licencia en el `LICENSE` del repo upstream (con red: `curl -s https://raw.githubusercontent.com/<repo>/HEAD/LICENSE | head`; sin red, escribe `licencia: \"sin verificar\"` y `proximamente: \"licencia sin verificar\"`); (2) comprueba que el sitio se deja incrustar: `curl -sI <url>` y mira `x-frame-options` y `content-security-policy: frame-ancestors`; si lo prohíben (DENY, SAMEORIGIN o una lista que no nos incluya), NO uses vista `externa`: deja la ficha con `vista` ausente y `proximamente: \"el sitio no permite incrustarse; ábrelo en su pestaña\"`. Apunta en un comentario la fecha (2026-10-10) y lo que midió cada comprobación. Una app solo lleva vista `externa` si la medición la permite. Exporta también `registrarAppsEmbebidas()` (idempotente) y llámala desde `registrarAtomosPropios()` de `index.ts` (edición de ≤ 5 líneas). Pruebas (≥ 6, sin red): todas las URL son `https` y pasan `esUrlEmbebible` de `../puente-herramientas`; ninguna con vista `externa` tiene `proximamente`; todas con `proximamente` carecen de vista; `control` es `ventana` y `parametros` vacío; ids únicos; cada ficha trae `repo` y `licencia`. Integración: F1B las muestra; la Biblioteca las listará en F2K. Di en tu última línea qué apps quedaron embebibles y cuáles «próximamente» y POR QUÉ.",
+   "dependencias_ya_en_main": [
+    "PM1010F1E",
+    "PM1010F1B-d3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "CLB1027Gb-d1",
+   "RLB1020P",
+   "GUI1021Gb-d2",
+   "GCA1019G",
+   "PM1010F1F"
+  ]
+ }
+}
