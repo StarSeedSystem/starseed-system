@@ -1,0 +1,49 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40253286863",
+   "id": "SP092941d-d2",
+   "titulo": "Vincular labels e inputs en formularios de creación (parte 2 de 2)",
+   "archivos": [
+    "src/components/creation/pizarras-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092938 (creacion × ux-accesibilidad-diseno) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/creacion--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Asociar etiquetas a campos con htmlFor e id — Los <label> de URL y Etiqueta no tienen htmlFor ni los Input id; también el textarea de comentario y las opciones de votación carecen de label asociado. Los lectores de pantalla no anuncian el propósito de cada campo.\nCITA: src/components/creation/source-picker.tsx:292 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Añadir id único a cada Input/textarea y htmlFor en su label; donde no haya label visible, usar aria-label fijo.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/creation/source-picker.tsx, src/components/creation/pizarras-panel.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40253286863`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40253286863:refs/remotes/origin/nube/40253286863\"` y `git cherry-pick --no-commit abbc2e2d90c8`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/creation/__tests__/pizarras-panel-form.test.tsx, src/components/creation/__tests__/selector-fuente-form.test.tsx, src/components/creation/pizarras-panel.tsx, src/components/creation/source-picker.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió SP092941d: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/creation/pizarras-panel.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SP092941d",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "SP092941d-d1"
+   ]
+  },
+  {
+   "id": "TIP1013E",
+   "ola": "Ola 1012Q · Malla de sílice: routers portátiles como titanio móvil, con SIM o sin ella, y puertas a internet opcionales",
+   "titulo": "Salida a internet: ruta por la malla hasta la mejor puerta permitida",
+   "archivos": [
+    "src/lib/malla/cristal/salida-internet.ts",
+    "src/lib/malla/cristal/__tests__/salida-internet.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/malla-cristalina-sio2.md §8 y §8.1 (léela entera). Usa `mejoresRutas` de src/lib/malla/cristal/rutas.ts y `elegirPuerta` de src/lib/malla/cristal/puertas-internet.ts. Exporta `planSalida(e: {cristal; reticula; dato; ctx; puertas; solicitante; actual?: string}): {puerta: PuertaInternet | null; ruta: Ruta | null; motivo: string}`: si el dato no necesita internet (clase 'interno'/'privado' con destino neurona, o destino no nulo) → sin puerta y la ruta normal con «va por la malla P2P»; si lo necesita (destino null y clase 'publico'), elige la puerta y devuelve la mejor ruta hasta la neurona de esa puerta (sin ruta → prueba la siguiente puerta permitida; ninguna → motivo claro). Pruebas: privado nunca usa puerta; público elige la puerta alcanzable más barata; puerta inalcanzable se salta.",
+   "revisor_quitadas": [
+    "TIP1013B"
+   ],
+   "dependencias_ya_en_main": [
+    "MC1012I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "SP092941d-d2",
+   "TIP1013E"
+  ]
+ }
+}
