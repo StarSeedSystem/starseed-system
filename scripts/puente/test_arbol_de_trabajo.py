@@ -166,6 +166,21 @@ class TestColasVersionadas(unittest.TestCase):
         _m, _e, ajenas = clasificar("?? " + self.ART, raiz=self.raiz)
         self.assertEqual(ajenas, [self.ART])
 
+    def test_una_cola_fuera_de_olas_es_ajena(self):
+        # (rama nube/40676438291, adaptado) La contabilidad propia vive en
+        # `starseed_memory_root/olas/`: una lista JSON de tareas válida en OTRA
+        # carpeta se queda como trabajo ajeno aunque tenga pinta de cola.
+        ruta = "starseed_memory_root/cola-x-1028.json"
+        self.escribe(ruta, '[{"id": "X1", "depende": []}]')
+        mias, _e, ajenas = clasificar(" M " + ruta, raiz=self.raiz)
+        self.assertEqual((mias, ajenas), ([], [ruta]))
+
+    def test_una_cola_en_subcarpeta_es_ajena(self):
+        ruta = "starseed_memory_root/olas/sub/cola-x-1028.json"
+        self.escribe(ruta, '[{"id": "X1", "depende": []}]')
+        mias, _e, ajenas = clasificar(" M " + ruta, raiz=self.raiz)
+        self.assertEqual((mias, ajenas), ([], [ruta]))
+
     def test_la_raiz_por_defecto_es_la_del_repo(self):
         self.assertTrue(os.path.isdir(RAIZ))
         if not os.path.isfile(os.path.join(RAIZ, self.ART)):
