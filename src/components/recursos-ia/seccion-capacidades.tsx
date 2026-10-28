@@ -17,10 +17,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { BTN, BTN_PRIMARY, Empty, INPUT, LABEL, MONO, SUB } from "@/components/astraura/s158/shared";
 import { cn } from "@/lib/utils";
 import { cabeEn } from "@/lib/recursos-ia/compatibilidad";
+import { destinoDeIA, type DestinoIA } from "@/lib/recursos-ia/enrutado";
 import {
     CAPACIDADES,
     NOMBRE_CAPACIDAD,
     type Alternativa,
+    type Asignacion,
     type Capacidad,
     type ConfigTopologia,
     type InventarioRecursos,
@@ -112,12 +114,14 @@ export function SeccionCapacidades({
     inv,
     catalogo,
     config,
+    asignaciones,
     alGuardar,
 }: {
     plan: PlanRecursos | null;
     inv: InventarioRecursos;
     catalogo: RequisitosModelo[];
     config: ConfigTopologia;
+    asignaciones: Record<string, Asignacion>;
     alGuardar: (c: ConfigTopologia) => void;
 }) {
     const procesadores = useMemo(() => todosLosProcesadores(inv), [inv]);
@@ -138,7 +142,22 @@ export function SeccionCapacidades({
         <ul className="flex flex-col gap-2" aria-label="Por capacidad">
             {CAPACIDADES.map((cap) => {
                 const s = sugerencias.find((x) => x.capacidad === cap);
-                if (s) return <FilaCapacidad key={cap} s={s} inv={inv} catalogo={catalogo} procesadores={procesadores} almacenes={almacenes} fijada={config.porCapacidad?.[cap]} alFijar={(e) => fijar(cap, e)} />;
+                if (s) {
+                    const destino = plan ? destinoDeIA({ ...plan, topologia: config }, asignaciones, inv, cap) : null;
+                    return (
+                        <FilaCapacidad
+                            key={cap}
+                            s={s}
+                            inv={inv}
+                            catalogo={catalogo}
+                            procesadores={procesadores}
+                            almacenes={almacenes}
+                            destino={destino}
+                            fijada={config.porCapacidad?.[cap]}
+                            alFijar={(e) => fijar(cap, e)}
+                        />
+                    );
+                }
                 const so = sinOpcion.find((x) => x.capacidad === cap);
                 if (!so) return null;
                 return (
@@ -161,6 +180,7 @@ function FilaCapacidad({
     catalogo,
     procesadores,
     almacenes,
+    destino,
     fijada,
     alFijar,
 }: {
@@ -169,6 +189,7 @@ function FilaCapacidad({
     catalogo: RequisitosModelo[];
     procesadores: Procesador[];
     almacenes: MedioAlmacen[];
+    destino: DestinoIA | null;
     fijada?: { procesaEn?: string; almacenEn?: string; modeloId?: string };
     alFijar: (e: { modeloId: string; procesaEn: string; almacenEn: string } | null) => void;
 }) {
@@ -218,6 +239,20 @@ function FilaCapacidad({
                 <Flecha />
                 <Eslabon etiqueta="Almacén" valor={s.almacen.etiqueta} sub={`${fmtLibre(s.almacen)} · ${nombreVia(s.via)}`} icono={IconoA} />
             </div>
+
+            {destino && (
+                <p data-testid={`destino-${s.capacidad}`} className="flex flex-wrap items-center gap-1.5 text-[10px] leading-snug text-white/55">
+                    <span className={LABEL}>Va por</span>
+                    <span className="text-white/80">{nombreVia(destino.via)}</span>
+                    <span aria-hidden="true">·</span>
+                    <span className="text-white/80">{nombreNeurona(inv, destino.neuronaId) || destino.neuronaId}</span>
+                    {destino.baseUrl ? (
+                        <code className="rounded bg-white/[0.06] px-1.5 py-0.5 font-code text-[10px] text-sky-100">{destino.baseUrl}</code>
+                    ) : (
+                        <span className="min-w-0 text-white/50">{destino.motivo}</span>
+                    )}
+                </p>
+            )}
 
             {s.porQue.length > 0 && (
                 <ul className="grid gap-x-6 gap-y-0.5 text-[11px] leading-snug text-white/70 lg:grid-cols-2">

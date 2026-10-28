@@ -236,7 +236,7 @@ export function PanelRecursosIa({ alcance: alcanceInicial }: { alcance?: Alcance
 
                     {/* d) Por capacidad */}
                     <Bloque id="ria-capacidades" icon={Cpu} titulo="Por capacidad" pista="Modelo → procesador → almacén para cada cosa que hace tu IA. «Fijar» la deja así aunque cambien las sugerencias." tono="text-[#39FF14]">
-                        <SeccionCapacidades plan={plan} inv={inv} catalogo={catalogo} config={actual} alGuardar={guardarTopologia} />
+                        <SeccionCapacidades plan={plan} inv={inv} catalogo={catalogo} config={actual} asignaciones={estado.asignaciones} alGuardar={guardarTopologia} />
                     </Bloque>
 
                     {/* e) Preguntas */}
