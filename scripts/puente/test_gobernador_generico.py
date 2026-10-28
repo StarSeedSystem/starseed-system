@@ -91,6 +91,13 @@ hw.cachelinesize: 64"""
         resultado = de_sysctl(texto)
         self.assertAlmostEqual(resultado, 32768.0, places=1)  # 32 GB en MB
 
+    def test_sysctl_otras_lineas_sin_memsize(self):
+        """Otras líneas sysctl presentes pero SIN hw.memsize (distinto de línea vacía o sin valor)."""
+        texto = """hw.ncpu: 8
+hw.cachelinesize: 64"""
+        resultado = de_sysctl(texto)
+        self.assertIsNone(resultado)
+
 
 class TestDeBateriaLinux(unittest.TestCase):
     """Tests for de_bateria_linux function."""
