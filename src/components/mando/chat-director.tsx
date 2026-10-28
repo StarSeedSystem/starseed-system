@@ -29,6 +29,8 @@ const CLAVE_PLEGADO = "starseed.mando.director.plegado";
 const CLAVE_MODELO = "starseed.mando.director.modelo";
 const INTERVALO_NORMAL_MS = 10_000;
 const INTERVALO_RESPUESTA_MS = 3_000;
+/** Distancia al fondo que cuenta como «estar pegado» al último mensaje. */
+const UMBRAL_FONDO_PX = 80;
 
 const FILTROS: { id: FiltroFeed; etiqueta: string }[] = [
     { id: "todo", etiqueta: "Todo" },
@@ -97,6 +99,12 @@ export function ChatDirector() {
     const [enviando, setEnviando] = useState(false);
     const [envioLocal, setEnvioLocal] = useState<EnvioLocal | null>(null);
     const listaRef = useRef<HTMLDivElement | null>(null);
+    const contenidoRef = useRef<HTMLDivElement | null>(null);
+    // Si la lista estaba al fondo antes del último cambio. Lo actualiza `onScroll`; si Alex subió a leer algo, los mensajes nuevos no lo arrastran y se avisa con un botón.
+    const pegadoAlFondoRef = useRef(true);
+    const claveUltimaRef = useRef<string | null>(null);
+    const abiertoPrevioRef = useRef(false);
+    const [nuevos, setNuevos] = useState(0);
     // El último `t` vive en una referencia: si `cargar` dependiera de `mensajes`, cada lectura
     // crearía un `cargar` nuevo, el efecto lo relanzaría con lectura completa y el chat
     // martillearía /api/mando/director-chat en bucle (revisión de CDL1004, 2026-10-04).
@@ -230,10 +238,61 @@ export function ChatDirector() {
             ?? envioLocal.mensaje.modelo
         : "La dirección";
 
-    useEffect(() => {
+    const ultimaVisible = visibles[visibles.length - 1];
+    const claveUltima = ultimaVisible ? `${ultimaVisible.id || ultimaVisible.t}` : "";
+    const largoUltima = ultimaVisible?.texto.length ?? 0;
+
+    const bajarAlFinal = useCallback(() => {
         const nodo = listaRef.current;
         if (nodo) nodo.scrollTop = nodo.scrollHeight;
-    }, [enviando, envioLocal, visibles.length]);
+        pegadoAlFondoRef.current = true;
+        setNuevos(0);
+    }, []);
+
+    const alDesplazar = useCallback(() => {
+        const nodo = listaRef.current;
+        if (!nodo) return;
+        const alFondo = nodo.scrollHeight - nodo.scrollTop - nodo.clientHeight <= UMBRAL_FONDO_PX;
+        pegadoAlFondoRef.current = alFondo;
+        if (alFondo) setNuevos(0);
+    }, []);
+
+    // Depende del ÚLTIMO mensaje (identidad y largo), no del total: con el tope de 500 la longitud no cambia.
+    useEffect(() => {
+        if (plegado) {
+            abiertoPrevioRef.current = false;
+            return;
+        }
+        const nodo = listaRef.current;
+        if (!nodo) return;
+        const reabierto = !abiertoPrevioRef.current;
+        abiertoPrevioRef.current = true;
+        const previa = claveUltimaRef.current;
+        claveUltimaRef.current = claveUltima;
+        if (reabierto || previa === null || pegadoAlFondoRef.current) {
+            nodo.scrollTop = nodo.scrollHeight;
+            pegadoAlFondoRef.current = true;
+            setNuevos(0);
+            return;
+        }
+        if (previa !== claveUltima) {
+            const desde = visibles.findIndex((m) => `${m.id || m.t}` === previa);
+            setNuevos((n) => n + (desde >= 0 ? visibles.length - 1 - desde : 1));
+        }
+    }, [claveUltima, largoUltima, plegado, visibles]);
+
+    // Si crece el alto de un mensaje y Alex seguía al fondo, se vuelve a bajar (jsdom no trae ResizeObserver).
+    useEffect(() => {
+        if (plegado || typeof ResizeObserver === "undefined") return;
+        const nodo = listaRef.current;
+        const contenido = contenidoRef.current;
+        if (!nodo || !contenido) return;
+        const observador = new ResizeObserver(() => {
+            if (pegadoAlFondoRef.current) nodo.scrollTop = nodo.scrollHeight;
+        });
+        observador.observe(contenido);
+        return () => observador.disconnect();
+    }, [plegado]);
 
     const alternar = () => {
         setPlegado((p) => {
@@ -285,30 +344,51 @@ export function ChatDirector() {
                             {aviso}
                         </p>
                     ) : null}
-                    <div ref={listaRef} className="flex max-h-[min(340px,40vh)] flex-col gap-2 overflow-y-auto">
-                        {visibles.length === 0 ? (
-                            <p className="text-[11px] text-white/40">Nadie ha hablado todavía; empieza abajo.</p>
-                        ) : (
-                            visibles.map((m) => (
-                                <MensajeDelDirector
-                                    key={m.id}
-                                    mensaje={m}
-                                    entregas={entregas[m.id]}
-                                    modelos={modelosConMotores}
-                                    modeloPorDefecto={modeloPreferido}
-                                    onResponder={(id, modelo) => void publicar({ accion: "responder", respondeA: id, modelo })}
-                                    onReenviar={(id, canales) => void publicar({ accion: "reenviar", reenviar: id, canales })}
-                                />
-                            ))
-                        )}
+                    <div className="relative">
+                        <div
+                            ref={listaRef}
+                            data-testid="chat-director-lista"
+                            onScroll={alDesplazar}
+                            className="max-h-[min(340px,40vh)] overflow-y-auto"
+                        >
+                            <div ref={contenidoRef} className="flex flex-col gap-2">
+                                {visibles.length === 0 ? (
+                                    <p className="text-[11px] text-white/40">Nadie ha hablado todavía; empieza abajo.</p>
+                                ) : (
+                                    visibles.map((m) => (
+                                        <MensajeDelDirector
+                                            key={m.id}
+                                            mensaje={m}
+                                            entregas={entregas[m.id]}
+                                            modelos={modelosConMotores}
+                                            modeloPorDefecto={modeloPreferido}
+                                            onResponder={(id, modelo) => void publicar({ accion: "responder", respondeA: id, modelo })}
+                                            onReenviar={(id, canales) => void publicar({ accion: "reenviar", reenviar: id, canales })}
+                                        />
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                        {nuevos > 0 ? (
+                            <button
+                                type="button"
+                                onClick={bajarAlFinal}
+                                aria-label={`Bajar a ${nuevos} mensajes nuevos`}
+                                className="absolute bottom-2 left-1/2 -translate-x-1/2 cursor-pointer rounded-full border border-violet-400/50 bg-violet-600 px-3 py-1 text-[11px] font-semibold text-white shadow-lg"
+                            >
+                                ↓ {nuevos} nuevos
+                            </button>
+                        ) : null}
                     </div>
                     {cargado ? (
                         <CompositorDirector
                             modelos={modelos}
                             ultimoModelo={ultimoModelo}
                             enviando={enviando}
-                            onEnviar={({ texto, modelo, canales }) =>
-                                void publicar({ accion: "decir", texto, modelo, canales })}
+                            onEnviar={({ texto, modelo, canales }) => {
+                                bajarAlFinal();
+                                void publicar({ accion: "decir", texto, modelo, canales });
+                            }}
                         />
                     ) : (
                         <p className="text-[11px] text-white/40">Leyendo el chat…</p>

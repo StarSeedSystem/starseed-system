@@ -13,6 +13,19 @@ function feed(mensajes: unknown[] = [], ultimoModelo = "") {
 
 const nativoFetch = globalThis.fetch;
 
+/** Mensaje numerado para llenar el feed hasta el tope de 500. */
+function mensaje(i: number) {
+  return {
+    id: `md-${i}`,
+    t: new Date(Date.UTC(2026, 9, 4, 10, 0, 0) + i * 1000).toISOString(),
+    de: "alex",
+    rol: "alex",
+    tipo: "mensaje",
+    texto: `Mensaje ${i}`,
+    canal: "mando",
+  };
+}
+
 describe("ChatDirector", () => {
   const llamadas: { url: string; init?: RequestInit }[] = [];
 
@@ -122,4 +135,81 @@ describe("ChatDirector", () => {
     const estado = await screen.findByRole("status");
     expect(estado).toHaveTextContent(/Hermes está respondiendo/);
   });
+
+  it("con 500 mensajes, al llegar el 501 la lista sigue al último", async () => {
+    vi.useFakeTimers();
+    try {
+      let cola = Array.from({ length: 500 }, (_, i) => mensaje(i + 1));
+      let alto = 1000;
+      globalThis.fetch = async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/mando/modelos")) {
+          return { ok: true, json: async () => ({ modelos: [] }) } as Response;
+        }
+        return { ok: true, json: async () => ({ mensajes: cola, entregas: {}, ultimoModelo: "" }) } as Response;
+      };
+      render(<ChatDirector />);
+      await act(async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); });
+      const lista = screen.getByTestId("chat-director-lista");
+      Object.defineProperty(lista, "scrollHeight", { configurable: true, get: () => alto });
+      Object.defineProperty(lista, "clientHeight", { configurable: true, value: 200 });
+      lista.scrollTop = alto;
+      fireEvent.scroll(lista);
+
+      cola = [...cola, mensaje(501)];
+      alto = 1200;
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+        for (let i = 0; i < 8; i++) await Promise.resolve();
+      });
+
+      expect(screen.getByText("Mensaje 501")).toBeInTheDocument();
+      expect(lista.scrollTop).toBe(1200);
+      expect(screen.queryByRole("button", { name: /mensajes nuevos/i })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+      globalThis.fetch = nativoFetch;
+    }
+  }, 40_000);
+
+  it("si Alex se subió a leer, no lo arrastra: avisa de 1 nuevo y el botón baja", async () => {
+    vi.useFakeTimers();
+    try {
+      let cola = Array.from({ length: 500 }, (_, i) => mensaje(i + 1));
+      let alto = 2000;
+      globalThis.fetch = async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/mando/modelos")) {
+          return { ok: true, json: async () => ({ modelos: [] }) } as Response;
+        }
+        return { ok: true, json: async () => ({ mensajes: cola, entregas: {}, ultimoModelo: "" }) } as Response;
+      };
+      render(<ChatDirector />);
+      await act(async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); });
+      const lista = screen.getByTestId("chat-director-lista");
+      Object.defineProperty(lista, "scrollHeight", { configurable: true, get: () => alto });
+      Object.defineProperty(lista, "clientHeight", { configurable: true, value: 200 });
+      lista.scrollTop = 500;
+      fireEvent.scroll(lista);
+
+      cola = [...cola, mensaje(501)];
+      alto = 2200;
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+        for (let i = 0; i < 8; i++) await Promise.resolve();
+      });
+
+      expect(screen.getByText("Mensaje 501")).toBeInTheDocument();
+      expect(lista.scrollTop).toBe(500);
+      const boton = screen.getByRole("button", { name: "Bajar a 1 mensajes nuevos" });
+      expect(boton).toHaveTextContent("1 nuevos");
+
+      fireEvent.click(boton);
+      expect(lista.scrollTop).toBe(2200);
+      expect(screen.queryByRole("button", { name: /mensajes nuevos/i })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+      globalThis.fetch = nativoFetch;
+    }
+  }, 40_000);
 });
