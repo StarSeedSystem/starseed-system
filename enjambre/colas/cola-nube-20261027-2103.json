@@ -1,0 +1,93 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "ola": "repos-libreria-1020",
+   "id": "RLB1020Ab-d3c",
+   "titulo": "Biblioteca · repo builtin externo 1020 (14 publicaciones autoactualizables) (parte 3 de 3)",
+   "archivos": [
+    "src/lib/library/packages.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee entero el contrato architecture/repos-libreria-1020.md (§1-§5) y el catálogo verificado config/repos-libreria-1020.json (14 entradas en `paquetes`; datos reales, NO los cambies).\n\n1. Crea src/lib/library/repos-externos-1020.ts: importa el JSON (import … assert {type:'json'} o require tipado; el proyecto ya importa JSON en otros módulos de library) y mapea cada entrada a LibraryPackage (de ./packages): id, kind=entrada.kind, name=entrada.nombre, description=entrada.que_es + (entrada.aviso? ' — '+entrada.aviso : ''), icon por kind (app→AppWindow, ai-source→BrainCircuit, function→Boxes), tags=[...entrada.area, entrada.canal, entrada.licencia?'lic':''].filter(Boolean), version='1.0.0', author derivado de repo (owner), sourceRepoId='starseed-biblioteca-externa', free=true, comingSoon=true (ninguna tiene efecto de instalación real todavía), payload={ externalUrl: 'https://github.com/'+entrada.repo, githubRepo: entrada.repo, canal: entrada.canal, area: entrada.area, licencia: entrada.licencia, assets: entrada.assets??false, ...(entrada.skillId?{skillId:entrada.skillId}:{}) }. Exporta REPO_EXTERNOS_1020: LibraryRepo = { id:'starseed-biblioteca-externa', name:'Biblioteca externa', builtin:true, packages: [...] }.\n2. En packages.ts, añade REPO_EXTERNOS_1020 a listRepos() (impórtalo; colócalo en `base` junto a los demás builtins). Un solo punto de cambio; no toques nada más de packages.ts.\n3. Test: las 14 ids son únicas; cada paquete tiene payload.externalUrl que empieza por 'https://github.com/' y payload.githubRepo con forma owner/repo; NINGÚN id/repo contiene 'reverse-skill'; lib-anatomy lleva payload.skillId==='anatomy'; lib-gods-eye está en area 'mapas'. available-updates.ts ya autobusca releases con payload.externalUrl: NO dupliques ese motor.\n Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos puros sin `node:*` en cliente; nada de `any`; honestidad radical en cada ficha (qué hace DE VERDAD; botón deshabilitado con `comingSoon:true` si aún no hay efecto); respeta `canal` y licencia de cada entrada; NO incluyas zhaoxuya520/reverse-skill (excluida por seguridad).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261026-183502-RLB1020Ab-d3b`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261026-183502-RLB1020Ab-d3b:refs/remotes/origin/nube/a1-20261026-183502-RLB1020Ab-d3b\"` y `git cherry-pick --no-commit 688bf1835362 ee362bbbaef2 da11e265a521`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/repos-externos-1020.test.ts, src/lib/library/packages.ts, src/lib/library/repos-externos-1020.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "RLB1020Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "RLB1020Ab-d2"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261026-183502-RLB1020Ab-d3b"
+  },
+  {
+   "id": "LNN1028A",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Recordar · fusión por rango recíproco de Memvid y LEANN (puro, TS)",
+   "archivos": [
+    "src/lib/memorias/fusion-recuerdos.ts",
+    "src/lib/memorias/__tests__/fusion-recuerdos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nPURO. `Recuerdo = { uri: string; texto: string; titulo?: string; ts?: number; fuente: \"memvid\" | \"leann\"; puntuacion?: number; alcance: AlcanceMemoria }`. `fundirRecuerdos(listas: Recuerdo[][], {k = 60, max = 6, maxCaracteres = 1500})`: fusión por rango recíproco (suma de 1/(k + rango) por `uri`; sin `uri`, la huella del texto), dedupe quedándose con el texto más largo, orden por puntuación fundida y corte por `max` y `maxCaracteres`. `pesoVectorPara(consulta)`: 0,7 por defecto, 0,4 si la consulta lleva comillas o nombres propios (más peso a las palabras). Pruebas: un recuerdo en las dos listas sube; dedupe; cortes."
+  },
+  {
+   "id": "LNN1028A2",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Recordar · la misma fusión en Python para Jev y los agentes",
+   "archivos": [
+    "scripts/puente/fusion_recuerdos.py",
+    "scripts/puente/test_fusion_recuerdos.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nLo mismo que `src/lib/memorias/fusion-recuerdos.ts` (LNN1028A) en Python stdlib: `fundir_recuerdos(listas, k=60, maximo=6, max_caracteres=1500)` y `peso_vector_para(consulta)`, con los mismos casos de prueba para que den lo mismo."
+  },
+  {
+   "id": "LNN1028B",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "LEANN · el servidor de recuerdo semántico con token (A1)",
+   "archivos": [
+    "scripts/puente/leann_servidor.py",
+    "scripts/puente/test_leann_servidor.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nstdlib `http.server` (`ThreadingHTTPServer`) + `from leann import LeannBuilder, LeannSearcher` importado DENTRO de las funciones (las pruebas inyectan uno falso). Escucha en 127.0.0.1 y `STARSEED_LEANN_PUERTO` (4495); token de `~/.starseed/leann.token` (si no existe, 32 bytes de `os.urandom` en hex, 0600); 403 sin `X-StarSeed-Token` correcto, con `Host` distinto de 127.0.0.1 o con `Origin`. Rutas del contrato §3: `GET /salud`, `GET /indices` (carpetas de `STARSEED_LEANN_DIR`, por defecto `/var/lib/starseed/leann`), `POST /indices/<nombre>/buscar` `{consulta, k, filtros?, peso_vector?}` → `[{id, puntuacion, texto, metadatos}]` y `POST /indices/<nombre>/poner` `{textos: [{texto, metadatos}]}` (crea el índice con `embedding_mode=\"ollama\"`, modelo `qwen3-embedding:0.6b`, o añade con `update_index`). `<nombre>` solo `[a-z0-9-]`. Caché de 4 `LeannSearcher`; un cerrojo por índice al escribir; los metadatos SIEMPRE llevan `alcance` (sin él, 400). Pruebas con un LEANN falso: token, nombres malos, filtros que llegan tal cual, 400 sin alcance."
+  },
+  {
+   "id": "LNN1028E",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Túnel · la Mac llega al servidor LEANN del A1",
+   "archivos": [
+    "scripts/puente/tunel_metagenesis.py",
+    "scripts/puente/test_tunel_metagenesis_leann.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nLéelo entero. Añade el reenvío local 127.0.0.1:4495 → A1 127.0.0.1:4495 al túnel que ya abre (mismo `ssh`, misma llave, misma vigilancia y reconexión). Si el túnel no admite más reenvíos sin cambiar su forma, crea la lista de reenvíos (`REENVIOS = [(puerto_local, puerto_a1), ...]`) con el suyo de siempre y este. Nunca imprime la IP del A1. Prueba de que la orden de `ssh` lleva los dos `-L`."
+  },
+  {
+   "id": "MTN1027L",
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "titulo": "Biblioteca · tanda 1027b (Meta^n y Memvid) como módulo puro",
+   "archivos": [
+    "src/lib/library/repos-1027b.ts",
+    "src/lib/library/__tests__/repos-1027b.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\nIgual que `src/lib/library/repos-1027.ts` (y `repos-1026.ts`), leyendo `config/repos-libreria-1027b.json` (ya en main): `FICHAS_REPOS_1027B`, `DECISIONES_1027B`, `LICENCIAS_VERIFICADAS_1027B`. `lib-meta-n` va por canal `commits` (sin etiquetas; versión = el commit corto) y `lib-memvid` por `tags`. Si un icono del JSON no existe en el mapa de iconos de la Biblioteca, usa el que se usa para `ai-source`. Prueba: 2 fichas, ids únicos, canales.",
+   "dependencias_ya_en_main": [
+    "MBT1027N"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1027-192421.json": [
+   "RLB1020Ab-d3c",
+   "LNN1028B",
+   "MTN1027L",
+   "LNN1028A",
+   "LNN1028A2",
+   "LNN1028E"
+  ]
+ }
+}
