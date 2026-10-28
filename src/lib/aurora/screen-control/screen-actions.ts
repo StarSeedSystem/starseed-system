@@ -190,17 +190,36 @@ export function verPantalla(): ScreenActionOutcome {
 /**
  * Pulsa un elemento por su número efímero o por su nombre (fuzzy):
  * lo trae a la vista (scrollIntoView), lo resalta y hace click REAL.
+ * Antes anuncia la acción al Mausbot y comprueba permisos de la neurona.
  */
-export function clickElement(idOrName: unknown): ScreenActionOutcome {
+export function clickElement(idOrName: unknown, opciones?: { deviceId?: string; nivel?: NivelBot; reversible?: boolean }): ScreenActionOutcome {
   const { item, error } = resolveTarget(idOrName);
   if (!item) return fail(error ?? `No encuentro ese botón. ${HINT}`);
   const el = item.el;
+
+  // Anunciar al Mausbot (host anima el cursor hasta el rect)
+  const rect = el.getBoundingClientRect();
+  const deviceId = opciones?.deviceId ?? (typeof window !== "undefined" ? (window as any).__STARSEED_DEVICE_ID__ : "") ?? "desconocido";
+  const nivel = opciones?.nivel ?? "proponer";
+  const reversible = opciones?.reversible ?? false;
+
+  anunciarAccion({ tipo: "click", rect, etiqueta: item.label, deviceId, nivel, reversible });
+
+  // Comprobar permisos antes de actuar
+  const permiso = puedeActuar({ deviceId, nivel, reversible });
+  if (!permiso.ok) {
+    return fail(permiso.motivo ?? "No tienes permiso para esta acción.");
+  }
+  if (permiso.requiereConfirmacion) {
+    return fail(`Confirmación requerida: «${item.label}» — di «sí, pulsa ${item.id}» para confirmar.`);
+  }
+
   try {
     if ((el as HTMLButtonElement).disabled === true) {
       return fail(`«${item.label}» está desactivado ahora mismo.`);
     }
     try { el.scrollIntoView({ block: "center", inline: "nearest" }); } catch { /* noop */ }
-    hideOverlayBadges(); // las insignias quedan obsoletas tras pulsar
+    hideOverlayBadges();
     highlight(el);
     try { el.focus({ preventScroll: true }); } catch { /* noop */ }
     el.click();
@@ -411,14 +430,33 @@ export function focusInput(idOrName: unknown): ScreenActionOutcome {
  * Escribe texto en un campo (por número o nombre). Inputs/textareas usan
  * value nativo + evento input (compatible React); los <select> eligen la
  * opción que mejor case; contenteditable recibe el texto directamente.
+ * Antes anuncia la acción al Mausbot y comprueba permisos de la neurona.
  */
-export function typeInto(idOrName: unknown, texto: unknown): ScreenActionOutcome {
+export function typeInto(idOrName: unknown, texto: unknown, opciones?: { deviceId?: string; nivel?: NivelBot; reversible?: boolean }): ScreenActionOutcome {
   const text = typeof texto === "string" ? texto : texto === null || texto === undefined ? "" : String(texto);
   if (!text.trim()) return fail("¿Qué texto quieres que escriba?");
   const { item, error } = resolveTarget(idOrName);
   if (!item) return fail(error ?? `No encuentro ese campo. ${HINT}`);
   const field = editableFrom(item.el);
   if (!field) return fail(`«${item.label}» no es un campo de texto. ${HINT}`);
+
+  // Anunciar al Mausbot
+  const rect = field.getBoundingClientRect();
+  const deviceId = opciones?.deviceId ?? (typeof window !== "undefined" ? (window as any).__STARSEED_DEVICE_ID__ : "") ?? "desconocido";
+  const nivel = opciones?.nivel ?? "proponer";
+  const reversible = opciones?.reversible ?? true; // escribir en campo suele ser reversible (borrador)
+
+  anunciarAccion({ tipo: "type", rect, etiqueta: item.label, deviceId, nivel, reversible });
+
+  // Comprobar permisos
+  const permiso = puedeActuar({ deviceId, nivel, reversible });
+  if (!permiso.ok) {
+    return fail(permiso.motivo ?? "No tienes permiso para esta acción.");
+  }
+  if (permiso.requiereConfirmacion) {
+    return fail(`Confirmación requerida: escribir en «${item.label}» — di «sí, escribe» para confirmar.`);
+  }
+
   try {
     try { field.scrollIntoView({ block: "center", inline: "nearest" }); } catch { /* noop */ }
     highlight(field);
