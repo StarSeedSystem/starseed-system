@@ -137,6 +137,25 @@ class TestContacto(PruebaAlmacen):
         self.assertTrue(AO.puede_contactar(
             objetivo, [_evento("respuesta_no", 181)], AHORA))
 
+    def test_rechazo_alex_justo_en_90_dias(self):
+        objetivo = _objetivo(**MEDIO)
+        self.assertFalse(AO.puede_contactar(
+            objetivo, [_evento("rechazo_alex", 89)], AHORA))
+        self.assertTrue(AO.puede_contactar(
+            objetivo, [_evento("rechazo_alex", 90)], AHORA))
+
+    def test_no_destinatario_justo_en_180_dias(self):
+        objetivo = _objetivo(**MEDIO)
+        self.assertFalse(AO.puede_contactar(
+            objetivo, [_evento("no_destinatario", 179)], AHORA))
+        self.assertTrue(AO.puede_contactar(
+            objetivo, [_evento("no_destinatario", 180)], AHORA))
+
+    def test_supresion_de_otro_correo_no_bloquea(self):
+        objetivo = _objetivo(**MEDIO)
+        ajeno = {"supresion": [AO.huella("otro@ejemplo.com")]}
+        self.assertTrue(AO.puede_contactar(objetivo, ajeno, AHORA))
+
     def test_recordatorio_a_los_14_dias(self):
         objetivo = _objetivo(**MEDIO)
         self.assertFalse(AO.puede_contactar(objetivo, [_evento("mensaje", 1)], AHORA))
@@ -165,6 +184,11 @@ class TestSupresion(PruebaAlmacen):
             contenido = fichero.read()
         self.assertNotIn("ana@example.com", contenido)
         self.assertIn(AO.huella("ana@example.com"), contenido)
+
+    def test_escribir_y_leer_redonda(self):
+        self.assertEqual(AO.leer("supresion", self.casa), [])
+        AO.escribir("supresion", ["a"], self.casa)
+        self.assertEqual(AO.leer("supresion", self.casa), ["a"])
 
     def test_dominio_con_nombre_y_consulta(self):
         AO.suprimir(dominio="ejemplo.org", nombre="Ana Puente", home=self.casa)
