@@ -191,6 +191,8 @@ export function filtrarPorAmbito<T extends PropuestaImaginacion>(propuestas: T[]
 export const esDecidible = (estado: EstadoPropuesta) => ESTADOS_DECIDIBLES.includes(estado);
 /** Lo que espera una decisión de Alex (§2): lo que la lista manual deja aprobar, reimaginar, rechazar o posponer. */
 export const decidibles = <T extends PropuestaImaginacion>(propuestas: T[]): T[] => propuestas.filter((p) => esDecidible(p.estado));
+/** Ola 1028A: la misma lista que cuenta la pastilla — esperando aprobación o pregunta, y NADA más. */
+export const esperaAAlex = (estado: EstadoPropuesta) => ESPERAN.includes(estado);
 /** Alta y crítica: siempre con el visto bueno de Alex (regla fija, ningún interruptor la salta). */
 export const exigeVistoBueno = (importancia: ImportanciaPropuesta) => importancia === "alta" || importancia === "crítica";
 /** Reimaginaciones que le quedan a la automática: el máximo menos las ya hechas (versión − 1). */
@@ -221,7 +223,7 @@ export function vetoDecision(p: PropuestaImaginacion, hacer: HacerDecision, por:
   return "La automática no rechaza ni pospone: eso lo decides tú.";
 }
 
-const ESPERAN: EstadoPropuesta[] = ["esperando-aprobacion", "pregunta"];
+const ESPERAN: EstadoPropuesta[] = ["esperando-aprobacion", "pregunta"]; // guarda de `esperaAAlex` (Ola 1028A)
 const INTEGRADAS: EstadoPropuesta[] = ["aprobada", "autodesarrollo", "encargada", "hecha"];
 const PESO_IMPORTANCIA: Record<ImportanciaPropuesta, number> = { crítica: 3, alta: 2, media: 1, baja: 0 };
 const mismoDia = (iso: string, hoy: Date) => {
@@ -236,7 +238,7 @@ export interface ResumenPastilla { texto: string; tono: "ok" | "atencion" | "avi
  * Tono: aviso si espera algo alto o crítico; atención si espera algo; ok si nada.
  */
 export function resumenPastilla(propuestas: PropuestaImaginacion[], hoy: Date): ResumenPastilla {
-  const espera = propuestas.filter((p) => ESPERAN.includes(p.estado));
+  const espera = propuestas.filter((p) => esperaAAlex(p.estado));
   const reimaginando = propuestas.filter((p) => p.estado === "reimaginando").length;
   const integradasHoy = propuestas.filter((p) => INTEGRADAS.includes(p.estado) && mismoDia(p.decidida ?? p.t, hoy)).length;
   const tono = espera.some((p) => exigeVistoBueno(p.importancia)) ? "aviso" : espera.length ? "atencion" : "ok";
@@ -258,7 +260,7 @@ export function filasMedidor(propuestas: PropuestaImaginacion[]): FilaMedidor[] 
     const fila: FilaMedidor = {
       id: p.id, titulo: p.titulo, fuente: NOMBRE_FUENTE[p.fuente], tipo: p.tipo ?? "codigo", ambito: p.ambito ?? "metagenesis",
       utilidad: p.utilidad, importancia: p.importancia, estado: p.estado, tarea: p.tarea, version: p.version ?? 1,
-      referencias: p.referencias ?? [], esperaAlex: ESPERAN.includes(p.estado), decidible,
+      referencias: p.referencias ?? [], esperaAlex: esperaAAlex(p.estado), decidible,
       acciones: decidible ? [...ACCIONES_DECIDIBLE] : ["ver-origen"],
     };
     if (p.agente) fila.agente = p.agente;

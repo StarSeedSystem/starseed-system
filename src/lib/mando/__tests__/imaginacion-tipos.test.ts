@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   AJUSTES_POR_DEFECTO, ESTADOS_DECIDIBLES, NOMBRE_ESTADO, NOMBRE_FUENTE, ambitoDeLaUrl, decidibles, esAmbito, esDecidible,
-  filasMedidor, filtrarPorAmbito, interpretarPeticion, leerAmbito, normalizarAmbito, normalizarImportancia, normalizarReferencias,
+  esperaAAlex, filasMedidor, filtrarPorAmbito, interpretarPeticion, leerAmbito, normalizarAmbito, normalizarImportancia, normalizarReferencias,
   normalizarReimaginacion, reimaginacionesLibres, resumenPastilla, validarAjustes, vetoDecision,
+  type EstadoPropuesta,
   type PropuestaImaginacion,
 } from "../imaginacion-tipos";
 
@@ -130,6 +131,17 @@ describe("resumenPastilla", () => {
   });
   it("ignora fechas ilegibles", () => {
     expect(resumenPastilla([prop({ estado: "autodesarrollo", t: "no-fecha" })], HOY).integradasHoy).toBe(0);
+  });
+  it("Ola 1028A: esperaAAlex es la lista de la pastilla; con el dato del día, 45 y no 450", () => {
+    expect(esperaAAlex("esperando-aprobacion")).toBe(true);
+    expect(esperaAAlex("pregunta")).toBe(true);
+    expect([esperaAAlex("descartada"), esperaAAlex("pospuesta"), esperaAAlex("nueva"), esperaAAlex("encargada")]).toEqual([false, false, false, false]);
+    expect(esDecidible("descartada")).toBe(true); // rescatable: sigue decidible, ya no cuenta
+    const monton = (estado: EstadoPropuesta, n: number, prefijo: string) =>
+      Array.from({ length: n }, (_, i) => prop({ id: `${prefijo}${i}`, estado }));
+    const ps = [...monton("descartada", 404, "d"), ...monton("pregunta", 34, "q"), ...monton("esperando-aprobacion", 11, "e"), prop({ id: "r", estado: "reimaginada" })];
+    expect(resumenPastilla(ps, HOY).porDecidir).toBe(45);
+    expect(decidibles(ps)).toHaveLength(449); // el servidor no cambia: lo decidible sigue completo
   });
 });
 

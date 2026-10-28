@@ -140,16 +140,20 @@ describe("PanelImaginacion", () => {
         );
         render(<PanelImaginacion ambito="metagenesis" />);
         await screen.findByTestId("propuesta-d1");
-        expect(screen.getByRole("tab", { name: /Por decidir/ })).toHaveTextContent("(3)");
+        expect(screen.getByRole("tab", { name: /Por decidir/ })).toHaveTextContent("(2)"); // d1 y c1: «nueva» se ve en «Todas» (Ola 1028A)
         expect(screen.getByRole("tab", { name: /Integradas/ })).toHaveTextContent("(1)");
         expect(screen.getByRole("tab", { name: /Rechazadas y pospuestas/ })).toHaveTextContent("(1)");
         expect(screen.getByRole("tab", { name: /Reimaginando/ })).toHaveTextContent("(1)");
 
         fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "diseno" } });
+        // d1 (esperando) sigue en «Por decidir»; d2 es «nueva» y se ve en «Todas» (Ola 1028A).
         expect(screen.getByTestId("propuesta-d1")).toBeInTheDocument();
+        expect(screen.queryByTestId("propuesta-c1")).toBeNull();
+        expect(screen.getByRole("tab", { name: /Todas/ })).toHaveTextContent("(2)");
+        fireEvent.click(screen.getByRole("tab", { name: /Todas/ }));
         expect(screen.getByTestId("propuesta-d2")).toBeInTheDocument();
         expect(screen.queryByTestId("propuesta-c1")).toBeNull();
-        expect(screen.getByRole("tab", { name: /Por decidir/ })).toHaveTextContent("(2)");
+        expect(screen.getByRole("tab", { name: /Por decidir/ })).toHaveTextContent("(1)");
 
         fireEvent.change(screen.getByLabelText("Fuente"), { target: { value: "agentes" } });
         expect(screen.getByTestId("propuesta-d1")).toBeInTheDocument();
@@ -210,9 +214,13 @@ describe("PanelImaginacion", () => {
             [prop({ id: "a", titulo: "Uno" }), prop({ id: "b", titulo: "Dos", fuente: "astraura" }), prop({ id: "c", titulo: "Tres" })],
             (c, estado) => {
                 if (c.accion !== "lote") return sinPost();
-                if (c.ids === "pendientes") {
-                    for (const p of estado.propuestas) p.estado = "rechazada";
-                    return { json: { ok: true, resultados: estado.propuestas.map((p) => ({ id: p.id, ok: true })) } };
+                if (c.hacer === "rechazar") {
+                    const ids = Array.isArray(c.ids) ? (c.ids as string[]) : [];
+                    for (const id of ids) {
+                        const p = estado.propuestas.find((x) => x.id === id);
+                        if (p) p.estado = "rechazada";
+                    }
+                    return { json: { ok: true, resultados: ids.map((id) => ({ id, ok: true })) } };
                 }
                 estado.propuestas.find((p) => p.id === "a")!.estado = "aprobada";
                 return { json: { ok: false, resultados: [{ id: "a", ok: true }, { id: "b", ok: false, error: "El backend 1.58 no responde: no se aplicó y nada cambió." }] } };
@@ -235,7 +243,7 @@ describe("PanelImaginacion", () => {
         expect(screen.getByRole("checkbox", { name: "Seleccionar «Tres»" })).not.toBeChecked();
         expect(screen.getByTestId("imaginacion-lote")).toHaveTextContent("Seleccionadas (1)");
 
-        // «Todas» pide confirmación y, sin filtros, manda «pendientes» del ámbito.
+        // «Todas» pide confirmación y manda los ids de lo que espera a Alex (la cuenta de la pastilla).
         fireEvent.click(screen.getByRole("button", { name: "Rechazar todas" }));
         const confirmar = screen.getByTestId("imaginacion-lote-confirmar");
         expect(confirmar).toHaveTextContent("¿Rechazar las 2 por decidir de MetaGenesis? No se deshace desde aquí.");
@@ -243,8 +251,32 @@ describe("PanelImaginacion", () => {
         fireEvent.change(within(confirmar).getByLabelText("Motivo (opcional)"), { target: { value: " no encaja " } });
         fireEvent.click(within(confirmar).getByRole("button", { name: "Sí, rechazar las 2" }));
         await waitFor(() => expect(posts).toHaveLength(2));
-        expect(posts[1]).toEqual({ accion: "lote", ids: "pendientes", hacer: "rechazar", ambito: "metagenesis", motivo: "no encaja" });
+        expect(posts[1]).toEqual({ accion: "lote", ids: ["b", "c"], hacer: "rechazar", ambito: "metagenesis", motivo: "no encaja" });
         expect(await screen.findByText(/Nada espera tu decisión aquí/)).toBeInTheDocument();
+    });
+
+    it("Ola 1028A: con 404 descartadas, 34 preguntas y 11 esperando, «Por decidir» dice 45 como la pastilla, «Descartadas» 404 y ahí se rescatan", async () => {
+        const monton = (estado: Partial<PropuestaNormalizada>, n: number, prefijo: string): PropuestaNormalizada[] =>
+            Array.from({ length: n }, (_, i) => prop({ ...estado, id: `${prefijo}${i}` }));
+        servidor(
+            [
+                ...monton({ estado: "descartada" }, 404, "d"),
+                ...monton({ estado: "pregunta" }, 34, "q"),
+                ...monton({}, 11, "e"),
+                prop({ id: "r", estado: "reimaginada" }),
+            ],
+            sinPost,
+        );
+        render(<PanelImaginacion ambito="metagenesis" />);
+        await screen.findByTestId("propuesta-e0");
+        expect(screen.getByRole("tab", { name: /Por decidir/ })).toHaveTextContent("(45)");
+        expect(screen.getByRole("tab", { name: /Descartadas/ })).toHaveTextContent("(404)");
+        expect(screen.getByTestId("imaginacion-lote")).toHaveTextContent("Todas las por decidir (45)");
+        // Rescate: una descartada sigue siendo decidible en su pestaña.
+        fireEvent.click(screen.getByRole("tab", { name: /Descartadas/ }));
+        const descartada = screen.getByTestId("propuesta-d0");
+        expect(descartada).toHaveTextContent("Descartada");
+        expect(within(descartada).getByRole("button", { name: "Integrar" })).toBeInTheDocument();
     });
 
     it("con un filtro puesto, «todas» son solo las que se ven; reimaginar en lote pide el mismo formulario", async () => {
@@ -257,11 +289,11 @@ describe("PanelImaginacion", () => {
         fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "diseno" } });
         fireEvent.click(screen.getByRole("button", { name: "Reimaginar todas" }));
         const formulario = screen.getByTestId("imaginacion-lote-reimaginar-formulario");
-        expect(formulario).toHaveTextContent("¿Reimaginar las 2 por decidir que se ven con este filtro?");
+        expect(formulario).toHaveTextContent("¿Reimaginar las 1 por decidir que se ven con este filtro?"); // «nueva» ya no es de la pastilla
         fireEvent.change(within(formulario).getByLabelText("Qué cambiar"), { target: { value: "más aire" } });
-        fireEvent.click(within(formulario).getByRole("button", { name: "Sí, reimaginar las 2" }));
+        fireEvent.click(within(formulario).getByRole("button", { name: "Sí, reimaginar las 1" }));
         await waitFor(() => expect(posts).toHaveLength(1));
-        expect(posts[0]).toEqual({ accion: "lote", ids: ["d1", "d2"], hacer: "reimaginar", ambito: "grupo:g1", notas: "más aire", referencias: [] });
+        expect(posts[0]).toEqual({ accion: "lote", ids: ["d1"], hacer: "reimaginar", ambito: "grupo:g1", notas: "más aire", referencias: [] });
     });
 
     it("el automático guarda cada interruptor al momento y el umbral y el tope con «Guardar»; un fallo se dice", async () => {
