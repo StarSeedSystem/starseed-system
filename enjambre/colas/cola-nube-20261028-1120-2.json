@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "DGM1018L",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · 3D y XR: de la estructura del SVG a una escena que se gira y se recorre",
+   "archivos": [
+    "src/lib/diagramas/diagrama-3d.ts",
+    "src/components/vivo/espacial/diagrama-3d.tsx",
+    "src/lib/diagramas/__tests__/diagrama-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "diagrama-3d.ts PURO: `estructuraDeSvg(svg)` saca nodos (rect, círculo, texto agrupados), aristas (path/line con marcador) y capas (grupos `g` con id o clase de capa) y `escena3d(estructura, tipo)` coloca: tipos de capas, despiece y planta axonométrica apilados en Z con separación proporcional; tipos de grafo repartidos en 3D sin solaparse; textos siempre de cara a la cámara. El componente lo pinta con @react-three/fiber (ya en el OS) dentro de `escena-compartida` (solo el componente). Pruebas con example-layers.html y example-architecture.html de la skill. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DGM1018I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "DGM1018L"
+  ]
+ }
+}
