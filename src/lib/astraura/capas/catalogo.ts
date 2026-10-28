@@ -23,6 +23,7 @@ export type RuntimeCapa =
   | "llama-cpp"
   | "bitnet-cpp"
   | "colibri"
+  | "ollama"
   | "mlx";
 
 /** «por-verificar»: entra al catálogo sin SHA medido y no se usa hasta que el instalador lo anote. */
@@ -54,6 +55,8 @@ export interface EntradaCapa {
   espejos: string[];
   estado: EstadoCapa;
   medios: Medio[];
+  /** Aclaración de uso o licencia que no cabe en los campos anteriores. */
+  nota?: string;
 }
 
 export interface CatalogoCapas {
@@ -81,6 +84,7 @@ const RUNTIMES: readonly RuntimeCapa[] = [
   "llama-cpp",
   "bitnet-cpp",
   "colibri",
+  "ollama",
   "mlx",
 ];
 const ESTADOS: readonly EstadoCapa[] = [
@@ -135,6 +139,7 @@ function entradaValida(v: unknown): v is EntradaCapa {
   if (!esNumero(e.disco_mb) || !esNumero(e.ram_min_mb)) return false;
   if (e.streaming_disco !== undefined && typeof e.streaming_disco !== "boolean") return false;
   if (e.ram_ok_mb !== undefined && !esNumero(e.ram_ok_mb)) return false;
+  if (e.nota !== undefined && !esTexto(e.nota)) return false;
   if (!Array.isArray(e.espejos) || !e.espejos.every(esTexto)) return false;
   if (
     !Array.isArray(e.medios) ||
@@ -154,6 +159,13 @@ function entradaValida(v: unknown): v is EntradaCapa {
   return true;
 }
 
+// En el JSON, `sha256: null` significa «aún sin medir»; el centinela del catálogo es «por-verificar».
+function conShaCentinela(v: unknown): unknown {
+  if (typeof v !== "object" || v === null) return v;
+  const e = v as Record<string, unknown>;
+  return e.sha256 === null ? { ...e, sha256: "por-verificar" } : v;
+}
+
 /** Valida el JSON del catálogo y descarta las entradas mal formadas. */
 export function leerCatalogo(json: unknown): CatalogoCapas {
   if (typeof json !== "object" || json === null) {
@@ -164,7 +176,7 @@ export function leerCatalogo(json: unknown): CatalogoCapas {
   return {
     esquema: esNumero(raiz.esquema) ? raiz.esquema : 0,
     actualizado: esTexto(raiz.actualizado) ? raiz.actualizado : "",
-    capas: capasCrudas.filter(entradaValida),
+    capas: capasCrudas.map(conShaCentinela).filter(entradaValida),
   };
 }
 

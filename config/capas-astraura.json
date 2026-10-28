@@ -1,7 +1,7 @@
 {
   "esquema": 1,
-  "actualizado": "2026-10-27",
-  "descripcion": "Catálogo de capas de Astraura (architecture/capas-autoadaptables.md §1 y §3). Una capa sin su SHA en este catálogo no se usa jamás (§6). Los sha256 quedan en \"por-verificar\" hasta que scripts/puente/capas_renovar.py los rellene desde la API de Hugging Face (lfs.oid = sha256, sin descargar; §9). Las fuentes se corrigieron el 2026-10-09 a los repos que existen de verdad (los anteriores daban 401/307). Las 9 capas de Colibri (colibri-*) entraron el 2026-10-27 desde config/capas-colibri-1027.json (contrato architecture/colibri-multicapas.md): todas «por-verificar» hasta que el instalador mida su SHA-256; los GB del inventario van a MB × 1024.",
+  "actualizado": "2026-10-28",
+  "descripcion": "Catálogo de capas de Astraura (architecture/capas-autoadaptables.md §1 y §3). Una capa sin su SHA en este catálogo no se usa jamás (§6). Los sha256 quedan en \"por-verificar\" hasta que scripts/puente/capas_renovar.py los rellene desde la API de Hugging Face (lfs.oid = sha256, sin descargar; §9). Las fuentes se corrigieron el 2026-10-09 a los repos que existen de verdad (los anteriores daban 401/307). Las 9 capas de Colibri (colibri-*) entraron el 2026-10-27 desde config/capas-colibri-1027.json (contrato architecture/colibri-multicapas.md): todas «por-verificar» hasta que el instalador mida su SHA-256; los GB del inventario van a MB × 1024. Y el 2026-10-28 entró `ollama-qwen3-embedding-0.6b` (1028L, memoria): el modelo de incrustaciones de LEANN en el A1, runtime «ollama», `sha256: null` (aún sin medir) y estado «por-verificar» hasta que se verifique al instalar (architecture/leann-recuerdo-semantico.md).",
   "capas": [
     {
       "id": "needle3-reflejo",
@@ -387,6 +387,16 @@
        "sha256": "por-verificar",
        "fuente_oficial": "https://huggingface.co/mastouri/GLM-5.2-colibri-int4-g64-with-int8-mtp",
        "espejos": [], "estado": "por-verificar", "medios": ["servidor"], "verificado": null
+     },
+     {
+       "id": "ollama-qwen3-embedding-0.6b", "capa": "memoria",
+       "modelo": "Qwen3-Embedding 0.6B (Ollama)",
+       "familia": "qwen/qwen3-embedding", "version": "0.6b",
+       "formato": "gguf", "runtime": "ollama", "parametros": "0.6 B",
+       "disco_mb": 639, "ram_min_mb": 1024,
+       "sha256": null, "fuente_oficial": "https://ollama.com/library/qwen3-embedding",
+       "espejos": [], "estado": "por-verificar", "medios": ["servidor"], "verificado": null,
+       "nota": "solo para incrustaciones de LEANN; Apache-2.0 de Qwen; se verifica al instalar"
      }
    ]
 }
