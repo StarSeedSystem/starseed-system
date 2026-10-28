@@ -23,6 +23,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime, timezone
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(os.path.dirname(DIRECTORIO))
@@ -218,12 +219,12 @@ PROTOCOLO_COMPACTO = (
 )
 
 ORDEN = {
-    "escritor": ("reglas", "protocolo", "herramientas", "area", "relevo"),
-    "revisor": ("reglas", "area", "protocolo", "herramientas"),
-    "analista": ("reglas", "area", "protocolo", "herramientas"),
-    "supervisor": ("reglas", "protocolo", "herramientas", "nube", "area", "relevo"),
-    "subagente": ("reglas", "protocolo", "herramientas", "nube", "relevo", "area"),
-    "investigador-diseno": ("reglas", "salida", "protocolo", "herramientas", "area"),
+    "escritor": ("reglas", "protocolo", "herramientas", "area", "recuerdos", "relevo"),
+    "revisor": ("reglas", "area", "protocolo", "herramientas", "recuerdos"),
+    "analista": ("reglas", "area", "protocolo", "herramientas", "recuerdos"),
+    "supervisor": ("reglas", "protocolo", "herramientas", "nube", "area", "recuerdos", "relevo"),
+    "subagente": ("reglas", "protocolo", "herramientas", "nube", "recuerdos", "relevo", "area"),
+    "investigador-diseno": ("reglas", "salida", "protocolo", "herramientas", "area", "recuerdos"),
 }
 
 #: Lo que cada rol debe devolver, cuando su salida tiene forma fija (solo los roles que la tienen).
@@ -424,6 +425,38 @@ def seccion_relevo(texto):
     return "## Dónde vamos (relevo)\n" + trozo[:900]
 
 
+def seccion_recuerdos(aciertos):
+    """«Recuerdos de este agente» (cápsulas Memvid, MVD1027); vacío si no hay: un servidor
+    apagado ni se menciona. Solo los 3 aciertos de `buscar` que llegan (el sanear va después)."""
+    if not aciertos:
+        return ""
+    lineas = ["## Recuerdos de este agente"]
+    for a in aciertos[:3]:
+        t = " ".join(str((a or {}).get("texto") or "").split())
+        if not t:
+            continue
+        titulo = str((a or {}).get("titulo") or (a or {}).get("uri") or "").strip()
+        lineas.append("- [%s] %s" % (titulo, t[:400]) if titulo else "- %s" % t[:400])
+    return "\n".join(lineas) if len(lineas) > 1 else ""
+
+
+def _recuerdos_de_disco(agente, tarea):
+    """Los recuerdos del propio agente en su cápsula del trimestre (Memvid), o None si no
+    hay agente, no hay tarea a la que buscar o el servidor de cápsulas no está. Solo la
+    CLI y `texto()`; nunca lanza."""
+    if not agente:
+        return None
+    consulta = " ".join(str(tarea or "").split())
+    if not consulta:
+        return None
+    try:
+        import memvid_cliente as mv
+
+        return mv.buscar(mv.nombre_capsula(agente, datetime.now(timezone.utc)), consulta, k=3)
+    except Exception:
+        return None
+
+
 def _recortar(texto, n):
     if len(texto) <= n:
         return texto
@@ -432,11 +465,12 @@ def _recortar(texto, n):
 
 
 def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, existe=None, excluir=(),
-              extras=None, raices=None, oracle=None):
+              extras=None, raices=None, oracle=None, recuerdos=None):
     """El contexto común de un agente (markdown) y sus metadatos. PURA con `leer`/`existe`.
 
     Devuelve {texto, rol, area, secciones, recortadas, caracteres}. `area` puede inferirse de
-    la tarea (si nombra una ruta de código de un área)."""
+    la tarea (si nombra una ruta de código de un área). `recuerdos` son los aciertos ya
+    pedidos a la cápsula del agente (Memvid); None o vacío ⇒ no sale la sección."""
     if rol not in ROLES:
         raise ValueError("rol desconocido: %s (%s)" % (rol, " | ".join(ROLES)))
     leer = leer or (lambda ruta: None)
@@ -462,6 +496,7 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
         "relevo": lambda: seccion_relevo(leer(RELEVO)),
         "nube": lambda: seccion_nube(oracle),
         "salida": lambda: seccion_salida(rol),
+        "recuerdos": lambda: seccion_recuerdos(recuerdos),
     }
     partes, puestas, recortadas = [cabecera], [], []
     usado = len(cabecera)
@@ -486,9 +521,9 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
             "caracteres": len(salida), "compacto": compacto}
 
 
-def texto(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, raiz=None, excluir=()):
+def texto(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, raiz=None, excluir=(), agente=None):
     """Atajo con el disco del repo (lo que usan el orquestador y la CLI). Nunca lanza: sin
-    repo o con un error, devuelve ""."""
+    repo o con un error, devuelve "". Con `agente`, añade los recuerdos de su cápsula."""
     raiz = raiz or RAIZ
 
     def leer(ruta):
@@ -500,7 +535,8 @@ def texto(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, raiz=None, exclui
 
     try:
         return construir(rol, area, tarea, max_chars, leer, lambda r: os.path.exists(os.path.join(raiz, r)),
-                         excluir, oracle=_oracle_del_disco())["texto"]
+                         excluir, oracle=_oracle_del_disco(),
+                         recuerdos=_recuerdos_de_disco(agente, tarea))["texto"]
     except Exception:
         return ""
 
@@ -513,6 +549,8 @@ def main(argv=None, salida=None):
     ap.add_argument("--area", default=None)
     ap.add_argument("--tarea", default="")
     ap.add_argument("--max", type=int, default=MAX_POR_DEFECTO)
+    ap.add_argument("--agente", default=None,
+                    help="id del agente: con él entra la sección «Recuerdos de este agente» (cápsula Memvid)")
     ap.add_argument("--excluir", default="", help="secciones a omitir: reglas,protocolo,herramientas,nube,area,relevo")
     ap.add_argument("--raiz", default=None, help=argparse.SUPPRESS)
     ap.add_argument("--json", action="store_true")
@@ -527,7 +565,8 @@ def main(argv=None, salida=None):
             return None
 
     d = construir(a.rol, a.area, a.tarea, a.max, leer, lambda r: os.path.exists(os.path.join(raiz, r)),
-                  tuple(x.strip() for x in a.excluir.split(",") if x.strip()), oracle=_oracle_del_disco())
+                  tuple(x.strip() for x in a.excluir.split(",") if x.strip()), oracle=_oracle_del_disco(),
+                  recuerdos=_recuerdos_de_disco(a.agente, a.tarea))
     salida.write((json.dumps(d, ensure_ascii=False, indent=1) if a.json else d["texto"]) + "\n")
     return 0
 
