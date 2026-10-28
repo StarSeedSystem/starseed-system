@@ -12,10 +12,17 @@
 // ════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, type TargetAndTransition } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana, tipoAparato } from "@/lib/design/composicion";
+
+/** ¿El aparato pide movimiento reducido? La entrada queda sin animación y la función intacta. */
+function prefiereMovimientoReducido(): boolean {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -83,8 +90,57 @@ export function OSWindow({
 
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
+    const envoltorioRef = useRef<HTMLDivElement>(null);
     useEffect(() => { cerrarRef.current = onClose; }, [onClose]);
     useEffect(() => apuntarVentana({ raiz: raizRef, cerrar: cerrarRef }), []);
+
+    /* ── Composición centrada por aparato (DSN1019B · adn-y-tokens §7b) ──
+       La ventana nace centrada en la pantalla; en teléfono lo hace como hoja a la parte
+       inferior, con entrada cardinal desde el sur (vocabulario de la §5). La posición
+       inicial la da `geometriaVentana`; el API y el arrastre por capas quedan intactos. */
+    const [esHoja] = useState(
+        () => typeof window !== "undefined" &&
+            tipoAparato({ ancho: window.innerWidth, alto: window.innerHeight, puntero: false, xr: false }) === "telefono",
+    );
+    const [movimientoReducido, setMovimientoReducido] = useState(prefiereMovimientoReducido);
+    const [posicion, setPosicion] = useState<{ x: number; y: number; ancho: number; esHoja: boolean } | null>(null);
+
+    useEffect(() => {
+        if (!window.matchMedia) return;
+        const consulta = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const oir = () => setMovimientoReducido(consulta.matches);
+        oir();
+        consulta.addEventListener?.("change", oir);
+        return () => consulta.removeEventListener?.("change", oir);
+    }, []);
+
+    useEffect(() => {
+        const viewport = { ancho: window.innerWidth, alto: window.innerHeight };
+        // Medida del marco aun antes del primer repintado: si el aparato no da ninguna,
+        // escritorio queda con el centrado flex (mismo resultado) y teléfono usa los
+        // valores por defecto de la geometría.
+        const rect = envoltorioRef.current?.getBoundingClientRect();
+        const ancho = rect && rect.width > 0 ? rect.width : undefined;
+        const alto = rect && rect.height > 0 ? rect.height : undefined;
+        if (!esHoja && ancho === undefined) return;
+        const geo = geometriaVentana(viewport, { tipo: esHoja ? "hoja" : "ventana", ancho, alto });
+        setPosicion({ x: geo.x, y: geo.y, ancho: geo.ancho, esHoja });
+    }, [esHoja]);
+
+    // Entrada: hoja que sube desde abajo en teléfono; el resto, fundido con escala.
+    // Con movimiento reducido la hoja nace en su sitio, sin recorrido.
+    const entradaEscritorio: TargetAndTransition = { opacity: 0, scale: 0.96 };
+    const entradaHoja: TargetAndTransition = { opacity: 0, y: "100%" };
+    const entradaAnimadaHoja: TargetAndTransition = { opacity: 1, y: 0 };
+    const entradaAnimadaEscritorio: TargetAndTransition = { opacity: 1, scale: 1 };
+    const estiloPosicion: React.CSSProperties = posicion
+        ? {
+            position: "absolute",
+            left: posicion.x,
+            top: posicion.y,
+            ...(posicion.esHoja ? { width: posicion.ancho } : {}),
+        }
+        : {};
 
     useEffect(() => {
         const onMove = (e: PointerEvent) => {
@@ -111,13 +167,22 @@ export function OSWindow({
         <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
-            {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
-                aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
-                el centrado y la ventana SIEMPRE abre centrada. */}
-            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
+            {/* Capa de arrastre: centrada por el flex padre hasta que la monta la fija
+                `geometriaVentana` (escritorio centrada; teléfono, hoja abajo). El transform
+                de arrastre va aquí (div plano), NO en el hijo animado → la animación de
+                Framer ya no pisa el posicionado y la ventana SIEMPRE abre centrada. */}
+            <div
+                ref={envoltorioRef}
+                data-hoja={esHoja ? "true" : undefined}
+                className="relative max-w-full max-h-full"
+                style={{
+                    transform: `translate(${offset.dx}px, ${offset.dy}px)`,
+                    ...estiloPosicion,
+                }}
+            >
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={movimientoReducido ? false : esHoja ? entradaHoja : entradaEscritorio}
+                    animate={esHoja ? entradaAnimadaHoja : entradaAnimadaEscritorio}
                     transition={{ type: "spring", stiffness: 260, damping: 26 }}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
