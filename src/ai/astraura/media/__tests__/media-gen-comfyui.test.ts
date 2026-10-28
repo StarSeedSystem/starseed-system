@@ -1,15 +1,15 @@
 // Mock window for isClient() check before importing the module
-const mockLocalStorage: Storage = {
+const mockLocalStorage = {
   length: 0,
   clear: vi.fn(),
-  getItem: vi.fn(),
-  key: vi.fn(),
-  removeItem: vi.fn(),
-  setItem: vi.fn(),
+  getItem: vi.fn<(key: string) => string | null>(),
+  key: vi.fn<(index: number) => string | null>(),
+  removeItem: vi.fn<(key: string) => void>(),
+  setItem: vi.fn<(key: string, value: string) => void>(),
 };
 globalThis.window = { localStorage: mockLocalStorage } as unknown as Window & typeof globalThis;
 
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { NODOS_NUCLEO, type GrafoComfyUI } from "@/lib/imagenes/flujos-comfyui";
 import {
   formatoComfyuiMasCercano,
@@ -123,7 +123,7 @@ describe("grafoComfyuiDe · texto a imagen o imagen a imagen", () => {
 });
 
 describe("checkpointsDisponibles", () => {
-  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  let fetchSpy: MockInstance<typeof fetch>;
 
   beforeEach(() => {
     fetchSpy = vi.spyOn(globalThis, "fetch");
@@ -170,7 +170,7 @@ describe("checkpointsDisponibles", () => {
 });
 
 describe("comfyuiImage · flujo real con fetch simulado", () => {
-  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  let fetchSpy: MockInstance<typeof fetch>;
 
   beforeEach(() => {
     fetchSpy = vi.spyOn(globalThis, "fetch");
@@ -229,7 +229,7 @@ describe("comfyuiImage · flujo real con fetch simulado", () => {
     expect(result.url).toBeDefined();
     expect(result.url).toMatch(/^blob:/);
     // Verificar que se llamó a /prompt con el grafo
-    const promptCall = fetchSpy.mock.calls.find((c) => c[0].includes("/prompt"));
+    const promptCall = fetchSpy.mock.calls.find((c) => String(c[0]).includes("/prompt"));
     expect(promptCall).toBeDefined();
     const body = JSON.parse(promptCall![1]?.body as string);
     expect(body.prompt).toBeDefined();
