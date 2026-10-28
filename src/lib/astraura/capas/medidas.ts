@@ -67,9 +67,10 @@ export function mediaMedidas(medidas: MedidaNeurona[]): {
 /** Candidato que el planificador evalúa (simplificado para ordenación). */
 export interface CandidatoConMedida {
   modelo: string;
-  donde: string;
+  donde: "local" | "par" | "servidor-starseed" | "servidor-propio" | "api-gratis";
   nodo?: string;
   puntos: number;
+  capa?: Capa;
 }
 
 /**
