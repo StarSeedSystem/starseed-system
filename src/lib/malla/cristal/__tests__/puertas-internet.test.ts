@@ -215,6 +215,20 @@ describe('puedeUsar', () => {
       )
     ).toEqual({ ok: false, motivo: 'Puerta no medida o sin tope definido' });
   });
+
+  it('una puerta para «nadie» se la cierra también al dueño (contrato de hoy)', () => {
+    // Rescate RTTIP1013B: la rama esperaba que al dueño no le aplicasen las
+    // reglas de compartir («Dueño dentro de su tope»). Hoy el módulo corta
+    // ANTES, con el retorno temprano de `compartir: 'nadie'`, y deniega a
+    // todos incluido el dueño: se pina ese comportamiento. Si sobra que el
+    // dueño pierda su propia puerta, el arreglo va en puertas-internet.ts.
+    expect(
+      puedeUsar(
+        { ...basePuerta, compartir: 'nadie' },
+        { ...baseSolicitante, cuenta: 'c1' } // dueño
+      )
+    ).toEqual({ ok: false, motivo: 'Puerta configurada para no compartir' });
+  });
 });
 
 describe('costePuerta', () => {
@@ -393,6 +407,45 @@ describe('elegirPuerta', () => {
       puerta: otraBarata,
       motivo: 'Puerta de menor coste seleccionada',
     });
+  });
+
+  it('con dos permitidas empatadas en coste gana la primera de la lista (desempate de hoy)', () => {
+    // Rescate RTTIP1013B: la rama pedía desempate por id ('alfa'), pero el
+    // módulo de HOY compara con coste estricto (<) y se queda con la primera
+    // permitida: sin tocar el código ese es el contrato. Se pina 'zeta'.
+    const gemelas: PuertaInternet[] = [
+      {
+        id: 'zeta',
+        neurona: 'n1',
+        cuenta: 'c1',
+        tipo: 'wifi-externa',
+        bajadaKbps: 5000,
+        subidaKbps: 5000,
+        latenciaMs: 100, // coste 0,1 + 0,5 = 0,6 (no medida)
+        medida: false,
+        compartir: 'publico',
+      },
+      {
+        id: 'alfa',
+        neurona: 'n2',
+        cuenta: 'c1',
+        tipo: 'cable',
+        bajadaKbps: 5000,
+        subidaKbps: 5000,
+        latenciaMs: 100, // mismo coste que zeta: 0,6
+        medida: false,
+        compartir: 'publico',
+      },
+    ];
+
+    const resultado = elegirPuerta({
+      clase: 'interno' as ClaseDato,
+      necesitaInternet: true,
+      puertas: gemelas,
+      solicitante: baseSolicitante,
+    });
+
+    expect(resultado.puerta?.id).toBe('zeta');
   });
 
   it('devuelve null cuando ninguna puerta está permitida', () => {
