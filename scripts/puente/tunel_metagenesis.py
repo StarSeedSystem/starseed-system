@@ -12,7 +12,11 @@ QUÉ HACE
      mostrada— y late cada 60 s, comprobando POR EL TÚNEL que el motor contesta.
   4. Si cloudflared muere o el túnel deja de contestar 5 veces seguidas (con Genesis local
      vivo), lo relanza con espera creciente; si Cloudflare limita (429 · 1015), espera 20 min.
-  5. Al parar (SIGTERM de launchd, Ctrl+C) marca la fila como apagada y borra la URL.
+   5. Al parar (SIGTERM de launchd, Ctrl+C) marca la fila como apagada y borra la URL.
+   6. (2026-10-28, LNN1028E) El reenvío del A1: un ssh con la MISMA llave del nodo deja al
+      recuerdo semántico LEANN del A1 al alcance de la Mac (127.0.0.1:4495 ahí → igual aquí),
+      con la misma vigilancia y reconexión que cloudflared. La IP del A1 JAMÁS se imprime.
+      Los reenvíos se definen en `REENVIOS`; sin A1, el recuerdo sigue con Memvid y nada falla.
 
 SEGURIDAD
   · La URL del túnel solo vive en memoria y en esa tabla (que solo leen los miembros de
@@ -446,6 +450,63 @@ def matar_huerfano(ruta=PID):
             os.kill(pid, signal.SIGTERM)
     except (OSError, ValueError):
         pass
+
+
+# ─── el reenvío del A1: la Mac llega al recuerdo semántico LEANN (LNN1028E) ─────────────
+
+
+#: La misma llave del nodo (oracle_nodo.py) y la misma fuente de la IP del A1
+#: (~/.starseed/oracle.json). Copiados aquí a propósito: el túnel no debe arrastrar al nodo.
+LLAVE_A1 = os.path.join(os.path.expanduser("~"), ".ssh", "starseed_oracle_ed25519")
+ORACLE_JSON_A1 = os.path.join(os.path.expanduser("~"), ".starseed", "oracle.json")
+USUARIO_SSH_A1 = "ubuntu"
+PUERTO_LEANN = 4495
+#: Reenvíos locales del ssh al A1: (puerto_local, puerto_en_el_A1); el ssh lleva un `-L`
+#: por cada uno. El del contrato es el del recuerdo LEANN
+#: (architecture/leann-recuerdo-semantico.md §3); otro que ya exista «de siempre» sobre la
+#: misma llave se añade aquí y el ssh lo lleva sin tocar nada más del guion.
+REENVIOS = ((PUERTO_LEANN, PUERTO_LEANN),)
+
+
+def tachar_ip(texto, ip):
+    """PURA. El texto con la IP del A1 sustituida por «[a1]» (nunca sale a los registros)."""
+    if not ip:
+        return texto or ""
+    return re.sub(re.escape(str(ip)), "[a1]", texto or "")
+
+
+def par_valido(par):
+    """PURA. (local, a1) dos puertos 1–65535, ambos enteros."""
+    try:
+        local, a1 = int(par[0]), int(par[1])
+    except (IndexError, TypeError, ValueError):
+        return False
+    return 0 < local < 65536 and 0 < a1 < 65536
+
+
+def reenvios_validos(reenenvios):
+    """PURA. Todos los pares válidos y sin un mismo puerto local por el doble."""
+    locales = [p[0] for p in reenvios if par_valido(p)]
+    return len(locales) == len(reenenvios) == len(set(locales))
+
+
+def reenvio_a_flag(par):
+    """PURA. El argumento del `-L`: explícito en 127.0.0.1 por los dos lados, como el
+    contrato pide el reenvío local (127.0.0.1:<local> → A1 127.0.0.1:<a1>)."""
+    return "127.0.0.1:%d:127.0.0.1:%d" % (int(par[0]), int(par[1]))
+
+
+def orden_ssh_a1(ip, llave=LLAVE_A1, reenvios=REENVIOS, binario="ssh", usuario=USUARIO_SSH_A1):
+    """PURA. La orden del ssh del A1: las mismas opciones del nodo (`oracle_nodo._ssh_base`),
+    `-N` (nada de órdenes remotas), un `-L` por reenvío y `ExitOnForwardFailure` para que un
+    puerto ocupado tumba al proceso y la vigilancia lo reconecte. El destino va al final."""
+    banderas = []
+    for par in reenvios:
+        banderas += ["-L", reenvio_a_flag(par)]
+    return [binario, "-i", llave, "-N"] + banderas + [
+        "-o", "ExitOnForwardFailure=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15",
+        "-o", "StrictHostKeyChecking=accept-new", "-o", "LogLevel=ERROR",
+        "-o", "ServerAliveInterval=30", "%s@%s" % (usuario, ip)]
 
 
 # ─── el bucle (con todo lo de fuera inyectado, para poder probarlo) ─────────────────────
