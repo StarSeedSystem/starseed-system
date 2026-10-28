@@ -32,7 +32,8 @@ import os
 from typing import Dict, List, Any, Optional
 
 # Rutas
-RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
+RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
 RUTA_ASIGNACIONES = os.path.join(RAIZ, "starseed_memory_root", "mando", "asignaciones-agentes.json")
 # Importar modelos globales como valores de respaldo (evitar importar starseed-enjambre para mantener pureza); los consumidores deben proporcionar MODELOS_GLOBALES y STARSEED_OPUS_DIRECTOR por entorno.
 
