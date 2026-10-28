@@ -70,34 +70,47 @@ describe("config del mausbot", () => {
       encendido: true, modo: "acompanante", porPersonalidad: { sol: "sol-dorado" },
     });
     expect(eventos).toEqual([EVENTO_MAUSBOT]);
+    guardarConfigMausbot({
+      disenoPorDefecto: "orbe-luna", perfiles: { p1: { modo: "cursor" } }, neuronas: { n1: { encendido: true } },
+    });
+    expect(leerConfigMausbot()).toMatchObject({
+      encendido: true, disenoPorDefecto: "orbe-luna", porPersonalidad: { sol: "sol-dorado" },
+      perfiles: { p1: { modo: "cursor" } }, neuronas: { n1: { encendido: true } },
+    });
+    expect(eventos).toEqual([EVENTO_MAUSBOT, EVENTO_MAUSBOT]);
   });
   it("rechaza un parche con valores imposibles sin perder lo guardado", () => {
     guardarConfigMausbot({ modo: "cursor" });
-    const malo = { modo: "volar", actuar: "todo" } as unknown as ParcheMausbot;
+    const malo = { modo: "volar", actuar: "todo", porPersonalidad: { sol: 7 } } as unknown as ParcheMausbot;
     expect(guardarConfigMausbot(malo)).toBe(true);
-    expect(leerConfigMausbot()).toMatchObject({ modo: "cursor", actuar: "proponer" });
+    expect(leerConfigMausbot()).toMatchObject({ modo: "cursor", actuar: "proponer", porPersonalidad: {} });
   });
   it("sobrevive sin localStorage", () => {
     Object.defineProperty(globalThis, "window", {
-      configurable: true, value: { dispatchEvent: () => true },
+      configurable: true,
+      value: { dispatchEvent: (evento: Event) => { eventos.push(evento.type); return true; } },
     });
     expect(leerConfigMausbot().encendido).toBe(false);
     expect(guardarConfigMausbot({ encendido: true })).toBe(false);
+    expect(eventos).toEqual([]); // sin almacenamiento tampoco hay evento
   });
   it("resuelve neurona › perfil › cuenta", () => {
     const cfg = normalizarConfigMausbot({
       v: 1, encendido: false, modo: "acompanante", disenoPorDefecto: "cuenta-luna",
-      perfiles: { p1: { encendido: true, disenoPorDefecto: "perfil-estrella" } },
-      neuronas: { n1: { encendido: false, modo: "ambos" }, n2: {} },
+      perfiles: { p1: { encendido: true, disenoPorDefecto: "perfil-estrella", porPersonalidad: { sol: "perfil-sol" } } },
+      neuronas: { n1: { encendido: false, modo: "ambos", porPersonalidad: { sol: "neurona-sol", luna: "neurona-luna" } }, n2: {} },
     });
     const perNeurona = fusionarResolucion(cfg, "p1", "n1");
     expect(perNeurona.encendido).toBe(false); // la neurona manda sobre el perfil
     expect(perNeurona).toMatchObject({ modo: "ambos", disenoPorDefecto: "perfil-estrella" });
+    expect(perNeurona.porPersonalidad).toEqual({ sol: "neurona-sol", luna: "neurona-luna" });
     expect(fusionarResolucion(cfg, "p1").encendido).toBe(true);
+    expect(fusionarResolucion(cfg, "p1").porPersonalidad).toEqual({ sol: "perfil-sol" });
     expect(fusionarResolucion(cfg, undefined, "n2").modo).toBe("acompanante");
     expect(fusionarResolucion(cfg, "p-x", "n-x")).toMatchObject({
       encendido: false, modo: "acompanante", disenoPorDefecto: "cuenta-luna", actuar: "proponer",
     });
+    expect(fusionarResolucion(cfg, "p-x", "n-x").porPersonalidad).toEqual({});
   });
   it("resolverMausbot lee del almacén con ids de perfil y neurona", () => {
     guardarConfigMausbot({ perfiles: { pf: { encendido: true } }, neuronas: { nr: { modo: "ambos" } } });
@@ -109,12 +122,14 @@ describe("config del mausbot", () => {
   });
   it("los diseños por personalidad heredan al resolver", () => {
     guardarConfigMausbot({
+      disenoPorDefecto: "cuenta-luna",
       porPersonalidad: { sabio: "cuerpo-hexagono" },
       perfiles: { pf: { porPersonalidad: { poetisa: "cuerpo-estrella" } } },
     });
     const resuelta = resolverMausbot({ perfilId: "pf" });
     expect(disenoParaPersonalidad(resuelta, "poetisa")).toBe("cuerpo-estrella");
     expect(disenoParaPersonalidad(resuelta, "sabio")).toBe("cuerpo-hexagono");
-    expect(disenoParaPersonalidad(resuelta, "otra")).toBe(DISENO_MAUSBOT_FABRICA);
+    expect(disenoParaPersonalidad(resuelta, "otra")).toBe("cuenta-luna"); // sin el suyo: el de la cuenta
+    expect(disenoParaPersonalidad(CONFIG_MAUSBOT_DEFECTO, "otra")).toBe(DISENO_MAUSBOT_FABRICA);
   });
 });
