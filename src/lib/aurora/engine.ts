@@ -88,6 +88,7 @@ import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
+<<<<<<< HEAD
 import {
   decidirEnvioAlOido,
   INTERVALO_MINIMO_MS_POR_DEFECTO,
@@ -103,6 +104,8 @@ import {
   type EtiquetaOida,
 } from "@/lib/aurora/sentidos/contexto-oido";
 import { getActiveSenses } from "@/lib/senses/senses";
+=======
+>>>>>>> 586d74944 (salvavidas · SGO1024Ab: trabajo del agente antes de las puertas (tsc / vitest))
 import { medidasOido } from "@/lib/aurora/stt-oss/medidas-oido";
 import { cronometroHabla, cronometroOido, leerMedidas } from "@/lib/aurora/medidas-voz";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
@@ -119,6 +122,7 @@ function medidasOidoDeEstaNeurona(idioma: string): Record<string, number> {
     return {};
   }
 }
+<<<<<<< HEAD
 
 // ── EAR1023C · registro del oído ambiental ───────────────────────────────────
 // Las etiquetas que el servicio de oído (earshot) devuelve en ESTA neurona.
@@ -162,6 +166,8 @@ export function lineaContextoOidoParaPrompt(): string {
     return lineaContextoOido(etiquetasOidas, Date.now(), CADUCIDAD_OID_MS);
   } catch { return ""; }
 }
+=======
+>>>>>>> 586d74944 (salvavidas · SGO1024Ab: trabajo del agente antes de las puertas (tsc / vitest))
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
