@@ -50,6 +50,7 @@ import {
     type DockIconKey,
     type DockFolderConfig,
 } from "./dock-config";
+import { estiloIcono } from "./omni-dock-movimiento";
 
 export function OmniDock() {
     const confirm = useConfirm();
@@ -714,6 +715,9 @@ function DockItem({
     // clásico); "square" (cuadrado redondeado) es opción de tema por perfil.
     const { config: cfgForma } = useAppearance();
     const redondo = ((cfgForma?.trinity as { dockIconShape?: string } | undefined)?.dockIconShape ?? "round") !== "square";
+    const registroDock = { reducido: false, registro: "sobrio" as const, seccion: "trinity" as const };
+    const fase = active ? "pulsado" : levantado ? "pulsado" : "reposo";
+    const est = estiloIcono(fase, registroDock);
 
     return (
         <div
@@ -741,6 +745,7 @@ function DockItem({
                 title={label}
                 data-guide={guia}
                 data-ss-coreo={active ? "activo" : undefined}
+                style={{ transform: est.transform || undefined, transition: `transform ${est.transition}, opacity ${est.transition}` }}
                 className={cn(
                     // Contenedor de icono "cristal" unificado (misma familia que
                     // biblioteca/hub vía .ss-icon-3d--sheen: barrido especular al
