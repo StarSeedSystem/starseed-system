@@ -13,6 +13,47 @@ function feed(mensajes: unknown[] = [], ultimoModelo = "") {
 
 const nativoFetch = globalThis.fetch;
 
+/** Feed largo con ids y horas crecientes, como el que recorta el chat a 500. */
+function mensajesLargos(total: number) {
+  return Array.from({ length: total }, (_, i) => ({
+    id: `md-largo-${i + 1}`,
+    t: new Date(Date.UTC(2026, 9, 4, 10, 0, i)).toISOString(),
+    de: i % 2 === 0 ? "alex" : "director",
+    rol: i % 2 === 0 ? "alex" : "director",
+    tipo: "mensaje",
+    texto: `Mensaje ${i + 1}`,
+    canal: "mando",
+  }));
+}
+
+/** jsdom no mide layout: se le dan altura total y visible para probar el «pegado al final». */
+function medirLista(nodo: HTMLElement, inicial: { alto: number; visible: number }) {
+  let alto = inicial.alto;
+  let scrollTop = 0;
+  Object.defineProperty(nodo, "clientHeight", { configurable: true, get: () => inicial.visible });
+  Object.defineProperty(nodo, "scrollHeight", { configurable: true, get: () => alto });
+  Object.defineProperty(nodo, "scrollTop", {
+    configurable: true,
+    get: () => scrollTop,
+    set: (valor: number) => { scrollTop = valor; },
+  });
+  return { crecer: (nuevo: number) => { alto = nuevo; } };
+}
+
+async function asentarMicrotareas() {
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+}
+
+function feedLargo(total: () => number) {
+  return async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/api/mando/modelos")) {
+      return { ok: true, json: async () => ({ modelos: [] }) } as Response;
+    }
+    return { ok: true, json: async () => ({ mensajes: mensajesLargos(total()), entregas: {}, ultimoModelo: "" }) } as Response;
+  };
+}
+
 describe("ChatDirector", () => {
   const llamadas: { url: string; init?: RequestInit }[] = [];
 
@@ -121,5 +162,59 @@ describe("ChatDirector", () => {
     render(<ChatDirector />);
     const estado = await screen.findByRole("status");
     expect(estado).toHaveTextContent(/Hermes está respondiendo/);
+  });
+
+  it("con 500 mensajes, el 501 deja la lista al fondo aunque el recorte no cambie su longitud", async () => {
+    let total = 500;
+    globalThis.fetch = feedLargo(() => total);
+    vi.useFakeTimers();
+    try {
+      render(<ChatDirector />);
+      const lista = screen.getByRole("log", { name: "Mensajes del director" });
+      const medida = medirLista(lista, { alto: 5000, visible: 300 });
+      await act(async () => { await asentarMicrotareas(); });
+      expect(screen.getByText("Mensaje 500")).toBeInTheDocument();
+      expect(lista.scrollTop).toBe(5000);
+      total = 501;
+      medida.crecer(5200);
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+        await asentarMicrotareas();
+      });
+      expect(screen.getByText("Mensaje 501")).toBeInTheDocument();
+      expect(lista.scrollTop).toBe(5200);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("si Alex se subió a leer, el mensaje nuevo no le arrastra y aparece «1 nuevos»", async () => {
+    let total = 500;
+    globalThis.fetch = feedLargo(() => total);
+    vi.useFakeTimers();
+    try {
+      render(<ChatDirector />);
+      const lista = screen.getByRole("log", { name: "Mensajes del director" });
+      const medida = medirLista(lista, { alto: 5000, visible: 300 });
+      await act(async () => { await asentarMicrotareas(); });
+      expect(screen.getByText("Mensaje 500")).toBeInTheDocument();
+      lista.scrollTop = 100;
+      fireEvent.scroll(lista);
+      total = 501;
+      medida.crecer(5200);
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+        await asentarMicrotareas();
+      });
+      expect(screen.getByText("Mensaje 501")).toBeInTheDocument();
+      expect(lista.scrollTop).toBe(100);
+      const boton = document.querySelector<HTMLButtonElement>('button[aria-label="Bajar al último mensaje (1 nuevos)"]');
+      expect(boton).not.toBeNull();
+      fireEvent.click(boton as HTMLButtonElement);
+      expect(lista.scrollTop).toBe(5200);
+      expect(document.querySelector('button[aria-label="Bajar al último mensaje (1 nuevos)"]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
