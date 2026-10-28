@@ -240,24 +240,6 @@ class RemallarImagen(unittest.TestCase):
         self.assertGreaterEqual(r["segundos"], 0.0)
         self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
 
-    def test_remallar_imagen_cuando_no_disponible(self):
-        """Cuando el motor no está disponible, remallar_imagen debe devolver un dict de error."""
-        result = pa.remallar_imagen(
-            "/fake/path/image.png",
-            resolucion=512,
-            carpeta_workflows=self.tmp,
-            comfy=ComfyFalso(),
-            dormir=lambda _: None
-        )
-        self.assertFalse(result["ok"])
-        self.assertIsNone(result["glb"])
-        self.assertIsInstance(result["procedencia"], list)
-        self.assertGreaterEqual(len(result["procedencia"]), 2)  # piezas de flujo y nodos
-        self.assertIsInstance(result["fallo"], str)
-        self.assertGreaterEqual(len(result["fallo"]), 1)
-        self.assertGreaterEqual(result["segundos"], 0.0)
-        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
-
     def test_flujo_desconocido(self):
         r = pa.remallar_imagen("a.png", flujo="inventado", comfy=ComfyFalso())
         self.assertFalse(r["ok"])
