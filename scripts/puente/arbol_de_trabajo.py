@@ -14,8 +14,13 @@ tropezar con lo PROPIO. Este módulo separa una cosa de la otra y no decide nada
 más; quien llama elige qué hacer con cada montón (el orquestador commitea lo
 propio y sigue, y se planta solo si hay algo ajeno).
 
-Módulo PURO: entra el texto de `git status --porcelain`, salen dos listas.
+Módulo PURO: entra el texto de `git status --porcelain`, salen dos listas. La
+única lectura de disco es la de las colas versionadas, para comprobar que siguen
+siendo tareas y no basura (ver `clasificar`).
 """
+
+import json
+import os
 
 # Rutas (relativas a la raíz del repo) que escribe el propio enjambre como parte
 # de su funcionamiento normal. Solo esto se considera «propio»: la lista se
@@ -33,6 +38,43 @@ PROPIAS = (
     ".cursor/rules/puente-de-mando.mdc",
     "memory/workflow-actual.md",
 )
+
+# (2026-10-28, DEC1028E) El revisor de Bloqueadas re-apunta `depende` dentro de las
+# colas VERSIONADAS al dividir tareas en partes `-dN`. La modificación la hace el
+# propio enjambre, así que no es trabajo ajeno; pero solo si el archivo sigue siendo
+# una lista de tareas con `id` (si no se puede leer o no lo es, es ajena).
+PREFIJO_COLA = "starseed_memory_root/olas/cola-"
+RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def es_cola_versionada(linea, ruta):
+    """` M starseed_memory_root/olas/cola-*.json`: cola versionada modificada en el
+    árbol de trabajo (no en el índice). Solo se ablanda ESTE estado: un `A `, un
+    `MM` o una cola sin seguimiento siguen la regla de siempre."""
+    if linea[:2] != " M" or not ruta.startswith(PREFIJO_COLA):
+        return False
+    resto = ruta[len(PREFIJO_COLA):]
+    return bool(resto) and resto.endswith(".json") and "/" not in resto
+
+
+def es_lista_de_tareas(texto):
+    """¿El texto es una lista JSON de tareas? Cada elemento, un objeto con `id`."""
+    try:
+        datos = json.loads(texto)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(datos, list) and all(
+        isinstance(tarea, dict) and "id" in tarea for tarea in datos
+    )
+
+
+def _sigue_siendo_cola(ruta, raiz=None):
+    """True solo si la cola se puede leer y sigue siendo una lista de tareas con `id`."""
+    try:
+        with open(os.path.join(raiz or RAIZ, ruta), encoding="utf-8") as f:
+            return es_lista_de_tareas(f.read())
+    except (OSError, UnicodeError):
+        return False
 
 
 def ruta_de(linea):
@@ -69,7 +111,7 @@ def repartir(porcelain, propias=PROPIAS):
     return mias, ajenas
 
 
-def clasificar(porcelain, propias=PROPIAS):
+def clasificar(porcelain, propias=PROPIAS, raiz=None):
     """Reparte las líneas sucias en (propias, estorbo, ajenas), en el orden que llegaron.
 
     (2026-10-25, ENJ1025A) Como `repartir`, pero separa además el ESTORBO: un residuo sin
@@ -80,11 +122,25 @@ def clasificar(porcelain, propias=PROPIAS):
 
     `ajenas` es solo el trabajo de verdad: lo único que justifica «no arranco». Quien llama
     aparta el estorbo con `curacion_logica.apartar_estorbo` (a `olas/_apartado/AAAAMMDD/`, nunca
-    se borra) y sigue. `repartir` se queda como estaba."""
+    se borra) y sigue. `repartir` se queda como estaba.
+
+    (2026-10-28, DEC1028E) Una cola versionada que el propio revisor re-apuntó (` M
+    starseed_memory_root/olas/cola-*.json`, todavía una lista de tareas con `id`) también es
+    propia: se commitea con el resto y el arranque sigue. Si no se puede leer o ya no es una
+    lista de tareas, es ajena: el lado seguro del error. `raiz` permite probarlo en tempdir."""
     import curacion_logica  # aquí y no arriba: curacion_logica importa `ruta_de` de este módulo
 
     lineas = [l for l in (porcelain or "").splitlines() if l.strip()]
     estorbo, mias, ajenas = curacion_logica.clasificar_lineas(lineas, propias)
+    if ajenas:
+        colas = {
+            ruta_de(l) for l in lineas
+            if es_cola_versionada(l, ruta_de(l)) and _sigue_siendo_cola(ruta_de(l), raiz)
+        }
+        if colas:
+            orden = [ruta_de(l) for l in lineas]
+            ajenas = [r for r in ajenas if r not in colas]
+            mias = [r for r in orden if r in set(mias) | colas]
     return mias, estorbo, ajenas
 
 

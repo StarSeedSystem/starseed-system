@@ -1,7 +1,9 @@
 """Pruebas de arbol_de_trabajo: separar lo que ensucia el enjambre de lo ajeno."""
 
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -89,6 +91,59 @@ class TestClasificar(unittest.TestCase):
         self.assertEqual(clasificar(""), ([], [], []))
         self.assertEqual(clasificar("\n  \n"), ([], [], []))
         self.assertEqual(clasificar("?? notas/x.md", propias=("notas/x.md",)), (["notas/x.md"], [], []))
+
+
+class TestColasVersionadas(unittest.TestCase):
+    """(2026-10-28, DEC1028E) El revisor de Bloqueadas re-apunta `depende` dentro de las
+    colas versionadas al dividir tareas en partes `-dN`. El orquestador de la Mac no
+    arrancaba desde el 27-10 a las 22:26 por tres de esas modificaciones."""
+
+    REALES = (
+        "starseed_memory_root/olas/cola-artcraft-1025.json",
+        "starseed_memory_root/olas/cola-blender-1025.json",
+        "starseed_memory_root/olas/cola-investigacion-1025.json",
+    )
+    LINEAS = "\n".join(" M " + ruta for ruta in REALES)
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, ignore_errors=True)
+
+    def escribe(self, ruta, texto):
+        destino = os.path.join(self.raiz, ruta)
+        os.makedirs(os.path.dirname(destino), exist_ok=True)
+        with open(destino, "w", encoding="utf-8") as f:
+            f.write(texto)
+
+    def test_las_tres_colas_reales_son_propias(self):
+        for ruta in self.REALES:
+            self.escribe(ruta, '[{"id": "ART1025B", "depende": ["ART1025B-d3"]}]')
+        mias, estorbo, ajenas = clasificar(self.LINEAS, raiz=self.raiz)
+        self.assertEqual(mias, list(self.REALES))
+        self.assertEqual(estorbo, [])
+        self.assertEqual(ajenas, [])
+
+    def test_una_cola_rota_sigue_siendo_ajena(self):
+        self.escribe(self.REALES[0], '[{"id": "ART1025B"}]')
+        self.escribe(self.REALES[1], "{esto no es json")
+        self.escribe(self.REALES[2], '[{"sin_id": 1}]')
+        mias, _estorbo, ajenas = clasificar(self.LINEAS, raiz=self.raiz)
+        self.assertEqual(mias, [self.REALES[0]])
+        self.assertEqual(ajenas, list(self.REALES[1:]))
+
+    def test_una_cola_que_no_se_puede_leer_es_ajena(self):
+        self.escribe(self.REALES[0], '[{"id": "ART1025B"}]')
+        mias, _estorbo, ajenas = clasificar(self.LINEAS, raiz=self.raiz)
+        self.assertEqual(mias, [self.REALES[0]])
+        self.assertEqual(ajenas, list(self.REALES[1:]))
+
+    def test_un_ts_modificado_sigue_siendo_ajeno(self):
+        self.escribe(self.REALES[0], '[{"id": "ART1025B"}]')
+        mias, _estorbo, ajenas = clasificar(
+            " M %s\n M src/lib/algo.ts" % self.REALES[0], raiz=self.raiz
+        )
+        self.assertEqual(mias, [self.REALES[0]])
+        self.assertEqual(ajenas, ["src/lib/algo.ts"])
 
 
 class TestSoloEsNuestro(unittest.TestCase):
