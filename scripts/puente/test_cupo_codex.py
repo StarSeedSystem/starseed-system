@@ -15,6 +15,14 @@ REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
 
 AHORA = 1_700_000_000.0
 
+#: Literal del 400 que devolvieron las 206 sesiones de ~/.codex/sessions desde el
+#: 2026-10-23 20:55. Es el mismo con `-m gpt-5.5`.
+REAL_SIN_MODELO = (
+    '{"status":400,"type":"error","error":{"type":"invalid_request_error",'
+    '"message":"The \'gpt-5.6-sol\' model is not supported when using Codex with '
+    'a ChatGPT account.","code":"model_not_found"}}'
+)
+
 
 class TestDeteccion(unittest.TestCase):
     def test_la_salida_real_de_hoy(self):
@@ -33,6 +41,38 @@ class TestDeteccion(unittest.TestCase):
     def test_da_igual_como_lo_escriban(self):
         for t in ("Usage limit reached for your plan", "QUOTA EXCEEDED", "Upgrade to Pro"):
             self.assertTrue(C.agotado_en(t), t)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_la_salida_real_de_hoy(self):
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+
+    def test_la_cuota_agotada_sigue_siendo_cuota(self):
+        # El 400 de modelo no admitido y la cuota agotada comparten código de salida
+        # pero piden reacciones opuestas: aquí NO hay que esperar cuota.
+        self.assertTrue(C.agotado_en(REAL))
+        self.assertFalse(C.sin_modelo_en(REAL))
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+        self.assertFalse(C.agotado_en(REAL_SIN_MODELO))
+
+    def test_no_confunde_otros_errores(self):
+        self.assertFalse(C.sin_modelo_en("ERROR: model 'gpt-9' does not exist"))
+        self.assertFalse(C.sin_modelo_en("error: the argument '--sandbox' cannot be used"))
+
+    def test_vacio_no_es_modelo_retirado(self):
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
+
+    def test_da_igual_como_lo_escriban(self):
+        for t in (
+            "MODEL_NOT_FOUND",
+            "The model is not supported when using Codex with a ChatGPT account.",
+            "code: model_not_found",
+        ):
+            self.assertTrue(C.sin_modelo_en(t), t)
+
+    def test_un_dia_de_ventana(self):
+        self.assertAlmostEqual(C.HORAS_SIN_MODELO, 24.0)
 
 
 class TestVigencia(unittest.TestCase):
@@ -78,6 +118,17 @@ class TestDisco(unittest.TestCase):
 
     def test_anotar_dice_cuanto(self):
         self.assertGreater(C.anotar("prueba", ruta=self.ruta), 100)
+
+    def test_el_modelo_retirado_se_aparta_un_dia(self):
+        minutos = C.anotar(
+            "cuenta de ChatGPT sin Codex para codex/gpt-5.6-sol",
+            ruta=self.ruta,
+            ahora=AHORA,
+            horas=C.HORAS_SIN_MODELO,
+        )
+        self.assertEqual(minutos, 1440)
+        self.assertTrue(C.sigue_agotado(C.leer(self.ruta), AHORA + 23 * 3600))
+        self.assertFalse(C.sigue_agotado(C.leer(self.ruta), AHORA + 25 * 3600))
 
     def test_archivo_roto_no_revienta(self):
         with open(self.ruta, "w", encoding="utf-8") as f:

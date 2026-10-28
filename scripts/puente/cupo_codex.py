@@ -50,6 +50,25 @@ PISTAS = (
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
 
+#: Lo que dice la CLI de Codex cuando el modelo no existe para la cuenta de
+#: ChatGPT (400 `model_not_found`). No es cuota: esperar tres horas no arregla
+#: nada, porque el modelo no está admitido en esa cuenta. En minúsculas.
+#:
+#: POR QUÉ (2026-10-28): desde el 2026-10-23 20:55 TODAS las llamadas de Codex
+#: fallaban con esto y `agotado_en` no lo reconocía, así que seguía en la
+#: rotación y cada tarea gastaba su primer intento en él para acabar en
+#: `sin_cambios` (DEC1028A lo hizo 8 veces). Medido en 206 sesiones de
+#: `~/.codex/sessions`; con `-m gpt-5.5` pasa exactamente lo mismo.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+#: Cuánto se aparta cuando la cuenta no admite el modelo. Un día: el modelo no
+#: vuelve por esperar, pero tampoco se renuncia a Codex para siempre por si la
+#: cuenta cambia de plan o de modelo admitido.
+HORAS_SIN_MODELO = 24.0
+
 
 def agotado_en(salida):
     """¿Esta salida es un agotamiento de cuota de Codex?
@@ -60,6 +79,17 @@ def agotado_en(salida):
     """
     b = (salida or "").lower()
     return any(p in b for p in PISTAS)
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida dice que la cuenta de ChatGPT no admite el modelo?
+
+    Es lo opuesto a `agotado_en` aunque compartan el mismo código de salida:
+    aquí no hay que esperar cuota, hay que dejar de usar Codex con ese modelo.
+    Se busca en minúsculas, igual que `agotado_en`.
+    """
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
 
 
 def hasta_cuando(ahora, horas=HORAS):
