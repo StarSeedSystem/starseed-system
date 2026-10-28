@@ -1,27 +1,22 @@
 /**
- * REGISTROS DE MOVIMIENTO — personalidad del movimiento por sección (Ola 1024D).
+ * REGISTROS DE MOVIMIENTO — LA VOZ DE CADA SECCIÓN (Ola 1024D · DAN1024B-d1)
  * ─────────────────────────────────────────────────────────────────────────────
- * Módulo PURO: sin red, sin disco, sin reloj y sin `node:*`. Traduce un
- * REGISTRO (la voz con la que se mueve la interfaz) y una SECCIÓN del OS a
- * tokens de movimiento, usando SOLO `DURACION` y `CURVA` de `movimiento.ts`:
- * aquí no se inventa ninguna duración ni curva nuevas.
- *
- *  · sobrio       — normal/suave, sin elástico: trabajo, biblioteca, trinity.
- *  · expresivo    — pausado/entrada: presencia que se nota (astraura, genesis).
- *  · experimental — escena con elástico SOLO en la entrada: protomolécula, malla.
- *
- * Reglas del resultado: la salida siempre es más corta que la entrada, la
- * respiración queda entre 1 y 1,03 (escala) con periodo de 3500–6000 ms, y ante
- * `prefers-reduced-motion` todos los tiempos caen a 0 con escala 1 (estado
- * final sin moverse). Solo `transform` y `opacity` deben animarse.
+ * Módulo PURO: traduce un registro (sobrio, expresivo, experimental) y una
+ * sección del OS a los tokens de `movimiento.ts`, la ÚNICA fuente de duraciones
+ * y curvas: aquí no se inventa ningún número y los del vídeo (STARSEED.md §6)
+ * jamás se copian a la interfaz. El registro marca la voz (entrada, salida,
+ * cuánto respira); la sección, el ritmo (cascada y periodo de respiración).
+ * Solo se animan transform y opacity; la salida siempre es más corta que la
+ * entrada; el elástico vive solo en la entrada experimental; con movimiento
+ * reducido, `aplicarMovimientoReducido` deja todo en 0 ms y la escala en 1.
  */
 
-import { CURVA, DURACION } from "./movimiento";
+import { DURACION, CURVA } from "./movimiento";
 
-/** Registro de movimiento: la personalidad con la que se anima una sección. */
+/** Registro de movimiento: la intensidad elegida para una sección. */
 export type RegistroMovimiento = "sobrio" | "expresivo" | "experimental";
 
-/** Secciones del OS que reciben movimiento registrado. */
+/** Sección del OS con identidad de movimiento propia. */
 export type SeccionMovimiento =
     | "trinity"
     | "astraura"
@@ -30,81 +25,96 @@ export type SeccionMovimiento =
     | "biblioteca"
     | "protomolecula";
 
-/** Par duración + curva, ambos del ADN del OS (`DURACION`/`CURVA`). */
-export interface PasoMovimiento {
-    /** Duración en milisegundos (valor de `DURACION`). */
+/** Curva de easing del OS, tal cual sale de `movimiento.ts` (nunca inventada). */
+export type CurvaDelOS = (typeof CURVA)[keyof typeof CURVA];
+
+/** Un momento del movimiento: duración en ms y curva del OS. */
+export interface MomentoMovimiento {
+    /** Duración en milisegundos (0 con movimiento reducido). */
     ms: number;
-    /** Curva de easing (valor de `CURVA`). */
-    curva: string;
+    curva: CurvaDelOS;
 }
 
-/** Respiración perceptible: escala de «inhalar» y su periodo. */
+/** Respiración de una sección: una escala sutil, nunca otra propiedad. */
 export interface Respiracion {
-    /** Escala del pulso (1 = quieto; tope 1,03). */
+    /** Escala máxima del ciclo, entre 1 y 1.03 (1 = no respirar). */
     escala: number;
-    /** Periodo completo del pulso en milisegundos. */
+    /** Periodo del ciclo en ms, entre 3500 y 6000 (0 con movimiento reducido). */
     periodoMs: number;
 }
 
-/** Movimiento completo de una sección con un registro dado. */
+/** Tokens de movimiento de una sección bajo un registro. */
 export interface MovimientoSeccion {
-    /** Cómo aparece lo nuevo. */
-    entrada: PasoMovimiento;
-    /** Cómo se retira lo que sale. */
-    salida: PasoMovimiento;
-    /** Retardo en cascada entre elementos hermanos (ms). */
+    /** Cómo entra un elemento de la sección. */
+    entrada: MomentoMovimiento;
+    /** Cómo se retira: siempre más corto que la entrada. */
+    salida: MomentoMovimiento;
+    /** Retardo en cascada entre elementos consecutivos de una lista (ms). */
     cascadaMs: number;
-    /** Pulso sutil de fondo (solo transform/opacity). */
     respiracion: Respiracion;
 }
 
-/** Entrada/salida por registro, con las duraciones y curvas del ADN del OS. */
-const BASE_REGISTRO: Record<RegistroMovimiento, { entrada: PasoMovimiento; salida: PasoMovimiento }> = {
-    sobrio: { entrada: { ms: DURACION.normal, curva: CURVA.suave }, salida: { ms: DURACION.rapido, curva: CURVA.suave } },
-    expresivo: { entrada: { ms: DURACION.pausado, curva: CURVA.entrada }, salida: { ms: DURACION.normal, curva: CURVA.salida } },
-    experimental: { entrada: { ms: DURACION.escena, curva: CURVA.elastico }, salida: { ms: DURACION.pausado, curva: CURVA.salida } },
+/** La voz de cada registro: sus dos momentos y cuánto respira. Solo tokens del OS. */
+const VOZ: Record<RegistroMovimiento, Pick<MovimientoSeccion, "entrada" | "salida"> & { escala: number }> = {
+    // Sobrio: responde y se retira sin teatro; jamás elástico.
+    sobrio: {
+        entrada: { ms: DURACION.normal, curva: CURVA.suave },
+        salida: { ms: DURACION.rapido, curva: CURVA.salida },
+        escala: 1.01,
+    },
+    // Expresivo: la entrada se deja notar y responde al dedo.
+    expresivo: {
+        entrada: { ms: DURACION.pausado, curva: CURVA.entrada },
+        salida: { ms: DURACION.normal, curva: CURVA.salida },
+        escala: 1.02,
+    },
+    // Experimental: la entrada es una escena con rebote; elástico SOLO aquí.
+    experimental: {
+        entrada: { ms: DURACION.escena, curva: CURVA.elastico },
+        salida: { ms: DURACION.pausado, curva: CURVA.salida },
+        escala: 1.03,
+    },
 };
 
-/** Cascada base (ms) por sección: secciones densas propagan más tarde. */
-const CASCADA_SECCION: Record<SeccionMovimiento, number> = {
-    trinity: 40,
-    astraura: 60,
-    genesis: 80,
-    malla: 60,
-    biblioteca: 40,
-    protomolecula: 80,
+/** El ritmo de cada sección: cascada de sus listas y periodo de su respiración. */
+const RITMO: Record<SeccionMovimiento, Pick<MovimientoSeccion, "cascadaMs"> & { periodoMs: number }> = {
+    trinity: { cascadaMs: DURACION.rapido, periodoMs: 4800 },
+    astraura: { cascadaMs: DURACION.rapido, periodoMs: 4000 },
+    genesis: { cascadaMs: DURACION.instantaneo, periodoMs: 5200 },
+    malla: { cascadaMs: DURACION.normal, periodoMs: 5600 },
+    biblioteca: { cascadaMs: DURACION.normal, periodoMs: 6000 },
+    protomolecula: { cascadaMs: DURACION.instantaneo, periodoMs: 3500 },
 };
 
-/** Respiración por sección y registro: escala (≤ 1,03) y periodo (3500–6000 ms). */
-const RESPIRACION: Record<SeccionMovimiento, Record<RegistroMovimiento, Respiracion>> = {
-    trinity: { sobrio: { escala: 1.01, periodoMs: 4000 }, expresivo: { escala: 1.02, periodoMs: 3800 }, experimental: { escala: 1.03, periodoMs: 3600 } },
-    astraura: { sobrio: { escala: 1.01, periodoMs: 4200 }, expresivo: { escala: 1.02, periodoMs: 4000 }, experimental: { escala: 1.03, periodoMs: 3800 } },
-    genesis: { sobrio: { escala: 1.01, periodoMs: 4400 }, expresivo: { escala: 1.02, periodoMs: 4200 }, experimental: { escala: 1.03, periodoMs: 4000 } },
-    malla: { sobrio: { escala: 1.015, periodoMs: 5000 }, expresivo: { escala: 1.02, periodoMs: 4600 }, experimental: { escala: 1.03, periodoMs: 4400 } },
-    biblioteca: { sobrio: { escala: 1.01, periodoMs: 6000 }, expresivo: { escala: 1.015, periodoMs: 5400 }, experimental: { escala: 1.02, periodoMs: 5000 } },
-    protomolecula: { sobrio: { escala: 1.015, periodoMs: 4600 }, expresivo: { escala: 1.02, periodoMs: 4200 }, experimental: { escala: 1.03, periodoMs: 3800 } },
-};
-
-/** Traduce (registro, sección) a los tokens de movimiento de esa pieza. */
-export function movimientoDe(registro: RegistroMovimiento, seccion: SeccionMovimiento): MovimientoSeccion {
-    const base = BASE_REGISTRO[registro];
+/**
+ * El movimiento de una sección bajo un registro: la voz del registro sobre el
+ * ritmo de la sección. Devuelve copias nuevas: mutar el resultado no cambia
+ * los tokens.
+ */
+export function movimientoDe(
+    registro: RegistroMovimiento,
+    seccion: SeccionMovimiento,
+): MovimientoSeccion {
+    const voz = VOZ[registro];
+    const ritmo = RITMO[seccion];
     return {
-        entrada: { ...base.entrada },
-        salida: { ...base.salida },
-        cascadaMs: CASCADA_SECCION[seccion],
-        respiracion: { ...RESPIRACION[seccion][registro] },
+        entrada: { ...voz.entrada },
+        salida: { ...voz.salida },
+        cascadaMs: ritmo.cascadaMs,
+        respiracion: { escala: voz.escala, periodoMs: ritmo.periodoMs },
     };
 }
 
 /**
- * Ante `prefers-reduced-motion`: todo tiempo a 0 y la escala a 1 — el resultado
- * pinta el estado final directamente, sin moverse.
+ * Con prefers-reduced-motion: todo en 0 ms y la escala en 1 — el estado final
+ * se aplica de golpe, sin moverse. Las curvas se conservan (con 0 ms no
+ * importan) y el original no se toca.
  */
 export function aplicarMovimientoReducido(r: MovimientoSeccion): MovimientoSeccion {
     return {
-        entrada: { ...r.entrada, ms: 0 },
-        salida: { ...r.salida, ms: 0 },
+        entrada: { ms: 0, curva: r.entrada.curva },
+        salida: { ms: 0, curva: r.salida.curva },
         cascadaMs: 0,
-        respiracion: { ...r.respiracion, escala: 1 },
+        respiracion: { escala: 1, periodoMs: 0 },
     };
 }
