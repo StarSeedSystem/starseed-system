@@ -13,6 +13,11 @@ QUÉ HACE
   4. Si cloudflared muere o el túnel deja de contestar 5 veces seguidas (con Genesis local
      vivo), lo relanza con espera creciente; si Cloudflare limita (429 · 1015), espera 20 min.
   5. Al parar (SIGTERM de launchd, Ctrl+C) marca la fila como apagada y borra la URL.
+  6. (LNN1028E) Además abre un túnel SSH hacia el A1 con los reenvíos de REENVIOS (hoy, el del
+      recuerdo semántico LEANN: 127.0.0.1:4495 aquí → 127.0.0.1:4495 en el A1, sola la puerta
+      `leann_servidor.py` del A1): el MISMO ssh y la MISMA llave del nodo de Oracle, y la MISMA
+      vigilancia: si el ssh muere o no llega, se relanza; si no hay A1, no se abre y nada falla
+      (el recuerdo sigue con Memvid). La IP del A1 nunca se imprime ni se guarda.
 
 SEGURIDAD
   · La URL del túnel solo vive en memoria y en esa tabla (que solo leen los miembros de
@@ -72,6 +77,14 @@ ORIGENES = tuple(o.strip().rstrip("/") for o in
                  if o.strip())
 _METODOS_CORS = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
 _CABECERAS_CORS = ("authorization", "content-type", "accept", "cache-control", "x-requested-with")
+
+#: (LNN1028E) Reenvíos del túnel SSH hacia el A1: [(puerto_aqui, puerto_en_a1), …]. Hoy, el del
+#: recuerdo semántico LEANN (architecture/leann-recuerdo-semantico.md §3: «la Mac llega por el
+#: túnel que ya abre tunel_metagenesis.py»). El de cloudflared NO admite reenvíos (lleva HTTP
+#: hacia la puerta, nada más), así que el SSH es su forma. Un reenvío más = una línea más aquí.
+REENVIOS = (
+    (4495, 4495),
+)
 
 _RE_URL = re.compile(r"https://([a-z0-9-]+)\.trycloudflare\.com")
 _NO_SON_TUNEL = {"api", "www"}
@@ -157,6 +170,36 @@ def decidir_vigilancia(cf_vivo, tunel_ok, local_ok, fallos, fallos_max=FALLOS_MA
 def espera_relanzar(intentos):
     """PURA. Espera creciente entre relanzamientos: 30 s, 60, 120… hasta 10 min."""
     return min(ESPERA_MAX_S, 30 * (2 ** max(0, intentos)))
+
+
+def texto_reenvios(reenvios=REENVIOS):
+    """PURA. Los reenvíos para el registro, sin NINGUNA IP: «127.0.0.1:4495 → :4495 del A1»."""
+    return ", ".join("127.0.0.1:%d → :%d del A1" % (p, q) for p, q in reenvios)
+
+
+def argumentos_reenvio(reenvios=REENVIOS):
+    """PURA. Un `-L 127.0.0.1:<p_local>:127.0.0.1:<p_a1>` por reenvío de la lista."""
+    args = []
+    for p, q in reenvios:
+        p, q = int(p), int(q)
+        if not (0 < p <= 65535 and 0 < q <= 65535):
+            raise ValueError("reenvío con puerto fuera de rango: %r" % ((p, q),))
+        args += ["-L", "127.0.0.1:%d:127.0.0.1:%d" % (p, q)]
+    return args
+
+
+def tachar_ip(texto, ip):
+    """PURA. El texto sin la IP del A1: como `tachar` esconde la URL del túnel, esta esconde
+    la IP que un error de ssh podría traer delante."""
+    return texto.replace(ip, "[a1]") if ip else texto
+
+
+def orden_reenvio_a1(ssh_base, destino, reenvios=REENVIOS):
+    """PURA. La orden SSH del reenvío: base con la MISMA llave y opciones del nodo de Oracle
+    (`ssh_base`), sin orden remota (`-N`) y un `-L` por reenvío. `destino` es «usuario@IP» y la
+    IP solo vive dentro de esta lista de argumentos: jamás se imprime ni se guarda."""
+    return list(ssh_base) + ["-o", "ExitOnForwardFailure=yes", "-N"] + \
+        argumentos_reenvio(reenvios) + [destino]
 
 
 def ahora_iso():
@@ -390,8 +433,8 @@ def orden_cloudflared(binario, puerto):
 class Tunel:
     """Un cloudflared hijo. La URL se lee de su salida y solo se guarda en memoria."""
 
-    def __init__(self, binario, puerto, popen=subprocess.Popen):
-        self.orden = orden_cloudflared(binario, puerto)
+    def __init__(self, binario, puerto=None, popen=subprocess.Popen, orden=None):
+        self.orden = orden if orden is not None else orden_cloudflared(binario, puerto)
         self.popen = popen
         self.proc = None
         self.url = None
@@ -437,6 +480,63 @@ class Tunel:
             self.proc.kill()
 
 
+class Reenvio(Tunel):
+    """El SSH del A1, con el MISMO trato que el cloudflared de arriba: sale tachada, se
+    vigila con `vivo()` y se para igual. No toca el .pid (ese es del cloudflared) y su
+    `_leer` tacha la IP del A1, que un error de ssh puede traer delante."""
+
+    def __init__(self, orden, ip="", popen=subprocess.Popen):
+        super().__init__(None, orden=list(orden), popen=popen)
+        self.ip = ip if ip else ""
+
+    def arrancar(self):
+        try:
+            self.proc = self.popen(self.orden, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   stdin=subprocess.DEVNULL, text=True, bufsize=1)
+        except OSError:
+            self.proc = None
+        threading.Thread(target=self._leer, name="reenvio-a1", daemon=True).start()
+
+    def _leer(self):
+        if self.proc is None or self.proc.stdout is None:
+            return
+        for linea in self.proc.stdout:
+            self.ultimas.append(tachar_ip(linea.strip(), self.ip)[:200])
+
+
+def crear_reenvio():
+    """El reenvío al A1 con la MISMA llave y usuario del nodo de Oracle («el mismo ssh»).
+    None si no hay A1 en ~/.starseed/oracle.json, falta la llave o la lista de reenvíos
+    tiene un puerto que no vale: entonces no se abre y nada del motor cambia."""
+    try:
+        import oracle_nodo
+    except Exception:  # noqa: BLE001
+        return None
+    if not os.path.exists(oracle_nodo.LLAVE):
+        return None
+    ip = oracle_nodo._ip()
+    if not ip:
+        return None
+    try:
+        orden = orden_reenvio_a1(oracle_nodo._ssh_base(), "%s@%s" % (oracle_nodo.USUARIO_SSH, ip))
+    except ValueError:
+        return None
+    return Reenvio(orden, ip)
+
+
+def texto_estado_reenvio():
+    """Cómo va la pieza del reenvío, para `--estado`: sin NINGUNA IP (la del A1 jamás sale)."""
+    try:
+        import oracle_nodo
+    except Exception:  # noqa: BLE001
+        return "sin el módulo del nodo de Oracle: no se abre"
+    if not os.path.exists(oracle_nodo.LLAVE):
+        return "sin llave ssh del nodo: no se abre"
+    if not oracle_nodo._ip():
+        return "sin A1 en oracle.json: no se abre"
+    return "la Mac espera un ssh con la llave del nodo"
+
+
 def matar_huerfano(ruta=PID):
     """Si quedó un cloudflared nuestro de una vuelta anterior (lo dice el .pid), se para."""
     try:
@@ -453,10 +553,19 @@ def matar_huerfano(ruta=PID):
 
 def ejecutar(d):
     """Bucle del servicio. `d` trae: crear_tunel(), contesta(url), contesta_local(), escribir(datos),
-    parar (threading.Event), log(texto), ahora(), maquina. Nunca pasa la URL a `log`."""
+    parar (threading.Event), log(texto), ahora(), maquina — y, si hay A1, crear_reenvio().
+    Nunca pasa la URL ni la IP del A1 a `log`."""
     intentos = 0
     tunel = None
+    reenvio, avisado_sin_a1 = None, False
     try:
+        # (LNN1028E) El SSH del A1 se abre aparte: su caída NO tumba el túnel de Genesis, y sin
+        # A1 no se abre (el recuerdo sigue con Memvid y nada falla). Si muere, se relanza.
+        if d.get("crear_reenvio"):
+            reenvio = d["crear_reenvio"]()
+            if reenvio is not None:
+                reenvio.arrancar()
+                d["log"]("reenvío al A1 abierto: " + texto_reenvios())
         while not d["parar"].is_set():
             tunel = d["crear_tunel"]()
             tunel.arrancar()
@@ -493,6 +602,20 @@ def ejecutar(d):
                 d["parar"].wait(LATIDO_S)
                 if d["parar"].is_set():
                     break
+                if d.get("crear_reenvio"):
+                    # vigilancia propia del ssh: muerto o nunca llegó → uno de nuevo; sin A1
+                    # se avisa UNA vez y se sigue (el resto del túnel no depende de él).
+                    if reenvio is not None and not reenvio.vivo():
+                        texto = reenvio.ultimas[-1] if reenvio.ultimas else "sin mensaje"
+                        d["log"]("el ssh del reenvío al A1 terminó (%s): lo relanzo" %
+                                 tachar_ip(texto, reenvio.ip))
+                        reenvio.parar()
+                        reenvio = d["crear_reenvio"]()
+                        if reenvio is not None:
+                            reenvio.arrancar()
+                    elif reenvio is None and not avisado_sin_a1:
+                        avisado_sin_a1 = True
+                        d["log"]("sin A1 para el reenvío: sin recuerdo semántico por el túnel; el resto sigue")
                 cf_vivo = tunel.vivo()
                 tunel_ok = cf_vivo and d["contesta"](url)
                 local_ok = tunel_ok or d["contesta_local"]()
@@ -516,6 +639,8 @@ def ejecutar(d):
     finally:
         if tunel is not None:
             tunel.parar()
+        if reenvio is not None:
+            reenvio.parar()
         d["escribir"](fila_apagada("la Mac paró el túnel de MetaGenesis"))
         d["log"]("túnel parado y fila marcada como apagada")
 
@@ -533,6 +658,7 @@ def main(argv=None):
         print("cloudflared:", shutil.which("cloudflared") or ("/opt/homebrew/bin/cloudflared" if os.path.exists("/opt/homebrew/bin/cloudflared") else "NO INSTALADO"))
         print("Genesis local (:%d):" % PUERTO_MOTOR, "contesta" if contesta_motor("http://127.0.0.1:%d" % PUERTO_MOTOR) else "no contesta")
         print("puerta (:%d):" % PUERTO_PUERTA, "contesta" if contesta_motor("http://127.0.0.1:%d" % PUERTO_PUERTA) else "no contesta")
+        print("reenvío al A1 (%s):" % texto_reenvios(), texto_estado_reenvio())
         return 0
     if not cred:
         _log("Faltan NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en .env.local (sus valores nunca se imprimen). Espero 10 min.")
@@ -559,6 +685,7 @@ def main(argv=None):
     try:
         ejecutar({
             "crear_tunel": lambda: Tunel(binario, PUERTO_PUERTA),
+            "crear_reenvio": crear_reenvio,
             "contesta": contesta_motor,
             "contesta_local": lambda: contesta_motor("http://127.0.0.1:%d" % PUERTO_MOTOR),
             "escribir": lambda datos: escribir_fila(cred, datos),
