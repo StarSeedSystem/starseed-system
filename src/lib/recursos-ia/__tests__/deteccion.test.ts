@@ -10,9 +10,12 @@ import {
     AVISO_RAM_NAVEGADOR,
     almacenesDeCarpetas,
     almacenesDeMaquina,
+    aplicarDeteccionNativa,
     detectarInventario,
+    esVolumenNativo,
     inventarioDesde,
     lecturaEstimadaMBs,
+    maquinaDesdeNativa,
     neuronaDesdeNavegador,
     neuronaDesdeRegistro,
     nombreGpuNavegador,
@@ -240,6 +243,84 @@ describe("inventarioDesde · unión de fuentes", () => {
         expect(a.find((x) => x.ruta === "/Volumes/Modelos")).toMatchObject({ tipo: "servidor-externo", lecturaMBs: 100 });
         const soloLectura = almacenesDeMaquina(ID, { ...MAC_ALEX, volumenes: [{ ...MAC_ALEX.volumenes[1], soloLectura: true }] });
         expect(soloLectura[0]).toMatchObject({ disponible: false, etiqueta: "SSD Externo · SSD USB (solo lectura)" });
+    });
+});
+
+describe("detección de la app nativa (discos y NPU)", () => {
+    const nativa = {
+        so: "macOS",
+        arquitectura: "arm64" as const,
+        chip: "Apple M1",
+        nucleos: 8,
+        ramGb: 8,
+        npu: { nombre: "Apple Neural Engine", tops: 11 },
+        volumenes: [
+            { montaje: "/", nombre: "Macintosh HD", totalGb: 228, libreGb: 9.2, externo: false, tipoDisco: "nvme" as const, conexion: "interna" as const, sistemaArchivos: "apfs" },
+            { montaje: "/Volumes/SSD Externo", nombre: "SSD Externo", totalGb: 931.1, libreGb: 816.1, externo: true, tipoDisco: "ssd" as const, conexion: "usb" as const, sistemaArchivos: "exfat" },
+        ],
+        avisos: ["NPU medida por el nombre del chip."],
+    };
+
+    it("valida los volúmenes: una forma rota no se cuela", () => {
+        expect(esVolumenNativo(nativa.volumenes[0])).toBe(true);
+        expect(esVolumenNativo({ montaje: "/", nombre: "x", totalGb: "228" })).toBe(false);
+        expect(esVolumenNativo({ ...nativa.volumenes[0], tipoDisco: "usb-raro" })).toBe(false);
+        expect(esVolumenNativo(null)).toBe(false);
+    });
+
+    it("lo nativo gana en discos y NPU sin borrar WebGPU, navegador ni carpetas", () => {
+        const conCarpeta = {
+            ...desdeNavegador(),
+            almacenes: [
+                ...desdeNavegador().almacenes,
+                { id: "carpeta:c1", tipo: "neurona-local" as const, etiqueta: "Carpeta «Modelos»", neuronaId: ID, via: "local" as const, persistente: true, privado: true, disponible: true, fuente: "declarado" as const },
+            ],
+        };
+        const out = aplicarDeteccionNativa(conCarpeta, nativa);
+        expect(out.almacenes.find((a) => a.id === `${ID}:interno`)).toMatchObject({
+            tipo: "neurona-local",
+            etiqueta: "Disco interno (Macintosh HD)",
+            totalGb: 228,
+            libreGb: 9.2,
+            tipoDisco: "nvme",
+            conexion: "interna",
+            fuente: "detectado",
+        });
+        expect(out.almacenes.find((a) => a.id === `${ID}:ext:SSD Externo`)).toMatchObject({ tipo: "disco-externo", lecturaMBs: 900, fuente: "detectado" });
+        expect(out.almacenes.find((a) => a.id === `navegador:${ID}`)?.tipo).toBe("navegador");
+        expect(out.almacenes.find((a) => a.id === "carpeta:c1")?.tipo).toBe("neurona-local");
+        expect(out.procesadores.find((p) => p.tipo === "npu")).toMatchObject({
+            id: `${ID}:npu`,
+            nombre: "Apple Neural Engine · 11 TOPS",
+            aceleradores: ["ane", "coreml"],
+            fuente: "detectado",
+        });
+        expect(out.procesadores.find((p) => p.tipo === "webgpu")).toBeDefined();
+    });
+
+    it("un volumen nativo de solo lectura se lista sin recibir descargas", () => {
+        const solo = {
+            ...nativa,
+            volumenes: [
+                nativa.volumenes[1],
+                { ...nativa.volumenes[1], montaje: "/Volumes/ISO", nombre: "ISO", soloLectura: true },
+            ],
+        };
+        const out = aplicarDeteccionNativa(desdeNavegador(), solo);
+        const iso = out.almacenes.find((a) => a.id === `${ID}:ext:ISO`);
+        expect(iso).toMatchObject({ tipo: "disco-externo", disponible: false });
+        expect(iso?.etiqueta).toContain("solo lectura");
+    });
+
+    it("sin volúmenes ni NPU no toca la neurona; con servidor local superpone y conserva lo suyo", () => {
+        const base = desdeNavegador();
+        expect(aplicarDeteccionNativa(base, { avisos: ["sin nada"] })).toBe(base);
+        const maquina = maquinaDesdeNativa(nativa, MAC_ALEX);
+        expect(maquina.volumenes).toEqual(nativa.volumenes);
+        expect(maquina.npu).toEqual({ nombre: "Apple Neural Engine", tops: 11 });
+        expect(maquina.gpus).toEqual(MAC_ALEX.gpus);
+        expect(maquina.runtimes).toEqual(MAC_ALEX.runtimes);
+        expect(maquina.avisos).toEqual(expect.arrayContaining([MAC_ALEX.avisos[0], nativa.avisos[0]]));
     });
 });
 

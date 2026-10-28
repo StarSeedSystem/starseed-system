@@ -16,6 +16,21 @@ import type { CarpetaVinculada } from "@/lib/storage/carpetas-vinculadas";
 import { esDeteccionMaquina, type DeteccionMaquina, type GpuDetectada, type VolumenDetectado } from "./deteccion-tipos";
 import type { Acelerador, InventarioRecursos, MedioAlmacen, NeuronaRecursos, Procesador, TipoDisco, Via } from "./tipos";
 
+/**
+ * Lo que mide la app nativa con el comando `recursos_ia_detectar`: volúmenes reales (también
+ * externos) y NPU por el nombre del chip. La web no puede ver nada de esto.
+ */
+export interface DeteccionNativa {
+    so?: string;
+    arquitectura?: "arm64" | "x86_64" | "otra";
+    chip?: string;
+    nucleos?: number;
+    ramGb?: number;
+    npu?: { nombre: string; tops?: number };
+    volumenes?: VolumenDetectado[];
+    avisos?: string[];
+}
+
 export interface FuentesInventario {
     estaNeurona: NeuronaRecursos;
     /** Otras neuronas de la cuenta (de `neuron_devices` / malla), ya convertidas. */
@@ -186,7 +201,7 @@ function idVolumen(neuronaId: string, v: VolumenDetectado, usados: Set<string>):
 }
 
 /** Almacenes de esta neurona a partir de los volúmenes detectados (interno y cada externo). PURA. */
-export function almacenesDeMaquina(neuronaId: string, m: DeteccionMaquina): MedioAlmacen[] {
+export function almacenesDeMaquina(neuronaId: string, m: Pick<DeteccionMaquina, "volumenes">): MedioAlmacen[] {
     const usados = new Set<string>();
     return m.volumenes.map((v): MedioAlmacen => {
         const red = v.conexion === "red" || v.tipoDisco === "red";
@@ -213,6 +228,92 @@ export function almacenesDeMaquina(neuronaId: string, m: DeteccionMaquina): Medi
             fuente: "detectado",
         };
     });
+}
+
+const TIPOS_DISCO = new Set(["nvme", "ssd", "hdd", "sd", "red", "desconocido"]);
+const CONEXIONES = new Set(["interna", "usb", "thunderbolt", "red", "nube"]);
+
+/** Valida un volumen que llega de la app nativa (no se cuela una forma vieja o rota). PURA. */
+export function esVolumenNativo(x: unknown): x is VolumenDetectado {
+    if (!x || typeof x !== "object") return false;
+    const v = x as Partial<VolumenDetectado>;
+    return (
+        typeof v.montaje === "string" &&
+        v.montaje.length > 0 &&
+        typeof v.nombre === "string" &&
+        typeof v.totalGb === "number" &&
+        Number.isFinite(v.totalGb) &&
+        typeof v.libreGb === "number" &&
+        Number.isFinite(v.libreGb) &&
+        typeof v.externo === "boolean" &&
+        typeof v.tipoDisco === "string" &&
+        TIPOS_DISCO.has(v.tipoDisco) &&
+        typeof v.conexion === "string" &&
+        CONEXIONES.has(v.conexion)
+    );
+}
+
+/**
+ * Volúmenes y NPU medidos por la app nativa sobre esta neurona. Lo nativo gana en su terreno
+ * (discos internos/externos y NPU) y NO borra lo que el navegador sí sabe (WebGPU, cuota OPFS,
+ * carpetas vinculadas). El contrato marca lo medido como `fuente: "detectado"`. PURA.
+ */
+export function aplicarDeteccionNativa(neurona: NeuronaRecursos, nativa: DeteccionNativa | null | undefined): NeuronaRecursos {
+    if (!nativa) return neurona;
+    let out = neurona;
+    const volumenes = (Array.isArray(nativa.volumenes) ? nativa.volumenes : []).filter(esVolumenNativo);
+    if (volumenes.length) {
+        out = {
+            ...out,
+            almacenes: unirPorId(out.almacenes, almacenesDeMaquina(out.id, { volumenes })),
+        };
+    }
+    const npu = nativa.npu;
+    if (npu && typeof npu.nombre === "string" && npu.nombre.trim()) {
+        const maquina: DeteccionMaquina = {
+            t: "",
+            host: "",
+            so: nativa.so ?? "",
+            arquitectura: nativa.arquitectura ?? "otra",
+            ...(nativa.chip ? { chip: nativa.chip } : {}),
+            nucleos: nativa.nucleos ?? 0,
+            ramGb: nativa.ramGb ?? 0,
+            gpus: [],
+            npu: { nombre: npu.nombre, ...(typeof npu.tops === "number" ? { tops: npu.tops } : {}) },
+            volumenes: [],
+            herramientas: [],
+            runtimes: [],
+            servidoresIA: [],
+            avisos: [],
+        };
+        const procesador = procesadoresDeMaquina(out.id, maquina).find((p) => p.tipo === "npu");
+        if (procesador) {
+            out = {
+                ...out,
+                procesadores: unirPorId(out.procesadores.filter((p) => p.tipo !== "npu"), [procesador]),
+            };
+        }
+    }
+    return out;
+}
+
+/**
+ * Superpone lo nativo a la máquina que midió el servidor local (si existe): los volúmenes y la
+ * NPU de la app ganan, y se conservan GPU, runtimes y herramientas ya detectados. PURA.
+ */
+export function maquinaDesdeNativa(nativa: DeteccionNativa, base: DeteccionMaquina): DeteccionMaquina {
+    const volumenes = (Array.isArray(nativa.volumenes) ? nativa.volumenes : []).filter(esVolumenNativo);
+    const npu =
+        nativa.npu && typeof nativa.npu.nombre === "string" && nativa.npu.nombre.trim()
+            ? { nombre: nativa.npu.nombre, ...(typeof nativa.npu.tops === "number" ? { tops: nativa.npu.tops } : {}) }
+            : base.npu;
+    return {
+        ...base,
+        ...(nativa.chip ? { chip: nativa.chip } : {}),
+        ...(npu ? { npu } : {}),
+        ...(volumenes.length ? { volumenes } : {}),
+        avisos: unicos([...base.avisos, ...(nativa.avisos ?? [])]),
+    };
 }
 
 /** «ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)» → «Apple M1». PURA. */
@@ -699,6 +800,33 @@ async function pedirMaquina(avisos: string[]): Promise<DeteccionMaquina | null> 
     }
 }
 
+/** Lo mínimo de `window.__TAURI__` que usa esta detección. */
+interface TauriRecursosIa {
+    core?: { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> };
+}
+
+/**
+ * Discos y NPU desde la app nativa (`recursos_ia_detectar`). Solo si existe `window.__TAURI__`;
+ * nunca lanza: si la app no contesta, deja un aviso y se sigue con lo que ve el navegador.
+ */
+async function pedirNativa(avisos: string[]): Promise<DeteccionNativa | null> {
+    if (typeof window === "undefined") return null;
+    const tauri = (window as unknown as { __TAURI__?: TauriRecursosIa }).__TAURI__;
+    const invoke = tauri?.core?.invoke;
+    if (typeof invoke !== "function") return null;
+    try {
+        const r = await conTope(Promise.resolve().then(() => invoke("recursos_ia_detectar")), 10_000, null);
+        if (!r || typeof r !== "object") {
+            avisos.push("La app nativa no devolvió la detección de discos.");
+            return null;
+        }
+        return r as DeteccionNativa;
+    } catch {
+        avisos.push("La app nativa no pudo medir los discos ni la NPU; se usa lo que ve el navegador.");
+        return null;
+    }
+}
+
 /** Servidores de cerebros de la cuenta, compartidos 5 min (cada lectura cuesta dos consultas). */
 let cacheServidores: { uid: string; en: number; valor: { almacenes: MedioAlmacen[]; procesadores: Procesador[] } } | null = null;
 const CACHE_SERVIDORES_MS = 5 * 60_000;
@@ -739,10 +867,16 @@ export async function detectarInventario(opts: { conServidor?: boolean; declarad
     const avisos: string[] = [];
     const enNavegador = typeof window !== "undefined";
     const conServidor = opts.conServidor ?? (enNavegador && typeof location !== "undefined" && HOSTS_LOCALES.has(location.hostname));
-    const [esta, maquina] = await Promise.all([
+    const [estaBase, maquinaServidor, nativa] = await Promise.all([
         detectarEstaNeurona(),
         conServidor ? pedirMaquina(avisos) : Promise.resolve(null),
+        pedirNativa(avisos),
     ]);
+    // La app nativa mide lo que el navegador no ve (discos y NPU). Si además hay servidor local,
+    // lo nativo se superpone a su máquina; si no, se aplica directamente a esta neurona.
+    if (nativa?.avisos?.length) avisos.push(...nativa.avisos);
+    const esta = nativa ? aplicarDeteccionNativa(estaBase, nativa) : estaBase;
+    const maquina = nativa && maquinaServidor ? maquinaDesdeNativa(nativa, maquinaServidor) : maquinaServidor;
 
     // Carpetas vinculadas (metadatos en el navegador, sin red).
     const almacenesCuenta: MedioAlmacen[] = [];
