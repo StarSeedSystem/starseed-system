@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, beforeEach } from "vitest";
 import { ATOMOS_PROPIOS, VISTAS_COMPONENTE, registrarAtomosPropios } from "../index";
+import { APPS_EMBEBIDAS } from "../../apps-embebidas";
 import { candidatosDe, limpiarRegistro, listarAtomos, obtenerAtomo, registrarAtomo } from "../../registro-atomos";
 import { entenderDictado } from "../../dictado";
 import type { AtomoEnUso, Autor, Molecula } from "../../tipos";
@@ -54,9 +55,12 @@ describe("átomos propios", () => {
   it("registrarAtomosPropios es idempotente", () => {
     registrarAtomosPropios();
     registrarAtomosPropios();
-    expect(listarAtomos()).toHaveLength(ATOMOS_PROPIOS.length);
+    expect(listarAtomos()).toHaveLength(ATOMOS_PROPIOS.length + APPS_EMBEBIDAS.length);
     for (const def of ATOMOS_PROPIOS) {
       expect(obtenerAtomo(def.herramientaId), def.herramientaId).toBeDefined();
+    }
+    for (const app of APPS_EMBEBIDAS) {
+      expect(obtenerAtomo(app.herramientaId), app.herramientaId).toBeDefined();
     }
   });
 
