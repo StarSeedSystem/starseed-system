@@ -94,15 +94,16 @@ export function ordenarPorMedidas(
       porModelo.set(m.modelo, arr);
     }
 
+    // Verificar si hay medidas para alguno de los candidatos
+    const tieneMedidas = candidatos.some((c) => porModelo.has(c.modelo));
+    if (!tieneMedidas) return candidatos;
+
     const conScore = candidatos.map((c) => {
       const medias = porModelo.get(c.modelo);
-      if (!medias || medias.length === 0) return { ...c, score: c.puntos };
+      if (!medias?.length) return { ...c, score: c.puntos };
       const { latenciaMs, acierto } = mediaMedidas(medias);
-      // Menor latencia = mejor (invertimos), mayor acierto = mejor.
-      // Normalizamos: latencia típica 100-5000ms → 0-100, acierto 0-1 → 0-100.
       const scoreLat = Math.max(0, 100 - Math.min(100, latenciaMs / 50));
       const scoreAci = acierto != null ? Math.round(acierto * 100) : 0;
-      // Peso 70% latencia, 30% acierto, más los puntos originales del catálogo.
       const score = Math.round(c.puntos + 0.7 * scoreLat + 0.3 * scoreAci);
       return { ...c, score };
     });

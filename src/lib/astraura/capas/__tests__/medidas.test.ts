@@ -77,12 +77,13 @@ describe("medidas", () => {
   it("ordenarPorMedidas respeta orden catálogo sin medidas", async () => {
     const almacen = almacenamientoEnMemoriaMedidas();
     const candidatos = [
-      { modelo: "m2", donde: "local" as const, puntos: 50 },
-      { modelo: "m1", donde: "local" as const, puntos: 100 },
+      { modelo: "m2", donde: "local" as const, puntos: 100 },
+      { modelo: "m1", donde: "local" as const, puntos: 50 },
     ];
 
     const ordenados = await ordenarPorMedidas(candidatos, almacen, "inexistente");
-    expect(ordenados[0].modelo).toBe("m1");
-    expect(ordenados[1].modelo).toBe("m2");
+    // Sin medidas, debe mantener el orden original (no cambiar nada)
+    expect(ordenados[0].modelo).toBe("m2");
+    expect(ordenados[1].modelo).toBe("m1");
   });
 });

@@ -67,17 +67,17 @@ describe("planificar", () => {
     ["SHA ausente", caso({ perfil: { ...BASE.perfil, conexion: "sin" }, instaladas: [{ ...TODAS[2], sha256: "por-verificar" }] }), { modelo: "ninguno" }],
   ];
 
-  it.each(escenarios)("resuelve %s", (_nombre, entrada, esperado) => {
-    expect(planificar(entrada)).toMatchObject(esperado);
+  it.each(escenarios)("resuelve %s", async (_nombre, entrada, esperado) => {
+    expect(await planificar(entrada)).toMatchObject(esperado);
   });
 
-  it("limita el respaldo y conserva la privacidad", () => {
-    const plan = planificar(caso({ privacidad: "privada" }));
+  it("limita el respaldo y conserva la privacidad", async () => {
+    const plan = await planificar(caso({ privacidad: "privada" }));
     expect(plan.respaldo.length).toBeLessThanOrEqual(4);
     expect(plan.respaldo.every((p) => p.donde === "local" || p.donde === "par" || p.donde === "servidor-propio")).toBe(true);
   });
 
-  it("ajusta la profundidad de Needle al presupuesto", () => {
-    expect(planificar(caso({ tarea: "fast", presupuesto: { discoMb: 12, ramMb: 8192 } })).profundidad).toBe(6);
+  it("ajusta la profundidad de Needle al presupuesto", async () => {
+    expect((await planificar(caso({ tarea: "fast", presupuesto: { discoMb: 12, ramMb: 8192 } }))).profundidad).toBe(6);
   });
 });
