@@ -11,6 +11,7 @@
  */
 
 import { ArrowLeft, Gem, Maximize2, Shapes } from "lucide-react";
+import { InterruptorOrbeProtomolecula } from "@/components/protomolecula/interruptor-orbe";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
 import { usePanelCortina } from "./panel-cortina";
 import { AccionesCrear } from "./horizon/acciones-crear";
@@ -71,6 +72,8 @@ export function ContenidoHorizon({ ir, abrirEditor, abrirFragua, abrirPizarra }:
                     </header>
 
                     <TarjetaProtomolecula ir={ir} />
+
+                    <InterruptorOrbeProtomolecula />
 
                     <Seccion titulo="Crear" icono={Shapes}>
                         <AccionesCrear ir={ir} abrirEditor={abrirEditor} abrirFragua={abrirFragua} />
