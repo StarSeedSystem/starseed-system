@@ -102,6 +102,15 @@ describe("habilidadesPara · por papel", () => {
     }
   });
 
+  it("el revisor exige calidad fuerte: ni planning ni visión sola (rescate RTTIP1013B)", () => {
+    // Sobre el manifiesto real (CAPACIDADES): el revisor admite preferStrong y
+    // web, así que descarta la de solo planning (router-proxy) y la de visión.
+    const revisor = ids(habilidadesPara("revisor", "cuenta", OPCIONES));
+    expect(revisor).toEqual(["av-gen", "taste", "pm", "memoria-agente"]);
+    expect(revisor).not.toContain("router-proxy");
+    expect(revisor).not.toContain("vision");
+  });
+
   it("excluir las habilidades desactivadas en el ámbito", () => {
     const out = ids(
       habilidadesPara("escritor", "cuenta", {
