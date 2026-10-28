@@ -54,12 +54,21 @@ describe("movimientoDe — 18 pares registro × sección", () => {
         }
     });
 
-    it("el sobrio nunca usa la curva elástica", () => {
+    it("el sobrio entra en normal/suave y sale en rápido/suave, sin elástico", () => {
         for (const seccion of SECCIONES) {
             const m = movimientoDe("sobrio", seccion);
+            expect(m.entrada).toEqual({ ms: DURACION.normal, curva: CURVA.suave });
+            expect(m.salida).toEqual({ ms: DURACION.rapido, curva: CURVA.suave });
             expect(m.entrada.curva).not.toBe(CURVA.elastico);
             expect(m.salida.curva).not.toBe(CURVA.elastico);
         }
+    });
+
+    it("la respiración crece del sobrio al experimental sin pasar de 1,03", () => {
+        const escalas = REGISTROS.map((r) => movimientoDe(r, "trinity").respiracion.escala);
+        expect(escalas[0]).toBeLessThan(escalas[1]);
+        expect(escalas[1]).toBeLessThan(escalas[2]);
+        expect(escalas[2]).toBeLessThanOrEqual(1.03);
     });
 
     it("el experimental lleva el elástico SOLO en la entrada", () => {
