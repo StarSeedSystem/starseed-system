@@ -93,6 +93,13 @@ function parametrosEnB(texto: unknown): number {
 
 /* ───────────────────────────── 1. Capas de Astraura ───────────────────────────── */
 
+/**
+ * «codigo» (capacidad) y «streaming» (modo de almacenamiento) los declara `tipos.ts` en la
+ * parte 2 de la cadena; aquí ya se emiten para que el catálogo de Colibri sea el definitivo.
+ */
+const CAPACIDAD_CODIGO = "codigo" as unknown as Capacidad;
+const MODO_STREAMING = "streaming" as unknown as RequisitosModelo["almacenamiento"]["modo"];
+
 /** Papel de la capa → qué sabe hacer (tabla §3 de `architecture/capas-autoadaptables.md`). */
 function capacidadesDeCapa(capa: string, runtime: string): Capacidad[] {
     switch (capa) {
@@ -117,6 +124,34 @@ function capacidadesDeCapa(capa: string, runtime: string): Capacidad[] {
         default:
             return [];
     }
+}
+
+/**
+ * Papel de la capa de Colibri → qué sabe hacer. Colibri es un runtime nativo de las multicapas
+ * (`architecture/colibri-multicapas.md` §2): juicio decide, palabra habla, razón y profunda
+ * piensan y escriben código; la profunda añade visión solo si el modelo la declara.
+ */
+function capacidadesDeCapaColibri(capa: string, modelo: string): Capacidad[] {
+    switch (capa) {
+        case "juicio":
+            return ["decision"];
+        case "palabra":
+            return ["texto"];
+        case "razon":
+            return ["texto", "razon", CAPACIDAD_CODIGO];
+        case "profunda": {
+            const capacidades: Capacidad[] = ["texto", "razon", CAPACIDAD_CODIGO];
+            if (/visi[oó]n|vision/i.test(modelo)) capacidades.push("vision");
+            return capacidades;
+        }
+        default:
+            return [];
+    }
+}
+
+/** Pesos de Colibri: int4 (4 bits) salvo que el propio modelo diga int8 (OLMoE 7B). */
+function bitsDeColibri(id: string, modelo: string): Bits {
+    return /int8|q8|(^|[^0-9])8[-_ ]?bit/i.test(`${id} ${modelo}`) ? 8 : 4;
 }
 
 /** Licencias que el repo ya documenta por familia (el JSON de capas no las lleva). */
@@ -153,12 +188,14 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
         const c = cruda as Record<string, unknown>;
         if (!esTexto(c.id) || !esTexto(c.capa)) continue;
         const id = c.id.trim();
+        const capa = esTexto(c.capa) ? c.capa.trim() : "";
         const familia = esTexto(c.familia) ? c.familia : id;
         const modelo = esTexto(c.modelo) ? c.modelo : id;
         const runtime = esTexto(c.runtime) ? c.runtime : "desconocido";
+        const esColibri = runtime === "colibri";
         // «bps.tar.zst» es el empaquetado; el formato es «bps».
         const formato = esTexto(c.formato) ? c.formato.split(".")[0] : "desconocido";
-        const capacidades = capacidadesDeCapa(c.capa, runtime);
+        const capacidades = esColibri ? capacidadesDeCapaColibri(capa, modelo) : capacidadesDeCapa(capa, runtime);
         if (capacidades.length === 0) continue;
 
         const sha = esTexto(c.sha256) ? c.sha256.toLowerCase() : "";
@@ -179,27 +216,41 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
         // Primero lo que dicen los nombres (también el del archivo: «…q8_0.gguf»); si no dicen
         // nada, el tamaño real frente a los parámetros (Phonon-2: ~2,2 bits); y si tampoco, el
         // valor por formato de `bitsDeModelo`.
-        const explicitos = bitsExplicitos([id, familia, modelo, runtime, formato, archivo].join(" "));
-        const porFormato = explicitos === null && formato === "cact" ? bitsDeModelo({ formato }) : null;
-        const porTamano = explicitos === null && porFormato === null ? bitsPorTamano(bytes, parametrosB) : null;
-        const bits = explicitos ?? porFormato ?? porTamano ?? bitsDeModelo({ id, familia, modelo, runtime, formato });
+        const explicitos = esColibri ? null : bitsExplicitos([id, familia, modelo, runtime, formato, archivo].join(" "));
+        const porFormato = !esColibri && explicitos === null && formato === "cact" ? bitsDeModelo({ formato }) : null;
+        const porTamano = !esColibri && explicitos === null && porFormato === null ? bitsPorTamano(bytes, parametrosB) : null;
+        // Colibri solo usa pesos int4 o int8: se lee del propio modelo, nunca del tamaño del archivo.
+        const bits = esColibri
+            ? bitsDeColibri(id, modelo)
+            : explicitos ?? porFormato ?? porTamano ?? bitsDeModelo({ id, familia, modelo, runtime, formato });
 
         const medios = Array.isArray(c.medios)
             ? c.medios.filter((m): m is MedioApp => MEDIOS_VALIDOS.includes(m as MedioApp))
             : [];
 
+        // Colibri lee del disco solo los expertos que pide cada token (MoE): no exige tenerlo
+        // entero en RAM, pero sí un disco local rápido.
+        const streaming = esColibri && c.streaming_disco === true;
+
         const notas: string[] = [];
         if (!shaValido) notas.push("SHA por verificar: no se usa hasta que el renovador de capas lo rellene.");
         if (porTamano !== null) notas.push("Bits deducidos del tamaño real del archivo.");
         if (parametrosB === 0) notas.push("Parámetros sin publicar en el catálogo de capas.");
+        if (streaming) notas.push("Streaming de expertos desde disco: pide un disco local rápido (NVMe/SSD), no toda la RAM.");
         if (Array.isArray(c.profundidades) && c.profundidades.length > 1) {
             notas.push("Profundidad variable (de 2 a 20 capas): el tamaño indicado es el de la más completa.");
         }
 
         const aceleradoresRequeridos: Acelerador[] | undefined = runtime === "webgpu-onnx" ? ["webgpu"] : undefined;
-        // bitnet.cpp tiene núcleos para x86 (AVX2) y ARM (NEON); nada más.
-        const arquitecturas: Arquitectura[] | undefined = runtime === "bitnet-cpp" ? ["arm64", "x86_64"] : undefined;
+        // bitnet.cpp y Colibri compilan para x86 (AVX2) y ARM (NEON/Apple Silicon).
+        const arquitecturas: Arquitectura[] | undefined =
+            runtime === "bitnet-cpp" || esColibri ? ["arm64", "x86_64"] : undefined;
         const mapea = formato === "gguf"; // llama.cpp y bitnet.cpp hacen mmap de un GGUF
+        const almacenamiento: RequisitosModelo["almacenamiento"] = {
+            modo: streaming ? MODO_STREAMING : mapea ? "mmap" : "carga-completa",
+            soloLocal: esColibri || runtime === "webgpu-onnx",
+        };
+        if (streaming) almacenamiento.lecturaMinMBs = 500;
 
         const entrada: RequisitosModelo = {
             id,
@@ -212,7 +263,7 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
             parametrosB,
             disco: { gb, verificado },
             ramMinGb: esPositivo(c.ram_min_mb) ? arribaCent(c.ram_min_mb / 1024) : 0,
-            almacenamiento: { modo: mapea ? "mmap" : "carga-completa", soloLocal: runtime === "webgpu-onnx" },
+            almacenamiento,
             medios,
             licencia: licenciaDe(familia, c.licencia),
             upstream: esTexto(c.fuente_oficial) ? c.fuente_oficial : "",
@@ -221,6 +272,8 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
         };
         if (aceleradoresRequeridos) entrada.aceleradoresRequeridos = aceleradoresRequeridos;
         if (arquitecturas) entrada.arquitecturas = arquitecturas;
+        // Colibri escucha en 4480 (el 8000 es el backend de Astraura 1.58).
+        if (esColibri) entrada.servidor = { protocolo: "openai", url: "http://127.0.0.1:4480/v1" };
         if (notas.length) entrada.notas = notas.join(" ");
         salida.push(entrada);
     }
