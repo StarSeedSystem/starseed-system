@@ -5,6 +5,11 @@ import { cristalizar, temperaturaDe, estadoDe } from "./cristalizacion";
 import { relajarLocal } from "./recocido";
 import { calidadSenal } from "./coste";
 import { esTitanio, temperaturaAmortiguada } from "./titanio";
+// Salida a internet (§8.1): el motor conecta su estado con el plan de salida.
+import { planSalida as planSalidaPura } from "./salida-internet";
+import type { CtxRutas } from "./salida-internet";
+import type { PuertaInternet, Solicitante } from "./puertas-internet";
+import type { Dato } from "./tipos";
 
 export function crearMotorCristal(deps: {
   miNeurona: () => NeuronaReticula;
@@ -121,6 +126,23 @@ export function crearMotorCristal(deps: {
     suscribir: (fn: () => void) => {
       suscriptores.push(fn);
       return () => { suscriptores = suscriptores.filter(f => f !== fn); };
+    },
+    // Plan de salida de un dato (§8.1): usa el cristal y la retícula REALES del
+    // motor (los mismos que `estado`); el llamador trae dato, ctx, puertas,
+    // solicitante y la puerta actual para la histéresis.
+    planSalida: (e: {
+      dato: Dato;
+      ctx: CtxRutas;
+      puertas: PuertaInternet[];
+      solicitante: Solicitante;
+      actual?: string;
+    }) => {
+      const hist: Array<{clave: string; t: number; calidad: number}> = [];
+      for (const clave in historialCalidad) {
+        for (const x of historialCalidad[clave]) hist.push({ clave, t: x.t, calidad: x.calidad });
+      }
+      const cristalVivo = cristal ?? cristalizar(reticula, { temperatura: temperaturaDe(hist, 120000, deps.ahora()) });
+      return planSalidaPura({ cristal: cristalVivo, reticula, ...e });
     }
   };
 }
