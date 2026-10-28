@@ -5,6 +5,7 @@
 import { validarVariacion } from "../validar";
 import { registrarFamilia, type AdaptadorFamilia } from "../familias";
 import { isNeverSyncedKey, SYNCED_KEYS, SYNCED_PREFIXES, SYNCED_PREFIX_EXCLUDE, type SyncResult } from "@/lib/settings-sync";
+import { normalizarConfigMausbot, type ConfigMausbot } from "@/lib/mausbot/config";
 
 /** Almacenamiento de preferencias inyectable (window.localStorage cumple este interfaz). */
 export interface AlmacenPreferencias { getItem(clave: string): string | null; setItem(clave: string, valor: string): void; removeItem(clave: string): void; }
@@ -14,6 +15,34 @@ export interface OpcionesAjustes { pushPreferences: () => Promise<SyncResult>; a
 
 /** Parche: id de ajuste → valor nuevo de su clave sincronizada. */
 export type ParcheAjustes = Record<string, unknown>;
+
+const esObjetoPlano = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** Sanea un parche del Mausbot: fuera perfiles y neuronas; `actuar` nunca sube de «proponer». */
+export function sanearParcheMausbot(payload: unknown): unknown {
+  if (!esObjetoPlano(payload)) return payload;
+  const resto: Record<string, unknown> = { ...payload };
+  delete resto.perfiles; // lo de cada perfil lo decide cada persona, nunca una variación pública
+  delete resto.neuronas; // lo de cada neurona, igual
+  if (resto.actuar === "aplicar" || resto.actuar === "aplicar-bajo") resto.actuar = "proponer";
+  return resto;
+}
+
+/** Config resultante: conserva `v`, los perfiles y las neuronas locales (jamás los de la variación). */
+export function fusionarConfigMausbot(previo: unknown, parche: unknown): ConfigMausbot {
+  const actual = normalizarConfigMausbot(previo);
+  const limpio = sanearParcheMausbot(parche);
+  return normalizarConfigMausbot({
+    ...actual, ...(esObjetoPlano(limpio) ? limpio : {}), v: 1,
+    perfiles: actual.perfiles, neuronas: actual.neuronas,
+  });
+}
+
+function leerJson(bruto: string | null): unknown {
+  if (bruto === null) return null;
+  try { return JSON.parse(bruto) as unknown; } catch { return null; }
+}
 
 // Exclusiones duras (contrato §5): secretos con isNeverSyncedKey; privacidad (telemetría, fantasma, malla y conectividad); cuenta (memoria del Exocórtex, perfil activo, avisos vistos, siembra).
 const PREFIJOS_DE_PRIVACIDAD = ["starseed.privacy.", "starseed.mesh.", "starseed.connectivity."] as const;
@@ -37,6 +66,8 @@ export const RUTA_AJUSTES: Record<string, string> = {
   "voz-timbre": "starseed.voz.timbre.v1",
   "pantalla-inicial": "starseed.inicio.pantalla.v1",
   cursor: "starseed.cursorfx.v1",
+  mausbot: "starseed.mausbot.v1",
+  "mausbot-disenos": "starseed.mausbot.disenos.v1",
   "orbe-estilo": "starseed.protomolecula.orbe.estilo.v1",
   visualizador: "starseed.audiomorphic.presets.v1",
 };
@@ -58,15 +89,18 @@ export function validarParcheAjustes(payload: unknown): ResultadoParche {
   const parche = payload as ParcheAjustes;
   if (Object.keys(parche).length === 0) return { ok: false, motivos: ["Ajuste: el parche está vacío"] };
   const motivos: string[] = [];
+  const limpio: ParcheAjustes = {};
   for (const id of Object.keys(parche)) {
     const ruta = RUTA_AJUSTES[id];
     if (!ruta) { motivos.push(`Ajuste: «${id}» no es un ajuste de la familia`); continue; }
     if (!esClaveAjustePermitida(ruta)) { motivos.push(`Ajuste: la clave de «${id}» no es permitida`); continue; }
-    const resultado = validarVariacion(parche[id]);
+    const valor = id === "mausbot" ? sanearParcheMausbot(parche[id]) : parche[id];
+    const resultado = validarVariacion(valor);
     if (!resultado.ok) { motivos.push(`Ajuste: el valor de «${id}» — ${resultado.motivos.join(" · ")}`); continue; }
     if (resultado.requiereAislamiento) motivos.push(`Ajuste: «${id}» parece llevar código; un ajuste no es código`);
+    limpio[id] = valor;
   }
-  return motivos.length === 0 ? { ok: true, parche } : { ok: false, motivos };
+  return motivos.length === 0 ? { ok: true, parche: limpio } : { ok: false, motivos };
 }
 
 /** window.localStorage como almacen inyectable por defecto (solo existe en navegador). */
@@ -86,7 +120,9 @@ export function crearAdaptadorAjustes(opciones: OpcionesAjustes): AdaptadorFamil
       const id = idDeAjuste(clave); if (!id) return null;
       try {
         const bruto = (opciones.almacen ?? almacenDelNavegador()).getItem(RUTA_AJUSTES[id]);
-        return bruto === null ? null : { [id]: JSON.parse(bruto) as unknown };
+        if (bruto === null) return null;
+        const valor = JSON.parse(bruto) as unknown;
+        return { [id]: id === "mausbot" ? sanearParcheMausbot(normalizarConfigMausbot(valor)) : valor };
       } catch { return null; } // sin almacenamiento o valor sin JSON: nada que capturar
     },
     validar: (payload) => {
@@ -100,9 +136,12 @@ export function crearAdaptadorAjustes(opciones: OpcionesAjustes): AdaptadorFamil
       const previos = new Map<string, string | null>();
       for (const id of Object.keys(validado.parche)) {
         const ruta = RUTA_AJUSTES[id]; if (!ruta) continue;
-        previos.set(ruta, almacen.getItem(ruta));
+        const previo = almacen.getItem(ruta);
+        previos.set(ruta, previo);
         const valor = validado.parche[id];
-        almacen.setItem(ruta, typeof valor === "string" ? valor : JSON.stringify(valor));
+        // El Mausbot se FUSIONA con su config local: una variación nunca pisa perfiles ni neuronas.
+        const escrito = id === "mausbot" ? fusionarConfigMausbot(leerJson(previo), valor) : valor;
+        almacen.setItem(ruta, typeof escrito === "string" ? escrito : JSON.stringify(escrito));
       }
       const guardar = () => void opciones.pushPreferences().catch(() => undefined);
       guardar(); // best-effort: el parche queda también en la cuenta StarSeed
