@@ -18,24 +18,25 @@ import {
     preferenciasEfectivas,
     type CapasPrefs,
     type Contexto,
+    type Licencias,
 } from "@/lib/modelos/preferencias-capas";
 
 /** Clases de licencia que puede declarar un motor de voz. */
-export type ClaseLicencia = "libre" | "condicionada" | "personal";
+export type ClaseLicenciaVoz = Exclude<Licencias, "desconocida">;
 
 /** Contextos de escucha: los cuatro de las capas más el uso comercial. */
-export type ContextoVoz = Contexto | "comercial";
+export type ContextoLicenciaVoz = Contexto | "comercial";
 
 /** Motor candidato tal como lo entrega el catálogo de voces. */
 export interface MotorInfo {
     id: string;
-    claseLicencia: ClaseLicencia;
+    claseLicencia: ClaseLicenciaVoz;
     /** Solo se mira en las «condicionada»; ausente equivale a no cumplida. */
     condicionCumplida?: boolean;
 }
 
 /** Una exclusión con su motivo legible para Ajustes → Voz. */
-export interface Excluido {
+export interface MotorExcluido {
     id: string;
     motivo: string;
 }
@@ -43,8 +44,16 @@ export interface Excluido {
 /** Resultado determinista, en el mismo orden en que llegaron los motores. */
 export interface ResultadoPermisos {
     permitidos: MotorInfo[];
-    excluidos: Excluido[];
+    excluidos: MotorExcluido[];
 }
+
+/** Nombres anteriores del contrato, conservados para quien ya los importa. */
+export type ClaseLicencia = ClaseLicenciaVoz;
+export type ContextoVoz = ContextoLicenciaVoz;
+export type MotorVozLicencia = MotorInfo;
+export type ExclusionVoz = MotorExcluido;
+export type Excluido = MotorExcluido;
+export type PermisosVoz = ResultadoPermisos;
 
 const MOTIVO_PERSONAL_FUERA = "pesos no comerciales: solo uso personal";
 const MOTIVO_PERSONAL_CAPAS = "las capas activas no autorizan pesos de uso personal";
@@ -52,10 +61,18 @@ const MOTIVO_CONDICIONADA_SIN_CAPA = "licencia condicionada sin autorización en
 const MOTIVO_CONDICION_NO_CUMPLIDA = "Condición de uso no cumplida";
 const MOTIVO_LIBRE = "la licencia libre es el piso y no puede excluirse";
 
-/** Motivo legible de una exclusión según la clase y el sitio. */
-function motivoExclusion(clase: ClaseLicencia, contexto: ContextoVoz): string {
+/** Motivo legible de una exclusión según la clase, el sitio y las capas. */
+function motivoExclusion(
+    clase: ClaseLicenciaVoz,
+    contexto: ContextoLicenciaVoz,
+    capas: CapasPrefs
+): string {
     if (clase === "personal") {
-        return contexto === "personal" ? MOTIVO_PERSONAL_CAPAS : MOTIVO_PERSONAL_FUERA;
+        if (contexto !== "personal") return MOTIVO_PERSONAL_FUERA;
+        const neuronaBloquea = capas.neurona !== undefined && capas.neurona !== "personal";
+        return neuronaBloquea
+            ? "la capa de la neurona no admite pesos de uso personal"
+            : MOTIVO_PERSONAL_CAPAS;
     }
     if (clase === "condicionada") return MOTIVO_CONDICIONADA_SIN_CAPA;
     // Inalcanzable: `preferenciasEfectivas` siempre conserva el piso libre.
@@ -71,7 +88,7 @@ function motivoExclusion(clase: ClaseLicencia, contexto: ContextoVoz): string {
  */
 export function motoresPermitidos(
     motores: MotorInfo[],
-    contexto: ContextoVoz,
+    contexto: ContextoLicenciaVoz,
     capas: CapasPrefs
 ): ResultadoPermisos {
     const contextoBase: Contexto = contexto === "comercial" ? "publico" : contexto;
@@ -79,18 +96,22 @@ export function motoresPermitidos(
     const autorizadas = new Set(licenciaPermitida);
 
     const permitidos: MotorInfo[] = [];
-    const excluidos: Excluido[] = [];
+    const excluidos: MotorExcluido[] = [];
 
     for (const motor of motores) {
         const clase = motor.claseLicencia;
+        const cumple = motor.condicionCumplida === true;
 
-        if (!autorizadas.has(clase)) {
-            excluidos.push({ id: motor.id, motivo: motivoExclusion(clase, contexto) });
+        if (clase === "condicionada" && !cumple) {
+            excluidos.push({ id: motor.id, motivo: MOTIVO_CONDICION_NO_CUMPLIDA });
             continue;
         }
 
-        if (clase === "condicionada" && motor.condicionCumplida !== true) {
-            excluidos.push({ id: motor.id, motivo: MOTIVO_CONDICION_NO_CUMPLIDA });
+        if (!autorizadas.has(clase)) {
+            excluidos.push({
+                id: motor.id,
+                motivo: motivoExclusion(clase, contexto, capas),
+            });
             continue;
         }
 
