@@ -23,6 +23,12 @@ MARGEN_SISTEMA_GB = 4.5
 CARPETA_DEFECTO = str(Path.home() / "Colibri-modelos")
 #: La ruta del checkout que la unidad `starseed-colibri.service` da por hecha (sale `c/coli`).
 REPO_CLONE_RUTA = "/home/starseed/colibri"
+#: El CLI de descarga en ENTORNO PROPIO (CLB1028H): el A1 es Ubuntu y su Python 3.12 es
+#: «externally managed» (PEP 668: `pip --user` rechaza instalar), y ~/.local/bin no está en el
+#: PATH del usuario starseed. Con la ruta COMPLETA del venv nada depende del PATH.
+CARPETA_VENV_HF = "/home/starseed/.venv-hf"
+HF_DE_VENV = CARPETA_VENV_HF + "/bin/hf"
+PIP_DE_VENV = CARPETA_VENV_HF + "/bin/pip"
 #: Los modelos de DECISIÓN no van por setup (docs/laya.md y docs/gliner_decide.md de v2.0.0):
 #: se descargan con `hf`, se compilan con `make` y los sirve la unidad; ojo sin `serve`.
 DECISION = {
@@ -38,7 +44,11 @@ DECISION = {
 
 
 def hf_disponible() -> bool:
-    """¿Está el CLI `hf` en el PATH? (solo se mira, nada se instala)."""
+    """¿Está el CLI `hf` en el PATH? (solo se mira, nada se instala).
+
+    (CLB1028H) El plan YA NO la usa: el CLI de descarga va SIEMPRE al venv propio
+    (CARPETA_VENV_HF), esté o no `hf` en el PATH — es la ruta determinista, sin depender de
+    `~/.local/bin` ni de qué trajo cada intento anterior."""
     return shutil.which("hf") is not None
 
 
@@ -86,27 +96,53 @@ def caben(lista: list[dict[str, Any]], ram_gb: float, disco_libre_gb: float,
 def plan_instalacion(id_modelo: str, carpeta: str) -> list[dict[str, Any]]:
     """Las órdenes para instalar `id_modelo` en `carpeta`, como LISTAS de argumentos, sin ejecutar.
 
-    Laya y GLiNER2.5-Decide NO van por setup (el 28-10 dio «fallo 1 en el paso 2»): descarga con `hf`,
-    compila con `make` y el `serve` lo hace la unidad. Los de chat pasan por `start-here.sh` con
-    el id de SU catálogo (sin el prefijo `colibri-` de StarSeed) y `--no-start`. Clef no cabe."""
+    Laya y GLiNER2.5-Decide NO van por setup (el 28-10 dio «fallo 1 en el paso 2»): descarga con
+    `hf`, compila con `make` y el `serve` lo hace la unidad. Los de chat pasan por `start-here.sh`
+    con el id de SU catálogo (sin el prefijo `colibri-` de StarSeed) y `--no-start`. Clef no cabe.
+
+    (CLB1028H) El plan ya SIRVE aunque quede el clon de un intento anterior: cada paso declara SU
+    condición — `saltar_si_existe` (venv, pesos ya descargados, despliegue ya hecho: git clone
+    falla con la carpeta ocupada) y `solo_si_existe` (fetch + checkout a la etiqueta cuando hay
+    despliegue) — y el guion de `oracle_nodo._guion_colibri` la evalúa en el A1. El CLI de
+    descarga va SIEMPRE al venv propio (PEP 668), no a `pip --user`."""
     ids = {e["id"] for e in entradas()}
     if id_modelo not in ids:
         raise ValueError(f"id desconocido «{id_modelo}»: no está en config/capas-colibri-1027.json")
     if id_modelo == "colibri-clef":
         raise ValueError(f"{id_modelo} no cabe en esta neurona: 52 GB de disco y 19 GB de RAM mínima")
+    desplegado = REPO_CLONE_RUTA + "/.git"
     pasos = [
-        {"porque": f"clona el motor Apache-2.0 en su etiqueta verificada {ETIQUETA}, en la ruta de la unidad",
-         "args": ["git", "clone", "--depth", "1", "--branch", ETIQUETA, REPO_COLIBRI, REPO_CLONE_RUTA]},
+        {"porque": f"clona el motor Apache-2.0 en su etiqueta verificada {ETIQUETA}, en la ruta de la unidad "
+                   f"(se salta si el despliegue ya existe: la carpeta ocupada hace fallar el clon)",
+         "args": ["git", "clone", "--depth", "1", "--branch", ETIQUETA, REPO_COLIBRI, REPO_CLONE_RUTA],
+         "saltar_si_existe": desplegado},
+        {"porque": f"si el despliegue ya existe (clon del intento anterior): le trae {ETIQUETA} sin volver a clonar",
+         "args": ["git", "-C", REPO_CLONE_RUTA, "fetch", "--depth", "1", "origin", "tag", ETIQUETA],
+         "solo_si_existe": desplegado},
+        {"porque": f"deja ese despliegue detached en {ETIQUETA}, igual que dejaría el clon limpio",
+         "args": ["git", "-C", REPO_CLONE_RUTA, "checkout", "--detach", ETIQUETA],
+         "solo_si_existe": desplegado},
     ]
     decision = DECISION.get(id_modelo)
     if decision:
-        if not hf_disponible():
-            pasos.append({"porque": "falta el CLI de descarga de Hugging Face: lo trae antes",
-                          "args": ["python3", "-m", "pip", "install", "--user", "huggingface_hub[cli]"]})
         local = f"{carpeta}/{decision['carpeta']}"
         pasos.extend([
-            {"porque": f"descarga el modelo de decisión {decision['hf']} (docs de v2.0.0, sin setup)",
-             "args": ["hf", "download", decision["hf"], *decision["archivos"], "--local-dir", local]},
+            {"porque": f"crea el entorno propio del CLI de descarga en {CARPETA_VENV_HF} (PEP 668: el A1 es "
+                       "Ubuntu con Python 3.12 «externally managed» y `pip --user` rechaza instalar); "
+                       "se salta si el venv ya existe",
+             "args": ["python3", "-m", "venv", CARPETA_VENV_HF],
+             "saltar_si_existe": CARPETA_VENV_HF},
+            {"porque": f"instala el CLI con el pip del venv ({PIP_DE_VENV}), nada de `--user` ni de "
+                       "`--break-system-packages`; se salta si ya tiene su binario `hf`",
+             "args": [PIP_DE_VENV, "install", "--no-cache-dir", "huggingface_hub[cli]"],
+             "saltar_si_existe": HF_DE_VENV},
+            {"porque": f"descarga el modelo de decisión {decision['hf']} (docs de v2.0.0, sin setup) con el "
+                       f"`hf` del venv {HF_DE_VENV} y sin telemetría; se salta si los pesos ya están para no "
+                       "volver a bajar los GB (si quedó cortado a medias, se borra y se da la instalación otra vez)",
+             "args": ["hf", "download", decision["hf"], *decision["archivos"], "--local-dir", local],
+             "hf_ruta": HF_DE_VENV,
+             "env": {"HF_HUB_DISABLE_TELEMETRY": "1"},
+             "saltar_si_existe": f"{local}/model.safetensors"},
             {"porque": "anota el SHA-256 de los pesos descargados (nada sin su SHA: capas-astraura)",
              "args": ["sha256sum", f"{local}/model.safetensors"]},
             {"porque": f"compila el binario de decisión; el `serve` en 127.0.0.1:{PUERTO_STARSEED} "
