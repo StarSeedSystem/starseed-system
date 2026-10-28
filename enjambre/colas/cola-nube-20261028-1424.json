@@ -1,0 +1,163 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "ola": "1021G",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40253173687",
+   "id": "GUI1021Gb-d2",
+   "titulo": "Guías · tarjetas de la Guía de la red con los temas nuevos y los textos corregidos (parte 2 de 3)",
+   "archivos": [
+    "src/components/onboarding/onboarding-wizard.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §1 y §3. En `areas-explicadas.tsx`, las explicaciones de `/protomolecula`, `/network/politics`, `/network/education`, `/network/culture`, `/genesis` y `/cerebro` salen de `TODOS_LOS_TEMAS` (queEs = cuerpo, comoFunciona = puntos, empiezaPor = la pregunta a Aurora), y `/cerebros`, `/library` y `/red-mesh` pasan a usar los temas `neuronas-cerebro`, `libreria-biblioteca` y `malla`. En `onboarding-wizard.tsx` añade a `AREAS` las tarjetas que falten de esas rutas (con icono y tip corto) y cambia la de Cerebros a `/cerebro`. Pruebas: cada ruta nueva abre su explicación y ninguna tarjeta habla de «varios cerebros». Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40253173687`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40253173687:refs/remotes/origin/nube/40253173687\"` y `git cherry-pick --no-commit a5cc4606efbc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx, src/components/onboarding/areas-explicadas.tsx, src/components/onboarding/onboarding-wizard.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 3 (la dirección dividió GUI1021Gb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/onboarding/onboarding-wizard.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021Gb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "GUI1021Gb-d1"
+   ]
+  },
+  {
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261028-135546-CLB1027C",
+   "id": "CLB1027Cb-d2",
+   "titulo": "Recursos de IA por neurona · los modelos de Colibri (decisión, texto, razón y streaming del disco) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/recursos-ia/__tests__/catalogo-colibri.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\nEn `modelosDeCapas`: runtime «colibri» → capacidades por capa (juicio → [\"decision\"], palabra → [\"texto\"], razón → [\"texto\", \"razon\", \"codigo\"], profunda → [\"texto\", \"razon\", \"codigo\", \"vision\"] si el modelo dice visión), bits 4 (int4) u 8 (int8) según el modelo, arquitecturas arm64 y x86_64, y almacenamiento `streaming` cuando `streaming_disco` (añade ese modo al tipo si no existe): pide disco rápido, no toda la RAM. Prueba con dos entradas.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261028-135546-CLB1027C`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261028-135546-CLB1027C:refs/remotes/origin/nube/a1-20261028-135546-CLB1027C\"` y `git cherry-pick --no-commit ff5e304e5724 3296d38d1590 3ec396b7ce90 fc332db198e8 c5d93ccd0c8b f66bb243b207`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/mando/capas/route.ts, src/lib/astraura/capas/catalogo.ts, src/lib/recursos-ia/__tests__/catalogo-colibri.test.ts, src/lib/recursos-ia/catalogo.ts, src/lib/recursos-ia/tipos.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió CLB1027Cb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/recursos-ia/__tests__/catalogo-colibri.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CLB1027Cb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "CLB1027Cb-d1"
+   ]
+  },
+  {
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261028-135546-CLB1027G",
+   "id": "CLB1027Gb-d1",
+   "titulo": "Capas · automejora: lo medido en cada neurona reordena los candidatos (parte 1 de 3)",
+   "archivos": [
+    "src/lib/astraura/capas/medidas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\n`medidas.ts` PURO: `registrarMedida(almacen, {neurona, modelo, capa, latenciaMs, tokPorS?, acierto?})` (media móvil de las últimas 20), `ordenarPorMedidas(candidatos, medidas, neurona)` (más rápido y más acertado primero; sin medida, el orden del catálogo). En `planificador.ts`, si recibe `medidas` en su entrada, ordena los candidatos de la capa con `ordenarPorMedidas` ANTES de elegir; sin medidas, nada cambia (la salida tiene que ser idéntica a hoy). Pruebas de las dos cosas.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261028-135546-CLB1027G`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261028-135546-CLB1027G:refs/remotes/origin/nube/a1-20261028-135546-CLB1027G\"` y `git cherry-pick --no-commit ee663d629cb9 7aeceb57efd2 b38ce5bb7264 1fde1f0630ca 7dd1493bb269 a5a18d57e193 6cbbbff1156f 175ab0613b76`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/astraura-bots/adaptadores/reparto-vivo.ts, src/lib/astraura/capas/__tests__/medidas.test.ts, src/lib/astraura/capas/__tests__/planificador.test.ts, src/lib/astraura/capas/medidas.ts, src/lib/astraura/capas/planificador.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 3 (la dirección dividió CLB1027Gb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/astraura/capas/medidas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CLB1027Gb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "CLB1027A"
+   ]
+  },
+  {
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40253286863",
+   "id": "SP092941d-d2",
+   "titulo": "Vincular labels e inputs en formularios de creación (parte 2 de 2)",
+   "archivos": [
+    "src/components/creation/pizarras-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092938 (creacion × ux-accesibilidad-diseno) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/creacion--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Asociar etiquetas a campos con htmlFor e id — Los <label> de URL y Etiqueta no tienen htmlFor ni los Input id; también el textarea de comentario y las opciones de votación carecen de label asociado. Los lectores de pantalla no anuncian el propósito de cada campo.\nCITA: src/components/creation/source-picker.tsx:292 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Añadir id único a cada Input/textarea y htmlFor en su label; donde no haya label visible, usar aria-label fijo.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/creation/source-picker.tsx, src/components/creation/pizarras-panel.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40253286863`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40253286863:refs/remotes/origin/nube/40253286863\"` y `git cherry-pick --no-commit abbc2e2d90c8`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/creation/__tests__/pizarras-panel-form.test.tsx, src/components/creation/__tests__/selector-fuente-form.test.tsx, src/components/creation/pizarras-panel.tsx, src/components/creation/source-picker.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió SP092941d: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/creation/pizarras-panel.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SP092941d",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "SP092941d-d1"
+   ]
+  },
+  {
+   "ola": "Rescate de las ramas de la nube",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261021-060551-RTMGP1011-1ECCC4dobjbbbbbbb",
+   "id": "RTMGP1011-1ECCC4dobjbbbbbbbb-d2",
+   "titulo": "Rescate de pruebas · Puerta de publicación en rojo: CI en rojo · objeción del revisor (parte 2 de 2)",
+   "archivos": [
+    "src/lib/malla/cristal/__tests__/triangulacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea MGP1011-1ECCC4dobjbbbbbbb («Puerta de publicación en rojo: CI en rojo · objeción del revisor») se hizo en main por otro camino; su rama nube/a1-20261021-040512-MGP1011-1ECCC4dobjbbbbbbb queda archivada en `refs/archivo/nube/a1-20261021-040512-MGP1011-1ECCC4dobjbbbbbbb` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.74)\n\nTU TAREA (RTMGP1011-1ECCC4dobjbbbbbbb · solo estos archivos: src/lib/astraura-bots/__tests__/acciones-creacion.test.ts, src/lib/malla/cristal/__tests__/triangulacion.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/astraura-bots/__tests__/acciones-creacion.test.ts\n  it(\"devuelve error de entenderVoz\", async () => {\n     const a = voz(\"frase no entendida\");\n     const d = { onStatus: vi.fn() };\n     const intencionesVoz = await import(\"@/lib/xr/intenciones-voz\");\n     const m: ResultadoVoz = { ok: false, razon: \"no-entendido\", pregunta: \"¿Qué quieres decir?\", sugerencias: [] };\n    entenderVozSpy = vi.spyOn(intencionesVoz, \"entenderVoz\").mockReturnValue(m);\n    const r = await ejecutarIntencionXR(a, ctxVoz, d);\n    expect(r.ok).toBe(false);\n    expect(r.motivo).toBe(\"¿Qué quieres decir?\");\n    expect(r.previo).toEqual({});\n    expect(r.tarjeta).toBeNull();\n  });\n\n# src/lib/astraura-bots/__tests__/acciones-creacion.test.ts\n  it(\"devuelve tarjeta\", async () => {\n     const a = voz(\"crea un mundo\");\n     const d = { onStatus: vi.fn() };\n     const m: ResultadoVoz = { ok: true, pasos: [], confirmar: false, tarjeta: null };\n     const intencionesVoz = await import(\"@/lib/xr/intenciones-voz\");\n     entenderVozSpy = vi.spyOn(intencionesVoz, \"entenderVoz\").mockReturnValue(m);\n    const r = await ejecutarIntencionXR(a, ctxVoz, d);\n    expect(r.ok).toBe(true);\n    expect(r.motivo).toBe(\"Tarjeta lista: no se hace nada hasta que la confirmes.\");\n    expect(r.previo).toEqual({});\n     expect(r.tarjeta).not.toBeNull();\n      expect(r.tarjeta!.titulo).toBe(TITULO_PROPUESTA_BOT);\n   });\n\n# src/lib/astraura-bots/__tests__/acciones-creacion.test.ts\n  it(\"error frase no válida\", async () => {\n    const a = { tipo: \"xr.intencion\", args: { frase: 123 } as any } as AccionBot;\n    const r = await ejecutarIntencionXR(a, ctxVoz);\n    expect(r.ok).toBe(false);\n    expect(r.motivo).toBe(\"Esta pieza solo traduce «xr.intencion», no «xr.intencion».\");\n    expect(r.previo).toEqual({});\n  });\n\n# src/lib/astraura-bots/__tests__/acciones-creacion.test.ts\n  it(\"error frase vacía\", async () => {\n    const a = { tipo: \"xr.intencion\", args: { frase: \"\" } as any } as AccionBot;\n    const r = await ejecutarIntencionXR(a, ctxVoz);\n    expect(r.ok).toBe(false);\n    expect(r.motivo).toBe(\"No te he oído. Dime qué quieres hacer.\");\n    expect(r.previo).toEqual({});\n  });\n\n# src/lib/malla/cristal/__tests__/triangulacion.test.ts\n    it('elimina puntos duplicados, mantiene el id menor', () => {\n      const puntos: Punto[] = [\n        { id: 'b', x: 0, y: 0 },\n        { id: 'a', x: 0, y: 0 },\n        { id: 'c', x: 1, y: 0 },\n      ];\n      const aristas = delaunay(puntos);\n      // Puntos únicos: a(0,0) y c(1,0)\n      expect(aristas).toEqual([[\"a\", \"c\"]]);\n    });\n\n# src/lib/malla/cristal/__tests__/triangulacion.test.ts\n    it('pentagono convexo da 7 aristas', () => {\n      const puntos: Punto[] = [\n        { id: 'a', x: 0, y: 0 },\n        { id: 'b', x: 1, y: 0 },\n        { id: 'c', x: 2, y: 1 },\n        { id: 'd', x: 1, y: 2 },\n        { id: 'e', x: 0, y: 1 },\n      ];\n      const aristas = delaunay(puntos);\n      expect(aristas.length).toBe(7);\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261021-060551-RTMGP1011-1ECCC4dobjbbbbbbb`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261021-060551-RTMGP1011-1ECCC4dobjbbbbbbb:refs/remotes/origin/nube/a1-20261021-060551-RTMGP1011-1ECCC4dobjbbbbbbb\"` y `git cherry-pick --no-commit 80dac4d9cf4d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/astraura-bots/__tests__/acciones-creacion.test.ts.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (src/lib/astraura-bots/__tests__/acciones-creacion.test.ts, src/lib/malla/cristal/__tests__/triangulacion.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).\n\n## PARTE 2 DE 2 (la dirección dividió RTMGP1011-1ECCC4dobjbbbbbbbb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/malla/cristal/__tests__/triangulacion.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RTMGP1011-1ECCC4dobjbbbbbbbb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "RTMGP1011-1ECCC4dobjbbbbbbbb-d1"
+   ]
+  },
+  {
+   "id": "GCA1019G",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Puente con el enrutador de Astraura (sin tocar su lógica)",
+   "archivos": [
+    "src/lib/genesis/conectores/aplicar-escalera.ts",
+    "src/lib/genesis/conectores/__tests__/aplicar-escalera.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Adaptador PURO: convierte la salida de `elegirCandidatos` en el orden de preferencia que entiende `rankCandidates` de `src/ai/astraura/router.ts` (importa sus tipos `RouteCandidate`, `RankCandidatesOptions`) y en la cadena por papel del enjambre (`PapelRuta` de `src/lib/mando/enrutamiento.ts`). No modifiques esos archivos. Prueba: la candidata local del peldaño 1 queda primera; una candidata prohibida no aparece. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019F"
+   ],
+   "dependencias_ya_en_main": [
+    "GCA1019E"
+   ]
+  },
+  {
+   "id": "DSN1019B",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Las ventanas del OS abren centradas y como hoja en teléfono",
+   "archivos": [
+    "src/components/dashboard/apps/os-window.tsx",
+    "src/components/dashboard/apps/__tests__/os-window-centrada.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Usa `geometriaVentana` para la posición inicial de `OSWindow` (centrada en la pantalla; en teléfono, hoja centrada que sube desde abajo con entrada cardinal) sin cambiar su API ni el arrastre. Solo añadir. Prueba con viewport de teléfono y de escritorio. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DSN1019A"
+   ]
+  },
+  {
+   "id": "DSN1019C",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Ventanas del Escritorio: abrir centradas",
+   "archivos": [
+    "src/components/desktop/desktop-store.ts",
+    "src/components/desktop/__tests__/ventana-centrada.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En `openWindow` usa la geometría centrada de `composicion.ts` cuando la ventana no tiene posición guardada; si la tiene, la respeta (y la recoloca dentro de la pantalla si quedó fuera). Solo añadir. Prueba. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DSN1019A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "CLB1027Gb-d1",
+   "GUI1021Gb-d2",
+   "RTMGP1011-1ECCC4dobjbbbbbbbb-d2",
+   "DSN1019B",
+   "DSN1019C",
+   "GCA1019G",
+   "SP092941d-d2",
+   "CLB1027Cb-d2"
+  ]
+ }
+}
