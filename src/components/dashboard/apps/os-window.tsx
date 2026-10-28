@@ -16,6 +16,7 @@ import { motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -85,6 +86,21 @@ export function OSWindow({
     const cerrarRef = useRef(onClose);
     useEffect(() => { cerrarRef.current = onClose; }, [onClose]);
     useEffect(() => apuntarVentana({ raiz: raizRef, cerrar: cerrarRef }), []);
+    const animInitial = useState(() => {
+        if (typeof window === "undefined") return { x: 0, y: 0 };
+        const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (reduce) return { x: 0, y: 0 };
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const isPhone = w < 430;
+        const tipo = isPhone ? "hoja" : "dialogo";
+        const geo = geometriaVentana({ ancho: w, alto: h }, { tipo });
+        const xCenter = (w - geo.ancho) / 2;
+        const yCenter = (h - geo.alto) / 2;
+        const dx = geo.x - xCenter;
+        const dy = geo.y - yCenter;
+        return { x: dx, y: dy };
+    })[0];
 
     useEffect(() => {
         const onMove = (e: PointerEvent) => {
@@ -116,8 +132,8 @@ export function OSWindow({
                 el centrado y la ventana SIEMPRE abre centrada. */}
             <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0, scale: 0.96, x: animInitial.x, y: animInitial.y }}
+                    animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
                     transition={{ type: "spring", stiffness: 260, damping: 26 }}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
