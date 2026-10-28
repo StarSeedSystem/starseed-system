@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { NeuronModelsPanel } from "@/components/neurons/neuron-models-panel";
 import { AparatosEnVivo } from "@/components/neurons/aparatos-en-vivo";
+import { InsomneFicha, type SenalInsomneNeurona } from "@/components/cerebro/insomne-ficha";
 import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import {
    ensureThisNeuron,
@@ -143,6 +144,19 @@ const CASAOS_STEPS: string[] = [
 ];
 
 /* ─────────────────────────── Utilidades ─────────────────────────── */
+
+/** La sesión insomne más lejana que anuncia la presencia de una neurona. */
+function senalInsomneDe(
+  medios: readonly { n: string; s: { insomne?: SenalInsomneNeurona } }[],
+  id: string,
+): SenalInsomneNeurona | undefined {
+  let mejor: SenalInsomneNeurona | undefined;
+  for (const m of medios) {
+    const s = m.n === id ? m.s.insomne : undefined;
+    if (s && (!mejor || s.hasta > mejor.hasta)) mejor = s;
+  }
+  return mejor;
+}
 
 function timeAgo(iso?: string): string {
   if (!iso) return "sin registro";
@@ -301,6 +315,7 @@ export default function NeuronasPanel({
             key={n.id}
             neuron={n}
             live={n.online || liveIds.has(n.id)}
+            insomne={senalInsomneDe(presencia.medios, n.id)}
             brainId={brainId ?? null}
             brainName={brainName}
             onChanged={refresh}
@@ -342,12 +357,14 @@ export function HermioneStatusBadge({ className }: { className?: string }) {
 function NeuronCard({
   neuron: n,
   live,
+  insomne,
   brainId,
   brainName,
   onChanged,
 }: {
   neuron: Neuron;
   live: boolean;
+  insomne?: SenalInsomneNeurona;
   brainId: string | null;
   brainName?: string;
   onChanged: () => void;
@@ -669,6 +686,9 @@ function NeuronCard({
           ))}
         </div>
       </div>
+
+      {/* ── Siempre disponible con la pantalla cerrada (INS1027) ── */}
+      <InsomneFicha neurona={{ kind: n.kind, capabilities: n.capabilities, insomne }} />
 
       {/* ── Notas ── */}
       <div className="space-y-1">
