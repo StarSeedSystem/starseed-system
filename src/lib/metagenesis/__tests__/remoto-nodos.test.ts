@@ -121,61 +121,17 @@ describe("resumen del bus", () => {
         expect(resumirBus(filas, AHORA).lider).toBe("oracle-a1-bbbbbb");
     });
 
-     it("una orden sin respuesta en 15 min se da por caducada; un líder en seco se avisa", () => {
-         const filas = [
-             fila("mg_orden", { nonce: "nonce-vieja-001", accion: "continuar", para: "lider" }, 16 * 60_000),
-             fila("mg_lider", { nodo: "mac-aaaaaa", termino: 1, puntos: 500 }),
-              latido("mac-aaaaaa", "mac", 500, { modo: "seco" })
-         ];
-         const e = resumirBus(filas, AHORA);
-         expect(e.ordenes[0].estado).toBe("caducada");
-         expect(textoEstadoOrden("caducada")).toBe("nadie la recogió a tiempo");
-         expect(e.liderSeco).toBe(true);
-         expect(fraseDelMando(e)).toMatch(/modo de prueba/);
-     });
-
-     it("cada estado mapea al texto correcto", () => {
-         const estados = {
-             pendiente: "esperando a un nodo",
-             tomada: "la tiene un nodo",
-             hecha: "hecha",
-             en_marcha: "en marcha",
-             seca: "solo simulada (nodo en prueba)",
-             nada: "no hacía falta",
-             rechazada: "rechazada",
-             fallo: "falló",
-             caducada: "nadie la recogió a tiempo",
-         };
-         Object.entries(estados).forEach(([estado, esperado]) => {
-             expect(textoEstadoOrden(estado)).toBe(esperado);
-         });
-     });
-
-     it("estado desconocido se devuelve tal cual", () => {
-         expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
-     });
- });
-
-describe("textoEstadoOrden", () => {
-    it("cada estado mapea al texto correcto", () => {
-        const estados = {
-            pendiente: "esperando a un nodo",
-            tomada: "la tiene un nodo",
-            hecha: "hecha",
-            en_marcha: "en marcha",
-            seca: "solo simulada (nodo en prueba)",
-            nada: "no hacía falta",
-            rechazada: "rechazada",
-            fallo: "falló",
-            caducada: "nadie la recogió a tiempo",
-        };
-        Object.entries(estados).forEach(([estado, esperado]) => {
-            expect(textoEstadoOrden(estado)).toBe(esperado);
-        });
-    });
-
-    it("estado desconocido se devuelve tal cual", () => {
-        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+    it("una orden sin respuesta en 15 min se da por caducada; un líder en seco se avisa", () => {
+        const filas = [
+            fila("mg_orden", { nonce: "nonce-vieja-001", accion: "continuar", para: "lider" }, 16 * 60_000),
+            fila("mg_lider", { nodo: "mac-aaaaaa", termino: 1, puntos: 500 }),
+            latido("mac-aaaaaa", "mac", 500, { modo: "seco" })
+        ];
+        const e = resumirBus(filas, AHORA);
+        expect(e.ordenes[0].estado).toBe("caducada");
+        expect(textoEstadoOrden("caducada")).toBe("nadie la recogió a tiempo");
+        expect(e.liderSeco).toBe(true);
+        expect(fraseDelMando(e)).toMatch(/modo de prueba/);
     });
 });
 
@@ -253,6 +209,12 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
         expect(ACCIONES.contenedor.args).toEqual(["activo", "trabajadores"]);
     });
 
+    it("ACCIONES_DEL_LIDER no incluye las nuevas acciones", () => {
+        expect("desconectar" in ACCIONES_DEL_LIDER).toBe(false);
+        expect("contenedor" in ACCIONES_DEL_LIDER).toBe(false);
+        expect("continuar" in ACCIONES_DEL_LIDER).toBe(true);
+        expect("ceder" in ACCIONES_DEL_LIDER).toBe(true);
+    });
 });
 
 describe("textoEstadoOrden", () => {
