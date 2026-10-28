@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { Mesh, PerspectiveCamera } from "three";
-import { leerEscena3d, posicionLuz3d, type FormaEscena3d, type ValoresEscena3d } from "@/lib/protomolecula/atomos/escena3d";
+import { FORMAS_ESCENA3D, leerEscena3d, posicionLuz3d, type FormaEscena3d, type ValoresEscena3d } from "@/lib/protomolecula/atomos/escena3d";
 import type { VistaProps } from "@/lib/protomolecula/registro-atomos";
 
 const COMPROBANDO = "Comprobando si este dispositivo puede dibujar 3D…";
@@ -98,7 +98,7 @@ export default function VistaEscena3d({ atomoId, valores }: VistaProps) {
     <div className="relative h-full min-h-64 w-full overflow-hidden rounded-md border bg-background">
       <Canvas
         role="img"
-        aria-label={`Escena 3D de la forma ${escena.forma}`}
+        aria-label={`Escena 3D de la forma ${escena.forma}; formas disponibles: ${FORMAS_ESCENA3D.join(", ")}`}
         className="!absolute inset-0 cursor-grab"
         camera={{ position: [0, escena.distancia * 0.45, escena.distancia], fov: escena.fov, near: 0.05, far: 200 }}
         dpr={[1, 2]}
