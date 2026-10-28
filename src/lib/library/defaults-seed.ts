@@ -72,7 +72,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 21;
+export const SEED_VERSION = 22;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -336,6 +336,27 @@ const RECOMMENDED_HASTA_16: string[] = [
 ];
 
 /**
+ * (SEED_VERSION 22 · Ola 1020T) LA 3.ª TANDA DE REPOS, SOLO SUS «SIEMPRE» SEMBRABLES.
+ * De las 14 fichas de config/repos-libreria-1020c.json (cargadas por repos-externos-1020.ts),
+ * el cargador mantiene 13 —la «siempre» lib-penpot NO se duplica: ya existe iatool-penpot— y
+ * de esas se siembran las 8 con `preinstalar: "siempre"`: instalar cada una SOLO registra su
+ * ficha/enlace o deja listo su conector (el servidor lo levanta Alex y pega el endpoint a mano
+ * en el Hub). Cero descarga, cero ejecución de código, cero ruta abierta y cero clave durante
+ * la siembra. Las «manual» (Trail Code, img2threejs, Paperclip, Magnitude, ArtCraft) ejecutan
+ * código, dependen de proveedores de pago o llevan telemetría: NO entran.
+ */
+const IDS_SIEMBRA_1020C: string[] = [
+  "lib-openworker",
+  "lib-openwhispr",
+  "lib-pocketbase",
+  "lib-openmaic",
+  "lib-chatwoot",
+  "lib-excalidraw",
+  "lib-nextcloud",
+  "lib-supra-tex",
+];
+
+/**
  * (SEED_VERSION 17 · Ola 1025R) LA TANDA DEL 2026-10-25: «absolutamente todas las repos y habilidades deben ser
  * integradas en la librería preinstaladas y autoactualizadas» (Alex). Los ids salen de
  * `config/repos-libreria-1025.json` (módulo puro `repos-1025.ts`): las 26 fichas nuevas con
@@ -363,9 +384,14 @@ const RECOMMENDED_HASTA_16: string[] = [
  * `config/repos-libreria-1028.json` (módulo puro `repos-1028.ts`). Instalar SOLO registra el enlace;
  * LEANN corre en el servidor de cerebro (hoy el A1) en 127.0.0.1:4495 con token, y la activación
  * la decide la persona, explicada en `aviso`.
+ *
+ * (SEED_VERSION 22 · Ola 1020T) LA 3.ª TANDA, SOLO SUS «SIEMPRE»: el cargador (repos-externos-1020.ts,
+ * que ya lee config/repos-libreria-1020c.json) mantiene 13 fichas —lib-penpot no se duplica sobre
+ * iatool-penpot— y aquí siembran las 8 con `preinstalar: "siempre"` cuyo efecto es solo ficha/enlace
+ * o conector con servidor puesto por Alex (ver IDS_SIEMBRA_1020C, más abajo).
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
-  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028]),
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C]),
 );
 
 /**
