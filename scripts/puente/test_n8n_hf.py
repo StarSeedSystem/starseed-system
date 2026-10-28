@@ -75,7 +75,8 @@ class Comandos(unittest.TestCase):
     def test_desplegar_sube_ndjson(self):
         cli = ClienteFalso(respuesta=(200, {"ok": True}))
         with tempfile.TemporaryDirectory() as tmp:
-            open(os.path.join(tmp, "arranque.sh"), "w").write("#!/bin/sh\n")
+            with open(os.path.join(tmp, "arranque.sh"), "w") as f:
+                f.write("#!/bin/sh\n")
             n8n_hf.desplegar(seco=False, cliente=cli, env=dict(ENV),
                              carpeta=tmp, imprimir=lambda *_: None)
         metodo = cli.llamadas[0][0]

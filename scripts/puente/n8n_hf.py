@@ -31,15 +31,16 @@ def leer_env(entorno: dict | None = None) -> dict:
     salida = dict(entorno if entorno is not None else os.environ)
     ruta = salida.get("STARSEED_ENV", os.path.expanduser("~/.starseed/env"))
     try:
-        for linea in open(ruta, encoding="utf-8"):
-            linea = linea.strip()
-            if not linea or linea.startswith("#") or "=" not in linea:
-                continue
-            k, v = linea.split("=", 1)
-            v = v.strip()
-            if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
-                v = v[1:-1]
-            salida.setdefault(k.strip(), v)
+        with open(ruta, encoding="utf-8") as f:
+            for linea in f:
+                linea = linea.strip()
+                if not linea or linea.startswith("#") or "=" not in linea:
+                    continue
+                k, v = linea.split("=", 1)
+                v = v.strip()
+                if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+                    v = v[1:-1]
+                salida.setdefault(k.strip(), v)
     except OSError:
         pass
     return salida
@@ -79,7 +80,8 @@ def construir_ndjson(rutas: list[str], carpeta: str = CARPETA) -> str:
         "summary": "n8n producción n8n-hf · %s" % time.strftime("%Y-%m-%d %H:%M"),
         "description": ""}})]
     for rel in rutas:
-        datos = open(os.path.join(carpeta, rel), "rb").read()
+        with open(os.path.join(carpeta, rel), "rb") as f:
+            datos = f.read()
         lineas.append(json.dumps({"key": "file", "value": {
             "path": rel, "encoding": "base64",
             "content": base64.b64encode(datos).decode("ascii")}}))

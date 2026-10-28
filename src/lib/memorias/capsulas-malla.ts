@@ -3,6 +3,8 @@
 import { type AlcanceMemoria } from "@/lib/nucleo/alcance-memoria";
 import { type CapsulaMemoria } from "./capsulas";
 
+export { type CapsulaMemoria };
+
 export interface NeuronaMalla {
   id: string;
   cuentaId: string;
