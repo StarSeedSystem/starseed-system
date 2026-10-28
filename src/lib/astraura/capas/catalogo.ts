@@ -23,6 +23,7 @@ export type RuntimeCapa =
   | "llama-cpp"
   | "bitnet-cpp"
   | "colibri"
+  | "ollama"
   | "mlx";
 
 /** «por-verificar»: entra al catálogo sin SHA medido y no se usa hasta que el instalador lo anote. */
@@ -81,6 +82,7 @@ const RUNTIMES: readonly RuntimeCapa[] = [
   "llama-cpp",
   "bitnet-cpp",
   "colibri",
+  "ollama",
   "mlx",
 ];
 const ESTADOS: readonly EstadoCapa[] = [
