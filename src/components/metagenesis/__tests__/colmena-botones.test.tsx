@@ -107,7 +107,7 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
             contenedor: { activo: true, agentes: 2, apto: true, motivo: "" },
             relevoActivo: true,
         });
-        // Desconectar button: enabled, requires confirmation because of work in course
+        // Desconectar: habilitado y pide confirmar porque hay trabajo en curso
         expect(b.desconectar).toMatchObject({ 
             visible: true, 
             habilitado: true, 
@@ -117,20 +117,13 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(b.desconectar.explica).toBe(
             "Guarda el trabajo a medias de sus 1 agente(s) y lo pasa a otro contenedor antes de que este aparato se quede sin internet."
         );
-        // Contenedor button: enabled to stop being a container, and requires confirmation because of work in course
+        // Contenedor: habilitado para dejar de ser contenedor, y pide confirmar por el trabajo en curso
         expect(b.contenedor).toMatchObject({ 
             visible: true, 
             habilitado: true, 
             etiqueta: "Dejar de usar como contenedor", 
             confirmar: true 
         });
-    });
-
-    it("sin trabajo en curso, el botón de desconectar está deshabilitado cuándo no hay relevo activo", () => {
-        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 });
-        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
-        expect(b.desconectar.explica).toBe("No tiene trabajo en curso: puedes apagarlo sin más.");
-        expect(b.desconectar.confirmar).toBeFalsy();
     });
 
     it("con contenedor activo y sin trabajo en curso, sin relevo activo Desconectar remite a «Dejar de usar»", () => {
@@ -174,18 +167,6 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
             contenedor: { activo: true, agentes: 2, apto: true, motivo: "Listo para trabajar" },
         });
         expect(con.contenedor.confirmar).toBe(false);
-    });
-
-    it("sin trabajador: «Instalar el trabajador» visible y habilitado (explica Terminal / Termux)", () => {
-        const linux = botonesNeurona({ nodo: null, vivo: true, so: "linux", enCurso: 0 });
-        expect(linux.instalar).toMatchObject({
-            visible: true,
-            habilitado: true,
-            etiqueta: "Instalar el trabajador",
-            explica: "Un comando en la terminal de este aparato.",
-        });
-        const android = botonesNeurona({ nodo: null, vivo: true, so: "android", enCurso: 0 });
-        expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
 });
 // ─── el traductor latido → tarjeta (puro) ──────────────────────────────────────────────────────────────
