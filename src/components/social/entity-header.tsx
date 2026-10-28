@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Users, UserPlus, Check, Plus, Pencil, Settings2, Lock } from "lucide-react";
 import { ShareButton } from "@/components/social/SocialActions";
 import Link from "next/link";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 
 interface EntityHeaderProps {
     entity: {
@@ -173,13 +174,10 @@ export function EntityHeader({ entity, isOwner, isCommunity, onEdit, onCustomize
                             <span>{followLabel}</span>
                         </Button>
                     </div>
-                    {(hint || (followState.needsAuth && followState.active === false)) && hint && (
-                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground mt-1">
-                            <Lock className="h-3 w-3" />
-                            <Link href="/login" className="underline cursor-pointer" style={{ color: accent }}>
-                                Inicia sesión para {isCommunity ? "unirte" : "seguir"}
-                            </Link>
-                        </span>
+                    {hint && (
+                        <AvisoSesion
+                            texto={`Inicia sesión para ${isCommunity ? "unirte" : "seguir"}`}
+                        />
                     )}
                 </div>
             </div>

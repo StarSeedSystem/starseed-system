@@ -34,6 +34,7 @@ import {
     formatRelativeTime,
 } from "@/lib/social-posts";
 import { PostBlocksRenderer, PostTagChips } from "@/components/social/post-blocks-renderer";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 // (SP092939) Nombre PÚBLICO del autor: el email es dato de CUENTA (privado) y
 // como nombre público se expone sin consentimiento. Sin nombre elegido, alias.
 import { ALIAS_ANONIMO, nombrePublicoDesdeMetadata } from "@/lib/social/alias-publico";
@@ -140,13 +141,10 @@ function SamplePostCard({ post }: { post: NormalizedPost }) {
             onShare={handleShare}
             commentsPanel={
                 showComments ? (
-                    <div className="mt-3 w-full rounded-xl border border-border/50 bg-muted/30 p-3 text-sm text-muted-foreground">
-                        Esta es una publicación de ejemplo.{" "}
-                        <Link href="/login" className="underline cursor-pointer" style={{ color: GOLD }}>
-                            Inicia sesión
-                        </Link>{" "}
-                        para comentar en la red real.
-                    </div>
+                    <AvisoSesion
+                        compacto
+                        texto="Inicia sesión para comentar en la red real"
+                    />
                 ) : null
             }
         />
@@ -372,12 +370,10 @@ function PostCardShell({
                 </div>
 
                 {likeHint && likeNeedsAuth && (
-                    <span className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <Lock className="h-3 w-3" />
-                        <Link href="/login" className="underline cursor-pointer" style={{ color: GOLD }}>
-                            Inicia sesión para reaccionar
-                        </Link>
-                    </span>
+                    <AvisoSesion
+                        compacto
+                        texto="Inicia sesión para reaccionar"
+                    />
                 )}
 
                 {commentsPanel}
@@ -545,12 +541,10 @@ function CommentThread({
                 </Button>
             </div>
             {(authHint || comments.needsAuth) && (
-                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Lock className="h-3 w-3" />
-                    <Link href="/login" className="underline cursor-pointer" style={{ color: GOLD }}>
-                        Inicia sesión para comentar
-                    </Link>
-                </span>
+                <AvisoSesion
+                    compacto
+                    texto="Inicia sesión para comentar"
+                />
             )}
         </div>
     );

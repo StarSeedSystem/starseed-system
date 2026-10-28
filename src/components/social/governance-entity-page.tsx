@@ -15,6 +15,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { ShareButton } from "@/components/social/SocialActions";
 import { GovernanceToolkit } from "@/components/social/toolkits";
 import { entityKindMeta } from "@/lib/entity-kinds";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 // (Ola 224) followState real persistido vía useFollow en vez del useState local.
 import { useFollow } from "@/hooks/use-os-entities";
 import { Check, Lock, Plus } from "lucide-react";
@@ -126,12 +127,9 @@ export function GovernanceEntityPage({
                             <ShareButton title={name} accent={ac} />
                             {/* (Ola 224) Aviso de inicio de sesión al intentar afiliarse sin sesión. */}
                             {authHint && (
-                                <span className="flex w-full items-center gap-1 text-[11px] text-muted-foreground">
-                                    <Lock className="h-3 w-3" />
-                                    <Link href="/login" className="cursor-pointer underline" style={{ color: ac }}>
-                                        Inicia sesión para afiliarte
-                                    </Link>
-                                </span>
+                                <AvisoSesion
+                                    texto="Inicia sesión para afiliarte"
+                                />
                             )}
                         </div>
                     </div>
