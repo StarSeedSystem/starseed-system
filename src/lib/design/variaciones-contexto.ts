@@ -11,6 +11,7 @@
  */
 
 import type { CuratedPresetMood } from "@/lib/themes/curated-presets";
+import type { RegistroMovimiento } from "./registros-movimiento";
 
 /** Variantes visuales creativas que soporta el fondo «living». */
 export type VarianteVisual =
@@ -53,6 +54,8 @@ export interface VariacionVisual {
     acentos: string[];
     /** Explica la elección en español, para que la interfaz pueda enseñarlo. */
     motivo: string;
+    /** Registro de movimiento opcional asociado a la variación. */
+    movimiento?: RegistroMovimiento;
 }
 
 /** Configuración base (velocidad, intensidad y acentos) de cada variante. */

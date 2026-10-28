@@ -22,6 +22,35 @@ import { useTheme } from "next-themes";
 import { applyThemeTokens, listThemes, type ThemePack, type ThemeTokens } from "./theme-engine";
 import { mixThemes, SLOT_ORDER, type MixSlots } from "./theme-mixer";
 import type { EntityLayout } from "@/lib/entity-layout";
+import type { RegistroMovimiento } from "./registros-movimiento";
+
+export const REGISTRO_MOVIMIENTO_DEFECTO: RegistroMovimiento = "sobrio";
+
+const REGISTROS_VALIDOS = ["sobrio", "expresivo", "experimental"] as const;
+
+function esRegistroValido(v: unknown): v is RegistroMovimiento {
+    return typeof v === "string" && (REGISTROS_VALIDOS as readonly string[]).includes(v);
+}
+
+export function validarRegistroMovimiento(v: unknown): RegistroMovimiento | null {
+    return esRegistroValido(v) ? v : null;
+}
+
+export type LayoutConMovimiento = Partial<Pick<EntityLayout, "themeId" | "themeMix">> & {
+    movimiento?: RegistroMovimiento | null;
+};
+
+export function resolverRegistroMovimiento(
+    cuenta?: LayoutConMovimiento | null,
+    pagina?: LayoutConMovimiento | null,
+    grupo?: LayoutConMovimiento | null,
+): RegistroMovimiento {
+    const candidato =
+        validarRegistroMovimiento(grupo?.movimiento) ??
+        validarRegistroMovimiento(pagina?.movimiento) ??
+        validarRegistroMovimiento(cuenta?.movimiento);
+    return candidato ?? REGISTRO_MOVIMIENTO_DEFECTO;
+}
 
 /** Solo las claves que ESTA aplicación concreta va a tocar (nunca más que
  *  eso) — así la restauración es exacta y no interfiere con nada que el
@@ -121,7 +150,7 @@ function restoreSnapshot(snap: ThemeSnapshot): void {
  * (o `null`/`undefined` mientras aún no ha cargado — no hace nada hasta que
  * haya datos reales).
  */
-export function useEntityThemeScope(layout: Pick<EntityLayout, "themeId" | "themeMix"> | null | undefined): void {
+export function useEntityThemeScope(layout: LayoutConMovimiento | null | undefined): void {
     const { resolvedTheme } = useTheme();
     const mode: "light" | "dark" = resolvedTheme === "light" ? "light" : "dark";
     const snapRef = useRef<ThemeSnapshot | null>(null);
