@@ -10,6 +10,7 @@
 // Escape: con varias apiladas cierra SOLO la de arriba (pila compartida, abajo).
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
 // ════════════════════════════════════════════════════════════════
+import { geometriaVentana, type Viewport, type TipoVentana, type GeometriaVentanaOptions } from "@/lib/design/composicion";
 
 import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
@@ -99,6 +100,14 @@ export function OSWindow({
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup", onUp);
         };
+    }, []);
+
+    useEffect(() => {
+        const viewport: Viewport = { ancho: window.innerWidth, alto: window.innerHeight };
+        const isPhone = viewport.ancho < 430;
+        const options: GeometriaVentanaOptions = isPhone ? { tipo: "hoja" as TipoVentana } : { tipo: "dialogo" as TipoVentana };
+        const posicion = geometriaVentana(viewport, options);
+        setOffset({ dx: posicion.x, dy: posicion.y });
     }, []);
 
     const startDrag = (e: React.PointerEvent) => {
