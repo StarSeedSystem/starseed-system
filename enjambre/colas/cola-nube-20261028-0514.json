@@ -1,0 +1,132 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "RTINV1025J-d2",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Alcance: almacén privado de objetivos, lista de supresión y pausas (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/test_alcance_objetivos.py"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea INV1025J-d2 («Alcance: almacén privado de objetivos, lista de supresión y pausas (parte 2 de 2)») se hizo en main por otro camino; su rama nube/40661039621 queda archivada en `refs/archivo/nube/40661039621` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTINV1025J-d2 · solo estos archivos: scripts/puente/test_alcance_objetivos.py):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas Python con unittest, con el patrón de carga que ya use el archivo.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# scripts/puente/test_alcance_objetivos.py\n    def test_cuota_diaria_por_defecto_cinco_y_configurable(self):\n        self.assertFalse(ao.puede_contactar(self.o, registro(envios_hoy=5), AHORA))\n        self.assertTrue(ao.puede_contactar(self.o, registro(envios_hoy=4), AHORA)); self.assertFalse(ao.puede_contactar(self.o, registro(envios_hoy=1, tope_diario=1), AHORA))\n\n# scripts/puente/test_alcance_objetivos.py\n    def test_rechazo_de_alex_pausa_90_dias(self):\n        self.assertFalse(ao.puede_contactar(self.o, registro((\"rechazo_alex\", 89)), AHORA))\n        self.assertTrue(ao.puede_contactar(self.o, registro((\"rechazo_alex\", 90)), AHORA))\n\n# scripts/puente/test_alcance_objetivos.py\n    def test_no_del_destinatario_pausa_180_dias(self):\n        self.assertFalse(ao.puede_contactar(self.o, registro((\"no_destinatario\", 179)), AHORA))\n        self.assertTrue(ao.puede_contactar(self.o, registro((\"no_destinatario\", 180)), AHORA))\n\n# scripts/puente/test_alcance_objetivos.py\n    def test_suprimido_no_recibe_nada(self):\n        self.assertFalse(ao.puede_contactar(self.o, registro(suprimido=True), AHORA)); self.assertFalse(ao.puede_contactar(self.o, registro(supresion=[ao.huella(\"hola@yosoy.mx\")]), AHORA))\n        self.assertTrue(ao.puede_contactar(self.o, registro(supresion=[ao.huella(\"otro@ejemplo.com\")]), AHORA))\n\n# scripts/puente/test_alcance_objetivos.py\n    def test_escribir_y_leer_redonda(self):\n        self.assertEqual(ao.leer(\"supresion\", self.home), [])\n        ao.escribir(\"supresion\", [\"a\"], self.home)\n        self.assertEqual(ao.leer(\"supresion\", self.home), [\"a\"])\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "INV1025J-d2",
+    "rama": "nube/40661039621"
+   }
+  },
+  {
+   "id": "RTGUI1021M3",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Guía sin cuenta · avisos de sesión de publicaciones y entidades",
+   "archivos": [
+    "src/components/social/__tests__/avisos-sesion-social.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea GUI1021M3c («Guía sin cuenta · avisos de sesión de publicaciones y entidades») se hizo en main por otro camino; su rama nube/cr-20261028/ola/GUI1021M3c queda archivada en `refs/archivo/nube/cr-20261028/ola/GUI1021M3c` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.94)\n\nTU TAREA (RTGUI1021M3 · solo estos archivos: src/components/social/__tests__/avisos-sesion-social.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/social/__tests__/avisos-sesion-social.test.ts\n        it(`«${etiqueta}» (${archivo}) va por AvisoSesion y conserva el texto`, () => {\n            const codigo = fuente(archivo);\n            expect(codigo).toContain('import { AvisoSesion } from \"@/components/auth/aviso-sesion\";');\n            expect(codigo).toContain(jsx);\n            expect(codigo).toContain(texto);\n        });\n\n# src/components/social/__tests__/avisos-sesion-social.test.ts\n    it(\"los avisos dentro de tarjetas y cabeceras van en versión compacto\", () => {\n        for (const archivo of [\"PostCard.tsx\", \"entity-header.tsx\", \"governance-entity-page.tsx\"]) {\n            const codigo = fuente(archivo);\n            const avisos = codigo.match(/<AvisoSesion[^>]*\\/>/g) ?? [];\n            expect(avisos.length, `${archivo} debe pintar avisos de sesión`).toBeGreaterThan(0);\n            for (const aviso of avisos) {\n                expect(aviso, `${archivo}: ${aviso}`).toMatch(/compacto/);\n            }\n        }\n    });\n\n# src/components/social/__tests__/avisos-sesion-social.test.ts\n    it(\"no queda ningún aviso suelto de «Inicia sesión» apuntando a /login\", () => {\n        for (const archivo of [\"PostCard.tsx\", \"entity-header.tsx\", \"governance-entity-page.tsx\"]) {\n            const codigo = fuente(archivo);\n            expect(codigo, `${archivo}: sin enlaces sueltos a /login`).not.toMatch(/href=\"\\/login\"/);\n            // El candado del aviso suelto desaparece con el bloque; el texto solo vive en AvisoSesion\n            // (y en el placeholder del cuadro de comentarios, que no es un aviso: la palabra\n            // `placeholder` va hasta dos líneas por encima del texto del ternario).\n            const lineas = codigo.split(\"\\n\");\n            for (let i = 0; i < lineas.length; i++) {\n                if (lineas[i].includes(\"Inicia sesión\") && !lineas[i].includes(\"<AvisoSesion\")) {\n                    const contexto = lineas.slice(Math.max(0, i - 2), i).join(\" \");\n                    if (!contexto.includes(\"placeholder\")) {\n                        expect.fail(`${archivo}: aviso suelto fuera de AvisoSesion → ${lineas[i].trim()}`);\n                    }\n                }\n            }\n        }\n    });\n\n# src/components/social/__tests__/avisos-sesion-social.test.ts\n    it(\"governance-entity-page conserva su enlace de volver (no era un aviso)\", () => {\n        const codigo = fuente(\"governance-entity-page.tsx\");\n        expect(codigo).toContain('import Link from \"next/link\";');\n        expect(codigo).toMatch(/<Link href=\\{backHref\\}/);\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "GUI1021M3c",
+    "rama": "nube/cr-20261028/ola/GUI1021M3c"
+   }
+  },
+  {
+   "id": "RTCLB1028G",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Colibri · el plan de instalación del A1 sigue lo que dice Colibri (Laya y GLiNER no van por setup)",
+   "archivos": [
+    "scripts/puente/test_colibri_nodo.py",
+    "scripts/puente/test_oracle_nodo_colibri.py"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea CLB1028G («Colibri · el plan de instalación del A1 sigue lo que dice Colibri (Laya y GLiNER no van por setup)») se hizo en main por otro camino; su rama nube/40665530830 queda archivada en `refs/archivo/nube/40665530830` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.86)\n\nTU TAREA (RTCLB1028G · solo estos archivos: scripts/puente/test_colibri_nodo.py, scripts/puente/test_oracle_nodo_colibri.py):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas Python con unittest, con el patrón de carga que ya use el archivo.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# scripts/puente/test_colibri_nodo.py\n    def test_plan_laya_descarga_y_make_sin_setup_ni_serve(self):\n        plan = C.plan_instalacion(\"colibri-laya\", \"/srv/colibri\")\n        ordenes = [\" \".join(paso[\"args\"]) for paso in plan]\n        self.assertTrue(all(\"start-here.sh\" not in o for o in ordenes))\n        self.assertTrue(all(\"--port\" not in paso[\"args\"] for paso in plan))\n        clon, hf_cli, descarga, compila, huella = (paso[\"args\"] for paso in plan)\n        self.assertEqual(clon[0], \"git\")\n        self.assertIn(\"--branch\", clon)\n        self.assertIn(\"v2.0.0\", clon)\n        self.assertIn(\"https://github.com/JustVugg/colibri\", clon)\n        self.assertEqual(clon[-1], C.RUTA_CLON)  # la ruta que pide la unidad, no <carpeta>/colibri-v2.0.0\n        self.assertIn(\"huggingface_hub[cli]\", hf_cli[-1])\n        self.assertEqual(descarga[:2], [\"hf\", \"download\"])\n        self.assertIn(\"convaiinnovations/laya\", descarga)\n        self.assertEqual(descarga[descarga.index(\"--local-dir\") + 1], \"/srv/colibri/laya\")\n        self.assertEqual(compila, [\"make\", \"-C\", \"c\", \"laya\"])\n        self.assertEqual(huella[0], \"sha256sum\")\n        self.assertTrue(huella[1].endswith(\"/laya/model.safetensors\"))\n\n# scripts/puente/test_colibri_nodo.py\n    def test_plan_gliner_mismas_fases_que_laya(self):\n        plan = C.plan_instalacion(\"colibri-gliner-decide\", \"/srv/colibri\")\n        ordenes = [\" \".join(paso[\"args\"]) for paso in plan]\n        self.assertTrue(all(\"start-here.sh\" not in o for o in ordenes))\n        self.assertEqual(len(plan), 5)\n        self.assertEqual(plan[3][\"args\"], [\"make\", \"-C\", \"c\", \"gliner_decide\"])\n        self.assertEqual(plan[2][\"args\"][2], \"fastino/GLiNER2.5-Decide\")\n\n# scripts/puente/test_colibri_nodo.py\n    def test_plan_chat_usa_el_id_de_colibri_y_no_arranca(self):\n        plan = C.plan_instalacion(\"colibri-qwen3-coder-30b\", \"/srv/colibri\")\n        self.assertEqual(len(plan), 2)\n        clon, prepara = (paso[\"args\"] for paso in plan)\n        self.assertEqual(clon[-1], C.RUTA_CLON)\n        self.assertEqual(prepara, [\"./start-here.sh\", \"--model\", \"qwen3-coder-30b\",\n                                   \"--dir\", \"/srv/colibri\", \"--yes\", \"--no-gpu\",\n                                   \"--no-start\", \"--no-browser\"])\n\n# scripts/puente/test_colibri_nodo.py\n    def test_clef_no_cabe_en_esta_neurona(self):\n        with self.assertRaises(ValueError) as ctx:\n            C.plan_instalacion(\"colibri-clef\", \"/srv/colibri\")\n        self.assertIn(\"no cabe en esta neurona\", str(ctx.exception))\n\n# scripts/puente/test_colibri_nodo.py\n    def test_olmoe_sin_pasos_verificados(self):\n        with self.assertRaises(ValueError):\n            C.plan_instalacion(\"colibri-olmoe-7b\", \"/srv/colibri\")\n\n# scripts/puente/test_oracle_nodo_colibri.py\n    def test_pasos_de_laya_hf_y_make_con_el_checkout_de_la_unidad(self):\n        plan = N.plan_colibri()\n        self.assertEqual(plan[0][\"args\"][0], \"git\")\n        self.assertIn(\"v2.0.0\", plan[0][\"args\"])\n        self.assertEqual(plan[0][\"args\"][-1], N.COLIBRI_REPO_A1)\n        ordenes = [\" \".join(paso[\"args\"]) for paso in plan]\n        self.assertTrue(all(\"start-here.sh\" not in o for o in ordenes))\n        for paso in plan:\n            self.assertNotIn(\"--port\", paso[\"args\"])  # el serve lo hace starseed-colibri.service\n        descarga = plan[2][\"args\"]\n        self.assertEqual(descarga[:2], [\"hf\", \"download\"])\n        self.assertEqual(descarga[descarga.index(\"--local-dir\") + 1], N.COLIBRI_MODELO_A1)\n        self.assertEqual(plan[3][\"args\"], [\"make\", \"-C\", \"c\", \"laya\"])\n        self.assertEqual(plan[4][\"args\"][0], \"sha256sum\")\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "CLB1028G",
+    "rama": "nube/40665530830"
+   }
+  },
+  {
+   "id": "MVD1027B",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "Memorias · un escritor por cápsula y réplicas selladas en la malla (puro)",
+   "archivos": [
+    "src/lib/memorias/capsulas-malla.ts",
+    "src/lib/memorias/__tests__/capsulas-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\nPURO. `escritorDe(capsula, neuronas, arriendos)`: la neurona con el arriendo del sujeto (servidor de cerebro, `architecture/apps-en-la-malla.md`); sin arriendo, la de más estabilidad y presencia viva; nunca dos. `accionPara(neurona, capsula, ...)` → «escribir» | «leer-replica» | «pedir-al-escritor». `debeReplicar(capsula, neurona, ultimaCopia)`: copia sellada (solo lectura) cada 15 min si cambió el tamaño; una cápsula de alcance personal o perfil solo viaja cifrada y solo a neuronas de la misma cuenta. Pruebas.",
+   "dependencias_ya_en_main": [
+    "MVD1027A-d2"
+   ]
+  },
+  {
+   "id": "OPS1024A",
+   "ola": "1024R",
+   "titulo": "asignaciones_agentes.py · RAIZ apunta a scripts/ (mismo fallo que vigia_referencias, OPF1024A)",
+   "archivos": [
+    "scripts/puente/asignaciones_agentes.py",
+    "scripts/puente/test_asignaciones_agentes.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA con la prueba. En scripts/puente/asignaciones_agentes.py (línea ~35) la constante RAIZ se calcula como la carpeta scripts/ y no como la raíz del repositorio, así que las rutas que lee y escribe quedan dentro de scripts/. Arréglalo con la MISMA forma que usa scripts/puente/vigia_referencias.py desde el commit OPF1024A: os.environ.get('STARSEED_ROOT') o dos niveles por encima de scripts/puente/. Añade a scripts/puente/test_asignaciones_agentes.py (créalo si no existe) dos casos: la raíz por defecto es la del repo (contiene CLAUDE.md) y respeta STARSEED_ROOT. Sin red. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "APM1017F",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · servir capacidades: admisión con los topes de préstamo, cola, cancelación y registro",
+   "archivos": [
+    "src/lib/recursos/servir-capacidades.ts",
+    "src/lib/recursos/__tests__/servir-capacidades.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión del relé `capacidad.*`: `crearServidor({ manejadores: Partial<Record<tipo, fn>>, oferta, sesiones, ahora })` con `atender(mensaje)` que comprueba la sesión (sesion-prestamo.ts) y los topes de `capacidadPrestable`, encola si está lleno (máx. 4 en cola), corre el manejador, trocea la respuesta y permite cancelar. `prestamos()` devuelve los préstamos vivos y hechos (quién, qué, ms, bytes) para Procesos activos. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D",
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "MVD1027D",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "Memorias · cliente del servidor de cápsulas y ruta con alcance",
+   "archivos": [
+    "src/lib/memorias/memvid-cliente.ts",
+    "src/app/api/memorias/capsulas/route.ts",
+    "src/lib/memorias/__tests__/memvid-cliente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\n`memvid-cliente.ts` SOLO servidor (`import \"server-only\"` si el repo lo usa; lee el token con `node:fs`): `poner`, `buscar`, `estado`, `linea`, `salud`, con 1,5 s de tope y `null` si el servidor no está (nunca lanza). Si `poner` da 507, abre la parte siguiente con `nombreCapsula(..., parte+1)` y reintenta una vez. La ruta: GET `?sujeto=tipo:id` → estado de sus cápsulas; POST `{accion: \"poner\" | \"buscar\", sujeto, texto | consulta, k}` comprobando el actor de la sesión con `puedeEscribirEn` / `alcanceVisiblePara` antes de tocar nada. Pruebas del cliente con `fetch` falso.",
+   "dependencias_ya_en_main": [
+    "MVD1027A-d2"
+   ]
+  },
+  {
+   "id": "MC1012W2",
+   "titulo": "Montar el motor de la retícula y sus paneles en Señales",
+   "archivos": [
+    "src/components/malla/motor-cristal-mount.tsx",
+    "src/components/mesh/signals-center.tsx",
+    "src/components/malla/__tests__/motor-cristal-mount.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. motor-cristal-mount.tsx ('use client'): crea UNA vez (módulo singleton) el motor de MC1012Q con: miNeurona desde identidadDispositivo() (src/lib/network/identidad-dispositivo.ts) y la capacidad que ya calcula malla-neuronas (claseRam) o valores por defecto; medir con medidas-locales.ts sobre getMeshState() (mesh), los peers de usePeersMalla/estadisticas y, si `esAppNativa()`, el estado de antenas nativas (src/lib/nativa/puente.ts); reloj = tick() de src/ai/astraura/mesh/logical-clock.ts; firmar con signContent de src/ai/astraura/mesh/mesh-identity.ts (guarda `s` en firma); difundir con crearDifusor (getSharedMesh()?.broadcast y enviarAPar de vinculos-entre-cuentas si existe un vínculo). Recibe teselas suscribiéndose a los mensajes del mesh compartido y descarta las de firma inválida (verifyContent). Bucle con crearBucle (src/lib/network/bucle-fondo.ts) con el intervalo que diga `motor.intervaloMs()` (5–60 s), solo pestaña líder y aparato visible. Exporta `MotorCristalMount` (sin UI) y `useMotorCristal()`. En signals-center.tsx monta `<PanelReticula estado=…/>` en la pestaña o sección principal de Señales (cambio mínimo, ≤ 15 líneas). Prueba: el montaje no rompe sin WebRTC ni identidad (degrada a vacío).",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012R",
+    "MC1012S",
+    "MC1012W-d2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "MVD1027D",
+   "APM1017F",
+   "MC1012W2",
+   "MVD1027B",
+   "OPS1024A"
+  ]
+ }
+}
