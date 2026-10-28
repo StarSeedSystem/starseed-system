@@ -8,25 +8,32 @@
  * dashboard: sin título, dictado ni historial, pero con «Añadir herramienta», parámetros y pendientes
  * (un widget vacío sin forma de llenarlo sería un callejón sin salida).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { Controlador } from "@/lib/protomolecula/controlador";
 import { AVISO_SALUD } from "@/lib/protomolecula/permisos";
-import { candidatosDe } from "@/lib/protomolecula/registro-atomos";
+import { candidatosDe, obtenerAtomo } from "@/lib/protomolecula/registro-atomos";
 import type { EstadoGuardado } from "@/lib/protomolecula/sesion-molecula";
-import type { Ambito, Autor } from "@/lib/protomolecula/tipos";
+import type { Ambito, Autor, Operacion, ValorParametro } from "@/lib/protomolecula/tipos";
+import { registrarAtomosPropios } from "@/lib/protomolecula/atomos";
 
 import { BarraDictado } from "./barra-dictado";
 import { PanelActividad, hayLecturaSalud } from "./panel-actividad";
 import { AnadirHerramienta, ListaPendientes } from "./panel-estructura";
 import { PanelMausbot } from "./panel-mausbot";
 import { PanelParametros } from "./panel-parametros";
+import { MarcoAislado } from "./marco-aislado";
 import { useEstadoControl, useMolecula } from "./use-molecula";
 
 const AUTOR_PANEL: Autor = { tipo: "persona", id: "panel" };
 
 const ETIQUETA_AMBITO: Record<Ambito, string> = { personal: "personal", perfil: "perfil", grupo: "grupo", publica: "pública" };
 const TEXTO_GUARDADO = { "sin-cambios": "Sin cambios que guardar", guardando: "Guardando…", guardado: "Guardado en este aparato" } as const;
+const idSeguroOp = (): string =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `op-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const ahoraOp = (): number => Date.now();
 
 export interface PanelProtomoleculaProps {
   controlador: Controlador;
@@ -40,7 +47,30 @@ export interface PanelProtomoleculaProps {
 export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, compacto = false, guardado }: PanelProtomoleculaProps) {
   const estado = useEstadoControl(ctl);
   const [aviso, setAviso] = useState<string | null>(null);
+
+  useEffect(() => {
+    registrarAtomosPropios();
+  }, []);
+
   if (!estado) return null;
+
+  const descargarBlob = (formato: string, datos: unknown) => {
+    try {
+      const texto = typeof datos === "string" ? datos : JSON.stringify(datos, null, 2);
+      const blob = new Blob([texto], { type: `application/${formato};charset=utf-8` });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `protomolecula.${formato}`;
+      a.classList.add("cursor-pointer");
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      /* no bloquear */
+    }
+  };
 
   return (
     <div className={`flex h-full w-full flex-col gap-3 overflow-auto ${compacto ? "p-2" : "p-4"}`}>
@@ -56,6 +86,42 @@ export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, comp
       <ListaPendientes controlador={ctl} estado={estado} />
       {!compacto && <BarraDictado alDictar={(frase) => ctl.dictar(frase, autor).resultados} />}
       <PanelMausbot molecula={estado.molecula} candidatos={candidatosDe(estado.molecula)} />
+      {estado.molecula.atomos.map((atomo) => {
+        const def = obtenerAtomo(atomo.herramientaId);
+        if (!def?.vista) return null;
+        return (
+          <div key={atomo.id} className="flex flex-col gap-2 rounded-md border p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">{def.nombre}</span>
+            </div>
+            <div className="min-h-64 w-full">
+              <MarcoAislado
+                definicion={def}
+                atomoId={atomo.id}
+                valores={estado.molecula.valores}
+                alCambio={(parametroId, valor) => {
+                  const op: Operacion = {
+                    id: idSeguroOp(),
+                    objetivo: { atomoId: atomo.id, parametroId },
+                    accion: { tipo: "exacta", valor: valor as ValorParametro },
+                    autor,
+                    origen: "mano",
+                    t: ahoraOp(),
+                  };
+                  const r = ctl.mover(op);
+                  setAviso(r.ok ? null : r.motivo);
+                }}
+                alExportar={(formato, datos) => {
+                  descargarBlob(formato, datos);
+                }}
+                alDeclarar={() => {
+                  /* solo informa */
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
       <PanelParametros
         candidatos={candidatosDe(estado.molecula)}
         valores={estado.molecula.valores}
