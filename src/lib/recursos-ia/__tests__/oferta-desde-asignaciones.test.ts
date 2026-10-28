@@ -194,5 +194,29 @@ describe("ofertaDesdeAsignaciones", () => {
         expect(ofertaDesdeAsignaciones(vacio, estado, new Date(0)).computo.nucleos).toBe(0);
         expect(ofertaDesdeAsignaciones(vacio, estado, new Date(0)).almacen.prestaMb).toBe(0);
     });
+
+    it("neurona sin servidor propio", () => {
+        const e = asignar(estadoVacio(), {
+            ...asignacionModelo(),
+            elemento: { tipo: "modelo", id: "mod1", nombre: "mod1", tamanoGb: 5 },
+            almacenEn: `${N1}:interno`,
+        });
+        const oferta = ofertaDesdeAsignaciones(inventarioTest(), e, new Date(0));
+        expect(oferta.presta.cuenta).toBe(false);
+        expect(oferta.almacen.prestaMb).toBe(10 * 1024); // El inventario tiene 10GB libres
+    });
+
+    it("neurona con servidor propio privado", () => {
+        const e = fijarTopologia(estadoVacio(), topologiaServidor(ALCANCE_PRIVADO));
+        const oferta = ofertaDesdeAsignaciones(inventarioTest(), e, new Date(0));
+        expect(oferta.presta.cuenta).toBe(true);
+    });
+
+    it("neurona con alcance de grupo", () => {
+        const alcance: Alcance = { tipo: "grupo", id: "g1", visibilidad: "publica" };
+        const e = fijarTopologia(estadoVacio(), topologiaServidor(alcance));
+        const oferta = ofertaDesdeAsignaciones(inventarioTest(), e, new Date(0));
+        expect(oferta.presta.grupos).toContain("g1");
+    });
 });
 
