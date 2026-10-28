@@ -1,3 +1,8 @@
+// Rescate de la rama nube/a1-20261023-184106 (tarea RTAPM1017U) · casos adaptados a la API de
+// hoy: la rama probaba codificar/decodificar/fusionar/quienTiene por índices sueltos, main los
+// substituyó por anuncios troceados con registro. Se rescatan tres bordes no cubiertos: la
+// cadena vacía de base64, fusionar sin nada y anunciar sin tener piezas. Lo demás ya está
+// cubierto con otro nombre (ida y vuelta, troceado, caducidad, unión por nodo).
 import { describe, it, expect } from "vitest";
 import {
   TOPE_MENSAJE_BYTES,
@@ -32,6 +37,10 @@ describe("disponibilidad.ts", () => {
 
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
+    });
+
+    it("una cadena vacía decodifica a un mapa vacío", () => {
+      expect([...decodificar("")]).toEqual([]);
     });
   });
 
@@ -98,6 +107,11 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+
+    it("sin piezas no anuncia nada", () => {
+      const piezas = anuncio("nodo-vacio", "volumen-z", 10, [], 0);
+      expect(piezas.length).toBe(0);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
@@ -107,6 +121,11 @@ describe("disponibilidad.ts", () => {
       ...uno.map((a) => ({ anuncio: a, recibidoEn: AHORA - 20_000 })),
       ...dos.map((a) => ({ anuncio: a, recibidoEn: AHORA - 5_000 })),
     ];
+
+    it("fusionar sin nada devuelve un registro vacío", () => {
+      const registro = fusionar([]);
+      expect(registro.size).toBe(0);
+    });
 
     it("une piezas de dos nodos y sirve el índice a quien corresponden", () => {
       const uno = fusionar(
