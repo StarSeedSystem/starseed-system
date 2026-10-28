@@ -68,6 +68,19 @@ describe("normalizarCapa · rechazos", () => {
     expect(problemasDe(normalizarCapa({ forma: "resaltar" }))[0]).toMatch(/necesita un objetivo/);
     expect(problemasDe(normalizarCapa({ forma: "flecha", objetivo: "div > a[href]" }))[0]).toMatch(/identificador/);
   });
+  it("una ruta absoluta del disco tampoco cabe en el texto (no solo las claves)", () => {
+    expect(problemasDe(normalizarCapa({ forma: "nota", texto: "mira /Users/alex/privado" }))[0]).toMatch(/ruta del disco/);
+    expect(problemasDe(normalizarCapa({ forma: "nota", texto: "está en /home/alex/notas" }))[0]).toMatch(/ruta del disco/);
+  });
+  it("los campos que no son de la capa se descartan también fuera del widget", () => {
+    expect(normalizarCapa({ forma: "nota", texto: "Hola", peligro: "ejecuta", objetivo: "boton-ok" }))
+      .toEqual({ forma: "nota", objetivo: "boton-ok", texto: "Hola" });
+  });
+  it("el objetivo respeta el patrón de identificador: ni empieza por guion ni pasa de 120", () => {
+    expect(problemasDe(normalizarCapa({ forma: "resaltar", objetivo: "-boton" }))[0]).toMatch(/identificador/);
+    expect(problemasDe(normalizarCapa({ forma: "resaltar", objetivo: "a".repeat(121) }))[0]).toMatch(/identificador/);
+    expect(esCapaValida(normalizarCapa({ forma: "resaltar", objetivo: "a".repeat(120) }))).toBe(true);
+  });
 });
 
 describe("apilar y retirar", () => {
@@ -103,6 +116,13 @@ describe("apilar y retirar", () => {
     const capas = apilar(apilar([capa("x"), capa("y")], { ...capa("x"), texto: "nueva" }), capa("z"));
     expect(capas.map((c) => c.id)).toEqual(["x", "y", "z"]);
     expect(capas[0].texto).toBe("nueva");
+  });
+  it("un id que ya existía se sustituye aunque cambie de bot, sin tocar el tope del bot nuevo", () => {
+    const antes = [capa("x"), ...Array.from({ length: MAX_CAPAS_POR_BOT }, (_, i) => capa(`b${i}`, "bot-b"))];
+    const despues = apilar(antes, capa("x", "bot-b"));
+    expect(despues).toHaveLength(antes.length);
+    expect(despues.filter((c) => c.id === "x")).toHaveLength(1);
+    expect(despues[0].botId).toBe("bot-b");
   });
   it("retirar por id (el «Quitar» y el deshacer), sin mutar la lista original", () => {
     const antes = [capa("a1"), capa("a2"), capa("b1", "bot-b")];

@@ -191,6 +191,18 @@ describe("PanelProtomolecula · dictado, historial, deshacer y rehacer", () => {
     act(() => { c.mover(operacion(atomoId, { origen: "sensor", fuente: "wearable:pulso", autor: { tipo: "persona", id: "yo" } })); });
     expect(screen.getByText(AVISO_SALUD)).toBeDefined();
   });
+
+  it("el historial enseña como mucho los 8 cambios más recientes", () => {
+    registrarAtomo(MESA);
+    const { c, atomoId } = conMesa();
+    act(() => {
+      for (let i = 0; i < 10; i++) c.mover(operacion(atomoId, { id: `op-${i}`, accion: { tipo: "exacta", valor: -i }, t: i }));
+    });
+    render(<PanelProtomolecula controlador={c} />);
+    const filas = within(historial()).getAllByRole("listitem");
+    expect(filas).toHaveLength(8);
+    expect(filas[0].textContent).toContain("-9");
+  });
 });
 
 describe("PanelProtomolecula · pendientes", () => {
@@ -243,6 +255,24 @@ describe("PanelProtomolecula · compacto", () => {
     fireEvent.change(screen.getByLabelText("Herramienta que añadir"), { target: { value: "mesa-prueba" } });
     fireEvent.click(screen.getByRole("button", { name: "Añadir herramienta" }));
     expect(campoVolumen().value).toBe("-12");
+  });
+});
+
+describe("PanelProtomolecula · estado de guardado", () => {
+  it("enseña el estado que le pasa la sesión: guardando y guardado", () => {
+    const c = controlador();
+    const vista = render(<PanelProtomolecula controlador={c} guardado={{ estado: "guardando" }} />);
+    expect(screen.getByText("Guardando…")).toBeDefined();
+    vista.rerender(<PanelProtomolecula controlador={c} guardado={{ estado: "guardado" }} />);
+    expect(screen.getByText("Guardado en este aparato")).toBeDefined();
+    expect(screen.queryByText("Guardando…")).toBeNull();
+  });
+
+  it("un fallo de guardado se anuncia con su motivo y no se disfraza de guardado", () => {
+    render(<PanelProtomolecula controlador={controlador()} guardado={{ estado: "error", motivo: "el navegador no dejó escribir" }} />);
+    expect(screen.getByRole("alert").textContent).toContain("No se pudo guardar: el navegador no dejó escribir");
+    expect(screen.queryByText("Guardado en este aparato")).toBeNull();
+    expect(screen.queryByText("Sin cambios que guardar")).toBeNull();
   });
 });
 
