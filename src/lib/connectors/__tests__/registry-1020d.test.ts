@@ -43,6 +43,21 @@ describe("registry-1020d · conectores autoalojados de la 4.ª tanda", () => {
     }
   });
 
+  it("los puertos por defecto del contrato van en la pista (8188 y 5000)", () => {
+    expect(CONNECTORS_BY_ID["comfyui-selfhost"].configHint).toContain("8188");
+    expect(CONNECTORS_BY_ID["libretranslate-selfhost"].configHint).toContain("5000");
+  });
+
+  it("cada repo de la tanda aparece UNA sola vez en el registro", () => {
+    for (const [id, esperado] of Object.entries(NUEVOS)) {
+      const repo = `https://github.com/${esperado.repo}`.toLowerCase();
+      const veces = BUILTIN_CONNECTORS.filter(
+        (c) => (c.repo ?? "").toLowerCase() === repo,
+      ).length;
+      expect(veces, `${id} duplica su repo`).toBe(1);
+    }
+  });
+
   it("la configuración usa nombres de variable, nunca valores de clave", () => {
     const comfy = CONNECTORS_BY_ID["comfyui-selfhost"];
     const libre = CONNECTORS_BY_ID["libretranslate-selfhost"];
@@ -61,6 +76,15 @@ describe("registry-1020d · conectores autoalojados de la 4.ª tanda", () => {
         expect(texto, `${id} parece llevar una clave`).not.toMatch(patron);
       }
     }
+  });
+
+  it("ComfyUI va sin clave y LibreTranslate la admite solo opcional", () => {
+    const comfy = CONNECTORS_BY_ID["comfyui-selfhost"];
+    expect(comfy.description).toMatch(/sin clave/i);
+    expect(comfy.configHint).not.toMatch(/api[_ -]?key|token/i);
+    expect(CONNECTORS_BY_ID["libretranslate-selfhost"].description).toMatch(
+      /sin clave por defecto/i,
+    );
   });
 
   it("las descripciones son honestas con lo verificado y lo pendiente", () => {
