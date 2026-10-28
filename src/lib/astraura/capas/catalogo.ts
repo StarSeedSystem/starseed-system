@@ -3,6 +3,7 @@
 
 export type Capa =
   | "reflejo"
+  | "juicio"
   | "memoria"
   | "palabra"
   | "razon"
@@ -12,7 +13,7 @@ export type Capa =
 
 export type Medio = "web" | "pwa" | "nativo" | "servidor";
 
-export type FormatoCapa = "cact" | "gguf" | "mlx" | "onnx";
+export type FormatoCapa = "cact" | "gguf" | "mlx" | "onnx" | "safetensors";
 
 export type RuntimeCapa =
   | "needle-wasm"
@@ -20,9 +21,10 @@ export type RuntimeCapa =
   | "webgpu-onnx"
   | "llama-cpp"
   | "bitnet-cpp"
-  | "mlx";
+  | "mlx"
+  | "colibri";
 
-export type EstadoCapa = "recomendado" | "respaldo" | "en-banco" | "retirado";
+export type EstadoCapa = "recomendado" | "respaldo" | "en-banco" | "retirado" | "por-verificar";
 
 export interface ProfundidadNeedle {
   capas: number;
@@ -41,6 +43,8 @@ export interface EntradaCapa {
   disco_mb: number;
   ram_min_mb: number;
   profundidades?: ProfundidadNeedle[];
+  streaming_disco?: boolean;
+  ram_ok_mb?: number;
   sha256: string;
   fuente_oficial: string;
   espejos: string[];
@@ -56,6 +60,7 @@ export interface CatalogoCapas {
 
 const CAPAS: readonly Capa[] = [
   "reflejo",
+  "juicio",
   "memoria",
   "palabra",
   "razon",
@@ -64,7 +69,7 @@ const CAPAS: readonly Capa[] = [
   "adaptador",
 ];
 const MEDIOS: readonly Medio[] = ["web", "pwa", "nativo", "servidor"];
-const FORMATOS: readonly FormatoCapa[] = ["cact", "gguf", "mlx", "onnx"];
+const FORMATOS: readonly FormatoCapa[] = ["cact", "gguf", "mlx", "onnx", "safetensors"];
 const RUNTIMES: readonly RuntimeCapa[] = [
   "needle-wasm",
   "needle-nativo",
@@ -72,17 +77,20 @@ const RUNTIMES: readonly RuntimeCapa[] = [
   "llama-cpp",
   "bitnet-cpp",
   "mlx",
+  "colibri",
 ];
 const ESTADOS: readonly EstadoCapa[] = [
   "recomendado",
   "respaldo",
   "en-banco",
   "retirado",
+  "por-verificar",
 ];
 
 // Preferencia de §3 por capa: ids de mejor a más ligero.
 const ORDEN_POR_CAPA: Record<Capa, readonly string[]> = {
   reflejo: ["needle3-reflejo"],
+  juicio: ["colibri-laya", "colibri-gliner-decide", "colibri-clef"],
   memoria: ["bitnet-embedding-0.6b", "bitnet-embedding-270m", "needle3-reflejo"],
   palabra: [
     "ternary-bonsai-4b",
@@ -136,6 +144,8 @@ function entradaValida(v: unknown): v is EntradaCapa {
       if (!esNumero(pr.capas) || !esNumero(pr.disco_mb) || pr.capas < 1) return false;
     }
   }
+  if (e.streaming_disco !== undefined && typeof e.streaming_disco !== "boolean") return false;
+  if (e.ram_ok_mb !== undefined && !esNumero(e.ram_ok_mb)) return false;
   return true;
 }
 
@@ -169,7 +179,8 @@ export function candidatosDe(
     .sort((a, b) => posicion(a) - posicion(b) || a.disco_mb - b.disco_mb);
 }
 
-/** Una capa solo se usa con su SHA verificado y estado recomendado o respaldo (§6, §11). */
+/** Una capa solo se usa con su SHA verificado y estado recomendado o respaldo (§6, §11). Las
+ * entradas «por-verificar» (aún sin SHA anotado) nunca se usan: se leen y no más. */
 export function usable(entrada: EntradaCapa): boolean {
   return (
     /^[0-9a-f]{64}$/.test(entrada.sha256) &&
