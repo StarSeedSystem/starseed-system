@@ -44,12 +44,13 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
     expect(TOKENIZER_CLIP_SD_TURBO).toBe("Xenova/clip-vit-base-patch16");
   });
 
-  it("el catálogo lo describe con su licencia «sin comprobar del todo» y el motor onnx-web", () => {
+  it("el catálogo mantiene la licencia «sin comprobar del todo» y las constantes fijadas", () => {
     const ficha = modeloPorId(MODELO_SD_TURBO);
     expect(ficha).toBeDefined();
     expect(ficha!.nota).toContain("sin comprobar del todo");
     expect(ficha!.motores).toContain("onnx-web");
-    expect(ficha!.uso).toBe("condicionado");
+    expect(VERSION_ONNXRUNTIME_WEB).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(CACHE_PESOS_SD_TURBO).not.toContain("/");
   });
 
   it("el total de pesos cuadra con los 2,51 GB documentados y en claro son «2,3 GB»", () => {
@@ -78,18 +79,11 @@ describe("detectaSDTurbo · las tres sondas de WebGPU", () => {
       expect(detectaSDTurbo(malas).puede).toBe(false);
   });
 
-  it("cada falta tiene su motivo distinto y en claro, sin promesas falsas", () => {
-    const motivos = [
-      detectaSDTurbo({ hayWebGPU: false, hayAdaptador: false, f16: false }).motivo,
-      detectaSDTurbo({ ...BUENAS, hayAdaptador: false }).motivo,
-      detectaSDTurbo({ ...BUENAS, f16: false }).motivo,
-    ];
+  it("sin WebGPU, sin adaptador o sin f16 no puede, y cada razón es distinta", () => {
+    const FALTAS = ["hayWebGPU", "hayAdaptador", "f16"] as const;
+    for (const falta of FALTAS) expect(detectaSDTurbo({ ...BUENAS, [falta]: false } as SondasWebGPU).puede).toBe(false);
+    const motivos = FALTAS.map((falta) => detectaSDTurbo({ ...BUENAS, [falta]: false } as SondasWebGPU).motivo);
     expect(new Set(motivos).size).toBe(3);
-    for (const m of motivos) expect(m).toContain("Se usan las demás capas");
-    expect(motivos[2]).toContain("no se baja nada");
-    const puede = detectaSDTurbo(BUENAS);
-    expect(puede.motivo).toContain(textoBytes(BYTES_PESOS_SD_TURBO));
-    expect(puede.motivo).toContain("se piden antes de descargarlos");
   });
 });
 

@@ -142,6 +142,24 @@ describe("LocalSend — solo archivos por la red local desde la app nativa o un 
     admite: { mensaje: true, archivo: true, flujo: false },
   });
 
+  it("LocalSend + archivo: se admite", () => {
+    const r = elegirEnlaces([localSend], { syncDeviceId: "B" }, "archivo", 10, { medioEmisor: "app-nativa" });
+    expect(r.elegidos).toHaveLength(1);
+    expect(r.elegidos[0].enlace.id).toBe("local:ls");
+  });
+
+  it("LocalSend + mensaje: se descarta", () => {
+    const r = elegirEnlaces([localSend], { syncDeviceId: "B" }, "mensaje", 10, { medioEmisor: "app-nativa" });
+    expect(r.elegidos).toHaveLength(0);
+    expect(r.descartados[0].motivo).toBe("LocalSend solo lleva archivos, no mensajes");
+  });
+
+  it("LocalSend + flujo: se descarta", () => {
+    const r = elegirEnlaces([localSend], { syncDeviceId: "B" }, "flujo", 10, { medioEmisor: "app-nativa" });
+    expect(r.elegidos).toHaveLength(0);
+    expect(r.descartados[0].motivo).toBe("LocalSend no lleva audio ni vídeo: solo archivos");
+  });
+
   it("vale para archivos desde la app nativa y desde un servidor, y su motivo lo dice", () => {
     const app = elegirEnlaces([localSend], { syncDeviceId: "B" }, "archivo", 1200, { medioEmisor: "app-nativa" });
     expect(app.elegidos.map((e) => e.enlace.id)).toEqual(["local:ls"]);
