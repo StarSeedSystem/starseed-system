@@ -81,9 +81,13 @@ class PruebasEmpaquetar(unittest.TestCase):
     def test_archivos_en_la_raiz_del_tar_y_logs_recortados(self):
         with self._tar(["progreso.json", "cola-a.json", "ola-x.jsonl"]) as tar:
             self.assertEqual(sorted(tar.getnames()), ["cola-a.json", "ola-x.jsonl", "progreso.json"])
-            self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
+            ola_x = tar.extractfile("ola-x.jsonl")
+            self.assertIsNotNone(ola_x)
+            self.assertEqual(ola_x.read().decode().count("\n"),
                              espejo_estado.LOG_LINEAS)
-            self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
+            progreso = tar.extractfile("progreso.json")
+            self.assertIsNotNone(progreso)
+            self.assertIn(b"prueba", progreso.read())
 
     def test_log_txt_y_corte_exacto_se_extraen_enteros_en_disco(self):
         """Rescatado de rama nube (RTRTRTS1010-EV-ORACLE-1abc): un log reconocido por
@@ -123,13 +127,69 @@ class PruebasEmpaquetar(unittest.TestCase):
         with open(os.path.join(self.olas, "orquestador.log"), "w", encoding="utf-8") as f:
             f.write("\n".join("registro %d" % i for i in range(largo)))  # sin salto al final
         with self._tar(["orquestador.log", "progreso.md"]) as tar:
-            md = tar.extractfile("progreso.md").read().decode("utf-8").splitlines()
+            md_file = tar.extractfile("progreso.md")
+            self.assertIsNotNone(md_file)
+            md = md_file.read().decode("utf-8").splitlines()
             self.assertEqual(len(md), largo)
             self.assertEqual(md[0], "Línea 0")
-            log = tar.extractfile("orquestador.log").read().decode("utf-8").splitlines()
+            log_file = tar.extractfile("orquestador.log")
+            self.assertIsNotNone(log_file)
+            log = log_file.read().decode("utf-8").splitlines()
             self.assertEqual(len(log), espejo_estado.LOG_LINEAS)
             self.assertEqual(log[0], "registro %d" % (largo - espejo_estado.LOG_LINEAS))
             self.assertEqual(log[-1], "registro %d" % (largo - 1))
+
+    def test_empaquetar_todos_los_tipos_archivo_con_lineas_correctas(self):
+        """Rescatado de rama nube (RTCOL1012I): todos los archivos SIEMPRE, colas recientes y logs
+        se empaquetan con sus líneas correctas (JSON: 1, MD: completo, logs: LOG_LINEAS)."""
+        corte = espejo_estado.LOG_LINEAS
+        # SIEMPRE files
+        with open(os.path.join(self.olas, "progreso.json"), "w", encoding="utf-8") as f:
+            json.dump({"prueba": "progreso"}, f)
+        with open(os.path.join(self.olas, "medios.json"), "w", encoding="utf-8") as f:
+            json.dump({"prueba": "medios"}, f)
+        with open(os.path.join(self.olas, "puntos-control.json"), "w", encoding="utf-8") as f:
+            json.dump({"prueba": "puntos"}, f)
+        with open(os.path.join(self.olas, "progreso.md"), "w", encoding="utf-8") as f:
+            f.write("\n".join("Línea %d" % i for i in range(300)))
+        # Recent cola
+        with open(os.path.join(self.olas, "cola-1.json"), "w", encoding="utf-8") as f:
+            json.dump({"prueba": "cola1"}, f)
+        # Logs
+        with open(os.path.join(self.olas, "evento1.jsonl"), "w", encoding="utf-8") as f:
+            f.write("".join(json.dumps({"evento": i}) + "\n" for i in range(corte + 50)))
+        with open(os.path.join(self.olas, "log.txt"), "w", encoding="utf-8") as f:
+            f.write("\n".join("Log line %d" % i for i in range(corte)))  # sin salto final
+
+        seleccion = [
+            "progreso.json", "medios.json", "puntos-control.json",
+            "progreso.md", "cola-1.json", "evento1.jsonl", "log.txt"
+        ]
+        with tempfile.TemporaryDirectory() as salida:
+            ruta = empaquetar(seleccion, self.olas, salida)
+            self.assertLessEqual(os.path.getsize(ruta), espejo_estado.TOPE_BYTES)
+            extra = os.path.join(salida, "extra")
+            with tarfile.open(ruta, "r:gz") as tar:
+                tar.extractall(path=extra)
+            # Files extract directly in extra/ (no subdirectory in current implementation)
+            self.assertEqual(sorted(os.listdir(extra)), sorted(seleccion))
+            esperadas = {
+                "progreso.json": 1,
+                "medios.json": 1,
+                "puntos-control.json": 1,
+                "progreso.md": 300,
+                "cola-1.json": 1,
+                "evento1.jsonl": corte,
+                "log.txt": corte,
+            }
+            for nombre, esperada in esperadas.items():
+                ruta_extra = os.path.join(extra, nombre)
+                with open(ruta_extra, "r", encoding="utf-8") as f:
+                    lineas = f.read().splitlines()
+                self.assertEqual(len(lineas), esperada, f"{nombre}: {len(lineas)} != {esperada}")
+            # Verify log.txt keeps the last lines
+            with open(os.path.join(extra, "log.txt"), "r", encoding="utf-8") as f:
+                self.assertEqual(f.read().splitlines()[-1], "Log line %d" % (corte - 1))
 
 
 class PruebasEnviarEstado(unittest.TestCase):
