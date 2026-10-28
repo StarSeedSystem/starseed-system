@@ -24,6 +24,7 @@ import {
   type ScreenElement,
 } from "./screen-scanner";
 import { hide as hideOverlayBadges, highlight, showBadges } from "./screen-overlay";
+import { anunciarAccion, puedeActuar, type AccionAgente, type NivelBot } from "@/lib/mausbot/cursor-agente";
 
 /** Resultado honesto de una acción de pantalla (frase decible). */
 export interface ScreenActionOutcome {
