@@ -64,6 +64,7 @@ import { AuroraChatView, type LiveMessage } from "@/components/exocortex/aurora-
 import { AuroraChatFullscreen } from "@/components/exocortex/aurora-chat-fullscreen";
 import { AuroraChatExplorer } from "@/components/exocortex/aurora-chat-explorer";
 import { AuroraAvatar } from "@/components/aurora/aurora-avatar";
+import { MausbotAjustes } from "@/components/mausbot/mausbot-ajustes";
 import type { CatalogChat } from "@/lib/aurora/chat-catalog";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import {
@@ -1411,6 +1412,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
         <div className="relative z-[1] flex flex-col gap-3">
           <AuroraAlwaysOn />
           <AuroraControlPanel enabled={enabled} onSetEnabled={doSetEnabled} />
+          <MausbotAjustes />
         </div>
       ) : tab === "personalidad" ? (
         /* Personalidades como ARCHIVOS de configuración (Adenda 63 §11): galería
