@@ -11,6 +11,8 @@
 //     ya está adoptada por el cliente del OS (misma clave de storage), así que
 //     solo confirmamos que sigue viva y entramos al sistema.
 //   • "Usar otra cuenta"      → descarta el prompt y deja el login normal.
+//   • "Conoce StarSeed (sin cuenta)" → la guía de introducción completa, sin
+//     cuenta, por la puerta común `abrirGuia` (§5 de `architecture/guias-introduccion.md`).
 //
 // Diseño alineado con AuthGate (cristal oscuro, gradiente violeta→teal
 // #7c5cff→#23d5ab). Aditivo y defensivo: si no se detecta sesión, no renderiza
@@ -19,7 +21,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Compass } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 import {
     detectStarSeedSession,
     identityLabel,
@@ -190,6 +194,8 @@ export function SessionResumePrompt({
                 .ss-sso-enter:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
                 .ss-sso-other:hover:not(:disabled) { color: rgba(255,255,255,.92) !important; }
                 .ss-sso-other:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; border-radius: 8px; }
+                .ss-sso-guia:hover:not(:disabled) { background: rgba(255,255,255,.08) !important; border-color: rgba(255,255,255,.28) !important; }
+                .ss-sso-guia:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; border-radius: 13px; }
                 @media (prefers-reduced-motion: reduce) { .ss-sso-card { animation: none !important; } }
             `}</style>
 
@@ -334,6 +340,32 @@ export function SessionResumePrompt({
                     }}
                 >
                     Usar otra cuenta
+                </button>
+
+                {/* (GUI1021K2c · §5) La guía completa sin cuenta, por la puerta común */}
+                <button
+                    type="button"
+                    className="ss-sso-guia"
+                    onClick={() => abrirGuia({ desde: "login" })}
+                    style={{
+                        width: "100%",
+                        border: "1px solid rgba(255,255,255,.16)",
+                        borderRadius: 13,
+                        padding: "10px 0",
+                        minHeight: 44,
+                        color: "rgba(255,255,255,.85)",
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        background: "rgba(255,255,255,.04)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8,
+                        marginTop: 10,
+                    }}
+                >
+                    <Compass size={14} aria-hidden /> Conoce StarSeed (sin cuenta)
                 </button>
 
                 <p
