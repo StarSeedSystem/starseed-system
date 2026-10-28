@@ -60,13 +60,14 @@ afterEach(() => cleanup());
 
 describe("WelcomeWindow (GUI1021K2)", () => {
   it("«Conoce StarSeed (sin cuenta)» abre la guía desde «bienvenida», con ratón y con teclado", async () => {
+    const guia = escucharGuia();
     render(<WelcomeWindow onContinue={() => undefined} />);
     const boton = screen.getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
     expect(boton.style.cursor).toBe("pointer");
     expect(boton.style.minHeight).toBe("44px");
     expect(boton.className).toMatch(/ss-wel-soft/); // su :focus-visible está en el <style>
+    expect(guia.recibidos).toEqual([]); // no se abre sola: el rito nunca deja al usuario en bucle
 
-    const guia = escucharGuia();
     fireEvent.click(boton);
 
     const teclado = userEvent.setup();
@@ -79,11 +80,11 @@ describe("WelcomeWindow (GUI1021K2)", () => {
 
 describe("SessionResumePrompt (GUI1021K2)", () => {
   it("el aviso de retomar sesión abre la guía desde «login», con ratón y con teclado", async () => {
-    render(<SessionResumePrompt />);
     const guia = escucharGuia();
+    render(<SessionResumePrompt />);
 
     const boton = await screen.findByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
-    expect(guia.recibidos).toEqual([]); // aún nada sin gesto
+    expect(guia.recibidos).toEqual([]); // aún nada sin gesto: ni al montar ni al detectar sesión
 
     fireEvent.click(boton);
 
