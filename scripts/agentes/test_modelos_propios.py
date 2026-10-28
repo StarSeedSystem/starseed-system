@@ -107,6 +107,17 @@ class Cliente(unittest.TestCase):
         c = M.cliente_openai_compatible("texto", leer_env=lambda: texto, sonda=self.sonda)
         self.assertEqual(c.origen, "experiential")
 
+    def test_el_entorno_inyectado_manda_sobre_el_archivo(self):
+        texto = (
+            'export STARSEED_PASARELA_EXPLABS_KEY="vieja"\n'
+            "STARSEED_PASARELA_EXPLABS_MODELOS=clef-flash\n"
+        )
+        env = {"STARSEED_PASARELA_EXPLABS_KEY": "nueva"}
+        c = M.cliente_openai_compatible(
+            "texto", entorno=env, leer_env=lambda: texto, sonda=self.sonda)
+        self.assertEqual(c.origen, "experiential")
+        self.assertEqual(c.cabeceras(), {"Authorization": "Bearer nueva"})
+
     def test_la_clave_nunca_sale_en_el_repr(self):
         c = M.ClienteOpenAI("http://x/v1", "m", "clave-secreta")
         self.assertNotIn("clave-secreta", repr(c))
