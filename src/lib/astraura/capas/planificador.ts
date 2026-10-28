@@ -1,6 +1,7 @@
 import type { classifyTask, estimateDifficulty } from "@/ai/astraura/router";
 import { sesgoNivelador, type PreferenciaCapas } from "@/lib/astraura/capas-conciencia";
 import { profundidadNeedle, type Capa } from "./catalogo";
+import { ordenarPorMedidas, type AlmacenMedidas } from "./medidas";
 
 type Tarea = ReturnType<typeof classifyTask>["kind"];
 type Dificultad = ReturnType<typeof estimateDifficulty>;
@@ -41,6 +42,8 @@ export interface EntradaPlanificador {
   instaladas: readonly CapaInstalada[];
   nodos: readonly NodoCapas[];
   preferencias: PreferenciaCapas;
+  medidas?: AlmacenMedidas;
+  neurona?: string;
 }
 const ORDEN: Record<Capa, readonly string[]> = {
   reflejo: ["needle3-reflejo"],
@@ -108,14 +111,32 @@ export function planificar(entrada: EntradaPlanificador): PlanCapas {
     for (const disponible of capas) candidatos.push({ modelo: disponible.id, donde: nodo.tipo, nodo: nodo.id,
       capa: disponible, puntos: 24 + puntuarModelo(disponible.id) - ((nodo.latenciaMs ?? 0) > (entrada.latenciaMs ?? Infinity) ? 8 : 0) });
   }
-  candidatos.sort((a, b) => b.puntos - a.puntos || a.modelo.localeCompare(b.modelo));
-  const elegido = candidatos[0];
+  let lista = [...candidatos];
+  if (entrada.medidas && entrada.neurona) {
+    const base = lista.map((c) => ({ modelo: c.modelo }));
+    const ord = ordenarPorMedidas(base, entrada.medidas, entrada.neurona);
+    const map = new Map<string, Candidato>();
+    for (const c of lista) map.set(c.modelo, c);
+    const reorden: Candidato[] = [];
+    for (const o of ord) {
+      const m = map.get(o.modelo);
+      if (m) {
+        reorden.push(m);
+        map.delete(o.modelo);
+      }
+    }
+    for (const c of lista) if (map.has(c.modelo)) reorden.push(map.get(c.modelo)!);
+    lista = reorden;
+  } else {
+    lista.sort((a, b) => b.puntos - a.puntos || a.modelo.localeCompare(b.modelo));
+  }
+  const elegido = lista[0];
   if (!elegido) return { capa, modelo: "ninguno", donde: "local", respaldo: [],
     motivo: "No hay una capa verificada permitida para este medio y privacidad." };
   const profundidad = capa === "reflejo"
     ? Math.min(elegido.capa?.profundidad ?? 20, profundidadNeedle(entrada.presupuesto.discoMb)) || undefined
     : undefined;
   return { capa, modelo: elegido.modelo, donde: elegido.donde, nodo: elegido.nodo, profundidad,
-    respaldo: candidatos.slice(1, 5).map(({ modelo, donde, nodo }) => ({ modelo, donde, nodo })),
+    respaldo: lista.slice(1, 5).map(({ modelo, donde, nodo }) => ({ modelo, donde, nodo })),
     motivo: `${fondo ? "Segundo plano" : "Reflejo previo"}; ${capa} en ${elegido.donde}, con privacidad ${entrada.privacidad}.` };
 }
