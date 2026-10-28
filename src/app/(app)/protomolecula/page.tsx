@@ -13,6 +13,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Atom } from "lucide-react";
 import { PanelProtomoleculaAutonomo } from "@/components/protomolecula/panel-protomolecula";
+import { SugerenciasInstalacion } from "@/components/imagenes";
 
 function ProtomoleculaInterior() {
   const params = useSearchParams();
@@ -26,6 +27,11 @@ function ProtomoleculaInterior() {
       <section className="min-h-0 flex-1 overflow-hidden">
         <PanelProtomoleculaAutonomo moleculaId={moleculaId} />
       </section>
+      {/* Imágenes locales (IMG1011 · contrato §5): paquete base sugerido para esta neurona.
+          Solo se pinta si hay servicio local o algo real que decir. */}
+      <div className="max-h-[45vh] shrink-0 overflow-y-auto px-4 pb-3 sm:px-6">
+        <SugerenciasInstalacion />
+      </div>
     </main>
   );
 }
