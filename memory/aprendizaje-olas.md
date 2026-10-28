@@ -4632,3 +4632,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `APM1017G` — pruebas en rojo: vitest falla (rama conservada)
 - `RTRTCOL1012Bdsbbbbbbbbbbc` — no escribió nada
 - `VZF1015V` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-28 02:49 · mg-oracle-1027-1943
+
+**Lo que se pidió.** add/add
+
+**Resultado.** 2 de 6 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (RTGN1010A-d3d-d3b, RTFS1013Ad-d2c, RTAV1011Id). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTHFR1018Ed` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTHFR1018Ed conservada)
+- `RTGN1010A-d3d-d3b` — no escribió nada
+- `RTFS1013Ad-d2c` — no escribió nada
+- `RTAV1011Id` — no escribió nada
