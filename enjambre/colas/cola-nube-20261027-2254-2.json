@@ -1,0 +1,89 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "MTN1027L",
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "titulo": "Biblioteca · tanda 1027b (Meta^n y Memvid) como módulo puro",
+   "archivos": [
+    "src/lib/library/repos-1027b.ts",
+    "src/lib/library/__tests__/repos-1027b.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\nIgual que `src/lib/library/repos-1027.ts` (y `repos-1026.ts`), leyendo `config/repos-libreria-1027b.json` (ya en main): `FICHAS_REPOS_1027B`, `DECISIONES_1027B`, `LICENCIAS_VERIFICADAS_1027B`. `lib-meta-n` va por canal `commits` (sin etiquetas; versión = el commit corto) y `lib-memvid` por `tags`. Si un icono del JSON no existe en el mapa de iconos de la Biblioteca, usa el que se usa para `ai-source`. Prueba: 2 fichas, ids únicos, canales.",
+   "dependencias_ya_en_main": [
+    "MBT1027N"
+   ]
+  },
+  {
+   "id": "LNN1028A",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Recordar · fusión por rango recíproco de Memvid y LEANN (puro, TS)",
+   "archivos": [
+    "src/lib/memorias/fusion-recuerdos.ts",
+    "src/lib/memorias/__tests__/fusion-recuerdos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nPURO. `Recuerdo = { uri: string; texto: string; titulo?: string; ts?: number; fuente: \"memvid\" | \"leann\"; puntuacion?: number; alcance: AlcanceMemoria }`. `fundirRecuerdos(listas: Recuerdo[][], {k = 60, max = 6, maxCaracteres = 1500})`: fusión por rango recíproco (suma de 1/(k + rango) por `uri`; sin `uri`, la huella del texto), dedupe quedándose con el texto más largo, orden por puntuación fundida y corte por `max` y `maxCaracteres`. `pesoVectorPara(consulta)`: 0,7 por defecto, 0,4 si la consulta lleva comillas o nombres propios (más peso a las palabras). Pruebas: un recuerdo en las dos listas sube; dedupe; cortes."
+  },
+  {
+   "id": "LNN1028E",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Túnel · la Mac llega al servidor LEANN del A1",
+   "archivos": [
+    "scripts/puente/tunel_metagenesis.py",
+    "scripts/puente/test_tunel_metagenesis_leann.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nLéelo entero. Añade el reenvío local 127.0.0.1:4495 → A1 127.0.0.1:4495 al túnel que ya abre (mismo `ssh`, misma llave, misma vigilancia y reconexión). Si el túnel no admite más reenvíos sin cambiar su forma, crea la lista de reenvíos (`REENVIOS = [(puerto_local, puerto_a1), ...]`) con el suyo de siempre y este. Nunca imprime la IP del A1. Prueba de que la orden de `ssh` lleva los dos `-L`."
+  },
+  {
+   "id": "GUI1021M3c",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión de publicaciones y entidades",
+   "archivos": [
+    "src/components/social/PostCard.tsx",
+    "src/components/social/governance-entity-page.tsx",
+    "src/components/social/entity-header.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. En PostCard, los avisos que son un botón pequeño dentro de la tarjeta usan `compacto`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40136007455`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40136007455:refs/remotes/origin/nube/40136007455\"` y `git cherry-pick --no-commit 3810e4095a26`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/social/PostCard.tsx, src/components/social/entity-header.tsx, src/components/social/governance-entity-page.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40136007455",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  },
+  {
+   "id": "VPU1019N",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Clic derecho global montado en toda la app",
+   "archivos": [
+    "src/components/variaciones/clic-derecho-global.tsx",
+    "src/app/(app)/app-globals.tsx",
+    "src/components/variaciones/__tests__/clic-derecho-global.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente que escucha `contextmenu` y la pulsación larga (patrón de `use-context-trigger.ts`) en el documento: si el objetivo tiene menú propio (marca `data-ss-menu-propio`) no hace nada; en campos de texto y con Mayúsculas deja el menú del navegador; si hay clave, muestra un menú con «Variaciones públicas», «Publicar mi variación» y «Copiar enlace al elemento». Teclado: tecla de menú y Mayúsculas+F10. En `app-globals.tsx` SOLO añade el montaje de este componente y de `variaciones-host`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A",
+    "VPU1019M"
+   ]
+  },
+  {
+   "id": "VZF1015N",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Plática · interrupción por voz: si la persona habla > 250 ms, Astraura calla al momento",
+   "archivos": [
+    "src/lib/aurora/interrumpir-por-voz.ts",
+    "src/lib/aurora/__tests__/interrumpir-por-voz.test.ts",
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Hoy solo se interrumpe tocando la orbe. Crea un detector PURO por energía con histéresis (`decidirInterrupcion(muestras, estado, { umbralDb, minimoMs: 250 })`) y un montaje que lee el micrófono con `echoCancellation: true` y `noiseSuppression: true` mientras Astraura habla y llama a `interrupt()` del motor. No puede cortarse con su propio eco: respeta `esEcoPropio`/`ventanaEcoMs` de `anti-bucle-voz.ts`. En `engine.ts` solo el enganche (activar al hablar, soltar al callar). Pruebas del detector con muestras sintéticas. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015I"
+   ]
+  }
+ ]
+}
