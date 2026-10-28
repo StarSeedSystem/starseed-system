@@ -23,6 +23,7 @@ import path from "node:path";
 import { guardianMando } from "@/lib/mando/guardian";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { construirResumenRed, leerBanco, leerCatalogoCapas, leerNuevas } from "@/lib/mando/capas-red";
+import { entradasColibri, leerCatalogo } from "@/lib/astraura/capas/catalogo";
 import type { CapacidadesNodo } from "@/lib/network/capacidades-nodo";
 
 export const runtime = "nodejs";
