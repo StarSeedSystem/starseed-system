@@ -172,7 +172,7 @@ const EXPLICACIONES: Record<string, ExplicacionArea> = {
  * Rutas cuya explicación sale de la fuente única de textos (GUI1021G).
  * `/cerebros` se conserva por compatibilidad: la tarjeta ya apunta a `/cerebro`.
  */
-export const TEMA_POR_RUTA: Record<string, string> = {
+const TEMA_POR_RUTA: Record<string, string> = {
   "/protomolecula": "protomolecula",
   "/network/politics": "pilar-politica",
   "/network/education": "pilar-educacion",
@@ -199,7 +199,7 @@ function explicacionDeTema(tema: TemaGuia): ExplicacionArea {
 }
 
 // Explicación genérica por si se añade un área sin texto propio todavía.
-export function explicacionDe(area: AreaTip): ExplicacionArea {
+function explicacionDe(area: AreaTip): ExplicacionArea {
   const clave = TEMA_POR_RUTA[area.path];
   const tema = clave ? TODOS_LOS_TEMAS.find((t) => t.key === clave) : undefined;
   if (tema) return explicacionDeTema(tema);
@@ -214,6 +214,8 @@ export function explicacionDe(area: AreaTip): ExplicacionArea {
     }
   );
 }
+
+export { TEMA_POR_RUTA, explicacionDe };
 
 export function AreasExplicadas({
   areas,
