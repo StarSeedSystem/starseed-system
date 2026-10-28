@@ -21,6 +21,25 @@ PUERTO_STARSEED = 4480
 # la RAM recomendada de cada modelo. En una neurona DEDICADA a Colibri quien llama pasa margen_gb=0.
 MARGEN_SISTEMA_GB = 4.5
 CARPETA_DEFECTO = str(Path.home() / "Colibri-modelos")
+#: La ruta del checkout que la unidad `starseed-colibri.service` da por hecha (sale `c/coli`).
+REPO_CLONE_RUTA = "/home/starseed/colibri"
+#: Los modelos de DECISIÓN no van por setup (docs/laya.md y docs/gliner_decide.md de v2.0.0):
+#: se descargan con `hf`, se compilan con `make` y los sirve la unidad; ojo sin `serve`.
+DECISION = {
+    "colibri-laya": {"hf": "convaiinnovations/laya", "carpeta": "laya", "make": "laya",
+                     "archivos": ["model.safetensors", "rl_agent_config.json",
+                                  "encoder/*", "tokenizer/*"]},
+    "colibri-gliner-decide": {"hf": "fastino/GLiNER2.5-Decide", "carpeta": "GLiNER2.5-Decide",
+                              "make": "gliner_decide",
+                              "archivos": ["model.safetensors", "config.json", "encoder_config/*",
+                                           "tokenizer.json", "tokenizer_config.json",
+                                           "special_tokens_map.json"]},
+}
+
+
+def hf_disponible() -> bool:
+    """¿Está el CLI `hf` en el PATH? (solo se mira, nada se instala)."""
+    return shutil.which("hf") is not None
 
 
 def entradas() -> list[dict[str, Any]]:
@@ -65,20 +84,41 @@ def caben(lista: list[dict[str, Any]], ram_gb: float, disco_libre_gb: float,
 
 
 def plan_instalacion(id_modelo: str, carpeta: str) -> list[dict[str, Any]]:
-    """Las órdenes para instalar `id_modelo` en `carpeta`, como LISTAS de argumentos, sin ejecutar."""
+    """Las órdenes para instalar `id_modelo` en `carpeta`, como LISTAS de argumentos, sin ejecutar.
+
+    Laya y GLiNER2.5-Decide NO van por setup (el 28-10 dio «fallo 1 en el paso 2»): descarga con `hf`,
+    compila con `make` y el `serve` lo hace la unidad. Los de chat pasan por `start-here.sh` con
+    el id de SU catálogo (sin el prefijo `colibri-` de StarSeed) y `--no-start`. Clef no cabe."""
     ids = {e["id"] for e in entradas()}
     if id_modelo not in ids:
         raise ValueError(f"id desconocido «{id_modelo}»: no está en config/capas-colibri-1027.json")
-    copia = f"{carpeta}/colibri-{ETIQUETA}"
-    return [
-        {"porque": f"clona el motor Apache-2.0 en su etiqueta verificada {ETIQUETA}",
-         "args": ["git", "clone", "--depth", "1", "--branch", ETIQUETA, REPO_COLIBRI, copia]},
-        {"porque": "compila y prepara el modelo en la carpeta de la neurona, sin pedir GPU",
-         "args": ["./start-here.sh", "--model", id_modelo, "--dir", carpeta, "--yes", "--no-gpu"]},
-        {"porque": f"lo sirve solo en local, en 127.0.0.1:{PUERTO_STARSEED} (el 8000 es de Astraura 1.58)",
-         "args": ["./start-here.sh", "--model", id_modelo, "--dir", carpeta,
-                  "--host", "127.0.0.1", "--port", str(PUERTO_STARSEED)]},
+    if id_modelo == "colibri-clef":
+        raise ValueError(f"{id_modelo} no cabe en esta neurona: 52 GB de disco y 19 GB de RAM mínima")
+    pasos = [
+        {"porque": f"clona el motor Apache-2.0 en su etiqueta verificada {ETIQUETA}, en la ruta de la unidad",
+         "args": ["git", "clone", "--depth", "1", "--branch", ETIQUETA, REPO_COLIBRI, REPO_CLONE_RUTA]},
     ]
+    decision = DECISION.get(id_modelo)
+    if decision:
+        if not hf_disponible():
+            pasos.append({"porque": "falta el CLI de descarga de Hugging Face: lo trae antes",
+                          "args": ["python3", "-m", "pip", "install", "--user", "huggingface_hub[cli]"]})
+        local = f"{carpeta}/{decision['carpeta']}"
+        pasos.extend([
+            {"porque": f"descarga el modelo de decisión {decision['hf']} (docs de v2.0.0, sin setup)",
+             "args": ["hf", "download", decision["hf"], *decision["archivos"], "--local-dir", local]},
+            {"porque": "anota el SHA-256 de los pesos descargados (nada sin su SHA: capas-astraura)",
+             "args": ["sha256sum", f"{local}/model.safetensors"]},
+            {"porque": f"compila el binario de decisión; el `serve` en 127.0.0.1:{PUERTO_STARSEED} "
+                       f"lo hace la unidad, no este plan",
+             "args": ["make", "-C", "c", decision["make"]]},
+        ])
+        return pasos
+    pasos.append({"porque": "compila y prepara el modelo con su id de catálogo de Colibri, sin GPU "
+                            "y sin quedarse sirviendo en primer plano (lo gobierna la unidad)",
+                  "args": ["./start-here.sh", "--model", id_modelo.removeprefix("colibri-"),
+                           "--dir", carpeta, "--yes", "--no-gpu", "--no-start", "--no-browser"]})
+    return pasos
 
 
 def medir_maquina() -> tuple[float, float, bool]:

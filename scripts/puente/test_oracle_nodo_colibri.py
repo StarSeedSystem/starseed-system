@@ -5,6 +5,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import sys
 import unittest
 
@@ -19,22 +20,24 @@ SERVICIO = os.path.normpath(os.path.join(
 
 
 class Plan(unittest.TestCase):
-    def test_tres_pasos_con_el_checkout_canonico(self):
+    def test_laya_va_por_hf_y_make_hacia_la_ruta_de_la_unidad(self):
         plan = N.plan_colibri()
-        self.assertEqual(len(plan), 3)
-        clon, prepara, sirve = (paso["args"] for paso in plan)
-        self.assertEqual(clon[0], "git")
+        texto = " ".join(" ".join(paso["args"]) for paso in plan)
+        self.assertNotIn("start-here.sh", texto)
+        self.assertNotIn("--port", texto)
+        clon = plan[0]["args"]
+        self.assertEqual([clon[0], clon[-1]], ["git", N.COLIBRI_REPO_A1])
         self.assertIn("v2.0.0", clon)
-        self.assertEqual(clon[-1], N.COLIBRI_REPO_A1)
-        self.assertEqual(prepara[:2], ["./start-here.sh", "--model"])
-        self.assertEqual(prepara[prepara.index("--dir") + 1], N.COLIBRI_MODELOS_A1)
-        self.assertEqual(sirve[sirve.index("--host") + 1], "127.0.0.1")
-        self.assertEqual(sirve[sirve.index("--port") + 1], "4480")
+        descargas = [p["args"] for p in plan if p["args"][0:2] == ["hf", "download"]]
+        self.assertEqual(len(descargas), 1)
+        self.assertEqual(descargas[0][2], "convaiinnovations/laya")
+        self.assertEqual(descargas[0][descargas[0].index("--local-dir") + 1], N.COLIBRI_MODELO_A1)
+        self.assertIn(["make", "-C", "c", "laya"], [p["args"] for p in plan])
 
     def test_carpeta_del_modelo_configurable(self):
         plan = N.plan_colibri("/srv/modelos")
-        prepara = plan[1]["args"]
-        self.assertEqual(prepara[prepara.index("--dir") + 1], "/srv/modelos")
+        descarga = [p["args"] for p in plan if p["args"][0] == "hf"][0]
+        self.assertEqual(descarga[descarga.index("--local-dir") + 1], "/srv/modelos/laya")
 
     def test_argumentos_como_listas_y_sin_claves(self):
         plan = N.plan_colibri()
@@ -43,8 +46,9 @@ class Plan(unittest.TestCase):
             self.assertTrue(all(isinstance(a, str) for a in paso["args"]))
             self.assertTrue(paso["porque"])
         texto = json.dumps(plan, ensure_ascii=False).upper()
-        for prohibido in ("API_KEY", "TOKEN", "SECRET", "PASSWORD"):
-            self.assertNotIn(prohibido, texto)
+        # «TOKEN» solo como palabra: TOKENIZER/* es un archivo del modelo, no una credencial
+        for prohibido in (r"\bAPI_KEY\b", r"\bSECRET\b", r"\bPASSWORD\b", r"\bTOKEN\b"):
+            self.assertIsNone(re.search(prohibido, texto), prohibido)
 
 
 class SSH(unittest.TestCase):
@@ -74,18 +78,21 @@ class SSH(unittest.TestCase):
         self.assertEqual(self.llamadas, [])
         datos = json.loads(salida)
         self.assertFalse(datos["aplicado"])
-        self.assertEqual(len(datos["pasos"]), 3)
-        self.assertIn("--port", datos["pasos"][2]["args"])
+        self.assertEqual(datos["pasos"][0]["args"][0], "git")
+        texto = json.dumps(datos["pasos"])
+        self.assertIn("convaiinnovations/laya", texto)
+        self.assertNotIn("start-here.sh", texto)
 
-    def test_con_aplicar_corre_el_plan_por_ssh(self):
+    def test_con_aplicar_corre_el_plan_por_ssh_como_starseed(self):
         rc, salida = self._main("colibri", "--aplicar")
         self.assertEqual(rc, 0)
         self.assertEqual(len(self.llamadas), 1)
         llamada = self.llamadas[0]
         self.assertEqual(llamada["orden"], "sudo -u starseed python3 -")
         self.assertIn(N.COLIBRI_REPO_A1, llamada["entrada"])
-        self.assertIn("--port", llamada["entrada"])
-        self.assertIn("4480", llamada["entrada"])
+        self.assertIn("make", llamada["entrada"])
+        self.assertIn("convaiinnovations/laya", llamada["entrada"])
+        self.assertIn("sha256sum", llamada["entrada"])
         self.assertGreaterEqual(llamada["timeout"], 3600)
         self.assertTrue(json.loads(salida)["ok"])
 
