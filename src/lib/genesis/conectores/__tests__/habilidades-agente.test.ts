@@ -121,6 +121,13 @@ describe("habilidadesPara · por director (etiquetas)", () => {
     expect(esDirector("diseno")).toBe(true);
   });
 
+  it("diseño también elige por la etiqueta «pizarra» y descarta la de solo web", () => {
+    const pizarra = cap("tldraw", "Pizarra profesional (tldraw)", { vision: true });
+    const soloWeb = cap("red", "Acceso web", { web: true });
+    const conDiseno = { capacidades: [pizarra, soloWeb], desactivadas: [] };
+    expect(ids(habilidadesPara("diseno", "cuenta", conDiseno))).toEqual(["tldraw"]);
+  });
+
   it("producción elige lo audiovisual y de voz; aprendizaje, lo de memoria", () => {
     expect(ids(habilidadesPara("produccion", "cuenta", OPCIONES))).toEqual(["av-gen"]);
     expect(ids(habilidadesPara("aprendizaje", "cuenta", OPCIONES))).toEqual(["memoria-agente"]);
