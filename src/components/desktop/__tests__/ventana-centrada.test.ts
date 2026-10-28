@@ -36,3 +36,26 @@ describe("Ventana del escritorio · banda de la barra superior (B-1)", () => {
     expect(v.y).toBe(DESKTOP_TOP_INSET);
   });
 });
+
+describe("Ventana centrada (B-2)", () => {
+  it("usa valores por defecto cuando no hay posición guardada", () => {
+    const sinPosicion = { w: 400, h: 300, contentRef: { type: "app", ref: "nueva" } };
+    const v = ventanaDe(docEscritorio(sinPosicion));
+    // normalizeWindow usa defaults: x=64, y=DESKTOP_TOP_INSET
+    expect(v.x).toBe(64);
+    expect(v.y).toBe(DESKTOP_TOP_INSET);
+  });
+
+  it("respeta posición guardada cuando existe", () => {
+    const guardada = { x: 300, y: 200, w: 400, h: 300, contentRef: { type: "app", ref: "guardada" } };
+    const v = ventanaDe(docEscritorio(guardada));
+    expect(v.x).toBe(300);
+    expect(v.y).toBe(200);
+  });
+
+  it("clampa el margen superior aunque y sea negativa", () => {
+    const negativa = { x: -50, y: -30, w: 400, h: 300, contentRef: { type: "app", ref: "negativa" } };
+    const v = ventanaDe(docEscritorio(negativa));
+    expect(v.y).toBe(DESKTOP_TOP_INSET);
+  });
+});
