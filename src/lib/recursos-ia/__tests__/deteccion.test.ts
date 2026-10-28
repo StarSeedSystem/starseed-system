@@ -22,6 +22,7 @@ import {
     recursosDeServidoresCerebro,
 } from "../deteccion";
 import type { DeteccionMaquina } from "../deteccion-tipos";
+import { esDeteccionMaquina } from "../deteccion-tipos";
 import type { MedioAlmacen } from "../tipos";
 
 const ID = "n-mac";
@@ -174,6 +175,18 @@ describe("inventarioDesde · Mac de Alex con servidor local y SSD externo USB", 
         expect(inv.avisos).not.toContain(AVISO_DISCOS);
         expect(inv.avisos).not.toContain(AVISO_RAM_NAVEGADOR);
     });
+
+    it("el servidor contestó pero no pudo leer los discos: su aviso lo dice, no el genérico del navegador", () => {
+        const out = inventarioDesde({
+            estaNeurona: desdeNavegador(),
+            maquina: { ...MAC_ALEX, npu: undefined, volumenes: [] },
+            ahora,
+        });
+        expect(out.avisos).toContain("El servidor local de esta neurona no pudo leer sus discos.");
+        expect(out.avisos).not.toContain(AVISO_DISCOS);
+        // Lo justo del servidor con discos vacíos: ni CPU los discos ni almacenes medidos.
+        expect(out.neuronas[0].almacenes.some((a) => a.fuente === "detectado")).toBe(false);
+    });
 });
 
 describe("inventarioDesde · sin servidor local", () => {
@@ -296,6 +309,16 @@ describe("detección de la app nativa (discos y NPU)", () => {
             fuente: "detectado",
         });
         expect(out.procesadores.find((p) => p.tipo === "webgpu")).toBeDefined();
+    });
+
+    it("la forma rota no se cuela: lo que el servidor local contesta se valida antes de usarlo", () => {
+        expect(esDeteccionMaquina(MAC_ALEX)).toBe(true);
+        expect(esDeteccionMaquina(null)).toBe(false);
+        expect(esDeteccionMaquina("macOS")).toBe(false);
+        // Un campo atómico con otro tipo (un nucleos «8» suelto, listas que no son listas) no pasa.
+        expect(esDeteccionMaquina({ ...MAC_ALEX, nucleos: "8" })).toBe(false);
+        expect(esDeteccionMaquina({ ...MAC_ALEX, volumenes: "228" })).toBe(false);
+        expect(esDeteccionMaquina({ so: "macOS 26.3.1", nucleos: 8, ramGb: 8 })).toBe(false);
     });
 
     it("un volumen nativo de solo lectura se lista sin recibir descargas", () => {
