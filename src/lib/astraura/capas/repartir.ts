@@ -81,12 +81,63 @@ const ORDEN_FUENTES: FuenteCapa[] = [
 /**
  * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén local.
  */
-async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
+interface MetaAlmacenada {
+  sha256: string;
+  totalTrozos: number;
+  completa: boolean;
+}
+
+/** Analiza el JSON de una meta y descarta lo que no cuadre con el formato de AlmacenCapas. */
+function metaDeAlmacen(v: unknown): MetaAlmacenada | null {
+  if (typeof v !== "object" || v === null) return null;
+  const m = v as Record<string, unknown>;
+  if (
+    typeof m.sha256 !== "string" ||
+    m.sha256.length !== 64 ||
+    typeof m.completa !== "boolean" ||
+    typeof m.totalTrozos !== "number"
+  ) {
+    return null;
+  }
+  const totalTrozos = m.totalTrozos;
+  if (!Number.isInteger(totalTrozos) || totalTrozos < 1) return null;
+  return { sha256: m.sha256, totalTrozos, completa: m.completa };
+}
+
+function jsonDeMeta(datos: ArrayBuffer): unknown {
+  try {
+    return JSON.parse(new TextDecoder().decode(datos));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén (§6).
+ * Cruza el SHA con la meta que AlmacenCapas guarda (`capa/<id>/meta`) y cuenta que estén
+ * TODOS sus trozos: `guardarTrozo` solo escribe un trozo tras verificar su SHA-256 y
+ * `guardarCapa` solo marca `completa` cuando el SHA-256 del archivo entero cuadra.
+ */
+export async function capaEnPropio(
+  almacen: Almacenamiento,
+  sha256: string,
+): Promise<boolean> {
   try {
     const claves = await almacen.claves();
-    // Buscar metas guardadas (prefijo capa/<id>/trozo/ no incluye SHA, así que usamos heurística:
-    // si existe algún trozo con ese SHA en el catálogo local, se asume que está.
-    // En implementación real se cruzaría con catálogo; aquí devolvemos false para forzar búsqueda.
+    for (const clave of claves) {
+      if (!clave.endsWith("/meta")) continue;
+      const datos = await almacen.leer(clave);
+      if (datos === null) continue;
+      const meta = metaDeAlmacen(jsonDeMeta(datos));
+      if (meta === null) continue;
+      if (!meta.completa || meta.sha256 !== sha256) continue;
+      // `capa/<id>/meta` → id entre "capa/" y "/meta".
+      const id = clave.slice("capa/".length, -"/meta".length);
+      const prefijo = `capa/${id}/trozo/`;
+      const presentes = claves.filter((c) => c.startsWith(prefijo));
+      if (presentes.length !== meta.totalTrozos) continue;
+      return true;
+    }
     return false;
   } catch {
     return false;

@@ -2,10 +2,46 @@
  * repartir.test.ts — Pruebas puras para pedirCapa (sin red, sin disco real).
  * Usa malla y almacén en memoria.
  */
-import { describe, expect, it, vi } from "vitest";
-import { almacenamientoEnMemoria } from "@/lib/astraura/capas/almacen";
-import { pedirCapa, type ConsultaCapa, type RespuestaCapa, type ContextoPedido, type ResultadoPedido } from "@/lib/astraura/capas/repartir";
+import { describe, expect, it } from "vitest";
+import { AlmacenCapas, almacenamientoEnMemoria, type TrozoCapa } from "@/lib/astraura/capas/almacen";
+import { pedirCapa, capaEnPropio, type ConsultaCapa, type RespuestaCapa, type ContextoPedido } from "@/lib/astraura/capas/repartir";
 import type { EntradaCapa } from "@/lib/astraura/capas/catalogo";
+
+/** Texto → ArrayBuffer, sin depender del buffer subyacente de TextEncoder. */
+const aBuffer = (texto: string): ArrayBuffer => {
+  const bytes = new TextEncoder().encode(texto);
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+};
+
+const shaDe = async (datos: ArrayBuffer): Promise<string> => {
+  const resumen = await globalThis.crypto.subtle.digest("SHA-256", datos);
+  return [...new Uint8Array(resumen)].map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+const concatenar = (partes: ArrayBuffer[]): ArrayBuffer => {
+  const total = partes.reduce((s, p) => s + p.byteLength, 0);
+  const entero = new Uint8Array(total);
+  let desplaza = 0;
+  for (const p of partes) {
+    entero.set(new Uint8Array(p), desplaza);
+    desplaza += p.byteLength;
+  }
+  return entero.buffer;
+};
+
+/** Entrada de catálogo con el SHA real de los trozos, y los trozos con su SHA por trozo. */
+async function capaDeTrozos(textos: string[]): Promise<{ entrada: EntradaCapa; trozos: TrozoCapa[] }> {
+  const partes = textos.map(aBuffer);
+  const sha = await shaDe(concatenar(partes));
+  const trozos: TrozoCapa[] = [];
+  for (let i = 0; i < partes.length; i++) {
+    trozos.push({ indice: i, sha256: await shaDe(partes[i]), datos: partes[i] });
+  }
+  const entrada: EntradaCapa = { ...crearCatalogoFalso()[0], sha256: sha };
+  return { entrada, trozos };
+}
 
 function crearCatalogoFalso(): EntradaCapa[] {
   return [
@@ -37,7 +73,6 @@ function crearMallaFalsa(respuestas: RespuestaCapa[]) {
     malla: {
       broadcast: (msg: ConsultaCapa) => {
         broadcastMsg = msg;
-        // Simular respuestas después de un tick.
         setTimeout(() => {
           for (const r of respuestas) {
             for (const l of listeners) l({ ...r, consultaId: msg.id });
@@ -53,13 +88,79 @@ function crearMallaFalsa(respuestas: RespuestaCapa[]) {
   };
 }
 
+describe("capaEnPropio — verificación de capa en almacén local", () => {
+  it("devuelve true si la capa completa y verificada está en el almacén", async () => {
+    const { entrada, trozos } = await capaDeTrozos(["HOLA-", "MUNDO-", "OK"]);
+    const almacen = almacenamientoEnMemoria();
+    const almacenador = new AlmacenCapas(almacen);
+    expect((await almacenador.guardarCapa(entrada, trozos)).ok).toBe(true);
+    expect(await capaEnPropio(almacen, entrada.sha256)).toBe(true);
+  });
+
+  it("devuelve false mientras falta un trozo (descarga reanudable sin terminar)", async () => {
+    const { entrada, trozos } = await capaDeTrozos(["HOLA-", "MUNDO-", "OK"]);
+    const almacen = almacenamientoEnMemoria();
+    const almacenador = new AlmacenCapas(almacen);
+    await almacenador.guardarTrozo(entrada, trozos[0]);
+    await almacenador.guardarTrozo(entrada, trozos[1]);
+    // El trozo 2 no llegó: la capa no está completa.
+    expect(await capaEnPropio(almacen, entrada.sha256)).toBe(false);
+  });
+
+  it("devuelve false si se pregunta por otro SHA", async () => {
+    const { entrada, trozos } = await capaDeTrozos(["HOLA-", "MUNDO-"]);
+    const almacen = almacenamientoEnMemoria();
+    const almacenador = new AlmacenCapas(almacen);
+    expect((await almacenador.guardarCapa(entrada, trozos)).ok).toBe(true);
+    expect(await capaEnPropio(almacen, "b".repeat(64))).toBe(false);
+  });
+
+  it("devuelve false con el almacén vacío", async () => {
+    expect(await capaEnPropio(almacenamientoEnMemoria(), "a".repeat(64))).toBe(false);
+  });
+
+  it("descarta metas incompletas o corruptas sin lanzar", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const sha256 = "a".repeat(64);
+    const metaIncompleta = { sha256, completa: false, totalTrozos: 2 };
+    const metaCorrupta = "no-es-json";
+    await almacen.escribir("capa/capa-a/meta", aBuffer(JSON.stringify(metaIncompleta)));
+    await almacen.escribir("capa/capa-b/meta", aBuffer(metaCorrupta));
+    for (const i of [0, 1]) {
+      await almacen.escribir(`capa/capa-a/trozo/${i}`, aBuffer("pedazo"));
+      await almacen.escribir(`capa/capa-b/trozo/${i}`, aBuffer("pedazo"));
+    }
+    expect(await capaEnPropio(almacen, sha256)).toBe(false);
+  });
+
+  it("no cuenta como completa una capa con más trozos de los que anuncia la meta", async () => {
+    const { entrada, trozos } = await capaDeTrozos(["HOLA-", "MUNDO-"]);
+    const almacen = almacenamientoEnMemoria();
+    const almacenador = new AlmacenCapas(almacen);
+    expect((await almacenador.guardarCapa(entrada, trozos)).ok).toBe(true);
+    await almacen.escribir("capa/needle3-reflejo/trozo/99", aBuffer("desconocido"));
+    expect(await capaEnPropio(almacen, entrada.sha256)).toBe(false);
+  });
+});
+
 describe("pedirCapa — selección de fuente por orden §6", () => {
   it("devuelve propio si la capa ya está en el almacén local", async () => {
-    // Simular almacén que dice que ya tiene la capa (mock capaEnPropio).
-    // Como capaEnPropio no es exportada, probamos vía integración: pasamos un almacén
-    // que devuelve claves con el SHA. Pero nuestra implementación actual siempre false.
-    // Para probar, mockeamos el módulo? No permitido vi.mock de node:*. En su lugar,
-    // testear el orden de preferencia con respuestas de malla.
+    const { entrada, trozos } = await capaDeTrozos(["HOLA-", "MUNDO-"]);
+    const almacen = almacenamientoEnMemoria();
+    const almacenador = new AlmacenCapas(almacen);
+    expect((await almacenador.guardarCapa(entrada, trozos)).ok).toBe(true);
+
+    const { malla } = crearMallaFalsa([]);
+    const ctx: ContextoPedido = {
+      catalogo: crearCatalogoFalso(),
+      almacen,
+      malla,
+      permitirPublicos: true,
+      timeoutMs: 100,
+    };
+    const resultado = await pedirCapa(entrada.sha256, ctx);
+    expect(resultado.fuente).not.toBeNull();
+    expect(resultado.fuente?.tipo).toBe("propio");
   });
 
   it("elige par antes que espejo StarSeed", async () => {
