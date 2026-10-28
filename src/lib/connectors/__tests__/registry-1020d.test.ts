@@ -37,10 +37,42 @@ describe("registry-1020d · conectores autoalojados de la 4.ª tanda", () => {
     }
   });
 
+  it("no duplica ningún repo de la tanda en todo el registro", () => {
+    const repos = BUILTIN_CONNECTORS.map((c) => c.repo);
+    for (const esperado of Object.values(NUEVOS)) {
+      const url = `https://github.com/${esperado.repo}`;
+      expect(repos.filter((r) => r === url), `repo duplicado: ${url}`).toHaveLength(1);
+    }
+  });
+
   it("solo ComfyUI y LibreTranslate vienen recomendados", () => {
     for (const [id, esperado] of Object.entries(NUEVOS)) {
       expect(CONNECTORS_BY_ID[id].recommended, id).toBe(esperado.recomendado);
     }
+  });
+
+  it("los puertos por defecto son los reales de cada servicio", () => {
+    expect(CONNECTORS_BY_ID["comfyui-selfhost"].configHint).toContain("8188");
+    expect(CONNECTORS_BY_ID["libretranslate-selfhost"].configHint).toContain("5000");
+  });
+
+  it("ComfyUI va sin clave y LibreTranslate la admite opcional", () => {
+    const comfy = CONNECTORS_BY_ID["comfyui-selfhost"];
+    const libre = CONNECTORS_BY_ID["libretranslate-selfhost"];
+    expect(comfy.description).toMatch(/sin clave/i);
+    expect(libre.description).toMatch(/si tu instancia la pide/i);
+  });
+
+  it("Coolify nombra el token Bearer sin exponerlo", () => {
+    const coolify = CONNECTORS_BY_ID["coolify-selfhost"];
+    expect(coolify.configHint).toMatch(/Bearer/i);
+    expect(coolify.configHint).toContain("COOLIFY_API_TOKEN");
+  });
+
+  it("OpenHands dice que el cliente está pendiente y no promete escritura", () => {
+    const openhands = CONNECTORS_BY_ID["openhands-agent-server"];
+    expect(openhands.description).toMatch(/cliente/i);
+    expect(openhands.description).toMatch(/no se promete/i);
   });
 
   it("la configuración usa nombres de variable, nunca valores de clave", () => {
@@ -68,5 +100,6 @@ describe("registry-1020d · conectores autoalojados de la 4.ª tanda", () => {
     expect(CONNECTORS_BY_ID["coolify-selfhost"].description).toMatch(/solo lectura/i);
     expect(CONNECTORS_BY_ID["openhands-agent-server"].description).toMatch(/pendiente/i);
     expect(CONNECTORS_BY_ID["archivebox-selfhost"].description).toMatch(/archive\.org va APAGADO/i);
+    expect(CONNECTORS_BY_ID["archivebox-selfhost"].description).toContain("SAVE_ARCHIVE_DOT_ORG=False");
   });
 });
