@@ -20,6 +20,7 @@ import {
   type EntradaTabla,
   type ResultadoCompatibilidad,
 } from "@/lib/network/routers-malla/compatibilidad-openwrt";
+import { RouterMallaPanel } from "./routers-malla-panel";
 import {
   getNetworkConfig,
   setNetworkConfig,
@@ -371,6 +372,15 @@ export function RouterCenter({ neuronId }: { neuronId?: string }) {
         neuronId={id}
         onChange={() => setAntennas(listAntennas())}
       />
+
+      {/* Routers de la malla */}
+      <div className="rounded-xl border border-amber-500/20 bg-amber-950/10 p-3">
+        <div className="text-[11px] uppercase tracking-widest text-amber-300/60">Routers de la malla</div>
+        <p className="mt-1 text-sm text-white/70">
+          Configura los routers de la malla P2P. Añade routers, selecciona compatibilidad, planes de radios y gestiona configuraciones.
+        </p>
+      </div>
+      <RouterMallaPanel />
 
       {status && <p className="text-[12px] text-white/50">{status}</p>}
     </div>
