@@ -22,6 +22,9 @@ export interface EntradaComponer {
   duracion?: number;
   formato?: FormatoComposicion;
   voz?: string | { texto: string; persona?: string };
+  /** Aditivo: quien ya tiene sus colores (la ruta del OS) los conserva. */
+  fondo?: string;
+  acento?: string;
 }
 
 export interface ComposicionVideo {
@@ -43,11 +46,13 @@ const FORMATOS: Record<string, Dimensiones> = {
   landscape: HORIZONTAL,
   "16:9": HORIZONTAL,
   "1280x720": HORIZONTAL,
+  "1920x1080": { ancho: 1920, alto: 1080 },
   vertical: VERTICAL,
   retrato: VERTICAL,
   portrait: VERTICAL,
   "9:16": VERTICAL,
   "720x1280": VERTICAL,
+  "1080x1920": { ancho: 1080, alto: 1920 },
   cuadrado: CUADRADO,
   square: CUADRADO,
   "1:1": CUADRADO,
@@ -87,7 +92,7 @@ function peticionDeVoz(voz: EntradaComponer["voz"]): PeticionVozVideo | null {
   return persona ? { texto: limpio, contexto: "lectura", persona } : { texto: limpio, contexto: "lectura" };
 }
 
-export function componerVideo({ pedido, duracion, formato, voz }: EntradaComponer): ComposicionVideo {
+export function componerVideo({ pedido, duracion, formato, voz, fondo, acento }: EntradaComponer): ComposicionVideo {
   const avisos: string[] = [];
   const titulo = (pedido ?? "").trim();
   if (!titulo) avisos.push("El pedido venía vacío: compuse la plantilla base de StarSeed.");
@@ -106,8 +111,8 @@ export function componerVideo({ pedido, duracion, formato, voz }: EntradaCompone
     alto: dimensiones.alto,
     duracion: duracionAcotada,
     titulo: titulo || "StarSeed OS",
-    fondo: FONDO_STARSEED,
-    acento: ACENTO_STARSEED,
+    fondo: (fondo ?? "").trim() || FONDO_STARSEED,
+    acento: (acento ?? "").trim() || ACENTO_STARSEED,
   });
 
   return {

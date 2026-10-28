@@ -18,7 +18,7 @@ import { rateLimit } from "@/lib/security/rate-limit";
 import { esPeticionDeEstaMaquina } from "@/lib/seguridad/misma-maquina";
 import { carrilesGenesis, preguntarCarriles, VARIABLES_CARRILES, type MensajeModelo } from "@/lib/genesis/carriles-servidor";
 import { ambitoDesde, contextoValidacion, leerRespuestaModelo, promptSistema, sanearContexto } from "@/lib/genesis/traductor";
-import { plantillaStarSeed } from "@/lib/video-html/plantilla";
+import { ACENTO_STARSEED, FONDO_STARSEED, componerVideo } from "@/lib/video-html/herramienta-componer";
 import { detectarAdaptadores } from "@/lib/video-html/adaptadores";
 
 export const runtime = "nodejs";
@@ -65,12 +65,19 @@ export async function POST(req: NextRequest): Promise<Response> {
         }
         const { ancho, alto, duracion, titulo, fondo, acento } = cuerpo;
         if (typeof ancho !== "number" || typeof alto !== "number" || typeof duracion !== "number" ||
-            typeof titulo !== "string" || typeof fondo !== "string" || typeof acento !== "string") {
-            return Response.json({ error: "Parámetros inválidos o faltantes (ancho, alto, duracion, titulo, fondo, acento)" }, { status: 400 });
+            typeof titulo !== "string" || (fondo !== undefined && typeof fondo !== "string") ||
+            (acento !== undefined && typeof acento !== "string")) {
+            return Response.json({ error: "Parámetros inválidos o faltantes (ancho, alto, duracion, titulo y, si se quieren, fondo y acento)" }, { status: 400 });
         }
-        const html = plantillaStarSeed({ ancho, alto, duracion, titulo, fondo, acento });
-        const adapters = detectarAdaptadores(html);
-        return Response.json({ html, adapters });
+        const composicion = componerVideo({
+            pedido: titulo,
+            duracion,
+            formato: `${ancho}x${alto}`,
+            fondo: typeof fondo === "string" ? fondo : FONDO_STARSEED,
+            acento: typeof acento === "string" ? acento : ACENTO_STARSEED,
+        });
+        const adapters = detectarAdaptadores(composicion.html);
+        return Response.json({ html: composicion.html, adapters, avisos: composicion.avisos, siguiente: composicion.siguiente });
     } else {
         // Original Genesis proposer logic
         const crudo = await req.text().catch(() => "");
