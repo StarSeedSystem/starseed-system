@@ -61,6 +61,7 @@ import { DOWNLOADABLE_SOURCES } from "@/ai/astraura/installed-models";
 import { IDS_SIEMBRA_1025 } from "./repos-1025";
 import { IDS_SIEMBRA_1026 } from "./repos-1026";
 import { IDS_SIEMBRA_1027 } from "./repos-1027";
+import { IDS_SIEMBRA_1027B } from "./repos-1027b";
 
 /** Marca de estado de la siembra (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEED_KEY = "starseed.library.seed.v1";
@@ -70,7 +71,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 19;
+export const SEED_VERSION = 20;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -351,9 +352,14 @@ const RECOMMENDED_HASTA_16: string[] = [
  * (SEED_VERSION 19 · Ola MBT1027 · N) LOS TRES REPOS DEL 2026-10-27: OpenMausBot, Insomnia y Colibri, los tres con
  * `preinstalar: "siempre"` en `config/repos-libreria-1027.json` (módulo puro `repos-1027.ts`). Instalar SOLO registra
  * el enlace; la activación (permisos, contraseña o descarga de modelos) la decide la persona y está en `aviso`.
+ *
+ * (SEED_VERSION 20 · Ola 1027b) META^N Y MEMVID, DEL 2026-10-27: los dos con `preinstalar: "siempre"` en
+ * `config/repos-libreria-1027b.json` (módulo puro `repos-1027b.ts`). Instalar SOLO registra el enlace; Meta^n
+ * propone dentro de una caja Docker sin red y el juez de StarSeed decide fuera, y Memvid corre en un servidor
+ * propio sin telemetría. La activación la decide la persona y está explicada en `aviso`.
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
-  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027]),
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B]),
 );
 
 /**
