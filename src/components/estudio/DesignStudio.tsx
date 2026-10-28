@@ -25,6 +25,7 @@ import type { ElementFamily, ElementOverride, ThemeDraftMeta } from "./types";
 import { makeId } from "./types";
 import { defaultOverride } from "./property-defaults";
 import { useMyLibraryDestinations } from "@/lib/library/entity-library";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 import {
     resolveStudioDesign, clearStashedDesign, resolveDesignTokens,
     applyDesignToProfile, applyDesignToEntity, type DesignFile,
@@ -210,7 +211,10 @@ export function DesignStudio() {
                             </DropdownMenuItem>
                         ))}
                         {pageTargets.length === 0 && (
-                            <p className="px-2 py-1.5 text-[10px] text-white/40">Inicia sesión y administra páginas/grupos para aplicar ahí.</p>
+                            <AvisoSesion
+                                texto="Inicia sesión y administra páginas/grupos para aplicar ahí."
+                                compacto
+                            />
                         )}
                     </DropdownMenuContent>
                 </DropdownMenu>
