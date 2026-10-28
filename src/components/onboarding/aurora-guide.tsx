@@ -341,8 +341,11 @@ function decorar(paso: PasoGuia): GuideStep {
   };
 }
 
-/** Los pasos del recorrido: los del catálogo único, en su orden. */
-const STEPS: GuideStep[] = PASOS_GUIA.map(decorar);
+/** Los pasos del recorrido: los del catálogo único, en su orden.
+ * (GUI1021C) Se exporta para poder verificar el recorrido en pruebas: los diez
+ * temas (`TODOS_LOS_TEMAS`, textos de guias-introduccion.md §3), sin pasos
+ * repetidos y el cerebro llevando a `/cerebro`. */
+export const STEPS: GuideStep[] = PASOS_GUIA.map(decorar);
 
 // Frase de bienvenida que Aurora narra al empezar en modo voz.
 const INTRO_SAY =
