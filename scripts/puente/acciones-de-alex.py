@@ -192,19 +192,44 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None):
             continue
         clave = str(p.get("clave") or "")
         info = catalogo.get(clave) or {}
+        # CAIDA necesita racha
+        if estado == _pas.CAIDA:
+            caidas = int(p.get("caidas_seguidas") or 0)
+            caida_desde = str(p.get("caida_desde") or "")
+            if not caidas or not caida_desde:
+                continue
+            # comprobar >=3 pruebas y >=6h
+            from datetime import datetime, timedelta
+            try:
+                desde_dt = datetime.strptime(caida_desde, "%Y-%m-%d %H:%M")
+                ahora_dt = datetime.now()
+                horas = (ahora_dt - desde_dt).total_seconds() / 3600
+            except Exception:
+                continue
+            if caidas < 3 or horas < 6:
+                continue
+            urgencia = "media"
+            titulo = "%s: mira su panel" % info.get("nombre", clave)
+            por_que = "lleva más de 6 horas sin responder de ninguna forma; puede que la cuenta o la API hayan cambiado"
+            detalle = "sin respuesta desde %s · %d pruebas · modelo %s" % (caida_desde, caidas, p.get("modelo"))
+            acciones.append({
+                "id": "pasarela-%s-%s" % (clave, estado),
+                "titulo": titulo,
+                "por_que": por_que,
+                "urgencia": urgencia,
+                "comando": (PREFIJO + "bash scripts/puente/guardar-clave.sh %s --ambos" % p["variable"]
+                            if p.get("variable") else ""),
+                "enlace": info.get("enlace", ""),
+                "por_que_no_lo_hago_yo": "Claude no teclea claves de terceros; el guion las pide sin que se vean",
+                "detalle": detalle,
+            })
+            continue
         urgencia, porque = ESTADOS_HUMANOS[estado]
         acciones.append({
             "id": "pasarela-%s-%s" % (clave, estado),
             "titulo": "%s: %s" % (info.get("nombre", clave), "fichaje diario" if estado == _pas.FICHAJE else "renovar la clave"),
             "por_que": info.get("nota") or porque,
             "urgencia": urgencia,
-            # (2026-09-22) Alex: «aparecen enlaces para renovar apis pero no viene el botón
-            # para añadir las apis». Tenía razón: el comando solo salía para `sin_clave`.
-            # Una pasarela CAÍDA acaba casi siempre en lo mismo —la clave cambió o la
-            # revocaron— así que llevaba enlace a su web y ningún modo de guardar la nueva.
-            # Ahora, si sabemos el nombre de la variable, va SIEMPRE el guion que la pide
-            # sin que se vea al teclearla. Para el fichaje diario no: ahí no hay clave que
-            # guardar, hay un botón que pulsar en su web.
             "comando": (PREFIJO + "bash scripts/puente/guardar-clave.sh %s --ambos" % p["variable"]
                         if estado != _pas.FICHAJE and p.get("variable") else ""),
             "enlace": info.get("enlace", ""),

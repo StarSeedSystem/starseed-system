@@ -232,12 +232,54 @@ def _consejero_jev():
         return None
 
 
+def racha_de_caida(anterior, nueva, ahora):
+    """PURA: calcula racha de caídas para una pasarela.
+
+    anterior: dict previo de la pasarela o None
+    nueva: dict con al menos 'estado'
+    ahora: str 'YYYY-MM-DD HH:MM'
+    Devuelve dict con 'caidas_seguidas' y 'caida_desde'.
+    """
+    estado_nuevo = str(nueva.get('estado') or '')
+    es_caida = estado_nuevo == P.CAIDA
+    if not es_caida:
+        return {'caidas_seguidas': 0, 'caida_desde': ''}
+    # es caída
+    anterior_estado = str(anterior.get('estado') or '') if anterior else ''
+    caidas_prev = int(anterior.get('caidas_seguidas') or 0) if anterior else 0
+    caida_desde_prev = anterior.get('caida_desde') if anterior else ''
+    if anterior_estado == P.CAIDA and caidas_prev > 0 and caida_desde_prev:
+        return {'caidas_seguidas': caidas_prev + 1, 'caida_desde': caida_desde_prev}
+    return {'caidas_seguidas': 1, 'caida_desde': ahora}
+
+
 def guardar(resultados):
     try:
         os.makedirs(os.path.dirname(INFORME), exist_ok=True)
+        # leer informe anterior para la racha
+        anterior_por_clave = {}
+        try:
+            with open(INFORME, encoding="utf-8") as f:
+                informe_prev = json.load(f) or {}
+                for p in informe_prev.get("pasarelas") or []:
+                    clave = str(p.get("clave") or "")
+                    if clave:
+                        anterior_por_clave[clave] = p
+        except Exception:
+            informe_prev = {"pasarelas": []}
+        ahora_str = time.strftime("%Y-%m-%d %H:%M")
+        nuevos = []
+        for r in resultados or []:
+            clave = str(r.get("clave") or "")
+            anterior = anterior_por_clave.get(clave)
+            racha = racha_de_caida(anterior, r, ahora_str)
+            r2 = dict(r)
+            r2["caidas_seguidas"] = racha["caidas_seguidas"]
+            r2["caida_desde"] = racha["caida_desde"]
+            nuevos.append(r2)
         tmp = INFORME + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({"t": time.strftime("%Y-%m-%d %H:%M:%S"), "pasarelas": resultados},
+            json.dump({"t": time.strftime("%Y-%m-%d %H:%M:%S"), "pasarelas": nuevos},
                       f, ensure_ascii=False, indent=2)
         os.replace(tmp, INFORME)
     except Exception:

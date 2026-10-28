@@ -223,3 +223,68 @@ class RecomprobarDiceLaVerdad(unittest.TestCase):
         """Sin la hora, «hecha» es una afirmación sin fecha: no se puede contrastar."""
         r = A.verificar("lo-que-sea", pasarelas=[], secretos_repo=[], entorno={})
         self.assertTrue(r["comprobado"])
+
+
+class CaidaYSaturada(unittest.TestCase):
+    def test_saturada_no_entra_en_acciones(self):
+        pas = [{"clave": "google", "estado": "saturada", "http": 503, "modelo": "gemini-3.5-flash-lite"}]
+        a = A.construir_acciones(pas, TODOS, CATALOGO)
+        self.assertEqual([], a)
+
+    def test_caida_con_una_prueba_no_entra(self):
+        pas = [{"clave": "groq", "estado": "caida", "http": 0, "modelo": "x",
+                "caidas_seguidas": 1, "caida_desde": "2026-10-28 07:00"}]
+        a = A.construir_acciones(pas, TODOS, CATALOGO)
+        self.assertEqual([], a)
+
+    def test_caida_con_tres_pruebas_y_7h_entra_con_mira_panel(self):
+        # 7 horas antes
+        pas = [{"clave": "google", "estado": "caida", "http": 503, "modelo": "gemini-3.5-flash-lite",
+                "caidas_seguidas": 3, "caida_desde": "2026-10-27 23:00",
+                "variable": "GEMINI_API_KEY"}]
+        a = A.construir_acciones(pas, TODOS, CATALOGO)
+        self.assertEqual(1, len(a))
+        accion = a[0]
+        self.assertIn("mira su panel", accion["titulo"])
+        self.assertIn("más de 6 horas", accion["por_que"])
+        self.assertIn("sin respuesta desde", accion["detalle"])
+        self.assertIn("3 pruebas", accion["detalle"])
+
+    def test_sin_clave_sigue_siendo_renovar_clave(self):
+        pas = [{"clave": "groq", "estado": "sin_clave", "http": 401, "modelo": "x",
+                "variable": "GROQ_API_KEY"}]
+        a = A.construir_acciones(pas, TODOS, CATALOGO)
+        self.assertEqual(1, len(a))
+        self.assertIn("renovar la clave", a[0]["titulo"])
+
+
+class RachaDeCaida(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util, os
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "renovador-pasarelas.py")
+        spec = importlib.util.spec_from_file_location("renovador", ruta)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        cls.R = mod
+
+    def test_sube_con_caida_continua(self):
+        anterior = {"estado": "caida", "caidas_seguidas": 2, "caida_desde": "2026-10-28 00:00"}
+        nueva = {"estado": "caida"}
+        r = self.R.racha_de_caida(anterior, nueva, "2026-10-28 01:00")
+        self.assertEqual(r["caidas_seguidas"], 3)
+        self.assertEqual(r["caida_desde"], "2026-10-28 00:00")
+
+    def test_se_reinicia_sin_caida(self):
+        anterior = {"estado": "caida", "caidas_seguidas": 5, "caida_desde": "2026-10-27 00:00"}
+        nueva = {"estado": "escribe"}
+        r = self.R.racha_de_caida(anterior, nueva, "2026-10-28 01:00")
+        self.assertEqual(r["caidas_seguidas"], 0)
+        self.assertEqual(r["caida_desde"], "")
+
+    def test_conserva_caida_desde_al_iniciar(self):
+        anterior = None
+        nueva = {"estado": "caida"}
+        r = self.R.racha_de_caida(anterior, nueva, "2026-10-28 01:00")
+        self.assertEqual(r["caidas_seguidas"], 1)
+        self.assertEqual(r["caida_desde"], "2026-10-28 01:00")
