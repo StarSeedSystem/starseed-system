@@ -44,6 +44,7 @@ export interface EntradaPlanificador {
 }
 const ORDEN: Record<Capa, readonly string[]> = {
   reflejo: ["needle3-reflejo"],
+  juicio: ["colibri-laya", "colibri-gliner-decide", "colibri-clef"],
   memoria: ["bitnet-embedding-0.6b", "bitnet-embedding-270m", "needle3-reflejo"],
   palabra: ["ternary-bonsai-4b", "ternary-bonsai-1.7b", "bonsai-1bit-1.7b"],
   razon: ["ternary-bonsai-8b", "bitnet-b1.58-2b-4t", "ternary-bonsai-4b"],

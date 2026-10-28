@@ -1,8 +1,10 @@
 // Catálogo puro de capas de Astraura (architecture/capas-autoadaptables.md §1, §3 y §6).
 // Sin red, sin disco, sin node:*: el navegador lo importa directo.
 
+// La trinidad es reflejo → juicio → deliberación (architecture/colibri-multicapas.md §2).
 export type Capa =
   | "reflejo"
+  | "juicio"
   | "memoria"
   | "palabra"
   | "razon"
@@ -12,7 +14,7 @@ export type Capa =
 
 export type Medio = "web" | "pwa" | "nativo" | "servidor";
 
-export type FormatoCapa = "cact" | "gguf" | "mlx" | "onnx";
+export type FormatoCapa = "cact" | "gguf" | "mlx" | "onnx" | "safetensors";
 
 export type RuntimeCapa =
   | "needle-wasm"
@@ -20,9 +22,11 @@ export type RuntimeCapa =
   | "webgpu-onnx"
   | "llama-cpp"
   | "bitnet-cpp"
+  | "colibri"
   | "mlx";
 
-export type EstadoCapa = "recomendado" | "respaldo" | "en-banco" | "retirado";
+/** «por-verificar»: entra al catálogo sin SHA medido y no se usa hasta que el instalador lo anote. */
+export type EstadoCapa = "recomendado" | "respaldo" | "en-banco" | "retirado" | "por-verificar";
 
 export interface ProfundidadNeedle {
   capas: number;
@@ -40,6 +44,10 @@ export interface EntradaCapa {
   parametros: string;
   disco_mb: number;
   ram_min_mb: number;
+  /** Los expertos se leen del disco (MoE de Colibri): no hace falta que quepan en RAM. */
+  streaming_disco?: boolean;
+  /** RAM con la que el modelo va cómodo, por encima del mínimo. */
+  ram_ok_mb?: number;
   profundidades?: ProfundidadNeedle[];
   sha256: string;
   fuente_oficial: string;
@@ -56,6 +64,7 @@ export interface CatalogoCapas {
 
 const CAPAS: readonly Capa[] = [
   "reflejo",
+  "juicio",
   "memoria",
   "palabra",
   "razon",
@@ -64,13 +73,14 @@ const CAPAS: readonly Capa[] = [
   "adaptador",
 ];
 const MEDIOS: readonly Medio[] = ["web", "pwa", "nativo", "servidor"];
-const FORMATOS: readonly FormatoCapa[] = ["cact", "gguf", "mlx", "onnx"];
+const FORMATOS: readonly FormatoCapa[] = ["cact", "gguf", "mlx", "onnx", "safetensors"];
 const RUNTIMES: readonly RuntimeCapa[] = [
   "needle-wasm",
   "needle-nativo",
   "webgpu-onnx",
   "llama-cpp",
   "bitnet-cpp",
+  "colibri",
   "mlx",
 ];
 const ESTADOS: readonly EstadoCapa[] = [
@@ -78,11 +88,14 @@ const ESTADOS: readonly EstadoCapa[] = [
   "respaldo",
   "en-banco",
   "retirado",
+  "por-verificar",
 ];
 
 // Preferencia de §3 por capa: ids de mejor a más ligero.
 const ORDEN_POR_CAPA: Record<Capa, readonly string[]> = {
   reflejo: ["needle3-reflejo"],
+  // Juicio (Colibri): Laya → GLiNER2.5-Decide → Clef, de más ligero a más capaz.
+  juicio: ["colibri-laya", "colibri-gliner-decide", "colibri-clef"],
   memoria: ["bitnet-embedding-0.6b", "bitnet-embedding-270m", "needle3-reflejo"],
   palabra: [
     "ternary-bonsai-4b",
@@ -120,6 +133,8 @@ function entradaValida(v: unknown): v is EntradaCapa {
   if (!RUNTIMES.includes(e.runtime as RuntimeCapa)) return false;
   if (!ESTADOS.includes(e.estado as EstadoCapa)) return false;
   if (!esNumero(e.disco_mb) || !esNumero(e.ram_min_mb)) return false;
+  if (e.streaming_disco !== undefined && typeof e.streaming_disco !== "boolean") return false;
+  if (e.ram_ok_mb !== undefined && !esNumero(e.ram_ok_mb)) return false;
   if (!Array.isArray(e.espejos) || !e.espejos.every(esTexto)) return false;
   if (
     !Array.isArray(e.medios) ||
@@ -171,6 +186,9 @@ export function candidatosDe(
 
 /** Una capa solo se usa con su SHA verificado y estado recomendado o respaldo (§6, §11). */
 export function usable(entrada: EntradaCapa): boolean {
+  // Las de Colibri entran «por-verificar» y no se usan hasta que el instalador anote el SHA.
+  if (entrada.estado === "por-verificar") return false;
+  if (typeof entrada.sha256 !== "string" || entrada.sha256.length === 0) return false;
   return (
     /^[0-9a-f]{64}$/.test(entrada.sha256) &&
     (entrada.estado === "recomendado" || entrada.estado === "respaldo")

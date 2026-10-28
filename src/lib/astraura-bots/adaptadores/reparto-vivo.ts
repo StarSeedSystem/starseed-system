@@ -75,7 +75,7 @@ function medir(dep: DepRepartoVivo, t: TurnoBot) {
     : n.tipo !== "api-gratis" && p.capas.nube && (n.tipo === "servidor-propio" || p.capas.colectiva));
   const remotas = new Map<string, Remota>();
   for (const n of nodos.filter(permitido)) for (const c of n.capas ?? []) {
-    if (c.capa !== "adaptador" && SHA.test(c.sha256)) remotas.set(`${c.capa}|${n.tipo}`, { capa: c.capa, donde: n.tipo as Remota["donde"] });
+    if (c.capa !== "adaptador" && c.capa !== "juicio" && SHA.test(c.sha256)) remotas.set(`${c.capa}|${n.tipo}`, { capa: c.capa, donde: n.tipo as Remota["donde"] });
   }
   const coste = dep.costeTurno;
   const externas: ApiExterna[] = fuentes.filter((s) => s.privacy === "cloud" && !s.id.startsWith("astraura") && !esFuenteDeMalla(s.id))
