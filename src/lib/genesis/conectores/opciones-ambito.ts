@@ -2,6 +2,10 @@ import type { Asignacion, Preferencias } from "./asignaciones";
 import type { OpcionCatalogo, Papel, Privacidad } from "./catalogo-opciones";
 import type { ContenedorOpcion } from "./contenedores";
 import type { OfertaContexto } from "./escalera";
+import { elegirCandidatos } from "./escalera";
+import { aplicarEscalera, cadenaPorPapel, opcionesRankingDe } from "./aplicar-escalera";
+import type { RankCandidatesOptions, RouteCandidate } from "@/ai/astraura/router";
+import type { PlanRuta, PapelRuta } from "@/lib/mando/enrutamiento";
 import { esPapel } from "./api-conectores";
 import { sugerirParaAmbito, type GrupoSugerencias } from "./sugerir";
 
@@ -32,7 +36,28 @@ export interface VistaOpciones {
   catalogo: OpcionCatalogo[];
   sugerencias: GrupoSugerencias[];
   asignaciones: Asignacion<Papel>[];
+  /** Orden de preferencia por papel (adaptador GCA1019G): lo que entienden el enrutador de Astraura y la cadena del enjambre. */
+  preferenciasOrdenadas: VistaPreferencia[];
 }
+
+/** Un papel con su orden de preferencia ya traducido a los formatos existentes. */
+export interface VistaPreferencia {
+  papel: Papel;
+  /** Rutas candidatas en el orden del peldaño (`aplicarEscalera`); las prohibidas no aparecen. */
+  rutas: RouteCandidate[];
+  /** Restricción para `rankCandidates` del enrutador (solo puede negar el pago). */
+  opciones: RankCandidatesOptions;
+  /** Cadena por papel del enjambre (`cadenaPorPapel`); `null` en papeles que la cadena no distingue. */
+  cadena: PlanRuta | null;
+}
+
+/** Papel del enjambre que cada papel del catálogo puede enlazar (solo hay cadena para estos tres). */
+function papelRutaDe(clave: Papel): PapelRuta | null {
+  if (clave === "escritor") return "escritor";
+  if (clave === "revisor") return "revisor";
+  return null; // la cadena del enjambre solo distingue escritor, revisor y director; al director del ámbito no lo mapea el catálogo
+}
+
 
 function textos(valor: unknown): string[] {
   if (!Array.isArray(valor)) return [];
@@ -107,5 +132,48 @@ export function vistaOpciones(entrada: EntradaVista): VistaOpciones {
     vinculadas: entrada.vinculadas,
     contenedores: [...entrada.contenedores],
   });
-  return { ambito: entrada.ambito, catalogo, sugerencias, asignaciones };
+  return { ambito: entrada.ambito, catalogo, sugerencias, asignaciones, preferenciasOrdenadas: ordenDePreferencia(asignaciones, catalogo, ofertas, entrada.vinculadas) };
+}
+
+/**
+ * Orden de preferencia por papel Ola 1019G · GCA1019G, con los formatos que ya
+ * existen: la escalera (`elegirCandidatos`) pasa por el adaptador
+ * (`aplicarEscalera` / `opcionesRankingDe`) hacia el enrutador de Astraura y
+ * por `cadenaPorPapel` hacia la cadena del enjambre. PURO de aquí para abajo:
+ * sin reloj ni salud, que quien llame con ellos las aporte.
+ */
+function ordenDePreferencia(
+  asignaciones: readonly Asignacion<Papel>[],
+  catalogo: readonly OpcionCatalogo[],
+  ofertas: readonly OfertaContexto[],
+  vinculadas: ReadonlySet<string>,
+): VistaPreferencia[] {
+  const preferenciasOrdenadas: VistaPreferencia[] = [];
+  for (const asignacion of asignaciones) {
+    // Tarea del papel; sin medida de tamaño todavía (la escalera no la usa).
+    const tarea = { papel: asignacion.clave, privado: false, tamano: 0 };
+    const preferenciasEscalera = {
+      permitirPago: (asignacion.preferencias.presupuesto ?? 0) > 0,
+      topeDiario: asignacion.preferencias.presupuesto,
+      // Las prohibidas del ámbito se defienden en la puerta del adaptador.
+      prohibidos: [] as string[],
+    };
+    const candidatas = elegirCandidatos({
+      tarea,
+      ofertas: [...ofertas],
+      catalogo: [...catalogo],
+      vinculadas: new Set(vinculadas),
+      preferencias: preferenciasEscalera,
+    });
+    preferenciasOrdenadas.push({
+      papel: asignacion.clave,
+      rutas: aplicarEscalera({ candidatas, catalogo: [...catalogo], prohibidos: preferenciasEscalera.prohibidos }),
+      opciones: opcionesRankingDe(preferenciasEscalera),
+      cadena: (() => {
+        const papelRuta = papelRutaDe(asignacion.clave);
+        return papelRuta ? cadenaPorPapel({ candidatas, catalogo: [...catalogo], papel: papelRuta }) : null;
+      })(),
+    });
+  }
+  return preferenciasOrdenadas;
 }

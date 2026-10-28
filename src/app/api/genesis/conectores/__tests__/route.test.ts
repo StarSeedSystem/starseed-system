@@ -114,4 +114,21 @@ describe("vistaOpciones", () => {
     expect(catalogo).toHaveLength(3);
     expect(filas).toHaveLength(1);
   });
+
+  it("aplica el orden de preferencia GCA1019G: la local del peldaño 1 queda primera y con pago prohibido nadie lo pide", () => {
+    const catalogo = [
+      op("astraura-local", { tipo: "modelo", privacidad: "local", papeles: ["escritor"] }),
+      op("pago", { tipo: "proveedor", gratis: null }),
+      op("otro-local", { tipo: "modelo", privacidad: "local", papeles: ["escritor"] }),
+    ];
+    // Sin presupuesto: el ámbito no permite pago (`personaAllowsPaid: false`).
+    const filas = [{ clave: "escritor", cadena: [] }];
+    const vista = vistaOpciones({ ambito: "a1", catalogo, filas, vinculadas: new Set(), contenedores: [] });
+    expect(vista.preferenciasOrdenadas).toHaveLength(1);
+    const orden = vista.preferenciasOrdenadas[0];
+    expect(orden.rutas.map((r) => r.source.id)).toEqual(["astraura-local", "otro-local"]);
+    expect(orden.opciones).toEqual({ personaAllowsPaid: false });
+    expect(orden.cadena?.papel).toBe("escritor");
+    expect(orden.cadena?.cadena.length).toBe(2);
+  });
 });
