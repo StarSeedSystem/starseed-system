@@ -1,0 +1,94 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "OPS1024A",
+   "ola": "1024R",
+   "titulo": "asignaciones_agentes.py · RAIZ apunta a scripts/ (mismo fallo que vigia_referencias, OPF1024A)",
+   "archivos": [
+    "scripts/puente/asignaciones_agentes.py",
+    "scripts/puente/test_asignaciones_agentes.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA con la prueba. En scripts/puente/asignaciones_agentes.py (línea ~35) la constante RAIZ se calcula como la carpeta scripts/ y no como la raíz del repositorio, así que las rutas que lee y escribe quedan dentro de scripts/. Arréglalo con la MISMA forma que usa scripts/puente/vigia_referencias.py desde el commit OPF1024A: os.environ.get('STARSEED_ROOT') o dos niveles por encima de scripts/puente/. Añade a scripts/puente/test_asignaciones_agentes.py (créalo si no existe) dos casos: la raíz por defecto es la del repo (contiene CLAUDE.md) y respeta STARSEED_ROOT. Sin red. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "RIA1023C",
+   "ola": "1023R",
+   "titulo": "Recursos de IA · resolver a qué servidor de IA va cada capacidad según la topología (núcleo puro)",
+   "archivos": [
+    "src/lib/recursos-ia/enrutado.ts",
+    "src/lib/recursos-ia/__tests__/enrutado.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nFunción PURA `destinoDeIA(plan, asignaciones, inventario, capacidad)` → `{via, neuronaId, baseUrl|null, motivo}`: con topología `servidor-propio` devuelve la URL del servidor de la neurona elegida (`http://<host>:4480/v1`, el host sale del inventario/oferta de esa neurona; si no se conoce, `baseUrl: null` y un motivo legible), con `cada-neurona` → `local`, con `fragmentada` → la neurona asignada a esa capacidad, y nunca `antena` para chat (solo decisiones, §3). Sin `node:*`, sin `fetch`. Reutiliza los tipos de `tipos.ts` (no inventes otros). Pruebas vitest de las cuatro topologías y del caso sin host. Corre `npx vitest run src/lib/recursos-ia` y lee el resumen entero."
+  },
+  {
+   "id": "APM1017F",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · servir capacidades: admisión con los topes de préstamo, cola, cancelación y registro",
+   "archivos": [
+    "src/lib/recursos/servir-capacidades.ts",
+    "src/lib/recursos/__tests__/servir-capacidades.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión del relé `capacidad.*`: `crearServidor({ manejadores: Partial<Record<tipo, fn>>, oferta, sesiones, ahora })` con `atender(mensaje)` que comprueba la sesión (sesion-prestamo.ts) y los topes de `capacidadPrestable`, encola si está lleno (máx. 4 en cola), corre el manejador, trocea la respuesta y permite cancelar. `prestamos()` devuelve los préstamos vivos y hechos (quién, qué, ms, bytes) para Procesos activos. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D",
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "APM1017V",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Medios · árbol de relevo: los que más suben en el centro y recolocación al irse uno",
+   "archivos": [
+    "src/lib/recursos/arbol-relevo.ts",
+    "src/lib/recursos/__tests__/arbol-relevo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO (§10): `armarArbol(origen, receptores: { nodoId, subidaKbps?, latenciaMs? }[], kbpsFlujo)` → padre de cada receptor; cada nodo sostiene como mucho `floor(subida / kbpsFlujo)` hijos (sin medida: 1), los de más subida más cerca del origen; determinista. `recolocar(arbol, seVa)` mueve solo la rama del que se fue. Pruebas con 1, 10 y 200 receptores y con una salida. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017A"
+   ]
+  },
+  {
+   "id": "DGM1018N",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · edición en grupo en tiempo real sobre la especificación",
+   "archivos": [
+    "src/lib/diagramas/sincronia-diagrama.ts",
+    "src/lib/diagramas/__tests__/sincronia-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elementosDeEspecificacion(espec, autor, t)` convierte cada nodo, arista y texto en `ElementoSala` (src/lib/salas/sincronia-sala.ts) y `especificacionDeEstado(estado)` lo recompone; usa `fusionarEstados`. Prueba: dos personas renombran nodos distintos a la vez y una borra una arista; las tres neuronas convergen. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DGM1018M"
+   ]
+  },
+  {
+   "id": "DGM1018O",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Vigía · vigilar Diagram Design y renovar su copia",
+   "archivos": [
+    "config/vigia-areas.json",
+    "scripts/puente/test_vigia_areas.py"
+   ],
+   "depende": [],
+   "prompt": "Añade (sin borrar nada) en el área `habilidades` el repo cathrynlavery/diagram-design con su manifiesto `.claude-plugin/plugin.json` (campo version) como señal de versión y la carpeta de destino vendor/habilidades/diagram-design. Amplía la prueba. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VST1018M"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "APM1017F",
+   "APM1017V",
+   "RIA1023C",
+   "DGM1018N",
+   "DGM1018O",
+   "OPS1024A"
+  ]
+ }
+}
