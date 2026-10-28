@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Gratis, OpcionCatalogo } from "../catalogo-opciones";
+import type { SaludProveedor } from "@/lib/mando/modelos-disponibles";
+import {
+    aplicarEscalera,
+    cadenaPorPapel,
+    opcionesRankingDe,
+} from "../aplicar-escalera";
 import {
     elegirCandidatos,
+    type Candidato,
     type OfertaContexto,
     type Preferencias,
     type Tarea,
@@ -64,5 +71,76 @@ describe("elegirCandidatos · casos rescatados de la rama nube", () => {
         });
         expect(candidatos.find((c) => c.candidatoId === "llm7")).toBeUndefined();
         expect(candidatos.map((c) => c.candidatoId)).toEqual(["astraura-158-local"]);
+    });
+});
+
+const LOCAL_AURA = opcion({ id: "astraura-158-local", nombre: "Astraura 1.58 local", tipo: "modelo", papeles: ["escritor"], privacidad: "local" });
+const LLM7 = opcion({ id: "llm7", nombre: "LLM7.io", tipo: "proveedor", papeles: ["escritor"] });
+
+const SALUD_VIVA: SaludProveedor = {
+    estado: "vivo",
+    sinCupoHasta: null,
+    motivo: null,
+    ultimo429: null,
+    claves: [],
+    clavesActiva: null,
+    t: "2026-10-28 10:00:00",
+};
+
+/** La escalera ya resuelta para el catálogo dado (Astraura local en el 1, gratis después). */
+function candidatasDelCatalogo(catalogo: OpcionCatalogo[]): Candidato[] {
+    return elegirCandidatos({
+        tarea: TAREA_ESCRITOR,
+        ofertas: [OFERTA_LOCAL],
+        catalogo,
+        vinculadas: new Set<string>(),
+        preferencias: SIN_PAGO,
+    });
+}
+
+describe("aplicarEscalera · puente con el enrutador de Astraura", () => {
+    it("la candidata local del peldaño 1 queda primera en el orden del enrutador", () => {
+        const catalogo = [LLM7, LOCAL_AURA];
+        const rutas = aplicarEscalera({ candidatas: candidatasDelCatalogo(catalogo), catalogo });
+        expect(rutas.map((r) => r.source.id)).toEqual(["astraura-158-local", "llm7"]);
+        expect(rutas[0].score).toBe(60);
+        expect(rutas[0].score).toBeGreaterThan(rutas[1].score);
+        expect(rutas[0].source.privacy).toBe("local");
+        expect(rutas[0].reason).toContain("Peldaño 1");
+        expect(rutas[0].fromUser).toBe(false);
+    });
+
+    it("una candidata prohibida no aparece, ni aunque llegue elegida", () => {
+        const candidatas: Candidato[] = [
+            { candidatoId: "astraura-158-local", peldano: 1, motivo: "Astraura local disponible" },
+            { candidatoId: "llm7", peldano: 3, motivo: "Disponible en la bolsa de la malla" },
+        ];
+        const rutas = aplicarEscalera({
+            candidatas,
+            catalogo: [LOCAL_AURA, LLM7],
+            prohibidos: ["llm7"],
+        });
+        expect(rutas.map((r) => r.source.id)).toEqual(["astraura-158-local"]);
+    });
+
+    it("las preferencias del ámbito se traducen a opciones del rankCandidates", () => {
+        expect(opcionesRankingDe(SIN_PAGO)).toEqual({ personaAllowsPaid: false });
+        expect(opcionesRankingDe({ ...SIN_PAGO, permitirPago: true })).toEqual({});
+    });
+
+    it("la cadena por papel del enjambre respeta el orden de la escalera", () => {
+        const catalogo = [LLM7, LOCAL_AURA];
+        const plan = cadenaPorPapel({
+            candidatas: candidatasDelCatalogo(catalogo),
+            catalogo,
+            papel: "escritor",
+            salud: { "astraura-158-local": SALUD_VIVA },
+            ahora: 1000,
+        });
+        expect(plan.papel).toBe("escritor");
+        expect(plan.cadena.map((eslabon) => eslabon.proveedor)).toEqual(["astraura-158-local", "llm7"]);
+        expect(plan.activo?.id).toBe("astraura-158-local");
+        expect(plan.activo?.posicion).toBe(1);
+        expect(plan.siguiente?.id).toBe("llm7");
     });
 });
