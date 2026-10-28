@@ -10,6 +10,23 @@ export const VERSION_BLOQUE = 1;
 /** Tope del bloque serializado (deja margen dentro de MAX_SS_META_BYTES). */
 export const MAX_BLOQUE_BYTES = 32 * 1024;
 
+/**
+ * Correspondencia entre un átomo del bloque y la vista que lo dibuja. La clave es el
+ * nombre estable del átomo (`video-html`, el de `variaciones-publicas.md`) y también su
+ * `herramientaId` real (`hyperframes`, `atomos/video-html.ts`); el valor es el id de la
+ * vista componente. Un átomo sin entrada se pinta como dato, sin vista propia.
+ */
+export const VISTAS_DE_ATOMO: Readonly<Record<string, string>> = Object.freeze({
+    "video-html": "video-html",
+    hyperframes: "video-html",
+});
+
+/** Id de la vista componente de un átomo, o `null` si el bloque no la conoce. */
+export function vistaDeAtomo(atomo: Pick<AtomoEnUso, "herramientaId"> | string): string | null {
+    const clave = typeof atomo === "string" ? atomo : atomo.herramientaId;
+    return VISTAS_DE_ATOMO[clave] ?? null;
+}
+
 type Resultado<T> = { ok: true; valor: T } | { ok: false; motivo: string };
 const texto = (x: unknown): x is string => typeof x === "string" && x.length > 0;
 const numero = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
