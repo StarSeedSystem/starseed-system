@@ -130,7 +130,7 @@ describe('puedeUsar', () => {
 
 it('deniega cuando la puerta está configurada para nadie', () => {
     expect(
-      podeUsar(
+      puedeUsar(
         { ...basePuerta, compartir: 'nadie' },
         baseSolicitante
       )
@@ -139,7 +139,7 @@ it('deniega cuando la puerta está configurada para nadie', () => {
 
   it('permite al dueño aunque la puerta sea para nadie: las reglas de compartir no le aplican', () => {
     expect(
-      podeUsar(
+      puedeUsar(
         { ...basePuerta, compartir: 'nadie' },
         { ...baseSolicitante, cuenta: 'c1' } // dueño
       )
