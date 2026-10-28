@@ -725,7 +725,7 @@ function DockItem({
     const lanzar = () => {
         if (pingLanzamiento.current) clearTimeout(pingLanzamiento.current);
         setFase("lanzando");
-        pingLanzamiento.current = window.setTimeout(() => setFase("reposo"), 170);
+        pingLanzamiento.current = setTimeout(() => setFase("reposo"), 170);
     };
     const estiloFase = fase === "reposo"
         ? undefined
