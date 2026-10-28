@@ -47,6 +47,7 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
   it("el catálogo lo describe con su licencia «sin comprobar del todo» y el motor onnx-web", () => {
     const ficha = modeloPorId(MODELO_SD_TURBO);
     expect(ficha).toBeDefined();
+    expect(ficha!.licencia).toContain("Stability");
     expect(ficha!.nota).toContain("sin comprobar del todo");
     expect(ficha!.motores).toContain("onnx-web");
     expect(ficha!.uso).toBe("condicionado");
@@ -60,6 +61,11 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
   it("solo los TRES archivos necesarios: ni encoder del VAE ni scheduler", () => {
     expect(PESOS_SD_TURBO.map((p) => p.ruta)).toEqual(["unet/model.onnx", "text_encoder/model.onnx", "vae_decoder/model.onnx"]);
     for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
+  });
+
+  it("los tres ONNX del ejemplo oficial, cada uno con su tamaño medido y el total de la suma", () => {
+    expect(PESOS_SD_TURBO.map((p) => p.bytes)).toEqual([1733430199, 681393168, 99094314]);
+    expect(BYTES_PESOS_SD_TURBO).toBe(1733430199 + 681393168 + 99094314);
   });
 
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
