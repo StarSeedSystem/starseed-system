@@ -28,6 +28,7 @@ import { MateriaVivaBackgroundHost } from "@/components/backgrounds/materia-viva
 import { LivingBackground } from "@/components/ui/backgrounds/living-background";
 import { BackgroundLayerStack } from "@/components/ui/backgrounds/background-layer-stack";
 import { CrystalFilters } from "@/components/ui/effects/CrystalFilters";
+import { MausbotHostCliente } from "@/components/mausbot/mausbot-host-cliente";
 import { GlobalEnvironment } from "@/components/ui/global-environment";
 import { PerimeterProvider } from "@/context/perimeter-context";
 import { PerimeterInterface } from "@/components/layout/perimeter-interface";
@@ -422,6 +423,7 @@ export default function RootLayout({
                         {/* Cursor personalizado + animaciones de clic (config en
                             Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
                         <CursorFxHost />
+                        <MausbotHostCliente />
                         <AlarmsEngine />
                         <SoloFueraDeMinima><MontajeGlobalMensajeria /></SoloFueraDeMinima>
                         <MontajeConsumo />
