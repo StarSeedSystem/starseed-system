@@ -55,6 +55,19 @@ describe("suscribirEstadoMausbot (contrato §3 y §6)", () => {
     baja();
   });
 
+  it("una señal nueva de la orbe fija su estado y cancela el orgullo pendiente", () => {
+    const estados: string[] = [];
+    const baja = suscribirEstadoMausbot((e) => estados.push(e));
+    emitirAccionAgente({ accion: "clic", fase: "acabar" });
+    expect(estados.at(-1)).toBe("proud");
+    emitQuantumOrbState("thinking");
+    expect(estados.at(-1)).toBe("thinking");
+    vi.advanceTimersByTime(ORGULLO_MS);
+    // El «idle» que el orgullo dejó pendiente no se dispara: la orbe lo soltó.
+    expect(estados.at(-1)).toBe("thinking");
+    baja();
+  });
+
   it("sin señal 2 min entra «drowsy» y 10 min «sleeping»", () => {
     const estados: string[] = [];
     const baja = suscribirEstadoMausbot((e) => estados.push(e));
