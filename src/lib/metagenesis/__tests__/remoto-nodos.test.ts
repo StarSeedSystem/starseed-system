@@ -18,6 +18,7 @@ import {
     type FilaBus,
     elegirFuente,
     ACCIONES,
+    ACCIONES_DEL_LIDER,
 } from "../remoto-nodos";
 
 const AHORA = Date.parse("2026-10-10T12:00:00Z");
@@ -229,5 +230,12 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
         );
         expect(ACCIONES.contenedor.confirmar).toBeUndefined();
         expect(ACCIONES.contenedor.args).toEqual(["activo", "trabajadores"]);
+    });
+
+    it("ACCIONES_DEL_LIDER no incluye las nuevas acciones", () => {
+        expect("desconectar" in ACCIONES_DEL_LIDER).toBe(false);
+        expect("contenedor" in ACCIONES_DEL_LIDER).toBe(false);
+        expect("continuar" in ACCIONES_DEL_LIDER).toBe(true);
+        expect("ceder" in ACCIONES_DEL_LIDER).toBe(true);
     });
 });
