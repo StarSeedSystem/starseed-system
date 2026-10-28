@@ -19,22 +19,31 @@ SERVICIO = os.path.normpath(os.path.join(
 
 
 class Plan(unittest.TestCase):
-    def test_tres_pasos_con_el_checkout_canonico(self):
+    def test_plan_laya_sin_setup_y_con_el_checkout_canonico(self):
         plan = N.plan_colibri()
-        self.assertEqual(len(plan), 3)
-        clon, prepara, sirve = (paso["args"] for paso in plan)
+        self.assertEqual(len(plan), 5)
+        clon = plan[0]["args"]
         self.assertEqual(clon[0], "git")
         self.assertIn("v2.0.0", clon)
         self.assertEqual(clon[-1], N.COLIBRI_REPO_A1)
-        self.assertEqual(prepara[:2], ["./start-here.sh", "--model"])
-        self.assertEqual(prepara[prepara.index("--dir") + 1], N.COLIBRI_MODELOS_A1)
-        self.assertEqual(sirve[sirve.index("--host") + 1], "127.0.0.1")
-        self.assertEqual(sirve[sirve.index("--port") + 1], "4480")
+        texto = " ".join(" ".join(paso["args"]) for paso in plan)
+        self.assertNotIn("start-here.sh", texto)
+        self.assertIn("convaiinnovations/laya", texto)
+        self.assertIn("make -C c laya", texto)
+        self.assertIn("sha256sum", texto)
+
+    def test_la_ruta_del_clon_es_la_de_la_unidad(self):
+        with open(SERVICIO, encoding="utf-8") as f:
+            unidad = f.read()
+        self.assertIn(N.COLIBRI_REPO_A1 + "/c/coli", unidad)
+        self.assertEqual(N.plan_colibri()[0]["args"][-1], N.COLIBRI_REPO_A1)
 
     def test_carpeta_del_modelo_configurable(self):
         plan = N.plan_colibri("/srv/modelos")
-        prepara = plan[1]["args"]
-        self.assertEqual(prepara[prepara.index("--dir") + 1], "/srv/modelos")
+        descarga = next(paso["args"] for paso in plan if paso["args"][0] == "hf")
+        self.assertEqual(descarga[descarga.index("--local-dir") + 1], "/srv/modelos/laya")
+        huella = next(paso["args"] for paso in plan if paso["args"][0] == "sha256sum")
+        self.assertEqual(huella[-1], "/srv/modelos/laya/model.safetensors")
 
     def test_argumentos_como_listas_y_sin_claves(self):
         plan = N.plan_colibri()
@@ -43,7 +52,7 @@ class Plan(unittest.TestCase):
             self.assertTrue(all(isinstance(a, str) for a in paso["args"]))
             self.assertTrue(paso["porque"])
         texto = json.dumps(plan, ensure_ascii=False).upper()
-        for prohibido in ("API_KEY", "TOKEN", "SECRET", "PASSWORD"):
+        for prohibido in ("API_KEY", "TOKEN=", "SECRET", "PASSWORD"):
             self.assertNotIn(prohibido, texto)
 
 

@@ -21,6 +21,35 @@ PUERTO_STARSEED = 4480
 # la RAM recomendada de cada modelo. En una neurona DEDICADA a Colibri quien llama pasa margen_gb=0.
 MARGEN_SISTEMA_GB = 4.5
 CARPETA_DEFECTO = str(Path.home() / "Colibri-modelos")
+#: La ruta que da por hecha `deploy/oracle/nodo/systemd/starseed-colibri.service`: de ese
+#: checkout sale su `c/coli`. No es `colibri-modelos`: el motor y los pesos viven aparte.
+REPO_EN_A1 = "/home/starseed/colibri"
+#: Los modelos de DECISIÓN no están en el catálogo de `coli setup`: se bajan de Hugging Face
+#: y se compilan a mano, según docs/laya.md y docs/gliner_decide.md de Colibri v2.0.0.
+DESCARGAS: dict[str, dict[str, Any]] = {
+    "colibri-laya": {
+        "carpeta": "laya",
+        "repo_hf": "convaiinnovations/laya",
+        "ficheros": ["model.safetensors", "rl_agent_config.json", "encoder/*", "tokenizer/*"],
+        "compila": "laya",
+    },
+    "colibri-gliner-decide": {
+        "carpeta": "GLiNER2.5-Decide",
+        "repo_hf": "fastino/GLiNER2.5-Decide",
+        "ficheros": ["model.safetensors", "config.json", "encoder_config/*", "tokenizer.json",
+                     "tokenizer_config.json", "special_tokens_map.json"],
+        "compila": "gliner_decide",
+    },
+}
+#: `start-here.sh` es `coli setup` y solo conoce los ids de SU catálogo (`c/setup_catalog.py`),
+#: sin el prefijo `colibri-` de StarSeed. Laya y GLiNER2.5-Decide no están ahí.
+MAPA_CHAT = {
+    "colibri-qwen36-35b": "qwen36-35b",
+    "colibri-qwen3-coder-30b": "qwen3-coder-30b",
+    "colibri-deepseek-v4-flash-reap": "deepseek-v4-flash-reap",
+    "colibri-qwen38-flash-next": "qwen38-flash-next",
+    "colibri-glm-5.2": "glm-5.2",
+}
 
 
 def entradas() -> list[dict[str, Any]]:
@@ -64,21 +93,60 @@ def caben(lista: list[dict[str, Any]], ram_gb: float, disco_libre_gb: float,
     return filas
 
 
+def _paso(porque: str, args: list[str]) -> dict[str, Any]:
+    return {"porque": porque, "args": args}
+
+
+def _clon() -> dict[str, Any]:
+    """El checkout, en la ruta exacta que da por hecha la unidad systemd del A1."""
+    return _paso(f"clona el motor Apache-2.0 en su etiqueta verificada {ETIQUETA}, en la ruta "
+                 f"que pide starseed-colibri.service",
+                 ["git", "clone", "--depth", "1", "--branch", ETIQUETA, REPO_COLIBRI, REPO_EN_A1])
+
+
+def _cliente_hf() -> dict[str, Any]:
+    """`hf` viene con huggingface_hub[cli]; pip no reinstala lo que ya está."""
+    return _paso("deja instalado el cliente «hf» (si ya está, pip no hace nada)",
+                 ["python3", "-m", "pip", "install", "--user", "huggingface_hub[cli]"])
+
+
+def _descarga(definicion: dict[str, Any], carpeta: str) -> list[dict[str, Any]]:
+    """Baja los pesos de decisión, compila su variante y saca la huella del archivo grande."""
+    destino = f"{carpeta}/{definicion['carpeta']}"
+    return [
+        _paso(f"descarga los pesos de {definicion['repo_hf']} en {destino} (solo los baja)",
+              ["hf", "download", definicion["repo_hf"], *definicion["ficheros"],
+               "--local-dir", destino]),
+        _paso(f"compila la variante «{definicion['compila']}» del motor en el checkout",
+              ["make", "-C", "c", definicion["compila"]]),
+        _paso("anota la huella SHA-256 de los pesos descargados",
+              ["sha256sum", f"{destino}/model.safetensors"]),
+    ]
+
+
+def _chat(id_colibri: str, carpeta: str) -> dict[str, Any]:
+    """Prepara un modelo del catálogo de Colibri sin servirlo: lo sirve la unidad."""
+    return _paso(f"prepara «{id_colibri}» en {carpeta} sin arrancarlo ni abrir el navegador",
+                 ["./start-here.sh", "--model", id_colibri, "--dir", carpeta,
+                  "--yes", "--no-gpu", "--no-start", "--no-browser"])
+
+
 def plan_instalacion(id_modelo: str, carpeta: str) -> list[dict[str, Any]]:
-    """Las órdenes para instalar `id_modelo` en `carpeta`, como LISTAS de argumentos, sin ejecutar."""
+    """Las órdenes para instalar `id_modelo` en `carpeta`, como LISTAS de argumentos, sin ejecutar.
+
+    Sigue lo que dice Colibri v2.0.0: `start-here.sh` es `coli setup` y solo acepta los ids de SU
+    catálogo (sin el prefijo `colibri-`); Laya y GLiNER2.5-Decide se bajan de Hugging Face y se
+    compilan aparte. Ningún paso sirve el modelo: eso es de `starseed-colibri.service`."""
     ids = {e["id"] for e in entradas()}
     if id_modelo not in ids:
         raise ValueError(f"id desconocido «{id_modelo}»: no está en config/capas-colibri-1027.json")
-    copia = f"{carpeta}/colibri-{ETIQUETA}"
-    return [
-        {"porque": f"clona el motor Apache-2.0 en su etiqueta verificada {ETIQUETA}",
-         "args": ["git", "clone", "--depth", "1", "--branch", ETIQUETA, REPO_COLIBRI, copia]},
-        {"porque": "compila y prepara el modelo en la carpeta de la neurona, sin pedir GPU",
-         "args": ["./start-here.sh", "--model", id_modelo, "--dir", carpeta, "--yes", "--no-gpu"]},
-        {"porque": f"lo sirve solo en local, en 127.0.0.1:{PUERTO_STARSEED} (el 8000 es de Astraura 1.58)",
-         "args": ["./start-here.sh", "--model", id_modelo, "--dir", carpeta,
-                  "--host", "127.0.0.1", "--port", str(PUERTO_STARSEED)]},
-    ]
+    if id_modelo == "colibri-clef":
+        raise ValueError("«colibri-clef» no cabe en esta neurona: pide 52 GB de disco y 55 GB de RAM")
+    if id_modelo in DESCARGAS:
+        return [_clon(), _cliente_hf(), *_descarga(DESCARGAS[id_modelo], carpeta)]
+    if id_modelo in MAPA_CHAT:
+        return [_clon(), _cliente_hf(), _chat(MAPA_CHAT[id_modelo], carpeta)]
+    raise ValueError(f"«{id_modelo}» no está en el catálogo de setup de Colibri: se instala a mano")
 
 
 def medir_maquina() -> tuple[float, float, bool]:
@@ -101,7 +169,12 @@ def _plan_maquina(carpeta: str) -> None:
         print(f"[{fila['capa']}] {fila['id']}: {fila['veredicto']} — {fila['porque']}")
     for fila in (f for f in filas if f["veredicto"] == "cabe"):
         print(f"\nPlan de instalación de {fila['id']} en {carpeta} (listas de argumentos, sin ejecutar):")
-        for paso in plan_instalacion(fila["id"], carpeta):
+        try:
+            pasos = plan_instalacion(fila["id"], carpeta)
+        except ValueError as exc:
+            print(f"  · {exc}")
+            continue
+        for paso in pasos:
             print(f"  · {paso['porque']}: {' '.join(paso['args'])}")
     print("\nNada de esto se descarga ni se ejecuta: instalar necesita SIEMPRE el visto bueno.")
 

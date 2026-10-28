@@ -137,11 +137,11 @@ PESOS_ARM_LOCAL = os.environ.get("STARSEED_BITNET_ARM_GGUF") or os.path.join(
     HOME, "Documents", "IA 1.58 bit", "backend", "BitNet", "models", "BitNet-b1.58-2B-4T", "ggml-model-i2_s.gguf")
 MODELO_A1 = "/home/starseed/astraura/backend/BitNet/models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf"
 #: (CLB1027F) Colibri con Laya en el A1: el checkout canónico que exige la unidad systemd (de él
-#: sale `<repo>/c/coli`) y la carpeta donde el instalador deja el modelo. El plan de
-#: `colibri_nodo.plan_instalacion` clona en `<carpeta>/colibri-vX.Y.Z`; aquí se fija la ruta que
-#: `starseed-colibri.service` da por hecha, para que `preparar-a1.sh` no instale la unidad antes
-#: de que existan el motor y el modelo. Nada se descarga hasta que Alex lo diga.
-COLIBRI_REPO_A1 = "/home/starseed/colibri"
+#: sale `<repo>/c/coli`) y la carpeta donde el instalador deja el modelo. Desde CLB1028G el plan
+#: de `colibri_nodo.plan_instalacion` ya clona en esa misma ruta (la comparten), para que
+#: `preparar-a1.sh` no instale la unidad antes de que existan el motor y el modelo. Nada se
+#: descarga hasta que Alex lo diga.
+COLIBRI_REPO_A1 = colibri_nodo.REPO_EN_A1
 COLIBRI_MODELOS_A1 = "/home/starseed/colibri-modelos"
 COLIBRI_MODELO = "colibri-laya"
 COLIBRI_MODELO_A1 = os.path.join(COLIBRI_MODELOS_A1, "laya")
@@ -1153,30 +1153,26 @@ def probar_bitnet():
 def plan_colibri(carpeta=COLIBRI_MODELOS_A1):
     """PURA. El plan de `colibri_nodo.plan_instalacion` para Laya en el A1, sin ejecutar nada.
 
-    La única corrección es la ruta del checkout: `plan_instalacion` añade `colibri-<etiqueta>`
-    a la carpeta, y la unidad da por hecho `/home/starseed/colibri/c/coli`."""
-    plan = colibri_nodo.plan_instalacion(COLIBRI_MODELO, carpeta)
-    plan[0]["args"][-1] = COLIBRI_REPO_A1
-    return plan
+    Ya clona en `COLIBRI_REPO_A1`, la ruta que la unidad da por hecho (`<repo>/c/coli`), y no
+    usa `start-here.sh` para un modelo de decisión: Laya se baja de Hugging Face y se compila."""
+    return colibri_nodo.plan_instalacion(COLIBRI_MODELO, carpeta)
 
 
 def _guion_colibri(plan):
-    """El guion que se ejecuta en el A1 por SSH: los pasos como LISTAS de argumentos, con el
-    `start-here.sh` dentro del checkout y el último paso con tope (es un servidor en primer plano;
-    luego lo gobierna `starseed-colibri.service`)."""
+    """El guion que se ejecuta en el A1 por SSH: los pasos como LISTAS de argumentos, dentro del
+    checkout (el `start-here.sh` es relativo). Ningún paso sirve el modelo: eso es de
+    `starseed-colibri.service`. `hf` se instala con `pip --user`, así que se añade su carpeta al
+    PATH del usuario `starseed` aunque la sesión SSH no traiga un login."""
     pasos = [paso["args"] for paso in plan]
     return "\n".join([
-        "import subprocess, sys",
+        "import os, pwd, subprocess, sys",
         "pasos = " + repr(pasos),
         "repo = " + repr(COLIBRI_REPO_A1),
+        "casa = pwd.getpwuid(os.getuid()).pw_dir",
+        "env = dict(os.environ, PATH=os.path.join(casa, '.local', 'bin') + ':' + os.environ.get('PATH', ''))",
         "for i, args in enumerate(pasos, 1):",
         "    print('[colibri] paso %d/%d: %s' % (i, len(pasos), ' '.join(args)), flush=True)",
-        "    try:",
-        "        r = subprocess.run(args, cwd=repo if i > 1 else None,",
-        "                           timeout=60 if i == len(pasos) else 3600)",
-        "    except subprocess.TimeoutExpired:",
-        "        print('[colibri] se queda sirviendo; lo gobierna starseed-colibri.service', flush=True)",
-        "        continue",
+        "    r = subprocess.run(args, cwd=repo if i > 1 else None, timeout=3600, env=env)",
         "    if r.returncode != 0:",
         "        print('[colibri] fallo %d en el paso %d' % (r.returncode, i), flush=True)",
         "        sys.exit(r.returncode)",
