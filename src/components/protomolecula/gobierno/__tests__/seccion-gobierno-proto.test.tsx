@@ -21,11 +21,7 @@ import { SeccionGobiernoProto } from "../seccion-gobierno-proto";
 import { olvidarTodo } from "@/lib/protomolecula/gobierno/almacen";
 import { olvidarUsos } from "@/lib/protomolecula/gobierno/registro";
 import { reglasPorDefecto } from "@/lib/protomolecula/gobierno/reglas";
-<<<<<<< HEAD
 import { NOMBRES_PROHIBIDOS, cargado, servicios } from "./ayudas-prueba";
-=======
-import { NOMBRES_PROHIBIDOS, cargado, servicios } from "./ayudas-prueba";
->>>>>>> e22a3a9bf (1021G · GUI1021K2b: Guía sin cuenta · el mismo acceso en la bienvenida y en retomar sesión)
 
 beforeEach(() => {
   olvidarTodo();
