@@ -7,6 +7,7 @@
 import { describe, it, expect } from "vitest";
 import { cursorOpcionValida, cursorPreviewUri, disenoActivoMausbot, puntaAnchor } from "../cursor-fx";
 import { CUERPOS_MAUSBOT, IDS_CUERPO_MAUSBOT } from "@/lib/mausbot/cuerpos";
+import { MAX_SVG_CARACTERES } from "@/lib/dock/iconos/sanear-svg";
 import { CONFIG_MAUSBOT_DEFECTO, DISENO_MAUSBOT_FABRICA } from "@/lib/mausbot/config";
 import { DISENO_POR_DEFECTO } from "@/lib/mausbot/disenos";
 
@@ -38,6 +39,11 @@ describe("cursor-fx · analizador de la opción «mausbot»", () => {
         expect(cursorOpcionValida(null)).toBe("system");
         expect(cursorOpcionValida(undefined)).toBe("system");
         expect(cursorOpcionValida({ cursor: "mausbot" })).toBe("system");
+        // Casos del borde que tampoco pasan: vacío, prefijo sin cuerpo y valores no cadena.
+        expect(cursorOpcionValida("")).toBe("system");
+        expect(cursorOpcionValida("mausbot-")).toBe("system");
+        expect(cursorOpcionValida(true)).toBe("system");
+        expect(cursorOpcionValida(["orb"])).toBe("system");
     });
 });
 
@@ -78,6 +84,20 @@ describe("cursor-fx · punta en el anchor (contrato §4)", () => {
         expect(puntaAnchor(CUERPOS_MAUSBOT.cursor.anchor)).toBe("12 15");
     });
 
+    it("el anchor de la estrella cae en los mismos 32 px", () => {
+        expect(puntaAnchor(CUERPOS_MAUSBOT.star.anchor)).toBe("16 17");
+    });
+
+    it("la punta queda dentro del lienzo para todos los cuerpos", () => {
+        for (const id of IDS_CUERPO_MAUSBOT) {
+            const [x, y] = puntaAnchor(CUERPOS_MAUSBOT[id].anchor).split(" ").map(Number);
+            expect(x).toBeGreaterThanOrEqual(1);
+            expect(x).toBeLessThanOrEqual(31);
+            expect(y).toBeGreaterThanOrEqual(1);
+            expect(y).toBeLessThanOrEqual(31);
+        }
+    });
+
     it("queda sujeta a los bordes del icono, sin salirse nunca", () => {
         expect(puntaAnchor({ x: 0, y: 0 })).toBe("2 2");
         expect(puntaAnchor({ x: -500, y: 500 })).toBe("0 31");
@@ -98,7 +118,12 @@ function svg(uri: string): void {
     // Sin cara y sin nada ejecutable: el cuerpo no trae ojos ni boca, y el saneador
     // jamás dejaría un script pasar (doble defensa, como en los iconos del dock).
     expect(decoded).not.toMatch(/<script/i);
-    expect(decoded).not.toMatch(/onerror|onload/i);
+    // Tampoco ningún atributo de evento («on…») de ningún tipo.
+    expect(decoded).not.toMatch(/\son[a-z]*\s*=/i);
     expect(decoded).not.toContain("<ellipse");
     expect(decoded).not.toContain("boca");
+    // El puntero de fábrica es un único trazo: exactamente un <path>.
+    expect(decoded.split("<path").length - 1).toBe(1);
+    // Y viaja dentro del tope del saneador, como los iconos del dock.
+    expect(decoded.length).toBeLessThanOrEqual(MAX_SVG_CARACTERES);
 }
