@@ -174,11 +174,19 @@ export class AlmacenCapas {
       sha256: entrada.sha256,
     });
     // Persistir la meta para que la capa se reconozca al reabrir (capaEnPropio).
-    await this.escribirMeta(entrada.id);
+    await this.persistirMeta(entrada.id);
     return { ok: true };
   }
 
   /** Escribe la meta actual de la capa en el almacén subyacente. */
+  private async persistirMeta(id: string): Promise<void> {
+    const meta = this.metas.get(id);
+    if (!meta) return;
+    const json = JSON.stringify(meta);
+    const buffer = new TextEncoder().encode(json).buffer;
+    await this.almacen.escribir(claveMeta(id), buffer);
+  }
+
   private async escribirMeta(id: string): Promise<void> {
     const meta = this.metas.get(id);
     if (!meta) return;

@@ -113,30 +113,50 @@ function jsonDeMeta(datos: ArrayBuffer): unknown {
 }
 
 /**
- * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén (§6).
- * Cruza el SHA con la meta que AlmacenCapas guarda (`capa/<id>/meta`) y cuenta que estén
- * TODOS sus trozos: `guardarTrozo` solo escribe un trozo tras verificar su SHA-256 y
- * `guardarCapa` solo marca `completa` cuando el SHA-256 del archivo entero cuadra.
+ * Meta persistida de una capa (la escribe AlmacenCapas al cerrarla).
  */
-export async function capaEnPropio(
-  almacen: Almacenamiento,
-  sha256: string,
-): Promise<boolean> {
+interface MetaGuardada {
+  sha256: string;
+  completa: boolean;
+  totalTrozos?: number;
+}
+
+/** Índices de los trozos guardados de una capa, ordenados. */
+function indicesDeTrozos(claves: string[], id: string): number[] {
+  const prefijo = `capa/${id}/trozo/`;
+  return claves
+    .filter((c) => c.startsWith(prefijo))
+    .map((c) => Number(c.slice(prefijo.length)))
+    .filter((n) => Number.isInteger(n) && n >= 0)
+    .sort((a, b) => a - b);
+}
+
+/**
+ * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén local:
+ * busca la meta persistida cuyo SHA-256 coincide (claves `capa/<id>/meta`, formato que escribe
+ * AlmacenCapas) y comprueba que todos sus trozos están.
+ */
+export async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
   try {
     const claves = await almacen.claves();
     for (const clave of claves) {
-      if (!clave.endsWith("/meta")) continue;
+      if (!clave.startsWith("capa/") || !clave.endsWith("/meta")) continue;
       const datos = await almacen.leer(clave);
-      if (datos === null) continue;
-      const meta = metaDeAlmacen(jsonDeMeta(datos));
-      if (meta === null) continue;
-      if (!meta.completa || meta.sha256 !== sha256) continue;
-      // `capa/<id>/meta` → id entre "capa/" y "/meta".
-      const id = clave.slice("capa/".length, -"/meta".length);
-      const prefijo = `capa/${id}/trozo/`;
-      const presentes = claves.filter((c) => c.startsWith(prefijo));
-      if (presentes.length !== meta.totalTrozos) continue;
-      return true;
+      if (!datos) continue;
+      let meta: MetaGuardada;
+      try {
+        meta = JSON.parse(new TextDecoder().decode(datos)) as MetaGuardada;
+      } catch {
+        continue; // Meta corrupta: no es una capa fiable.
+      }
+      if (meta.sha256 !== sha256 || meta.completa !== true) continue;
+      const id = clave.slice("capa/".length, clave.length - "/meta".length);
+      const indices = indicesDeTrozos(claves, id);
+      const total = meta.totalTrozos ?? indices.length;
+      // Completa = todos sus trozos están (se escribieron ya verificados por SHA) y en orden.
+      if (total > 0 && indices.length === total && indices[total - 1] === total - 1) {
+        return true;
+      }
     }
     return false;
   } catch {

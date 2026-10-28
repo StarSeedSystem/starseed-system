@@ -1,13 +1,37 @@
 /**
- * repartir.test.ts — Pruebas puras para pedirCapa (sin red, sin disco real).
+ * repartir.test.ts — Pruebas puras para capaEnPropio y pedirCapa (sin red, sin disco real).
  * Usa malla y almacén en memoria.
  */
 import { describe, expect, it } from "vitest";
-import { AlmacenCapas, almacenamientoEnMemoria, type TrozoCapa } from "@/lib/astraura/capas/almacen";
-import { pedirCapa, capaEnPropio, type ConsultaCapa, type RespuestaCapa, type ContextoPedido } from "@/lib/astraura/capas/repartir";
+import { almacenamientoEnMemoria, AlmacenCapas, type TrozoCapa } from "@/lib/astraura/capas/almacen";
+import { capaEnPropio, pedirCapa, type ConsultaCapa, type RespuestaCapa, type ContextoPedido, type ResultadoPedido } from "@/lib/astraura/capas/repartir";
 import type { EntradaCapa } from "@/lib/astraura/capas/catalogo";
 
-/** Texto → ArrayBuffer, sin depender del buffer subyacente de TextEncoder. */
+
+/** Crea una malla falsa que emite respuestas programadas. */
+function crearMallaFalsa(respuestas: RespuestaCapa[]) {
+  const listeners = new Set<(resp: RespuestaCapa) => void>();
+  let broadcastMsg: ConsultaCapa | null = null;
+
+  return {
+    malla: {
+      broadcast: (msg: ConsultaCapa) => {
+        broadcastMsg = msg;
+        setTimeout(() => {
+          for (const r of respuestas) {
+            for (const l of listeners) l({ ...r, consultaId: msg.id });
+          }
+        }, 10);
+      },
+      onRespuesta: (cb: (resp: RespuestaCapa) => void) => {
+        listeners.add(cb);
+        return () => listeners.delete(cb);
+      },
+    },
+    getBroadcast: () => broadcastMsg,
+  };
+}
+/** ArrayBuffer desde texto, sin depender del buffer subyacente de TextEncoder. */
 const aBuffer = (texto: string): ArrayBuffer => {
   const bytes = new TextEncoder().encode(texto);
   const buffer = new ArrayBuffer(bytes.byteLength);
@@ -30,6 +54,47 @@ const concatenar = (partes: ArrayBuffer[]): ArrayBuffer => {
   }
   return entero.buffer;
 };
+
+/** Trozo con su SHA-256 real anotado (WebCrypto, igual que en el almacén). */
+async function trozoDe(datos: ArrayBuffer, indice: number): Promise<TrozoCapa> {
+  const resumen = await globalThis.crypto.subtle.digest("SHA-256", datos);
+  const sha256 = [...new Uint8Array(resumen)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return { indice, sha256, datos };
+}
+
+async function entradaDe(trozosDatos: ArrayBuffer[]): Promise<EntradaCapa> {
+  const total = trozosDatos.reduce((s, t) => s + t.byteLength, 0);
+  const entero = new Uint8Array(total);
+  let desplaza = 0;
+  for (const t of trozosDatos) {
+    entero.set(new Uint8Array(t), desplaza);
+    desplaza += t.byteLength;
+  }
+  const sha256 = await trozoDe(entero.buffer, 0).then((t) => t.sha256);
+  return {
+    id: "needle3-reflejo",
+    familia: "Cactus Needle 3",
+    capa: "reflejo",
+    modelo: "needle3-reflejo",
+    version: "3.1.2",
+    formato: "cact",
+    runtime: "needle-wasm",
+    parametros: "121M",
+    disco_mb: 12,
+    ram_min_mb: 64,
+    sha256,
+    fuente_oficial: "https://huggingface.co/Cactus-Compute/needle3",
+    espejos: [],
+    estado: "recomendado",
+    medios: ["web"],
+  };
+}
+
+function bytes(texto: string): ArrayBuffer {
+  return new TextEncoder().encode(texto).buffer;
+}
 
 /** Entrada de catálogo con el SHA real de los trozos, y los trozos con su SHA por trozo. */
 async function capaDeTrozos(textos: string[]): Promise<{ entrada: EntradaCapa; trozos: TrozoCapa[] }> {
@@ -63,29 +128,6 @@ function crearCatalogoFalso(): EntradaCapa[] {
       medios: ["web", "pwa", "nativo", "servidor"],
     },
   ];
-}
-
-function crearMallaFalsa(respuestas: RespuestaCapa[]) {
-  const listeners = new Set<(resp: RespuestaCapa) => void>();
-  let broadcastMsg: ConsultaCapa | null = null;
-
-  return {
-    malla: {
-      broadcast: (msg: ConsultaCapa) => {
-        broadcastMsg = msg;
-        setTimeout(() => {
-          for (const r of respuestas) {
-            for (const l of listeners) l({ ...r, consultaId: msg.id });
-          }
-        }, 10);
-      },
-      onRespuesta: (cb: (resp: RespuestaCapa) => void) => {
-        listeners.add(cb);
-        return () => listeners.delete(cb);
-      },
-    },
-    getBroadcast: () => broadcastMsg,
-  };
 }
 
 describe("capaEnPropio — verificación de capa en almacén local", () => {
@@ -141,14 +183,90 @@ describe("capaEnPropio — verificación de capa en almacén local", () => {
     await almacen.escribir("capa/needle3-reflejo/trozo/99", aBuffer("desconocido"));
     expect(await capaEnPropio(almacen, entrada.sha256)).toBe(false);
   });
+
+  it("devuelve true si la capa está completa con todos sus trozos y SHA coincide", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const sha256 = "a".repeat(64);
+    const meta = { sha256, completa: true, totalTrozos: 3 };
+    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)).buffer);
+    await almacen.escribir("capa/needle3-reflejo/trozo/0", new ArrayBuffer(10));
+    await almacen.escribir("capa/needle3-reflejo/trozo/1", new ArrayBuffer(10));
+    await almacen.escribir("capa/needle3-reflejo/trozo/2", new ArrayBuffer(10));
+
+    const resultado = await capaEnPropio(almacen, sha256);
+    expect(resultado).toBe(true);
+  });
+
+  it("devuelve false si falta un trozo", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const sha256 = "a".repeat(64);
+    const meta = { sha256, completa: true, totalTrozos: 3 };
+    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)).buffer);
+    await almacen.escribir("capa/needle3-reflejo/trozo/0", new ArrayBuffer(10));
+    await almacen.escribir("capa/needle3-reflejo/trozo/1", new ArrayBuffer(10));
+    // trozo/2 falta
+
+    const resultado = await capaEnPropio(almacen, sha256);
+    expect(resultado).toBe(false);
+  });
+
+  it("devuelve false si el SHA no coincide", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const sha256 = "a".repeat(64);
+    const meta = { sha256: "b".repeat(64), completa: true, totalTrozos: 3 };
+    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)).buffer);
+    await almacen.escribir("capa/needle3-reflejo/trozo/0", new ArrayBuffer(10));
+    await almacen.escribir("capa/needle3-reflejo/trozo/1", new ArrayBuffer(10));
+    await almacen.escribir("capa/needle3-reflejo/trozo/2", new ArrayBuffer(10));
+
+    const resultado = await capaEnPropio(almacen, sha256);
+    expect(resultado).toBe(false);
+  });
+
+  it("devuelve false si la meta dice incompleta", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const sha256 = "a".repeat(64);
+    const meta = { sha256, completa: false, totalTrozos: 3 };
+    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)).buffer);
+    await almacen.escribir("capa/needle3-reflejo/trozo/0", new ArrayBuffer(10));
+    await almacen.escribir("capa/needle3-reflejo/trozo/1", new ArrayBuffer(10));
+    await almacen.escribir("capa/needle3-reflejo/trozo/2", new ArrayBuffer(10));
+
+    const resultado = await capaEnPropio(almacen, sha256);
+    expect(resultado).toBe(false);
+  });
+
+  it("devuelve false si no hay meta para ese SHA", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const sha256 = "a".repeat(64);
+
+    const resultado = await capaEnPropio(almacen, sha256);
+    expect(resultado).toBe(false);
+  });
+
+  it("reconoce una capa cerrada por AlmacenCapas.guardarCapa (meta y trozos reales)", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const bodega = new AlmacenCapas(almacen);
+    const trozosDatos = [bytes("hola "), bytes("capa "), bytes("needle")];
+    const entrada = await entradaDe(trozosDatos);
+    const trozos = await Promise.all(trozosDatos.map((d, i) => trozoDe(d, i)));
+    const cierre = await bodega.guardarCapa(entrada, trozos);
+    expect(cierre).toEqual({ ok: true });
+
+    expect(await capaEnPropio(almacen, entrada.sha256)).toBe(true);
+    // Si expulsa la capa por LRU (borra trozos y meta), ya no está en propio.
+    await bodega.borrarCapa(entrada.id);
+  });
 });
 
 describe("pedirCapa — selección de fuente por orden §6", () => {
   it("devuelve propio si la capa ya está en el almacén local", async () => {
-    const { entrada, trozos } = await capaDeTrozos(["HOLA-", "MUNDO-"]);
     const almacen = almacenamientoEnMemoria();
-    const almacenador = new AlmacenCapas(almacen);
-    expect((await almacenador.guardarCapa(entrada, trozos)).ok).toBe(true);
+    const sha256 = "a".repeat(64);
+    const meta = { sha256, completa: true, totalTrozos: 2 };
+    await almacen.escribir("capa/needle3-reflejo/meta", new TextEncoder().encode(JSON.stringify(meta)).buffer);
+    await almacen.escribir("capa/needle3-reflejo/trozo/0", new ArrayBuffer(10));
+    await almacen.escribir("capa/needle3-reflejo/trozo/1", new ArrayBuffer(10));
 
     const { malla } = crearMallaFalsa([]);
     const ctx: ContextoPedido = {
@@ -158,7 +276,7 @@ describe("pedirCapa — selección de fuente por orden §6", () => {
       permitirPublicos: true,
       timeoutMs: 100,
     };
-    const resultado = await pedirCapa(entrada.sha256, ctx);
+    const resultado = await pedirCapa(sha256, ctx);
     expect(resultado.fuente).not.toBeNull();
     expect(resultado.fuente?.tipo).toBe("propio");
   });
