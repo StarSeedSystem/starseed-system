@@ -19,7 +19,8 @@ import {
     elegirFuente,
     ACCIONES,
     ACCIONES_DEL_LIDER,
-} from "../remoto-nodos";
+    type NodoVista,
+} from "./src/lib/metagenesis/remoto-nodos";
 
 const AHORA = Date.parse("2026-10-10T12:00:00Z");
 let id = 0;
@@ -90,7 +91,7 @@ describe("resumen del bus", () => {
         const e = resumirBus(filas, AHORA);
         expect(e.lider).toBe("mac-aaaaaa");
         expect(e.termino).toBe(3);
-        expect(e.nodos.map((n) => n.nodo)).toEqual(["mac-aaaaaa", "oracle-a1-bbbbbb"]);
+        expect(e.nodos.map((n: NodoVista) => n.nodo)).toEqual(["mac-aaaaaa", "oracle-a1-bbbbbb"]);
         expect(e.nodos[0]).toMatchObject({ lider: true, vivo: true, etiqueta: "Mac de desarrollo", orquestadores: ["cola-1010s"] });
         expect(e.medidores.listas).toBe("32 se pueden coger ya");
         expect(e.decisiones[0]).toMatchObject({ accion: "revisar_bloqueadas", motivo: "80 bloqueadas" });
@@ -106,7 +107,7 @@ describe("resumen del bus", () => {
             fila("mg_baja", { nodo: "oracle-a1-bbbbbb" }, 30_000),
         ];
         const e = resumirBus(filas, AHORA);
-        expect(e.nodos.every((n) => !n.vivo)).toBe(true);
+        expect(e.nodos.every((n: NodoVista) => !n.vivo)).toBe(true);
         expect(e.lider).toBeNull();
         expect(fraseDelMando(e)).toMatch(/Ningún medio/);
     });
