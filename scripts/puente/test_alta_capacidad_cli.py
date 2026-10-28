@@ -147,6 +147,57 @@ class AltaCapacidadCLI(unittest.TestCase):
         self.assertFalse(datos["cupo"]["ok"])
         self.assertIn("tope superado", datos["cupo"]["motivo"])
 
+    def test_dos_eligibles_llenan_los_dos_puestos(self):
+        """Con cupo y dos huecos libres se eligen dos, en el orden de `logica.elegir`."""
+        cola, progreso, limites = self._entorno(
+            [
+                {"id": "M", "titulo": "Libre uno", "capacidad": "alta"},
+                {"id": "N", "titulo": "Con intentos", "capacidad": "alta", "intentos_auto": 1},
+                {"id": "O", "titulo": "Libre dos", "capacidad": "alta"},
+            ],
+            {}, _limites_frescos(),
+        )
+        r = self._correr("--olas", os.path.dirname(cola), "--progreso", progreso,
+                         "--limites", limites, "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        datos = json.loads(r.stdout)
+        self.assertEqual(datos["elegidas"], ["N", "M"])
+
+    def test_tarea_en_curso_no_es_candidata(self):
+        """`en_curso` es un estado vivo en otro medio: no vuelve a la dirección como candidata."""
+        cola, progreso, limites = self._entorno(
+            [
+                {"id": "VIVA", "titulo": "Ya la cogió otro", "capacidad": "alta"},
+                {"id": "LIBRE", "titulo": "Pendiente de verdad", "capacidad": "alta"},
+            ],
+            {"VIVA": {"estado": "en_curso"}, "LIBRE": {"estado": "pendiente"}},
+            _limites_frescos(),
+        )
+        r = self._correr("--olas", os.path.dirname(cola), "--progreso", progreso,
+                         "--limites", limites, "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        datos = json.loads(r.stdout)
+        self.assertEqual([c["id"] for c in datos["candidatas"]], ["LIBRE"])
+        self.assertEqual(datos["elegidas"], ["LIBRE"])
+
+    def test_rutas_por_entorno_solo_con_raiz(self):
+        """Solo STARSEED_ROOT y STARSEED_LIMITES_CLAUDE: colas, olas y progreso se derivan de
+        la raíz, como en los demás scripts del puente (sin STARSEED_PROGRESO ni STARSEED_OLAS)."""
+        cola, progreso, limites = self._preparar()
+        raiz = os.path.dirname(os.path.dirname(os.path.dirname(cola)))
+        env = dict(os.environ)
+        for nombre in ("STARSEED_ROOT", "STARSEED_OLAS", "STARSEED_PROGRESO",
+                       "STARSEED_LIMITES_CLAUDE"):
+            env.pop(nombre, None)
+        env["STARSEED_ROOT"] = raiz
+        env["STARSEED_LIMITES_CLAUDE"] = limites
+        r = subprocess.run([sys.executable, CLI, "--json"], capture_output=True, text=True,
+                           env=env, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        datos = json.loads(r.stdout)
+        self.assertEqual([c["id"] for c in datos["candidatas"]], ["T1", "T2", "T5"])
+        self.assertEqual(datos["elegidas"], ["T1"])
+
     def test_rutas_por_entorno(self):
         cola, progreso, limites = self._preparar()
         r = self._correr(
