@@ -11,7 +11,6 @@ import { esMoleculaGuardable, guardarMolecula, type AlmacenLocal } from "./almac
 import { registrarAtomosPropios } from "./atomos";
 import { crearControlador, type Controlador } from "./controlador";
 import { registrarControlador } from "./controlador-activo";
-import { registrarConvertidoresBase } from "./convertidores-base";
 import { resolverMolecula } from "./resolver-molecula";
 import type { Molecula, Rol } from "./tipos";
 
@@ -98,7 +97,6 @@ export function abrirSesion(id: string | undefined, d: DependenciasSesion): Resu
   const r = resolverMolecula(id, d);
   if (!r.ok) return r;
   registrarAtomosPropios();
-  registrarConvertidoresBase();
   const { sesion, cerrar } = montar(r.molecula, d);
   ABIERTAS.set(sesion.id, { sesion, cuentas: 1, cerrar });
   orden = [...orden, sesion.id];
