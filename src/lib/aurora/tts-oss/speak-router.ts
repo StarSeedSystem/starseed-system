@@ -68,7 +68,15 @@ import {
   applyVoiceChainPriority,
 } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import { BrainApiManager } from "@/lib/aurora/tts-oss/brain-api-manager";
-import { cronometroHabla } from "@/lib/aurora/medidas-voz";
+import { cronometroHabla, leerMedidas, type MedidaVoz } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+import {
+  medirInterrupcion,
+  ordenarCadenaPorLatencia,
+  PRESUPUESTO_PRIMER_SONIDO_MS,
+  type ContextoVoz,
+  type MuestraLatencia,
+} from "@/lib/aurora/tts-oss/conversacion-fluida";
 import {
   getEngineSettings,
   getVoiceConfig,
@@ -111,6 +119,12 @@ export interface ConfiguredSpeakOptions {
    * en UNA sola síntesis. Si no aplica, se ignora.
    */
   multiSpeakerScript?: string;
+  /**
+   * (VZR1011D) Contexto de la locución. En «conversacion» el motor se elige por
+   * la latencia MEDIDA aquí (≤ 0,8 s al primer sonido); en «lectura»/«narracion»
+   * manda la calidad. Por defecto, conversación (este router sirve al chat).
+   */
+  contexto?: ContextoVoz;
 }
 
 // ── Auto-detección de idioma HABLADO (sin dependencias) ─────────────────────
@@ -322,6 +336,22 @@ function recordarMotorQueSono(link: string): void {
     window.localStorage.setItem(MOTOR_QUE_SONO_KEY, link);
     window.dispatchEvent(new CustomEvent("starseed:voz-motor-vivo", { detail: link }));
   } catch { /* modo privado: la voz sigue funcionando igual */ }
+}
+
+/**
+ * (VZR1011D) Lo MEDIDO en ESTA neurona para elegir motor en conversación:
+ * primer audio y factor de tiempo real. Si no hay nada, devuelve [] y la cadena
+ * conserva su orden de siempre (nunca se inventa una latencia teórica).
+ */
+function medidasDeEstaNeurona(): MuestraLatencia[] {
+  try {
+    return leerMedidas(neuronDeviceIdActual())
+      .filter((m): m is MedidaVoz & { tipo: "primer-sonido" | "tiempo-real-voz" } =>
+        m.tipo === "primer-sonido" || m.tipo === "tiempo-real-voz")
+      .map((m) => ({ motor: m.motor, tipo: m.tipo, valor: m.valor, timestamp: m.timestamp }));
+  } catch {
+    return [];
+  }
 }
 
 /** Motor que sonó por última vez en esta neurona (o null si aún ninguno). */
@@ -579,6 +609,17 @@ export async function speakWithConfiguredEngine(
     // Preferencias de jerarquización (Adenda 94): el usuario reordena la cadena
     // de motores en la ventana de voz; aquí la respetamos antes de hablar.
     const orderedChain = applyVoiceChainPriority(chain);
+    // (VZR1011D) PLÁTICA FLUIDA: en conversación manda la latencia MEDIDA en esta
+    // neurona (≤ 0,8 s al primer sonido), no la ficha teórica del motor. Lo que no
+    // llega al presupuesto pasa al siguiente sin silencio. En lectura/narración el
+    // orden lo decide la calidad. Sin medidas, la cadena conserva su orden.
+    const cadenaFluida = ordenarCadenaPorLatencia(
+      orderedChain,
+      medidasDeEstaNeurona(),
+      opts.contexto ?? "conversacion",
+      PRESUPUESTO_PRIMER_SONIDO_MS,
+      true,
+    ) as VoiceChainLink[];
     // ACTIVACIÓN AUTOMÁTICA POR SESIÓN (Adenda 94): si la cadena incluye el
     // motor web OpenVoice, descubre los Spaces HF Running UNA vez por sesión de
     // chat (al iniciar/actualizar la sesión de la neurona activa) para que
@@ -612,7 +653,7 @@ export async function speakWithConfiguredEngine(
     // `playSequentialViaMixer`), sin tocar la voz. El cambio de motor solo
     // ocurre cuando el actual FALLA de verdad, y nunca a mitad de locución ya
     // empezada (`allowFamilyFailover`).
-    for (const link of orderedChain) {
+    for (const link of cadenaFluida) {
       // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
       const outcome = await Promise.resolve()
         .then(() => runLink(link, clean, cfg, wrappedOpts, detectedLang))
@@ -631,6 +672,21 @@ export async function speakWithConfiguredEngine(
     // Red de seguridad: nunca dejar el indicador colgado (try/finally).
     endProcessing();
   }
+}
+
+/**
+ * (VZR1011D) Barge-in: corta la voz en curso y devuelve cuánto tardó el corte
+ * (debe caber en 100 ms). Quien escucha llama a esto al oír a la persona y
+ * después reanuda el reconocimiento. NUNCA lanza.
+ */
+export async function interrumpirVoz(): Promise<{ latenciaMs: number; cumple: boolean }> {
+  const desde = Date.now();
+  try {
+    await stopConfiguredEngine();
+  } catch {
+    /* el corte no puede tumbar la escucha */
+  }
+  return medirInterrupcion(desde, Date.now());
 }
 
 /** Corta cualquier reproducción OSS/neural en curso. NUNCA lanza. */
