@@ -60,6 +60,7 @@ import { WorkspacesCompactList } from "@/components/workspaces/workspaces-sectio
 import { listBrains, getSelection, selectBrainForContext, type Brain } from "@/lib/brains/brains";
 import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
 import { AuroraAlwaysOn } from "@/components/exocortex/aurora-always-on";
+import { MausbotSwitch } from "@/components/exocortex/mausbot-switch";
 import { AuroraChatView, type LiveMessage } from "@/components/exocortex/aurora-chat-view";
 import { AuroraChatFullscreen } from "@/components/exocortex/aurora-chat-fullscreen";
 import { AuroraChatExplorer } from "@/components/exocortex/aurora-chat-explorer";
@@ -1410,6 +1411,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
         /* Sentidos de Aurora (panel real) + modo "siempre encendida" (wake-word). */
         <div className="relative z-[1] flex flex-col gap-3">
           <AuroraAlwaysOn />
+          <MausbotSwitch personaId={activePersonality?.id} />
           <AuroraControlPanel enabled={enabled} onSetEnabled={doSetEnabled} />
         </div>
       ) : tab === "personalidad" ? (
