@@ -215,7 +215,8 @@ export interface RequisitosModelo {
     herramientasRequeridas?: string[];
     almacenamiento: {
         /** `streaming-ssd`: lee pesos del disco en cada token (TurboFieldfare) → disco local rápido obligatorio. */
-        modo: "carga-completa" | "mmap" | "streaming-ssd";
+        /** `streaming`: lee expertos del disco bajo demanda (Colibri) → disco rápido, no toda la RAM. */
+        modo: "carga-completa" | "mmap" | "streaming-ssd" | "streaming";
         lecturaMinMBs?: number;
         /** Los pesos tienen que estar en la neurona que procesa (no por red). */
         soloLocal: boolean;
