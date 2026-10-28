@@ -14,8 +14,21 @@ tropezar con lo PROPIO. Este módulo separa una cosa de la otra y no decide nada
 más; quien llama elige qué hacer con cada montón (el orquestador commitea lo
 propio y sigue, y se planta solo si hay algo ajeno).
 
-Módulo PURO: entra el texto de `git status --porcelain`, salen dos listas.
+Módulo PURO: entra el texto de `git status --porcelain`, salen dos listas. La única lectura de
+disco es comprobar que una cola versionada sigue siendo una lista JSON de tareas con `id`.
 """
+
+import json
+import os
+
+# Este módulo vive en <raíz>/scripts/puente/: tres carpetas arriba está el repositorio.
+RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# (2026-10-28, DEC1028E) El revisor de bloqueadas re-apunta `depende` de las colas VERSIONADAS al
+# dividir una tarea en partes `-dN` (`revisor_bloqueadas_logica.heredar_dependientes`). Ese
+# ` M starseed_memory_root/olas/cola-*.json` es contabilidad del propio enjambre, no trabajo
+# ajeno, y el orquestador de la Mac no arrancó del 27-10 22:26 al 28-10 00:40 por tres de ellas.
+PREFIJO_COLA = "starseed_memory_root/olas/cola-"
 
 # Rutas (relativas a la raíz del repo) que escribe el propio enjambre como parte
 # de su funcionamiento normal. Solo esto se considera «propio»: la lista se
@@ -69,7 +82,42 @@ def repartir(porcelain, propias=PROPIAS):
     return mias, ajenas
 
 
-def clasificar(porcelain, propias=PROPIAS):
+def _cola_versionada(linea, ruta):
+    """¿Es una cola versionada MODIFICADA (` M`, `M `, `MM`)? Solo esa contabilidad es propia."""
+    if not ruta.startswith(PREFIJO_COLA) or not ruta.endswith(".json"):
+        return False
+    if "/" in ruta[len(PREFIJO_COLA):]:
+        return False
+    estado = (linea or "")[:2]
+    return "M" in estado and set(estado) <= {" ", "M"}
+
+
+def _lista_de_tareas(raiz, ruta):
+    """La cola sigue siendo una lista JSON de tareas con `id`. Si no se puede leer o ya no lo
+    es, es AJENA: el lado seguro es no tocar lo que no se entiende."""
+    try:
+        with open(os.path.join(raiz, ruta), encoding="utf-8") as f:
+            datos = json.load(f)
+    except (OSError, ValueError):
+        return False
+    return (
+        isinstance(datos, list)
+        and bool(datos)
+        and all(isinstance(t, dict) and t.get("id") for t in datos)
+    )
+
+
+def _colas_propias(lineas, raiz):
+    """Rutas de colas versionadas que el propio enjambre re-apuntó y siguen siendo válidas."""
+    rutas = []
+    for linea in lineas:
+        ruta = ruta_de(linea)
+        if _cola_versionada(linea, ruta) and _lista_de_tareas(raiz, ruta):
+            rutas.append(ruta)
+    return rutas
+
+
+def clasificar(porcelain, propias=PROPIAS, raiz=None):
     """Reparte las líneas sucias en (propias, estorbo, ajenas), en el orden que llegaron.
 
     (2026-10-25, ENJ1025A) Como `repartir`, pero separa además el ESTORBO: un residuo sin
@@ -78,12 +126,18 @@ def clasificar(porcelain, propias=PROPIAS):
     unas 29 horas porque el guardia lo contaba como «ajeno». La regla de qué es estorbo vive en
     UN solo sitio, `curacion_logica`, y la comparten desatascar, el vigilante y este guardia.
 
+    (2026-10-28, DEC1028E) Una cola VERSIONADA que el propio enjambre re-apuntó al dividir
+    tareas también es propia: se lee del disco (`raiz`, por defecto la del repo) y solo cuenta
+    si sigue siendo una lista JSON de tareas con `id`. Si no se puede leer, es ajena.
+
     `ajenas` es solo el trabajo de verdad: lo único que justifica «no arranco». Quien llama
     aparta el estorbo con `curacion_logica.apartar_estorbo` (a `olas/_apartado/AAAAMMDD/`, nunca
     se borra) y sigue. `repartir` se queda como estaba."""
     import curacion_logica  # aquí y no arriba: curacion_logica importa `ruta_de` de este módulo
 
     lineas = [l for l in (porcelain or "").splitlines() if l.strip()]
+    raiz = RAIZ if raiz is None else raiz
+    propias = list(propias or ()) + _colas_propias(lineas, raiz)
     estorbo, mias, ajenas = curacion_logica.clasificar_lineas(lineas, propias)
     return mias, estorbo, ajenas
 
