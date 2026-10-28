@@ -35,7 +35,8 @@ class SondaCloudroom(unittest.TestCase):
             bin_dir = os.path.join(casa, ".local", "bin")
             os.makedirs(bin_dir)
             ruta = os.path.join(bin_dir, "room-cli")
-            open(ruta, "w").close()
+            with open(ruta, "w") as f:
+                f.write("")
             def expanduser_mock(path):
                 if path == "~/.local/bin/room-cli":
                     return ruta

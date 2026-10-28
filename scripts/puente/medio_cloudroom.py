@@ -40,6 +40,8 @@ def sondear(run=subprocess.run, env=None):
         try:
             p = run([ruta, *args, "--json"], capture_output=True, text=True, timeout=15)
             return json.loads(p.stdout) if p.returncode == 0 else None, (p.stderr or "comando fallido").strip()
+        except FileNotFoundError:
+            return None, "app sin instalar"
         except (OSError, subprocess.TimeoutExpired, ValueError) as e:
             return None, type(e).__name__
     local, e1 = pedir(["status"]); nube, e2 = pedir(["cloud", "status"])

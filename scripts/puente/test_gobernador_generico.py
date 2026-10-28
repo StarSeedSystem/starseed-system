@@ -446,14 +446,17 @@ class TestMedir(unittest.TestCase):
             self.assertGreater(disco, 0.0)
 
     def test_obtener_bateria_con_forma_valida_si_presente(self):
-        # En vivo: {} (sin batería) o {nivel (0..1), cargando (bool)}; nunca claves a medias.
+        # En vivo: {} (sin batería) o {nivel (0..1), cargando (bool?)}; nunca claves a medias.
+        # En Mac de escritorio (Mac Mini, iMac, Mac Studio) no hay batería y pmset no devuelve "cargando".
         bateria = _obtener_bateria()
         if bateria:
             self.assertIn("nivel", bateria)
-            self.assertIn("cargando", bateria)
-            self.assertIsInstance(bateria["cargando"], bool)
+            self.assertIsInstance(bateria["nivel"], float)
             self.assertGreaterEqual(bateria["nivel"], 0.0)
             self.assertLessEqual(bateria["nivel"], 1.0)
+            # "cargando" es opcional: solo presente si el sistema lo reporta (portátiles)
+            if "cargando" in bateria:
+                self.assertIsInstance(bateria["cargando"], bool)
 
     @unittest.skipUnless(PYTEST_INSTALADO, "pytest no está instalado en este python")
     def test_pytest_recoge_test_gobernador_desde_la_raiz(self):

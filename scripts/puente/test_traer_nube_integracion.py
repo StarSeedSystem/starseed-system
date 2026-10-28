@@ -148,38 +148,43 @@ class RescateConGitReal(unittest.TestCase):
         self.env = env
         g = lambda *a: _sh(self.repo, "git", *a, env=env)  # noqa: E731
         g("init", "-q", "-b", "main")
-        open(os.path.join(self.repo, "a.txt"), "w").write("base\n")
+        with open(os.path.join(self.repo, "a.txt"), "w") as f:
+            f.write("base\n")
         g("add", "-A")
         g("commit", "-q", "-m", "base")
         # Rama viva: salvavidas + integración con asunto «1020U · …»
         g("checkout", "-q", "-b", "ola/CLF1020Ab")
-        open(os.path.join(self.repo, "b.txt"), "w").write("nube\n")
+        with open(os.path.join(self.repo, "b.txt"), "w") as f:
+            f.write("nube\n")
         g("add", "-A")
         g("commit", "-q", "-m", "salvavidas · CLF1020Ab: trabajo del agente antes de las puertas (tsc / vitest)")
-        open(os.path.join(self.repo, "b.txt"), "a").write("hecho\n")
+        with open(os.path.join(self.repo, "b.txt"), "a") as f:
+            f.write("hecho\n")
         g("add", "-A")
         g("commit", "-q", "-m", "1020U · CLF1020Ab: Coolify · cliente puro", "-m", CUERPO)
         g("update-ref", "refs/remotes/origin/nube/40209370479", "HEAD")
         # Rama archivada: integración con nombre de ola sin número.
         g("checkout", "-q", "main")
         g("checkout", "-q", "-b", "ola/RTX1012A")
-        open(os.path.join(self.repo, "c.txt"), "w").write("rescate\n")
+        with open(os.path.join(self.repo, "c.txt"), "w") as f:
+            f.write("rescate\n")
         g("add", "-A")
         g("commit", "-q", "-m", "Rescate de las ramas de la nube · RTX1012A: Rescate de pruebas", "-m", CUERPO)
         g("update-ref", "refs/archivo/nube/39000000000", "HEAD")
         # Rama a medias de verdad: solo salvavidas.
         g("checkout", "-q", "main")
         g("checkout", "-q", "-b", "ola/MED1")
-        open(os.path.join(self.repo, "d.txt"), "w").write("a medias\n")
+        with open(os.path.join(self.repo, "d.txt"), "w") as f:
+            f.write("a medias\n")
         g("add", "-A")
         g("commit", "-q", "-m", "salvavidas · MED1: trabajo del agente antes de las puertas (tsc / vitest)")
         g("update-ref", "refs/remotes/origin/nube/40000000001", "HEAD")
         g("checkout", "-q", "main")
         self.progreso = os.path.join(self.dir, "progreso.json")
-        json.dump({"CLF1020Ab": sustituida("CLF1020Ac", "nube/40209370479"), "CLF1020Ac": {"estado": "pendiente"},
-                   "RTX1012A": sustituida("RTX1012Ab", "nube/39000000000"), "RTX1012Ab": {"estado": "pendiente"},
-                   "MED1": sustituida("MED1b", "nube/40000000001"), "MED1b": {"estado": "pendiente"}},
-                  open(self.progreso, "w"))
+        with open(self.progreso, "w") as f:
+            json.dump({"CLF1020Ab": sustituida("CLF1020Ac", "nube/40209370479"), "CLF1020Ac": {"estado": "pendiente"},
+                       "RTX1012A": sustituida("RTX1012Ab", "nube/39000000000"), "RTX1012Ab": {"estado": "pendiente"},
+                       "MED1": sustituida("MED1b", "nube/40000000001"), "MED1b": {"estado": "pendiente"}}, f)
         self.p = [mock.patch.object(T, "RAIZ", self.repo), mock.patch.object(T, "PROGRESO", self.progreso),
                   mock.patch.object(T, "CERROJOS", os.path.join(self.dir, "cerrojos"))]
         for x in self.p:
@@ -203,13 +208,15 @@ class RescateConGitReal(unittest.TestCase):
                           "RTX1012A": {"refs/archivo/nube/39000000000"}})
 
     def test_seco_dice_que_traeria_sin_tocar_nada(self):
-        antes = open(self.progreso).read()
+        with open(self.progreso) as f:
+            antes = f.read()
         r = T.rescatar(self.hechas, [], aplicar=False)
         plan = {p["tid"]: (p["accion"], p["cierra"], p["ref"]) for p in r["plan"]}
         self.assertEqual(plan, {"CLF1020Ab": ("traer", ["CLF1020Ac"], "refs/remotes/origin/nube/40209370479"),
                                 "RTX1012A": ("traer", ["RTX1012Ab"], "refs/archivo/nube/39000000000")})
         self.assertEqual(self.hechas["nube/40000000001|MED1"]["rescate"], "sin integración: era trabajo a medias")
-        self.assertEqual(open(self.progreso).read(), antes)
+        with open(self.progreso) as f:
+            self.assertEqual(f.read(), antes)
         self.assertEqual(r["traidas"], [])
 
     def test_aplicar_trae_con_las_puertas_y_cierra_la_sucesora(self):
@@ -223,7 +230,8 @@ class RescateConGitReal(unittest.TestCase):
             r = T.rescatar(self.hechas, [], aplicar=True, maximo=1)
         # Primero la más reciente, y solo `maximo` por pasada.
         self.assertEqual(llamadas, [("CLF1020Ab", ["salvavidas", "ola"])])
-        prog = json.load(open(self.progreso))
+        with open(self.progreso) as f:
+            prog = json.load(f)
         self.assertEqual(prog["CLF1020Ab"]["estado"], "commit")
         self.assertEqual(prog["CLF1020Ac"]["estado"], "sustituida")
         self.assertEqual(prog["CLF1020Ac"]["sustituida_por"], "CLF1020Ab")
@@ -237,7 +245,8 @@ class RescateConGitReal(unittest.TestCase):
             r = T.rescatar(self.hechas, [], aplicar=True, maximo=5)
         self.assertEqual(t.call_count, 1)
         self.assertNotIn("rescate", self.hechas["nube/40209370479|CLF1020Ab"])
-        self.assertEqual(json.load(open(self.progreso))["CLF1020Ac"]["estado"], "pendiente")
+        with open(self.progreso) as f:
+            self.assertEqual(json.load(f)["CLF1020Ac"]["estado"], "pendiente")
         self.assertEqual(r["traidas"], [])
 
     def test_lo_que_no_pasa_se_anota_y_no_se_repite(self):
@@ -257,10 +266,12 @@ class RescateConGitReal(unittest.TestCase):
 
     def test_cli_seco_no_escribe_el_estado(self):
         estado = os.path.join(self.dir, "traer.json")
-        json.dump({"ramas": self.hechas}, open(estado, "w"))
+        with open(estado, "w") as f:
+            json.dump({"ramas": self.hechas}, f)
         with mock.patch.object(T, "ESTADO", estado), mock.patch("sys.stdout"):
             self.assertEqual(T.main(["traer_nube.py", "rescatar"]), 0)
-        self.assertNotIn("rescate", json.load(open(estado))["ramas"]["nube/40000000001|MED1"])
+        with open(estado) as f:
+            self.assertNotIn("rescate", json.load(f)["ramas"]["nube/40000000001|MED1"])
 
 
 if __name__ == "__main__":
