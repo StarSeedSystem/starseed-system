@@ -21,7 +21,7 @@ export const ESCENA3D: DefinicionAtomo = {
   integracion: "libreria-js",
   control: "total",
   parametros: [
-    { id: "forma", nombre: "Forma", tipo: "opcion", opciones: ["cubo", "esfera", "toroide"], defecto: "cubo", sinonimos: ["figura", "objeto", "geometria"] },
+    { id: "forma", nombre: "Forma", tipo: "opcion", opciones: [...FORMAS_ESCENA3D], defecto: "cubo", sinonimos: ["figura", "objeto", "geometria"] },
     { id: "escala", nombre: "Escala", tipo: "numero", min: 0.1, max: 5, paso: 0.1, unidad: "x", defecto: 1, sinonimos: ["tamano", "tamaño"] },
     { id: "rotacion-auto", nombre: "Rotación automática", tipo: "numero", min: 0, max: 2, paso: 0.05, unidad: "x", defecto: 0.4, sinonimos: ["giro automatico", "rotacion"] },
     { id: "camara-fov", nombre: "Campo de visión", tipo: "numero", min: 20, max: 120, paso: 1, unidad: "grados", defecto: 50, sinonimos: ["fov", "angular"] },
