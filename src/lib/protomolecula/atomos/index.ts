@@ -18,6 +18,7 @@ import { TEXTURAS } from "./texturas-webgl";
 import { ANIMACION_MANIMGX } from "./animacion-manimgx";
 import { MAUSBOT } from "./mausbot";
 import { ESCENA3D } from "./escena3d";
+import { registrarAppsEmbebidas } from "../apps-embebidas";
 
 /** Los átomos que el OS trae de serie. Las tareas siguientes añaden los suyos aquí. */
 export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT, ESCENA3D];
@@ -28,6 +29,7 @@ export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURA
  */
 export function registrarAtomosPropios(): void {
   registrarConvertidoresBase();
+  registrarAppsEmbebidas();
   for (const def of ATOMOS_PROPIOS) {
     if (obtenerAtomo(def.herramientaId)) continue;
     registrarAtomo(def);
