@@ -37,9 +37,30 @@ export const RUTA_AJUSTES: Record<string, string> = {
   "voz-timbre": "starseed.voz.timbre.v1",
   "pantalla-inicial": "starseed.inicio.pantalla.v1",
   cursor: "starseed.cursorfx.v1",
+  mausbot: "starseed.mausbot.v1",
+  "mausbot-disenos": "starseed.mausbot.disenos.v1",
   "orbe-estilo": "starseed.protomolecula.orbe.estilo.v1",
   visualizador: "starseed.audiomorphic.presets.v1",
 };
+
+/** El nivel máximo que una variación puede imponer al Mausbot: lo demás lo decide cada persona. */
+export const NIVEL_ACTUAR_MAXIMO_MAUSBOT = "proponer" as const;
+
+/**
+ * Sanea el valor de una variación del Mausbot antes de capturarla o aplicarla: fuera `perfiles` y
+ * `neuronas` (son de cada perfil y de cada neurona) y `actuar` nunca por encima de «proponer».
+ * El resto de ajustes se devuelve tal cual.
+ */
+export function sanearValorMausbot(id: string, valor: unknown): unknown {
+  if (id !== "mausbot" || typeof valor !== "object" || valor === null || Array.isArray(valor)) return valor;
+  const resto: Record<string, unknown> = { ...(valor as Record<string, unknown>) };
+  delete resto.perfiles;
+  delete resto.neuronas;
+  if ("actuar" in resto && resto.actuar !== "nada" && resto.actuar !== "proponer") {
+    resto.actuar = NIVEL_ACTUAR_MAXIMO_MAUSBOT;
+  }
+  return resto;
+}
 
 /** Resuelve `ajuste:<id>`: devuelve el id si está en el mapa y su clave es permitida, nulo si no. */
 export function idDeAjuste(clave: string): string | null {
@@ -58,15 +79,18 @@ export function validarParcheAjustes(payload: unknown): ResultadoParche {
   const parche = payload as ParcheAjustes;
   if (Object.keys(parche).length === 0) return { ok: false, motivos: ["Ajuste: el parche está vacío"] };
   const motivos: string[] = [];
+  const saneado: ParcheAjustes = {};
   for (const id of Object.keys(parche)) {
     const ruta = RUTA_AJUSTES[id];
     if (!ruta) { motivos.push(`Ajuste: «${id}» no es un ajuste de la familia`); continue; }
     if (!esClaveAjustePermitida(ruta)) { motivos.push(`Ajuste: la clave de «${id}» no es permitida`); continue; }
-    const resultado = validarVariacion(parche[id]);
+    const valor = sanearValorMausbot(id, parche[id]);
+    const resultado = validarVariacion(valor);
     if (!resultado.ok) { motivos.push(`Ajuste: el valor de «${id}» — ${resultado.motivos.join(" · ")}`); continue; }
     if (resultado.requiereAislamiento) motivos.push(`Ajuste: «${id}» parece llevar código; un ajuste no es código`);
+    saneado[id] = valor;
   }
-  return motivos.length === 0 ? { ok: true, parche } : { ok: false, motivos };
+  return motivos.length === 0 ? { ok: true, parche: saneado } : { ok: false, motivos };
 }
 
 /** window.localStorage como almacen inyectable por defecto (solo existe en navegador). */
@@ -86,7 +110,7 @@ export function crearAdaptadorAjustes(opciones: OpcionesAjustes): AdaptadorFamil
       const id = idDeAjuste(clave); if (!id) return null;
       try {
         const bruto = (opciones.almacen ?? almacenDelNavegador()).getItem(RUTA_AJUSTES[id]);
-        return bruto === null ? null : { [id]: JSON.parse(bruto) as unknown };
+        return bruto === null ? null : { [id]: sanearValorMausbot(id, JSON.parse(bruto) as unknown) };
       } catch { return null; } // sin almacenamiento o valor sin JSON: nada que capturar
     },
     validar: (payload) => {
