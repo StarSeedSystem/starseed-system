@@ -33,7 +33,7 @@ vi.mock("@/utils/supabase/client", () => ({
           session: {
             user: {
               id: "uid-1021k2",
-              email: "invitada@star.seed",
+              email: "invitado@star.seed",
               user_metadata: { handle: "invitada1021" },
             },
           },
