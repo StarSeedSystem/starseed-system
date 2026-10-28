@@ -168,6 +168,18 @@ export const BLOCK_KINDS: BlockKindDef[] = [
     blurb: "Muestra una imagen por URL.",
     connect: "Pega la URL de la imagen.",
   },
+  // Protomolécula (architecture/protomolecula.md §3.3): la molécula vive en el
+  // almacén de moléculas y el bloque la CITA (Entidad Única): sus datos son
+  // SOLO { moleculaId }. Las aristas de la pizarra (CanvasEdge) son sus
+  // dependencias («la salida de A alimenta a B»).
+  {
+    kind: "protomolecula",
+    category: "herramientas",
+    label: "Protomolécula",
+    icon: "Atom",
+    blurb: "Monta una molécula viva: parámetros, dictado en tiempo real y convergencia con las demás ventanas.",
+    connect: "Elige o crea la molécula en el bloque; las aristas de la pizarra son sus dependencias.",
+  },
 ];
 
 export function blockKindDef(kind: BlockKind): BlockKindDef | undefined {
@@ -189,14 +201,16 @@ export function genId(prefix = "blk"): string {
 // no se solapen perfectamente.
 export function defaultBlock(kind: BlockKind, index = 0): CanvasBlock {
   const def = blockKindDef(kind);
+  // Datos iniciales según el tipo: la Protomolécula cita { moleculaId } (vacío
+  // = sin cita concreta; el panel abrirá la última abierta o creará una nueva).
   return {
     id: genId(),
     kind,
     x: 40 + (index % 5) * 36,
     y: 40 + (index % 5) * 36,
-    w: kind === "browser" || kind === "image" ? 360 : 280,
-    h: kind === "browser" ? 260 : kind === "text" ? 180 : 200,
-    data: {},
+    w: kind === "protomolecula" ? 420 : kind === "browser" || kind === "image" ? 360 : 280,
+    h: kind === "protomolecula" ? 360 : kind === "browser" ? 260 : kind === "text" ? 180 : 200,
+    data: kind === "protomolecula" ? { moleculaId: "" } : {},
     title: def?.label,
   };
 }
@@ -288,6 +302,36 @@ export function setCover(canvas: Canvas, cover: CanvasCover): Canvas {
 // Quita la portada del lienzo (raramente necesario; mantenida por simetría).
 export function clearCover(canvas: Canvas): Canvas {
   return { ...canvas, blocks: (canvas.blocks || []).filter((b) => b.kind !== "cover") };
+}
+
+// ---- Vecinos de una ventana (aristas → dependencias, §3.3 del contrato) ----
+// En una pizarra, la arista A→B significa «la salida de A alimenta a B». Para
+// la franja de convergencia del bloque Protomolécula, aquí se agrupan las
+// aristas que tocan a una ventana junto con el vecino con el que conecta.
+
+export interface VecinoDePizarra {
+  id: string;
+  titulo: string;
+  herramienta: string | null; // herramienta citada por la molécula del vecino, si la declara
+}
+
+export interface AristaPizarra {
+  id: string;
+  vecino: VecinoDePizarra;
+}
+
+export function enlacesDeVentana(
+  bloqueId: string,
+  enlaces: readonly { id: string; from: string; to: string }[],
+  vecinos: readonly VecinoDePizarra[],
+): { entrantes: AristaPizarra[]; salientes: AristaPizarra[] } {
+  const porId = new Map(vecinos.map((v) => [v.id, v]));
+  const vecinoDe = (id: string): VecinoDePizarra => porId.get(id) ?? { id, titulo: id, herramienta: null };
+  const hacia = (esDe: boolean) =>
+    enlaces
+      .filter((e) => (esDe ? e.from === bloqueId : e.to === bloqueId))
+      .map((e) => ({ id: e.id, vecino: vecinoDe(esDe ? e.to : e.from) }));
+  return { entrantes: hacia(false), salientes: hacia(true) };
 }
 
 // ---- CRUD ------------------------------------------------------------------
