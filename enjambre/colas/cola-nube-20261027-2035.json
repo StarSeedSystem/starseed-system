@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "DEC1028C",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "Codex · «modelo no admitido con la cuenta de ChatGPT» lo saca de la rotación y no gasta intento",
+   "archivos": [
+    "scripts/puente/cupo_codex.py",
+    "scripts/puente/test_cupo_codex.py",
+    "scripts/enjambre/starseed-enjambre.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en el código, en las pruebas ni en lo que imprimas.\n\nContexto (medido el 2026-10-28 por Claude, supervisor): desde el 2026-10-23 20:55 TODAS las llamadas de Codex en la Mac fallan con `{\"status\":400, ... \"message\":\"The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}` (206 sesiones en `~/.codex/sessions`; con `-m gpt-5.5` pasa lo mismo). `cupo_codex.agotado_en` solo reconoce la cuota agotada, así que Codex sigue en la rotación: cada tarea gasta su primer intento con él y acaba en `sin_cambios` (DEC1028A lo hizo 8 veces). Hoy se apartó a mano 24 h con `cupo_codex.anotar`.\n\nEn `cupo_codex.py`: `PISTAS_SIN_MODELO = (\"is not supported when using codex with a chatgpt account\", \"model_not_found\")`, `sin_modelo_en(salida)` (en minúsculas, como `agotado_en`) y `HORAS_SIN_MODELO = 24`. En `starseed-enjambre.py`, junto al bloque `if modelo in MODELOS_CODEX and _cupo_codex.agotado_en(out):` (cerca de la línea 7727): si `sin_modelo_en(out)`, `anotar(\"cuenta de ChatGPT sin Codex para %s\" % modelo, horas=HORAS_SIN_MODELO)`, quita los `MODELOS_CODEX` de `MODELOS`, evento `proveedor_caido` con el porqué, y `continue` SIN contar el intento (como una pasarela caída). Pruebas en `test_cupo_codex.py` con la salida real de arriba y con la de cuota agotada (que sigue igual)."
+  }
+ ]
+}
