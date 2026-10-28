@@ -164,12 +164,17 @@ _PALABRAS_CUANT = {"gguf", "onnx", "mlx", "mlmodel", "coreml", "int8", "int4",
 
 
 def _cuantiza_de(id_cand, ids_aceptados):
-    """El id aceptado del que probablemente es cuantización (≥ 2 piezas en común).
-    Ej.: unsloth/Qwen-Image-2.1-Turbo-GGUF → Qwen/Qwen-Image-2.1-Turbo."""
+    """El id aceptado del que es cuantización: su nombre, sin las palabras de
+    cuantización, coincide EXACTO con el del base. Ej.: unsloth/Qwen-Image-2.1-Turbo-GGUF
+    → Qwen/Qwen-Image-2.1-Turbo. Un emparejamiento suelto de piezas no basta:
+    «Qwen-Image-2.1-Turbo-GGUF» no cuantiza un «Z-Image-Turbo» solo por compartir
+    «image» y «turbo»."""
     piezas = set(re.split(r"[-_.]", (id_cand.rpartition("/")[2] or "").lower())) - _PALABRAS_CUANT
+    if not piezas:
+        return None
     for base in ids_aceptados:
         piezas_base = set(re.split(r"[-_.]", (base.rpartition("/")[2] or "").lower()))
-        if len(piezas & piezas_base) >= 2:
+        if piezas_base == piezas:
             return base
     return None
 

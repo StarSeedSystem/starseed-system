@@ -445,8 +445,8 @@ class PruebaAuxiliares(SuperPrueba):
         with open(f, "w", encoding="utf-8") as fh:
             fh.write('id "Qwen/Qwen-Image-2.1"')
         self.assertIn("Qwen/Qwen-Image-2.1", VM.ids_en_catalogo("r/cat.ts", self.raiz))
-        self.assertIn("Qwen/Qwen-2", VM.ids_en_catalogo("lo/que/sea", None,
-                                                       leer_texto=lambda r: "`Autor/Qwen-2`"))
+        self.assertIn("Autor/Qwen-2", VM.ids_en_catalogo("lo/que/sea", None,
+                                                        leer_texto=lambda r: "`Autor/Qwen-2`"))
 
     def test_publicador_manda_al_chat_director_como_vigia(self):
         caja = []
