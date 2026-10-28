@@ -166,6 +166,24 @@ class TestColasVersionadas(unittest.TestCase):
         _m, _e, ajenas = clasificar("?? " + self.ART, raiz=self.raiz)
         self.assertEqual(ajenas, [self.ART])
 
+    def test_una_cola_fuera_de_olas_es_ajena(self):
+        # La contabilidad propia solo vive dentro de `starseed_memory_root/olas/`;
+        # un cola-*.json en otra carpeta de la memoria no se toca.
+        ruta = "starseed_memory_root/cola-x-1025.json"
+        self.escribe(ruta, '[{"id": "X"}]')
+        mias, _estorbo, ajenas = clasificar(" M " + ruta, raiz=self.raiz)
+        self.assertEqual((mias, ajenas), ([], [ruta]))
+
+    def test_sin_seguimiento_y_otros_estados_siguen_como_hoy(self):
+        # Un `??` y un `M ` (staged) de una cola en la RAÍZ del repo siguen siendo ajenos:
+        # fuera de `olas/` no hay cola propia, con ningún estado de git.
+        nueva = "cola-nueva-1025.json"
+        staged = "cola-staged-1025.json"
+        self.escribe(nueva, '[{"id": "N1"}]')
+        self.escribe(staged, '[{"id": "S1"}]')
+        _m, _e, ajenas = clasificar("?? %s\nM  %s" % (nueva, staged), raiz=self.raiz)
+        self.assertEqual(ajenas, [nueva, staged])
+
     def test_la_raiz_por_defecto_es_la_del_repo(self):
         self.assertTrue(os.path.isdir(RAIZ))
         if not os.path.isfile(os.path.join(RAIZ, self.ART)):
