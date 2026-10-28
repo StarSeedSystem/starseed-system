@@ -58,6 +58,18 @@ describe("skillsSystemPrompt · capa completa y filtro por chat", () => {
     expect(skillsSystemPrompt(["agent-recipes"])).toBe("");
   });
 
+  it("respeta las desactivadas de Ajustes aunque la capacidad viva siga instalada", () => {
+    // La capacidad activa por espejo (pm) sigue presente; la defaultOn (av-gen)
+    // desaparece al desactivarla en Ajustes.
+    espejo(["pm", "web-senses"]);
+    desactivar(["av-gen"]);
+    const bloque = skillsSystemPrompt();
+    const etiquetas = idsDe(bloque);
+    expect(etiquetas.some((l) => l.startsWith("PM"))).toBe(true);
+    expect(etiquetas.some((l) => l.startsWith("Sentidos web"))).toBe(true);
+    expect(etiquetas.some((l) => l.startsWith("Generación audiovisual"))).toBe(false);
+  });
+
   it("sin capacidades activas el bloque es vacío y no deja texto suelto", () => {
     // Sin espejo quedan las defaultOn: hoy «av-gen» (Adenda 138) y
     // «diagram-design» (Ola 1018D). El bloque se vacía al apagarlas en Ajustes.
