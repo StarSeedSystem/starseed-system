@@ -107,7 +107,7 @@ export interface TareaCola {
     /** Modelo preferido para empezar (opcional; si no, la rotación). */
     modelo?: string;
     /**
-     * (2026-09-29) `analisis` = un SUEÑO PROFUNDO: lee los archivos y escribe un informe
+     * (2026-09-29) `analisis` = IMAGINACIÓN PROFUNDA: lee los archivos y escribe un informe
      * (scripts/enjambre/analista.py), sin worktree, sin puertas y sin integrar. Sin `tipo`,
      * una tarea de código de siempre.
      */
@@ -341,7 +341,7 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
  */
 export function motivoNoNube(tareas: TareaCola[]): string | null {
     if (tareas.some((t) => t.privado)) return "La cola lleva tareas privadas (lente de seguridad): solo pueden correr en esta Mac.";
-    if (tareas.some((t) => t.tipo === "analisis")) return "Los sueños profundos corren en la Mac (python3 scripts/puente/suenos.py lanzar), no en la nube.";
+    if (tareas.some((t) => t.tipo === "analisis")) return "La imaginación profunda corre en la Mac (python3 scripts/puente/suenos.py lanzar), no en la nube.";
     return null;
 }
 
