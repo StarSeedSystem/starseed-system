@@ -7,8 +7,9 @@
 //   • Lienzo: Nuevo (folder/nota/enlace) · Organizar iconos · Ordenar
 //     por (nombre/tipo/fecha) · Ver como (iconos/lista) · Rejilla ·
 //     Cambiar fondo · Añadir apps/widgets · Ajustes del escritorio.
-//   • Icono: Abrir · Renombrar · Duplicar · Tamaño · Vista previa ·
-//     Enviar a folder · Eliminar.
+//   • Icono: Abrir · Convertir a… (Filee) · Vista previa · Compartir ·
+//     Editar · Leer en voz alta · Renombrar · Duplicar · Copiar · Cortar ·
+//     Pegar · Tamaño · Mover · Información · Eliminar.
 // Presentacional + posicionado dentro del lienzo, con auto-clamp a los
 // bordes. Ejecuta acciones del store directamente y cierra al elegir.
 // ════════════════════════════════════════════════════════════════
@@ -21,15 +22,17 @@ import {
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
     Trash2, Magnet, FolderInput, Sparkles, Check, PictureInPicture2,
     Eye, Info, Grid2x2, Columns2, Rows2, Frame, Home, Share2, PenLine,
-    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, type LucideIcon,
+    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, Replace, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { descargarBlob, type Convertido } from "@/lib/conversion/cliente";
+import { useConversionMenu } from "@/components/conversion/use-conversion-menu";
 import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize, TileMode } from "./desktop-store";
 import {
     addIcon, createNoteIcon, sortIcons, autoArrangeIcons, setSnap, updateIcon,
     duplicateIcon, removeIcon, moveIconToFolder, setDesktopView, DEFAULT_DESKTOP_VIEW,
     moveIconToPage, desktopPageCount, iconPage, addDesktopPage, removeDesktopPage,
-    MAX_DESKTOP_PAGES,
+    MAX_DESKTOP_PAGES, archivoConvertibleDeIcono,
 } from "./desktop-store";
 import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./desktop-clipboard";
 import { canEditIcon } from "./desktop-open";
@@ -281,6 +284,15 @@ export function IconContextMenu({
     const run = (fn: () => void) => { fn(); onClose(); };
     const canLivePreview =
         icon.kind === "widget" || (icon.kind === "file" && hasRichThumb(icon));
+    // Filee (conversion-archivos.md): «Convertir a…» si el icono apunta a un
+    // archivo con URL. El submenú se pinta con las primitivas propias de este
+    // menú (no es Radix); el resultado se descarga en este dispositivo.
+    const archivoConvertible = archivoConvertibleDeIcono(icon);
+    const guardarConvertido = React.useCallback(async (c: Convertido): Promise<string | null> => {
+        try { descargarBlob(c.blob, c.nombre); } catch { /* la descarga no echa a perder el guardado */ }
+        return "descargado";
+    }, []);
+    const conversion = useConversionMenu(archivoConvertible, guardarConvertido);
     // Folders raíz destino (no la propia si es folder).
     const folders = desktop.icons.filter((i) => i.kind === "folder" && i.id !== icon.id);
     // ¿Está dentro de un folder? Entonces puede volver a la raíz del escritorio.
@@ -294,6 +306,32 @@ export function IconContextMenu({
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
             <MenuItem icon={ExternalLink} label="Abrir" onClick={() => run(() => onOpen(icon))} />
+            {conversion && (
+                <SubMenu icon={Replace} label="Convertir a…">
+                    <MenuLabel>Con Filee · sin subir nada</MenuLabel>
+                    {conversion.estado === "cargando" && <MenuLabel>Mirando formatos…</MenuLabel>}
+                    {conversion.estado === "no-disponible" && (
+                        <MenuLabel>{conversion.motivo ?? "Aquí no hay conversor"}</MenuLabel>
+                    )}
+                    {conversion.estado === "listo" && (
+                        <>
+                            {conversion.principales.map((f) => (
+                                <MenuItem
+                                    key={f}
+                                    label={conversion.etiqueta(f)}
+                                    onClick={() => run(conversion.onConvertir(f))}
+                                />
+                            ))}
+                            <MenuDivider />
+                            <MenuItem
+                                icon={Settings2}
+                                label={conversion.resto > 0 ? `Más formatos (${conversion.resto})…` : "Abrir el conversor…"}
+                                onClick={() => run(conversion.onMas)}
+                            />
+                        </>
+                    )}
+                </SubMenu>
+            )}
             {onQuickLook && (
                 <MenuItem icon={Eye} label="Vista previa" shortcut="Espacio" onClick={() => run(() => onQuickLook(icon, "preview"))} />
             )}

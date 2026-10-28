@@ -17,6 +17,7 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import type { ArchivoConvertible } from "@/components/conversion/use-conversion-menu";
 
 // ── Tipos del modelo ─────────────────────────────────────────────
 export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
@@ -85,6 +86,20 @@ export interface DesktopIcon {
      * carga entero como una sola pantalla, sin migración ni pérdida.
      */
     page?: number;
+}
+
+// ── Filee: «Convertir a…» desde el escritorio ────────────────────
+/**
+ * Lo que Filee (`useConversionMenu`) necesita para convertir el icono: SOLO
+ * archivos con URL real (la conversión va por esa referencia). Notas sin URL,
+ * apps, widgets, folders y enlaces web no se convierten → null.
+ * Pura: entrada → salida, sin red ni disco.
+ */
+export function archivoConvertibleDeIcono(
+    icon: Pick<DesktopIcon, "kind" | "url" | "name">,
+): ArchivoConvertible | null {
+    if (icon.kind !== "file" || !icon.url) return null;
+    return { nombre: icon.name || "archivo", url: icon.url };
 }
 
 export type DesktopWindowContentType = "app" | "file" | "widget" | "browser" | "folder";
