@@ -27,9 +27,34 @@ export interface SenalesMedio {
   bluetooth: { disponible: boolean | null };
   serie: { disponible: boolean; puertos: number };
   reticulum: { disponible: false; motivo: string };
+  /** Sesión «siempre disponible» de esta neurona (Insomnia): ms hasta la que sigue, y con qué. */
+  insomne?: { hasta: number; proveedor: string };
 }
 
 export const MOTIVO_RETICULUM = "aún no corre en ningún medio del OS";
+
+/** La ruta local (`GET /api/neuronas/insomne`) se consulta como mucho una vez cada 60 s. */
+export const INTERVALO_INSOMNE_MS = 60_000;
+/** Tope de tiempo de esa petición: si tarda más, se sigue sin el anuncio. */
+export const TOPE_INSOMNE_MS = 2_000;
+
+/** ¿Toca volver a preguntar por la sesión insomne? (puro, para poder probarlo sin reloj). */
+export function tocaRefrescarInsomne(ultimoRefresco: number, ahora: number): boolean {
+  if (!Number.isFinite(ahora)) return false;
+  return !(ultimoRefresco >= 0) || ahora - ultimoRefresco >= INTERVALO_INSOMNE_MS;
+}
+
+/** Convierte la respuesta de `/api/neuronas/insomne` en el anuncio de presencia (puro). */
+export function insomneDesdeRespuesta(json: unknown, ahora: number): SenalesMedio["insomne"] | undefined {
+  if (typeof json !== "object" || json === null) return undefined;
+  const j = json as { activo?: unknown; hasta?: unknown; proveedor?: unknown };
+  const fin = typeof j.hasta === "number" ? j.hasta : typeof j.hasta === "string" ? Date.parse(j.hasta) : NaN;
+  const proveedor = typeof j.proveedor === "string" ? j.proveedor.trim() : "";
+  if (j.activo !== true || !Number.isFinite(fin)) return undefined;
+  const vencida = Number.isFinite(ahora) && fin <= ahora;
+  if (vencida || proveedor === "") return undefined;
+  return { hasta: fin, proveedor };
+}
 
 /** Entradas crudas (para poder probar el resumen sin navegador). */
 export interface EntradasSenales {
@@ -41,6 +66,8 @@ export interface EntradasSenales {
   mesh?: { status: MeshLinkStatus; transport: MeshTransportKind | null; nodes: unknown[] } | null;
   bluetooth: boolean | null;
   serie: { api: boolean; puertos: number };
+  /** Sesión insomne ya medida (el que la consulta la resuelve `medirSenales`). */
+  insomne?: SenalesMedio["insomne"];
 }
 
 export function resumirSenales(e: EntradasSenales): SenalesMedio {
@@ -65,6 +92,7 @@ export function resumirSenales(e: EntradasSenales): SenalesMedio {
     bluetooth: { disponible: e.bluetooth },
     serie: { disponible: e.serie.api, puertos: e.serie.api ? e.serie.puertos : 0 },
     reticulum: { disponible: false, motivo: MOTIVO_RETICULUM },
+    ...(e.insomne ? { insomne: e.insomne } : {}),
   };
 }
 
@@ -81,6 +109,8 @@ export function firmaSenales(s: SenalesMedio): string {
     s.lora.nodos,
     s.bluetooth.disponible === null ? "?" : s.bluetooth.disponible ? 1 : 0,
     s.serie.puertos,
+    s.insomne?.hasta ?? "",
+    s.insomne?.proveedor ?? "",
   ].join("|");
 }
 
@@ -125,6 +155,7 @@ export async function medirSenales(): Promise<SenalesMedio> {
   } catch {
     puertos = 0;
   }
+  const insomne = await medirInsomne();
   return resumirSenales({
     enLinea: typeof nav.onLine === "boolean" ? nav.onLine : true,
     conexion: nav.connection ?? null,
@@ -133,5 +164,26 @@ export async function medirSenales(): Promise<SenalesMedio> {
     mesh,
     bluetooth,
     serie: { api: apiSerie, puertos },
+    insomne,
   });
+}
+
+/** Cache del anuncio insomne de ESTA neurona (módulo, para el ritmo de como mucho 60 s). */
+let ultimoRefrescoInsomne = -1;
+let insomneCacheado: SenalesMedio["insomne"];
+
+async function medirInsomne(): Promise<SenalesMedio["insomne"]> {
+  const ahora = Date.now();
+  if (!tocaRefrescarInsomne(ultimoRefrescoInsomne, ahora)) return insomneCacheado;
+  ultimoRefrescoInsomne = ahora;
+  try {
+    const control = new AbortController();
+    const reloj = setTimeout(() => control.abort(), TOPE_INSOMNE_MS);
+    const res = await fetch("/api/neuronas/insomne", { signal: control.signal, cache: "no-store" });
+    clearTimeout(reloj);
+    insomneCacheado = res.ok ? insomneDesdeRespuesta(await res.json(), Date.now()) : undefined;
+  } catch {
+    insomneCacheado = undefined;
+  }
+  return insomneCacheado;
 }
