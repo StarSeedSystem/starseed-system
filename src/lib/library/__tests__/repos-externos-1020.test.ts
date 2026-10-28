@@ -22,14 +22,14 @@ describe("REPO_EXTERNOS_1020 · repo builtin externo de la Ola 1020", () => {
     expect(REPO_EXTERNOS_1020.builtin).toBe(true);
   });
 
-  it("mapea las 41 publicaciones de las tres tandas (14 + 14 + 13)", () => {
-    expect(paquetes).toHaveLength(41);
+  it("mapea las 48 publicaciones de las cuatro tandas (14 + 14 + 13 + 7)", () => {
+    expect(paquetes).toHaveLength(48);
   });
 
-  it("tiene 41 ids únicos", () => {
+  it("tiene 48 ids únicos", () => {
     const ids = paquetes.map((p) => p.id);
-    expect(new Set(ids).size).toBe(41);
-    expect(ids).toHaveLength(41);
+    expect(new Set(ids).size).toBe(48);
+    expect(ids).toHaveLength(48);
   });
 
   it("cada paquete apunta a su URL de GitHub", () => {
@@ -93,14 +93,14 @@ describe("REPO_EXTERNOS_1020 · repo builtin externo de la Ola 1020", () => {
   });
 });
 
-describe("PAQUETES_EXTERNOS · 3 tandas fusionadas (1.ª + 2.ª + 3.ª)", () => {
+describe("PAQUETES_EXTERNOS · 4 tandas fusionadas (1.ª + 2.ª + 3.ª + 4.ª)", () => {
   const ids = PAQUETES_EXTERNOS.map((p) => p.id);
   const githubRepos = PAQUETES_EXTERNOS.map((p) => p.githubRepo);
   const externalUrls = PAQUETES_EXTERNOS.map((p) => p.externalUrl);
 
-  it("tienen 41 ids únicos", () => {
-    expect(new Set(ids).size).toBe(41);
-    expect(ids.length).toBe(41);
+  it("tienen 48 ids únicos", () => {
+    expect(new Set(ids).size).toBe(48);
+    expect(ids.length).toBe(48);
   });
 
   it("cada paquete tiene githubRepo y externalUrl de GitHub", () => {
