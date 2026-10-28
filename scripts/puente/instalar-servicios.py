@@ -28,6 +28,22 @@ AG = os.path.join(HOME, "Library", "LaunchAgents")
 P = lambda n: os.path.join(RAIZ, "scripts", "puente", n)
 LANZ = [PY3, P("lanzador-tcc.py")]
 
+# (2026-10-28, Ola 1016M · VGM1016E) El vigía de modelos es de UN disparo al día y nunca
+# debe repetir la pasada. `vigia_modelos.py` guarda la última en ~/.starseed/vigia-modelos.json;
+# aquí se comprueba antes de arrancarlo con la misma regla del §6 (> 20 h, que es cuando el líder
+# de MetaGenesis considera que toca). Si el A1 ya pasó hoy o el líder lo lanzó antes, sale en 0.
+GUION_VIGIA = "\n".join([
+    "import sys",
+    "sys.path.insert(0, %r)" % os.path.join(RAIZ, "scripts", "puente"),
+    "import vigia_modelos as v",
+    "s = v._leer_json(v.RUTA_ESTADO, {})",
+    "if not v.toca_pasada(s):",
+    "    print('vigia-modelos: la última pasada tiene menos de 20 h; no repito')",
+    "    raise SystemExit(0)",
+    "r = v.main()",
+    "raise SystemExit(0 if not isinstance(r, int) else int(r))",
+])
+
 # (2026-10-07) Este guion INSTALA al importarse. Una prueba que lo cargó bajo
 # `python -m unittest discover -s scripts/puente` le pasó «discover» como RAIZ y «-s» como
 # PY3, y dejó en ~/Library/LaunchAgents un com.starseed.produccion con ProgramArguments
@@ -186,6 +202,16 @@ SERVICIOS = {
         "/tmp/starseed-tunel-metagenesis.log",
         True,
     ),
+    # (2026-10-28, Ola 1016M · VGM1016E) Vigía de modelos y versiones: una pasada al día
+    # (04:10 en la Mac; el A1 tiene su propio timer a las 04:20). Sustituye al viejo
+    # `explorador_modelos.py` (pedía los 10 de más «me gusta» de siempre) y recorre todas
+    # las áreas de config/vigia-areas.json. python3 absoluto + lanzador-tcc.py como los
+    # demás; el guion comprueba el estado antes de repetir la pasada (§6).
+    "vigia-modelos": (
+        LANZ + ["--", PY3, "-u", "-c", GUION_VIGIA],
+        "/tmp/starseed-vigia-modelos.log",
+        False,
+    ),
 }
 
 PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>
@@ -299,6 +325,56 @@ def instalar_cada(etiqueta, orden, log, cada_s, tipo):
                 "home": HOME,
                 "cada": int(cada_s),
                 "tipo": tipo,
+                "args": "\n".join("    <string>%s</string>" % esc(a) for a in orden),
+            }
+        )
+    _cargar(etiqueta, ruta)
+
+
+# (2026-10-28, Ola 1016M · VGM1016E) Servicios de CALENDARIO: hora fija al día, no cada N s.
+# Sin RunAtLoad ni KeepAlive a propósito: reinstalar el servicio no dispara una pasada extra,
+# y el propio guion se niega a repetir si la última tiene menos de 20 h. Las claves `Hour` y
+# `Minute` son hora local de la Mac, como el resto de StartCalendarInterval de launchd.
+# nombre -> {"Hour": h, "Minute": m}
+CALENDARIO = {"vigia-modelos": {"Hour": 4, "Minute": 10}}
+
+PLANTILLA_CALENDARIO = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>%(etiqueta)s</string>
+  <key>ProgramArguments</key><array>
+%(args)s
+  </array>
+  <key>StartCalendarInterval</key><dict>
+    <key>Hour</key><integer>%(hora)d</integer>
+    <key>Minute</key><integer>%(minuto)d</integer>
+  </dict>
+  <key>ProcessType</key><string>Standard</string>
+  <key>AbandonProcessGroup</key><true/>
+  <key>WorkingDirectory</key><string>%(raiz)s</string>
+  <key>StandardOutPath</key><string>%(log)s</string>
+  <key>StandardErrorPath</key><string>%(log)s</string>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>%(home)s/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>STARSEED_ROOT</key><string>%(raiz)s</string>
+  </dict>
+</dict></plist>
+"""
+
+
+def instalar_calendario(etiqueta, orden, log, cuando):
+    """Escribe el plist de un servicio diario con StartCalendarInterval y lo carga."""
+    ruta = os.path.join(AG, etiqueta + ".plist")
+    with open(ruta, "w") as f:
+        f.write(
+            PLANTILLA_CALENDARIO
+            % {
+                "etiqueta": etiqueta,
+                "raiz": RAIZ,
+                "log": log,
+                "home": HOME,
+                "hora": int(cuando["Hour"]),
+                "minuto": int(cuando["Minute"]),
                 "args": "\n".join("    <string>%s</string>" % esc(a) for a in orden),
             }
         )
@@ -422,6 +498,9 @@ if "chatterbox" in SOLO:
     instalar_chatterbox()
 for nombre, (orden, log, siempre) in SERVICIOS.items():
     if SOLO and nombre not in SOLO:
+        continue
+    if nombre in CALENDARIO:
+        instalar_calendario("com.starseed." + nombre, orden, log, CALENDARIO[nombre])
         continue
     instalar("com.starseed." + nombre, orden, log, siempre)
 for nombre, fuente in PERIODICOS.items():
