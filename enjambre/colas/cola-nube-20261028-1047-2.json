@@ -1,0 +1,63 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "AGT1025E",
+   "ola": "Ola 1025R · Agentes (nanobot, Agent Orchestrator, CrewAI, Koog, Kilo Code, oh-my-opencode-slim, DeepCode, Klavis, Awesome-LLM)",
+   "titulo": "Guardia de la configuración de opencode del enjambre: plugins, MCP y claves en claro",
+   "archivos": [
+    "scripts/enjambre/auditar_config_opencode.py",
+    "scripts/enjambre/test_auditar_config_opencode.py"
+   ],
+   "depende": [],
+   "prompt": "Contexto: oh-my-opencode-slim y Kilo Code se instalan como plugin o sustituyen a OpenCode, y el instalador de omo-slim edita `~/.config/opencode/opencode.json` (añade el plugin, propone variables como OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS y OPENCODE_ENABLE_EXA). Esa misma configuración es la del enjambre de MetaGenesis: la escribe el orquestador (`refrescar_bloque_opencode` en `scripts/enjambre/starseed-enjambre.py`: bloques `provider.<id>.options.apiKey` siempre con la sintaxis literal `{env:VARIABLE}` o «sin-clave», y `lsp.typescript.disabled = true` porque cada tsserver gastaba ~2 GB en la Mac de 8 GB; la Mac además lleva vetos en `permission.bash`). Un plugin o un MCP añadido sin que nadie lo vea puede lanzar subagentes en paralelo que se saltan el gobernador de recursos o gastar contexto en cada turno. Falta una guardia pura que lea esa configuración y avise.\n\nCrea `scripts/enjambre/auditar_config_opencode.py` y `scripts/enjambre/test_auditar_config_opencode.py` (pytest; carga el módulo por ruta con importlib como hace `scripts/enjambre/test_plantilla_opencode.py`). Python 3, solo biblioteca estándar, docstrings en español.\n\nFunción pura `auditar_config_opencode(cfg: dict, plugins_admitidos=()) -> list[dict]`. Cada hallazgo es `{\"id\": str, \"nivel\": \"bloquea\" | \"avisa\", \"texto\": str, \"arreglo\": str}`. Reglas:\n1. `plugin` (lista) con cualquier entrada que no esté en `plugins_admitidos` → id \"plugin-externo\", nivel \"bloquea\"; el texto nombra la entrada.\n2. `mcp` (dict nombre → definición) con entradas cuyo `enabled` no sea False → id \"mcp-activo\" por cada una, nivel \"avisa\": «gasta contexto en cada turno»; si la definición tiene `url`, el texto da solo el host (sin ruta ni parámetros).\n3. `provider.<id>.options.apiKey` que no sea exactamente «sin-clave» ni case con `^\\{env:[A-Z][A-Z0-9_]*\\}$` → id \"clave-en-claro\", nivel \"bloquea\"; el texto da el id del proveedor y la LONGITUD del valor, JAMÁS el valor ni parte de él.\n4. `lsp.typescript.disabled` distinto de True → id \"lsp-typescript\", nivel \"avisa\" («un tsserver gasta ~2 GB en la Mac de 8 GB»).\n5. `permission` ausente, no dict, o sin la clave `bash` → id \"sin-vetos-bash\", nivel \"avisa\".\nEntrada que no sea dict → un solo hallazgo \"config-ilegible\" (bloquea). Nunca lanza.\n\nAdemás `leer_config(ruta: str) -> dict` (JSON; archivo ausente → {}; JSON roto → {\"__ilegible__\": True}, que `auditar_config_opencode` convierte en \"config-ilegible\") y `main(argv=None) -> int`: imprime en stdout un JSON `{\"hallazgos\": [...], \"bloquea\": N}` para la ruta dada (por defecto `~/.config/opencode/opencode.json`) y devuelve 1 si hay algún hallazgo que bloquea, 0 si no. Los plugins admitidos salen de la variable de entorno STARSEED_PLUGINS_OPENCODE_ADMITIDOS (lista separada por comas, vacía por defecto). NO escribe ningún archivo y no se engancha todavía al orquestador (eso lo decide Alex después).\n\nPruebas: configuración limpia del enjambre (providers con {env:…}, lsp apagado, permission con bash) → []; plugin \"oh-my-opencode-slim\" → bloquea y con ese nombre en admitidos → desaparece; un MCP remoto activo → avisa con solo el host (comprueba que la ruta y los parámetros de la URL no aparecen); apiKey con un valor tipo «sk-» seguido de 24 letras, montado en tiempo de ejecución → bloquea y el valor NO aparece en ningún campo del hallazgo (ni en `texto` ni en `arreglo`), solo su longitud; lsp ausente → avisa; entrada que no es dict; `leer_config` con archivo ausente y con JSON roto (usa tmp_path); `main` devuelve 1/0 y su salida es JSON parseable.\n\nContrato: architecture/repos-libreria-1025.md (grupo agentes: reparto de motores por rol y reglas comunes de los motores externos). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros (sin red, disco ni reloj; lo que haga falta se inyecta); claves solo en variables de entorno y nunca sus valores; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba); en las pruebas, cualquier cadena con forma de clave (sk-…, ghp_…, AKIA…, Bearer …) se monta en tiempo de ejecución (por ejemplo [\"sk\", \"-\", \"a\".repeat(24)].join(\"\")), porque GitHub rechaza el empuje de un commit que lleve una clave de ejemplo con forma real. Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA."
+  },
+  {
+   "id": "IMN1021K3",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en colas, director y entornos de Genesis",
+   "archivos": [
+    "src/lib/mando/colas.ts",
+    "src/lib/mando/director-datos.ts",
+    "src/lib/mando/entornos.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios: «Los sueños profundos corren en la Mac» → «La imaginación profunda corre en la Mac», «Sueño profundo» → «Imaginación profunda», «Dream diario 07:00» → «Imaginación diaria (07:00 o según su horario)». Nada de identificadores (`suenos.py`, `tipo: \"analisis\"`). Si una prueba comprobaba el texto viejo, cámbiala solo en eso (añade su archivo de prueba solo si hace falta y no pasa de 3 archivos en total). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  },
+  {
+   "id": "IMN1021K4",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar comentarios en ramificación, tipos y grafo",
+   "archivos": [
+    "src/lib/mando/ramificacion.ts",
+    "src/lib/mando/tipos.ts",
+    "src/lib/mando/grafo-disposicion.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Solo comentarios: «sueño(s) profundo(s)» → «imaginación profunda». Nada de código. tsc y las pruebas de estos módulos en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  },
+  {
+   "id": "IMN1021K5",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en el lector de la imaginación y en los medidores",
+   "archivos": [
+    "src/lib/mando/suenos.ts",
+    "src/lib/mando/suenos-tipos.ts",
+    "src/lib/mando/medidores.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios: «Sueños profundos» → «Imaginación profunda», «sueño profundo: leyendo y analizando (no escribe código)» → «imaginación profunda: leyendo y analizando (no escribe código)», etc. «Ola Dream …» es el NOMBRE histórico de olas viejas (dato): se queda. Nada de identificadores. Si una prueba comprobaba el texto viejo, ajústala solo en eso. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).",
+   "revisor_quitadas": [
+    "IMN1021H"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "IMN1021K3",
+   "IMN1021K4",
+   "IMN1021K5",
+   "AGT1025E"
+  ]
+ }
+}
