@@ -4648,3 +4648,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTGN1010A-d3d-d3b` — no escribió nada
 - `RTFS1013Ad-d2c` — no escribió nada
 - `RTAV1011Id` — no escribió nada
+
+## 2026-10-28 08:49 · mg-oracle-1027-2310
+
+**Lo que se pidió.** Ajustes: «Versiones públicas
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — otra cosa (RTESP1011Bb, RTCLB1027E, OPS1024A, DSN1025C, DSN1025B, COL1012H). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTESP1011Bb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCLB1027E` — otra cosa: ningún proveedor respondió (todos caídos)
+- `OPS1024A` — otra cosa: ningún proveedor respondió (todos caídos)
+- `DSN1025C` — otra cosa: ningún proveedor respondió (todos caídos)
+- `DSN1025B` — otra cosa: ningún proveedor respondió (todos caídos)
+- `COL1012H` — otra cosa: ningún proveedor respondió (todos caídos)
