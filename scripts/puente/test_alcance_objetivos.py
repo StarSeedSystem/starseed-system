@@ -125,6 +125,9 @@ class TestContacto(PruebaAlmacen):
         self.assertFalse(AO.puede_contactar(auto, {"suprimido": True}, AHORA))
         con_lista = {"supresion": [AO.huella("hola@ejemplo.org")]}
         self.assertFalse(AO.puede_contactar(auto, con_lista, AHORA))
+        # Una huella ajena en la lista no bloquea a este objetivo.
+        ajena = {"supresion": [AO.huella("otro@ejemplo.com")]}
+        self.assertTrue(AO.puede_contactar(auto, ajena, AHORA))
 
     def test_pausas_tras_rechazo_y_no(self):
         objetivo = _objetivo(**MEDIO)
@@ -136,6 +139,14 @@ class TestContacto(PruebaAlmacen):
             objetivo, [_evento("respuesta_no", 179)], AHORA))
         self.assertTrue(AO.puede_contactar(
             objetivo, [_evento("respuesta_no", 181)], AHORA))
+        # El día exacto del vencimiento ya permite contactar.
+        self.assertTrue(AO.puede_contactar(
+            objetivo, [_evento("rechazo_alex", 90)], AHORA))
+        # El alias «no_destinatario» también pausa 180 días.
+        self.assertFalse(AO.puede_contactar(
+            objetivo, [_evento("no_destinatario", 179)], AHORA))
+        self.assertTrue(AO.puede_contactar(
+            objetivo, [_evento("no_destinatario", 180)], AHORA))
 
     def test_recordatorio_a_los_14_dias(self):
         objetivo = _objetivo(**MEDIO)
@@ -172,6 +183,11 @@ class TestSupresion(PruebaAlmacen):
         self.assertFalse(AO.esta_suprimido(dominio="otro.org", nombre="Ana Puente", home=self.casa))
         self.assertFalse(AO.esta_suprimido(correo="ana@example.com", home=self.casa))
         self.assertEqual(AO.huella("ANA@example.com"), AO.huella("ana@example.com"))
+
+    def test_escribir_y_leer_redonda(self):
+        self.assertEqual(AO.leer("supresion", self.casa), [])
+        AO.escribir("supresion", ["a"], self.casa)
+        self.assertEqual(AO.leer("supresion", self.casa), ["a"])
 
 
 if __name__ == "__main__":
