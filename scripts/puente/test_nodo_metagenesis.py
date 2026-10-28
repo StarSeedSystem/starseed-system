@@ -13,6 +13,7 @@ import time
 import types
 import unittest
 import urllib.parse
+from unittest import mock
 
 DIR = os.path.dirname(os.path.abspath(__file__))
 if DIR not in sys.path:
@@ -21,6 +22,7 @@ if DIR not in sys.path:
 import nodo_metagenesis as N  # noqa: E402
 import nodo_metagenesis_bus as B  # noqa: E402
 import nodo_metagenesis_logica as L  # noqa: E402
+import nodo_metagenesis_medio as M  # noqa: E402
 
 T0 = 1_791_640_000.0  # 2026-10-10 ~11:46 UTC
 SECRETO = "s" * 48  # secreto de PRUEBA
@@ -362,6 +364,56 @@ class TestRescate(unittest.TestCase):
         cands = L.candidatos_rescate(fuente, {"B6"}, progreso, ["Ola 9 · B8: ya integrada"], T0)
         self.assertEqual([c["id"] for c in cands], ["B1"])
         self.assertEqual(cands[0]["origen_rescate"], "cola-buena.json")
+
+
+class TestMedidasDelAparato(unittest.TestCase):
+    """(CB1013Qb) cpu_pct, ram_total_mb y disco_total_gb miden de verdad o devuelven None:
+    en un aparato donde no se puede medir, nunca se inventa una cifra (contrato §7.2)."""
+
+    class _Fichero:
+        def __init__(self, lineas):
+            self._lineas = list(lineas)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def readline(self):
+            return self._lineas.pop(0) if self._lineas else ""
+
+        def __iter__(self):
+            return iter(self._lineas)
+
+    def test_cpu_pct_linux_con_dos_lecturas(self):
+        lecturas = [["cpu  100 0 100 800 0 0 0 0 0 0\n"],
+                    ["cpu  150 0 100 850 0 0 0 0 0 0\n"]]
+        with mock.patch.object(sys, "platform", "linux"), \
+                mock.patch("time.sleep", lambda _s: None), \
+                mock.patch("builtins.open", side_effect=lambda *a, **k: self._Fichero(lecturas.pop(0))):
+            # 100 de trabajo más sobre 100 de tiempo total = 50 % ocupado.
+            self.assertEqual(M.cpu_pct(), 50.0)
+
+    def test_ram_total_mb_linux(self):
+        with mock.patch.object(sys, "platform", "linux"), \
+                mock.patch("builtins.open", return_value=self._Fichero(["MemTotal:       16384000 kB\n"])):
+            self.assertEqual(M.ram_total_mb(), 16000)
+
+    def test_disco_total_gb_de_una_ruta_real(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            total = M.disco_total_gb(carpeta)
+        self.assertIsNotNone(total)
+        assert total is not None
+        self.assertGreater(total, 0)
+
+    def test_sin_medida_no_se_inventa(self):
+        with mock.patch.object(sys, "platform", "darwin"):
+            self.assertIsNone(M.cpu_pct(), "en macOS no se estima la CPU con la carga")
+        with mock.patch.object(sys, "platform", "win32"), \
+                mock.patch("builtins.open", side_effect=OSError):
+            self.assertIsNone(M.ram_total_mb())
+        self.assertIsNone(M.disco_total_gb("/ruta/que-no-existe-de-verdad"))
 
 
 class TestFotoYTachado(unittest.TestCase):
