@@ -1,22 +1,4 @@
 /**
-<<<<<<< HEAD
- * GUI1021K2c (parte 1) · «Conoce StarSeed (sin cuenta)» en la bienvenida.
- *
- * §5 de `architecture/guias-introduccion.md`: la ventana de bienvenida abre la guía entera
- * sin cuenta por la puerta común (`abrirGuia`) con `desde: "bienvenida"`. La prueba escucha el
- * evento real que escucha `aurora-guide.tsx`, comprueba la activación con ratón y con teclado
- * y las reglas de accesibilidad (diana de 44 px, cursor pointer).
- *
- * El segundo botón de esta misma tarea —el del aviso de retomar sesión, `desde: "login"`—
- * lo completa otra parte de la cadena sobre `components/sso/session-resume-prompt.tsx`.
- */
-import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { WelcomeWindow } from "@/components/welcome/welcome-window";
-import { EVENTO_ABRIR_GUIA, type PeticionGuia } from "@/lib/onboarding/guia-acceso";
-=======
  * GUI1021K2 · «Conoce StarSeed (sin cuenta)» en la bienvenida y en el aviso de retomar sesión.
  *
  * §5 de `architecture/guias-introduccion.md`: la guía entera se abre sin cuenta, por la puerta
@@ -42,31 +24,6 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-/** Sesión falsa SIN red: `detect-session` consulta `getSession()` + `getUser()`. */
-vi.mock("@/utils/supabase/client", () => ({
-  createClient: () => ({
-    auth: {
-      getSession: async () => ({
-        data: {
-          session: {
-            user: {
-              id: "uid-1021k2",
-              email: "invitado@star.seed",
-              user_metadata: { handle: "invitada1021" },
-            },
-          },
-        },
-        error: null,
-      }),
-      getUser: async () => ({ data: { user: { id: "uid-1021k2" } }, error: null }),
-      onAuthStateChange: () => ({
-        data: { subscription: { unsubscribe: () => undefined } },
-      }),
-    },
-  }),
-}));
->>>>>>> 0bf4ef2b5 (salvavidas · GUI1021K2b: trabajo del agente antes de las puertas (tsc / vitest))
-
 /** Escucha la guía como lo hace `aurora-guide.tsx` y devuelve lo que llegó. */
 function escucharGuia() {
   const recibidos: PeticionGuia[] = [];
@@ -77,11 +34,7 @@ function escucharGuia() {
 
 afterEach(() => cleanup());
 
-<<<<<<< HEAD
-describe("WelcomeWindow (GUI1021K2c)", () => {
-=======
 describe("WelcomeWindow (GUI1021K2)", () => {
->>>>>>> 0bf4ef2b5 (salvavidas · GUI1021K2b: trabajo del agente antes de las puertas (tsc / vitest))
   it("«Conoce StarSeed (sin cuenta)» abre la guía desde «bienvenida», con ratón y con teclado", async () => {
     render(<WelcomeWindow onContinue={() => undefined} />);
     const boton = screen.getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
@@ -99,8 +52,6 @@ describe("WelcomeWindow (GUI1021K2)", () => {
     expect(guia.recibidos).toEqual([{ desde: "bienvenida" }, { desde: "bienvenida" }]);
   });
 });
-<<<<<<< HEAD
-=======
 
 describe("SessionResumePrompt (GUI1021K2)", () => {
   it("el aviso de retomar sesión abre la guía desde «login», con ratón y con teclado", async () => {
@@ -130,4 +81,3 @@ describe("accesibilidad del botón en el retomar sesión (GUI1021K2)", () => {
     expect(boton.className).toMatch(/ss-sso-guia/); // su :focus-visible está en el <style>
   });
 });
->>>>>>> 0bf4ef2b5 (salvavidas · GUI1021K2b: trabajo del agente antes de las puertas (tsc / vitest))
