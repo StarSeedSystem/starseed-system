@@ -45,6 +45,7 @@ class PruebasSeleccion(unittest.TestCase):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
 
+<<<<<<< HEAD
     def test_viajan_todas_las_colas_recientes_y_el_log_txt(self):
         """Rescatado de rama nube (RTCOL1012I): la selección no depende del nombre de la cola
         (una «antigua» tocada hace una hora viaja) y un ``log.txt`` también es un log."""
@@ -54,6 +55,35 @@ class PruebasSeleccion(unittest.TestCase):
             "evento1.jsonl", "evento2.jsonl", "log.txt",
         )
         self.assertEqual(que_copiar(listado, AHORA), sorted(n for n, _ in listado))
+=======
+    def test_que_copiar_selecciona_correctamente(self):
+        listado = [
+            ("progreso.json", VIEJO),
+            ("progreso.md", VIEJO),
+            ("medios.json", VIEJO),
+            ("puntos-control.json", VIEJO),
+            ("cola-1.json", VIEJO),
+            ("cola-2.json", VIEJO),
+            ("cola-antigua.json", VIEJO),
+            ("evento1.jsonl", VIEJO),
+            ("evento2.jsonl", VIEJO),
+            ("log.txt", VIEJO),
+        ]
+        ahora = AHORA
+        seleccion = que_copiar(listado, ahora)
+        esperados = {
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+        }
+        self.assertEqual(set(seleccion), esperados)
+
+
+>>>>>>> f9dad3392 (salvavidas · RTRTS1010-TU-LL1cobjbb: trabajo del agente antes de las puertas (tsc / vitest))
 
 
 class PruebasEmpaquetar(unittest.TestCase):
@@ -69,6 +99,8 @@ class PruebasEmpaquetar(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+
 
     def _tar(self, seleccion):
         with tempfile.TemporaryDirectory() as salida:

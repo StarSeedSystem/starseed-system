@@ -1,15 +1,22 @@
 // @vitest-environment-options {"url": "https://starseed-os.vercel.app/metagenesis"}
 /**
+<<<<<<< HEAD
  * Los botones «Desconectar» y «Usar como contenedor» de la tarjeta de cada neurona (COL1012I).
  *
  * Tres capas: la ficha pura de `botonesNeurona` (rescatada de una rama nube), el traductor puro latido → tarjeta
  * (`colmena-tarjeta.ts`) y el componente de verdad (`MetaGenesisAutonoma`) con el cliente simulado.
  * Los casos de la rama nube se adaptaron al contrato de hoy: el destino es el id del nodo (nunca «lider»),
  * `punto.t` va en segundos y ningún texto promete un traspaso que aún no existe.
+=======
+ * ColmenaBotones — botones por nodo: desconectar, contenedor e instalar trabajador.
+ * Se muestra dependiendo del estado del nodo: trabajo en curso, contenedor activo,
+ * y si tiene trabajador o no.
+>>>>>>> f9dad3392 (salvavidas · RTRTS1010-TU-LL1cobjbb: trabajo del agente antes de las puertas (tsc / vitest))
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+<<<<<<< HEAD
 import { botonesNeurona, type NeuronaColmena } from "@/lib/metagenesis/colmena";
 import {
     avisoDeOrdenANodo,
@@ -30,10 +37,27 @@ vi.mock("@/lib/metagenesis/accesos", () => ({ miAccesoMetaGenesis: async () => (
 vi.mock("@/lib/metagenesis/remoto-nodos-cliente", () => ({
     leerEstadoAutonomo: async () => estado.lectura,
     enviarOrden: (...a: unknown[]) => enviarOrden(...a),
+=======
+import type { EstadoAutonomo } from "@/lib/metagenesis/remoto-nodos";
+import type { NodoVista, AccionOrden } from "@/lib/metagenesis/remoto-nodos";
+import { within } from "@testing-library/react";
+
+const AHORA = Date.now();
+
+const enviarOrden = vi.fn(async (accion: string, nodo: string) => ({ ok: true, clave: "nonce-1", modo: "bus" }));
+
+vi.mock("@/lib/metagenesis/accesos", () => ({
+    miAccesoMetaGenesis: async () => ({ miembro: true, dueno: false }),
+}));
+vi.mock("@/lib/metagenesis/remoto-nodos-cliente", () => ({
+    leerEstadoAutonomo: async () => null,
+    enviarOrden: (...a: unknown[]) => Promise.resolve({ ok: true, clave: "nonce-1", modo: "bus" }),
+>>>>>>> f9dad3392 (salvavidas · RTRTS1010-TU-LL1cobjbb: trabajo del agente antes de las puertas (tsc / vitest))
 }));
 vi.mock("@/lib/realtime/realtime", () => ({ onTableChange: () => () => {} }));
 
 import { AppearanceProvider } from "@/context/appearance-context";
+<<<<<<< HEAD
 import { MetaGenesisAutonoma } from "../metagenesis-autonoma";
 
 describe("colmena-botones · botones de una neurona (rescatado de rama nube)", () => {
@@ -197,6 +221,13 @@ const SIN_TRASPASO = "traspaso del trabajo a otro contenedor aún no está activ
 function nodo(extra: Partial<NodoVista> = {}): NodoVista {
     return {
         nodo: A1,
+=======
+import { ColmenaBotones } from "../colmena-botones";
+
+function nodoVistaPrueba(extra: Partial<NodoVista> = {}): NodoVista {
+    return {
+        nodo: "oracle-a1-bbbbbb",
+>>>>>>> f9dad3392 (salvavidas · RTRTS1010-TU-LL1cobjbb: trabajo del agente antes de las puertas (tsc / vitest))
         medio: "oracle-a1",
         etiqueta: "Oracle A1 (24/7)",
         modo: "real",
@@ -204,20 +235,29 @@ function nodo(extra: Partial<NodoVista> = {}): NodoVista {
         lider: true,
         hace_ms: 40_000,
         puntos: 1250,
+<<<<<<< HEAD
         orquestadores: [],
+=======
+        orquestadores: ["cola-relevo-x"],
+>>>>>>> f9dad3392 (salvavidas · RTRTS1010-TU-LL1cobjbb: trabajo del agente antes de las puertas (tsc / vitest))
         caidos: [],
         disco_gb: 80,
         ram_libre_mb: 9000,
         trabajo: {},
         enCurso: [],
+<<<<<<< HEAD
         contenedor: { activo: false, agentes: 2, apto: true, motivo: "2 agente(s) por la memoria y los núcleos." },
         informaTrabajo: true,
         relevo: false,
         desconectando: false,
+=======
+        contenedor: null,
+>>>>>>> f9dad3392 (salvavidas · RTRTS1010-TU-LL1cobjbb: trabajo del agente antes de las puertas (tsc / vitest))
         ...extra,
     };
 }
 
+<<<<<<< HEAD
 /** Una tarea con agente escribiendo; `t` en SEGUNDOS, como lo publica el nodo (`time.time()`). */
 function tarea(id: string, haceMs: number | null, fase = "escribiendo"): NodoVista["enCurso"][number] {
     return { id, fase, punto: haceMs === null ? null : { rama: `ola/${id}`, sha: "abc123", t: (AHORA - haceMs) / 1000 } };
@@ -490,10 +530,23 @@ function pintar() {
     return render(
         <AppearanceProvider>
             <MetaGenesisAutonoma />
+=======
+function pintar(nodo: NodoVista) {
+    return render(
+        <AppearanceProvider>
+            <ColmenaBotones
+                nodo={nodo}
+                enVuelo={false}
+                mandarOrden={async (accion: AccionOrden, nodo?: string) => {
+                    await enviarOrden(accion, nodo!);
+                }}
+            />
+>>>>>>> f9dad3392 (salvavidas · RTRTS1010-TU-LL1cobjbb: trabajo del agente antes de las puertas (tsc / vitest))
         </AppearanceProvider>,
     );
 }
 
+<<<<<<< HEAD
 const id = (clave: string, nodoId = A1) => `mg-nodo-${nodoId}-${clave}`;
 
 describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
@@ -747,5 +800,132 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         pintar();
         fireEvent.click(await screen.findByTestId("mg-orden-revisar_bloqueadas"));
         await waitFor(() => expect(enviarOrden).toHaveBeenCalledWith("revisar_bloqueadas", "lider"));
+=======
+describe("ColmenaBotones", () => {
+    beforeEach(() => {
+        enviarOrden.mockClear();
+    });
+    afterEach(() => cleanup());
+
+    it("muestra el botón de desconectar cuando hay trabajo en curso", async () => {
+        const nodoConTrabajo = nodoVistaPrueba({
+            enCurso: [
+                {
+                    id: "task-1",
+                    fase: "escribiendo",
+                    punto: {
+                        rama: "main",
+                        sha: "abc123",
+                        t: Date.now() - 5 * 60_000,
+                    },
+                },
+            ],
+        });
+        pintar(nodoConTrabajo);
+        const botonDesconectar = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-desconectar");
+        expect(botonDesconectar).toBeInTheDocument();
+        expect(botonDesconectar).toHaveTextContent("Desconectar");
+        expect(botonDesconectar).not.toBeDisabled();
+        expect(botonDesconectar).toHaveAttribute(
+            "title",
+            "Guarda el trabajo a medias de sus 1 agente(s) y lo pasa a otro contenedor antes de que este aparato se quede sin internet."
+        );
+    });
+
+    it("muestra el botón de usar como contenedor cuando el nodo puede ser contenedor", async () => {
+        const nodoConContenedor = nodoVistaPrueba({
+            contenedor: {
+                activo: false,
+                agentes: 2,
+                apto: true,
+                motivo: "Listo para trabajar",
+            },
+        });
+        pintar(nodoConContenedor);
+        const botonContenedor = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-contenedor");
+        expect(botonContenedor).toBeInTheDocument();
+        expect(botonContenedor).toHaveTextContent("Dejar de usar como contenedor");
+        expect(botonContenedor).not.toBeDisabled();
+        expect(botonContenedor).toHaveAttribute("title", "Termina lo que lleva y no coge más.");
+    });
+
+    it("muestra información de tarea a medias cuando existe", async () => {
+        const nodoConTrabajo = nodoVistaPrueba({
+            enCurso: [
+                {
+                    id: "task-1",
+                    fase: "escribiendo",
+                    punto: {
+                        rama: "main",
+                        sha: "abc123",
+                        t: Date.now() - 5 * 60_000,
+                    },
+                },
+            ],
+        });
+        pintar(nodoConTrabajo);
+        const tiempoInfo = await screen.findByText(/Último punto hace 5 min/);
+        expect(tiempoInfo).toBeInTheDocument();
+    });
+
+    it("muestra el botón de instalar trabajador cuando el nodo no tiene trabajador", async () => {
+        const nodoSinTrabajador = nodoVistaPrueba({
+            trabajo: {},
+        });
+        pintar(nodoSinTrabajador);
+        const botonInstalarTrabajador = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-trabajador");
+        expect(botonInstalarTrabajador).toBeInTheDocument();
+        expect(botonInstalarTrabajador).toHaveTextContent("Instalar trabajador");
+        expect(botonInstalarTrabajador).not.toBeDisabled();
+        expect(botonInstalarTrabajador).toHaveAttribute("title", "Instala un trabajador (agente) en este contenedor.");
+    });
+
+    it("envía orden desconectar al hacer clic en el botón", async () => {
+        const nodoConTrabajo = nodoVistaPrueba({
+            enCurso: [
+                {
+                    id: "task-1",
+                    fase: "escribiendo",
+                    punto: {
+                        rama: "main",
+                        sha: "abc123",
+                        t: Date.now() - 5 * 60_000,
+                    },
+                },
+            ],
+        });
+        pintar(nodoConTrabajo);
+        const botonDesconectar = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-desconectar");
+        fireEvent.click(botonDesconectar);
+        await waitFor(() => {
+            expect(enviarOrden).toHaveBeenCalledWith("desconectar", "oracle-a1-bbbbbb");
+        });
+    });
+
+    it("envía orden contenedor al hacer clic en el botón", async () => {
+        const nodoConContenedor = nodoVistaPrueba({
+            contenedor: {
+                activo: false,
+                agentes: 2,
+                apto: true,
+                motivo: "Listo para trabajar",
+            },
+        });
+        pintar(nodoConContenedor);
+        const botonContenedor = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-contenedor");
+        fireEvent.click(botonContenedor);
+        await waitFor(() => {
+            expect(enviarOrden).toHaveBeenCalledWith("contenedor", "oracle-a1-bbbbbb");
+        });
+    });
+
+    it("desactiva el botón de desconectar cuando no hay trabajo en curso", async () => {
+        const nodoSinTrabajo = nodoVistaPrueba({
+            enCurso: [],
+            trabajo: {},
+        });
+        pintar(nodoSinTrabajo);
+        expect(screen.queryByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-desconectar")).not.toBeInTheDocument();
+>>>>>>> f9dad3392 (salvavidas · RTRTS1010-TU-LL1cobjbb: trabajo del agente antes de las puertas (tsc / vitest))
     });
 });
