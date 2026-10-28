@@ -13,7 +13,10 @@ import {
 
 import { GlassCard } from "@/components/ui/glass-card";
 import { cn } from "@/lib/utils";
-import { CURVA, DURACION } from "@/lib/design/movimiento";
+import {
+    aplicarMovimientoReducido,
+    movimientoDe,
+} from "@/lib/design/registros-movimiento";
 import {
     CAMPOS_PERMITIDOS,
     describirAccion,
@@ -105,11 +108,30 @@ const AYUDA_NIVEL: Record<NivelUi, string> = {
     aplicar: "Puede retocar por su cuenta, salvo lo destructivo y la cuenta.",
 };
 
-/** Transición única del panel: dentro de los 150-300 ms del OS (§8). */
-const TRANSICION: React.CSSProperties = {
-    transitionDuration: `${DURACION.normal}ms`,
-    transitionTimingFunction: CURVA.entrada,
-};
+/** El movimiento del panel: registro expresivo sobre la sección Astraura,
+ *  con los tokens de `registros-movimiento` (la única fuente del carácter).
+ *  Ante `prefers-reduced-motion` queda aplazado a 0 ms: el estado final
+ *  se pinta quieto. Devuelve solo la entrada, que es lo que el panel usa. */
+function usarMovimientoPanel(): React.CSSProperties {
+    const [reducido, setReducido] = useState(false);
+    useEffect(() => {
+        try {
+            const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+            setReducido(mq.matches);
+            const oir = () => setReducido(mq.matches);
+            mq.addEventListener?.("change", oir);
+            return () => mq.removeEventListener?.("change", oir);
+        } catch {
+            return undefined;
+        }
+    }, []);
+    const completo = movimientoDe("expresivo", "astraura");
+    const mov = reducido ? aplicarMovimientoReducido(completo) : completo;
+    return {
+        transitionDuration: `${mov.entrada.ms}ms`,
+        transitionTimingFunction: mov.entrada.curva,
+    };
+}
 
 /* ── Utilidades de presentación ───────────────────────────────────────── */
 
@@ -209,6 +231,7 @@ export function PanelAstrauraUi({
     // sembrar el estado con él en el primer render descuadraría la hidratación.
     const [permisos, setPermisos] = useState<PermisoUi[]>([]);
     const [reloj, setReloj] = useState<number>(() => ahora ?? 0);
+    const movimientoPanel = usarMovimientoPanel();
 
     useEffect(() => {
         setPermisos(leerPermisos());
@@ -313,7 +336,7 @@ export function PanelAstrauraUi({
                                             aria-pressed={nivel === n}
                                             title={AYUDA_NIVEL[n]}
                                             onClick={() => cambiarNivel(a.actor, n)}
-                                            style={TRANSICION}
+                                            style={movimientoPanel}
                                             className={cn(
                                                 "cursor-pointer rounded-lg border px-2.5 py-1 text-xs transition-colors",
                                                 nivel === n
@@ -342,7 +365,7 @@ export function PanelAstrauraUi({
                                                 data-testid={`tipo-${a.actor}-${t}`}
                                                 aria-pressed={activo}
                                                 onClick={() => alternarTipo(a.actor, t)}
-                                                style={TRANSICION}
+                                                style={movimientoPanel}
                                                 className={cn(
                                                     "cursor-pointer rounded-full border px-2 py-0.5 text-[11px] transition-colors",
                                                     activo
@@ -401,7 +424,7 @@ export function PanelAstrauraUi({
                                         type="button"
                                         data-testid={`aplicar-${i}`}
                                         onClick={() => alAplicar?.(p)}
-                                        style={TRANSICION}
+                                        style={movimientoPanel}
                                         className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-3 py-1.5 text-xs transition-colors hover:bg-primary/25"
                                     >
                                         <Check className="h-3.5 w-3.5" aria-hidden />
@@ -411,7 +434,7 @@ export function PanelAstrauraUi({
                                         type="button"
                                         data-testid={`descartar-${i}`}
                                         onClick={() => alDescartar?.(p)}
-                                        style={TRANSICION}
+                                        style={movimientoPanel}
                                         className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-white/20"
                                     >
                                         <X className="h-3.5 w-3.5" aria-hidden />
@@ -447,7 +470,7 @@ export function PanelAstrauraUi({
                                 type="button"
                                 data-testid={`deshacer-${e.id}`}
                                 onClick={() => alDeshacer?.(e)}
-                                style={TRANSICION}
+                                style={movimientoPanel}
                                 className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs transition-colors hover:border-white/25"
                             >
                                 <Undo2 className="h-3.5 w-3.5" aria-hidden />
