@@ -172,3 +172,59 @@ describe("pedirCapa — selección de fuente por orden §6", () => {
     expect(resultado.fuente?.id).toBe("peer-con-capa");
   });
 });
+
+describe("pedirCapa — una capa local incompleta o ajena no se da por propia", () => {
+  const sha256 = "a".repeat(64);
+
+  async function almacenCon(
+    meta: { sha256: string; completa: boolean; totalTrozos: number } | null,
+    trozos: number[],
+  ) {
+    const almacen = almacenamientoEnMemoria();
+    if (meta) {
+      const bytes = new TextEncoder().encode(JSON.stringify(meta)).buffer;
+      await almacen.escribir("capa/needle3-reflejo/meta", bytes);
+    }
+    for (const i of trozos) {
+      await almacen.escribir(`capa/needle3-reflejo/trozo/${i}`, new ArrayBuffer(10));
+    }
+    return almacen;
+  }
+
+  async function pedirConAlmacen(almacen: ReturnType<typeof almacenamientoEnMemoria>) {
+    const { malla } = crearMallaFalsa([
+      { t: "capa.ofrecer", consultaId: "", peerId: "peer-con-capa", tiene: true, camino: "webrtc", esOficial: false },
+    ]);
+    return pedirCapa(sha256, {
+      catalogo: crearCatalogoFalso(),
+      almacen,
+      malla,
+      permitirPublicos: true,
+      timeoutMs: 100,
+    });
+  }
+
+  it("pide a la malla si a la capa local le falta un trozo", async () => {
+    const almacen = await almacenCon({ sha256, completa: true, totalTrozos: 3 }, [0, 1]);
+    const resultado = await pedirConAlmacen(almacen);
+    expect(resultado.fuente?.tipo).toBe("par");
+  });
+
+  it("pide a la malla si el SHA de la meta no coincide", async () => {
+    const almacen = await almacenCon({ sha256: "b".repeat(64), completa: true, totalTrozos: 3 }, [0, 1, 2]);
+    const resultado = await pedirConAlmacen(almacen);
+    expect(resultado.fuente?.tipo).toBe("par");
+  });
+
+  it("pide a la malla si la meta dice incompleta", async () => {
+    const almacen = await almacenCon({ sha256, completa: false, totalTrozos: 3 }, [0, 1, 2]);
+    const resultado = await pedirConAlmacen(almacen);
+    expect(resultado.fuente?.tipo).toBe("par");
+  });
+
+  it("pide a la malla si no hay meta para ese SHA", async () => {
+    const almacen = await almacenCon(null, []);
+    const resultado = await pedirConAlmacen(almacen);
+    expect(resultado.fuente?.tipo).toBe("par");
+  });
+});
