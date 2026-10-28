@@ -86,6 +86,26 @@ describe("aplicar y restaurar", () => {
         expect(imagen.getAttribute("alt")).toBe("imagen de la cumbre");
         expect(imagen.getAttribute("title")).toBe("señaliza");
     });
+
+    it("devuelve el original exacto, también cuando el texto lleva espacios en los bordes", () => {
+        const raiz = montar("<p>  Hola  </p>");
+        expect(aplicar(recogerTextos(raiz), { "  Hola  ": "Hello" }, "en")).toBe(1);
+        const parrafo = raiz.querySelector("p") as HTMLParagraphElement;
+        expect(parrafo.textContent).toBe("Hello");
+        restaurar(raiz);
+        expect(parrafo.textContent).toBe("  Hola  ");
+    });
+
+    it("al restaurar, el elemento recupera el lang que ya tenía antes de traducir", () => {
+        const raiz = montar("<p lang='pt'>Dos</p>");
+        expect(aplicar(recogerTextos(raiz), { Dos: "Two" }, "en")).toBe(1);
+        const parrafo = raiz.querySelector("p") as HTMLParagraphElement;
+        expect(parrafo.getAttribute("lang")).toBe("en");
+        restaurar(raiz);
+        expect(parrafo.textContent).toBe("Dos");
+        expect(parrafo.getAttribute("lang")).toBe("pt");
+        expect(parrafo.hasAttribute("data-traducido")).toBe(false);
+    });
 });
 
 describe("observar", () => {
