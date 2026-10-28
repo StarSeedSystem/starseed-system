@@ -12,6 +12,7 @@ import type { LibraryPackage, LibraryRepo, PackageKind } from "./packages";
 import catalogo1020 from "../../../config/repos-libreria-1020.json";
 import catalogo1020b from "../../../config/repos-libreria-1020b.json";
 import catalogo1020c from "../../../config/repos-libreria-1020c.json";
+import catalogo1020d from "../../../config/repos-libreria-1020d.json";
 
 interface Entrada1020 {
   id: string; repo: string; nombre: string; kind: string;
@@ -24,9 +25,19 @@ interface Catalogo1020 { paquetes: Entrada1020[]; excluida?: { repo: string } }
 interface Catalogo1020b { paquetes: Entrada1020[]; excluidas?: { repo: string }[] }
 interface Catalogo1020c { paquetes: Entrada1020[]; excluidas?: { repo: string; motivo: string }[]; duplicadas?: Record<string, string> }
 
+/// Requisitos de capacidad (architecture/repos-libreria-1020d.md §3): la bolsa de
+/// recursos los traduce en peticiones; `null` = sin medir (no se inventa).
+export interface RequisitosPesado {
+  ram_gb: number | null; vram_gb: number | null; gpu: string; docker: string;
+  arquitecturas: string[]; so: string[]; fuente: string;
+}
+interface Entrada1020d extends Entrada1020 { requisitos?: RequisitosPesado }
+interface Catalogo1020d { paquetes: Entrada1020d[]; duplicadas?: Record<string, string>; excluidas?: unknown }
+
 const CATALOGO = catalogo1020 as unknown as Catalogo1020;
 const CATALOGO_B = catalogo1020b as unknown as Catalogo1020b;
 const CATALOGO_C = catalogo1020c as unknown as Catalogo1020c;
+const CATALOGO_D = catalogo1020d as unknown as Catalogo1020d;
 const ICONOS: Record<string, string> = { app: "AppWindow", "ai-source": "BrainCircuit", function: "Boxes" };
 
 function autorDe(repo: string): string { return repo.split("/")[0] ?? repo; }
@@ -60,16 +71,21 @@ export const REPOS_EXCLUIDOS: string[] = [
   ...(CATALOGO_C.excluidas ?? []).map((e) => e.repo),
 ].filter((v): v is string => Boolean(v));
 
-/// Repos de la 3.ª tanda que YA EXISTEN en packages.ts (mismo GitHub repo por externalUrl).
-/// No se crean paquetes duplicados; esta lista sirve de visibilidad para la integración.
+/// Repos de las tandas 1020b-d que YA EXISTEN en packages.ts (mismo GitHub repo
+/// por externalUrl). No se crean paquetes duplicados; la comparación es SIN
+/// distinguir mayúsculas (GitHub no las distingue).
 export const REPOS_YA_PRESENTES: { repo: string; id: string }[] = [
   { repo: "penpot/penpot", id: "iatool-penpot" },
+  { repo: "coollabsio/coolify", id: "iatool-coolify" },
+  { repo: "OpenHands/OpenHands", id: "iatool-openhands" },
+  { repo: "Stirling-Tools/Stirling-PDF", id: "iatool-stirling-pdf" },
 ];
 
-const yaPresentes = new Set(REPOS_YA_PRESENTES.map((r) => r.repo));
+const yaPresentes = new Set(REPOS_YA_PRESENTES.map((r) => r.repo.toLowerCase()));
 const excluidos = new Set(REPOS_EXCLUIDOS);
+const yaEsta = (repo: string): boolean => yaPresentes.has(repo.toLowerCase());
 const esExcluida = (e: Entrada1020): boolean =>
-  excluidos.has(e.repo) || yaPresentes.has(e.repo) || e.id.includes("reverse-skill") || e.repo.includes("reverse-skill");
+  excluidos.has(e.repo) || yaEsta(e.repo) || e.id.includes("reverse-skill") || e.repo.includes("reverse-skill");
 
 export const REPO_EXTERNOS_1020: LibraryRepo = {
   id: "starseed-biblioteca-externa", name: "Biblioteca externa",
@@ -79,6 +95,26 @@ export const REPO_EXTERNOS_1020: LibraryRepo = {
     ...CATALOGO_C.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
   ],
 };
+
+/// 4.ª tanda (config/repos-libreria-1020d.json): repo builtin PROPIO para no
+/// alterar el recuento que las tandas 1020-1020c fijan en sus pruebas (41).
+/// Mismo mapeo: ficha honesta con upstream y canal. Su id es distinto y únicamente
+/// exhíbe las fichas que no existen ya en packages.ts (Coolify, OpenHands y
+/// Stirling-PDF quedan como REPOS_YA_PRESENTES, sin duplicarse).
+export const REPO_EXTERNOS_1020D: LibraryRepo = {
+  id: "starseed-biblioteca-externa-1020d", name: "Biblioteca externa · 4.ª tanda",
+  builtin: true, packages: CATALOGO_D.paquetes.filter((e) => !esExcluida(e)).map((e) => ({
+    ...paqueteDe(e),
+    // Identidad de repo propia (allPackages la asigna igual por repo.id).
+    sourceRepoId: "starseed-biblioteca-externa-1020d",
+  })),
+};
+
+/// Requisitos de capacidad de la 4.ª tanda, tal como vienen del catálogo
+/// verificado (sin medir → null). Los consume la bolsa de recursos
+/// (src/lib/recursos/oferta.ts → planificar; architecture/apps-en-la-malla.md §4).
+export const REQUISITOS_1020D: Record<string, RequisitosPesado | null> =
+  Object.fromEntries(CATALOGO_D.paquetes.map((e) => [e.id, e.requisitos ?? null]));
 
 export interface ReposExternosPaquete {
   id: string; repo: string; nombre: string; kind: string; canal: string;

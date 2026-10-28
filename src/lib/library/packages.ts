@@ -85,11 +85,11 @@ import { FICHAS_REPOS_1027B } from "./repos-1027b";
 import { FICHAS_REPOS_1028 } from "./repos-1028";
 // Repo builtin externo de la Ola 1020: 14 repos verificados con upstream y canal
 // para que la Biblioteca autobúsque sus releases/tags/commits.
-import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES } from "./repos-externos-1020";
+import { REPO_EXTERNOS_1020, REPO_EXTERNOS_1020D, REQUISITOS_1020D, REPOS_YA_PRESENTES } from "./repos-externos-1020";
 
-/// Re-export para visibilidad: repos de la 3.ª tanda que YA EXISTEN en packages.ts
-/// (mismo GitHub repo por externalUrl). No se crean paquetes duplicados.
-export { REPOS_YA_PRESENTES };
+/// Re-export para visibilidad: repos de las tandas 1020b-d que YA EXISTEN en
+/// packages.ts (mismo GitHub repo por externalUrl). No se crean paquetes duplicados.
+export { REPOS_YA_PRESENTES, REPO_EXTERNOS_1020D, REQUISITOS_1020D };
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -1433,7 +1433,7 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
       "Plataforma de agentes de desarrollo autónomos: escriben código, lo ejecutan y navegan por su cuenta. Qué reemplaza: asistentes de programación autónomos de pago. Es un servicio que corre aislado (nunca público): instalar registra la skill «Agente de desarrollo» para que Aurora sepa cuándo recomendar este patrón y abre su repo de referencia.",
     icon: "Bot", tags: ["skill", "aurora", "agente", "codigo", "desarrollo", "oss"], version: "1.0.0",
     author: "All-Hands-AI", sourceRepoId: "starseed-ia-tools", free: true,
-    payload: { skillId: "dev-agent", externalUrl: "https://github.com/All-Hands-AI/OpenHands", note: "Plataforma de agentes de desarrollo autónomos (escriben código, ejecutan, navegan)." },
+    payload: { skillId: "dev-agent", externalUrl: "https://github.com/OpenHands/OpenHands", note: "Plataforma de agentes de desarrollo autónomos (escriben código, ejecutan, navegan)." },
   },
   /* ── Maxun · extracción de datos web no-code ── */
   {
@@ -2259,7 +2259,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO, REPO_EXTERNOS_1020];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO, REPO_EXTERNOS_1020, REPO_EXTERNOS_1020D];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
