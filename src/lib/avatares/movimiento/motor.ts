@@ -196,7 +196,7 @@ async function generarPorKimodo(g: Gesto, nivel: NivelMovimiento): Promise<Movim
     const compartida = enVuelo.get(clave);
     if (compartida) return compartida;
     if (Date.now() < kimodoPausadoHasta || enVuelo.size >= MAX_EN_VUELO) return null;
-    const peticion = pedirAKimodo(g, nivel).then((clip) => {
+    const peticion = pedirAKimodo(g).then((clip) => {
         if (clip) guardarEnCache(clave, clip);
         return clip;
     }).finally(() => { enVuelo.delete(clave); });
@@ -204,7 +204,7 @@ async function generarPorKimodo(g: Gesto, nivel: NivelMovimiento): Promise<Movim
     return peticion;
 }
 
-async function pedirAKimodo(g: Gesto, nivel: NivelMovimiento): Promise<MovimientoClip | null> {
+async function pedirAKimodo(g: Gesto): Promise<MovimientoClip | null> {
     try {
         const resp = await fetch("/api/movimiento/generar", {
             method: "POST",
