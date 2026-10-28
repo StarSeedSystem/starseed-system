@@ -60,5 +60,6 @@ Una persona le pregunta a su personalidad «¿qué decidimos del café?»:
 | MVD1027 | Memvid | `architecture/memvid-capsulas.md` |
 | LNN1028 | LEANN | `architecture/leann-recuerdo-semantico.md` |
 | DEC1028 | decisiones de Alex | trabajadores del A1 y «pasarelas de repuesto» |
+| CVV1028 | contenido vivo: 3D, película de scroll y gráficos vivos, local o con Spline, Higgsfield y demás por ámbito | `architecture/contenido-vivo.md` |
 
 Cada ola nueva que añada un sistema **actualiza esta tabla y la de las puertas** en la misma tarea en que lo conecta.
