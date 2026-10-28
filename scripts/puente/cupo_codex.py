@@ -50,6 +50,25 @@ PISTAS = (
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
 
+#: Lo que dice la CLI cuando el modelo no vale con la cuenta de ChatGPT
+#: («The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT
+#: account», code «model_not_found»). No es cuota: es algo fijo de la cuenta.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+#: Cuánto se aparta cuando la cuenta misma no puede con Codex: 24 h, porque no
+#: se arregla esperando; lo arregla cambiar de sesión o que el modelo vuelva a
+#: admitirse. Volver antes solo gasta intentos.
+HORAS_SIN_MODELO = 24.0
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida dice que la cuenta de ChatGPT no admite ese modelo de Codex?"""
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
+
 
 def agotado_en(salida):
     """¿Esta salida es un agotamiento de cuota de Codex?

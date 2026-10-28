@@ -35,6 +35,38 @@ class TestDeteccion(unittest.TestCase):
             self.assertTrue(C.agotado_en(t), t)
 
 
+#: Literal del log del 2026-10-23: la cuenta ya no admite el modelo.
+REAL_SIN_MODELO = (
+    '{"status":400,"message":"The \'gpt-5.6-sol\' model is not supported when '
+    'using Codex with a ChatGPT account.","code":"model_not_found"}'
+)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_la_salida_real_del_1023(self):
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+
+    def test_lo_dice_en_cualquier_caja(self):
+        self.assertTrue(C.sin_modelo_en("MODEL_NOT_FOUND: no vale"))
+
+    def test_no_es_el_agotamiento_de_cuota(self):
+        # El agotamiento y el sin-modo son cosas distintas: uno se espera 3 h,
+        # el otro 24 h. Que un detector no tragarse al otro.
+        self.assertFalse(C.sin_modelo_en(REAL))
+        self.assertFalse(C.agotado_en(REAL_SIN_MODELO))
+
+    def test_vacio_no_es_nada(self):
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
+
+    def test_las_24_horas(self):
+        self.assertAlmostEqual(
+            C.hasta_cuando(AHORA, horas=C.HORAS_SIN_MODELO) - AHORA,
+            24 * 3600,
+            places=3,
+        )
+
+
 class TestVigencia(unittest.TestCase):
     def test_recien_anotado_sigue_agotado(self):
         marca = {"hasta": C.hasta_cuando(AHORA)}

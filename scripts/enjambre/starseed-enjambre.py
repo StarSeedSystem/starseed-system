@@ -319,6 +319,10 @@ except Exception:  # sin el módulo, se comporta como antes
             return False
 
         @staticmethod
+        def sin_modelo_en(salida):
+            return False
+
+        @staticmethod
         def anotar(motivo=""):
             return 0
 
@@ -7724,6 +7728,28 @@ def ejecutar(t, intento=1):
             continue
         # Agotamiento de la suscripción de ChatGPT: se anota para que las tareas
         # siguientes no repitan la espera, y Codex sale de la rotación de esta ola.
+        # (2026-10-28, DEC1028C) Y antes: «model is not supported when using Codex
+        # with a ChatGPT account» NO es agotar cuota, es la cuenta entera sin
+        # Codex. Se aparta 24 h (HORAS_SIN_MODELO) y NO gasta intento.
+        if modelo in MODELOS_CODEX and _cupo_codex.sin_modelo_en(out):
+            try:
+                minutos = _cupo_codex.anotar(
+                    "cuenta de ChatGPT sin Codex para %s" % modelo,
+                    horas=_cupo_codex.HORAS_SIN_MODELO,
+                )
+            except Exception:
+                minutos = 0
+            for _m in list(MODELOS_CODEX):
+                if _m in MODELOS:
+                    MODELOS.remove(_m)
+            evento(
+                "proveedor_caido",
+                tid,
+                "Codex «model_not_found» con cuenta de ChatGPT (%s): modelo no "
+                "admitido, fuera de la rotación %d h, sin gastar intento"
+                % (modelo, int(_cupo_codex.HORAS_SIN_MODELO)),
+            )
+            continue
         if modelo in MODELOS_CODEX and _cupo_codex.agotado_en(out):
             try:
                 minutos = _cupo_codex.anotar("escritura: cuota de ChatGPT agotada")
