@@ -2,16 +2,17 @@
 
 import { describe, it, expect } from "vitest";
 import { planificarJuegoPc, CONDICIONES_EPIC_DECIDIDAS, rutaConfigEpic, validarSinCredencialesEpic, esUrlPermitidaRare } from "../juegos-pc";
+import { type Neurona, type Servidor, type Persona } from "../juegos-pc";
 
 describe("planificarJuegoPc", () => {
-  const neuronaConPantallaYRare: typeof import("./../juegos-pc")['Neurona'] = {
+  const neuronaConPantallaYRare: Neurona = {
     sistema: "macos",
     tienePantalla: true,
     binarioRare: true,
     gpu: true,
     memoriaMB: 16384
   };
-  const servidorPropioConGPU: typeof import("./../juegos-pc")['Servidor'] = {
+  const servidorPropioConGPU: Servidor = {
     id: "servidor1",
     propio: true,
     compartido: false,
@@ -20,7 +21,7 @@ describe("planificarJuegoPc", () => {
     transmision: "selkies",
     libreDiscoGB: 100
   };
-  const servidorCompartidoConGPU: typeof import("./../juegos-pc")['Servidor'] = {
+  const servidorCompartidoConGPU: Servidor = {
     id: "compartido1",
     propio: false,
     compartido: true,
@@ -29,25 +30,25 @@ describe("planificarJuegoPc", () => {
     transmision: "sunshine",
     libreDiscoGB: 200
   };
-  const neuronaSinPantalla: typeof import("./../juegos-pc")['Neurona'] = {
+  const neuronaSinPantalla: Neurona = {
     sistema: "macos",
     tienePantalla: false,
     binarioRare: true,
     gpu: true,
     memoriaMB: 16384
   };
-  const neuronaSinGPU: typeof import("./../juegos-pc")['Neurona'] = {
+  const neuronaSinGPU: Neurona = {
     sistema: "linux",
     tienePantalla: true,
     binarioRare: true,
     gpu: false,
     memoriaMB: 8192
   };
-  const personaAcepta: typeof import("./../juegos-pc")['Persona'] = {
+  const personaAcepta: Persona = {
     id: "valid-persona-123",
     aceptaCondicionesEpic: true
   };
-  const personaNoAcepta: typeof import("./../juegos-pc")['Persona'] = {
+  const personaNoAcepta: Persona = {
     id: "persona-no-acepta",
     aceptaCondicionesEpic: false
   };
@@ -55,7 +56,7 @@ describe("planificarJuegoPc", () => {
   it("Ruta A: neurona propia con pantalla y Rare instalado", () => {
     const e = {
       neurona: neuronaConPantallaYRare,
-      servidores: [] as typeof import("./../juegos-pc")['Servidor'][],
+      servidores: [] as Servidor[],
       persona: personaAcepta
     };
     const r = planificarJuegoPc(e);
@@ -67,7 +68,7 @@ describe("planificarJuegoPc", () => {
   it("Ruta A cuando CONDICIONES_EPIC_DECIDIDAS es false (siempre)", () => {
     const e = {
       neurona: neuronaConPantallaYRare,
-      servidores: [] as typeof import("./../juegos-pc")['Servidor'][],
+      servidores: [] as Servidor[],
       persona: personaAcepta
     };
     const r = planificarJuegoPc(e);
@@ -76,7 +77,7 @@ describe("planificarJuegoPc", () => {
 
   it("Ruta B bloqueada cuando CONDICIONES_EPIC_DECIDIDAS es false", () => {
     const e = {
-      neurona: { sistema: "linux", tienePantalla: true, binarioRare: true, gpu: true, memoriaMB: 8192 },
+      neurona: { sistema: "linux", tienePantalla: true, binarioRare: true, gpu: true, memoriaMB: 8192 } as Neurona,
       servidores: [servidorPropioConGPU],
       persona: personaAcepta
     };
@@ -87,8 +88,8 @@ describe("planificarJuegoPc", () => {
 
   it("Ruta C bloqueada cuando CONDICIONES_EPIC_DECIDIDAS es false", () => {
     const e = {
-      neurona: { sistema: "linux", tienePantalla: true, binarioRare: true, gpu: true, memoriaMB: 8192 },
-      servidores: [servidorCompartidoConGPU] as typeof import("./../juegos-pc")['Servidor'][],
+      neurona: { sistema: "linux", tienePantalla: true, binarioRare: true, gpu: true, memoriaMB: 8192 } as Neurona,
+      servidores: [servidorCompartidoConGPU] as Servidor[],
       persona: personaAcepta
     };
     const r = planificarJuegoPc(e);
@@ -99,7 +100,7 @@ describe("planificarJuegoPc", () => {
   it("Mac sin pantalla: ninguna ruta disponible", () => {
     const e = {
       neurona: neuronaSinPantalla,
-      servidores: [] as typeof import("./../juegos-pc")['Servidor'][],
+      servidores: [] as Servidor[],
       persona: personaAcepta
     };
     const r = planificarJuegoPc(e);
@@ -110,7 +111,7 @@ describe("planificarJuegoPc", () => {
   it("Mac A1 sin GPU: aviso en Route A", () => {
     const e = {
       neurona: neuronaSinGPU,
-      servidores: [] as typeof import("./../juegos-pc")['Servidor'][],
+      servidores: [] as Servidor[],
       persona: personaAcepta
     };
     const r = planificarJuegoPc(e);
@@ -120,14 +121,15 @@ describe("planificarJuegoPc", () => {
 
   it("Ruta C bloqueada sin aceptar condiciones Epic", () => {
     const e = {
-      neurona: { sistema: "linux", tienePantalla: false, binarioRare: true, gpu: true, memoriaMB: 8192 },
-      servidores: [servidorCompartidoConGPU] as typeof import("./../juegos-pc")['Servidor'][],
+      neurona: { sistema: "linux", tienePantalla: false, binarioRare: true, gpu: true, memoriaMB: 8192 } as Neurona,
+      servidores: [servidorCompartidoConGPU] as Servidor[],
       persona: personaNoAcepta
     };
     const r = planificarJuegoPc(e);
     expect(r.ruta).toBe("ninguna");
   });
 });
+
 
 describe("rutaConfigEpic", () => {
   const datosConfig = "/datos/juegos";

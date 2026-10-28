@@ -38,17 +38,17 @@ export interface ResultadoPlanificacion {
 }
 
 function esRutaA(neurona: Neurona): boolean {
-  return neurona.tienePantalla && neurona.binarioRare;
+  return Boolean(neurona.tienePantalla && neurona.binarioRare);
 }
 
 function esRutaB(neurona: Neurona, servidor: Servidor): boolean {
   return neurona.tienePantalla && neurona.binarioRare &&
-    servidor.propio && servidor.gpu && (servidor.wineOProton || servidor.transmision);
+    servidor.propio && servidor.gpu && Boolean(servidor.wineOProton || servidor.transmision);
 }
 
 function esRutaC(neurona: Neurona, servidor: Servidor, persona: Persona): boolean {
   return neurona.tienePantalla && neurona.binarioRare &&
-    servidor.compartido && servidor.gpu && (servidor.wineOProton || servidor.transmision);
+    servidor.compartido && servidor.gpu && Boolean(servidor.wineOProton || servidor.transmision);
 }
 
 function motivosRutaA(): string {
@@ -64,7 +64,7 @@ function motivosRutaC(): string {
 }
 
 function esA1SinGPU(neurona: Neurona): boolean {
-  return neurona.sistema === "linux" && neurona.memoriaMB >= 8192 && !neurona.gpu;
+  return Boolean(neurona.sistema === "linux" && neurona.memoriaMB >= 8192 && !neurona.gpu);
 }
 
 function avisoA1SinGPU(): string {
@@ -99,12 +99,12 @@ export function planificarJuegoPc(
     return { ruta: "ninguna", motivo: "condiciones Epic no decididas", pasos: [], avisos: [] };
   }
 
-  if (esRutaB(neurona, servidorConGPU)) {
+  if (servidorConGPU && esRutaB(neurona, servidorConGPU)) {
     pasos.push("abre Rare", "inicia sesión en Epic tú mismo");
     return { ruta: "servidor-propio", motivo: motivosRutaB(), pasos, avisos };
   }
 
-  if (esRutaC(neurona, servidorConGPU, persona)) {
+  if (servidorConGPU && esRutaC(neurona, servidorConGPU, persona)) {
     pasos.push("abre Rare", "inicia sesión en Epic tú mismo");
     return { ruta: "servidor-compartido", motivo: motivosRutaC(), pasos, avisos };
   }
