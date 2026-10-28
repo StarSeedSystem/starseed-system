@@ -10,6 +10,7 @@ import { usable, type CatalogoCapas } from "@/lib/astraura/capas/catalogo";
 import * as medioReal from "@/lib/astraura/capas/perfil-medio";
 import type { AjustesPresupuesto as Ajustes, EntornoMedio, PerfilMedio, PresupuestoMedio } from "@/lib/astraura/capas/perfil-medio";
 import { planificar, type CapaInstalada, type EntradaPlanificador, type NodoCapas, type PerfilPlanificador, type PlanCapas } from "@/lib/astraura/capas/planificador";
+import { almacenamientoEnMemoriaMedidas, type MedidasAlmacen } from "@/lib/astraura/capas/medidas";
 import { destinoNivelador, PREFERENCIA_CAPAS_DEFECTO, type PreferenciaCapas } from "@/lib/astraura/capas-conciencia";
 import { repartir, type ApiExterna, type CapaLocal, type EntradaReparto, type PlanReparto, type TareaBot } from "../reparto-de-modelo";
 import type { OrigenBot } from "../tipos";
@@ -24,6 +25,8 @@ export interface DepRepartoVivo {
   enLinea?: () => boolean; // si falla, se trata como sin conexión
   origen?: OrigenBot; ambito?: string; ajustes?: Ajustes;
   perfilDelMedio?: (e: EntornoMedio) => PerfilMedio; presupuestoMedio?: (p: PerfilMedio, a?: Ajustes) => PresupuestoMedio;
+  almacenMedidas?: () => MedidasAlmacen;
+  neuronaId?: string;
 }
 export type TurnoBot = Pick<EntradaReparto, "tarea" | "dificultad" | "privacidad">;
 export interface PlanDelTurno {
@@ -107,7 +110,7 @@ export function planDelTurno(tarea: TareaBot, dificultad: TurnoBot["dificultad"]
     const reparto = repartir(entrada);
     const tipo = reparto.capa ? PLAN_TAREA[reparto.capa] : undefined;
     if (!tipo || !PLANIFICADOS.has(reparto.motor)) return { reparto, capas: null, detalle: null, avisos };
-    const capas = planificar({ ...plan, tarea: tipo[0], dificultad: tipo[1] });
+    const capas = planificar({ ...plan, tarea: tipo[0], dificultad: tipo[1], medidas: dep.almacenMedidas?.() || undefined, neurona: dep.neuronaId });
     const paso = capas.capa !== reparto.capa ? undefined
       : [capas, ...capas.respaldo].find((x) => x.donde === reparto.donde && x.modelo !== "ninguno");
     if (!paso) avisos.push(`El planificador no tiene la capa ${reparto.capa} en ${reparto.donde}: se usa el modelo por defecto del reparto.`);
