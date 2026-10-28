@@ -40,6 +40,9 @@ TTL_LIDER_S = 900
 #: Un nodo preferente (más puntos) solo le quita el mando a un líder vivo si le saca este margen
 #: y lleva vivo al menos dos latidos (evita el baile de líderes al arrancar).
 MARGEN_RELEVO = 100
+#: Una neurona con sesión insomne vigente suma estos puntos de estabilidad para liderar y para recibir préstamos
+#: (el A1 sigue siendo el siempre encendido de referencia).
+PUNTOS_INSOMNE = 150
 ESTABLE_S = 2 * LATIDO_S
 #: Órdenes: caducan a los 15 min (como el lanzador de la nube) y se recuerdan 24 h.
 ORDEN_CADUCA_S = 15 * 60
@@ -116,7 +119,8 @@ def puntos_nodo(cap: Dict[str, Any]) -> int:
     """PURA. Cuánto merece dirigir un nodo. Real ≫ seco; colas en disco ≫ siempre encendido ≫ resto.
 
     Un nodo con las colas en su disco (`autoritativo`) es el que sabe la verdad del trabajo;
-    uno siempre encendido es el que sostiene cuando la Mac duerme. RAM libre y disco desempatan.
+    uno siempre encendido es el que sostiene cuando la Mac duerme. RAM libre y disco desempatam.
+    Una neurona con sesión insomne vigente suma los puntos definidos en `PUNTOS_INSOMNE`.
     """
     medio = cap.get("medio") if cap.get("medio") in MEDIOS else "neurona"
     p = int(MEDIOS[medio]["base"])
@@ -134,6 +138,8 @@ def puntos_nodo(cap: Dict[str, Any]) -> int:
     disco = cap.get("disco_gb")
     if isinstance(disco, (int, float)) and disco < 2:
         p -= 80
+    if cap.get("insomne"):
+        p += PUNTOS_INSOMNE
     return p
 
 

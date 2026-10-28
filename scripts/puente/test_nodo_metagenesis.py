@@ -170,6 +170,18 @@ class TestIdentidadYPuntos(unittest.TestCase):
         lleno = L.puntos_nodo({"medio": "oracle-a1", "modo": "real", "repo": True, "orquestador": True, "disco_gb": 1})
         self.assertGreater(sano, lleno)
 
+    def test_insomne_agrega_puntos(self):
+        normal = L.puntos_nodo({"medio": "neurona", "modo": "real", "repo": True, "orquestador": True})
+        insomne = L.puntos_nodo({"medio": "neurona", "modo": "real", "repo": True, "orquestador": True, "insomne": True})
+        self.assertGreater(insomne, normal)
+        self.assertEqual(insomne, normal + L.PUNTOS_INSOMNE)
+
+    def test_insomne_agrega_puntos_medio_base(self):
+        mac_normal = L.puntos_nodo({"medio": "mac", "modo": "real", "autoritativo": True, "repo": True, "orquestador": True})
+        mac_insomne = L.puntos_nodo({"medio": "mac", "modo": "real", "autoritativo": True, "repo": True, "orquestador": True, "insomne": True})
+        self.assertGreater(mac_insomne, mac_normal)
+        self.assertEqual(mac_insomne, mac_normal + L.PUNTOS_INSOMNE)
+
 
 class TestEleccion(unittest.TestCase):
     def lat(self, nodo, ts, puntos, **kw):
