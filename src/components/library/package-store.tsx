@@ -63,6 +63,8 @@ import {
   Users,
   type LucideIcon,
   Flame, LogIn, Replace, Ear, Atom, ShieldCheck, Network,
+  // Tanda 1027 (OpenMausBot, Colibri)
+  MousePointer2, Bird,
 } from "lucide-react";
 import {
   addRepoByUrl,
@@ -178,7 +180,21 @@ const ICON_MAP: Record<string, LucideIcon> = {
   FileText, Table2, LayoutDashboard, Gamepad2, Box, Glasses,
   // Genesis y PoliGenesis en la Biblioteca (Ola 1010S)
   Users,
+  // Tanda 1027 (OpenMausBot, Colibri)
+  MousePointer2, Bird,
 };
+
+/**
+ * Meta para cualquier kind no registrado en KIND_META (p. ej. «tool», el kind de las
+ * fichas «lib-openmausbot» y «lib-insomnia» de la tanda 1027): la tarjeta sigue
+ * renderizando en vez de caer en «undefined» al leer `.chip`.
+ */
+export function metaDeKind(kind: PackageKind): { label: string; plural: string; icon: LucideIcon; chip: string } {
+  return KIND_META[kind] ?? {
+    label: "Paquete", plural: "Paquetes", icon: Package,
+    chip: "bg-white/10 text-white border-white/20",
+  };
+}
 
 /** Id del repo builtin de Herramientas IA & Agentes (para la sección destacada). */
 const IA_TOOLS_REPO_ID = "starseed-ia-tools";
@@ -627,7 +643,7 @@ function PackageCard({
   actions: StoreActions;
   onOpenDetail: (pkg: LibraryPackage) => void;
 }) {
-  const meta = KIND_META[pkg.kind];
+  const meta = metaDeKind(pkg.kind);
   const route = typeof pkg.payload.route === "string" ? pkg.payload.route : "";
   const needsKey = pkg.kind === "ai-source" && aiReady === false && !installed;
   const busy = actions.busyId === pkg.id;
@@ -881,7 +897,7 @@ function PackageDetailSheet({
 }) {
   if (!pkg) return <Sheet open={false} onOpenChange={onOpenChange}><SheetContent side="right" className="hidden" /></Sheet>;
 
-  const meta = KIND_META[pkg.kind];
+  const meta = metaDeKind(pkg.kind);
   const installed = pkg.id in data.installed;
   const entry = data.installed[pkg.id];
   const route = typeof pkg.payload.route === "string" ? pkg.payload.route : "";
@@ -1038,7 +1054,9 @@ function PackageDetailSheet({
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               <Settings2 className="h-3.5 w-3.5" /> Qué hará al instalar
             </p>
-            <p className="text-xs leading-relaxed text-gray-300">{EFFECT_EXPLAIN[pkg.kind]}</p>
+            <p className="text-xs leading-relaxed text-gray-300">
+              {EFFECT_EXPLAIN[pkg.kind] ?? "Registra este paquete en tu biblioteca: como no trae ruta del OS, solo guarda su enlace externo (no se ejecuta en el navegador)."}
+            </p>
             <pre className="max-h-40 overflow-auto rounded-lg bg-black/50 p-3 text-[10px] leading-relaxed text-cyan-200/90">
 {payloadPretty}
             </pre>
@@ -1159,7 +1177,7 @@ function PackageDetailSheet({
               </p>
               <div className="ss-hscroll ss-hscroll-fade flex gap-3 pb-1">
                 {related.map((rel) => {
-                  const relMeta = KIND_META[rel.kind];
+                  const relMeta = metaDeKind(rel.kind);
                   return (
                     <button
                       key={rel.id}
@@ -1457,7 +1475,7 @@ function InstalledSection({
             }
             // El paquete ya no está en ningún repo (repo externo quitado):
             // mostramos la entrada cruda y permitimos desinstalar igualmente.
-            const meta = KIND_META[entry.kind];
+            const meta = metaDeKind(entry.kind);
             return (
               <GlassCard key={id} intensity="low" className="flex h-full flex-col gap-3 border-white/5 p-4">
                 <div className="flex items-start gap-3">
@@ -1569,7 +1587,7 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
   const searchResults = useMemo(() => {
     if (!q) return [];
     return data.packages.filter((p) => {
-      const meta = KIND_META[p.kind];
+      const meta = metaDeKind(p.kind);
       return (
         p.name.toLowerCase().includes(q) ||
         p.description.toLowerCase().includes(q) ||
