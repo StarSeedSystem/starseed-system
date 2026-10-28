@@ -4,6 +4,7 @@
 Casos de la tarea: el A1 (12 GB, 18,5 GB libres) solo deja Laya y GLiNER2.5-Decide, y Qwen3-Coder
 no; la Mac (8 GB con presión) no deja a ninguno. Sin red, sin descargas, sin tocar el disco.
 """
+import json
 import os
 import sys
 import unittest
@@ -69,6 +70,29 @@ class PruebaCaben(unittest.TestCase):
         self.assertEqual(filas["colibri-deepseek-v4-flash-reap"]["veredicto"], "cabe")
         self.assertEqual(filas["colibri-clef"]["veredicto"], "cabe")
 
+    def test_glm_52_streaming_con_todo_el_disco_y_poca_ram(self):
+        # 2026-10-28 (rama nube/40611446903): GLM-5.2 no estaba ni en el streaming ni en el resto.
+        filas = {f["id"]: f for f in C.caben(self.entradas, 20, 900)}
+        glm = filas["colibri-glm-5.2"]
+        self.assertEqual(glm["veredicto"], "cabe en streaming (disco rápido)")
+        self.assertIn("expertos del disco", glm["porque"])
+
+    def test_olmoe_con_disco_estrecho_dice_los_gb_de_la_descarga(self):
+        # 2026-10-28 (rama nube/40611446903): la descarga temporal (14 GB) pesa más que el modelo.
+        olmoe = next(e for e in self.entradas if e["id"] == "colibri-olmoe-7b")
+        self.assertGreater(olmoe["descarga_gb"], olmoe["disco_gb"])
+        filas = {f["id"]: f for f in C.caben(self.entradas, 12, 5)}
+        self.assertEqual(filas["colibri-olmoe-7b"]["veredicto"], "no cabe")
+        self.assertIn("descarga", filas["colibri-olmoe-7b"]["porque"])
+        self.assertIn("14", filas["colibri-olmoe-7b"]["porque"])
+
+    def test_caben_no_muta_las_entradas_y_da_cuatro_columnas(self):
+        # 2026-10-28 (rama nube/40611446903): pureza del cálculo y forma de cada fila.
+        antes = json.loads(json.dumps(self.entradas))
+        filas = C.caben(self.entradas, 12, 18.5)
+        self.assertEqual(self.entradas, antes)
+        self.assertTrue(all(set(f) == {"id", "capa", "veredicto", "porque"} for f in filas))
+
 
 class PruebaPlan(unittest.TestCase):
     """El plan de instalación (28-10): Laya y GLiNER NO van por setup; el clon va a la ruta
@@ -131,6 +155,19 @@ class PruebaPlan(unittest.TestCase):
     def test_id_desconocido(self):
         with self.assertRaises(ValueError):
             C.plan_instalacion("colibri-no-existe", "/srv")
+        # 2026-10-28 (rama nube/40611446903): también el id vacío (y falta cubrir la carpeta vacía: lo comento en la respuesta).
+        with self.assertRaises(ValueError):
+            C.plan_instalacion("", "/srv")
+
+    def test_ordenes_como_listas_y_clon_verificado(self):
+        # 2026-10-28 (rama nube/40611446903): nunca strings de shell y el clon apunta al repo verificado.
+        for id_modelo in ("colibri-laya", "colibri-gliner-decide", "colibri-qwen3-coder-30b"):
+            plan = C.plan_instalacion(id_modelo, "/srv")
+            self.assertTrue(all(isinstance(p["args"], list) for p in plan))
+            self.assertTrue(all(isinstance(a, str) for p in plan for a in p["args"]))
+        clon = C.plan_instalacion("colibri-laya", "/srv")[0]["args"]
+        self.assertEqual(clon[:2], ["git", "clone"])
+        self.assertIn(C.REPO_COLIBRI, clon)
 
 
 if __name__ == "__main__":
