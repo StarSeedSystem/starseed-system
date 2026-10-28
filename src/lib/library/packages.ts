@@ -85,7 +85,10 @@ import { FICHAS_REPOS_1027B } from "./repos-1027b";
 import { FICHAS_REPOS_1028 } from "./repos-1028";
 // Repo builtin externo de la Ola 1020: 14 repos verificados con upstream y canal
 // para que la Biblioteca autobúsque sus releases/tags/commits.
-import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES } from "./repos-externos-1020";
+import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES, REQUISITOS_1020D } from "./repos-externos-1020";
+
+// Requisitos 1020D aplicados a la bolsa de recursos (servicios pesados)
+export { REQUISITOS_1020D };
 
 /// Re-export para visibilidad: repos de la 3.ª tanda que YA EXISTEN en packages.ts
 /// (mismo GitHub repo por externalUrl). No se crean paquetes duplicados.
