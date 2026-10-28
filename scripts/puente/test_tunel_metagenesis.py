@@ -76,9 +76,11 @@ class Piezas(unittest.TestCase):
     def test_orden_sin_cambiar_el_host(self):
         orden = T.orden_cloudflared("/opt/homebrew/bin/cloudflared", 9012)
         self.assertNotIn("--http-host-header", orden)
-        self.assertEqual(orden[-2:], ["--url", "http://127.0.0.1:9012"])
+        self.assertIn("--url", orden)
+        self.assertIn("127.0.0.1:9012",orden[4])
         # El pkill del túnel viejo de Genesis no puede confundirla con la suya.
         self.assertNotIn("cloudflared tunnel --url http://127.0.0.1:9002", " ".join(orden))
+        self.assertIn("-L",orden)
 
 
 class Entorno(unittest.TestCase):

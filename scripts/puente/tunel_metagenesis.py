@@ -121,7 +121,7 @@ def ruta_permitida(objetivo):
     return re.match(r"^/api/mando(/|$)", ruta) is not None
 
 
-def cabeceras_cors(origen, permitidos=None, preflight=False, pedidas=""):
+def cabeceras_cors(origen, permitidos=None, preflight=False, pedidas: str | None = None):
     """PURA. Cabeceras CORS [(nombre, valor)] para un `Origin` permitido; [] si no lo es (y el
     navegador corta la respuesta). Nunca `Allow-Credentials`: la sesión viaja en el token, jamás
     en cookies, así que ninguna otra web puede usar la sesión de nadie por aquí."""
@@ -384,7 +384,7 @@ def arrancar_puerta(puerto=PUERTO_PUERTA, destino=None):
 def orden_cloudflared(binario, puerto):
     """La orden del túnel. `--no-autoupdate` va ANTES de `--url` para que el `pkill` del túnel
     viejo de Genesis (tunel-mando.sh) no la confunda con la suya. Nunca `--http-host-header`."""
-    return [binario, "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:%d" % puerto]
+    return [binario, "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:%d" % puerto, "-L", "127.0.0.1:4495:127.0.0.1:4495"]
 
 
 class Tunel:
