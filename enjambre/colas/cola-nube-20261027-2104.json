@@ -1,0 +1,123 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "ola": "1021G",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40121255017",
+   "id": "GUI1021Cb-d1",
+   "titulo": "Guías · los diez temas en el tour de Aurora (y cerebros/librería corregidos) (parte 1 de 2)",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §2 y §3. En `STEPS` de `aurora-guide.tsx`, después de `astraura` y `perfil`, añade un paso por cada tema de `TODOS_LOS_TEMAS` construido desde los datos (key, title=titulo, body=cuerpo, say=voz, ask=preguntaAurora, go → `safeGoto(router, ruta)`), con su icono lucide y su color Trinity; sustituye los pasos `cerebros` y `libreria` por `neuronas-cerebro` y `libreria-biblioteca` (que ya están entre los temas). No cambies nada más del componente. Pruebas: el tour tiene los diez temas en orden, ningún paso repetido, y el paso de cerebro lleva a `/cerebro`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40121255017`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40121255017:refs/remotes/origin/nube/40121255017\"` y `git cherry-pick --no-commit 86d85973e7d6`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/__tests__/aurora-guide-temas.test.tsx, src/components/onboarding/aurora-guide.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió GUI1021Cb: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/onboarding/aurora-guide.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021Cb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "GUI1021B"
+   ]
+  },
+  {
+   "ola": "1021G",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261027-145103-GUI1021J",
+   "id": "GUI1021Jb-d1",
+   "titulo": "Guía sin cuenta · la guía entera funciona sin sesión y por encima de las ventanas de acceso (parte 1 de 2)",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. En `aurora-guide.tsx`: lee el detalle del evento (`desde`, `temaInicial`) y empieza por ese tema si viene; sin sesión usa `modoGuia`: oculta «Ir» y «Hazlo por mí» con la etiqueta «Disponible al entrar», guarda lo visto solo en el aparato, y si el puente de Aurora no está, el modo voz pasa a texto diciéndolo; el panel usa `zGuia` (por encima de la pantalla de acceso cuando toca) y al cerrarse no navega a ninguna parte; el último paso, sin sesión, muestra «Crear cuenta», «Entrar» y «Explorar sin cuenta» que cierran la guía y devuelven a la ventana de acceso. Al iniciar sesión después, `unirVistas`. Pruebas: sin sesión no hay «Hazlo por mí», el z es 240 desde login y `temaInicial` funciona. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261027-145103-GUI1021J`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261027-145103-GUI1021J:refs/remotes/origin/nube/a1-20261027-145103-GUI1021J\"` y `git cherry-pick --no-commit 41b0127fea79 b5837a23a31b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/__tests__/aurora-guide-invitado.test.tsx, src/components/onboarding/aurora-guide.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió GUI1021Jb: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/onboarding/aurora-guide.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021Jb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "GUI1021H"
+   ]
+  },
+  {
+   "ola": "1021G",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40098899044",
+   "id": "GUI1021K1b-d1",
+   "titulo": "Guía sin cuenta · «Conoce StarSeed (sin cuenta)» en la pantalla de acceso (parte 1 de 2)",
+   "archivos": [
+    "src/components/auth/auth-gate.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. En `auth-gate.tsx`, bajo los dos modos (Entrar y Crear cuenta), un botón secundario «Conoce StarSeed (sin cuenta)» que llama a `abrirGuia({desde: 'login'})`. No cambia nada del inicio de sesión. Pruebas: el botón está en ambos modos y lanza el evento con `desde: 'login'`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40098899044`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama (la reasignación apuntaba al run 40103101721 de nube-gh, que ya terminó, y esta rama es de otro medio)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40098899044:refs/remotes/origin/nube/40098899044\"` y `git cherry-pick --no-commit 4a8f92691ae5`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/auth/__tests__/auth-gate-guia.test.tsx, src/components/auth/auth-gate.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió GUI1021K1b: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/auth/auth-gate.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021K1b",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  },
+  {
+   "ola": "1021G",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40411707078",
+   "id": "GUI1021K2c-d1",
+   "titulo": "Guía sin cuenta · el mismo acceso en la bienvenida y en retomar sesión (parte 1 de 3)",
+   "archivos": [
+    "src/components/welcome/welcome-window.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Añade «Conoce StarSeed» (bienvenida: `desde: 'bienvenida'`; retomar sesión: `desde: 'login'`) con `abrirGuia`, sin tocar nada más. Pruebas de los dos botones. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40411707078`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40411707078:refs/remotes/origin/nube/40411707078\"` y `git cherry-pick --no-commit 0bf4ef2b58d9 e22a3a9bfe5d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/protomolecula/gobierno/__tests__/ayudas-prueba.ts, src/components/protomolecula/gobierno/__tests__/gobierno-proto-resumen.test.tsx, src/components/protomolecula/gobierno/__tests__/seccion-gobierno-proto.test.tsx, src/components/protomolecula/gobierno/ayudas-prueba.ts, src/components/sso/session-resume-prompt.tsx, src/components/welcome/__tests__/bienvenida-guia.test.tsx, src/components/welcome/welcome-window.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 3 (la dirección dividió GUI1021K2c: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/welcome/welcome-window.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021K2c",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "ola": "1020U",
+   "revisor_quitadas": [
+    "IMG1020B"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261027-101913-IMG1020C",
+   "id": "IMG1020Cb-d1",
+   "titulo": "Astraura · la generación con ComfyUI deja de mandar texto suelto y usa un flujo de verdad (parte 1 de 2)",
+   "archivos": [
+    "src/ai/astraura/media/media-gen.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). `comfyuiImage` manda hoy `{prompt: texto}` a `/prompt`, que un ComfyUI real rechaza. Cámbialo: construye `textoAImagen` (IMG1020A) con el checkpoint de las preferencias si existe o el primero de `checkpointsDisponibles()`; si no hay ninguno, error honesto («instala un checkpoint en tu ComfyUI»); con `opciones > 1`, `variaciones` con semillas distintas; devuelve el `MediaGenResult` de siempre con la URL de `/view` (y la galería si hay varias). Conserva el mensaje actual cuando no hay endpoint. Pruebas con fetch simulado: una imagen, varias opciones, sin checkpoint, error del flujo. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261027-101913-IMG1020C`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261027-101913-IMG1020C:refs/remotes/origin/nube/a1-20261027-101913-IMG1020C\"` y `git cherry-pick --no-commit 155b149b637a 7ed3c966d03f a8346bf25c6f 6f7cb84d760f`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/media/__tests__/media-gen-comfyui.test.ts, src/ai/astraura/media/media-gen.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió IMG1020Cb: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/ai/astraura/media/media-gen.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG1020Cb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  },
+  {
+   "ola": "1027M · Mausbot de Astraura",
+   "id": "MBT1027C-d1",
+   "titulo": "Mausbot · configuración por cuenta, perfil y neurona (apagado por defecto) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/mausbot/config.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nCrea `ConfigMausbot` del contrato §3 (`v:1`, `encendido` false por defecto, `modo` «cursor»|«acompanante»|«ambos» (por defecto «acompanante»), `disenoPorDefecto` «fabrica-cursor», `porPersonalidad`, `actuar: NivelBot` de `src/lib/astraura-bots/permisos.ts` (por defecto «proponer»), `perfiles` y `neuronas` con lo que cambie cada uno). Clave `CLAVE_MAUSBOT = \"starseed.mausbot.v1\"`, evento `EVENTO_MAUSBOT = \"starseed:mausbot\"`, `leerConfigMausbot()`, `guardarConfigMausbot(patch)`, `resolverMausbot({perfilId, neuronaId})` (neurona > perfil > cuenta, como `resolverPantallaInicial` de `src/lib/inicio/pantalla-inicial.ts`) y `disenoParaPersonalidad(cfg, personaId)`. Lectura defensiva (JSON roto → por defecto) y `try/catch` en localStorage. Prueba de todo lo anterior.\n\n## PARTE 1 DE 2 (la dirección dividió MBT1027C: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: src/lib/mausbot/config.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MBT1027C",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  }
+ ]
+}
