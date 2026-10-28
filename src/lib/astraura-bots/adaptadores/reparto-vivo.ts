@@ -10,9 +10,16 @@ import { usable, type CatalogoCapas } from "@/lib/astraura/capas/catalogo";
 import * as medioReal from "@/lib/astraura/capas/perfil-medio";
 import type { AjustesPresupuesto as Ajustes, EntornoMedio, PerfilMedio, PresupuestoMedio } from "@/lib/astraura/capas/perfil-medio";
 import { planificar, type CapaInstalada, type EntradaPlanificador, type NodoCapas, type PerfilPlanificador, type PlanCapas } from "@/lib/astraura/capas/planificador";
+import { crearAlmacenMedidas, registrarMedida, type AlmacenMedidas, type MedidaCapas } from "@/lib/astraura/capas/medidas";
 import { destinoNivelador, PREFERENCIA_CAPAS_DEFECTO, type PreferenciaCapas } from "@/lib/astraura/capas-conciencia";
 import { repartir, type ApiExterna, type CapaLocal, type EntradaReparto, type PlanReparto, type TareaBot } from "../reparto-de-modelo";
 import type { OrigenBot } from "../tipos";
+/** Medidas de las respuestas de esta neurona: el planificador reordena con ellas (CLB1027G). */
+let medidasDeCapas: AlmacenMedidas = crearAlmacenMedidas();
+/** Guarda una respuesta medida; la media móvil y el reordenado los hace `medidas.ts`. */
+export function registrarMedidaDeCapa(medida: MedidaCapas): void {
+  medidasDeCapas = registrarMedida(medidasDeCapas, medida);
+}
 export interface DepRepartoVivo {
   entorno: () => EntornoMedio; // en el navegador, `await entornoDelNavegador()` de perfil-medio
   instaladas: () => readonly CapaInstalada[]; // `instaladasDesdeAlmacen(await almacen.estado(), catalogo)`
@@ -24,6 +31,8 @@ export interface DepRepartoVivo {
   enLinea?: () => boolean; // si falla, se trata como sin conexión
   origen?: OrigenBot; ambito?: string; ajustes?: Ajustes;
   perfilDelMedio?: (e: EntornoMedio) => PerfilMedio; presupuestoMedio?: (p: PerfilMedio, a?: Ajustes) => PresupuestoMedio;
+  medidas?: () => AlmacenMedidas; // por defecto, las medidas de esta neurona que guarda `registrarMedidaDeCapa`
+  neuronaId?: string; // neurona cuyas medidas mandan; sin ella, todas
 }
 export type TurnoBot = Pick<EntradaReparto, "tarea" | "dificultad" | "privacidad">;
 export interface PlanDelTurno {
@@ -61,6 +70,7 @@ function medir(dep: DepRepartoVivo, t: TurnoBot) {
   const nodos = leer(fallos, "los pares y servidores", dep.nodos, []);
   const fuentes = leer(fallos, "las APIs gratis", dep.fuentes, FREE_CATALOG, []);
   const pago = leer(fallos, "el medidor de crédito", dep.presupuestoPago, null);
+  const medidas = leer(fallos, "las medidas de las capas", dep.medidas, medidasDeCapas);
   const conexion = leer(fallos, "la conexión", dep.enLinea, true, false) ? perfil.base.conexion : "sin";
   const medio = MEDIO[perfil.plataforma] ?? "web";
   const ram = pres.ram_mb ?? (perfil.base.ramGb ?? 0) * 1024;
@@ -90,6 +100,7 @@ function medir(dep: DepRepartoVivo, t: TurnoBot) {
   const plan: Omit<EntradaPlanificador, "tarea" | "dificultad"> = {
     privacidad: t.privacidad, segundoPlano: pres.segundo_plano, ambito: dep.ambito, instaladas, nodos, preferencias: p,
     perfil: { medio, conexion, webgpu: perfil.webgpu.disponible, ramMb: ram }, presupuesto: { discoMb: pres.disco_mb, ramMb: ram },
+    medidas, neurona: dep.neuronaId,
   };
   return { entrada, plan, fallos };
 }
