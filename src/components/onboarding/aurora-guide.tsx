@@ -341,8 +341,13 @@ function decorar(paso: PasoGuia): GuideStep {
   };
 }
 
-/** Los pasos del recorrido: los del catálogo único, en su orden. */
-const STEPS: GuideStep[] = PASOS_GUIA.map(decorar);
+/**
+ * Los pasos del recorrido: los del catálogo único, en su orden. Se exporta para
+ * las pruebas del tour: incluye los diez temas de `TODOS_LOS_TEMAS` (Protomolécula,
+ * malla, capas, neuronas/cerebro, los tres pilares, Librería/Biblioteca, Genesis y
+ * personalización), una sola vez cada uno, con su icono y su color Trinity.
+ */
+export const STEPS: GuideStep[] = PASOS_GUIA.map(decorar);
 
 // Frase de bienvenida que Aurora narra al empezar en modo voz.
 const INTRO_SAY =
