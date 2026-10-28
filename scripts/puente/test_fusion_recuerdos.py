@@ -74,6 +74,15 @@ class FusionRecuerdosTest(unittest.TestCase):
         salida = fundir_recuerdos([[a], [b]])
         self.assertEqual([r["uri"] for r in salida], ["u-a", "u-b"])
 
+    def test_con_k_cero_el_rango_empieza_en_uno(self):
+        # Con k=0 el rango cuenta desde 1 (1/(0+rango), nunca 1/0): «comun»
+        # suma 1/(0+2) en la primera lista y 1/(0+1) en la segunda (1,5), y
+        # pesa más que «solo», que llegó primero solo en la primera lista.
+        comun = recuerdo("u-comun", "el café del jueves")
+        solo = recuerdo("u-solo", "el café del viernes")
+        salida = fundir_recuerdos([[solo, comun], [comun]], k=0)
+        self.assertEqual([r["uri"] for r in salida], ["u-comun", "u-solo"])
+
 
 class PesoVectorTest(unittest.TestCase):
     def test_por_defecto(self):
