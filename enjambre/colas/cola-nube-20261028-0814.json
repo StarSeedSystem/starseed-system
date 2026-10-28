@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "CLB1027C",
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "titulo": "Recursos de IA por neurona · los modelos de Colibri (decisión, texto, razón y streaming del disco)",
+   "archivos": [
+    "src/lib/recursos-ia/catalogo.ts",
+    "src/lib/recursos-ia/__tests__/catalogo-colibri.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\nEn `modelosDeCapas`: runtime «colibri» → capacidades por capa (juicio → [\"decision\"], palabra → [\"texto\"], razón → [\"texto\", \"razon\", \"codigo\"], profunda → [\"texto\", \"razon\", \"codigo\", \"vision\"] si el modelo dice visión), bits 4 (int4) u 8 (int8) según el modelo, arquitecturas arm64 y x86_64, y almacenamiento `streaming` cuando `streaming_disco` (añade ese modo al tipo si no existe): pide disco rápido, no toda la RAM. Prueba con dos entradas.",
+   "dependencias_ya_en_main": [
+    "CLB1027A"
+   ]
+  },
+  {
+   "id": "CLB1027G",
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "titulo": "Capas · automejora: lo medido en cada neurona reordena los candidatos",
+   "archivos": [
+    "src/lib/astraura/capas/medidas.ts",
+    "src/lib/astraura/capas/planificador.ts",
+    "src/lib/astraura/capas/__tests__/medidas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\n`medidas.ts` PURO: `registrarMedida(almacen, {neurona, modelo, capa, latenciaMs, tokPorS?, acierto?})` (media móvil de las últimas 20), `ordenarPorMedidas(candidatos, medidas, neurona)` (más rápido y más acertado primero; sin medida, el orden del catálogo). En `planificador.ts`, si recibe `medidas` en su entrada, ordena los candidatos de la capa con `ordenarPorMedidas` ANTES de elegir; sin medidas, nada cambia (la salida tiene que ser idéntica a hoy). Pruebas de las dos cosas.",
+   "dependencias_ya_en_main": [
+    "CLB1027A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "CLB1027C",
+   "CLB1027G"
+  ]
+ }
+}
