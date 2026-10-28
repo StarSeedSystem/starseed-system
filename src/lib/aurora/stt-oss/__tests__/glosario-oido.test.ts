@@ -55,7 +55,7 @@ describe("corregirConGlosario", () => {
     expect(resultado.cambios).toEqual(["Star Sed → StarSeed", "Estora → Astraura"]);
   });
 
-  it("correge en inglés las formas medidas de Parakeet", () => {
+  it("corrige en inglés las formas medidas de Parakeet", () => {
     const resultado = corregirConGlosario("Hello Star Said how are you Astora", glosario, "en");
     expect(resultado.texto).toBe("Hello StarSeed how are you Astraura");
     expect(resultado.cambios).toEqual(["Star Said → StarSeed", "Astora → Astraura"]);
@@ -110,6 +110,27 @@ describe("corregirConGlosario", () => {
     const resultado = corregirConGlosario("Star Sed Seed", glosario, "es");
     expect(resultado.texto).toBe("StarSeed Seed");
     expect(resultado.cambios).toEqual(["Star Sed → StarSeed"]);
+  });
+
+  it("recoloca la puntuación en las dos palabras del par («¿Star Sed?» → «¿StarSeed?»)", () => {
+    const resultado = corregirConGlosario("¿Star Sed?", glosario, "es");
+    expect(resultado.texto).toBe("¿StarSeed?");
+    expect(resultado.cambios).toEqual(["¿Star Sed? → StarSeed"]);
+  });
+
+  it("sin idioma conocido no hay lista de comunes y una capitalizada cercana igual se corrige", () => {
+    // Idioma no contemplado (ni es ni en): la lista de palabras comunes queda
+    // vacía, así que «Star» (0,50 con mayúscula) se corrige; empata con dos
+    // nombres de 8 letras y el desempate se queda con el primero del glosario.
+    const resultado = corregirConGlosario("Star", glosario, "fr");
+    expect(resultado.texto).toBe("Astraura");
+    expect(resultado.cambios).toEqual(["Star → Astraura"]);
+  });
+
+  it("pero en minúscula y sin idioma sigue sin morder nada lejos del umbral 0,15", () => {
+    const resultado = corregirConGlosario("star", glosario, "fr");
+    expect(resultado.texto).toBe("star");
+    expect(resultado.cambios).toEqual([]);
   });
 });
 
