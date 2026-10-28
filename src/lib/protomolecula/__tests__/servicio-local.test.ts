@@ -88,6 +88,19 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
     for (const mal of [{ tiempoMs: -1 }, { tiempoMs: Number.NaN }, { maxBytes: 0 }, { tiempoMs: 3e9 }]) expect(validarDefinicion({ ...DEF, ...mal })).toMatch(/límites/);
     for (const d of SERVICIOS_CONOCIDOS) expect(validarDefinicion(d)).toBeNull();
   });
+  it("hyperframes: definición válida y la salud se consulta solo en 127.0.0.1:4490/salud", async () => {
+    const def = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes");
+    expect(def).toMatchObject({ nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900000 });
+    expect(def).toBeDefined();
+    expect(validarDefinicion(def as DefinicionServicio)).toBeNull();
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"ok":true}'));
+    const r = await sondearServicio(def as DefinicionServicio, f, { leerVariable: () => undefined });
+    expect(r.vivo).toBe(true);
+    const url = f.mock.calls[0]?.[0] as string;
+    expect(url).toBe("http://127.0.0.1:4490/salud");
+    expect(new URL(url).hostname).toBe("127.0.0.1");
+    expect(f.mock.calls[0]?.[1]).toMatchObject({ method: "GET", redirect: "manual" });
+  });
   it("sondear: GET a la ruta de salud, sin exigir token; caído = no vivo; el fetch real encaja con FetchLocal", async () => {
     const compat: FetchLocal = globalThis.fetch; expect(typeof compat).toBe("function");
     const f = vi.fn<FetchLocal>(async () => resp(200, '{"system":{}}'));
