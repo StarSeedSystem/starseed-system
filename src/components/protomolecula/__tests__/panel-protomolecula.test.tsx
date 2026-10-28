@@ -246,6 +246,25 @@ describe("PanelProtomolecula · compacto", () => {
   });
 });
 
+describe("PanelProtomolecula · guardado en error y gestos rechazados", () => {
+  it("un guardado en error avisa con su motivo y no promete lo que no hizo", () => {
+    render(<PanelProtomolecula controlador={controlador()} guardado={{ estado: "error", motivo: "la memoria del aparato está llena" }} />);
+    expect(screen.getByRole("alert").textContent).toContain("No se pudo guardar: la memoria del aparato está llena");
+    expect(screen.queryByText("Sin cambios que guardar")).toBeNull();
+    expect(screen.queryByText("Guardado en este aparato")).toBeNull();
+  });
+
+  it("un gesto que el controlador rechaza se avisa por la pantalla con el motivo", () => {
+    registrarAtomo(MESA);
+    const c = controlador({ atomos: [{ id: "at-1", herramientaId: "mesa-prueba", estado: "activo" }] }, "observador");
+    render(<PanelProtomolecula controlador={c} />);
+    fireEvent.change(campoVolumen(), { target: { value: "-3" } });
+    fireEvent.keyDown(campoVolumen(), { key: "Enter" });
+    expect(Object.keys(c.obtener().molecula.valores)).toHaveLength(0); // el observador no cambió nada
+    expect(screen.getByText(/solo se mira o se comenta/)).toBeDefined();
+  });
+});
+
 describe("PanelProtomoleculaAutonomo · sesión, guardado y recuperación", () => {
   it("abre una molécula nueva, guarda lo que cambias y la recupera al volver", async () => {
     const primera = render(<PanelProtomoleculaAutonomo />);

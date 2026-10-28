@@ -144,3 +144,37 @@ describe("apilar y retirar", () => {
     expect(resultado[7]).toBe(nueva);
   });
 });
+
+describe("normalizarCapa · capas en detalle", () => {
+  it("una nota puede llevar un objetivo válido y lo conserva", () => {
+    expect(normalizarCapa({ forma: "nota", texto: "Te señalo aquí abajo", objetivo: "boton-enviar" })).toEqual({
+      forma: "nota", texto: "Te señalo aquí abajo", objetivo: "boton-enviar",
+    });
+  });
+  it("un texto que no es cadena se rechaza con el mismo aviso que el vacío", () => {
+    expect(problemasDe(normalizarCapa({ forma: "nota", texto: 5 }))).toEqual(["El texto debe ser una frase no vacía."]);
+    expect(problemasDe(normalizarCapa({ forma: "nota", texto: null }))).toEqual(["El texto debe ser una frase no vacía."]);
+  });
+  it("los campos que no son de la capa no pasan (una nota ignora lo suelto)", () => {
+    expect(normalizarCapa({ forma: "nota", texto: "Hola", url: "https://de-fuera.example" })).toEqual({
+      forma: "nota", texto: "Hola",
+    });
+  });
+});
+
+describe("apilar y retirarDeBot · al tope y sin capas", () => {
+  it("en el tope, sustituir por el mismo id no expulsa a otra capa del bot", () => {
+    let capas: CapaActiva[] = [capa("ajena", "bot-b")];
+    for (let i = 1; i <= MAX_CAPAS_POR_BOT; i++) capas = apilar(capas, capa(`c${i}`));
+    const cambiadas = apilar(capas, { ...capa("c1"), texto: "cambiada" });
+    expect(cambiadas.map((c) => c.id)).toEqual(["ajena", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"]);
+    expect(cambiadas.find((c) => c.id === "c1")?.texto).toBe("cambiada");
+    expect(cambiadas.some((c) => c.id === "c8")).toBe(true);
+  });
+  it("retirarDeBot de un bot sin capas no toca nada y no muta la lista", () => {
+    const antes = [capa("a1"), capa("b1", "bot-b")];
+    const despues = retirarDeBot(antes, "bot-no-existe");
+    expect(despues.map((c) => c.id)).toEqual(["a1", "b1"]);
+    expect(antes).toHaveLength(2);
+  });
+});
