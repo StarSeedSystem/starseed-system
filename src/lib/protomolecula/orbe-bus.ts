@@ -176,3 +176,67 @@ export function guardarActivada(almacen: AlmacenLocal, activada: boolean): void 
     /* defensivo */
   }
 }
+
+/** Lo emite quien pide cerrar el panel de la orbe sin desactivarla. */
+export const PROTO_ORB_CERRAR_EVENT = "starseed:protomolecula-cerrar";
+
+/** Lo que la puerta necesita del entorno; en pruebas se pasan falsos y no se toca `window`. */
+export interface DepsOrbe {
+  almacen?: AlmacenLocal;
+  emitir?: (e: Event) => boolean;
+  empujar?: () => void;
+}
+
+/** Por defecto: sube las preferencias a la cuenta para que las demás neuronas lo reciban. Nunca lanza. */
+function empujarPorDefecto(): void {
+  try {
+    void import("@/lib/settings-sync")
+      .then((m) => m.pushPreferences())
+      .catch(() => {
+        /* sin sesión o sin red: la próxima sincronización lo lleva */
+      });
+  } catch {
+    /* defensivo */
+  }
+}
+
+function almacenPorDefecto(): AlmacenLocal | undefined {
+  try {
+    return typeof window !== "undefined" ? window.localStorage : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * UNA sola puerta para activar o desactivar la orbe de la Protomolécula (botón del lienzo de creación y
+ * peticiones a Astraura): guarda la preferencia, avisa a la pestaña con `PROTO_ORB_FAB_EVENT` y la empuja a
+ * las demás neuronas. Devuelve el valor que quedó guardado.
+ */
+export function fijarOrbeActivada(activada: boolean, deps: DepsOrbe = {}): boolean {
+  const almacen = deps.almacen ?? almacenPorDefecto();
+  if (almacen) guardarActivada(almacen, activada);
+  const guardado = almacen ? leerActivada(almacen) : activada;
+  const emitir =
+    deps.emitir ?? (typeof window !== "undefined" ? (e: Event) => window.dispatchEvent(e) : undefined);
+  try {
+    if (emitir && typeof CustomEvent !== "undefined") {
+      emitir(new CustomEvent(PROTO_ORB_FAB_EVENT, { detail: { activada: guardado } }));
+    }
+  } catch {
+    /* defensivo */
+  }
+  try {
+    (deps.empujar ?? empujarPorDefecto)();
+  } catch {
+    /* defensivo: la sincronización nunca rompe el interruptor */
+  }
+  return guardado;
+}
+
+/** Invierte el estado actual de la orbe con la misma puerta. */
+export function alternarOrbe(deps: DepsOrbe = {}): boolean {
+  const almacen = deps.almacen ?? almacenPorDefecto();
+  const actual = almacen ? leerActivada(almacen) : true;
+  return fijarOrbeActivada(!actual, deps);
+}
