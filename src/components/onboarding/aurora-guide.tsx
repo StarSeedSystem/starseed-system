@@ -113,6 +113,7 @@ import {
   auroraSetEnabled,
   auroraEnsureListening,
   auroraTranscript,
+  auroraBridge,
   parseVoiceCommand,
 } from "./aurora-guide-voice";
 import {
@@ -135,7 +136,14 @@ import {
   type PasoGuia,
 } from "@/lib/onboarding/guia-completa";
 import { borrarProgresoGuia, guardarProgresoGuia, leerProgresoGuia } from "@/lib/onboarding/guia-progreso";
-import { pedirAccesoDesdeGuia, type AccionGuia, type OrigenGuia } from "@/lib/onboarding/guia-acceso";
+import {
+  pedirAccesoDesdeGuia,
+  accionesDelPaso,
+  modoGuia,
+  type AccionGuia,
+  type OrigenGuia,
+  zGuia,
+} from "@/lib/onboarding/guia-acceso";
 import { abrirPrimerArranque } from "@/lib/onboarding/primer-arranque";
 import { explorarSinCuenta } from "@/lib/onboarding/explorar-sin-cuenta";
 import { useHaySesion } from "@/hooks/use-hay-sesion";
@@ -391,7 +399,14 @@ export function AuroraGuide() {
   const ctx = useMemo<GuideCtx>(() => ({ router, setActiveEdge }), [router, setActiveEdge]);
   // ¿Con cuenta o sin ella? (`null` = aún no se sabe: no se quita nada). Solo se averigua con la guía abierta.
   const haySesion = useHaySesion(open);
-  const sinCuenta = haySesion === false;
+  // (GUI1021J · §5) Un solo modo lo decide todo: el modo GUÍA sale de `guia-acceso`
+  // (solo un «no» claro es invitado) y `accionesDelPaso` dice qué se le ofrece.
+  const modo = modoGuia(haySesion);
+  const invitado = modo === "invitado";
+  const acciones = accionesDelPaso(modo);
+  // Aviso honesto si se pidió modo voz y el puente de Aurora no está (GUI1021J):
+  // la guía sigue en TEXTO y se lo dice.
+  const [avisoPuente, setAvisoPuente] = useState<string | null>(null);
   // Texto y narración adaptados al dispositivo (caen al texto común si no hay variante) y a la sesión
   // (el último paso termina distinto con cuenta).
   const conSesion = haySesion === true ? step?.paso.conSesion : undefined;
@@ -458,6 +473,7 @@ export function AuroraGuide() {
   // (`guia-progreso.ts`, compartido con la introducción de la ventana de acceso) o empieza por el principio.
   const openGuide = useCallback((inicio?: number | string | null, desde?: OrigenGuia) => {
     setNovedades(null);
+    setAvisoPuente(null);
     const explicito = inicio !== undefined && inicio !== null;
     const retomado = explicito ? null : leerProgresoGuia();
     setIndex(explicito ? indiceInicial(inicio) : (retomado ?? 0));
@@ -582,14 +598,26 @@ export function AuroraGuide() {
 
   // Elegir modo (arranca el tour). En modo voz: pide micrófono + narra la intro.
   const chooseMode = useCallback((m: GuideMode) => {
+    // (GUI1021J · §5) Si pidió la voz de Aurora y el puente no está en este
+    // aparato, el modo pasa a TEXTO y se lo dicen de frente: la guía nunca se
+    // queda quieta esperando algo que no va a llegar.
+    let elegido: GuideMode = m;
+    if (m === "voice" && auroraBridge() === null) {
+      elegido = "silent";
+      setAvisoPuente(
+        "Aurora no está disponible ahora mismo en este aparato: la guía continúa en texto.",
+      );
+    } else {
+      setAvisoPuente(null);
+    }
     // Persistimos la elección (memoria ligera; no bloquea si falla).
-    try { window.localStorage.setItem(GUIDE_MODE_KEY, m); } catch { /* */ }
+    try { window.localStorage.setItem(GUIDE_MODE_KEY, elegido); } catch { /* */ }
     setMuted(false);
     // (2026-09-25) Ya no se vuelve al paso 0: `openGuide(paso)` fija el paso
     // pedido (p. ej. «starseed:open-guide» con { step }) y elegir el modo lo
     // respetaba solo hasta aquí. Abrir la guía sin paso sigue empezando en 0.
-    setMode(m);
-    if (m === "voice") {
+    setMode(elegido);
+    if (elegido === "voice") {
       // Gesto de usuario: momento válido para pedir micrófono y arrancar escucha.
       auroraEnsureListening();
       // Aurora saluda; el paso 0 narrará su explicación vía el efecto de abajo.
@@ -851,7 +879,8 @@ export function AuroraGuide() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.22 }}
-            className="fixed inset-0 z-[95]"
+            className="fixed inset-0"
+            style={{ zIndex: zGuia(origen ?? "boton", haySesion) }}
             aria-modal="true"
             role="dialog"
             aria-label="Guía de StarSeed"
@@ -1148,6 +1177,19 @@ export function AuroraGuide() {
                         <BotonCerrar etiqueta="Cerrar la guía" atajo="Esc" tamano="sm" onClick={close} />
                       </div>
 
+                      {/* (GUI1021J) Aviso honesto: pidió voz de Aurora y el puente no está.
+                          La guía continúa en texto; se le dice de frente (§5). */}
+                      {avisoPuente && (
+                        <p
+                          role="status"
+                          data-testid="guia-voz-a-texto"
+                          className="mt-3 flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11.5px] leading-snug text-white/70"
+                        >
+                          <VolumeX className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/50" aria-hidden />
+                          {avisoPuente}
+                        </p>
+                      )}
+
                       {/* ── Retomada: el recorrido sigue por donde se dejó ── */}
                       {reanudadoEn !== null && reanudadoEn === index && (
                         <div
@@ -1219,10 +1261,12 @@ export function AuroraGuide() {
                       )}
 
                       {/* Acciones del paso: "Ir/mostrar" (acompañar) + "Hazlo por mí".
-                          Sin cuenta, lo que lleva a una zona que la pide pasa a «Disponible al entrar». */}
+                          Sin cuenta modo GUÍA invitado (§5): «Hazlo por mí» no se le ofrece nunca;
+                          «Ir» solo si la zona anda sin cuenta (bordes Trinity, escritorio). Lo que
+                          no puede hacerse sustituye por «Disponible al entrar». */}
                       {(step.go || step.doIt) && (
                         <div className="mt-3.5 flex flex-wrap items-center gap-2">
-                          {step.go && !(sinCuenta && step.go.cuenta) && (
+                          {step.go && (acciones.puedeIr || !step.go.cuenta) && (
                             <button
                               type="button"
                               onClick={() => step.go?.run(ctx)}
@@ -1233,7 +1277,7 @@ export function AuroraGuide() {
                               {step.go.label}
                             </button>
                           )}
-                          {step.doIt && !(sinCuenta && step.doIt.cuenta) && (
+                          {step.doIt && acciones.puedeHazloPorMi && (
                             <button
                               type="button"
                               onClick={() => step.doIt?.run(ctx)}
@@ -1247,13 +1291,15 @@ export function AuroraGuide() {
                               {step.doIt.label}
                             </button>
                           )}
-                          {sinCuenta && (step.go?.cuenta || step.doIt?.cuenta) && (
+                          {/* La etiqueta sale cuando la acción sustituida SÍ pedía cuenta:
+                              los «Hazlo por mí» que andan sin ella (escritorio) no la gritan. */}
+                          {invitado && ((step.doIt && step.doIt.cuenta !== false) || step.go?.cuenta) && (
                             <span
                               data-testid="solo-con-cuenta"
                               title="Crea tu cuenta o entra para abrir esta zona"
                               className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-[12px] text-white/55"
                             >
-                              <Lock className="h-3.5 w-3.5" aria-hidden /> Disponible al entrar
+                              <Lock className="h-3.5 w-3.5" aria-hidden /> {acciones.etiqueta}
                             </span>
                           )}
                         </div>
