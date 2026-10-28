@@ -1,0 +1,130 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "INS1027G",
+   "ola": "1027I · Neurona insomne",
+   "titulo": "Genesis · Servidor 1.58 enseña el estado insomne de la Mac",
+   "archivos": [
+    "src/components/mando/panel-servidor.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «funcionamiento nativo para las neuronas compatibles de sus capacidades siempre disponibles aun con las pantallas cerradas, incluyendo agentes y procesos programados en segundo plano y la actividad de la red mesh P2P compartida inteligentemente por la red StarSeed, para potenciarlas como servidores completos» (krishhgg/Insomnia, MIT). Contrato: `architecture/neurona-insomne.md` (léelo entero). El OS LEE el estado de Insomnia; nunca ejecuta `pmset` ni usa su regla de sudoers.\n\nJunto a «Mantener encendida», una línea con el estado de `GET /api/neuronas/insomne` (activa hasta HH:MM con Insomnia / sin sesión / Insomnia no instalada → enlace a su ficha). Solo lectura; no toques el interruptor de caffeinate.",
+   "dependencias_ya_en_main": [
+    "INS1027B"
+   ]
+  },
+  {
+   "ola": "Rescate de las ramas de la nube",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261025-152720-RTESP1011Bc",
+   "id": "RTESP1011Bd-d2",
+   "titulo": "Rescate de pruebas · Ajustes: «Versiones públicas» y cuenta de Hugging Face opcional (parte 2 de 2)",
+   "archivos": [
+    "src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea ESP1011Bb («Ajustes: «Versiones públicas» y cuenta de Hugging Face opcional») se hizo en main por otro camino; su rama nube/40144689419 queda archivada en `refs/archivo/nube/40144689419` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.87)\n\nTU TAREA (RTESP1011Bc · solo estos archivos: scripts/puente/test_director_dream.py, src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# scripts/puente/test_director_dream.py\n    def test_el_titulo_de_la_ola_dice_imaginacion(self):\n        self.assertEqual(\n            DD.tarea_de(P, \"2026-09-17\", 0)[\"ola\"],\n            \"Ola Imaginación 2026-09-17 · lo que el análisis nocturno encontró\",\n        )\n\n# scripts/puente/test_director_dream.py\n    def test_el_resumen_dice_imaginacion_diaria(self):\n        self.assertTrue(D.resumen([{\"titulo\": \"Algo\"}]).startswith(\n            \"Imaginación diaria leída: encargo 1\"))\n        self.assertTrue(D.resumen([]).startswith(\n            \"Imaginación diaria leída: nada accionable\"))\n\n# src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts\n  it(\"sin permiso de la cuenta no ofrece el Space aunque exista el respaldo, y lo dice\", () => {\n    const p = prepararGeneracion(ctx({ permiteEspacioHf: false }), deps({ espacio: async () => ok() }));\n    expect(p.via).toBe(\"ninguna\");\n    expect(p.motivo).toMatch(/versiones públicas .* apagadas/i);\n  });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261025-152720-RTESP1011Bc`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261025-152720-RTESP1011Bc:refs/remotes/origin/nube/a1-20261025-152720-RTESP1011Bc\"` y `git cherry-pick --no-commit 3448bfa84e30 e518e94a3795 dfc80e1debd9 aafc7749a446`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: config/vigia-areas.json, scripts/puente/director_dream.py, scripts/puente/dream_a_cola.py, scripts/puente/produccion_puentes.py, scripts/puente/test_director_dream.py, scripts/puente/test_origen_habilidades.py, scripts/puente/test_vigia_areas.py, src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (scripts/puente/test_director_dream.py, src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).\n\n## PARTE 2 DE 2 (la dirección dividió RTESP1011Bd: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RTESP1011Bd",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "RTESP1011Bd-d1"
+   ]
+  },
+  {
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40436539080",
+   "id": "VZF1015Vd-d2",
+   "titulo": "Oído · corrector por glosario de nombres propios (StarSeed, Astraura, Genesis…) tras cualquier motor (parte 2 de 2)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/__tests__/glosario-oido.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-15: Phonon-2 escribió «Star Sed», «StarSead» (con hotwords) y «Estora»; Parakeet v3 «Star Said» y «Astora». Crea `corregirConGlosario(texto, glosario: string[], idioma)` PURO: cambia una forma cercana por la del glosario solo si la distancia de edición normalizada es pequeña (≤ 0,34 sobre la forma sin espacios ni mayúsculas, juntando hasta dos palabras seguidas) y la forma original NO es una palabra común del idioma (lista corta de palabras frecuentes de es/en para no romper «star», «said», «sed»…); `glosarioBase()` = Astraura, StarSeed, Genesis, MetaGenesis, PoliGenesis, ProtoGenesis, Aurora, Hermes, más los nombres que se le pasen (usuario, bots, grupo). Devuelve el texto y la lista de cambios. Pruebas con las salidas reales de arriba. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40436539080`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40436539080:refs/remotes/origin/nube/40436539080\"` y `git cherry-pick --no-commit bf157cba3544 8a8056af78ab`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/protomolecula/gobierno/__tests__/ayudas-prueba.ts, src/components/protomolecula/gobierno/__tests__/gobierno-proto-resumen.test.tsx, src/components/protomolecula/gobierno/__tests__/seccion-gobierno-proto.test.tsx, src/components/protomolecula/gobierno/ayudas-prueba.ts, src/lib/aurora/stt-oss/__tests__/glosario-oido.test.ts, src/lib/aurora/stt-oss/glosario-oido.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió VZF1015Vd: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/aurora/stt-oss/__tests__/glosario-oido.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VZF1015Vd",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "VZF1015Vd-d1"
+   ]
+  },
+  {
+   "ola": "Ola 1025B · Blender como medio 3D del OS (detección por neurona, trabajo 3D como dato, guion seguro, cola de render, ruta local, Biblioteca, Protomolécula, Astraura, Estudio)",
+   "id": "BLD1025B-d2",
+   "titulo": "Detector de Blender por neurona y perfil autoadaptable (ninguno, ligero, estándar, estudio) (parte 2 de 3)",
+   "archivos": [
+    "servicios/blender-3d/sonda_blender.py"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/blender-3d.md` — léelo ENTERO antes de empezar: es la fuente de verdad y manda sobre este texto si discrepan. Blender 5.2.0 LTS está instalado donde se escribió esta cola (`blender` en el PATH); si no está donde tú corres, las pruebas contra Blender de verdad se saltan con `unittest.skipUnless(shutil.which(\"blender\"))` / `describe.skipIf` y lo dices en el resumen; no lo instales ni descargues nada. REGLAS DEL REPO: todo en español con acentos (comentarios, mensajes, textos); ≤3 archivos y ≤120 líneas por archivo (si no cabe, simplifica el diseño; no añadas archivos); Blender es GPL y es un PROGRAMA APARTE: se lanza como proceso hijo con lista de argumentos y SIN shell (`execFile` / `subprocess`), nunca `import bpy` fuera del módulo que corre DENTRO de Blender, nunca un binario de Blender en el repo ni en el paquete de Vercel; nada de `node:*` en código de cliente (lo puro va en archivos sin Node; el disco y los procesos, en archivos solo de servidor); claves solo por NOMBRE de variable, ninguna clave de ejemplo con forma real en pruebas; el trabajo 3D es un DATO con lista blanca (contrato §4): jamás construyas código de Blender concatenando textos libres de una persona o una IA; nunca `git push`; nunca `next build` en la Mac. Pruebas de lo que escribas y las existentes en verde; borra todo lo que las pruebas generen. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué. TAREA: Implementa la detección del contrato §2 y §3 en Python estándar (sin pip).\n1) `servicios/blender-3d/deteccion.py` (≤120 líneas). Reutiliza, importándolos con `sys.path.insert(0, <carpeta servicios/taller-3d>)` (patrón de `servicios/taller-3d/test_taller.py`), los ayudantes ya probados de `servicios/taller-3d/taller.py` sin modificarlo: la clase `Sistema` (inyectable: `salida`, `existe`, `leer`, `glob`, `plataforma`, `maquina`, `entorno`), `binario`, `ram_total_gb` y `vram_nvidia_gb` (ábrelo y usa sus nombres reales). Funciones: `buscar_blender(s)` por este orden: variable `STARSEED_BLENDER`, luego `TALLER3D_BLENDER`, `blender` en el PATH, `/Applications/Blender.app/Contents/MacOS/Blender`, `/opt/homebrew/bin/blender`, `/usr/local/bin/blender` y `/opt/blender*/blender`; solo devuelve ejecutables que existen. `leer_version(ruta, s)` ejecuta `blender --version` (plazo 10 s, sin shell, entorno mínimo) y extrae `{version, serie, lts, hash}`: la salida real es `Blender 5.2.0 LTS` en la primera línea y `build hash: fbe6228777e7` más abajo (`serie` = `5.2`; `lts` booleano; sin Blender o con salida rara devuelve None, nunca lanza). `sondear(ruta, version, s)` lanza `blender -b --factory-startup --python-exit-code 3 -P sonda_blender.py` (plazo 30 s) y lee UNA línea que empieza por `STARSEED_SONDA:` seguida de JSON. `perfil_de(caps)` es PURA, con los umbrales de la tabla del §3 (`ninguno`, `ligero`, `estandar`, `estudio`), y devuelve también los topes `{ancho, alto, muestras, fotogramas, memoriaMB}` donde `memoriaMB = min(tope del perfil, 50 % de la RAM libre)`. `detectar(s=None)` junta todo y devuelve EXACTAMENTE la forma `capabilities.blender` del §2 (`v:1, instalado, version, hash, serie, perfil, motores, gpu, hilos, ramGB, ramLibreGB, formatos, visto`), SIN rutas absolutas ni nombre de usuario; la sonda se guarda en caché con clave `(version, hash)` en `~/.starseed/blender-3d/sonda.json` (permisos 600; si no se puede escribir, sigue sin caché). `python3 deteccion.py --json` imprime el resultado y `--guardar` lo escribe de forma atómica en `~/.starseed/blender-3d/capacidades.json`.\n2) `servicios/blender-3d/sonda_blender.py` (≤60 líneas; se ejecuta DENTRO de Blender; es código nuestro y fijo, no se genera): imprime `STARSEED_SONDA:` + JSON con los tipos de dispositivo de Cycles que existen de verdad (`bpy.context.preferences.addons[\"cycles\"].preferences.get_device_types(bpy.context)` y sus `devices`), `bpy.app.build_options.codec_ffmpeg`, los motores de render disponibles y si hay GPU utilizable. Sin red. EEVEE solo cuenta como motor disponible si hay GPU: sin GPU tarda 35–59 s y da errores EGL_BAD_MATCH (medido, contrato §1.4).\n3) `servicios/blender-3d/test_deteccion.py` (`python3 -m unittest servicios/blender-3d/test_deteccion.py`): con `Sistema` simulado cubre: sin Blender → `ninguno`; versión mal formada; 8 GB sin GPU → `ligero`; Mac M1 de 8 GB con Metal → `estandar` con la memoria recortada al 50 % de lo libre; 32 GB con GPU de 12 GB → `estudio`; que NO aparezca ninguna ruta absoluta en el resultado; y UNA prueba real con `skipUnless(shutil.which(\"blender\"))` (versión 5.2.x, perfil distinto de `ninguno`, `cycles-cpu` en motores, sin `eevee` en una caja sin GPU).\nTerminado cuando: `python3 -m unittest servicios/blender-3d/test_deteccion.py` pasa y `python3 servicios/blender-3d/deteccion.py --json` imprime una ficha válida en esta máquina.\n\n## PARTE 2 DE 3 (la dirección dividió BLD1025B: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: servicios/blender-3d/sonda_blender.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "BLD1025B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "BLD1025B-d1"
+   ]
+  },
+  {
+   "id": "INS1027D",
+   "ola": "1027I · Neurona insomne",
+   "titulo": "Neuronas · ficha «Siempre disponible (pantalla cerrada)»",
+   "archivos": [
+    "src/components/cerebro/insomne-ficha.tsx",
+    "src/components/cerebro/neuronas-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «funcionamiento nativo para las neuronas compatibles de sus capacidades siempre disponibles aun con las pantallas cerradas, incluyendo agentes y procesos programados en segundo plano y la actividad de la red mesh P2P compartida inteligentemente por la red StarSeed, para potenciarlas como servidores completos» (krishhgg/Insomnia, MIT). Contrato: `architecture/neurona-insomne.md` (léelo entero). El OS LEE el estado de Insomnia; nunca ejecuta `pmset` ni usa su regla de sudoers.\n\n`InsomneFicha({ neurona })`: proveedor según `capacidadInsomne`, estado (hasta cuándo, o por qué no es compatible), qué sigue funcionando (`politicaInsomne`) y, en una Mac compatible sin Insomnia, cómo instalarla (enlace a la ficha `lib-insomnia` de la Biblioteca) con el aviso de ventilación de Apple y el de la regla de sudoers. Insértala en la ficha de cada neurona de `neuronas-panel.tsx`, sin tocar lo demás.",
+   "dependencias_ya_en_main": [
+    "INS1027A",
+    "INS1027B"
+   ]
+  },
+  {
+   "id": "PMO1020B",
+   "ola": "Ola 1020P · Orbe de la Protomolécula: activar y desactivar desde el lienzo de creación (Trinidad izquierda) y por Astraura desde cualquier medio, en tiempo real",
+   "titulo": "Lienzo de creación (Trinidad izquierda) · interruptor «Orbe de la Protomolécula» y botón Abrir",
+   "archivos": [
+    "src/components/protomolecula/interruptor-orbe.tsx",
+    "src/components/layout/trinity/contenido-horizon.tsx",
+    "src/components/protomolecula/__tests__/interruptor-orbe.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Petición de Alex (2026-10-20): activar o desactivar la orbe de la Protomolécula con un botón desde el lienzo de creación del menú de Trinidad izquierdo (Horizon, la cortina izquierda: `ContenidoHorizon` en `src/components/layout/trinity/contenido-horizon.tsx`). Crea `src/components/protomolecula/interruptor-orbe.tsx` (\"use client\") con `InterruptorOrbeProtomolecula`: una fila con icono de lucide-react (`Atom`), título «Orbe de la Protomolécula», texto corto «Actívala aquí o pídeselo a Astraura desde cualquier medio», un interruptor accesible (`role=\"switch\"`, `aria-checked`, `aria-label`, Espacio y Enter) que llama a `fijarOrbeActivada` de `@/lib/protomolecula/orbe-bus`, y un botón «Abrir» (deshabilitado si está apagada) que despacha `new CustomEvent(PROTO_ORB_ABRIR_EVENT, { cancelable: true })`. Estado inicial con `leerActivada(window.localStorage)` en un efecto; se suscribe a `PROTO_ORB_FAB_EVENT` (usa `detail.activada` si viene; si no, relee) y a `storage`, para reflejar al instante lo que cambie Astraura u otra neurona. Estilo: las mismas clases Tailwind y tokens que ya usa `contenido-horizon.tsx` (verde Horizon), `cursor-pointer`, transiciones de 150-300 ms, sin emojis. En `contenido-horizon.tsx` añade SOLO el import y una línea que lo monta arriba de la sección de creación. Pruebas (vitest + @testing-library/react, jsdom): pulsar cambia `aria-checked` y la clave `starseed.protomolecula.orbe.enabled.v1`; un `PROTO_ORB_FAB_EVENT` externo con `detail.activada=false` lo apaga; «Abrir» despacha el evento y está deshabilitado con la orbe apagada. Como mucho 120 líneas nuevas por archivo; nada de `any`; textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "PMO1020A"
+   ]
+  },
+  {
+   "id": "PMO1020C",
+   "ola": "Ola 1020P · Orbe de la Protomolécula: activar y desactivar desde el lienzo de creación (Trinidad izquierda) y por Astraura desde cualquier medio, en tiempo real",
+   "titulo": "Astraura · acciones «activar», «desactivar», «alternar» y «cerrar» de la orbe de la Protomolécula",
+   "archivos": [
+    "src/lib/protomolecula/accion-agente.ts",
+    "src/lib/aurora/actions.ts",
+    "src/lib/protomolecula/__tests__/accion-agente-orbe.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Petición de Alex (2026-10-20): poder pedirle a Astraura, desde cualquier medio, que active o desactive la orbe de la Protomolécula, con control total en tiempo real. Astraura ya controla la Protomolécula con `[[ACCION: protomolecula {json}]]` (`manejarAccionProtomolecula` en `src/lib/protomolecula/accion-agente.ts`, acciones abrir · estado · mover · dictar · deshacer · proponer-codigo). Añade a `ACCIONES`: «activar», «desactivar» y «alternar» (usan `fijarOrbeActivada`/`alternarOrbe` de `./orbe-bus`, inyectables por `ContextoAccionProto` como `fijarOrbe?: (activada: boolean) => boolean` para las pruebas) y «cerrar» (despacha `PROTO_ORB_CERRAR_EVENT`, inyectable como `cerrarOrbe?: () => void`). Mensajes: «Activé la orbe de la Protomolécula en todas tus neuronas.», «Desactivé la orbe de la Protomolécula en todas tus neuronas.», «Cerré el panel de la Protomolécula.». «abrir» con la orbe apagada la activa primero y luego abre (control total). En `src/lib/aurora/actions.ts` cambia SOLO el texto `describe` de la acción `protomolecula` para enumerar también activar · desactivar · alternar · cerrar, con un ejemplo `[[ACCION: protomolecula {\"accion\":\"activar\"}]]`. Pruebas (vitest, sin red): cada acción nueva llama a lo inyectado con el valor correcto y devuelve `ok` y su mensaje; «abrir» con la orbe apagada activa y abre; una acción desconocida sigue fallando como hoy. Como mucho 120 líneas nuevas por archivo; en archivos existentes solo lo necesario; nada de `any`; textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "PMO1020A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "BLD1025B-d2",
+   "INS1027D",
+   "INS1027G",
+   "VZF1015Vd-d2",
+   "RTESP1011Bd-d2"
+  ]
+ }
+}
