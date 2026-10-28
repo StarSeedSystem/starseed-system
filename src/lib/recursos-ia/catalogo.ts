@@ -119,6 +119,35 @@ function capacidadesDeCapa(capa: string, runtime: string): Capacidad[] {
     }
 }
 
+/**
+ * Colibri sirve las capas de Astraura con su propia tabla (`architecture/colibri-multicapas.md` §2):
+ * juicio decide, palabra habla, razón escribe código y la profunda añade visión si el modelo la trae.
+ */
+function capacidadesDeCapaColibri(capa: string, modelo: string): Capacidad[] {
+    switch (capa) {
+        case "juicio":
+            return ["decision"];
+        case "palabra":
+            return ["texto"];
+        case "razon":
+            return ["texto", "razon", "codigo"];
+        case "profunda":
+            return /visi[oó]n|im[aá]genes de entrada/i.test(modelo)
+                ? ["texto", "razon", "codigo", "vision"]
+                : ["texto", "razon", "codigo"];
+        default:
+            return capacidadesDeCapa(capa, "colibri");
+    }
+}
+
+/** Colibri solo publica pesos int4 o int8 (`config/capas-colibri-1027.json`): lo demás, int4. */
+function bitsDeColibri(texto: string): Bits {
+    return bitsExplicitos(texto) === 8 ? 8 : 4;
+}
+
+/** Los expertos se leen del disco en cada token: por debajo de esto (HDD, SD, red) no va. */
+const LECTURA_MIN_COLIBRI_MBPS = 800;
+
 /** Licencias que el repo ya documenta por familia (el JSON de capas no las lleva). */
 const LICENCIA_POR_FAMILIA: [RegExp, string][] = [
     [/^cactus-compute\//i, "Apache-2.0"],
@@ -156,9 +185,10 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
         const familia = esTexto(c.familia) ? c.familia : id;
         const modelo = esTexto(c.modelo) ? c.modelo : id;
         const runtime = esTexto(c.runtime) ? c.runtime : "desconocido";
+        const esColibri = runtime === "colibri";
         // «bps.tar.zst» es el empaquetado; el formato es «bps».
         const formato = esTexto(c.formato) ? c.formato.split(".")[0] : "desconocido";
-        const capacidades = capacidadesDeCapa(c.capa, runtime);
+        const capacidades = esColibri ? capacidadesDeCapaColibri(c.capa, modelo) : capacidadesDeCapa(c.capa, runtime);
         if (capacidades.length === 0) continue;
 
         const sha = esTexto(c.sha256) ? c.sha256.toLowerCase() : "";
@@ -176,13 +206,16 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
 
         const parametrosB = parametrosEnB(c.parametros);
         const archivo = esTexto(c.archivo) ? c.archivo : "";
+        const medida = esTexto(c.medida) ? c.medida : "";
         // Primero lo que dicen los nombres (también el del archivo: «…q8_0.gguf»); si no dicen
         // nada, el tamaño real frente a los parámetros (Phonon-2: ~2,2 bits); y si tampoco, el
-        // valor por formato de `bitsDeModelo`.
+        // valor por formato de `bitsDeModelo`. Colibri solo va en int4 o int8.
         const explicitos = bitsExplicitos([id, familia, modelo, runtime, formato, archivo].join(" "));
         const porFormato = explicitos === null && formato === "cact" ? bitsDeModelo({ formato }) : null;
         const porTamano = explicitos === null && porFormato === null ? bitsPorTamano(bytes, parametrosB) : null;
-        const bits = explicitos ?? porFormato ?? porTamano ?? bitsDeModelo({ id, familia, modelo, runtime, formato });
+        const bits = esColibri
+            ? bitsDeColibri([id, familia, modelo, medida].join(" "))
+            : explicitos ?? porFormato ?? porTamano ?? bitsDeModelo({ id, familia, modelo, runtime, formato });
 
         const medios = Array.isArray(c.medios)
             ? c.medios.filter((m): m is MedioApp => MEDIOS_VALIDOS.includes(m as MedioApp))
@@ -190,16 +223,22 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
 
         const notas: string[] = [];
         if (!shaValido) notas.push("SHA por verificar: no se usa hasta que el renovador de capas lo rellene.");
-        if (porTamano !== null) notas.push("Bits deducidos del tamaño real del archivo.");
+        if (!esColibri && porTamano !== null) notas.push("Bits deducidos del tamaño real del archivo.");
         if (parametrosB === 0) notas.push("Parámetros sin publicar en el catálogo de capas.");
         if (Array.isArray(c.profundidades) && c.profundidades.length > 1) {
             notas.push("Profundidad variable (de 2 a 20 capas): el tamaño indicado es el de la más completa.");
         }
 
         const aceleradoresRequeridos: Acelerador[] | undefined = runtime === "webgpu-onnx" ? ["webgpu"] : undefined;
-        // bitnet.cpp tiene núcleos para x86 (AVX2) y ARM (NEON); nada más.
-        const arquitecturas: Arquitectura[] | undefined = runtime === "bitnet-cpp" ? ["arm64", "x86_64"] : undefined;
+        // bitnet.cpp tiene núcleos para x86 (AVX2) y ARM (NEON); Colibri compila en las dos.
+        const arquitecturas: Arquitectura[] | undefined =
+            esColibri || runtime === "bitnet-cpp" ? ["arm64", "x86_64"] : undefined;
         const mapea = formato === "gguf"; // llama.cpp y bitnet.cpp hacen mmap de un GGUF
+        // Los MoE grandes de Colibri leen del disco los expertos de cada token: no caben en RAM.
+        const streaming = esColibri && c.streaming_disco === true;
+        if (streaming) {
+            notas.push("Lee del disco los expertos de cada token: pide disco local rápido, no toda la RAM.");
+        }
 
         const entrada: RequisitosModelo = {
             id,
@@ -212,7 +251,9 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
             parametrosB,
             disco: { gb, verificado },
             ramMinGb: esPositivo(c.ram_min_mb) ? arribaCent(c.ram_min_mb / 1024) : 0,
-            almacenamiento: { modo: mapea ? "mmap" : "carga-completa", soloLocal: runtime === "webgpu-onnx" },
+            almacenamiento: streaming
+                ? { modo: "streaming-ssd", lecturaMinMBs: LECTURA_MIN_COLIBRI_MBPS, soloLocal: true }
+                : { modo: mapea ? "mmap" : "carga-completa", soloLocal: runtime === "webgpu-onnx" },
             medios,
             licencia: licenciaDe(familia, c.licencia),
             upstream: esTexto(c.fuente_oficial) ? c.fuente_oficial : "",
