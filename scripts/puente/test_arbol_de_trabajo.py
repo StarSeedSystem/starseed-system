@@ -162,6 +162,14 @@ class TestColasVersionadas(unittest.TestCase):
         self.assertEqual(mias, [self.ART, self.BLD, self.INV])
         self.assertEqual(ajenas, ["src/lib/algo.ts"])
 
+    def test_una_cola_fuera_de_olas_es_ajena(self):
+        # (Rescate RTDEC1028E de la rama nube/40676438291) Un JSON válido de tareas con id solo
+        # es propio dentro de `olas/`: otra cola en `starseed_memory_root/` sigue siendo ajena.
+        ruta = "starseed_memory_root/cola-x-1025.json"
+        self.escribe(ruta, '[{"id": "X", "depende": []}]')
+        mias, _estorbo, ajenas = clasificar(" M " + ruta, raiz=self.raiz)
+        self.assertEqual((mias, ajenas), ([], [ruta]))
+
     def test_una_cola_sin_seguimiento_no_es_propia(self):
         _m, _e, ajenas = clasificar("?? " + self.ART, raiz=self.raiz)
         self.assertEqual(ajenas, [self.ART])

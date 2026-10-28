@@ -35,6 +35,13 @@ const CONFIG_BASE = {
   porPersonalidad: { aurora: "fabrica-star" }, actuar: "aplicar",
   perfiles: { p1: { modo: "ambos" } }, neuronas: { n1: { encendido: false } },
 };
+
+/** Un diseño propio válido para los parches de mausbot-disenos. */
+const DISENO_PREVIO = {
+  id: "propio-previo", nombre: "Mausbot de la variación", cuerpo: "cursor",
+  gradiente: ["#9FE6B5", "#3FAE6E", "#1C7A4C"], cara: { ojos: true, boca: true, mirada: true },
+  tamano: 1, origen: "variacion",
+};
 describe("ajustes · Mausbot como variación pública", () => {
   it("registra mausbot y mausbot-disenos como ajustes compartibles", () => {
     expect(RUTA_AJUSTES.mausbot).toBe("starseed.mausbot.v1");
@@ -53,6 +60,41 @@ describe("ajustes · Mausbot como variación pública", () => {
     const r = validarParcheAjustes({ mausbot: { actuar: "aplicar", perfiles: { p: { encendido: false } }, neuronas: { n: {} } } });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.parche.mausbot).toEqual({ actuar: "proponer" });
+    // (Rescate RTDEC1028E) Un valor que no sea objeto plano pasa tal cual para que lo valide quien sigue.
+    expect(sanearParcheMausbot(["perfiles"])).toEqual(["perfiles"]);
+  });
+
+  it("solo el valor de mausbot se sanea: rendimiento y mausbot-disenos pasan tal cual", () => {
+    const diseno = {
+      id: "propio-1", nombre: "Mi Mausbot", cuerpo: "cursor", gradiente: ["#ffffff", "#000000", "#111111"],
+      cara: { ojos: true, boca: true, mirada: true }, tamano: 1, origen: "variacion",
+    };
+    const r = validarParcheAjustes({
+      rendimiento: { perfiles: {} },
+      "mausbot-disenos": [diseno],
+      mausbot: { actuar: "aplicar", perfiles: { p: {} }, neuronas: { n: {} } },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.parche.rendimiento).toEqual({ perfiles: {} });
+    expect(r.parche["mausbot-disenos"]).toEqual([diseno]);
+    expect(r.parche.mausbot).toEqual({ actuar: "proponer" });
+  });
+
+  it("al aplicar sin config previa parte de la de fábrica: sin perfiles ni neuronas y actuar acotado", () => {
+    const almacen = almacenFalso();
+    const adaptador = crearAdaptadorAjustes({ pushPreferences: guardadoFalso().pushPreferences, almacen });
+    adaptador.aplicar("ajuste:mausbot", { mausbot: {
+      actuar: "aplicar", modo: "cursor", perfiles: { intruso: { encendido: true } }, neuronas: { intrusa: {} },
+    } });
+    const escrito = JSON.parse(almacen.getItem(RUTA_AJUSTES.mausbot) ?? "null") as Record<string, unknown>;
+    expect(escrito.v).toBe(1);
+    expect(escrito.encendido).toBe(false); // lo de fábrica: una variación no enciende nada
+    expect(escrito.modo).toBe("cursor");
+    expect(escrito.disenoPorDefecto).toBe("fabrica-cursor");
+    expect(escrito.perfiles).toEqual({}); // los intrusos no llegan: no llevaba nada local
+    expect(escrito.neuronas).toEqual({});
+    expect(escrito.actuar).toBe("proponer");
   });
 
   it("al aplicar conserva v, perfiles y neuronas locales y acota actuar a «proponer»", () => {
@@ -115,5 +157,17 @@ describe("ajustes · Mausbot como variación pública", () => {
     aplicado.deshacer();
     expect(almacen.tiene(RUTA_AJUSTES["mausbot-disenos"])).toBe(false);
     expect(guardado.llamadas).toBe(2);
+  });
+
+  it("deshacer de mausbot-disenos restaura el catálogo que había antes si ya existía", () => {
+    const almacen = almacenFalso();
+    const guardado = guardadoFalso();
+    const previo = { ...DISENO_PREVIO, nombre: "Versión previa" };
+    almacen.setItem(RUTA_AJUSTES["mausbot-disenos"], JSON.stringify([previo]));
+    const adaptador = crearAdaptadorAjustes({ pushPreferences: guardado.pushPreferences, almacen });
+    const aplicado = adaptador.aplicar("ajuste:mausbot-disenos", { "mausbot-disenos": [DISENO_PREVIO] });
+    expect(JSON.parse(almacen.getItem(RUTA_AJUSTES["mausbot-disenos"]) ?? "null")).toEqual([DISENO_PREVIO]);
+    aplicado.deshacer();
+    expect(JSON.parse(almacen.getItem(RUTA_AJUSTES["mausbot-disenos"]) ?? "null")).toEqual([previo]);
   });
 });
