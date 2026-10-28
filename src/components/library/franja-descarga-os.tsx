@@ -20,7 +20,10 @@ import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { InstallButton } from "@/components/welcome/install-button";
 import { cn } from "@/lib/utils";
-import { CURVA, DURACION } from "@/lib/design/movimiento";
+import {
+  aplicarMovimientoReducido,
+  movimientoDe,
+} from "@/lib/design/registros-movimiento";
 import { OS_REPO_URL, OS_WEB_URL } from "@/lib/install/device-install";
 import { useInstalarOS } from "@/lib/install/instalar-os";
 import { instaladoresPorSistema, OS_RELEASES_ULTIMA_URL } from "@/lib/install/instalar-os-logica";
@@ -46,6 +49,12 @@ const CANAL_LABEL: Record<typeof OS_CANAL, string> = {
   beta: "Beta",
   estable: "Estable",
 };
+
+// Movimiento con la fuente única del OS: el registro de la biblioteca manda
+// (movimientoDe); con movimiento reducido aplicaMovimientoReducido deja 0 ms.
+const ENTRADA_BIBLIOTECA = aplicarMovimientoReducido(
+  movimientoDe("expresivo", "biblioteca"),
+).entrada;
 
 /** ¿El usuario pidió menos movimiento? SSR-safe y defensivo. */
 function useMovimientoReducido(): boolean {
@@ -76,8 +85,8 @@ export function FranjaDescargaOs({ onAbrirFicha }: { onAbrirFicha: () => void })
   const formato =
     plan.tipo === "descargar" ? plan.asset.formato : plan.tipo === "web" ? "App web (PWA)" : "App instalada";
 
-  // Movimiento con la voz única del OS; con movimiento reducido, duración 0.
-  const transicion = `${reducido ? 0 : DURACION.normal}ms ${CURVA.entrada}`;
+  // Movimiento con la fuente única del OS: la entrada de biblioteca (arriba).
+  const transicion = `${ENTRADA_BIBLIOTECA.ms}ms ${ENTRADA_BIBLIOTECA.curva}`;
 
   return (
     <GlassCard

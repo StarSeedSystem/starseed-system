@@ -13,7 +13,7 @@ import {
 
 import { GlassCard } from "@/components/ui/glass-card";
 import { cn } from "@/lib/utils";
-import { CURVA, DURACION } from "@/lib/design/movimiento";
+import { movimientoDe } from "@/lib/design/registros-movimiento";
 import {
     CAMPOS_PERMITIDOS,
     describirAccion,
@@ -105,10 +105,12 @@ const AYUDA_NIVEL: Record<NivelUi, string> = {
     aplicar: "Puede retocar por su cuenta, salvo lo destructivo y la cuenta.",
 };
 
-/** Transición única del panel: dentro de los 150-300 ms del OS (§8). */
+/** Transición única del panel: el registro sobrio de Astraura manda, dentro
+ *  de los 150-300 ms del OS (§8): 220 ms con la curva suave. */
+const ENTRADA_ASTRAURA = movimientoDe("sobrio", "astraura").entrada;
 const TRANSICION: React.CSSProperties = {
-    transitionDuration: `${DURACION.normal}ms`,
-    transitionTimingFunction: CURVA.entrada,
+    transitionDuration: `${ENTRADA_ASTRAURA.ms}ms`,
+    transitionTimingFunction: ENTRADA_ASTRAURA.curva,
 };
 
 /* ── Utilidades de presentación ───────────────────────────────────────── */
