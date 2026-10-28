@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { crearClienteLibreTranslate } from "@/lib/traduccion/libretranslate";
+import { crearClienteLibreTranslate, crearLotes } from "@/lib/traduccion/libretranslate";
 type Peticion = { url: string; init?: RequestInit; metodo?: string; cuerpo?: unknown };
 type RespuestaSimulada = { estado?: number; cuerpo?: unknown; falla?: boolean };
 
@@ -110,5 +110,67 @@ describe("libretranslate (rama)", () => {
         }
         expect(mensajes).toHaveLength(4);
         expect(new Set(mensajes).size).toBe(4);
+    });
+});
+
+describe("crearLotes (puro)", () => {
+    it("junta textos mientras caben en el límite y corta antes de pasarse", () => {
+        expect(crearLotes(["aaaaa", "bbbbb", "ccccc"], 12)).toEqual([["aaaaa", "bbbbb"], ["ccccc"]]);
+        expect(crearLotes(["aaaaa", "bbbbb"], 9)).toEqual([["aaaaa"], ["bbbbb"]]);
+    });
+
+    it("un texto más grande que el límite va solo y una lista vacía no da lotes", () => {
+        expect(crearLotes(["untextoquenocabe"], 5)).toEqual([["untextoquenocabe"]]);
+        expect(crearLotes([], 100)).toEqual([]);
+    });
+});
+
+describe("libretranslate (conexión, api_key y formatos)", () => {
+    it("si el fetch cae, el error dice en español qué servicio no respondió", async () => {
+        const { f } = crearFetchFalso(() => ({ falla: true }));
+        await expect(
+            crearClienteLibreTranslate({ base: BASE, fetch: f }).traducir({ q: "hola", source: "es", target: "en", format: "text" }),
+        ).rejects.toThrow("No se pudo conectar con LibreTranslate (http://127.0.0.1:5000/translate)");
+    });
+
+    it("salud() devuelve false si el servicio está caído o si declara failure", async () => {
+        const caido = crearFetchFalso(() => ({ falla: true }));
+        expect(await crearClienteLibreTranslate({ base: BASE, fetch: caido.f }).salud()).toBe(false);
+        const fallo = crearFetchFalso(() => conJson({ success: false }));
+        expect(await crearClienteLibreTranslate({ base: BASE, fetch: fallo.f }).salud()).toBe(false);
+    });
+
+    it("idiomas() y detectar() envían la api_key en la petición y no la guardan", async () => {
+        const { f, llamadas } = crearFetchFalso((llamada: Peticion) =>
+            llamada.url.includes("/detect") ? conJson([{ confidence: 0.9, language: "es" }]) : conJson([{ code: "es", name: "Español" }, { code: "en" }]));
+        const cliente = crearClienteLibreTranslate({ base: BASE, fetch: f });
+        expect(await cliente.idiomas("CLAVE-IDIOMAS")).toEqual([{ code: "es", name: "Español" }, { code: "en", name: undefined }]);
+        expect(llamadas[0]?.url).toBe(`${BASE}/languages?api_key=CLAVE-IDIOMAS`);
+        expect(await cliente.detectar("hola", "CLAVE-DETECTAR")).toEqual([{ language: "es", confidence: 0.9 }]);
+        expect(llamadas[1]?.cuerpo).toEqual({ q: "hola", api_key: "CLAVE-DETECTAR" });
+        await cliente.detectar("adiós");
+        expect(llamadas[2]?.cuerpo).toEqual({ q: "adiós" });
+    });
+
+    it("el formato por defecto es text y el html viaja tal cual", async () => {
+        const { f, llamadas } = crearFetchFalso(() => conJson({ translatedText: "hello" }));
+        const cliente = crearClienteLibreTranslate({ base: BASE, fetch: f });
+        await cliente.traducir({ q: "hola", source: "es", target: "en", format: "html" });
+        await cliente.traducir({ q: "hola", source: "es", target: "en", format: undefined as unknown as string });
+        expect(llamadas[0]?.cuerpo).toEqual({ q: "hola", source: "es", target: "en", format: "html" });
+        expect(llamadas[1]?.cuerpo).toEqual({ q: "hola", source: "es", target: "en", format: "text" });
+    });
+
+    it("falla claro si LibreTranslate devuelve otra cantidad de traducciones", async () => {
+        const { f } = crearFetchFalso(() => conJson({ translatedText: "solo-una" }));
+        await expect(
+            crearClienteLibreTranslate({ base: BASE, fetch: f }).traducir({ q: ["uno", "dos", "tres"], source: "es", target: "en", format: "text" }),
+        ).rejects.toThrow("otra cantidad de traducciones");
+    });
+
+    it("normaliza la base con barra final sin duplicarla", async () => {
+        const { f, llamadas } = crearFetchFalso(() => conJson({ success: true }));
+        expect(await crearClienteLibreTranslate({ base: `${BASE}/`, fetch: f }).salud()).toBe(true);
+        expect(llamadas[0]?.url).toBe(`${BASE}/health`);
     });
 });
