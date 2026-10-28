@@ -1,0 +1,119 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "DEC1028E",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "Guardia del árbol · las colas versionadas que re-apunta el propio enjambre ya no paran el arranque",
+   "archivos": [
+    "scripts/puente/arbol_de_trabajo.py",
+    "scripts/puente/test_arbol_de_trabajo.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo.\n\nContexto (medido por Claude el 28-10 a las 00:40, hora de la Mac): el orquestador de la Mac NO arrancaba desde el 27-10 a las 22:26: «working tree de main con cambios sin commit: 3 archivos — no arranco», con `ajeno: starseed_memory_root/olas/cola-artcraft-1025.json`, `cola-blender-1025.json` y `cola-investigacion-1025.json`. Esas tres colas están VERSIONADAS y el propio enjambre (el revisor de Bloqueadas al dividir tareas en partes `-dN`, `revisor_bloqueadas_logica.heredar_dependientes`) había re-apuntado sus `depende` a las partes (`ART1025B` → `ART1025B-d3`). Se commitearon a mano (c04215411).\n\nEn `arbol_de_trabajo.clasificar` (la regla del guardia del árbol): una línea ` M starseed_memory_root/olas/cola-*.json` (modificada, versionada) es contabilidad PROPIA del enjambre —así el guardia la commitea con `_recoger_lo_nuestro` y sigue—, siempre que el archivo siga siendo una lista JSON de tareas con `id` (si no se puede leer o no lo es, sigue siendo ajena: el lado seguro). Nada más cambia: el código, la documentación y lo sin seguimiento siguen como hoy. Pruebas con las tres líneas reales de arriba, con una cola rota (ajena) y con un `.ts` modificado (ajeno)."
+  },
+  {
+   "id": "MBT1027I",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Cursor del OS · opción «mausbot» y precedencia con la apariencia",
+   "archivos": [
+    "src/components/desktop/cursor-fx.tsx",
+    "src/components/desktop/__tests__/cursor-fx-mausbot.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nAñade `\"mausbot\"` a `CursorOption` y al analizador (hoy descarta lo que no sea system/starseed-triangle/orb). Con «mausbot», el CSS del puntero usa un data URI pequeño del diseño activo (cuerpo + degradado, sin cara, punta en el `anchor`) con `svgADataUrl` de `src/lib/dock/iconos/sanear-svg.ts`. En `CursorSettingsPanel`, la opción enlaza a los ajustes del Mausbot. Documenta en un comentario la precedencia del contrato §4: Mausbot > cursorfx > `customCursorSvg` de appearance-context. Prueba del analizador y del data URI.",
+   "dependencias_ya_en_main": [
+    "MBT1027C-d2c",
+    "MBT1027D"
+   ]
+  },
+  {
+   "id": "MBT1027M",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Variaciones públicas · el Mausbot se comparte como ajuste",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/ajustes.ts",
+    "src/lib/variaciones/adaptadores/__tests__/ajustes-mausbot.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nAñade `mausbot` → `starseed.mausbot.v1` (y `mausbot-disenos` → `starseed.mausbot.disenos.v1`) a `RUTA_AJUSTES`, como `cursor` → `starseed.cursorfx.v1`. Al aplicar una variación del Mausbot, nunca se copian `perfiles` ni `neuronas` ni se sube `actuar` por encima de «proponer» (lo decide cada persona). Prueba.",
+   "dependencias_ya_en_main": [
+    "MBT1027C-d2c"
+   ]
+  },
+  {
+   "id": "CLB1028H",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "Colibri · el plan del A1 sirve aunque ya haya un clon, con hf en su propio entorno (PEP 668)",
+   "archivos": [
+    "scripts/puente/colibri_nodo.py",
+    "scripts/puente/test_colibri_nodo.py",
+    "scripts/puente/oracle_nodo.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves en el código ni en lo que imprimas.\n\nContexto (medido por Claude en el A1 el 28-10 a las 10:50 UTC, antes de volver a correr `oracle_nodo.py colibri --aplicar`): el plan de CLB1028G ya sigue `docs/laya.md`, pero fallaría en tres sitios:\n1. `/home/starseed/colibri` YA existe (el clon del intento anterior): `git clone` falla si la carpeta existe.\n2. El A1 es Ubuntu con Python 3.12 «externally managed» (`/usr/lib/python3.12/EXTERNALLY-MANAGED`): `python3 -m pip install --user huggingface_hub[cli]` falla por PEP 668.\n3. `~/.local/bin` no está en el PATH del usuario starseed, así que `hf` no se encontraría aunque se instalara.\n\nEn `colibri_nodo.plan_instalacion` (y `oracle_nodo._guion_colibri` si hace falta): (1) si `/home/starseed/colibri/.git` existe, en vez de clonar: `git -C /home/starseed/colibri fetch --depth 1 origin tag v2.0.0` y `git -C … checkout --detach v2.0.0`; (2) `hf` en un entorno propio: `python3 -m venv /home/starseed/.venv-hf` (si no existe), `/home/starseed/.venv-hf/bin/pip install --no-cache-dir \"huggingface_hub[cli]\"` y la descarga con `/home/starseed/.venv-hf/bin/hf download …` (y `HF_HUB_DISABLE_TELEMETRY=1` en el entorno del paso); (3) cada paso idempotente: si `model.safetensors` ya está con su tamaño, no se descarga otra vez. Nada con `--break-system-packages` ni `sudo pip`. Pruebas del plan: con la carpeta existente no hay `git clone`; la descarga usa la ruta del venv.",
+   "dependencias_ya_en_main": [
+    "CLB1028G"
+   ]
+  },
+  {
+   "id": "RTIMG1020C",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Astraura · la generación con ComfyUI deja de mandar texto suelto y usa un flujo de verdad",
+   "archivos": [
+    "src/components/settings/appearance/__tests__/guide-button-toggle-temas.test.tsx",
+    "src/lib/agentes/__tests__/openhands-servidor.test.ts",
+    "src/lib/estaciones/__tests__/rele-salas.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea IMG1020C («Astraura · la generación con ComfyUI deja de mandar texto suelto y usa un flujo de verdad») se hizo en main por otro camino; su rama nube/40645365414 queda archivada en `refs/archivo/nube/40645365414` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.92)\n\nTU TAREA (RTIMG1020C · solo estos archivos: src/components/settings/appearance/__tests__/guide-button-toggle-temas.test.tsx, src/lib/agentes/__tests__/openhands-servidor.test.ts, src/lib/estaciones/__tests__/rele-salas.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/settings/appearance/__tests__/guide-button-toggle-temas.test.tsx\n  it(\"conserva los diez temas en el orden del tour y da un icono distinto a cada uno\", () => {\n    const filas = temasConIcono();\n    expect(filas).toHaveLength(10);\n    expect(filas.map((f) => f.tema.key)).toEqual(TODOS_LOS_TEMAS.map((t) => t.key));\n    expect(new Set(filas.map((f) => f.Icono)).size).toBe(10);\n    for (const fila of filas) {\n      expect(fila.tema.titulo.trim().length).toBeGreaterThan(0);\n      expect(fila.Icono).toBeTruthy();\n    }\n  });\n\n# src/components/settings/appearance/__tests__/guide-button-toggle-temas.test.tsx\n  it(\"usa HelpCircle de reserva para una clave sin icono propio\", () => {\n    expect(iconoDeTema({ key: \"tema-que-aun-no-existe\" })).toBe(HelpCircle);\n    expect(iconoDeTema(TODOS_LOS_TEMAS[0])).toBe(temasConIcono()[0].Icono);\n  });\n\n# src/components/settings/appearance/__tests__/guide-button-toggle-temas.test.tsx\n  it(\"muestra los diez títulos con su icono, en botones de 44 px y cursor pointer\", () => {\n    render(<ListaTemasGuia />);\n    const lista = screen.getByRole(\"list\", { name: \"Temas de la guía de introducción\" });\n    expect(lista).toBeTruthy();\n    const botones = screen.getAllByRole(\"button\");\n    expect(botones).toHaveLength(TODOS_LOS_TEMAS.length);\n    botones.forEach((boton, i) => {\n      expect(boton.textContent).toContain(TODOS_LOS_TEMAS[i].titulo);\n      expect(boton.querySelector(\"svg\")).not.toBeNull();\n      expect(boton.className).toContain(\"min-h-[44px]\");\n      expect(boton.className).toContain(\"cursor-pointer\");\n      expect(boton.getAttribute(\"type\")).toBe(\"button\");\n      expect(boton.getAttribute(\"aria-label\")).toContain(TODOS_LOS_TEMAS[i].titulo);\n    });\n  });\n\n# src/components/settings/appearance/__tests__/guide-button-toggle-temas.test.tsx\n  it(\"cada tema abre la guía en ese tema con desde ajustes\", () => {\n    const { peticiones, dejar } = escucharPeticiones();\n    try {\n      render(<ListaTemasGuia />);\n      for (const boton of screen.getAllByRole(\"button\")) fireEvent.click(boton);\n      expect(peticiones).toEqual(\n        TODOS_LOS_TEMAS.map((tema) => ({ desde: \"ajustes\", temaInicial: tema.key })),\n      );\n    } finally {\n      dejar();\n    }\n  });\n\n# src/components/settings/appearance/__tests__/guide-button-toggle-temas.test.tsx\n  it(\"se monta junto al botón de la guía y todos los temas siguen abriéndose desde ajustes\", () => {\n    const { peticiones, dejar } = escucharPeticiones();\n    try {\n      render(\n        <AppearanceProvider>\n          <GuideButtonToggle />\n        </AppearanceProvider>,\n      );\n      expect(screen.getByText(\"Ver la guía de introducción\")).toBeTruthy();\n      expect(screen.getByRole(\"button\", { name: /Reproducir guía del sistema/ })).toBeTruthy();\n      const lista = screen.getByRole(\"list\", { name: \"Temas de la guía de introducción\" });\n      expect(lista.querySelectorAll(\"button\")).toHaveLength(TODOS_LOS_TEMAS.length);\n      fireEvent.click(screen.getByRole(\"button\", { name: \"Abrir la guía en «Redes mesh»\" }));\n      expect(peticiones).toEqual([{ desde: \"ajustes\", temaInicial: \"malla\" }]);\n    } finally {\n      dejar();\n    }\n  });\n\n# src/lib/agentes/__tests__/openhands-servidor.test.ts\n  it(\"salud: acepta texto plano y cuerpo vacío como sano\", async () => {\n    const { f } = capturar(() => new Response(\"OK\", { status: 200 }));\n    await expect(salud(op(f))).resolves.toEqual({ sano: true, estado: \"OK\" });\n    const vacio = await salud(op(capturar(() => new Response(null, { status: 200 })).f));\n    expect(vacio).toEqual({ sano: true, estado: \"ok\" });\n  });\n\n# src/lib/agentes/__tests__/openhands-servidor.test.ts\n  it(\"crearConversacion: herramientas con parámetros y sin mensaje inicial\", async () => {\n    const { f, llamadas } = capturar(() => json({ id: \"c-3\" }));\n    await crearConversacion({ ...op(f), modelo: \"m\", directorioTrabajo: \"/w\", herramientas: [{ nombre: \"FileEditorTool\", parametros: { nivel: 2 } }] });\n    expect(cuerpo(llamadas[0].init)).toEqual({\n      agent: { kind: \"Agent\", llm: { model: \"m\" }, tools: [{ name: \"FileEditorTool\", params: { nivel: 2 } }] },\n      workspace: { kind: \"LocalWorkspace\", working_dir: \"/w\" },\n      confirmation_policy: { kind: \"AlwaysConfirm\" },\n    });\n  });\n\n# src/lib/agentes/__tests__/openhands-servidor.test.ts\n  it(\"enviarMensaje: success false se refleja en ok\", async () => {\n    const { f } = capturar(() => json({ success: false }));\n    await expect(enviarMensaje(\"c1\", \"hola\", op(f))).resolves.toEqual({ ok: false });\n  });\n\n# src/lib/agentes/__tests__/openhands-servidor.test.ts\n  it(\"eventos: sin página no añade parámetros\", async () => {\n    const { f, llamadas } = capturar(() => json({ items: [] }));\n    await eventos(\"c1\", op(f));\n    expect(new URL(llamadas[0].url).search).toBe(\"\");\n  });\n\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('al límite de la sala, volver a entrar con la misma conexión no la rechaza ni la cuenta dos veces', () => {\n    // Rescatado de la rama nube: «dentro de límites» también al borde, donde la conexión que ya está\n    // dentro no debe chocar con el tope ni sumar presencia.\n    const salas = crearSalas({ maxPorSala: 2 });\n    const tema = 'estacion-vivo:Tema112345678';\n    const conexion1 = {};\n    const conexion2 = {};\n    salas.entrar(tema, conexion1);\n    salas.entrar(tema, conexion2);\n    const conexionExtra = {};\n    expect(salas.entrar(tema, conexionExtra).ok).toBe(false);\n    expect(salas.entrar(tema, conexion1).ok).toBe(true);\n    expect(salas.presencia(tema)).toBe(2);\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "IMG1020C",
+    "rama": "nube/40645365414"
+   }
+  },
+  {
+   "id": "MBT1027F",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Mausbot · el host: sigue al puntero, UNA instancia, perezoso desde el layout",
+   "archivos": [
+    "src/components/mausbot/mausbot-host.tsx",
+    "src/components/mausbot/mausbot-host-cliente.tsx",
+    "src/app/layout.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\n`MausbotHost`: si `resolverMausbot(...)` está encendido, pinta `MausbotAvatar` con el diseño de la personalidad activa (`resolvePersonalityForContext` de `src/lib/aurora/personalities.ts`) siguiendo al puntero con un solo `requestAnimationFrame` y `transform` (modo «acompanante»: a 18 px abajo a la derecha; «cursor»/«ambos»: en el punto), `pointer-events:none`, z-index por encima de las ventanas, parado con `document.hidden`, quieto con «movimiento reducido», marca `data-aurora-exclude`. Escucha `starseed:mausbot` y `PERSONALITY_CHANGED_EVENT`. `mausbot-host-cliente.tsx` lo carga con `next/dynamic({ ssr:false })`; móntalo en `src/app/layout.tsx` junto a `CursorFxHost`, dentro del envoltorio que ya lo deja fuera de `/genesis` (mira cómo está montado `CursorFxHost`).",
+   "dependencias_ya_en_main": [
+    "MBT1027C-d2c",
+    "MBT1027E"
+   ]
+  },
+  {
+   "id": "MBT1027J",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Cursor del agente · Astraura enseña dónde actúa y respeta los permisos de la neurona",
+   "archivos": [
+    "src/lib/mausbot/cursor-agente.ts",
+    "src/lib/aurora/screen-control/screen-actions.ts",
+    "src/lib/mausbot/__tests__/cursor-agente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\n`cursor-agente.ts`: bus `anunciarAccion({tipo, rect, etiqueta})` / `onAccionAgente(cb)` (evento `starseed:mausbot-agente`) y `puedeActuar({deviceId, nivel, reversible})` PURA: `false` si `permissionsFor(deviceId).agent` es false o `settingsFor(deviceId).screenVoice` es false (`src/lib/neurons/neurons.ts`; hoy nadie lo comprueba), «proponer» siempre pregunta, «aplicar-bajo» solo lo reversible. En `screen-actions.ts`, antes de `clickElement` y `typeInto`: anuncia la acción (el host anima el Mausbot hasta ese rectángulo) y, si `puedeActuar` dice que no, no actúa y devuelve el motivo. No cambies nada más de screen-actions. Pruebas de `puedeActuar` (los tres niveles y los dos permisos).",
+   "dependencias_ya_en_main": [
+    "MBT1027C-d2c"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "MBT1027F",
+   "RTIMG1020C",
+   "DEC1028E",
+   "MBT1027I",
+   "MBT1027M",
+   "MBT1027J",
+   "CLB1028H"
+  ]
+ }
+}
