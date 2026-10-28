@@ -8,11 +8,12 @@ export type Capa =
   | "razon"
   | "profunda"
   | "voz"
-  | "adaptador";
+  | "adaptador"
+  | "juicio";
 
 export type Medio = "web" | "pwa" | "nativo" | "servidor";
 
-export type FormatoCapa = "cact" | "gguf" | "mlx" | "onnx";
+export type FormatoCapa = "cact" | "gguf" | "mlx" | "onnx" | "safetensors";
 
 export type RuntimeCapa =
   | "needle-wasm"
@@ -20,9 +21,15 @@ export type RuntimeCapa =
   | "webgpu-onnx"
   | "llama-cpp"
   | "bitnet-cpp"
-  | "mlx";
+  | "mlx"
+  | "colibri";
 
-export type EstadoCapa = "recomendado" | "respaldo" | "en-banco" | "retirado";
+export type EstadoCapa =
+  | "recomendado"
+  | "respaldo"
+  | "en-banco"
+  | "retirado"
+  | "por-verificar";
 
 export interface ProfundidadNeedle {
   capas: number;
