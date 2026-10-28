@@ -97,6 +97,73 @@ describe("estimarCoste y necesitaConfirmacion", () => {
   });
 });
 
+describe("casos rescatados de la rama de la nube", () => {
+  it("aplica los valores por defecto de cámara, material, transformar y salida", () => {
+    const t = valido(base());
+    expect(t.escena[1].lente_mm).toBe(50);
+    expect(t.escena[1].ortografica).toBe(false);
+    expect(t.salidas[0].fondo_transparente).toBe(false);
+    expect(t.limites).toBeUndefined();
+    const con = valido(conEscena([
+      { op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 },
+      { op: "material", objeto: "c" }, { op: "transformar", objeto: "c" },
+    ]));
+    expect(con.escena[1].color).toEqual([0.8, 0.8, 0.8, 1]);
+    expect(con.escena[2].escala).toEqual([1, 1, 1]);
+  });
+  it("comprueba versión, título y límites", () => {
+    expect(VERSION_VOCABULARIO).toBe(vocabulario.version);
+    expect(motivos({ ...base(), v: 2 })).toEqual(["v debe ser 1"]);
+    for (const titulo of ["   ", "x".repeat(81), 12]) expect(motivos({ ...base(), titulo }).join(" ")).toContain("titulo");
+    expect(valido({ ...base(), limites: { segundos: 300, memoriaMB: 2048 } }).limites).toEqual({ segundos: 300, memoriaMB: 2048 });
+    for (const limites of [{ segundos: 2000 }, { segundos: -1 }]) expect(motivos({ ...base(), limites }).join(" ")).toContain("limites");
+  });
+  it("rechaza NaN en rgba, alfa fuera de rango y medidas no enteras", () => {
+    const con = (op: unknown): string => motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, op])).join(" ");
+    expect(con({ op: "material", objeto: "c", color: [1, Number.NaN, 0.5, 1] })).toContain("rgba");
+    expect(con({ op: "material", objeto: "c", alfa: 2 })).toContain("número en rango");
+    expect(motivos({ ...base(), salidas: [{ tipo: "render_png", ancho: 512.5, alto: 256, muestras: 8, motor: "workbench" }] }).join(" ")).toContain("entero");
+  });
+  it("impone los topes de salidas y rechaza operaciones y salidas desconocidas", () => {
+    expect(motivos({ ...base(), salidas: [] }).join(" ")).toContain("entre 1 y 4");
+    expect(motivos({ ...base(), salidas: Array.from({ length: 5 }, () => ({ tipo: "render_png", ancho: 16, alto: 16, muestras: 1, motor: "workbench" })) }).join(" ")).toContain("entre 1 y 4");
+    expect(motivos(conEscena([{ op: "teleportar", nombre: "t" }])).join(" ")).toContain("operacion desconocida");
+    expect(motivos({ ...base(), salidas: [{ tipo: "render_gif" }] }).join(" ")).toContain("salida desconocida");
+  });
+  it("acepta rutas con subcarpetas y todas las primitivas, modificadores y luces", () => {
+    expect(valido(conEscena([{ op: "importar", archivo: "piezas/modelo.glb", nombre: "Modelo" }])).escena).toHaveLength(1);
+    expect(valido(conEscena([{ op: "mundo", hdri: "fondos/amanecer.hdr", fuerza: 1 }])).escena).toHaveLength(1);
+    for (const [i, tipo] of ["cubo", "esfera", "icosfera", "cilindro", "cono", "toro", "plano", "circulo"].entries())
+      expect(valido(conEscena([{ op: "primitiva", tipo, nombre: `p${i}`, tam: 1 }])).escena).toHaveLength(1);
+    for (const tipo of ["subdivision", "bisel", "solidificar", "espejo", "matriz", "decimar", "malla_alambre"])
+      expect(valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "modificador", objeto: "c", tipo }])).escena).toHaveLength(2);
+    for (const [i, tipo] of ["sol", "punto", "foco", "area"].entries())
+      expect(valido(conEscena([{ op: "luz", nombre: `l${i}`, tipo, energia: 10 }])).escena).toHaveLength(1);
+  });
+  it("rechaza nombres y textos con unicode ajeno o longitud fuera de la lista", () => {
+    for (const nombre of ["Cuboño", "立立方方", "a".repeat(33), "2empieza", "Cubo\nrm -rf /"])
+      expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre, tam: 1 }])).join(" ")).toContain("nombre");
+    expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto: "Cubo\u2028 业", extrusion: 0.2, tam: 1 }])).join(" ")).toContain("texto");
+    expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto: "x".repeat(65), extrusion: 0.2, tam: 1 }])).join(" ")).toContain("más largo de 64");
+  });
+  it("cuenta fotogramas del mp4 y primitivas; el GLB no cuesta segundos", () => {
+    const mp4 = estimarCoste(valido(conEscena(base().escena as unknown[], [{ tipo: "render_mp4", ancho: 320, alto: 240, fps: 12, desde: 0, hasta: 60, muestras: 16, motor: "workbench" }])));
+    expect(mp4.segundos).toBeCloseTo(214.162, 2);
+    const glb = estimarCoste(valido(conEscena(
+      [{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "primitiva", tipo: "plano", nombre: "s", tam: 10 }],
+      [{ tipo: "exportar_glb" }],
+    )));
+    expect(glb.vertices).toBe(12);
+    expect(glb.segundos).toBe(0);
+  });
+  it("el perfil ligero confirma por vértices y el estándar admite el mínimo", () => {
+    expect(necesitaConfirmacion(valido(base()), "estandar")).toBe(false);
+    const pesado = valido(conEscena([{ op: "primitiva", tipo: "toro", nombre: "c", tam: 1 }, { op: "modificador", objeto: "c", tipo: "subdivision", niveles: 4 }]));
+    expect(estimarCoste(pesado).vertices).toBeGreaterThan(50000);
+    expect(necesitaConfirmacion(pesado, "ligero")).toBe(true);
+  });
+});
+
 describe("pureza y vocabulario", () => {
   it("trabajo.ts no contiene node:, eval(, new Function ni fetch(", () => {
     const fuente = readFileSync(new URL("../trabajo.ts", import.meta.url), "utf8");
