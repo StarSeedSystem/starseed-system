@@ -1,21 +1,18 @@
 "use client";
 
 /**
- * StarSeed XR · ESCENA OS (XR1010G, contrato §3 a y c). El núcleo del OS en 3D en `/xr/os`: lienzo R3F con el
- * almacén XR (XR1010D), `<XROrigin>`, fondo y luz de `tokens-3d.ts`; encima, en 2D SIEMPRE visible, el botón
- * universal (XR1010E) y «Salir al sistema». Entrada automática UNA vez si el plan la permite (Quest con la PWA
- * instalada: tocar el icono ya es el gesto); si el navegador la rechaza NO insiste: quedan botón y motivo. Con
- * `offerSession` entra el navegador por su cuenta (lo lleva el almacén): no se repite. Sin WebXR, la misma escena
- * en pantalla con OrbitControls; al terminar (`onSessionEnd`) se vuelve a esa vista sin perder estado y la
- * altura de ojos de la pose queda en `alturaOjosRef` para el recentrado (XR1010J).
+ * StarSeed XR · ESCENA OS (XR1010G, §3 a y c): el OS en 3D en `/xr/os` con lienzo R3F, almacén XR (XR1010D),
+ * `<XROrigin>`, fondo y luz de `tokens-3d.ts`; encima, siempre en 2D, el botón universal y «Salir al sistema».
+ * Entrada automática UNA vez si el plan la permite (un rechazo no se reintenta); altura de ojos en `alturaOjosRef`.
+ * Para el recentrado (XR1010J); sin WebXR, misma escena con OrbitControls; `onSessionEnd` vuelve sin perder estado; `offerSession` lo lleva el almacén.
  */
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { XR, XROrigin, useXR, type XRStore } from "@react-three/xr";
 import { OrbitControls } from "@react-three/drei";
 import Link from "next/link";
-import { PERFILES } from "@/lib/xr/calidad-perfiles";
-import type { PlanEntrada } from "@/lib/xr/capacidades";
+import { nivelInicial, perfilDeNivel } from "@/lib/xr/calidad";
+import { modeloQuest, type PlanEntrada } from "@/lib/xr/capacidades";
 import type { ModoXR } from "@/lib/xr/tipos";
 import { CRISTAL } from "@/lib/xr/tokens-3d";
 import { mensajeErrorXR } from "@/components/vivo/espacial/use-sesion-xr";
@@ -23,7 +20,6 @@ import type { ModoXR as ModoURL } from "@/lib/vivo/xr";
 import { BotonEntradaXR } from "./boton-entrada-xr";
 import { useCapacidadesXR } from "./use-capacidades-xr";
 
-const PERFIL = PERFILES.media;
 type ModoRuta = ModoURL | "pantalla" | null;
 type Props = { modo?: ModoRuta };
 
@@ -62,16 +58,14 @@ function AlturaOjos({ refAltura }: { refAltura: { current: { metros: number } | 
 
 export function EscenaOS({ modo = null }: Props) {
     const modoUrl: ModoURL | null = modo === "vr" || modo === "ar" ? modo : null;
-    // El sondeo pide en concreto el modo de la URL (en móvil el botón se ajusta con `modoBotonDe`).
-    const { estado, capacidades, plan } = useCapacidadesXR({ modo: modoUrl === "vr" ? "vr-inmersivo" : modoUrl === "ar" ? "ar-passthrough" : "auto" });
+    const { estado, datos, capacidades, plan } = useCapacidadesXR({ modo: modoUrl === "vr" ? "vr-inmersivo" : modoUrl === "ar" ? "ar-passthrough" : "auto" });
     const [almacen, setAlmacen] = useState<XRStore | null>(null);
     const [fallo, setFallo] = useState<string | null>(null);
     const [enSesion, setEnSesion] = useState(false);
     const intentadoRef = useRef(false);
     const alturaOjosRef = useRef<{ metros: number } | null>(null);
 
-    // Una sola pasada: conseguir el almacén (el botón comparte el singleton) y, si toca, entrar solo;
-    // un rechazo del navegador no se vuelve a intentar.
+    // Una sola pasada: conseguir el almacén (el botón comparte el singleton) y, si toca, entrar solo.
     useEffect(() => {
         if (estado !== "listo" || intentadoRef.current) return;
         intentadoRef.current = true;
@@ -79,7 +73,9 @@ export function EscenaOS({ modo = null }: Props) {
         void (async () => {
             try {
                 const { obtenerAlmacenXR } = await import("./almacen-xr");
-                const a = await obtenerAlmacenXR({ perfil: PERFIL, capacidades });
+                // Perfil de calidad INICIAL del aparato (núcleo puro): el nivel guardado entra en la primera sesión.
+                const perfil = perfilDeNivel(nivelInicial({ plataforma: capacidades.plataforma, modelo: modeloQuest(datos.ua) }));
+                const a = await obtenerAlmacenXR({ perfil, capacidades });
                 if (!vivo) return;
                 setAlmacen(a);
                 const destino = debeAutoEntrar({ modo: modoUrl, plan, yaIntentado: false });
@@ -91,7 +87,7 @@ export function EscenaOS({ modo = null }: Props) {
             }
         })();
         return () => { vivo = false; };
-    }, [estado, modoUrl, plan, capacidades]);
+    }, [estado, datos, modoUrl, plan, capacidades]);
     useEffect(() => {
         if (almacen === null) return;
         const soltar = almacen.onSessionEnd(() => setEnSesion(false));
@@ -111,7 +107,7 @@ export function EscenaOS({ modo = null }: Props) {
                 </Suspense>
             </Canvas>
             <div className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center gap-3 p-4" data-testid="corte-xr">
-                <BotonEntradaXR variante="insertado" modo={modoBotonDe(modoUrl, capacidades.modos)} />
+                <BotonEntradaXR variante="insertado" modo={modoBotonDe(modoUrl, capacidades.modos)} alEntrar={() => setEnSesion(true)} />
                 {fallo !== null && <p className="max-w-xs text-xs text-[#DC143C]" role="alert" data-testid="fallo-auto-entrar">{fallo}</p>}
                 <Link href="/dashboard" data-testid="salir-sistema" className="cursor-pointer ml-auto inline-flex min-h-11 items-center text-sm text-[#F5F7FF] underline decoration-white/30 underline-offset-4 hover:decoration-[#39FF14]">
                     Salir al sistema
