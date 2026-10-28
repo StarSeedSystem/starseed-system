@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluarLlamada, hayTrusted, rutasEnParametros, rutaDentro } from "../politica";
 import type { LlamadaArtcraft } from "../politica";
+import { APPS_ARTCRAFT, HERRAMIENTAS, PREFIJOS_VETADOS } from "../politica-tablas";
 
 const RAICES = { lectura: ["/datos/neurona/entrada"], escritura: ["/datos/neurona/salida"] };
 const BASE: LlamadaArtcraft = {
@@ -85,5 +86,28 @@ describe("evaluarLlamada · rutas", () => {
     const grupo = evaluarLlamada(llamada({ herramienta: "export", parametros: { out: "/datos/neurona/salida/d.svg" }, ambito: "grupo", rol: "editor" }));
     expect(grupo.decision).toBe("confirmar");
     expect(evaluarLlamada(llamada({ herramienta: "get_node", parametros: { id: "rm" } })).decision).toBe("permitir");
+  });
+});
+
+describe("tablas de la política · contrato §3.2", () => {
+  it("las tres apps y sus prefijos vetados son los del contrato", () => {
+    expect(APPS_ARTCRAFT).toEqual(["figcraft", "gridcraft", "deckcraft"]);
+    expect(PREFIJOS_VETADOS).toEqual({ figcraft: ["collab.", "plugin.", "widget.insert"], gridcraft: ["automate."], deckcraft: [] });
+  });
+  it("cada app separa libre, trabajo y vetadas exactamente como la tabla", () => {
+    expect(HERRAMIENTAS.figcraft.libre).toEqual(["list_commands", "inspect_document", "get_node", "screenshot", "inspect_ui", "undo", "redo"]);
+    expect(HERRAMIENTAS.figcraft.trabajo).toEqual(["create_node", "set_properties", "batch", "run_command", "export", "open_file", "save_file"]);
+    expect(HERRAMIENTAS.figcraft.vetadas).toEqual(["pointer", "key", "type_text", "select"]);
+    expect(HERRAMIENTAS.gridcraft.vetadas).toEqual(["select"]);
+    expect(HERRAMIENTAS.deckcraft.vetadas).toEqual(["call_app", "pointer", "key", "type_text", "select", "select_tool"]);
+    expect(HERRAMIENTAS.deckcraft.trabajo).toContain("go_to_slide");
+  });
+  it("marca `escribe` solo en las herramientas que escriben", () => {
+    expect(evaluarLlamada(llamada({ herramienta: "save_file", parametros: { path: "/datos/neurona/salida/a.figcraft" } })).escribe).toBe(true);
+    expect(evaluarLlamada(llamada({ herramienta: "get_node", parametros: {} })).escribe).toBe(false);
+    expect(evaluarLlamada(llamada({ app: "gridcraft", herramienta: "open_workbook", parametros: { path: "/datos/neurona/entrada/a.xlsx" } })).escribe).toBe(false);
+  });
+  it("DeckCraft puede ejecutar una orden sin prefijos vetados", () => {
+    expect(evaluarLlamada(llamada({ app: "deckcraft", herramienta: "run_command", parametros: { command: "add_slide" } })).decision).toBe("permitir");
   });
 });
