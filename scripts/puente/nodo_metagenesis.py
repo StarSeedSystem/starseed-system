@@ -229,6 +229,36 @@ def entradas_de_relevo(nov: Dict[str, Any], vivos: Dict[str, Dict[str, Any]]) ->
     return {"latidos": latidos, "bajas": bajas, "asignadas": asignadas, "nodos": nodos, "ocupados": ocupados}
 
 
+def cola_de_la_tarea(raiz: str, tid: str, colas: List[str]) -> Optional[str]:
+    """En qué `olas/latidos-<cola>.json` está viva la tarea, para escribir SU `control-<cola>.json`.
+
+    Con una sola cola se usa esa aunque la tarea ya no figure en su latidos (puede estar entre
+    dos fases): siempre hay un único archivo de control posible y soltarla a ciegas es peor."""
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    for cola in colas or []:
+        d = M.leer_json(os.path.join(olas, "latidos-" + cola), {})
+        tareas = d.get("tareas") if isinstance(d, dict) else None
+        if isinstance(tareas, dict) and tid in tareas:
+            return cola
+    return colas[0] if len(colas or []) == 1 else None
+
+
+def soltar_en_control(por_cola: Dict[str, List[str]], raiz: str, t: float,
+                      cerrojos: Optional[str] = None) -> List[str]:
+    """Escribe las órdenes `soltar` en `olas/control-<cola>.json` con el MISMO flock del orquestador.
+
+    Se reutiliza `repartir_nube` (ya probado) en vez de copiar su escritura: el orquestador corta
+    el agente y deja la tarea `reasignada` en cuanto lee el archivo."""
+    if not por_cola:
+        return []
+    import repartir_nube as RN  # noqa: WPS433 — el mismo camino que usa el resto del nodo
+    ordenes = RN.ordenes_soltar([tid for ids in por_cola.values() for tid in ids],
+                                list(por_cola.items()), "relevo", quien="al-volver",
+                                t=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t)))
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    return RN.soltar_en_la_mac(ordenes, olas, cerrojos=cerrojos)
+
+
 # ─── el nodo ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -246,7 +276,8 @@ class Nodo:
                  tareas_locales: Optional[Callable[[str], List[Any]]] = None,
                  enlistar: Optional[Callable[..., Any]] = None,
                  existentes: Optional[Callable[[str, List[str]], List[str]]] = None,
-                 solo_leer: bool = False, puerta: Any = None):
+                 solo_leer: bool = False, puerta: Any = None,
+                 enviar_puntos: Optional[Callable[..., Any]] = None):
         self.modo = "seco" if seco or solo_leer else "real"
         #: (OPA1011b) Prueba seca EN un medio vivo: lee el bus como el servicio, no escribe nada y se
         #: puntúa como el medio real (si no, su propio latido seco le quitaría el mando en el cálculo).
@@ -273,6 +304,8 @@ class Nodo:
         self._existentes = existentes or M.existentes
         self._asignaciones: List[Dict[str, Any]] = []
         self._medida_salud: Dict[str, Any] = {}
+        #: (COL1012H) Enviador del último punto de control (COL1012E). Inyectable en las pruebas.
+        self._enviar_puntos = enviar_puntos
         #: (PDA1011) Puerta de datos del A1: inyectable en las pruebas; si no, del entorno (solo la URL:
         #: el nodo entra con SU llave, sin ficha). `STARSEED_NODO_PUERTA=apagada` → bus como antes.
         self._puerta = puerta
@@ -352,6 +385,11 @@ class Nodo:
     # ── una vuelta ──
     def vuelta(self) -> Dict[str, Any]:
         t = self.reloj()
+        # Antes de que esta vuelta lata: cuándo se supo vivo por última vez. `ultimo_latido` solo se
+        # actualiza en el bus (que late cada L.LATIDO_S); por la puerta o las tablas no, y sin esto un
+        # nodo siempre encendido se creería «recién vuelto» cada 15 min y soltaría trabajo que no dejó.
+        ultimo_latido_previo = _segundos(self.mem.get("ultima_vuelta")) or _segundos(self.mem.get("ultimo_latido"))
+        self.mem["ultima_vuelta"] = t
         medida = self._medir(self.modo, t)
         medio = medida["medio"]
         salud = medida["salud"]
@@ -436,6 +474,11 @@ class Nodo:
         self._asignaciones = nov.get("asignaciones") or []
         if enlace is not None and enlace.error:
             informe["avisos"].append(enlace.error)
+        # COL1012H · al volver de un silencio, lo que otro ya siguió deja de ser mío.
+        try:
+            self._soltar_al_volver(medida["raiz"], nov, informe, t, ultimo_latido_previo)
+        except Exception as e:  # noqa: BLE001 — soltar es mejor que duplicar, pero no puede tumbar la vuelta
+            informe["avisos"].append("al volver: %s" % type(e).__name__)
 
         soy_lider = decision["lider"] == self.yo
         if soy_lider and decision["termino"] != self.mem.get("termino_lider"):
@@ -638,6 +681,69 @@ class Nodo:
         informe.setdefault("relevo", []).append(decision)
         if self.modo == "real" and self.enlace is not None:
             self.enlace.decision(decision)
+
+    def _punto_final(self, raiz: str, tid: str, t: float) -> str:
+        """Fuerza el último punto de control de la tarea y lo saca ANTES de soltarla.
+
+        Quien conoce el worktree es el orquestador; el nodo no lo toca. Se llama a
+        `oracle_nodo.enviar_puntos` (COL1012E), que hace el commit salvavidas y lo deja en el A1.
+        Si esa pieza aún no existe se dice y se sigue: el `soltar` no puede esperar, y la
+        sucesora siempre puede partir del último punto ya anotado en `puntos-control.json`."""
+        fn = self._enviar_puntos
+        if fn is None:
+            try:
+                import oracle_nodo  # noqa: WPS433 — solo el medio que tiene el A1 lo trae
+                fn = getattr(oracle_nodo, "enviar_puntos", None)
+            except Exception:  # noqa: BLE001 — sin A1 no hay a quién enviar
+                fn = None
+        if not callable(fn):
+            return "sin enviador (COL1012E pendiente)"
+        try:
+            fn(raiz, [tid], t)
+            return "enviado"
+        except Exception as e:  # noqa: BLE001 — una tarea a medias no puede tumbar la vuelta
+            return "fallo: %s" % type(e).__name__
+
+    def _soltar_al_volver(self, raiz: str, nov: Dict[str, Any], informe: Dict[str, Any], t: float,
+                          ultimo_latido: float, colas: Optional[List[str]] = None,
+                          cerrojos: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Al volver de un silencio largo, suelta lo que otro siguió mientras no estaba (contrato §3).
+
+        Solo la PRIMERA vuelta tras más de `silencio_max`: `volver_ts` evita repetirlo si el
+        latido no sale. De cada tarea a soltar se fuerza y envía su punto ANTES de escribir el
+        `soltar`, porque el orquestador corta al agente en cuanto lee la orden. Lo demás se sigue."""
+        periodo = _segundos((self._medida_salud or {}).get("periodo_s")) or 300.0
+        silencio = C.silencio_max({"periodo_s": periodo})
+        if t - _segundos(self.mem.get("volver_ts")) < silencio or t - ultimo_latido <= silencio:
+            return None
+        # Se marca antes de mirar: aunque no haya nada que soltar, ya es «el primer latido al volver».
+        self.mem["volver_ts"] = t
+        colas = list(colas if colas is not None else M.colas_vivas())
+        en_curso = M.en_curso_de(raiz, colas) or []
+        ids = [str(e["id"]) for e in en_curso if isinstance(e, dict) and e.get("id")]
+        if not ids:
+            return None
+        asignadas = entradas_de_relevo(nov or {}, {})["asignadas"]
+        soltar, seguir = C.al_volver(self.yo, ids, asignadas, ultimo_latido)
+        if not soltar:
+            return {"soltar": [], "seguir": seguir, "puntos": {}}
+        por_cola: Dict[str, List[str]] = {}
+        puntos: Dict[str, str] = {}
+        for tid in soltar:
+            cola = cola_de_la_tarea(raiz, tid, colas)
+            if not cola:
+                informe.setdefault("avisos", []).append(
+                    "al volver: no sé en qué cola está %s; no la suelto a ciegas" % tid)
+                continue
+            puntos[tid] = self._punto_final(raiz, tid, t)
+            por_cola.setdefault(cola, []).append(tid)
+        escritas = soltar_en_control(por_cola, raiz, t, cerrojos=cerrojos)
+        datos = {"soltar": escritas, "seguir": seguir, "puntos": puntos}
+        if escritas:
+            self._decir("MetaGenesis · al volver, suelto %s: los siguió otro mientras no estaba "
+                        "(su último punto va antes que el corte)." % ", ".join(escritas))
+        informe["volver"] = datos
+        return datos
 
     def _relevar(self, nov: Dict[str, Any], vivos: Dict[str, Dict[str, Any]], raiz: str,
                  informe: Dict[str, Any], t: float) -> None:
