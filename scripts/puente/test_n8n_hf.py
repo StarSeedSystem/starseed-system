@@ -62,7 +62,8 @@ class Comandos(unittest.TestCase):
         cli = ClienteFalso()
         salida = []
         with tempfile.TemporaryDirectory() as tmp:
-            open(os.path.join(tmp, "Dockerfile"), "w").write("FROM x\n")
+            with open(os.path.join(tmp, "Dockerfile"), "w") as f:
+                f.write("FROM x\n")
             os.mkdir(os.path.join(tmp, "flujos"))
             with open(os.path.join(tmp, "flujos", "a.json"), "w") as f:
                 json.dump({"nodes": []}, f)
