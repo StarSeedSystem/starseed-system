@@ -1,0 +1,55 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "ola": "Verificación 1026",
+   "importancia": "normal",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40284003578",
+   "id": "MOV1026Ab-d1",
+   "titulo": "Motor de movimiento: el cuerpo que se manda a /api/movimiento/generar cumple su contrato (parte 1 de 2)",
+   "archivos": [
+    "src/lib/avatares/movimiento/motor.ts"
+   ],
+   "depende": [],
+   "prompt": "Verificado por Claude en localhost:9002 el 2026-10-26: TODAS las peticiones del motor de movimiento a POST /api/movimiento/generar responden 400, así que los niveles «vivo» y «fluido» (Kimodo) nunca funcionan y el avatar siempre cae al clip procedural. Causa: `pedirAKimodo` en src/lib/avatares/movimiento/motor.ts manda {prompt, emocion, energia, duracionMs, bucle, nivel}, y la ruta src/app/api/movimiento/generar/route.ts exige {prompt (texto no vacío, ≤ 300), esqueleto ('smplx22' | 'soma30' | 'g1-34'), segundos (número entre 0,5 y 10), semilla (entero, opcional)}.\n\nHaz SOLO esto en motor.ts: el cuerpo pasa a ser {prompt: g.prompt.trim().slice(0, 300), esqueleto: 'smplx22', segundos: el de g.duracionMs/1000 (2,4 si no viene) acotado a [0,5, 10] y redondeado a 2 decimales, semilla: el mismo hash del prompt que usa generarClipProcedural (sácalo a una función pura y úsala en los dos sitios)}. NO toques el freno de la vía (caché por gesto, peticiones compartidas, máximo 2 en vuelo, pausa con Retry-After: kimodoEnPausaHasta / reiniciarFrenoKimodo) ni la ruta.\n\nPrueba nueva src/lib/avatares/movimiento/__tests__/contrato-generar.test.ts (// @vitest-environment jsdom; mockea '@/lib/aurora/voz-starseed/capacidades' con detectarCapacidades: async () => ({}) y capacidadesEnCache: () => null, como en __tests__/freno-kimodo.test.ts; vi.stubGlobal('fetch', …); reiniciarFrenoKimodo() en beforeEach): con moverAvatar(g, {nivel:'vivo'}) el cuerpo enviado tiene exactamente esas cuatro claves; duracionMs 200 → segundos 0.5; 60000 → 10; sin duración → 2.4; un prompt de 400 caracteres llega con 300; la semilla es un entero estable para el mismo prompt. Las pruebas de freno-kimodo.test.ts deben seguir en verde. Como mucho 120 líneas nuevas por archivo; comentarios en español; nada de any.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40284003578`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40284003578:refs/remotes/origin/nube/40284003578\"` y `git cherry-pick --no-commit 29290d09d565 faf7bbe4921a`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/protomolecula/gobierno/__tests__/ayudas-prueba.ts, src/components/protomolecula/gobierno/__tests__/gobierno-proto-resumen.test.tsx, src/components/protomolecula/gobierno/__tests__/seccion-gobierno-proto.test.tsx, src/components/protomolecula/gobierno/ayudas-prueba.ts, src/lib/avatares/movimiento/__tests__/contrato-generar.test.ts, src/lib/avatares/movimiento/motor.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió MOV1026Ab: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/avatares/movimiento/motor.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MOV1026Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "id": "RTLNN1028A2",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Recordar · la misma fusión en Python para Jev y los agentes",
+   "archivos": [
+    "scripts/puente/test_fusion_recuerdos.py"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea LNN1028A2 («Recordar · la misma fusión en Python para Jev y los agentes») se hizo en main por otro camino; su rama nube/40624461405 queda archivada en `refs/archivo/nube/40624461405` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.84)\n\nTU TAREA (RTLNN1028A2 · solo estos archivos: scripts/puente/test_fusion_recuerdos.py):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas Python con unittest, con el patrón de carga que ya use el archivo.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# scripts/puente/test_fusion_recuerdos.py\n    def test_corta_por_maximo_respetando_el_orden(self):\n        lista = [recuerdo(str(i), f\"texto {i}\") for i in range(10)]\n        salida = F.fundir_recuerdos([lista], maximo=3)\n        self.assertEqual([r[\"uri\"] for r in salida], [\"0\", \"1\", \"2\"])\n\n# scripts/puente/test_fusion_recuerdos.py\n    def test_lo_que_no_cabe_cierra_el_bloque(self):\n        lista = [recuerdo(\"a\", \"x\" * 1000), recuerdo(\"b\", \"y\" * 600), recuerdo(\"c\", \"z\" * 10)]\n        salida = F.fundir_recuerdos([lista], max_caracteres=1500)\n        self.assertEqual([r[\"uri\"] for r in salida], [\"a\"])\n\n# scripts/puente/test_fusion_recuerdos.py\n    def test_el_rango_empieza_en_uno(self):\n        salida = F.fundir_recuerdos([[recuerdo(\"a\", \"a\"), recuerdo(\"b\", \"b\")]], k=0)\n        self.assertEqual(salida[0][\"puntuacion\"], 1.0)\n        self.assertEqual(salida[1][\"puntuacion\"], 0.5)\n\n# scripts/puente/test_fusion_recuerdos.py\n    def test_no_muta_las_entradas(self):\n        original = recuerdo(\"a\", \"texto\")\n        salida = F.fundir_recuerdos([[original]])\n        self.assertNotIn(\"puntuacion\", original)\n        salida[0][\"texto\"] = \"cambiado\"\n        self.assertEqual(original[\"texto\"], \"texto\")\n\n# scripts/puente/test_fusion_recuerdos.py\n    def test_comillas_dan_peso_a_las_palabras(self):\n        self.assertEqual(F.peso_vector_para('el \"plan maestro\"'), 0.4)\n        self.assertEqual(F.peso_vector_para(\"«contrato de salas»\"), 0.4)\n\n# scripts/puente/test_fusion_recuerdos.py\n    def test_nombres_propios_dan_peso_a_las_palabras(self):\n        self.assertEqual(F.peso_vector_para(\"¿Dónde vive Alex?\"), 0.4)\n        self.assertEqual(F.peso_vector_para(\"Alex\"), 0.4)\n        self.assertEqual(F.peso_vector_para(\"cómo funciona LEANN\"), 0.4)\n        self.assertEqual(F.peso_vector_para(\"Madrid es grande\"), 0.4)\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "LNN1028A2",
+    "rama": "nube/40624461405"
+   }
+  },
+  {
+   "ola": "1024S",
+   "id": "SGO1024Ac-d1b",
+   "titulo": "Voz · el elector del oído aprende de lo medido (buildRecognition pasa medidas reales a elegirOido) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024A (2026-10-24): buildRecognition llama a elegirOido con `medidas: {}`, así que el elector del oído no aprende de las medidas que ahora sí se anotan (src/lib/aurora/medidas-voz.ts: medidasDe / leerMedidas, tipo «tiempo-real-oido», menor es mejor). Pásale las medidas reales de esta neurona (mediana por motor de las últimas, como hace vozMedida en src/lib/network/capacidades-nodo.ts) sin bloquear el arranque del reconocimiento. Prueba con medidas simuladas: con medidas elige el más rápido; sin medidas, el orden de siempre. Máximo 3 archivos y 120 líneas nuevas por archivo.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40624582067`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40624582067:refs/remotes/origin/nube/40624582067\"` y `git cherry-pick --no-commit 6e9091537e3b e96871c3d867`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/aurora/engine.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "SGO1024Ac",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40624582067"
+  }
+ ]
+}
