@@ -50,6 +50,21 @@ PISTAS = (
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
 
+#: Lo que dice la CLI cuando la CUENTA de ChatGPT no admite el modelo pedido con
+#: Codex (medido el 2026-10-28: «The 'gpt-5.6-sol' model is not supported when
+#: using Codex with a ChatGPT account.», código «model_not_found»). Esto no es
+#: cuota: no se arregla esperando tres horas, el plan no cambia solo.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+#: Cuánto se aparta tras un «modelo no admitido». Un día entero: cambiar de plan
+#: o de modelo tarda más que una ventana de cuota, y mientras tanto cada
+#: intento con Codex es una espera segura y una tarea «sin_cambios» (206
+#: sesiones del 23 al 28/10 lo gastaban en el primer intento).
+HORAS_SIN_MODELO = 24.0
+
 
 def agotado_en(salida):
     """¿Esta salida es un agotamiento de cuota de Codex?
@@ -60,6 +75,17 @@ def agotado_en(salida):
     """
     b = (salida or "").lower()
     return any(p in b for p in PISTAS)
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida dice que la cuenta de ChatGPT no admite el modelo pedido?
+
+    Como `agotado_en`: se mira el texto en minúsculas y no el código de salida.
+    Reacción opuesta a la cuota: aquí no se espera una ventana, se aparta el
+    escritor un día entero porque el plan no va a cambiar solo.
+    """
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
 
 
 def hasta_cuando(ahora, horas=HORAS):

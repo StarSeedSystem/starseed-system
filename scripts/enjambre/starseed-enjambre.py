@@ -319,12 +319,23 @@ except Exception:  # sin el módulo, se comporta como antes
             return False
 
         @staticmethod
-        def anotar(motivo=""):
+        def sin_modelo_en(salida):
+            return False
+
+        HORAS_SIN_MODELO = 24.0
+
+        @staticmethod
+        def anotar(motivo="", horas=24.0):
             return 0
 
 
 MODELOS_CODEX = ["codex/gpt-5.6-sol"]
 RUTA_CODEX_AUTH = os.path.expanduser("~/.codex/auth.json")
+
+#: (DEC1028C, 2026-10-28) Horas que se aparta a Codex cuando la CUENTA de ChatGPT
+#: no admite el modelo (400 «model_not_found»): un día entero, no una ventana de
+#: cuota. Se lee del módulo para que un cambio en `cupo_codex` mande.
+_HORAS_SIN_MODELO = float(getattr(_cupo_codex, "HORAS_SIN_MODELO", 24.0))
 
 
 def codex_disponible() -> bool:

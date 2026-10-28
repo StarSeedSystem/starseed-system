@@ -13,6 +13,13 @@ import cupo_codex as C
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
 
+#: Literal del log del 28/10 (DEC1028C): desde el 23/10 TODAS las llamadas de
+#: Codex del día respondían así, con cualquier modelo -m.
+REAL_SIN_MODELO = (
+    '{"status":400, "error":{"message":"The \'gpt-5.6-sol\' model is not supported '
+    'when using Codex with a ChatGPT account.","code":"model_not_found"}}'
+)
+
 AHORA = 1_700_000_000.0
 
 
@@ -33,6 +40,35 @@ class TestDeteccion(unittest.TestCase):
     def test_da_igual_como_lo_escriban(self):
         for t in ("Usage limit reached for your plan", "QUOTA EXCEEDED", "Upgrade to Pro"):
             self.assertTrue(C.agotado_en(t), t)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_la_salida_real_de_hoy(self):
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+
+    def test_no_es_cuota(self):
+        # Reacciones opuestas: la cuota se espera una ventana y el modelo no
+        # admitido se aparta un día. Que no se crucen.
+        self.assertFalse(C.sin_modelo_en(REAL))
+        self.assertFalse(C.agotado_en(REAL_SIN_MODELO))
+
+    def test_da_igual_como_lo_escriban(self):
+        for t in ("Model is not supported when using Codex with a ChatGPT account.",
+                  'CODE: "model_not_found"'):
+            self.assertTrue(C.sin_modelo_en(t), t)
+
+    def test_otros_errores_no_cuentan(self):
+        # «does not exist» de otro contexto ni el resto de la CLI.
+        for t in ("ERROR: model 'gpt-9' does not exist",
+                  "error: the argument '--sandbox' cannot be used", "", None):
+            self.assertFalse(C.sin_modelo_en(t), t)
+
+    def test_se_aparta_un_dia(self):
+        self.assertEqual(C.HORAS_SIN_MODELO, 24.0)
+        self.assertAlmostEqual(
+            C.hasta_cuando(AHORA, horas=C.HORAS_SIN_MODELO) - AHORA, 24 * 3600,
+            places=3,
+        )
 
 
 class TestVigencia(unittest.TestCase):
