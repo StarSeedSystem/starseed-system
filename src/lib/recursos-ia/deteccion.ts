@@ -201,7 +201,7 @@ function idVolumen(neuronaId: string, v: VolumenDetectado, usados: Set<string>):
 }
 
 /** Almacenes de esta neurona a partir de los volúmenes detectados (interno y cada externo). PURA. */
-export function almacenesDeMaquina(neuronaId: string, m: DeteccionMaquina): MedioAlmacen[] {
+export function almacenesDeMaquina(neuronaId: string, m: Pick<DeteccionMaquina, "volumenes">): MedioAlmacen[] {
     const usados = new Set<string>();
     return m.volumenes.map((v): MedioAlmacen => {
         const red = v.conexion === "red" || v.tipoDisco === "red";
@@ -305,7 +305,7 @@ export function maquinaDesdeNativa(nativa: DeteccionNativa, base: DeteccionMaqui
     const volumenes = (Array.isArray(nativa.volumenes) ? nativa.volumenes : []).filter(esVolumenNativo);
     const npu =
         nativa.npu && typeof nativa.npu.nombre === "string" && nativa.npu.nombre.trim()
-            ? { nombre: nativa.npu.nombre, ...(typeof npu.tops === "number" ? { tops: npu.tops } : {}) }
+            ? { nombre: nativa.npu.nombre, ...(typeof nativa.npu.tops === "number" ? { tops: nativa.npu.tops } : {}) }
             : base.npu;
     return {
         ...base,
@@ -772,33 +772,6 @@ export async function detectarEstaNeurona(): Promise<NeuronaRecursos> {
     }
 }
 
-/** Lo mínimo de `window.__TAURI__` que usa esta detección. */
-interface TauriRecursosIa {
-    core?: { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> };
-}
-
-/**
- * Discos y NPU desde la app nativa (`recursos_ia_detectar`). Solo si existe `window.__TAURI__`;
- * nunca lanza: si la app no contesta, deja un aviso y se sigue con lo que ve el navegador.
- */
-async function pedirNativa(avisos: string[]): Promise<DeteccionNativa | null> {
-    if (typeof window === "undefined") return null;
-    const tauri = (window as unknown as { __TAURI__?: TauriRecursosIa }).__TAURI__;
-    const invoke = tauri?.core?.invoke;
-    if (typeof invoke !== "function") return null;
-    try {
-        const r = await conTope(Promise.resolve().then(() => invoke("recursos_ia_detectar")), 10_000, null);
-        if (!r || typeof r !== "object") {
-            avisos.push("La app nativa no devolvió la detección de discos.");
-            return null;
-        }
-        return r as DeteccionNativa;
-    } catch {
-        avisos.push("La app nativa no pudo medir los discos ni la NPU; se usa lo que ve el navegador.");
-        return null;
-    }
-}
-
 const HOSTS_LOCALES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 /** La máquina por dentro desde la ruta local. Nunca lanza; lo que falla va a `avisos`. */
@@ -824,6 +797,33 @@ async function pedirMaquina(avisos: string[]): Promise<DeteccionMaquina | null> 
         return null;
     } finally {
         clearTimeout(t);
+    }
+}
+
+/** Lo mínimo de `window.__TAURI__` que usa esta detección. */
+interface TauriRecursosIa {
+    core?: { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> };
+}
+
+/**
+ * Discos y NPU desde la app nativa (`recursos_ia_detectar`). Solo si existe `window.__TAURI__`;
+ * nunca lanza: si la app no contesta, deja un aviso y se sigue con lo que ve el navegador.
+ */
+async function pedirNativa(avisos: string[]): Promise<DeteccionNativa | null> {
+    if (typeof window === "undefined") return null;
+    const tauri = (window as unknown as { __TAURI__?: TauriRecursosIa }).__TAURI__;
+    const invoke = tauri?.core?.invoke;
+    if (typeof invoke !== "function") return null;
+    try {
+        const r = await conTope(Promise.resolve().then(() => invoke("recursos_ia_detectar")), 10_000, null);
+        if (!r || typeof r !== "object") {
+            avisos.push("La app nativa no devolvió la detección de discos.");
+            return null;
+        }
+        return r as DeteccionNativa;
+    } catch {
+        avisos.push("La app nativa no pudo medir los discos ni la NPU; se usa lo que ve el navegador.");
+        return null;
     }
 }
 
