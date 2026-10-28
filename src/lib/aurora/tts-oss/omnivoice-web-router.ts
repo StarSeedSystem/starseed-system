@@ -116,16 +116,19 @@ const DEFAULT_CHAIN_PRIORITY = [
   // si no responde, el router los salta sin coste (salud previa).
   "voice158",
   "vibevoice",
+  // (VOZ1024C) xAI va en el sitio que le da el registro de motores
+  // (engine-registry/AUTO_ENDPOINT_ORDER): justo tras VibeVoice, antes de VoxCPM.
+  "xai",
+  "voxcpm",
   "voicebox",
+  "gpt-sovits",
+  "bark",
   "omnivoice",
   "openvoice2",
   // Chatterbox (VZR1011B): detrás de OmniVoice/OpenVoice y antes de Kokoro. Sin
   // estar aquí, `applyVoiceChainPriority` lo mandaba al final, DETRÁS de Kokoro.
   "chatterbox",
   "kokoro",
-  "voxcpm",
-  "bark",
-  "gpt-sovits",
   "kitten",
   "browser",
 ];
