@@ -1,0 +1,44 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "area": "artcraft",
+   "id": "ART1025B-d2",
+   "titulo": "Política de la pasarela ArtCraft: lista permitida, rutas y parámetros (pura) (parte 2 de 3)",
+   "archivos": [
+    "src/lib/artcraft/politica-tablas.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §3 (lista permitida en §3.2, confirmación por ámbito en §3.3). Crea el módulo PURO que decide si una llamada de un agente al servidor MCP de FigCraft, GridCraft o DeckCraft se permite, necesita confirmación o se deniega. Reparto: `politica-tablas.ts` solo con DATOS; `politica.ts` con la lógica.\n\n`politica-tablas.ts` exporta `type AppArtcraft = \"figcraft\" | \"gridcraft\" | \"deckcraft\"`, `APPS_ARTCRAFT` y, por app, `HERRAMIENTAS: Record<AppArtcraft, { libre: string[]; trabajo: string[]; vetadas: string[] }>` EXACTAMENTE con la tabla de §3.2 (FigCraft libre: list_commands, inspect_document, get_node, screenshot, inspect_ui, undo, redo; trabajo: create_node, set_properties, batch, run_command, export, open_file, save_file; vetadas: pointer, key, type_text, select. GridCraft libre: list_commands, list_functions, inspect_workbook, read_range, get_cell, evaluate_formula, screenshot; trabajo: write_range, set_cell, format_range, insert_chart, create_table, sort_range, filter, new_workbook, open_workbook, save_workbook, execute_command, undo, redo; vetadas: select. DeckCraft libre: list_commands, inspect_document, inspect_slide, render_slide, screenshot; trabajo: new_presentation, open_presentation, save_presentation, export, add_slide, add_shape, add_text_box, set_text, insert_picture, insert_table, insert_chart, batch, run_command, go_to_slide; vetadas: call_app, pointer, key, type_text, select, select_tool) y `PREFIJOS_VETADOS: Record<AppArtcraft, string[]>` (figcraft: `collab.`, `plugin.`, `widget.insert`; gridcraft: `automate.`; deckcraft: ninguno). Cualquier herramienta que no esté en `libre` ni en `trabajo` se deniega.\n\n`politica.ts` exporta: `interface RaicesTrabajo { lectura: readonly string[]; escritura: readonly string[] }` (rutas absolutas ya normalizadas que entrega el servidor); `interface LlamadaArtcraft { app: AppArtcraft; herramienta: string; parametros: Record<string, unknown>; origen: Origen; ambito: Ambito; rol: Rol | null; raices: RaicesTrabajo }` (tipos `Origen`, `Ambito`, `Rol` de `@/lib/protomolecula/tipos`); `type Veredicto = { decision: \"permitir\" | \"confirmar\" | \"denegar\"; motivo: string; escribe: boolean }`; `rutaDentro(ruta, raices)`: compara texto normalizado (unifica `/` y `\\`, colapsa `//`), rechaza vacía, con `..`, con `~`, con `file:`, UNC (`\\\\`), con byte nulo y relativas; acepta solo si es igual a una raíz o empieza por ella más `/`; `rutasEnParametros(p)`: recorre el objeto (profundidad ≤ 6) y devuelve toda cadena en claves `path|file|dir|out|src|dst|from|to|ruta|archivo|carpeta` o que empiece por `/`, `~`, `file:`, `\\\\` o letra de unidad; `evaluarLlamada(l): Veredicto`.\n\nReglas de `evaluarLlamada`: herramienta desconocida o vetada = denegar con motivo; en `run_command`, `execute_command` y `batch` se mira `parametros.command` o cada `parametros.commands[].command`: prefijo vetado = denegar; `trusted === true` en cualquier parte = denegar; toda ruta de `rutasEnParametros` debe estar dentro de una raíz de lectura o de escritura y las de herramientas que escriben (`escribe: true`: las de `trabajo` salvo lectura, `export`, `save_*`) dentro de una raíz de ESCRITURA; lectura libre = permitir; escritura = permitir si el ámbito es `personal`, confirmar si es `grupo` o `publica`, usando `decidir` de `@/lib/protomolecula/permisos` con la acción `editar-estructura`; origen `ia` o `agente` jamás en herramientas de ventana (pointer, key, type_text, select, call_app). Motivos en español, sin repetir la ruta completa.\n\nPruebas (≥ 20 casos): collab.share y collab.publish denegados; plugin.import denegado; automate.trustScripts y `trusted: true` denegados; call_app denegado; rutas `/etc/passwd`, `../x`, `~/x`, `file:///x` y UNC denegadas; una ruta dentro de `salida/` permitida; herramienta desconocida denegada; GridCraft `open_workbook` con ruta fuera denegado; `export` de FigCraft dentro de `salida/` permitido; en ámbito `grupo` pide confirmar; una ruta dentro solo de la raíz de lectura no vale para escribir.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`.\n\n## PARTE 2 DE 3 (la dirección dividió ART1025B: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/artcraft/politica-tablas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ART1025B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "ART1025B-d1"
+   ]
+  },
+  {
+   "id": "APM1017F",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · servir capacidades: admisión con los topes de préstamo, cola, cancelación y registro",
+   "archivos": [
+    "src/lib/recursos/servir-capacidades.ts",
+    "src/lib/recursos/__tests__/servir-capacidades.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión del relé `capacidad.*`: `crearServidor({ manejadores: Partial<Record<tipo, fn>>, oferta, sesiones, ahora })` con `atender(mensaje)` que comprueba la sesión (sesion-prestamo.ts) y los topes de `capacidadPrestable`, encola si está lleno (máx. 4 en cola), corre el manejador, trocea la respuesta y permite cancelar. `prestamos()` devuelve los préstamos vivos y hechos (quién, qué, ms, bytes) para Procesos activos. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D",
+    "APM1017E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "APM1017F"
+  ]
+ }
+}
