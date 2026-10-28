@@ -16,6 +16,7 @@ export const VIDEO_HTML: DefinicionAtomo = {
   ],
   entradas: ["texto", "imagen", "audio", "vídeo", "datos", "voz"],
   salidas: ["vídeo", "fotogramas"],
+  vista: { tipo: "componente", id: "video-html" },
   ficha: {
     web: "https://github.com/heygen-com/hyperframes",
     licencia: "Apache-2.0",

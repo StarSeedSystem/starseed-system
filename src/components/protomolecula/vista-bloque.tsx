@@ -4,9 +4,10 @@
 // lo que se ve es un dato (`leerBloque`), nunca se ejecuta nada ni se edita la
 // original. «Abrir copia propia» guarda una copia con id NUEVO en el almacén local
 // y abre `/protomolecula?molecula=<idNuevo>`. Contrato: `architecture/protomolecula.md`.
-import { useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
+import { VISTAS_COMPONENTE } from "@/lib/protomolecula/atomos";
+import { leerBloque, vistaDeAtomo } from "@/lib/protomolecula/bloque-protomolecula";
 import { almacenNavegador, guardarMolecula, type AlmacenLocal } from "@/lib/protomolecula/almacen-moleculas";
 import { claveDe, formatearValor } from "@/lib/protomolecula/parametros";
 import { obtenerAtomo, type DefinicionAtomo } from "@/lib/protomolecula/registro-atomos";
@@ -36,6 +37,24 @@ export function copiaPropia(m: Molecula, idNuevo: string, ahora: number): Molecu
 
 const idAleatorio = (): string =>
     `mol-${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
+
+/** Valores de un átomo sin el prefijo `atomoId::` que usa la molécula. */
+function valoresDeAtomo(valores: Molecula["valores"], atomoId: string): Record<string, unknown> {
+    const prefijo = `${atomoId}::`;
+    const out: Record<string, unknown> = {};
+    for (const [clave, valor] of Object.entries(valores)) {
+        if (clave.startsWith(prefijo)) out[clave.slice(prefijo.length)] = valor;
+    }
+    return out;
+}
+
+/** Pinta la vista componente que la correspondencia átomo → vista declare para este átomo. */
+function VistaDeAtomo({ idVista, atomoId, valores }: { idVista: string; atomoId: string; valores: Record<string, unknown> }) {
+    const cargador = VISTAS_COMPONENTE[idVista];
+    const Vista = useMemo(() => (cargador ? lazy(cargador) : null), [cargador]);
+    if (!Vista) return null;
+    return <Suspense fallback={null}><Vista atomoId={atomoId} valores={valores} /></Suspense>;
+}
 
 export interface VistaBloqueProps {
     texto: string;
@@ -93,9 +112,11 @@ export function VistaBloqueProtomolecula({ texto, almacen, navegar, nuevoId = id
                 {m.atomos.map((a) => {
                     const def = buscarAtomo(a.herramientaId);
                     const parametros = (def?.parametros ?? []).filter((p) => m.valores[claveDe({ atomoId: a.id, parametroId: p.id })] !== undefined);
+                    const idVista = vistaDeAtomo(a);
                     return (
                         <div key={a.id} className="mb-2 rounded border border-border/40 p-2 text-sm">
                             <p className="font-medium">{a.titulo ?? def?.nombre ?? a.herramientaId}</p>
+                            {idVista && <div className="my-2"><VistaDeAtomo idVista={idVista} atomoId={a.id} valores={valoresDeAtomo(m.valores, a.id)} /></div>}
                             {parametros.length === 0 && <p className="text-xs text-muted-foreground">Sin valores fijados.</p>}
                             {parametros.map((p) => (
                                 <div key={p.id} className="flex justify-between gap-2">
