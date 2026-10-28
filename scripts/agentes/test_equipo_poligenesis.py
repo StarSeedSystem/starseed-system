@@ -44,6 +44,9 @@ class Piezas(unittest.TestCase):
         self.assertEqual(E.MIEMBROS, ("moderador", "redactor", "revisor"))
         self.assertTrue(any("handoff" in r or "terceros" in r for r in E.REGLAS_EQUIPO))
 
+    def test_sin_cliente_no_arma_modelo(self):
+        self.assertIsNone(E.modelo_desde_enrutador(None))
+
 
 @unittest.skipUnless(E.OPEN_AI_AGENTS_DISPONIBLE, E.MOTIVO_SIN_OPEN_AI_AGENTS)
 class MemoriaYEquipo(unittest.TestCase):
@@ -62,9 +65,17 @@ class MemoriaYEquipo(unittest.TestCase):
 
     def test_equipo_de_tarea_con_modelo_falso(self):
         roles = E.ROL({"moderador": "enumera", "redactor": "redacta", "revisor": "revisa"})
-        equipo, modelo = E.equipo_de_tarea(roles, cliente="falso")
-        self.assertEqual(modelo, "falso")
+        cliente = E.ClienteOpenAI("http://127.0.0.1:4480/v1", "modelo-falso", "", "servidor-propio")
+        equipo, modelo = E.equipo_de_tarea(roles, cliente=cliente)
+        self.assertIsNotNone(modelo)
         self.assertEqual(len(equipo.members), 3)
+
+    def test_el_modelo_usa_la_base_url_del_enrutador(self):
+        cliente = E.ClienteOpenAI("http://127.0.0.1:4480/v1", "qwen-coder", "clave-falsa")
+        modelo = E.modelo_desde_enrutador(cliente)
+        self.assertIsNotNone(modelo)
+        self.assertEqual(str(getattr(modelo, "base_url", None)).rstrip("/"), "http://127.0.0.1:4480/v1")
+        self.assertNotIn("clave-falsa", repr(cliente))
 
 
 if __name__ == "__main__":
