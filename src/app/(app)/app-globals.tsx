@@ -48,7 +48,18 @@ import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/a
 // Menú global del clic derecho sobre textos (TRD1020E): un solo menú para el
 // clic derecho del navegador; Traducir (TRD1020G) y «Variaciones públicas»
 // añaden sus entradas con registrarEntradaMenuTexto.
-import { MenuTexto } from "@/components/traduccion/menu-texto";
+import {
+  MenuTexto,
+  registrarEntradaMenuTexto,
+  type CtxMenuTexto,
+} from "@/components/traduccion/menu-texto";
+// Entrada del registro compartido del menú (TRD1020E): «Variaciones públicas»
+// (Ola 1019V) ya existía y al clic derecho del menú propio abre su ventana con
+// `abrirVariaciones` usando la clave canónica del objetivo bajo el puntero.
+// «Traducir» (TRD1020G) añadirá la suya con el mismo registro en su tarea.
+import { abrirVariaciones } from "@/components/variaciones/variaciones-bus";
+import { ETIQUETA_VARIACIONES } from "@/components/variaciones/accion-variaciones";
+import { claveDesdeElemento } from "@/lib/variaciones/clave-elemento";
 
 // Entrada XR global (XR1010F · contrato starseed-xr §0.6 y §3 c): ligera y sin SSR.
 // El motor 3D no se carga aquí: el botón navega a `/xr/os?modo=…` (XR1010G).
@@ -61,6 +72,26 @@ const EntradaGlobalXR = dynamic(
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
 function Astraura158FeedMount() {
   useEffect(() => startAstraura158Feed(), []);
+  return null;
+}
+
+/** Entrada «Variaciones públicas» del menú compartido de textos (TRD1020E).
+ * Solo se ofrece sobre elementos con clave canónica (la misma que llevan los
+ * menús del Finder y la orbe); el clic abre la ventana por el bus de variaciones. */
+function EntradaVariacionesPublicas() {
+  useEffect(
+    () =>
+      registrarEntradaMenuTexto({
+        id: "variaciones-publicas",
+        etiqueta: ETIQUETA_VARIACIONES,
+        visible: (ctx: CtxMenuTexto) => claveDesdeElemento(ctx.objetivo) !== null,
+        ejecutar: (ctx: CtxMenuTexto) => {
+          const clave = claveDesdeElemento(ctx.objetivo);
+          if (clave) abrirVariaciones(clave);
+        },
+      }),
+    [],
+  );
   return null;
 }
 
@@ -99,7 +130,10 @@ export default function AppGlobals() {
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
       {/* Menú del clic derecho sobre textos (TRD1020E): sin UI hasta que se
-          hace clic derecho sobre texto (§4 de repos-libreria-1020d.md). */}
+          hace clic derecho sobre texto (§4 de repos-libreria-1020d.md). Su
+          entrada real «Variaciones públicas» se registra encima; la de
+          «Traducir» entra con el mismo registro en TRD1020G. */}
+      <EntradaVariacionesPublicas />
       <MenuTexto />
     </SoloFueraDeConsola>
   );
