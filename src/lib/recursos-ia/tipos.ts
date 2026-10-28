@@ -15,6 +15,7 @@
 export type Capacidad =
     | "texto" // conversar, escribir
     | "razon" // razonamiento profundo
+    | "codigo" // escribir y depurar código (capas «razón» de Colibri)
     | "decision" // reflejo/decisiones tipadas (Needle, Jev local)
     | "voz-tts" // hablar
     | "voz-asr" // oír
@@ -27,6 +28,7 @@ export type Capacidad =
 export const CAPACIDADES: readonly Capacidad[] = [
     "texto",
     "razon",
+    "codigo",
     "decision",
     "voz-tts",
     "voz-asr",
@@ -40,6 +42,7 @@ export const CAPACIDADES: readonly Capacidad[] = [
 export const NOMBRE_CAPACIDAD: Record<Capacidad, string> = {
     texto: "Conversar y escribir",
     razon: "Razonamiento profundo",
+    codigo: "Código",
     decision: "Reflejo y decisiones",
     "voz-tts": "Voz (hablar)",
     "voz-asr": "Oído (escuchar)",
@@ -214,8 +217,9 @@ export interface RequisitosModelo {
     /** Herramientas para compilarlo en la neurona (p. ej. "swift-6.2"). */
     herramientasRequeridas?: string[];
     almacenamiento: {
-        /** `streaming-ssd`: lee pesos del disco en cada token (TurboFieldfare) → disco local rápido obligatorio. */
-        modo: "carga-completa" | "mmap" | "streaming-ssd";
+        /** `streaming-ssd`: lee pesos del disco en cada token (TurboFieldfare) → disco local rápido obligatorio.
+         *  `streaming`: MoE leído del disco por expertos en cada token (Colibri) → disco rápido, no toda la RAM. */
+        modo: "carga-completa" | "mmap" | "streaming-ssd" | "streaming";
         lecturaMinMBs?: number;
         /** Los pesos tienen que estar en la neurona que procesa (no por red). */
         soloLocal: boolean;

@@ -2,10 +2,11 @@
  * Catálogo unificado de modelos de IA locales para «Recursos de IA» (SOP `architecture/recursos-ia-neurona.md`).
  * PURO (lo importa el cliente): nada de `node:*`, sin red ni disco.
  *
- * Tres fuentes, en este orden de precedencia (si un id se repite, gana la primera):
- *   1. Capas de Astraura (`config/capas-astraura.json`): las únicas con SHA y tamaño medido.
- *   2. `MODELOS_EXTRA`: lo que entra por la Biblioteca y no es una capa (TurboFieldfare).
- *   3. Especificaciones locales de `src/ai/astraura/model-requirements.ts` (+ Supertonic 3).
+ * Cuatro fuentes, en este orden de precedencia (si un id se repite, gana la primera):
+ * 1. Capas de Astraura (`config/capas-astraura.json`): las únicas con SHA y tamaño medido.
+ * 2. Entradas de Colibri (`config/capas-colibri-1027.json`, runtime «colibri»): repos por verificar.
+ * 3. `MODELOS_EXTRA`: lo que entra por la Biblioteca y no es una capa (TurboFieldfare).
+ * 4. Especificaciones locales de `src/ai/astraura/model-requirements.ts` (+ Supertonic 3).
  *
  * CONVENCIÓN `ramMinGb` (todo el catálogo): RAM TOTAL mínima del equipo que procesa, no la que
  * ocupa el modelo. Es lo que se compara con `Procesador.ramGb`; lo que el modelo ocupa de verdad
@@ -16,6 +17,7 @@
  * `gb: null` = desconocido o depende de la variante: hay que PREGUNTAR (regla de Alex).
  */
 import capasJson from "../../../config/capas-astraura.json";
+import colibriJson from "../../../config/capas-colibri-1027.json";
 import { LOCAL_LLM_SPECS, LOCAL_VOICE_SPECS, type ModelSpec } from "@/ai/astraura/model-requirements";
 import { MODELOS_IMAGEN, type ModeloImagen } from "@/lib/imagenes/modelos";
 import type { Acelerador, Arquitectura, Bits, Capacidad, MedioApp, RequisitosModelo } from "./tipos";
@@ -94,7 +96,21 @@ function parametrosEnB(texto: unknown): number {
 /* ───────────────────────────── 1. Capas de Astraura ───────────────────────────── */
 
 /** Papel de la capa → qué sabe hacer (tabla §3 de `architecture/capas-autoadaptables.md`). */
-function capacidadesDeCapa(capa: string, runtime: string): Capacidad[] {
+function capacidadesDeCapa(capa: string, runtime: string, diceVision: boolean): Capacidad[] {
+    if (runtime === "colibri") {
+        switch (capa) {
+            case "juicio":
+                return ["decision"];
+            case "palabra":
+                return ["texto"];
+            case "razon":
+                return ["texto", "razon", "codigo"];
+            case "profunda":
+                return diceVision ? ["texto", "razon", "codigo", "vision"] : ["texto", "razon", "codigo"];
+            default:
+                return [];
+        }
+    }
     switch (capa) {
         case "reflejo":
             // Needle 3 también da embeddings: §3 lo pone de último recurso de la memoria.
@@ -143,10 +159,16 @@ function estadoDeCapa(estado: unknown, shaValido: boolean): RequisitosModelo["es
     return "en-pruebas"; // «en-banco» y cualquier valor desconocido
 }
 
-/** Convierte las capas de `config/capas-astraura.json` en requisitos del contrato. */
+/** Convierte las capas (`config/capas-astraura.json`: `capas`) y las de Colibri (`config/capas-colibri-1027.json`: `entradas`, runtime «colibri») en requisitos del contrato. */
 export function modelosDeCapas(json: unknown): RequisitosModelo[] {
-    const raiz = (typeof json === "object" && json !== null ? json : {}) as { capas?: unknown };
-    const capas = Array.isArray(raiz.capas) ? raiz.capas : [];
+    const raiz = (typeof json === "object" && json !== null ? json : {}) as { capas?: unknown; entradas?: unknown };
+    const capas = Array.isArray(raiz.capas)
+        ? raiz.capas
+        : Array.isArray(raiz.entradas)
+          ? raiz.entradas
+          : [];
+    // El JSON de Colibri («entradas») no lleva runtime por entrada: el motor es el mismo para todas.
+    const runtimePorDefecto = Array.isArray(raiz.entradas) && !Array.isArray(raiz.capas) ? "colibri" : "desconocido";
     const salida: RequisitosModelo[] = [];
     for (const cruda of capas) {
         if (typeof cruda !== "object" || cruda === null) continue;
@@ -155,10 +177,14 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
         const id = c.id.trim();
         const familia = esTexto(c.familia) ? c.familia : id;
         const modelo = esTexto(c.modelo) ? c.modelo : id;
-        const runtime = esTexto(c.runtime) ? c.runtime : "desconocido";
+        const runtime = esTexto(c.runtime) ? c.runtime : runtimePorDefecto;
         // «bps.tar.zst» es el empaquetado; el formato es «bps».
         const formato = esTexto(c.formato) ? c.formato.split(".")[0] : "desconocido";
-        const capacidades = capacidadesDeCapa(c.capa, runtime);
+        // «Colibri dice visión»: el texto del modelo o de la API menciona visión o imágenes de entrada.
+        const diceVision = /visión|vision|imágenes de entrada/i.test(
+            [esTexto(c.modelo) ? c.modelo : "", esTexto(c.api) ? c.api : ""].join(" "),
+        );
+        const capacidades = capacidadesDeCapa(c.capa, runtime, diceVision);
         if (capacidades.length === 0) continue;
 
         const sha = esTexto(c.sha256) ? c.sha256.toLowerCase() : "";
@@ -166,20 +192,29 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
         const estado = estadoDeCapa(c.estado, shaValido);
         if (!estado) continue;
 
-        // El tamaño sale del archivo real (`tamano_bytes`, suma de todos sus archivos) y, si no
-        // hay, de `disco_mb`, que es una estimación vieja (VibeASR dice 500 MB y son 1,7 GB).
+        // El tamaño sale del archivo real (`tamano_bytes`, suma de todos sus archivos), de
+        // `disco_mb` (estimación vieja: VibeASR dice 500 MB y son 1,7 GB) o de `disco_gb`
+        // (capas de Colibri, GB medidos de la ficha).
         const bytes = esPositivo(c.tamano_bytes) ? c.tamano_bytes : 0;
-        const gb = bytes ? arribaCent(bytes / 1e9) : esPositivo(c.disco_mb) ? arribaCent(c.disco_mb / 1000) : null;
+        const gb = bytes
+            ? arribaCent(bytes / 1e9)
+            : esPositivo(c.disco_mb)
+              ? arribaCent(c.disco_mb / 1000)
+              : esPositivo(c.disco_gb)
+                ? c.disco_gb
+                : null;
         // «Verificado» = medido del archivo real: hace falta el tamaño real y (fecha de
         // verificación o SHA de 64 hex) en el JSON.
         const verificado = bytes > 0 && (esTexto(c.verificado) || shaValido);
 
         const parametrosB = parametrosEnB(c.parametros);
         const archivo = esTexto(c.archivo) ? c.archivo : "";
-        // Primero lo que dicen los nombres (también el del archivo: «…q8_0.gguf»); si no dicen
-        // nada, el tamaño real frente a los parámetros (Phonon-2: ~2,2 bits); y si tampoco, el
-        // valor por formato de `bitsDeModelo`.
-        const explicitos = bitsExplicitos([id, familia, modelo, runtime, formato, archivo].join(" "));
+        // Primero lo que dicen los nombres (también el del archivo: «…q8_0.gguf» y, en Colibri,
+        // la medida: «… en int8»); si no dicen nada, el tamaño real frente a los parámetros (Phonon-2:
+        // ~2,2 bits); y si tampoco, el valor por formato de `bitsDeModelo`.
+        const explicitos = bitsExplicitos(
+            [id, familia, modelo, runtime, formato, archivo, esTexto(c.medida) ? c.medida : ""].join(" "),
+        );
         const porFormato = explicitos === null && formato === "cact" ? bitsDeModelo({ formato }) : null;
         const porTamano = explicitos === null && porFormato === null ? bitsPorTamano(bytes, parametrosB) : null;
         const bits = explicitos ?? porFormato ?? porTamano ?? bitsDeModelo({ id, familia, modelo, runtime, formato });
@@ -189,17 +224,34 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
             : [];
 
         const notas: string[] = [];
-        if (!shaValido) notas.push("SHA por verificar: no se usa hasta que el renovador de capas lo rellene.");
+        if (!shaValido) notas.push("SHA por verificar: no se usa hasta que el instalador de capas lo rellene.");
         if (porTamano !== null) notas.push("Bits deducidos del tamaño real del archivo.");
         if (parametrosB === 0) notas.push("Parámetros sin publicar en el catálogo de capas.");
         if (Array.isArray(c.profundidades) && c.profundidades.length > 1) {
             notas.push("Profundidad variable (de 2 a 20 capas): el tamaño indicado es el de la más completa.");
         }
+        if (c.streaming_disco === true) notas.push("MoE leído del disco por expertos en cada token: disco rápido, no toda la RAM.");
+        if (esTexto(c.medida)) notas.push(`Medida ajena: ${c.medida}.`);
 
         const aceleradoresRequeridos: Acelerador[] | undefined = runtime === "webgpu-onnx" ? ["webgpu"] : undefined;
-        // bitnet.cpp tiene núcleos para x86 (AVX2) y ARM (NEON); nada más.
-        const arquitecturas: Arquitectura[] | undefined = runtime === "bitnet-cpp" ? ["arm64", "x86_64"] : undefined;
+        // bitnet.cpp tiene núcleos para x86 (AVX2) y ARM (NEON); nada más. Colibri compila en
+        // ARM64 (el A1) y en x86_64 (§1 del contrato).
+        const arquitecturas: Arquitectura[] | undefined =
+            runtime === "bitnet-cpp" || runtime === "colibri" ? ["arm64", "x86_64"] : undefined;
         const mapea = formato === "gguf"; // llama.cpp y bitnet.cpp hacen mmap de un GGUF
+
+        // «streaming»: los expertos se leen del disco en cada token (`streaming_disco` de Colibri).
+        const modo: RequisitosModelo["almacenamiento"]["modo"] = mapea
+            ? "mmap"
+            : c.streaming_disco === true
+              ? "streaming"
+              : "carga-completa";
+
+        const disco: RequisitosModelo["disco"] = { gb, verificado };
+        if (esPositivo(c.descarga_gb)) disco.descargaGb = c.descarga_gb;
+        // El repo de Hugging Face de cada ficha de Colibri (dueño/repo); lo que va a por
+        // verificar sin enlace no inventa URL.
+        const repoHf = esTexto(c.repo_hf) && /^[^\s/]+\/[^\s/]+$/.test(c.repo_hf) ? `https://huggingface.co/${c.repo_hf}` : "";
 
         const entrada: RequisitosModelo = {
             id,
@@ -210,12 +262,12 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
             formato,
             runtime,
             parametrosB,
-            disco: { gb, verificado },
-            ramMinGb: esPositivo(c.ram_min_mb) ? arribaCent(c.ram_min_mb / 1024) : 0,
-            almacenamiento: { modo: mapea ? "mmap" : "carga-completa", soloLocal: runtime === "webgpu-onnx" },
+            disco,
+            ramMinGb: esPositivo(c.ram_min_mb) ? arribaCent(c.ram_min_mb / 1024) : esPositivo(c.ram_min_gb) ? c.ram_min_gb : 0,
+            almacenamiento: { modo, soloLocal: runtime === "webgpu-onnx" },
             medios,
-            licencia: licenciaDe(familia, c.licencia),
-            upstream: esTexto(c.fuente_oficial) ? c.fuente_oficial : "",
+            licencia: licenciaDe(familia, esTexto(c.licencia_modelo) ? c.licencia_modelo : c.licencia),
+            upstream: esTexto(c.fuente_oficial) ? c.fuente_oficial : repoHf,
             estado,
             origen: "capas",
         };
@@ -518,13 +570,14 @@ export function modelosDeImagen(lista: readonly ModeloImagen[]): RequisitosModel
 
 let memo: RequisitosModelo[] | null = null;
 
-/** Catálogo completo: capas + especificaciones locales + extras, sin duplicados, 1.58-bit primero. */
+/** Catálogo completo: capas (Astraura y Colibri) + especificaciones locales + extras, sin duplicados, 1.58-bit primero. */
 export function catalogoRecursos(): RequisitosModelo[] {
     if (!memo) {
         const vistos = new Set<string>();
         const unicos: RequisitosModelo[] = [];
         const todos = [
             ...modelosDeCapas(capasJson),
+            ...modelosDeCapas(colibriJson),
             ...MODELOS_EXTRA,
             ...modelosLocales([...LOCAL_LLM_SPECS, ...LOCAL_VOICE_SPECS]),
             SUPERTONIC_3,
