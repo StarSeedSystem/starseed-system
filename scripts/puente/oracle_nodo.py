@@ -1154,24 +1154,50 @@ def plan_colibri(carpeta=COLIBRI_MODELOS_A1):
     """PURA. El plan de `colibri_nodo.plan_instalacion` para Laya en el A1, sin ejecutar nada.
 
     Desde el 28-10 el plan ya clona en la ruta de la unidad y no trae `serve`: `start-here.sh`
-    solo sirve para los modelos de catálogo de Colibri, y     Laya y GLiNER van con `hf` + `make`."""
+    solo sirve para los modelos de catálogo de Colibri, y Laya y GLiNER van con `hf` + `make`.
+    (CLB1028H) Cada paso declara SU condición — el despliegue puede existir YA (el clon del
+    intento anterior: se trae la etiqueta con fetch, sin volver a clonar), el CLI de descarga
+    va en su venv propio (PEP 668) y los pesos no se vuelven a bajar si ya están. Las evalúa
+    el guion de `_guion_colibri` en el A1."""
     return colibri_nodo.plan_instalacion(COLIBRI_MODELO, carpeta)
 
 
 def _guion_colibri(plan):
     """El guion que se ejecuta en el A1 por SSH: los pasos como LISTAS de argumentos, con el
-    `start-here.sh`, el `make` y la descarga `hf` dentro del checkout. NINGÚN paso se queda
-    sirviendo en primer plano (con `--no-start`): el `serve` lo gobierna
+    `start-here.sh`, el `make` y la descarga `hf` por la ruta COMPLETA del venv propio
+    (`hf_ruta`, CLB1028H: PEP 668 — pip --user no vale; y ~/.local/bin no está en el PATH del
+    usuario del servicio) y con el entorno del paso (sin telemetría). Las condiciones que el
+    plan declara se evalúan AQUÍ, en el A1: `saltar_si_existe` (despliegue ya hecho: no se
+    vuelve a clonar; venv y CLI ya instalados; pesos ya descargados) y `solo_si_existe`
+    (fetch + checkout a la etiqueta solo cuando hay despliegue). NINGÚN paso se queda sirviendo
+    en primer plano (con `--no-start`): el `serve` lo gobierna
     `starseed-colibri.service` en 127.0.0.1:4480."""
-    pasos = [paso["args"] for paso in plan]
+    pasos = []
+    for paso in plan:
+        args = list(paso["args"])
+        if args[0] == "hf" and paso.get("hf_ruta"):
+            args[0] = paso["hf_ruta"]
+        pasos.append({"args": args, "env": dict(paso.get("env") or {}),
+                      "saltar_si_existe": paso.get("saltar_si_existe") or "",
+                      "solo_si_existe": paso.get("solo_si_existe") or ""})
     return "\n".join([
-        "import subprocess, sys",
+        "import os, subprocess, sys",
         "pasos = " + repr(pasos),
         "repo = " + repr(COLIBRI_REPO_A1),
-        "for i, args in enumerate(pasos, 1):",
+        "for i, paso in enumerate(pasos, 1):",
+        "    args = paso['args']",
+        "    ya_esta = paso['saltar_si_existe']",
+        "    if ya_esta and os.path.exists(ya_esta):",
+        "        print('[colibri] paso %d/%d: ya está %s — se salta' % (i, len(pasos), ya_esta), flush=True)",
+        "        continue",
+        "    hace_falta = paso['solo_si_existe']",
+        "    if hace_falta and not os.path.exists(hace_falta):",
+        "        print('[colibri] paso %d/%d: no está %s — se salta' % (i, len(pasos), hace_falta), flush=True)",
+        "        continue",
         "    print('[colibri] paso %d/%d: %s' % (i, len(pasos), ' '.join(args)), flush=True)",
         "    try:",
-        "        r = subprocess.run(args, cwd=repo if i > 1 else None, timeout=3600)",
+        "        r = subprocess.run(args, env=dict(os.environ, **paso['env']),",
+        "                           cwd=repo if i > 1 else None, timeout=3600)",
         "    except subprocess.TimeoutExpired:",
         "        print('[colibri] sobrepasó la hora en el paso %d' % i, flush=True)",
         "        sys.exit(124)",
