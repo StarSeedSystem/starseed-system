@@ -139,6 +139,17 @@ describe("disponibilidad.ts", () => {
       expect(quienTiene(uno, "t1", -1, AHORA)).toEqual([]);
     });
 
+    it("fusiona varios anuncios del mismo nodo como unión de sus mapas de bits", () => {
+      const reg = fusionar([
+        { anuncio: anuncio("nodo-a", "t5", 6, [0, 1, 2], 100)[0], recibidoEn: AHORA - 20_000 },
+        { anuncio: anuncio("nodo-a", "t5", 6, [3, 4, 5], 200)[0], recibidoEn: AHORA - 5_000 },
+      ]);
+      for (let i = 0; i < 6; i++) {
+        expect(quienTiene(reg, "t5", i, AHORA)).toEqual(["nodo-a"]);
+      }
+      expect(quienTiene(reg, "t5", 6, AHORA)).toEqual([]);
+    });
+
     it("ordena por emisión más nueva primero", () => {
       const reg = fusionar(
         recibidos(
