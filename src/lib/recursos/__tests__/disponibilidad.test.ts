@@ -33,6 +33,12 @@ describe("disponibilidad.ts", () => {
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
     });
+
+    it("una cadena vacía decodifica a cero bytes", () => {
+      const bytes = decodificar("");
+      expect(bytes.length).toBe(0);
+      expect(bytes).toEqual(new Uint8Array(0));
+    });
   });
 
   describe("mapa de bits", () => {
@@ -98,6 +104,10 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+
+    it("sin piezas no emite ningún anuncio", () => {
+      expect(anuncio("nodo-a", "transmision-1", 9, [], 1000)).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
@@ -107,6 +117,12 @@ describe("disponibilidad.ts", () => {
       ...uno.map((a) => ({ anuncio: a, recibidoEn: AHORA - 20_000 })),
       ...dos.map((a) => ({ anuncio: a, recibidoEn: AHORA - 5_000 })),
     ];
+
+    it("un registro vacío no tiene fuentes", () => {
+      const registro = fusionar([]);
+      expect(registro.size).toBe(0);
+      expect(quienTiene(registro, "t1", 0, AHORA)).toEqual([]);
+    });
 
     it("une piezas de dos nodos y sirve el índice a quien corresponden", () => {
       const uno = fusionar(
