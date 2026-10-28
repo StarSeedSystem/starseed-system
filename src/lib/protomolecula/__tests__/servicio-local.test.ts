@@ -87,6 +87,8 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
     expect(validarDefinicion({ ...DEF, puerto: 70_000 })).toMatch(/puerto/);
     for (const mal of [{ tiempoMs: -1 }, { tiempoMs: Number.NaN }, { maxBytes: 0 }, { tiempoMs: 3e9 }]) expect(validarDefinicion({ ...DEF, ...mal })).toMatch(/límites/);
     for (const d of SERVICIOS_CONOCIDOS) expect(validarDefinicion(d)).toBeNull();
+    // HyperFrames converge en la lista como ComfyUI u Ollama (contrato video-hyperframes.md §4.3).
+    expect(SERVICIOS_CONOCIDOS).toContainEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900000 });
   });
   it("sondear: GET a la ruta de salud, sin exigir token; caído = no vivo; el fetch real encaja con FetchLocal", async () => {
     const compat: FetchLocal = globalThis.fetch; expect(typeof compat).toBe("function");
@@ -97,6 +99,20 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
     expect(f.mock.calls[0]?.[1].headers.authorization).toBeUndefined();
     const caido = await sondearServicio(DEF, async () => { throw new Error("ECONNREFUSED"); });
     expect(caido).toMatchObject({ vivo: false, motivo: expect.stringMatching(/no contesta/) });
+  });
+  it("HyperFrames: la salud se consulta SOLO en 127.0.0.1:4490/salud, nunca en otra máquina y sin exigir token", async () => {
+    const d = SERVICIOS_CONOCIDOS.find((x) => x.id === "hyperframes");
+    expect(d).toBeDefined();
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"vivo":true}'));
+    const s = await sondearServicio(d as DefinicionServicio, f, { leerVariable: () => undefined });
+    expect(s.vivo).toBe(true);
+    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];
+    expect(url).toBe("http://127.0.0.1:4490/salud");
+    expect(init.method).toBe("GET");
+    expect(init.headers.authorization).toBeUndefined();
+    // El tiempo límite de las llamadas (no de la salud) es el suyo: 15 min para renders largos.
+    expect(d?.tiempoMs).toBe(900000);
+    expect(validarDefinicion(d as DefinicionServicio)).toBeNull();
   });
 });
 
