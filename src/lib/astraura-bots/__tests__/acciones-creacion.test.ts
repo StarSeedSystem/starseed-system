@@ -98,6 +98,15 @@ describe("xr.intencion", () => {
     ejecutarIntencionXR(voz("zzz qqq"), ctxVoz, { onStatus });
     expect(onStatus).toHaveBeenCalledTimes(1);
   });
+  it("devuelve error de entenderVoz", () => {
+    const a = voz("frase no entendida");
+    const d = { onStatus: vi.fn() };
+    const r = ejecutarIntencionXR(a, ctxVoz, d);
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toContain("No he entendido");
+    expect(r.previo).toEqual({});
+    expect(r.tarjeta).toBeNull();
+  });
 });
 describe("anclaDeBot", () => {
   const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
