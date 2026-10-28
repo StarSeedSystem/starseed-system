@@ -1,18 +1,25 @@
 /**
  * GUI1021J · la guía de Aurora sin cuenta (invitado).
  *
- * Pruebas: sin sesión no hay "Hazlo por mí", el z es 240 desde login/bienvenida/aviso,
- * y temaInicial funciona.
+ * Pruebas: sin sesión no hay «Hazlo por mí» ni «Ir» guardado (etiqueta «Disponible al entrar»),
+ * el z es Z_GUIA_SOBRE_ACCESO en invitado sea cual sea el origen (nunca queda tapada), con cuenta
+ * vuelve a Z_GUIA_HOY, `temaInicial` funciona, sin puente el modo voz pasa a texto diciéndolo (y con
+ * puente se queda en voz), y al cerrarse no navega a ninguna parte.
  */
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+/** Forma mínima del puente que exige `auroraBridge()` (objetos con esta pinta: presentes). */
+type PuenteAurora = Record<string, unknown>;
 
 const sim = vi.hoisted(() => ({
     push: vi.fn(),
     navegarSuave: vi.fn(),
     usuario: null as null | { id: string; email?: string; is_anonymous?: boolean },
     avisarAuth: null as null | ((sesion: { user: unknown } | null) => void),
+    /** El puente que `auroraBridge()` devuelve en cada prueba (null: sin puente de Aurora). */
+    puente: null as null | PuenteAurora,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -44,9 +51,17 @@ vi.mock("../demo-gestos-hibridos", () => ({ DemoGestosHibridos: () => <div data-
 vi.mock("../aurora-guide-demos", () => ({
     StepDemo: ({ stepKey }: { stepKey: string }) => <div data-testid={`demo-${stepKey}`} />,
 }));
+// La voz está INYECTADA: el puente que vea la guía sale de `sim.puente` (null = sin Aurora en
+// el aparato) y hablar/escuchar son dobles registrables, para no tocar audio ni motores reales.
+vi.mock("../aurora-guide-voice", async (original) => ({
+    ...(await original<typeof import("../aurora-guide-voice")>()),
+    auroraBridge: () => sim.puente,
+    auroraSpeak: () => undefined,
+    auroraEnsureListening: () => undefined,
+}));
 
 import { AuroraGuide, OPEN_GUIDE_EVENT } from "../aurora-guide";
-import { abrirGuia, EVENTO_ACCION_GUIA, Z_GUIA_SOBRE_ACCESO, VENTANAS_ACCESO } from "@/lib/onboarding/guia-acceso";
+import { abrirGuia, Z_GUIA_SOBRE_ACCESO, VENTANAS_ACCESO } from "@/lib/onboarding/guia-acceso";
 import {
     PASOS_GUIA,
     TOTAL_PASOS,
@@ -129,11 +144,22 @@ describe("GUI1021J · guía de Aurora sin cuenta (invitado)", () => {
     it("sin puente de Aurora, el modo voz pasa a texto y lo dice", async () => {
         render(<AuroraGuide />);
         act(() => { abrirGuia({ desde: "ajustes" }); });
-        // En el test no hay window.STARSEED_AURORA: pidiendo voz cae a texto avsando aviso.
+        // En el test no hay puente (sim.puente a null): pidiendo voz cae a texto avisando.
         fireEvent.click(await screen.findByRole("button", { name: /Con la voz de Aurora/ }));
         expect(await screen.findByTestId("guia-tarjeta")).toBeInTheDocument();
         expect(await screen.findByTestId("guia-voz-a-texto")).toHaveTextContent("la guía continúa en texto");
         await esperarPaso("bienvenida");
+    });
+
+    it("con puente de Aurora, el modo voz se queda en voz y no avisa", async () => {
+        sim.puente = {};
+        render(<AuroraGuide />);
+        act(() => { abrirGuia({ desde: "ajustes" }); });
+        // El puente está: eligiendo voz NO cae a texto (sin aviso) y queda escuchando.
+        fireEvent.click(await screen.findByRole("button", { name: /Con la voz de Aurora/ }));
+        await esperarPaso("bienvenida");
+        expect(screen.queryByTestId("guia-voz-a-texto")).toBeNull();
+        expect(await screen.findByText("Escuchando")).toBeInTheDocument();
     });
 
     it("al cerrarse la guía no navega a ninguna parte", async () => {
@@ -174,6 +200,28 @@ describe("GUI1021J · guía de Aurora sin cuenta (invitado)", () => {
         await esperarPaso("bienvenida");
         const root = screen.getByRole("dialog", { name: "Guía de StarSeed" });
         expect(root).toHaveStyle({ zIndex: "95" });
+    });
+
+    it("con cuenta, desde el botón flotante también va a Z_GUIA_HOY (95)", async () => {
+        sim.usuario = { id: "u-1", email: "ana@star.seed" };
+        await abrir({ desde: "boton" });
+        await esperarPaso("bienvenida");
+        const root = screen.getByRole("dialog", { name: "Guía de StarSeed" });
+        expect(root).toHaveStyle({ zIndex: "95" });
+    });
+
+    it("sin sesión queda en Z_GUIA_SOBRE_ACCESO (240) incluso desde ajustes o el botón (nunca tapada)", async () => {
+        for (const origen of ["ajustes", "boton"] as const) {
+            vi.clearAllMocks();
+            window.localStorage.clear();
+            window.localStorage.setItem(CLAVE_GUIA_VISTA_LOCAL, "1");
+            window.localStorage.setItem("starseed.aurora.intro.v1", "1");
+            await abrir({ desde: origen });
+            await esperarPaso("bienvenida");
+            const root = screen.getByRole("dialog", { name: "Guía de StarSeed" });
+            expect(root).toHaveStyle({ zIndex: String(Z_GUIA_SOBRE_ACCESO) });
+            cleanup();
+        }
     });
 
     it("temaInicial abre la guía en el paso indicado", async () => {
