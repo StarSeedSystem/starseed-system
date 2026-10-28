@@ -10,6 +10,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render as renderCrudo, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 
 import { AppearanceProvider } from "@/context/appearance-context";
@@ -80,10 +81,12 @@ describe("AuthGate · «Conoce StarSeed» sin cuenta (GUI1021K1b)", () => {
         guia.parar();
 
         expect(guia.recibidos).toEqual([{ desde: "login" }]);
-        // Honestidad: abrir la guía no inicia sesión ni crea cuenta por su cuenta.
+        // Honestidad: abrir la guía no inicia sesión ni crea cuenta por su cuenta,
+        // y el modo del formulario queda tal cual («Entrar» sigue elegido).
         expect(sim.signInWithPassword).not.toHaveBeenCalled();
         expect(sim.signUp).not.toHaveBeenCalled();
         expect(sim.signInAnonymously).not.toHaveBeenCalled();
+        expect(screen.getByRole("tab", { name: "Entrar" })).toHaveAttribute("aria-selected", "true");
     });
 
     it("al pasar a Crear cuenta el botón sigue ahí y sigue abriendo con «desde: login»", async () => {
@@ -101,6 +104,7 @@ describe("AuthGate · «Conoce StarSeed» sin cuenta (GUI1021K1b)", () => {
 
     it("es accesible por teclado y diana táctil (44 px, cursor pointer)", async () => {
         const guia = escucharGuia();
+        const usuario = userEvent.setup();
         render(<AuthGate />);
         const boton = await screen.findByRole("button", { name: NOMBRE });
 
@@ -108,10 +112,11 @@ describe("AuthGate · «Conoce StarSeed» sin cuenta (GUI1021K1b)", () => {
         expect(boton.className).toContain("cursor-pointer");
         boton.focus();
         expect(boton).toHaveFocus();
-        fireEvent.keyDown(boton, { key: "Enter" });
-        fireEvent.click(boton);
+        // Teclado real: Enter y Espacio disparan el click nativo del botón (uno por pulsación).
+        await usuario.keyboard("{Enter}");
+        await usuario.keyboard(" ");
         guia.parar();
 
-        expect(guia.recibidos).toEqual([{ desde: "login" }]);
+        expect(guia.recibidos).toEqual([{ desde: "login" }, { desde: "login" }]);
     });
 });
