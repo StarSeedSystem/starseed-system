@@ -158,6 +158,12 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None):
         acciones.append(sin_canal)
 
     faltan = sorted(CLAVES_DEL_ENJAMBRE - set(secretos_repo or []))
+    # (2026-10-28, DEC1028A) Alex: «¿lo de github-secretos se debe hacer?». Si solo faltan claves de repuesto
+    # y esta Mac no tiene valor para ninguna, `nube-gh.py secretos` no sube nada: pedirlo es pedir algo que no
+    # se puede hacer. Sin entorno (pruebas puras) la regla es la de siempre.
+    if faltan and entorno is not None and not (ESENCIALES_DEL_ENJAMBRE & set(faltan)) \
+            and not any(str(entorno.get(c) or "").strip() for c in faltan):
+        faltan = []
     if faltan:
         # (2026-09-21) La urgencia era SIEMPRE «alta» y el porqué decía que sin esas claves
         # la nube «arranca, instala y muere». Eso dejó de ser verdad el día 20, cuando Alex

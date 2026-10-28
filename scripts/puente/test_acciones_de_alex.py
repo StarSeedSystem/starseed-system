@@ -46,6 +46,27 @@ class QueEntraEnLaLista(unittest.TestCase):
         self.assertIn("github.com", a[0]["enlace"])
         self.assertNotIn("OPENROUTER_API_KEY", a[0]["detalle"])
 
+    def test_repuesto_sin_valor_en_la_mac_no_se_pide(self):
+        # DEC1028A: solo faltan de repuesto y la Mac no tiene valor → no hay nada que subir.
+        repuesto = sorted(A.CLAVES_DEL_ENJAMBRE - A.ESENCIALES_DEL_ENJAMBRE)
+        repo = sorted(A.CLAVES_DEL_ENJAMBRE - set(repuesto[:1]))
+        a = A.construir_acciones([], repo, CATALOGO, entorno={})
+        self.assertNotIn("github-secretos", [x["id"] for x in a])
+
+    def test_repuesto_con_valor_en_la_mac_sigue_en_la_lista(self):
+        repuesto = sorted(A.CLAVES_DEL_ENJAMBRE - A.ESENCIALES_DEL_ENJAMBRE)
+        repo = sorted(A.CLAVES_DEL_ENJAMBRE - set(repuesto[:1]))
+        a = [x for x in A.construir_acciones([], repo, CATALOGO, entorno={repuesto[0]: "x"}) if x["id"] == "github-secretos"]
+        self.assertEqual(1, len(a))
+        self.assertEqual("baja", a[0]["urgencia"])
+
+    def test_si_falta_una_esencial_se_pide_aunque_no_haya_valor(self):
+        a = [x for x in A.construir_acciones([], [], CATALOGO, entorno={}) if x["id"] == "github-secretos"]
+        self.assertEqual("alta", a[0]["urgencia"])
+
+    def test_cerebras_ya_no_se_pide(self):
+        self.assertNotIn("CEREBRAS_API_KEY", A.CLAVES_DEL_ENJAMBRE)
+
     def test_toda_accion_trae_enlace_o_comando_nunca_solo_una_descripcion(self):
         pas = [{"clave": "apinex", "estado": "fichaje", "http": 402, "modelo": "x"},
                {"clave": "groq", "estado": "sin_clave", "http": 401, "modelo": "x",

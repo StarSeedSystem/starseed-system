@@ -43,7 +43,9 @@ SECRETOS = (
     "OPENCODE_API_KEY",
     # (2026-10-26, CAP1026L, aprobado por Alex: «subir más claves a GitHub») Los proveedores que solo vivían
     # dentro de FreeLLMAPI en la Mac y el A1; en la nube los usa el FreeLLMAPI del runner. Sin valor, no se suben.
-    "MISTRAL_API_KEY", "CEREBRAS_API_KEY", "COHERE_API_KEY",
+    # (2026-10-28, DEC1028A) Sin CEREBRAS_API_KEY: Cerebras pide ya una tarjeta verificada (5 USD que caducan
+    # en 30 días). No es gratis, así que no se pide ni se sube.
+    "MISTRAL_API_KEY", "COHERE_API_KEY",
 )
 
 #: Los dos archivos de entorno de esta maquina. Solo se leen NOMBRES y valores para
