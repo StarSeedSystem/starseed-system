@@ -9,6 +9,7 @@ import { PROTO_ORB_ABRIR_EVENT, leerActivada } from "./orbe-bus";
 import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type ModoRelativo, type Parametro } from "./tipos";
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
+import { componerVideo } from "@/lib/video-html/herramienta-componer";
 /** Misma forma que `AuroraActionResult` de `src/lib/aurora/actions.ts`. */
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string }
 /** `avisarOrbe` devuelve `true` solo si la orbe atendió el aviso; `actor` por defecto: el agente personal. */
@@ -17,7 +18,7 @@ export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisa
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
 export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
-const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir"];
+const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "video.componer", "pedir"];
 const MODOS: ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
 let secuencia = 0;
 const texto = (v: unknown): string => (typeof v === "string" ? v.trim() : ""), num = (n: number): string => String(n).replace(".", ",");
@@ -96,6 +97,22 @@ function convertir(ctx: ContextoAccionProto, a: Record<string, unknown>): Result
   if (!url) return si(`Abrí el conversor${destino ? ` para pasar a ${etiquetaFormato(destino)}` : ""}: suelta ahí el archivo (o pídemelo con «convertir_archivo» y su nombre).`, "Abriendo el conversor…");
   return si(destino ? `Convirtiendo «${nombre || "el archivo"}» a ${etiquetaFormato(destino)} con Filee.` : `Abrí «${nombre || "el archivo"}» en el conversor.`, "Convirtiendo con Filee…");
 }
+/** «video.componer» (Ola 1018H · HFR1018M): composición HyperFrames sin GSAP; no renderiza ni sintetiza voz. */
+function componerVideoAccion(a: Record<string, unknown>): ResultadoAccionProto {
+  const pedido = texto(a.pedido) || texto(a.texto) || texto(a.titulo), vozCruda = a.voz;
+  const vozTexto = typeof vozCruda === "string" ? texto(vozCruda)
+    : vozCruda && typeof vozCruda === "object" && "texto" in vozCruda ? texto((vozCruda as { texto?: unknown }).texto) : "";
+  const narracion = texto(a.narracion) || vozTexto;
+  if (!pedido && !narracion) return no("Falta «pedido»: dime qué vídeo quieres componer.");
+  const persona = texto(a.persona) || undefined;
+  const r = componerVideo({ pedido: pedido || narracion, duracion: numeroDe(a.duracion) ?? undefined,
+    formato: texto(a.formato) || undefined, voz: narracion ? { texto: narracion, persona } : undefined });
+  const paso = r.siguiente === "lint" ? "validarla con lint" : "renderizarla en la malla";
+  const vozPedida = r.peticionVoz ? ` Pedí la narración a la puerta única de voz (${r.peticionVoz.texto.length} caracteres); no se sintetiza aquí.` : "";
+  const avisos = r.avisos.length ? ` Avisos: ${r.avisos.join(" ")}` : "";
+  return si(`Compuse la composición (${r.html.length} caracteres) y el siguiente paso es ${paso}.${vozPedida}${avisos}\n\`\`\`html\n${r.html}\n\`\`\``, "Componiendo vídeo…");
+}
+
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
@@ -103,6 +120,7 @@ export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: C
   if (accion === "pedir") return no("«pedir» espera a la IA para planificar: usa manejarAccionProtomoleculaAsync.");
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
   if (accion === "convertir") return convertir(ctx, args);
+  if (accion === "video.componer") return componerVideoAccion(args);
   const c = controladorActivo(moleculaId);
   if (accion === "abrir" && !herramienta) { const a = abrir(ctx, moleculaId); return { ok: a.ok, message: a.texto, status: "Abriendo la Protomolécula…" }; }
   if (!c) return no(`Abre una molécula primero. ${abrir(ctx, moleculaId).texto}`);
