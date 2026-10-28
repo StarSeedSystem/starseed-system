@@ -97,4 +97,33 @@ describe('crearMotorCristal', () => {
     // We'll skip this test because it's complex to mock.
     expect(true).toBe(true);
   });
+
+  it('planSalida conecta el estado del motor con la salida a internet (§8.1)', async () => {
+    await motor.vuelta();
+    motor.recibir({
+      origen: 'neurona-2',
+      reloj: 2000,
+      neurona: { id: 'neurona-2', cuenta: 'cuenta-2', capacidad: { ramGb: 4, bateriaPct: 50, cargando: true }, medios: ['ble'] },
+      senales: [{ de: 'neurona-2', a: 'neurona-1', medio: 'ble', rssiDbm: -50, vistaEn: 0 }]
+    });
+    const base = {
+      ctx: { cuentaDe: (id: string) => (id === 'neurona-1' ? 'cuenta-1' : 'cuenta-2'), cifradoE2E: true },
+      puertas: [{ id: 'p1', neurona: 'neurona-2', cuenta: 'cuenta-2', tipo: 'movil-4g' as const, bajadaKbps: 5000, subidaKbps: 2000, latenciaMs: 50, medida: true, topeMensualMb: 1000, usadoMesMb: 0, compartir: 'publico' as const }],
+      solicitante: { cuenta: 'cuenta-1', vinculado: false, grupos: [] },
+    };
+    // Privado con destino neurona: nunca usa puerta, va por la malla P2P.
+    const privado = motor.planSalida({
+      ...base,
+      dato: { id: 'd1', clase: 'privado', tipo: 'mensaje', bytes: 10, prioridad: 2, origen: 'neurona-1', destino: 'neurona-2' },
+    });
+    expect(privado.puerta).toBeNull();
+    expect(privado.motivo).toBe('va por la malla P2P');
+    // Público sin destino: necesita salida y elige la puerta de la neurona vecina.
+    const publico = motor.planSalida({
+      ...base,
+      dato: { id: 'd2', clase: 'publico', tipo: 'publicacion', bytes: 10, prioridad: 3, origen: 'neurona-1', destino: null },
+    });
+    expect(publico.puerta?.id).toBe('p1');
+    expect(publico.ruta).not.toBeNull();
+  });
 });
