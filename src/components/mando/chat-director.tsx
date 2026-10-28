@@ -29,6 +29,12 @@ const CLAVE_PLEGADO = "starseed.mando.director.plegado";
 const CLAVE_MODELO = "starseed.mando.director.modelo";
 const INTERVALO_NORMAL_MS = 10_000;
 const INTERVALO_RESPUESTA_MS = 3_000;
+const MARGEN_FINAL_PX = 80;
+
+/** ¿La lista está a ≤ 80 px del fondo? Si Alex subió a leer, no se le arrastra. */
+export function estaPegadoAlFinal(nodo: { scrollHeight: number; scrollTop: number; clientHeight: number }): boolean {
+    return nodo.scrollHeight - nodo.scrollTop - nodo.clientHeight <= MARGEN_FINAL_PX;
+}
 
 const FILTROS: { id: FiltroFeed; etiqueta: string }[] = [
     { id: "todo", etiqueta: "Todo" },
@@ -96,11 +102,24 @@ export function ChatDirector() {
     const [cargado, setCargado] = useState(false);
     const [enviando, setEnviando] = useState(false);
     const [envioLocal, setEnvioLocal] = useState<EnvioLocal | null>(null);
+    const [nuevos, setNuevos] = useState(0);
     const listaRef = useRef<HTMLDivElement | null>(null);
+    const contenidoRef = useRef<HTMLDivElement | null>(null);
+    const pegadoAlFinalRef = useRef(true);
+    const vistosRef = useRef<Set<string>>(new Set());
+    const primeraCargaRef = useRef(true);
     // El último `t` vive en una referencia: si `cargar` dependiera de `mensajes`, cada lectura
     // crearía un `cargar` nuevo, el efecto lo relanzaría con lectura completa y el chat
     // martillearía /api/mando/director-chat en bucle (revisión de CDL1004, 2026-10-04).
     const ultimoTRef = useRef<string | undefined>(undefined);
+
+    /** Baja al último mensaje sin animación y da la lista por «pegada al final». */
+    const bajarAlFinal = useCallback(() => {
+        pegadoAlFinalRef.current = true;
+        setNuevos(0);
+        const nodo = listaRef.current;
+        if (nodo) nodo.scrollTop = nodo.scrollHeight;
+    }, []);
 
     const cargar = useCallback(async (soloNuevos: boolean) => {
         try {
@@ -110,9 +129,9 @@ export function ChatDirector() {
             const res = await fetch(`/api/mando/director-chat?${params.toString()}`, { cache: "no-store" });
             if (!res.ok) return;
             const datos = (await res.json()) as FeedRespuesta;
-            const nuevos = Array.isArray(datos.mensajes) ? datos.mensajes : [];
-            setMensajes((previos) => (soloNuevos ? fusionarFeed(previos, nuevos) : fusionarFeed(nuevos)).slice(-500));
-            setEnvioLocal((local) => local && feedConfirmaEnvio(local, nuevos) ? null : local);
+            const recibidos = Array.isArray(datos.mensajes) ? datos.mensajes : [];
+            setMensajes((previos) => (soloNuevos ? fusionarFeed(previos, recibidos) : fusionarFeed(recibidos)).slice(-500));
+            setEnvioLocal((local) => local && feedConfirmaEnvio(local, recibidos) ? null : local);
             if (datos.entregas) setEntregas(datos.entregas);
             if (typeof datos.ultimoModelo === "string") setUltimoModelo(datos.ultimoModelo);
             setCargado(true);
@@ -215,6 +234,11 @@ export function ChatDirector() {
     }, [cargar]);
 
     const visibles = useMemo(() => filtrarFeed(mensajes, filtro), [mensajes, filtro]);
+    const ultimoVisible = visibles.length > 0 ? visibles[visibles.length - 1] : null;
+    // La identidad del último mensaje y el largo de su texto, no la longitud de la lista:
+    // con el recorte a 500, cada mensaje nuevo saca otro y `length` nunca cambia.
+    const ultimoId = ultimoVisible?.id ?? ultimoVisible?.t ?? "";
+    const ultimoLargo = ultimoVisible?.texto.length ?? 0;
 
     // El «Responder con» de cada mensaje arranca con lo último que usó Alex:
     // su elección guardada, si no el último modelo del feed, si no el de defecto.
@@ -230,10 +254,65 @@ export function ChatDirector() {
             ?? envioLocal.mensaje.modelo
         : "La dirección";
 
+    const alDesplazar = useCallback(() => {
+        const nodo = listaRef.current;
+        if (!nodo) return;
+        const pegado = estaPegadoAlFinal(nodo);
+        pegadoAlFinalRef.current = pegado;
+        if (pegado) setNuevos(0);
+    }, []);
+
+    // Sigue al último aunque la lista esté recortada o el mensaje crezca por partes.
     useEffect(() => {
         const nodo = listaRef.current;
-        if (nodo) nodo.scrollTop = nodo.scrollHeight;
-    }, [enviando, envioLocal, visibles.length]);
+        if (!nodo) return;
+        if (!pegadoAlFinalRef.current) return;
+        nodo.scrollTop = nodo.scrollHeight;
+        setNuevos(0);
+    }, [ultimoId, ultimoLargo]);
+
+    // Cuenta los mensajes que llegan mientras Alex lee más arriba (sin duplicar los ya vistos).
+    useEffect(() => {
+        let llegados = 0;
+        for (const mensaje of mensajes) {
+            const clave = mensaje.id || mensaje.t;
+            if (vistosRef.current.has(clave)) continue;
+            vistosRef.current.add(clave);
+            llegados += 1;
+        }
+        if (primeraCargaRef.current) {
+            primeraCargaRef.current = false;
+            return;
+        }
+        if (llegados > 0 && !pegadoAlFinalRef.current) {
+            setNuevos((previos) => previos + llegados);
+        }
+    }, [mensajes]);
+
+    // Al desplegar (o al cargar la primera vez) siempre se abre por el último mensaje.
+    useEffect(() => {
+        if (!plegado) bajarAlFinal();
+    }, [plegado, cargado, bajarAlFinal]);
+
+    // Cuando Alex envía, su mensaje no puede quedarse fuera de vista.
+    useEffect(() => {
+        if (enviando || envioLocal) bajarAlFinal();
+    }, [enviando, envioLocal, bajarAlFinal]);
+
+    // Un mensaje que crece (texto por partes, imagen, bloque desplegado) también arrastra
+    // el fondo, pero solo si Alex ya estaba pegado al final.
+    useEffect(() => {
+        if (plegado) return;
+        const contenido = contenidoRef.current;
+        if (!contenido || typeof ResizeObserver === "undefined") return;
+        const observador = new ResizeObserver(() => {
+            if (!pegadoAlFinalRef.current) return;
+            const nodo = listaRef.current;
+            if (nodo) nodo.scrollTop = nodo.scrollHeight;
+        });
+        observador.observe(contenido);
+        return () => observador.disconnect();
+    }, [plegado]);
 
     const alternar = () => {
         setPlegado((p) => {
@@ -285,30 +364,52 @@ export function ChatDirector() {
                             {aviso}
                         </p>
                     ) : null}
-                    <div ref={listaRef} className="flex max-h-[min(340px,40vh)] flex-col gap-2 overflow-y-auto">
-                        {visibles.length === 0 ? (
-                            <p className="text-[11px] text-white/40">Nadie ha hablado todavía; empieza abajo.</p>
-                        ) : (
-                            visibles.map((m) => (
-                                <MensajeDelDirector
-                                    key={m.id}
-                                    mensaje={m}
-                                    entregas={entregas[m.id]}
-                                    modelos={modelosConMotores}
-                                    modeloPorDefecto={modeloPreferido}
-                                    onResponder={(id, modelo) => void publicar({ accion: "responder", respondeA: id, modelo })}
-                                    onReenviar={(id, canales) => void publicar({ accion: "reenviar", reenviar: id, canales })}
-                                />
-                            ))
-                        )}
+                    <div className="relative">
+                        <div
+                            ref={listaRef}
+                            role="log"
+                            aria-label="Mensajes del director"
+                            onScroll={alDesplazar}
+                            className="flex max-h-[min(340px,40vh)] flex-col overflow-y-auto"
+                        >
+                            <div ref={contenidoRef} className="flex flex-col gap-2">
+                                {visibles.length === 0 ? (
+                                    <p className="text-[11px] text-white/40">Nadie ha hablado todavía; empieza abajo.</p>
+                                ) : (
+                                    visibles.map((m) => (
+                                        <MensajeDelDirector
+                                            key={m.id}
+                                            mensaje={m}
+                                            entregas={entregas[m.id]}
+                                            modelos={modelosConMotores}
+                                            modeloPorDefecto={modeloPreferido}
+                                            onResponder={(id, modelo) => void publicar({ accion: "responder", respondeA: id, modelo })}
+                                            onReenviar={(id, canales) => void publicar({ accion: "reenviar", reenviar: id, canales })}
+                                        />
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                        {nuevos > 0 ? (
+                            <button
+                                type="button"
+                                onClick={bajarAlFinal}
+                                aria-label={`Bajar al último mensaje (${nuevos} nuevos)`}
+                                className="absolute bottom-2 right-2 cursor-pointer rounded-full border border-violet-400/60 bg-violet-600/90 px-2.5 py-1 text-[11px] font-medium text-white shadow-lg"
+                            >
+                                ↓ {nuevos} nuevos
+                            </button>
+                        ) : null}
                     </div>
                     {cargado ? (
                         <CompositorDirector
                             modelos={modelos}
                             ultimoModelo={ultimoModelo}
                             enviando={enviando}
-                            onEnviar={({ texto, modelo, canales }) =>
-                                void publicar({ accion: "decir", texto, modelo, canales })}
+                            onEnviar={({ texto, modelo, canales }) => {
+                                bajarAlFinal();
+                                void publicar({ accion: "decir", texto, modelo, canales });
+                            }}
                         />
                     ) : (
                         <p className="text-[11px] text-white/40">Leyendo el chat…</p>
