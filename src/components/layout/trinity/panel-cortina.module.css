@@ -25,6 +25,17 @@
     backface-visibility: hidden;
 }
 
+.panel[data-entrada-css] { animation: cortina-entrada var(--cortina-entrada-ms, 220ms) var(--cortina-curva-entrada, cubic-bezier(0.4, 0, 0.2, 1)) backwards; }
+.panel[data-saliendo] { animation: cortina-salida var(--cortina-salida-ms, 150ms) var(--cortina-curva-salida, cubic-bezier(0.7, 0, 0.84, 0)) forwards; }
+
+@keyframes cortina-entrada { from { opacity: 0; transform: var(--cortina-desde, none); } to { opacity: 1; transform: none; } }
+@keyframes cortina-salida { from { opacity: 1; transform: none; } to { opacity: 0; transform: var(--cortina-desde, none); } }
+
+.panel[data-lado="izquierda"] { --cortina-desde: translate3d(-100%, 0, 0); }
+.panel[data-lado="derecha"] { --cortina-desde: translate3d(100%, 0, 0); }
+.panel[data-lado="arriba"] { --cortina-desde: translate3d(0, -100%, 0); }
+.panel[data-lado="abajo"] { --cortina-desde: translate3d(0, 100%, 0); }
+
 .lado_izquierda,
 .lado_derecha {
     touch-action: pan-y pinch-zoom;
@@ -177,6 +188,11 @@ html[data-perf="eco"] .fondo {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    /* Sin desplazamiento: el panel aparece en su sitio y se retira sin animar. */
+    .panel[data-entrada-css],
+    .panel[data-saliendo] {
+        animation: none;
+    }
     .pildora {
         transition: opacity 120ms linear;
     }
@@ -185,4 +201,10 @@ html[data-perf="eco"] .fondo {
     .panel[data-arrastrando] .pildora {
         transform: none;
     }
+}
+
+/* La clase de Accesibilidad desactiva el movimiento igual que la preferencia del sistema. */
+html.a11y-reduce-motion .panel[data-entrada-css],
+html.a11y-reduce-motion .panel[data-saliendo] {
+    animation: none;
 }

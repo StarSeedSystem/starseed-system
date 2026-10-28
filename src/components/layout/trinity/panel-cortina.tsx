@@ -22,13 +22,14 @@
  * `usePresence` dentro del hook.
  */
 
-import { createContext, useContext, useMemo, useRef, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { motion, useIsPresent } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { useArrastrePanel } from "@/hooks/use-arrastre-panel";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
-import type { BordeTrinity, Lado } from "@/lib/gestos";
+import { sesionBordeActiva, type BordeTrinity, type Lado } from "@/lib/gestos";
+import { movimientoDe, type RegistroMovimiento } from "@/lib/design/registros-movimiento";
 import estilos from "./panel-cortina.module.css";
 
 interface ContextoPanelCortina {
@@ -46,6 +47,8 @@ export function usePanelCortina(): ContextoPanelCortina | null {
 export interface PanelCortinaProps {
     borde: BordeTrinity;
     lado: Lado;
+    /** Registro de movimiento (cuenta, página o grupo); por defecto, expresivo. */
+    registro?: RegistroMovimiento;
     /** Nombre accesible del panel («Centro de Creación»). */
     etiqueta: string;
     /** Color del nodo Trinity (tirador, X y brillo). */
@@ -69,6 +72,7 @@ export interface PanelCortinaProps {
 export function PanelCortina({
     borde,
     lado,
+    registro = "expresivo",
     etiqueta,
     acento,
     onCerrar,
@@ -83,6 +87,9 @@ export function PanelCortina({
 }: PanelCortinaProps) {
     const panelRef = useRef<HTMLDivElement | null>(null);
     const lateral = lado === "izquierda" || lado === "derecha";
+    const [entradaCss] = useState(() => !sesionBordeActiva(borde, typeof performance !== "undefined" ? performance.now() : undefined));
+    const presente = useIsPresent();
+    const movimiento = movimientoDe(registro, "trinity");
     const arrastre = useArrastrePanel({
         lado,
         borde,
@@ -90,8 +97,16 @@ export function PanelCortina({
         onCerrar,
         soloAgarres,
         rueda: rueda ?? lateral,
+        animarEntrada: false,
     });
-    const { cerrar } = arrastre;
+    const cerrarArrastre = arrastre.cerrar;
+    const cerrar = useCallback(() => {
+        panelRef.current?.setAttribute("data-saliendo", "");
+        cerrarArrastre();
+    }, [cerrarArrastre]);
+    useEffect(() => {
+        if (presente) panelRef.current?.removeAttribute("data-saliendo");
+    }, [presente]);
 
     useModalA11y({ open: true, onClose: cerrar, containerRef: panelRef, initialFocus: "container" });
 
@@ -117,10 +132,18 @@ export function PanelCortina({
                 aria-modal="true"
                 aria-label={etiqueta}
                 data-trinity-curtain={borde}
+                data-entrada-css={entradaCss ? "" : undefined}
                 data-testid={testId}
                 data-lado={lado}
                 className={cn("outline-none", estilos.panel, estilos[`lado_${lado}`], className)}
-                style={{ transform: arrastre.transform, transformOrigin: arrastre.origen }}
+                style={{
+                    transform: arrastre.transform,
+                    transformOrigin: arrastre.origen,
+                    ["--cortina-entrada-ms" as string]: `${movimiento.entrada.ms}ms`,
+                    ["--cortina-curva-entrada" as string]: movimiento.entrada.curva,
+                    ["--cortina-salida-ms" as string]: `${movimiento.salida.ms}ms`,
+                    ["--cortina-curva-salida" as string]: movimiento.salida.curva,
+                }}
                 {...arrastre.manejadores}
             >
                 {children}
