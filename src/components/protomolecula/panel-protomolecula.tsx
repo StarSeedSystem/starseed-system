@@ -19,6 +19,7 @@ import type { Ambito, Autor } from "@/lib/protomolecula/tipos";
 import { BarraDictado } from "./barra-dictado";
 import { PanelActividad, hayLecturaSalud } from "./panel-actividad";
 import { AnadirHerramienta, ListaPendientes } from "./panel-estructura";
+import { PanelMausbot } from "./panel-mausbot";
 import { PanelParametros } from "./panel-parametros";
 import { useEstadoControl, useMolecula } from "./use-molecula";
 
@@ -54,6 +55,7 @@ export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, comp
       <AnadirHerramienta controlador={ctl} estado={estado} />
       <ListaPendientes controlador={ctl} estado={estado} />
       {!compacto && <BarraDictado alDictar={(frase) => ctl.dictar(frase, autor).resultados} />}
+      <PanelMausbot molecula={estado.molecula} candidatos={candidatosDe(estado.molecula)} />
       <PanelParametros
         candidatos={candidatosDe(estado.molecula)}
         valores={estado.molecula.valores}
