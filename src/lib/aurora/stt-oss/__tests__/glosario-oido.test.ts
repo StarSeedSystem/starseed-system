@@ -79,6 +79,24 @@ describe("corregirConGlosario", () => {
     expect(resultado.cambios).toEqual(["Estora. → Astraura"]);
   });
 
+  it("une dos palabras de un nombre del usuario o del grupo", () => {
+    const glosarioPropio = glosarioBase(["Madrina Orbita"]);
+    const resultado = corregirConGlosario("Madrina Orbit", glosarioPropio, "es");
+    expect(resultado).toEqual({ texto: "Madrina Orbita", cambios: ["Madrina Orbit → Madrina Orbita"] });
+  });
+
+  it("con un glosario vacío no cambia nada", () => {
+    expect(corregirConGlosario("hola Star Sed", [], "es")).toEqual({
+      texto: "hola Star Sed",
+      cambios: [],
+    });
+  });
+
+  it("no muerde palabras comunes en inglés que ya existen", () => {
+    const resultado = corregirConGlosario("the star was said", glosario, "en");
+    expect(resultado).toEqual({ texto: "the star was said", cambios: [] });
+  });
+
   it("no muerde una palabra real en minúscula que dista 0,375–0,5 (estrella)", () => {
     const resultado = corregirConGlosario("una estrella brilla", glosario, "es");
     expect(resultado.texto).toBe("una estrella brilla");
