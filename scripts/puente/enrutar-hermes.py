@@ -100,8 +100,12 @@ PREFERIDOS = {
     "aihubmix": ["z-ai/glm-5.3-free"],
 }
 
-ORDEN_ESTADO = {"escribe": 0, "lenta": 1, "sin_cupo": 2, "sin_canal": 3,
-                "modelo_fuera": 4, "fichaje": 5, "sin_clave": 6, "caida": 7}
+#: (2026-10-28) «saturada» va justo detrás de «lenta»: el servidor contesta y se
+#: repone solo, así que sigue en la cadena de respaldo — no se tira fuera como
+#: una caída.
+ORDEN_ESTADO = {"escribe": 0, "lenta": 1, "saturada": 2, "sin_cupo": 3,
+                "sin_canal": 4, "modelo_fuera": 5, "fichaje": 6,
+                "sin_clave": 7, "caida": 8}
 
 #: Tokens por minuto que admite el tier gratuito de cada pasarela, cuando se
 #: sabe. Medido el 2026-09-19 en el log de Hermes: groq «Limit 8000, Requested

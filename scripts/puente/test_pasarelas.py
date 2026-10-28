@@ -7,9 +7,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pasarelas as P
-from pasarelas import (CAIDA, CATALOGO, ESCRIBE, LENTA, MODELO_FUERA, SIN_CANAL,
-                       SIN_CLAVE, SIN_CUPO, accion_de, clasificar, hay_que_renovar,
-                       informe, para_abrir)
+from pasarelas import (CAIDA, CATALOGO, ESCRIBE, LENTA, MODELO_FUERA, SATURADA,
+                       SIN_CANAL, SIN_CLAVE, SIN_CUPO, accion_de, clasificar,
+                       hay_que_renovar, informe, para_abrir)
 
 
 class TestClasificar(unittest.TestCase):
@@ -49,7 +49,7 @@ class TestClasificar(unittest.TestCase):
     def test_codigos_sin_cuerpo(self):
         self.assertEqual(clasificar(403, ""), SIN_CLAVE)
         self.assertEqual(clasificar(429, ""), SIN_CUPO)
-        self.assertEqual(clasificar(502, ""), CAIDA)
+        self.assertEqual(clasificar(502, ""), P.SATURADA)
 
     def test_entradas_raras(self):
         self.assertEqual(clasificar(None, None), LENTA)
@@ -334,3 +334,51 @@ class TardarNoEsMorir(unittest.TestCase):
 
     def test_una_clave_mala_sigue_siendo_clave_mala(self):
         self.assertEqual(P.clasificar(401, "invalid api key", False, None), P.SIN_CLAVE)
+
+
+class TestSaturadaNoEsCaida(unittest.TestCase):
+    """(2026-10-28) Google devolvió 503 «overloaded, try again later» con una clave
+    que funcionaba: listar modelos y generateContent daban 200 minutos después.
+    Un 5xx de saturación NO pide renovar la clave ni saca la pasarela de la cadena."""
+
+    CUERPO_GOOGLE = ('{"error":{"code":503,"message":"The model is overloaded. '
+                     'Please try again later.","status":"UNAVAILABLE"}}')
+
+    def test_503_con_cuerpo_de_google(self):
+        self.assertEqual(P.clasificar(503, self.CUERPO_GOOGLE), P.SATURADA)
+
+    def test_503_sin_cuerpo(self):
+        self.assertEqual(P.clasificar(503, ""), P.SATURADA)
+
+    def test_500_tambien_es_saturacion(self):
+        self.assertEqual(P.clasificar(500, ""), P.SATURADA)
+
+    def test_501_sigue_siendo_caida(self):
+        self.assertEqual(P.clasificar(501, ""), P.CAIDA)
+
+    def test_el_fichaje_gana_a_la_saturacion(self):
+        cuerpo = "daily check-in required (503 Service Unavailable)"
+        self.assertEqual(P.clasificar(503, cuerpo), P.FICHAJE)
+
+    def test_404_modelo_retirado(self):
+        self.assertEqual(
+            P.clasificar(404, "The model is no longer available to new users"),
+            P.MODELO_FUERA)
+
+    def test_no_pide_renovar_la_clave(self):
+        self.assertFalse(P.hay_que_renovar(P.SATURADA))
+        a = P.accion_de("google", P.SATURADA)
+        self.assertFalse(a["humano"])
+        self.assertEqual(a["enlace"], "")
+        self.assertIn("se repone sola", a["texto"])
+
+    def test_va_justo_detras_de_la_lenta_en_el_informe(self):
+        texto = P.informe([
+            {"clave": "google", "modelo": "gemini-3.5-flash-lite", "estado": P.SATURADA},
+            {"clave": "nvidia", "modelo": "kimi-k3", "estado": P.LENTA},
+            {"clave": "xkiro", "modelo": "qwen", "estado": P.SIN_CUPO},
+        ])
+        lineas = [l for l in texto.splitlines() if "*" in l]
+        self.assertIn("NVIDIA", lineas[1])
+        self.assertIn("Google", lineas[2])
+        self.assertIn("xkiro", lineas[3])
