@@ -6,6 +6,7 @@ import { candidatosDe } from "./registro-atomos";
 import { claveDe, describirCambio, formatearValor, normalizar, valorActual } from "./parametros";
 import { metricaDeFuente } from "./permisos";
 import { PROTO_ORB_ABRIR_EVENT, leerActivada } from "./orbe-bus";
+import { elegirControles, type HerramientaControl } from "./elegir-controles";
 import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type ModoRelativo, type Parametro } from "./tipos";
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
@@ -76,13 +77,32 @@ function accionDe(p: Parametro, a: Record<string, unknown>): Accion | string {
   return typeof a.valor === "boolean" || typeof a.valor === "string" ? { tipo: "exacta", valor: a.valor } : "Falta «valor» (exacto) o «cambio» con su «modo».";
 }
 /** Cada frase de un dictado: aplicada, pendiente de la persona o no entendida (con la sugerencia del núcleo). */
-function dictar(c: Controlador, frase: string, autor: Autor): ResultadoAccionProto {
-  if (!frase) return no("Falta «frase»: por ejemplo «sube el brillo un 10 %».");
-  const r = c.dictar(frase, autor, "agente"), pend = new Set(r.pendientes.map((p) => p.operacion.id));
+function resultadoDictado(c: Controlador, r: ReturnType<Controlador["dictar"]>): ResultadoAccionProto {
+  const pend = new Set(r.pendientes.map((p) => p.operacion.id));
   const hechos = new Set(c.obtener().historial.hechos.map((h) => h.operacion.id));
   const partes = r.resultados.map((x) => (!x.ok ? `No aplicado: ${x.razon} ${x.sugerencia}` : pend.has(x.operacion.id) ? `${x.resumen}: ${PENDIENTE}`
     : hechos.has(x.operacion.id) || (x.operacion.accion.tipo === "disparo" && r.aplicados > 0) ? `Aplicado: ${x.resumen}` : `No cambió: ${x.resumen} (ya tenía ese valor o tu rol no permite moverlo)`));
   return { ok: r.aplicados > 0, message: partes.join(" · "), status: "Dictando a la Protomolécula…" };
+}
+function dictar(c: Controlador, frase: string, autor: Autor): ResultadoAccionProto {
+  if (!frase) return no("Falta «frase»: por ejemplo «sube el brillo un 10 %».");
+  return resultadoDictado(c, c.dictar(frase, autor, "agente"));
+}
+/** Needle 3 (o el enrutador de la ventana) elige entre muchos controles; si calla, `elegirControles` cae por nombre. */
+const preguntarControles = async (frase: string, herramientas: HerramientaControl[], maximo: number): Promise<string[] | null> => {
+  try {
+    const { decidirConNeedle } = await import("@/lib/astraura/needle3-client");
+    const d = await decidirConNeedle("nube", frase, herramientas, { max_pasos: maximo });
+    const ids = (d.llamadas ?? []).map((l) => l.nombre).filter(Boolean);
+    return ids.length ? ids : null;
+  } catch {
+    return null;
+  }
+};
+async function dictarConEleccion(c: Controlador, frase: string, autor: Autor): Promise<ResultadoAccionProto> {
+  if (!frase) return no("Falta «frase»: por ejemplo «sube el brillo un 10 %».");
+  const cs = candidatosDe(c.obtener().molecula);
+  return resultadoDictado(c, c.dictar(frase, autor, "agente", await elegirControles(frase, cs, { preguntar: preguntarControles })));
 }
 /** «convertir» (Filee, 2026-10-23): no necesita molécula; abre el conversor del OS con el archivo y el formato. */
 function convertir(ctx: ContextoAccionProto, a: Record<string, unknown>): ResultadoAccionProto {
@@ -139,7 +159,16 @@ export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: C
  * y lo deja pendiente de que la persona lo confirme en la ventana. Un agente nunca ejecuta directamente.
  */
 export async function manejarAccionProtomoleculaAsync(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): Promise<ResultadoAccionProto> {
-  if (texto(args.accion) !== "pedir") return manejarAccionProtomolecula(args, ctx);
+  const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined;
+  if (accion === "dictar") {
+    const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" };
+    const c = controladorActivo(moleculaId);
+    if (!c) return no(`Abre una molécula primero. ${abrir(ctx, moleculaId).texto}`);
+    const m = c.obtener().molecula;
+    if (!alcanceVisiblePara(ctx.actor ?? { tipo: "agente-personal" }).includes(m.ambito)) return no(`Esta molécula es de ámbito «${m.ambito}» y este agente no lo alcanza.`);
+    return dictarConEleccion(c, texto(args.frase), autor);
+  }
+  if (accion !== "pedir") return manejarAccionProtomolecula(args, ctx);
   const { pedirComoAgente } = await import("./peticion/pedir");
   return pedirComoAgente(args, { actor: ctx.actor });
 }

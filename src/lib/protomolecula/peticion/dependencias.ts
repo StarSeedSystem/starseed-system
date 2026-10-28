@@ -92,30 +92,41 @@ export async function actorPorDefecto(contexto: ContextoProto, origen: ActorProt
 const DIMENSIONES: Record<string, [number, number]> = { "1:1": [1024, 1024], "4:5": [896, 1120], "9:16": [720, 1280], "16:9": [1280, 720] };
 
 async function generarImagen(op: De<"generar-imagen">): Promise<ResultadoPaso> {
+  const { medioGenerativoDisponible, pedirImagen } = await import("../generacion-capas");
+  const disponible = medioGenerativoDisponible("imagen");
+  if (!disponible.ok) return pendiente(disponible.motivo);
   const m = await import("@/ai/astraura/media/media-gen");
-  const [width, height] = DIMENSIONES[op.formato ?? "1:1"];
   // Gratis o local: lo que tengas puesto por defecto, salvo un servicio de pago, que aquí nunca se usa.
   const provider = m.resolveProvider("image") === "muapi" ? "pollinations" : undefined;
-  const r = await m.generateImage({ prompt: op.descripcion, width, height, ...(provider ? { provider } : {}) });
-  if (!r.ok || !r.url) return fallo(`No pude generar la imagen: ${r.error ?? "el generador no respondió"}.`);
-  const etiqueta = m.findMediaProvider(r.provider)?.label ?? r.provider;
   const nombre = `astraura-${Date.now().toString(36)}.png`;
-  let guardada = false;
-  try {
-    const { currentUserRef } = await import("@/lib/sync/entity-state");
-    const ref = await currentUserRef();
-    if (ref && r.blob) {
-      const { saveMediaToLibrary } = await import("@/lib/library/media-library");
-      guardada = (await saveMediaToLibrary(ref, { file: r.blob, name: nombre, origin: "Importadas", tags: ["astraura", "imagen-generada"], note: op.descripcion.slice(0, 300) })).ok;
-    } else if (ref && /^https:\/\//i.test(r.url)) {
-      const { saveItem } = await import("@/lib/library/entity-library");
-      guardada = (await saveItem(ref, { type: "file", url: r.url, title: nombre, mime: "image/png", tags: ["astraura", "imagen-generada"], note: op.descripcion.slice(0, 300) })).ok;
-    }
-  } catch { guardada = false; }
+  let url = "", etiqueta = "", guardada = false;
+  const r = await pedirImagen(op.descripcion, {
+    ...(op.formato ? { formato: op.formato } : {}),
+    generar: async ({ prompt, formato }) => {
+      const [width, height] = DIMENSIONES[formato ?? op.formato ?? "1:1"];
+      const g = await m.generateImage({ prompt, width, height, ...(provider ? { provider } : {}) });
+      if (!g.ok || !g.url) return { ok: false, ...(g.provider ? { provider: g.provider } : {}), ...(g.error ? { error: g.error } : {}) };
+      url = g.url;
+      etiqueta = m.findMediaProvider(g.provider)?.label ?? g.provider;
+      try {
+        const { currentUserRef } = await import("@/lib/sync/entity-state");
+        const ref = await currentUserRef();
+        if (ref && g.blob) {
+          const { saveMediaToLibrary } = await import("@/lib/library/media-library");
+          guardada = (await saveMediaToLibrary(ref, { file: g.blob, name: nombre, origin: "Importadas", tags: ["astraura", "imagen-generada"], note: op.descripcion.slice(0, 300) })).ok;
+        } else if (ref && /^https:\/\//i.test(g.url)) {
+          const { saveItem } = await import("@/lib/library/entity-library");
+          guardada = (await saveItem(ref, { type: "file", url: g.url, title: nombre, mime: "image/png", tags: ["astraura", "imagen-generada"], note: op.descripcion.slice(0, 300) })).ok;
+        }
+      } catch { guardada = false; }
+      return { ok: true, url: g.url, ...(g.provider ? { provider: g.provider } : {}), ...(guardada ? { entidad: { tipo: "imagen", id: nombre } } : {}) };
+    },
+  });
+  if (!r.ok) return fallo(`No pude generar la imagen: ${r.motivo.replace(/^No disponible:\s*/i, "").replace(/\.\s*$/, "")}.`);
   return {
     estado: "hecho",
-    texto: `Generé la imagen con ${etiqueta}${guardada ? " y la guardé en tu Biblioteca (Medios › Importadas)" : ""}.`,
-    imagenUrl: r.url,
+    texto: `Generé la imagen con ${etiqueta || r.proveedor}${guardada ? " y la guardé en tu Biblioteca (Medios › Importadas)" : ""}. Queda como capa candidata «${r.capa.titulo}»: acéptala o descártala, no se inserta sola.`,
+    imagenUrl: url,
     ...(guardada ? { ruta: "/library" } : { pendiente: "La imagen no quedó guardada en tu Biblioteca (sin sesión o sin permiso para guardar): descárgala desde la vista previa." }),
   };
 }
