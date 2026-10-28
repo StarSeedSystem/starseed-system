@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CAPAS_ORDEN } from "../manifiesto";
 import {
   VENTANA_NOCTURNA, decidirPolitica, politicaPorDefecto, sanearPolitica,
-<<<<<<< HEAD
   sistemaRequiereAprobacion, type PoliticaCapa, type TipoEntidad,
-=======
-  type PoliticaCapa, type TipoEntidad,
->>>>>>> 25f4c6ba0 (salvavidas · RTTRD1020C: trabajo del agente antes de las puertas (tsc / vitest))
 } from "../politica";
 const modos = (tipo: Parameters<typeof politicaPorDefecto>[0]) => CAPAS_ORDEN.map((c) => politicaPorDefecto(tipo)[c].modo);
 describe("política por defecto por tipo de sistema", () => {
@@ -64,7 +60,6 @@ describe("decidirPolitica: cada modo", () => {
   it("automática en todas → aplicar", () => {
     expect(decidirPolitica({ modo: "automatica-todas" }, base)).toBe("aplicar");
   });
-<<<<<<< HEAD
   it("automática en esta: solo la neurona elegida aplica; el resto avisa", () => {
     expect(decidirPolitica({ modo: "automatica-esta" }, base)).toBe("avisar");
     expect(decidirPolitica({ modo: "automatica-esta" }, { ...base, esNeuronaElegida: true })).toBe("aplicar");
@@ -73,16 +68,6 @@ describe("decidirPolitica: cada modo", () => {
     expect(decidirPolitica({ modo: "manual" }, base)).toBe("avisar");
   });
   it("programada: dentro de [desdeH, hastaH) aplica; en el borde final espera", () => {
-=======
-
-  it("todos los tipos que no son el OS comparten la política base", () => {
-    const base = politicaPorDefecto("perfil");
-    const otros: TipoEntidad[] = ["pagina", "grupo", "comunidad", "estudio", "evento"];
-    for (const tipo of otros) expect(politicaPorDefecto(tipo), tipo).toEqual(base);
-  });
-
-  it("programada: la ventana es [desdeH, hastaH), el borde justo ya no cabe", () => {
->>>>>>> 25f4c6ba0 (salvavidas · RTTRD1020C: trabajo del agente antes de las puertas (tsc / vitest))
     const capa: PoliticaCapa = { modo: "programada", ventana: { desdeH: 10, hastaH: 14 } };
     expect(decidirPolitica(capa, { ...base, ahoraH: 10 })).toBe("aplicar");
     expect(decidirPolitica(capa, { ...base, ahoraH: 13 })).toBe("aplicar");
@@ -167,19 +152,11 @@ describe("sanearPolitica: nada roto llega al motor", () => {
     expect(p.servicios.modo).toBe("manual");
     expect(Object.keys(p)).toEqual(CAPAS_ORDEN);
   });
-<<<<<<< HEAD
-=======
-
->>>>>>> 25f4c6ba0 (salvavidas · RTTRD1020C: trabajo del agente antes de las puertas (tsc / vitest))
   it("sanear una entrada nula deja las seis capas en orden y en manual", () => {
     const p = sanearPolitica(null);
     expect(Object.keys(p)).toEqual(CAPAS_ORDEN);
     for (const capa of CAPAS_ORDEN) expect(p[capa].modo).toBe("manual");
   });
-<<<<<<< HEAD
-=======
-
->>>>>>> 25f4c6ba0 (salvavidas · RTTRD1020C: trabajo del agente antes de las puertas (tsc / vitest))
   it("sanear conserva una ventana válida que cruza la medianoche", () => {
     const modelos = sanearPolitica({ modelos: { modo: "programada", ventana: { desdeH: 22, hastaH: 4 } } }).modelos;
     expect(modelos).toEqual({ modo: "programada", ventana: { desdeH: 22, hastaH: 4 } });
