@@ -24,6 +24,8 @@ import {
   type ScreenElement,
 } from "./screen-scanner";
 import { hide as hideOverlayBadges, highlight, showBadges } from "./screen-overlay";
+import { anunciarAccion, puedeActuar } from "@/lib/mausbot/cursor-agente";
+import { thisDeviceId } from "@/lib/neurons/neurons";
 
 /** Resultado honesto de una acción de pantalla (frase decible). */
 export interface ScreenActionOutcome {
@@ -195,6 +197,20 @@ export function clickElement(idOrName: unknown): ScreenActionOutcome {
   if (!item) return fail(error ?? `No encuentro ese botón. ${HINT}`);
   const el = item.el;
   try {
+    const rect = el.getBoundingClientRect();
+    anunciarAccion({
+      tipo: "click",
+      rect,
+      etiqueta: item.label,
+    });
+    const puede = puedeActuar({
+      deviceId: thisDeviceId(),
+      nivel: "proponer",
+      reversible: true,
+    });
+    if (!puede.permitido) {
+      return fail(puede.motivo);
+    }
     if ((el as HTMLButtonElement).disabled === true) {
       return fail(`«${item.label}» está desactivado ahora mismo.`);
     }
@@ -416,44 +432,63 @@ export function typeInto(idOrName: unknown, texto: unknown): ScreenActionOutcome
   if (!text.trim()) return fail("¿Qué texto quieres que escriba?");
   const { item, error } = resolveTarget(idOrName);
   if (!item) return fail(error ?? `No encuentro ese campo. ${HINT}`);
-  const field = editableFrom(item.el);
-  if (!field) return fail(`«${item.label}» no es un campo de texto. ${HINT}`);
+  const el = item.el;
   try {
-    try { field.scrollIntoView({ block: "center", inline: "nearest" }); } catch { /* noop */ }
-    highlight(field);
-    try { field.focus({ preventScroll: true }); } catch { /* noop */ }
-
-    if (field instanceof HTMLSelectElement) {
-      const wanted = normalizeText(text);
-      const options = Array.from(field.options);
-      const opt =
-        options.find((o) => normalizeText(o.label || o.text) === wanted || normalizeText(o.value) === wanted) ||
-        options.find((o) => normalizeText(o.label || o.text).includes(wanted));
-      if (!opt) return fail(`No encontré la opción «${clip(text, 40)}» en «${item.label}».`);
-      field.value = opt.value;
-      fireInput(field, opt.value);
-      return ok(`Elegí «${opt.label || opt.text}» en «${item.label}».`, { numero: item.id, nombre: item.label });
+    const rect = el.getBoundingClientRect();
+    anunciarAccion({
+      tipo: "type",
+      rect,
+      etiqueta: item.label,
+    });
+    const puede = puedeActuar({
+      deviceId: thisDeviceId(),
+      nivel: "proponer",
+      reversible: true,
+    });
+    if (!puede.permitido) {
+      return fail(puede.motivo);
     }
+    const field = editableFrom(item.el);
+    if (!field) return fail(`«${item.label}» no es un campo donde se pueda escribir. ${HINT}`);
+    try {
+      try { field.scrollIntoView({ block: "center", inline: "nearest" }); } catch { /* noop */ }
+      highlight(field);
+      try { field.focus({ preventScroll: true }); } catch { /* noop */ }
 
-    if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
-      if (field instanceof HTMLInputElement) {
-        const t = (field.type || "text").toLowerCase();
-        if (t === "checkbox" || t === "radio") {
-          return fail(`«${item.label}» es una casilla; dime «pulsa ${item.id}» para marcarla.`);
-        }
+      if (field instanceof HTMLSelectElement) {
+        const wanted = normalizeText(text);
+        const options = Array.from(field.options);
+        const opt =
+          options.find((o) => normalizeText(o.label || o.text) === wanted || normalizeText(o.value) === wanted) ||
+          options.find((o) => normalizeText(o.label || o.text).includes(wanted));
+        if (!opt) return fail(`No encontré la opción «${clip(text, 40)}» en «${item.label}».`);
+        field.value = opt.value;
+        fireInput(field, opt.value);
+        return ok(`Elegí «${opt.label || opt.text}» en «${item.label}».`, { numero: item.id, nombre: item.label });
       }
-      setNativeValue(field, text);
-      fireInput(field, text);
-      return ok(`Escribí «${clip(text, 60)}» en «${item.label}».`, { numero: item.id, nombre: item.label });
-    }
 
-    if (field.isContentEditable) {
-      field.textContent = text;
-      fireInput(field, text);
-      return ok(`Escribí «${clip(text, 60)}» en «${item.label}».`, { numero: item.id, nombre: item.label });
-    }
+      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+        if (field instanceof HTMLInputElement) {
+          const t = (field.type || "text").toLowerCase();
+          if (t === "checkbox" || t === "radio") {
+            return fail(`«${item.label}» es una casilla; dime «pulsa ${item.id}» para marcarla.`);
+          }
+        }
+        setNativeValue(field, text);
+        fireInput(field, text);
+        return ok(`Escribí «${clip(text, 60)}» en «${item.label}».`, { numero: item.id, nombre: item.label });
+      }
 
-    return fail(`«${item.label}» no es un campo de texto. ${HINT}`);
+      if (field.isContentEditable) {
+        field.textContent = text;
+        fireInput(field, text);
+        return ok(`Escribí «${clip(text, 60)}» en «${item.label}».`, { numero: item.id, nombre: item.label });
+      }
+
+      return fail(`«${item.label}» no es un campo de texto. ${HINT}`);
+    } catch {
+      return fail(`No pude escribir en «${item.label}».`);
+    }
   } catch {
     return fail(`No pude escribir en «${item.label}».`);
   }
