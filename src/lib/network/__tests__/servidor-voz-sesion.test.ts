@@ -4,7 +4,7 @@ import {
   LATIDO_MAX_MS,
   RAM_MIN_HABLA_MB,
   type EntradaServidorVozSesion,
-} from "./servidor-voz-sesion";
+} from "../servidor-voz-sesion";
 import type { CapacidadesNodo } from "../capacidades-nodo";
 
 const AHORA = 1_000_000;
