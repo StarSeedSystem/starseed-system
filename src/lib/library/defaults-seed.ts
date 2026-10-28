@@ -72,7 +72,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 21;
+export const SEED_VERSION = 22;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -336,6 +336,34 @@ const RECOMMENDED_HASTA_16: string[] = [
 ];
 
 /**
+ * (SEED_VERSION 22 · Ola 1020T) LAS OCHO «SIEMPRE» DE LA 3.ª TANDA — los ids
+ * con `preinstalar: "siempre"` de config/repos-libreria-1020c.json que el
+ * cargador sí dejó pasar (lib-penpot cae porque ya existe iatool-penpot).
+ * Instalar cada una SOLO registra su ficha, su enlace o su conector. Las
+ * «manual» (Trail Code, img2threejs, Paperclip, Magnitude, ArtCraft) NO se
+ * siembran: ejecutan código o piden claves en la máquina de la persona
+ * (contrato de la cabecera y §2 de architecture/repos-libreria-1020c.md).
+ *    · lib-openworker  → compañero de trabajo con IA de escritorio (beta).
+ *    · lib-openwhispr  → dictado por voz de escritorio (local o nube).
+ *    · lib-pocketbase  → backend en un binario (SQLite, tiempo real, archivos).
+ *    · lib-openmaic    → aulas interactivas multiagente (educación).
+ *    · lib-chatwoot    → buzón público de atención (no es mensajería del OS).
+ *    · lib-excalidraw  → pizarra como componente React (Protomolécula/notas).
+ *    · lib-nextcloud   → instalador oficial de Nextcloud (servidores propios).
+ *    · lib-supra-tex   → 3D con textura PBR desde una imagen (Protomolécula).
+ */
+const RECOMMENDED_1020C: string[] = [
+  "lib-openworker",
+  "lib-openwhispr",
+  "lib-pocketbase",
+  "lib-openmaic",
+  "lib-chatwoot",
+  "lib-excalidraw",
+  "lib-nextcloud",
+  "lib-supra-tex",
+];
+
+/**
  * (SEED_VERSION 17 · Ola 1025R) LA TANDA DEL 2026-10-25: «absolutamente todas las repos y habilidades deben ser
  * integradas en la librería preinstaladas y autoactualizadas» (Alex). Los ids salen de
  * `config/repos-libreria-1025.json` (módulo puro `repos-1025.ts`): las 26 fichas nuevas con
@@ -363,9 +391,23 @@ const RECOMMENDED_HASTA_16: string[] = [
  * `config/repos-libreria-1028.json` (módulo puro `repos-1028.ts`). Instalar SOLO registra el enlace;
  * LEANN corre en el servidor de cerebro (hoy el A1) en 127.0.0.1:4495 con token, y la activación
  * la decide la persona, explicada en `aviso`.
+ *
+ * (SEED_VERSION 22 · Ola 1020T · RLB1020L) LAS OCHO «SIEMPRE» DE LA 3.ª TANDA,
+ * DEL 2026-10-20: OpenWorker, OpenWhispr, PocketBase, OpenMAIC, Chatwoot,
+ * Excalidraw, Nextcloud y SUPRA-Tex, con `preinstalar: "siempre"` en
+ * `config/repos-libreria-1020c.json`. Instalar SOLO registra su ficha, su
+ * enlace o su conector (servidor levantado por Alex y endpoint pegado a mano
+ * en el Hub): cero descarga, cero ejecución de código, cero ruta abierta y
+ * cero clave durante la siembra. `lib-penpot` NO se siembra: el cargador
+ * (src/lib/library/repos-externos-1020.ts) no le crea ficha porque ya existe
+ * `iatool-penpot` (sembrado desde la versión 15); Penpot se profundiza en su
+ * conector sin duplicar. Las «manual» (Trail Code, img2threejs, Paperclip,
+ * Magnitude, ArtCraft) NO entran: instalan programas en la máquina o piden
+ * claves de pago. Excluida por seguridad: open-kritt (ni siquiera entra al
+ * catálogo).
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
-  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028]),
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...RECOMMENDED_1020C]),
 );
 
 /**
