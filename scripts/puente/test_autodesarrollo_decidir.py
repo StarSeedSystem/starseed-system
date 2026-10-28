@@ -420,6 +420,39 @@ class Ola1025STest(unittest.TestCase):
         self.assertNotEqual(D.firma(ajustes()), "1|1|1|0,75|2")  # la de la Ola 1024I: lo firmado con ella se revisa
 
 
+class FamiliaYVariantesTest(unittest.TestCase):
+    """Ola 1028I · IMG1028B: la misma idea repetida por archivo se decide una sola vez."""
+    TITULOS = [
+        "Optimización ARM NEON para Dockerfile", "Optimización ARM NEON para IDEA.md",
+        "Optimización ARM NEON para setup_autostart.sh", "Optimización ARM NEON para tunnel_monitor.sh",
+        "Optimización ARM NEON para tunnel_watchdog.sh", "Optimización ARM NEON para install_and_run.sh",
+    ]
+
+    def test_familia_sin_el_archivo_final(self):
+        familias = {D.familia({"titulo": t}) for t in self.TITULOS}
+        self.assertEqual(familias, {"optimizacion arm neon para"})
+        self.assertNotEqual(D.familia({"titulo": self.TITULOS[0]}),
+                            D.familia({"titulo": "Optimización de memoria ARM para Dockerfile"}))
+
+    def test_agrupa_la_misma_fuente_y_familia_y_nada_mas(self):
+        a = {"id": "a", "fuente": "astraura", "titulo": self.TITULOS[0], "estado": "esperando-aprobacion"}
+        b = {"id": "b", "fuente": "astraura", "titulo": self.TITULOS[1], "estado": "pregunta"}
+        otra_fuente = {"id": "c", "fuente": "diaria", "titulo": self.TITULOS[2], "estado": "nueva"}
+        otra_familia = {"id": "d", "fuente": "astraura", "titulo": "Arreglar otra cosa", "estado": "nueva"}
+        self.assertEqual([(p["id"], prim["id"]) for p, prim in D.agrupar([a, b, otra_fuente, otra_familia])],
+                         [("b", "a")])
+
+    def test_una_descartada_nunca_lleva_un_motivo_de_pregunta(self):
+        vieja = {"id": "x", "fuente": "astraura", "titulo": "X", "estado": "descartada",
+                 "motivo": "ninguno de los archivos citados existe hoy → pregunta"}
+        vieja.update(D.arreglo_de_estado(vieja))
+        self.assertEqual(vieja["estado"], "pregunta")
+        duplicada = dict(vieja, estado="descartada", motivo="sin verbo de acción → pregunta",
+                         duplicada_de="astraura:b")
+        duplicada.update(D.arreglo_de_estado(duplicada))
+        self.assertEqual((duplicada["estado"], duplicada["motivo"]), ("descartada", "duplicada de astraura:b"))
+
+
 class TokenSoloComoCredencial(unittest.TestCase):
     """Ola 1025S: «token» a secas marcaba «de Alex» una tarea de seguridad del sueño diario («quitar ese
     token» del sandbox del iframe). Solo cuenta como credencial con su contexto."""

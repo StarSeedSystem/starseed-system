@@ -170,6 +170,7 @@ def _aplicar(p, dest, ahora_iso, firma=None):
     """Aplica un destino; la reimaginación automática lleva la crítica y lo aprobado solo, quién y cuándo."""
     antes = p.get("estado")
     p.update(aprobacion_diff=dest["aprobacion_diff"], motivo_destino=dest["motivo"])
+    if dest["destino"] == "descartada": p["motivo"] = dest["motivo"]  # estado y motivo, sin contradecirse
     if dest["destino"] == "reimaginando": AR.pedir(p, dest["notas"], p.get("referencias") or [], "automatica", ahora_iso)
     else: p["estado"] = dest["destino"]
     if dest["destino"] == "aprobada": p.update(aprobada_por="automatica", decidida=ahora_iso)
@@ -191,24 +192,56 @@ def _en_vuelo_automatico(propuestas):
                and (p.get("reimaginacion") or {}).get("por") != "alex" and not (p.get("reimaginacion") or {}).get("recibida"))
 
 
+def _arreglar_estados(propuestas, iso):
+    """Un estado y su motivo no pueden contradecirse: una descartada vieja que solo decía «→ pregunta»
+    se explica por qué se descartó o vuelve a «pregunta». Devuelve cuántas arregló."""
+    n = 0
+    for p in propuestas:
+        arreglo = AD.arreglo_de_estado(p)
+        if not arreglo: continue
+        antes = p.get("estado"); p.update(arreglo)
+        if p.get("estado") != antes: p["t"] = iso
+        n += 1
+    return n
+
+
+def _agrupar_familias(propuestas, iso):
+    """La misma idea repetida por archivo no crea otra decisión: la nueva se añade a `variantes` de la
+    primera y queda «agrupada» (sin contar en «por decidir»). Devuelve cuántas agrupó."""
+    n = 0
+    for p, prim in AD.agrupar(propuestas):
+        variantes = prim.setdefault("variantes", [])
+        if p.get("id") and not any(v.get("id") == p.get("id") for v in variantes) and len(variantes) < AD.MAX_VARIANTES:
+            variantes.append({"id": p.get("id"), "titulo": p.get("titulo"), "archivos": AD._archivos(p)[:3]})
+        prim["n_variantes"] = len(variantes)
+        p.update(estado="agrupada", agrupada_en=prim.get("id"), t=iso,
+                 motivo_destino="misma idea que %s con otro archivo: la decides una sola vez" % prim.get("id"))
+        n += 1
+    return n
+
+
 def _decidir_lote(previas, nuevas, aj, existe, consejo, iso, firma):
-    """Decide lo nuevo y, con el botón encendido, lo pendiente con otra firma; antes, las duplicadas. Las
-    reimaginaciones automáticas nuevas tienen tope por ciclo y en vuelo (las de más importancia y más
-    recientes primero); lo que no cabe se aplaza. Devuelve el reparto de lo decidido."""
+    """Decide lo nuevo y, con el botón encendido, lo pendiente con otra firma; antes, las duplicadas y
+    las variantes de una misma familia. Las reimaginaciones automáticas nuevas tienen tope por ciclo y
+    en vuelo (las de más importancia y más recientes primero); lo que no cabe se aplaza."""
     reparto, candidatas = Counter(), []
     for p in nuevas:
         if p["id"] in previas: continue
         AR.enlazar(p, previas, iso)  # una versión reimaginada: v n+1 y la vieja pasa a «reimaginada»
         p.setdefault("estado", "nueva")
         previas[p["id"]] = p; candidatas.append(p)
+    _arreglar_estados(previas.values(), iso)
     if firma:  # el botón encendido (o cambiado) también decide lo que ya esperaba en la lista
         for p, queda in AD.duplicadas(list(previas.values())):
             _aplicar(p, {"destino": "descartada", "aprobacion_diff": False, "notas": "", "motivo": "duplicada de %s" % queda}, iso, firma)
             p["duplicada_de"] = queda; reparto["duplicadas"] += 1
+    agrupadas = _agrupar_familias(previas.values(), iso)
+    if agrupadas: reparto["agrupadas"] += agrupadas
+    if firma:
         ya = {id(p) for p in candidatas}
         candidatas += [p for p in previas.values() if id(p) not in ya and p.get("estado") in REVISABLES
                        and p.get("fuente") in AD.FUENTES_AUTO and p.get("auto_firma") != firma]
-    evaluadas = [(p, _evaluar(p, aj, existe, consejo)) for p in candidatas if p.get("estado") != "descartada"]
+    evaluadas = [(p, _evaluar(p, aj, existe, consejo)) for p in candidatas if p.get("estado") not in ("descartada", "agrupada")]
     cupo = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - _en_vuelo_automatico(previas.values())))
     turno = {id(p) for p in AD.orden_reimaginar([p for p, d in evaluadas if d["destino"] == "reimaginando"])[:cupo]}
     for p, d in evaluadas:
