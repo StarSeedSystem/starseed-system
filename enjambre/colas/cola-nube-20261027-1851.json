@@ -1,0 +1,115 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "MBT1027C",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Mausbot · configuración por cuenta, perfil y neurona (apagado por defecto)",
+   "archivos": [
+    "src/lib/mausbot/config.ts",
+    "src/lib/mausbot/__tests__/config.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nCrea `ConfigMausbot` del contrato §3 (`v:1`, `encendido` false por defecto, `modo` «cursor»|«acompanante»|«ambos» (por defecto «acompanante»), `disenoPorDefecto` «fabrica-cursor», `porPersonalidad`, `actuar: NivelBot` de `src/lib/astraura-bots/permisos.ts` (por defecto «proponer»), `perfiles` y `neuronas` con lo que cambie cada uno). Clave `CLAVE_MAUSBOT = \"starseed.mausbot.v1\"`, evento `EVENTO_MAUSBOT = \"starseed:mausbot\"`, `leerConfigMausbot()`, `guardarConfigMausbot(patch)`, `resolverMausbot({perfilId, neuronaId})` (neurona > perfil > cuenta, como `resolverPantallaInicial` de `src/lib/inicio/pantalla-inicial.ts`) y `disenoParaPersonalidad(cfg, personaId)`. Lectura defensiva (JSON roto → por defecto) y `try/catch` en localStorage. Prueba de todo lo anterior."
+  },
+  {
+   "id": "INS1027F",
+   "ola": "1027I · Neurona insomne",
+   "titulo": "MetaGenesis · una neurona insomne suma estabilidad para liderar y recibir préstamos",
+   "archivos": [
+    "scripts/puente/nodo_metagenesis_logica.py",
+    "scripts/puente/test_nodo_metagenesis_logica.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «funcionamiento nativo para las neuronas compatibles de sus capacidades siempre disponibles aun con las pantallas cerradas, incluyendo agentes y procesos programados en segundo plano y la actividad de la red mesh P2P compartida inteligentemente por la red StarSeed, para potenciarlas como servidores completos» (krishhgg/Insomnia, MIT). Contrato: `architecture/neurona-insomne.md` (léelo entero). El OS LEE el estado de Insomnia; nunca ejecuta `pmset` ni usa su regla de sudoers.\n\nDonde se calculan los puntos de un nodo (mira `elegir_lider` y quién llama a `_clave_mejor`), una neurona con sesión insomne vigente suma los puntos de estabilidad que se definan en una constante `PUNTOS_INSOMNE` (por debajo del A1 siempre encendido: el relevo ordenado de `MARGEN_RELEVO` no debe dispararse solo por estar insomne). Pruebas."
+  },
+  {
+   "id": "CLB1027A",
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "titulo": "Capas · el catálogo acepta la capa «juicio» y el runtime «colibri»",
+   "archivos": [
+    "src/lib/astraura/capas/catalogo.ts",
+    "src/lib/astraura/capas/__tests__/catalogo-colibri.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\nAñade `\"juicio\"` a `Capa`, `\"colibri\"` a `RuntimeCapa` (y a `RUNTIMES`), `\"safetensors\"` a `FormatoCapa`, `\"por-verificar\"` a `EstadoCapa`, y campos opcionales `streaming_disco?: boolean` y `ram_ok_mb?: number` en `EntradaCapa`. `usable()` devuelve false si el estado es «por-verificar» o no hay `sha256` (regla: ninguna capa sin su SHA). Revisa que nada que haga `switch` sobre `Capa` se rompa (busca usos). Prueba: una entrada colibri por-verificar se lee pero no es usable."
+  },
+  {
+   "id": "CLB1027D",
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "titulo": "Jev · varios extremos locales de /v1/systemone (Laya y Colibri), el más rápido que responda",
+   "archivos": [
+    "scripts/puente/jev.py",
+    "scripts/puente/test_jev_locales.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\n`STARSEED_SYSTEMONE_LOCALES` (lista separada por comas; por defecto `http://127.0.0.1:4470/v1/systemone,http://127.0.0.1:4480/v1/systemone`; `STARSEED_LAYA_URL` sigue valiendo y va primero si está). `decidir_con_laya` prueba cada uno con su tope (1,5 s) y se queda el primero que contesta; anota en `motor` «laya-local» o «colibri-local» según el puerto (4480 → colibri) y recuerda 10 min cuál respondió más rápido para probarlo primero. No cambies OpenRouter ni la regla. Pruebas con un transporte falso, sin red."
+  },
+  {
+   "id": "CLB1027E",
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "titulo": "Colibri · qué modelos caben en cada neurona y cómo se instalarían (sin ejecutar nada)",
+   "archivos": [
+    "scripts/puente/colibri_nodo.py",
+    "scripts/puente/test_colibri_nodo.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\nPURO salvo `main`: `caben(entradas, ram_gb, disco_libre_gb, presion_alta)` → por cada entrada de `config/capas-colibri-1027.json`: «cabe» / «cabe en streaming (disco rápido)» / «no cabe» con el porqué (RAM mínima, disco, presión); `plan_instalacion(id, carpeta)` → la lista de órdenes (clonar la etiqueta `v2.0.0`, `./start-here.sh --model <id> --dir <carpeta> --yes --no-gpu` en el A1, servir con `--host 127.0.0.1 --port 4480`) como LISTA de argumentos, sin ejecutarlas. `main --plan` imprime el plan de esta máquina; nunca descarga. Pruebas con el A1 (12 GB, 18,5 GB libres → Laya y GLiNER sí, Qwen3-Coder no) y la Mac (8 GB con presión → ninguno)."
+  },
+  {
+   "id": "FSH1018Q",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Astraura · habilidad de Shaders: crear un fondo describiéndolo",
+   "archivos": [
+    "src/ai/astraura/habilidades/shaders.ts",
+    "src/ai/astraura/habilidades/__tests__/shaders.test.ts"
+   ],
+   "depende": [],
+   "prompt": "A partir de vendor/habilidades/shaders/SKILL.md y components.md (MIT): tarjeta (≤ 60 palabras), resumen (≤ 120) y `presetDesdeRespuesta(texto)` que extrae y valida con sets-fondo.ts el JSON de preset que devuelva un modelo (rechaza types que no existan en el catálogo y cámara). Misma forma que las tarjetas de LYS1018I. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018C",
+    "LYS1018I"
+   ]
+  },
+  {
+   "id": "LYS1018C",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · consenso con las decisiones básicas de 1,58 bits (BitNet, Bonsai, Needle)",
+   "archivos": [
+    "src/lib/astraura/laya/consenso.ts",
+    "src/lib/astraura/laya/__tests__/consenso.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `consensuar({ pequeno: { respuesta, confianza? , motor }, laya: { respuesta, answer_confidence } | null, umbral })` → { decision, quien: \"ambos\"|\"laya\"|\"pequeno\"|\"ninguno\", accion: \"aceptar\"|\"escalar\", motivo }. Si coinciden → aceptar; si no coinciden, manda Laya solo con confianza ≥ umbral; si Laya no llegó a tiempo, se acepta lo pequeño solo si su confianza ≥ umbral; si no, escalar. Pruebas de las cuatro ramas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "LYS1018M",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · aprende de cada decisión y recalibra su umbral por punto y ámbito",
+   "archivos": [
+    "src/lib/astraura/laya/aprendizaje-laya.ts",
+    "src/lib/astraura/laya/__tests__/aprendizaje-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `anotar(registro, { punto, ambito, p, donde, ms, resultado: \"aceptada\"|\"corregida\"|\"escalada\", privado, estado })` guarda el estado SOLO como huella si es privado; `umbralRecalibrado(registro, punto, ambito)` devuelve el umbral que minimiza correcciones con ≥ 30 casos (si hay menos: el del catálogo); `exportarJSONL` saca los casos no privados en el formato del cuaderno de afinado de Laya. Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1026-120201.json": [
+   "MBT1027C",
+   "CLB1027E",
+   "CLB1027A",
+   "LYS1018M",
+   "CLB1027D",
+   "FSH1018Q",
+   "LYS1018C",
+   "INS1027F"
+  ]
+ }
+}
