@@ -3,6 +3,8 @@
 // inyecta `deps` (versión, presencia de navegador y FFmpeg, lint, editar, vista y la cola de render).
 // La telemetría de HyperFrames va siempre apagada (HYPERFRAMES_NO_TELEMETRY=1 lo pone el servidor).
 
+import { proyectoValido, validarArgs } from "./cola-render.mjs";
+
 export const LIMITE_CUERPO_BYTES = 8 * 1024 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const TIPOS_ORDEN = new Set(["setText", "setStyle", "setTiming", "setAttribute", "setVariableValue"]);
@@ -93,8 +95,16 @@ export async function manejar({ metodo, ruta, cuerpo } = {}, deps = {}) {
     return seguro(async () => { const v = await deps.vista(vista[1]); return v ? r(200, v) : fallo(404, "composición no encontrada"); });
   }
   if (m === "POST" && camino === "/render") {
-    if (!cuerpo || typeof cuerpo.composicion !== "string") return fallo(400, "falta la composición (HTML)");
+    // Un trabajo de la cola es { proyecto, args }: se valida con las MISMAS reglas que `encolar`
+    // (proyecto relativo y argumentos en lista con solo flags de la lista blanca) antes de encolarlo.
+    const conTrabajo = Boolean(cuerpo) && (cuerpo.proyecto !== undefined || cuerpo.args !== undefined);
+    if (!conTrabajo && (!cuerpo || typeof cuerpo.composicion !== "string")) return fallo(400, "falta la composición (HTML)");
     if (!deps.cola || typeof deps.cola.encolar !== "function") return fallo(503, "sin cola de render en esta neurona");
+    if (conTrabajo) {
+      const motivo = proyectoValido(cuerpo.proyecto) ?? validarArgs(cuerpo.args);
+      if (motivo) return fallo(400, motivo);
+      return seguro(async () => r(202, { id: await deps.cola.encolar({ proyecto: cuerpo.proyecto, args: [...cuerpo.args] }) }));
+    }
     return seguro(async () => r(202, { id: await deps.cola.encolar({ composicion: cuerpo.composicion, formato: cuerpo.formato ?? "mp4" }) }));
   }
   const trabajo = m === "GET" && camino.match(/^\/trabajos\/([^/]+)$/);

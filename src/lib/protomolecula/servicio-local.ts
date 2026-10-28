@@ -7,6 +7,7 @@
  */
 import { decidir } from "./permisos";
 import type { Ambito, Origen, Rol } from "./tipos";
+import { FLAGS_PERMITIDOS, proyectoValido, validarArgs } from "../../../servicios/hyperframes/src/cola-render.mjs";
 export interface DefinicionServicio { id: string; nombre: string; puerto: number; rutaSalud: string; maxBytes?: number; tiempoMs?: number;
   /** NOMBRE de la variable que guarda el token (p. ej. «COMFYUI_TOKEN»), nunca su valor. */ variableToken?: string }
 interface LectorBytes { read(): Promise<{ done: boolean; value?: Uint8Array }>; cancel(): Promise<void> }
@@ -61,7 +62,21 @@ async function pedir(def: DefinicionServicio, ruta: string, cuerpo: unknown, f: 
   const tapar = (s: string) => (token ? s.split(token).join("•••") : s), donde = () => `${def.id} ${metodo} ${tapar(ruta).slice(0, 80)}`;
   const fallo = (tipo: FalloServicio, motivo: string): ResultadoServicio => { o.registrar?.(tapar(`${donde()} · ${tipo}: ${motivo}`));
     return { ok: false, fallo: tipo, motivo: tapar(motivo), ms: reloj.ahora() - t0 }; };
-  const malo = validarDefinicion(def) ?? (RUTA.test(ruta) ? null : `La ruta «${ruta.slice(0, 80)}» no es una ruta local válida.`);
+  // La cola de render de HyperFrames recibe trabajos { proyecto, args }: se comprueban aquí, antes
+  // de salir de la neurona, con las mismas reglas del módulo puro de la cola.
+  let trabajoMalo: string | null = null;
+  if (def.id === "hyperframes" && ruta === "/render" && cuerpo && typeof cuerpo === "object"
+      && ("proyecto" in cuerpo || "args" in cuerpo)) {
+    const c = cuerpo as { proyecto?: unknown; args?: unknown };
+    const lista = Array.isArray(c.args) ? c.args : [];
+    const bandera = lista.find((a) => typeof a === "string" && a.startsWith("-") && !FLAGS_PERMITIDOS.includes(a.split("=")[0]));
+    trabajoMalo = bandera
+      ? `flag no permitido: ${String(bandera).split("=")[0].slice(0, 20)}`
+      : proyectoValido(c.proyecto) ?? validarArgs(c.args);
+  }
+  const malo = validarDefinicion(def)
+    ?? trabajoMalo
+    ?? (RUTA.test(ruta) ? null : `La ruta «${ruta.slice(0, 80)}» no es una ruta local válida.`);
   if (malo) return fallo("definicion", malo);
   const url = new URL(`http://127.0.0.1:${def.puerto}${ruta}`);
   if (url.hostname !== "127.0.0.1" || Number(url.port || 80) !== def.puerto) return fallo("definicion", "Solo se llama a servicios de 127.0.0.1 de esta neurona.");
