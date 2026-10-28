@@ -1,0 +1,59 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "IMN1021K7",
+   "ola": "1021I",
+   "titulo": "Imaginación · los mensajes de la imaginación profunda dicen «Imaginación»",
+   "archivos": [
+    "scripts/puente/director_suenos.py",
+    "scripts/puente/test_director_suenos.py",
+    "scripts/puente/suenos.py"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO los textos que leen personas (resumen, informe, canal, Telegram, ayuda): «Sueños profundos» → «Imaginación profunda», «sueño» → «sesión de imaginación». Los nombres de archivos, comandos, carpetas (`dream/profundo`) y el prefijo `cola-suenos-` NO cambian. Ajusta las pruebas solo en esos textos. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  },
+  {
+   "id": "HFR1018M",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Astraura · herramienta de agente `video.componer` desde cualquier chat",
+   "archivos": [
+    "src/lib/video-html/herramienta-componer.ts",
+    "src/lib/protomolecula/accion-agente.ts",
+    "src/lib/video-html/__tests__/herramienta-componer.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`componerVideo({ pedido, duracion, formato, voz? })` PURO que prepara la composición desde plantillaStarSeed y devuelve { html, avisos, siguiente: \"lint\" | \"render\" }; nunca usa GSAP; si el pedido trae texto para narrar, pide la voz a la puerta única de voz (solo devuelve la petición, no llama). En accion-agente.ts añade la acción `video.componer` con el mismo patrón que las demás (solo añadir). Pruebas. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "HFR1018C"
+   ],
+   "dependencias_ya_en_main": [
+    "HFR1018D"
+   ]
+  },
+  {
+   "id": "FSH1018O",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Protomolécula y lienzo · átomo «fondo» para crear y editar sets de fondos",
+   "archivos": [
+    "src/lib/protomolecula/atomos/fondo-shader.ts",
+    "src/lib/protomolecula/atomos/index.ts",
+    "src/lib/protomolecula/__tests__/atomo-fondo-shader.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Patrón `DefinicionAtomo`: herramientaId \"shaders\", parámetros (efecto, props del catálogo, capas, difusión, alcance), salida un `SetFondo`. Plan PURO; regístralo en index.ts (solo añadir la línea). Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018C",
+    "FSH1018D",
+    "HFR1018D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "HFR1018M",
+   "FSH1018O",
+   "IMN1021K7"
+  ]
+ }
+}
