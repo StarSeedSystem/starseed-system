@@ -36,10 +36,17 @@ class SondaCloudroom(unittest.TestCase):
             os.makedirs(bin_dir)
             ruta = os.path.join(bin_dir, "room-cli")
             open(ruta, "w").close()
-            with patch("os.path.expanduser", return_value=casa):
-                with patch("os.path.isfile", return_value=True):
+            def expanduser_mock(path):
+                if path == "~/.local/bin/room-cli":
+                    return ruta
+                return os.path.expanduser(path)
+            with patch("os.path.expanduser", side_effect=expanduser_mock):
+                with patch("os.path.isfile", lambda p: p == ruta):
                     self.assertEqual(cli_path({}, which=lambda _: None), ruta)
-            self.assertIsNone(cli_path({}, which=lambda _: None) or None)
+        # Sin archivo en ~/.local/bin -> cadena vacía
+        with patch("os.path.expanduser", return_value="/nonexistent/.local/bin/room-cli"):
+            with patch("os.path.isfile", return_value=False):
+                self.assertEqual(cli_path({}, which=lambda _: None), "")
 
     def test_sin_room_cli_no_ejecuta_nada(self):
         d = sondear(env={}, run=lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()))
