@@ -50,6 +50,9 @@ describe("ajustes · Mausbot como variación pública", () => {
       .toEqual({ actuar: "proponer", modo: "ambos" });
     expect(sanearParcheMausbot({ actuar: "aplicar-bajo" })).toEqual({ actuar: "proponer" });
     expect(sanearParcheMausbot({ actuar: "nada" })).toEqual({ actuar: "nada" });
+    // Lo que no es un objeto plano pasa tal cual: sanealo solo tiene sentido en un parche.
+    expect(sanearParcheMausbot(["perfiles"])).toEqual(["perfiles"]);
+    expect(sanearParcheMausbot("mausbot")).toBe("mausbot");
     const r = validarParcheAjustes({ mausbot: { actuar: "aplicar", perfiles: { p: { encendido: false } }, neuronas: { n: {} } } });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.parche.mausbot).toEqual({ actuar: "proponer" });
