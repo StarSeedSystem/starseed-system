@@ -16,6 +16,20 @@ const baseOferta = (o: Partial<OfertaNeurona> = {}): OfertaNeurona => ({
   ...o,
 });
 
+const basePeticion = (o: Partial<PeticionBolsa> = {}): PeticionBolsa => ({
+  id: "p1",
+  contexto: { tipo: "cuenta", id: "cuentaA", privado: false },
+  partes: [{ clase: "computo", necesita: { ramMb: 256 } }],
+  ...o,
+});
+
+const ofertaPublica = (nodoId: string, cuentaId = "cuentaB"): OfertaNeurona =>
+  baseOferta({
+    nodoId,
+    cuentaId,
+    presta: { cuenta: false, grupos: [], publico: true, topes: { cpuPct: 50, ramMb: 1024, discoMb: 512, soloCargando: false } },
+  });
+
 describe("planificar", () => {
   it("privado descarta vecinos públicos y solo acepta misma cuenta", () => {
     const pet: PeticionBolsa = { id: "p2", contexto: { tipo: "cuenta", id: "cuentaA", privado: true }, partes: [{ clase: "bytes", necesita: { volumen: 100 } }] };
@@ -55,5 +69,112 @@ describe("planificar", () => {
       baseOferta({ nodoId: "n1", cuentaId: "cuentaA" }),
     ]);
     expect(res.porParte["computo"][0].destino).toBe("n1");
+  });
+
+  it("privado acepta oferta de la misma cuenta con presta.cuenta=true", () => {
+    const pet = basePeticion({ contexto: { tipo: "cuenta", id: "cuentaA", privado: true } });
+    const res = planificar(pet, [baseOferta({ nodoId: "n2", cuentaId: "cuentaA" })]);
+    expect(res.porParte["computo"].length).toBeGreaterThan(0);
+    expect(res.porParte["computo"][0].destino).toBe("n2");
+  });
+
+  it("no privado permite ofertas públicas", () => {
+    const res = planificar(basePeticion(), [ofertaPublica("n2")]);
+    expect(res.porParte["computo"].length).toBeGreaterThan(0);
+    expect(res.porParte["computo"][0].destino).toBe("n2");
+  });
+
+  it("sin latenciaMaxMs no filtra por latencia", () => {
+    const res = planificar(basePeticion(), [baseOferta({ enlaces: { subidaKbps: 100, bajadaKbps: 200, latenciaMs: { n1: 100 } } })]);
+    expect(res.porParte["computo"].length).toBeGreaterThan(0);
+  });
+
+  it("reglas.latenciaMaxMs se aplica como fallback", () => {
+    const res = planificar(basePeticion(), [baseOferta({ enlaces: { subidaKbps: 100, bajadaKbps: 200, latenciaMs: { n1: 15 } } })], { latenciaMaxMs: 10 });
+    expect(res.porParte["computo"].length).toBe(0);
+    expect(res.suelo).toBeDefined();
+  });
+
+  it("batería baja sin cargar descarta oferta ajena", () => {
+    const res = planificar(basePeticion(), [baseOferta({ ...ofertaPublica("n-baja"), energia: { bateriaPct: 10, cargando: false, enUso: false } })]);
+    expect(res.porParte["computo"].length).toBe(0);
+    expect(res.suelo).toBeDefined();
+  });
+
+  it("enUso=true descarta oferta ajena", () => {
+    const res = planificar(basePeticion(), [baseOferta({ ...ofertaPublica("n-enuso"), energia: { bateriaPct: 80, cargando: false, enUso: true } })]);
+    expect(res.porParte["computo"].length).toBe(0);
+    expect(res.suelo).toBeDefined();
+  });
+
+  it("suficiente RAM prestable pasa filtro", () => {
+    const pet = basePeticion({ partes: [{ clase: "computo", necesita: { ramMb: 512 } }] });
+    const res = planificar(pet, [baseOferta({ computo: { nucleos: 4, ramLibreMb: 2048, gpu: true, motores: [] } })]);
+    expect(res.porParte["computo"].length).toBeGreaterThan(0);
+    expect(res.porParte["computo"][0].destino).toBe("n1");
+  });
+
+  it("RAM insuficiente prestable falla y va a suelo", () => {
+    const pet = basePeticion({ partes: [{ clase: "computo", necesita: { ramMb: 4096 } }] });
+    const res = planificar(pet, [baseOferta({ computo: { nucleos: 4, ramLibreMb: 256, gpu: true, motores: [] } })]);
+    expect(res.porParte["computo"].length).toBe(0);
+    expect(res.suelo).toBeDefined();
+    expect(res.suelo!.falta.some((f) => f.includes("RAM"))).toBe(true);
+  });
+
+  it("GPU requerida filtra ofertas sin GPU", () => {
+    const pet = basePeticion({ partes: [{ clase: "computo", necesita: { ramMb: 256, gpu: true } }] });
+    const res = planificar(pet, [baseOferta({ computo: { nucleos: 4, ramLibreMb: 2048, gpu: false, motores: [] } })]);
+    expect(res.porParte["computo"].length).toBe(0);
+    expect(res.suelo).toBeDefined();
+  });
+
+  it("ventana requiere RAM prestable", () => {
+    const pet = basePeticion({ partes: [{ clase: "ventana", necesita: { ramMb: 1024 } }] });
+    const res = planificar(pet, [baseOferta({ computo: { nucleos: 4, ramLibreMb: 512, gpu: true, motores: [] } })]);
+    expect(res.porParte["ventana"].length).toBe(0);
+    expect(res.suelo).toBeDefined();
+  });
+
+  it("relevo requiere subidaKbps suficiente", () => {
+    const pet = basePeticion({ partes: [{ clase: "relevo", necesita: { kbps: 200 } }] });
+    const res = planificar(pet, [baseOferta({ enlaces: { subidaKbps: 100, bajadaKbps: 200, latenciaMs: {} } })]);
+    expect(res.porParte["relevo"].length).toBe(0);
+    expect(res.suelo).toBeDefined();
+  });
+
+  it("entre públicas, orden determinista por nodoId", () => {
+    const res = planificar(basePeticion(), [ofertaPublica("n2", "cuentaB"), ofertaPublica("n1", "cuentaC")]);
+    expect(res.porParte["computo"][0].destino).toBe("n1");
+  });
+
+  it("ofertas vacías va a suelo local", () => {
+    const res = planificar(basePeticion(), []);
+    expect(res.suelo).toBeDefined();
+    expect(res.suelo!.destino).toBe("local");
+  });
+
+  it("múltiples fuentes disponibles ramifica hasta 3", () => {
+    const res = planificar(basePeticion(), ["n1", "n2", "n3", "n4"].map((n) => ofertaPublica(n)));
+    expect(res.porParte["computo"].length).toBe(3);
+    expect(res.porParte["computo"].map((r) => r.destino)).toEqual(["n1", "n2", "n3"]);
+  });
+
+  it("petición con múltiples partes genera plan por cada una", () => {
+    const pet = basePeticion({ partes: [{ clase: "computo", necesita: { ramMb: 256 } }, { clase: "bytes", necesita: { volumen: 100 } }] });
+    const res = planificar(pet, [baseOferta()]);
+    expect(res.porParte["computo"].length).toBeGreaterThan(0);
+    expect(res.porParte["bytes"].length).toBeGreaterThan(0);
+    expect(res.suelo).toBeUndefined();
+  });
+
+  it("una parte falla y otra pasa: suelo solo para la que falla", () => {
+    const pet = basePeticion({ partes: [{ clase: "computo", necesita: { ramMb: 256 } }, { clase: "bytes", necesita: { volumen: 4096 } }] });
+    const res = planificar(pet, [baseOferta()]);
+    expect(res.porParte["computo"].length).toBeGreaterThan(0);
+    expect(res.porParte["bytes"].length).toBe(0);
+    expect(res.suelo).toBeDefined();
+    expect(res.suelo!.falta.some((f) => f.includes("bytes"))).toBe(true);
+    expect(res.suelo!.falta.some((f) => f.includes("computo"))).toBe(false);
   });
 });
