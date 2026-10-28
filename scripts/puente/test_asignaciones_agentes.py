@@ -29,6 +29,29 @@ class TestAsignacionesAgentes(unittest.TestCase):
         self.modelos_globales = ["modelo1", "modelo2", "modelo3"]
         self.starseed_opus_director = "1"
 
+    @unittest.expectedFailure
+    def test_raiz_por_defecto_es_la_del_repositorio(self):
+        """La raíz por defecto es la del repo: contiene CLAUDE.md y no es `scripts/`.
+
+        Fallo REAL (no es un archivo de esta tarea): en asignaciones_agentes.py:35
+        `RAIZ` sale como `scripts/` porque falta un nivel de `os.path.dirname`
+        (el módulo vive en `scripts/puente/`), y `RUTA_ASIGNACIONES` apunta a
+        `scripts/starseed_memory_root/...`, que nunca existe. Los demás tests no
+        lo pegan porque usan `patch` sobre `RUTA_ASIGNACIONES`. Arreglo: un
+        `os.path.dirname` más (o `os.path.dirname(RAIZ)`).
+        """
+        import asignaciones_agentes
+
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.assertEqual(os.path.abspath(asignaciones_agentes.RAIZ), repo)
+        self.assertTrue(os.path.isfile(os.path.join(repo, "CLAUDE.md")))
+        self.assertEqual(
+            asignaciones_agentes.RUTA_ASIGNACIONES,
+            os.path.join(
+                repo, "starseed_memory_root", "mando", "asignaciones-agentes.json"
+            ),
+        )
+
     def tearDown(self):
         """Limpiar el entorno de prueba."""
         import shutil
