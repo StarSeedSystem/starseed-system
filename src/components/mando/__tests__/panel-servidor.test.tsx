@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { PanelServidor } from "@/components/mando/panel-servidor";
-import type { EstadoServidorAstraura } from "@/lib/mando/servidor-astraura-tipos";
+import type { EstadoServidorAstraura, InsomneServidor } from "@/lib/mando/servidor-astraura-tipos";
+import { politicaInsomne, type CapacidadInsomne, type EstadoInsomne } from "@/lib/neurons/insomne";
 
 function fixtureEstado(): EstadoServidorAstraura {
     return {
@@ -52,6 +53,22 @@ function fixtureEstado(): EstadoServidorAstraura {
         ],
         avisos: [],
     };
+}
+
+/** Un estado insomne en una Mac compatible, sin sesión por defecto (INS1027G). */
+function insomneFijura(overrides: Partial<InsomneServidor> = {}): InsomneServidor {
+    const capacidad: CapacidadInsomne = {
+        proveedor: "insomnia",
+        disponible: true,
+        motivo: "Insomnia mantiene la Mac despierta con la tapa cerrada",
+    };
+    const estado: EstadoInsomne = {
+        activo: false,
+        hasta: null,
+        proveedor: "insomnia",
+        motivo: "Insomnia no está instalada o no tiene sesión",
+    };
+    return { capacidad, estado, politica: politicaInsomne(), soltarTrabajo: false, ...overrides };
 }
 
 describe("PanelServidor", () => {
@@ -189,5 +206,33 @@ describe("PanelServidor", () => {
         render(<PanelServidor />);
         await waitFor(() => expect(screen.getByText(/Máquinas/i)).toBeInTheDocument());
         expect(screen.queryByText(/ocid1.instance/)).not.toBeInTheDocument();
+    });
+
+    it("con sesión insomne activa enseña hasta qué hora y no enlaza la ficha", async () => {
+        estado = { ...estado, energia: { ...estado.energia, insomne: insomneFijura({
+            estado: { activo: true, hasta: "2026-10-28T22:45:00.000Z", proveedor: "insomnia", motivo: "sesión de Insomnia activa" },
+        }) } };
+        render(<PanelServidor />);
+        await screen.findByText(/Siempre disponible hasta las/i);
+        expect(screen.queryByRole("link", { name: /ficha de insomnia/i })).not.toBeInTheDocument();
+    });
+
+    it("sin sesión en una Mac compatible enlaza la ficha de Insomnia", async () => {
+        estado = { ...estado, energia: { ...estado.energia, insomne: insomneFijura() } };
+        render(<PanelServidor />);
+        await screen.findByText(/Siempre disponible \(sin sesión activa\)/i);
+        const enlace = await screen.findByRole("link", { name: /ficha de insomnia/i });
+        expect(enlace).toHaveAttribute("href", "https://github.com/krishhgg/Insomnia");
+        expect(enlace).toHaveAttribute("target", "_blank");
+    });
+
+    it("en una Mac incompatible no aparece el enlace ni se finge disponibilidad", async () => {
+        estado = { ...estado, energia: { ...estado.energia, insomne: insomneFijura({
+            capacidad: { proveedor: "caffeinate", disponible: false, requiereCorriente: true, motivo: "macOS anterior o sin Apple Silicon: solo con corriente y pantalla externa" },
+            estado: { activo: false, hasta: null, proveedor: "caffeinate", motivo: "sin sesión de Insomnia legible" },
+        }) } };
+        render(<PanelServidor />);
+        await screen.findByText(/No puede seguir con la pantalla cerrada/i);
+        expect(screen.queryByRole("link", { name: /ficha de insomnia/i })).not.toBeInTheDocument();
     });
 });
