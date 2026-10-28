@@ -29,44 +29,43 @@ class TestAsignacionesAgentes(unittest.TestCase):
         self.modelos_globales = ["modelo1", "modelo2", "modelo3"]
         self.starseed_opus_director = "1"
 
-    @unittest.expectedFailure
     def test_raiz_por_defecto_es_la_del_repositorio(self):
-        """La raíz por defecto es la del repo: contiene CLAUDE.md y no es `scripts/`.
+        """Sin STARSEED_ROOT, la raíz por defecto es la del repo: contiene CLAUDE.md.
 
-        Fallo REAL (no es un archivo de esta tarea): en asignaciones_agentes.py:35
-        `RAIZ` sale como `scripts/` porque falta un nivel de `os.path.dirname`
-        (el módulo vive en `scripts/puente/`), y `RUTA_ASIGNACIONES` apunta a
-        `scripts/starseed_memory_root/...`, que nunca existe. Los demás tests no
-        lo pegan porque usan `patch` sobre `RUTA_ASIGNACIONES`. Arreglo: un
-        `os.path.dirname` más (o `os.path.dirname(RAIZ)`).
+        El módulo vive en `scripts/puente/`, así que la raíz son dos niveles por
+        encima de su carpeta (la misma forma que vigia_referencias.py) y
+        `RUTA_ASIGNACIONES` apunta a `<repo>/starseed_memory_root/mando/…`, no a
+        `scripts/starseed_memory_root/…` (fallo OPF1024A, corregido en OPS1024A).
         """
+        import importlib
         import asignaciones_agentes
 
         repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.assertEqual(os.path.abspath(asignaciones_agentes.RAIZ), repo)
-        self.assertTrue(os.path.isfile(os.path.join(repo, "CLAUDE.md")))
-        self.assertEqual(
-            asignaciones_agentes.RUTA_ASIGNACIONES,
-            os.path.join(
-                repo, "starseed_memory_root", "mando", "asignaciones-agentes.json"
-            ),
-        )
+        entorno = dict(os.environ)
+        entorno.pop("STARSEED_ROOT", None)
+        with patch.dict(os.environ, entorno, clear=True):
+            importlib.reload(asignaciones_agentes)
+            self.addCleanup(importlib.reload, asignaciones_agentes)
+            self.assertEqual(os.path.abspath(asignaciones_agentes.RAIZ), repo)
+            self.assertTrue(os.path.isfile(os.path.join(repo, "CLAUDE.md")))
+            self.assertEqual(
+                asignaciones_agentes.RUTA_ASIGNACIONES,
+                os.path.join(
+                    repo, "starseed_memory_root", "mando", "asignaciones-agentes.json"
+                ),
+            )
 
     def tearDown(self):
         """Limpiar el entorno de prueba."""
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @unittest.expectedFailure
     def test_raiz_respeta_starseed_root(self):
         """STARSEED_ROOT manda sobre la raíz deducida del archivo.
 
-        Fallo REAL (no es un archivo de esta tarea): `asignaciones_agentes.py`
-        no lee `STARSEED_ROOT`, que es la convención de `scripts/puente/`
-        (`reactivar_mando`, `asignar_huecos`, `publicar`, `puente`, …), así que
-        ni en nube ni en otro worktree se le puede reclamar la ruta. Arreglo:
-        `os.environ.get("STARSEED_ROOT") or …` al construir `RAIZ` y
-        `RUTA_ASIGNACIONES`.
+        Es la convención de `scripts/puente/` (`reactivar_mando`, `asignar_huecos`,
+        `publicar`, `vigia_referencias`, …): con la variable puesta, tanto `RAIZ`
+        como `RUTA_ASIGNACIONES` apuntan dentro de ella.
         """
         import importlib
         import asignaciones_agentes
