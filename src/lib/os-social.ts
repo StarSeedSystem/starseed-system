@@ -2,6 +2,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Capa de acceso a las entidades sociales REALES de StarSeed OS sobre Supabase
 // (tablas os_*). Provee:
+// 
+// Árbol de relevo (PURO §10, apps-en-la-malla.md): para muchas transmisiones,
+// la bolsa arma un árbol donde las neuronas con más subida van en el centro.
+// Si una se va, solo se recoloca su rama. Los siguientes imports y su uso
+// conectan las funciones puro de arbol-relevo al flujo de publicación.
+
+import { capacidadHijos, armarArbol, recolocar } from "./recursos/arbol-relevo";
 //   · Tipos tipados (OsPage / OsGroup / OsEvent / OsPost).
 //   · Funciones de lectura (selecciones públicas, permitidas a anónimos por RLS).
 //   · Funciones de escritura (follow / membership / attendance / publicar) que
