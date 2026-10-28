@@ -16,9 +16,10 @@ import { DOBLAJE } from "./doblaje";
 import { TEXTURAS } from "./texturas-webgl";
 import { ANIMACION_MANIMGX } from "./animacion-manimgx";
 import { MAUSBOT } from "./mausbot";
+import { ESCENA3D } from "./escena3d";
 
-/** Los átomos que el OS trae de serie. Las tareas siguientes (F1E) añaden los suyos aquí. */
-export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT];
+/** Los átomos que el OS trae de serie. Las tareas siguientes añaden los suyos aquí. */
+export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT, ESCENA3D];
 
 /**
  * Registra los átomos propios que falten en el registro. Es idempotente: llamarla dos
@@ -33,6 +34,9 @@ export function registrarAtomosPropios(): void {
 
 /**
  * Vistas que se pintan como componente de React en vez de como documento. La clave es el
- * `id` de `VistaAtomo = {tipo:"componente"; id}`. Vacía por ahora: F1E añade la suya.
+ * `id` de `VistaAtomo = {tipo:"componente"; id}`. El import dinámico es de código NUESTRO
+ * (three ya vive en el bundle) y `marco-aislado.tsx` lo carga de forma perezosa con `lazy`.
  */
-export const VISTAS_COMPONENTE: Record<string, () => Promise<{ default: ComponentType<VistaProps> }>> = {};
+export const VISTAS_COMPONENTE: Record<string, () => Promise<{ default: ComponentType<VistaProps> }>> = {
+  escena3d: () => import("@/components/protomolecula/atomo-escena3d"),
+};
