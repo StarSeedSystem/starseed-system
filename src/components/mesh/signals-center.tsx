@@ -78,6 +78,7 @@ import { enlacesLocalesVivos } from "@/lib/malla/registro-enlaces-locales";
 import { signContent } from "@/ai/astraura/mesh/mesh-identity";
 import { getSharedMesh } from "@/lib/network/lan-sync";
 import { enviarAPar, vinculosActivos } from "@/lib/network/vinculos-entre-cuentas";
+import { MotorCristalMount, useMotorCristal } from "@/components/malla/motor-cristal-mount";
 
 const ICON: Record<SignalKind, LucideIcon> = {
   mesh: RadioTower, wifi: Wifi, cellular: Signal, bluetooth: Bluetooth,
@@ -154,6 +155,11 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   // Contenido RECIBIDO de otras neuronas por la red sináptica (bucle cerrado).
   const inbox = useNetworkInbox();
 
+  // Motor cristalino SiO₂ (montaje mínimo)
+  useEffect(() => {
+    // forzamos montaje vía componente
+  }, []);
+  
   useEffect(() => {
     let alive = true;
     void hasAccountSession().then((v) => alive && setWebMeshOn(v));
@@ -289,9 +295,8 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
     }
   };
 
-// ══ Retícula SiO₂ (Ola 1012W): motor de MC1012Q con las capas reales. ══
-import { useMotorCristal } from "@/components/malla/motor-cristal-mount";
-const { estado: estadoReticula } = useMotorCristal();
+  // ══ Retícula SiO₂ (Ola 1012W): motor de MC1012Q con las capas reales. ══
+  const { estado: estadoReticula } = useMotorCristal();
 
   const runAction = async (sig: SignalSource, action: string) => {
     try {
@@ -420,6 +425,8 @@ const { estado: estadoReticula } = useMotorCristal();
           con su rango de precisión. Pulsar un blip abre su ficha completa. */}
       <MapaSenales compacto={compact || undefined} onOpenMesh={() => setTab("redmesh")} />
 
+      {/* Motor cristalino SiO₂: montado para activar el motor una vez */}
+      <MotorCristalMount />
       {/* Retícula SiO₂ (panel de la malla cristalina): el sólido amorfo que
           comparten todas las neuronas de la cuenta, en tiempo real — estado
           vítreo, temperatura, puentes y «misma retícula en N de M». */}
