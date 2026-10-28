@@ -41,6 +41,9 @@ class Piezas(unittest.TestCase):
         self.assertEqual(E.MIEMBROS, ("redactor", "revisor"))
         self.assertTrue(any("agno.com" in r or "nube" in r for r in E.REGLAS_EQUIPO))
 
+    def test_sin_agent_os_de_nube(self):
+        self.assertFalse(hasattr(E, "AgentOS"))
+
 
 @unittest.skipUnless(E.AGNO_DISPONIBLE, E.MOTIVO_SIN_AGNO)
 class MemoriaYEquipo(unittest.TestCase):
@@ -62,6 +65,27 @@ class MemoriaYEquipo(unittest.TestCase):
         equipo, modelo = E.equipo_de_tarea(roles, ruta_db=":memory:", cliente="falso")
         self.assertEqual(modelo, "falso")
         self.assertEqual(len(equipo.members), 2)
+
+    def test_dos_roles_con_memoria_compartida_y_trazas_apagadas(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            roles = E.ROL({"redactor": "escribe", "revisor": "revisa"})
+            modelo = E.modelo_desde_enrutador(E.ClienteOpenAI(
+                base_url="http://127.0.0.1:4480/v1", modelo="modelo-falso",
+                clave="", origen="servidor-propio"))
+            ruta_db = os.path.join(tmp, "memoria.sqlite")
+            equipo, cliente = E.equipo_de_tarea(
+                roles, ruta_db=ruta_db, cliente=modelo)
+            self.assertIs(cliente, modelo)
+            self.assertEqual(len(equipo.members), 2)
+            nombres = [m.name for m in equipo.members]
+            self.assertEqual(nombres, list(E.MIEMBROS))
+            self.assertNotEqual(nombres[0], nombres[1])
+            self.assertEqual([m.role for m in equipo.members], list(E.MIEMBROS))
+            self.assertTrue(all(m.db is equipo.db for m in equipo.members))
+            self.assertFalse(equipo.telemetry)
+            self.assertTrue(all(not getattr(m, "telemetry", False) for m in equipo.members))
+            self.assertFalse(getattr(equipo.db, "db_file", "").startswith("nube"))
+            self.assertEqual(equipo.db.db_file, ruta_db)
 
 
 if __name__ == "__main__":
