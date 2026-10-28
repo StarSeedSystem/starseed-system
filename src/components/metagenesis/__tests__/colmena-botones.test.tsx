@@ -8,7 +8,7 @@
  * `punto.t` va en segundos y ningún texto promete un traspaso que aún no existe.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { botonesNeurona, type NeuronaColmena } from "@/lib/metagenesis/colmena";
 import {
@@ -57,6 +57,22 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
         expect(b.desconectar.explica).toContain("1 agente");
         expect(b.desconectar.confirmar).toBe(true);
+    });
+
+    it("un nodo que puede ser contenedor y ya tiene trabajo en curso lo sigue ofreciendo, sin confirmar", () => {
+        const b = botonesNeurona({
+            nodo: "oracle-a1-bbbbbb",
+            vivo: true,
+            so: "linux",
+            enCurso: 1,
+            contenedor: { activo: false, agentes: 2, apto: true, motivo: "2 agente(s) por la memoria y los núcleos." },
+            relevoActivo: true,
+        });
+        // Apuntarlo como contenedor es lo que le da MÁS trabajo: la tarea en curso no lo bloquea ni pide confirmar.
+        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Usar como contenedor (2 agentes)" });
+        expect(b.contenedor.confirmar).toBeFalsy();
+        expect(b.contenedor.explica).toBe("Este aparato coge tareas de la cola como la Mac.");
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, confirmar: true });
     });
 
     it("contenedor activo: explica «Termina lo que lleva y no coge más.» y pide confirmar si hay trabajo", () => {
@@ -538,6 +554,28 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         expect(info).not.toHaveTextContent("contenedor activo");
         expect(info).toHaveTextContent("1 tarea en curso · Último punto de control hace 5 min");
         expect(info).not.toHaveTextContent("task-1");
+    });
+
+    it("la línea de información va dentro de la tarjeta de SU nodo, no suelta en la lista", async () => {
+        const B = "mac-aaaaaa";
+        estado.lectura = lectura([
+            nodo({ relevo: true, enCurso: [tarea("task-1", 5 * 60_000)] }),
+            nodo({ nodo: B, medio: "mac", etiqueta: "Mac de desarrollo", lider: false, relevo: true, contenedor: { activo: false, agentes: 1, apto: true, motivo: "" } }),
+        ]);
+        pintar();
+        const infoA1 = await screen.findByTestId(id("info"));
+        expect(infoA1).toHaveTextContent("1 tarea en curso · Último punto de control hace 5 min");
+        const infoB = screen.getByTestId(id("info", B));
+        expect(infoB).toHaveTextContent("Sin tareas en curso");
+        const tarjetaA1 = infoA1.closest('[data-testid="mg-nodo"]');
+        const tarjetaB = infoB.closest('[data-testid="mg-nodo"]');
+        expect(tarjetaA1).not.toBeNull();
+        expect(tarjetaB).not.toBeNull();
+        // Cada tarjeta enseña la suya y ninguna la del vecino: la información no se sale del nodo.
+        expect(within(tarjetaA1 as HTMLElement).getByTestId(id("info"))).toBe(infoA1);
+        expect(within(tarjetaA1 as HTMLElement).queryByTestId(id("info", B))).toBeNull();
+        expect(within(tarjetaB as HTMLElement).getByTestId(id("info", B))).toBe(infoB);
+        expect(within(tarjetaB as HTMLElement).queryByTestId(id("info"))).toBeNull();
     });
 
     it("«Dejar de usar» apaga (activo=false, sin trabajadores), sin pedir confirmar, y el aviso dice lo que hace de verdad", async () => {
