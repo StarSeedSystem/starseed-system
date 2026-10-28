@@ -30,7 +30,7 @@ describe("«Convertir a…» del clic derecho", () => {
         const archivo = { nombre: "a.pdf", url: "https://x/a.pdf" };
         const { result } = renderHook(() => useConversionMenu(archivo, vi.fn()));
         await waitFor(() => expect(result.current?.estado).toBe("no-disponible"));
-        expect(result.current!.motivo).toMatch(/no hay una neurona que convierta/);
+        expect(result.current!.motivo).toMatch(/Ninguna neurona de tu malla convierte archivos ahora mismo/);
     });
 
     it("sin archivo convertible no hay submenú", () => {
