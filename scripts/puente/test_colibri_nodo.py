@@ -127,6 +127,22 @@ class PruebaRescate(unittest.TestCase):
         for fila in filas:
             self.assertEqual(set(fila), {"id", "capa", "veredicto", "porque"})
 
+    def test_sin_presion_la_ram_minima_manda(self):
+        """Rescate RTCLB1027E: sin presión de memoria, la RAM mínima deja fuera a Clef
+        (19 GB mínimos frente a 18) y Laya sigue cabiendo con margen de sobra."""
+        filas = {f["id"]: f for f in C.caben(self.entradas, 18, 500)}
+        self.assertEqual(filas["colibri-clef"]["veredicto"], "no cabe")
+        self.assertIn("RAM insuficiente", filas["colibri-clef"]["porque"])
+        self.assertEqual(filas["colibri-laya"]["veredicto"], "cabe")
+
+    @unittest.expectedFailure
+    def test_fallo_pendiente_carpeta_vacia_no_se_valida_en_el_plan(self):
+        """FALLO REAL pendiente en colibri_nodo.plan_instalacion: no valida la carpeta; con
+        «» genera órdenes con --dir vacío en vez de levantar ValueError (la rama archivada
+        nube/40611446903 lo exigía para el id Y la carpeta)."""
+        with self.assertRaises(ValueError):
+            C.plan_instalacion("colibri-laya", "")
+
     def test_main_sin_plan_imprime_uso_y_termina_en_2(self):
         salida = io.StringIO()
         with redirect_stdout(salida):
