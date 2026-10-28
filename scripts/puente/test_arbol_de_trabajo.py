@@ -1,12 +1,14 @@
 """Pruebas de arbol_de_trabajo: separar lo que ensucia el enjambre de lo ajeno."""
 
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from arbol_de_trabajo import PROPIAS, clasificar, repartir, ruta_de, solo_es_nuestro
+from arbol_de_trabajo import PROPIAS, RAIZ, clasificar, repartir, ruta_de, solo_es_nuestro
 
 
 class TestRutaDe(unittest.TestCase):
@@ -107,6 +109,69 @@ class TestSoloEsNuestro(unittest.TestCase):
 
     def test_la_lista_por_defecto_incluye_la_memoria(self):
         self.assertIn("memory/aprendizaje-olas.md", PROPIAS)
+
+
+class TestColasVersionadas(unittest.TestCase):
+    """(2026-10-28, DEC1028E) Las colas VERSIONADAS que el enjambre re-apunta al dividir tareas
+    (`herencia de depende` a las partes `-dN`) dejan ` M cola-*.json` en `main`. Eso es
+    contabilidad propia y el guardia la recoge; una cola rota o ilegible sigue siendo ajena."""
+
+    ART = "starseed_memory_root/olas/cola-artcraft-1025.json"
+    BLD = "starseed_memory_root/olas/cola-blender-1025.json"
+    INV = "starseed_memory_root/olas/cola-investigacion-1025.json"
+    LINEAS = " M %s\n M %s\n M %s" % (ART, BLD, INV)
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, ignore_errors=True)
+        for ruta, id_ in ((self.ART, "ART1025B-d3"), (self.BLD, "BLD1025B-d3"),
+                          (self.INV, "INV1025A-d2")):
+            self.escribe(ruta, '[{"id": "%s", "depende": []}]' % id_)
+
+    def escribe(self, ruta, texto):
+        destino = os.path.join(self.raiz, ruta)
+        os.makedirs(os.path.dirname(destino), exist_ok=True)
+        with open(destino, "w", encoding="utf-8") as f:
+            f.write(texto)
+
+    def test_las_tres_colas_reales_son_propias(self):
+        mias, estorbo, ajenas = clasificar(self.LINEAS, raiz=self.raiz)
+        self.assertEqual(mias, [self.ART, self.BLD, self.INV])
+        self.assertEqual(estorbo, [])
+        self.assertEqual(ajenas, [])
+
+    def test_una_cola_rota_sigue_siendo_ajena(self):
+        self.escribe(self.ART, "{esto no es json")
+        mias, _estorbo, ajenas = clasificar(" M " + self.ART, raiz=self.raiz)
+        self.assertEqual((mias, ajenas), ([], [self.ART]))
+
+    def test_una_cola_que_ya_no_es_lista_de_tareas_es_ajena(self):
+        for texto in ('{"id": "X"}', '[{"titulo": "sin id"}]', "[]", "[1, 2]"):
+            with self.subTest(texto=texto):
+                self.escribe(self.ART, texto)
+                _m, _e, ajenas = clasificar(" M " + self.ART, raiz=self.raiz)
+                self.assertEqual(ajenas, [self.ART])
+
+    def test_si_el_archivo_no_esta_no_se_inventa(self):
+        os.remove(os.path.join(self.raiz, self.ART))
+        _m, _e, ajenas = clasificar(" M " + self.ART, raiz=self.raiz)
+        self.assertEqual(ajenas, [self.ART])
+
+    def test_un_ts_modificado_sigue_siendo_ajeno(self):
+        mias, _estorbo, ajenas = clasificar(self.LINEAS + "\n M src/lib/algo.ts", raiz=self.raiz)
+        self.assertEqual(mias, [self.ART, self.BLD, self.INV])
+        self.assertEqual(ajenas, ["src/lib/algo.ts"])
+
+    def test_una_cola_sin_seguimiento_no_es_propia(self):
+        _m, _e, ajenas = clasificar("?? " + self.ART, raiz=self.raiz)
+        self.assertEqual(ajenas, [self.ART])
+
+    def test_la_raiz_por_defecto_es_la_del_repo(self):
+        self.assertTrue(os.path.isdir(RAIZ))
+        if not os.path.isfile(os.path.join(RAIZ, self.ART)):
+            self.skipTest("el repo no tiene la cola real")
+        mias, _e, ajenas = clasificar(" M " + self.ART)
+        self.assertEqual((mias, ajenas), ([self.ART], []))
 
 
 if __name__ == "__main__":
