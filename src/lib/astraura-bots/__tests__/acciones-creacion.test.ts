@@ -49,7 +49,7 @@ describe("protomolecula.operar", () => {
     const handler = instalar();
     const rara = await ejecutarProtomolecula(operar({ accion: "borrar-todo" }), dep);
     const nucleo = await ejecutarProtomolecula(operar({ accion: "proponer-codigo", args: { descripcion: "Convertir el audio a OGG", destino: "src/lib/nucleo/invariantes.ts" } }), dep);
-    expect(rara.motivo).toContain("abrir, estado, mover, dictar, deshacer, proponer-codigo");
+    expect(rara.motivo).toContain("abrir, estado, mover, dictar, deshacer, proponer-codigo, activar, desactivar, alternar, cerrar");
     expect(nucleo).toMatchObject({ ok: false, motivo: expect.stringContaining("núcleo intocable") });
     expect(handler).not.toHaveBeenCalled();
   });

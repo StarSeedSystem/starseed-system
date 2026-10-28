@@ -12,7 +12,8 @@ import type { DepsEjecutor, ResultadoEjecucion } from "./ejecutor-acciones";
 
 export const HERRAMIENTA_PROTOMOLECULA = "protomolecula";
 export const PROXIMAMENTE_PROTOMOLECULA = "próximamente: herramienta de la Protomolécula";
-export const SUBACCIONES_PROTOMOLECULA = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo"] as const;
+export const SUBACCIONES_PROTOMOLECULA = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo",
+  "activar", "desactivar", "alternar", "cerrar"] as const;
 type Subaccion = (typeof SUBACCIONES_PROTOMOLECULA)[number];
 const MODOS: readonly ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
 const DONDE = ["orbe", "ventana", "bloque"];
