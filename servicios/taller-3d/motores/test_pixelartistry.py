@@ -66,9 +66,9 @@ class Disponible(unittest.TestCase):
         for so in ("Darwin", "Linux"):
             with mock.patch.object(pa.platform, "system", return_value=so):
                 r = pa.disponible(ComfyFalso())
-        self.assertFalse(r["ok"])
-        self.assertIn("solo Windows 10/11", r["fallo"])
-        self.assertIn("blender-voxel", r["fallo"])
+            self.assertFalse(r["ok"])
+            self.assertIn("solo Windows 10/11", r["fallo"])
+            self.assertIn("blender-voxel", r["fallo"])
 
     def test_windows_sin_nvidia_dice_que_no(self):
         with mock.patch.object(pa.platform, "system", return_value="Windows"), \
