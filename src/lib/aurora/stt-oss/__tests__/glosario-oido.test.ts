@@ -91,6 +91,13 @@ describe("corregirConGlosario", () => {
     expect(resultado.cambios).toEqual(["starseed → StarSeed"]);
   });
 
+  it("con un glosario vacío no cambia nada", () => {
+    expect(corregirConGlosario("hola Star Sed", [], "es")).toEqual({
+      texto: "hola Star Sed",
+      cambios: [],
+    });
+  });
+
   it("acepta un glosario personalizado", () => {
     const glosarioPersonalizado = ["StarSeed", "Astraura", "TestName"];
     const resultado = corregirConGlosario("Test Nam", glosarioPersonalizado, "es");
@@ -133,5 +140,10 @@ describe("glosarioBase", () => {
     const conOtros = glosarioBase(["Jev", "Astraura", "Madrina Orbita", "  Jev  ", "   ", ""]);
     expect(conOtros.slice(base.length)).toEqual(["Jev", "Madrina Orbita"]);
     expect(conOtros.filter((nombre) => nombre === "Astraura").length).toBe(1);
+  });
+
+  it("compara sin mayúsculas al sumar: «astraura» no duplica «Astraura»", () => {
+    const base = glosarioBase();
+    expect(glosarioBase(["astraura", "AURORA"])).toEqual(base);
   });
 });
