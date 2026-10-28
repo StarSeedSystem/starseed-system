@@ -104,6 +104,37 @@ describe("corregirConGlosario", () => {
     expect(resultado.cambios).toEqual(["astraura → Astraura"]);
   });
 
+  it("no junta un par si la forma unida dista más de 0,34 (Star Ritual 0,60)", () => {
+    // El camino del par tiene un LÍMITE: por encima de 0,34 el vocablo queda tal
+    // cual («Star» es palabra común y «ritual» no baja de 0,75 de ningún nombre).
+    const resultado = corregirConGlosario("Star Ritual", glosario, "es");
+    expect(resultado.texto).toBe("Star Ritual");
+    expect(resultado.cambios).toEqual([]);
+  });
+
+  it("junta como mucho DOS palabras seguidas: 'Star Se ed' deja la suelta al margen", () => {
+    // «Star Se» (0,25) sí es un par cercano y se corrige; la tercera palabra
+    // («ed») queda huérfana y no se toca: «HASTA dos palabras seguidas».
+    const resultado = corregirConGlosario("Star Se ed", glosario, "es");
+    expect(resultado.texto).toBe("StarSeed ed");
+    expect(resultado.cambios).toEqual(["Star Se → StarSeed"]);
+  });
+
+  it("no lanza y no toca vocablos sin letras (— ¡ … ¿)", () => {
+    // Contrato «ninguna función lanza»: puntuación y símbolos pasan de largo.
+    const resultado = corregirConGlosario("— ¡ Star Sed … ¿", glosario, "es");
+    expect(resultado.texto).toBe("— ¡ StarSeed … ¿");
+    expect(resultado.cambios).toEqual(["Star Sed → StarSeed"]);
+  });
+
+  it("actúa con un idioma fuera de la lista corta (fr): el par cercano se corrige igual", () => {
+    // Fuera de es/en la lista común queda vacía, así que el gatillo del par es
+    // solo la mayúscula y la distancia.
+    const resultado = corregirConGlosario("Star Sed", glosario, "fr");
+    expect(resultado.texto).toBe("StarSeed");
+    expect(resultado.cambios).toEqual(["Star Sed → StarSeed"]);
+  });
+
   it("la palabra sola no se corrige si un vecino con mayúscula sugiere un nombre partido", () => {
     // «Star Sed Seed»: el par «Star Sed» ya se corrigió; «Seed» sola no se toca
     // (ni se convierte en «StarSeed» por su vecino capitalizado).
