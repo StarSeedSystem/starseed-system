@@ -70,6 +70,13 @@ class Cliente(unittest.TestCase):
         base, modelo = c
         self.assertEqual((base, modelo), (M.SERVIDOR_IA, c.modelo))
 
+    def test_servidor_propio_prefiere_bitnet(self):
+        """Sin pista de capacidad que encaje, la preferencia por defecto elige BitNet."""
+        self.mundos[M.SERVIDOR_IA] = ["ollama/llama", "bitnet/bonsai"]
+        c = M.cliente_openai_compatible("texto", entorno={}, sonda=self.sonda)
+        self.assertEqual((c.origen, c.base_url, c.modelo),
+                         ("servidor-propio", M.SERVIDOR_IA, "bitnet/bonsai"))
+
     def test_relevo_a_experiential(self):
         entorno = {
             "STARSEED_PASARELA_EXPLABS_KEY": "clave-experiential",
