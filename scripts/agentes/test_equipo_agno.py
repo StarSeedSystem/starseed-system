@@ -37,6 +37,13 @@ class Piezas(unittest.TestCase):
         salidas = E.responder_por_rol(roles)("prueba")
         self.assertEqual(salidas, {"redactor": "borro prueba", "revisor": "ok prueba"})
 
+    def test_orden_fijo_y_claves_de_mas(self):
+        salidas = {"revisor": "b", "redactor": "a", "extra": "c"}
+        texto = E.resumen_equipo("t", salidas)
+        self.assertLess(texto.index("[redactor] a"), texto.index("[revisor] b"))
+        self.assertNotIn("extra", texto)
+        self.assertNotIn("c", texto.replace("[revisor] b", ""))
+
     def test_reglas_y_miembros(self):
         self.assertEqual(E.MIEMBROS, ("redactor", "revisor"))
         self.assertTrue(any("agno.com" in r or "nube" in r for r in E.REGLAS_EQUIPO))
