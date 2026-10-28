@@ -261,6 +261,101 @@ class TestPlanResultados(unittest.TestCase):
         self.assertEqual(L.medidores_de_resultados({}, [], T0)["fallidas"], "ninguna sin resolver en 3 días")
 
 
+# ─── vigía de modelos (VGM1016F) ─────────────────────────────────────────────────────────
+
+
+def latido_vigia(nid, medio, modo="real", carga=None, fase=None, ultima=None, red=None, orqs=()):
+    """Latido mínimo para las reglas del vigía: carga, A1 y «última pasada» puestos a mano."""
+    s = {"repo": True, "orquestador": True, "orquestadores": list(orqs), "disco_gb": 50.0, "ram_libre_mb": 2048}
+    if carga is not None:
+        s["carga"] = carga
+    if medio == "oracle-a1" or fase is not None:
+        s["a1"] = {"fase": fase or "espera", "cola": "", "orquestador_vivo": False}
+    if ultima is not None:
+        s["vigia_modelos"] = {"ultima": ultima}
+    if red is not None:
+        s["red"] = red
+    return {"nodo": nid, "medio": medio, "modo": modo, "ts": T0, "salud": s}
+
+
+def mundo_vigia(*latidos, foto_ultima=None):
+    """El mundo del líder con los latidos dados y, si toca, el dato de la foto."""
+    m = {"nodos": {l["nodo"]: l for l in latidos}, "yo": latidos[0]["nodo"] if latidos else "x", "autonomia": True}
+    if foto_ultima is not None:
+        m["vigia_modelos"] = {"ultima": foto_ultima}
+    return m
+
+
+class TestVigiaModelos(unittest.TestCase):
+    def acciones(self, m, memoria=None, ahora=T0):
+        return [(a["accion"], a["nodo"]) for a in L.planificar(m, memoria or {"hecho": {}}, ahora)]
+
+    def test_toca_con_la_ultima_pasada_vieja_y_elige_al_a1_libre(self):
+        a1 = latido_vigia("oracle-a1-bbbbbb", "oracle-a1", carga=0.1, ultima=T0 - 21 * 3600)
+        mac = latido_vigia("mac-aaaaaa", "mac", carga=3.5, ultima=T0 - 21 * 3600)
+        self.assertEqual(self.acciones(mundo_vigia(mac, a1)), [("vigia_modelos", "oracle-a1-bbbbbb")])
+        plan = L.planificar(mundo_vigia(mac, a1), {"hecho": {}}, T0)
+        self.assertIn("hace 21 h 00 min", plan[0]["motivo"])
+        self.assertIn("el A1, que está libre", plan[0]["motivo"])
+        self.assertEqual(plan[0]["clave"], "vigia_modelos")
+        self.assertEqual(plan[0]["espera_s"], L.VIGIA_REINTENTO_S)
+
+    def test_no_toca_con_la_ultima_reciente_o_sin_dato(self):
+        a1 = latido_vigia("oracle-a1-bbbbbb", "oracle-a1", ultima=T0 - 2 * 3600)
+        self.assertEqual(self.acciones(mundo_vigia(a1)), [], "reciente: aún no toca")
+        borde = latido_vigia("oracle-a1-bbbbbb", "oracle-a1", ultima=T0 - L.VIGIA_ESPERA_S)
+        self.assertEqual(len(self.acciones(mundo_vigia(borde))), 1, "exactamente 20 h: toca")
+        self.assertEqual(self.acciones(mundo_vigia(latido_vigia("mac-aaaaaa", "mac"))), [],
+                         "sin dato en la foto ni en los nodos: el líder no inventa")
+
+    def test_la_mas_reciente_de_foto_y_nodos_manda(self):
+        a1 = latido_vigia("oracle-a1-bbbbbb", "oracle-a1", ultima=T0 - 21 * 3600)
+        self.assertEqual(self.acciones(mundo_vigia(a1, foto_ultima=T0 - 3600)), [],
+                         "la foto sabe de una pasada de hace 1 h: no toca")
+        self.assertEqual(self.acciones(mundo_vigia(a1, foto_ultima=T0 - 30 * 3600)),
+                         [("vigia_modelos", "oracle-a1-bbbbbb")], "la foto es aún más vieja: toca")
+        iso = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(T0 - 21 * 3600))
+        self.assertEqual(L.ultima_pasada_vigia(mundo_vigia(a1, foto_ultima=iso)), T0 - 21 * 3600)
+        self.assertIsNone(L.ultima_pasada_vigia({}))
+
+    def test_a_quien(self):
+        mac = latido_vigia("mac-aaaaaa", "mac", carga=0.0)
+        # El A1 libre gana aunque otro esté aún más parado (§6: el A1, 24/7, primero).
+        a1 = latido_vigia("oracle-a1-bbbbbb", "oracle-a1", carga=1.0)
+        self.assertEqual(L.medio_para_vigia({"mac-aaaaaa": mac, "oracle-a1-bbbbbb": a1}), "oracle-a1-bbbbbb")
+        # A1 ocupado (su medio del enjambre en cola): la Mac libre.
+        a1_ocupado = latido_vigia("oracle-a1-bbbbbb", "oracle-a1", carga=0.0, fase="cola")
+        self.assertEqual(L.medio_para_vigia({"mac-aaaaaa": mac, "oracle-a1-bbbbbb": a1_ocupado}), "mac-aaaaaa")
+        # Nadie libre: el de menos carga con red (la pasada es ligera, pero el criterio es ése).
+        mac_ocupada = latido_vigia("mac-aaaaaa", "mac", carga=4.0, orqs=[{"pid": 1, "cola": "cola-x"}])
+        self.assertEqual(L.medio_para_vigia({"mac-aaaaaa": mac_ocupada, "oracle-a1-bbbbbb": a1_ocupado}),
+                         "oracle-a1-bbbbbb")
+        # Un nodo seco o que declara «sin red» no se la lleva nunca.
+        seco = latido_vigia("nube-cccccc", "nube-cowork", modo="seco", carga=0.0)
+        sin_red = latido_vigia("mac-aaaaaa", "mac", carga=0.0, red=False)
+        self.assertIsNone(L.medio_para_vigia({"mac-aaaaaa": sin_red, "nube-cccccc": seco}))
+        self.assertIsNone(L.medio_para_vigia({}))
+
+    def test_una_sola_clave_de_enfriamiento_nunca_dos_a_la_vez(self):
+        a1 = latido_vigia("oracle-a1-bbbbbb", "oracle-a1", ultima=T0 - 21 * 3600)
+        m = mundo_vigia(a1)
+        self.assertEqual(self.acciones(m, {"hecho": {"vigia_modelos": T0}}), [], "encargada hace un rato")
+        # Aunque el destino cambie entre vueltas, la MISMA clave sigue enfriando.
+        self.assertEqual(self.acciones(m, {"hecho": {"vigia_modelos": T0 - 3600}}), [])
+        self.assertEqual(self.acciones(m, {"hecho": {"vigia_modelos": T0 - 3 * 3600}}),
+                         [("vigia_modelos", "oracle-a1-bbbbbb")], "pasado el enfriamiento, se vuelve a pedir")
+
+    def test_la_orden_al_destino_pasa_la_validacion(self):
+        self.assertIsNone(L.args_validos("vigia_modelos", {}))
+        o = {"v": "1", "accion": "vigia_modelos", "para": "oracle-a1-bbbbbb",
+             "t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(T0)), "nonce": "nonce-vigia-000001",
+             "por": "lider:mac-aaaaaa", "args": {}}
+        o["firma"] = L.firmar(o, SECRETO)
+        ok, motivo = L.validar_orden(o, SECRETO, T0, {})
+        self.assertTrue(ok, motivo)
+        self.assertTrue(L.es_para_mi(o, "oracle-a1-bbbbbb", "oracle-a1", soy_lider=False))
+
+
 # ─── el nodo en el bus ───────────────────────────────────────────────────────────────────
 
 

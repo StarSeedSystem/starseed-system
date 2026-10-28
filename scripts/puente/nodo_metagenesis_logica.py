@@ -81,6 +81,10 @@ ACCIONES_ORDEN: Dict[str, Dict[str, Any]] = {
     "repartir": {"texto": "Prestar tareas listas a un medio ocioso", "args": ("destino", "tope", "modo", "trabajadores")},
     "desconectar": {"texto": "Guardar el trabajo a medias de este aparato y pasarlo a otro contenedor", "args": ()},
     "contenedor": {"texto": "Usar o dejar de usar este aparato como contenedor de agentes", "args": ("activo", "trabajadores")},
+    # (VGM1016F) La manda el líder cuando la última pasada del vigía de modelos tiene más de
+    # VIGIA_ESPERA_S; la ejecuta el medio encargado con vigia_modelos.py. No la manda la web
+    # (no está en ACCIONES de remoto-nodos.ts): es interna del plan del líder, como «repartir».
+    "vigia_modelos": {"texto": "Hacer una pasada del vigía de modelos: buscar, evaluar y encolar novedades", "args": ()},
 }
 
 #: Tipos de evento en el bus (`relevo_eventos.tipo`, ≤ 40 caracteres).
@@ -837,6 +841,97 @@ def accion(clave: str, que: str, nodo: str, motivo: str, args: Optional[Dict[str
     return {"clave": clave, "accion": que, "nodo": nodo, "motivo": motivo, "args": args or {}, "espera_s": espera_s}
 
 
+# ─── vigía de modelos (VGM1016F · architecture/vigia-modelos.md §6) ──────────────────────
+
+#: Una pasada al día: si la última conocida lleva más de VIGIA_ESPERA_S, el líder la encarga.
+VIGIA_ESPERA_S = 20 * 3600
+#: Entre dos encargos del vigía no pasa menos de esto (nunca dos a la vez): si el nodo encargado
+#: no llega a publicar su nueva «última pasada», se vuelve a pedir pasado este enfriamiento.
+VIGIA_REINTENTO_S = 2 * 3600
+
+
+def _epoch_vigia(valor: Any) -> Optional[float]:
+    """PURA. epoch (int/float) o fecha ISO («…Z» o con offset) → epoch; None si no se lee."""
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        return float(valor)
+    return epoch_de_iso(valor)
+
+
+def ultima_pasada_vigia(mundo: Dict[str, Any]) -> Optional[float]:
+    """PURA. La última pasada del vigía de modelos que se conozca: la más RECIENTE entre el dato
+    de la foto (`mundo["vigia_modelos"]["ultima"]`) y el de los latidos de los nodos
+    (`salud["vigia_modelos"]["ultima"]`, lo publica quien la ejecutó). None si nadie lo sabe."""
+    datos = [(mundo or {}).get("vigia_modelos")]
+    for l in ((mundo or {}).get("nodos") or {}).values():
+        datos.append((l.get("salud") or {}).get("vigia_modelos"))
+    ultimas = [_epoch_vigia((d or {}).get("ultima")) for d in datos if isinstance(d, dict)]
+    ultimas = [u for u in ultimas if u is not None]
+    return max(ultimas) if ultimas else None
+
+
+def toca_pasada_vigia(ultima: Optional[float], ahora: float) -> bool:
+    """PURA. ¿Toca pasada? Solo con dato: la última conocida con más de VIGIA_ESPERA_S. Sin dato
+    el líder no inventa (no puede saber que hace > 20 h) y no encarga nada: la primera pasada la
+    programa quien la ejecuta (contracto §6, tarea E)."""
+    return ultima is not None and ahora - ultima >= VIGIA_ESPERA_S
+
+
+def _libre_para_vigia(l: Dict[str, Any]) -> bool:
+    """PURA. ¿Está este nodo libre para hacer la pasada ahora? Sin cola del enjambre y, si es el
+    A1, con su medio en espera o de guardián (que cede la máquina: la regla de `medio_ocioso`)."""
+    s = l.get("salud") or {}
+    if s.get("orquestadores"):
+        return False
+    a1 = s.get("a1") or {}
+    if a1 and (a1.get("orquestador_vivo") or a1.get("cola")
+               or str(a1.get("fase") or "espera") not in ("espera", "", "guardian")):
+        return False
+    return True
+
+
+def _carga_de(l: Dict[str, Any]) -> float:
+    """La carga media del latido; sin dato, la peor (cualquiera con dato la gana)."""
+    c = (l.get("salud") or {}).get("carga")
+    return float(c) if isinstance(c, (int, float)) and not isinstance(c, bool) else float("inf")
+
+
+def medio_para_vigia(nodos: Dict[str, Dict[str, Any]]) -> Optional[str]:
+    """PURA. A quién se la encarga el líder: un nodo REAL con red (su latido no declara
+    `salud.red = False`) y la menor carga; el A1 (24/7) SIEMPRE primero si está libre. None si no
+    hay nadie con red."""
+    candidatos = [(n, l) for n, l in (nodos or {}).items()
+                  if l.get("modo") == "real" and (l.get("salud") or {}).get("red") is not False]
+    if not candidatos:
+        return None
+    libres = [(n, l) for n, l in candidatos if _libre_para_vigia(l)]
+    a1 = next((n for n, l in libres if l.get("medio") == "oracle-a1"), None)
+    if a1:
+        return a1
+    pool = libres or candidatos
+    return min(pool, key=lambda kv: (_carga_de(kv[1]), _clave_mejor(kv[0], kv[1])))[0]
+
+
+def planificar_vigia(mundo: Dict[str, Any], ahora: float) -> List[Dict[str, Any]]:
+    """PURA. La acción `vigia_modelos` del líder (VGM1016F): si la última pasada (dato en la foto
+    o en el estado de los nodos) tiene más de VIGIA_ESPERA_S, se la da al nodo con red y menos
+    carga (el A1 si está libre), con motivo legible y UNA sola clave de enfriamiento, para que
+    nunca haya dos pasadas a la vez aunque cambie el destino entre vueltas."""
+    ultima = ultima_pasada_vigia(mundo)
+    if not toca_pasada_vigia(ultima, ahora):
+        return []
+    destino = medio_para_vigia(mundo.get("nodos") or {})
+    if not destino:
+        return []
+    hace = _min(int(ahora - ultima)) if ultima is not None else "nunca"
+    encargado = (mundo.get("nodos") or {}).get(destino) or {}
+    como = "el A1, que está libre" if encargado.get("medio") == "oracle-a1" and _libre_para_vigia(encargado) \
+        else "el nodo con red y menos carga"
+    return [accion("vigia_modelos", "vigia_modelos", destino,
+                   "la última pasada del vigía de modelos fue hace %s (tope %d h): se la encarga a %s, %s"
+                   % (hace, VIGIA_ESPERA_S // 3600, destino, como),
+                   espera_s=VIGIA_REINTENTO_S)]
+
+
 def planificar(mundo: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> List[Dict[str, Any]]:
     """PURA. Lo que el LÍDER decide hacer en esta vuelta, con enfriamientos.
 
@@ -894,6 +989,11 @@ def planificar(mundo: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> 
         # 6-9. RESULTADOS, no solo latidos (OPA1011b).
         for a in planificar_resultados(n, s, nodos, mundo.get("yo") or n, ahora):
             anadir(a)
+
+    # 10. Vigía de modelos (VGM1016F): una pasada al día la encarga el líder al nodo con red y
+    # menos carga (el A1 si está libre); nunca dos a la vez.
+    for a in planificar_vigia(mundo, ahora):
+        anadir(a)
 
     # 5. El medio con las colas en disco calla: otro medio real sigue su trabajo (relevo de medio).
     ultimo_aut = mundo.get("ultimo_autoritativo_ts")
