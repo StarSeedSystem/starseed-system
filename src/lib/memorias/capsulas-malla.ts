@@ -108,7 +108,7 @@ export function debeReplicar(
   ) return false;
   if (!ultimaCopia) return true;
   if (!ultimaCopia.sellada) return true;
-  if (ultimaCopia.cifrada !== capsula.cifrada) return true;
+  if (!ultimaCopia.cifrada) return true; // Las réplicas de la malla viajan SIEMPRE cifradas
   const vence = (opciones?.ahora ?? Date.now()) - ultimaCopia.at >= INTERVALO_REPLICA_MS;
   if (!vence) return false;
   if (opciones?.tamanoActual === undefined) return true; // Sin medida, sello nuevo por ronda

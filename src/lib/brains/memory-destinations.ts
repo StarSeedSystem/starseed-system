@@ -46,6 +46,18 @@ import { ALL_PERSONAS, getOverrides } from "@/lib/astraura/neuron-persona-store"
 // clave API, local por dispositivo) — este módulo NO duplica ese registro,
 // solo lo consulta para el paso de sincronización best-effort de abajo.
 import { getProviderConfig } from "@/ai/astraura/sync-providers";
+// Cápsulas de memoria Memvid (MVD1027): el destino «cápsula» del cerebro usa
+// la MALLA (capsulas-malla.ts, MVD1027B) para decidir en cada sincronía quién
+// escribe (un solo escritor por cápsula) y cuándo toca una réplica sellada.
+// Se importa el marco de decisiones PURO y las cápsulas; el cliente del
+// servidor de Memvid llega en su propia tarea — aquí se aplica la decisión.
+import { capsulaDe, type SujetoMemoria } from "@/lib/memorias/capsulas";
+import {
+  accionPara,
+  debeReplicar,
+  escritorDe,
+  type NeuronaMalla,
+} from "@/lib/memorias/capsulas-malla";
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                               */
@@ -77,12 +89,24 @@ export interface P2pMemoryDestination {
   label?: string;
 }
 
+/**
+ * Destino "cápsula" — la memoria del cerebro en cápsula Memvid (memvid-capsulas.md §3).
+ * Apagado por defecto (§5: se enciende por sujeto). Quién escribe y cuándo se
+ * manda una réplica sellada lo decide la malla (`capsulas-malla.ts`).
+ */
+export interface CapsulaMemoryDestination {
+  enabled: boolean;
+  label?: string;
+}
+
 export interface MemoryDestinationsConfig {
   local: { enabled: true };
   starseed: { enabled: boolean };
   external: ExternalMemoryDestination[];
   /** Espejo por Syncthing (folder local sincronizada) — default OFF. */
   p2p: P2pMemoryDestination;
+  /** Memoria en cápsula Memvid — default OFF (contrato §5). */
+  capsula: CapsulaMemoryDestination;
 }
 
 /** Manifiesto honesto del destino StarSeed de un cerebro (solo metadatos). */
@@ -102,7 +126,13 @@ const MANIFEST_KEY_PREFIX = "brain-store:";
 /* ------------------------------------------------------------------ */
 
 export function defaultMemoryDestinations(): MemoryDestinationsConfig {
-  return { local: { enabled: true }, starseed: { enabled: true }, external: [], p2p: { enabled: false } };
+  return {
+    local: { enabled: true },
+    starseed: { enabled: true },
+    external: [],
+    p2p: { enabled: false },
+    capsula: { enabled: false },
+  };
 }
 
 function normalizeP2p(raw: unknown): P2pMemoryDestination {
@@ -137,12 +167,18 @@ function normalizeExternal(raw: unknown): ExternalMemoryDestination[] {
 export function normalizeMemoryDestinations(raw: unknown): MemoryDestinationsConfig {
   try {
     if (!raw || typeof raw !== "object") return defaultMemoryDestinations();
-    const r = raw as Partial<MemoryDestinationsConfig> & { starseed?: { enabled?: boolean } };
+    const r = raw as Partial<MemoryDestinationsConfig> & {
+      starseed?: { enabled?: boolean };
+      capsula?: { enabled?: boolean; label?: string };
+    };
     return {
       local: { enabled: true }, // local SIEMPRE activo, no desactivable.
       starseed: { enabled: r.starseed?.enabled !== false }, // default ON.
       external: normalizeExternal(r.external),
       p2p: normalizeP2p(r.p2p), // default OFF (requiere Syncthing propio).
+      capsula: r.capsula?.enabled === true
+        ? { enabled: true, ...(typeof r.capsula.label === "string" && r.capsula.label.trim() ? { label: r.capsula.label.trim().slice(0, 120) } : {}) }
+        : { enabled: false }, // default OFF (contrato §5).
     };
   } catch {
     return defaultMemoryDestinations();
@@ -170,6 +206,10 @@ export async function setMemoryDestinations(
         enabled: patch.p2p?.enabled ?? current.p2p.enabled,
         folderId: patch.p2p && "folderId" in patch.p2p ? patch.p2p.folderId : current.p2p.folderId,
         label: patch.p2p && "label" in patch.p2p ? patch.p2p.label : current.p2p.label,
+      },
+      capsula: {
+        enabled: patch.capsula?.enabled ?? current.capsula.enabled,
+        label: patch.capsula && "label" in patch.capsula ? patch.capsula.label : current.capsula.label,
       },
     };
     return await saveBrain({
@@ -289,7 +329,7 @@ export async function removeExternalDestination(brain: Brain, destinationId: str
 /* ------------------------------------------------------------------ */
 
 export interface MemoryDestinationSyncStep {
-  kind: "starseed" | "external" | "local" | "p2p" | "gdrive";
+  kind: "starseed" | "external" | "local" | "p2p" | "gdrive" | "capsula";
   ok: boolean;
   detail: string;
 }
@@ -361,6 +401,74 @@ async function effectiveBrainStore(): Promise<BrainStoreMode> {
   }
 }
 
+/* ── Cápsulas de memoria (MVD1027) — malla: un escritor por cápsula ────────── */
+
+/**
+ * Paso «cápsula»: aplica la malla de cápsulas (`@/lib/memorias/capsulas-malla`,
+ * MVD1027B) a la cápsula de ESTE cerebro en este ciclo de sincronía:
+ *   · «escribir»     — esta neurona es la escritora (arriendo del sujeto o, sin
+ *                      arriendo, la más estable con presencia viva; nunca dos);
+ *   · «leer-replica» — ya guarda una copia sellada viva;
+ *   · «pedir-al-escritor» — la cápsula la escribe otra neurona.
+ * `debeReplicar` manda repetir la copia sellada solo cada 15 min cuando cambió
+ * el tamaño; sin registro de la última copia, toca pedir una. Los cerebros son
+ * alcance personal: la cápsula va cifrada y solo entre medios de la MISMA
+ * cuenta (el canal de presencia es privado de la cuenta, `neur:<token>`).
+ * Los media presentes aún no miden estabilidad: todas a 1 y el desempate por
+ * id de `escritorDe` mantiene UN solo escritor determinista. La escritura real
+ * (fotogramas al servidor de cápsulas de la neurona escritora) la ejecuta el
+ * cliente de Memvid fuera de este destino; aquí se decide y se anuncia. Nunca lanza.
+ */
+async function pasoCapsulaMalla(brain: Brain): Promise<MemoryDestinationSyncStep> {
+  try {
+    const capsula = capsulaDe({ tipo: "cerebro", id: brain.id } as SujetoMemoria, new Date());
+    const { presenciaActual } = await import("@/lib/neurons/presencia");
+    const neuronas: NeuronaMalla[] = [];
+    for (const m of presenciaActual().medios) {
+      if (neuronas.some((n) => n.id === m.n)) continue;
+      neuronas.push({ id: m.n, cuentaId: m.n, estabilidad: 1, presenciaViva: true });
+    }
+    const escritor = escritorDe(capsula, neuronas, []);
+    const dev = neuronDeviceId();
+    const yo = neuronas.find((n) => n.id === dev) ?? (dev
+      ? ({ id: dev, cuentaId: dev, estabilidad: 1, presenciaViva: true } as NeuronaMalla)
+      : null);
+    if (!yo) {
+      return {
+        kind: "capsula",
+        ok: false,
+        detail: "Cápsula del cerebro: esta neurona no está identificada, no decide nada este ciclo.",
+      };
+    }
+    const accion = accionPara(yo, capsula, escritor);
+    if (accion === "escribir") {
+      return {
+        kind: "capsula",
+        ok: true,
+        detail: `«${capsula.nombre}»: esta neurona es la ESCRITORA de la cápsula (un escritor por cápsula).`,
+      };
+    }
+    if (!escritor) {
+      return { kind: "capsula", ok: false, detail: `«${capsula.nombre}»: sin ninguna neurona viva que la escriba.` };
+    }
+    // Aquí la cápsula la escribe otra neurona: pedir la copia sellada si toca.
+    const tocaCopia = debeReplicar(capsula, yo, null); // sin última copia registrada aún
+    return {
+      kind: "capsula",
+      ok: true,
+      detail: tocaCopia
+        ? `«${capsula.nombre}»: la escribe «${escritor.id}»; sin copia sellada propia, toca pedir una.`
+        : `«${capsula.nombre}»: la escribe «${escritor.id}» y esta neurona lleva réplica al día.`,
+    };
+  } catch (e) {
+    return {
+      kind: "capsula",
+      ok: false,
+      detail: `Cápsula del cerebro: ${e instanceof Error ? e.message : "no se pudo decidir (error inesperado)."}`,
+    };
+  }
+}
+
 /**
  * Sincroniza los destinos de un cerebro: (1) refresca el manifiesto StarSeed
  * si está activo, (2) empuja un bundle ligero a cada destino externo (POST
@@ -426,6 +534,12 @@ export async function syncBrainMemoryNow(brain: Brain): Promise<MemoryDestinatio
           ? `Manifiesto StarSeed actualizado (${manifest.fileCount} ficheros).`
           : "No se pudo actualizar el manifiesto StarSeed (¿sesión activa?).",
       });
+    }
+
+    // Destino «cápsula» (memoria en cápsula Memvid, apagado por defecto): la
+    // malla decide un escritor por cápsula y cuándo toca una réplica sellada.
+    if (dest.capsula.enabled && !soloLocal) {
+      steps.push(await pasoCapsulaMalla(brain));
     }
 
     if (dest.external.length && !soloLocal && canFetch()) {
