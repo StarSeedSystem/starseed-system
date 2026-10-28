@@ -62,6 +62,30 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
   });
 });
 
+describe("contrato del port (OpenMausBot)", () => {
+  it("publica la caja y el centro de la cara y el recorrido exacto de la mirada", () => {
+    expect(CAJA_CARA).toBeGreaterThan(0);
+    expect(CENTRO_CARA).toEqual([120, 122.5]);
+    expect(RECORRIDO_MIRADA).toEqual({ x: 13.2, y: 8.4 });
+  });
+
+  it("cubre los 18 estados y asigna a cada uno su expresión canónica", () => {
+    const estadosTabla = Object.keys(POSESIONES) as EstadoMausbot[];
+    expect(estadosTabla).toHaveLength(18);
+    expect(new Set(estadosTabla).size).toBe(18);
+    const canonicas: Record<EstadoMausbot, number> = {
+      sleeping: 22, waking: 13, idle: 6, listening: 1, thinking: 17,
+      searching: 20, working: 10, excited: 2, surprised: 21, suspicious: 5,
+      angry: 7, drowsy: 22, happy: 19, curious: 21, confused: 8,
+      bored: 0, proud: 2, shy: 24,
+    };
+    for (const [estado, primera] of Object.entries(canonicas) as [EstadoMausbot, number][]) {
+      expect(expresionDe(estado)[0]).toBe(primera);
+      expect(POSESIONES[estado][0]).toBe(primera);
+    }
+  });
+});
+
 describe("tabla estado → expresión", () => {
   it("expresionDe devuelve índices válidos para los 18 estados", () => {
     expect(ESTADOS.map(e => POSESIONES[e]).every(Boolean)).toBe(true);
