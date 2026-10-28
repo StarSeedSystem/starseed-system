@@ -16,12 +16,15 @@
 import React from "react";
 import { Volume2 } from "lucide-react";
 import { useAurora } from "@/components/aurora/aurora-provider";
+import { useConversionMenu, type ConversionMenu } from "@/components/conversion/use-conversion-menu";
+import { descargarBlob, type Convertido } from "@/lib/conversion/cliente";
 import {
     FolderPlus, StickyNote, Link2, LayoutGrid, ArrowUpDown, List, Grid3x3,
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
     Trash2, Magnet, FolderInput, Sparkles, Check, PictureInPicture2,
     Eye, Info, Grid2x2, Columns2, Rows2, Frame, Home, Share2, PenLine,
-    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, type LucideIcon,
+    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, Replace,
+    Loader2, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize, TileMode } from "./desktop-store";
@@ -29,7 +32,7 @@ import {
     addIcon, createNoteIcon, sortIcons, autoArrangeIcons, setSnap, updateIcon,
     duplicateIcon, removeIcon, moveIconToFolder, setDesktopView, DEFAULT_DESKTOP_VIEW,
     moveIconToPage, desktopPageCount, iconPage, addDesktopPage, removeDesktopPage,
-    MAX_DESKTOP_PAGES,
+    MAX_DESKTOP_PAGES, archivoConvertibleDeIcono,
 } from "./desktop-store";
 import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./desktop-clipboard";
 import { canEditIcon } from "./desktop-open";
@@ -105,6 +108,51 @@ function SubMenu({
             </button>
             {open && <div className="mb-0.5 ml-3 border-l border-white/10 pl-1">{children}</div>}
         </div>
+    );
+}
+
+// ── «Convertir a…» dentro del menú del escritorio ────────────────
+// Los menús del escritorio son propios (no Radix), así que se pinta con las
+// primitivas de arriba y los destinos los sigue dando `useConversionMenu`.
+function ConversionSubmenu({
+    conversion, onDone,
+}: {
+    conversion: ConversionMenu;
+    onDone: () => void;
+}): React.ReactElement {
+    const elegir = (fn: () => void) => () => {
+        fn();
+        onDone();
+    };
+    return (
+        <SubMenu icon={Replace} label="Convertir a…">
+            <p className="px-2.5 pb-1 text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground/60">
+                Con Filee · sin subir nada
+            </p>
+            {conversion.estado === "cargando" && (
+                <p className="flex items-center gap-2 px-2.5 py-1.5 text-[12px] font-semibold text-muted-foreground">
+                    <Loader2 className="size-3.5 animate-spin" /> Mirando formatos…
+                </p>
+            )}
+            {conversion.estado === "no-disponible" && (
+                <p className="whitespace-normal px-2.5 py-1.5 text-[11px] leading-snug text-muted-foreground">
+                    {conversion.motivo ?? "Aquí no hay conversor."}
+                </p>
+            )}
+            {conversion.estado === "listo" && conversion.principales.map((f) => (
+                <MenuItem
+                    key={f}
+                    label={conversion.etiqueta(f)}
+                    onClick={elegir(() => conversion.onConvertir(f))}
+                />
+            ))}
+            <MenuDivider />
+            <MenuItem
+                icon={Settings2}
+                label={conversion.resto > 0 ? `Más formatos (${conversion.resto})…` : "Abrir el conversor…"}
+                onClick={elegir(conversion.onMas)}
+            />
+        </SubMenu>
     );
 }
 
@@ -291,6 +339,15 @@ export function IconContextMenu({
     // Pegar DENTRO de este folder (destino natural del portapapeles).
     const canPasteHere = Boolean(clip) && icon.kind === "folder";
 
+    // Filee: solo los iconos que apuntan a un archivo con URL. El resultado
+    // se descarga en este dispositivo (no toca la Biblioteca).
+    const archivoDelIcono = archivoConvertibleDeIcono(icon);
+    const guardarConvertido = React.useCallback(async (c: Convertido): Promise<string | null> => {
+        descargarBlob(c.blob, c.nombre);
+        return "descargado";
+    }, []);
+    const conversion = useConversionMenu(archivoDelIcono, guardarConvertido);
+
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
             <MenuItem icon={ExternalLink} label="Abrir" onClick={() => run(() => onOpen(icon))} />
@@ -303,6 +360,7 @@ export function IconContextMenu({
             {editable && onEdit && (
                 <MenuItem icon={PenLine} label="Editar" onClick={() => run(() => { onEdit(icon) || onRename(icon.id); })} />
             )}
+            {conversion && <ConversionSubmenu conversion={conversion} onDone={onClose} />}
 
             <MenuDivider />
             
