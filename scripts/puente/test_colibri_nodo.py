@@ -86,6 +86,7 @@ class PruebaPlan(unittest.TestCase):
         self.assertNotIn("start-here.sh", texto)
         clon = plan[0]["args"]
         self.assertEqual([clon[0], clon[-1]], ["git", C.REPO_CLONE_RUTA])
+        self.assertIn(C.REPO_COLIBRI, clon)
         self.assertIn("v2.0.0", clon)
         descargas = [p for p in plan if p["args"][1:2] == ["download"]]
         self.assertEqual(len(descargas), 1)

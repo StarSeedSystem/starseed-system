@@ -33,6 +33,9 @@ class Plan(unittest.TestCase):
         self.assertEqual(descargas[0][2], "convaiinnovations/laya")
         self.assertEqual(descargas[0][descargas[0].index("--local-dir") + 1], N.COLIBRI_MODELO_A1)
         self.assertIn(["make", "-C", "c", "laya"], [p["args"] for p in plan])
+        # la huella de los pesos es paso del plan, no solo del guion SSH
+        huellas = [p["args"] for p in plan if p["args"][0] == "sha256sum"]
+        self.assertEqual(huellas, [["sha256sum", N.COLIBRI_MODELO_A1 + "/model.safetensors"]])
 
     def test_carpeta_del_modelo_configurable(self):
         plan = N.plan_colibri("/srv/modelos")
