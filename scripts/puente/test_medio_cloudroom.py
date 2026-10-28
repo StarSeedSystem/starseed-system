@@ -1,7 +1,8 @@
 """Pruebas puras de la sonda Cloudroom; nunca ejecuta room-cli."""
-import os, sys, unittest
+import os, sys, tempfile, unittest
+from unittest.mock import patch
 sys.path.insert(0, os.path.dirname(__file__))
-from medio_cloudroom import interpretar
+from medio_cloudroom import cli_path, interpretar, sondear
 
 class SondaCloudroom(unittest.TestCase):
     def test_sesion_con_cupo_y_hilos(self):
@@ -24,6 +25,55 @@ class SondaCloudroom(unittest.TestCase):
         r = interpretar({}, "no-json")
         self.assertEqual(r["estado"], "no_disponible")
         self.assertEqual(r["detalle"], "respuesta inválida de room-cli cloud status")
+
+    def test_variable_de_entorno_manda(self):
+        with patch("os.path.isfile", return_value=True):
+            self.assertEqual(cli_path({"CLOUDROOM_CLI": "/opt/room-cli"}, which=lambda _: "/fallback"), "/opt/room-cli")
+
+    def test_busca_en_local_bin_y_respeta_la_ausencia(self):
+        with tempfile.TemporaryDirectory() as casa:
+            bin_dir = os.path.join(casa, ".local", "bin")
+            os.makedirs(bin_dir)
+            ruta = os.path.join(bin_dir, "room-cli")
+            open(ruta, "w").close()
+            with patch("os.path.expanduser", return_value=casa):
+                with patch("os.path.isfile", return_value=True):
+                    self.assertEqual(cli_path({}, which=lambda _: None), ruta)
+            self.assertIsNone(cli_path({}, which=lambda _: None) or None)
+
+    def test_sin_room_cli_no_ejecuta_nada(self):
+        d = sondear(env={}, run=lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()))
+        self.assertEqual(d["estado"], "no_disponible")
+        self.assertIn("app sin instalar", d["detalle"])
+
+    def test_sondea_los_tres_comandos_con_json(self):
+        ordenes = []
+        def falso(orden, timeout=15, capture_output=True, text=True):
+            ordenes.append((orden, timeout))
+            if orden[1:] == ["status", "--json"]:
+                return type("P", (), {"returncode": 0, "stdout": '{"port":5123}', "stderr": ""})()
+            if orden[1:] == ["cloud", "status", "--json"]:
+                return type("P", (), {"returncode": 0, "stdout": '{"account":"alex"}', "stderr": ""})()
+            return type("P", (), {"returncode": 0, "stdout": '{"count":2}', "stderr": ""})()
+        with patch("os.path.isfile", return_value=True):
+            d = sondear(run=falso, env={"CLOUDROOM_CLI": "room-cli"})
+        self.assertEqual([o for o, _ in ordenes], [
+            ["room-cli", "status", "--json"],
+            ["room-cli", "cloud", "status", "--json"],
+            ["room-cli", "thread", "count", "--json"],
+        ])
+        self.assertTrue(all(t == 15 for _, t in ordenes))
+        self.assertEqual(d["estado"], "usable")
+
+    def test_si_falla_cloud_status_no_dice_usable(self):
+        def falso(orden, timeout=15, capture_output=True, text=True):
+            if orden[1:] == ["status", "--json"]:
+                return type("P", (), {"returncode": 0, "stdout": '{"port":5123}', "stderr": ""})()
+            return type("P", (), {"returncode": 1, "stdout": "", "stderr": "comando fallido"})()
+        with patch("os.path.isfile", return_value=True):
+            d = sondear(run=falso, env={"CLOUDROOM_CLI": "room-cli"})
+        self.assertEqual(d["estado"], "requiere_alex")
+        self.assertIn("comando fallido", d["detalle"])
 
 if __name__ == "__main__":
     unittest.main()
