@@ -60,3 +60,21 @@ Manda este bloque, tal cual, en un solo mensaje (salta lo que ya se sepa; «adel
 - Interfaz del OS (widgets, orbe, menús de la Trinity): esta skill es para vídeo. Sus números de
   `references/motion-craft.md` se traducen a los tokens de interfaz del OS (140–350 ms, curvas del ADN) y a
   las skills `transitions-*`; nunca se copian duraciones de vídeo a la interfaz.
+
+## 7. Escenas 3D con Blender
+
+Un trabajo 3D es un DATO, no código: un `Trabajo3D` con vocabulario cerrado (`architecture/blender-3d.md` §4)
+que Blender interpreta en un proceso aparte. Nunca se pega código libre de una persona o de una IA.
+
+- **Cómo se pide:** `POST /api/3d/trabajos` en una neurona con Blender. La IA propone el trabajo y la persona
+  lo confirma; importar archivos, los ámbitos `grupo`/`publica` y la calidad `final` siempre piden confirmación.
+- **Cómo entra al Estudio:** el `render_mp4` y el `render_exr` que devuelve Blender entran a HyperFrames como
+  cualquier otro medio (clip o fotograma para componer). El Estudio sigue componiendo; Blender solo aporta la
+  escena 3D.
+- **Plantillas:** viven en `servicios/blender-3d/plantillas/`; por ejemplo `intro-logo-facetado.json`, el logo
+  de StarSeed facetado y lleno de luz, con la luz cálida en el ojo de la intro.
+- **Sin Blender:** si ninguna neurona de la cuenta tiene Blender se dice claro y no se finge renderizar:
+  «próximamente: ninguna de tus neuronas tiene Blender». La intro sigue siendo posible con three.js y
+  HyperFrames; Blender es un medio que suma, nunca una dependencia.
+- **Límites:** el perfil de la neurona recorta ancho, alto, muestras y fotogramas, y el trabajo se rechaza con
+  su motivo en español si no cabe.
