@@ -152,7 +152,7 @@ export type AreaTip = {
 const AREAS: AreaTip[] = [
   { path: "/agent", label: "Agente · Aurora", icon: Brain, accent: "text-fuchsia-300", tip: "Usar: configura tu IA y habla con Aurora por voz o texto." },
   { path: "/memorias", label: "Memorias", icon: BookOpen, accent: "text-amber-300", tip: "Crear: guarda notas, ideas y archivos; vincúlalos en baúles." },
-  { path: "/cerebros", label: "Cerebros", icon: Network, accent: "text-cyan-300", tip: "Conectar: enlaza memorias y skills en un grafo vivo." },
+  { path: "/cerebro", label: "Cerebro", icon: Network, accent: "text-cyan-300", tip: "Conectar: enlaza memorias y skills en un grafo vivo." },
   { path: "/decisiones", label: "Decisiones", icon: Vote, accent: "text-emerald-300", tip: "Publicar: propón y vota decisiones de la red." },
   { path: "/pizarra", label: "Pizarra", icon: PenSquare, accent: "text-violet-300", tip: "Crear: dibuja y co-crea ideas en un lienzo compartido." },
   { path: "/navegador", label: "Navegador", icon: Globe, accent: "text-sky-300", tip: "Usar: explora la red y descubre contenidos y nodos." },
@@ -165,6 +165,11 @@ const AREAS: AreaTip[] = [
   { path: "/profile", label: "Perfil", icon: UserCircle, accent: "text-orange-300", tip: "Usar: tus facetas públicas (cívica, artística, profesional) de la cuenta." },
   { path: "/escritorios", label: "Escritorios", icon: Monitor, accent: "text-purple-300", tip: "Usar: tu espacio principal con widgets, apps y el OmniDock." },
   { path: "/red-mesh", label: "Red Mesh", icon: RadioTower, accent: "text-red-300", tip: "Conectar: malla LoRa nodo a nodo, sin depender de un servidor central." },
+  { path: "/protomolecula", label: "Protomolécula", icon: Wand2, accent: "text-violet-300", tip: "Crear: une programas abiertos en un panel de parámetros para crear moléculas vivas." },
+  { path: "/network/politics", label: "Política", icon: Vote, accent: "text-emerald-300", tip: "Publicar: propone leyes, debates y vota con delegación revocable." },
+  { path: "/network/education", label: "Educación", icon: BookOpen, accent: "text-amber-300", tip: "Aprender: mapa del conocimiento, itinerarios y grupos de estudio con Aurora." },
+  { path: "/network/culture", label: "Cultura", icon: Palette, accent: "text-pink-300", tip: "Crear: publica en el Lienzo Universal, en vivo y agenda de encuentros." },
+  { path: "/genesis", label: "Genesis", icon: Sparkles, accent: "text-cyan-300", tip: "Personalizar: pide cambios del sistema en tus palabras con vista previa y deshacer." },
 ];
 
 export default function OnboardingWizard({ onClose }: { onClose?: () => void }) {
