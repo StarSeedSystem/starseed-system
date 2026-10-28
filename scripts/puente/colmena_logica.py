@@ -165,17 +165,14 @@ def elegir_destino(tarea: Dict[str, Any], nodos: Dict[str, Dict[str, Any]], ocup
         if tarea.get("solo_mac") and medio != "mac":
             continue
         hasta = _insomne_hasta(info)
-        if hasta is not None:
-            # nunca una cuya sesión termina antes de 15 min
-            if hasta < 900:  # < 15 minutos
-                continue
-        pref = PREFERENCIA.get(medio, 1)
-        candidatos.append((pref, -libres, hasta if hasta is not None else -float("inf"), n))
+        if hasta is not None and hasta < 900:
+            continue  # nunca una cuya sesión termina antes de 15 min
+        # A igual preferencia de medio, gana la insomne con `hasta` posterior; después, la que más huecos tenga.
+        insomne = -hasta if hasta is not None else float("inf")
+        candidatos.append((PREFERENCIA.get(medio, 1), insomne, -libres, n))
     if not candidatos:
         return None, "Ningún contenedor libre: espera en el A1 y la coge el primero que se libere."
-    # A igual preferencia de medio, gana la neurona con insomne.hasta posterior
-    elegido = min(candidatos, key=lambda x: (x[0], x[1], -x[2] if x[2] != -float("inf") else -float("inf"), x[3]))
-    return elegido[3], ""
+    return min(candidatos)[3], ""
 
 
 def plan_relevo(latidos: Dict[str, Dict[str, Any]], bajas: Dict[str, Dict[str, Any]], asignadas: Dict[str, Dict[str, Any]],
@@ -207,42 +204,24 @@ def al_volver(yo: str, mis_en_curso: Iterable[str], asignadas: Dict[str, Dict[st
 
 
 def debe_desconectarse_solo(senales: Dict[str, Any]) -> Tuple[bool, str]:
-    """PURA. ¿Pide el propio aparato su desconexión antes de caerse? (batería crítica o apagado inminente)."""
+    """PURA. ¿Pide el propio aparato su desconexión antes de caerse? (batería crítica, apagado inminente o
+    sesión insomne a punto de terminar)."""
     bat = senales.get("bateria") or {}
     if bat and bat.get("cargando") is False and _num(bat.get("nivel"), 1.0) <= 0.10:
         return True, "batería al %d %% sin cargador" % int(_num(bat.get("nivel")) * 100)
     apagado = senales.get("apagado_en_s")
     if isinstance(apagado, (int, float)) and not isinstance(apagado, bool) and 0 <= apagado <= 300:
         return True, "se apaga en %d min" % max(1, int(apagado // 60))
-    # Insomne
+    # Insomne: `hasta` son los segundos que le quedan a la sesión (la función es pura: no hay reloj).
     insomne = senales.get("insomne")
+    if not isinstance(insomne, dict):
+        internas = senales.get("senales") or {}
+        insomne = internas.get("insomne") if isinstance(internas, dict) else None
     if isinstance(insomne, dict):
         hasta = insomne.get("hasta")
-    else:
-        hasta = None
-    if hasta is None:
-        s2 = senales.get("senales") or {}
-        if isinstance(s2, dict):
-            insomne2 = s2.get("insomne") or {}
-            if isinstance(insomne2, dict):
-                hasta = insomne2.get("hasta")
-    if isinstance(hasta, (int, float)) and not isinstance(hasta, bool):
-        queda = float(hasta)
-        # Si viene como timestamp muy grande, no podemos calcular sin ahora; pero según enunciado
-        # "si senales.insomne.hasta llega en menos de 5 min" -> tratar como que queda < 300
-        if queda < 300 and queda >= 0:  # segundos que quedan
-            mins = int(queda // 60)
-            if mins < 1 and queda > 0:
+        if isinstance(hasta, (int, float)) and not isinstance(hasta, bool) and 0 <= hasta < 300:
+            mins = int(hasta // 60)
+            if mins < 1 and hasta > 0:
                 mins = 1
-            if queda == 0:
-                mins = 0
-            return True, "la sesión insomne termina en %d min" % mins
-        # También aceptar <= 300 por redondeo
-        if queda <= 300 and queda >= 0:
-            mins = int(round(queda / 60))
-            if mins < 1 and queda > 0:
-                mins = 1
-            if queda == 0:
-                mins = 0
             return True, "la sesión insomne termina en %d min" % mins
     return False, ""
