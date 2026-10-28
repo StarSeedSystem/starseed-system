@@ -18,9 +18,10 @@ import { TEXTURAS } from "./texturas-webgl";
 import { ANIMACION_MANIMGX } from "./animacion-manimgx";
 import { MAUSBOT } from "./mausbot";
 import { ESCENA3D } from "./escena3d";
+import { VIDEO_HTML } from "./video-html";
 
 /** Los átomos que el OS trae de serie. Las tareas siguientes añaden los suyos aquí. */
-export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT, ESCENA3D];
+export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT, ESCENA3D, VIDEO_HTML];
 
 /**
  * Registra los átomos propios que falten en el registro. Es idempotente: llamarla dos
