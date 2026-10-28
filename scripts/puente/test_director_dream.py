@@ -8,7 +8,11 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import director_dream as DD
+<<<<<<< HEAD
 import dream_a_cola as DC
+=======
+import dream_a_cola as D
+>>>>>>> e518e94a3 (salvavidas · RTESP1011Bc: trabajo del agente antes de las puertas (tsc / vitest))
 
 #: La forma real de una propuesta, tal como la devuelve `dream_a_cola.puntos`.
 P = {"titulo": "Algo que hacer", "seccion": "top 3 accionables", "cuerpo": "detalle"}
@@ -63,6 +67,18 @@ class TestFormaDelEncargo(unittest.TestCase):
         t = DD.tarea_de(P, "2026-09-17", 0)
         self.assertEqual(t["depende"], [])
         self.assertEqual(t["archivos"], [])
+
+    def test_el_titulo_de_la_ola_dice_imaginacion(self):
+        self.assertEqual(
+            DD.tarea_de(P, "2026-09-17", 0)["ola"],
+            "Ola Imaginación 2026-09-17 · lo que el análisis nocturno encontró",
+        )
+
+    def test_el_resumen_dice_imaginacion_diaria(self):
+        self.assertTrue(D.resumen([{"titulo": "Algo"}]).startswith(
+            "Imaginación diaria leída: encargo 1"))
+        self.assertTrue(D.resumen([]).startswith(
+            "Imaginación diaria leída: nada accionable"))
 
 
 class TestTextosDeImaginacion(unittest.TestCase):
