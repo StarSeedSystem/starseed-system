@@ -1,7 +1,7 @@
 {
   "esquema": 1,
-  "actualizado": "2026-10-09",
-  "descripcion": "Catálogo de capas de Astraura (architecture/capas-autoadaptables.md §1 y §3). Una capa sin su SHA en este catálogo no se usa jamás (§6). Los sha256 quedan en \"por-verificar\" hasta que scripts/puente/capas_renovar.py los rellene desde la API de Hugging Face (lfs.oid = sha256, sin descargar; §9). Las fuentes se corrigieron el 2026-10-09 a los repos que existen de verdad (los anteriores daban 401/307).",
+  "actualizado": "2026-10-27",
+  "descripcion": "Catálogo de capas de Astraura (architecture/capas-autoadaptables.md §1 y §3). Una capa sin su SHA en este catálogo no se usa jamás (§6). Los sha256 quedan en \"por-verificar\" hasta que scripts/puente/capas_renovar.py los rellene desde la API de Hugging Face (lfs.oid = sha256, sin descargar; §9). Las fuentes se corrigieron el 2026-10-09 a los repos que existen de verdad (los anteriores daban 401/307). Las 9 capas de Colibri (colibri-*) entraron el 2026-10-27 desde config/capas-colibri-1027.json (contrato architecture/colibri-multicapas.md): todas «por-verificar» hasta que el instalador mida su SHA-256; los GB del inventario van a MB × 1024.",
   "capas": [
     {
       "id": "needle3-reflejo",
@@ -309,6 +309,84 @@
        "archivo": "parakeet-tdt-0.6b-v3.q8_0.gguf",
        "tamano_bytes": 713975456,
        "verificado": "2026-10-19"
+     },
+     {
+       "id": "colibri-laya", "capa": "juicio", "modelo": "Laya (Convai Innovations)",
+       "familia": "convaiinnovations/laya", "version": "colibri v2.0.0",
+       "formato": "safetensors", "runtime": "colibri", "parametros": "por-verificar",
+       "disco_mb": 870, "ram_min_mb": 1740, "ram_ok_mb": 1740,
+       "sha256": "por-verificar", "fuente_oficial": "https://huggingface.co/convaiinnovations/laya",
+       "espejos": [], "estado": "por-verificar", "medios": ["nativo", "servidor"], "verificado": null
+     },
+     {
+       "id": "colibri-gliner-decide", "capa": "juicio", "modelo": "GLiNER2.5-Decide (fastino)",
+       "familia": "fastino/GLiNER2.5-Decide", "version": "colibri v2.0.0",
+       "formato": "safetensors", "runtime": "colibri", "parametros": "por-verificar",
+       "disco_mb": 1996, "ram_min_mb": 1945, "ram_ok_mb": 1945,
+       "sha256": "por-verificar", "fuente_oficial": "https://huggingface.co/fastino/GLiNER2.5-Decide",
+       "espejos": [], "estado": "por-verificar", "medios": ["nativo", "servidor"], "verificado": null
+     },
+     {
+       "id": "colibri-clef", "capa": "juicio", "modelo": "Clef (Cloudflare): Qwen3.8-27B con cabeza de decisión",
+       "familia": "JustVugg/colibri", "version": "colibri v2.0.0",
+       "formato": "safetensors", "runtime": "colibri", "parametros": "27 B",
+       "disco_mb": 53248, "ram_min_mb": 19456, "ram_ok_mb": 56320,
+       "sha256": "por-verificar", "fuente_oficial": "https://github.com/JustVugg/colibri",
+       "espejos": [], "estado": "por-verificar", "medios": ["servidor"], "verificado": null
+     },
+     {
+       "id": "colibri-olmoe-7b", "capa": "palabra", "modelo": "OLMoE 7B (int8 tras convertir)",
+       "familia": "JustVugg/colibri", "version": "colibri v2.0.0",
+       "formato": "safetensors", "runtime": "colibri", "parametros": "7 B",
+       "disco_mb": 7168, "ram_min_mb": 8192, "ram_ok_mb": 8192,
+       "sha256": "por-verificar", "fuente_oficial": "https://github.com/JustVugg/colibri",
+       "espejos": [], "estado": "por-verificar", "medios": ["servidor"], "verificado": null
+     },
+     {
+       "id": "colibri-qwen3-coder-30b", "capa": "razon", "modelo": "Qwen3-Coder-30B-A3B (int4)",
+       "familia": "Justvugg/Qwen3-Coder-30B-A3B-colibri-int4", "version": "colibri v2.0.0",
+       "formato": "safetensors", "runtime": "colibri", "parametros": "30 B",
+       "disco_mb": 19865, "ram_min_mb": 8192, "ram_ok_mb": 18432,
+       "sha256": "por-verificar",
+       "fuente_oficial": "https://huggingface.co/Justvugg/Qwen3-Coder-30B-A3B-colibri-int4",
+       "espejos": [], "estado": "por-verificar", "medios": ["servidor"], "verificado": null
+     },
+     {
+       "id": "colibri-qwen36-35b", "capa": "razon", "modelo": "Qwen3.6-35B-A3B (int4, piensa y usa herramientas)",
+       "familia": "Kreuzzelg/qwen36-35b-a3b-colibri-i4-gs64", "version": "colibri v2.0.0",
+       "formato": "safetensors", "runtime": "colibri", "parametros": "35 B",
+       "disco_mb": 23654, "ram_min_mb": 10240, "ram_ok_mb": 20480,
+       "sha256": "por-verificar",
+       "fuente_oficial": "https://huggingface.co/Kreuzzelg/qwen36-35b-a3b-colibri-i4-gs64",
+       "espejos": [], "estado": "por-verificar", "medios": ["servidor"], "verificado": null
+     },
+     {
+       "id": "colibri-deepseek-v4-flash-reap", "capa": "profunda",
+       "modelo": "DeepSeek V4 Flash REAP 150B (132 de 256 expertos)",
+       "familia": "puwaer/DeepSeek-V4-Flash-0731-reap-150b", "version": "colibri v2.0.0",
+       "formato": "safetensors", "runtime": "colibri", "parametros": "150 B",
+       "disco_mb": 86732, "ram_min_mb": 16384, "ram_ok_mb": 32768, "streaming_disco": true,
+       "sha256": "por-verificar", "fuente_oficial": "https://huggingface.co/puwaer/DeepSeek-V4-Flash-0731-reap-150b",
+       "espejos": [], "estado": "por-verificar", "medios": ["servidor"], "verificado": null
+     },
+     {
+       "id": "colibri-qwen38-flash-next", "capa": "profunda",
+       "modelo": "Qwen3.8-Flash-Next (125B + 51B n-grama; visión y herramientas)",
+       "familia": "Qwen/Qwen3.8-Flash-Next-FP8", "version": "colibri v2.0.0",
+       "formato": "safetensors", "runtime": "colibri", "parametros": "125 B + 51 B",
+       "disco_mb": 190464, "ram_min_mb": 24576, "ram_ok_mb": 32768, "streaming_disco": true,
+       "sha256": "por-verificar", "fuente_oficial": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next-FP8",
+       "espejos": [], "estado": "por-verificar", "medios": ["servidor"], "verificado": null
+     },
+     {
+       "id": "colibri-glm-5.2", "capa": "profunda",
+       "modelo": "GLM-5.2 (744B, modelo de referencia, cabeza MTP)",
+       "familia": "mastouri/GLM-5.2-colibri-int4-g64-with-int8-mtp", "version": "colibri v2.0.0",
+       "formato": "safetensors", "runtime": "colibri", "parametros": "744 B",
+       "disco_mb": 439603, "ram_min_mb": 16384, "ram_ok_mb": 24576, "streaming_disco": true,
+       "sha256": "por-verificar",
+       "fuente_oficial": "https://huggingface.co/mastouri/GLM-5.2-colibri-int4-g64-with-int8-mtp",
+       "espejos": [], "estado": "por-verificar", "medios": ["servidor"], "verificado": null
      }
    ]
 }
