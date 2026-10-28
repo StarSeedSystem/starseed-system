@@ -1,0 +1,92 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "TRD1020E",
+   "ola": "1020U",
+   "titulo": "Traducción · menú del clic derecho sobre textos, con registro de entradas compartido (Variaciones públicas)",
+   "archivos": [
+    "src/components/traduccion/menu-texto.tsx",
+    "src/components/traduccion/__tests__/menu-texto.test.tsx",
+    "src/app/(app)/app-globals.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Componente global (montado en `AppGlobals`, dentro de `SoloFueraDeConsola`): escucha `contextmenu`; si el evento ya viene atendido (`defaultPrevented`), si se pulsa Mayúsculas o si el objetivo es editable, no hace nada (manda el menú del navegador); sobre texto, abre un menú propio en el puntero. Exporta `registrarEntradaMenuTexto({id, etiqueta, visible(ctx), ejecutar(ctx)})` para que otras funciones (Traducir, Variaciones públicas) añadan entradas al MISMO menú; `ctx` lleva la selección, el bloque bajo el puntero y si la página está traducida. Accesible: `role=menu` y `menuitem`, flechas, Escape y clic fuera cierran, dianas de 44 px, cursor pointer, cristal líquido de la marca (como `src/components/protomolecula/panel-orbe.tsx`). Pruebas: abre sobre texto, no abre en campos ni con Mayúsculas, entradas registradas visibles, teclado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).",
+   "revisor_quitadas": [
+    "TRD1020D"
+   ]
+  },
+  {
+   "id": "DAN1024F",
+   "ola": "Ola 1024D · Diseño animado en todo el OS (Claude Video 2.0 + ADN StarSeed)",
+   "titulo": "OmniDock · micro-interacciones de hover, pulsación y lanzamiento con los tokens",
+   "area": "diseno",
+   "archivos": [
+    "src/components/layout/omni-dock-movimiento.ts",
+    "src/components/layout/__tests__/omni-dock-movimiento.test.ts",
+    "src/components/layout/omni-dock.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contexto: Alex pidió (2026-10-24) animaciones gráficas profesionales en todo StarSeed OS (widgets, orbe de Astraura, menús de la Trinity, botones, menús y pestañas), con personalización por cuenta, página y grupo, coherentes con los fundamentos del diseño StarSeed. Lee antes: `.agent/skills/claude-video-studio/STARSEED.md` (§6: los números de vídeo NO se copian a la interfaz: interfaz 140–350 ms con las curvas del ADN), `design-system/starseed-system/MASTER.md` (tokens y Trinity) y `src/lib/design/movimiento.ts` (la ÚNICA fuente de duraciones y curvas: no inventes otras). Reglas: módulos PUROS sin red, disco ni reloj; nada de `node:*` en cliente; respeta prefers-reduced-motion (estado final sin moverse); solo transform y opacity se animan; español con acentos en comentarios y textos; ≤ 3 archivos y ≤ 120 líneas nuevas por archivo; pruebas vitest reales para lo nuevo. Crea `omni-dock-movimiento.ts` (PURO): `estiloIcono(fase: \"reposo\" | \"hover\" | \"pulsado\" | \"lanzando\", registro)` → `{ transform, transition }` con `tokensDe`/`movimientoDe` (hover sube 4 px y escala 1,08; pulsado 0,96; lanzando un rebote único y corto; reducido sin transform). En `omni-dock.tsx` (archivo grande: toca ≤ 20 líneas) aplica `estiloIcono` a cada icono del dock según su estado. Pruebas del módulo puro.",
+   "dependencias_ya_en_main": [
+    "DAN1024B-d2"
+   ]
+  },
+  {
+   "id": "DAN1024G",
+   "ola": "Ola 1024D · Diseño animado en todo el OS (Claude Video 2.0 + ADN StarSeed)",
+   "titulo": "Diseño · registro de movimiento por cuenta, página y grupo en el tema de la entidad",
+   "area": "diseno",
+   "archivos": [
+    "src/lib/design/entity-theme-scope.ts",
+    "src/lib/design/variaciones-contexto.ts",
+    "src/lib/design/__tests__/movimiento-entidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contexto: Alex pidió (2026-10-24) animaciones gráficas profesionales en todo StarSeed OS (widgets, orbe de Astraura, menús de la Trinity, botones, menús y pestañas), con personalización por cuenta, página y grupo, coherentes con los fundamentos del diseño StarSeed. Lee antes: `.agent/skills/claude-video-studio/STARSEED.md` (§6: los números de vídeo NO se copian a la interfaz: interfaz 140–350 ms con las curvas del ADN), `design-system/starseed-system/MASTER.md` (tokens y Trinity) y `src/lib/design/movimiento.ts` (la ÚNICA fuente de duraciones y curvas: no inventes otras). Reglas: módulos PUROS sin red, disco ni reloj; nada de `node:*` en cliente; respeta prefers-reduced-motion (estado final sin moverse); solo transform y opacity se animan; español con acentos en comentarios y textos; ≤ 3 archivos y ≤ 120 líneas nuevas por archivo; pruebas vitest reales para lo nuevo. Añade el campo opcional `movimiento?: RegistroMovimiento` al tema de cada entidad (cuenta, página, grupo) en `entity-theme-scope.ts`, con «sobrio» por defecto y herencia cuenta › página › grupo como ya hacen los demás campos; valida valores desconocidos (vuelven al defecto). En `variaciones-contexto.ts` permite que una variación pública lleve su registro de movimiento. Cambios mínimos y retrocompatibles (los temas guardados sin el campo siguen igual). Pruebas de herencia, defecto y validación.",
+   "dependencias_ya_en_main": [
+    "DAN1024B-d2"
+   ]
+  },
+  {
+   "id": "BLD1025F",
+   "ola": "Ola 1025B · Blender como medio 3D del OS (detección por neurona, trabajo 3D como dato, guion seguro, cola de render, ruta local, Biblioteca, Protomolécula, Astraura, Estudio)",
+   "titulo": "Ruta local /api/3d/trabajos: encolar, consultar y descargar trabajos 3D solo desde esta máquina",
+   "archivos": [
+    "src/lib/blender3d/cola-servidor.ts",
+    "src/app/api/3d/trabajos/route.ts",
+    "src/lib/blender3d/__tests__/cola-servidor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/blender-3d.md` — léelo ENTERO antes de empezar: es la fuente de verdad y manda sobre este texto si discrepan. Blender 5.2.0 LTS está instalado donde se escribió esta cola (`blender` en el PATH); si no está donde tú corres, las pruebas contra Blender de verdad se saltan con `unittest.skipUnless(shutil.which(\"blender\"))` / `describe.skipIf` y lo dices en el resumen; no lo instales ni descargues nada. REGLAS DEL REPO: todo en español con acentos (comentarios, mensajes, textos); ≤3 archivos y ≤120 líneas por archivo (si no cabe, simplifica el diseño; no añadas archivos); Blender es GPL y es un PROGRAMA APARTE: se lanza como proceso hijo con lista de argumentos y SIN shell (`execFile` / `subprocess`), nunca `import bpy` fuera del módulo que corre DENTRO de Blender, nunca un binario de Blender en el repo ni en el paquete de Vercel; nada de `node:*` en código de cliente (lo puro va en archivos sin Node; el disco y los procesos, en archivos solo de servidor); claves solo por NOMBRE de variable, ninguna clave de ejemplo con forma real en pruebas; el trabajo 3D es un DATO con lista blanca (contrato §4): jamás construyas código de Blender concatenando textos libres de una persona o una IA; nunca `git push`; nunca `next build` en la Mac. Pruebas de lo que escribas y las existentes en verde; borra todo lo que las pruebas generen. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué. TAREA: La puerta local de los trabajos 3D (contrato §7.6). Patrón a copiar: `src/app/api/conversion/route.ts` + `src/lib/conversion/filee-servidor.ts` (la lógica en `src/lib`, la ruta delgada). Ya existen `src/lib/blender3d/trabajo.ts` (BLD1025C) y `servicios/blender-3d/ejecutor.py` (BLD1025E): ábrelos y usa sus nombres reales.\n1) `src/lib/blender3d/cola-servidor.ts` (SOLO SERVIDOR, ≤120 líneas; aquí sí puede haber `node:*`): usa la MISMA disposición de carpetas que el ejecutor Python (`~/.starseed/blender-3d/`, variable `STARSEED_BLENDER_RAIZ`; léela en `ejecutor.py`). `encolarTrabajo(bruto, entradas?, confirmado?)`: valida con `validarTrabajo`; si `necesitaConfirmacion` y no viene confirmado devuelve `{ok:false, requiereConfirmacion:true, motivo}`; id de 32 hex (`randomBytes(16)`); guarda las entradas (cada nombre debe ser el `archivo` de una operación `importar` del trabajo, ruta segura, ≤ 50 MB en total) y escribe `cola/<id>.json` de forma atómica (archivo temporal + `rename`); arranca `python3 servicios/blender-3d/ejecutor.py --una-vez` DESACOPLADO (`spawn` con lista de argumentos, sin shell, `stdio: \"ignore\"`, `unref()`) solo si no hay un `ejecutor.lock` vivo. `estadoDe(id)` (el id debe casar `^[0-9a-f]{32}$`), `listarRecientes(n ≤ 20)`, `leerSalida(id, nombre)` (solo nombres que figuren en el estado del trabajo, sin `..`; devuelve bytes) y `capacidades()` (ejecuta `python3 servicios/blender-3d/deteccion.py --json` con `execFile`, plazo 40 s, caché de 60 s; null si no hay Blender). NUNCA devuelve rutas absolutas ni nombres de usuario.\n2) `src/app/api/3d/trabajos/route.ts` (delgada; `runtime = \"nodejs\"`, `dynamic = \"force-dynamic\"`; `await guardianMando(request)` al principio de CADA método → solo esta máquina, 404 en un despliegue sin neurona): `GET` (`?id=` estado; `?id=&salida=` descarga una salida; `?capacidades=1`; sin parámetros lista los últimos) y `POST` (JSON `{trabajo, confirmado?}` o multipart con `trabajo` como texto JSON y archivos `entradas`). Respuestas con `Cache-Control: no-store` y motivos en español.\n3) `src/lib/blender3d/__tests__/cola-servidor.test.ts` (carpeta temporal con `STARSEED_BLENDER_RAIZ`; `spawn` simulado): trabajo inválido → rechazo con motivos y nada en disco; trabajo pesado sin confirmar → `requiereConfirmacion`; id con `..` o de largo equivocado → rechazado; ninguna respuesta lleva rutas absolutas; `capacidades()` sin Blender → null; no se arranca un segundo ejecutor si el cerrojo está vivo; la ruta devuelve el veto del guardián (simulado) sin tocar el disco. Más una prueba de punta a punta con `describe.skipIf(!hayBlender)`: un cubo → cola → ejecutor real → GLB y PNG de verdad (el GLB empieza por `glTF`, el PNG por `\\x89PNG`).\nTerminado cuando: `npx vitest run src/lib/blender3d/__tests__/cola-servidor.test.ts` pasa y `flock /tmp/tsc.lock env NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit --skipLibCheck -p .` no da errores nuevos.",
+   "dependencias_ya_en_main": [
+    "BLD1025C-d3",
+    "BLD1025E"
+   ]
+  },
+  {
+   "id": "GUI1021K2",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · el mismo acceso en la bienvenida y en retomar sesión",
+   "archivos": [
+    "src/components/welcome/welcome-window.tsx",
+    "src/components/sso/session-resume-prompt.tsx",
+    "src/components/welcome/__tests__/bienvenida-guia.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Añade «Conoce StarSeed» (bienvenida: `desde: 'bienvenida'`; retomar sesión: `desde: 'login'`) con `abrirGuia`, sin tocar nada más. Pruebas de los dos botones. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "BLD1025F",
+   "TRD1020E",
+   "GUI1021K2",
+   "DAN1024G",
+   "DAN1024F"
+  ]
+ }
+}
