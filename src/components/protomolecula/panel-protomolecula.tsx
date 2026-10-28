@@ -8,15 +8,17 @@
  * dashboard: sin título, dictado ni historial, pero con «Añadir herramienta», parámetros y pendientes
  * (un widget vacío sin forma de llenarlo sería un callejón sin salida).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { registrarAtomosPropios } from "@/lib/protomolecula/atomos";
 import type { Controlador } from "@/lib/protomolecula/controlador";
 import { AVISO_SALUD } from "@/lib/protomolecula/permisos";
-import { candidatosDe } from "@/lib/protomolecula/registro-atomos";
+import { candidatosDe, obtenerAtomo } from "@/lib/protomolecula/registro-atomos";
 import type { EstadoGuardado } from "@/lib/protomolecula/sesion-molecula";
-import type { Ambito, Autor } from "@/lib/protomolecula/tipos";
+import type { Ambito, Autor, Operacion, ValorParametro } from "@/lib/protomolecula/tipos";
 
 import { BarraDictado } from "./barra-dictado";
+import { MarcoAislado } from "./marco-aislado";
 import { PanelActividad, hayLecturaSalud } from "./panel-actividad";
 import { AnadirHerramienta, ListaPendientes } from "./panel-estructura";
 import { PanelParametros } from "./panel-parametros";
@@ -37,9 +39,26 @@ export interface PanelProtomoleculaProps {
 }
 
 export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, compacto = false, guardado }: PanelProtomoleculaProps) {
+  useEffect(() => {
+    registrarAtomosPropios();
+  }, []);
   const estado = useEstadoControl(ctl);
   const [aviso, setAviso] = useState<string | null>(null);
   if (!estado) return null;
+
+  const descargar = (formato: string, datos: unknown) => {
+    try {
+      const blob = new Blob([JSON.stringify(datos)], { type: `application/${formato}` });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `protomolecula.${formato}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // sin red/errores: no bloqueamos
+    }
+  };
 
   return (
     <div className={`flex h-full w-full flex-col gap-3 overflow-auto ${compacto ? "p-2" : "p-4"}`}>
@@ -54,6 +73,33 @@ export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, comp
       <AnadirHerramienta controlador={ctl} estado={estado} />
       <ListaPendientes controlador={ctl} estado={estado} />
       {!compacto && <BarraDictado alDictar={(frase) => ctl.dictar(frase, autor).resultados} />}
+      {estado.molecula.atomos.map((atomo) => {
+        if (atomo.estado !== "activo") return null;
+        const def = obtenerAtomo(atomo.herramientaId);
+        if (!def?.vista) return null;
+        return (
+          <MarcoAislado
+            key={atomo.id}
+            definicion={def}
+            atomoId={atomo.id}
+            valores={estado.molecula.valores}
+            alCambio={(parametroId: string, valor: ValorParametro) => {
+              const op: Operacion = {
+                id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `op-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                objetivo: { atomoId: atomo.id, parametroId },
+                accion: { tipo: "exacta", valor },
+                autor,
+                origen: "mano",
+                t: Date.now(),
+              };
+              ctl.mover(op);
+            }}
+            alExportar={(formato: string, datos: unknown) => {
+              descargar(formato, datos);
+            }}
+          />
+        );
+      })}
       <PanelParametros
         candidatos={candidatosDe(estado.molecula)}
         valores={estado.molecula.valores}
