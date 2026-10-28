@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -154,6 +155,39 @@ class Cliente(unittest.TestCase):
         entorno = {"OPENROUTER_API_KEY": "k", "STARSEED_OPENROUTER_MODELO": "meta/llama:free"}
         c = M.cliente_openai_compatible("texto", entorno=entorno, sonda=self.sonda)
         self.assertEqual(c.modelo, "meta/llama:free")
+
+
+class ArchivoClaves(unittest.TestCase):
+    """Rescate RTAGF1023Bc: el archivo de claves por defecto alimenta al enrutador."""
+
+    def test_archivo_de_claves_por_defecto(self):
+        """Sin inyección, se lee el archivo de claves de M.ENV (formato export, solo nombres)."""
+        directorio = tempfile.mkdtemp()
+        ruta = os.path.join(directorio, "env")
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write("# comentario\n")
+            f.write('export STARSEED_PASARELA_EXPLABS_KEY="xpl_de_prueba"\n')
+            f.write('STARSEED_PASARELA_EXPLABS_MODELOS="clef-flash, jev-latest"\n')
+        claves_prohibidas = [
+            k for k in os.environ
+            if k.startswith(("STARSEED_PASARELA_EXPLABS", "STARSEED_SERVIDOR_IA", "STARSEED_OPENROUTER"))
+            or k == "OPENROUTER_API_KEY"
+        ]
+        guardadas = {k: os.environ[k] for k in claves_prohibidas}
+        for k in claves_prohibidas:
+            os.environ.pop(k, None)
+        antes = M.ENV
+        M.ENV = ruta
+        try:
+            c = M.cliente_openai_compatible("texto", sonda=lambda *_: None)
+            self.assertEqual(c.origen, "experiential")
+            self.assertEqual(c.modelo, "clef-flash")
+            self.assertEqual(c.cabeceras(), {"Authorization": "Bearer xpl_de_prueba"})
+            self.assertNotIn("xpl_de_prueba", repr(c))
+            self.assertNotIn("xpl_de_prueba", str(c))
+        finally:
+            M.ENV = antes
+            os.environ.update(guardadas)
 
 
 if __name__ == "__main__":
