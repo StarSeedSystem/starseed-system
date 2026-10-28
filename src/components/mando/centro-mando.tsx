@@ -36,6 +36,9 @@ import { PanelSuenos } from "@/components/mando/panel-suenos";
 import { PanelGrafo } from "@/components/mando/panel-grafo";
 import { PanelOlas } from "@/components/mando/panel-olas";
 import { PanelFlota } from "@/components/mando/panel-flota";
+// Ola 1016M · vigia-modelos.md §6: el panel «Novedades de modelos» del vigía,
+// por fin montado en su pestaña de Genesis (antes solo existía con sus pruebas).
+import { PanelNovedadesModelos } from "@/components/mando/panel-novedades-modelos";
 import { ChatOrquestacion } from "@/components/mando/chat-orquestacion";
 import { OrbeAsistente } from "@/components/mando/orbe-asistente";
 import { escuchar as escucharAsistente } from "@/lib/mando/asistente-cliente";
@@ -307,6 +310,9 @@ const PESTANAS = [
     { id: "actualizaciones", etiqueta: "Actualizaciones", grupo: "Publicación" },
     // Con qué se trabaja: modelos, memoria, voz, aprendizaje.
     { id: "flota", etiqueta: "Flota", grupo: "Medios" },
+    // (2026-10-28) El vigía de modelos (vigia-modelos.md §6): lo último que trajo su pasada diaria
+    // por área, con «Encolar ficha» y «Descartar».
+    { id: "novedades-modelos", etiqueta: "Novedades de modelos", grupo: "Medios" },
     { id: "neurona", etiqueta: "Neurona", grupo: "Medios" },
     { id: "servidor", etiqueta: "Servidor 1.58", grupo: "Medios" },
     { id: "voces", etiqueta: "Voces", grupo: "Medios" },
@@ -2528,6 +2534,9 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="flota">
                     <PanelFlota />
+                </TabsContent>
+                <TabsContent value="novedades-modelos">
+                    <PanelNovedadesModelos />
                 </TabsContent>
                 <TabsContent value="neurona">
                     <PanelNeurona />
