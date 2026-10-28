@@ -11,6 +11,7 @@
 import type { LibraryPackage, LibraryRepo, PackageKind } from "./packages";
 import catalogo1020 from "../../../config/repos-libreria-1020.json";
 import catalogo1020b from "../../../config/repos-libreria-1020b.json";
+import catalogo1020c from "../../../config/repos-libreria-1020c.json";
 
 interface Entrada1020 {
   id: string; repo: string; nombre: string; kind: string;
@@ -21,9 +22,11 @@ interface Entrada1020 {
 }
 interface Catalogo1020 { paquetes: Entrada1020[]; excluida?: { repo: string } }
 interface Catalogo1020b { paquetes: Entrada1020[]; excluidas?: { repo: string }[] }
+interface Catalogo1020c { paquetes: Entrada1020[]; excluidas?: { repo: string; motivo: string }[]; duplicadas?: Record<string, string> }
 
 const CATALOGO = catalogo1020 as unknown as Catalogo1020;
 const CATALOGO_B = catalogo1020b as unknown as Catalogo1020b;
+const CATALOGO_C = catalogo1020c as unknown as Catalogo1020c;
 const ICONOS: Record<string, string> = { app: "AppWindow", "ai-source": "BrainCircuit", function: "Boxes" };
 
 function autorDe(repo: string): string { return repo.split("/")[0] ?? repo; }
@@ -49,20 +52,32 @@ function paqueteDe(e: Entrada1020): LibraryPackage {
   };
 }
 
-// ── Fusión 1.ª + 2.ª tanda (Ola 1020D): exclusiones de seguridad y vista plana ──
+// ── Fusión 1.ª + 2.ª + 3.ª tanda (Ola 1020T): exclusiones de seguridad y vista plana ──
 
 export const REPOS_EXCLUIDOS: string[] = [
   CATALOGO.excluida?.repo,
   ...(CATALOGO_B.excluidas ?? []).map((e) => e.repo),
+  ...(CATALOGO_C.excluidas ?? []).map((e) => e.repo),
 ].filter((v): v is string => Boolean(v));
 
+/// Repos de la 3.ª tanda que YA EXISTEN en packages.ts (mismo GitHub repo por externalUrl).
+/// No se crean paquetes duplicados; esta lista sirve de visibilidad para la integración.
+export const REPOS_YA_PRESENTES: { repo: string; id: string }[] = [
+  { repo: "penpot/penpot", id: "iatool-penpot" },
+];
+
+const yaPresentes = new Set(REPOS_YA_PRESENTES.map((r) => r.repo));
 const excluidos = new Set(REPOS_EXCLUIDOS);
 const esExcluida = (e: Entrada1020): boolean =>
-  excluidos.has(e.repo) || e.id.includes("reverse-skill") || e.repo.includes("reverse-skill");
+  excluidos.has(e.repo) || yaPresentes.has(e.repo) || e.id.includes("reverse-skill") || e.repo.includes("reverse-skill");
 
 export const REPO_EXTERNOS_1020: LibraryRepo = {
   id: "starseed-biblioteca-externa", name: "Biblioteca externa",
-  builtin: true, packages: CATALOGO.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
+  builtin: true, packages: [
+    ...CATALOGO.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
+    ...CATALOGO_B.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
+    ...CATALOGO_C.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
+  ],
 };
 
 export interface ReposExternosPaquete {
@@ -89,4 +104,5 @@ function transformaPaquete(p: Entrada1020): ReposExternosPaquete {
 export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
   ...CATALOGO.paquetes,
   ...CATALOGO_B.paquetes,
+  ...CATALOGO_C.paquetes,
 ].filter((e) => !esExcluida(e)).map(transformaPaquete);
