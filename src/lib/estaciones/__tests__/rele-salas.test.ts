@@ -61,6 +61,21 @@ describe('crearSalas', () => {
     expect(result.motivo).toBe('Límite de conexiones por sala alcanzado');
   });
 
+  it('al límite de la sala, volver a entrar con la misma conexión no la rechaza ni la cuenta dos veces', () => {
+    // Rescatado de la rama nube: «dentro de límites» también al borde, donde la conexión que ya está
+    // dentro no debe chocar con el tope ni sumar presencia.
+    const salas = crearSalas({ maxPorSala: 2 });
+    const tema = 'estacion-vivo:Tema112345678';
+    const conexion1 = {};
+    const conexion2 = {};
+    salas.entrar(tema, conexion1);
+    salas.entrar(tema, conexion2);
+    const conexionExtra = {};
+    expect(salas.entrar(tema, conexionExtra).ok).toBe(false);
+    expect(salas.entrar(tema, conexion1).ok).toBe(true);
+    expect(salas.presencia(tema)).toBe(2);
+  });
+
   it('debería salir correctamente', () => {
     const salas = crearSalas();
     const tema = 'estacion-p:Tema12345678';
