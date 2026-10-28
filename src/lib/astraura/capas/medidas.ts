@@ -32,11 +32,11 @@ export interface CandidatoConMedida {
   capa?: { id: string; capa: Capa; sha256: string; ramMinMb?: number; profundidad?: number };
 }
 
-/** Registra una medida y guarda solo las últimas MAX_MUESTRAS por neurona. */
 function claveDe(neurona: string): string {
   return `${CLAVE_MEDIDAS}/${neurona}`;
 }
 
+/** Registra una medida y guarda solo las últimas MAX_MUESTRAS por neurona. */
 export async function registrarMedida(
   almacen: MedidasAlmacen,
   medida: Omit<MedidaNeurona, "timestamp">,
