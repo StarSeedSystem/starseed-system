@@ -198,16 +198,20 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
     it("tablas sin latidos y bus con nodos vivos → bus", () => {
         expect(elegirFuente(estado([false, false], "tablas"), estado([true, true], "bus"))).toBe("bus");
     });
+
     it("alguien vivo en las tablas → tablas", () => {
         expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
     });
+
     it("nadie vivo en ninguna → tablas si existen; si no, bus", () => {
         expect(elegirFuente(estado([false], "tablas"), estado([false], "bus"))).toBe("tablas");
         expect(elegirFuente(null, estado([false], "bus"))).toBe("bus");
     });
+
     it("bus con 2 vivos y tablas con 1 → bus", () => {
         expect(elegirFuente(estado([true], "tablas"), estado([true, true], "bus"))).toBe("bus");
     });
+
     it("1 vivo en cada fuente → tablas (igualdad)", () => {
         expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
     });
@@ -229,5 +233,24 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
         );
         expect(ACCIONES.contenedor.confirmar).toBeUndefined();
         expect(ACCIONES.contenedor.args).toEqual(["activo", "trabajadores"]);
+    });
+});
+
+describe("textoEstadoOrden", () => {
+    it("cada estado mapea al texto correcto (excepto caducada, que ya se prueba)", () => {
+        expect(textoEstadoOrden("pendiente")).toBe("esperando a un nodo");
+        expect(textoEstadoOrden("tomada")).toBe("la tiene un nodo");
+        expect(textoEstadoOrden("hecha")).toBe("hecha");
+        expect(textoEstadoOrden("en_marcha")).toBe("en marcha");
+        expect(textoEstadoOrden("seca")).toBe("solo simulada (nodo en prueba)");
+        expect(textoEstadoOrden("nada")).toBe("no hacía falta");
+        expect(textoEstadoOrden("rechazada")).toBe("rechazada");
+        expect(textoEstadoOrden("fallo")).toBe("falló");
+    });
+
+    it("estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("desconocido")).toBe("desconocido");
+        expect(textoEstadoOrden("")).toBe("");
+        expect(textoEstadoOrden("otro estado")).toBe("otro estado");
     });
 });
