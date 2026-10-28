@@ -79,7 +79,11 @@ import { FICHAS_REPOS_1026, conSeguimiento1026 } from "./repos-1026";
 import { FICHAS_REPOS_1027 } from "./repos-1027";
 // Repo builtin externo de la Ola 1020: 14 repos verificados con upstream y canal
 // para que la Biblioteca autobúsque sus releases/tags/commits.
-import { REPO_EXTERNOS_1020 } from "./repos-externos-1020";
+import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES } from "./repos-externos-1020";
+
+/// Re-export para visibilidad: repos de la 3.ª tanda que YA EXISTEN en packages.ts
+/// (mismo GitHub repo por externalUrl). No se crean paquetes duplicados.
+export { REPOS_YA_PRESENTES };
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
