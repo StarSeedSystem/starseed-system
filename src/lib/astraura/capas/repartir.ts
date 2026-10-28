@@ -78,15 +78,50 @@ const ORDEN_FUENTES: FuenteCapa[] = [
   "oficial",
 ];
 
+/** Meta persistida de una capa (la escribe AlmacenCapas al cerrarla). */
+interface MetaGuardada {
+  sha256: string;
+  completa: boolean;
+  totalTrozos?: number;
+}
+
+/** Índices de los trozos guardados de una capa, ordenados. */
+function indicesDeTrozos(claves: string[], id: string): number[] {
+  const prefijo = `capa/${id}/trozo/`;
+  return claves
+    .filter((c) => c.startsWith(prefijo))
+    .map((c) => Number(c.slice(prefijo.length)))
+    .filter((n) => Number.isInteger(n) && n >= 0)
+    .sort((a, b) => a - b);
+}
+
 /**
- * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén local.
+ * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén local:
+ * busca la meta persistida cuyo SHA-256 coincide (claves `capa/<id>/meta`, formato que escribe
+ * AlmacenCapas) y comprueba que todos sus trozos están.
  */
-async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
+export async function capaEnPropio(almacen: Almacenamiento, sha256: string): Promise<boolean> {
   try {
     const claves = await almacen.claves();
-    // Buscar metas guardadas (prefijo capa/<id>/trozo/ no incluye SHA, así que usamos heurística:
-    // si existe algún trozo con ese SHA en el catálogo local, se asume que está.
-    // En implementación real se cruzaría con catálogo; aquí devolvemos false para forzar búsqueda.
+    for (const clave of claves) {
+      if (!clave.startsWith("capa/") || !clave.endsWith("/meta")) continue;
+      const datos = await almacen.leer(clave);
+      if (!datos) continue;
+      let meta: MetaGuardada;
+      try {
+        meta = JSON.parse(new TextDecoder().decode(datos)) as MetaGuardada;
+      } catch {
+        continue; // Meta corrupta: no es una capa fiable.
+      }
+      if (meta.sha256 !== sha256 || meta.completa !== true) continue;
+      const id = clave.slice("capa/".length, clave.length - "/meta".length);
+      const indices = indicesDeTrozos(claves, id);
+      const total = meta.totalTrozos ?? indices.length;
+      // Completa = todos sus trozos están (se escribieron ya verificados por SHA) y en orden.
+      if (total > 0 && indices.length === total && indices[total - 1] === total - 1) {
+        return true;
+      }
+    }
     return false;
   } catch {
     return false;
