@@ -7724,9 +7724,12 @@ def ejecutar(t, intento=1):
             continue
         # Agotamiento de la suscripción de ChatGPT: se anota para que las tareas
         # siguientes no repitan la espera, y Codex sale de la rotación de esta ola.
-        if modelo in MODELOS_CODEX and _cupo_codex.agotado_en(out):
+        if modelo in MODELOS_CODEX and (_cupo_codex.agotado_en(out) or _cupo_codex.sin_modelo_en(out)):
+            es_agotado = _cupo_codex.agotado_en(out)
+            motivo = "escritura: cuota de ChatGPT agotada" if es_agotado else "cuenta de ChatGPT sin Codex para %s" % modelo
+            horas = _cupo_codex.HORAS if es_agotado else _cupo_codex.HORAS_SIN_MODELO
             try:
-                minutos = _cupo_codex.anotar("escritura: cuota de ChatGPT agotada")
+                minutos = _cupo_codex.anotar(motivo, horas=horas)
             except Exception:
                 minutos = 0
             for _m in list(MODELOS_CODEX):
@@ -7735,9 +7738,13 @@ def ejecutar(t, intento=1):
             evento(
                 "proveedor_caido",
                 tid,
-                "Codex sin cuota de ChatGPT: fuera de la rotación %d min "
-                "(las demás tareas ya no lo intentan)" % minutos,
+                ("Codex sin cuota de ChatGPT: fuera de la rotación %d min "
+                 "(las demás tareas ya no lo intentan)" % minutos)
+             if es_agotado else
+                ("Codex modelo no admitido en cuenta de ChatGPT: fuera de la rotación %d min "
+                 "(las demás tareas ya no lo intentan)" % minutos),
             )
+            continue
         if apartar_si_pide_pago(tid, modelo, out):
             continue
         pista = fallo_de_proveedor(out)

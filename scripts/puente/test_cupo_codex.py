@@ -34,6 +34,11 @@ class TestDeteccion(unittest.TestCase):
         for t in ("Usage limit reached for your plan", "QUOTA EXCEEDED", "Upgrade to Pro"):
             self.assertTrue(C.agotado_en(t), t)
 
+    def test_sin_modelo(self):
+        self.assertTrue(C.sin_modelo_en("The 'gpt-5.6-sol' model is not supported when using codex with a chatgpt account."))
+        self.assertTrue(C.sin_modelo_en("ERROR: model_not_found"))
+        self.assertFalse(C.sin_modelo_en("You've hit your usage limit"))
+
 
 class TestVigencia(unittest.TestCase):
     def test_recien_anotado_sigue_agotado(self):

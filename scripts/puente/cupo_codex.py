@@ -47,8 +47,17 @@ PISTAS = (
     "upgrade to pro",
 )
 
+#: Lo que dice la CLI de codex cuando el modelo no está soportado.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
+
+#: Cuánto se aparta tras un modelo no soportado.
+HORAS_SIN_MODELO = 24.0
 
 
 def agotado_en(salida):
@@ -60,6 +69,12 @@ def agotado_en(salida):
     """
     b = (salida or "").lower()
     return any(p in b for p in PISTAS)
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida es un modelo no soportado por Codex?"""
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
 
 
 def hasta_cuando(ahora, horas=HORAS):
