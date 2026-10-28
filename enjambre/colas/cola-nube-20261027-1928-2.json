@@ -1,0 +1,103 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "MVD1027G",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "Agentes · cliente Python de cápsulas y sesiones de agente",
+   "archivos": [
+    "scripts/puente/memvid_cliente.py",
+    "scripts/puente/contexto_agente.py",
+    "scripts/puente/test_memvid_cliente.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\n`memvid_cliente.py` (stdlib `urllib`): `poner`, `buscar`, `salud` contra 127.0.0.1:4490 con el token de `~/.starseed/memvid.token`, 1,5 s de tope y `None` si no está. `anotar_paso(agente, sesion, texto)` → cápsula `agente-<agente>-<AAAA>T<n>.mv2` con `uri` `mv2://agente/<agente>/sesion/<sesion>/<paso>`. En `contexto_agente.py`, una sección opcional «Recuerdos de este agente» con `buscar` k=3 (si el servidor no está, no sale nada). Pruebas con un servidor HTTP falso."
+  },
+  {
+   "id": "MBT1027N",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Biblioteca · tanda 1027 (OpenMausBot, Insomnia, Colibri) como módulo puro",
+   "archivos": [
+    "src/lib/library/repos-1027.ts",
+    "src/lib/library/__tests__/repos-1027.test.ts",
+    "src/components/library/package-store.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nIgual que `src/lib/library/repos-1026.ts` (reutiliza `autorDe`, `resumenRequisitos`, `versionCorta` y el tipo `FichaTanda1026`), pero leyendo `config/repos-libreria-1027.json` (ya en main): `FICHAS_REPOS_1027`, `DECISIONES_1027`, `LICENCIAS_VERIFICADAS_1027`, `CONTRATO_1027 = \"architecture/mausbot-astraura.md\"` y los ids que siembra (`preinstalar: \"siempre\"`). `kind` del paquete: el de la ficha (`tool` o `ai-source`), no «project». Añade `MousePointer2` y `Bird` (lucide-react) a `ICON_MAP` de `package-store.tsx`. Prueba: 3 fichas con licencia, versión, aviso y `payload.upstream`."
+  },
+  {
+   "id": "CLB1027F",
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "titulo": "A1 · servicio de Colibri con Laya y GLiNER2.5-Decide (preparado, se instala con la palabra de Alex)",
+   "archivos": [
+    "deploy/oracle/nodo/systemd/starseed-colibri.service",
+    "scripts/puente/oracle_nodo.py",
+    "scripts/puente/test_oracle_nodo_colibri.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\nUnidad systemd `deploy/oracle/nodo/systemd/starseed-colibri.service` (usuario starseed, `coli serve --host 127.0.0.1 --port 4480 --model <carpeta de Laya>`, `Restart=on-failure`, `MemoryMax=4G`, `Nice=10` para no quitarle CPU al enjambre). En `oracle_nodo.py`, orden `colibri` que SIN `--aplicar` solo enseña el plan de `colibri_nodo.plan_instalacion` y CON `--aplicar` lo corre en el A1 por `ssh` (como `freellmapi`). La unidad lleva líneas `# requiere: /home/starseed/colibri/c/coli` y `# requiere: <carpeta del modelo Laya>`: así `preparar-a1.sh` no la instala hasta que Colibri y el modelo existan (mira cómo trata `# requiere:`). Pruebas del plan y de que sin `--aplicar` no se llama a ssh.",
+   "dependencias_ya_en_main": [
+    "CLB1027E"
+   ]
+  },
+  {
+   "id": "GUI1021Gb",
+   "ola": "1021G",
+   "titulo": "Guías · tarjetas de la Guía de la red con los temas nuevos y los textos corregidos",
+   "archivos": [
+    "src/components/onboarding/areas-explicadas.tsx",
+    "src/components/onboarding/onboarding-wizard.tsx",
+    "src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §1 y §3. En `areas-explicadas.tsx`, las explicaciones de `/protomolecula`, `/network/politics`, `/network/education`, `/network/culture`, `/genesis` y `/cerebro` salen de `TODOS_LOS_TEMAS` (queEs = cuerpo, comoFunciona = puntos, empiezaPor = la pregunta a Aurora), y `/cerebros`, `/library` y `/red-mesh` pasan a usar los temas `neuronas-cerebro`, `libreria-biblioteca` y `malla`. En `onboarding-wizard.tsx` añade a `AREAS` las tarjetas que falten de esas rutas (con icono y tip corto) y cambia la de Cerebros a `/cerebro`. Pruebas: cada ruta nueva abre su explicación y ninguna tarjeta habla de «varios cerebros». Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40253173687`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40253173687:refs/remotes/origin/nube/40253173687\"` y `git cherry-pick --no-commit a5cc4606efbc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx, src/components/onboarding/areas-explicadas.tsx, src/components/onboarding/onboarding-wizard.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40253173687",
+   "dependencias_ya_en_main": [
+    "GUI1021B"
+   ]
+  },
+  {
+   "id": "GUI1021M3c",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión de publicaciones y entidades",
+   "archivos": [
+    "src/components/social/PostCard.tsx",
+    "src/components/social/governance-entity-page.tsx",
+    "src/components/social/entity-header.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. En PostCard, los avisos que son un botón pequeño dentro de la tarjeta usan `compacto`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40136007455`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40136007455:refs/remotes/origin/nube/40136007455\"` y `git cherry-pick --no-commit 3810e4095a26`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/social/PostCard.tsx, src/components/social/entity-header.tsx, src/components/social/governance-entity-page.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40136007455",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  },
+  {
+   "id": "GUI1021M2",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión del hub XR, la red y el estudio de diseño",
+   "archivos": [
+    "src/components/xr/xr-network-hub.tsx",
+    "src/components/mesh/network-feed.tsx",
+    "src/components/estudio/DesignStudio.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1027-192421.json": [
+   "GUI1021Gb",
+   "GUI1021M3c",
+   "MBT1027N",
+   "CLB1027F",
+   "GUI1021M2",
+   "MVD1027G"
+  ]
+ }
+}
