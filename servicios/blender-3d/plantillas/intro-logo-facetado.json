@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "titulo": "Intro del logo facetado de StarSeed",
+  "calidad": "borrador",
+  "ambito": "personal",
+  "origen": "estudio",
+  "quien": "persona",
+  "escena": [
+    { "op": "importar", "archivo": "logo.svg", "nombre": "Logo" },
+    { "op": "modificador", "objeto": "Logo", "tipo": "solidificar", "espesor": 0.08 },
+    { "op": "modificador", "objeto": "Logo", "tipo": "bisel", "ancho": 0.012 },
+    { "op": "material", "objeto": "Logo", "color": [0, 0.498, 1, 1], "metalico": 0.1, "rugosidad": 0.15, "emision_color": [0.655, 0.545, 0.98, 1], "emision_fuerza": 2, "alfa": 1 },
+    { "op": "luz", "nombre": "OjoCalido", "tipo": "punto", "color": [1, 0.749, 0, 1], "energia": 200, "ubicacion": [0, 0, 1.4], "rotacion": [0, 0, 0] },
+    { "op": "luz", "nombre": "RellenoFrio", "tipo": "area", "color": [0, 0.498, 1, 1], "energia": 120, "ubicacion": [-3, -2, 3], "rotacion": [0, 0, 0] },
+    { "op": "mundo", "color": [0.039, 0.059, 0.114, 1], "fuerza": 0.4 },
+    { "op": "camara", "nombre": "Camara", "ubicacion": [0, -6, 2.2], "mira_a": [0, 0, 0], "lente_mm": 50, "ortografica": false },
+    { "op": "animar", "objeto": "Camara", "propiedad": "ubicacion", "claves": [ { "fotograma": 0, "valor": [0, -6, 2.2] }, { "fotograma": 36, "valor": [2.3, -5.54, 2.2] }, { "fotograma": 72, "valor": [4.24, -4.24, 2.2] } ], "interpolacion": "suave" }
+  ],
+  "salidas": [
+    { "tipo": "render_mp4", "ancho": 1280, "alto": 720, "fps": 24, "desde": 1, "hasta": 72, "muestras": 8, "motor": "workbench" },
+    { "tipo": "render_exr", "ancho": 1280, "alto": 720, "muestras": 8, "motor": "cycles-cpu" }
+  ]
+}
