@@ -155,6 +155,37 @@ class Cliente(unittest.TestCase):
         c = M.cliente_openai_compatible("texto", entorno=entorno, sonda=self.sonda)
         self.assertEqual(c.modelo, "meta/llama:free")
 
+    def test_local_se_puede_apagar(self):
+        entorno = {
+            "STARSEED_SERVIDOR_IA": "0",
+            "STARSEED_PASARELA_EXPLABS_KEY": "clave-falsa",
+            "STARSEED_PASARELA_EXPLABS_MODELOS": "clef-flash,jev-latest",
+        }
+        c = M.cliente_openai_compatible("texto", entorno=entorno, sonda=self.sonda)
+        self.assertEqual(c.origen, "experiential")
+        self.assertEqual(c.modelo, "clef-flash")
+
+    def test_override_de_explabs_debe_estar_en_la_lista(self):
+        entorno = {
+            "STARSEED_PASARELA_EXPLABS_KEY": "clave-falsa",
+            "STARSEED_PASARELA_EXPLABS_MODELOS": "clef-flash,jev-latest",
+            "STARSEED_PASARELA_EXPLABS_MODELO_TEXTO": "no-existe",
+        }
+        c = M.cliente_openai_compatible("texto", entorno=entorno, sonda=self.sonda)
+        self.assertEqual(c.origen, "experiential")
+        self.assertEqual(c.modelo, "clef-flash")
+
+    def test_openrouter_lleva_atribucion(self):
+        entorno = {
+            "OPENROUTER_API_KEY": "clave-openrouter",
+        }
+        self.mundos[M.OPENROUTER] = ["meta/llama:free"]
+        c = M.cliente_openai_compatible("texto", entorno=entorno, sonda=self.sonda)
+        self.assertEqual(c.origen, "openrouter:free")
+        cabeceras = c.cabeceras()
+        self.assertIn("HTTP-Referer", cabeceras)
+        self.assertEqual(cabeceras["Authorization"], "Bearer clave-openrouter")
+
 
 if __name__ == "__main__":
     unittest.main()
