@@ -21,6 +21,26 @@ describe("validarTrabajo", () => {
     expect(t.v).toBe(VERSION_VOCABULARIO);
     expect(t.escena.map((o) => o.op)).toEqual(["primitiva", "camara", "luz"]);
   });
+  it("aplica los valores por defecto del vocabulario al trabajo mínimo", () => {
+    const t = valido(base());
+    expect(t.v).toBe(1);
+    expect(t.escena[1]).toMatchObject({ lente_mm: 50, ortografica: false });
+    expect(t.escena[2]).toMatchObject({ ubicacion: [0, 0, 0], rotacion: [0, 0, 0] });
+    expect(t.salidas[0]).toMatchObject({ fondo_transparente: false });
+    expect(t.limites).toBeUndefined();
+    const porDefecto = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "Cubo", tam: 1 }, { op: "transformar", objeto: "Cubo" }]));
+    expect(porDefecto.escena[1]).toMatchObject({ ubicacion: [0, 0, 0], rotacion: [0, 0, 0], escala: [1, 1, 1] });
+  });
+  it("comprueba la versión, el título y los límites", () => {
+    expect(motivos({ ...base(), v: 2 }).join(" ")).toContain("v debe ser 1");
+    expect(motivos({ ...base(), titulo: "   " }).join(" ")).toContain("titulo");
+    expect(motivos({ ...base(), titulo: "x".repeat(81) }).join(" ")).toContain("titulo");
+    expect(motivos({ ...base(), titulo: 12 }).join(" ")).toContain("titulo");
+    const conLimites = valido({ ...base(), limites: { segundos: 300, memoriaMB: 2048 } });
+    expect(conLimites.limites).toEqual({ segundos: 300, memoriaMB: 2048 });
+    expect(motivos({ ...base(), limites: { segundos: 2000 } }).join(" ")).toContain("limites");
+    expect(motivos({ ...base(), limites: { segundos: -1 } }).join(" ")).toContain("limites");
+  });
   it("rechaza campos desconocidos del trabajo y de una operación", () => {
     expect(motivos({ ...base(), extra: 1 }).join(" ")).toContain("campo desconocido en el trabajo: extra");
     expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1, peligro: true }])).join(" ")).toContain("campo desconocido: peligro");
@@ -29,9 +49,24 @@ describe("validarTrabajo", () => {
     for (const tam of [Number.NaN, Number.POSITIVE_INFINITY, 0]) expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam }])).join(" ")).toContain("número");
     expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "transformar", objeto: "c", ubicacion: [1, 2] }])).join(" ")).toContain("vector de 3 números");
   });
+  it("rechaza NaN en vectores, rgba fuera de rango y decimales donde pide entero", () => {
+    expect(motivos(conEscena([{ op: "camara", nombre: "k", ubicacion: [Number.NaN, 0, 0], mira_a: [0, 0, 0] }])).join(" ")).toContain("vector de 3 números");
+    expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "material", objeto: "c", color: [1, Number.NaN, 0.5, 1] }])).join(" ")).toContain("rgba");
+    expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "material", objeto: "c", alfa: 2 }])).join(" ")).toContain("número");
+    expect(motivos(conEscena([{ op: "luz", nombre: "l2", tipo: "punto", energia: Number.POSITIVE_INFINITY }])).join(" ")).toContain("número");
+    expect(motivos({ ...base(), salidas: [{ tipo: "render_png", ancho: 512.5, alto: 256, muestras: 8, motor: "workbench" }] }).join(" ")).toContain("entero");
+  });
   it("rechaza más de 256 operaciones", () => {
     const escena = Array.from({ length: 257 }, (_, i) => ({ op: "primitiva", tipo: "cubo", nombre: `c${i}`, tam: 1 }));
     expect(motivos(conEscena(escena)).join(" ")).toContain("demasiadas operaciones");
+  });
+  it("controla el número de salidas y rechaza operaciones y salidas desconocidas", () => {
+    expect(motivos({ ...base(), salidas: [] }).join(" ")).toContain("entre 1 y 4");
+    const png = (base().salidas as Record<string, unknown>[])[0];
+    const cinco = [png, png, png, png, png];
+    expect(motivos({ ...base(), salidas: cinco }).join(" ")).toContain("entre 1 y 4");
+    expect(motivos(conEscena([{ op: "teleportar", nombre: "n" }])).join(" ")).toContain("operacion desconocida");
+    expect(motivos({ ...base(), salidas: [{ tipo: "render_gif", ancho: 256, alto: 256, muestras: 8, motor: "workbench" }] }).join(" ")).toContain("salida desconocida");
   });
   it("rechaza nombres repetidos y refs a objetos que no existen", () => {
     expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "a", tam: 1 }, { op: "primitiva", tipo: "esfera", nombre: "a", tam: 1 }])).join(" ")).toContain("repetido");
@@ -41,6 +76,11 @@ describe("validarTrabajo", () => {
     for (const archivo of ["a/../b.glb", "/tmp/a.glb", "modelo.blend", "script.py"])
       expect(motivos(conEscena([{ op: "importar", archivo, nombre: "imp" }])).join(" ")).toContain("ruta relativa inválida");
   });
+  it("acepta rutas relativas con subcarpetas y extensiones de la lista", () => {
+    expect(valido(conEscena([{ op: "importar", archivo: "piezas/modelo.glb", nombre: "imp" }])).escena).toHaveLength(1);
+    const conHdri = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "mundo", hdri: "fondos/amanecer.hdr", fuerza: 1 }]));
+    expect(conHdri.escena).toHaveLength(2);
+  });
   it("rechaza remallar con su motivo de próximamente", () => {
     const m = motivos(conEscena([{ op: "remallar", objeto: "cubo" }])).join(" ");
     expect(m).toContain("próximamente");
@@ -48,7 +88,13 @@ describe("validarTrabajo", () => {
   });
   it("neutraliza textos de inyección en nombre y texto3d", () => {
     expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "\"); import os", tam: 1 }])).join(" ")).toContain("nombre inválido");
+    for (const nombre of ["Cuboño", "立立方方", "a".repeat(33), "2empieza", "Cubo\nrm -rf /"]) {
+      expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre, tam: 1 }])).join(" ")).toContain("nombre inválido");
+    }
     for (const texto of ["hola\nimport os", "emoji 😈"]) expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto, extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto con caracteres no permitidos");
+    expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto: "x".repeat(65), extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto más largo de 64");
+    const conTildes = valido(conEscena([{ op: "texto3d", nombre: "tex", texto: "¿Versión con ñ? ¡Sí! (n.1) 'cosas'", extrusion: 0.2, tam: 1.2 }]));
+    expect(conTildes.escena[0]).toMatchObject({ op: "texto3d", texto: "¿Versión con ñ? ¡Sí! (n.1) 'cosas'" });
     expect(valido(conEscena([{ op: "texto3d", nombre: "t", texto: "'); import os", extrusion: 0.1, tam: 1 }])).escena[0].texto).toBe("'); import os");
   });
   it("acepta una escena con todas las operaciones del vocabulario", () => {
@@ -75,6 +121,20 @@ describe("validarTrabajo", () => {
     ];
     expect(valido(conEscena(base().escena as unknown[], salidas)).salidas).toHaveLength(4);
   });
+  it("valida los tipos cerrados de primitiva, modificador y luz", () => {
+    const primitivas = ["cubo", "esfera", "icosfera", "cilindro", "cono", "toro", "plano", "circulo"];
+    for (const [i, tipo] of primitivas.entries()) {
+      expect(valido(conEscena([{ op: "primitiva", tipo, nombre: `obj${i}`, tam: 1 }])).escena).toHaveLength(1);
+    }
+    const modificadores = ["subdivision", "bisel", "solidificar", "espejo", "matriz", "decimar", "malla_alambre"];
+    for (const tipo of modificadores) {
+      expect(valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "modificador", objeto: "c", tipo }])).escena).toHaveLength(2);
+    }
+    const luces = ["sol", "punto", "foco", "area"];
+    for (const [i, tipo] of luces.entries()) {
+      expect(valido(conEscena([{ op: "luz", nombre: `luz${i}`, tipo, energia: 10 }])).escena).toHaveLength(1);
+    }
+  });
 });
 
 describe("estimarCoste y necesitaConfirmacion", () => {
@@ -83,6 +143,14 @@ describe("estimarCoste y necesitaConfirmacion", () => {
     const c = estimarCoste(t);
     expect(c.vertices).toBe(8 + 8 * 15);
     expect(c.segundos).toBeCloseTo((1000 * 1000 * 100) / 120000, 2);
+  });
+  it("cuenta los fotogramas del mp4 y el exportar_glb no añade segundos", () => {
+    const mp4 = estimarCoste(valido(conEscena([], [{ tipo: "render_mp4", ancho: 320, alto: 240, fps: 12, desde: 0, hasta: 60, muestras: 16, motor: "workbench" }])));
+    expect(mp4.segundos).toBeCloseTo(214.162, 2);
+    expect(mp4.vertices).toBe(0);
+    const soloGlb = estimarCoste(valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }], [{ tipo: "exportar_glb" }])));
+    expect(soloGlb.segundos).toBe(0);
+    expect(soloGlb.vertices).toBe(8);
   });
   it("pide confirmación por ámbito, importar, final y coste sobre el perfil ligero", () => {
     expect(necesitaConfirmacion(valido(base()), "ligero")).toBe(false);
@@ -94,6 +162,15 @@ describe("estimarCoste y necesitaConfirmacion", () => {
     const pesado = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }], [{ tipo: "render_png", ancho: 1600, alto: 900, muestras: 64, motor: "workbench" }]));
     expect(necesitaConfirmacion(pesado, "ligero")).toBe(true);
     expect(necesitaConfirmacion(pesado, "estandar")).toBe(false);
+  });
+  it("el perfil ligero pide confirmación cuando el coste en vértices pesa", () => {
+    const razonable = valido(conEscena(Array.from({ length: 100 }, (_, i) => ({ op: "primitiva", tipo: "esfera", nombre: `e${i}`, tam: 1 }))));
+    expect(razonable.escena).toHaveLength(100); // 48 200 vértices: entra en el ligero
+    expect(necesitaConfirmacion(razonable, "ligero")).toBe(false);
+    const pesada = valido(conEscena(Array.from({ length: 110 }, (_, i) => ({ op: "primitiva", tipo: "esfera", nombre: `f${i}`, tam: 1 }))));
+    expect(estimarCoste(pesada).vertices).toBe(53020);
+    expect(necesitaConfirmacion(pesada, "ligero")).toBe(true);
+    expect(necesitaConfirmacion(pesada, "estandar")).toBe(false);
   });
 });
 
