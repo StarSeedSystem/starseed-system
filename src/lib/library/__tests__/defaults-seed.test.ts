@@ -9,6 +9,7 @@ import { FICHAS_REPOS_1025, IDS_SIEMBRA_1025, TANDA_1025_FICHAS } from "../repos
 import { FICHAS_REPOS_1026, IDS_SIEMBRA_1026, TANDA_1026_FICHAS } from "../repos-1026";
 import { IDS_SIEMBRA_1027 } from "../repos-1027";
 import { IDS_SIEMBRA_1027B } from "../repos-1027b";
+import { IDS_SIEMBRA_1028 } from "../repos-1028";
 
 const SIEMPRE_2A = [
   "lib-vikunja",
@@ -35,14 +36,14 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
-  it("sube la versión (20) y mantiene las siete «siempre» de la 2.ª tanda", () => {
-    expect(SEED_VERSION).toBe(20);
+  it("sube la versión (21) y mantiene las siete «siempre» de la 2.ª tanda", () => {
+    expect(SEED_VERSION).toBe(21);
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
     }
-    // Los `lib-` sembrados son los de la 2.ª tanda más los de las tandas 1025, 1026, 1027 y 1027b (que llegan de su JSON).
+    // Los `lib-` sembrados son los de la 2.ª tanda más los de las tandas 1025, 1026, 1027, 1027b y 1028 (que llegan de su JSON).
     const deLasTandas = RECOMMENDED_PACKAGE_IDS.filter((id) => id.startsWith("lib-"));
-    const esperados = [...SIEMPRE_2A, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B].filter((id) => id.startsWith("lib-"));
+    const esperados = [...SIEMPRE_2A, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028].filter((id) => id.startsWith("lib-"));
     expect(deLasTandas.sort()).toEqual(Array.from(new Set(esperados)).sort());
   });
 

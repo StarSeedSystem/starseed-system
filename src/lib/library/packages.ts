@@ -80,6 +80,9 @@ import { FICHAS_REPOS_1027 } from "./repos-1027";
 // Tanda del 2026-10-27 (Ola 1027b): Meta^n (automejora recursiva) y Memvid (cápsulas de memoria).
 // Contratos: architecture/automejora-meta-n.md y architecture/memvid-capsulas.md.
 import { FICHAS_REPOS_1027B } from "./repos-1027b";
+// Tanda del 2026-10-28 (Ola 1028 · LNN1028): LEANN, el recuerdo semántico de Astraura.
+// Contrato: architecture/leann-recuerdo-semantico.md.
+import { FICHAS_REPOS_1028 } from "./repos-1028";
 // Repo builtin externo de la Ola 1020: 14 repos verificados con upstream y canal
 // para que la Biblioteca autobúsque sus releases/tags/commits.
 import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES } from "./repos-externos-1020";
@@ -1014,6 +1017,8 @@ const LABS_PACKAGES: LibraryPackage[] = [
     ...FICHAS_REPOS_1027,
     /* ── Tanda del 2026-10-27 (Ola 1027b): Meta^n y Memvid ── */
     ...FICHAS_REPOS_1027B,
+    /* ── Tanda del 2026-10-28 (Ola 1028 · LNN1028): LEANN, el recuerdo semántico ── */
+    ...FICHAS_REPOS_1028,
 ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */
