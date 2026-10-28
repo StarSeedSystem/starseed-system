@@ -25,6 +25,7 @@ import { getApp } from "@/components/dashboard/apps/app-catalog";
 import { newCanvas, saveCanvas } from "@/lib/canvas/canvas";
 import type { AuroraUndoInfo } from "@/lib/aurora/undo";
 import type { PersonalityProfile } from "@/lib/aurora/personalities";
+import { emitirAccionAgente } from "@/lib/mausbot/estado-astraura";
 
 /**
  * Aurora tiene CONTROL TOTAL del OS. Por defecto, TODOS los accesos están
@@ -1360,10 +1361,15 @@ export async function executeDirective(
     if (tool) return tool;
     return { ok: false, message: `No tengo una acción llamada "${d.name}".` };
   }
+  // El Mausbot ve al agente actuar (architecture/mausbot-astraura.md §2.3): «trabajando»
+  // durante la acción y «proud» al acabar, la acción salga bien o mal.
+  emitirAccionAgente("inicio");
   try {
     return await def.handler(d.args, ctx);
   } catch {
     return { ok: false, message: `No pude completar "${d.name}".` };
+  } finally {
+    emitirAccionAgente("fin");
   }
 }
 
