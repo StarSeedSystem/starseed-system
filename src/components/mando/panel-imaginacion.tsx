@@ -13,8 +13,10 @@
  * (solo local): aquí solo se pinta, se valida lo que se escribe y se dice lo que contestó el servidor.
  *   · Arriba, el automático (aprobar · reimaginar, umbral y tope) y la regla fija: lo alto o crítico
  *     SIEMPRE espera el visto bueno de Alex (ningún interruptor la salta).
- *   · Pestañas (Por decidir · Reimaginando · Integradas · Rechazadas y pospuestas · Todas) y filtros
- *     por tipo y por fuente.
+ *   · Pestañas (Por decidir · Reimaginando · Integradas · Rechazadas y pospuestas · Descartadas · Todas)
+ *     y filtros por tipo y por fuente. Ola 1028A: «Por decidir» cuenta lo MISMO que la pastilla
+ *     (esperaAAlex: esperando aprobación o pregunta); las descartadas tienen pestaña propia para
+ *     rescatarlas, y pospuestas y nuevas se ven en «Todas».
  *   · Cada propuesta en su tarjeta, con su cuerpo en formato libre (Markdown sin HTML crudo y solo
  *     enlaces https), sus referencias, sus archivos y sus botones; el lote decide varias a la vez y
  *     dice cuál falló y por qué, sin perder la selección de lo fallido.
@@ -35,6 +37,7 @@ import {
     TIPOS_PROPUESTA,
     UMBRAL_MINIMO,
     esDecidible,
+    esperaAAlex,
     filasMedidor,
     normalizarReferencias,
     vetoReimaginar,
@@ -172,17 +175,25 @@ const CHIP = "rounded-full border px-2 py-0.5 text-[11px] leading-5";
 
 // ── Pestañas y filtros ──────────────────────────────────────────────────────────────────────────────
 
-type Pestana = "por-decidir" | "reimaginando" | "integradas" | "cerradas" | "todas";
+type Pestana = "por-decidir" | "reimaginando" | "integradas" | "cerradas" | "descartadas" | "todas";
 const INTEGRADAS = new Set<EstadoPropuesta>(["aprobada", "autodesarrollo", "encargada", "hecha"]);
+// Ola 1028A: «Por decidir» entra con `esperaAAlex` (la misma cuenta de la pastilla); «Descartadas»
+// aparte, para rescatarlas (siguen decidibles); pospuestas y nuevas se ven en «Todas».
 const PESTANAS: { id: Pestana; texto: string; entra: (p: PropuestaNormalizada) => boolean; vacio: string }[] = [
-    { id: "por-decidir", texto: "Por decidir", entra: (p) => esDecidible(p.estado), vacio: "Nada espera tu decisión aquí." },
+    { id: "por-decidir", texto: "Por decidir", entra: (p) => esperaAAlex(p.estado), vacio: "Nada espera tu decisión aquí." },
     { id: "reimaginando", texto: "Reimaginando", entra: (p) => p.estado === "reimaginando", vacio: "Nada se está reimaginando ahora." },
     { id: "integradas", texto: "Integradas", entra: (p) => INTEGRADAS.has(p.estado), vacio: "Aún no se ha integrado nada de aquí." },
     {
         id: "cerradas",
         texto: "Rechazadas y pospuestas",
-        entra: (p) => p.estado === "rechazada" || p.estado === "pospuesta" || p.estado === "descartada",
-        vacio: "Nada rechazado, pospuesto ni descartado.",
+        entra: (p) => p.estado === "rechazada" || p.estado === "pospuesta",
+        vacio: "Nada rechazado ni pospuesto.",
+    },
+    {
+        id: "descartadas",
+        texto: "Descartadas",
+        entra: (p) => p.estado === "descartada",
+        vacio: "Nada descartado de aquí.",
     },
     { id: "todas", texto: "Todas", entra: () => true, vacio: "Ninguna propuesta en este ámbito." },
 ];
@@ -863,11 +874,11 @@ export function PanelImaginacion({
     );
     const actual = PESTANAS.find((x) => x.id === pestana) ?? PESTANAS[0];
     const visibles = filtradas.filter(actual.entra);
-    const decidiblesFiltradas = filtradas.filter((p) => esDecidible(p.estado));
-    const esperanAlex = decidiblesFiltradas.filter((p) => p.estado === "esperando-aprobacion" || p.estado === "pregunta").length;
+    // Ola 1028A: «todas las por decidir» espera a Alex = la MISMA cuenta de la pastilla y de la pestaña.
+    const porDecidirIds = useMemo(() => filtradas.filter((p) => esperaAAlex(p.estado)).map((p) => p.id), [filtradas]);
     const hayFiltro = tipo !== "todos" || fuente !== "todas";
     const nSel = seleccion.size;
-    const nTodas = decidiblesFiltradas.length;
+    const nTodas = porDecidirIds.length;
     const visiblesDecidibles = visibles.filter((p) => esDecidible(p.estado));
     const todasVisiblesMarcadas = visiblesDecidibles.length > 0 && visiblesDecidibles.every((p) => seleccion.has(p.id));
 
@@ -896,9 +907,9 @@ export function PanelImaginacion({
     );
 
     const ejecutarLote = async (l: Lote, extra: Record<string, unknown> = {}) => {
-        // «Todas» sin filtro = «pendientes» (el servidor toma TODAS las decidibles del ámbito); con un
-        // filtro puesto, solo las que se ven: nunca se decide sobre lo que no está en pantalla.
-        const ids = l.alcance === "seleccion" ? [...seleccion] : hayFiltro ? decidiblesFiltradas.map((p) => p.id) : "pendientes";
+        // «Todas» = las por decidir que se ven (en cuenta limpio: las mismas de la pastilla); con las
+        // seleccionadas, ellas. Nunca se decide sobre lo que no está en pantalla.
+        const ids = l.alcance === "seleccion" ? [...seleccion] : porDecidirIds;
         setOcupadoLote(true);
         setResultadoLote(null);
         const e = await enviar({ accion: "lote", ids, hacer: l.hacer, ambito, ...extra });
@@ -1170,8 +1181,7 @@ export function PanelImaginacion({
                     <div id="imaginacion-lista" role="tabpanel" aria-labelledby={`imaginacion-pestana-${pestana}`} className="grid gap-2">
                         {pestana === "por-decidir" && visibles.length ? (
                             <p className="mc-centrado text-[11px] text-white/75">
-                                {esperanAlex} esperan tu aprobación o una respuesta
-                                {visibles.length > esperanAlex ? `; ${visibles.length - esperanAlex} son nuevas, pospuestas o descartadas que puedes rescatar` : ""}.
+                                {visibles.length} esperan tu aprobación o una respuesta.
                             </p>
                         ) : null}
                         {visibles.length ? (
