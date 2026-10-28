@@ -55,6 +55,7 @@ describe("cliente del Agent Server de OpenHands", () => {
       mensajeInicial: "hola", herramientas: [{ nombre: "TerminalTool" }],
     });
     expect(c.id).toBe("c-1");
+    expect(llamadas[0].url).toBe("http://127.0.0.1:8010/api/conversations");
     expect(cuerpo(llamadas[0].init)).toEqual({
       agent: { kind: "Agent", llm: { model: "openai/gpt", api_key: SECRETO }, tools: [{ name: "TerminalTool" }] },
       workspace: { kind: "LocalWorkspace", working_dir: "/workspace" },
@@ -82,6 +83,8 @@ describe("cliente del Agent Server de OpenHands", () => {
       "/api/conversations/c%201/events", "/api/conversations/c%201/run",
       "/api/conversations/c%201/pause", "/api/conversations/c%201/confirmation_policy",
     ]);
+    expect(llamadas[1].init?.method).toBe("POST");
+    expect(llamadas[2].init?.method).toBe("POST");
     expect(cuerpo(llamadas[0].init)).toEqual({ role: "user", content: [{ type: "text", text: "hola" }] });
     expect(cuerpo(llamadas[3].init)).toEqual({ policy: { kind: "NeverConfirm" } });
   });
@@ -92,6 +95,12 @@ describe("cliente del Agent Server de OpenHands", () => {
     expect(new URL(llamadas[0].url).searchParams.get("page_id")).toBe("p1");
     expect(p.items[0].kind).toBe("MessageEvent");
     expect(p.next_page_id).toBe("p2");
+  });
+
+  it("eventos sin cursor no inventa parámetros", async () => {
+    const { f, llamadas } = capturar(() => json({ items: [], next_page_id: null }));
+    await eventos("c1", op(f));
+    expect(new URL(llamadas[0].url).search).toBe("");
   });
 
   it("errores: HTTP, redirección, red, tiempo y respuesta sin JSON; la clave nunca sale", async () => {
