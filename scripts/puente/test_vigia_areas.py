@@ -100,6 +100,14 @@ class AreasDelVigia(unittest.TestCase):
         self.assertEqual(len(ctx.exception.errores), 2)
         self.assertTrue(str(ctx.exception).startswith("config/vigia-areas.json no es válido:"))
 
+    def test_plugin_json_de_diagram_diseña(self):
+        plugin_path = os.path.join(V.RAIZ_REPO, "vendor", "habilidades", "diagram-design", ".claude-plugin", "plugin.json")
+        self.assertTrue(os.path.isfile(plugin_path), f"plugin.json no existe en {plugin_path}")
+        with open(plugin_path, "r", encoding="utf-8") as f:
+            plugin_data = json.load(f)
+        self.assertIn("version", plugin_data, "plugin.json debe tener campo version")
+        self.assertEqual(plugin_data["version"], "2.6.110", "version debe ser 2.6.110")
+
     def test_archivo_ausente_o_roto_con_nombre_relativo_y_valido(self):
         with tempfile.TemporaryDirectory() as raiz:
             ruta = os.path.join(raiz, "config", "vigia-areas.json")
