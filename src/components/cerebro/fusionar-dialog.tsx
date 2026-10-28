@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Brain } from "@/lib/brains/brains";
-import { planFusion, utf8ByteLength, type PlanFusion } from "@/lib/cerebros/fusion";
+import { toast } from "sonner";
+import { ETIQUETA_PESTANA, pestanaDeCerebro } from "@/lib/cerebros/pestanas";
+import { planFusion, type PlanFusion } from "@/lib/cerebros/fusion";
+import { cuentasPlan, palabraDeAccion, textoKb } from "@/lib/cerebros/fusion-vista";
 import {
     aplicarFusion,
     copiaDeSeguridad,
@@ -27,7 +30,7 @@ export interface FusionarDialogProps {
 
 type Paso = "elegir" | "preparando" | "listo" | "aplicando" | "hecho";
 
-const LO_QUE_HACE = { copiar: "se copia", anexar: "se le añaden secciones", omitir: "igual en el destino, se omite" } as const;
+const FECHA_ES = new Intl.DateTimeFormat("es", { day: "numeric", month: "short", year: "numeric" });
 
 export default function FusionarDialog({ open, onOpenChange, cerebro, cerebros, onHecho }: FusionarDialogProps) {
     const otros = cerebros.filter((b) => b.id !== cerebro.id);
@@ -38,6 +41,7 @@ export default function FusionarDialog({ open, onOpenChange, cerebro, cerebros, 
     const [copia, setCopia] = useState<CopiaDeSeguridad | null>(null);
     const [resultado, setResultado] = useState<ResultadoFusion | null>(null);
     const [motivo, setMotivo] = useState("");
+    const [avisoCopia, setAvisoCopia] = useState(false);
 
     const nombreDe = (id: string) => otros.find((b) => b.id === id)?.name ?? id;
 
@@ -58,16 +62,32 @@ export default function FusionarDialog({ open, onOpenChange, cerebro, cerebros, 
 
     async function fundir() {
         if (!plan || !copia) return;
-        setPaso("aplicando");
-        if (!descargarCopia(copia)) {
-            setMotivo("No se pudo descargar la copia de seguridad en este aparato; así no se escribe nada.");
-            setPaso("elegir");
-            return;
+        // Primer clic: se intenta descargar la copia antes de escribir nada. Solo si falla
+        // se pide confirmación con un segundo clic («Seguir sin copia descargada»).
+        if (!avisoCopia) {
+            setPaso("aplicando");
+            if (!descargarCopia(copia)) {
+                setAvisoCopia(true);
+                setMotivo("No se pudo descargar la copia de seguridad en este aparato. Si vuelves a pulsar «Seguir sin copia descargada», se aplicará la fusión sin ella.");
+                setPaso("listo");
+                return;
+            }
         }
+        setAvisoCopia(false);
+        setMotivo("");
+        setPaso("aplicando");
         const r = await aplicarFusion(plan, { destino: cerebro, origenIds: elegidos, quitarOrigenes: quitar });
         setResultado(r);
         setPaso("hecho");
-        if (r.ok) onHecho?.();
+        if (r.ok) {
+            const texto = `Fusión aplicada: ${r.archivosEscritos} ${r.archivosEscritos === 1 ? "memoria escrita" : "memorias escritas"}, ${textoKb(r.bytes)} añadidos.`;
+            const conservados = r.origenesConservados.map((o) => `«${nombreDe(o.id)}» se conserva: ${o.motivo}`);
+            toast.success(conservados.length > 0 ? `${texto} ${conservados.join(" · ")}` : texto);
+            onHecho?.();
+            onOpenChange(false);
+        } else {
+            toast.error(`No se aplicó la fusión · ${r.error ?? "fallo sin motivo conocido"}`);
+        }
     }
 
     return (
@@ -90,9 +110,14 @@ export default function FusionarDialog({ open, onOpenChange, cerebro, cerebros, 
                                         onCheckedChange={(v) => setElegidos((a) => (v ? [...a, b.id] : a.filter((x) => x !== b.id)))}
                                         className="mt-1"
                                     />
-                                    <span>
-                                        {b.name}
-                                        <span className="block text-xs text-white/50">{b.id}</span>
+                                    <span className="min-w-0">
+                                        <span className="block break-normal">{b.name}</span>
+                                        <span className="block text-xs text-white/50">
+                                            {ETIQUETA_PESTANA[pestanaDeCerebro(b)]}
+                                            {" · "}
+                                            {b.created_at ? FECHA_ES.format(new Date(b.created_at)) : "sin fecha de creación"}
+                                            <span className="text-white/30"> · {b.id}</span>
+                                        </span>
                                     </span>
                                 </label>
                             ))
@@ -102,18 +127,43 @@ export default function FusionarDialog({ open, onOpenChange, cerebro, cerebros, 
                         <div className="rounded-xl border border-white/15 bg-black/20 p-3">
                             <p className="font-semibold text-white">Lo que entrará en este cerebro</p>
                             <p className="mt-1 text-white/70">
-                                {plan.resumen.archivosNuevos} memoria nueva · {plan.resumen.archivosAnexados} con secciones añadidas · {plan.resumen.archivosOmitidos} sin cambios · {plan.resumen.bytes} bytes que entran de {elegidos.length} {elegidos.length === 1 ? "cerebro" : "cerebros"}.
+                                Se mezclarán en «{cerebro.name}» todas sus memorias y configuraciones.
                             </p>
-                            <ul className="mt-2 space-y-1 text-xs text-white/70">
-                                {plan.archivos.map((a) => (
-                                    <li key={a.name}>
-                                        «{a.name}»: {LO_QUE_HACE[a.accion]} · {utf8ByteLength(a.contenido)} bytes en el destino, {a.bytesQueEntran} entran de {a.desde.map(nombreDe).join(", ") || "—"}.
-                                    </li>
-                                ))}
-                            </ul>
+                            <p className="mt-1 text-white/70">
+                                {plan.resumen.archivosNuevos} copia · {plan.resumen.archivosAnexados} con secciones añadidas · {plan.resumen.archivosOmitidos} ya estaba · {textoKb(plan.resumen.bytes)} que entran de {elegidos.length} {elegidos.length === 1 ? "cerebro" : "cerebros"}.
+                            </p>
+                            <table className="mt-2 w-full text-left text-xs text-white/70">
+                                <thead>
+                                    <tr className="text-white/50">
+                                        <th className="pr-2 font-medium">Archivo</th>
+                                        <th className="pr-2 font-medium">Acción</th>
+                                        <th className="font-medium">Entra</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {plan.archivos.map((a) => (
+                                        <tr key={a.name} className="border-t border-white/10">
+                                            <td className="pr-2 py-1">{a.name}</td>
+                                            <td className="pr-2 py-1">
+                                                {palabraDeAccion(a)}
+                                                {a.desde.length > 0 && <span className="text-white/40"> · {a.desde.map(nombreDe).join(", ")}</span>}
+                                            </td>
+                                            <td className="py-1">{textoKb(a.bytesQueEntran)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {(() => {
+                                const c = cuentasPlan(plan);
+                                return (
+                                    <p className="mt-2 text-xs text-white/70">
+                                        Cuenta real tras la mezcla: {c.incluir} entradas de configuración vinculada, {c.servidores} servidores y {c.preferencias} preferencias.
+                                    </p>
+                                );
+                            })()}
                             <label className="mt-3 flex cursor-pointer items-start gap-2">
                                 <Checkbox checked={quitar} onCheckedChange={(v) => setQuitar(v === true)} className="mt-1" />
-                                <span>Quitar los cerebros fusionados cuando termine</span>
+                                <span>Quitar los cerebros fusionados después</span>
                             </label>
                             {quitar && <p className="mt-1 text-xs text-white/50">Los que tengan selecciones no se borran: el diálogo lo avisará.</p>}
                         </div>
@@ -141,12 +191,12 @@ export default function FusionarDialog({ open, onOpenChange, cerebro, cerebros, 
                     <div className="flex flex-wrap gap-2">
                         {(paso === "elegir" || paso === "preparando") && (
                             <Button className="h-auto cursor-pointer whitespace-normal" onClick={preparar} disabled={elegidos.length === 0 || paso === "preparando"}>
-                                {paso === "preparando" ? "Leyendo los cerebros…" : "Ver lo que se fusionará"}
+                                {paso === "preparando" ? "Leyendo los cerebros…" : "Ver vista previa"}
                             </Button>
                         )}
                         {(paso === "listo" || paso === "aplicando") && (
                             <Button className="h-auto cursor-pointer whitespace-normal" onClick={fundir} disabled={paso === "aplicando"}>
-                                {paso === "aplicando" ? "Fusionando…" : "Fusionar (descarga primero la copia)"}
+                                {paso === "aplicando" ? "Fusionando…" : avisoCopia ? "Seguir sin copia descargada" : "Fusionar (descarga primero la copia)"}
                             </Button>
                         )}
                         {(paso === "listo" || paso === "preparando") && (
