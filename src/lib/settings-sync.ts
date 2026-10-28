@@ -37,6 +37,9 @@ import { AVISOS_KEY, fusionarAvisosCrudo } from "@/lib/sync/avisos-cuenta";
 // de entrada del estado del dock y también debe normalizarlo — si no, bajar los
 // ajustes de una cuenta antigua volvía a borrar «Señales» y «Feed de red».
 import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaults";
+// (Ola MBT1027 · Mausbot) La config del Mausbot viaja con la cuenta; al bajar se
+// NORMALIZA con su propio módulo: valor de cuenta roto → la de fábrica, nunca basura.
+import { CLAVE_MAUSBOT, normalizarConfigMausbot } from "@/lib/mausbot/config";
 
 /** Claves de preferencia que viajan con la cuenta. Aditivo: ampliar sin migración. */
 export const SYNCED_KEYS = [
@@ -82,6 +85,7 @@ export const SYNCED_KEYS = [
     //    otro y un escritorio viejo pisaba al que se estaba moviendo: Alex, «se traba y a veces
     //    se reinicia constantemente aunque intente modificar algo».
     "starseed.cursorfx.v1",              // cursor personalizado + animaciones de clic — cursor-fx.tsx
+    CLAVE_MAUSBOT,                       // (Ola MBT1027) config del Mausbot — src/lib/mausbot/config.ts
     "starseed.aurora.chatlog.v1",        // registro de conversación con Aurora — aurora-chat-log.ts
     "starseed.dock.folders.v1",          // folders del OmniDock — dock-config.ts
     "starseed.dock.iconos.v1",           // (Ola 1025U · V1b) plantilla de iconos del perfil (forma, fondo, glifo) — lib/dock/iconos/almacen.ts
@@ -649,6 +653,8 @@ export async function pullPreferences(): Promise<SyncResult & { applied?: string
                 // La escritura de abajo NO está en ventana anti-eco, así que el
                 // parche de setItem de realtime-sync ya la empujará a la cuenta.
                 if (key === DOCK_STORAGE_KEY) merged = normalizeDockSyncValue(merged).value;
+                // Mausbot (Ola MBT1027): el valor de la cuenta se sana con su módulo antes de tocar localStorage.
+                if (key === CLAVE_MAUSBOT) merged = normalizarConfigMausbot(merged);
                 const serialized = typeof merged === "string" ? merged : JSON.stringify(merged);
                 window.localStorage.setItem(key, serialized);
                 applied.push(key);
