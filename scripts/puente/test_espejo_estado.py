@@ -85,6 +85,35 @@ class PruebasEmpaquetar(unittest.TestCase):
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
 
+    def test_log_txt_y_corte_exacto_se_extraen_enteros_en_disco(self):
+        """Rescatado de rama nube (RTRTRTS1010-EV-ORACLE-1abc): un log reconocido por
+        nombre con extensión ``.txt`` se trata igual que ``.log``, y un log con justo
+        ``LOG_LINEAS`` líneas no pierde ninguna; el paquete se extrae en disco con los
+        archivos en su raíz (no en un subdirectorio)."""
+        corte = espejo_estado.LOG_LINEAS
+        with open(os.path.join(self.olas, "log.txt"), "w", encoding="utf-8") as f:
+            f.write("\n".join("Log line %d" % i for i in range(corte)))  # sin salto final
+        with open(os.path.join(self.olas, "evento1.jsonl"), "w", encoding="utf-8") as f:
+            f.write("".join(json.dumps({"evento": i}) + "\n" for i in range(corte + 50)))
+        with open(os.path.join(self.olas, "progreso.md"), "w", encoding="utf-8") as f:
+            f.write("\n".join("Línea %d" % i for i in range(300)))
+        seleccion = ["evento1.jsonl", "log.txt", "progreso.json", "progreso.md"]
+        with tempfile.TemporaryDirectory() as salida:
+            ruta = empaquetar(seleccion, self.olas, salida)
+            self.assertLessEqual(os.path.getsize(ruta), espejo_estado.TOPE_BYTES)
+            extra = os.path.join(salida, "extra")
+            with tarfile.open(ruta, "r:gz") as tar:
+                tar.extractall(path=extra)
+            self.assertEqual(sorted(os.listdir(extra)), sorted(seleccion))
+            esperadas = {"evento1.jsonl": corte, "log.txt": corte,
+                         "progreso.json": 1, "progreso.md": 300}
+            for nombre, esperada in esperadas.items():
+                with open(os.path.join(extra, nombre), "r", encoding="utf-8") as f:
+                    lineas = f.read().splitlines()
+                self.assertEqual(len(lineas), esperada, nombre)
+            with open(os.path.join(extra, "log.txt"), "r", encoding="utf-8") as f:
+                self.assertEqual(f.read().splitlines()[-1], "Log line %d" % (corte - 1))
+
     def test_solo_los_logs_se_recortan_y_conservan_las_ultimas_lineas(self):
         """Rescatado de rama nube (GN1010A-d3c): el estado en Markdown viaja ENTERO aunque sea largo;
         un log por nombre (no solo ``*.jsonl``) se recorta, y se queda con lo más reciente, no con el principio."""
