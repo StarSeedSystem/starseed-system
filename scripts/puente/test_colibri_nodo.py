@@ -7,7 +7,7 @@ no; la Mac (8 GB con presión) no deja a ninguno. Sin red, sin descargas, sin to
 import os
 import sys
 import unittest
-
+import unittest.mock
 DIR = os.path.dirname(os.path.abspath(__file__))
 if DIR not in sys.path:
     sys.path.insert(0, DIR)
@@ -71,19 +71,62 @@ class PruebaCaben(unittest.TestCase):
 
 
 class PruebaPlan(unittest.TestCase):
-    def test_plan_laya_tres_ordenes_como_listas(self):
-        plan = C.plan_instalacion("colibri-laya", "/srv/colibri")
-        self.assertEqual(len(plan), 3)
-        clon, prepara, sirve = (paso["args"] for paso in plan)
-        self.assertEqual(clon[0], "git")
-        self.assertIn("--branch", clon)
+    """El plan de instalación (28-10): Laya y GLiNER NO van por setup; el clon va a la ruta
+    de la unidad; los de catálogo usan su id sin el prefijo `colibri-` y `--no-start`."""
+
+    def test_plan_laya_sin_start_here_y_con_hf_make(self):
+        plan = C.plan_instalacion("colibri-laya", "/srv/Colibri-modelos")
+        texto = " ".join(" ".join(paso["args"]) for paso in plan)
+        self.assertNotIn("start-here.sh", texto)
+        clon = plan[0]["args"]
+        self.assertEqual([clon[0], clon[-1]], ["git", C.REPO_CLONE_RUTA])
         self.assertIn("v2.0.0", clon)
-        self.assertIn("https://github.com/JustVugg/colibri", clon)
-        self.assertIn("/srv/colibri", clon[-1])
-        self.assertEqual(prepara, ["./start-here.sh", "--model", "colibri-laya",
-                                   "--dir", "/srv/colibri", "--yes", "--no-gpu"])
-        self.assertEqual(sirve[sirve.index("--host") + 1], "127.0.0.1")
-        self.assertEqual(sirve[sirve.index("--port") + 1], "4480")
+        descargas = [p for p in plan if p["args"][0] == "hf"]
+        self.assertEqual(len(descargas), 1)
+        args = descargas[0]["args"]
+        self.assertEqual(args[1:3], ["download", "convaiinnovations/laya"])
+        self.assertIn("model.safetensors", args)
+        self.assertEqual(args[args.index("--local-dir") + 1], "/srv/Colibri-modelos/laya")
+        self.assertIn(["make", "-C", "c", "laya"], [p["args"] for p in plan])
+        # la huella de los pesos se anota (nada sin su SHA)
+        shas = [p["args"] for p in plan if p["args"][0] == "sha256sum"]
+        self.assertEqual(shas[0][1], "/srv/Colibri-modelos/laya/model.safetensors")
+
+    def test_plan_laya_con_hf_no_instala_nada(self):
+        with unittest.mock.patch.object(C, "hf_disponible", return_value=True):
+            plan = C.plan_instalacion("colibri-laya", "/srv")
+        self.assertFalse([p for p in plan if "huggingface_hub" in " ".join(p["args"])])
+
+    def test_plan_laya_sin_hf_trae_el_cli(self):
+        with unittest.mock.patch.object(C, "hf_disponible", return_value=False):
+            plan = C.plan_instalacion("colibri-laya", "/srv")
+        paso = [p for p in plan if "huggingface_hub" in " ".join(p["args"])]
+        self.assertEqual(paso[0]["args"], ["python3", "-m", "pip", "install", "--user",
+                                           "huggingface_hub[cli]"])
+
+    def test_plan_gliner(self):
+        plan = C.plan_instalacion("colibri-gliner-decide", "/srv")
+        descarga = [p["args"] for p in plan if p["args"][0] == "hf"][0]
+        self.assertEqual(descarga[2], "fastino/GLiNER2.5-Decide")
+        self.assertIn("special_tokens_map.json", descarga)
+        self.assertEqual(descarga[descarga.index("--local-dir") + 1], "/srv/GLiNER2.5-Decide")
+        self.assertIn("gliner_decide", " ".join(" ".join(p["args"]) for p in plan))
+        self.assertNotIn("start-here.sh", " ".join(" ".join(p["args"]) for p in plan))
+
+    def test_plan_qwen3_coder_por_setup_y_sin_arrancar(self):
+        plan = C.plan_instalacion("colibri-qwen3-coder-30b", "/srv/modelos")
+        prepara = plan[1]["args"]
+        self.assertEqual(prepara[:2], ["./start-here.sh", "--model"])
+        self.assertEqual(prepara[prepara.index("--model") + 1], "qwen3-coder-30b")
+        self.assertNotIn("colibri-", prepara[prepara.index("--model") + 1])
+        self.assertEqual(prepara[prepara.index("--dir") + 1], "/srv/modelos")
+        for bandera in ("--no-gpu", "--no-start", "--no-browser"):
+            self.assertIn(bandera, prepara)
+
+    def test_plan_clef_dice_que_no_cabe(self):
+        with self.assertRaises(ValueError) as ctx:
+            C.plan_instalacion("colibri-clef", "/srv")
+        self.assertIn("no cabe en esta neurona", str(ctx.exception))
 
     def test_id_desconocido(self):
         with self.assertRaises(ValueError):

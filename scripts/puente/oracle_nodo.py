@@ -137,10 +137,10 @@ PESOS_ARM_LOCAL = os.environ.get("STARSEED_BITNET_ARM_GGUF") or os.path.join(
     HOME, "Documents", "IA 1.58 bit", "backend", "BitNet", "models", "BitNet-b1.58-2B-4T", "ggml-model-i2_s.gguf")
 MODELO_A1 = "/home/starseed/astraura/backend/BitNet/models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf"
 #: (CLB1027F) Colibri con Laya en el A1: el checkout canónico que exige la unidad systemd (de él
-#: sale `<repo>/c/coli`) y la carpeta donde el instalador deja el modelo. El plan de
-#: `colibri_nodo.plan_instalacion` clona en `<carpeta>/colibri-vX.Y.Z`; aquí se fija la ruta que
-#: `starseed-colibri.service` da por hecha, para que `preparar-a1.sh` no instale la unidad antes
-#: de que existan el motor y el modelo. Nada se descarga hasta que Alex lo diga.
+#: sale `<repo>/c/coli`) y la carpeta donde el instalador deja el modelo. `plan_instalacion`
+#: clona directamente en la ruta de la unidad (el 28-10 se arregló el «fallo 1 en el paso 2»:
+#: Laya y GLiNER no van por setup) y el `serve` lo hace la unidad. Nada se descarga hasta que
+#: Alex lo diga.
 COLIBRI_REPO_A1 = "/home/starseed/colibri"
 COLIBRI_MODELOS_A1 = "/home/starseed/colibri-modelos"
 COLIBRI_MODELO = "colibri-laya"
@@ -1153,17 +1153,16 @@ def probar_bitnet():
 def plan_colibri(carpeta=COLIBRI_MODELOS_A1):
     """PURA. El plan de `colibri_nodo.plan_instalacion` para Laya en el A1, sin ejecutar nada.
 
-    La única corrección es la ruta del checkout: `plan_instalacion` añade `colibri-<etiqueta>`
-    a la carpeta, y la unidad da por hecho `/home/starseed/colibri/c/coli`."""
-    plan = colibri_nodo.plan_instalacion(COLIBRI_MODELO, carpeta)
-    plan[0]["args"][-1] = COLIBRI_REPO_A1
-    return plan
+    Desde el 28-10 el plan ya clona en la ruta de la unidad y no trae `serve`: `start-here.sh`
+    solo sirve para los modelos de catálogo de Colibri, y     Laya y GLiNER van con `hf` + `make`."""
+    return colibri_nodo.plan_instalacion(COLIBRI_MODELO, carpeta)
 
 
 def _guion_colibri(plan):
     """El guion que se ejecuta en el A1 por SSH: los pasos como LISTAS de argumentos, con el
-    `start-here.sh` dentro del checkout y el último paso con tope (es un servidor en primer plano;
-    luego lo gobierna `starseed-colibri.service`)."""
+    `start-here.sh`, el `make` y la descarga `hf` dentro del checkout. NINGÚN paso se queda
+    sirviendo en primer plano (con `--no-start`): el `serve` lo gobierna
+    `starseed-colibri.service` en 127.0.0.1:4480."""
     pasos = [paso["args"] for paso in plan]
     return "\n".join([
         "import subprocess, sys",
@@ -1172,11 +1171,10 @@ def _guion_colibri(plan):
         "for i, args in enumerate(pasos, 1):",
         "    print('[colibri] paso %d/%d: %s' % (i, len(pasos), ' '.join(args)), flush=True)",
         "    try:",
-        "        r = subprocess.run(args, cwd=repo if i > 1 else None,",
-        "                           timeout=60 if i == len(pasos) else 3600)",
+        "        r = subprocess.run(args, cwd=repo if i > 1 else None, timeout=3600)",
         "    except subprocess.TimeoutExpired:",
-        "        print('[colibri] se queda sirviendo; lo gobierna starseed-colibri.service', flush=True)",
-        "        continue",
+        "        print('[colibri] sobrepasó la hora en el paso %d' % i, flush=True)",
+        "        sys.exit(124)",
         "    if r.returncode != 0:",
         "        print('[colibri] fallo %d en el paso %d' % (r.returncode, i), flush=True)",
         "        sys.exit(r.returncode)",
