@@ -73,9 +73,10 @@ class TestTextosDeImaginacion(unittest.TestCase):
     """
 
     def test_el_titulo_de_la_ola_dice_imaginacion(self):
-        t = DD.tarea_de(P, "2026-09-17", 0)
-        self.assertTrue(t["ola"].startswith("Ola Imaginación 2026-09-17"), t["ola"])
-        self.assertNotIn("Dream", t["ola"])
+        self.assertEqual(
+            DD.tarea_de(P, "2026-09-17", 0)["ola"],
+            "Ola Imaginación 2026-09-17 · lo que el análisis nocturno encontró",
+        )
 
     def test_el_resumen_dice_imaginacion_diaria(self):
         t = DC.resumen([P], total_leidas=5)
@@ -84,7 +85,7 @@ class TestTextosDeImaginacion(unittest.TestCase):
 
     def test_el_resumen_vacio_tambien_dice_imaginacion_diaria(self):
         t = DC.resumen([])
-        self.assertIn("Imaginación diaria leída", t)
+        self.assertTrue(t.startswith("Imaginación diaria leída: nada accionable"), t)
         self.assertNotIn("Dream", t)
 
 
