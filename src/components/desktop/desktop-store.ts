@@ -17,6 +17,7 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 // ── Tipos del modelo ─────────────────────────────────────────────
 export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
@@ -1145,39 +1146,50 @@ export function openWindow(
 ): string {
     let resultId = newId("win");
     mutateDesktop(desktopId, (d) => {
+        const vw = isClient() ? window.innerWidth : 1280;
+        const vh = isClient() ? window.innerHeight : 800;
         const dedupe = !opts?.allowDuplicate && contentRef.type !== "browser";
         const existing = dedupe
             ? d.windows.find((w) => w.contentRef.type === contentRef.type && w.contentRef.ref === contentRef.ref)
             : undefined;
         if (existing) {
             resultId = existing.id;
+            const w = existing.w;
+            const h = existing.h;
+            let x = existing.x;
+            let y = existing.y;
+            const maxX = Math.max(0, vw - w);
+            const maxY = Math.max(DESKTOP_TOP_INSET, vh - h);
+            const fuera = x < 0 || x > maxX || y < DESKTOP_TOP_INSET || y > maxY;
+            if (fuera) {
+                const geom = geometriaVentana({ ancho: vw, alto: vh }, { tipo: "ventana", ancho: w, alto: h });
+                x = Math.max(0, Math.min(geom.x, maxX));
+                y = Math.max(DESKTOP_TOP_INSET, Math.min(geom.y, maxY));
+            }
             const z = nextZ(d);
             return {
                 ...d,
                 windows: d.windows.map((w) =>
-                    w.id === existing.id ? { ...w, minimized: false, z } : w,
+                    w.id === existing.id ? { ...w, x, y, minimized: false, z } : w,
                 ),
             };
         }
-        const vw = isClient() ? window.innerWidth : 1280;
-        const vh = isClient() ? window.innerHeight : 800;
         const w = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
         const h = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
-        const idx = d.windows.length;
-        // Cascada que NUNCA invade la banda de la barra superior (B-1).
-        const maxY = Math.max(DESKTOP_TOP_INSET, vh - h - 120);
+        const geom = geometriaVentana({ ancho: vw, alto: vh }, { tipo: "ventana", ancho: w, alto: h });
+        const x = Math.max(0, Math.min(geom.x, Math.max(0, vw - w)));
+        const y = Math.max(DESKTOP_TOP_INSET, Math.min(geom.y, Math.max(DESKTOP_TOP_INSET, vh - h)));
         const win: DesktopWindow = {
             id: resultId,
             contentRef,
-            x: Math.max(8, Math.min(48 + (idx % 6) * 36, vw - w - 16)),
-            y: Math.min(clampWindowY(DESKTOP_TOP_INSET + 6 + (idx % 6) * 30), maxY),
+            x,
+            y,
             w,
             h,
             z: nextZ(d),
             minimized: false,
             maximized: false,
         };
-        // Si hay mosaico activo, la ventana nueva entra en él (no se queda suelta).
         return reconcileTiling({ ...d, windows: [...d.windows, win] });
     });
     return resultId;
