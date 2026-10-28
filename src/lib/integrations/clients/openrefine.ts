@@ -61,7 +61,7 @@ function conexión(
   cfg: IntegrationConfig,
   o: OpcionesCliente,
 ): { ok: true; con: Conexión } | { ok: false; error: string } {
-  const base = (cfg.endpoint || ENDPOINT_DEFECTO).trim().replace(/\/+$/, "");
+  const base = (cfg.endpoint?.trim() || ENDPOINT_DEFECTO).trim().replace(/\/+$/, "");
   let u: URL;
   try {
     u = new URL(base);

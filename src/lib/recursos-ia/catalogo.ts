@@ -99,6 +99,9 @@ function capacidadesDeCapa(capa: string, runtime: string): Capacidad[] {
         case "reflejo":
             // Needle 3 también da embeddings: §3 lo pone de último recurso de la memoria.
             return ["decision", "embeddings"];
+        case "juicio":
+            // Colibri: el juicio decide sí/no entre opciones (Laya, GLiNER-Decide, Clef).
+            return ["decision"];
         case "memoria":
             return ["embeddings"];
         case "palabra":
