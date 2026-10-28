@@ -114,4 +114,30 @@ describe("vistaOpciones", () => {
     expect(catalogo).toHaveLength(3);
     expect(filas).toHaveLength(1);
   });
+
+  it("aplica la escalera por papel del enjambre: la local del peldaño 1 queda primera", () => {
+    const catalogo = [
+      op("astraura-local", { tipo: "modelo", privacidad: "local", papeles: ["escritor"] }),
+      op("gratis-1", { papeles: ["escritor"] }),
+    ];
+    const filas = [{ clave: "escritor", cadena: { privacidad: "nube-sin-retencion" } }];
+    const vista = vistaOpciones({ ambito: "a1", catalogo, filas, vinculadas: new Set(), contenedores: [] });
+    expect(vista.escaleras).toHaveLength(1);
+    const escalera = vista.escaleras[0];
+    expect(escalera.papel).toBe("escritor");
+    expect(escalera.cadena[0]).toMatchObject({ id: "astraura-local", peldano: 1, posicion: 1 });
+    expect(escalera.rutas[0].source.id).toBe("astraura-local");
+    expect(escalera.rutas[0].local158Priority).toBe(true);
+  });
+
+  it("no añade escaleras para papeles que el enjambre no entiende (visión, voz…) ni con asignaciones vacías", () => {
+    const vista = vistaOpciones({
+      ambito: "a1",
+      catalogo: [op("gratis-1", { papeles: ["visión"] })],
+      filas: [{ clave: "visión", cadena: [] }],
+      vinculadas: new Set(),
+      contenedores: [],
+    });
+    expect(vista.escaleras).toEqual([]);
+  });
 });
