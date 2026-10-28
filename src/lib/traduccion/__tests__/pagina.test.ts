@@ -77,4 +77,20 @@ describe("observar", () => {
         expect(avisos.mock.calls.length).toBe(1);
         expect(raiz.querySelectorAll("p")[2].textContent).toBe("otro");
     });
+
+    it("recoge title, alt, aria-label y placeholder, no solo en imágenes", () => {
+        const raiz = montar("<img alt='Logo' title='Imagen'><input placeholder='Busca…' aria-label='Campo'>");
+        const recogidos = recogerTextos(raiz)
+            .filter((item) => item.clase === "atributo")
+            .map((item) => `${item.atributo}=${item.texto}`)
+            .sort();
+        expect(recogidos).toEqual(["alt=Logo", "aria-label=Campo", "placeholder=Busca…", "title=Imagen"]);
+    });
+
+    it("no recoge atributos vacíos ni en blanco", () => {
+        const html = "<img alt='' title='  '><p aria-label='  '>Texto</p>";
+        const textos = recogerTextos(montar(html));
+        expect(textos.filter((t) => t.clase === "atributo")).toEqual([]);
+        expect(textos.map((t) => t.texto)).toEqual(["Texto"]);
+    });
 });
