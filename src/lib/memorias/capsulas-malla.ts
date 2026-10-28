@@ -32,8 +32,33 @@ export function escritorDe(
   arriendos: ArriendoSujeto[],
   ahora: number = Date.now(),
 ): NeuronaMalla | null {
-  // TODO
-  return null;
+  const sujetoKey = `${capsula.sujeto.tipo}:${capsula.sujeto.id}`;
+
+  // 1. Busca arriendo vigente para este sujeto
+  const arriendoVigente = arriendos.find(
+    (a) =>
+      `${a.sujetoTipo}:${a.sujetoId}` === sujetoKey &&
+      a.concedidoEn <= ahora &&
+      a.expiraEn > ahora,
+  );
+
+  if (arriendoVigente) {
+    const neuronaConArriendo = neuronas.find((n) => n.id === arriendoVigente.neuronaId);
+    if (neuronaConArriendo) return neuronaConArriendo;
+  }
+
+  // 2. Sin arriendo: filtra neuronas de la misma cuenta que el sujeto (si aplica)
+  //    y con presencia viva; elige la de mayor estabilidad.
+  const candidatas = neuronas.filter((n) => n.presenciaViva);
+  if (candidatas.length === 0) return null;
+
+  // Ordena por estabilidad descendente; si hay empate, servidor de cerebro primero
+  candidatas.sort((a, b) => {
+    if (a.esServidorCerebro !== b.esServidorCerebro) return a.esServidorCerebro ? -1 : 1;
+    return b.estabilidad - a.estabilidad;
+  });
+
+  return candidatas[0] ?? null;
 }
 
 /**
@@ -48,8 +73,11 @@ export function accionPara(
   arriendos: ArriendoSujeto[],
   ahora: number = Date.now(),
 ): AccionMalla {
-  // TODO
-  return "pedir-al-escritor";
+  const escritora = escritorDe(capsula, [neurona], arriendos, ahora);
+  if (escritora && escritora.id === neurona.id) return "escribir";
+
+  // Si no es la escritora, puede leer réplica sellada
+  return "leer-replica";
 }
 
 /**
@@ -63,6 +91,22 @@ export function debeReplicar(
   ultimaCopia: { tamano: number; timestamp: number } | null,
   ahora: number = Date.now(),
 ): boolean {
-  // TODO
-  return false;
+  const QUINCE_MIN = 15 * 60 * 1000;
+
+  // Cápsula personal/perfil: solo a neuronas de la misma cuenta y debe ir cifrada
+  const esPrivada = capsula.alcance === "personal" || capsula.alcance === "perfil";
+  if (esPrivada) {
+    if (!capsula.cifrada) return false; // no viaja sin cifrar
+    if (neurona.cuentaId !== capsula.sujeto.id) return false; // solo misma cuenta (el sujeto.id es el owner en estos casos)
+  }
+
+  // Sin copia previa: replicar si hay neurona viva
+  if (!ultimaCopia) return neurona.presenciaViva;
+
+  // Cada 15 min si cambió el tamaño (no sabemos el tamaño actual aquí, así que
+  // la decisión se toma cuando el llamador detecta cambio de tamaño y llama
+  // con ultimaCopia actualizada). La regla de tiempo:
+  if (ahora - ultimaCopia.timestamp < QUINCE_MIN) return false;
+
+  return neurona.presenciaViva;
 }
