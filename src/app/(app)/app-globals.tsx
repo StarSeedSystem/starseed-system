@@ -26,6 +26,7 @@
  * siendo HERMANO de `{children}` (no lo envuelve) para no reintroducir el React #310.
  */
 
+import dynamic from "next/dynamic";
 import { AuroraIntro } from "@/components/onboarding/aurora-intro";
 import { AstrauraConfigDrawer } from "@/components/astraura/astraura-config-drawer";
 import { ModelDownloadNotifier } from "@/components/neurons/model-download-notifier";
@@ -45,6 +46,13 @@ import { AcompanantePersonalidad } from "@/components/avatares/acompanante-perso
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
 
+// Entrada XR global (XR1010F · contrato starseed-xr §0.6 y §3 c): ligera y sin SSR.
+// El motor 3D no se carga aquí: el botón navega a `/xr/os?modo=…` (XR1010G).
+const EntradaGlobalXR = dynamic(
+  () => import("@/components/xr/shell/entrada-global").then((modulo) => modulo.EntradaGlobalXR),
+  { ssr: false },
+);
+
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
 function Astraura158FeedMount() {
@@ -59,6 +67,8 @@ export default function AppGlobals() {
   return (
     <SoloFueraDeConsola>
       <AuroraIntro />
+      {/* Entrada XR universal (XR1010F): flotante solo si hay VR/AR; navega a `/xr/os`. */}
+      <EntradaGlobalXR />
       {/* Ola 0929 · F: cada ruta visitada alimenta «recientes» del widget de Accesos (local, sin red). */}
       <RegistroRecientesAccesos />
       {/* (Adenda 193) StartupUpdatesModal se monta en el layout RAÍZ: aquí
