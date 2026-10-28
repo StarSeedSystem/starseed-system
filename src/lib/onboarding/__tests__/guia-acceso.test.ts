@@ -195,11 +195,15 @@ describe("unirVistas", () => {
 });
 
 describe("pureza del módulo", () => {
-  it("guia-acceso.ts no importa node:*, ni Supabase, ni componentes", () => {
+  it("guia-acceso.ts no importa node:*, ni Supabase, ni componentes, ni nada de valor en tiempo de ejecución", () => {
     const fuente = leer("src/lib/onboarding/guia-acceso.ts");
     expect(fuente).not.toMatch(/from\s+"node:/);
     expect(fuente).not.toMatch(/from\s+"(?!node:)[^"]*"/);
     expect(fuente).not.toContain("createClient");
+    const deValor = fuente
+      .split("\n")
+      .filter((linea) => /^\s*import\s/.test(linea) && !/^\s*import\s+type\s/.test(linea));
+    expect(deValor, "nada de valor: solo imports de tipo").toEqual([]);
   });
 });
 
