@@ -48,6 +48,11 @@ describe("cliente del Agent Server de OpenHands", () => {
     await expect(salud(op(f))).resolves.toEqual({ sano: true, estado: "OK" });
   });
 
+  it("salud: acepta cuerpo vacío como sano con estado «ok»", async () => {
+    const { f } = capturar(() => new Response(null, { status: 200 }));
+    await expect(salud(op(f))).resolves.toEqual({ sano: true, estado: "ok" });
+  });
+
   it("crearConversacion: esquema StartConversationRequest y aprobación por defecto", async () => {
     const { f, llamadas } = capturar(() => json({ id: "c-1" }));
     const c = await crearConversacion({
@@ -70,6 +75,24 @@ describe("cliente del Agent Server de OpenHands", () => {
     const b = cuerpo(llamadas[0].init) as { agent: { llm: Record<string, unknown> }; confirmation_policy: { kind: string } };
     expect(b.agent.llm).toEqual({ model: "m" });
     expect(b.confirmation_policy.kind).toBe("ConfirmRisky");
+  });
+
+  it("crearConversacion: herramientas con parámetros y sin mensaje inicial", async () => {
+    const { f, llamadas } = capturar(() => json({ id: "c-3" }));
+    await crearConversacion({
+      ...op(f), modelo: "m", directorioTrabajo: "/w",
+      herramientas: [{ nombre: "FileEditorTool", parametros: { nivel: 2 } }],
+    });
+    expect(cuerpo(llamadas[0].init)).toEqual({
+      agent: { kind: "Agent", llm: { model: "m" }, tools: [{ name: "FileEditorTool", params: { nivel: 2 } }] },
+      workspace: { kind: "LocalWorkspace", working_dir: "/w" },
+      confirmation_policy: { kind: "AlwaysConfirm" },
+    });
+  });
+
+  it("enviarMensaje: success false se refleja en ok", async () => {
+    const { f } = capturar(() => json({ success: false }));
+    await expect(enviarMensaje("c1", "hola", op(f))).resolves.toEqual({ ok: false });
   });
 
   it("enviarMensaje, ejecutar, pausar y política usan sus rutas y cuerpos", async () => {
