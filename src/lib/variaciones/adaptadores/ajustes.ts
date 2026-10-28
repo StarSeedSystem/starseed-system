@@ -37,9 +37,30 @@ export const RUTA_AJUSTES: Record<string, string> = {
   "voz-timbre": "starseed.voz.timbre.v1",
   "pantalla-inicial": "starseed.inicio.pantalla.v1",
   cursor: "starseed.cursorfx.v1",
+  mausbot: "starseed.mausbot.v1",
+  "mausbot-disenos": "starseed.mausbot.disenos.v1",
   "orbe-estilo": "starseed.protomolecula.orbe.estilo.v1",
   visualizador: "starseed.audiomorphic.presets.v1",
 };
+
+/** El nivel máximo que una variación puede imponer al Mausbot: lo demás lo decide cada persona. */
+export const NIVEL_ACTUAR_MAXIMO_MAUSBOT = "proponer" as const;
+
+/**
+ * Sanea el valor de una variación del Mausbot antes de capturarla o aplicarla: fuera `perfiles` y
+ * `neuronas` (son de cada perfil y de cada neurona) y `actuar` nunca por encima de «proponer».
+ * El resto de ajustes se devuelve tal cual.
+ */
+export function sanearValorMausbot(id: string, valor: unknown): unknown {
+  if (id !== "mausbot" || typeof valor !== "object" || valor === null || Array.isArray(valor)) return valor;
+  const resto: Record<string, unknown> = { ...(valor as Record<string, unknown>) };
+  delete resto.perfiles;
+  delete resto.neuronas;
+  if (typeof resto.actuar === "string" && resto.actuar !== "nada" && resto.actuar !== "proponer") {
+    resto.actuar = NIVEL_ACTUAR_MAXIMO_MAUSBOT;
+  }
+  return resto;
+}
 
 /** Resuelve `ajuste:<id>`: devuelve el id si está en el mapa y su clave es permitida, nulo si no. */
 export function idDeAjuste(clave: string): string | null {
@@ -86,7 +107,7 @@ export function crearAdaptadorAjustes(opciones: OpcionesAjustes): AdaptadorFamil
       const id = idDeAjuste(clave); if (!id) return null;
       try {
         const bruto = (opciones.almacen ?? almacenDelNavegador()).getItem(RUTA_AJUSTES[id]);
-        return bruto === null ? null : { [id]: JSON.parse(bruto) as unknown };
+        return bruto === null ? null : { [id]: sanearValorMausbot(id, JSON.parse(bruto) as unknown) };
       } catch { return null; } // sin almacenamiento o valor sin JSON: nada que capturar
     },
     validar: (payload) => {
@@ -101,7 +122,7 @@ export function crearAdaptadorAjustes(opciones: OpcionesAjustes): AdaptadorFamil
       for (const id of Object.keys(validado.parche)) {
         const ruta = RUTA_AJUSTES[id]; if (!ruta) continue;
         previos.set(ruta, almacen.getItem(ruta));
-        const valor = validado.parche[id];
+        const valor = sanearValorMausbot(id, validado.parche[id]);
         almacen.setItem(ruta, typeof valor === "string" ? valor : JSON.stringify(valor));
       }
       const guardar = () => void opciones.pushPreferences().catch(() => undefined);
