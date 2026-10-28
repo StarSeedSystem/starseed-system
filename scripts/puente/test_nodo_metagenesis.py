@@ -379,6 +379,40 @@ class TestFotoYTachado(unittest.TestCase):
         self.assertNotEqual(L.huella_foto(a), L.huella_foto(c))
         self.assertIn("líder mac-aaaaaa", L.texto_foto(a))
 
+    def test_salud_del_nodo_va_a_la_foto(self):
+        """(CB1013Qb) La vista lleva cpu_pct, ram_total_mb, disco_total_gb, nucleos y carga; None se respeta
+        (macOS u otros: nada inventado, contrato §7.2)."""
+        l = {"nodo": "mac-aaaaaa", "medio": "mac", "modo": "real", "ts": T0,
+             "salud": {"disco_gb": 12.3, "disco_total_gb": 250.7, "ram_libre_mb": 2048, "ram_total_mb": 16384,
+                       "nucleos": 8, "carga": 1.42, "cpu_pct": 37.5}}
+        r = L.resumen_nodo("mac-aaaaaa", l, None, T0 + 5)
+        self.assertEqual(r["disco_total_gb"], 250.7)
+        self.assertEqual(r["ram_total_mb"], 16384)
+        self.assertEqual(r["nucleos"], 8)
+        self.assertEqual(r["carga"], 1.42)
+        self.assertEqual(r["cpu_pct"], 37.5)
+        seco = {"nodo": "a1-000000", "medio": "oracle-a1", "modo": "real", "ts": T0, "salud": {"disco_gb": 20.0}}
+        nx = L.resumen_nodo("a1-000000", seco, None, T0 + 5)
+        self.assertIsNone(nx["cpu_pct"])
+        self.assertIsNone(nx["ram_total_mb"])
+        self.assertIsNone(nx["disco_total_gb"])
+        self.assertIsNone(nx["nucleos"])
+        self.assertIsNone(nx["carga"])
+
+    def test_huella_sin_medidas_volatiles(self):
+        """(CB1013Qb) cpu % y carga, como la RAM libre, no cambian la huella (la foto no se republica
+        por una medida que cambia en cada latido); los núcleos, sí."""
+        def nf(carga=1.0, cpu=10.0, nucleos=8, ram_total=16384, disco_total=500.0):
+            return {"nodo": "mac-aaaaaa", "medio": "mac", "modo": "real", "ts": T0,
+                    "salud": {"cpu_pct": cpu, "carga": carga, "nucleos": nucleos, "ram_libre_mb": 2048,
+                              "ram_total_mb": ram_total, "disco_gb": 20.0, "disco_total_gb": disco_total}}
+        base = L.foto("mac-aaaaaa", 3, {"mac-aaaaaa": nf()}, [], {}, True, "real", T0)
+        mismo = L.foto("mac-aaaaaa", 3, {"mac-aaaaaa": nf(carga=4.7, cpu=93.3, ram_total=16393, disco_total=499.9)},
+                       [], {}, True, "real", T0 + 60)
+        self.assertEqual(L.huella_foto(base), L.huella_foto(mismo))
+        otro = L.foto("mac-aaaaaa", 3, {"mac-aaaaaa": nf(nucleos=16)}, [], {}, True, "real", T0 + 60)
+        self.assertNotEqual(L.huella_foto(base), L.huella_foto(otro))
+
     def test_tachar(self):
         clave = "".join(["sk", "-", "abcdef1234567890XYZ"])
         t = L.tachar("clave %s túnel https://abc-def.trycloudflare.com/x ip 8.8.4.4 local 127.0.0.1" % clave)
