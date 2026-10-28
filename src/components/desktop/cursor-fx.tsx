@@ -12,25 +12,29 @@
 // useSyncExternalStore). Respeta prefers-reduced-motion: si el usuario
 // pide menos movimiento, NO se pintan animaciones de clic.
 // Los ids coinciden con desktop-listings.ts (publicables en la Librería).
+// El cursor «mausbot» usa los cuerpos de src/lib/mausbot/cuerpos.ts
+// (contrato: architecture/mausbot-astraura.md §4).
 // ════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { MousePointer2, MousePointerClick, Accessibility } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CURSOR_LISTINGS, GESTURE_ANIMATION_LISTINGS } from "./desktop-listings";
+import { CUERPO_POR_DEFECTO, CUERPOS_MAUSBOT, CUERPOS_MAUSBOT_IDS, cuerpoMausbot, type CuerpoId } from "@/lib/mausbot/cuerpos";
 
 // ── Config + store mínimo ────────────────────────────────────────
-export type CursorOption = "system" | "starseed-triangle" | "orb";
+export type CursorOption = "system" | "starseed-triangle" | "mausbot" | "orb";
 export type ClickFxOption = "none" | "liquid-ripple" | "star-burst" | "neon-bubble";
 
 export interface CursorFxConfig {
     cursor: CursorOption;
     click: ClickFxOption;
+    cuerpo: CuerpoId;
 }
 
 const LS_KEY = "starseed.cursorfx.v1";
 const FX_EVENT = "starseed:cursorfx";
-const DEFAULT_CONFIG: CursorFxConfig = { cursor: "system", click: "liquid-ripple" };
+const DEFAULT_CONFIG: CursorFxConfig = { cursor: "system", click: "liquid-ripple", cuerpo: CUERPO_POR_DEFECTO };
 
 function isClient(): boolean {
     return typeof window !== "undefined" && typeof localStorage !== "undefined";
@@ -52,12 +56,12 @@ function readConfig(): CursorFxConfig {
         try {
             const p = JSON.parse(raw) as Partial<CursorFxConfig>;
             const cursor: CursorOption =
-                p.cursor === "starseed-triangle" || p.cursor === "orb" ? p.cursor : "system";
+                p.cursor === "starseed-triangle" || p.cursor === "orb" || p.cursor === "mausbot" ? p.cursor : "system";
             const click: ClickFxOption =
                 p.click === "none" || p.click === "star-burst" || p.click === "neon-bubble" || p.click === "liquid-ripple"
                     ? p.click
                     : DEFAULT_CONFIG.click;
-            value = { cursor, click };
+            value = { cursor, click, cuerpo: cuerpoMausbot(p.cuerpo) };
         } catch {
             value = DEFAULT_CONFIG;
         }
@@ -108,11 +112,33 @@ const ORB_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" 
 export const CURSOR_PREVIEW_URI: Record<Exclude<CursorOption, "system">, string> = {
     "starseed-triangle": svgUri(TRIANGLE_SVG),
     orb: svgUri(ORB_SVG),
+    mausbot: mausbotSvgUri(CUERPO_POR_DEFECTO),
 };
 
-function cursorCssValue(cursor: CursorOption): string | null {
+// ── Cuerpos del Mausbot (los 10 de src/lib/mausbot/cuerpos.ts) ───
+const MAUSBOT_VISTA = 258.541;
+const MAUSBOT_GRADIENTE: [string, string, string] = ["#66E3FF", "#007FFF", "#7C3AED"];
+
+function mausbotSvgUri(id: CuerpoId, lado = 22): string {
+    const cuerpo = CUERPOS_MAUSBOT[cuerpoMausbot(id)];
+    const gid = `mgb-${cuerpo.id}-${lado}`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${lado}" height="${lado}" viewBox="-15 -15 ${MAUSBOT_VISTA} ${MAUSBOT_VISTA}"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${MAUSBOT_GRADIENTE[0]}"/><stop offset="0.55" stop-color="${MAUSBOT_GRADIENTE[1]}"/><stop offset="1" stop-color="${MAUSBOT_GRADIENTE[2]}"/></linearGradient></defs><g transform="${cuerpo.fit}">${cuerpo.body.replace(/\{\{GRADIENT\}\}/g, `url(#${gid})`)}</g></svg>`;
+    return svgUri(svg);
+}
+
+const URI_MAUSBOT: Record<CuerpoId, string> = Object.fromEntries(
+    CUERPOS_MAUSBOT_IDS.map((id) => [id, mausbotSvgUri(id)])
+) as Record<CuerpoId, string>;
+
+function cursorCssValue(cursor: CursorOption, cuerpo: CuerpoId): string | null {
     if (cursor === "starseed-triangle") return `url("${CURSOR_PREVIEW_URI["starseed-triangle"]}") 3 2, auto`;
     if (cursor === "orb") return `url("${CURSOR_PREVIEW_URI.orb}") 10 10, auto`;
+    if (cursor === "mausbot") {
+        // El cuerpo «cursor» es una flecha: el punto de clic es su punta.
+        return cuerpo === CUERPO_POR_DEFECTO
+            ? `url("${URI_MAUSBOT[cuerpo]}") 6 1, auto`
+            : `url("${URI_MAUSBOT[cuerpo]}") 11 11, auto`;
+    }
     return null;
 }
 
@@ -182,7 +208,7 @@ export function CursorFxHost(): React.ReactElement | null {
     // Cursor personalizado: hoja de estilo global (opt-in, reversible).
     useEffect(() => {
         if (!isPrimary || typeof document === "undefined") return;
-        const value = cursorCssValue(cfg.cursor);
+        const value = cursorCssValue(cfg.cursor, cfg.cuerpo);
         const STYLE_ID = "starseed-cursorfx-style";
         const prevEl = document.getElementById(STYLE_ID);
         if (prevEl) prevEl.remove();
@@ -200,7 +226,7 @@ export function CursorFxHost(): React.ReactElement | null {
                 document.getElementById(STYLE_ID)?.remove();
             } catch { /* noop */ }
         };
-    }, [cfg.cursor, isPrimary]);
+    }, [cfg.cursor, cfg.cuerpo, isPrimary]);
 
     // Animación de clic: escucha global de pointerdown → pinta en la capa.
     useEffect(() => {
@@ -354,7 +380,9 @@ export function CursorSettingsPanel({ className }: { className?: string }): Reac
                         const selected = cfg.cursor === c.id;
                         const uri = c.id === "starseed-triangle" || c.id === "orb"
                             ? CURSOR_PREVIEW_URI[c.id]
-                            : null;
+                            : c.id === "mausbot"
+                                ? mausbotSvgUri(cfg.cuerpo)
+                                : null;
                         return (
                             <button
                                 key={c.id}
@@ -382,6 +410,43 @@ export function CursorSettingsPanel({ className }: { className?: string }): Reac
                     })}
                 </div>
             </section>
+
+            {cfg.cursor === "mausbot" && (
+                <section className="space-y-2">
+                    <h4 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                        <MousePointer2 className="size-3.5" /> Cuerpo del Mausbot
+                    </h4>
+                    <div className="grid grid-cols-5 gap-2">
+                        {CUERPOS_MAUSBOT_IDS.map((id) => {
+                            const activo = cfg.cuerpo === id;
+                            return (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    onClick={() => setCursorFxConfig({ cuerpo: id })}
+                                    title={CUERPOS_MAUSBOT[id].nombre}
+                                    aria-label={CUERPOS_MAUSBOT[id].nombre}
+                                    className={cn(
+                                        "flex flex-col items-center gap-1 rounded-2xl border p-2 transition-all duration-200 cursor-pointer",
+                                        activo
+                                            ? "border-sky-400/60 bg-sky-400/10 shadow-[0_0_18px_rgba(56,189,248,0.25)]"
+                                            : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20",
+                                    )}
+                                >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={URI_MAUSBOT[id]} alt="" className="size-6" draggable={false} />
+                                    <span className="w-full truncate text-center text-[10px] font-bold leading-tight">
+                                        {CUERPOS_MAUSBOT[id].nombre}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                        Los diseños propios llegan desde la Protomolécula.
+                    </p>
+                </section>
+            )}
 
             <section className="space-y-2">
                 <h4 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground">

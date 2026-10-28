@@ -34,6 +34,13 @@ export const CURSOR_LISTINGS: DesktopListing[] = [
         paleta: ["#66E3FF", "#007FFF", "#7C3AED"],
     },
     {
+        id: "mausbot",
+        nombre: "Mausbot de Astraura",
+        descripcion: "El bot mascota de Astraura convertido en puntero: elige su cuerpo (cursor, mancha, gota, estrella…) en el panel de cursor.",
+        preview: "⭐",
+        paleta: ["#66E3FF", "#007FFF", "#7C3AED"],
+    },
+    {
         id: "orb",
         nombre: "Orbe mini",
         descripcion: "Una pequeña esfera de luz líquida con brillo interior. Suave, orgánica y visible sobre cualquier fondo.",
