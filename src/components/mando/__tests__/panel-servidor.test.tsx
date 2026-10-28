@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { PanelServidor } from "@/components/mando/panel-servidor";
+import { politicaInsomne } from "@/lib/neurons/insomne";
 import type { EstadoServidorAstraura } from "@/lib/mando/servidor-astraura-tipos";
+import type { InsomneServidor } from "@/lib/mando/servidor-astraura-tipos";
 
 function fixtureEstado(): EstadoServidorAstraura {
     return {
@@ -189,5 +191,67 @@ describe("PanelServidor", () => {
         render(<PanelServidor />);
         await waitFor(() => expect(screen.getByText(/Máquinas/i)).toBeInTheDocument());
         expect(screen.queryByText(/ocid1.instance/)).not.toBeInTheDocument();
+    });
+});
+
+describe("PanelServidor · neurona insomne (GET /api/neuronas/insomne)", () => {
+    function conInsomne(estadoInsomne: InsomneServidor): EstadoServidorAstraura {
+        const base = fixtureEstado();
+        return { ...base, energia: { ...base.energia, insomne: estadoInsomne } };
+    }
+    const capacidadMac = { proveedor: "insomnia" as const, disponible: true, motivo: "Insomnia mantiene la Mac despierta con la tapa cerrada" };
+
+    function renderCon(estado: EstadoServidorAstraura) {
+        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) =>
+            String(input) === "/api/mando/servidor"
+                ? new Response(JSON.stringify(estado), { status: 200 })
+                : new Response("", { status: 404 }),
+        ));
+        return render(<PanelServidor />);
+    }
+
+    afterEach(() => {
+        cleanup();
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+    });
+
+    it("con sesión activa: «Siempre disponible hasta las HH:MM con Insomnia»", async () => {
+        const hasta = new Date(Date.now() + 3 * 60_000).toISOString();
+        const estado = conInsomne({
+            capacidad: capacidadMac,
+            estado: { activo: true, hasta, proveedor: "insomnia", motivo: "sesión de Insomnia activa" },
+            politica: politicaInsomne(),
+            soltarTrabajo: false,
+        });
+        renderCon(estado);
+        expect(await screen.findByText(/Siempre disponible hasta las .+ con Insomnia/i)).toBeInTheDocument();
+        expect(screen.getByText(/sesión de Insomnia activa/i)).toBeInTheDocument();
+    });
+
+    it("sin sesión activa (sesión vencida) — sin enlace de instalación", async () => {
+        const estado = conInsomne({
+            capacidad: capacidadMac,
+            estado: { activo: false, hasta: null, proveedor: "insomnia", motivo: "sesión de Insomnia vencida" },
+            politica: politicaInsomne(),
+            soltarTrabajo: true,
+        });
+        renderCon(estado);
+        expect(await screen.findByText(/Sin sesión activa de Insomnia/i)).toBeInTheDocument();
+        expect(screen.getByText(/sesión de Insomnia vencida/i)).toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: /ficha de insomnia/i })).not.toBeInTheDocument();
+    });
+
+    it("Insomnia no instalada: título y enlace a su ficha en la Biblioteca", async () => {
+        const estado = conInsomne({
+            capacidad: capacidadMac,
+            estado: { activo: false, hasta: null, proveedor: "no", motivo: "Insomnia no está instalada o no tiene sesión" },
+            politica: politicaInsomne(),
+            soltarTrabajo: true,
+        });
+        renderCon(estado);
+        expect(await screen.findByText(/Insomnia no instalada/i)).toBeInTheDocument();
+        const enlace = screen.getByRole("link", { name: /ficha de insomnia/i });
+        expect(enlace).toHaveAttribute("href", "/library?tab=instalado");
     });
 });

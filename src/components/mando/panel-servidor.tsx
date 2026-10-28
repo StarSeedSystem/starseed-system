@@ -143,6 +143,11 @@ function SeccionInsomne({ insomne }: { insomne?: InsomneServidor }) {
     if (!insomne) return null;
     const politica = insomne.politica ?? POLITICA_INSOMNE_DEFECTO;
     const activo = insomne.estado.activo;
+    // El estado viene (`GET /api/neuronas/insomne`, que manda `/api/mando/servidor`
+    // desde `leerEstadoInsomne`): sesión activa de Insomnia / sin sesión / Mac que
+    // sí podría pero no tiene Insomnia instalada — entonces, su ficha.
+    const noInstalada = !activo && insomne.capacidad.proveedor === "insomnia" && insomne.estado.proveedor === "no";
+    const sinSesion = !activo && insomne.capacidad.disponible && !noInstalada;
     const sigue = [
         politica.agentes ? "agentes" : "",
         politica.programados ? "procesos programados" : "",
@@ -154,14 +159,30 @@ function SeccionInsomne({ insomne }: { insomne?: InsomneServidor }) {
         <div className="rounded-lg border border-white/10 bg-black/20 p-3">
             <p className="text-sm font-medium text-white">
                 {activo
-                    ? `Siempre disponible hasta las ${horaCorta(insomne.estado.hasta)}`
-                    : insomne.capacidad.disponible
-                      ? "Siempre disponible (sin sesión activa)"
-                      : "No puede seguir con la pantalla cerrada"}
+                    ? `Siempre disponible hasta las ${horaCorta(insomne.estado.hasta)} con Insomnia`
+                    : noInstalada
+                      ? "Insomnia no instalada"
+                      : sinSesion
+                        ? "Sin sesión activa de Insomnia"
+                        : "No puede seguir con la pantalla cerrada"}
             </p>
             <p className="mt-0.5 text-xs text-white/60">
                 Proveedor: {insomne.capacidad.proveedor} · {insomne.estado.motivo}
             </p>
+            {noInstalada && (
+                <a
+                    href="/library?tab=instalado"
+                    className="mc-alzar mt-2 inline-flex min-h-[32px] cursor-pointer items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[11px] text-emerald-200 transition-colors duration-200 hover:bg-white/10"
+                >
+                    Ver la ficha de Insomnia en la Biblioteca <ExternalLink className="h-3 w-3" aria-hidden />
+                </a>
+            )}
+            {sinSesion && (
+                <p className="mt-1 text-[11px] text-white/40">
+                    Empieza la sesión desde la propia Insomnia, en la barra de menús de la Mac: el OS solo lee su
+                    estado, nunca la controla.
+                </p>
+            )}
             {activo && (
                 <p className="mt-1 text-xs text-white/60">
                     Sigue sirviendo: {sigue.length ? sigue.join(", ") : "nada (política apagada)"}.
