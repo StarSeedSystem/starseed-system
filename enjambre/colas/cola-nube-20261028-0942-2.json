@@ -1,0 +1,108 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "CLB1027B",
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "titulo": "Capas · las entradas de Colibri entran en config/capas-astraura.json",
+   "archivos": [
+    "config/capas-astraura.json",
+    "src/lib/astraura/capas/__tests__/catalogo-colibri-json.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\nCopia las 9 entradas de `config/capas-colibri-1027.json` (`entradas`) al array `capas` de `config/capas-astraura.json` con el esquema de `EntradaCapa`: `runtime: \"colibri\"`, `formato: \"safetensors\"`, `familia` = `repo_hf` o «JustVugg/colibri», `version: \"colibri v2.0.0\"`, `disco_mb` y `ram_min_mb` (de los GB × 1024), `ram_ok_mb`, `streaming_disco`, `medios`, `sha256: null`, `estado: \"por-verificar\"`, `fuente_oficial` (huggingface.co/<repo_hf> o el repo de Colibri), `verificado: null`. Sube `actualizado`. Prueba: `leerCatalogo` lee las 9 y ninguna es usable todavía.",
+   "dependencias_ya_en_main": [
+    "CLB1027A"
+   ]
+  },
+  {
+   "id": "MC1012I",
+   "titulo": "Malla cristalina: las mejores rutas sobre los puentes",
+   "archivos": [
+    "src/lib/malla/cristal/rutas.ts",
+    "src/lib/malla/cristal/__tests__/rutas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Exporta `interface Ruta {saltos: string[]; medios: Medio[]; coste: number; motivo: string}` y `mejoresRutas(cristal: Cristal, r: Reticula, dato: Dato, ctx, k = 3): Ruta[]` (ctx igual que en viabilidad): grafo = puentes del cristal; coste de un salto = 1 − viabilidad(dato, señal del puente) y se excluyen los no aptos; Dijkstra y Yen para k rutas sin bucles; orden por coste y desempate por saltos. Si destino es null (difusión), devuelve el árbol de caminos mínimos a todas como rutas de un salto cada una desde el origen hacia sus vecinos directos. Pruebas: ruta directa si existe; rodeo cuando el directo está vetado por privacidad; k rutas distintas; sin ruta → [].",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "revisor_quitadas": [
+    "MC1012H"
+   ],
+   "dependencias_ya_en_main": [
+    "MC1012F"
+   ]
+  },
+  {
+   "id": "MVD1027D",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "Memorias · cliente del servidor de cápsulas y ruta con alcance",
+   "archivos": [
+    "src/lib/memorias/memvid-cliente.ts",
+    "src/app/api/memorias/capsulas/route.ts",
+    "src/lib/memorias/__tests__/memvid-cliente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\n`memvid-cliente.ts` SOLO servidor (`import \"server-only\"` si el repo lo usa; lee el token con `node:fs`): `poner`, `buscar`, `estado`, `linea`, `salud`, con 1,5 s de tope y `null` si el servidor no está (nunca lanza). Si `poner` da 507, abre la parte siguiente con `nombreCapsula(..., parte+1)` y reintenta una vez. La ruta: GET `?sujeto=tipo:id` → estado de sus cápsulas; POST `{accion: \"poner\" | \"buscar\", sujeto, texto | consulta, k}` comprobando el actor de la sesión con `puedeEscribirEn` / `alcanceVisiblePara` antes de tocar nada. Pruebas del cliente con `fetch` falso.",
+   "dependencias_ya_en_main": [
+    "MVD1027A-d2"
+   ]
+  },
+  {
+   "id": "MVD1027G",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "Agentes · cliente Python de cápsulas y sesiones de agente",
+   "archivos": [
+    "scripts/puente/memvid_cliente.py",
+    "scripts/puente/contexto_agente.py",
+    "scripts/puente/test_memvid_cliente.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\n`memvid_cliente.py` (stdlib `urllib`): `poner`, `buscar`, `salud` contra 127.0.0.1:4490 con el token de `~/.starseed/memvid.token`, 1,5 s de tope y `None` si no está. `anotar_paso(agente, sesion, texto)` → cápsula `agente-<agente>-<AAAA>T<n>.mv2` con `uri` `mv2://agente/<agente>/sesion/<sesion>/<paso>`. En `contexto_agente.py`, una sección opcional «Recuerdos de este agente» con `buscar` k=3 (si el servidor no está, no sale nada). Pruebas con un servidor HTTP falso."
+  },
+  {
+   "id": "MC1012W2",
+   "titulo": "Montar el motor de la retícula y sus paneles en Señales",
+   "archivos": [
+    "src/components/malla/motor-cristal-mount.tsx",
+    "src/components/mesh/signals-center.tsx",
+    "src/components/malla/__tests__/motor-cristal-mount.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. motor-cristal-mount.tsx ('use client'): crea UNA vez (módulo singleton) el motor de MC1012Q con: miNeurona desde identidadDispositivo() (src/lib/network/identidad-dispositivo.ts) y la capacidad que ya calcula malla-neuronas (claseRam) o valores por defecto; medir con medidas-locales.ts sobre getMeshState() (mesh), los peers de usePeersMalla/estadisticas y, si `esAppNativa()`, el estado de antenas nativas (src/lib/nativa/puente.ts); reloj = tick() de src/ai/astraura/mesh/logical-clock.ts; firmar con signContent de src/ai/astraura/mesh/mesh-identity.ts (guarda `s` en firma); difundir con crearDifusor (getSharedMesh()?.broadcast y enviarAPar de vinculos-entre-cuentas si existe un vínculo). Recibe teselas suscribiéndose a los mensajes del mesh compartido y descarta las de firma inválida (verifyContent). Bucle con crearBucle (src/lib/network/bucle-fondo.ts) con el intervalo que diga `motor.intervaloMs()` (5–60 s), solo pestaña líder y aparato visible. Exporta `MotorCristalMount` (sin UI) y `useMotorCristal()`. En signals-center.tsx monta `<PanelReticula estado=…/>` en la pestaña o sección principal de Señales (cambio mínimo, ≤ 15 líneas). Prueba: el montaje no rompe sin WebRTC ni identidad (degrada a vacío).",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012R",
+    "MC1012S",
+    "MC1012W-d2"
+   ]
+  },
+  {
+   "id": "MR1012E",
+   "titulo": "Routers a nodos: panel en la configuración de neuronas y cerebros",
+   "archivos": [
+    "src/components/network/routers-malla-panel.tsx",
+    "src/components/network/router-center.tsx",
+    "src/components/network/__tests__/routers-malla-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Panel 'use client' «Routers de la malla»: añadir router (fabricante, modelo, versión, ¿es del operador?); muestra `compatibilidad` (con la tabla que se pase por prop; si no hay, estado 'desconocido' y el enlace a https://openwrt.org/toh/start para buscarlo), el aviso y los pasos; tras marcar «ya tiene OpenWrt»: región, troncales entre routers (elegir pares), `planRadios` en una tabla por enlace (banda, canal, ancho, potencia) editable dentro de lo legal, y por router los botones «Copiar guion» (guionAplicar) y «Descargar configuración» (Blob .txt). La clave de la malla se genera en el navegador (crypto.getRandomValues, 24 bytes en base64url) y solo se muestra al copiar. Guarda la lista de routers (sin claves) en localStorage con try/catch. Móntalo en router-center.tsx (cambio mínimo). Diseño del OS, legible en móvil. Prueba jsdom: añadir un router de operador muestra 'bloqueado-operador'.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MR1012A",
+    "MR1012B",
+    "MR1012C",
+    "MR1012D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "MVD1027D",
+   "MR1012E",
+   "MC1012I",
+   "MVD1027G",
+   "CLB1027B",
+   "MC1012W2"
+  ]
+ }
+}
