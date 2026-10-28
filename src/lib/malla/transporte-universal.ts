@@ -631,14 +631,18 @@ export function asegurarRecepcionLocal(): void {
   if (recepcionLocal) return;
   recepcionLocal = true;
   alRegistrarEnlaceLocal((e) => {
-    // Relés de Astraura e IA también por el enlace local: mismo contrato que la malla
-    // de la cuenta, solo si esta neurona está compartiendo capa mesh (pesado → perezoso).
+    // Relés de Astraura, IA y capacidades también por el enlace local: mismo
+    // contrato que la malla de la cuenta, solo si esta neurona está compartiendo
+    // capa mesh (pesado → perezoso).
     if (capaMeshCompartiendo()) {
       void import("@/lib/network/astraura-por-malla")
         .then((m) => m.adjuntarServidorAstrauraMalla(meshDeEnlaceLocal(e)))
         .catch(() => undefined);
       void import("@/lib/network/ia-por-malla")
         .then((m) => m.adjuntarServidorIaMalla(meshDeEnlaceLocal(e)))
+        .catch(() => undefined);
+      void import("@/lib/recursos/servir-capacidades-malla")
+        .then((m) => m.adjuntarServidorCapacidadesMalla(meshDeEnlaceLocal(e)))
         .catch(() => undefined);
     }
     const canal = canalLocalEstable(e);
