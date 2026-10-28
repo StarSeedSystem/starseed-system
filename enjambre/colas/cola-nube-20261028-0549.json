@@ -1,0 +1,103 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "ola": "Rescate de las ramas de la nube",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261015-203923",
+   "id": "RTRTRTRTRTCOL1012Bdsbbbbb-d1",
+   "titulo": "Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «des (parte 1 de 3)",
+   "archivos": [
+    "servicios/taller-3d/motores/test_pixelartistry.py"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTRTRTRTCOL1012Bdsbbbb («Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contened») se hizo en main por otro camino; su rama nube/38604122695 queda archivada en `refs/archivo/nube/38604122695` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTRTRTRTRTCOL1012Bdsbbbb · solo estos archivos: servicios/taller-3d/motores/test_pixelartistry.py, src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# servicios/taller-3d/motores/test_pixelartistry.py\n    def test_cuando_no_disponible_devuelve_dict_de_error(self):\n        # Sin Windows o sin ComfyUI al otro lado, remallar_imagen responde con el\n        # dict común de error: ok=False, glb=None, procedencia con sus dos piezas.\n        result = pa.remallar_imagen(\n            \"/fake/path/image.png\",\n            resolucion=512,\n            carpeta_workflows=self.tmp,\n            comfy=pa.ClienteComfyUI(),\n            dormir=lambda _: None,\n        )\n        self.assertFalse(result[\"ok\"])\n        self.assertIsNone(result[\"glb\"])\n        self.assertIsInstance(result[\"procedencia\"], list)\n        self.assertGreaterEqual(len(result[\"procedencia\"]), 2)  # flujo and nodos\n        self.assertIsInstance(result[\"fallo\"], str)\n        self.assertGreaterEqual(len(result[\"fallo\"]), 1)\n        self.assertGreaterEqual(result[\"segundos\"], 0.0)\n        self.assertGreaterEqual(result[\"pico_memoria_gb\"], 0.0)\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({\n            nodo: \"mac-a1b2c3\",\n            vivo: true,\n            so: \"macos\",\n            enCurso: 0,\n            contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" },\n        } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261015-203923`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261015-203923:refs/remotes/origin/nube/a1-20261015-203923\"` y `git cherry-pick --no-commit 87d5ab24550e 7b76ecc86917 c7923f44810c`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, servicios/taller-3d/motores/test_pixelartistry.py, src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 3 (la dirección dividió RTRTRTRTRTCOL1012Bdsbbbbb: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: servicios/taller-3d/motores/test_pixelartistry.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RTRTRTRTRTCOL1012Bdsbbbbb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "revisor_quitadas": [
+    "VGM1016B"
+   ],
+   "dependencias_ya_en_main": [
+    "VGM1016C"
+   ],
+   "medio": null,
+   "t": "2026-10-27 22:21:40",
+   "revisado_por": "revisor-bloqueadas",
+   "segundos": 7,
+   "modelos_fallidos": [
+    "codex/gpt-5.6-sol"
+   ],
+   "modelo": "codex/gpt-5.6-sol",
+   "id": "VGM1016Db-d1",
+   "titulo": "Vigía · director diario: descubre, evalúa, deja novedades, avisa una vez y encola fichas (≤ 5 al día) (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/vigia_modelos.py"
+   ],
+   "depende": [],
+   "prompt": "Orquesta una pasada: por cada área de `vigia-areas.json` llama a `descubrir` y `evaluar`; escribe `starseed_memory_root/vigia/novedades-<AAAA-MM-DD>.json` (por área: candidatos aceptados y descartados con su motivo, clase de licencia, archivo elegido por medio, SHA si lo hay) de forma atómica; publica UN resumen en el Chat Director (`director_chat.publicar`, quien «vigia-modelos») con lo nuevo de verdad; y, para los mejores (≤ 5 por día, sin repetir lo que ya está en el catálogo o en una cola), crea `starseed_memory_root/olas/cola-vigia-<AAAA-MM-DD>.json` con una tarea por ficha (≤ 3 archivos: el catálogo del área y su prueba) cuyo prompt lleva los datos verificados y la regla de licencia. Órdenes: `--seco` (no escribe colas ni avisa) y `--area X`. Estado en `~/.starseed/vigia-modelos.json` (última pasada, ids vistos). Pruebas con todo inyectado. Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español.\n\n## REPARACIÓN\nTu intento no tocó tus archivos declarados: scripts/puente/vigia_modelos.py, scripts/puente/test_vigia_modelos.py no existen o no cambiaron. Créalos o modifícalos según el contrato.\n\nCorrige cada punto y añade pruebas que demuestren la reparación.\n\n## PARTE 1 DE 2 (la dirección dividió VGM1016Db: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/vigia_modelos.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VGM1016Db",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  },
+  {
+   "id": "MBT1027C2",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Mausbot · su configuración viaja con la cuenta",
+   "archivos": [
+    "src/lib/settings-sync.ts",
+    "src/lib/sync/realtime-sync.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nAñade `starseed.mausbot.v1` a `SYNCED_KEYS` (`src/lib/settings-sync.ts`) y su evento `starseed:mausbot` a `EVENT_BY_KEY` (`src/lib/sync/realtime-sync.ts`), igual que `starseed.aurora.always-on`. Nada más. Corre las pruebas existentes de esos módulos.",
+   "dependencias_ya_en_main": [
+    "MBT1027C-d2c"
+   ]
+  },
+  {
+   "id": "INS1027D",
+   "ola": "1027I · Neurona insomne",
+   "titulo": "Neuronas · ficha «Siempre disponible (pantalla cerrada)»",
+   "archivos": [
+    "src/components/cerebro/insomne-ficha.tsx",
+    "src/components/cerebro/neuronas-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «funcionamiento nativo para las neuronas compatibles de sus capacidades siempre disponibles aun con las pantallas cerradas, incluyendo agentes y procesos programados en segundo plano y la actividad de la red mesh P2P compartida inteligentemente por la red StarSeed, para potenciarlas como servidores completos» (krishhgg/Insomnia, MIT). Contrato: `architecture/neurona-insomne.md` (léelo entero). El OS LEE el estado de Insomnia; nunca ejecuta `pmset` ni usa su regla de sudoers.\n\n`InsomneFicha({ neurona })`: proveedor según `capacidadInsomne`, estado (hasta cuándo, o por qué no es compatible), qué sigue funcionando (`politicaInsomne`) y, en una Mac compatible sin Insomnia, cómo instalarla (enlace a la ficha `lib-insomnia` de la Biblioteca) con el aviso de ventilación de Apple y el de la regla de sudoers. Insértala en la ficha de cada neurona de `neuronas-panel.tsx`, sin tocar lo demás.",
+   "dependencias_ya_en_main": [
+    "INS1027A",
+    "INS1027B"
+   ]
+  },
+  {
+   "id": "CLB1027B",
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "titulo": "Capas · las entradas de Colibri entran en config/capas-astraura.json",
+   "archivos": [
+    "config/capas-astraura.json",
+    "src/lib/astraura/capas/__tests__/catalogo-colibri-json.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\nCopia las 9 entradas de `config/capas-colibri-1027.json` (`entradas`) al array `capas` de `config/capas-astraura.json` con el esquema de `EntradaCapa`: `runtime: \"colibri\"`, `formato: \"safetensors\"`, `familia` = `repo_hf` o «JustVugg/colibri», `version: \"colibri v2.0.0\"`, `disco_mb` y `ram_min_mb` (de los GB × 1024), `ram_ok_mb`, `streaming_disco`, `medios`, `sha256: null`, `estado: \"por-verificar\"`, `fuente_oficial` (huggingface.co/<repo_hf> o el repo de Colibri), `verificado: null`. Sube `actualizado`. Prueba: `leerCatalogo` lee las 9 y ninguna es usable todavía.",
+   "dependencias_ya_en_main": [
+    "CLB1027A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "MBT1027C2",
+   "VGM1016Db-d1",
+   "RTRTRTRTRTCOL1012Bdsbbbbb-d1",
+   "CLB1027B",
+   "INS1027D"
+  ]
+ }
+}
