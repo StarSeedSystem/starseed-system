@@ -107,14 +107,19 @@ import { medidasOido } from "@/lib/aurora/stt-oss/medidas-oido";
 import { cronometroHabla, cronometroOido, leerMedidas } from "@/lib/aurora/medidas-voz";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 
+/** «es-MX» → «es»: la misma base para elegir el motor y para filtrar lo medido. */
+function idiomaBaseDeVoz(lang: string | undefined): string {
+  return (lang || "es").split("-")[0];
+}
+
 /**
  * Medidas REALES de esta neurona para el elector del oído (VOZ1024A). La lectura
  * es local y el helper nunca lanza: si no hay nada medido devuelve `{}` y el
  * elector sigue con su orden de siempre, sin retrasar el arranque del reconocimiento.
  */
-function medidasOidoDeEstaNeurona(idioma: string): Record<string, number> {
+function medidasOidoDeEstaNeurona(lang: string | undefined): Record<string, number> {
   try {
-    return medidasOido(leerMedidas(neuronDeviceIdActual()), { idioma });
+    return medidasOido(leerMedidas(neuronDeviceIdActual()), { idioma: idiomaBaseDeVoz(lang) });
   } catch {
     return {};
   }
@@ -2035,15 +2040,15 @@ export function useAuroraEngine(): AuroraEngine {
     // Elector del oído (contrato voz-fusionada-astraura.md §3): Phonon-2 es el
     // OÍDO EN FLUJO (WebSocket /v1/audio/stream); cualquier otro motor usa la
     // Web Speech del navegador (el resto de motores se conectan en sus tareas).
-    const idiomaOido = (activeRef.current.voice?.lang || "es").split("-")[0];
+    const langVoz = activeRef.current.voice?.lang;
     const eleccionOido = elegirOido({
-      idioma: idiomaOido,
+      idioma: idiomaBaseDeVoz(langVoz),
       disponibles: MOTORES_OIDO.filter(
         (m) => !(m.id === "phonon-2" && phononCaidoRef.current),
       ).map((m) => m.id),
       fase: "parcial",
       // (VOZ1024A) Lo medido en ESTA neurona, no la ficha del motor.
-      medidas: medidasOidoDeEstaNeurona(idiomaOido),
+      medidas: medidasOidoDeEstaNeurona(langVoz),
     });
     if (eleccionOido.motor === "phonon-2") return buildFlujoOido();
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -2568,15 +2573,15 @@ export function useAuroraEngine(): AuroraEngine {
     const disponibles = MOTORES_OIDO.filter(
       (m) => !(m.id === "phonon-2" && phononCaidoRef.current),
     ).map((m) => m.id);
-    const idiomaOido = (activeRef.current.voice?.lang || "es").split("-")[0];
+    const langVoz = activeRef.current.voice?.lang;
     const eleccionOido = elegirOido({
-      idioma: idiomaOido,
+      idioma: idiomaBaseDeVoz(langVoz),
       disponibles,
       fase: "parcial",
       // (VOZ1024A) La MISMA elección medida que hace `buildRecognition`: si aquí
       // dijera una cosa y allí otra, se pediría Web Speech para un motor que no
       // lo usa (o al revés) y la elección no se cumpliría.
-      medidas: medidasOidoDeEstaNeurona(idiomaOido),
+      medidas: medidasOidoDeEstaNeurona(langVoz),
     });
     if (eleccionOido.motor !== "phonon-2") {
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
