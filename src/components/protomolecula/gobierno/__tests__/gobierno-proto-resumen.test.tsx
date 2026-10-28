@@ -6,7 +6,11 @@ import { GobiernoProtoResumen } from "../gobierno-proto-resumen";
 import { olvidarTodo } from "@/lib/protomolecula/gobierno/almacen";
 import { conPermiso, crearPermiso, reglasPorDefecto, type PermisoDirecto } from "@/lib/protomolecula/gobierno/reglas";
 import type { ContextoProto } from "@/lib/protomolecula/peticion/contrato";
-import { NOMBRES_PROHIBIDOS, cargado, servicios } from "../__fixtures__/ayudas-prueba";
+<<<<<<< HEAD
+import { NOMBRES_PROHIBIDOS, cargado, servicios } from "./ayudas-prueba";
+=======
+import { NOMBRES_PROHIBIDOS, cargado, servicios } from "./ayudas-prueba";
+>>>>>>> e22a3a9bf (1021G · GUI1021K2b: Guía sin cuenta · el mismo acceso en la bienvenida y en retomar sesión)
 
 beforeEach(() => {
   olvidarTodo();
