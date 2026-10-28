@@ -43,10 +43,16 @@ import {
     esServidorPendiente,
     type EntradaServidor,
     type EstadoServidorAstraura,
+    type InsomneServidor,
     type MaquinaEstado,
     type ServidorRegistrado,
     type TipoServidor,
 } from "@/lib/mando/servidor-astraura-tipos";
+import {
+    BATERIA_MINIMA,
+    MINUTOS_AVISO_FIN,
+    POLITICA_INSOMNE_DEFECTO,
+} from "@/lib/neurons/insomne";
 import { resumenOracle } from "@/lib/mando/oracle-tipos";
 import OracleConsumoResumen from "./oracle-consumo-resumen";
 
@@ -126,6 +132,56 @@ function AvisosBox({ avisos }: { avisos: string[] }) {
 }
 
 // ── a) Modo servidor · esta Mac ──────────────────────────────────────────────
+
+function horaCorta(iso: string | null): string {
+    if (!iso) return "—";
+    const t = Date.parse(iso);
+    return Number.isFinite(t) ? new Date(t).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "—";
+}
+
+function SeccionInsomne({ insomne }: { insomne?: InsomneServidor }) {
+    if (!insomne) return null;
+    const politica = insomne.politica ?? POLITICA_INSOMNE_DEFECTO;
+    const activo = insomne.estado.activo;
+    const sigue = [
+        politica.agentes ? "agentes" : "",
+        politica.programados ? "procesos programados" : "",
+        politica.malla ? "malla P2P" : "",
+        politica.servidorCerebro ? "servidor del cerebro" : "",
+        politica.biblioteca ? "Biblioteca" : "",
+    ].filter(Boolean);
+    return (
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+            <p className="text-sm font-medium text-white">
+                {activo
+                    ? `Siempre disponible hasta las ${horaCorta(insomne.estado.hasta)}`
+                    : insomne.capacidad.disponible
+                      ? "Siempre disponible (sin sesión activa)"
+                      : "No puede seguir con la pantalla cerrada"}
+            </p>
+            <p className="mt-0.5 text-xs text-white/60">
+                Proveedor: {insomne.capacidad.proveedor} · {insomne.estado.motivo}
+            </p>
+            {activo && (
+                <p className="mt-1 text-xs text-white/60">
+                    Sigue sirviendo: {sigue.length ? sigue.join(", ") : "nada (política apagada)"}.
+                </p>
+            )}
+            {activo && insomne.soltarTrabajo && (
+                <p className="mt-1 flex items-start gap-1.5 text-xs text-amber-300/90">
+                    <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                    <span>
+                        Va a soltar el trabajo: quedan menos de {MINUTOS_AVISO_FIN} min, la batería baja del{" "}
+                        {BATERIA_MINIMA} % sin cargar o el calor es crítico.
+                    </span>
+                </p>
+            )}
+            {!insomne.capacidad.disponible && (
+                <p className="mt-1 text-[11px] text-white/40">{insomne.capacidad.motivo}</p>
+            )}
+        </div>
+    );
+}
 
 function SeccionEnergia({ estado, alCambiar }: { estado: EstadoServidorAstraura; alCambiar: () => void }) {
     const energia = estado.energia;
@@ -221,6 +277,7 @@ function SeccionEnergia({ estado, alCambiar }: { estado: EstadoServidorAstraura;
                 <p>{estadoTexto}</p>
                 <p>{lineaEnergia}</p>
             </div>
+            <SeccionInsomne insomne={energia.insomne} />
             {impedidoPor.length > 0 && (
                 <p className="text-xs text-white/50">Ahora la mantiene despierta: {impedidoPor.join(", ")}</p>
             )}
