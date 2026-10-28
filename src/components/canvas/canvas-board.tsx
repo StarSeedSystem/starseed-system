@@ -93,6 +93,7 @@ import {
   Check,
   Mail,
   PenTool,
+  Atom,
 } from "lucide-react";
 import {
   BLOCK_KINDS,
@@ -139,10 +140,16 @@ import { BoardShareDialog, BoardShareTrigger } from "@/components/canvas/board-s
 import { useMySpaces, useMyInvites, acceptInvite, declineInvite, createSpace } from "@/lib/spaces/spaces";
 import { useSharedBoardSpace } from "@/lib/sync/shared-board-space";
 import { getBoardEngine, setBoardEngine, type BoardEngine } from "@/lib/canvas/board-engine";
+// Protomolécula como ventana (PM1010F2I): panel + franja de dependencias.
+import { BloquePizarraProtomolecula, herramientaDeMolecula } from "@/components/protomolecula/bloque-pizarra";
+import { enlacesDeVentana } from "@/lib/canvas/canvas";
 
 // Motor "tldraw (profesional)" (Adenda tldraw): dynamic ssr:false porque el
 // SDK toca `window`/canvas al importarse — ver tldraw-board.tsx. El motor
 // "Lienzo StarSeed" (este archivo) es y sigue siendo el motor por defecto.
+// El blockKind "protomolecula" no toca al motor "tldraw": su tablero pinta
+// snapshots del SDK sin enumerar BlockKind (nada rompe, y decidir «si el motor
+// tldraw recibe también el bloque» queda como candidata del §13).
 const TldrawBoard = dynamic(() => import("@/components/canvas/tldraw-board"), {
   ssr: false,
   loading: () => (
@@ -163,6 +170,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutGrid,
   Globe,
   Image: ImageIcon,
+  Atom,
 };
 
 function KindIcon({ kind, className }: { kind: BlockKind; className?: string }) {
@@ -1798,6 +1806,8 @@ export default function CanvasBoard({
               connectMode={connectMode}
               connectActive={connectFrom === b.id}
               memoryView={isMemoryView}
+              boardBlocks={visibleBlocks}
+              boardEdges={edges}
               onSelect={() => selectBlock(b.id)}
               onConnectClick={() => onBlockConnectClick(b.id)}
               onEditToggle={() => {
@@ -2001,6 +2011,8 @@ function BlockCard({
   connectMode,
   connectActive,
   memoryView,
+  boardBlocks,
+  boardEdges,
   onSelect,
   onConnectClick,
   onEditToggle,
@@ -2020,6 +2032,8 @@ function BlockCard({
   connectMode: boolean;
   connectActive: boolean;
   memoryView: boolean;
+  boardBlocks: CanvasBlock[];
+  boardEdges: CanvasEdge[];
   onSelect: () => void;
   onConnectClick: () => void;
   onEditToggle: () => void;
@@ -2140,7 +2154,7 @@ function BlockCard({
         {editing ? (
           <BlockEditor block={block} vaults={vaults} memories={memories} onData={onData} onPickFile={onPickFile} />
         ) : (
-          <BlockPreview block={block} />
+          <BlockPreview block={block} boardBlocks={boardBlocks} boardEdges={boardEdges} />
         )}
       </div>
 
@@ -2162,7 +2176,15 @@ function BlockCard({
 }
 
 // ---- Vista (no edición) ----------------------------------------------------
-function BlockPreview({ block }: { block: CanvasBlock }) {
+function BlockPreview({
+  block,
+  boardBlocks = [],
+  boardEdges = [],
+}: {
+  block: CanvasBlock;
+  boardBlocks?: CanvasBlock[];
+  boardEdges?: CanvasEdge[];
+}) {
   const d = block.data || {};
   switch (block.kind) {
     case "text":
@@ -2233,6 +2255,28 @@ function BlockPreview({ block }: { block: CanvasBlock }) {
       ) : (
         <Empty label={`Indica el nombre del ${block.kind === "app" ? "app/programa" : "widget"}.`} />
       );
+    case "protomolecula": {
+      // Ventana Protomolécula (PM1010F2I): la cita es moleculaId, las aristas
+      // del tablero (la salida de A alimenta a B) son sus dependencias.
+      const vecinos = boardBlocks
+        .filter((b) => b.id !== block.id)
+        .map((b) => ({
+          id: b.id,
+          titulo: b.title || blockKindDef(b.kind)?.label || b.kind,
+          herramienta:
+            b.kind === "protomolecula" && typeof b.data?.moleculaId === "string"
+              ? herramientaDeMolecula(b.data.moleculaId)
+              : null,
+        }));
+      const { entrantes, salientes } = enlacesDeVentana(block.id, boardEdges, vecinos);
+      return (
+        <BloquePizarraProtomolecula
+          moleculaId={typeof d.moleculaId === "string" && d.moleculaId ? d.moleculaId : undefined}
+          aristasEntrantes={entrantes}
+          aristasSalientes={salientes}
+        />
+      );
+    }
     default:
       return <Empty label="Sin contenido." />;
   }
