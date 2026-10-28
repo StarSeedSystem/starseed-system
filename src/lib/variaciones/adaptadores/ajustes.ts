@@ -37,6 +37,8 @@ export const RUTA_AJUSTES: Record<string, string> = {
   "voz-timbre": "starseed.voz.timbre.v1",
   "pantalla-inicial": "starseed.inicio.pantalla.v1",
   cursor: "starseed.cursorfx.v1",
+  mausbot: "starseed.mausbot.v1",
+  "mausbot-disenos": "starseed.mausbot.disenos.v1",
   "orbe-estilo": "starseed.protomolecula.orbe.estilo.v1",
   visualizador: "starseed.audiomorphic.presets.v1",
 };
