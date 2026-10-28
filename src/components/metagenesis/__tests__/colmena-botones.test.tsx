@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // @vitest-environment-options {"url": "https://starseed-os.vercel.app/metagenesis"}
 /**
  * Los botones «Desconectar» y «Usar como contenedor» de la tarjeta de cada neurona (COL1012I).
@@ -793,4 +794,36 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         fireEvent.click(await screen.findByTestId("mg-orden-revisar_bloqueadas"));
         await waitFor(() => expect(enviarOrden).toHaveBeenCalledWith("revisar_bloqueadas", "lider"));
     });
+=======
+import { describe, it, expect } from "vitest";
+import { botonesNeurona } from "@/lib/metagenesis/colmena";
+import type { NeuronaColmena } from "@/lib/metagenesis/colmena";
+
+describe("colmena-botones", () => {
+  it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
+    const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 } as NeuronaColmena);
+    expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
+    expect(b.desconectar.explica).toBe("No tiene trabajo en curso: puedes apagarlo sin más.");
+    expect(b.desconectar.confirmar).toBe(false);
+  });
+
+  it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
+    const b = botonesNeurona({
+      nodo: "mac-a1b2c3",
+      vivo: true,
+      so: "macos",
+      enCurso: 0,
+      contenedor: { activo: true, agentes: 3, apto: true, motivo: "" },
+    } as NeuronaColmena);
+    expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
+    expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
+  });
+
+  it("mostrar botón de desconectar cuando hay trabajo en curso con 1 agente", () => {
+    const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1 } as NeuronaColmena);
+    expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
+    expect(b.desconectar.explica).toContain("1 agente");
+    expect(b.desconectar.confirmar).toBe(true);
+  });
+>>>>>>> 7b76ecc86 (salvavidas · RTRTRTRTRTCOL1012Bdsbbbb: trabajo del agente antes de las puertas (tsc / vitest))
 });
