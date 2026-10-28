@@ -58,10 +58,6 @@ describe("validarArgs: órdenes de la colmena", () => {
         expect(validarArgs("contenedor", { activo: false, trabajadores: 1 })).toBe("trabajadores solo se permite si activo es True");
         expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBe("trabajadores fuera de 1–4");
         expect(validarArgs("contenedor", { activo: false, trabajadores: 2 })).toContain("trabajadores solo se permite");
-        // Del rescate de la rama de la nube (96103248dcce): el rango 1–4 se comprueba ANTES de la regla
-        // de activo:false, así que 0 cae en «fuera de 1–4» y 1 cae en «solo se permite».
-        expect(validarArgs("contenedor", { activo: false, trabajadores: 1 })).toContain("trabajadores solo se permite");
-        expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBe("trabajadores fuera de 1–4");
     });
 });
 
@@ -155,11 +151,9 @@ describe("latido tal como lo publica el nodo Python: la colmena va DENTRO de `sa
         const e = resumirBus([latido({ nodo: "nodo-a1", medio: "oracle-a1", ts: (AHORA - 60_000) / 1000, salud })], AHORA);
         const n = e.nodos[0];
         expect(lineaDeNodo(n, AHORA)).toEqual(["3 agentes · puede ser contenedor", "1 tarea en curso · Último punto de control hace 5 min"]);
-        // `relevo:false` en el latido: ninguno de los dos botones cambiaría nada, así que se ven y no se pueden pulsar.
         const b = botonesDeNodo(n, [], AHORA);
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false });
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: false, etiqueta: "Usar como contenedor (3 agentes)" });
-        // Un nodo que declara el relevo activo sí los ofrece.
         const e2 = resumirBus([latido({ nodo: "nodo-a1", medio: "oracle-a1", ts: (AHORA - 60_000) / 1000, salud: { ...salud, relevo: true } })], AHORA);
         const b2 = botonesDeNodo(e2.nodos[0], [], AHORA);
         expect(b2.desconectar).toMatchObject({ habilitado: true, confirmar: true });
