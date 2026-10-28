@@ -36,9 +36,7 @@ vi.mock("@/lib/realtime/realtime", () => ({ onTableChange: () => () => {} }));
 import { AppearanceProvider } from "@/context/appearance-context";
 import { MetaGenesisAutonoma } from "../metagenesis-autonoma";
 
-describe("colmena-botones · botones de una neurona (rescatado de rama nube)", () => {
-    // Los textos del contrato (traspaso a otro contenedor) solo son verdad con el relevo cableado: estas pruebas
-    // lo declaran. Sin la bandera se asume que NO está activo (ver el bloque «sin traspaso» más abajo).
+describe("colmena-botones · botones de una neurona", () => {
     it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 } as NeuronaColmena);
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
