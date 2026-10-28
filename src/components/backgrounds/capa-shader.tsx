@@ -11,6 +11,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { ShaderInstance } from "shaders/js";
 import type { BackgroundLayer } from "@/lib/appearance/background-layers";
 import { intervaloFotogramaMs, modoDeCapa, necesitaMotor } from "@/lib/appearance/politica-shader";
+import { OPCIONES_RENDER_SHADER } from "@/lib/protomolecula/atomos/fondo-shader";
 
 type Componente = { type?: string; id?: string; props?: Record<string, unknown>; children?: Componente[] };
 type Bateria = EventTarget & { charging: boolean; level: number };
@@ -73,7 +74,7 @@ export function CapaShader({ capa, vistaPrevia, ahorroBateria = false, permitirC
     let s: ShaderInstance | null = null; // onError puede llegar antes de que createShader resuelva
     import("shaders/js").then(async ({ createShader }) => {
       s = await createShader(lienzo, { components: componentes as never, structureVersion: capa.preset?.structureVersion },
-        { disableTelemetry: true, observeElement: false, onError: () => { if (s?.getFailureReason()) setFallo(true); } });
+        { ...OPCIONES_RENDER_SHADER, onError: () => { if (s?.getFailureReason()) setFallo(true); } });
       if (!vivo) return s.destroy();
       if (s.getFailureReason()) return setFallo(true); // fallo terminal antes de resolver
       inst.current = s;

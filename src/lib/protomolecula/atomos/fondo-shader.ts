@@ -45,9 +45,9 @@ export const FONDO_SHADER: DefinicionAtomo = {
   ],
   entradas: ["imagen", "datos"],
   salidas: ["starseed-fondo"],
+  vista: { tipo: "componente", id: "fondo-shader" },
   ficha: { web: "https://github.com/shader-effects-inc/shaders", repo: "shader-effects-inc/shaders", licencia: "MIT" },
 };
-
 /** Cualquier renderizador de este átomo va en cliente y con la telemetría apagada (§1). */
 export const OPCIONES_RENDER_SHADER = { disableTelemetry: true, observeElement: false } as const;
 const param = (id: string) => FONDO_SHADER.parametros.find((p) => p.id === id);
