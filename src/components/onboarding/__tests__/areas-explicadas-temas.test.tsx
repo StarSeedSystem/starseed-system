@@ -1,10 +1,11 @@
 /**
- * Rescate RTIMN1021I · tarjetas de la Guía de la red.
+ * Pruebas de las tarjetas de la Guía de la red (GUI1021G).
  *
- * La rama `nube/40145158800` probaba que cada tarjeta abría un tema de `TODOS_LOS_TEMAS` y que
- * Cerebro iba a `/cerebro`. Main cambió ese contrato a propósito: `AreasExplicadas` mantiene sus
- * explicaciones propias (`EXPLICACIONES`) y la ruta plural `/cerebros`. Se conserva lo que main
- * sí hace y nadie probaba: la tarjeta abre su explicación y «Ir a» navega a su ruta.
+ * Cada tarjeta abre su explicación tomada de `TODOS_LOS_TEMAS` (fuente única de textos)
+ * y «Ir a» navega a la ruta de la tarjeta. La ruta `/cerebros` cambió a `/cerebro`
+ * y usa el tema `neuronas-cerebro`. Las rutas nuevas del §3 de `architecture/guias-introduccion.md`
+ * (protomolecula, network/politics, network/education, network/culture, genesis, cerebro,
+ * library, red-mesh) usan sus temas correspondientes.
  */
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -32,13 +33,76 @@ function abrir(a: AreaTip, onIr: (path: string) => void = () => {}): void {
 }
 
 describe("Guía de la red · la tarjeta abre su explicación", () => {
-  it("la tarjeta /library abre la explicación real de la Biblioteca", () => {
+  it("la tarjeta /library abre la explicación del tema libreria-biblioteca", () => {
     abrir(area("/library"));
     const dialogo = screen.getByRole("dialog");
 
-    expect(within(dialogo).getByText(/La biblioteca universal de la red/)).toBeInTheDocument();
-    expect(within(dialogo).getByText("Instala apps y recursos con un clic; aparecen en tu dock y catálogo.")).toBeInTheDocument();
-    expect(within(dialogo).getByText("Explora la biblioteca e instala una app que te llame la atención.")).toBeInTheDocument();
+    expect(within(dialogo).getByText(/La Librería es el catálogo en línea de toda la red/)).toBeInTheDocument();
+    expect(within(dialogo).getByText("instalar y actualizar solas")).toBeInTheDocument();
+    expect(within(dialogo).getByText("Aurora, abre la Librería")).toBeInTheDocument();
+  });
+
+  it("la tarjeta /cerebro abre la explicación del tema neuronas-cerebro", () => {
+    abrir(area("/cerebro", "Neuronas y cerebro"));
+    const dialogo = screen.getByRole("dialog");
+
+    expect(within(dialogo).getByText(/Cada aparato donde usas StarSeed es una neurona/)).toBeInTheDocument();
+    expect(within(dialogo).getByText("neurona = aparato, medio = forma de abrirlo")).toBeInTheDocument();
+    expect(within(dialogo).getByText("Aurora, abre mi cerebro")).toBeInTheDocument();
+  });
+
+  it("la tarjeta /protomolecula abre la explicación del tema protomolecula", () => {
+    abrir(area("/protomolecula", "Protomolécula"));
+    const dialogo = screen.getByRole("dialog");
+
+    expect(within(dialogo).getByText(/La Protomolécula es la función universal de creación/)).toBeInTheDocument();
+    expect(within(dialogo).getByText("átomos = herramientas, con su grado de integración")).toBeInTheDocument();
+    expect(within(dialogo).getByText("Aurora, abre la Protomolécula")).toBeInTheDocument();
+  });
+
+  it("la tarjeta /network/politics abre la explicación del tema pilar-politica", () => {
+    abrir(area("/network/politics", "Política"));
+    const dialogo = screen.getByRole("dialog");
+
+    expect(within(dialogo).getByText(/Aquí no hay representantes/)).toBeInTheDocument();
+    expect(within(dialogo).getByText("voto líquido revocable")).toBeInTheDocument();
+    expect(within(dialogo).getByText("Aurora, llévame a Política")).toBeInTheDocument();
+  });
+
+  it("la tarjeta /network/education abre la explicación del tema pilar-educacion", () => {
+    abrir(area("/network/education", "Educación"));
+    const dialogo = screen.getByRole("dialog");
+
+    expect(within(dialogo).getByText(/La red de categorías y temas y el Mapa del Conocimiento/)).toBeInTheDocument();
+    expect(within(dialogo).getByText("mapa del conocimiento")).toBeInTheDocument();
+    expect(within(dialogo).getByText("Aurora, llévame a Educación")).toBeInTheDocument();
+  });
+
+  it("la tarjeta /network/culture abre la explicación del tema pilar-cultura", () => {
+    abrir(area("/network/culture", "Cultura"));
+    const dialogo = screen.getByRole("dialog");
+
+    expect(within(dialogo).getByText(/Publica y crea en el Lienzo Universal/)).toBeInTheDocument();
+    expect(within(dialogo).getByText("crear en el Lienzo o la pizarra")).toBeInTheDocument();
+    expect(within(dialogo).getByText("Aurora, llévame a Cultura")).toBeInTheDocument();
+  });
+
+  it("la tarjeta /genesis abre la explicación del tema genesis", () => {
+    abrir(area("/genesis", "Genesis"));
+    const dialogo = screen.getByRole("dialog");
+
+    expect(within(dialogo).getByText(/Genesis es tu taller del sistema/)).toBeInTheDocument();
+    expect(within(dialogo).getByText("Mi Genesis")).toBeInTheDocument();
+    expect(within(dialogo).getByText("Aurora, abre Genesis")).toBeInTheDocument();
+  });
+
+  it("la tarjeta /red-mesh abre la explicación del tema malla", () => {
+    abrir(area("/red-mesh", "Red Mesh"));
+    const dialogo = screen.getByRole("dialog");
+
+    expect(within(dialogo).getByText(/Tus aparatos forman una malla/)).toBeInTheDocument();
+    expect(within(dialogo).getByText("autovínculo de tus neuronas")).toBeInTheDocument();
+    expect(within(dialogo).getByText("Aurora, abre la red mesh")).toBeInTheDocument();
   });
 
   it("una ruta sin ficha propia cae en su tip y en cómo empezar, sin ventana vacía", () => {
@@ -51,10 +115,18 @@ describe("Guía de la red · la tarjeta abre su explicación", () => {
 
   it("«Ir a» navega a la ruta de la tarjeta abierta", () => {
     const onIr = vi.fn();
-    abrir(area("/cerebros", "Cerebros"), onIr);
+    abrir(area("/cerebro", "Neuronas y cerebro"), onIr);
     const dialogo = screen.getByRole("dialog");
 
-    fireEvent.click(within(dialogo).getByRole("button", { name: /Ir a Cerebros/ }));
-    expect(onIr).toHaveBeenCalledWith("/cerebros");
+    fireEvent.click(within(dialogo).getByRole("button", { name: /Ir a Neuronas y cerebro/ }));
+    expect(onIr).toHaveBeenCalledWith("/cerebro");
+  });
+
+  it("ninguna tarjeta menciona «varios cerebros»", () => {
+    abrir(area("/cerebro", "Neuronas y cerebro"));
+    const dialogo = screen.getByRole("dialog");
+
+    expect(within(dialogo).queryByText(/varios cerebros/i)).not.toBeInTheDocument();
+    expect(within(dialogo).queryByText(/varios cerebros/i)).not.toBeInTheDocument();
   });
 });
