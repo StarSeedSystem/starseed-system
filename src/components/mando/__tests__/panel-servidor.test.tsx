@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { PanelServidor } from "@/components/mando/panel-servidor";
-import type { EstadoServidorAstraura } from "@/lib/mando/servidor-astraura-tipos";
+import type { EstadoServidorAstraura, InsomneServidor } from "@/lib/mando/servidor-astraura-tipos";
+import { politicaInsomne } from "@/lib/neurons/insomne";
 
 function fixtureEstado(): EstadoServidorAstraura {
     return {
@@ -57,6 +58,11 @@ function fixtureEstado(): EstadoServidorAstraura {
 describe("PanelServidor", () => {
     let mockFetch: ReturnType<typeof vi.fn>;
     let estado: EstadoServidorAstraura;
+
+    function conInsomne(insomne: InsomneServidor): EstadoServidorAstraura {
+        estado = { ...estado, energia: { ...estado.energia, insomne } };
+        return estado;
+    }
 
     beforeEach(() => {
         estado = fixtureEstado();
@@ -189,5 +195,44 @@ describe("PanelServidor", () => {
         render(<PanelServidor />);
         await waitFor(() => expect(screen.getByText(/Máquinas/i)).toBeInTheDocument());
         expect(screen.queryByText(/ocid1.instance/)).not.toBeInTheDocument();
+    });
+
+    it("con sesión activa: «Siempre disponible hasta las HH:MM» y su motivo de Insomnia", async () => {
+        const hasta = new Date(Date.now() + 3 * 60_000).toISOString();
+        conInsomne({
+            capacidad: { proveedor: "insomnia", disponible: true, motivo: "Insomnia mantiene la Mac despierta con la tapa cerrada" },
+            estado: { activo: true, hasta, proveedor: "insomnia", motivo: "sesión de Insomnia activa" },
+            politica: politicaInsomne(),
+            soltarTrabajo: false,
+        });
+        render(<PanelServidor />);
+        expect(await screen.findByText(/Siempre disponible hasta las .+/i)).toBeInTheDocument();
+        expect(screen.getByText(/sesión de Insomnia activa/i)).toBeInTheDocument();
+    });
+
+    it("sesión de Insomnia vencida: «sin sesión activa» y sin enlace de instalación", async () => {
+        conInsomne({
+            capacidad: { proveedor: "insomnia", disponible: true, motivo: "Insomnia mantiene la Mac despierta con la tapa cerrada" },
+            estado: { activo: false, hasta: null, proveedor: "insomnia", motivo: "sesión de Insomnia vencida" },
+            politica: politicaInsomne(),
+            soltarTrabajo: true,
+        });
+        render(<PanelServidor />);
+        expect(await screen.findByText(/Siempre disponible \(sin sesión activa\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/sesión de Insomnia vencida/i)).toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: /ficha de insomnia/i })).not.toBeInTheDocument();
+    });
+
+    it("Insomnia no instalada: sin pantalla cerrada posible y sin enlace a la Biblioteca", async () => {
+        conInsomne({
+            capacidad: { proveedor: "no", disponible: false, motivo: "Insomnia no está instalada o no tiene sesión" },
+            estado: { activo: false, hasta: null, proveedor: "no", motivo: "Insomnia no está instalada o no tiene sesión" },
+            politica: politicaInsomne(),
+            soltarTrabajo: true,
+        });
+        render(<PanelServidor />);
+        expect(await screen.findByText(/No puede seguir con la pantalla cerrada/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/Insomnia no está instalada o no tiene sesión/i).length).toBeGreaterThan(0);
+        expect(screen.queryByRole("link", { name: /ficha de insomnia/i })).not.toBeInTheDocument();
     });
 });

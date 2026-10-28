@@ -28,9 +28,12 @@ class Falso:
         self.binarios = binarios or {}
         self.rutas = rutas or []
         self.ordenes = []
+        self.sondas = 0
 
     def __call__(self, orden, **kw):
         self.ordenes.append(list(orden))
+        if "-P" in orden:
+            self.sondas += 1
         exe = Path(orden[0]).name
         if orden[:1] and orden[0] in self.binarios:
             # si ruta específica
@@ -56,7 +59,14 @@ class Base(unittest.TestCase):
         self.raiz = Path(self.tmp.name)
         self.addCleanup(self.tmp.cleanup)
 
-    def sistema(self, falso, plataforma="Linux", maquina="x86_64", entorno=None, meminfo="", disco=500):
+    def crear(self, relativa):
+        """Un binario falso (archivo vacío) dentro del tmp, como lo haría una instalación."""
+        ruta = self.raiz / relativa
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        ruta.write_text("")
+        return ruta
+
+    def sistema(self, falso, plataforma="Linux", maquina="x86_64", entorno=None, meminfo="", disco=500, buscar=None):
         def leer(ruta):
             if ruta == "/proc/meminfo" and meminfo:
                 return meminfo
@@ -65,7 +75,7 @@ class Base(unittest.TestCase):
             raise OSError(ruta)
         env = entorno or {}
         return T.Sistema(raiz=self.raiz, ejecutar=falso, plataforma=plataforma, maquina=maquina,
-                         entorno=env, buscar=lambda n: None,
+                         entorno=env, buscar=buscar or (lambda n: None),
                          glob=lambda p: [h for h in falso.rutas if p.replace("*", "") in h] if hasattr(falso, "rutas") else [],
                          disco_libre=lambda _r: disco * 1024 ** 3, leer=leer)
 
@@ -187,6 +197,122 @@ class DeteccionTest(Base):
                 T.vram_nvidia_gb = orig_vram
         finally:
             D.buscar_blender = orig_buscar
+
+
+    def test_orden_de_variables_y_path(self):
+        # la variable STARSEED_BLENDER manda sobre el PATH, luego TALLER3D_BLENDER
+        falso = Falso()
+        estrella = self.crear("herramientas/blender")
+        s = self.sistema(falso, entorno={"HOME": str(self.raiz), "STARSEED_BLENDER": str(estrella)},
+                         buscar=lambda n: "/usr/bin/blender")
+        self.assertEqual(D.buscar_blender(s), str(estrella))
+        taller = self.crear("taller-3d/blender")
+        s2 = self.sistema(falso, entorno={"HOME": str(self.raiz), "TALLER3D_BLENDER": str(taller)},
+                          buscar=lambda n: "/usr/bin/blender")
+        self.assertEqual(D.buscar_blender(s2), str(taller))
+        s3 = self.sistema(falso, buscar=lambda n: "/usr/bin/blender")
+        self.assertEqual(D.buscar_blender(s3), "/usr/bin/blender")  # sin variable: el PATH
+        s4 = self.sistema(falso, entorno={"HOME": str(self.raiz), "STARSEED_BLENDER": str(self.raiz / "no-existe" / "blender")},
+                          buscar=lambda n: "/usr/bin/blender")
+        self.assertEqual(D.buscar_blender(s4), "/usr/bin/blender")  # una variable que no existe no cuenta
+
+    def test_rutas_fijas_y_el_glob(self):
+        falso = Falso()
+        s = self.sistema(falso)
+        fija = D.FIJAS[1]
+        s.existe = lambda r: str(r) == str(fija)  # necesita esa única ruta fija, aunque el tmp no la tenga
+        self.assertEqual(D.buscar_blender(s), str(fija))  # la fija de Homebrew antes del glob
+        globada = str(self.crear("opt/blender-5.2.0-linux-x64/blender"))
+        s.existe = lambda r: str(r) == globada
+        s.glob = lambda _p: [globada]
+        self.assertEqual(D.buscar_blender(s), globada)  # sin variable ni fijas: /opt/blender*/blender
+
+    def test_bien_formada(self):
+        ruta = self.crear("app/blender")
+        falso = Falso(versiones={ruta: "Blender 5.2.0 LTS\nbuild hash: fbe6228777e7\n"})
+        s = self.sistema(falso, plataforma="Darwin", maquina="arm64")
+        self.assertEqual(
+            D.leer_version(ruta, s),
+            {"version": "5.2.0", "serie": "5.2", "lts": True, "hash": "fbe6228777e7"},
+        )
+
+    def test_deteccion_completa_con_cache_y_sin_rutas(self):
+        falso = Falso(
+            versiones={"/usr/bin/blender": "Blender 5.2.0 LTS\nbuild hash: fbe6228777e7\n"},
+            sonda="STARSEED_SONDA:" + json.dumps(
+                {"gpu": [], "dispositivos": [], "motores": ["workbench", "cycles-cpu"], "ffmpeg": True}),
+        )
+        orig_buscar = D.buscar_blender
+        orig_rec, orig_ram, orig_vram = T.recursos, T.ram_total_gb, T.vram_nvidia_gb
+        D.buscar_blender = lambda _s: "/usr/bin/blender"
+        T.recursos = lambda _s: {"memoria_libre_gb": 4.0, "presion": 1, "bateria": False}
+        T.ram_total_gb = lambda _s: 8.0
+        T.vram_nvidia_gb = lambda _s: None
+        try:
+            s = self.sistema(falso, entorno={"HOME": str(self.raiz)})
+            ficha = D.detectar(s)
+            self.assertEqual((ficha["instalado"], ficha["version"], ficha["serie"], ficha["hash"]),
+                             (True, "5.2.0", "5.2", "fbe6228777e7"))
+            self.assertEqual((ficha["perfil"], ficha["motores"], ficha["gpu"]),
+                             ("ligero", ["workbench", "cycles-cpu"], []))
+            cache = self.raiz / ".starseed" / "blender-3d" / "sonda.json"
+            self.assertEqual(cache.stat().st_mode & 0o777, 0o600)  # permisos del caché del §3
+            self.assertEqual(falso.sondas, 1)
+            D.detectar(s)  # segunda pasada: la sonda vive en caché con la clave versión|hash
+            self.assertEqual(falso.sondas, 1)
+            texto = json.dumps(ficha, ensure_ascii=False)
+            self.assertNotIn(str(self.raiz), texto)  # sin rutas absolutas ni nombre de usuario
+            self.assertFalse(any(m in texto for m in ("/opt", "/Applications", "/usr", "/home")))
+            self.assertNotIn(D.buscar_blender(s), texto)
+        finally:
+            D.buscar_blender = orig_buscar
+            T.recursos, T.ram_total_gb, T.vram_nvidia_gb = orig_rec, orig_ram, orig_vram
+
+    def test_mac_m1_con_sonda(self):
+        # 8 GB y GPU Metal: perfil estándar ya lo cubre test_mac_m1_8gb…; aquí lo nuevo
+        # es que CON GPU los motores ofrecidos incluyen cycles-gpu y eevee (§1.4).
+        falso = Falso(
+            versiones={"/usr/bin/blender": "Blender 5.2.0\nbuild hash: a1b2c3d4e5f6\n"},
+            sonda="STARSEED_SONDA:" + json.dumps(
+                {"gpu": ["metal"], "dispositivos": [{"tipo": "metal", "nombre": "Apple M1"}],
+                 "motores": ["workbench", "cycles-cpu", "cycles-gpu", "eevee"], "ffmpeg": True}),
+        )
+        orig_buscar = D.buscar_blender
+        orig_rec, orig_ram, orig_vram = T.recursos, T.ram_total_gb, T.vram_nvidia_gb
+        D.buscar_blender = lambda _s: "/usr/bin/blender"
+        T.recursos = lambda _s: {"memoria_libre_gb": 6.0, "presion": 1, "bateria": False}
+        T.ram_total_gb = lambda _s: 8.0
+        T.vram_nvidia_gb = lambda _s: None
+        try:
+            s = self.sistema(falso, plataforma="Darwin", maquina="arm64", entorno={"HOME": str(self.raiz)})
+            ficha = D.detectar(s)
+            self.assertEqual((ficha["gpu"], ficha["ramGB"]), (["metal"], 8.0))
+            self.assertIn("cycles-gpu", ficha["motores"])
+            self.assertIn("eevee", ficha["motores"])
+        finally:
+            D.buscar_blender = orig_buscar
+            T.recursos, T.ram_total_gb, T.vram_nvidia_gb = orig_rec, orig_ram, orig_vram
+
+    def test_sonda_rara_no_revienta(self):
+        # la sonda responde pero su salida no es el JSON del contrato: sigue con lo medido fuera
+        falso = Falso(
+            versiones={"/usr/bin/blender": "Blender 5.2.0\nbuild hash: a1b2c3d4e5f6\n"},
+            sonda="STARSEED_SONDA: esta línea no es json",
+        )
+        orig_buscar = D.buscar_blender
+        orig_rec, orig_ram, orig_vram = T.recursos, T.ram_total_gb, T.vram_nvidia_gb
+        D.buscar_blender = lambda _s: "/usr/bin/blender"
+        T.recursos = lambda _s: {"memoria_libre_gb": 4.0, "presion": 1, "bateria": False}
+        T.ram_total_gb = lambda _s: 8.0
+        T.vram_nvidia_gb = lambda _s: None
+        try:
+            s = self.sistema(falso, entorno={"HOME": str(self.raiz)})
+            ficha = D.detectar(s)
+            self.assertTrue(ficha["instalado"])
+            self.assertEqual((ficha["motores"], ficha["gpu"]), (["workbench", "cycles-cpu"], []))
+        finally:
+            D.buscar_blender = orig_buscar
+            T.recursos, T.ram_total_gb, T.vram_nvidia_gb = orig_rec, orig_ram, orig_vram
 
 
 @unittest.skipUnless(shutil.which("blender"), "blender no instalado")
