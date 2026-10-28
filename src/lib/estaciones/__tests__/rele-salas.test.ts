@@ -193,6 +193,19 @@ describe('crearSalas', () => {
     salas.salir(c2);
     expect(salas.presencia(tema1)).toBe(0);
   });
+
+  it('al límite de la sala, volver a entrar con la misma conexión no la rechaza ni la cuenta dos veces', () => {
+    const salas = crearSalas({ maxPorSala: 2 });
+    const tema = 'estacion-vivo:Tema112345678';
+    const conexion1 = {};
+    const conexion2 = {};
+    salas.entrar(tema, conexion1);
+    salas.entrar(tema, conexion2);
+    const conexionExtra = {};
+    expect(salas.entrar(tema, conexionExtra).ok).toBe(false);
+    expect(salas.entrar(tema, conexion1).ok).toBe(true);
+    expect(salas.presencia(tema)).toBe(2);
+  });
   it('debería aceptar temas con guiones y guiones bajos', () => {
     const salas = crearSalas();
     const tema = 'estacion-vivo:ABC_DEF-123';

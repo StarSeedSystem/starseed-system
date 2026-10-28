@@ -48,6 +48,11 @@ describe("cliente del Agent Server de OpenHands", () => {
     await expect(salud(op(f))).resolves.toEqual({ sano: true, estado: "OK" });
   });
 
+  it("salud: un cuerpo vacío también es sano y usa su estado por defecto", async () => {
+    const { f } = capturar(() => new Response(null, { status: 200 }));
+    await expect(salud(op(f))).resolves.toEqual({ sano: true, estado: "ok" });
+  });
+
   it("crearConversacion: esquema StartConversationRequest y aprobación por defecto", async () => {
     const { f, llamadas } = capturar(() => json({ id: "c-1" }));
     const c = await crearConversacion({
@@ -72,6 +77,16 @@ describe("cliente del Agent Server de OpenHands", () => {
     expect(b.confirmation_policy.kind).toBe("ConfirmRisky");
   });
 
+  it("crearConversacion: herramientas con parámetros y sin mensaje inicial", async () => {
+    const { f, llamadas } = capturar(() => json({ id: "c-3" }));
+    await crearConversacion({ ...op(f), modelo: "m", directorioTrabajo: "/w", herramientas: [{ nombre: "FileEditorTool", parametros: { nivel: 2 } }] });
+    expect(cuerpo(llamadas[0].init)).toEqual({
+      agent: { kind: "Agent", llm: { model: "m" }, tools: [{ name: "FileEditorTool", params: { nivel: 2 } }] },
+      workspace: { kind: "LocalWorkspace", working_dir: "/w" },
+      confirmation_policy: { kind: "AlwaysConfirm" },
+    });
+  });
+
   it("enviarMensaje, ejecutar, pausar y política usan sus rutas y cuerpos", async () => {
     const { f, llamadas } = capturar(() => json({ success: true }));
     const o = op(f);
@@ -87,6 +102,11 @@ describe("cliente del Agent Server de OpenHands", () => {
     expect(llamadas[2].init?.method).toBe("POST");
     expect(cuerpo(llamadas[0].init)).toEqual({ role: "user", content: [{ type: "text", text: "hola" }] });
     expect(cuerpo(llamadas[3].init)).toEqual({ policy: { kind: "NeverConfirm" } });
+  });
+
+  it("enviarMensaje: success false se refleja en ok", async () => {
+    const { f } = capturar(() => json({ success: false }));
+    await expect(enviarMensaje("c1", "hola", op(f))).resolves.toEqual({ ok: false });
   });
 
   it("eventos: pagina por next_page_id y devuelve la página tal cual", async () => {
