@@ -13,6 +13,7 @@ import time
 import types
 import unittest
 import urllib.parse
+from unittest import mock
 
 DIR = os.path.dirname(os.path.abspath(__file__))
 if DIR not in sys.path:
@@ -21,6 +22,7 @@ if DIR not in sys.path:
 import nodo_metagenesis as N  # noqa: E402
 import nodo_metagenesis_bus as B  # noqa: E402
 import nodo_metagenesis_logica as L  # noqa: E402
+import nodo_metagenesis_medio as M  # noqa: E402
 
 T0 = 1_791_640_000.0  # 2026-10-10 ~11:46 UTC
 SECRETO = "s" * 48  # secreto de PRUEBA
@@ -425,6 +427,53 @@ class TestFotoYTachado(unittest.TestCase):
         self.assertEqual(L.trabajo_de_medidores({"listas": "32 se pueden coger ya", "en-curso": "Ninguna en marcha",
                                                  "bloqueadas": "80 esperando"}),
                          {"listas": 32, "en_curso": 0, "agentes": None, "bloqueadas": 80})
+
+
+class TestMedidasDelNodo(unittest.TestCase):
+    """(CB1013Qb) Las medidas nuevas del medio: se miden de verdad o son None, nunca una cifra inventada."""
+
+    def test_cpu_fuera_de_linux_es_none(self):
+        with mock.patch.object(M.sys, "platform", "darwin"):
+            self.assertIsNone(M.cpu_pct(), "en macOS no se estima la CPU con la carga")
+        if sys.platform.startswith("linux"):
+            v = M.cpu_pct()
+            self.assertIsInstance(v, float)
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 100.0)
+
+    def test_disco_total_mide_el_total_y_no_inventa(self):
+        with tempfile.TemporaryDirectory() as raiz:
+            total = M.disco_total_gb(raiz)
+            libre = M.disco_libre_gb(raiz)
+            self.assertIsNotNone(total)
+            self.assertGreater(total, 0.0)
+            self.assertGreaterEqual(total, libre)
+        self.assertIsNone(M.disco_total_gb("/no/existe-CB1013Qb"))
+
+    def test_ram_total_se_mide_o_es_none(self):
+        # En Linux sale de /proc/meminfo; en macOS de sysctl; si no se puede, None (nunca un 0 falso).
+        v = M.ram_total_mb()
+        self.assertTrue(v is None or v > 0, v)
+
+    def test_medir_pone_las_medidas_en_la_salud(self):
+        """La salud que late lleva cpu_pct, ram_total_mb y disco_total_gb junto a los que ya había."""
+        with tempfile.TemporaryDirectory() as raiz:
+            parches = dict(raiz_repo=lambda: raiz, detectar_medio=lambda: "neurona", lineas_ps=lambda: [],
+                           orquestadores=lambda _l: [], sabe_orquestar=lambda _r: True,
+                           disco_libre_gb=lambda _r: 50.0, disco_total_gb=lambda _r: 500.0,
+                           ram_libre_mb=lambda: 2048, ram_total_mb=lambda: 8192, cpu_pct=lambda: 25.0,
+                           en_curso_de=lambda _r, _c: [],
+                           contenedor_de=lambda _d, _r: None, desconectando_ahora=lambda _a: False,
+                           cola_viva=lambda _l=None: None)
+            with mock.patch.multiple(M, **parches):
+                s = M.medir("real", ahora=1000.0)["salud"]
+        self.assertEqual(s["cpu_pct"], 25.0)
+        self.assertEqual(s["ram_total_mb"], 8192)
+        self.assertEqual(s["disco_total_gb"], 500.0)
+        self.assertEqual(s["ram_libre_mb"], 2048)
+        self.assertEqual(s["disco_gb"], 50.0)
+        self.assertIn("nucleos", s)
+        self.assertIn("carga", s)
 
 
 # ─── el nodo entero contra el Supabase simulado ─────────────────────────────────────────
