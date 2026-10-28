@@ -4632,3 +4632,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `APM1017G` — pruebas en rojo: vitest falla (rama conservada)
 - `RTRTCOL1012Bdsbbbbbbbbbbc` — no escribió nada
 - `VZF1015V` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-28 00:48 · mg-oracle-1027-1645
+
+**Lo que se pidió.** pruebas del puente en rojo
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — los tipos no compilan (APM1017Bb, RTMGX1023D, VPU1019D, DSN1019C). Es 67 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (MGP1024-0D7DB1, VPU1019H). Es 33 % de la ola.
+- nvidia/z-ai/glm-5.3 no integró ninguna de sus 3 tareas.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1024-0D7DB1` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-27 23:02:36 [0m > build · auto [0m [0m→ [0mRead scripts/puente/test_oracle_n
+- `APM1017Bb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/APM1017Bb conservada)
+- `RTMGX1023D` — los tipos no compilan: tsc no terminó (se pasó de tiempo): la puerta no da el visto bueno sin un tsc completo (rama ola/RTMGX1023D conservada)
+- `VPU1019H` — otra cosa: directorio sin worktree Git: conservado para recuperación
+- `VPU1019D` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VPU1019D conservada)
+- `DSN1019C` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/DSN1019C conservada)
