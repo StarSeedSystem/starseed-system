@@ -72,7 +72,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 21;
+export const SEED_VERSION = 22;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -336,6 +336,30 @@ const RECOMMENDED_HASTA_16: string[] = [
 ];
 
 /**
+ * (SEED_VERSION 22 · Ola 1020T) LA 3.ª TANDA DE REPOS, SOLO LAS «SIEMPRE» QUE EL
+ * CARGADOR SÍ MANTIENE. De config/repos-libreria-1020c.json
+ * (architecture/repos-libreria-1020c.md) se siembran las 8 con
+ * `preinstalar: "siempre"` que el cargador (repos-externos-1020.ts) no descartó:
+ * instalar cada una SOLO registra su ficha y su enlace (payload.externalUrl, sin
+ * route ni skillId): cero descarga, cero ejecución de código, cero ruta abierta
+ * y cero clave durante la siembra. `lib-penpot` NO entra: su repo ya está como
+ * `iatool-penpot` (duplicada descartada por el cargador). Las «manual» (Trail
+ * Code, img2threejs, Paperclip, Magnitude y ArtCraft) no se siembran: descargan
+ * o ejecutan código, piden telemetría apagada o dependen de proveedores de
+ * pago; se activan a mano, con su `aviso` a la vista.
+ */
+export const IDS_SIEMBRA_1020C: string[] = [
+  "lib-openworker",
+  "lib-openwhispr",
+  "lib-pocketbase",
+  "lib-openmaic",
+  "lib-chatwoot",
+  "lib-excalidraw",
+  "lib-nextcloud",
+  "lib-supra-tex",
+];
+
+/**
  * (SEED_VERSION 17 · Ola 1025R) LA TANDA DEL 2026-10-25: «absolutamente todas las repos y habilidades deben ser
  * integradas en la librería preinstaladas y autoactualizadas» (Alex). Los ids salen de
  * `config/repos-libreria-1025.json` (módulo puro `repos-1025.ts`): las 26 fichas nuevas con
@@ -363,9 +387,17 @@ const RECOMMENDED_HASTA_16: string[] = [
  * `config/repos-libreria-1028.json` (módulo puro `repos-1028.ts`). Instalar SOLO registra el enlace;
  * LEANN corre en el servidor de cerebro (hoy el A1) en 127.0.0.1:4495 con token, y la activación
  * la decide la persona, explicada en `aviso`.
+ *
+ * (SEED_VERSION 22 · Ola 1020T) LA 3.ª TANDA DEL 2026-10-20: DE `config/repos-libreria-1020c.json`,
+ * LAS 8 «SIEMPRE» QUE CARGA `repos-externos-1020.ts` (ids exportados en `IDS_SIEMBRA_1020C`
+ * arriba): OpenWorker, OpenWhispr, PocketBase, OpenMAIC, Chatwoot, Excalidraw, Nextcloud y
+ * SUPRA-Tex. Instalar SOLO registra la ficha y el enlace; la activación real (servidor propio,
+ * permisos de micrófono o componente pesado) la decide la persona y está en `aviso`. `lib-penpot`
+ * no entra (duplicada de `iatool-penpot`) y las «manual» de esa tanda no se siembran (descargan
+ * o ejecutan código).
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
-  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028]),
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1020C, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028]),
 );
 
 /**
