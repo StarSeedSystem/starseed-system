@@ -1,0 +1,66 @@
+{
+  "ola": "Ola 1028 · Librería · LNN1028: LEANN, el recuerdo semántico de Astraura (pedido de Alex del 2026-10-28)",
+  "fecha": "2026-10-28",
+  "principio": "Misma regla que las tandas 1025 a 1027b: canal de versión declarado, instalar SOLO registra el enlace (cero descarga, cero ejecución, cero clave) y lo pesado queda como activación explicada en `aviso`. Licencia, etiquetas y paquetes comprobados el 2026-10-28 con un clon de solo lectura (LICENSE, README, pyproject.toml, packages/leann-core: api.py, server.py, metadata_filter.py, settings.py) y PyPI.",
+  "fusionadas": {},
+  "duplicadas": {},
+  "decisiones": [],
+  "licencias_verificadas": {
+    "memorias": "2026-10-28: LICENSE de StarTrail-org/LEANN (MIT, «LEANN Contributors»); etiqueta v0.3.8 (commit 7c268aad del 2026-09-26) y leann 0.3.8 en PyPI (2026-09-28); v0.3.9 preparada el 2026-10-27 sin etiqueta publicada; README: «zero telemetry». Modelo de incrustaciones previsto qwen3-embedding:0.6b (Ollama, 639 MB, Apache-2.0 de Qwen, se comprueba con ollama show --license al instalar). Nada se ejecutó."
+  },
+  "paquetes": [
+    {
+      "id": "lib-leann",
+      "repo": "StarTrail-org/LEANN",
+      "nombre": "LEANN",
+      "titulo": "el índice vectorial más pequeño: busca por significado con un 97 % menos de disco",
+      "kind": "ai-source",
+      "icono": "Search",
+      "grupo": "memorias",
+      "canal": "tags",
+      "patron_tag": "^v\\d+\\.\\d+\\.\\d+$",
+      "licencia": "MIT (LEANN Contributors)",
+      "version_actual": "v0.3.8",
+      "fecha_version": "2026-09-26",
+      "estado": "activo",
+      "actividad": "31 etiquetas; v0.3.8 en PyPI el 2026-09-28; commits hasta el 2026-10-27 (v0.3.9 en preparación).",
+      "area": [
+        "memorias",
+        "capas",
+        "astraura",
+        "agentes",
+        "enjambre",
+        "cerebros",
+        "personalidades",
+        "perfiles",
+        "paginas",
+        "malla"
+      ],
+      "efecto": "MOTOR-IA",
+      "preinstalar": "siempre",
+      "claude": "mcp",
+      "gratis": true,
+      "gratis_motivo": "Libre y local; en StarSeed usa un modelo de incrustaciones local por Ollama (sin nube).",
+      "corre_aqui": false,
+      "que_es": "Base de datos vectorial para la IA personal: en vez de guardar todos los vectores guarda un grafo podado y recalcula solo los que visita cada búsqueda (≈ 97 % menos disco con la misma calidad). Mezcla búsqueda por significado y por palabras (BM25), filtra por metadatos, se actualiza por partes, trocea código por AST y trae CLI, servidor y MCP.",
+      "nota": "En StarSeed (architecture/leann-recuerdo-semantico.md) es la búsqueda por significado de la capa memoria: un índice por sujeto y alcance junto a sus cápsulas Memvid, fundidos en «recordar»; y el índice del repo que ayuda a los agentes del enjambre a encontrar los archivos. Corre en el servidor de cerebro (hoy el A1) en 127.0.0.1:4495 con token.",
+      "aviso": "Solo guarda el enlace. Instalarlo trae torch y sentence-transformers (~1,5–2 GB) y un modelo de incrustaciones (639 MB): por eso va en el A1 y no en la Mac. Su servidor propio no autentica: StarSeed usa el suyo con token.",
+      "requisitos": {
+        "ram_gb": 2,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "arm64",
+          "amd64"
+        ],
+        "so": [
+          "macos",
+          "windows",
+          "linux"
+        ],
+        "fuente": "pyproject.toml de leann-core y ruedas de PyPI (2026-10-28); medida del A1 (16 GB de disco libres, Python 3.12.3, Ollama instalado)"
+      }
+    }
+  ]
+}

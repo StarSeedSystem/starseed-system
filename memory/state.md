@@ -4562,3 +4562,11 @@ Además: CLB1027F apuntaba a `deploy/oracle/nodo/` y `preparar-a1.sh` solo insta
 ### Decisiones de Alex
 - Franja nocturna del A1 para Meta^n (hoy ~1 GB libre de 11 con el enjambre).
 - Memvid en la Mac: binario por GitHub Actions (artefacto) o instalar Rust (~1,5 GB).
+
+
+## 2026-10-28 — Ola 1028: LEANN en el recuerdo de Astraura y el mapa de la fusión
+**Sesión por:** Claude (Cowork, Opus 5.5) supervisando; el enjambre escribe.
+**Resumen:** LEANN (índice vectorial que recalcula en vez de guardar: ~97 % menos disco) es la búsqueda por significado
+de la capa memoria, junto a Memvid (historia y palabras), con el mismo alcance; corre en el A1 porque arrastra torch
+(~1,5–2 GB) y la Mac tiene 2,6 GB libres. `architecture/astraura-multicapas-fusion.md` deja escrito por qué puerta entra
+cada sistema de las olas 1027–1028 (ninguno es un sistema aparte). Cola de 13 tareas (`cola-leann-1028.json`).
