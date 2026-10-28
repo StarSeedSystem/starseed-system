@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { registrarMedida, ordenarPorMedidas } from "../medidas";
+import { registrarMedida, ordenarPorMedidas, type AlmacenMedidas } from "../medidas";
 import { planificar, type EntradaPlanificador } from "../planificador";
 
 describe("medidas", () => {
   it("guarda las últimas 20 y media móvil", () => {
-    let a = {};
+    let a: AlmacenMedidas = {};
     for (let i = 0; i < 25; i++) {
       a = registrarMedida(a, {
         neurona: "n1",
@@ -41,7 +41,7 @@ describe("planificador con medidas", () => {
       { id: "ternary-bonsai-4b", capa: "palabra", sha256: "b".repeat(64), ramMinMb: 1024 },
     ],
     nodos: [],
-    preferencias: { activo: true, capas: { local: true, mesh: true, nube: true, colectiva: true }, nivelador: 0 },
+    preferencias: { activo: true, capas: { local: true, mesh: true, nube: true, colectiva: true }, nivelador: 0, especifico: null },
   };
 
   it("ordena por medidas cuando las recibe", () => {
