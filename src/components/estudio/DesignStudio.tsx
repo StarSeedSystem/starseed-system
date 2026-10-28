@@ -44,6 +44,8 @@ import { ThemeMixerPanel } from "@/components/design/theme-mixer-panel";
 // widgets y desde la pestaña Hogar de Trinity — que es justo por donde se
 // coló Audiomorphic). Aquí queda por fin accesible: /estudio → "Fondo".
 import { BackgroundSettings } from "@/components/settings/appearance/background-settings";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
+import { useHaySesion } from "@/hooks/use-hay-sesion";
 
 type ToolTab = "props" | "2d" | "3d" | "aurora" | "mezclador" | "fondo";
 
@@ -60,6 +62,7 @@ export function DesignStudio() {
     const { destinations } = useMyLibraryDestinations();
     const [applyBusy, setApplyBusy] = useState(false);
     const [loadedName, setLoadedName] = useState<string | null>(null);
+    const hay = useHaySesion();
 
     const current = overrides[family] ?? defaultOverride();
 
@@ -209,7 +212,14 @@ export function DesignStudio() {
                                 <Globe className="h-3.5 w-3.5" /> {d.label}{d.hint ? ` · ${d.hint}` : ""}
                             </DropdownMenuItem>
                         ))}
-                        {pageTargets.length === 0 && (
+                        {pageTargets.length === 0 && hay === false && (
+                            <AvisoSesion
+                                compacto
+                                className="mx-1 my-1 w-64"
+                                texto="Inicia sesión y administra páginas/grupos para aplicar ahí."
+                            />
+                        )}
+                        {pageTargets.length === 0 && hay !== false && (
                             <p className="px-2 py-1.5 text-[10px] text-white/40">Inicia sesión y administra páginas/grupos para aplicar ahí.</p>
                         )}
                     </DropdownMenuContent>
