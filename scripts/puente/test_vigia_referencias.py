@@ -64,8 +64,31 @@ class Cadenas_y_parseo(unittest.TestCase):
     def test_dominios_y_huellas(self):
         self.assertEqual(V.obtener_dominio("https://Api.Ejemplo.COM/x"), "api.ejemplo.com")
         self.assertEqual(V.obtener_dominio("ni-ideal"), "")
+        # El puerto y las credenciales forman parte del netloc: dos URLs que
+        # solo difieren ahí se pausan por separado.
+        self.assertEqual(V.obtener_dominio("http://sub.dominio.org:8080/path"),
+                         "sub.dominio.org:8080")
+        self.assertEqual(V.obtener_dominio("https://usuario:pass@dominio.com"),
+                         "usuario:pass@dominio.com")
         self.assertEqual(len(V.huella_sha256(b"algo")), 64)
         self.assertNotEqual(V.huella_sha256(b"algo"), V.huella_sha256(b"algo2"))
+        # Mismo contenido, misma huella (el estado se compara por huella).
+        self.assertEqual(V.huella_sha256(b"Hola mundo"), V.huella_sha256(b"Hola mundo"))
+
+    def test_cargar_json_por_defecto(self):
+        """Sin archivo o con JSON roto, `cargar_json` devuelve el valor por defecto."""
+        self.assertEqual(V.cargar_json("/ruta/que/no/existe.json", {"por_defecto": 1}),
+                         {"por_defecto": 1})
+        raiz = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(raiz, ignore_errors=True))
+        roto = os.path.join(raiz, "roto.json")
+        with open(roto, "w", encoding="utf-8") as fichero:
+            fichero.write("{no es json")
+        self.assertEqual(V.cargar_json(roto, []), [])
+        bueno = os.path.join(raiz, "bueno.json")
+        with open(bueno, "w", encoding="utf-8") as fichero:
+            fichero.write('{"existe": true}')
+        self.assertEqual(V.cargar_json(bueno, {}), {"existe": True})
 
     def test_fecha_a_iso(self):
         self.assertEqual(V.fecha_a_iso("Tue, 20 Oct 2026 12:00:00 GMT"),
