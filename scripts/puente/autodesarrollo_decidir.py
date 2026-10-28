@@ -182,6 +182,8 @@ REGLAS = "1025S"
 #: así 230 propuestas no salen de golpe hacia los modelos gratuitos. Lo de Alex no cuenta: se hace siempre.
 TOPE_POR_CICLO, MAX_EN_VUELO = 12, 24
 MAX_NOTAS = 2000
+#: Variantes de una misma familia (la misma idea repetida por archivo) que se guardan en la primera.
+MAX_VARIANTES = 20
 #: Sustancia de lo que no es código: caracteres útiles, elementos de estructura y referencias https
 #: con los que la medida llega a 1 (pesos 0,5 · 0,25 · 0,25).
 LARGO_PLENO, ESTRUCTURA_PLENA, REFERENCIAS_PLENAS = 1500, 6, 3
@@ -312,6 +314,41 @@ def ya_autorizada_por_astraura(p):
 def titulo_normalizado(t):
     """Sin acentos, emojis ni puntuación, en minúsculas y con un espacio entre palabras."""
     return re.sub(r"[^a-z0-9]+", " ", _norm(t)).strip()
+#: El nombre de archivo con el que termina un título («… para Dockerfile / IDEA.md / setup.sh»).
+_ARCHIVO_FINAL = re.compile(r"(?:^|\s)(?:[A-Za-z0-9_.\-/]+\.(?:tsx?|jsx?|py|mjs|cjs|json|md|sql|ya?ml|css|scss|sh|toml|txt)|Dockerfile|Makefile|Procfile|Vagrantfile|Justfile|Rakefile)\s*$", re.I)
+def familia(p):
+    """La misma idea sin el nombre de archivo final: «Optimización ARM NEON para X» → «optimización arm neon para».
+    Así las copias que solo cambian el archivo se deciden una sola vez. PURA."""
+    t = str(p.get("titulo") or "")
+    m = _ARCHIVO_FINAL.search(t)
+    if m: t = t[:m.start()]
+    return re.sub(r"\s+", " ", _norm(t)).strip()
+def agrupar(propuestas):
+    """[(secundaria, primaria)] de la misma fuente y familia que esperan una decisión: la primera es la
+    primaria y las demás no crean otra. PURA (el director es quien marca «agrupada» y guarda las variantes)."""
+    primarias, fuera = {}, []
+    for p in propuestas:
+        if not isinstance(p, dict) or (p.get("estado") or "nueva") not in PENDIENTES: continue
+        if p.get("fuente") not in FUENTES_AUTO: continue  # lo de Alex (directores) no se agrupa solo
+        fam = familia(p)
+        if not fam: continue
+        clave = (p.get("fuente"), fam)
+        if clave not in primarias: primarias[clave] = p
+        else: fuera.append((p, primarias[clave]))
+    return fuera
+def arreglo_de_estado(p):
+    """El cambio para que el estado y el motivo no se contradigan. Una «descartada» con un motivo de
+    «pregunta» no es descartada por duplicada ni por Astraura: se devuelve a «pregunta». PURA."""
+    if p.get("estado") != "descartada" or "pregunta" not in _norm(p.get("motivo")): return {}
+    if p.get("duplicada_de"):
+        razon = f"duplicada de {p['duplicada_de']}"
+        return {"motivo": razon, "motivo_destino": p.get("motivo_destino") or razon}
+    if ya_autorizada_por_astraura(p):
+        razon = "Astraura ya la autorizó y la ejecuta sola (no pide tu aprobación): no hay nada que decidir"
+        return {"motivo": razon, "motivo_destino": p.get("motivo_destino") or razon}
+    destino = str(p.get("motivo_destino") or "")
+    if destino and "pregunta" not in _norm(destino): return {"motivo": destino}
+    return {"estado": "pregunta", "motivo_destino": "la automática no la puede hacer: la decides tú"}
 def reciente(p):
     """Clave «más reciente»: la fecha de su origen, los números de su id (las marcas de tiempo de Astraura,
     la fecha de un agente) y su instante. Mayor = más reciente."""
