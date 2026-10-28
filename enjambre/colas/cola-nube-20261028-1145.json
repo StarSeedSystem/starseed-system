@@ -1,0 +1,85 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40253286863",
+   "id": "SP092941d-d2",
+   "titulo": "Vincular labels e inputs en formularios de creación (parte 2 de 2)",
+   "archivos": [
+    "src/components/creation/pizarras-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092938 (creacion × ux-accesibilidad-diseno) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/creacion--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Asociar etiquetas a campos con htmlFor e id — Los <label> de URL y Etiqueta no tienen htmlFor ni los Input id; también el textarea de comentario y las opciones de votación carecen de label asociado. Los lectores de pantalla no anuncian el propósito de cada campo.\nCITA: src/components/creation/source-picker.tsx:292 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Añadir id único a cada Input/textarea y htmlFor en su label; donde no haya label visible, usar aria-label fijo.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/creation/source-picker.tsx, src/components/creation/pizarras-panel.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40253286863`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40253286863:refs/remotes/origin/nube/40253286863\"` y `git cherry-pick --no-commit abbc2e2d90c8`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/creation/__tests__/pizarras-panel-form.test.tsx, src/components/creation/__tests__/selector-fuente-form.test.tsx, src/components/creation/pizarras-panel.tsx, src/components/creation/source-picker.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió SP092941d: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/creation/pizarras-panel.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SP092941d",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "SP092941d-d1"
+   ]
+  },
+  {
+   "ola": "Rescate de las ramas de la nube",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261021-110600-RTRTCOL1012Bdsbbbbbbbbbc",
+   "id": "RTRTCOL1012Bdsbbbbbbbbbcb-d2",
+   "titulo": "Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos del latido · lo que fa (parte 2 de 3)",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTCOL1012Bdsbbbbbbb («Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos del latido · lo que faltó: src/components/metagenesis/__tests__/colmena-botones.test.tsx») se hizo en main por otro camino; su rama nube/38625177615 queda archivada en `refs/archivo/nube/38625177615` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.96)\n\nTU TAREA (RTRTCOL1012Bdsbbbbbbbb · solo estos archivos: servicios/taller-3d/motores/test_pixelartistry.py, src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# servicios/taller-3d/motores/test_pixelartistry.py\n    def test_cuando_no_disponible_devuelve_dict_de_error(self):\n        # Sin Windows o sin ComfyUI al otro lado, remallar_imagen responde con el\n        # dict común de error: ok=False, glb=None, procedencia con sus dos piezas.\n        result = pa.remallar_imagen(\n            \"/fake/path/image.png\",\n            resolucion=512,\n            carpeta_workflows=self.tmp,\n            comfy=pa.ClienteComfyUI(),\n            dormir=lambda _: None,\n        )\n        self.assertFalse(result[\"ok\"])\n        self.assertIsNone(result[\"glb\"])\n        self.assertIsInstance(result[\"procedencia\"], list)\n        self.assertGreaterEqual(len(result[\"procedencia\"]), 2)  # flujo y nodos\n        self.assertIsInstance(result[\"fallo\"], str)\n        self.assertGreaterEqual(len(result[\"fallo\"]), 1)\n        self.assertGreaterEqual(result[\"segundos\"], 0.0)\n        self.assertGreaterEqual(result[\"pico_memoria_gb\"], 0.0)\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({\n            nodo: \"mac-a1b2c3\",\n            vivo: true,\n            so: \"macos\",\n            enCurso: 0,\n            contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" },\n        } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"elige la fuente con más nodos vivos\", () => {\n        // bus con 2 vivos y tablas con 1 → bus\n        expect(elegirFuente(estado([true], \"tablas\"), estado([true, true], \"bus\"))).toBe(\"bus\");\n        // 1 y 1 → tablas\n        expect(elegirFuente(estado([true], \"tablas\"), estado([true], \"bus\"))).toBe(\"tablas\");\n        // 0 y 0 → como hoy\n        expect(elegirFuente(estado([false], \"tablas\"), estado([false], \"bus\"))).toBe(\"tablas\");\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261021-110600-RTRTCOL1012Bdsbbbbbbbbbc`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261021-110600-RTRTCOL1012Bdsbbbbbbbbbc:refs/remotes/origin/nube/a1-20261021-110600-RTRTCOL1012Bdsbbbbbbbbbc\"` y `git cherry-pick --no-commit 6cf829b29fdb 48c7e12d0648`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: servicios/taller-3d/motores/test_pixelartistry.py, src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (servicios/taller-3d/motores/test_pixelartistry.py, src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).\n\n## PARTE 2 DE 3 (la dirección dividió RTRTCOL1012Bdsbbbbbbbbbcb: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/metagenesis/__tests__/colmena-botones.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RTRTCOL1012Bdsbbbbbbbbbcb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "RTRTCOL1012Bdsbbbbbbbbbcb-d1"
+   ]
+  },
+  {
+   "id": "LNN1028H",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Capas · el modelo de incrustaciones como entrada «por-verificar»",
+   "archivos": [
+    "config/capas-astraura.json",
+    "src/lib/astraura/capas/__tests__/catalogo-incrustaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nAñade a `capas` la entrada `ollama-qwen3-embedding-0.6b` (capa «memoria», runtime el de Ollama que ya exista en el catálogo —si no existe, «ollama» y dilo en tu respuesta—, `disco_mb` 639, `ram_min_mb` 1024, `medios` [\"servidor\"], `sha256: null`, `estado: \"por-verificar\"`, `fuente_oficial` `https://ollama.com/library/qwen3-embedding`, nota «solo para incrustaciones de LEANN; Apache-2.0 de Qwen; se verifica al instalar»). Sube la versión del archivo como se hizo con CLB1027B. Prueba de que se lee y no es usable sin SHA.",
+   "dependencias_ya_en_main": [
+    "CLB1027B"
+   ]
+  },
+  {
+   "id": "TIP1013E",
+   "ola": "Ola 1012Q · Malla de sílice: routers portátiles como titanio móvil, con SIM o sin ella, y puertas a internet opcionales",
+   "titulo": "Salida a internet: ruta por la malla hasta la mejor puerta permitida",
+   "archivos": [
+    "src/lib/malla/cristal/salida-internet.ts",
+    "src/lib/malla/cristal/__tests__/salida-internet.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/malla-cristalina-sio2.md §8 y §8.1 (léela entera). Usa `mejoresRutas` de src/lib/malla/cristal/rutas.ts y `elegirPuerta` de src/lib/malla/cristal/puertas-internet.ts. Exporta `planSalida(e: {cristal; reticula; dato; ctx; puertas; solicitante; actual?: string}): {puerta: PuertaInternet | null; ruta: Ruta | null; motivo: string}`: si el dato no necesita internet (clase 'interno'/'privado' con destino neurona, o destino no nulo) → sin puerta y la ruta normal con «va por la malla P2P»; si lo necesita (destino null y clase 'publico'), elige la puerta y devuelve la mejor ruta hasta la neurona de esa puerta (sin ruta → prueba la siguiente puerta permitida; ninguna → motivo claro). Pruebas: privado nunca usa puerta; público elige la puerta alcanzable más barata; puerta inalcanzable se salta.",
+   "revisor_quitadas": [
+    "TIP1013B"
+   ],
+   "dependencias_ya_en_main": [
+    "MC1012I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "RTRTCOL1012Bdsbbbbbbbbbcb-d2",
+   "SP092941d-d2",
+   "LNN1028H",
+   "TIP1013E"
+  ]
+ }
+}
