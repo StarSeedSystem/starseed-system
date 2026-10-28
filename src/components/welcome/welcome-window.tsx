@@ -41,6 +41,7 @@ import {
   type SensesConfig,
 } from "@/lib/senses/senses";
 import { InstallButton } from "@/components/welcome/install-button";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 import {
   Sparkles,
   ShieldCheck,
@@ -305,6 +306,17 @@ export function WelcomeWindow({ onContinue, className }: WelcomeWindowProps) {
 
               {/* (c) Instalar StarSeed OS (detección de dispositivo) */}
               <InstallButton />
+
+              {/* (d) (GUI1021K2) La guía completa, sin crear cuenta: misma puerta que el resto. */}
+              <button
+                type="button"
+                className="ss-wel-soft"
+                onClick={() => abrirGuia({ desde: "bienvenida" })}
+                style={{ width: "100%", minHeight: 44, border: "1px solid rgba(255,255,255,.16)", borderRadius: 13, padding: "11px 0", color: "rgba(255,255,255,.92)", fontWeight: 600, fontSize: 13.5, cursor: "pointer", background: "rgba(255,255,255,.04)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10 }}
+              >
+                <Sparkles size={15} aria-hidden />
+                Conoce StarSeed
+              </button>
             </>
           ) : (
             <>

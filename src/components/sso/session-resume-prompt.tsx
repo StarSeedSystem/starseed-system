@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 import {
     detectStarSeedSession,
     identityLabel,
@@ -334,6 +335,29 @@ export function SessionResumePrompt({
                     }}
                 >
                     Usar otra cuenta
+                </button>
+
+                {/* (GUI1021K2) La guía completa desde el aviso de retomar sesión. */}
+                <button
+                    type="button"
+                    className="ss-sso-other"
+                    onClick={() => abrirGuia({ desde: "login" })}
+                    disabled={entering}
+                    style={{
+                        width: "100%",
+                        minHeight: 44,
+                        background: "transparent",
+                        border: "1px solid rgba(255,255,255,.14)",
+                        borderRadius: 12,
+                        color: "rgba(255,255,255,.78)",
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        marginTop: 4,
+                        cursor: entering ? "default" : "pointer",
+                        transition: "color .15s, background-color .15s",
+                    }}
+                >
+                    Conoce StarSeed
                 </button>
 
                 <p
