@@ -817,6 +817,175 @@ def lanzar_cola(args: Dict[str, Any], medio: str, raiz: str) -> Tuple[str, str]:
                                                      "--workers", trabajadores], raiz)
 
 
+# ─── colmena: trabajo en curso, desconexión y contenedor ──────────────────────────────────
+#
+# (COL1012C/D/E/F) Lo que publica el latido sobre SU trabajo, la marca de desconexión con
+# plazo y la capacidad de este aparato como contenedor de agentes. Solo biblioteca estándar.
+
+
+def en_curso_de(raiz: str, colas: List[str]) -> List[Dict[str, Any]]:
+    """PURA. Lo que ESTE aparato tiene a medias AHORA: de los `latidos-<cola>.json` de las colas
+    vivas, las tareas con fase viva (no vacía ni «hecho»), con su último punto de control si existe.
+    Devuelve lista vacía si no hay latidos o no hay tareas vivas (nunca None)."""
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    tareas: Dict[str, Dict[str, Any]] = {}
+    puntos: Dict[str, Dict[str, Any]] = {}
+    try:
+        with open(os.path.join(olas, "puntos-control.json"), encoding="utf-8") as f:
+            puntos = json.load(f)
+            if not isinstance(puntos, dict):
+                puntos = {}
+    except (OSError, ValueError):
+        puntos = {}
+    for cola in colas or []:
+        if not cola.endswith(".json"):
+            cola += ".json"
+        ruta = os.path.join(olas, "latidos-" + cola)
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                d = json.load(f)
+            t = d.get("tareas") if isinstance(d, dict) else None
+            if isinstance(t, dict):
+                for tid, v in t.items():
+                    if not isinstance(v, dict):
+                        continue
+                    fase = v.get("fase")
+                    if C.tarea_viva(fase):
+                        if tid not in tareas:
+                            p = puntos.get(str(tid))
+                            punto = p if isinstance(p, dict) and p.get("sha") else None
+                            tareas[str(tid)] = {"id": str(tid), "fase": str(fase), "punto": punto}
+        except (OSError, ValueError):
+            continue
+    return list(tareas.values())[:8]
+
+
+def desconectando_ahora(ahora: float) -> bool:
+    """PURA. ¿Está este aparato en el periodo de gracia tras «Desconectar»?
+    Lee `CARPETA/desconectando.json` = {"desconectando": true, "t": epoch}.
+    True solo mientras `ahora - t < GRACIA_DESCONECTAR_S` (2 min)."""
+    try:
+        with open(os.path.join(CARPETA, "desconectando.json"), encoding="utf-8") as f:
+            d = json.load(f)
+        if not isinstance(d, dict) or not d.get("desconectando"):
+            return False
+        t = d.get("t")
+        return isinstance(t, (int, float)) and ahora - float(t) < 120
+    except (OSError, ValueError):
+        return False
+
+
+def contenedor_de(disco_gb: Optional[float], ram_mb: Optional[int]) -> Optional[Dict[str, Any]]:
+    """PURA. La capacidad de ESTE aparato como contenedor (lo que enseña el botón en Genesis).
+    Combina el estado del archivo `CARPETA/contenedor.json` (activo, trabajadores) con la capacidad
+    de hardware. Devuelve None si no hay datos de hardware para decidir."""
+    if disco_gb is None or ram_mb is None:
+        return None
+    cap = C.capacidad_contenedor({"ram_total_mb": ram_mb, "disco_libre_gb": disco_gb,
+                                    "herramientas": {"git": True, "node": True, "python3": True, "opencode": True},
+                                    "so": "linux", "medio_app": "nativa", "nucleos": os.cpu_count()})
+    # Leer el estado activo/trabajadores del archivo contenedor.json
+    activo = False
+    trabajadores = cap.get("agentes", 0)
+    try:
+        with open(os.path.join(CARPETA, "contenedor.json"), encoding="utf-8") as f:
+            d = json.load(f)
+        if isinstance(d, dict):
+            activo = bool(d.get("activo"))
+            if activo and isinstance(d.get("trabajadores"), int):
+                trabajadores = min(trabajadores, d["trabajadores"])
+    except (OSError, ValueError):
+        pass
+    return {"activo": activo, "agentes": trabajadores, "apto": cap.get("apto", False), "motivo": cap.get("motivo", "")}
+
+
+def carpeta_nvm(home: str = None) -> str:
+    """Directorio `.nvm/versions/node` del usuario dado (por defecto, $HOME)."""
+    h = os.path.expanduser(home or "~")
+    return os.path.join(h, ".nvm", "versions", "node")
+
+
+def carpetas_nvm(home: str = None) -> List[str]:
+    """Todas las carpetas `bin` de Node en `.nvm`, ordenadas de mayor a menor versión.
+    Si no existe `.nvm` o no hay versiones, devuelve lista vacía (no falla)."""
+    base = carpeta_nvm(home)
+    if not os.path.isdir(base):
+        return []
+    salida = []
+    for v in os.listdir(base):
+        bin_path = os.path.join(base, v, "bin")
+        if os.path.isdir(bin_path):
+            try:
+                # Versión semver simple: "v22.12.1" -> (22, 12, 1)
+                partes = v.lstrip("v").split(".")
+                if len(partes) >= 3 and all(p.isdigit() for p in partes[:3]):
+                    version = tuple(int(p) for p in partes[:3])
+                    salida.append((version, bin_path))
+            except Exception:
+                pass
+    salida.sort(key=lambda x: x[0], reverse=True)
+    return [b for _, b in salida]
+
+
+def tiene_herramienta(nombre: str, home: str = None) -> bool:
+    """¿Está esta herramienta en el PATH o en alguna carpeta de nvm del usuario?"""
+    if shutil.which(nombre):
+        return True
+    for bin_path in carpetas_nvm(home):
+        if os.path.exists(os.path.join(bin_path, nombre)):
+            return True
+    return False
+
+
+def bateria_de(pmset_out: str) -> Dict[str, Any]:
+    """PURA. Parsea la salida de `pmset -g batt` (solo macOS).
+    Devuelve {"cargando": bool, "nivel": float 0-1} o {} si no hay batería / no se lee."""
+    if not pmset_out or "InternalBattery" not in pmset_out:
+        return {}
+    cargando = "charging" in pmset_out
+    m = re.search(r"(\d+)%\s*;\s*(charging|discharging)", pmset_out)
+    if not m:
+        return {}
+    nivel = int(m.group(1)) / 100.0
+    return {"cargando": cargando, "nivel": nivel}
+
+
+def bateria() -> Dict[str, Any]:
+    """Batería de ESTE aparato (macOS: pmset; Linux: /sys/class/power_supply/*).
+    Devuelve {"cargando": bool, "nivel": float} o {} si no hay / no se lee."""
+    if sys.platform == "darwin":
+        rc, out = _sh(["pmset", "-g", "batt"], tope=5)
+        if rc == 0:
+            return bateria_de(out)
+    # Linux: buscar en /sys/class/power_supply
+    try:
+        for nombre in os.listdir("/sys/class/power_supply"):
+            ruta = os.path.join("/sys/class/power_supply", nombre)
+            with open(os.path.join(ruta, "type"), encoding="utf-8") as f:
+                if f.read().strip() == "Battery":
+                    with open(os.path.join(ruta, "capacity"), encoding="utf-8") as f:
+                        nivel = int(f.read().strip()) / 100.0
+                    with open(os.path.join(ruta, "status"), encoding="utf-8") as f:
+                        cargando = f.read().strip().lower() == "charging"
+                    return {"cargando": cargando, "nivel": nivel}
+    except OSError:
+        pass
+    return {}
+
+
+def so_de_este_aparato() -> str:
+    """PURA. SO de este aparato: "macos" | "linux" | "android" | "windows" | "otro"."""
+    if sys.platform == "darwin":
+        return "macos"
+    if sys.platform == "linux":
+        if os.environ.get("TERMUX_VERSION"):
+            return "android"
+        return "linux"
+    if sys.platform == "win32":
+        return "windows"
+    return "otro"
+
+
 # ─── rescate de trabajo (solo en el medio con las colas en disco) ────────────────────────
 
 
