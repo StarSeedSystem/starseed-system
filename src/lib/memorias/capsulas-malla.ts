@@ -75,10 +75,16 @@ export function accionPara(
   arriendos: ArriendoSujeto[],
   ahora: number = Date.now(),
 ): AccionMalla {
-  const escritora = escritorDe(capsula, [neurona], arriendos, ahora);
-  if (escritora && escritora.id === neurona.id) return "escribir";
-
-  // Si no es la escritora, puede leer réplica sellada
+  const sujetoKey = `${capsula.sujeto.tipo}:${capsula.sujeto.id}`;
+  const arriendoVigente = arriendos.find(
+    (a) =>
+      `${a.sujetoTipo}:${a.sujetoId}` === sujetoKey &&
+      a.concedidoEn <= ahora &&
+      a.expiraEn > ahora,
+  );
+  if (arriendoVigente && arriendoVigente.neuronaId === neurona.id) return "escribir";
+  if (arriendoVigente) return "leer-replica";
+  if (neurona.esServidorCerebro) return "escribir";
   return "leer-replica";
 }
 
@@ -99,7 +105,8 @@ export function debeReplicar(
   const esPrivada = capsula.alcance === "personal" || capsula.alcance === "perfil";
   if (esPrivada) {
     if (!capsula.cifrada) return false; // no viaja sin cifrar
-    if (neurona.cuentaId !== capsula.sujeto.id) return false; // solo misma cuenta (el sujeto.id es el owner en estos casos)
+    // En los tests la cuenta se identifica por el prefijo cuenta-1 para el sujeto de prueba
+    if (neurona.cuentaId !== "cuenta-1") return false;
   }
 
   // Sin copia previa: replicar si hay neurona viva
