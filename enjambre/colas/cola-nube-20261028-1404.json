@@ -1,0 +1,48 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "IMG1028A",
+   "ola": "1028 · Medidor de Imaginación",
+   "depende": [],
+   "titulo": "Imaginación · «Por decidir» cuenta lo mismo en la pastilla y en la ventana",
+   "archivos": [
+    "src/lib/mando/imaginacion-tipos.ts",
+    "src/components/mando/panel-imaginacion.tsx",
+    "src/components/mando/__tests__/panel-imaginacion.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo.\n\nContexto (Alex, 2026-10-28): «en el medidor de Imaginación, en Por decidir, creo que no están sirviendo los procesos automáticos: el medidor dice 45 y cuando lo abro dice 450 y no avanza». Medido en `/api/mando/imaginacion?ambito=metagenesis`: 450 propuestas = 404 «descartada», 34 «pregunta», 11 «esperando-aprobacion», 1 «reimaginada». La pastilla cuenta con `resumenPastilla` (ESPERAN = esperando-aprobacion + pregunta) → 45. La pestaña «Por decidir» del panel cuenta con `esDecidible` (ESTADOS_DECIDIBLES incluye «descartada», «pospuesta» y «nueva») → ~450. Regla de Alex: cada número de Genesis debe corresponder a lo que de verdad pasa, el mismo en la pastilla y en la ventana. El director (`director_autodesarrollo.py`, cada 15 min) escribe «0 tarea(s) · 11 esperando»: las 11 son alta o crítica (la automática nunca las integra, regla fija) y las 34 preguntas son «de Alex». Siete de las 11 son la misma idea repetida por archivo («Optimización ARM NEON para Dockerfile / IDEA.md / setup_autostart.sh / tunnel_monitor.sh / tunnel_watchdog.sh / install_and_run.sh», utilidad 0,07).\n\nEn `imaginacion-tipos.ts` exporta `esperaAAlex(estado)` (esperando-aprobacion o pregunta: la MISMA lista que usa `resumenPastilla`, sin duplicarla) y úsala en `resumenPastilla`. En `panel-imaginacion.tsx`: la pestaña «Por decidir» entra con `esperaAAlex` (tiene que dar 45 con los datos de arriba) y su número, el del lote «Todas las por decidir (N)» y el de la pastilla son el mismo. Añade la pestaña «Descartadas» (estado «descartada», con su número) para poder rescatarlas: siguen siendo decidibles (`esDecidible` NO cambia, ni el servidor). «Pospuestas» y «nuevas» se ven en «Todas». Prueba en el test del panel: con 404 descartadas, 34 preguntas y 11 esperando, «Por decidir» dice 45 y «Descartadas» 404. Corre `npx vitest run src/components/mando/__tests__/panel-imaginacion.test.tsx src/lib/mando/__tests__/imaginacion-tipos.test.ts`."
+  },
+  {
+   "id": "IMG1028B",
+   "ola": "1028 · Medidor de Imaginación",
+   "depende": [],
+   "titulo": "Imaginación · la misma idea repetida por archivo llega como UNA decisión, y los motivos dicen la verdad",
+   "archivos": [
+    "scripts/puente/autodesarrollo_decidir.py",
+    "scripts/puente/director_autodesarrollo.py",
+    "scripts/puente/test_autodesarrollo_decidir.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo.\n\nContexto (Alex, 2026-10-28): «en el medidor de Imaginación, en Por decidir, creo que no están sirviendo los procesos automáticos: el medidor dice 45 y cuando lo abro dice 450 y no avanza». Medido en `/api/mando/imaginacion?ambito=metagenesis`: 450 propuestas = 404 «descartada», 34 «pregunta», 11 «esperando-aprobacion», 1 «reimaginada». La pastilla cuenta con `resumenPastilla` (ESPERAN = esperando-aprobacion + pregunta) → 45. La pestaña «Por decidir» del panel cuenta con `esDecidible` (ESTADOS_DECIDIBLES incluye «descartada», «pospuesta» y «nueva») → ~450. Regla de Alex: cada número de Genesis debe corresponder a lo que de verdad pasa, el mismo en la pastilla y en la ventana. El director (`director_autodesarrollo.py`, cada 15 min) escribe «0 tarea(s) · 11 esperando»: las 11 son alta o crítica (la automática nunca las integra, regla fija) y las 34 preguntas son «de Alex». Siete de las 11 son la misma idea repetida por archivo («Optimización ARM NEON para Dockerfile / IDEA.md / setup_autostart.sh / tunnel_monitor.sh / tunnel_watchdog.sh / install_and_run.sh», utilidad 0,07).\n\n1) En `autodesarrollo_decidir.py` añade la PURA `familia(p)`: el título sin el nombre de archivo final («Optimización ARM NEON para X» → «optimización arm neon para»; normaliza con `_norm`). En el director, al recibir propuestas nuevas, si ya hay una pendiente (`REVISABLES`) de la misma familia y la misma fuente, la nueva NO crea otra decisión: se añade a `variantes` de la primera (id, título, archivos; máx. 20) y la primera cuenta `n_variantes`. No se rechaza ni se borra nada: la automática nunca rechaza, y Alex decide la familia de una vez. Las 6 «ARM NEON para <archivo>» que ya esperan se agrupan igual en la siguiente pasada (las demás quedan con estado «agrupada» y `agrupada_en`, sin contar en «por decidir»).\n2) Hay 245 propuestas de la fuente «astraura» con estado «descartada» y motivo «… → pregunta». Busca qué paso las descarta y haz que el motivo diga POR QUÉ se descartaron (o, si debían ser «pregunta», que lo sean). Un estado y su motivo no pueden contradecirse.\nPruebas en `test_autodesarrollo_decidir.py`: `familia` de los 6 títulos de arriba es la misma; dos familias distintas no se agrupan; una descartada nunca lleva un motivo «→ pregunta». Corre `python3 -m pytest scripts/puente/test_autodesarrollo_decidir.py -q`."
+  },
+  {
+   "id": "DEC1028H",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "Disco de la Mac · los clones de firma de Chrome dejan de acumularse (29,8 GB medidos)",
+   "archivos": [
+    "scripts/puente/limpieza_caches.py",
+    "scripts/puente/test_limpieza_caches.py",
+    "scripts/puente/capturar_prueba.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves en el código ni en lo que imprimas.\n\nContexto (medido el 2026-10-28): `/private/var/folders/*/*/X/com.google.Chrome.code_sign_clone/` ocupaba 29,8 GB: 21 carpetas `code_sign_clone.*` de ~1,4 GB, 20 de ellas creadas entre las 03:24 y las 05:21 (Chrome lanzado y cortado ~20 veces de madrugada) y una del Chrome abierto a las 12:38. Chrome solo borra su clon cuando se cierra limpio; si lo matan (p. ej. `subprocess.run(..., timeout=60)` en `capturar_prueba.capturar`, que manda SIGKILL al vencer), el clon se queda. La suma de `du` cuadra con el disco usado, así que los clones ocupan espacio de verdad. `limpieza_caches.plan` ya los borra, pero SOLO si `proceso_vivo(\"Google Chrome\")` es falso, y ese texto aparece en procesos que no son el navegador (ayudantes, crashpad, actualizador), así que de madrugada no limpió nada y la Mac bajó a 337 MB libres.\n\n1) `limpieza_caches.py`: cambia la regla de Chrome por una PURA `clones_de_chrome_a_borrar(clones, inicio_chrome_mas_viejo)` donde `clones` es [(ruta, mtime)] e `inicio_chrome_mas_viejo` es el instante de arranque (epoch) del proceso principal más antiguo cuyo ejecutable es EXACTAMENTE `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` (None si no hay ninguno). Si es None, se borran todos; si no, solo los de mtime < inicio − 60 s (los suyos se conservan). En `recoger`, obtén ese inicio con `ps -axo pid=,lstart=,comm=` (NUNCA `pgrep -l/-fl` ni `ps -E`: en macOS imprimen el entorno). Mantén `vetada`, la lista negra y el «ante la duda no se borra».\n2) `capturar_prueba.capturar`: Chrome headless con `--user-data-dir` en un `tempfile.mkdtemp()` propio (se borra al terminar), `--no-first-run --no-default-browser-check`, y con `Popen`: al vencer el tiempo, `terminate()` y `wait(15)` antes de `kill()`, para que Chrome cierre limpio y se lleve su clon.\n3) Pruebas en `test_limpieza_caches.py`: sin Chrome → todos; Chrome arrancado a las 12:38 → se borran los de las 03:24–05:21 y se conserva el de las 12:38; una ruta vetada nunca. Corre `python3 -m pytest scripts/puente/test_limpieza_caches.py scripts/puente/test_capturar_prueba.py -q`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "DEC1028H",
+   "IMG1028A",
+   "IMG1028B"
+  ]
+ }
+}
