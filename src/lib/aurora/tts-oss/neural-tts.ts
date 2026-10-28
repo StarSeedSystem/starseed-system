@@ -664,7 +664,9 @@ async function neuralSpeakVibeVoice(
 
   let blob: Blob | null = null;
   try {
-    const url = endpoint.replace(/\/$/, "") + "/api/vibevoice/synthesize";
+    const url = hasExplicitPath(endpoint)
+      ? endpoint.replace(/\/+$/, "")
+      : endpoint.replace(/\/+$/, "") + "/api/vibevoice/synthesize";
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

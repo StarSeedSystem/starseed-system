@@ -439,6 +439,9 @@ export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
   "voice158",
   // VibeVoice va después: único motor multi-locutor GPU-native (hasta 4 speakers).
   "vibevoice",
+  // xAI (VOZ1024C): en la prioridad de la cadena, en el sitio que le da el
+  // registro de motores. Siempre disponible por API de StarSeed.
+  "xai",
   "voxcpm",
   "voicebox",
   "gpt-sovits",
