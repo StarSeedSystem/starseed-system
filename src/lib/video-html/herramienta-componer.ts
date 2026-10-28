@@ -47,6 +47,12 @@ export interface OpcionesComponer {
     duracion: number;
     formato: FormatoVideo | string;
     voz?: string;
+    /** Lienzo de la ruta del OS: por defecto 1280×720 (contrato §6). */
+    ancho?: number;
+    alto?: number;
+    /** Colores de la ruta del OS; si faltan, los de la plantilla. */
+    fondo?: string;
+    acento?: string;
 }
 /** Texto limpio o cadena vacía; nunca devuelve `null` ni lanza. */
 function texto(valor: unknown): string {
@@ -82,7 +88,7 @@ function pedirVoz(narracion: string, persona?: string): PeticionVoz | null {
     if (!limpio) return null;
     return persona ? { texto: limpio, contexto: "lectura", persona } : { texto: limpio, contexto: "lectura" };
 }
-export function componerVideo({ pedido, duracion, formato, voz }: OpcionesComponer): ComposicionVideo {
+export function componerVideo({ pedido, duracion, formato, voz, ancho, alto, fondo, acento }: OpcionesComponer): ComposicionVideo {
     const avisos: string[] = [];
     const { titulo, narracion } = leerPedido(pedido);
     const avisoFormato = avisoDeFormato(texto(formato) || "mp4");
