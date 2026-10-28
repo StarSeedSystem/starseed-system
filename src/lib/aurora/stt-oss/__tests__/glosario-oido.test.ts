@@ -1,122 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { corregirConGlosario, glosarioBase } from "../glosario-oido";
 
-describe("corregirConGlosario", () => {
-  const glosario = glosarioBase();
-
-  it("devuelve texto vacío y cambios vacíos para entrada vacía", () => {
-    const resultado = corregirConGlosario("", glosario, "es");
-    expect(resultado.texto).toBe("");
-    expect(resultado.cambios).toEqual([]);
-  });
-
-  // Salidas REALES medidas el 2026-10-15 en el A1 (contrato voz-fusionada §1):
-  // Phonon-2 escribió «Star Sed», «StarSead» (con hotwords) y «Estora»;
-  // Parakeet v3 escribió «Star Said» y «Astora».
-  it("corrige 'Star Sed' a 'StarSeed' en español (Phonon-2)", () => {
-    const resultado = corregirConGlosario("Star Sed", glosario, "es");
-    expect(resultado.texto).toBe("StarSeed");
-    expect(resultado.cambios).toEqual(["Star Sed → StarSeed"]);
-  });
-
-  it("corrige 'StarSead' a 'StarSeed' en español (Phonon-2 con hotwords)", () => {
-    const resultado = corregirConGlosario("StarSead", glosario, "es");
-    expect(resultado.texto).toBe("StarSeed");
-    expect(resultado.cambios).toEqual(["StarSead → StarSeed"]);
-  });
-
-  it("corrige 'Estora' a 'Astraura' en español (Phonon-2)", () => {
-    const resultado = corregirConGlosario("Estora", glosario, "es");
-    expect(resultado.texto).toBe("Astraura");
-    expect(resultado.cambios).toEqual(["Estora → Astraura"]);
-  });
-
-  it("corrige 'Star Said' a 'StarSeed' en español (Parakeet v3)", () => {
-    const resultado = corregirConGlosario("Star Said", glosario, "es");
-    expect(resultado.texto).toBe("StarSeed");
-    expect(resultado.cambios).toEqual(["Star Said → StarSeed"]);
-  });
-
-  it("corrige 'Astora' a 'Astraura' en español (Parakeet v3)", () => {
-    const resultado = corregirConGlosario("Astora", glosario, "es");
-    expect(resultado.texto).toBe("Astraura");
-    expect(resultado.cambios).toEqual(["Astora → Astraura"]);
-  });
-
-  it("no corrige palabras comunes del idioma, aunque llevaran mayúscula suelta", () => {
-    const resultado = corregirConGlosario("star said sed", glosario, "es");
-    expect(resultado.texto).toBe("star said sed");
-    expect(resultado.cambios).toEqual([]);
-  });
-
-  it("corrige en una frase completa con dos fallos de motor", () => {
-    const resultado = corregirConGlosario("Hola Star Sed como estas Estora", glosario, "es");
-    expect(resultado.texto).toBe("Hola StarSeed como estas Astraura");
-    expect(resultado.cambios).toEqual(["Star Sed → StarSeed", "Estora → Astraura"]);
-  });
-
-  it("correge en inglés las formas medidas de Parakeet", () => {
-    const resultado = corregirConGlosario("Hello Star Said how are you Astora", glosario, "en");
-    expect(resultado.texto).toBe("Hello StarSeed how are you Astraura");
-    expect(resultado.cambios).toEqual(["Star Said → StarSeed", "Astora → Astraura"]);
-  });
-
-  it("une hasta dos palabras seguidas cuando la forma unida está a ≤ 0,34 (Starra Seed 0,20)", () => {
-    const resultado = corregirConGlosario("Starra Seed", glosario, "es");
-    expect(resultado.texto).toBe("StarSeed");
-    expect(resultado.cambios).toEqual(["Starra Seed → StarSeed"]);
-  });
-
-  it("no une el par cuando el segundo vocablo ya es el nombre exacto (no se come el artículo)", () => {
-    const resultado = corregirConGlosario("The Astraura said", glosario, "en");
-    expect(resultado.texto).toBe("The Astraura said");
-    expect(resultado.cambios).toEqual([]);
-  });
-
-  it("recoloca la puntuación alrededor del nombre corregido", () => {
-    const resultado = corregirConGlosario("hola, Estora.", glosario, "es");
-    expect(resultado.texto).toBe("hola, Astraura.");
-    expect(resultado.cambios).toEqual(["Estora. → Astraura"]);
-  });
-
-  it("no muerde una palabra real en minúscula que dista 0,375–0,5 (estrella)", () => {
-    const resultado = corregirConGlosario("una estrella brilla", glosario, "es");
-    expect(resultado.texto).toBe("una estrella brilla");
-    expect(resultado.cambios).toEqual([]);
-  });
-
-  it("corrige una minúscula solo si ya casi coincide (≤ 0,15): starseed → StarSeed", () => {
-    const resultado = corregirConGlosario("dime starseed por favor", glosario, "es");
-    expect(resultado.texto).toBe("dime StarSeed por favor");
-    expect(resultado.cambios).toEqual(["starseed → StarSeed"]);
-  });
-
-  it("acepta un glosario personalizado", () => {
-    const glosarioPersonalizado = ["StarSeed", "Astraura", "TestName"];
-    const resultado = corregirConGlosario("Test Nam", glosarioPersonalizado, "es");
-    expect(resultado.texto).toBe("TestName");
-    expect(resultado.cambios).toEqual(["Test Nam → TestName"]);
-  });
-
-  it("devuelve la forma del glosario aunque la entrada vaya en minúscula", () => {
-    const resultado = corregirConGlosario("astraura", glosario, "es");
-    expect(resultado.texto).toBe("Astraura");
-    expect(resultado.cambios).toEqual(["astraura → Astraura"]);
-  });
-
-  it("la palabra sola no se corrige si un vecino con mayúscula sugiere un nombre partido", () => {
-    // «Star Sed Seed»: el par «Star Sed» ya se corrigió; «Seed» sola no se toca
-    // (ni se convierte en «StarSeed» por su vecino capitalizado).
-    const resultado = corregirConGlosario("Star Sed Seed", glosario, "es");
-    expect(resultado.texto).toBe("StarSeed Seed");
-    expect(resultado.cambios).toEqual(["Star Sed → StarSeed"]);
-  });
-});
-
 describe("glosarioBase", () => {
-  it("trae los ocho nombres propios de la base", () => {
-    const base = glosarioBase();
-    expect(base).toEqual([
+  it("trae los ocho nombres propios de StarSeed, sin repetir", () => {
+    expect(glosarioBase()).toEqual([
       "Astraura",
       "StarSeed",
       "Genesis",
@@ -128,10 +15,104 @@ describe("glosarioBase", () => {
     ]);
   });
 
-  it("suma los nombres que se le pasen (usuario, bots, grupo) y quita repeticiones y vacíos", () => {
+  it("suma usuario, bots y grupo; recorta, quita vacíos y compara sin mayúsculas", () => {
     const base = glosarioBase();
-    const conOtros = glosarioBase(["Jev", "Astraura", "Madrina Orbita", "  Jev  ", "   ", ""]);
+    const conOtros = glosarioBase(["Jev", "astraura", "Madrina Orbita", "  Jev  ", "   ", ""]);
     expect(conOtros.slice(base.length)).toEqual(["Jev", "Madrina Orbita"]);
     expect(conOtros.filter((nombre) => nombre === "Astraura").length).toBe(1);
+  });
+});
+
+describe("corregirConGlosario", () => {
+  const glosario = glosarioBase();
+
+  it("devuelve el texto y sin cambios cuando la entrada está vacía", () => {
+    expect(corregirConGlosario("", glosario, "es")).toEqual({ texto: "", cambios: [] });
+  });
+
+  // Salidas REALES medidas el 2026-10-15 en el A1 (contrato voz-fusionada §1):
+  // Phonon-2 escribió «Star Sed», «StarSead» (con hotwords) y «Estora»;
+  // Parakeet v3 escribió «Star Said» y «Astora».
+  it.each([
+    ["Star Sed", "es", "StarSeed", "Star Sed → StarSeed"],
+    ["StarSead", "es", "StarSeed", "StarSead → StarSeed"],
+    ["Estora", "es", "Astraura", "Estora → Astraura"],
+    ["Star Said", "es", "StarSeed", "Star Said → StarSeed"],
+    ["Astora", "es", "Astraura", "Astora → Astraura"],
+  ])("corrige «%s» (%s) a «%s»", (entrada, idioma, texto, cambio) => {
+    expect(corregirConGlosario(entrada, glosario, idioma)).toEqual({ texto, cambios: [cambio] });
+  });
+
+  it("corrige una frase completa con dos fallos de motor", () => {
+    const resultado = corregirConGlosario("Hola Star Sed como estas Estora", glosario, "es");
+    expect(resultado.texto).toBe("Hola StarSeed como estas Astraura");
+    expect(resultado.cambios).toEqual(["Star Sed → StarSeed", "Estora → Astraura"]);
+  });
+
+  it("corrige en inglés las formas medidas de Parakeet", () => {
+    const resultado = corregirConGlosario("Hello Star Said how are you Astora", glosario, "en");
+    expect(resultado.texto).toBe("Hello StarSeed how are you Astraura");
+    expect(resultado.cambios).toEqual(["Star Said → StarSeed", "Astora → Astraura"]);
+  });
+
+  it.each([
+    ["star said sed", "es"],
+    ["una estrella brilla", "es"],
+    ["the star was said", "en"],
+  ])("no muerde palabras comunes ni reales: «%s» (%s)", (texto, idioma) => {
+    expect(corregirConGlosario(texto, glosario, idioma)).toEqual({ texto, cambios: [] });
+  });
+
+  it("une hasta dos palabras seguidas cuando la forma unida está a ≤ 0,34", () => {
+    expect(corregirConGlosario("Starra Seed", glosario, "es")).toEqual({
+      texto: "StarSeed",
+      cambios: ["Starra Seed → StarSeed"],
+    });
+  });
+
+  it("une dos palabras de un nombre del usuario o del grupo", () => {
+    const resultado = corregirConGlosario("Madrina Orbit", ["Madrina Orbita", "Astraura"], "es");
+    expect(resultado).toEqual({ texto: "Madrina Orbita", cambios: ["Madrina Orbit → Madrina Orbita"] });
+  });
+
+  it("no une el par cuando el segundo vocablo ya es el nombre exacto (no se come el artículo)", () => {
+    expect(corregirConGlosario("The Astraura said", glosario, "en")).toEqual({
+      texto: "The Astraura said",
+      cambios: [],
+    });
+  });
+
+  it("no toca una palabra sola si un vecino con mayúscula sugiere un nombre partido", () => {
+    const resultado = corregirConGlosario("Star Sed Seed", glosario, "es");
+    expect(resultado.texto).toBe("StarSeed Seed");
+    expect(resultado.cambios).toEqual(["Star Sed → StarSeed"]);
+  });
+
+  it("recoloca la puntuación alrededor del nombre corregido", () => {
+    expect(corregirConGlosario("hola, Estora.", glosario, "es")).toEqual({
+      texto: "hola, Astraura.",
+      cambios: ["Estora. → Astraura"],
+    });
+  });
+
+  it("devuelve la forma del glosario aunque la entrada vaya en minúscula", () => {
+    expect(corregirConGlosario("astraura", glosario, "es")).toEqual({
+      texto: "Astraura",
+      cambios: ["astraura → Astraura"],
+    });
+  });
+
+  it("corrige una minúscula difusa solo si ya casi coincide (≤ 0,15)", () => {
+    expect(corregirConGlosario("dime starseed por favor", glosario, "es")).toEqual({
+      texto: "dime StarSeed por favor",
+      cambios: ["starseed → StarSeed"],
+    });
+  });
+
+  it("con un glosario vacío no cambia nada", () => {
+    expect(corregirConGlosario("hola Star Sed", [], "es")).toEqual({
+      texto: "hola Star Sed",
+      cambios: [],
+    });
   });
 });
