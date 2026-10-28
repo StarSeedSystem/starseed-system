@@ -42,8 +42,10 @@ class AltaCapacidadCLI(unittest.TestCase):
             json.dump(limites, f, ensure_ascii=False)
         return cola, archivo_progreso, archivo_limites
 
-    def _correr(self, *argumentos, env_extra=()):
+    def _correr(self, *argumentos, env_extra=(), env_quitar=()):
         env = dict(os.environ)
+        for nombre in env_quitar:
+            env.pop(nombre, None)
         for nombre, valor in env_extra:
             env[nombre] = valor
         return subprocess.run(
@@ -147,6 +149,18 @@ class AltaCapacidadCLI(unittest.TestCase):
         self.assertFalse(datos["cupo"]["ok"])
         self.assertIn("tope superado", datos["cupo"]["motivo"])
 
+    def test_tope_semanal_bloquea(self):
+        cola, progreso, limites = self._preparar(
+            limites={"lecturas": [{"t": _ahora_iso(), "semana_pct": 85, "sesion_pct": 10}]}
+        )
+        r = self._correr("--olas", os.path.dirname(cola), "--progreso", progreso,
+                         "--limites", limites, "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        datos = json.loads(r.stdout)
+        self.assertFalse(datos["cupo"]["ok"])
+        self.assertIn("semana", datos["cupo"]["motivo"])
+        self.assertEqual(datos["elegidas"], [])
+
     def test_rutas_por_entorno(self):
         cola, progreso, limites = self._preparar()
         r = self._correr(
@@ -160,6 +174,37 @@ class AltaCapacidadCLI(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         datos = json.loads(r.stdout)
         self.assertEqual([c["id"] for c in datos["candidatas"]], ["T1", "T2", "T5"])
+        self.assertEqual(datos["elegidas"], ["T1"])
+
+    def test_raiz_por_entorno_deriva_olas_y_progreso(self):
+        cola, _progreso, limites = self._preparar()
+        r = self._correr(
+            "--json",
+            env_extra=[
+                ("STARSEED_ROOT", os.path.dirname(os.path.dirname(os.path.dirname(cola)))),
+                ("STARSEED_LIMITES_CLAUDE", limites),
+            ],
+            env_quitar=("STARSEED_OLAS", "STARSEED_PROGRESO"),
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        datos = json.loads(r.stdout)
+        self.assertTrue(datos["cupo"]["ok"])
+        self.assertEqual([c["id"] for c in datos["candidatas"]], ["T1", "T2", "T5"])
+        self.assertEqual(datos["elegidas"], ["T1"])
+
+    def test_olas_por_entorno_sin_raiz(self):
+        cola, _progreso, limites = self._preparar()
+        r = self._correr(
+            "--json",
+            env_extra=[
+                ("STARSEED_OLAS", os.path.dirname(cola)),
+                ("STARSEED_LIMITES_CLAUDE", limites),
+            ],
+            env_quitar=("STARSEED_ROOT",),
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        datos = json.loads(r.stdout)
+        self.assertTrue(datos["cupo"]["ok"])
         self.assertEqual(datos["elegidas"], ["T1"])
 
     def test_no_toca_el_progreso(self):
