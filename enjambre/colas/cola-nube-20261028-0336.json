@@ -1,0 +1,46 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "DEC1028E",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "Guardia del árbol · las colas versionadas que re-apunta el propio enjambre ya no paran el arranque",
+   "archivos": [
+    "scripts/puente/arbol_de_trabajo.py",
+    "scripts/puente/test_arbol_de_trabajo.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo.\n\nContexto (medido por Claude el 28-10 a las 00:40, hora de la Mac): el orquestador de la Mac NO arrancaba desde el 27-10 a las 22:26: «working tree de main con cambios sin commit: 3 archivos — no arranco», con `ajeno: starseed_memory_root/olas/cola-artcraft-1025.json`, `cola-blender-1025.json` y `cola-investigacion-1025.json`. Esas tres colas están VERSIONADAS y el propio enjambre (el revisor de Bloqueadas al dividir tareas en partes `-dN`, `revisor_bloqueadas_logica.heredar_dependientes`) había re-apuntado sus `depende` a las partes (`ART1025B` → `ART1025B-d3`). Se commitearon a mano (c04215411).\n\nEn `arbol_de_trabajo.clasificar` (la regla del guardia del árbol): una línea ` M starseed_memory_root/olas/cola-*.json` (modificada, versionada) es contabilidad PROPIA del enjambre —así el guardia la commitea con `_recoger_lo_nuestro` y sigue—, siempre que el archivo siga siendo una lista JSON de tareas con `id` (si no se puede leer o no lo es, sigue siendo ajena: el lado seguro). Nada más cambia: el código, la documentación y lo sin seguimiento siguen como hoy. Pruebas con las tres líneas reales de arriba, con una cola rota (ajena) y con un `.ts` modificado (ajeno)."
+  },
+  {
+   "id": "CNV1023C",
+   "ola": "1023C",
+   "titulo": "Escritorio · «Convertir a…» en el clic derecho de los iconos de archivo",
+   "archivos": [
+    "src/components/desktop/desktop-icon-menu.tsx",
+    "src/components/desktop/desktop-store.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nBusca el menú contextual de los iconos del escritorio (si el archivo tiene otro nombre, usa el que exista y dilo). Para iconos que apuntan a un archivo con URL, añade `SubmenuConvertir` (`useConversionMenu`); el resultado se descarga. Si no hay menú contextual de iconos, responde NO APLICA."
+  },
+  {
+   "id": "CLB1028G",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "Colibri · el plan de instalación del A1 sigue lo que dice Colibri (Laya y GLiNER no van por setup)",
+   "archivos": [
+    "scripts/puente/colibri_nodo.py",
+    "scripts/puente/test_colibri_nodo.py",
+    "scripts/puente/oracle_nodo.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves en el código ni en lo que imprimas.\n\nContexto (Alex aprobó el 28-10 instalar Colibri juicio en el A1; medido por Claude el 28-10 06:40 UTC): `oracle_nodo.py colibri --aplicar` falló en el paso 2 («fallo 1 en el paso 2»). `colibri_nodo.plan_instalacion` (CLB1027E) usa `./start-here.sh --model colibri-laya …`, y eso no puede funcionar: (1) `start-here.sh` es `coli setup`, cuyo `--model` es un id de SU catálogo (`c/setup_catalog.py`: qwen36-35b, qwen3-coder-30b, deepseek-v4-flash-reap, qwen38-flash-next, glm-5.2…), sin el prefijo `colibri-` de StarSeed; (2) los modelos de DECISIÓN (Laya, GLiNER2.5-Decide) NO están en ese catálogo: según `docs/laya.md` y `docs/gliner_decide.md` de Colibri v2.0.0 se instalan así:\n  Laya: `hf download convaiinnovations/laya model.safetensors rl_agent_config.json \"encoder/*\" \"tokenizer/*\" --local-dir <carpeta>/laya` · `make -C c laya` · `c/coli serve --model <carpeta>/laya` (842 MB).\n  GLiNER2.5-Decide: `hf download fastino/GLiNER2.5-Decide model.safetensors config.json \"encoder_config/*\" tokenizer.json tokenizer_config.json special_tokens_map.json --local-dir <carpeta>/GLiNER2.5-Decide` · `make -C c gliner_decide` (1,9 GB).\n(3) `setup` sin `--no-start` se queda sirviendo en primer plano, y el servicio `starseed-colibri.service` (ya en main) es quien sirve en 127.0.0.1:4480.\n\nReescribe `plan_instalacion(id_modelo, carpeta)` (sigue PURO, listas de argumentos): clonar `v2.0.0` en `/home/starseed/colibri` (la ruta que pide la unidad, no `<carpeta>/colibri-v2.0.0`); si falta `hf`, `python3 -m pip install --user \"huggingface_hub[cli]\"`; para `colibri-laya` y `colibri-gliner-decide` los pasos de arriba (sin `serve`: lo hace la unidad) y `sha256sum` del `model.safetensors` descargado para anotarlo; para los de chat, un mapa id de StarSeed → id de Colibri y `./start-here.sh --model <id colibri> --dir <carpeta> --yes --no-gpu --no-start --no-browser`; `colibri-clef` dice «no cabe en esta neurona» como hasta ahora. En `oracle_nodo.colibri(--aplicar)` (mismo archivo si hace falta tocarlo, si no, solo `colibri_nodo.py`) cada paso corre como el usuario `starseed`. Pruebas: el plan de Laya no contiene `start-here.sh`, el de qwen3-coder-30b usa `--model qwen3-coder-30b --no-start`, y la ruta del clon es la de la unidad."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "CNV1023C",
+   "DEC1028E",
+   "CLB1028G"
+  ]
+ }
+}
