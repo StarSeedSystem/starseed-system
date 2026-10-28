@@ -18,8 +18,10 @@ IMPURO (capa de accion, sin pruebas):
 
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import unicodedata
 
 RUTA_MANDO = "/genesis"
@@ -99,27 +101,51 @@ def capturar(ruta, destino, puerto=9002, espera_s=6):
     No instala nada ni levanta la Mac: si el binario no existe devuelve None y
     una frase explicando por qué. El headless va por `--virtual-time-budget`
     para dejar que el JS pinte antes del screenshot.
+
+    DEC1028H: con perfil propio (temporal) y cierre limpio por SIGTERM antes
+    que SIGKILL — si matan a Chrome, deja atrás su clón de firma (~1,4 GB).
     """
     if not os.path.exists(RUTA_CHROME):
         return None
     url = "http://localhost:%d%s" % (puerto, ruta)
     os.makedirs(os.path.dirname(destino), exist_ok=True)
+    perfil = tempfile.mkdtemp(prefix="captura-chrome-")
     comando = [
         RUTA_CHROME,
         "--headless=new",
         "--disable-gpu",
+        "--user-data-dir=%s" % perfil,
+        "--no-first-run",
+        "--no-default-browser-check",
         "--screenshot=%s" % destino,
         "--window-size=1440,900",
         "--virtual-time-budget=%d" % int(espera_s * 1000),
         url,
     ]
     try:
-        proc = subprocess.run(comando, capture_output=True, timeout=60)
-        if proc.returncode != 0:
+        try:
+            proc = subprocess.Popen(
+                comando, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        except OSError:
             return None
-        return destino if os.path.exists(destino) else None
-    except (subprocess.TimeoutExpired, OSError):
-        return None
+        try:
+            return destino if proc.wait(timeout=60) == 0 and os.path.exists(destino) else None
+        except subprocess.TimeoutExpired:
+            # Se acabó el tiempo: primero adiós suave para que Chrome cierre limpio y se
+            # lleve su clón de firma; solo si se resiste, SIGKILL tras otros 15 s.
+            proc.terminate()
+            try:
+                proc.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                try:
+                    proc.wait(timeout=15)
+                except subprocess.SubprocessError:
+                    pass
+            return None
+    finally:
+        shutil.rmtree(perfil, ignore_errors=True)
 
 
 def _destino_por_defecto():

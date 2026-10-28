@@ -1,5 +1,6 @@
 """Cachés y restos que la lista blanca de Genesis no ve (CNS1010C: 1,1 GB libres y «nada regenerable»).
 `plan` decide (PURA), `aplicar` ejecuta lo inyectado y `recoger` mira la máquina. Ante la duda no se borra."""
+import datetime
 import glob
 import os
 import shutil
@@ -8,6 +9,10 @@ import subprocess
 LISTA_NEGRA = ("state.db", "state-snapshots", "respaldos", ".env", ".git", ".gguf", "CloudStorage",
                "starseed_memory_root", ".supabase")  # gana siempre: si la ruta contiene una, no se toca
 CHROME, NPM = "/private/var/folders/*/*/X/com.google.Chrome.code_sign_clone/*", "/private/tmp/npm-cache-*/_cacache"
+CHROME_EJECUTABLE = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"  # solo el proceso principal
+_SIN_DATOS_PS = float("-inf")  # ps no contestó: como si Chrome llevara vivo desde siempre (no se borra)
+_MESES = dict(Jan=1, Feb=2, Mar=3, Apr=4, May=5, Jun=6, Jul=7, Aug=8, Sep=9, Oct=10, Nov=11, Dec=12,
+              Ene=1, Ago=8, Dic=12)  # por si el sistema sale en español; falta el mes → epoch None → no se borra
 NPM_NUNCA, NPM_VIVOS = ("_npx", "_logs"), ("npm install", "npm ci", "npm i ")  # _npx: Desktop Commander
 NPM_MINIMO_MB, GRADLE_LIBRE_GB, LOG_MAXIMO_MB, CONSERVA_BYTES = 500, 6.0, 50, 3_000_000
 GRADLE = ("~/.gradle/caches", "~/.gradle/wrapper/dists", "~/.gradle/daemon")
@@ -21,16 +26,51 @@ def vetada(ruta):  # PURA: la lista negra, y nunca una ruta relativa ni con «..
     return not r.startswith("/") or ".." in r.split("/") or any(n in r for n in LISTA_NEGRA)
 
 
-def plan(libre_gb, existe, tamano_mb, proceso_vivo, enlace_destino):
+def clones_de_chrome_a_borrar(clones, inicio_chrome_mas_viejo):
+    """PURA (DEC1028H). `clones` es [(ruta, mtime)]; Chrome se lleva su clon al cerrar limpio, así que
+    los anteriores a 60 s antes del arranque del Chrome principal más viejo son restos huérfanos.
+    Sin Chrome principal (`None`) → se borran todos; el «60 s» da margen a los propios del vivo."""
+    if inicio_chrome_mas_viejo is None:
+        return [r for r, _ in clones]
+    tope = inicio_chrome_mas_viejo - 60.0
+    return [r for r, t in clones if t is not None and t < tope]  # sin mtime no hay prueba: no se borra
+
+
+def _epoch_lstart(ini):
+    """Del lstart de `ps` («Sat Oct 25 03:24:11 2026») al epoch local; None si no se entiende."""
+    try:
+        hh, mm, ss = (int(x) for x in ini[3].split(":"))
+        return datetime.datetime(int(ini[4]), _MESES[ini[1]], int(ini[2]), hh, mm, ss).timestamp()
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _inicio_chrome(ps):
+    """Del `ps -axo pid=,lstart=,comm=` dado: arranque del Chrome principal más viejo cuyo comm es
+    EXACTAMENTE el ejecutable del app (los ayudantes «…Helper…» no cuentan). None si no hay ninguno."""
+    viejo = None
+    for l in ps.splitlines():
+        p = l.split(None, 6)
+        if len(p) == 7 and p[6].rstrip() == CHROME_EJECUTABLE:
+            t = _epoch_lstart(p[1:6])
+            if t is not None and (viejo is None or t < viejo):
+                viejo = t
+    return viejo
+
+
+def plan(libre_gb, existe, tamano_mb, proceso_vivo, enlace_destino, mtime, inicio_chrome):
     """PURA. [{accion: "borrar"|"recortar", ruta, mb, por_que}]. `existe(patron)` → rutas; `proceso_vivo(texto)`
-    → ¿algún proceso lo nombra o tiene algo abierto bajo esa ruta?; `enlace_destino(e)` → ruta real o None."""
+    → ¿algún proceso lo nombra o tiene algo abierto bajo esa ruta?; `enlace_destino(e)` → ruta real o None;
+    `mtime(r)` → instante de modificación; `inicio_chrome` → el de _inicio_chrome o _SIN_DATOS_PS."""
     acciones = []
 
     def poner(accion, ruta, mb, por_que):
         if not vetada(ruta) and all(a["ruta"] != ruta for a in acciones):
             acciones.append({"accion": accion, "ruta": ruta, "mb": round(max(mb, 0.0), 1), "por_que": por_que})
-    for r in existe(CHROME) if not proceso_vivo("Google Chrome") else []:
-        poner("borrar", r, tamano_mb(r), "clon de firma de Chrome, cerrado (clon APFS: libera quizá menos)")
+    # DEC1028H: «Google Chrome» en `ps` también lo nombran ayudantes y crashpad, y de madrugada quedaba
+    # todo sin limpiar. Ahora decide el monto del clon contra el arranque del Chrome principal de verdad.
+    for r in clones_de_chrome_a_borrar([(r, mtime(r)) for r in existe(CHROME)], inicio_chrome):
+        poner("borrar", r, tamano_mb(r), "clon de firma de Chrome huérfano (clon APFS: libera quizá menos)")
     for r in existe(NPM) if not any(proceso_vivo(p) for p in NPM_VIVOS) else []:
         mb = 0.0 if any(n in r for n in NPM_NUNCA) else tamano_mb(r)
         if mb > NPM_MINIMO_MB:
@@ -101,6 +141,9 @@ def recoger(libre_gb, home=None, glob_fn=glob.glob, correr=_correr, es_enlace=os
     home = home or os.path.expanduser("~")
     ruta = lambda p: home + p[1:] if p.startswith("~") else p  # noqa: E731
     ps = correr(["ps", "axww", "-o", "command="]) or None
+    # NUNCA `pgrep -l/-fl` ni `ps -E`: en macOS imprimen el entorno (habría claves en el stdout).
+    ps_l = correr(["ps", "-axo", "pid=,lstart=,comm="])
+    inicio_chrome = _SIN_DATOS_PS if ps_l is None else _inicio_chrome(ps_l)  # sin datos: no se borra
     lsof = [correr(["lsof", "-nP", "-Fn", "+D", ruta_real(os.path.dirname(ruta(p)))], ok=(0, 1)) for p, _ in VERSIONES]
     abiertos = None if None in lsof else [x[1:] for s in lsof for x in s.splitlines() if x.startswith("n")]
 
@@ -117,4 +160,5 @@ def recoger(libre_gb, home=None, glob_fn=glob.glob, correr=_correr, es_enlace=os
         fija = os.path.dirname(p[:min([p.index(c) for c in "*?[" if c in p] or [len(p)])]).rstrip("/")
         return sorted({ruta_real(x) for x in glob_fn(p) if not es_enlace(x) and ruta_real(x).startswith(fija + "/")})
     return {"libre_gb": libre_gb, "existe": existe, "tamano_mb": tamano_mb, "proceso_vivo": proceso_vivo,
-            "enlace_destino": lambda e: ruta_real(ruta(e)) if es_enlace(ruta(e)) else None}
+            "enlace_destino": lambda e: ruta_real(ruta(e)) if es_enlace(ruta(e)) else None,
+            "mtime": os.path.getmtime, "inicio_chrome": inicio_chrome}

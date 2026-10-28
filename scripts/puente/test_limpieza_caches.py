@@ -1,5 +1,6 @@
 """Cachés fuera de la lista blanca de Genesis (CNS1010C): sin disco ni procesos reales, todo inyectado."""
 import contextlib
+import datetime as dt
 import fnmatch
 import io
 import os
@@ -19,19 +20,47 @@ CLAUDE, CURRENT = "~/.local/bin/claude", "~/.codex/packages/standalone/current"
 rutas = lambda e: [a["ruta"] for a in (L.plan(**e) if isinstance(e, dict) else e)]  # noqa: E731
 
 
-def entorno(rutas, mb=None, vivos=(), enlaces=None, libre=4.0):  # una máquina de mentira (`*` no cruza «/»)
+def entorno(rutas, mb=None, vivos=(), enlaces=None, libre: float | None = 4.0, mt=None, inicio=None):
+    # una máquina de mentira (`*` no cruza «/»): mt → {ruta: mtime}, inicio → arranque del Chrome más viejo
     def existe(patron):
         p = patron.replace("~", H, 1)
         return sorted(r for r in rutas if r.count("/") == p.count("/") and fnmatch.fnmatchcase(r, p))
     return {"libre_gb": libre, "existe": existe, "tamano_mb": lambda r: (mb or {}).get(r, 1400.0),
-            "proceso_vivo": lambda t: any(t in v for v in vivos), "enlace_destino": (enlaces or {}).get}
+            "proceso_vivo": lambda t: any(t in v for v in vivos), "enlace_destino": (enlaces or {}).get,
+            "mtime": (mt or {}).get, "inicio_chrome": inicio}
 
 
 class LimpiezaCaches(unittest.TestCase):  # plan (puro), aplicar, recortar, recoger y la autocuración
-    def test_clones_de_chrome_solo_con_chrome_cerrado(self):
-        self.assertEqual(rutas(entorno([CLON], vivos=[CHROME + "/Contents/MacOS/Google Chrome --type=gpu"])), [])
-        (a,) = L.plan(**entorno([CLON]))
+    def test_clones_de_chrome_sin_chrome_se_borran_todos(self):
+        (a,) = L.plan(**entorno([CLON]))  # REGRA PURA: None = no hay Chrome principal a la vista
         self.assertEqual((a["accion"], a["ruta"], a["mb"], "Chrome" in a["por_que"]), ("borrar", CLON, 1400.0, True))
+
+    def test_clones_de_chrome_con_el_de_las_12_38_conserva_y_los_huerfanos_se_van(self):
+        T12, T05, T03 = (dt.datetime(2026, 10, 28, h, m).timestamp() for h, m in ((12, 38), (5, 21), (3, 24)))
+        c = [("el-de-03:24", T03), ("el-de-05:21", T05), ("el-de-12:38", T12)]
+        self.assertEqual(L.clones_de_chrome_a_borrar(c, T12), ["el-de-03:24", "el-de-05:21"])
+        self.assertEqual(L.clones_de_chrome_a_borrar([("suyo", T12 - 30)], T12), [])  # margen de 60 s
+        self.assertEqual(L.clones_de_chrome_a_borrar([("borde", T12 - 61)], T12), ["borde"])
+        (a,) = L.plan(**entorno([CLON], mt={CLON: T03}, inicio=T12))  # lo mismo visto desde plan
+        self.assertEqual(a["ruta"], CLON)
+
+    def test_clon_vetado_nunca_y_sin_datos_de_ps_tampoco(self):
+        veta = "/private/var/folders/ab/cd/X/com.google.Chrome.code_sign_clone/.env"
+        self.assertEqual(rutas(entorno([veta])), [])  # en la lista negra: plan ni lo apunta
+        self.assertEqual(rutas(entorno([CLON], inicio=L._SIN_DATOS_PS)), [])  # ps falló: ante la duda, no
+
+    def test_recoger_extrae_el_arranque_del_chrome_principal_mas_viejo(self):
+        maquina = ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+        ps_l = ("   742 Sun Oct 25 12:38:00 2026 %s\n" % maquina
+                + "   900 Sat Oct 25 03:24:11 2026 %s\n" % maquina
+                + "   901 Sat Oct 25 03:24:12 2026 %s Helper (Renderer)-x86_64\n" % maquina
+                + "   902 Sat Oct 25 03:24:13 2026 /opt/homebrew/bin/claude\n")
+        r = L.recoger(4.0, home=H, glob_fn=lambda p: [], correr=lambda o, ok=(0,): ps_l,
+                      es_enlace=lambda e: False, ruta_real=str)
+        self.assertEqual(r["inicio_chrome"], dt.datetime(2026, 10, 25, 3, 24, 11).timestamp())
+        r2 = L.recoger(4.0, home=H, glob_fn=lambda p: [], correr=lambda o, ok=(0,): None,
+                       es_enlace=lambda e: False, ruta_real=str)
+        self.assertEqual(r2["inicio_chrome"], L._SIN_DATOS_PS)
 
     def test_npm_solo_si_pasa_de_500_mb_y_npx_y_logs_intactos(self):
         todo = [NPM + "_cacache", NPM + "_npx", NPM + "_logs"]
