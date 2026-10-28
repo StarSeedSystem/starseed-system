@@ -23,6 +23,7 @@ import re
 import threading
 import time
 import urllib.request
+from urllib.parse import urlparse
 
 URL = "https://openrouter.ai/api/alpha/decisions"
 MODELO = "~typesafe/jev-latest"
@@ -62,6 +63,71 @@ EXPLABS_POR_DEFECTO = ("jev-latest", "clef-flash")
 #: Transporte de Experiential (se sustituye en las pruebas). Con `TRANSPORTE` falso y este sin
 #: poner, las pruebas NUNCA tocan la red de verdad aunque la Mac tenga la clave.
 TRANSPORTE_EXPLABS = None
+
+#: (2026-10-27, Colibri en las capas de Astraura) Varios extremos locales de /v1/systemone:
+#: Laya en 4470 y Colibri (JustVugg/colibri) en 4480 — el 8000 es del backend de Astraura 1.58.
+#: `STARSEED_SYSTEMONE_LOCALES` declara la lista separada por comas; `STARSEED_LAYA_URL`
+#: sigue valiendo y va primero si está. `decidir_con_laya` prueba cada uno con su tope
+#: (1,5 s) y se queda el primero que contesta; el que respondió más rápido se recuerda
+#: 10 min para probarlo primero en la siguiente decisión.
+LOCALES_POR_DEFECTO = (
+    "http://127.0.0.1:4470/v1/systemone,http://127.0.0.1:4480/v1/systemone"
+)
+PUERTO_COLIBRI = 4480
+#: Transporte de los locales (se sustituye en las pruebas; None = urllib de verdad).
+TRANSPORTE_LOCALES = None
+#: Cuánto se recuerda al local que respondió más rápido (Alex: 10 min).
+RAPIDO_TTL_S = 600
+
+
+def endpoints_locales():
+    """Los extremos /v1/systemone locales en orden de prueba, sin repetir.
+
+    Primero `STARSEED_LAYA_URL` si está declarada; luego la lista de
+    `STARSEED_SYSTEMONE_LOCALES` (o el par por defecto Laya 4470 + Colibri 4480).
+    """
+    urls = []
+    explicita = (os.environ.get("STARSEED_LAYA_URL") or "").strip()
+    if explicita:
+        urls.append(explicita)
+    lista = os.environ.get("STARSEED_SYSTEMONE_LOCALES") or LOCALES_POR_DEFECTO
+    for u in lista.split(","):
+        u = u.strip()
+        if u and u not in urls:
+            urls.append(u)
+    if not urls:
+        urls = [LAYA_URL]
+    return urls
+
+
+def _etiqueta_local(url):
+    """«colibri-local» por puerto 4480 (Colibri), «laya-local» en los demás."""
+    try:
+        puerto = urlparse(url).port
+    except ValueError:
+        puerto = None
+    return "colibri-local" if puerto == PUERTO_COLIBRI else "laya-local"
+
+
+def local_rapido(ahora=None):
+    """El extremo local que respondió más rápido, si su recuerdo (10 min) sigue vivo."""
+    r = _leer(USO, {}).get("systemone_rapido") or {}
+    if r.get("url") and float(r.get("hasta") or 0) > (ahora or time.time()):
+        return r["url"]
+    return None
+
+
+def _recordar_rapido(url, ms, ahora=None):
+    """Deja en el uso el extremo local más veloz visto dentro del TTL de 10 min."""
+    ahora = ahora or time.time()
+    uso = _leer(USO, {})
+    r = uso.get("systemone_rapido") or {}
+    fresco = float(r.get("hasta") or 0) > ahora
+    if not fresco or ms < float(r.get("ms") or ms + 1.0):
+        uso["systemone_rapido"] = {
+            "url": url, "ms": round(float(ms), 1), "hasta": ahora + RAPIDO_TTL_S,
+        }
+        _escribir(USO, uso)
 
 
 def clave():
@@ -401,41 +467,62 @@ def conversando(ruta=None, ahora=None):
     return hasta > (time.time() if ahora is None else ahora)
 
 
-def decidir_con_laya(estado, preguntas, timeout=1.5, url=None):
-    """Consulta a Laya local (SystemOne en 127.0.0.1:4470/v1/systemone).
+def _transporte_local(endpoint, cuerpo, timeout):
+    """POST de verdad a un local; (codigo, texto). Levanta en error de red o HTTP."""
+    req = urllib.request.Request(
+        endpoint, data=cuerpo,
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.status, resp.read().decode("utf-8")
 
-    Devuelve un diccionario con las respuestas y motor: "laya-local",
-    o None si no responde, responde 503/error o hay conversación en curso.
+
+def decidir_con_laya(estado, preguntas, timeout=1.5, url=None):
+    """Consulta a los locales de /v1/systemone: Laya (4470) y Colibri (4480).
+
+    Prueba cada extremo con su tope (1,5 s) y se queda el primero que contesta;
+    `STARSEED_LAYA_URL` va primero si está, y el que respondió más rápido
+    se recuerda 10 min para probarlo primero la siguiente vez. En `motor`
+    anota «laya-local» o «colibri-local» según el puerto (4480 → colibri).
+    None si ninguno responde o hay conversación en curso.
     """
     if conversando():
         return None
-    endpoint = url or os.environ.get("STARSEED_LAYA_URL", LAYA_URL)
-    cuerpo = {"state": estado, "questions": preguntas}
-    try:
-        req = urllib.request.Request(
-            endpoint,
-            data=json.dumps(cuerpo, ensure_ascii=False).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
+    if url:
+        endpoints = [url]
+    else:
+        endpoints = list(endpoints_locales())
+        rapido = local_rapido()
+        if rapido in endpoints:
+            endpoints.remove(rapido)
+            endpoints.insert(0, rapido)
+    cuerpo = json.dumps({"state": estado, "questions": preguntas}, ensure_ascii=False).encode(
+        "utf-8"
+    )
+    transporte = TRANSPORTE_LOCALES or _transporte_local
+    for endpoint in endpoints:
+        t0 = time.time()
+        try:
+            codigo, texto = transporte(endpoint, cuerpo, timeout)
+        except Exception:
+            continue
+        if codigo != 200:
+            continue
+        try:
+            res_data = json.loads(texto)
+        except ValueError:
+            continue
+        if not isinstance(res_data, dict):
+            continue
+        respuestas = dict(
+            res_data.get("answers")
+            if "answers" in res_data and isinstance(res_data["answers"], dict)
+            else res_data
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            if resp.status != 200:
-                return None
-            res_data = json.loads(resp.read().decode("utf-8"))
-            if not isinstance(res_data, dict):
-                return None
-            respuestas = dict(
-                res_data.get("answers")
-                if "answers" in res_data and isinstance(res_data["answers"], dict)
-                else res_data
-            )
-            respuestas["motor"] = "laya-local"
-            return respuestas
-    except urllib.error.HTTPError as e:
-        e.close()
-        return None
-    except Exception:
-        return None
+        _recordar_rapido(endpoint, (time.time() - t0) * 1000)
+        respuestas["motor"] = _etiqueta_local(endpoint)
+        return respuestas
+    return None
 
 
 def _local():
