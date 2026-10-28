@@ -128,13 +128,22 @@ describe('puedeUsar', () => {
     ).toEqual({ ok: false, motivo: 'Dueño ha superado su tope mensual' });
   });
 
-  it('deniega cuando la puerta está configurada para nadie', () => {
+it('deniega cuando la puerta está configurada para nadie', () => {
     expect(
-      puedeUsar(
+      podeUsar(
         { ...basePuerta, compartir: 'nadie' },
         baseSolicitante
       )
     ).toEqual({ ok: false, motivo: 'Puerta configurada para no compartir' });
+  });
+
+  it('permite al dueño aunque la puerta sea para nadie: las reglas de compartir no le aplican', () => {
+    expect(
+      podeUsar(
+        { ...basePuerta, compartir: 'nadie' },
+        { ...baseSolicitante, cuenta: 'c1' } // dueño
+      )
+    ).toEqual({ ok: true, motivo: 'Dueño dentro de su tope' });
   });
 
   it('deniega cuando es solo para mi cuenta y el solicitante no es el dueño', () => {
@@ -408,7 +417,7 @@ describe('elegirPuerta', () => {
         clase: 'interno' as ClaseDato,
         necesitaInternet: true,
         puertas: puertasNoPermitidas,
-        solicitante: baseSolicitante,
+        solicitante: { cuenta: 'c2', vinculado: false, grupos: [] },
       })
     ).toEqual({
       puerta: null,

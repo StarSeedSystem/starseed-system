@@ -36,7 +36,9 @@ export function restanteParaOtrosMb(p: PuertaInternet): number | null {
 
 export function puedeUsar(p: PuertaInternet, s: Solicitante): {ok: boolean; motivo: string} {
   switch (p.compartir) {
-    case 'nadie': return {ok: false, motivo: 'Puerta configurada para no compartir'};
+    case 'nadie':
+      if (s.cuenta !== p.cuenta) return {ok: false, motivo: 'Puerta configurada para no compartir'};
+      break;
     case 'mi-cuenta':
       if (s.cuenta !== p.cuenta) return {ok: false, motivo: 'Solo la cuenta propietaria puede usar esta puerta'};
       break;
@@ -96,7 +98,7 @@ export function elegirPuerta(e: {
 
   for (const puerta of puertasPermitidas.slice(1)) {
     const coste = costePuerta(puerta);
-    if (coste < mejorCoste) {
+    if (coste < mejorCoste || (coste === mejorCoste && puerta.id < mejorPuerta.id)) {
       mejorCoste = coste;
       mejorPuerta = puerta;
     }
