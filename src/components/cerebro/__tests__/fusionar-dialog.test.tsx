@@ -64,8 +64,8 @@ describe("FusionarDialog conecta fusion-aplicar", () => {
     renderDialog({ onHecho });
 
     await usuario.click(screen.getByRole("checkbox", { name: /Cerebro dos/ }));
-    await usuario.click(screen.getByRole("button", { name: "Ver lo que se fusionará" }));
-    await screen.findByText(/memoria nueva/);
+    await usuario.click(screen.getByRole("button", { name: "Ver vista previa" }));
+    await screen.findByText(/Lo que entrará en este cerebro/);
     await usuario.click(screen.getByRole("button", { name: /Fusionar/ }));
 
     await screen.findByText(/se borró después de fusionar/);
@@ -83,9 +83,9 @@ describe("FusionarDialog conecta fusion-aplicar", () => {
     renderDialog({ onHecho });
 
     await usuario.click(screen.getByRole("checkbox", { name: /Cerebro dos/ }));
-    await usuario.click(screen.getByRole("button", { name: "Ver lo que se fusionará" }));
-    await screen.findByText(/memoria nueva/);
-    await usuario.click(screen.getByLabelText("Quitar los cerebros fusionados cuando termine"));
+    await usuario.click(screen.getByRole("button", { name: "Ver vista previa" }));
+    await screen.findByText(/Lo que entrará en este cerebro/);
+    await usuario.click(screen.getByLabelText("Quitar los cerebros fusionados después"));
     await usuario.click(screen.getByRole("button", { name: /Fusionar/ }));
 
     await screen.findByText(/memorias guardadas/);
@@ -99,7 +99,7 @@ describe("FusionarDialog conecta fusion-aplicar", () => {
     renderDialog({});
 
     await usuario.click(screen.getByRole("checkbox", { name: /Cerebro dos/ }));
-    await usuario.click(screen.getByRole("button", { name: "Ver lo que se fusionará" }));
+    await usuario.click(screen.getByRole("button", { name: "Ver vista previa" }));
     await screen.findByText(/No se pudo leer el cerebro de origen/);
     expect(screen.queryByRole("button", { name: /Fusionar/ })).toBeNull();
   });
