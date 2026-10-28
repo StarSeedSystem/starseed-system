@@ -33,6 +33,9 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
   probar-bitnet          una pregunta al BitNet del A1 por HTTPS y con clave, desde aquí.
   bitnet-pesos           le pone al A1 los pesos BitNet en layout ARM (los oficiales vienen para
                          x86 y en ARM responden basura); el ciclo lo hace solo si el A1 lo detecta.
+  colibri [--aplicar]    prepara Colibri con Laya en el A1 (CLB1027): sin `--aplicar` solo enseña
+                         el plan de `colibri_nodo.plan_instalacion`; con él lo corre por SSH.
+                         Instalar (GB de descarga) SIEMPRE necesita el visto bueno de Alex.
 
 Reglas: Oracle SOLO Always Free (esto no crea nada en Oracle); nada se publica (main no se toca:
 solo ramas `colas/oracle-*` y `nube/a1-*`, como la nube de GitHub); ninguna IP, clave ni OCID se
@@ -63,6 +66,7 @@ for _d in (DIRECTORIO, os.path.join(RAIZ, "scripts", "puente")):
     if _d not in sys.path:
         sys.path.append(_d)
 import espejo_estado
+import colibri_nodo
 
 HOME = os.path.expanduser("~")
 ORACLE_JSON = os.path.join(HOME, ".starseed", "oracle.json")
@@ -132,6 +136,15 @@ SHA_BITNET_ARM = "8abc44bb8ea7a9417d780066fa098261e81833d134ef8d3558f440daac87f6
 PESOS_ARM_LOCAL = os.environ.get("STARSEED_BITNET_ARM_GGUF") or os.path.join(
     HOME, "Documents", "IA 1.58 bit", "backend", "BitNet", "models", "BitNet-b1.58-2B-4T", "ggml-model-i2_s.gguf")
 MODELO_A1 = "/home/starseed/astraura/backend/BitNet/models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf"
+#: (CLB1027F) Colibri con Laya en el A1: el checkout canónico que exige la unidad systemd (de él
+#: sale `<repo>/c/coli`) y la carpeta donde el instalador deja el modelo. El plan de
+#: `colibri_nodo.plan_instalacion` clona en `<carpeta>/colibri-vX.Y.Z`; aquí se fija la ruta que
+#: `starseed-colibri.service` da por hecha, para que `preparar-a1.sh` no instale la unidad antes
+#: de que existan el motor y el modelo. Nada se descarga hasta que Alex lo diga.
+COLIBRI_REPO_A1 = "/home/starseed/colibri"
+COLIBRI_MODELOS_A1 = "/home/starseed/colibri-modelos"
+COLIBRI_MODELO = "colibri-laya"
+COLIBRI_MODELO_A1 = os.path.join(COLIBRI_MODELOS_A1, "laya")
 
 
 # ── decisiones (puras) ──────────────────────────────────────────────────────────────────────────
@@ -1137,6 +1150,55 @@ def probar_bitnet():
             "texto": texto[:240], "sin_clave_responde": sin_clave}
 
 
+def plan_colibri(carpeta=COLIBRI_MODELOS_A1):
+    """PURA. El plan de `colibri_nodo.plan_instalacion` para Laya en el A1, sin ejecutar nada.
+
+    La única corrección es la ruta del checkout: `plan_instalacion` añade `colibri-<etiqueta>`
+    a la carpeta, y la unidad da por hecho `/home/starseed/colibri/c/coli`."""
+    plan = colibri_nodo.plan_instalacion(COLIBRI_MODELO, carpeta)
+    plan[0]["args"][-1] = COLIBRI_REPO_A1
+    return plan
+
+
+def _guion_colibri(plan):
+    """El guion que se ejecuta en el A1 por SSH: los pasos como LISTAS de argumentos, con el
+    `start-here.sh` dentro del checkout y el último paso con tope (es un servidor en primer plano;
+    luego lo gobierna `starseed-colibri.service`)."""
+    pasos = [paso["args"] for paso in plan]
+    return "\n".join([
+        "import subprocess, sys",
+        "pasos = " + repr(pasos),
+        "repo = " + repr(COLIBRI_REPO_A1),
+        "for i, args in enumerate(pasos, 1):",
+        "    print('[colibri] paso %d/%d: %s' % (i, len(pasos), ' '.join(args)), flush=True)",
+        "    try:",
+        "        r = subprocess.run(args, cwd=repo if i > 1 else None,",
+        "                           timeout=60 if i == len(pasos) else 3600)",
+        "    except subprocess.TimeoutExpired:",
+        "        print('[colibri] se queda sirviendo; lo gobierna starseed-colibri.service', flush=True)",
+        "        continue",
+        "    if r.returncode != 0:",
+        "        print('[colibri] fallo %d en el paso %d' % (r.returncode, i), flush=True)",
+        "        sys.exit(r.returncode)",
+        "print('[colibri] listo', flush=True)",
+    ])
+
+
+def colibri(aplicar=False, carpeta=COLIBRI_MODELOS_A1):
+    """(CLB1027F) Prepara Colibri con Laya en el A1. Sin `aplicar` solo enseña el plan; con él lo
+    corre por SSH como FreeLLMAPI. Instalar (GB de descarga) necesita SIEMPRE el visto bueno."""
+    plan = plan_colibri(carpeta)
+    res = {"ok": True, "aplicado": bool(aplicar),
+           "pasos": [{"porque": p["porque"], "args": p["args"]} for p in plan]}
+    if not aplicar:
+        return res
+    rc, salida = ssh("sudo -u starseed python3 -", entrada=_guion_colibri(plan), timeout=3600)
+    res["ok"] = rc == 0
+    res["pasos"] = ([l for l in salida.splitlines() if l.startswith("[colibri]")]
+                    or salida.strip().splitlines()[-8:])
+    return res
+
+
 def freellmapi():
     """(2026-10-13) Instala o pone al día FreeLLMAPI en el A1, SOLO en 127.0.0.1:3001
     (`a1_freellmapi.py`, que corre allí como root). Antes deja las claves al día (`claves()`): el
@@ -1181,6 +1243,10 @@ def main(argv):
             return subprocess.run([sys.executable, _ruta_puente("traer_nube.py"), "revisar", "--aplicar"],
                                   cwd=RAIZ).returncode
         return 0
+    elif orden == "colibri":
+        i = argv.index("--carpeta") if "--carpeta" in argv else -1
+        carpeta = argv[i + 1] if 0 <= i < len(argv) - 1 else COLIBRI_MODELOS_A1
+        r = colibri(aplicar="--aplicar" in argv, carpeta=carpeta)
     elif orden == "freellmapi":
         r = freellmapi()
     elif orden == "probar-bitnet":
