@@ -93,6 +93,64 @@ describe("libretranslate (rama)", () => {
         expect(llamadas[0]).toMatchObject({ metodo: "GET", url: `${BASE}/health` });
     });
 
+    it("quita la barra final de la base y no repite rutas", async () => {
+        const { f, llamadas } = crearFetchFalso(() => conJson({ translatedText: "x" }));
+        await crearClienteLibreTranslate({ base: `${BASE}/`, fetch: f }).traducir({ q: "a", source: "es", target: "en", format: "text" });
+        expect(llamadas[0]?.url).toBe(`${BASE}/translate`);
+    });
+
+    it("con source fijo no incluye detectedLanguage aunque el servicio la mande", async () => {
+        const { f } = crearFetchFalso(() => conJson({ translatedText: "hello", detectedLanguage: { language: "es", confidence: 0.9 } }));
+        const r = await crearClienteLibreTranslate({ base: BASE, fetch: f }).traducir({ q: "hola", source: "es", target: "en", format: "text" });
+        expect(r.translatedText).toBe("hello");
+        expect(r.detectedLanguage).toBeUndefined();
+    });
+
+    it("un texto más grande que el límite va solo en su petición", async () => {
+        const { f, llamadas } = crearFetchFalso((llamada: Peticion) => {
+            const q = (llamada.cuerpo as { q?: unknown } | undefined)?.q;
+            const textos = typeof q === "string" ? [q] : Array.isArray(q) ? q.filter((t): t is string => typeof t === "string") : [];
+            return conJson({ translatedText: textos.map((t) => t.toUpperCase()) });
+        });
+        const r = await crearClienteLibreTranslate({ base: BASE, fetch: f, limiteCaracteres: 5 }).traducir({ q: ["abcdefgh", "ijklm"], source: "en", target: "es", format: "text" });
+        expect(r.translatedText).toEqual(["ABCDEFGH", "IJKLM"]);
+        expect(llamadas).toHaveLength(2);
+        expect(llamadas[0]?.cuerpo).toEqual({ q: ["abcdefgh"], source: "en", target: "es", format: "text" });
+    });
+
+    it("falla en claro si el servicio devuelve otra cantidad de traducciones", async () => {
+        const { f } = crearFetchFalso(() => conJson({ translatedText: ["una"] }));
+        await expect(
+            crearClienteLibreTranslate({ base: BASE, fetch: f }).traducir({ q: ["uno", "dos"], source: "es", target: "en", format: "text" }),
+        ).rejects.toThrow("otra cantidad de traducciones");
+    });
+
+    it("un fallo de conexión da error en español, no un corrillo silencioso", async () => {
+        const { f } = crearFetchFalso(() => ({ falla: true }));
+        await expect(
+            crearClienteLibreTranslate({ base: BASE, fetch: f }).traducir({ q: "a", source: "es", target: "en", format: "text" }),
+        ).rejects.toThrow(/^No se pudo conectar con LibreTranslate/);
+    });
+
+    it("salud() devuelve false si la conexión falla o el cuerpo es un error", async () => {
+        const { f: fFalla } = crearFetchFalso(() => ({ falla: true }));
+        expect(await crearClienteLibreTranslate({ base: BASE, fetch: fFalla }).salud()).toBe(false);
+        const { f: fMal } = crearFetchFalso(() => conJson({ success: false }, 200));
+        expect(await crearClienteLibreTranslate({ base: BASE, fetch: fMal }).salud()).toBe(false);
+    });
+
+    it("detectar() filtra entradas inválidas y acepta api_key opcional", async () => {
+        const { f, llamadas } = crearFetchFalso(() => conJson([{ language: "es", confidence: 0.8 }, { language: 42 }, null, "basura"]));
+        const r = await crearClienteLibreTranslate({ base: BASE, fetch: f }).detectar("hola", "CLAVE-DE-PRUEBA");
+        expect(r).toEqual([{ language: "es", confidence: 0.8 }]);
+        expect(llamadas[0]?.cuerpo).toEqual({ q: "hola", api_key: "CLAVE-DE-PRUEBA" });
+    });
+
+    it("idiomas() descarta entradas sin código válido", async () => {
+        const { f } = crearFetchFalso(() => conJson([{ code: "en", name: "English" }, { name: "sin código" }, null]));
+        expect(await crearClienteLibreTranslate({ base: BASE, fetch: f }).idiomas()).toEqual([{ code: "en", name: "English" }]);
+    });
+
     it("responde en español y distingue 400, 403, 429 y 500", async () => {
         const mensajes: string[] = [];
         for (const estado of [400, 403, 429, 500]) {
