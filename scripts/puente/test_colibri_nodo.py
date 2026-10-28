@@ -92,6 +92,14 @@ class PruebaPlan(unittest.TestCase):
         shas = [p["args"] for p in plan if p["args"][0] == "sha256sum"]
         self.assertEqual(shas[0][1], "/srv/Colibri-modelos/laya/model.safetensors")
 
+    def test_plan_laya_no_sirve_y_clona_del_repo_oficial(self):
+        plan = C.plan_instalacion("colibri-laya", "/srv/Colibri-modelos")
+        for paso in plan:
+            self.assertNotIn("--port", paso["args"])
+        clon = plan[0]["args"]
+        self.assertIn("--branch", clon)
+        self.assertIn(C.REPO_COLIBRI, clon)
+
     def test_plan_laya_con_hf_no_instala_nada(self):
         with unittest.mock.patch.object(C, "hf_disponible", return_value=True):
             plan = C.plan_instalacion("colibri-laya", "/srv")
@@ -112,6 +120,20 @@ class PruebaPlan(unittest.TestCase):
         self.assertEqual(descarga[descarga.index("--local-dir") + 1], "/srv/GLiNER2.5-Decide")
         self.assertIn("gliner_decide", " ".join(" ".join(p["args"]) for p in plan))
         self.assertNotIn("start-here.sh", " ".join(" ".join(p["args"]) for p in plan))
+
+    def test_plan_gliner_compila_su_objetivo_exacto(self):
+        plan = C.plan_instalacion("colibri-gliner-decide", "/srv")
+        compila = [paso["args"] for paso in plan if paso["args"][0] == "make"]
+        self.assertEqual(compila, [["make", "-C", "c", "gliner_decide"]])
+
+    def test_plan_chat_clona_en_la_ruta_de_la_unidad_y_no_sirve(self):
+        plan = C.plan_instalacion("colibri-qwen3-coder-30b", "/srv/colibri")
+        self.assertEqual(len(plan), 2)
+        clon, prepara = (paso["args"] for paso in plan)
+        self.assertEqual(clon[-1], C.REPO_CLONE_RUTA)
+        self.assertEqual(prepara, ["./start-here.sh", "--model", "qwen3-coder-30b",
+                                   "--dir", "/srv/colibri", "--yes", "--no-gpu",
+                                   "--no-start", "--no-browser"])
 
     def test_plan_qwen3_coder_por_setup_y_sin_arrancar(self):
         plan = C.plan_instalacion("colibri-qwen3-coder-30b", "/srv/modelos")
