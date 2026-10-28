@@ -57,6 +57,33 @@ class TestAsignacionesAgentes(unittest.TestCase):
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    @unittest.expectedFailure
+    def test_raiz_respeta_starseed_root(self):
+        """STARSEED_ROOT manda sobre la raíz deducida del archivo.
+
+        Fallo REAL (no es un archivo de esta tarea): `asignaciones_agentes.py`
+        no lee `STARSEED_ROOT`, que es la convención de `scripts/puente/`
+        (`reactivar_mando`, `asignar_huecos`, `publicar`, `puente`, …), así que
+        ni en nube ni en otro worktree se le puede reclamar la ruta. Arreglo:
+        `os.environ.get("STARSEED_ROOT") or …` al construir `RAIZ` y
+        `RUTA_ASIGNACIONES`.
+        """
+        import importlib
+        import asignaciones_agentes
+
+        otra = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(otra, ignore_errors=True))
+        with patch.dict(os.environ, {"STARSEED_ROOT": otra}):
+            importlib.reload(asignaciones_agentes)
+            self.addCleanup(importlib.reload, asignaciones_agentes)
+            self.assertEqual(asignaciones_agentes.RAIZ, otra)
+            self.assertEqual(
+                asignaciones_agentes.RUTA_ASIGNACIONES,
+                os.path.join(
+                    otra, "starseed_memory_root", "mando", "asignaciones-agentes.json"
+                ),
+            )
+
     def test_leer_asignaciones_agentes_con_archivo(self):
         """Test que leer_asignaciones_agentes lee desde el JSON cuando existe."""
         # Datos de prueba

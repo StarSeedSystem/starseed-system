@@ -166,6 +166,25 @@ class Cliente(unittest.TestCase):
         c = M.cliente_openai_compatible("texto", entorno=entorno, sonda=self.sonda)
         self.assertEqual(c.modelo, "meta/llama:free")
 
+    @unittest.expectedFailure
+    def test_openrouter_lleva_atribucion(self):
+        """OpenRouter identifica la app: sus llamadas llevan «HTTP-Referer».
+
+        Fallo REAL (no es un archivo de esta tarea): la convención de la casa la
+        exige («scripts/puente/openrouter.py»: «HTTP-Referer» + «X-Title», y
+        `jev.py` la usa), pero los motores de agentes (`equipo_agno`,
+        `equipo_poligenesis`, `director_pydantic`) salen por el enrutador propio
+        y `ClienteOpenAI.cabeceras()` de `enrutador_propio.py` solo devuelve
+        «Authorization». Arreglo: atribución en `cabeceras()`, solo si la URL es
+        de OpenRouter.
+        """
+        self.mundos[M.OPENROUTER] = ["meta/llama:free"]
+        c = M.cliente_openai_compatible(
+            "texto", entorno={"OPENROUTER_API_KEY": "sk_de_prueba"}, sonda=self.sonda)
+        h = c.cabeceras()
+        self.assertEqual(h["Authorization"], "Bearer sk_de_prueba")
+        self.assertIn("HTTP-Referer", h)
+
 
 if __name__ == "__main__":
     unittest.main()
