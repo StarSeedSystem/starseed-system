@@ -72,6 +72,7 @@ import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal
 import VentanaPerfilInicial from "@/components/onboarding/ventana-perfil-inicial";
 import { PrimerArranque } from "@/components/onboarding/primer-arranque";
 import { CursorFxHost } from "@/components/desktop/cursor-fx";
+import { MausbotHostCliente } from "@/components/mausbot/mausbot-host-cliente";
 import { PerfController, PerfHeavyOnly, PerfStaticBackdrop } from "@/components/perf/perf-gate";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
 import { MediaMiniDock } from "@/components/dashboard/apps/media/media-mini-dock";
@@ -419,11 +420,12 @@ export default function RootLayout({
                         {/* (Adenda 194) Ventana de perfil del rito: última
                             parada antes del recorrido, en cualquier ruta. */}
                         <SoloFueraDeMinima><VentanaPerfilInicial /></SoloFueraDeMinima>
-                        {/* Cursor personalizado + animaciones de clic (config en
-                            Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
-                        <CursorFxHost />
-                        <AlarmsEngine />
-                        <SoloFueraDeMinima><MontajeGlobalMensajeria /></SoloFueraDeMinima>
+                         {/* Cursor personalizado + animaciones de clic (config en
+                             Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
+                         <CursorFxHost />
+                         <MausbotHostCliente />
+                         <AlarmsEngine />
+                         <SoloFueraDeMinima><MontajeGlobalMensajeria /></SoloFueraDeMinima>
                         <MontajeConsumo />
                         <CommandPalette />
                         <Toaster />
