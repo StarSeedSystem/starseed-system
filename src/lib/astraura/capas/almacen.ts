@@ -73,6 +73,7 @@ const shaHex = async (datos: ArrayBuffer): Promise<string> => {
 };
 
 const claveTrozo = (id: string, indice: number): string => `capa/${id}/trozo/${indice}`;
+const claveMeta = (id: string): string => `capa/${id}/meta`;
 const esShaValido = (sha: string): boolean => /^[0-9a-f]{64}$/.test(sha);
 
 /**
@@ -172,7 +173,19 @@ export class AlmacenCapas {
       completa: true,
       sha256: entrada.sha256,
     });
+    // Persistir la meta para que la capa se reconozca al reabrir (capaEnPropio).
+    await this.escribirMeta(entrada.id);
     return { ok: true };
+  }
+
+  /** Escribe la meta actual de la capa en el almacén subyacente. */
+  private async escribirMeta(id: string): Promise<void> {
+    const meta = this.metas.get(id);
+    if (!meta) return;
+    const bytes = new TextEncoder().encode(JSON.stringify(meta));
+    const buffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buffer).set(bytes);
+    await this.almacen.escribir(claveMeta(id), buffer);
   }
 
   async abrirCapa(id: string): Promise<ArrayBuffer | null> {
@@ -207,6 +220,7 @@ export class AlmacenCapas {
     for (const i of await this.trozosGuardados(id)) {
       await this.almacen.borrar(claveTrozo(id, i));
     }
+    await this.almacen.borrar(claveMeta(id));
     this.metas.delete(id);
   }
 
