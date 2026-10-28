@@ -1,0 +1,39 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261020-091923-VST1018C",
+   "id": "VST1018Cb-d1",
+   "titulo": "Voz · licencia por contexto: qué motores pueden sonar en cada sitio (puro, con herencia de capas) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/licencia-voz.ts"
+   ],
+   "depende": [],
+   "prompt": "`motoresPermitidos(motores: { id, claseLicencia, condicionCumplida?: boolean }[], contexto: \"personal\"|\"grupo\"|\"comunidad\"|\"publico\"|\"comercial\", capas: CapasPrefs)` reutiliza `preferenciasEfectivas` de src/lib/modelos/preferencias-capas.ts («comercial» se trata como «publico» sin uso personal). Devuelve { permitidos, excluidos: { id, motivo }[] } con motivos legibles («pesos no comerciales: solo uso personal»). Una «condicionada» solo entra si `condicionCumplida` es true. Determinista. Pruebas con OmniVoice, Supertonic, Kokoro y IndexTTS en los cinco contextos. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261020-091923-VST1018C`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261020-091923-VST1018C:refs/remotes/origin/nube/a1-20261020-091923-VST1018C\"` y `git cherry-pick --no-commit bfa86110d08e ca478f400e9f`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/aurora/voz-starseed/__tests__/licencia-voz.test.ts, src/lib/aurora/voz-starseed/licencia-voz.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió VST1018Cb: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/aurora/voz-starseed/licencia-voz.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VST1018Cb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  },
+  {
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40442495147",
+   "id": "VST1018Gd-d1",
+   "titulo": "Demonio de voz · puerta local hacia VoiceStudio (detecta, reenvía y se aparta si no está) (parte 1 de 3)",
+   "archivos": [
+    "native/astraura-voice/voicestudio-proxy.mjs"
+   ],
+   "depende": [],
+   "prompt": "voicestudio-proxy.mjs exporta funciones PURAS o con fetch inyectable: `detectar(fetch)` (GET del descubrimiento cada 60 s como mucho, con caché), `reenviar(ruta, cuerpo, fetch)` solo para `/v1/audio/speech`, `/v1/audio/transcriptions` y `/v1/audio/voices` (cualquier otra ruta → 404), y `estado()` para /salud. En daemon.mjs solo añade el montaje: rutas `/voicestudio/*` que llaman al proxy y una línea en la salud con «voicestudio: vivo | ausente». Solo escucha 127.0.0.1. La prueba importa el .mjs como hace src/lib/__tests__/laya-servidor.test.ts. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40442495147`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40442495147:refs/remotes/origin/nube/40442495147\"` y `git cherry-pick --no-commit bd29dda87427 807bb3269a7d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: native/astraura-voice/daemon.mjs, native/astraura-voice/voicestudio-proxy.mjs, src/components/protomolecula/gobierno/__tests__/ayudas-prueba.ts, src/components/protomolecula/gobierno/__tests__/gobierno-proto-resumen.test.tsx, src/components/protomolecula/gobierno/__tests__/seccion-gobierno-proto.test.tsx, src/components/protomolecula/gobierno/ayudas-prueba.ts, src/lib/__tests__/voicestudio-proxy.test.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 3 (la dirección dividió VST1018Gd: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: native/astraura-voice/voicestudio-proxy.mjs. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VST1018Gd",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  }
+ ]
+}
