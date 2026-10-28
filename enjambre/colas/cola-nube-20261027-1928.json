@@ -1,0 +1,92 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "id": "MBT1027A",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Mausbot · los 10 cuerpos de la mascota-cursor como datos puros",
+   "archivos": [
+    "src/lib/mausbot/cuerpos.ts",
+    "src/lib/mausbot/__tests__/cuerpos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nPorta `integraciones-de-codigo/openmausbot/shared/mascot-bodies.ts` a `src/lib/mausbot/cuerpos.ts` SIN zod: `CUERPOS_MAUSBOT` (los 10: cursor, blob, circle, squircle, capsule, drop, shield, hexagon, diamond, star, con `nombre` en español), tipo `CuerpoId`, `CuerpoMausbot` (id, nombre, fit, body con `{{GRADIENT}}`, clip, anchor) y `cuerpoMausbot(valor: unknown): CuerpoId` (lo desconocido → «cursor»). Si el archivo pasa de 120 líneas por las rutas SVG, deja las rutas tal cual (son datos) y no añadas nada más. Prueba: los 10 ids únicos, cada body contiene `{{GRADIENT}}`, `cuerpoMausbot('x')` da «cursor»."
+  },
+  {
+   "id": "MBT1027B",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Mausbot · expresiones y la tabla estado de Astraura → expresión",
+   "archivos": [
+    "src/lib/mausbot/expresiones.ts",
+    "src/lib/mausbot/__tests__/expresiones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nPorta de `integraciones-de-codigo/openmausbot/src/components/cursor-face-data.ts` lo necesario para dibujar ojos y boca (FACE_BOX, FACE_CENTRE, GAZE_TRAVEL, las 25 expresiones decodificadas y las bocas) a `src/lib/mausbot/expresiones.ts`, y añade `EstadoMausbot` (los estados de CursorAvatar.tsx: sleeping, waking, idle, listening, thinking, searching, working, excited, surprised, suspicious, angry, drowsy, happy, curious, confused, bored, proud, shy) con `expresionDe(estado)` y `estadoDesdeOrbe(voz)` según la tabla del contrato §3 (`QuantumOrbVoiceState` de `src/lib/aurora/quantum-orb-bus.ts`: listening/user_speaking→listening, thinking→thinking, speaking→happy, error→confused, idle→idle). Prueba: 25 expresiones con 2 ojos y 48 puntos cada uno; la tabla."
+  },
+  {
+   "id": "INS1027A",
+   "ola": "1027I · Neurona insomne",
+   "titulo": "Neurona insomne · estado, proveedores por plataforma y cuándo soltar trabajo (puro)",
+   "archivos": [
+    "src/lib/neurons/insomne.ts",
+    "src/lib/neurons/__tests__/insomne.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «funcionamiento nativo para las neuronas compatibles de sus capacidades siempre disponibles aun con las pantallas cerradas, incluyendo agentes y procesos programados en segundo plano y la actividad de la red mesh P2P compartida inteligentemente por la red StarSeed, para potenciarlas como servidores completos» (krishhgg/Insomnia, MIT). Contrato: `architecture/neurona-insomne.md` (léelo entero). El OS LEE el estado de Insomnia; nunca ejecuta `pmset` ni usa su regla de sudoers.\n\n`EstadoInsomne`, `capacidadInsomne(plataforma, versionSO?)` con la tabla del contrato §2 (macOS 26+ arm64 → «insomnia»; otra macOS → «caffeinate» solo con corriente; linux → «systemd-inhibit»; windows → «powercfg»; servidor → «siempre»; web/pwa → «wake-lock» solo visible; android/ios → «no»), `politicaInsomne` (agentes, programados, malla, servidorCerebro, biblioteca; todo true por defecto) y `debeSoltarTrabajo(estado, ahora)` (quedan < 15 min, batería < 15 % sin cargar o calor crítico). `estadoDesdeSesionInsomnia(json, ahora)`: de `{startedAt, endsAt, extensions}` (ISO 8601) a `EstadoInsomne` (vencida → inactiva). Pruebas de todo."
+  },
+  {
+   "id": "GCA1019Lb",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "API de opciones por ámbito",
+   "archivos": [
+    "src/app/api/genesis/conectores/route.ts",
+    "src/app/api/genesis/conectores/__tests__/route.test.ts"
+   ],
+   "depende": [],
+   "prompt": "GET `?ambito=` → catálogo filtrado, sugerencias de `sugerir.ts` y asignaciones del ámbito (sin claves); POST {accion: \"vincular\", proveedor, valor} guarda con la bóveda y responde solo la huella; POST {accion: \"asignar\", clave, cadena}. Sesión obligatoria y permiso del ámbito (`src/lib/mando/permisos.ts`); límite de 20 peticiones por 10 minutos como `/api/genesis/proponer`. Prueba con dependencias falsas. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-012522-GCA1019L`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-012522-GCA1019L:refs/remotes/origin/nube/a1-20261024-012522-GCA1019L\"` y `git cherry-pick --no-commit d304dd1df976 c55b6294f364`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/genesis/conectores/__tests__/route.test.ts, src/app/api/genesis/conectores/route.ts, src/lib/genesis/conectores/sugerir-conector.ts, src/lib/genesis/conectores/vacio.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GCA1019J"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-012522-GCA1019L",
+   "dependencias_ya_en_main": [
+    "GCA1019K"
+   ]
+  },
+  {
+   "id": "RIA1023Eb",
+   "ola": "1023R",
+   "titulo": "Capas de Astraura · capaEnPropio de verdad (cruzar el SHA con el catálogo local)",
+   "archivos": [
+    "src/lib/astraura/capas/repartir.ts",
+    "src/lib/astraura/capas/__tests__/repartir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\n`capaEnPropio` en `repartir.ts` hoy devuelve siempre false (lo dice su comentario). Hazla real: busca en el almacén la meta de la capa cuyo SHA-256 coincide y comprueba que todos sus trozos están y verificados (usa las claves y metas que ya escribe este módulo; no inventes otro formato). Exportala para probarla. Pruebas: almacén con la capa completa → true; con un trozo que falta → false; con otro SHA → false. Corre `npx vitest run src/lib/astraura/capas` y lee el resumen entero.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261024-041848`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama (la reasignación apuntaba al run 40083370936 de nube-gh, que ya terminó, y esta rama es de otro medio)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261024-041848:refs/remotes/origin/nube/a1-20261024-041848\"` y `git cherry-pick --no-commit 5fa9bc679d3a efcf170ef00c d78160453045 17ae44b2c792 bb01192d2bb3 51ea64c486b6 2806dec6aa9f bde8ee2a3c94`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/lib/astraura/capas/__tests__/repartir.test.ts, src/lib/astraura/capas/repartir.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261024-041848"
+  },
+  {
+   "id": "MTN1027F",
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "titulo": "Automejora · la imagen de la caja y lo que corre dentro",
+   "archivos": [
+    "deploy/oracle/nodo/automejora/Dockerfile",
+    "deploy/oracle/nodo/automejora/dentro.py",
+    "scripts/puente/test_automejora_dentro.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\n`Dockerfile`: `FROM python:3.12-slim`, `git clone` de meta-n y `git checkout b7081843d3c7b0e0f418ca10aaf2ccbff856e7f8`, `pip install --no-cache-dir .` (solo el núcleo, sin extras), copia `dentro.py` a `/app/`, usuario `65534:65534`, `WORKDIR /work`, `ENTRYPOINT [\"python\", \"/app/dentro.py\"]`. `dentro.py` (stdlib): (1) un reenviador que escucha en 127.0.0.1:8080 y pasa cada conexión al socket `/run/llm.sock`; (2) lanza `meta-n --tasks /work/tareas.json --use-archive --base-url http://127.0.0.1:8080/v1 --api-key caja --model <--modelo> --max-iterations <--iteraciones> --patience <--paciencia> --parallel 1 --daily-budget-usd 0 --output-dir /work/salida --exp-name noche`; (3) al acabar, para el mejor candidato de `archive/index.json` ejecuta los `pre_process` de su cadena con `meta_n.core.meta_layer.run_pre_process` sobre cada tarea de `/work/apartadas-sin-etiqueta.json` y escribe `/work/pautas.json` = {task_id: texto} y `/work/mejor.json` (id, mean_score y la lista de `InjectedCode` sin los prompts). `construir_orden(args)` separada para poder probarla. Prueba de `construir_orden` y del reenviador con un socket falso (sin Docker ni meta-n)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1027-192421.json": [
+   "GCA1019Lb",
+   "RIA1023Eb",
+   "MBT1027A",
+   "INS1027A",
+   "MBT1027B",
+   "MTN1027F"
+  ]
+ }
+}
