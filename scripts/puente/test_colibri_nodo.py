@@ -4,9 +4,12 @@
 Casos de la tarea: el A1 (12 GB, 18,5 GB libres) solo deja Laya y GLiNER2.5-Decide, y Qwen3-Coder
 no; la Mac (8 GB con presión) no deja a ninguno. Sin red, sin descargas, sin tocar el disco.
 """
+import io
+import json
 import os
 import sys
 import unittest
+from contextlib import redirect_stdout
 
 DIR = os.path.dirname(os.path.abspath(__file__))
 if DIR not in sys.path:
@@ -88,6 +91,58 @@ class PruebaPlan(unittest.TestCase):
     def test_id_desconocido(self):
         with self.assertRaises(ValueError):
             C.plan_instalacion("colibri-no-existe", "/srv")
+
+
+class PruebaRescate(unittest.TestCase):
+    """Casos rescatados de la rama nube/40611446903 (RTCLB1027E), adaptados a la API de hoy."""
+
+    def setUp(self):
+        self.entradas = C.entradas()
+
+    def test_avisa_de_la_descarga_temporal_si_el_disco_no_llega(self):
+        olmoe = next(e for e in self.entradas if e["id"] == "colibri-olmoe-7b")
+        self.assertGreater(olmoe["descarga_gb"], olmoe["disco_gb"])
+        filas = {f["id"]: f for f in C.caben(self.entradas, 12, 0.5)}
+        self.assertEqual(filas["colibri-olmoe-7b"]["veredicto"], "no cabe")
+        self.assertIn("descarga temporal pide 14 GB", filas["colibri-olmoe-7b"]["porque"])
+
+    @unittest.expectedFailure
+    def test_fallo_pendiente_disco_que_no_cubre_la_descarga_temporal_dice_cabe(self):
+        """FALLO REAL pendiente en colibri_nodo._veredicto: la descarga temporal solo se
+        avisa cuando el disco libera MENOS que el tamaño final del modelo; si hay sitio para
+        los 7 GB finales pero no para la descarga de 14 GB, dice «cabe» sin avisar."""
+        filas = {f["id"]: f for f in C.caben(self.entradas, 60, 10, False, 0.0)}
+        self.assertEqual(filas["colibri-olmoe-7b"]["veredicto"], "no cabe")
+        self.assertIn("descarga temporal", filas["colibri-olmoe-7b"]["porque"])
+
+    def test_glm_en_streaming_con_disco_sobrado_falta_ram_recomendada(self):
+        filas = {f["id"]: f for f in C.caben(self.entradas, 20, 900)}
+        self.assertEqual(filas["colibri-glm-5.2"]["veredicto"], "cabe en streaming (disco rápido)")
+        self.assertIn("expertos del disco", filas["colibri-glm-5.2"]["porque"])
+
+    def test_caben_no_muta_y_las_filas_solo_traen_su_ficha(self):
+        antes = json.loads(json.dumps(self.entradas))
+        filas = C.caben(self.entradas, 12, 18.5)
+        self.assertEqual(self.entradas, antes)
+        for fila in filas:
+            self.assertEqual(set(fila), {"id", "capa", "veredicto", "porque"})
+
+    def test_main_sin_plan_imprime_uso_y_termina_en_2(self):
+        salida = io.StringIO()
+        with redirect_stdout(salida):
+            codigo = C.main([])
+        self.assertEqual(codigo, 2)
+        self.assertIn("uso", salida.getvalue())
+
+    def test_main_con_plan_dice_que_no_ejecuta_nada(self):
+        salida = io.StringIO()
+        with redirect_stdout(salida):
+            codigo = C.main(["--plan"])
+        self.assertEqual(codigo, 0)
+        texto = salida.getvalue()
+        self.assertIn("Plan de instalación", texto)
+        self.assertIn("127.0.0.1:4480", texto)
+        self.assertIn("se descarga ni se ejecuta", texto)
 
 
 if __name__ == "__main__":
