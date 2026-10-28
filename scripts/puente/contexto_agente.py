@@ -23,6 +23,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Callable
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(os.path.dirname(DIRECTORIO))
@@ -487,6 +488,36 @@ def seccion_relevo(texto):
     return "## Dónde vamos (relevo)\n" + trozo[:900]
 
 
+def seccion_recuerdos(recuerdos: "Callable[[], list] | None" = None):
+    """(MVD1027G) «Recuerdos de este agente»: lo que su cápsula Memvid respondió de la tarea,
+    con `buscar` k=3. Es PURA: solo entra si alguien pasa la función `recuerdos()` (que toca
+    el disco y el servidor); si el servidor de cápsulas no está, no sale nada."""
+    if not callable(recuerdos):
+        return ""
+    try:
+        aciertos: list = list(recuerdos() or [])
+    except Exception:
+        return ""
+    if not aciertos:
+        return ""
+    lineas = ["## Recuerdos de este agente (cápsula Memvid)"]
+    for a in aciertos[:3]:
+        texto_a = " ".join(str((a or {}).get("texto") or "").split())[:300]
+        uri = (a or {}).get("uri") or ""
+        lineas.append("- `%s` %s" % (uri, texto_a) if uri else "- " + texto_a)
+    return "\n".join(lineas)
+
+
+def _recuerdos_con_memvid(agente, tarea):
+    """La función `recuerdos()` de la CLI: importa el cliente (lazy, la CLI es la única que
+    toca el disco y la red) y busca k=3 en la cápsula del agente. None→[] si el servidor no está."""
+    def _traer():
+        import memvid_cliente as mc
+
+        return mc.buscar_recuerdos(agente, tarea, k=3) or []
+    return _traer
+
+
 def _recortar(texto, n):
     if len(texto) <= n:
         return texto
@@ -495,7 +526,7 @@ def _recortar(texto, n):
 
 
 def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, existe=None, excluir=(),
-              extras=None, raices=None, oracle=None):
+              extras=None, raices=None, oracle=None, recuerdos=None):
     """El contexto común de un agente (markdown) y sus metadatos. PURA con `leer`/`existe`.
 
     Devuelve {texto, rol, area, secciones, recortadas, caracteres}. `area` puede inferirse de
@@ -525,10 +556,12 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
         "relevo": lambda: seccion_relevo(leer(RELEVO)),
         "nube": lambda: seccion_nube(oracle),
         "salida": lambda: seccion_salida(rol),
+        "recuerdos": lambda: seccion_recuerdos(recuerdos),
     }
     partes, puestas, recortadas = [cabecera], [], []
     usado = len(cabecera)
-    for nombre in ORDEN[rol]:
+    nombres = ORDEN[rol] if not callable(recuerdos) else ("recuerdos",) + ORDEN[rol]
+    for nombre in nombres:
         if nombre in excluir:
             continue
         texto = sanear(piezas[nombre]() or "")
@@ -549,9 +582,11 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
             "caracteres": len(salida), "compacto": compacto}
 
 
-def texto(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, raiz=None, excluir=()):
+def texto(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, raiz=None, excluir=(),
+          agente=None):
     """Atajo con el disco del repo (lo que usan el orquestador y la CLI). Nunca lanza: sin
-    repo o con un error, devuelve ""."""
+    repo o con un error, devuelve "". Con `agente`, trae «Recuerdos de este agente» de su
+    cápsula Memvid (k=3; si el servidor de cápsulas no está, no sale nada)."""
     raiz = raiz or RAIZ
 
     def leer(ruta):
@@ -563,7 +598,8 @@ def texto(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, raiz=None, exclui
 
     try:
         return construir(rol, area, tarea, max_chars, leer, lambda r: os.path.exists(os.path.join(raiz, r)),
-                         excluir, oracle=_oracle_del_disco())["texto"]
+                         excluir, oracle=_oracle_del_disco(),
+                         recuerdos=_recuerdos_con_memvid(agente, tarea) if agente else None)["texto"]
     except Exception:
         return ""
 
