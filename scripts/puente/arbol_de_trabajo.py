@@ -17,6 +17,9 @@ propio y sigue, y se planta solo si hay algo ajeno).
 Módulo PURO: entra el texto de `git status --porcelain`, salen dos listas.
 """
 
+import json
+import os
+
 # Rutas (relativas a la raíz del repo) que escribe el propio enjambre como parte
 # de su funcionamiento normal. Solo esto se considera «propio»: la lista se
 # amplía a mano y con motivo, nunca con comodines, para que un fallo de un agente
@@ -52,7 +55,45 @@ def ruta_de(linea):
     return resto
 
 
-def repartir(porcelain, propias=PROPIAS):
+def _es_cola_versionada_propia(ruta, linea, raiz=None):
+    """(2026-10-28) Las colas versionadas que re-apunta el propio enjambre
+    (revisor_bloqueadas_logica.heredar_dependientes, dividir_tareas) se modifican
+    en tracked: ` M starseed_memory_root/olas/cola-*.json`. Si sigue siendo
+    una lista JSON de tareas con `id`, son contabilidad propia del enjambre
+    (se commitean con `_recoger_lo_nuestro`). Si no se puede leer o no lo es,
+    sigue siendo ajena: lado seguro."""
+    if not ruta:
+        return False
+    if not ruta.startswith("starseed_memory_root/olas/cola-") or not ruta.endswith(".json"):
+        return False
+    # Debe ser modificado en el árbol (tracked), no sin seguimiento
+    if len(linea) >= 2 and linea[0:2] == "??":
+        return False
+    # Buscar archivo
+    candidatos = []
+    if raiz:
+        candidatos.append(os.path.join(raiz, ruta))
+    candidatos.append(ruta)
+    candidatos.append(os.path.join(os.getcwd(), ruta))
+    for cand in candidatos:
+        try:
+            with open(cand, "r", encoding="utf-8") as f:
+                datos = json.load(f)
+            if isinstance(datos, list) and datos and all(isinstance(t, dict) and "id" in t for t in datos):
+                return True
+            # Si es lista pero vacía o sin ids, según requisito dice "lista JSON de tareas con `id`"
+            # una lista de tareas con id - debe tener elementos con id
+            if isinstance(datos, list):
+                # si tiene elementos, todos deben tener id
+                if datos and all(isinstance(t, dict) for t in datos) and all("id" in t for t in datos):
+                    return True
+            return False
+        except Exception:
+            continue
+    return False
+
+
+def repartir(porcelain, propias=PROPIAS, raiz=None):
     """Reparte las líneas sucias en (propias, ajenas), en el orden que llegaron.
 
     Devuelve rutas, no líneas: quien llame va a commitear o a nombrar archivos.
@@ -65,11 +106,14 @@ def repartir(porcelain, propias=PROPIAS):
         ruta = ruta_de(linea)
         if not ruta:
             continue
-        (mias if ruta in conocidas else ajenas).append(ruta)
+        if ruta in conocidas or _es_cola_versionada_propia(ruta, linea, raiz):
+            mias.append(ruta)
+        else:
+            ajenas.append(ruta)
     return mias, ajenas
 
 
-def clasificar(porcelain, propias=PROPIAS):
+def clasificar(porcelain, propias=PROPIAS, raiz=None):
     """Reparte las líneas sucias en (propias, estorbo, ajenas), en el orden que llegaron.
 
     (2026-10-25, ENJ1025A) Como `repartir`, pero separa además el ESTORBO: un residuo sin
@@ -85,6 +129,21 @@ def clasificar(porcelain, propias=PROPIAS):
 
     lineas = [l for l in (porcelain or "").splitlines() if l.strip()]
     estorbo, mias, ajenas = curacion_logica.clasificar_lineas(lineas, propias)
+    # (2026-10-28) Las colas versionadas re-apuntadas por el propio enjambre pasan a propias
+    if ajenas:
+        nuevas_ajenas = []
+        for ruta in ajenas:
+            # buscar línea correspondiente
+            linea_corr = ""
+            for l in lineas:
+                if ruta_de(l) == ruta:
+                    linea_corr = l
+                    break
+            if _es_cola_versionada_propia(ruta, linea_corr, raiz):
+                mias.append(ruta)
+            else:
+                nuevas_ajenas.append(ruta)
+        ajenas = nuevas_ajenas
     return mias, estorbo, ajenas
 
 
