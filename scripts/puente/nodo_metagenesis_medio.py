@@ -823,10 +823,11 @@ def lanzar_cola(args: Dict[str, Any], medio: str, raiz: str) -> Tuple[str, str]:
 # plazo y la capacidad de este aparato como contenedor de agentes. Solo biblioteca estándar.
 
 
-def en_curso_de(raiz: str, colas: List[str]) -> List[Dict[str, Any]]:
+def en_curso_de(raiz: str, colas: List[str]) -> Optional[List[Dict[str, Any]]]:
     """PURA. Lo que ESTE aparato tiene a medias AHORA: de los `latidos-<cola>.json` de las colas
     vivas, las tareas con fase viva (no vacía ni «hecho»), con su último punto de control si existe.
-    Devuelve lista vacía si no hay latidos o no hay tareas vivas (nunca None)."""
+    Devuelve None si falla al leer un latidos (JSON roto); lista vacía si no hay latidos o no hay tareas vivas.
+    La lista se devuelve ordenada alfabéticamente por id de tarea."""
     olas = os.path.join(raiz, "starseed_memory_root", "olas")
     tareas: Dict[str, Dict[str, Any]] = {}
     puntos: Dict[str, Dict[str, Any]] = {}
@@ -844,20 +845,22 @@ def en_curso_de(raiz: str, colas: List[str]) -> List[Dict[str, Any]]:
         try:
             with open(ruta, encoding="utf-8") as f:
                 d = json.load(f)
-            t = d.get("tareas") if isinstance(d, dict) else None
-            if isinstance(t, dict):
-                for tid, v in t.items():
-                    if not isinstance(v, dict):
-                        continue
-                    fase = v.get("fase")
-                    if C.tarea_viva(fase):
-                        if tid not in tareas:
-                            p = puntos.get(str(tid))
-                            punto = p if isinstance(p, dict) and p.get("sha") else None
-                            tareas[str(tid)] = {"id": str(tid), "fase": str(fase), "punto": punto}
-        except (OSError, ValueError):
-            continue
-    return list(tareas.values())[:8]
+        except OSError:
+            continue  # archivo no existe: no es error, seguimos con las otras colas
+        except ValueError:
+            return None  # JSON roto: no afirmamos nada
+        t = d.get("tareas") if isinstance(d, dict) else None
+        if isinstance(t, dict):
+            for tid, v in t.items():
+                if not isinstance(v, dict):
+                    continue
+                fase = v.get("fase")
+                if C.tarea_viva(fase):
+                    if tid not in tareas:
+                        p = puntos.get(str(tid))
+                        punto = p if isinstance(p, dict) and p.get("sha") else None
+                        tareas[str(tid)] = {"id": str(tid), "fase": str(fase), "punto": punto}
+    return sorted(tareas.values(), key=lambda x: x["id"])[:8]
 
 
 def desconectando_ahora(ahora: float) -> bool:
@@ -881,9 +884,25 @@ def contenedor_de(disco_gb: Optional[float], ram_mb: Optional[int]) -> Optional[
     de hardware. Devuelve None si no hay datos de hardware para decidir."""
     if disco_gb is None or ram_mb is None:
         return None
+    # Herramientas: usar tiene_herramienta para cada una (puede estar parcheada en tests)
+    herramientas = {h: tiene_herramienta(h) for h in C.HERRAMIENTAS}
+    bat = bateria()
     cap = C.capacidad_contenedor({"ram_total_mb": ram_mb, "disco_libre_gb": disco_gb,
-                                    "herramientas": {"git": True, "node": True, "python3": True, "opencode": True},
-                                    "so": "linux", "medio_app": "nativa", "nucleos": os.cpu_count()})
+                                    "herramientas": herramientas, "bateria": bat,
+                                    "so": so_de_este_aparato(), "medio_app": "nativa", "nucleos": os.cpu_count()})
+    # Leer el estado activo/trabajadores del archivo contenedor.json
+    activo = False
+    trabajadores = cap.get("agentes", 0)
+    try:
+        with open(os.path.join(CARPETA, "contenedor.json"), encoding="utf-8") as f:
+            d = json.load(f)
+        if isinstance(d, dict):
+            activo = bool(d.get("activo"))
+            if activo and isinstance(d.get("trabajadores"), int):
+                trabajadores = min(trabajadores, d["trabajadores"])
+    except (OSError, ValueError):
+        pass
+    return {"activo": activo, "agentes": trabajadores, "apto": cap.get("apto", False), "motivo": cap.get("motivo", "")}
     # Leer el estado activo/trabajadores del archivo contenedor.json
     activo = False
     trabajadores = cap.get("agentes", 0)
@@ -942,10 +961,10 @@ def bateria_de(pmset_out: str) -> Dict[str, Any]:
     Devuelve {"cargando": bool, "nivel": float 0-1} o {} si no hay batería / no se lee."""
     if not pmset_out or "InternalBattery" not in pmset_out:
         return {}
-    cargando = "charging" in pmset_out
     m = re.search(r"(\d+)%\s*;\s*(charging|discharging)", pmset_out)
     if not m:
         return {}
+    cargando = m.group(2) == "charging"
     nivel = int(m.group(1)) / 100.0
     return {"cargando": cargando, "nivel": nivel}
 
