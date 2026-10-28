@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261027",
+ "tareas": [
+  {
+   "ola": "1024S",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40533211406",
+   "id": "SGO1024Ac-d2",
+   "titulo": "Voz · el elector del oído aprende de lo medido (buildRecognition pasa medidas reales a elegirOido) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/aurora/__tests__/elegir-oido-medidas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024A (2026-10-24): buildRecognition llama a elegirOido con `medidas: {}`, así que el elector del oído no aprende de las medidas que ahora sí se anotan (src/lib/aurora/medidas-voz.ts: medidasDe / leerMedidas, tipo «tiempo-real-oido», menor es mejor). Pásale las medidas reales de esta neurona (mediana por motor de las últimas, como hace vozMedida en src/lib/network/capacidades-nodo.ts) sin bloquear el arranque del reconocimiento. Prueba con medidas simuladas: con medidas elige el más rápido; sin medidas, el orden de siempre. Máximo 3 archivos y 120 líneas nuevas por archivo.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40533211406`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40533211406:refs/remotes/origin/nube/40533211406\"` y `git cherry-pick --no-commit 586d74944102`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/aurora/__tests__/elegir-oido-medidas.test.ts, src/lib/aurora/engine.ts, src/lib/aurora/stt-oss/medidas-oido.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió SGO1024Ac: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/aurora/__tests__/elegir-oido-medidas.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SGO1024Ac",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "revisor_quitadas": [
+    "SGO1024Ac-d1"
+   ]
+  }
+ ]
+}
