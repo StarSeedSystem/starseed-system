@@ -70,7 +70,7 @@ export interface CandidatoConMedida {
   donde: "local" | "par" | "servidor-starseed" | "servidor-propio" | "api-gratis";
   nodo?: string;
   puntos: number;
-  capa?: Capa;
+  capa?: { id: string; capa: Capa; sha256: string; ramMinMb?: number; profundidad?: number };
 }
 
 /**

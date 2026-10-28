@@ -90,7 +90,8 @@ async function candidatosConMedida(entrada: EntradaPlanificador): Promise<Candid
       const webIncapaz = perfil.medio === "web" && capa !== "reflejo" && !perfil.webgpu;
       if (instalada.capa === capa && verificada(instalada) && !webIncapaz &&
           (instalada.ramMinMb ?? 0) <= limiteRam) {
-        candidatos.push({ modelo: instalada.id, donde: "local",
+        candidatos.push({ modelo: instalada.id, donde: "local" as const,
+          capa: instalada,
           puntos: 30 + puntuarModelo(instalada.id) + sesgoNivelador(p, "astraura-158-local") });
       }
     }
@@ -105,10 +106,11 @@ async function candidatosConMedida(entrada: EntradaPlanificador): Promise<Candid
     if (entrada.privacidad === "privada" && nodo.tipo !== "servidor-propio" && !parPropio) continue;
     const capas = nodo.capas?.filter((c) => c.capa === capa && verificada(c)) ?? [];
     if (nodo.tipo === "api-gratis" && entrada.privacidad !== "privada") {
-      candidatos.push({ modelo: "enrutador-gratis", donde: nodo.tipo, nodo: nodo.id,
+      candidatos.push({ modelo: "enrutador-gratis", donde: nodo.tipo as CandidatoConMedida["donde"], nodo: nodo.id,
         puntos: 10 + sesgoNivelador(p, "openrouter") });
     }
-    for (const disponible of capas) candidatos.push({ modelo: disponible.id, donde: nodo.tipo, nodo: nodo.id,
+    for (const disponible of capas) candidatos.push({ modelo: disponible.id, donde: nodo.tipo as CandidatoConMedida["donde"], nodo: nodo.id,
+      capa: disponible,
       puntos: 24 + puntuarModelo(disponible.id) - ((nodo.latenciaMs ?? 0) > (entrada.latenciaMs ?? Infinity) ? 8 : 0) });
   }
   candidatos.sort((a, b) => b.puntos - a.puntos || a.modelo.localeCompare(b.modelo));
@@ -126,7 +128,7 @@ export async function planificar(entrada: EntradaPlanificador): Promise<PlanCapa
   if (!elegido) return { capa, modelo: "ninguno", donde: "local", respaldo: [],
     motivo: "No hay una capa verificada permitida para este medio y privacidad." };
   const profundidad = capa === "reflejo"
-    ? Math.min(elegido.capa?.profundidad ?? 20, profundidadNeedle(entrada.presupuesto.discoMb)) || undefined
+    ? Math.min(elegido.capa?.profundidad ?? 20, profundidadNeedle(entrada.presupuesto.discoMb))
     : undefined;
   const fondo = entrada.segundoPlano || entrada.perfil.visible === false || entrada.perfil.saveData === true ||
     (entrada.perfil.bateriaPct != null && entrada.perfil.bateriaPct < 20);
