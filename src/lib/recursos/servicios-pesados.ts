@@ -1,4 +1,8 @@
 import { planificar, type OfertaNeurona, type Peticion } from "./oferta";
+// Requisitos declarados de la 4.ª tanda (config/repos-libreria-1020d.json): la
+// bolsa los lee de REQUISITOS_1020D en vez de duplicarlos a mano
+// (architecture/repos-libreria-1020d.md §3). Lo medido encima (A1, 2026-10-20).
+import { REQUISITOS_1020D, type RequisitosPesado } from "../library/repos-externos-1020";
 
 export type TipoDestino = "aparato" | "cuenta" | "cerebro" | "malla" | "capa-publica" | "web-gratis" | "ninguno";
 export type Destino = { tipo: TipoDestino; id?: string };
@@ -9,7 +13,21 @@ export type RequisitosServicio = { id: ServicioId; nombre: string; ram_gb: numbe
 export type Contexto = { cuentaId: string; grupos?: string[]; aparatoId?: string; servidoresCerebro?: string[]; privado?: boolean; enjambreEscribiendo?: boolean; presionMemoria?: "ok" | "aviso"; arquitecturas?: Record<string, string>; ofertasMedidas?: string[]; permisoEspaciosHf?: boolean; t?: number };
 export type CapaPublica = { id: string; nombre: string; estado: "activa" | "inactiva" | "con-permiso"; ocpu: number | null; ramMb: number | null; arquitectura: string; gpu: boolean; motivo: string };
 export type ServicioInstalado = { servicio: ServicioId; host: "127.0.0.1"; puerto: number; bajoDemanda: true; enciendeAlPrimerUso: true; apagaSinUsoMin: 15; cabeSiMb: number };
-const r = (id: ServicioId, nombre: string, extra: Partial<RequisitosServicio>): RequisitosServicio => ({ id, nombre, ram_gb: null, ramMedidaMb: null, vram_gb: null, gpu: "no", docker: "opcional", arquitecturas: ["amd64", "arm64"], so: ["linux"], fuente: "catálogo config/repos-libreria-1020d.json", medido: null, ...extra });
+const ID_EN_TANDA_1020D: Record<ServicioId, string> = {
+  comfyui: "lib-comfyui",
+  libretranslate: "lib-libretranslate",
+  "stirling-pdf": "lib-stirling-pdf",
+  archivebox: "lib-archivebox",
+  "openhands-agent-server": "lib-openhands",
+  coolify: "lib-coolify",
+};
+const gpuDeTanda = (gpu: string): Gpu => (gpu === "opcional" || gpu === "recomendada" || gpu === "necesaria" ? gpu : "no");
+const deTanda1020d = (id: ServicioId): Partial<RequisitosServicio> => {
+  const req: RequisitosPesado | null | undefined = REQUISITOS_1020D[ID_EN_TANDA_1020D[id]];
+  if (!req) return {};
+  return { ram_gb: req.ram_gb, vram_gb: req.vram_gb, gpu: gpuDeTanda(req.gpu), docker: req.docker, arquitecturas: [...req.arquitecturas], so: [...req.so], fuente: req.fuente };
+};
+const r = (id: ServicioId, nombre: string, extra: Partial<RequisitosServicio>): RequisitosServicio => ({ id, nombre, ram_gb: null, ramMedidaMb: null, vram_gb: null, gpu: "no", docker: "opcional", arquitecturas: ["amd64", "arm64"], so: ["linux"], fuente: "catálogo config/repos-libreria-1020d.json", medido: null, ...deTanda1020d(id), ...extra });
 export const REQUISITOS_SERVICIO: Record<ServicioId, RequisitosServicio> = {
   comfyui: r("comfyui", "ComfyUI", { ram_gb: 8, ramMedidaMb: 4096, vram_gb: 4, gpu: "recomendada", so: ["linux", "macos", "windows"], fuente: "medido en el A1 (CPU arm64, sin GPU): ComfyUI 0.42.1 + SD 1.5 en fp32 ocupa 4,1 GB y una imagen de 512 px con 12 pasos tarda más de 10 min: solo cola sin prisa", medido: "4,1 GB en uso y más de 10 min por imagen en CPU (A1, 2026-10-20)" }),
   libretranslate: r("libretranslate", "LibreTranslate", { ramMedidaMb: 711, gpu: "opcional", so: ["linux", "macos", "windows"], fuente: "imagen Docker libretranslate/libretranslate multiarquitectura (amd64 y arm64, comprobado el 2026-10-20); medido en el A1: v1.9.6, 711 MiB con es, en, pt, fr, de e it", medido: "711 MiB con seis idiomas (A1, 2026-10-20)" }),
