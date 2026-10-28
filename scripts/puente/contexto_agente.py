@@ -12,7 +12,7 @@ vive el código) y por dónde va el relevo. Es compacto a propósito: el context
 
   python3 scripts/puente/contexto_agente.py --rol escritor|revisor|analista|supervisor|subagente|investigador-diseno|investigador-alcance
                                             [--area mando] [--tarea "…"] [--max 6000]
-                                            [--excluir relevo,herramientas] [--json]
+                                            [--excluir relevo,herramientas] [--agente <nombre>] [--json]
 
 Núcleo PURO (`construir` recibe `leer`/`existe`); solo la CLI toca el disco. Nunca lleva
 claves: todo pasa por `sanear` antes de salir.
@@ -264,13 +264,13 @@ PROTOCOLO_COMPACTO = (
 )
 
 ORDEN = {
-    "escritor": ("reglas", "protocolo", "herramientas", "area", "relevo"),
-    "revisor": ("reglas", "area", "protocolo", "herramientas"),
-    "analista": ("reglas", "area", "protocolo", "herramientas"),
-    "supervisor": ("reglas", "protocolo", "herramientas", "nube", "area", "relevo"),
-    "subagente": ("reglas", "protocolo", "herramientas", "nube", "relevo", "area"),
-    "investigador-diseno": ("reglas", "salida", "protocolo", "herramientas", "area"),
-    "investigador-alcance": ("reglas", "salida", "protocolo", "herramientas", "area"),
+    "escritor": ("reglas", "protocolo", "herramientas", "area", "relevo", "recuerdos"),
+    "revisor": ("reglas", "area", "protocolo", "herramientas", "recuerdos"),
+    "analista": ("reglas", "area", "protocolo", "herramientas", "recuerdos"),
+    "supervisor": ("reglas", "protocolo", "herramientas", "nube", "area", "relevo", "recuerdos"),
+    "subagente": ("reglas", "protocolo", "herramientas", "nube", "relevo", "area", "recuerdos"),
+    "investigador-diseno": ("reglas", "salida", "protocolo", "herramientas", "area", "recuerdos"),
+    "investigador-alcance": ("reglas", "salida", "protocolo", "herramientas", "area", "recuerdos"),
 }
 
 #: Lo que cada rol debe devolver, cuando su salida tiene forma fija (solo los roles que la tienen).
@@ -487,6 +487,35 @@ def seccion_relevo(texto):
     return "## Dónde vamos (relevo)\n" + trozo[:900]
 
 
+def _recuerdos_reales(agente, consulta, k=3):
+    """La cápsula Memvid del agente (si el servidor no está, None y no sale nada)."""
+    try:
+        import memvid_cliente as mv
+    except Exception:
+        return None
+    return mv.buscar(mv.capsula_agente(agente), consulta, k=k)
+
+
+def seccion_recuerdos(agente, consulta, buscar=None):
+    """«Recuerdos de este agente»: la cápsula Memvid del agente que pide el contexto.
+    Opcional a propósito — sin agente, sin consulta o sin servidor, no sale nada."""
+    if not agente or not consulta:
+        return ""
+    try:
+        aciertos = (buscar or _recuerdos_reales)(agente, consulta, 3) or []
+    except Exception:
+        return ""
+    if not aciertos:
+        return ""
+    lineas = ["## Recuerdos de este agente"]
+    for a in aciertos[:3]:
+        linea = "- " + " ".join(str(a.get("texto", "")).split())[:400]
+        if a.get("uri"):
+            linea += " (`%s`)" % a["uri"]
+        lineas.append(linea)
+    return "\n".join(lineas)
+
+
 def _recortar(texto, n):
     if len(texto) <= n:
         return texto
@@ -495,11 +524,13 @@ def _recortar(texto, n):
 
 
 def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, existe=None, excluir=(),
-              extras=None, raices=None, oracle=None):
+              extras=None, raices=None, oracle=None, agente=None, recuerdos=None):
     """El contexto común de un agente (markdown) y sus metadatos. PURA con `leer`/`existe`.
 
     Devuelve {texto, rol, area, secciones, recortadas, caracteres}. `area` puede inferirse de
-    la tarea (si nombra una ruta de código de un área)."""
+    la tarea (si nombra una ruta de código de un área). Con `agente` (o el entorno
+    `STARSEED_AGENTE`) intenta añadir «Recuerdos de este agente» desde las cápsulas Memvid
+    (`recuerdos` es una función sustituta para las pruebas)."""
     if rol not in ROLES:
         raise ValueError("rol desconocido: %s (%s)" % (rol, " | ".join(ROLES)))
     leer = leer or (lambda ruta: None)
@@ -525,6 +556,7 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
         "relevo": lambda: seccion_relevo(leer(RELEVO)),
         "nube": lambda: seccion_nube(oracle),
         "salida": lambda: seccion_salida(rol),
+        "recuerdos": lambda: seccion_recuerdos(agente, tarea, recuerdos),
     }
     partes, puestas, recortadas = [cabecera], [], []
     usado = len(cabecera)
@@ -549,7 +581,8 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
             "caracteres": len(salida), "compacto": compacto}
 
 
-def texto(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, raiz=None, excluir=()):
+def texto(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, raiz=None, excluir=(),
+          agente=None):
     """Atajo con el disco del repo (lo que usan el orquestador y la CLI). Nunca lanza: sin
     repo o con un error, devuelve ""."""
     raiz = raiz or RAIZ
@@ -563,7 +596,7 @@ def texto(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, raiz=None, exclui
 
     try:
         return construir(rol, area, tarea, max_chars, leer, lambda r: os.path.exists(os.path.join(raiz, r)),
-                         excluir, oracle=_oracle_del_disco())["texto"]
+                         excluir, oracle=_oracle_del_disco(), agente=agente)["texto"]
     except Exception:
         return ""
 
@@ -578,6 +611,8 @@ def main(argv=None, salida=None):
     ap.add_argument("--max", type=int, default=MAX_POR_DEFECTO)
     ap.add_argument("--excluir", default="", help="secciones a omitir: reglas,protocolo,herramientas,nube,area,relevo")
     ap.add_argument("--raiz", default=None, help=argparse.SUPPRESS)
+    ap.add_argument("--agente", default=os.environ.get("STARSEED_AGENTE", ""),
+                    help="añade la sección «Recuerdos de este agente» (cápsulas Memvid)")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
     raiz = a.raiz or RAIZ
@@ -590,7 +625,8 @@ def main(argv=None, salida=None):
             return None
 
     d = construir(a.rol, a.area, a.tarea, a.max, leer, lambda r: os.path.exists(os.path.join(raiz, r)),
-                  tuple(x.strip() for x in a.excluir.split(",") if x.strip()), oracle=_oracle_del_disco())
+                  tuple(x.strip() for x in a.excluir.split(",") if x.strip()), oracle=_oracle_del_disco(),
+                  agente=a.agente)
     salida.write((json.dumps(d, ensure_ascii=False, indent=1) if a.json else d["texto"]) + "\n")
     return 0
 
