@@ -79,6 +79,10 @@ function MallaNeuronasEngine() {
   // (namespace `ia.*`, disjunto de `astraura.*`) sobre el MISMO mesh
   // compartido — coexisten sin pisarse.
   useMotorPerezoso(() => import("@/lib/network/ia-por-malla").then((m) => m.iniciarServidorIaPorMalla));
+  // (Ola 1017A · F) Rol SERVIDOR del relé `capacidad.*`: admisión con los topes
+  // de préstamo (oferta), cola de espera (máx. 4), cancelación y anotación de
+  // cada préstamo. Hermano de los relés `ia.*`/`astraura.*`: mismo mesh compartido.
+  useMotorPerezoso(() => import("@/lib/recursos/servir-capacidades-malla").then((m) => m.iniciarServidorCapacidadesMalla));
   // (Ola 369) Motor de ARCHIVOS por la malla: namespace `archivo.*`, mismo
   // mesh compartido de siempre. La tarjeta de "aceptar/rechazar" de una
   // oferta entrante se pinta aquí (global) para que llegue con el panel
