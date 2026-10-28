@@ -269,8 +269,8 @@ export function modelosDeColibri(json: unknown): RequisitosModelo[] {
         const capacidades = capacidadesDeCapaColibri(capa, modelo);
         if (capacidades.length === 0) continue;
 
-        // Bits: 4 (int4) u 8 (int8) según el modelo. Buscar en el texto (modelo, repo_hf, id).
-        const textoBits = [id, modelo, c.repo_hf].filter(Boolean).join(" ").toLowerCase();
+        // Bits: 4 (int4) u 8 (int8) según el modelo. Buscar en el texto (modelo, repo_hf, id, medida).
+        const textoBits = [id, modelo, c.repo_hf, c.medida].filter(Boolean).join(" ").toLowerCase();
         const bits: Bits = textoBits.includes("int8") || textoBits.includes("int 8") ? 8 : 4;
 
         const discoGb = esPositivo(c.disco_gb) ? arribaCent(c.disco_gb) : null;

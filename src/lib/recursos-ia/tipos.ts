@@ -22,7 +22,8 @@ export type Capacidad =
     | "vision" // entender imágenes
     | "embeddings" // memoria/búsqueda semántica
     | "video"
-    | "3d";
+    | "3d"
+    | "codigo"; // generación y comprensión de código
 
 export const CAPACIDADES: readonly Capacidad[] = [
     "texto",
@@ -35,6 +36,7 @@ export const CAPACIDADES: readonly Capacidad[] = [
     "embeddings",
     "video",
     "3d",
+    "codigo",
 ] as const;
 
 export const NOMBRE_CAPACIDAD: Record<Capacidad, string> = {
@@ -48,6 +50,7 @@ export const NOMBRE_CAPACIDAD: Record<Capacidad, string> = {
     embeddings: "Memoria semántica",
     video: "Vídeo",
     "3d": "3D",
+    codigo: "Código",
 };
 
 /**
