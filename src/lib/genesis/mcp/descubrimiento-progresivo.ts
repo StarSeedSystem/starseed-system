@@ -29,7 +29,9 @@ const PALABRAS_VACIAS = new Set([
 
 export function tokenizar(texto: string): string[] {
   // Separar camelCase antes de minúsculas: "tareasListar" -> ["tareas", "Listar"]
-  const conCamel = texto.replace(/([A-Z]+)(?=[A-Z][a-z]|[^A-Z]|$)|([a-z\d]+)(?=[A-Z])/g, "$1$2_");
+  const conCamel = texto
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2");
   // Normalizar tildes (NFD), minúsculas
   const normalizado = conCamel.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   // Partir por todo lo que no sea [a-z0-9]
