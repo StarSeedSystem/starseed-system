@@ -43,4 +43,5 @@ export function registrarAtomosPropios(): void {
  */
 export const VISTAS_COMPONENTE: Record<string, () => Promise<{ default: ComponentType<VistaProps> }>> = {
   escena3d: () => import("@/components/protomolecula/atomo-escena3d"),
+  "fondo-shader": () => import("@/components/protomolecula/atomo-fondo-shader"),
 };
