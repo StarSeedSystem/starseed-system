@@ -32,6 +32,13 @@ class CupoNube(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("vence", motivo)
 
+    def test_cupo_con_vence_ilegible_no_lanza(self):
+        # El vence de la nube es una fecha ISO con zona; una cifra suelta no se puede leer.
+        ok, motivo, hoy = L.cupo_nube({"restante_usd": 250, "vence": "1763769600.0"}, AHORA, 0)
+        self.assertFalse(ok)
+        self.assertIn("vence", motivo)
+        self.assertEqual(hoy, 0)
+
     def test_cupo_por_debajo_de_la_reserva(self):
         ok, motivo, _ = L.cupo_nube(credito(restante=10), AHORA, 0)
         self.assertFalse(ok)
@@ -41,6 +48,15 @@ class CupoNube(unittest.TestCase):
         ok, motivo, hoy = L.cupo_nube(credito(), AHORA, 3, max_vivas=3)
         self.assertFalse(ok)
         self.assertIn("vivas", motivo)
+        self.assertGreater(hoy, 0)
+
+    def test_cupo_tope_por_defecto_y_hueco_de_una(self):
+        # El tope por defecto es 3: con 3 no cabe y con 2 queda un hueco.
+        sin_hueco = L.cupo_nube(credito(), AHORA, 3)
+        self.assertFalse(sin_hueco[0])
+        self.assertTrue(sin_hueco[1].startswith("ya hay 3"))
+        ok, _, hoy = L.cupo_nube(credito(), AHORA, 2)
+        self.assertTrue(ok)
         self.assertGreater(hoy, 0)
 
     def test_presupuesto_con_13_dias(self):
@@ -105,6 +121,20 @@ class Seguir(unittest.TestCase):
     def test_seguir_devuelve_pasada_la_gracia(self):
         reg = _registro("A", t=AHORA - 9 * 3600)
         self.assertEqual(L.seguir(reg, set(), {"A": PRESTADA}, AHORA, gracia_h=8), {"A": "devolver"})
+
+    def test_seguir_gracia_exacta_aun_espera(self):
+        # Justo en el límite todavía no se devuelve: la gracia se pasa por exceso.
+        reg = _registro("A", t=AHORA - 8 * 3600)
+        self.assertEqual(L.seguir(reg, set(), {"A": PRESTADA}, AHORA, gracia_h=8), {"A": "esperar"})
+
+    @unittest.expectedFailure
+    def test_seguir_con_fecha_ilegible_no_juzga_devolver(self):
+        """FALLO REAL en main: `seguir` hace `float(s["t"])` sin red y lanza ValueError con una `t`
+        corrupta; debe tolerarla como hace `_t` y responder «esperar», no tumbar el seguimiento.
+        Cuando se arregle, este decorador sobrará y la prueba pasará en verde."""
+        reg = _registro("A")
+        reg["sesiones"][0]["t"] = "ayer sin formato"
+        self.assertEqual(L.seguir(reg, set(), {"A": PRESTADA}, AHORA), {"A": "esperar"})
 
     def test_seguir_olvida_lo_que_ya_no_esta_prestada(self):
         reg = _registro("A")
