@@ -8,19 +8,21 @@
  * dashboard: sin título, dictado ni historial, pero con «Añadir herramienta», parámetros y pendientes
  * (un widget vacío sin forma de llenarlo sería un callejón sin salida).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { registrarAtomosPropios } from "@/lib/protomolecula/atomos";
 import type { Controlador } from "@/lib/protomolecula/controlador";
 import { AVISO_SALUD } from "@/lib/protomolecula/permisos";
 import { candidatosDe } from "@/lib/protomolecula/registro-atomos";
 import type { EstadoGuardado } from "@/lib/protomolecula/sesion-molecula";
-import type { Ambito, Autor } from "@/lib/protomolecula/tipos";
+import type { Ambito, Autor, ValorParametro } from "@/lib/protomolecula/tipos";
 
 import { BarraDictado } from "./barra-dictado";
 import { PanelActividad, hayLecturaSalud } from "./panel-actividad";
 import { AnadirHerramienta, ListaPendientes } from "./panel-estructura";
 import { PanelParametros } from "./panel-parametros";
 import { useEstadoControl, useMolecula } from "./use-molecula";
+import { DescargaExporte, idOperacion, VistasVivas, type Exporte } from "./vistas-vivas";
 
 const AUTOR_PANEL: Autor = { tipo: "persona", id: "panel" };
 
@@ -39,6 +41,13 @@ export interface PanelProtomoleculaProps {
 export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, compacto = false, guardado }: PanelProtomoleculaProps) {
   const estado = useEstadoControl(ctl);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [exporte, setExporte] = useState<Exporte | null>(null);
+  useEffect(() => { registrarAtomosPropios(); }, []);
+  /** La persona movió un control DENTRO de la herramienta: cambio exacto por su propia mano. */
+  const moverDe = (atomoId: string) => (parametroId: string, valor: ValorParametro) => {
+    const r = ctl.mover({ id: idOperacion(), objetivo: { atomoId, parametroId }, accion: { tipo: "exacta", valor }, autor, origen: "mano", t: Date.now() });
+    setAviso(r.ok ? null : r.motivo);
+  };
   if (!estado) return null;
 
   return (
@@ -60,6 +69,8 @@ export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, comp
         autor={autor}
         alOperar={(op) => { const r = ctl.mover(op); setAviso(r.ok ? null : r.motivo); }}
       />
+      <VistasVivas activos={estado.molecula.atomos} valores={estado.molecula.valores} alCambioDe={moverDe} alExportar={(formato, datos) => setExporte({ formato, datos })} />
+      {exporte && <DescargaExporte exporte={exporte} />}
       {aviso && <p role="status" className="text-xs">{aviso}</p>}
       {hayLecturaSalud(estado) && <p role="note" className="text-xs text-muted-foreground">{AVISO_SALUD}</p>}
       {!compacto && <PanelActividad controlador={ctl} estado={estado} autor={autor} />}
